@@ -21,3 +21,10 @@ For new games we're probably going to use: HTML5, Canvas, Typescript with a publ
 No more than one backend server per game project.
 
 Be sure to always judiciously add gitignore files
+
+## Documentation
+
+- [`/games/README.md`](./games/README.md) - Complete overview of all 11 game projects with current status
+- [`/docs/collaboration-guide.md`](./docs/collaboration-guide.md) - Guide for AI assistants and collaborators
+- [`/docs/development-patterns.md`](./docs/development-patterns.md) - Preferred coding patterns and architectures
+- [`/docs/technical-setup.md`](./docs/technical-setup.md) - Environment setup and development workflows
