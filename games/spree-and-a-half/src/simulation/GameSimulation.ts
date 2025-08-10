@@ -1,9 +1,11 @@
 import { Vector2 } from '../core/Vector2.js';
 import { Sword } from '../entities/Sword.js';
+import { Enemy } from '../entities/Enemy.js';
 
 // Game simulation - manages all game state and logic
 export class GameSimulation {
   public swords: Sword[] = [];
+  public enemies: Enemy[] = [];
   public mousePosition: Vector2 = new Vector2(400, 300); // Default center
   public platforms: Platform[] = [];
   public swarmSize: number = 1; // Start with 1 sword
@@ -13,9 +15,14 @@ export class GameSimulation {
   public worldWidth: number = 2000;
   public worldHeight: number = 800;
 
+  // Enemy spawning
+  private lastEnemySpawn: number = 0;
+  private enemySpawnInterval: number = 3000; // 3 seconds between spawns
+
   constructor(canvasWidth: number, canvasHeight: number) {
     this.initializePlatforms();
     this.initializeSwarm(canvasWidth, canvasHeight);
+    this.spawnInitialEnemies();
   }
 
   // Initialize starting sword(s)
@@ -46,14 +53,29 @@ export class GameSimulation {
   // Main simulation update
   update(): void {
     this.updateSwarm();
+    this.updateEnemies();
     this.updateCamera();
     this.handlePlatformCollisions();
+    this.spawnEnemies();
   }
 
   // Update all swords in the swarm
   private updateSwarm(): void {
     for (const sword of this.swords) {
       sword.update(this.mousePosition, this.swords);
+    }
+  }
+
+  // Update all enemies
+  private updateEnemies(): void {
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const enemy = this.enemies[i];
+      enemy.update();
+      
+      // Remove dead enemies
+      if (!enemy.isAlive) {
+        this.enemies.splice(i, 1);
+      }
     }
   }
 
@@ -71,6 +93,30 @@ export class GameSimulation {
     // Keep camera in world bounds
     this.camera.x = Math.max(0, Math.min(this.camera.x, this.worldWidth - 800));
     this.camera.y = 0; // Fixed Y for side-scroller
+  }
+
+  // Spawn initial enemies for testing
+  private spawnInitialEnemies(): void {
+    // Spawn a few enemies across the world
+    this.enemies.push(new Enemy(600, 300));
+    this.enemies.push(new Enemy(1200, 400));
+    this.enemies.push(new Enemy(300, 250));
+  }
+
+  // Spawn new enemies over time
+  private spawnEnemies(): void {
+    const currentTime = Date.now();
+    
+    if (currentTime - this.lastEnemySpawn > this.enemySpawnInterval) {
+      // Spawn enemy ahead of the camera/swarm
+      const spawnX = this.camera.x + 800 + Math.random() * 400; // Off-screen right
+      const spawnY = 200 + Math.random() * 400; // Random height
+      
+      this.enemies.push(new Enemy(spawnX, spawnY));
+      this.lastEnemySpawn = currentTime;
+      
+      console.log(`👹 Spawned enemy at ${Math.round(spawnX)}, ${Math.round(spawnY)}`);
+    }
   }
 
   // Get center position of the swarm

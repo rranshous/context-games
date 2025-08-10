@@ -1,6 +1,8 @@
 import { GameSimulation, Platform } from '../simulation/GameSimulation.js';
 import { Sword } from '../entities/Sword.js';
+import { Enemy } from '../entities/Enemy.js';
 import { SwordAssets } from '../assets/SwordAssets.js';
+import { EnemyAssets } from '../assets/EnemyAssets.js';
 
 // Renderer - handles all visual presentation
 export class GameRenderer {
@@ -28,6 +30,7 @@ export class GameRenderer {
     
     // Render world elements
     this.renderPlatforms(simulation.platforms);
+    this.renderEnemies(simulation.enemies);
     this.renderSwords(simulation.swords);
     this.renderMouseCursor(simulation.mousePosition);
     
@@ -39,7 +42,7 @@ export class GameRenderer {
   }
 
   private clearCanvas(): void {
-    this.ctx.fillStyle = '#0a0a0a'; // Dark background
+    this.ctx.fillStyle = '#00010D'; // Dark blue background
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
@@ -53,6 +56,60 @@ export class GameRenderer {
       this.ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
       this.ctx.strokeRect(platform.x, platform.y, platform.width, platform.height);
     }
+  }
+
+  // Render all enemies
+  private renderEnemies(enemies: Enemy[]): void {
+    for (let i = 0; i < enemies.length; i++) {
+      this.renderEnemy(enemies[i], i);
+    }
+  }
+
+  // Render individual enemy
+  private renderEnemy(enemy: Enemy, _index: number): void {
+    if (!enemy.isAlive) return;
+    
+    const pos = enemy.position;
+
+    // Try to render sprite first, fallback to simple shape
+    const spriteRendered = EnemyAssets.drawBasicEnemy(
+      this.ctx, 
+      pos.x, 
+      pos.y
+      // No rotation for enemies (they face forward)
+    );
+
+    // Fallback to simple shape if sprite fails
+    if (!spriteRendered) {
+      this.renderSimpleEnemy(enemy);
+    }
+  }
+
+  // Fallback simple enemy rendering (for when sprites aren't loaded)
+  private renderSimpleEnemy(enemy: Enemy): void {
+    const ctx = this.ctx;
+    const pos = enemy.position;
+
+    ctx.save();
+    
+    // Draw enemy as a simple red circle
+    ctx.fillStyle = '#ff4444'; // Red enemy
+    ctx.strokeStyle = '#cc0000'; // Darker red outline
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, enemy.size/2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Add simple eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(pos.x - 6, pos.y - 4, 2, 0, Math.PI * 2);
+    ctx.arc(pos.x + 6, pos.y - 4, 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
   }
 
   // Render all swords in the swarm

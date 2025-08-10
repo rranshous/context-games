@@ -2,6 +2,7 @@ import { GameSimulation } from './simulation/GameSimulation.js';
 import { GameRenderer } from './presentation/GameRenderer.js';
 import { InputHandler } from './input/InputHandler.js';
 import { SwordAssets } from './assets/SwordAssets.js';
+import { EnemyAssets } from './assets/EnemyAssets.js';
 
 // Main game class - coordinates simulation, rendering, and input
 export class Game {
@@ -31,7 +32,10 @@ export class Game {
   // Load game assets
   private async loadAssets(): Promise<void> {
     try {
-      await SwordAssets.loadAssets();
+      await Promise.all([
+        SwordAssets.loadAssets(),
+        EnemyAssets.loadAssets()
+      ]);
       this.assetsLoaded = true;
       console.log('✅ All assets loaded successfully');
     } catch (error) {
@@ -140,11 +144,12 @@ export class Game {
     ctx.fillStyle = '#00ff00';
     ctx.font = '24px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Loading Sword Sprites...', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('Loading Sprites...', canvas.width / 2, canvas.height / 2);
     
     ctx.fillStyle = '#ffaa00';
     ctx.font = '16px monospace';
-    ctx.fillText('(Fallback shapes will be used if loading fails)', canvas.width / 2, canvas.height / 2 + 40);
+    ctx.fillText('(Swords & Enemies)', canvas.width / 2, canvas.height / 2 + 30);
+    ctx.fillText('(Fallback shapes will be used if loading fails)', canvas.width / 2, canvas.height / 2 + 50);
     
     ctx.restore();
   }
