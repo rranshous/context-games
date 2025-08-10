@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spree-and-a-Half - Swarm Sword Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #444;
+            background: #000;
+            border-radius: 8px;
+            image-rendering: pixelated; /* For crisp pixel art */
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff00;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #00ff00;
+            font-size: 14px;
+            max-width: 300px;
+        }
+        
+        #debug {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #ffaa00;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ffaa00;
+            font-size: 12px;
+            font-family: monospace;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="1024" height="768"></canvas>
+    
+    <div id="controls">
+        <div><strong>🗡️ Spree-and-a-Half</strong></div>
+        <div style="margin-top: 10px;">
+            <strong>Controls:</strong><br>
+            • Mouse: Direct swarm<br>
+            • WASD/Arrows: Fine control<br>
+            • Shift: Tight formation<br>
+            • Space: Spread out<br>
+            • Ctrl: Attack mode<br>
+        </div>
+        <div style="margin-top: 10px;">
+            <strong>Goal:</strong><br>
+            • Start with 1 sword<br>
+            • Defeat enemies to collect more<br>
+            • Build your swarm!<br>
+        </div>
+    </div>
+    
+    <div id="debug">
+        <div><strong>Debug Info:</strong></div>
+        <div id="debugContent">Loading...</div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
