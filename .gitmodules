@@ -1,0 +1,33 @@
+[submodule "games/raceon"]
+	path = games/raceon
+	url = git@github.com:rranshous/raceon.git
+[submodule "games/darkhall"]
+	path = games/darkhall
+	url = git@github.com:rranshous/darkhall.git
+[submodule "games/sparkly-sim"]
+	path = games/sparkly-sim
+	url = git@github.com:rranshous/sparkly-sim.git
+[submodule "games/diplomatic-waters"]
+	path = games/diplomatic-waters
+	url = git@github.com:rranshous/diplomatic-waters.git
+[submodule "games/world-weaver"]
+	path = games/world-weaver
+	url = git@github.com:rranshous/world-weaver.git
+[submodule "games/wallverine"]
+	path = games/wallverine
+	url = git@github.com:rranshous/wallverine.git
+[submodule "games/stacksonstacks"]
+	path = games/stacksonstacks
+	url = git@github.com:rranshous/stacksonstacks.git
+[submodule "games/dinosaur-dance"]
+	path = games/dinosaur-dance
+	url = git@github.com:rranshous/dinosaur-dance.git
+[submodule "games/all-around-you"]
+	path = games/all-around-you
+	url = git@github.com:rranshous/all-around-you.git
+[submodule "games/ai-orchestration-game"]
+	path = games/ai-orchestration-game
+	url = git@github.com:rranshous/ai_orchestration_game.git
+[submodule "games/hard-find-metatrial"]
+	path = games/hard-find-metatrial
+	url = git@github.com:rranshous/hard-find-metatrial.git
