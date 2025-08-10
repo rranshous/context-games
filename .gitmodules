@@ -31,3 +31,6 @@
 [submodule "games/hard-find-metatrial"]
 	path = games/hard-find-metatrial
 	url = git@github.com:rranshous/hard-find-metatrial.git
+[submodule "games/fastfall"]
+	path = games/fastfall
+	url = git@github.com:rranshous/fastfall.git

@@ -41,6 +41,13 @@ Pre-AI collaboration experiment exploring WASM-based agent architectures. Each a
 🤖 **AI:** None  
 ✨ **Unique:** WASM-based agent system, modular entity architecture
 
+### [Fastfall](./fastfall/)
+High-speed first-person perspective falling game where you jump from a hot air balloon and navigate through increasingly complex platforms as you plummet toward the ground. Full viewport POV experience with 3D-like scaling and atmospheric progression.  
+🎯 **Status:** Just started development  
+🎮 **Published:** Not yet  
+🤖 **AI:** None  
+✨ **Unique:** Immersive first-person freefall experience, 3D-like perspective using 2D canvas, atmospheric sky-to-ground progression, arcade-style wind physics
+
 ## Interactive Experiences 🎨
 
 ### [Wallverine](./wallverine/)
