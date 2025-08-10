@@ -7,7 +7,7 @@ This directory contains all game development projects as submodules. Projects ex
 ### [RaceOn](./raceon/)
 Desert combat racing game that evolved from closed-track racing to open-world water bandit hunting. Good foundation for forking and potential base for AI-driven game making experiments.  
 🎯 **Status:** Foundation ready for expansion  
-🎮 **Published:** [itch.io](https://rranshous.itch.io/raceon) (Aug 9, 2025)  
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/raceon) (Aug 9, 2025)  
 🤖 **AI:** None (potential future integration)  
 🔧 **Next:** Generalize implementation for easy addition of new enemy types and behaviors  
 ✨ **Unique:** Good separation of concerns, realistic physics, configuration-driven architecture
@@ -15,7 +15,7 @@ Desert combat racing game that evolved from closed-track racing to open-world wa
 ### [Dark Hall](./darkhall/)
 Horror maze game created in collaboration with step-son. Excellent separation of simulation, presentation, and inputs - a preferred pattern for future game development.  
 🎯 **Status:** Playable core mechanics complete  
-🎮 **Published:** [itch.io](https://rranshous.itch.io/darkhall) (Aug 9, 2025)  
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/darkhall) (Aug 9, 2025)  
 🤖 **AI:** None  
 🔧 **Next:** Add intro and game ending screens  
 ✨ **Unique:** Clean sim/presentation/input separation, collaborative family development, triple-layer lighting system
@@ -23,7 +23,7 @@ Horror maze game created in collaboration with step-son. Excellent separation of
 ### [Stacksonstacks](./stacksonstacks/)
 Deterministic HTML/element-based system designed for AI-driven game development. Focused on helping kids gain experience collaborating with AI in game creation.  
 🎯 **Status:** Good foundation, ready to continue development  
-🎮 **Published:** [itch.io](https://rranshous.itch.io/stacksonstacks) (Jun 21, 2025)  
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/stacksonstacks) (Jun 21, 2025)  
 🤖 **AI:** 🎯 Planned (AI-driven game development collaboration)  
 ✨ **Unique:** Deterministic HTML/element system, designed for AI collaboration, kid-friendly development experience
 
@@ -53,14 +53,14 @@ High-speed first-person perspective falling game where you jump from a hot air b
 ### [Wallverine](./wallverine/)
 Voice-controlled wall animation system built for girlfriend's projector. Works well as a voice-powered projection experience. Possibly a finished product, though always room for enhancement.  
 🎯 **Status:** Functional, potentially complete  
-🎮 **Published:** [itch.io](https://rranshous.itch.io/wallver) (Jun 21, 2025)  
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/wallver) (Jun 21, 2025)  
 🤖 **AI:** None (uses Web Speech API)  
 ✨ **Unique:** Purpose-built for projector setup, reliable voice control, wall-scale interactive art
 
 ### [Dinosaur Dance](./dinosaur-dance/)
 Authentic fun exploration created through collaborative RP during development. Fun to play as both game and experience - step-son enjoyed playing on his phone.  
 🎯 **Status:** ~Complete  
-🎮 **Published:** [itch.io](https://rranshous.itch.io/dinosaur-dance-extravaganza) (May 31, 2025)  
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/dinosaur-dance-extravaganza) (May 31, 2025)  
 🤖 **AI:** None (uses Web Speech API)  
 ✨ **Unique:** Authentic exploration through RP development, voice-controlled creature formations, cross-platform enjoyment
 

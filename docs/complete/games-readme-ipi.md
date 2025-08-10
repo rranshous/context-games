@@ -71,11 +71,11 @@
 
 ### Phase 2 Status: ✅ Complete
 **itch.io Survey Complete:** ✅ 5 games published:
-- RaceOn: https://rranshous.itch.io/raceon
-- DarkHall: https://rranshous.itch.io/darkhall
-- stacksonstacks: https://rranshous.itch.io/stacksonstacks
-- Wallverine: https://rranshous.itch.io/wallver
-- Dinosaur Dance Extravaganza: https://rranshous.itch.io/dinosaur-dance-extravaganza
+- RaceOn: https://codeflaw.itch.io/raceon
+- DarkHall: https://codeflaw.itch.io/darkhall
+- stacksonstacks: https://codeflaw.itch.io/stacksonstacks
+- Wallverine: https://codeflaw.itch.io/wallver
+- Dinosaur Dance Extravaganza: https://codeflaw.itch.io/dinosaur-dance-extravaganza
 
 **Research Complete:** ✅ All 11 projects documented
 **Completed:** raceon ✅, darkhall ✅, sparkly-sim ✅, diplomatic-waters ✅, world-weaver ✅, wallverine ✅, stacksonstacks ✅, dinosaur-dance ✅, all-around-you ✅, ai-orchestration-game ✅, sacred-scribe ✅
