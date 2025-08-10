@@ -44,7 +44,8 @@ export class SwordAssets {
     x: number, 
     y: number, 
     rotation?: number,
-    scale: number = 0.1  // Doubled again (463px -> ~46px height)
+    maxWidth: number = 64,   // Fixed maximum width regardless of source sprite
+    maxHeight: number = 112   // Fixed maximum height regardless of source sprite
   ): boolean {
     const sheet = this.getSwordSheet();
     if (!sheet) {
@@ -52,16 +53,31 @@ export class SwordAssets {
       return false;
     }
 
-    // Calculate scaled size - maintain aspect ratio
-    const baseWidth = 130;
-    const baseHeight = 463;
-    const scaledWidth = baseWidth * scale;
-    const scaledHeight = baseHeight * scale;
+    // Get the sprite definition to know source dimensions
+    const sprite = sheet.getSprite('basic_sword');
+    if (!sprite) {
+      console.warn('Basic sword sprite not found');
+      return false;
+    }
+
+    // Calculate scale to fit within max dimensions while preserving aspect ratio
+    const sourceWidth = sprite.width;
+    const sourceHeight = sprite.height;
+    
+    const scaleWidth = maxWidth / sourceWidth;
+    const scaleHeight = maxHeight / sourceHeight;
+    
+    // Use the smaller scale to ensure both dimensions fit within limits
+    const scale = Math.min(scaleWidth, scaleHeight);
+    
+    // Calculate final dimensions (maintaining aspect ratio)
+    const finalWidth = sourceWidth * scale;
+    const finalHeight = sourceHeight * scale;
     
     // Add 90 degrees clockwise rotation (π/2 radians)
     const adjustedRotation = (rotation ?? 0) + Math.PI / 2;
     
-    return sheet.drawSprite(ctx, 'basic_sword', x, y, scaledWidth, scaledHeight, adjustedRotation);
+    return sheet.drawSprite(ctx, 'basic_sword', x, y, finalWidth, finalHeight, adjustedRotation);
   }
 
   // Check if sword assets are ready
