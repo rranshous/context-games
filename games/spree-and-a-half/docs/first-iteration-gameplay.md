@@ -41,29 +41,54 @@
 
 ## Technical Milestones - First Iteration
 
-### Phase 1: Single Sword Foundation
-- [ ] Basic side-scrolling environment with platforms
-- [ ] Single sword that follows mouse cursor
-- [ ] Simple collision detection (sword vs platforms)
-- [ ] Basic sprite rendering system
+### Phase 1: Single Sword Foundation ✅ COMPLETE
+- [x] Basic side-scrolling environment with platforms
+- [x] Single sword that follows mouse cursor
+- [x] Simple collision detection (sword vs platforms)
+- [x] Basic swarm flocking behavior (boids algorithm)
+- [x] Multiple swords following mouse with basic flocking
+- [x] Swarm physics (avoiding platform collisions)
 
-### Phase 2: Swarm Mechanics
-- [ ] Multiple swords following mouse with basic flocking
-- [ ] Sword collection system (pickup new swords)
-- [ ] Formation controls (keyboard modifiers)
-- [ ] Swarm physics (avoiding platform collisions)
+### Phase 2: Sprite Rendering System
+- [ ] Create sprite sheet loading and clipping system
+- [ ] Extract individual sword sprites from composite images
+- [ ] Load and display single sword sprite from sheet
+- [ ] Replace simple shapes with actual sword sprites
+- [ ] Sprite rotation based on movement direction
 
-### Phase 3: Combat Foundation
+### Phase 3: Basic Enemy System
+- [ ] Simple enemy entity class
 - [ ] Basic enemy spawning system
-- [ ] Simple sword-vs-enemy collision detection
-- [ ] Enemy elimination and sword drops
-- [ ] Health/damage system for swarm
+- [ ] Enemy AI (simple movement patterns)
+- [ ] Enemy rendering with sprite graphics
 
-### Phase 4: Polish & Feel
+### Phase 4: Combat Foundation
+- [ ] Sword-vs-enemy collision detection
+- [ ] Enemy elimination mechanics
+- [ ] Basic damage/health system for enemies
+
+### Phase 5: Sword Collection & Drops
+- [ ] Sword drop system when enemies are defeated
+- [ ] Pickup mechanics for new swords
+- [ ] Visual feedback for sword collection
+- [ ] Swarm growth through combat
+
+### Phase 6: Sword Variety & Types
+- [ ] Multiple sword types from different drops
+- [ ] Visual variety for different swords in swarm
+- [ ] Different sword behaviors/stats (optional)
+
+### Phase 7: Enhanced Swarm Controls
+- [ ] Formation controls (keyboard modifiers)
+- [ ] Attack mode vs defensive positioning
+- [ ] Swarm responsiveness tuning
+- [ ] Formation behavior refinements
+
+### Phase 8: Polish & Feel
 - [ ] Satisfying visual feedback for swarm movement
 - [ ] Combat impact effects
-- [ ] Sound integration (if time permits)
 - [ ] Performance optimization for larger swarms
+- [ ] Sound integration (if time permits)
 
 ## Key Questions to Answer Through Play
 

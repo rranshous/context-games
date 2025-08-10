@@ -43,8 +43,7 @@ export class InputHandler {
       }
       
       // Prevent default for game keys
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 
-           'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {
+      if (['Space'].includes(event.code)) {
         event.preventDefault();
       }
     });
@@ -70,13 +69,7 @@ export class InputHandler {
 
   // Update method to handle continuous input
   update(): void {
-    // Handle movement keys
-    // Note: For swarm control, we might use these for formation modifiers
-    // rather than direct movement
-    
-    // Example keyboard modifiers for swarm behavior:
-    // SHIFT = tight formation
-    // SPACE = spread out
-    // CTRL = attack mode
+    // Currently focused only on mouse-based swarm control
+    // Future: keyboard modifiers for formation control can be added here
   }
 }
