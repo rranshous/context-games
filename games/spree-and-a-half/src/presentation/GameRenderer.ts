@@ -1,5 +1,6 @@
 import { GameSimulation, Platform } from '../simulation/GameSimulation.js';
 import { Sword } from '../entities/Sword.js';
+import { SwordAssets } from '../assets/SwordAssets.js';
 
 // Renderer - handles all visual presentation
 export class GameRenderer {
@@ -63,6 +64,44 @@ export class GameRenderer {
 
   // Render individual sword
   private renderSword(sword: Sword, index: number): void {
+    const pos = sword.position;
+    const vel = sword.velocity;
+
+    // Calculate rotation based on velocity
+    let rotation = 0;
+    if (vel.magnitude() > 0.1) {
+      rotation = Math.atan2(vel.y, vel.x);
+    }
+
+    // Try to render sprite first, fallback to simple shape
+    const spriteRendered = SwordAssets.drawBasicSword(
+      this.ctx, 
+      pos.x, 
+      pos.y, 
+      rotation
+      // Use default scale (0.01) from SwordAssets
+    );
+
+    // Fallback to simple shape if sprite fails
+    if (!spriteRendered) {
+      this.renderSimpleSword(sword, index);
+    }
+
+    // Add leader indicator for first sword
+    if (index === 0) {
+      this.ctx.save();
+      this.ctx.strokeStyle = '#ffaa00';
+      this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = 0.7;
+      this.ctx.beginPath();
+      this.ctx.arc(pos.x, pos.y, sword.size/2 + 4, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+  }
+
+  // Fallback simple sword rendering (for when sprites aren't loaded)
+  private renderSimpleSword(sword: Sword, _index: number): void {
     const ctx = this.ctx;
     const pos = sword.position;
     const vel = sword.velocity;
@@ -76,12 +115,14 @@ export class GameRenderer {
       ctx.rotate(angle);
     }
 
-    // Draw sword as a simple shape for now
+    // Draw sword as a simple shape (fallback)
     // Main blade
     ctx.fillStyle = '#c0c0c0'; // Silver blade
     ctx.fillRect(-12, -2, 20, 4);
     
     // Sword tip
+    ctx.strokeStyle = '#a0a0a0';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(8, 0);
     ctx.lineTo(12, 0);
@@ -94,16 +135,6 @@ export class GameRenderer {
     // Guard
     ctx.fillStyle = '#444444';
     ctx.fillRect(-8, -3, 2, 6);
-
-    // Add some visual variety based on index
-    if (index === 0) {
-      // Mark the first sword as special (leader)
-      ctx.strokeStyle = '#ffaa00';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, sword.size/2 + 2, 0, Math.PI * 2);
-      ctx.stroke();
-    }
 
     ctx.restore();
   }

@@ -1,6 +1,7 @@
 import { GameSimulation } from './simulation/GameSimulation.js';
 import { GameRenderer } from './presentation/GameRenderer.js';
 import { InputHandler } from './input/InputHandler.js';
+import { SwordAssets } from './assets/SwordAssets.js';
 
 // Main game class - coordinates simulation, rendering, and input
 export class Game {
@@ -10,6 +11,7 @@ export class Game {
   private lastTime: number = 0;
   private isRunning: boolean = false;
   private debugMode: boolean = false;
+  private assetsLoaded: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
     // Initialize core systems following Dark Hall pattern
@@ -20,7 +22,23 @@ export class Game {
     // Set up input callbacks
     this.setupInputHandlers();
     
-    console.log('🗡️ Spree-and-a-Half initialized - Single sword to swarm experiment');
+    console.log('🗡️ Spree-and-a-Half initialized - Loading assets...');
+    
+    // Load assets before starting
+    this.loadAssets();
+  }
+
+  // Load game assets
+  private async loadAssets(): Promise<void> {
+    try {
+      await SwordAssets.loadAssets();
+      this.assetsLoaded = true;
+      console.log('✅ All assets loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load assets:', error);
+      // Continue with fallback rendering
+      this.assetsLoaded = false;
+    }
   }
 
   private setupInputHandlers(): void {
@@ -100,8 +118,34 @@ export class Game {
   private render(): void {
     this.renderer.render(this.simulation);
     
+    // Show loading status if assets aren't ready
+    if (!this.assetsLoaded) {
+      this.renderLoadingStatus();
+    }
+    
     if (this.debugMode) {
       this.renderer.renderDebug(this.simulation);
     }
+  }
+
+  // Show asset loading status
+  private renderLoadingStatus(): void {
+    const canvas = this.renderer['canvas']; // Access private canvas
+    const ctx = this.renderer['ctx']; // Access private context
+    
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Loading Sword Sprites...', canvas.width / 2, canvas.height / 2);
+    
+    ctx.fillStyle = '#ffaa00';
+    ctx.font = '16px monospace';
+    ctx.fillText('(Fallback shapes will be used if loading fails)', canvas.width / 2, canvas.height / 2 + 40);
+    
+    ctx.restore();
   }
 }
