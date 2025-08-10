@@ -23,6 +23,7 @@
 - Document: Simple list format for easy scanning
 
 ### Phase 2: Systematic Research & Documentation
+- **First:** Survey itch.io to identify which games are already published
 - Go through each game project one by one in order
 - For each project, research and document:
   - Current status (published, active dev, MVP complete, experimental)
@@ -42,7 +43,18 @@
 ### Phase 1 Status: ✅ Complete
 - [x] Replace current README with minimal version
 - [x] Test that all relative links work correctly
-- [ ] Commit minimal README as baseline
+- [x] Commit minimal README as baseline
+
+### Phase 2 Status: ✅ Complete
+**itch.io Survey Complete:** ✅ 5 games published:
+- RaceOn: https://rranshous.itch.io/raceon
+- DarkHall: https://rranshous.itch.io/darkhall
+- stacksonstacks: https://rranshous.itch.io/stacksonstacks
+- Wallverine: https://rranshous.itch.io/wallver
+- Dinosaur Dance Extravaganza: https://rranshous.itch.io/dinosaur-dance-extravaganza
+
+**Research Complete:** ✅ All 11 projects documented
+**Completed:** raceon ✅, darkhall ✅, sparkly-sim ✅, diplomatic-waters ✅, world-weaver ✅, wallverine ✅, stacksonstacks ✅, dinosaur-dance ✅, all-around-you ✅, ai-orchestration-game ✅, sacred-scribe ✅
 
 ### Research Order for Phase 2:
 1. raceon
