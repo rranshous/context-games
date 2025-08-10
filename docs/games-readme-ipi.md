@@ -32,7 +32,13 @@
   - Unique mechanics/innovations (what makes it special or experimental)
 - Add details to README incrementally as we research each project
 
-### Phase 3: Organization & Categories  
+### Phase 3: itch.io API Integration
+- Research itch.io API to see if we can programmatically retrieve published game listings
+- If API is available, create a script in `/bin` that Claude can use during collaboration sessions
+- Script should fetch current publication status and metadata (download counts, ratings, etc.)
+- This enables Claude to verify/update documentation with current itch.io data during our sessions
+
+### Phase 4: Organization & Categories  
 - Once all project details are complete, analyze patterns
 - Create logical groupings based on actual data collected
 - Reorganize README with meaningful categories
@@ -55,6 +61,14 @@
 
 **Research Complete:** ✅ All 11 projects documented
 **Completed:** raceon ✅, darkhall ✅, sparkly-sim ✅, diplomatic-waters ✅, world-weaver ✅, wallverine ✅, stacksonstacks ✅, dinosaur-dance ✅, all-around-you ✅, ai-orchestration-game ✅, sacred-scribe ✅
+
+### Phase 3 Status: ✅ Complete
+- [x] Research itch.io API documentation and capabilities
+- [x] Create script in `/bin` that Claude can use during collaboration sessions
+- [x] Set up .env support and .gitignore for API keys
+- [x] Run script to fetch current publication status and metadata
+- [x] Update games README with current itch.io data
+- [x] Mark Phase 3 complete
 
 ### Research Order for Phase 2:
 1. raceon
