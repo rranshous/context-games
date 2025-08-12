@@ -2,6 +2,8 @@ import { Vector2 } from '../core/Vector2.js';
 
 // Basic sword entity with boids flocking behavior
 export class Sword {
+  public static nextId: number = 0; // Static counter for unique IDs
+  public id: number;
   public position: Vector2;
   public velocity: Vector2;
   public acceleration: Vector2;
@@ -15,6 +17,7 @@ export class Sword {
   public cohesionRadius: number = 50;
 
   constructor(x: number, y: number) {
+    this.id = Sword.nextId++; // Assign unique ID
     this.position = new Vector2(x, y);
     this.velocity = new Vector2(0, 0);
     this.acceleration = new Vector2(0, 0);

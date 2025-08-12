@@ -1,6 +1,7 @@
 import { Vector2 } from '../core/Vector2.js';
 import { Sword } from '../entities/Sword.js';
 import { Enemy } from '../entities/Enemy.js';
+import { ParticleSystem } from '../effects/ParticleSystem.js';
 
 // Game simulation - manages all game state and logic
 export class GameSimulation {
@@ -9,6 +10,7 @@ export class GameSimulation {
   public mousePosition: Vector2 = new Vector2(400, 300); // Default center
   public platforms: Platform[] = [];
   public swarmSize: number = 1; // Start with 1 sword
+  public particleSystem: ParticleSystem = new ParticleSystem();
 
   // Camera for side-scrolling
   public camera: Vector2 = new Vector2(0, 0);
@@ -54,6 +56,8 @@ export class GameSimulation {
   update(): void {
     this.updateSwarm();
     this.updateEnemies();
+    this.handleCombat();
+    this.particleSystem.update();
     this.updateCamera();
     this.handlePlatformCollisions();
     this.spawnEnemies();
@@ -75,6 +79,34 @@ export class GameSimulation {
       // Remove dead enemies
       if (!enemy.isAlive) {
         this.enemies.splice(i, 1);
+      }
+    }
+  }
+
+  // Handle sword vs enemy combat
+  private handleCombat(): void {
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const enemy = this.enemies[i];
+      if (!enemy.isAlive) continue;
+
+      // Check collision with each sword
+      for (const sword of this.swords) {
+        const distance = sword.position.distance(enemy.position);
+        const combatRange = (sword.size + enemy.size) / 2;
+
+        if (distance < combatRange) {
+          // Sword hits enemy!
+          console.log(`⚔️ Sword ${sword.id} hit enemy! Distance: ${distance.toFixed(1)}, Range: ${combatRange.toFixed(1)}`);
+          enemy.takeDamage(1, sword.id); // Pass sword ID for per-sword cooldown
+          
+          if (!enemy.isAlive) {
+            console.log('💥 Enemy defeated!');
+            // Create blood mist effect at enemy position
+            this.particleSystem.createBloodMist(enemy.position.x, enemy.position.y);
+            // Enemy will be removed in updateEnemies()
+            break; // No need to check other swords for this enemy
+          }
+        }
       }
     }
   }

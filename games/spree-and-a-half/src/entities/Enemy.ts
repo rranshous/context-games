@@ -7,8 +7,14 @@ export class Enemy {
   public acceleration: Vector2;
   public maxSpeed: number = 1.5; // Slower than swords
   public size: number = 24; // Size for collision detection
-  public health: number = 1; // Simple health system
+  public health: number = 5; // More health to showcase multi-sword combat
+  public maxHealth: number = 5; // Track max health for visual effects
   public isAlive: boolean = true;
+  
+  // Visual feedback
+  public justHit: boolean = false;
+  public hitTime: number = 0;
+  public lastHitBySwords: Map<number, number> = new Map(); // Track last hit time per sword ID
 
   // AI behavior parameters
   public wanderAngle: number = 0;
@@ -27,6 +33,14 @@ export class Enemy {
   // Main update method
   update(): void {
     if (!this.isAlive) return;
+    
+    // Update hit visual feedback
+    if (this.justHit) {
+      const currentTime = Date.now();
+      if (currentTime - this.hitTime > 500) { // Flash for 500ms (longer)
+        this.justHit = false;
+      }
+    }
     
     // Apply simple wandering AI
     this.wander();
@@ -66,9 +80,23 @@ export class Enemy {
     );
   }
 
-  // Take damage
-  takeDamage(amount: number): void {
+  // Take damage from a specific sword
+  takeDamage(amount: number, swordId: number): void {
+    const currentTime = Date.now();
+    
+    // Per-sword damage cooldown to prevent spam from same sword
+    const lastHitTime = this.lastHitBySwords.get(swordId) || 0;
+    if (currentTime - lastHitTime < 200) { // Shorter cooldown, but per sword
+      return; // This specific sword hit too recently
+    }
+    
     this.health -= amount;
+    this.justHit = true;
+    this.hitTime = currentTime;
+    this.lastHitBySwords.set(swordId, currentTime);
+    
+    console.log(`🩸 Enemy took ${amount} damage from sword ${swordId}! Health: ${this.health}/${this.maxHealth}`);
+    
     if (this.health <= 0) {
       this.isAlive = false;
     }

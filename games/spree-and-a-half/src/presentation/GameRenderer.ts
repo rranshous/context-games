@@ -32,6 +32,7 @@ export class GameRenderer {
     this.renderPlatforms(simulation.platforms);
     this.renderEnemies(simulation.enemies);
     this.renderSwords(simulation.swords);
+    this.renderParticles(simulation);
     this.renderMouseCursor(simulation.mousePosition);
     
     // Restore context
@@ -83,6 +84,54 @@ export class GameRenderer {
     if (!spriteRendered) {
       this.renderSimpleEnemy(enemy);
     }
+
+    // Apply hit flash effect OVER the sprite/shape
+    if (enemy.justHit) {
+      this.ctx.save();
+      this.ctx.globalAlpha = 0.8;
+      this.ctx.fillStyle = '#ff0000';
+      this.ctx.strokeStyle = '#ffff00';
+      this.ctx.lineWidth = 4;
+      
+      // Draw bright red circle over the enemy
+      this.ctx.beginPath();
+      this.ctx.arc(pos.x, pos.y, enemy.size/2 + 8, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    // Draw health bar if enemy is damaged
+    if (enemy.health < enemy.maxHealth) {
+      this.renderEnemyHealthBar(enemy);
+    }
+  }
+
+  // Render enemy health bar
+  private renderEnemyHealthBar(enemy: Enemy): void {
+    const pos = enemy.position;
+    const barWidth = 40;
+    const barHeight = 6;
+    const barY = pos.y - enemy.size/2 - 12;
+    
+    this.ctx.save();
+    
+    // Background
+    this.ctx.fillStyle = '#333333';
+    this.ctx.fillRect(pos.x - barWidth/2, barY, barWidth, barHeight);
+    
+    // Health bar
+    const healthPercent = enemy.health / enemy.maxHealth;
+    const healthWidth = barWidth * healthPercent;
+    this.ctx.fillStyle = healthPercent > 0.6 ? '#00ff00' : healthPercent > 0.3 ? '#ffaa00' : '#ff0000';
+    this.ctx.fillRect(pos.x - barWidth/2, barY, healthWidth, barHeight);
+    
+    // Border
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(pos.x - barWidth/2, barY, barWidth, barHeight);
+    
+    this.ctx.restore();
   }
 
   // Fallback simple enemy rendering (for when sprites aren't loaded)
@@ -93,9 +142,9 @@ export class GameRenderer {
     ctx.save();
     
     // Draw enemy as a simple red circle
-    ctx.fillStyle = '#ff4444'; // Red enemy
-    ctx.strokeStyle = '#cc0000'; // Darker red outline
-    ctx.lineWidth = 2;
+    ctx.fillStyle = enemy.justHit ? '#ff8888' : '#ff4444'; // Lighter when hit
+    ctx.strokeStyle = enemy.justHit ? '#ff0000' : '#cc0000'; // Brighter border when hit
+    ctx.lineWidth = enemy.justHit ? 3 : 2; // Thicker border when hit
     
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, enemy.size/2, 0, Math.PI * 2);
@@ -110,6 +159,11 @@ export class GameRenderer {
     ctx.fill();
     
     ctx.restore();
+  }
+
+  // Render particle effects
+  private renderParticles(simulation: GameSimulation): void {
+    simulation.particleSystem.render(this.ctx);
   }
 
   // Render all swords in the swarm
@@ -230,10 +284,18 @@ export class GameRenderer {
     // Swarm size counter
     this.ctx.fillText(`Swarm Size: ${simulation.swarmSize}`, 20, 30);
     
+    // Enemy count
+    this.ctx.fillStyle = '#ff4444';
+    this.ctx.fillText(`Enemies: ${simulation.enemies.length}`, 20, 55);
+    
+    // Particle count
+    this.ctx.fillStyle = '#ff8888';
+    this.ctx.fillText(`Particles: ${simulation.particleSystem.getParticleCount()}`, 20, 80);
+    
     // Camera position (for debugging)
     this.ctx.fillStyle = '#ffaa00';
     this.ctx.font = '12px monospace';
-    this.ctx.fillText(`Camera: ${Math.round(simulation.camera.x)}, ${Math.round(simulation.camera.y)}`, 20, 50);
+    this.ctx.fillText(`Camera: ${Math.round(simulation.camera.x)}, ${Math.round(simulation.camera.y)}`, 20, 105);
     
     this.ctx.restore();
   }
