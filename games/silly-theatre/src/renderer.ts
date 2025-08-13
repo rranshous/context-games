@@ -340,6 +340,9 @@ export class TheaterRenderer {
     const unit = this.config.pixelsPerUnit;
     
     puppets.forEach((puppet) => {
+      // Only render visible puppets
+      if (!puppet.visible) return;
+      
       const centerX = (puppet.x / 100) * this.canvasWidth;
       const centerY = baselineY * unit + puppet.y_offset * unit;
       

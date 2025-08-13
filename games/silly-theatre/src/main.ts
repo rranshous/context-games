@@ -67,11 +67,14 @@ function formatStateForDisplay(state: TheaterState): string {
   // Puppet layer summary
   output.push('\n🎭 PUPPET LAYER:');
   output.push(`  Baseline Y: ${state.puppets.baseline_y}`);
+  let visiblePuppets = 0;
   state.puppets.puppets.forEach((puppet, index) => {
-    if (puppet.x !== 50 || puppet.y_offset !== 0 || puppet.rotation !== 0 || puppet.tilt !== 0) {
+    if (puppet.visible) {
+      visiblePuppets++;
       output.push(`  Puppet ${index}: x=${puppet.x}%, y_offset=${puppet.y_offset}, rot=${puppet.rotation}°, tilt=${puppet.tilt}°`);
     }
   });
+  output.push(`  Visible puppets: ${visiblePuppets}/6`);
   
   // Show a small sample of the tile grid
   output.push('\n🔲 TILE GRID SAMPLE (top-left 16×8):');

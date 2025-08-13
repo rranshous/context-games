@@ -68,6 +68,7 @@ export interface PuppetState {
   y_offset: number;    // -10 to +10 (relative to baseline)
   rotation: number;    // 0-360 degrees
   tilt: number;        // -45 to +45 degrees
+  visible: boolean;    // Whether the puppet should be rendered
   isAnimating: boolean;
   animationQueue: PuppetCommand[];
 }

@@ -96,6 +96,7 @@ export class Theater implements TheaterSimulator {
         y_offset: 0,
         rotation: 0,
         tilt: 0,
+        visible: false, // Hidden by default
         isAnimating: false,
         animationQueue: []
       });
@@ -307,6 +308,9 @@ export class Theater implements TheaterSimulator {
     move: (id: number, x: number, duration: number = 400): void => {
       if (id < 0 || id >= 6) return;
       
+      const puppet = this.state.puppets.puppets[id];
+      puppet.visible = true; // Make puppet visible when moved
+      
       const clampedX = Math.max(0, Math.min(100, x));
       const command: PuppetCommand = {
         id: this.animationEngine.generateId(),
@@ -374,6 +378,7 @@ export class Theater implements TheaterSimulator {
       puppet.y_offset = 0;
       puppet.rotation = 0;
       puppet.tilt = 0;
+      puppet.visible = false; // Hide puppet when reset
     }
   };
 
