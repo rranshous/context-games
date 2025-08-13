@@ -1,0 +1,397 @@
+/**
+ * Canvas rendering system for the theater simulator
+ * Handles visual representation of all 4 layers
+ */
+
+import type { TheaterState, TileState, LEDState, PropState, PuppetState } from './types.js';
+
+export interface RendererConfig {
+  stageWidth: number;    // 64 logical units
+  stageHeight: number;   // 32 logical units
+  pixelsPerUnit: number; // How many pixels per logical unit (scale)
+  enableGlow: boolean;   // LED glow effects
+  enableShadows: boolean; // Prop/puppet shadows
+}
+
+const DEFAULT_RENDERER_CONFIG: RendererConfig = {
+  stageWidth: 64,
+  stageHeight: 32,
+  pixelsPerUnit: 12, // 64*12 = 768px wide, 32*12 = 384px tall
+  enableGlow: true,
+  enableShadows: true
+};
+
+/**
+ * Multi-layer canvas renderer for the theater
+ */
+export class TheaterRenderer {
+  private container: HTMLElement;
+  private config: RendererConfig;
+  
+  // Canvases for each layer (bottom to top)
+  private tileCanvas: HTMLCanvasElement;
+  private ledCanvas: HTMLCanvasElement;
+  private propCanvas: HTMLCanvasElement;
+  private puppetCanvas: HTMLCanvasElement;
+  
+  // Canvas contexts
+  private tileCtx: CanvasRenderingContext2D;
+  private ledCtx: CanvasRenderingContext2D;
+  private propCtx: CanvasRenderingContext2D;
+  private puppetCtx: CanvasRenderingContext2D;
+  
+  // Dimensions
+  private canvasWidth: number;
+  private canvasHeight: number;
+
+  constructor(container: HTMLElement, config: Partial<RendererConfig> = {}) {
+    this.container = container;
+    this.config = { ...DEFAULT_RENDERER_CONFIG, ...config };
+    
+    this.canvasWidth = this.config.stageWidth * this.config.pixelsPerUnit;
+    this.canvasHeight = this.config.stageHeight * this.config.pixelsPerUnit;
+    
+    // Create and setup canvases
+    const canvases = this.setupCanvases();
+    this.tileCanvas = canvases.tile;
+    this.ledCanvas = canvases.led;
+    this.propCanvas = canvases.prop;
+    this.puppetCanvas = canvases.puppet;
+    
+    // Get contexts with error checking
+    this.tileCtx = this.getContext(this.tileCanvas, 'tile');
+    this.ledCtx = this.getContext(this.ledCanvas, 'LED');
+    this.propCtx = this.getContext(this.propCanvas, 'prop');
+    this.puppetCtx = this.getContext(this.puppetCanvas, 'puppet');
+    
+    console.log(`🎨 Theater renderer initialized: ${this.canvasWidth}×${this.canvasHeight}px`);
+  }
+
+  /**
+   * Create and configure all canvas layers
+   */
+  private setupCanvases(): {
+    tile: HTMLCanvasElement;
+    led: HTMLCanvasElement;
+    prop: HTMLCanvasElement;
+    puppet: HTMLCanvasElement;
+  } {
+    // Clear container
+    this.container.innerHTML = '';
+    
+    // Create wrapper for layered canvases
+    const canvasWrapper = document.createElement('div');
+    canvasWrapper.style.position = 'relative';
+    canvasWrapper.style.width = `${this.canvasWidth}px`;
+    canvasWrapper.style.height = `${this.canvasHeight}px`;
+    canvasWrapper.style.border = '1px solid #666';
+    canvasWrapper.style.background = '#000';
+    
+    // Create canvases (bottom to top rendering order)
+    const tileCanvas = this.createCanvas('tile-layer');
+    const ledCanvas = this.createCanvas('led-layer');
+    const propCanvas = this.createCanvas('prop-layer');
+    const puppetCanvas = this.createCanvas('puppet-layer');
+    
+    // Add canvases to wrapper
+    canvasWrapper.appendChild(tileCanvas);
+    canvasWrapper.appendChild(ledCanvas);
+    canvasWrapper.appendChild(propCanvas);
+    canvasWrapper.appendChild(puppetCanvas);
+    
+    this.container.appendChild(canvasWrapper);
+    
+    return { tile: tileCanvas, led: ledCanvas, prop: propCanvas, puppet: puppetCanvas };
+  }
+
+  /**
+   * Create a single canvas with proper styling
+   */
+  private createCanvas(id: string): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.id = id;
+    canvas.width = this.canvasWidth;
+    canvas.height = this.canvasHeight;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.imageRendering = 'pixelated'; // Crisp pixel art
+    return canvas;
+  }
+
+  /**
+   * Get canvas context with error checking
+   */
+  private getContext(canvas: HTMLCanvasElement, layerName: string): CanvasRenderingContext2D {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error(`Failed to get 2D context for ${layerName} canvas`);
+    }
+    return ctx;
+  }
+
+  /**
+   * Render the complete theater state
+   */
+  render(state: TheaterState): void {
+    // Clear all canvases
+    this.clearAll();
+    
+    // Render each layer
+    this.renderTiles(state.tiles.tiles);
+    this.renderLEDs(state.leds.leds);
+    this.renderProps(state.props.props);
+    this.renderPuppets(state.puppets.puppets, state.puppets.baseline_y);
+  }
+
+  /**
+   * Clear all canvas layers
+   */
+  private clearAll(): void {
+    this.tileCtx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+    this.ledCtx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+    this.propCtx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+    this.puppetCtx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+  }
+
+  /**
+   * Render the tile layer (background)
+   */
+  private renderTiles(tiles: TileState[][]): void {
+    const unit = this.config.pixelsPerUnit;
+    
+    for (let y = 0; y < tiles.length; y++) {
+      for (let x = 0; x < tiles[y].length; x++) {
+        const tile = tiles[y][x];
+        
+        // Set tile color
+        this.tileCtx.fillStyle = tile.state === 'white' ? '#ffffff' : '#222222';
+        
+        // Draw tile
+        const pixelX = x * unit;
+        const pixelY = y * unit;
+        this.tileCtx.fillRect(pixelX, pixelY, unit, unit);
+        
+        // Add subtle grid lines
+        this.tileCtx.strokeStyle = '#333333';
+        this.tileCtx.lineWidth = 0.5;
+        this.tileCtx.strokeRect(pixelX, pixelY, unit, unit);
+      }
+    }
+  }
+
+  /**
+   * Render the LED layer (atmospheric lighting)
+   */
+  private renderLEDs(leds: LEDState[][]): void {
+    const unit = this.config.pixelsPerUnit;
+    
+    // Enable compositing for glow effects
+    if (this.config.enableGlow) {
+      this.ledCtx.globalCompositeOperation = 'screen';
+    }
+    
+    for (let y = 0; y < leds.length; y++) {
+      for (let x = 0; x < leds[y].length; x++) {
+        const led = leds[y][x];
+        
+        if (led.brightness > 0) {
+          const { r, g, b } = led.color;
+          const alpha = led.brightness / 100;
+          
+          const pixelX = x * unit + unit / 2;
+          const pixelY = y * unit + unit / 2;
+          
+          if (this.config.enableGlow) {
+            // Create glow effect with gradient
+            const gradient = this.ledCtx.createRadialGradient(
+              pixelX, pixelY, 0,
+              pixelX, pixelY, unit * 1.5
+            );
+            gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha})`);
+            gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${alpha * 0.5})`);
+            gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+            
+            this.ledCtx.fillStyle = gradient;
+            this.ledCtx.fillRect(
+              pixelX - unit * 1.5,
+              pixelY - unit * 1.5,
+              unit * 3,
+              unit * 3
+            );
+          } else {
+            // Simple colored square
+            this.ledCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            this.ledCtx.fillRect(pixelX - unit/4, pixelY - unit/4, unit/2, unit/2);
+          }
+        }
+      }
+    }
+    
+    // Reset composite operation
+    this.ledCtx.globalCompositeOperation = 'source-over';
+  }
+
+  /**
+   * Render the props layer (mid-layer objects)
+   */
+  private renderProps(props: (PropState | null)[]): void {
+    const unit = this.config.pixelsPerUnit;
+    
+    props.forEach((prop) => {
+      if (prop && prop.position === 'visible') {
+        const centerX = prop.x * unit;
+        const centerY = prop.y * unit;
+        
+        // Save context for transforms
+        this.propCtx.save();
+        
+        // Apply transforms
+        this.propCtx.translate(centerX, centerY);
+        this.propCtx.rotate((prop.rotation * Math.PI) / 180);
+        this.propCtx.scale(1, 1 + prop.tilt / 100); // Simple tilt effect
+        
+        // Draw prop based on type
+        this.drawProp(this.propCtx, prop.type, unit);
+        
+        // Restore context
+        this.propCtx.restore();
+      }
+    });
+  }
+
+  /**
+   * Draw a specific prop type
+   */
+  private drawProp(ctx: CanvasRenderingContext2D, type: string, unit: number): void {
+    const size = unit * 2; // Props are 2 units tall
+    
+    switch (type) {
+      case 'tree':
+        // Simple tree: brown trunk + green circle
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(-unit/4, 0, unit/2, size);
+        ctx.fillStyle = '#228B22';
+        ctx.beginPath();
+        ctx.arc(0, -size/4, size/2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+        
+      case 'house':
+        // Simple house: square + triangle roof
+        ctx.fillStyle = '#CD853F';
+        ctx.fillRect(-size/2, -size/2, size, size);
+        ctx.fillStyle = '#B22222';
+        ctx.beginPath();
+        ctx.moveTo(-size/2, -size/2);
+        ctx.lineTo(0, -size);
+        ctx.lineTo(size/2, -size/2);
+        ctx.closePath();
+        ctx.fill();
+        break;
+        
+      case 'castle':
+        // Simple castle: rectangle with crenellations
+        ctx.fillStyle = '#696969';
+        ctx.fillRect(-size/2, -size, size, size);
+        // Crenellations
+        for (let i = 0; i < 3; i++) {
+          const x = -size/2 + (i * size/3);
+          ctx.fillRect(x, -size, size/6, size/4);
+        }
+        break;
+        
+      case 'bush':
+        // Simple bush: green oval
+        ctx.fillStyle = '#32CD32';
+        ctx.beginPath();
+        ctx.ellipse(0, -size/4, size/2, size/3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+        
+      case 'rock':
+        // Simple rock: gray circle
+        ctx.fillStyle = '#708090';
+        ctx.beginPath();
+        ctx.arc(0, -size/4, size/3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+        
+      case 'sign':
+        // Simple sign: post + rectangle
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(-unit/8, -size/2, unit/4, size);
+        ctx.fillStyle = '#F5DEB3';
+        ctx.fillRect(-size/3, -size*0.7, size*0.67, size/3);
+        break;
+        
+      default:
+        // Unknown prop: question mark
+        ctx.fillStyle = '#FF69B4';
+        ctx.fillRect(-size/4, -size/2, size/2, size/2);
+        break;
+    }
+  }
+
+  /**
+   * Render the puppet layer (foreground characters)
+   */
+  private renderPuppets(puppets: PuppetState[], baselineY: number): void {
+    const unit = this.config.pixelsPerUnit;
+    
+    puppets.forEach((puppet) => {
+      const centerX = (puppet.x / 100) * this.canvasWidth;
+      const centerY = baselineY * unit + puppet.y_offset * unit;
+      
+      // Save context for transforms
+      this.puppetCtx.save();
+      
+      // Apply transforms
+      this.puppetCtx.translate(centerX, centerY);
+      this.puppetCtx.rotate((puppet.rotation * Math.PI) / 180);
+      this.puppetCtx.scale(1 + puppet.tilt / 100, 1); // Simple tilt effect
+      
+      // Draw simple puppet (stick figure)
+      this.drawPuppet(this.puppetCtx, unit);
+      
+      // Restore context
+      this.puppetCtx.restore();
+    });
+  }
+
+  /**
+   * Draw a simple puppet representation
+   */
+  private drawPuppet(ctx: CanvasRenderingContext2D, unit: number): void {
+    const size = unit * 1.5;
+    
+    ctx.strokeStyle = '#FFE4B5';
+    ctx.fillStyle = '#FFE4B5';
+    ctx.lineWidth = 2;
+    
+    // Head
+    ctx.beginPath();
+    ctx.arc(0, -size, size/3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Body
+    ctx.beginPath();
+    ctx.moveTo(0, -size + size/3);
+    ctx.lineTo(0, size/2);
+    ctx.stroke();
+    
+    // Arms
+    ctx.beginPath();
+    ctx.moveTo(-size/2, -size/2);
+    ctx.lineTo(size/2, -size/2);
+    ctx.stroke();
+    
+    // Legs
+    ctx.beginPath();
+    ctx.moveTo(0, size/2);
+    ctx.lineTo(-size/3, size);
+    ctx.moveTo(0, size/2);
+    ctx.lineTo(size/3, size);
+    ctx.stroke();
+  }
+}

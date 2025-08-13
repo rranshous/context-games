@@ -4,6 +4,7 @@
  */
 
 import { Theater } from './theater.js';
+import { TheaterRenderer } from './renderer.js';
 import type { TheaterState } from './types.js';
 
 /**
@@ -97,17 +98,33 @@ function init(): void {
     tile_size: 16
   });
 
+  // Create renderer and connect to theater container
+  const theaterContainer = document.getElementById('theater-container');
+  if (!theaterContainer) {
+    throw new Error('Theater container not found');
+  }
+  
+  const renderer = new TheaterRenderer(theaterContainer, {
+    pixelsPerUnit: 12, // Scale factor for visibility
+    enableGlow: true,
+    enableShadows: true
+  });
+
   console.log('✅ Theater simulator created');
+  console.log('✅ Theater renderer created');
   console.log('State:', theater.get_state());
 
+  // Render initial state
+  renderer.render(theater.get_state());
+
   // Set up test controls
-  setupControls(theater);
+  setupControls(theater, renderer);
 }
 
 /**
  * Set up basic test controls for the theater
  */
-function setupControls(theater: Theater): void {
+function setupControls(theater: Theater, renderer: TheaterRenderer): void {
   const testTilesBtn = document.getElementById('test-tiles');
   const testLedsBtn = document.getElementById('test-leds');
   const testPropsBtn = document.getElementById('test-props');
@@ -119,10 +136,15 @@ function setupControls(theater: Theater): void {
   const debugPanel = document.getElementById('debug-panel');
   const stateDisplay = document.getElementById('state-display');
 
-  // Function to refresh the debug display
+  // Function to refresh the debug display and renderer
   const refreshDebugDisplay = () => {
+    const state = theater.get_state();
+    
+    // Always update the renderer
+    renderer.render(state);
+    
+    // Update debug panel if visible
     if (debugPanel && stateDisplay && debugPanel.style.display !== 'none') {
-      const state = theater.get_state();
       stateDisplay.textContent = formatStateForDisplay(state);
     }
   };
