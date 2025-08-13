@@ -44,6 +44,11 @@ export class TheaterRenderer {
   private canvasWidth: number;
   private canvasHeight: number;
 
+  // Sprite images
+  private propImages: Map<string, HTMLImageElement> = new Map();
+  private puppetImage: HTMLImageElement | null = null;
+  private imagesLoaded: boolean = false;
+
   constructor(container: HTMLElement, config: Partial<RendererConfig> = {}) {
     this.container = container;
     this.config = { ...DEFAULT_RENDERER_CONFIG, ...config };
@@ -63,6 +68,9 @@ export class TheaterRenderer {
     this.ledCtx = this.getContext(this.ledCanvas, 'LED');
     this.propCtx = this.getContext(this.propCanvas, 'prop');
     this.puppetCtx = this.getContext(this.puppetCanvas, 'puppet');
+    
+    // Load sprite images
+    this.loadImages();
     
     console.log(`🎨 Theater renderer initialized: ${this.canvasWidth}×${this.canvasHeight}px`);
   }
@@ -128,6 +136,53 @@ export class TheaterRenderer {
       throw new Error(`Failed to get 2D context for ${layerName} canvas`);
     }
     return ctx;
+  }
+
+  /**
+   * Load all sprite images
+   */
+  private async loadImages(): Promise<void> {
+    // Map prop types to actual filenames
+    const propTypeToFile = {
+      'tree': 'heart_tree.png',
+      'house': 'rainbow_house.png', 
+      'castle': 'pink_castle.png',
+      'bush': 'colorful_squat_bush.png',
+      'rock': 'clown_rock.png',
+      'sign': 'fun_sign.png'
+    };
+    
+    try {
+      // Load prop images
+      const propPromises = Object.entries(propTypeToFile).map(async ([type, filename]) => {
+        const img = new Image();
+        img.src = `props/${filename}`;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+        this.propImages.set(type, img);
+        console.log(`📷 Loaded prop image: ${type} (${filename})`);
+      });
+
+      // Load puppet image
+      const puppetImg = new Image();
+      puppetImg.src = 'puppets/little_girl.png';
+      const puppetPromise = new Promise((resolve, reject) => {
+        puppetImg.onload = resolve;
+        puppetImg.onerror = reject;
+      });
+
+      // Wait for all images to load
+      await Promise.all([...propPromises, puppetPromise]);
+      this.puppetImage = puppetImg;
+      this.imagesLoaded = true;
+      
+      console.log('✅ All sprite images loaded successfully');
+    } catch (error) {
+      console.warn('⚠️ Failed to load some sprite images, falling back to drawn shapes:', error);
+      this.imagesLoaded = false;
+    }
   }
 
   /**
@@ -261,16 +316,49 @@ export class TheaterRenderer {
   }
 
   /**
-   * Draw a specific prop type
+   * Draw a specific prop type using sprite images or fallback shapes
    */
   private drawProp(ctx: CanvasRenderingContext2D, type: string, unit: number): void {
-    const size = unit * 2; // Props are 2 units tall
+    const size = unit * 2.5; // Larger props for better visibility
     
+    // Add shadow first (behind the prop)
+    if (this.config.enableShadows) {
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = '#000000';
+      ctx.translate(unit * 0.3, unit * 0.3); // Shadow offset
+      
+      if (this.imagesLoaded && this.propImages.has(type)) {
+        // Draw shadow of the image
+        const img = this.propImages.get(type)!;
+        ctx.drawImage(img, -size/2, -size, size, size);
+      } else {
+        // Draw shadow of fallback shape
+        this.drawPropFallback(ctx, type, size * 0.9);
+      }
+      ctx.restore();
+    }
+    
+    // Draw the main prop
+    if (this.imagesLoaded && this.propImages.has(type)) {
+      // Use loaded sprite image
+      const img = this.propImages.get(type)!;
+      ctx.drawImage(img, -size/2, -size, size, size);
+    } else {
+      // Fallback to drawn shapes
+      this.drawPropFallback(ctx, type, size);
+    }
+  }
+
+  /**
+   * Draw fallback prop shapes when images aren't available
+   */
+  private drawPropFallback(ctx: CanvasRenderingContext2D, type: string, size: number): void {
     switch (type) {
       case 'tree':
         // Simple tree: brown trunk + green circle
         ctx.fillStyle = '#8B4513';
-        ctx.fillRect(-unit/4, 0, unit/2, size);
+        ctx.fillRect(-size/8, 0, size/4, size*0.7);
         ctx.fillStyle = '#228B22';
         ctx.beginPath();
         ctx.arc(0, -size/4, size/2, 0, Math.PI * 2);
@@ -320,7 +408,7 @@ export class TheaterRenderer {
       case 'sign':
         // Simple sign: post + rectangle
         ctx.fillStyle = '#8B4513';
-        ctx.fillRect(-unit/8, -size/2, unit/4, size);
+        ctx.fillRect(-size/16, -size/2, size/8, size*0.8);
         ctx.fillStyle = '#F5DEB3';
         ctx.fillRect(-size/3, -size*0.7, size*0.67, size/3);
         break;
@@ -363,38 +451,70 @@ export class TheaterRenderer {
   }
 
   /**
-   * Draw a simple puppet representation
+   * Draw a puppet using sprite image or fallback shape
    */
   private drawPuppet(ctx: CanvasRenderingContext2D, unit: number): void {
-    const size = unit * 1.5;
+    const size = unit * 1.8; // Slightly larger for better visibility
     
+    // Draw shadow first (if enabled)
+    if (this.config.enableShadows) {
+      ctx.save();
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#000000';
+      ctx.translate(unit * 0.4, unit * 0.4); // Shadow offset
+      ctx.scale(1.1, 0.3); // Flatten shadow
+      
+      if (this.imagesLoaded && this.puppetImage) {
+        // Draw shadow of the image
+        ctx.drawImage(this.puppetImage, -size/2, -size, size, size);
+      } else {
+        // Draw shadow of fallback shape
+        this.drawPuppetFallback(ctx, size * 0.9);
+      }
+      ctx.restore();
+    }
+    
+    // Draw the main puppet
+    if (this.imagesLoaded && this.puppetImage) {
+      // Use loaded sprite image
+      ctx.drawImage(this.puppetImage, -size/2, -size, size, size);
+    } else {
+      // Fallback to drawn shape
+      this.drawPuppetFallback(ctx, size);
+    }
+  }
+
+  /**
+   * Draw fallback puppet shape when image isn't available
+   */
+  private drawPuppetFallback(ctx: CanvasRenderingContext2D, size: number): void {
     ctx.strokeStyle = '#FFE4B5';
     ctx.fillStyle = '#FFE4B5';
     ctx.lineWidth = 2;
     
     // Head
     ctx.beginPath();
-    ctx.arc(0, -size, size/3, 0, Math.PI * 2);
+    ctx.arc(0, -size*0.7, size/6, 0, Math.PI * 2);
     ctx.fill();
     
     // Body
     ctx.beginPath();
-    ctx.moveTo(0, -size + size/3);
-    ctx.lineTo(0, size/2);
+    ctx.moveTo(0, -size*0.5);
+    ctx.lineTo(0, size*0.2);
     ctx.stroke();
     
     // Arms
     ctx.beginPath();
-    ctx.moveTo(-size/2, -size/2);
-    ctx.lineTo(size/2, -size/2);
+    ctx.moveTo(-size*0.3, -size*0.3);
+    ctx.lineTo(size*0.3, -size*0.3);
     ctx.stroke();
     
     // Legs
     ctx.beginPath();
-    ctx.moveTo(0, size/2);
-    ctx.lineTo(-size/3, size);
-    ctx.moveTo(0, size/2);
-    ctx.lineTo(size/3, size);
+    ctx.moveTo(0, size*0.2);
+    ctx.lineTo(-size*0.2, size*0.6);
+    ctx.moveTo(0, size*0.2);
+    ctx.lineTo(size*0.2, size*0.6);
     ctx.stroke();
   }
 }
