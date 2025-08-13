@@ -45,6 +45,37 @@
         button:hover {
             background: #444;
         }
+        #debug-panel {
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            width: 400px;
+            max-height: 80vh;
+            background: #1a1a1a;
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        #debug-panel h3 {
+            margin: 0 0 10px 0;
+            color: #fff;
+        }
+        #state-display {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        #close-debug {
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -59,6 +90,13 @@
             <button id="test-props">Test Props</button>
             <button id="test-puppets">Test Puppets</button>
             <button id="clear-all">Clear All</button>
+            <button id="show-state">Show State</button>
+        </div>
+        <div id="debug-panel" style="display: none;">
+            <h3>Theater State Debug</h3>
+            <button id="close-debug">Close Debug</button>
+            <button id="refresh-debug">Refresh State</button>
+            <div id="state-display"></div>
         </div>
     </div>
     

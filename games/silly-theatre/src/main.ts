@@ -4,6 +4,86 @@
  */
 
 import { Theater } from './theater.js';
+import type { TheaterState } from './types.js';
+
+/**
+ * Format theater state for human-readable display
+ */
+function formatStateForDisplay(state: TheaterState): string {
+  const output: string[] = [];
+  
+  output.push('=== THEATER STATE DEBUG ===\n');
+  output.push(`Timestamp: ${new Date(state.timestamp).toLocaleTimeString()}\n`);
+  
+  // Tile layer summary
+  output.push('\n🔲 TILE LAYER:');
+  let whiteCount = 0;
+  let blackCount = 0;
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 64; x++) {
+      if (state.tiles.tiles[y][x].state === 'white') {
+        whiteCount++;
+      } else {
+        blackCount++;
+      }
+    }
+  }
+  output.push(`  White tiles: ${whiteCount}`);
+  output.push(`  Black tiles: ${blackCount}`);
+  output.push(`  Animation queue: ${state.tiles.animationQueue.length} commands`);
+  
+  // LED layer summary
+  output.push('\n💡 LED LAYER:');
+  let activeCount = 0;
+  let maxBrightness = 0;
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 64; x++) {
+      const led = state.leds.leds[y][x];
+      if (led.brightness > 0) {
+        activeCount++;
+        maxBrightness = Math.max(maxBrightness, led.brightness);
+      }
+    }
+  }
+  output.push(`  Active LEDs: ${activeCount}`);
+  output.push(`  Max brightness: ${maxBrightness}`);
+  output.push(`  Animation queue: ${state.leds.animationQueue.length} commands`);
+  
+  // Props layer summary
+  output.push('\n🌳 PROPS LAYER:');
+  let deployedCount = 0;
+  const propTypes: Record<string, number> = {};
+  state.props.props.forEach((prop, slot) => {
+    if (prop) {
+      deployedCount++;
+      propTypes[prop.type] = (propTypes[prop.type] || 0) + 1;
+      output.push(`  Slot ${slot}: ${prop.type} (${prop.position}, rot:${prop.rotation}°, tilt:${prop.tilt}°)`);
+    }
+  });
+  output.push(`  Deployed props: ${deployedCount}/12`);
+  output.push(`  Animation queue: ${state.props.animationQueue.length} commands`);
+  
+  // Puppet layer summary
+  output.push('\n🎭 PUPPET LAYER:');
+  output.push(`  Baseline Y: ${state.puppets.baseline_y}`);
+  state.puppets.puppets.forEach((puppet, index) => {
+    if (puppet.x !== 50 || puppet.y_offset !== 0 || puppet.rotation !== 0 || puppet.tilt !== 0) {
+      output.push(`  Puppet ${index}: x=${puppet.x}%, y_offset=${puppet.y_offset}, rot=${puppet.rotation}°, tilt=${puppet.tilt}°`);
+    }
+  });
+  
+  // Show a small sample of the tile grid
+  output.push('\n🔲 TILE GRID SAMPLE (top-left 16×8):');
+  for (let y = 0; y < 8; y++) {
+    let row = '  ';
+    for (let x = 0; x < 16; x++) {
+      row += state.tiles.tiles[y][x].state === 'white' ? '█' : '░';
+    }
+    output.push(row);
+  }
+  
+  return output.join('\n');
+}
 
 /**
  * Initialize the theater and set up basic test controls
@@ -33,6 +113,19 @@ function setupControls(theater: Theater): void {
   const testPropsBtn = document.getElementById('test-props');
   const testPuppetsBtn = document.getElementById('test-puppets');
   const clearAllBtn = document.getElementById('clear-all');
+  const showStateBtn = document.getElementById('show-state');
+  const closeDebugBtn = document.getElementById('close-debug');
+  const refreshDebugBtn = document.getElementById('refresh-debug');
+  const debugPanel = document.getElementById('debug-panel');
+  const stateDisplay = document.getElementById('state-display');
+
+  // Function to refresh the debug display
+  const refreshDebugDisplay = () => {
+    if (debugPanel && stateDisplay && debugPanel.style.display !== 'none') {
+      const state = theater.get_state();
+      stateDisplay.textContent = formatStateForDisplay(state);
+    }
+  };
 
   if (testTilesBtn) {
     testTilesBtn.addEventListener('click', () => {
@@ -58,6 +151,7 @@ function setupControls(theater: Theater): void {
       theater.tile.flip_sequence(coords, 100);
       
       console.log('Tiles pattern created');
+      refreshDebugDisplay(); // Auto-refresh debug panel
     });
   }
 
@@ -81,6 +175,7 @@ function setupControls(theater: Theater): void {
       theater.led.fade_to(32, 16, { r: 255, g: 255, b: 255 }, 1000);
       
       console.log('LED gradient created');
+      refreshDebugDisplay(); // Auto-refresh debug panel
     });
   }
 
@@ -100,9 +195,11 @@ function setupControls(theater: Theater): void {
       setTimeout(() => {
         theater.prop.rotate(3, 45, 500);
         theater.prop.tilt(5, 15, 300);
+        refreshDebugDisplay(); // Refresh after animations start
       }, 500);
       
       console.log('Props deployed');
+      refreshDebugDisplay(); // Auto-refresh debug panel
     });
   }
 
@@ -122,9 +219,11 @@ function setupControls(theater: Theater): void {
         theater.puppet.spin(1, 180, 400);
         theater.puppet.tilt(2, 20, 300);
         theater.puppet.bob(3, -3, 250);
+        refreshDebugDisplay(); // Refresh after animations start
       }, 1000);
       
       console.log('Puppets positioned and animated');
+      refreshDebugDisplay(); // Auto-refresh debug panel
     });
   }
 
@@ -133,6 +232,30 @@ function setupControls(theater: Theater): void {
       console.log('🧹 Clearing all...');
       theater.clear_all();
       console.log('Theater cleared');
+      refreshDebugDisplay(); // Auto-refresh debug panel
+    });
+  }
+
+  // Debug panel controls
+  if (showStateBtn && debugPanel && stateDisplay) {
+    showStateBtn.addEventListener('click', () => {
+      console.log('🐛 Showing state debug panel...');
+      const state = theater.get_state();
+      stateDisplay.textContent = formatStateForDisplay(state);
+      debugPanel.style.display = 'block';
+    });
+  }
+
+  if (closeDebugBtn && debugPanel) {
+    closeDebugBtn.addEventListener('click', () => {
+      debugPanel.style.display = 'none';
+    });
+  }
+
+  if (refreshDebugBtn) {
+    refreshDebugBtn.addEventListener('click', () => {
+      console.log('🔄 Manually refreshing debug panel...');
+      refreshDebugDisplay();
     });
   }
 
