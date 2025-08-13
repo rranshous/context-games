@@ -57,17 +57,26 @@ Build a web-based simulator that replicates a physical four-layer theater consol
 **Goal**: Visual representation of the theater state
 
 **Deliverables**:
-- [ ] Multi-canvas layered rendering system
+- [x] Multi-canvas layered rendering system
 - [ ] Tile flip animations with easing
-- [ ] LED glow effects and color blending
-- [ ] Prop sprites with transforms
+- [x] LED glow effects and color blending
+- [ ] Prop sprites with transforms (enhanced)
 - [ ] Puppet sprites with shadows
+- [ ] Stage positioning and scaling refinements
 
 **Acceptance Criteria**:
 - 64×32 stage renders correctly
 - All layer visual effects work as specified
 - Smooth 60fps animations
 - Configurable rendering scale
+- **NEW: Proper staging alignment and positioning**
+
+**Phase 2 Refinement Goals**:
+- Enhanced prop sprites (better design, colors, details)
+- Puppet shadows and improved character design
+- Tile flip animations with smooth easing
+- Stage positioning: scale and align all elements properly
+- "Line everything up" - consistent positioning across all layers
 
 ### Phase 3: Scene Description DSL
 **Goal**: Create a simple, human-readable DSL for describing theatrical scenes
