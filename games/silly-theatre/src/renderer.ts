@@ -16,7 +16,7 @@ export interface RendererConfig {
 const DEFAULT_RENDERER_CONFIG: RendererConfig = {
   stageWidth: 64,
   stageHeight: 32,
-  pixelsPerUnit: 12, // 64*12 = 768px wide, 32*12 = 384px tall
+  pixelsPerUnit: 20, // Increased from 12 to 20 for much larger display (1280×640px)
   enableGlow: true,
   enableShadows: true
 };
@@ -210,7 +210,7 @@ export class TheaterRenderer {
   }
 
   /**
-   * Render the tile layer (background)
+   * Render the tile layer (background stage floor/wall)
    */
   private renderTiles(tiles: TileState[][]): void {
     const unit = this.config.pixelsPerUnit;
@@ -219,18 +219,25 @@ export class TheaterRenderer {
       for (let x = 0; x < tiles[y].length; x++) {
         const tile = tiles[y][x];
         
-        // Set tile color
-        this.tileCtx.fillStyle = tile.state === 'white' ? '#ffffff' : '#222222';
+        // Add slight perspective - tiles get smaller toward the back
+        const depthFactor = 1 - (y / tiles.length) * 0.1; // 10% smaller at back
+        const tileSize = unit * depthFactor;
         
-        // Draw tile
-        const pixelX = x * unit;
-        const pixelY = y * unit;
-        this.tileCtx.fillRect(pixelX, pixelY, unit, unit);
+        // Set tile color with depth shading
+        const depthShade = 1 - (y / tiles.length) * 0.2; // Darker toward back
+        this.tileCtx.fillStyle = tile.state === 'white' 
+          ? `rgba(255, 255, 255, ${depthShade})` 
+          : `rgba(34, 34, 34, ${depthShade})`;
+        
+        // Draw tile with perspective
+        const pixelX = x * unit + (unit - tileSize) / 2; // Center smaller tiles
+        const pixelY = y * unit + (unit - tileSize) / 2;
+        this.tileCtx.fillRect(pixelX, pixelY, tileSize, tileSize);
         
         // Add subtle grid lines
-        this.tileCtx.strokeStyle = '#333333';
+        this.tileCtx.strokeStyle = `rgba(51, 51, 51, ${depthShade * 0.5})`;
         this.tileCtx.lineWidth = 0.5;
-        this.tileCtx.strokeRect(pixelX, pixelY, unit, unit);
+        this.tileCtx.strokeRect(pixelX, pixelY, tileSize, tileSize);
       }
     }
   }
@@ -295,16 +302,17 @@ export class TheaterRenderer {
     
     props.forEach((prop) => {
       if (prop && prop.position === 'visible') {
+        // Props are positioned in mid-stage with perspective depth
         const centerX = prop.x * unit;
-        const centerY = prop.y * unit;
+        const centerY = prop.y * unit + (this.canvasHeight * 0.25); // Push props down and back
         
         // Save context for transforms
         this.propCtx.save();
         
-        // Apply transforms
+        // Apply transforms with depth perspective
         this.propCtx.translate(centerX, centerY);
         this.propCtx.rotate((prop.rotation * Math.PI) / 180);
-        this.propCtx.scale(1, 1 + prop.tilt / 100); // Simple tilt effect
+        this.propCtx.scale(1.0, 1.0 + prop.tilt / 100); // Normal scale for the much larger props
         
         // Draw prop based on type
         this.drawProp(this.propCtx, prop.type, unit);
@@ -319,14 +327,15 @@ export class TheaterRenderer {
    * Draw a specific prop type using sprite images or fallback shapes
    */
   private drawProp(ctx: CanvasRenderingContext2D, type: string, unit: number): void {
-    const size = unit * 2.5; // Larger props for better visibility
+    const size = unit * 15.0; // Much larger props - 5x bigger for dramatic stage presence
     
-    // Add shadow first (behind the prop)
+    // Add shadow first (cast toward audience/front of stage)
     if (this.config.enableShadows) {
       ctx.save();
-      ctx.globalAlpha = 0.3;
+      ctx.globalAlpha = 0.25;
       ctx.fillStyle = '#000000';
-      ctx.translate(unit * 0.3, unit * 0.3); // Shadow offset
+      ctx.translate(-unit * 0.2, unit * 0.5); // Shadow cast forward toward audience
+      ctx.scale(1.1, 0.4); // Elongated shadow toward front
       
       if (this.imagesLoaded && this.propImages.has(type)) {
         // Draw shadow of the image
@@ -431,18 +440,19 @@ export class TheaterRenderer {
       // Only render visible puppets
       if (!puppet.visible) return;
       
+      // Puppets are at the front edge of the stage (closest to audience)
       const centerX = (puppet.x / 100) * this.canvasWidth;
-      const centerY = baselineY * unit + puppet.y_offset * unit;
+      const centerY = (baselineY + 2) * unit + puppet.y_offset * unit; // Slightly forward position
       
       // Save context for transforms
       this.puppetCtx.save();
       
-      // Apply transforms
+      // Apply transforms with foreground scale (larger since closer to camera)
       this.puppetCtx.translate(centerX, centerY);
       this.puppetCtx.rotate((puppet.rotation * Math.PI) / 180);
-      this.puppetCtx.scale(1 + puppet.tilt / 100, 1); // Simple tilt effect
+      this.puppetCtx.scale(1.2 + puppet.tilt / 100, 1.2); // Even larger scale - dominant stage presence
       
-      // Draw simple puppet (stick figure)
+      // Draw puppet
       this.drawPuppet(this.puppetCtx, unit);
       
       // Restore context
@@ -454,15 +464,15 @@ export class TheaterRenderer {
    * Draw a puppet using sprite image or fallback shape
    */
   private drawPuppet(ctx: CanvasRenderingContext2D, unit: number): void {
-    const size = unit * 1.8; // Slightly larger for better visibility
+    const size = unit * 4.5; // Much larger puppets - really prominent on stage
     
-    // Draw shadow first (if enabled)
+    // Draw shadow first (cast back onto the stage)
     if (this.config.enableShadows) {
       ctx.save();
-      ctx.globalAlpha = 0.2;
+      ctx.globalAlpha = 0.3;
       ctx.fillStyle = '#000000';
-      ctx.translate(unit * 0.4, unit * 0.4); // Shadow offset
-      ctx.scale(1.1, 0.3); // Flatten shadow
+      ctx.translate(unit * 0.1, unit * 0.6); // Shadow cast back onto stage
+      ctx.scale(0.8, 0.2); // Flat shadow on stage floor
       
       if (this.imagesLoaded && this.puppetImage) {
         // Draw shadow of the image

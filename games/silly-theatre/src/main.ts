@@ -108,7 +108,7 @@ function init(): void {
   }
   
   const renderer = new TheaterRenderer(theaterContainer, {
-    pixelsPerUnit: 12, // Scale factor for visibility
+    pixelsPerUnit: 24, // Much larger scale factor - 64*24 = 1536px wide, 32*24 = 768px tall
     enableGlow: true,
     enableShadows: true
   });
