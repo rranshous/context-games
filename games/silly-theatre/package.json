@@ -1,0 +1,26 @@
+{
+  "name": "silly-theatre",
+  "version": "0.1.0",
+  "description": "Physical Fantasy Console Theater - Web simulator of a four-layer theater console",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  },
+  "keywords": [
+    "theater",
+    "simulation",
+    "canvas",
+    "game",
+    "creative-tool"
+  ],
+  "author": "Robby",
+  "license": "MIT"
+}
