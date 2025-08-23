@@ -147,7 +147,7 @@ export class CanvasRenderer {
         }
     }
     
-    render() {
+    render(objectManager = null) {
         if (!this.isInitialized) {
             console.warn('Renderer not initialized yet');
             return;
@@ -162,13 +162,17 @@ export class CanvasRenderer {
             this.drawAsset('table-background', 0, 0, canvasRect.width, canvasRect.height);
         }
         
-        // For milestone 2, we'll just show that assets are loaded
-        // Object placement will be handled in milestone 3
-        this.drawAssetsPreview();
+        // Render objects if object manager is provided (Milestone 3)
+        if (objectManager) {
+            objectManager.render();
+        } else {
+            // For milestone 2, show assets preview
+            this.drawAssetsPreview();
+        }
     }
     
     drawAssetsPreview() {
-        // Show a preview of all loaded assets in the corner
+        // Show a preview of all loaded assets in the corner (only when no object manager)
         const assets = ['candle-red', 'candle-blue', 'candle-purple', 'candle-white', 
                        'stone-obsidian', 'stone-quartz', 'stone-amethyst', 'incense'];
         
@@ -180,7 +184,7 @@ export class CanvasRenderer {
         
         this.ctx.fillStyle = '#fff';
         this.ctx.font = '14px Arial';
-        this.ctx.fillText('Assets Loaded:', 10, 25);
+        this.ctx.fillText('Assets Preview (Milestone 2 Mode):', 10, 25);
         
         assets.forEach((assetName, index) => {
             if (this.assets.has(assetName)) {

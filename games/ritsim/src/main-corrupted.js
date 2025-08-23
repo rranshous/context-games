@@ -2,7 +2,17 @@
 // Milestone 3: Object placement and interaction
 
 import { CanvasRenderer } from './canvas/renderer.js';
-import { ObjectManager } from './objects/object-manager.js';
+import { ObjectMafunction startRenderLoop() {
+    function render() {
+        if (renderer) {
+            renderer.render(objectManager);
+        }
+        requestAnimationFrame(render);
+    }
+    
+    console.log('🎬 Starting render loop...');
+    render();
+}m './objects/object-manager.js';
 
 console.log('🕯️ RitSim initializing...');
 
@@ -43,8 +53,10 @@ async function initializeCanvas() {
         
         if (assetsLoaded) {
             console.log('✅ All assets loaded successfully');
+            updateStatusForMilestone2(true);
         } else {
             console.log('⚠️ Using placeholder assets for development');
+            updateStatusForMilestone2(false);
         }
         
         // Initialize object management system (Milestone 3)
@@ -62,6 +74,30 @@ async function initializeCanvas() {
     } catch (error) {
         console.error('❌ Canvas initialization failed:', error);
         updateStatusForMilestone3(false, error.message);
+    }
+}
+
+function updateStatusForMilestone2(success, errorMessage = null) {
+    const statusEl = document.getElementById('status');
+    if (!statusEl) return;
+    
+    if (success) {
+        statusEl.className = 'status success';
+        statusEl.innerHTML = `
+            <h3>✅ Milestone 2 Complete!</h3>
+            <p>Canvas rendering and asset loading working</p>
+            <p><strong>Assets:</strong> Table background, 4 candles, 3 stones, incense loaded</p>
+            <p><strong>Rendering:</strong> 2D pipeline active with asset preview</p>
+            <p>🎯 Ready for Milestone 3: Object Placement & Interaction</p>
+        `;
+    } else {
+        statusEl.className = 'status';
+        statusEl.innerHTML = `
+            <h3>⚠️ Milestone 2: Development Mode</h3>
+            <p>Canvas rendering active with placeholder assets</p>
+            ${errorMessage ? `<p><strong>Note:</strong> ${errorMessage}</p>` : ''}
+            <p>Using generated placeholder sprites for development</p>
+        `;
     }
 }
 
@@ -138,12 +174,12 @@ function updateStatusForMilestone3(success = true, errorMessage = null) {
 function startRenderLoop() {
     function render() {
         if (renderer) {
-            renderer.render(objectManager);
+            renderer.render();
         }
         requestAnimationFrame(render);
     }
     
-    console.log('🎬 Starting render loop...');
+    console.log('� Starting render loop...');
     render();
 }
 
@@ -151,9 +187,9 @@ function startRenderLoop() {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📱 DOM loaded, starting RitSim...');
     
-    // Run milestone initialization
+    // Run both milestone 1 and 2 initialization
     await testConnection();
     await initializeCanvas();
     
-    console.log('🚀 RitSim Milestone 3 complete - interactive ritual table ready!');
+    console.log('🚀 RitSim Milestone 2 complete - canvas rendering active!');
 });
