@@ -26,6 +26,8 @@
 - Standard frontend build (likely Vite for TypeScript/modern JS)
 - Single server process for both concerns
 
+**Note**: Robby will handle starting the background server
+
 **Success**: Can serve a basic HTML page with JavaScript loading
 
 ---
@@ -94,7 +96,7 @@
 - Error handling for API failures
 
 **Technical Decisions**:
-- Use Anthropic SDK (per project requirements)
+- Use Anthropic SDK (per project requirements) - https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#streaming-helpers
 - Request/response structure design
 - Rate limiting considerations
 
@@ -191,26 +193,7 @@
 - **Development**: Hot reload, source maps
 - **Deployment**: Single server process
 
-## 📁 Project Structure
-```
-/games/ritsim/
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── server.js              # Express server
-├── public/
-│   ├── index.html
-│   └── assets/            # Images, sprites
-├── src/
-│   ├── main.ts           # Frontend entry
-│   ├── canvas/           # Rendering system
-│   ├── objects/          # Object management
-│   ├── ai/               # AI communication
-│   └── ui/               # Interface components
-└── docs/                 # Documentation
-```
-
-## 🚀 Getting Started
+##  Getting Started
 
 Each milestone will be developed in sequence, with full completion before moving to the next. This allows for:
 

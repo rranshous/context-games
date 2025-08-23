@@ -1,0 +1,24 @@
+{
+  "name": "ritsim",
+  "version": "1.0.0",
+  "description": "AI-driven ritual simulator - exploring inference-driven game design",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "NODE_ENV=development nodemon server.js",
+    "client:dev": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server.js",
+    "preview": "npm run build && npm start"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.1",
+    "typescript": "^5.2.2",
+    "vite": "^4.4.5"
+  },
+  "type": "module"
+}
