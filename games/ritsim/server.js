@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { aiService } from './services/ai-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -8,6 +10,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isDev = process.env.NODE_ENV !== 'production';
+
+// Parse JSON bodies for API requests
+app.use(express.json({ limit: '10mb' }));
 
 // In development, proxy to Vite dev server for frontend
 if (isDev) {
@@ -19,6 +24,59 @@ if (isDev) {
   // API routes
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'RitSim server running (dev mode)' });
+  });
+  
+  // AI API routes (Milestone 5)
+  app.get('/api/ai/status', (req, res) => {
+    const status = aiService.getStatus();
+    res.json({ 
+      status: 'ok',
+      ai: status,
+      message: status.initialized ? 'AI service ready' : 'AI service not configured'
+    });
+  });
+  
+  app.post('/api/ai/test', async (req, res) => {
+    try {
+      const result = await aiService.testConnection();
+      res.json({
+        status: 'success',
+        message: 'AI connection test successful',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'AI connection test failed',
+        error: error.message
+      });
+    }
+  });
+  
+  app.post('/api/ai/message', async (req, res) => {
+    try {
+      const { message, systemPrompt } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Message content is required'
+        });
+      }
+      
+      const result = await aiService.sendMessage(message, systemPrompt);
+      res.json({
+        status: 'success',
+        message: 'AI message processed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'AI message failed',
+        error: error.message
+      });
+    }
   });
   
   // Proxy all other requests to Vite dev server
@@ -55,6 +113,59 @@ if (isDev) {
   // API routes
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'RitSim server running (production)' });
+  });
+  
+  // AI API routes (Milestone 5)
+  app.get('/api/ai/status', (req, res) => {
+    const status = aiService.getStatus();
+    res.json({ 
+      status: 'ok',
+      ai: status,
+      message: status.initialized ? 'AI service ready' : 'AI service not configured'
+    });
+  });
+  
+  app.post('/api/ai/test', async (req, res) => {
+    try {
+      const result = await aiService.testConnection();
+      res.json({
+        status: 'success',
+        message: 'AI connection test successful',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'AI connection test failed',
+        error: error.message
+      });
+    }
+  });
+  
+  app.post('/api/ai/message', async (req, res) => {
+    try {
+      const { message, systemPrompt } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Message content is required'
+        });
+      }
+      
+      const result = await aiService.sendMessage(message, systemPrompt);
+      res.json({
+        status: 'success',
+        message: 'AI message processed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'AI message failed',
+        error: error.message
+      });
+    }
   });
   
   // Serve the main app for all other routes (SPA support)

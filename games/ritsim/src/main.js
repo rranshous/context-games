@@ -1,15 +1,17 @@
 // RitSim - Main Application Entry Point
-// Milestone 4: Canvas screenshot capture
+// Milestone 5: AI Proxy Infrastructure
 
 import { CanvasRenderer } from './canvas/renderer.js';
 import { ObjectManager } from './objects/object-manager.js';
 import { ScreenshotCapture } from './screenshot/capture.js';
+import { AIClient } from './ai/client.js';
 
 console.log('🕯️ RitSim initializing...');
 
 let renderer = null;
 let objectManager = null;
 let screenshotCapture = null;
+let aiClient = null;
 
 // Test API connection
 async function testConnection() {
@@ -55,21 +57,27 @@ async function initializeCanvas() {
         // Initialize screenshot system (Milestone 4)
         initializeScreenshot();
         
+        // Initialize AI client (Milestone 5)
+        initializeAI();
+        
         // Set up mouse interaction (Milestone 3)
         setupMouseInteraction();
         
         // Set up screenshot UI (Milestone 4)
         setupScreenshotUI();
         
+        // Set up AI UI (Milestone 5)
+        await setupAIUI();
+        
         // Start render loop
         startRenderLoop();
         
-        // Update status for milestone 4
-        updateStatusForMilestone4();
+        // Update status for milestone 5
+        updateStatusForMilestone5();
         
     } catch (error) {
         console.error('❌ Canvas initialization failed:', error);
-        updateStatusForMilestone4(false, error.message);
+        updateStatusForMilestone5(false, error.message);
     }
 }
 
@@ -258,6 +266,237 @@ function updateStatusForMilestone4(success = true, errorMessage = null) {
     }
 }
 
+// Initialize AI client system (Milestone 5)
+function initializeAI() {
+    console.log('🤖 Setting up AI client system...');
+    
+    aiClient = new AIClient();
+    
+    console.log('✅ AI client ready');
+}
+
+// Set up AI UI and controls (Milestone 5)
+async function setupAIUI() {
+    console.log('🎨 Setting up AI UI...');
+    
+    // Check AI status first
+    let aiStatus = null;
+    let statusError = null;
+    try {
+        aiStatus = await aiClient.getStatus();
+        console.log('✅ AI status check successful:', aiStatus);
+    } catch (error) {
+        console.warn('⚠️ Could not check AI status:', error.message);
+        statusError = error.message;
+    }
+    
+    // Add AI section to the page
+    const container = document.querySelector('.container');
+    if (!container) return;
+    
+    const aiSection = document.createElement('div');
+    aiSection.id = 'ai-section';
+    aiSection.style.cssText = `
+        margin: 20px 0;
+        padding: 15px;
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 8px;
+        text-align: center;
+    `;
+    
+    // Insert after screenshot section
+    const screenshotSection = container.querySelector('div[style*="margin: 20px 0"]');
+    if (screenshotSection) {
+        screenshotSection.insertAdjacentElement('afterend', aiSection);
+    }
+    
+    // Update AI UI with current status
+    updateAIUI(aiStatus, statusError);
+    
+    console.log('🖱️ AI UI controls ready');
+}
+
+function updateAIUI(aiStatus, statusError = null) {
+    const aiSection = document.getElementById('ai-section');
+    if (!aiSection) return;
+    
+    const isConfigured = aiStatus?.ai?.initialized || false;
+    const statusColor = isConfigured ? '#4a9' : '#aa4';
+    const statusText = isConfigured ? 'AI Ready' : 'API Key Required';
+    
+    let debugInfo = '';
+    if (statusError) {
+        debugInfo = `<div style="color: #a44; font-size: 12px; margin-top: 5px;">Error: ${statusError}</div>`;
+    } else if (aiStatus) {
+        debugInfo = `
+            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                Has API Key: ${aiStatus.ai?.hasApiKey ? 'Yes' : 'No'} | 
+                Initialized: ${aiStatus.ai?.initialized ? 'Yes' : 'No'} | 
+                Model: ${aiStatus.ai?.model || 'Unknown'}
+            </div>
+        `;
+    }
+    
+    aiSection.innerHTML = `
+        <h3 style="color: ${statusColor}; margin: 0 0 10px 0;">🤖 ${statusText}</h3>
+        
+        <button id="ai-refresh-btn" style="
+            background: #333;
+            color: #e0e0e0;
+            border: 1px solid #555;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 10px;
+        ">🔄 Refresh Status</button>
+        
+        <button id="ai-test-btn" style="
+            background: #4a4a4a;
+            color: #e0e0e0;
+            border: 1px solid #666;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-right: 10px;
+            ${isConfigured ? '' : 'opacity: 0.5; cursor: not-allowed;'}
+        " ${isConfigured ? '' : 'disabled'}>🧪 Test Connection</button>
+        
+        <button id="ai-message-btn" style="
+            background: #4a4a4a;
+            color: #e0e0e0;
+            border: 1px solid #666;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            ${isConfigured ? '' : 'opacity: 0.5; cursor: not-allowed;'}
+        " ${isConfigured ? '' : 'disabled'}>💬 Send Test Message</button>
+        
+        <div id="ai-response" style="
+            margin-top: 10px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 12px;
+            color: #ccc;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        "></div>
+        
+        ${debugInfo}
+        
+        ${!isConfigured ? `
+        <div style="margin-top: 10px; font-size: 12px; color: #999;">
+            Create .env file with ANTHROPIC_API_KEY to enable AI functionality
+        </div>
+        ` : ''}
+    `;
+    
+    // Set up event listeners
+    setupAIEventListeners(isConfigured);
+}
+
+function setupAIEventListeners(isConfigured) {
+    // Refresh status button (always enabled)
+    document.getElementById('ai-refresh-btn').addEventListener('click', async () => {
+        console.log('🔄 Refreshing AI status...');
+        
+        let aiStatus = null;
+        let statusError = null;
+        try {
+            aiStatus = await aiClient.getStatus();
+            console.log('✅ Status refresh successful');
+        } catch (error) {
+            console.error('❌ Status refresh failed:', error);
+            statusError = error.message;
+        }
+        
+        updateAIUI(aiStatus, statusError);
+    });
+    
+    // Only set up other buttons if AI is configured
+    if (!isConfigured) return;
+    
+    document.getElementById('ai-test-btn').addEventListener('click', async () => {
+        const responseDiv = document.getElementById('ai-response');
+        responseDiv.style.display = 'block';
+        responseDiv.textContent = 'Testing AI connection...';
+        
+        try {
+            const result = await aiClient.testConnection();
+            responseDiv.innerHTML = `
+                <div style="color: #4a9;">✅ Test Successful</div>
+                <div style="margin-top: 5px;">${result.data.response}</div>
+                <div style="margin-top: 5px; color: #666;">
+                    Model: ${result.data.model} | 
+                    Tokens: ${result.data.usage?.input_tokens || 0} in, ${result.data.usage?.output_tokens || 0} out
+                </div>
+            `;
+        } catch (error) {
+            responseDiv.innerHTML = `
+                <div style="color: #a44;">❌ Test Failed</div>
+                <div style="margin-top: 5px;">${error.message}</div>
+            `;
+        }
+    });
+    
+    document.getElementById('ai-message-btn').addEventListener('click', async () => {
+        const responseDiv = document.getElementById('ai-response');
+        responseDiv.style.display = 'block';
+        responseDiv.textContent = 'Sending test message...';
+        
+        try {
+            const result = await aiClient.sendMessage(
+                'Please describe what you know about ritual practices and mystical traditions in a brief, atmospheric way.'
+            );
+            responseDiv.innerHTML = `
+                <div style="color: #4a9;">✅ Message Successful</div>
+                <div style="margin-top: 5px;">${result.data.response}</div>
+                <div style="margin-top: 5px; color: #666;">
+                    Model: ${result.data.model} | 
+                    Tokens: ${result.data.usage?.input_tokens || 0} in, ${result.data.usage?.output_tokens || 0} out
+                </div>
+            `;
+        } catch (error) {
+            responseDiv.innerHTML = `
+                <div style="color: #a44;">❌ Message Failed</div>
+                <div style="margin-top: 5px;">${error.message}</div>
+            `;
+        }
+    });
+}
+
+function updateStatusForMilestone5(success = true, errorMessage = null) {
+    const statusEl = document.getElementById('status');
+    if (!statusEl) return;
+    
+    if (success) {
+        statusEl.className = 'status success';
+        statusEl.innerHTML = `
+            <h3>✅ Milestone 5 Complete!</h3>
+            <p>AI Proxy Infrastructure working</p>
+            <p><strong>Backend:</strong> Claude API integration with Anthropic SDK</p>
+            <p><strong>Endpoints:</strong> Status, test connection, and message processing</p>
+            <p><strong>Frontend:</strong> AI client with error handling and UI controls</p>
+            <p>🎯 Ready for Milestone 6: Vision Processing & Debug Display</p>
+        `;
+    } else {
+        statusEl.className = 'status';
+        statusEl.innerHTML = `
+            <h3>❌ Milestone 5: Error</h3>
+            <p>AI proxy system failed to initialize</p>
+            ${errorMessage ? `<p><strong>Error:</strong> ${errorMessage}</p>` : ''}
+        `;
+    }
+}
+
+// Start render loop
 function startRenderLoop() {
     function render() {
         if (renderer) {
@@ -278,5 +517,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await testConnection();
     await initializeCanvas();
     
-    console.log('🚀 RitSim Milestone 4 complete - screenshot capture ready!');
+    console.log('🚀 RitSim Milestone 5 complete - AI proxy infrastructure ready!');
 });
