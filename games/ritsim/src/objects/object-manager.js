@@ -37,21 +37,36 @@ export class ObjectManager {
         const centerX = (bounds.minX + bounds.maxX) / 2;
         const centerY = (bounds.minY + bounds.maxY) / 2;
         
-        // Place candles in a rough circle around center
-        this.addObject('candle', 'candle-red', centerX - 80, centerY - 60);
-        this.addObject('candle', 'candle-blue', centerX + 80, centerY - 60);
-        this.addObject('candle', 'candle-purple', centerX - 80, centerY + 60);
-        this.addObject('candle', 'candle-white', centerX + 80, centerY + 60);
+        // Place candles - 2 of each color (8 total)
+        // Red candles
+        this.addObject('candle', 'candle-red', centerX - 100, centerY - 80);
+        this.addObject('candle', 'candle-red', centerX - 60, centerY - 80);
         
-        // Place stones in the center area
+        // Blue candles  
+        this.addObject('candle', 'candle-blue', centerX + 60, centerY - 80);
+        this.addObject('candle', 'candle-blue', centerX + 100, centerY - 80);
+        
+        // Purple candles
+        this.addObject('candle', 'candle-purple', centerX - 100, centerY + 80);
+        this.addObject('candle', 'candle-purple', centerX - 60, centerY + 80);
+        
+        // White candles
+        this.addObject('candle', 'candle-white', centerX + 60, centerY + 80);
+        this.addObject('candle', 'candle-white', centerX + 100, centerY + 80);
+        
+        // Place stones in the center area (3 total)
         this.addObject('stone', 'stone-obsidian', centerX - 20, centerY - 15);
         this.addObject('stone', 'stone-quartz', centerX + 20, centerY - 15);
         this.addObject('stone', 'stone-amethyst', centerX, centerY + 20);
         
-        // Place incense off to the side
-        this.addObject('incense', 'incense', centerX - 120, centerY);
+        // Place incense sticks - 4 total
+        this.addObject('incense', 'incense', centerX - 140, centerY - 40);
+        this.addObject('incense', 'incense', centerX - 140, centerY);
+        this.addObject('incense', 'incense', centerX - 140, centerY + 40);
+        this.addObject('incense', 'incense', centerX + 140, centerY);
         
         console.log(`✨ Placed ${this.objects.length} objects on the ritual table`);
+        console.log(`🕯️ Candles: 8 (2 of each color), Stones: 3, Incense: 4`);
     }
     
     addObject(type, assetName, x, y) {
