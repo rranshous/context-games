@@ -79,6 +79,48 @@ export class ScreenshotCapture {
         return screenshot;
     }
     
+    // Capture and get base64 data for AI vision analysis
+    async captureForVision() {
+        console.log('👁️ Capturing image for AI vision analysis...');
+        
+        try {
+            // Get as blob first for efficient processing
+            const screenshot = await this.captureForAI();
+            
+            // Convert to base64 for AI API
+            const base64 = await this.blobToBase64(screenshot.blob);
+            
+            console.log(`🔍 Vision-ready image prepared: ${(screenshot.size / 1024).toFixed(1)}KB`);
+            
+            return {
+                base64: base64,
+                blob: screenshot.blob,
+                url: screenshot.url,
+                size: screenshot.size,
+                format: 'jpeg'
+            };
+            
+        } catch (error) {
+            console.error('❌ Vision capture failed:', error);
+            throw error;
+        }
+    }
+    
+    // Convert blob to base64
+    async blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = reader.result;
+                // Remove data URL prefix to get just base64
+                const base64 = result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+    
     // Download the screenshot (for debugging/testing)
     downloadLastScreenshot(filename = null) {
         if (!this.lastScreenshotUrl) {

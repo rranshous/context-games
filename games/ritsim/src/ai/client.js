@@ -85,6 +85,77 @@ export class AIClient {
         }
     }
     
+    // Send an image for AI vision analysis
+    async analyzeImage(imageData, prompt = null) {
+        try {
+            console.log('👁️ Sending image to AI for vision analysis...');
+            
+            // Convert blob to base64 if needed
+            let imageBase64;
+            if (imageData instanceof Blob) {
+                imageBase64 = await this.blobToBase64(imageData);
+            } else if (typeof imageData === 'string') {
+                // Assume it's already base64 or data URL
+                imageBase64 = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+            } else {
+                throw new Error('Invalid image data format');
+            }
+            
+            const defaultPrompt = `You are analyzing a ritual table arrangement from above. 
+The image shows a mystical table with various ritual objects placed on it:
+- Candles (red, blue, purple, white) with flames
+- Stones (obsidian, quartz, amethyst) 
+- Incense sticks with smoke
+
+Please describe what you see in this ritual arrangement. Focus on:
+1. The types and colors of objects present
+2. Their spatial relationships and positioning
+3. Any patterns, symmetries, or symbolic arrangements
+4. The overall energy or intention you sense from the configuration
+
+Provide a mystical interpretation while being specific about what objects you can observe.`;
+
+            const response = await fetch(`${this.baseUrl}/analyze-image`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    imageBase64: imageBase64,
+                    prompt: prompt || defaultPrompt
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'AI vision analysis failed');
+            }
+            
+            console.log('🔍 AI vision analysis complete');
+            return data;
+            
+        } catch (error) {
+            console.error('❌ AI vision analysis failed:', error);
+            throw error;
+        }
+    }
+    
+    // Convert blob to base64
+    async blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = reader.result;
+                // Remove data URL prefix to get just base64
+                const base64 = result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+    
     // Check if AI is available and configured
     async isAvailable() {
         try {

@@ -79,6 +79,32 @@ if (isDev) {
     }
   });
   
+  app.post('/api/ai/analyze-image', async (req, res) => {
+    try {
+      const { imageBase64, prompt } = req.body;
+      
+      if (!imageBase64) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Image data is required'
+        });
+      }
+      
+      const result = await aiService.analyzeImage(imageBase64, prompt);
+      res.json({
+        status: 'success',
+        message: 'AI vision analysis completed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'AI vision analysis failed',
+        error: error.message
+      });
+    }
+  });
+  
   // Proxy all other requests to Vite dev server
   app.use('*', async (req, res) => {
     try {
@@ -163,6 +189,32 @@ if (isDev) {
       res.status(500).json({
         status: 'error',
         message: 'AI message failed',
+        error: error.message
+      });
+    }
+  });
+  
+  app.post('/api/ai/analyze-image', async (req, res) => {
+    try {
+      const { imageBase64, prompt } = req.body;
+      
+      if (!imageBase64) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Image data is required'
+        });
+      }
+      
+      const result = await aiService.analyzeImage(imageBase64, prompt);
+      res.json({
+        status: 'success',
+        message: 'AI vision analysis completed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'AI vision analysis failed',
         error: error.message
       });
     }

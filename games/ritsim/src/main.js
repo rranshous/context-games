@@ -1,5 +1,5 @@
 // RitSim - Main Application Entry Point
-// Milestone 5: AI Proxy Infrastructure
+// Milestone 6: Vision Processing & Debug Display
 
 import { CanvasRenderer } from './canvas/renderer.js';
 import { ObjectManager } from './objects/object-manager.js';
@@ -72,12 +72,12 @@ async function initializeCanvas() {
         // Start render loop
         startRenderLoop();
         
-        // Update status for milestone 5
-        updateStatusForMilestone5();
+        // Update status for milestone 6
+        updateStatusForMilestone6();
         
     } catch (error) {
         console.error('❌ Canvas initialization failed:', error);
-        updateStatusForMilestone5(false, error.message);
+        updateStatusForMilestone6(false, error.message);
     }
 }
 
@@ -197,6 +197,18 @@ function setupScreenshotUI() {
             margin-right: 10px;
         ">🤖 AI Capture</button>
         
+        <button id="vision-analyze-btn" style="
+            background: #4a2a7a;
+            color: #e0e0e0;
+            border: 1px solid #6a4a9a;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            box-shadow: 0 2px 4px rgba(106, 74, 154, 0.3);
+        ">👁️ Analyze Ritual</button>
+        
         <button id="download-btn" style="
             background: #444;
             color: #e0e0e0;
@@ -237,6 +249,42 @@ function setupScreenshotUI() {
     
     document.getElementById('download-btn').addEventListener('click', () => {
         screenshotCapture.downloadLastScreenshot();
+    });
+    
+    // Vision analysis button (Milestone 6)
+    document.getElementById('vision-analyze-btn').addEventListener('click', async () => {
+        try {
+            console.log('👁️ Starting vision analysis...');
+            
+            // Capture image for vision analysis
+            const visionData = await screenshotCapture.captureForVision();
+            screenshotCapture.displayInDebugPanel();
+            
+            // Show analysis in progress
+            const visionPanel = createVisionResponsePanel();
+            const contentDiv = visionPanel.querySelector('#vision-content');
+            const metaDiv = visionPanel.querySelector('#vision-meta');
+            
+            contentDiv.textContent = 'Analyzing ritual arrangement...';
+            contentDiv.style.color = '#b794d4';
+            metaDiv.textContent = 'Processing image with Claude AI...';
+            
+            // Send to AI for analysis
+            const result = await aiClient.analyzeImage(visionData.base64);
+            
+            console.log('🔍 Raw AI result:', result);
+            console.log('🔍 Response data:', result.data);
+            console.log('🔍 Response text:', result.data?.response);
+            
+            // Display results
+            displayVisionAnalysis(result.data.response, result.data.usage);
+            
+            console.log('🔍 Vision analysis complete');
+            
+        } catch (error) {
+            console.error('❌ Vision analysis failed:', error);
+            displayVisionAnalysis(`Error: ${error.message}`, null, true);
+        }
     });
     
     console.log('🖱️ Screenshot UI controls active');
@@ -496,6 +544,117 @@ function updateStatusForMilestone5(success = true, errorMessage = null) {
     }
 }
 
+// Create or get vision response panel (Milestone 6)
+function createVisionResponsePanel() {
+    let panel = document.getElementById('vision-response');
+    if (panel) return panel;
+    
+    panel = document.createElement('div');
+    panel.id = 'vision-response';
+    panel.style.cssText = `
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        width: 400px;
+        max-height: 600px;
+        background: rgba(20, 20, 20, 0.95);
+        border: 2px solid #6a4a9a;
+        border-radius: 12px;
+        padding: 20px;
+        color: #e0e0e0;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        z-index: 1001;
+        overflow-y: auto;
+        box-shadow: 0 8px 24px rgba(106, 74, 154, 0.4);
+    `;
+    
+    panel.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; color: #b794d4;">👁️ Ritual Vision Analysis</h3>
+            <button id="close-vision" style="
+                background: none;
+                border: none;
+                color: #888;
+                font-size: 18px;
+                cursor: pointer;
+                padding: 0;
+                width: 24px;
+                height: 24px;
+            ">×</button>
+        </div>
+        <div id="vision-content" style="
+            line-height: 1.6;
+            white-space: pre-wrap;
+        "></div>
+        <div id="vision-meta" style="
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #444;
+            font-size: 12px;
+            color: #888;
+        "></div>
+    `;
+    
+    // Add close functionality
+    panel.querySelector('#close-vision').addEventListener('click', () => {
+        panel.remove();
+    });
+    
+    document.body.appendChild(panel);
+    return panel;
+}
+
+// Display vision analysis results (Milestone 6)
+function displayVisionAnalysis(response, usage = null, isError = false) {
+    const panel = createVisionResponsePanel();
+    const contentDiv = panel.querySelector('#vision-content');
+    const metaDiv = panel.querySelector('#vision-meta');
+    
+    if (isError) {
+        contentDiv.style.color = '#ff7f7f';
+        contentDiv.textContent = response;
+        metaDiv.textContent = 'Analysis failed';
+    } else {
+        contentDiv.style.color = '#e0e0e0';
+        contentDiv.textContent = response;
+        
+        if (usage) {
+            metaDiv.innerHTML = `
+                <div>✨ Analysis complete</div>
+                <div>Tokens: ${usage.input_tokens || 0} in, ${usage.output_tokens || 0} out</div>
+                <div>Model: claude-3-5-sonnet-20241022</div>
+            `;
+        } else {
+            metaDiv.textContent = '✨ Analysis complete';
+        }
+    }
+}
+
+function updateStatusForMilestone6(success = true, errorMessage = null) {
+    const statusEl = document.getElementById('status');
+    if (!statusEl) return;
+    
+    if (success) {
+        statusEl.className = 'status success';
+        statusEl.innerHTML = `
+            <h3>✅ Milestone 6 Complete!</h3>
+            <p>Vision Processing & Debug Display working</p>
+            <p><strong>Vision:</strong> Claude AI can analyze ritual table screenshots</p>
+            <p><strong>Processing:</strong> Image-to-base64 conversion and API integration</p>
+            <p><strong>Display:</strong> Mystical interpretation panel with debug info</p>
+            <p>🎯 Ready for Milestone 7: Performance Analysis & Ritual Insights</p>
+        `;
+    } else {
+        statusEl.className = 'status';
+        statusEl.innerHTML = `
+            <h3>❌ Milestone 6: Error</h3>
+            <p>Vision processing system failed to initialize</p>
+            ${errorMessage ? `<p><strong>Error:</strong> ${errorMessage}</p>` : ''}
+        `;
+    }
+}
+
 // Start render loop
 function startRenderLoop() {
     function render() {
@@ -517,5 +676,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await testConnection();
     await initializeCanvas();
     
-    console.log('🚀 RitSim Milestone 5 complete - AI proxy infrastructure ready!');
+    console.log('🚀 RitSim Milestone 6 complete - vision processing ready!');
 });

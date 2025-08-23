@@ -116,7 +116,7 @@ class AIService {
             console.log('👁️ Sending image to Claude for analysis...');
             
             const message = await this.anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-3-5-haiku-20241022",
                 max_tokens: 1000,
                 messages: [{
                     role: "user",
