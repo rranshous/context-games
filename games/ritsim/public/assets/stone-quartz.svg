@@ -1,0 +1,23 @@
+<svg width="40" height="30" viewBox="0 0 40 30" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="quartzGrad" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#f0f0f0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ddd;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Quartz crystal - more angular -->
+  <path d="M 8 15 L 15 5 L 25 7 L 32 12 L 35 18 L 28 23 L 18 25 L 8 20 Z" 
+        fill="url(#quartzGrad)" 
+        stroke="#ccc" 
+        stroke-width="1"/>
+  
+  <!-- Crystal facets -->
+  <path d="M 15 5 L 20 15 L 32 12" fill="none" stroke="#e6e6e6" stroke-width="1" opacity="0.7"/>
+  <path d="M 8 15 L 20 15 L 18 25" fill="none" stroke="#e6e6e6" stroke-width="1" opacity="0.7"/>
+  
+  <!-- Bright highlights -->
+  <ellipse cx="18" cy="12" rx="4" ry="3" fill="#fff" opacity="0.8"/>
+  <ellipse cx="25" cy="16" rx="2" ry="1" fill="#fff" opacity="0.6"/>
+</svg>

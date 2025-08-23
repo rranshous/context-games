@@ -1,0 +1,31 @@
+<svg width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Table surface with perspective -->
+  <defs>
+    <linearGradient id="tableGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3d2817;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2d1810;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d0f08;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="centerGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" style="stop-color:#4a3020;stop-opacity:0.5" />
+      <stop offset="100%" style="stop-color:#2d1810;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Table surface (angled perspective) -->
+  <path d="M 50 100 L 550 80 L 570 350 L 30 370 Z" 
+        fill="url(#tableGradient)" 
+        stroke="#1a0f08" 
+        stroke-width="3"/>
+  
+  <!-- Center glow effect -->
+  <ellipse cx="300" cy="225" rx="250" ry="120" fill="url(#centerGlow)"/>
+  
+  <!-- Table edge highlights -->
+  <path d="M 50 100 L 550 80" stroke="#5a4030" stroke-width="2" fill="none"/>
+  <path d="M 50 100 L 30 370" stroke="#5a4030" stroke-width="1" fill="none"/>
+  
+  <!-- Subtle wood grain lines -->
+  <path d="M 80 120 L 520 105 M 90 140 L 530 125 M 100 160 L 540 145" 
+        stroke="#3a241a" stroke-width="1" fill="none" opacity="0.6"/>
+</svg>
