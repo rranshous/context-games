@@ -47,3 +47,9 @@ Demonstrate that **AI inference can serve as the primary game logic engine** rat
 - **Advanced AI models**: Claude 3.5 Sonnet level sufficient
 - **Real-time multiplayer**: Turn-based, single-player focus
 
+# Technical:
+- typescript
+- Canvas/html5
+- thin BFF to serve static files and proxy inference requests
+- sonnet 3.5 for inference
+- use [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#streaming-helpers) for model calls
