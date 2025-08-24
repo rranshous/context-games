@@ -849,15 +849,16 @@ function createVoiceSettingsPanel() {
     
     document.body.appendChild(panel);
     
-    // Populate voice dropdown with English voices only
+    // Populate voice dropdown with English (America) voices only
     const voiceSelect = panel.querySelector('#voice-select');
     if (settings.supported) {
         const voices = speechSynthesis.getVoices();
-        const englishVoices = voices.filter(voice => 
-            voice.lang.startsWith('en-') || voice.lang === 'en'
+        const americanEnglishVoices = voices.filter(voice => 
+            voice.name.toLowerCase().includes('english') && 
+            voice.name.toLowerCase().includes('america')
         );
         
-        englishVoices.forEach(voice => {
+        americanEnglishVoices.forEach(voice => {
             const option = document.createElement('option');
             option.value = voice.name;
             option.textContent = `${voice.name} (${voice.lang})`;

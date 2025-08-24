@@ -47,20 +47,21 @@ export class MysticalVoice {
     selectMysticalVoice(voices) {
         console.log('🎭 Available voices:', voices.map(v => `${v.name} (${v.lang})`));
         
-        // First filter to only English voices
-        const englishVoices = voices.filter(voice => 
-            voice.lang.startsWith('en-') || voice.lang === 'en'
+        // First filter to only English (America) voices
+        const americanEnglishVoices = voices.filter(voice => 
+            voice.name.toLowerCase().includes('english') && 
+            voice.name.toLowerCase().includes('america')
         );
         
-        console.log('🎭 English voices:', englishVoices.map(v => `${v.name} (${v.lang})`));
+        console.log('🎭 English (America) voices:', americanEnglishVoices.map(v => `${v.name} (${v.lang})`));
         
-        if (englishVoices.length === 0) {
-            console.warn('🎭 No English voices found, using default');
+        if (americanEnglishVoices.length === 0) {
+            console.warn('🎭 No English (America) voices found, using default');
             this.settings.voice = voices[0] || null;
             return;
         }
         
-        // Preference order for mystical voices (English only)
+        // Preference order for mystical voices (English America only)
         const preferences = [
             // Look for dramatic/deep voices first
             voice => voice.name.toLowerCase().includes('deep'),
@@ -71,15 +72,15 @@ export class MysticalVoice {
             voice => voice.name.toLowerCase().includes('female') || 
                     voice.name.toLowerCase().includes('woman'),
             
-            // Then any English voice with good quality indicators
+            // Then any voice with good quality indicators
             voice => voice.localService,
             
-            // Fallback to first English voice
+            // Fallback to first English (America) voice
             voice => true
         ];
         
         for (const preference of preferences) {
-            const voice = englishVoices.find(preference);
+            const voice = americanEnglishVoices.find(preference);
             if (voice) {
                 this.settings.voice = voice;
                 console.log('🎭 Selected mystical voice:', voice.name);
