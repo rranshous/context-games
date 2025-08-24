@@ -106,7 +106,7 @@ class AIService {
         }
     }
     
-    // Send an image to Claude for vision analysis (future milestone)
+        // Send an image to Claude for vision analysis (future milestone)
     async analyzeImage(imageBase64, prompt = "What do you see in this image?") {
         if (!this.isInitialized) {
             throw new Error('AI service not initialized - check API key');
@@ -116,7 +116,7 @@ class AIService {
             console.log('👁️ Sending image to Claude for analysis...');
             
             const message = await this.anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
+                model: "claude-3-5-sonnet-20241022",
                 max_tokens: 1000,
                 messages: [{
                     role: "user",
@@ -149,6 +149,63 @@ class AIService {
             
         } catch (error) {
             console.error('❌ Claude image analysis failed:', error.message);
+            throw error;
+        }
+    }
+    
+    // Interpret ritual arrangement with game context (Milestone 7)
+    async interpretRitual(imageBase64, magicMechanics) {
+        if (!this.isInitialized) {
+            throw new Error('AI service not initialized - check API key');
+        }
+        
+        try {
+            console.log('🔮 Sending ritual for magical interpretation...');
+            
+            const ritualPrompt = `You are a mystical interpreter analyzing a ritual arrangement in the RitSim universe. 
+
+GAME WORLD CONTEXT:
+${magicMechanics}
+
+TASK:
+Examine this ritual table arrangement and provide an explaination of what the result of the ritual would be.
+
+`;
+
+            const message = await this.anthropic.messages.create({
+                model: "claude-3-5-sonnet-20241022",
+                max_tokens: 1500,
+                messages: [{
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: ritualPrompt
+                        },
+                        {
+                            type: "image",
+                            source: {
+                                type: "base64",
+                                media_type: "image/jpeg",
+                                data: imageBase64
+                            }
+                        }
+                    ]
+                }]
+            });
+            
+            const response = message.content[0].text;
+            console.log('🔮 Ritual interpretation complete');
+            
+            return {
+                success: true,
+                response: response,
+                model: message.model,
+                usage: message.usage
+            };
+            
+        } catch (error) {
+            console.error('❌ Ritual interpretation failed:', error.message);
             throw error;
         }
     }

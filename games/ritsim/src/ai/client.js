@@ -141,6 +141,47 @@ Provide a mystical interpretation while being specific about what objects you ca
         }
     }
     
+    // Interpret ritual with game world context (Milestone 7)
+    async interpretRitual(imageData) {
+        try {
+            console.log('🔮 Sending ritual for magical interpretation...');
+            
+            // Convert blob to base64 if needed
+            let imageBase64;
+            if (imageData instanceof Blob) {
+                imageBase64 = await this.blobToBase64(imageData);
+            } else if (typeof imageData === 'string') {
+                // Assume it's already base64 or data URL
+                imageBase64 = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+            } else {
+                throw new Error('Invalid image data format');
+            }
+            
+            const response = await fetch(`${this.baseUrl}/interpret-ritual`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    imageBase64: imageBase64
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Ritual interpretation failed');
+            }
+            
+            console.log('🔮 Ritual interpretation complete');
+            return data;
+            
+        } catch (error) {
+            console.error('❌ Ritual interpretation failed:', error);
+            throw error;
+        }
+    }
+    
     // Convert blob to base64
     async blobToBase64(blob) {
         return new Promise((resolve, reject) => {

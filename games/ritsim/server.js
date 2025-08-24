@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 import { aiService } from './services/ai-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,6 +14,15 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 // Parse JSON bodies for API requests
 app.use(express.json({ limit: '10mb' }));
+
+// Load magic mechanics for game context
+let magicMechanics = '';
+try {
+  magicMechanics = readFileSync(path.join(__dirname, 'magic-mechanics.md'), 'utf8');
+  console.log('📜 Magic mechanics loaded for game context');
+} catch (error) {
+  console.warn('⚠️ Could not load magic-mechanics.md:', error.message);
+}
 
 // In development, proxy to Vite dev server for frontend
 if (isDev) {
@@ -100,6 +110,32 @@ if (isDev) {
       res.status(500).json({
         status: 'error',
         message: 'AI vision analysis failed',
+        error: error.message
+      });
+    }
+  });
+  
+  app.post('/api/ai/interpret-ritual', async (req, res) => {
+    try {
+      const { imageBase64 } = req.body;
+      
+      if (!imageBase64) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Image data is required'
+        });
+      }
+      
+      const result = await aiService.interpretRitual(imageBase64, magicMechanics);
+      res.json({
+        status: 'success',
+        message: 'Ritual interpretation completed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'Ritual interpretation failed',
         error: error.message
       });
     }
@@ -215,6 +251,32 @@ if (isDev) {
       res.status(500).json({
         status: 'error',
         message: 'AI vision analysis failed',
+        error: error.message
+      });
+    }
+  });
+  
+  app.post('/api/ai/interpret-ritual', async (req, res) => {
+    try {
+      const { imageBase64 } = req.body;
+      
+      if (!imageBase64) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Image data is required'
+        });
+      }
+      
+      const result = await aiService.interpretRitual(imageBase64, magicMechanics);
+      res.json({
+        status: 'success',
+        message: 'Ritual interpretation completed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: 'Ritual interpretation failed',
         error: error.message
       });
     }

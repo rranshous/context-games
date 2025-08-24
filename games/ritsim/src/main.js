@@ -1,5 +1,5 @@
 // RitSim - Main Application Entry Point
-// Milestone 6: Vision Processing & Debug Display
+// Milestone 7: Game Context & Ritual Interpretation
 
 import { CanvasRenderer } from './canvas/renderer.js';
 import { ObjectManager } from './objects/object-manager.js';
@@ -72,12 +72,12 @@ async function initializeCanvas() {
         // Start render loop
         startRenderLoop();
         
-        // Update status for milestone 6
-        updateStatusForMilestone6();
+        // Update status for milestone 7
+        updateStatusForMilestone7();
         
     } catch (error) {
         console.error('❌ Canvas initialization failed:', error);
-        updateStatusForMilestone6(false, error.message);
+        updateStatusForMilestone7(false, error.message);
     }
 }
 
@@ -209,6 +209,18 @@ function setupScreenshotUI() {
             box-shadow: 0 2px 4px rgba(106, 74, 154, 0.3);
         ">👁️ Analyze Ritual</button>
         
+        <button id="ritual-interpret-btn" style="
+            background: #7a2a4a;
+            color: #e0e0e0;
+            border: 1px solid #9a4a6a;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            box-shadow: 0 2px 4px rgba(154, 74, 106, 0.3);
+        ">🔮 Interpret Ritual</button>
+        
         <button id="download-btn" style="
             background: #444;
             color: #e0e0e0;
@@ -283,6 +295,41 @@ function setupScreenshotUI() {
             
         } catch (error) {
             console.error('❌ Vision analysis failed:', error);
+            displayVisionAnalysis(`Error: ${error.message}`, null, true);
+        }
+    });
+    
+    // Ritual interpretation button (Milestone 7)
+    document.getElementById('ritual-interpret-btn').addEventListener('click', async () => {
+        try {
+            console.log('🔮 Starting ritual interpretation...');
+            
+            // Capture image for ritual interpretation
+            const visionData = await screenshotCapture.captureForVision();
+            screenshotCapture.displayInDebugPanel();
+            
+            // Show interpretation in progress
+            const visionPanel = createVisionResponsePanel();
+            const contentDiv = visionPanel.querySelector('#vision-content');
+            const metaDiv = visionPanel.querySelector('#vision-meta');
+            
+            contentDiv.textContent = 'Consulting the mystical arts...';
+            contentDiv.style.color = '#d4af37';
+            metaDiv.textContent = 'Interpreting ritual with magical knowledge...';
+            
+            // Send to AI for ritual interpretation with game context
+            const result = await aiClient.interpretRitual(visionData.base64);
+            
+            console.log('🔮 Raw ritual result:', result);
+            console.log('🔮 Interpretation:', result.data?.response);
+            
+            // Display magical interpretation
+            displayVisionAnalysis(result.data.response, result.data.usage);
+            
+            console.log('🔮 Ritual interpretation complete');
+            
+        } catch (error) {
+            console.error('❌ Ritual interpretation failed:', error);
             displayVisionAnalysis(`Error: ${error.message}`, null, true);
         }
     });
@@ -631,25 +678,25 @@ function displayVisionAnalysis(response, usage = null, isError = false) {
     }
 }
 
-function updateStatusForMilestone6(success = true, errorMessage = null) {
+function updateStatusForMilestone7(success = true, errorMessage = null) {
     const statusEl = document.getElementById('status');
     if (!statusEl) return;
     
     if (success) {
         statusEl.className = 'status success';
         statusEl.innerHTML = `
-            <h3>✅ Milestone 6 Complete!</h3>
-            <p>Vision Processing & Debug Display working</p>
-            <p><strong>Vision:</strong> Claude AI can analyze ritual table screenshots</p>
-            <p><strong>Processing:</strong> Image-to-base64 conversion and API integration</p>
-            <p><strong>Display:</strong> Mystical interpretation panel with debug info</p>
-            <p>🎯 Ready for Milestone 7: Performance Analysis & Ritual Insights</p>
+            <h3>✅ Milestone 7 Complete!</h3>
+            <p>Game Context & Ritual Interpretation working</p>
+            <p><strong>Magic System:</strong> Comprehensive magic mechanics document integrated</p>
+            <p><strong>Game Context:</strong> AI understands elemental forces and ritual logic</p>
+            <p><strong>Interpretation:</strong> Mystical outcomes based on sacred geometry and correspondences</p>
+            <p>🎯 Ready for Milestone 8: Structured AI Response Format</p>
         `;
     } else {
         statusEl.className = 'status';
         statusEl.innerHTML = `
-            <h3>❌ Milestone 6: Error</h3>
-            <p>Vision processing system failed to initialize</p>
+            <h3>❌ Milestone 7: Error</h3>
+            <p>Game context system failed to initialize</p>
             ${errorMessage ? `<p><strong>Error:</strong> ${errorMessage}</p>` : ''}
         `;
     }
@@ -676,5 +723,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await testConnection();
     await initializeCanvas();
     
-    console.log('🚀 RitSim Milestone 6 complete - vision processing ready!');
+    console.log('🚀 RitSim Milestone 7 complete - game context & ritual interpretation ready!');
 });
