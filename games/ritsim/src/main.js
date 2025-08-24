@@ -1,5 +1,5 @@
 // RitSim - Main Application Entry Point
-// Milestone 8: Structured AI Response Format
+// Milestone 8: Structured AI Response Format + Mystical Voice Narration
 
 import { CanvasRenderer } from './canvas/renderer.js';
 import { ObjectManager } from './objects/object-manager.js';
@@ -7,6 +7,7 @@ import { ScreenshotCapture } from './screenshot/capture.js';
 import { AIClient } from './ai/client.js';
 import { RitualOutcomeParser } from './ritual/outcome-parser.js';
 import { EffectsRenderer } from './ritual/effects-renderer.js';
+import { MysticalVoice } from './audio/mystical-voice.js';
 
 console.log('🕯️ RitSim initializing...');
 
@@ -15,6 +16,7 @@ let objectManager = null;
 let screenshotCapture = null;
 let aiClient = null;
 let effectsRenderer = null;
+let mysticalVoice = null;
 
 // Test API connection
 async function testConnection() {
@@ -224,6 +226,18 @@ function setupScreenshotUI() {
             box-shadow: 0 2px 4px rgba(154, 74, 106, 0.3);
         ">🔮 Interpret Ritual</button>
         
+        <button id="voice-settings-btn" style="
+            background: #2a4a7a;
+            color: #e0e0e0;
+            border: 1px solid #4a6a9a;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            box-shadow: 0 2px 4px rgba(74, 106, 154, 0.3);
+        ">🎭 Voice Settings</button>
+        
         <button id="download-btn" style="
             background: #444;
             color: #e0e0e0;
@@ -335,6 +349,11 @@ function setupScreenshotUI() {
                 // Apply visual effects to scene
                 effectsRenderer.applyRitualEffects(parsedOutcome.effects);
                 
+                // Speak the ritual interpretation if voice is enabled
+                if (mysticalVoice && mysticalVoice.isEnabled) {
+                    mysticalVoice.speakRitualInterpretation(parsedOutcome.ritual.description);
+                }
+                
                 // Display the prose description in vision panel
                 displayVisionAnalysis(parsedOutcome.ritual.description, result.data.usage);
                 
@@ -358,6 +377,11 @@ function setupScreenshotUI() {
             console.error('❌ Ritual interpretation failed:', error);
             displayVisionAnalysis(`Error: ${error.message}`, null, true);
         }
+    });
+    
+    // Voice settings button
+    document.getElementById('voice-settings-btn').addEventListener('click', () => {
+        createVoiceSettingsPanel();
     });
     
     console.log('🖱️ Screenshot UI controls active');
@@ -393,8 +417,9 @@ function initializeAI() {
     
     aiClient = new AIClient();
     effectsRenderer = new EffectsRenderer();
+    mysticalVoice = new MysticalVoice();
     
-    console.log('✅ AI client and effects renderer ready');
+    console.log('✅ AI client, effects renderer, and mystical voice ready');
 }
 
 // Set up AI UI and controls (Milestone 5)
@@ -705,6 +730,167 @@ function displayVisionAnalysis(response, usage = null, isError = false) {
     }
 }
 
+function createVoiceSettingsPanel() {
+    // Remove existing panel if present
+    const existingPanel = document.getElementById('voice-settings-panel');
+    if (existingPanel) {
+        existingPanel.remove();
+        return;
+    }
+    
+    const settings = mysticalVoice.getSettings();
+    
+    const panel = document.createElement('div');
+    panel.id = 'voice-settings-panel';
+    panel.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, #2a2a4a 0%, #1a1a3a 100%);
+        border: 2px solid #6a4a9a;
+        border-radius: 12px;
+        padding: 30px;
+        min-width: 400px;
+        max-width: 500px;
+        box-shadow: 0 10px 30px rgba(106, 74, 154, 0.4);
+        color: #e0e0e0;
+        font-family: Arial, sans-serif;
+        z-index: 1000;
+        backdrop-filter: blur(5px);
+    `;
+    
+    panel.innerHTML = `
+        <div style="text-align: center; margin-bottom: 25px;">
+            <h3 style="color: #d4af37; margin: 0; text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);">
+                🎭 Mystical Voice Settings
+            </h3>
+            <p style="margin: 10px 0 0 0; color: #b0b0b0; font-size: 14px;">
+                Configure the oracle's voice for ritual interpretations
+            </p>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
+                <input type="checkbox" id="voice-enabled" ${settings.enabled ? 'checked' : ''} 
+                       style="margin-right: 10px; transform: scale(1.2);">
+                <span style="font-size: 16px;">🎙️ Enable Mystical Narration</span>
+            </label>
+            
+            ${!settings.supported ? `
+                <div style="background: #4a1a1a; border: 1px solid #8a4a4a; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <span style="color: #ff9999;">⚠️ Speech synthesis not supported in this browser</span>
+                </div>
+            ` : ''}
+        </div>
+        
+        <div style="margin-bottom: 20px; ${!settings.supported ? 'opacity: 0.5; pointer-events: none;' : ''}">
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #c0c0c0;">Voice:</label>
+                <div style="background: #3a3a5a; padding: 8px 12px; border-radius: 6px; border: 1px solid #5a5a7a;">
+                    ${settings.currentVoice}
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #c0c0c0;">
+                    Speed: <span id="rate-value">${(settings.rate * 100).toFixed(0)}%</span>
+                </label>
+                <input type="range" id="voice-rate" min="0.3" max="1.2" step="0.1" value="${settings.rate}"
+                       style="width: 100%; accent-color: #6a4a9a;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #c0c0c0;">
+                    Pitch: <span id="pitch-value">${(settings.pitch * 100).toFixed(0)}%</span>
+                </label>
+                <input type="range" id="voice-pitch" min="0.5" max="1.5" step="0.1" value="${settings.pitch}"
+                       style="width: 100%; accent-color: #6a4a9a;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 5px; color: #c0c0c0;">
+                    Volume: <span id="volume-value">${(settings.volume * 100).toFixed(0)}%</span>
+                </label>
+                <input type="range" id="voice-volume" min="0.1" max="1.0" step="0.1" value="${settings.volume}"
+                       style="width: 100%; accent-color: #6a4a9a;">
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button id="test-voice-btn" style="
+                background: #4a7a2a;
+                color: #e0e0e0;
+                border: 1px solid #6a9a4a;
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                ${!settings.supported ? 'opacity: 0.5; pointer-events: none;' : ''}
+            ">🎵 Test Voice</button>
+            
+            <button id="close-voice-settings-btn" style="
+                background: #7a4a2a;
+                color: #e0e0e0;
+                border: 1px solid #9a6a4a;
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+            ">✅ Done</button>
+        </div>
+    `;
+    
+    document.body.appendChild(panel);
+    
+    // Event listeners for settings
+    const enabledCheckbox = panel.querySelector('#voice-enabled');
+    const rateSlider = panel.querySelector('#voice-rate');
+    const pitchSlider = panel.querySelector('#voice-pitch');
+    const volumeSlider = panel.querySelector('#voice-volume');
+    const testBtn = panel.querySelector('#test-voice-btn');
+    const closeBtn = panel.querySelector('#close-voice-settings-btn');
+    
+    // Enable/disable toggle
+    enabledCheckbox.addEventListener('change', () => {
+        mysticalVoice.toggle();
+    });
+    
+    // Slider updates
+    rateSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        mysticalVoice.updateSettings({ rate: value });
+        panel.querySelector('#rate-value').textContent = `${(value * 100).toFixed(0)}%`;
+    });
+    
+    pitchSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        mysticalVoice.updateSettings({ pitch: value });
+        panel.querySelector('#pitch-value').textContent = `${(value * 100).toFixed(0)}%`;
+    });
+    
+    volumeSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        mysticalVoice.updateSettings({ volume: value });
+        panel.querySelector('#volume-value').textContent = `${(value * 100).toFixed(0)}%`;
+    });
+    
+    // Test voice button
+    testBtn.addEventListener('click', () => {
+        mysticalVoice.testVoice();
+    });
+    
+    // Close button
+    closeBtn.addEventListener('click', () => {
+        panel.remove();
+    });
+    
+    // Close on outside click
+    panel.addEventListener('click', (e) => {
+        if (e.target === panel) {
+            panel.remove();
+        }
+    });
+}
+
 function updateStatusForMilestone8(success = true, errorMessage = null) {
     const statusEl = document.getElementById('status');
     if (!statusEl) return;
@@ -713,9 +899,10 @@ function updateStatusForMilestone8(success = true, errorMessage = null) {
         statusEl.className = 'status success';
         statusEl.innerHTML = `
             <h3>✅ Milestone 8 Complete!</h3>
-            <p>Structured AI Response Format working</p>
+            <p>Structured AI Response Format + Mystical Voice Narration</p>
             <p><strong>XML Format:</strong> AI returns parseable ritual outcome markup</p>
             <p><strong>Visual Effects:</strong> Ambient glow, sparkles, and energy mist</p>
+            <p><strong>Voice Narration:</strong> 🎭 Mystical oracle speaks interpretations</p>
             <p><strong>Parser:</strong> Extracts both prose and structured effect data</p>
             <p>🎯 Ready for Milestone 9: Scene Rendering from AI Description</p>
         `;
