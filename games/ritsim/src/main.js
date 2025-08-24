@@ -344,7 +344,7 @@ function setupScreenshotUI() {
                     metaDiv.innerHTML = `
                         <div>🔮 Ritual Success: ${parsedOutcome.ritual.successPercent}%</div>
                         <div>Tokens: ${result.data.usage?.input_tokens || 0} in, ${result.data.usage?.output_tokens || 0} out</div>
-                        <div>Model: claude-3-5-sonnet-20241022</div>
+                        <div>Model: claude-sonnet-4-20250514</div>
                     `;
                 }
             } else {
@@ -697,7 +697,7 @@ function displayVisionAnalysis(response, usage = null, isError = false) {
             metaDiv.innerHTML = `
                 <div>✨ Analysis complete</div>
                 <div>Tokens: ${usage.input_tokens || 0} in, ${usage.output_tokens || 0} out</div>
-                <div>Model: claude-3-5-sonnet-20241022</div>
+                <div>Model: claude-sonnet-4-20250514</div>
             `;
         } else {
             metaDiv.textContent = '✨ Analysis complete';

@@ -42,7 +42,7 @@ class AIService {
             console.log('🧪 Testing Claude API connection...');
             
             const message = await this.anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-sonnet-4-20250514",
                 max_tokens: 100,
                 messages: [{
                     role: "user",
@@ -74,7 +74,7 @@ class AIService {
         
         try {
             const requestConfig = {
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-sonnet-4-20250514",
                 max_tokens: 1000,
                 messages: [{
                     role: "user",
@@ -116,7 +116,7 @@ class AIService {
             console.log('👁️ Sending image to Claude for analysis...');
             
             const message = await this.anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-sonnet-4-20250514",
                 max_tokens: 1000,
                 messages: [{
                     role: "user",
@@ -192,7 +192,7 @@ Consider the elemental forces, geometric patterns, and sympathetic correspondenc
 The ritual practitioner awaits your wisdom...`;
 
             const message = await this.anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-sonnet-4-20250514",
                 max_tokens: 1500,
                 messages: [{
                     role: "user",
@@ -234,7 +234,7 @@ The ritual practitioner awaits your wisdom...`;
         return {
             initialized: this.isInitialized,
             hasApiKey: !!process.env.ANTHROPIC_API_KEY,
-            model: "claude-3-5-sonnet-20241022"
+            model: "claude-sonnet-4-20250514"
         };
     }
 }

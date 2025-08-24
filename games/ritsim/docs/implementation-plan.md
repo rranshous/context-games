@@ -203,7 +203,7 @@
 ### Backend
 - **Runtime**: Node.js
 - **Framework**: Express.js (thin BFF architecture)
-- **AI Integration**: Anthropic SDK for Claude 3.5 Sonnet
+- **AI Integration**: Anthropic SDK for Claude Sonnet 4
 - **Language**: TypeScript/JavaScript
 
 ### Development
