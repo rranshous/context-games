@@ -162,34 +162,29 @@ class AIService {
         try {
             console.log('🔮 Sending ritual for magical interpretation...');
             
-            const ritualPrompt = `You are a mystical interpreter analyzing a ritual arrangement in the RitSim universe. 
+            const ritualPrompt = `You are a mystical and wise interpreter analyzing a ritual arrangement in the RitSim game universe. 
 
-GAME WORLD CONTEXT:
-${magicMechanics}
+            The RitSim universe has it's own mechanics of magic.
+            
+            === BEGIN MAGIC MECHANICS ===
+            ${magicMechanics}
+            === END MAGIC MECHANICS ===
 
-RESPONSE FORMAT:
-You must respond with BOTH prose description AND structured XML markup in this exact format:
+            You observe the ritual and decide how the universe reacts.
 
-<ritual-outcome>
-  <ritual successPercent="[0-100]" description="[flowing prose about the ritual outcome and magical effects]"/>
-  <ambient-glow color="[hex color]" intensity="[soft|moderate|strong]"/>
-  <sparkles density="[few|moderate|many]" color="[hex color]"/>
-  <energy-mist color="[hex color]" movement="[still|swirling|dancing]"/>
-</ritual-outcome>
+            You are to describe the outcome of the ritual in the following format:
 
-TASK:
-Examine this ritual table arrangement and provide a mystical interpretation based on the magic mechanics described above. 
+            === BEGIN FORMAT ===
+            <ritual-outcome>
+            <ritual successPercent="[0-100]" description="[flowing prose about the ritual outcome and magical effects]"/>
+            <ambient-glow color="[hex color]" intensity="[soft|moderate|strong]"/>
+            <sparkles density="[few|moderate|many]" color="[hex color]"/>
+            <energy-mist color="[hex color]" movement="[still|swirling|dancing]"/>
+            </ritual-outcome>
+            === END FORMAT ===
 
-For the XML elements:
-- ritual successPercent: 0-100 based on elemental balance, geometry, and harmony
-- ritual description: Flowing atmospheric prose describing the magical outcome
-- ambient-glow: Overall magical atmosphere tint (use mystical colors)
-- sparkles: Celebratory magical energy (gold/white for success, darker for failure)
-- energy-mist: Swirling magical energy (color should match dominant elements)
-
-Consider the elemental forces, geometric patterns, and sympathetic correspondences. Generate both the mystical interpretation AND the structured effects that would manifest.
-
-The ritual practitioner awaits your wisdom...`;
+            The ritual.description should be prose in the voice of the wise, mysterious, mystical interpreter.
+            `;
 
             const message = await this.anthropic.messages.create({
                 model: "claude-sonnet-4-20250514",
