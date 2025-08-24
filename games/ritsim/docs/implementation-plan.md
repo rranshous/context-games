@@ -122,57 +122,75 @@
 
 ---
 
-### 🎯 Milestone 7: Game Context & Ritual Interpretation (IN PROGRESS)
+### ✅ Milestone 7: Game Context & Ritual Interpretation (COMPLETED)
 **Goal**: AI understands the ritual game context
 
 **Deliverables**:
-- Game definition document/prompt
-- Ritual logic and magical rules
-- Enhanced prompt including game context
-- AI generates prose ritual outcomes
+- ✅ Game definition document/prompt
+- ✅ Ritual logic and magical rules
+- ✅ Enhanced prompt including game context
+- ✅ AI generates prose ritual outcomes
 
 **Technical Decisions**:
 - Prompt engineering for consistent magical logic
 - Context management (how much to send each time)
 - Balance between rules and creative freedom
 
-**Success**: AI generates meaningful ritual outcome descriptions
+**Success**: ✅ AI generates meaningful ritual outcome descriptions
 
 ---
 
-### Milestone 8: Structured AI Response Format
+### ✅ Milestone 8: Structured AI Response Format (COMPLETED)
 **Goal**: AI returns scene updates in parseable XML-like format
 
 **Deliverables**:
-- Custom RitSim markup specification
-- AI trained to use structured response format
-- Backend parsing and validation of responses
-- Error handling for malformed responses
+- ✅ Custom RitSim markup specification
+- ✅ AI trained to use structured response format
+- ✅ Backend parsing and validation of responses
+- ✅ Error handling for malformed responses
 
 **Technical Decisions**:
-- XML-like syntax design for scene descriptions
-- Required vs optional elements in responses
-- Fallback strategies for parsing failures
+- XML-like format with descriptive custom elements
+- Start with 3 core visual effects: ambient-glow, sparkles, energy-mist
+- Hybrid approach: prose description + structured effects
+- No object-specific targeting (atmospheric effects only)
 
-**Success**: AI consistently returns well-formed RitSim markup
+**RitSim XML Format**:
+```xml
+<ritual-outcome>
+  <ritual successPercent="90" description="The crimson flame dances with azure wisdom..."/>
+  <ambient-glow color="#9966ff" intensity="soft"/>
+  <sparkles density="moderate" color="#ffd700"/>
+  <energy-mist color="#ccccff" movement="swirling"/>
+</ritual-outcome>
+```
+
+**Implementation Notes**:
+- ✅ Sparkles effect working well (floating lights)
+- ⚠️ Energy mist needs refinement (spinning rectangle effect)
+- ✅ Parser successfully extracts XML from AI responses
+- ✅ Effects renderer applies visual changes to scene
+
+**Success**: ✅ AI consistently returns well-formed RitSim markup with atmospheric effects
 
 ---
 
-### Milestone 9: Scene Rendering from AI Description
+### 🎯 Milestone 9: Scene Rendering from AI Description (NEXT)
 **Goal**: Frontend interprets AI markup and updates visual scene
 
 **Deliverables**:
-- RitSim markup parser
-- Scene state update system
-- Visual effects rendering (color, opacity, particles)
-- Complete ritual cycle (arrangement → AI → visual update)
+- Enhanced visual effects (improve energy mist rendering)
+- Scene state persistence between rituals
+- More sophisticated effect combinations
+- Complete ritual cycle refinement
 
 **Technical Decisions**:
+- Better CSS/Canvas effects for atmospheric rendering
 - State management for scene updates
-- Animation/transition system
-- Effect rendering implementation
+- Animation/transition system improvements
+- Effect rendering optimization
 
-**Success**: Complete ritual cycle works end-to-end with visual feedback
+**Success**: Complete ritual cycle works end-to-end with polished visual feedback
 
 ## 🔧 Technical Stack
 

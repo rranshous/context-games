@@ -167,10 +167,29 @@ class AIService {
 GAME WORLD CONTEXT:
 ${magicMechanics}
 
-TASK:
-Examine this ritual table arrangement and provide an explaination of what the result of the ritual would be.
+RESPONSE FORMAT:
+You must respond with BOTH prose description AND structured XML markup in this exact format:
 
-`;
+<ritual-outcome>
+  <ritual successPercent="[0-100]" description="[flowing prose about the ritual outcome and magical effects]"/>
+  <ambient-glow color="[hex color]" intensity="[soft|moderate|strong]"/>
+  <sparkles density="[few|moderate|many]" color="[hex color]"/>
+  <energy-mist color="[hex color]" movement="[still|swirling|dancing]"/>
+</ritual-outcome>
+
+TASK:
+Examine this ritual table arrangement and provide a mystical interpretation based on the magic mechanics described above. 
+
+For the XML elements:
+- ritual successPercent: 0-100 based on elemental balance, geometry, and harmony
+- ritual description: Flowing atmospheric prose describing the magical outcome
+- ambient-glow: Overall magical atmosphere tint (use mystical colors)
+- sparkles: Celebratory magical energy (gold/white for success, darker for failure)
+- energy-mist: Swirling magical energy (color should match dominant elements)
+
+Consider the elemental forces, geometric patterns, and sympathetic correspondences. Generate both the mystical interpretation AND the structured effects that would manifest.
+
+The ritual practitioner awaits your wisdom...`;
 
             const message = await this.anthropic.messages.create({
                 model: "claude-3-5-sonnet-20241022",

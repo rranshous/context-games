@@ -1,10 +1,12 @@
 // RitSim - Main Application Entry Point
-// Milestone 7: Game Context & Ritual Interpretation
+// Milestone 8: Structured AI Response Format
 
 import { CanvasRenderer } from './canvas/renderer.js';
 import { ObjectManager } from './objects/object-manager.js';
 import { ScreenshotCapture } from './screenshot/capture.js';
 import { AIClient } from './ai/client.js';
+import { RitualOutcomeParser } from './ritual/outcome-parser.js';
+import { EffectsRenderer } from './ritual/effects-renderer.js';
 
 console.log('🕯️ RitSim initializing...');
 
@@ -12,6 +14,7 @@ let renderer = null;
 let objectManager = null;
 let screenshotCapture = null;
 let aiClient = null;
+let effectsRenderer = null;
 
 // Test API connection
 async function testConnection() {
@@ -72,12 +75,12 @@ async function initializeCanvas() {
         // Start render loop
         startRenderLoop();
         
-        // Update status for milestone 7
-        updateStatusForMilestone7();
+        // Update status for milestone 8
+        updateStatusForMilestone8();
         
     } catch (error) {
         console.error('❌ Canvas initialization failed:', error);
-        updateStatusForMilestone7(false, error.message);
+        updateStatusForMilestone8(false, error.message);
     }
 }
 
@@ -323,8 +326,31 @@ function setupScreenshotUI() {
             console.log('🔮 Raw ritual result:', result);
             console.log('🔮 Interpretation:', result.data?.response);
             
-            // Display magical interpretation
-            displayVisionAnalysis(result.data.response, result.data.usage);
+            // Parse the structured XML response (Milestone 8)
+            const parsedOutcome = RitualOutcomeParser.parseResponse(result.data.response);
+            
+            if (parsedOutcome.success && RitualOutcomeParser.validateOutcome(parsedOutcome)) {
+                console.log('✅ Parsed ritual outcome:', parsedOutcome);
+                
+                // Apply visual effects to scene
+                effectsRenderer.applyRitualEffects(parsedOutcome.effects);
+                
+                // Display the prose description in vision panel
+                displayVisionAnalysis(parsedOutcome.ritual.description, result.data.usage);
+                
+                // Show success percentage in meta area
+                const metaDiv = document.querySelector('#vision-meta');
+                if (metaDiv) {
+                    metaDiv.innerHTML = `
+                        <div>🔮 Ritual Success: ${parsedOutcome.ritual.successPercent}%</div>
+                        <div>Tokens: ${result.data.usage?.input_tokens || 0} in, ${result.data.usage?.output_tokens || 0} out</div>
+                        <div>Model: claude-3-5-sonnet-20241022</div>
+                    `;
+                }
+            } else {
+                console.warn('⚠️ Failed to parse structured response, falling back to raw display');
+                displayVisionAnalysis(result.data.response, result.data.usage);
+            }
             
             console.log('🔮 Ritual interpretation complete');
             
@@ -366,8 +392,9 @@ function initializeAI() {
     console.log('🤖 Setting up AI client system...');
     
     aiClient = new AIClient();
+    effectsRenderer = new EffectsRenderer();
     
-    console.log('✅ AI client ready');
+    console.log('✅ AI client and effects renderer ready');
 }
 
 // Set up AI UI and controls (Milestone 5)
@@ -678,25 +705,25 @@ function displayVisionAnalysis(response, usage = null, isError = false) {
     }
 }
 
-function updateStatusForMilestone7(success = true, errorMessage = null) {
+function updateStatusForMilestone8(success = true, errorMessage = null) {
     const statusEl = document.getElementById('status');
     if (!statusEl) return;
     
     if (success) {
         statusEl.className = 'status success';
         statusEl.innerHTML = `
-            <h3>✅ Milestone 7 Complete!</h3>
-            <p>Game Context & Ritual Interpretation working</p>
-            <p><strong>Magic System:</strong> Comprehensive magic mechanics document integrated</p>
-            <p><strong>Game Context:</strong> AI understands elemental forces and ritual logic</p>
-            <p><strong>Interpretation:</strong> Mystical outcomes based on sacred geometry and correspondences</p>
-            <p>🎯 Ready for Milestone 8: Structured AI Response Format</p>
+            <h3>✅ Milestone 8 Complete!</h3>
+            <p>Structured AI Response Format working</p>
+            <p><strong>XML Format:</strong> AI returns parseable ritual outcome markup</p>
+            <p><strong>Visual Effects:</strong> Ambient glow, sparkles, and energy mist</p>
+            <p><strong>Parser:</strong> Extracts both prose and structured effect data</p>
+            <p>🎯 Ready for Milestone 9: Scene Rendering from AI Description</p>
         `;
     } else {
         statusEl.className = 'status';
         statusEl.innerHTML = `
-            <h3>❌ Milestone 7: Error</h3>
-            <p>Game context system failed to initialize</p>
+            <h3>❌ Milestone 8: Error</h3>
+            <p>Structured response system failed to initialize</p>
             ${errorMessage ? `<p><strong>Error:</strong> ${errorMessage}</p>` : ''}
         `;
     }
@@ -723,5 +750,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await testConnection();
     await initializeCanvas();
     
-    console.log('🚀 RitSim Milestone 7 complete - game context & ritual interpretation ready!');
+    console.log('🚀 RitSim Milestone 8 complete - structured AI response format ready!');
 });
