@@ -12,6 +12,7 @@ RitSim explores the boundary between deterministic game mechanics and AI-generat
 2. **Capture & Interpret**: Take a screenshot and send to Claude for analysis
 3. **Experience Magic**: Watch the scene transform with AI-generated visual effects
 4. **Mystical Feedback**: Read Claude's interpretation of your ritual's meaning and success
+5. **🎭 Digital Oracle**: Listen as a robosoft voice narrates the mystical interpretation aloud
 
 ## 🔮 Features
 
@@ -27,11 +28,18 @@ RitSim explores the boundary between deterministic game mechanics and AI-generat
 - **Energy Mist**: Swirling ethereal effects (currently being refined)
 - **Dynamic Success Feedback**: Percentage-based ritual effectiveness
 
+### Audio Experience
+- **🎭 Mystical Voice Narration**: Robosoft digital oracle speaks interpretations
+- **Customizable Settings**: Adjustable speed, pitch, and volume controls
+- **Atmospheric Pacing**: Slower delivery with mystical pauses for dramatic effect
+- **Digital Shamanism**: Synthetic voice enhances the AI-driven mystical experience
+
 ### AI Integration
 - **Game World Context**: AI understands the magical rules and lore
 - **Vision Processing**: Claude Sonnet 4 analyzes table arrangements
 - **Contextual Interpretation**: Responses consider elemental balance and geometry
 - **Structured Output**: Parseable XML for both narrative and visual effects
+- **🤖 Digital Oracle Voice**: Robosoft synthetic voice brings AI interpretations to life
 
 ## 🚀 Quick Start
 
@@ -154,9 +162,10 @@ RitSim serves as research into **inference-driven game design**:
 **Core Features**: ✅ Working  
 **Visual Effects**: ✅ Functional (refinements in progress)  
 **AI Integration**: ✅ Stable  
+**Voice Narration**: ✅ Robosoft digital oracle active
 **User Experience**: ✅ Playable
 
-The fundamental ritual cycle works end-to-end: arrange objects → AI analysis → visual transformation → mystical interpretation.
+The fundamental ritual cycle works end-to-end: arrange objects → AI analysis → visual transformation → mystical interpretation → synthetic voice narration.
 
 ## 🤝 Contributing
 
@@ -167,7 +176,9 @@ This is an experimental project exploring AI-driven game mechanics. The codebase
 *"Magic is not about commanding reality, but about harmonizing with its hidden patterns."*  
 — Ancient RitSim Axiom
 
-RitSim explores digital ritual as a form of creative expression, where AI serves as both oracle and interpreter of symbolic arrangements.
+RitSim explores digital ritual as a form of creative expression, where AI serves as both oracle and interpreter of symbolic arrangements. The synthetic voice of the digital oracle enhances rather than diminishes the mystical experience, celebrating the artificial intelligence as a genuine otherworldly presence.
+
+The robosoft voice creates an authentic **digital shamanism** - where technology becomes sacred, and the artificial achieves the truly mystical.
 
 ---
 
