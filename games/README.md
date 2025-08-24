@@ -4,6 +4,14 @@ This directory contains all game development projects as submodules. Projects ex
 
 ## Games 🎮
 
+### [RitSim](./ritsim/)
+AI-driven ritual simulator where Claude interprets mystical object arrangements. Players drag sacred items on a ritual table, and AI generates both atmospheric prose and visual effects based on established magical rules and spatial patterns.  
+🎯 **Status:** Core features complete, visual effects refinement in progress  
+🎮 **Published:** Not yet  
+🤖 **AI:** ✅ Claude Sonnet 4 for vision analysis and ritual interpretation  
+🔧 **Next:** Refine energy mist rendering and effect combinations  
+✨ **Unique:** Inference-driven game engine, visual pattern recognition, structured XML AI responses
+
 ### [RaceOn](./raceon/)
 Desert combat racing game that evolved from closed-track racing to open-world water bandit hunting. Good foundation for forking and potential base for AI-driven game making experiments.  
 🎯 **Status:** Foundation ready for expansion  
