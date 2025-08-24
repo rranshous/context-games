@@ -141,9 +141,10 @@ function updateStatusForMilestone3(success = true, errorMessage = null) {
         statusEl.innerHTML = `
             <h3>✅ Milestone 3 Complete!</h3>
             <p>Object placement and interaction system working</p>
-            <p><strong>Objects:</strong> 8 candles (2 of each color), 3 stones, 4 incense placed on table</p>
+            <p><strong>Objects:</strong> 4 candles (one of each color), 2 stones (white & black), 2 incense</p>
             <p><strong>Interaction:</strong> Click and drag to arrange ritual objects</p>
             <p><strong>Boundaries:</strong> Objects constrained to table surface</p>
+            <p><strong>Placement:</strong> Starting positions randomized each session</p>
             <p>🎯 Ready for Milestone 4: Canvas Screenshot Capture</p>
         `;
     } else {

@@ -34,28 +34,28 @@ Each candle color channels a specific elemental force and emotional resonance:
 ### Stones (Earthly Anchors)
 Crystalline structures that ground and focus magical energies:
 
-- **Obsidian**: The Shadow Mirror
-  - Properties: Protection, grounding, banishing negativity
-  - Effect: Creates magical barriers, reflects harmful energy back to source
-  - Placement: Best at cardinal points or as central anchor
-
-- **Quartz**: The Universal Amplifier
-  - Properties: Energy amplification, clarity, healing
+- **Quartz (White Stone)**: The Universal Amplifier
+  - Properties: Energy amplification, clarity, healing, purity
   - Effect: Magnifies the power of nearby objects, purifies intentions
+  - Symbolism: Light, clarity, divine blessing, positive energy
   - Placement: Central positions maximize amplification effect
 
-- **Amethyst**: The Spiritual Gateway
-  - Properties: Psychic enhancement, spiritual protection, wisdom
-  - Effect: Opens pathways to higher consciousness, enhances intuition
-  - Placement: Near the practitioner for personal enhancement
+- **Obsidian (Black Stone)**: The Shadow Mirror
+  - Properties: Protection, grounding, banishing negativity, absorption
+  - Effect: Creates magical barriers, reflects harmful energy, absorbs negative forces
+  - Symbolism: Shadow work, protection, mystery, deep grounding
+  - Placement: Best at edges or as protective anchor points
+
+**Duality of Stones**: The white and black stones represent perfect polarity - light and shadow, creation and destruction, expansion and contraction. Their relative positioning creates powerful symbolic meaning.
 
 ### Incense (Sacred Smoke)
 Aromatic offerings that carry intentions to the spiritual realm:
 
 - **Properties**: Communication bridge between physical and spiritual planes
 - **Effect**: Carries prayers and intentions upward, creates sacred space
-- **Placement**: Multiple sticks create stronger spiritual connection
-- **Flow**: Smoke direction indicates spiritual approval or resistance
+- **Symbolism**: Spiritual ascension, purification, divine communication
+- **Placement**: Creates vertical energy flow, enhances spiritual connection
+- **Quantity**: Two sticks allow for balanced energy or create spiritual doorways
 
 ## 🔮 Ritual Mechanics
 
@@ -71,10 +71,11 @@ The positioning of objects creates geometric patterns that influence magical flo
 ### Elemental Balance
 Successful rituals often require elemental harmony:
 
-- **Single Element**: Focused but potentially unstable
-- **Opposing Pairs**: Fire/Water or Earth/Air create dynamic tension
-- **Triads**: Three elements create stable but incomplete patterns  
-- **Quaternary**: All four elements create perfect balance and maximum power
+- **Single Element**: Focused but potentially unstable energy
+- **Opposing Pairs**: Fire/Water or Earth/Air create dynamic tension and transformation
+- **Complementary Pairs**: Adjacent elements (Fire/Air, Water/Earth) create flowing harmony
+- **Perfect Balance**: All four elements create maximum power and stability
+- **Stone Polarity**: White and black stones add light/shadow duality to any arrangement
 
 ### Sympathetic Correspondences
 Objects placed near each other create magical resonance:

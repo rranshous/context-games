@@ -31,42 +31,35 @@ export class ObjectManager {
     
     // Create all starting objects and place them on the table
     initializeObjects() {
-        console.log('🕯️ Placing all starter objects on the ritual table...');
+        console.log('🕯️ Placing starter objects on the ritual table...');
         
-        const bounds = this.tableBounds;
-        const centerX = (bounds.minX + bounds.maxX) / 2;
-        const centerY = (bounds.minY + bounds.maxY) / 2;
+        // Place single candle of each color (4 total)
+        this.addRandomObject('candle', 'candle-red');
+        this.addRandomObject('candle', 'candle-blue');
+        this.addRandomObject('candle', 'candle-purple');
+        this.addRandomObject('candle', 'candle-white');
         
-        // Place candles - 2 of each color (8 total)
-        // Red candles
-        this.addObject('candle', 'candle-red', centerX - 100, centerY - 80);
-        this.addObject('candle', 'candle-red', centerX - 60, centerY - 80);
+        // Place white and black stones only (2 total)
+        this.addRandomObject('stone', 'stone-quartz');    // White stone
+        this.addRandomObject('stone', 'stone-obsidian');  // Black stone
         
-        // Blue candles  
-        this.addObject('candle', 'candle-blue', centerX + 60, centerY - 80);
-        this.addObject('candle', 'candle-blue', centerX + 100, centerY - 80);
-        
-        // Purple candles
-        this.addObject('candle', 'candle-purple', centerX - 100, centerY + 80);
-        this.addObject('candle', 'candle-purple', centerX - 60, centerY + 80);
-        
-        // White candles
-        this.addObject('candle', 'candle-white', centerX + 60, centerY + 80);
-        this.addObject('candle', 'candle-white', centerX + 100, centerY + 80);
-        
-        // Place stones in the center area (3 total)
-        this.addObject('stone', 'stone-obsidian', centerX - 20, centerY - 15);
-        this.addObject('stone', 'stone-quartz', centerX + 20, centerY - 15);
-        this.addObject('stone', 'stone-amethyst', centerX, centerY + 20);
-        
-        // Place incense sticks - 4 total
-        this.addObject('incense', 'incense', centerX - 140, centerY - 40);
-        this.addObject('incense', 'incense', centerX - 140, centerY);
-        this.addObject('incense', 'incense', centerX - 140, centerY + 40);
-        this.addObject('incense', 'incense', centerX + 140, centerY);
+        // Place two incense sticks (2 total)
+        this.addRandomObject('incense', 'incense');
+        this.addRandomObject('incense', 'incense');
         
         console.log(`✨ Placed ${this.objects.length} objects on the ritual table`);
-        console.log(`🕯️ Candles: 8 (2 of each color), Stones: 3, Incense: 4`);
+        console.log(`🕯️ Candles: 4 (one of each color), Stones: 2 (white & black), Incense: 2`);
+    }
+    
+    // Add object at random position within table bounds
+    addRandomObject(type, assetName) {
+        const bounds = this.tableBounds;
+        const margin = 30; // Keep objects away from edges
+        
+        const x = margin + Math.random() * (bounds.maxX - bounds.minX - 2 * margin) + bounds.minX;
+        const y = margin + Math.random() * (bounds.maxY - bounds.minY - 2 * margin) + bounds.minY;
+        
+        return this.addObject(type, assetName, x, y);
     }
     
     addObject(type, assetName, x, y) {

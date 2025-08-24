@@ -129,7 +129,7 @@ ritsim/
 
 ### Sacred Objects
 - **Candles**: Elemental conduits (Red=Fire, Blue=Water, Purple=Spirit, White=Air)
-- **Stones**: Earthly anchors (Obsidian=Protection, Quartz=Amplification, Amethyst=Wisdom)
+- **Stones**: Earthly anchors (Black Obsidian=Protection, White Quartz=Amplification)
 - **Incense**: Spiritual communication bridges
 
 ### Ritual Mechanics
