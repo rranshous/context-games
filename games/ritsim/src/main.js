@@ -787,9 +787,17 @@ function createVoiceSettingsPanel() {
         <div style="margin-bottom: 20px; ${!settings.supported ? 'opacity: 0.5; pointer-events: none;' : ''}">
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; color: #c0c0c0;">Voice:</label>
-                <div style="background: #3a3a5a; padding: 8px 12px; border-radius: 6px; border: 1px solid #5a5a7a;">
-                    ${settings.currentVoice}
-                </div>
+                <select id="voice-select" style="
+                    width: 100%;
+                    background: #3a3a5a;
+                    color: #e0e0e0;
+                    border: 1px solid #5a5a7a;
+                    padding: 8px 12px;
+                    border-radius: 6px;
+                    font-size: 14px;
+                ">
+                    <!-- Voice options will be populated here -->
+                </select>
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -841,6 +849,25 @@ function createVoiceSettingsPanel() {
     
     document.body.appendChild(panel);
     
+    // Populate voice dropdown with English voices only
+    const voiceSelect = panel.querySelector('#voice-select');
+    if (settings.supported) {
+        const voices = speechSynthesis.getVoices();
+        const englishVoices = voices.filter(voice => 
+            voice.lang.startsWith('en-') || voice.lang === 'en'
+        );
+        
+        englishVoices.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.name;
+            option.textContent = `${voice.name} (${voice.lang})`;
+            if (voice.name === settings.currentVoiceName) {
+                option.selected = true;
+            }
+            voiceSelect.appendChild(option);
+        });
+    }
+    
     // Event listeners for settings
     const enabledCheckbox = panel.querySelector('#voice-enabled');
     const rateSlider = panel.querySelector('#voice-rate');
@@ -848,6 +875,12 @@ function createVoiceSettingsPanel() {
     const volumeSlider = panel.querySelector('#voice-volume');
     const testBtn = panel.querySelector('#test-voice-btn');
     const closeBtn = panel.querySelector('#close-voice-settings-btn');
+    
+    // Voice selection
+    voiceSelect.addEventListener('change', (e) => {
+        const voiceName = e.target.value;
+        mysticalVoice.setVoiceByName(voiceName);
+    });
     
     // Enable/disable toggle
     enabledCheckbox.addEventListener('change', () => {

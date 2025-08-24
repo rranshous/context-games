@@ -47,7 +47,20 @@ export class MysticalVoice {
     selectMysticalVoice(voices) {
         console.log('🎭 Available voices:', voices.map(v => `${v.name} (${v.lang})`));
         
-        // Preference order for mystical voices
+        // First filter to only English voices
+        const englishVoices = voices.filter(voice => 
+            voice.lang.startsWith('en-') || voice.lang === 'en'
+        );
+        
+        console.log('🎭 English voices:', englishVoices.map(v => `${v.name} (${v.lang})`));
+        
+        if (englishVoices.length === 0) {
+            console.warn('🎭 No English voices found, using default');
+            this.settings.voice = voices[0] || null;
+            return;
+        }
+        
+        // Preference order for mystical voices (English only)
         const preferences = [
             // Look for dramatic/deep voices first
             voice => voice.name.toLowerCase().includes('deep'),
@@ -59,15 +72,14 @@ export class MysticalVoice {
                     voice.name.toLowerCase().includes('woman'),
             
             // Then any English voice with good quality indicators
-            voice => voice.lang.startsWith('en') && voice.localService,
-            voice => voice.lang.startsWith('en'),
+            voice => voice.localService,
             
-            // Fallback to any voice
+            // Fallback to first English voice
             voice => true
         ];
         
         for (const preference of preferences) {
-            const voice = voices.find(preference);
+            const voice = englishVoices.find(preference);
             if (voice) {
                 this.settings.voice = voice;
                 console.log('🎭 Selected mystical voice:', voice.name);
@@ -199,10 +211,25 @@ export class MysticalVoice {
             enabled: this.isEnabled,
             supported: this.isSupported(),
             currentVoice: this.settings.voice?.name || 'Default',
+            currentVoiceName: this.settings.voice?.name,
             rate: this.settings.rate,
             pitch: this.settings.pitch,
             volume: this.settings.volume
         };
+    }
+    
+    // Set voice by name
+    setVoiceByName(voiceName) {
+        const voices = speechSynthesis.getVoices();
+        const voice = voices.find(v => v.name === voiceName);
+        
+        if (voice) {
+            this.settings.voice = voice;
+            this.saveSettings();
+            console.log('🎭 Voice changed to:', voice.name);
+        } else {
+            console.warn('🎭 Voice not found:', voiceName);
+        }
     }
     
     // Update voice settings
