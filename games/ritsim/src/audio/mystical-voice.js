@@ -6,9 +6,9 @@ export class MysticalVoice {
         this.isEnabled = false;
         this.currentUtterance = null;
         this.settings = {
-            rate: 0.7,        // Slower, more mystical pace
-            pitch: 0.8,       // Slightly lower pitch for atmosphere
-            volume: 0.8,      // Controlled volume
+            rate: 0.7,        // 70% speed - slower, more mystical pace
+            pitch: 0.9,       // 90% pitch - slightly lower for atmosphere
+            volume: 0.7,      // 70% volume - controlled volume
             voice: null       // Will be set to best available voice
         };
         
@@ -63,7 +63,10 @@ export class MysticalVoice {
         
         // Preference order for mystical voices (English America only)
         const preferences = [
-            // Look for dramatic/deep voices first
+            // Look for robosoft voices first (preferred mystical voice)
+            voice => voice.name.toLowerCase().includes('robosoft'),
+            
+            // Then look for dramatic/deep voices
             voice => voice.name.toLowerCase().includes('deep'),
             voice => voice.name.toLowerCase().includes('dramatic'),
             voice => voice.name.toLowerCase().includes('ceremonial'),
