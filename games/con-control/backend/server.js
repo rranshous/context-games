@@ -50,7 +50,7 @@ The Meridian features SDC's proprietary **TrinaryFlow Power Distribution Systemâ
 
 "What makes TrinaryFlow special is its innovative routing through unconventional ship sections," explained Chief Marketing Engineer Brad Morrison. "By threading power conduits through cargo bay junctions and maintenance corridors, we've created multiple backup pathways that most engineers wouldn't even think to use. It's genius-level redundancy!"
 
-The system's crown jewel is the **Smart Junction Control Matrix**, which automatically detects power fluctuations and reroutes energy faster than any human operator could respond. Three color-coded junction boxes (Alpha-Red for primary grid, Beta-Yellow for secondary, and Gamma-Green for emergency) provide maintenance crews with intuitive access points throughout the ship.
+The system's crown jewel is the **Smart Junction Control Matrix**, which automatically detects power fluctuations and reroutes energy faster than any human operator could respond. Three color-coded grids (Alpha-Red for primary grid, Beta-Yellow for secondary, and Gamma-Green for emergency) connect via junction nodes to provide maintenance crews with intuitive access points throughout the ship.
 
 ## Life Support Excellence  
 
@@ -627,7 +627,7 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
   let currentResponse = response;
   let finalResponseText = '';
   let turnCount = 0;
-  const MAX_TURNS = 10;
+  const MAX_TURNS = 50;
   
   while (turnCount < MAX_TURNS) {
     turnCount++;
