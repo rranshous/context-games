@@ -4,10 +4,10 @@
 
 ## 🎉 **Status: PROOF OF CONCEPT WORKING!** 
 
-**Phase**: ✅ **Foundation Complete + Claude Integration Working**
+**Phase**: ✅ **Foundation Complete + Discovery-Driven Puzzle System Working**
 - **Introduce**: ✅ Completed
 - **Plan**: ✅ Completed  
-- **Implement**: ✅ **WORKING PROTOTYPE**
+- **Implement**: ✅ **ENHANCED PROTOTYPE WITH COMPLEX PUZZLES**
 
 A terminal-based dialogue game where players collaborate with a Ship AI character that is literally powered by Claude 4 through real tool calls. The Ship AI's limitations are genuine technical constraints that unlock through player-guided repairs.
 
@@ -21,12 +21,14 @@ Players wake up locked in the ISV Meridian's brig. The ship's AI has been reset 
 
 - **Real Claude 4 Integration**: Actual AI collaboration using `claude-sonnet-4-20250514`
 - **Tool-Based Constraints**: Claude can only access ship systems through available tools
-- **Progressive Unlocking**: Repairs unlock new capabilities (diagnostics → power repair → security override → navigation → escape)
-- **Discovery Gameplay**: No context spoilers - Claude learns ship problems through tool exploration
+- **Discovery-Driven Puzzles**: Power routing puzzle requiring research + experimentation
+- **Progressive Unlocking**: Complex repairs unlock new capabilities progressively
+- **Multi-Turn Conversations**: Up to 50 turns for complex problem-solving sequences
+- **Authentic Problem-Solving**: Claude must research ship documentation and experiment with solutions
 - **Voice + Text Input**: Web Speech API + text input for natural interaction
-- **Streaming Responses**: Real-time SSE streaming of AI responses
+- **Streaming Responses**: Real-time SSE streaming of AI responses with proper spacing
 - **Conversation Memory**: Full chat history preserved across interactions
-- **Game State Management**: Server-side progression tracking
+- **Game State Management**: Server-side progression tracking with power grid simulation
 
 ## 🔧 **Technical Implementation**
 
@@ -38,12 +40,21 @@ Players wake up locked in the ISV Meridian's brig. The ship's AI has been reset 
 
 ### **Tool Progression System**
 ```
-Start: basic_diagnostics, power_repair
-↓ (after power_repair)
+Start: basic_diagnostics, power_diagnostics, file_storage, reroute_power
+↓ (after solving power routing puzzle)
 + security_override, navigation_access  
 ↓ (after navigation_access)
 + escape_pod_launch
 ```
+
+### **Power System Puzzle**
+The first major puzzle involves the ship's **TrinaryFlow Power Distribution System™**:
+- 🔍 **Discovery Phase**: Use diagnostics and file exploration to understand the problem
+- 📚 **Research Phase**: Read ship documentation to learn about the power grid system  
+- 🔧 **Experimentation Phase**: Test different power routing configurations
+- ✅ **Solution Phase**: Achieve correct Emergency→Secondary→Primary power flow
+
+*No spoilers here - let Claude figure it out through exploration and documentation!*
 
 ### **Claude Integration Pattern**
 1. **Call Claude** with available tools + conversation history
@@ -69,8 +80,9 @@ Start: basic_diagnostics, power_repair
 3. **Play**:
    - Try: "What's wrong with the ship?"
    - Claude will run diagnostics and discover problems
-   - Try: "Fix the power" 
-   - Claude will repair power and unlock new tools
+   - Try: "Can you access the ship's files?"
+   - Guide Claude through power system research and repair
+   - Watch Claude solve the power routing puzzle through experimentation!
    - Continue until escape pod launch!
 
 ## 📚 **Documentation**
