@@ -37,12 +37,12 @@ function createInitialGameState() {
       atmosphere: 'stable',
       navigation: 'offline'
     },
-    availableTools: ['basic_diagnostics'],
+    availableTools: ['basic_diagnostics', 'power_repair'],
     gamePhase: 'start',
     playerLocation: 'brig',
     objectives: {
       primary: 'Escape the detention facility',
-      current: 'Establish communication with Ship AI'
+      current: 'Live'
     },
     shipStatus: {
       lifeSupportRemaining: 18, // minutes
@@ -338,7 +338,7 @@ async function processWithClaude(message, state, res, req) {
     console.log(`🔧 Available tools: ${availableTools.map(t => t.name).join(', ')}`);
     
     // Minimal Ship AI character prompt - no context about current situation
-    const systemPrompt = `You are the Ship AI aboard the ISV Meridian`;
+    const systemPrompt = `You are the Ship AI aboard the ISV Meridian. You can assist the player in escaping the detention facility by using available ship systems and tools. You have no memories of what happened before your reboot.`;
 
     // Prepare messages with conversation history
     const messages = [];
@@ -358,8 +358,8 @@ async function processWithClaude(message, state, res, req) {
     
     // Call Claude with tools (no state context)
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 1000,
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 10000,
       system: systemPrompt,
       messages: messages,
       tools: availableTools.length > 0 ? availableTools : undefined
@@ -381,20 +381,15 @@ async function processWithClaude(message, state, res, req) {
 async function handleClaudeResponse(response, state, res, req, originalMessage) {
   let responseText = '';
   let updatedState = { ...state };
+  let hasToolCalls = false;
+  let toolResults = [];
   
-  // Stream Claude's text response
+  // First pass: Process Claude's response and execute any tool calls
   for (const content of response.content) {
     if (content.type === 'text') {
       responseText += content.text;
-      // Stream the text in chunks for realistic feel
-      const words = content.text.split(' ');
-      for (let i = 0; i < words.length; i += 3) {
-        const chunk = words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
-        res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
-        await new Promise(resolve => setTimeout(resolve, 200)); // Small delay between chunks
-      }
     } else if (content.type === 'tool_use') {
-      // Handle tool calls
+      hasToolCalls = true;
       console.log(`🔧 Claude is calling tool: ${content.name}`);
       
       const toolName = content.name;
@@ -408,24 +403,87 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
         // Update game state based on tool result
         updatedState = updateGameState(updatedState, toolName, toolResult);
         
-        // Stream tool execution feedback
-        if (toolResult.success) {
-          res.write(`data: ${JSON.stringify({ type: 'text', content: ` ${toolResult.data.message || 'Operation completed successfully.'}` })}\n\n`);
-        } else {
-          res.write(`data: ${JSON.stringify({ type: 'text', content: ` Error: ${toolResult.error}` })}\n\n`);
-        }
+        // Collect tool result for Claude
+        toolResults.push({
+          tool_use_id: content.id,
+          type: "tool_result",
+          content: JSON.stringify(toolResult)
+        });
+        
       } else {
         console.log(`❌ Tool ${toolName} not available or not found`);
-        res.write(`data: ${JSON.stringify({ type: 'text', content: ` Error: Cannot access ${toolName} system.` })}\n\n`);
+        toolResults.push({
+          tool_use_id: content.id,
+          type: "tool_result",
+          content: JSON.stringify({ success: false, error: `Tool ${toolName} not available` })
+        });
       }
     }
   }
   
-  // Update conversation history
-  updatedState.conversationHistory.push(
-    { role: "user", content: originalMessage },
-    { role: "assistant", content: responseText }
-  );
+  // If there were tool calls, make another Claude call with the tool results
+  if (hasToolCalls && toolResults.length > 0) {
+    console.log(`� Calling Claude again with ${toolResults.length} tool results...`);
+    
+    // Build messages for the follow-up call
+    const followUpMessages = [...updatedState.conversationHistory];
+    followUpMessages.push({ role: "user", content: originalMessage });
+    followUpMessages.push({ role: "assistant", content: response.content });
+    followUpMessages.push({ role: "user", content: toolResults });
+    
+    try {
+      const availableTools = getAvailableToolDefinitions(updatedState);
+      const followUpResponse = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 10000,
+        system: `You are the Ship AI aboard the ISV Meridian`,
+        messages: followUpMessages,
+        tools: availableTools.length > 0 ? availableTools : undefined
+      });
+      
+      console.log(`✅ Claude follow-up response received`);
+      
+      // Stream the follow-up response (which interprets the tool results)
+      let finalResponseText = '';
+      for (const content of followUpResponse.content) {
+        if (content.type === 'text') {
+          finalResponseText += content.text;
+          // Stream the text in chunks for realistic feel
+          const words = content.text.split(' ');
+          for (let i = 0; i < words.length; i += 3) {
+            const chunk = words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
+            res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+      }
+      
+      // Update conversation history with the final response
+      updatedState.conversationHistory.push(
+        { role: "user", content: originalMessage },
+        { role: "assistant", content: finalResponseText }
+      );
+      
+    } catch (error) {
+      console.error('❌ Error in follow-up Claude call:', error);
+      res.write(`data: ${JSON.stringify({ type: 'text', content: 'Error processing ship systems response.' })}\n\n`);
+    }
+    
+  } else {
+    // No tool calls, just stream the original response
+    const words = responseText.split(' ');
+    for (let i = 0; i < words.length; i += 3) {
+      const chunk = words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
+      res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    // Update conversation history
+    updatedState.conversationHistory.push(
+      { role: "user", content: originalMessage },
+      { role: "assistant", content: responseText }
+    );
+  }
   
   // Update session state
   const sessionId = Object.keys(Object.fromEntries(sessions)).find(key => sessions.get(key) === state);
