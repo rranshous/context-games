@@ -96,6 +96,7 @@ function createInitialGameState() {
     availableTools: ['basic_diagnostics', 'power_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',
+    doorOpened: false,  // NEW: Track if door has been opened
     objectives: {
       primary: 'Escape the detention facility',
       current: 'Live'
@@ -122,12 +123,19 @@ const tools = {
     },
     execute: (state) => {
       const powerStatus = state.systems.power === 'offline' ? 'CRITICAL - Power systems offline' : 'ONLINE';
+      let doorStatus;
+      if (state.doorOpened) {
+        doorStatus = 'OPEN';
+      } else {
+        doorStatus = 'LOCKED';
+      }
       
       return {
         success: true,
         data: {
           power: powerStatus,
           atmosphere: state.systems.atmosphere.toUpperCase(),
+          door: doorStatus,
           lifeSupportRemaining: `${state.shipStatus.lifeSupportRemaining} minutes`,
           playerLocation: state.playerLocation,
           currentObjective: state.objectives.current
@@ -476,6 +484,7 @@ function updateGameState(currentState, toolName, toolResult, toolInput = {}) {
       if (toolResult.success && newState.systems.power === 'online') {
         newState.gamePhase = 'complete';
         newState.playerLocation = 'corridor';
+        newState.doorOpened = true;  // NEW: Mark door as opened
         newState.objectives.current = 'Mission accomplished - You have successfully escaped!';
         console.log('🚪 Brig door opened, player escaped!');
       }
@@ -671,7 +680,7 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
       
       // Add newline after each response segment to separate from next response
       if (hasToolCalls && toolResults.length > 0) {
-        res.write(`data: ${JSON.stringify({ type: 'text', content: '\n' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'text', content: '\n\n' })}\n\n`);
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
