@@ -16,6 +16,8 @@ class Terminal {
   private transcript: HTMLElement;
   private aiResponse: HTMLElement;
   private typingIndicator: HTMLElement;
+  private textInput: HTMLInputElement;
+  private sendButton: HTMLButtonElement;
   private isListening = false;
   private recognition: any = null;
 
@@ -25,6 +27,8 @@ class Terminal {
     this.transcript = document.getElementById('transcript') as HTMLElement;
     this.aiResponse = document.getElementById('ai-response') as HTMLElement;
     this.typingIndicator = document.getElementById('typing-indicator') as HTMLElement;
+    this.textInput = document.getElementById('text-input') as HTMLInputElement;
+    this.sendButton = document.getElementById('send-button') as HTMLButtonElement;
 
     this.initializeSpeechRecognition();
     this.setupEventListeners();
@@ -97,6 +101,18 @@ class Terminal {
       }
     });
 
+    // Text input listeners
+    this.sendButton.addEventListener('click', () => {
+      this.sendTextMessage();
+    });
+
+    this.textInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.sendTextMessage();
+      }
+    });
+
     // Add keyboard shortcut for spacebar to activate mic
     document.addEventListener('keydown', (event) => {
       if (event.code === 'Space' && !this.isListening && this.recognition) {
@@ -106,63 +122,49 @@ class Terminal {
     });
   }
 
+  private sendTextMessage() {
+    const message = this.textInput.value.trim();
+    if (message) {
+      this.textInput.value = '';
+      this.sendToShipAI(message);
+    }
+  }
+
   private async sendToShipAI(message: string) {
     this.showTypingIndicator();
     this.transcript.textContent = `You: ${message}`;
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          message,
-          sessionId: this.getSessionId()
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
+      // First, send the message to the server and get a stream URL
+      const sessionId = this.getSessionId();
+      
+      // Create EventSource for SSE
+      const eventSource = new EventSource(`/api/chat?message=${encodeURIComponent(message)}&sessionId=${encodeURIComponent(sessionId)}`);
+      
       this.aiResponse.textContent = '';
       this.hideTypingIndicator();
 
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += new TextDecoder().decode(value);
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              return;
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'text') {
-                this.aiResponse.textContent += parsed.content;
-                this.scrollToBottom();
-              }
-            } catch (e) {
-              console.error('Error parsing SSE data:', e);
-            }
+      eventSource.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === 'text') {
+            this.aiResponse.textContent += parsed.content;
+            this.scrollToBottom();
+          } else if (parsed.type === 'done') {
+            eventSource.close();
           }
+        } catch (e) {
+          console.error('Error parsing SSE data:', e);
         }
-      }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('EventSource error:', error);
+        this.hideTypingIndicator();
+        this.aiResponse.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
+        eventSource.close();
+      };
+
     } catch (error) {
       console.error('Error communicating with Ship AI:', error);
       this.hideTypingIndicator();

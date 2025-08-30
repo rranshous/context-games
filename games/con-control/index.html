@@ -104,6 +104,41 @@
       color: #888;
       font-style: italic;
     }
+    
+    .text-input {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .text-input input {
+      flex: 1;
+      background: rgba(0, 255, 65, 0.1);
+      border: 1px solid #333;
+      color: #00ff41;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    
+    .text-input input:focus {
+      outline: none;
+      border-color: #00ff41;
+      box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+    }
+    
+    .text-input button {
+      background: rgba(0, 255, 65, 0.1);
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    
+    .text-input button:hover {
+      background: rgba(0, 255, 65, 0.2);
+    }
   </style>
 </head>
 <body>
@@ -135,6 +170,11 @@
         <div id="voice-status">Click microphone to speak to Ship AI</div>
         <div id="transcript" style="color: #00ff41; margin-top: 5px;"></div>
       </div>
+    </div>
+    
+    <div class="text-input">
+      <input type="text" id="text-input" placeholder="Type your message to Ship AI..." />
+      <button id="send-button">Send</button>
     </div>
   </div>
 

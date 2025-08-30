@@ -68,11 +68,13 @@ const tools = {
   }
 };
 
-// API endpoint
-app.post('/api/chat', (req, res) => {
-  const { message, sessionId } = req.body;
+// API endpoint - changed to GET for EventSource compatibility
+app.get('/api/chat', (req, res) => {
+  const { message, sessionId } = req.query;
+  console.log(`📨 Received message: "${message}" from session: ${sessionId}`);
 
   if (!message || !sessionId) {
+    console.log('❌ Missing message or sessionId');
     return res.status(400).json({ error: 'Message and sessionId required' });
   }
 
@@ -81,6 +83,9 @@ app.post('/api/chat', (req, res) => {
   if (!gameState) {
     gameState = createInitialGameState();
     sessions.set(sessionId, gameState);
+    console.log(`🆕 Created new game state for session: ${sessionId}`);
+  } else {
+    console.log(`🔄 Using existing game state for session: ${sessionId}`);
   }
 
   // Set up Server-Sent Events
@@ -91,13 +96,15 @@ app.post('/api/chat', (req, res) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Cache-Control'
   });
+  console.log('📡 SSE headers sent, starting response stream...');
 
   // Mock Ship AI response based on input and available tools
-  simulateShipAIResponse(message, gameState, res);
+  simulateShipAIResponse(message, gameState, res, req);
 });
 
-function simulateShipAIResponse(message, state, res) {
+function simulateShipAIResponse(message, state, res, req) {
   const lowerMessage = message.toLowerCase();
+  console.log(`🤖 Processing AI response for: "${lowerMessage}"`);
 
   // Ship AI character responses
   let responses = [];
@@ -163,14 +170,18 @@ function simulateShipAIResponse(message, state, res) {
     ];
   }
 
+  console.log(`📝 Generated ${responses.length} response chunks`);
+
   // Stream responses with realistic delays
   let index = 0;
   const streamInterval = setInterval(() => {
     if (index < responses.length) {
       const content = responses[index];
+      console.log(`📤 Streaming chunk ${index + 1}/${responses.length}: "${content.substring(0, 50)}..."`);
       res.write(`data: ${JSON.stringify({ type: 'text', content })}\n\n`);
       index++;
     } else {
+      console.log('✅ Streaming complete, sending done signal');
       res.write(`data: ${JSON.stringify({ type: 'done', gameState: state })}\n\n`);
       res.end();
       clearInterval(streamInterval);
@@ -179,6 +190,7 @@ function simulateShipAIResponse(message, state, res) {
 
   // Handle client disconnect
   req.on('close', () => {
+    console.log('🔌 Client disconnected, cleaning up stream');
     clearInterval(streamInterval);
     res.end();
   });
