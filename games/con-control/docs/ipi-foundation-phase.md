@@ -35,7 +35,7 @@ Building a terminal-based space escape game where:
 - Vite for development and build tooling
 - Web Speech API for voice input
 - MCP tool system for AI constraints
-- One, thin, backend server
+- **Backend server with integrated game logic**
 
 ### Key Foundation Components Needed
 
@@ -175,8 +175,35 @@ data: {"type": "done", "gameState": {...}}
 ## Current Status
 - **Phase**: Introduce ✅ → Plan ✅ → Implement 🔄
 - **Phase A**: Complete ✅ (Project Setup & Basic Interface)
-- **Next**: Phase B - Backend Game State & AI Implementation
-- **Ready for Implementation**: Game state machine and tool system
+- **Phase B**: Starting 🚀 (Backend Game State & AI Implementation)
+- **Next**: Claude integration with native tool system
+
+### Phase A Achievements ✅
+- Single server architecture with SSE streaming
+- Terminal interface with voice + text input  
+- Mock Ship AI with tool constraints
+- Session management and game state progression
+- Real-time streaming responses working perfectly
+
+### Phase B Implementation Plan 🎯
+
+**Goal**: Implement comprehensive backend with Claude integration, game state machine, and native tool system
+
+**Key Components**:
+1. **Enhanced Game State Machine** - Complete ship systems, repair complexity, and progression logic
+2. **Native Tool System** - MCP-style tools with dynamic availability based on state
+3. **Claude Integration** - Full AI with contextual prompting and tool access
+4. **Multi-turn Request Cycle** - Claude can make multiple tool calls per request
+5. **Centralized Backend Logic** - All game logic, state management, and AI inference in backend
+
+**Architecture**: Single backend server handles everything:
+- Game state management and progression
+- Tool definitions and execution
+- Claude API integration and prompting
+- SSE streaming responses
+- Session management
+
+**Ready for Implementation**: Starting with consolidated backend architecture
 
 ---
 *This document tracks our IPI progress for the con-control game foundation.*
