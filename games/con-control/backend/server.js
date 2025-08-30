@@ -688,6 +688,12 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
         await new Promise(resolve => setTimeout(resolve, 200));
       }
       finalResponseText += responseText;
+      
+      // Add newline after each response segment to separate from next response
+      if (hasToolCalls && toolResults.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: 'text', content: '\n' })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
     
     // If there were tool calls, continue the conversation
