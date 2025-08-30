@@ -94,7 +94,7 @@ function createInitialGameState() {
       yellow: 'green', // Secondary grid - flows to green (wrong)
       green: null   // Emergency grid - disconnected
     },
-    availableTools: ['basic_diagnostics', 'file_storage', 'reroute_power'],
+    availableTools: ['basic_diagnostics', 'power_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',
     objectives: {
@@ -126,6 +126,30 @@ const tools = {
       const securityStatus = state.systems.security === 'locked' ? 'LOCKED - Access denied' : 'UNLOCKED';
       const navStatus = state.systems.navigation === 'offline' ? 'OFFLINE' : state.systems.navigation.toUpperCase();
       
+      return {
+        success: true,
+        data: {
+          power: powerStatus,
+          security: securityStatus,
+          navigation: navStatus,
+          atmosphere: state.systems.atmosphere.toUpperCase(),
+          lifeSupportRemaining: `${state.shipStatus.lifeSupportRemaining} minutes`,
+          playerLocation: state.playerLocation,
+          currentObjective: state.objectives.current
+        }
+      };
+    }
+  },
+
+  power_diagnostics: {
+    name: "power_diagnostics",
+    description: "Run detailed power system diagnostics to analyze grid routing and connections",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    },
+    execute: (state) => {
       // Generate power grid routing display
       const powerRouting = [];
       Object.entries(state.powerGrid).forEach(([from, to]) => {
@@ -139,14 +163,9 @@ const tools = {
       return {
         success: true,
         data: {
-          power: powerStatus,
-          powerRouting: powerRouting.join(', '),
-          security: securityStatus,
-          navigation: navStatus,
-          atmosphere: state.systems.atmosphere.toUpperCase(),
-          lifeSupportRemaining: `${state.shipStatus.lifeSupportRemaining} minutes`,
-          playerLocation: state.playerLocation,
-          currentObjective: state.objectives.current
+          powerStatus: state.systems.power === 'offline' ? 'CRITICAL - Power systems offline' : 'ONLINE',
+          gridRouting: powerRouting.join(', '),
+          systemMessage: 'TrinaryFlow Power Distribution System detected. Analyzing grid connections...'
         }
       };
     }
@@ -418,6 +437,7 @@ function updateGameState(currentState, toolName, toolResult, toolInput = {}) {
   
   switch (toolName) {
     case 'basic_diagnostics':
+    case 'power_diagnostics':
     case 'file_storage':
       // These tools don't change state, just reveal information
       break;
