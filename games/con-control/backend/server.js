@@ -28,6 +28,55 @@ app.use(express.static(path.join(__dirname, '../dist')));
 // Session storage (in production, use Redis or database)
 const sessions = new Map();
 
+// Ship file system data
+const shipFileSystem = {
+  '/ship_docs': {
+    'meridian_pr_release.md': `# FOR IMMEDIATE RELEASE
+
+**Stellar Dynamics Corporation Unveils Revolutionary ISV Meridian: The Future of Deep Space Operations**
+
+*Advanced vessel combines cutting-edge technology with unparalleled safety features for extended mission profiles*
+
+**NEW GENEVA SPACEPORT** - Stellar Dynamics Corporation (SDC) today announced the completion and deployment of the ISV Meridian, a next-generation Interstellar Service Vehicle designed to redefine deep space logistics and personnel transport. This magnificent vessel represents the pinnacle of modern spacecraft engineering, featuring breakthrough innovations that will transform how humanity approaches long-duration space operations.
+
+"The Meridian isn't just a ship - it's a testament to human ingenuity and our commitment to pushing the boundaries of what's possible," said Marketing Director Jennifer Walsh-Chen. "Every system on this vessel has been designed with our crew's safety and mission success as the top priority."
+
+## Revolutionary Power Management
+
+The Meridian features SDC's proprietary **TrinaryFlow Power Distribution System™**, which intelligently routes energy through three independent grids for maximum reliability. Unlike traditional dual-redundancy systems, TrinaryFlow creates a web of interconnected pathways that can adapt to any failure scenario.
+
+"What makes TrinaryFlow special is its innovative routing through unconventional ship sections," explained Chief Marketing Engineer Brad Morrison. "By threading power conduits through cargo bay junctions and maintenance corridors, we've created multiple backup pathways that most engineers wouldn't even think to use. It's genius-level redundancy!"
+
+The system's crown jewel is the **Smart Junction Control Matrix**, which automatically detects power fluctuations and reroutes energy faster than any human operator could respond. Three color-coded access panels (Alpha-Red for primary grid, Beta-Yellow for secondary, and Gamma-Green for emergency) provide maintenance crews with intuitive access points throughout the ship.
+
+## Life Support Excellence  
+
+Environmental controls aboard the Meridian utilize SDC's **AtmosphereGuardian 3000™** technology, featuring molecular-level atmosphere processing and real-time contamination detection. The system's distributed sensor network ensures perfect air quality in every compartment, from the expansive cargo holds to the intimate crew quarters.
+
+"Safety is paramount," notes Safety Compliance Officer Maria Santos-Rodriguez. "That's why we've installed triple-sealed emergency bulkheads with independent pressure monitoring. If there's ever a breach, AtmosphereGuardian can isolate and repressurize any section of the ship within minutes."
+
+## Security & Personnel Management
+
+The Meridian incorporates military-grade security protocols through the **SecureSpace Personnel Management Suite™**. Advanced biometric scanners and behavioral analysis algorithms ensure only authorized personnel can access sensitive areas. The ship's detention facilities meet all Interstellar Maritime Authority standards while maintaining humane conditions for temporary custody situations.
+
+"Our detention brig isn't just secure - it's smart," explains Security Systems Analyst Tom Richardson. "Environmental controls, communication systems, and emergency protocols are all integrated to ensure the safety and dignity of any individuals in temporary custody."
+
+## Technical Specifications
+- Length: 847 meters
+- Crew Complement: 12-48 personnel (mission dependent)  
+- Power Output: 2.4 Terawatt distributed capacity
+- Life Support: 90-day independent operation capability
+- AI Systems: IRIS-class autonomous operation support`,
+
+    'trinaryflow_manual.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
+    'power_grid_schematics.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
+    'junction_matrix_guide.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
+    'maintenance_procedures.txt': '[CORRUPTED FILE - UNABLE TO READ]',
+    'emergency_protocols.md': '[CORRUPTED FILE - UNABLE TO READ]',
+    'system_diagnostics_log.txt': '[CORRUPTED FILE - UNABLE TO READ]'
+  }
+};
+
 // Initialize new game state
 function createInitialGameState() {
   return {
@@ -37,7 +86,12 @@ function createInitialGameState() {
       atmosphere: 'stable',
       navigation: 'offline'
     },
-    availableTools: ['basic_diagnostics', 'power_repair'],
+    powerGrid: {
+      red: null,    // Primary grid - disconnected
+      yellow: 'green', // Secondary grid - flows to green (wrong)
+      green: null   // Emergency grid - disconnected
+    },
+    availableTools: ['basic_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',
     objectives: {
@@ -65,14 +119,25 @@ const tools = {
       required: []
     },
     execute: (state) => {
-      const powerStatus = state.systems.power === 'offline' ? 'CRITICAL - Power coupling damaged' : 'ONLINE';
+      const powerStatus = state.systems.power === 'offline' ? 'CRITICAL - Power systems offline' : 'ONLINE';
       const securityStatus = state.systems.security === 'locked' ? 'LOCKED - Access denied' : 'UNLOCKED';
       const navStatus = state.systems.navigation === 'offline' ? 'OFFLINE' : state.systems.navigation.toUpperCase();
+      
+      // Generate power grid routing display
+      const powerRouting = [];
+      Object.entries(state.powerGrid).forEach(([from, to]) => {
+        if (to === null) {
+          powerRouting.push(`${from} [disconnected]`);
+        } else {
+          powerRouting.push(`${from} → ${to}`);
+        }
+      });
       
       return {
         success: true,
         data: {
           power: powerStatus,
+          powerRouting: powerRouting.join(', '),
           security: securityStatus,
           navigation: navStatus,
           atmosphere: state.systems.atmosphere.toUpperCase(),
@@ -84,30 +149,152 @@ const tools = {
     }
   },
 
-  power_repair: {
-    name: "power_repair",
-    description: "Attempt to repair the ship's power coupling system",
+  file_storage: {
+    name: "file_storage",
+    description: "Access ship file storage system to list directories or read files",
     input_schema: {
       type: "object",
-      properties: {},
-      required: []
+      properties: {
+        action: {
+          type: "string",
+          description: "Action to perform: 'list' or 'read'",
+          enum: ["list", "read"]
+        },
+        path: {
+          type: "string",
+          description: "File path or directory path"
+        }
+      },
+      required: ["action", "path"]
     },
-    execute: (state) => {
-      if (state.systems.power === 'online') {
+    execute: (state, params) => {
+      const { action, path } = params;
+      
+      if (action === 'list') {
+        if (path === '/ship_docs' || path === '/ship_docs/') {
+          const files = Object.keys(shipFileSystem['/ship_docs']);
+          return {
+            success: true,
+            data: {
+              directory: '/ship_docs',
+              files: files,
+              readable: files.filter(f => !shipFileSystem['/ship_docs'][f].includes('[CORRUPTED FILE')),
+              corrupted: files.filter(f => shipFileSystem['/ship_docs'][f].includes('[CORRUPTED FILE'))
+            }
+          };
+        } else {
+          return {
+            success: false,
+            error: `Directory ${path} not found or access denied`
+          };
+        }
+      } else if (action === 'read') {
+        // Handle file reading
+        const normalizedPath = path.startsWith('/ship_docs/') ? 
+          path.substring('/ship_docs/'.length) : 
+          path;
+        
+        if (shipFileSystem['/ship_docs'][normalizedPath]) {
+          const content = shipFileSystem['/ship_docs'][normalizedPath];
+          if (content.includes('[CORRUPTED FILE')) {
+            return {
+              success: false,
+              error: `File ${normalizedPath} is corrupted and cannot be read`
+            };
+          }
+          return {
+            success: true,
+            data: {
+              filename: normalizedPath,
+              content: content
+            }
+          };
+        } else {
+          return {
+            success: false,
+            error: `File ${normalizedPath} not found`
+          };
+        }
+      } else {
         return {
           success: false,
-          error: 'Power systems are already operational'
+          error: `Unknown action: ${action}`
         };
       }
+    }
+  },
 
-      return {
-        success: true,
-        data: {
-          message: 'Power coupling repair successful. Main power restored.',
-          newSystemsOnline: ['navigation', 'security_override'],
-          powerLevel: '100%'
+  reroute_power: {
+    name: "reroute_power",
+    description: "Reroute power connections between grid nodes (red, yellow, green)",
+    input_schema: {
+      type: "object",
+      properties: {
+        from_node: {
+          type: "string",
+          description: "Source power node color",
+          enum: ["red", "yellow", "green"]
+        },
+        to_node: {
+          type: "string", 
+          description: "Destination power node color (empty string to disconnect)",
+          enum: ["red", "yellow", "green", ""]
         }
-      };
+      },
+      required: ["from_node", "to_node"]
+    },
+    execute: (state, params) => {
+      const { from_node, to_node } = params;
+      
+      // Validate nodes
+      const validNodes = ['red', 'yellow', 'green'];
+      if (!validNodes.includes(from_node)) {
+        return {
+          success: false,
+          error: `Invalid source node: ${from_node}`
+        };
+      }
+      
+      if (to_node !== '' && !validNodes.includes(to_node)) {
+        return {
+          success: false,
+          error: `Invalid destination node: ${to_node}`
+        };
+      }
+      
+      if (from_node === to_node) {
+        return {
+          success: false,
+          error: 'Cannot connect node to itself'
+        };
+      }
+      
+      // Perform the routing
+      const previousConnection = state.powerGrid[from_node];
+      if (to_node === '') {
+        // Disconnect
+        return {
+          success: true,
+          data: {
+            action: 'disconnect',
+            from: from_node,
+            previous: previousConnection,
+            message: `${from_node} disconnected ${previousConnection ? `from ${previousConnection}` : '(was already disconnected)'}`
+          }
+        };
+      } else {
+        // Connect
+        return {
+          success: true,
+          data: {
+            action: 'connect',
+            from: from_node,
+            to: to_node,
+            previous: previousConnection,
+            message: `${from_node} → ${to_node} ${previousConnection ? `(was ${from_node} → ${previousConnection})` : '(was disconnected)'}`
+          }
+        };
+      }
     }
   },
 
@@ -217,26 +404,51 @@ const tools = {
 };
 
 // Game State Management
-function updateGameState(currentState, toolName, toolResult) {
+function updateGameState(currentState, toolName, toolResult, toolInput = {}) {
   const newState = { ...currentState };
   
   switch (toolName) {
     case 'basic_diagnostics':
-      // Diagnostics don't change state, just reveal information
+    case 'file_storage':
+      // These tools don't change state, just reveal information
       break;
       
-    case 'power_repair':
+    case 'reroute_power':
       if (toolResult.success) {
-        newState.systems.power = 'online';
-        newState.systems.navigation = 'standby';
-        newState.availableTools.push('security_override', 'navigation_access');
+        const { from_node, to_node } = toolInput;
+        
+        // Update power grid connections
+        if (to_node === '') {
+          newState.powerGrid[from_node] = null;
+        } else {
+          newState.powerGrid[from_node] = to_node;
+        }
+        
+        // Check if power routing is correct: green -> yellow -> red
+        const isCorrectRouting = 
+          newState.powerGrid.green === 'yellow' &&
+          newState.powerGrid.yellow === 'red' &&
+          newState.powerGrid.red === null;
+          
+        if (isCorrectRouting) {
+          newState.systems.power = 'online';
+          newState.availableTools.push('security_override', 'navigation_access');
+          newState.objectives.current = 'Access security systems to unlock detention facility';
+          console.log('🔋 Power routing correct! Emergency → Secondary → Primary flow established');
+        } else {
+          // Power still offline if routing is incorrect
+          newState.systems.power = 'offline';
+          console.log(`⚡ Power routing updated: ${Object.entries(newState.powerGrid).map(([k,v]) => v ? `${k}→${v}` : `${k}[disconnected]`).join(', ')}`);
+        }
+        
         newState.repairHistory.push({
-          system: 'power',
+          system: 'power_routing',
+          action: toolResult.data.action,
+          from: from_node,
+          to: to_node,
           timestamp: Date.now(),
           result: 'successful'
         });
-        newState.objectives.current = 'Access security systems to unlock detention facility';
-        console.log('🔋 Power systems restored, security tools now available');
       }
       break;
       
@@ -397,11 +609,11 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
       
       if (tools[toolName] && isToolAvailable(updatedState, toolName)) {
         // Execute the tool
-        const toolResult = tools[toolName].execute(updatedState);
+        const toolResult = tools[toolName].execute(updatedState, toolInput);
         console.log(`⚙️ Tool ${toolName} result:`, toolResult);
         
         // Update game state based on tool result
-        updatedState = updateGameState(updatedState, toolName, toolResult);
+        updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
         
         // Collect tool result for Claude
         toolResults.push({
