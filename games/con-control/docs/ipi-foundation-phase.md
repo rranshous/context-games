@@ -173,9 +173,9 @@ data: {"type": "done", "gameState": {...}}
 - **Multi-turn Complexity**: Log all tool calls for debugging
 
 ## Current Status
-- **Phase**: Introduce ✅ → Plan 🔄
-- **Next**: Review plan and proceed to Implement
-- **Ready for Review**: Plan draft complete, awaiting approval
+- **Phase**: Introduce ✅ → Plan ✅ → Implement 🔄
+- **Next**: Phase A - Project Setup & Basic Interface
+- **Ready for Implementation**: Starting with TypeScript + Vite project setup
 
 ---
 *This document tracks our IPI progress for the con-control game foundation.*

@@ -1,0 +1,32 @@
+{
+  "name": "con-control",
+  "version": "1.0.0",
+  "description": "AI Collaboration Space Escape Game",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "server": "node backend/server.js",
+    "server:dev": "nodemon backend/server.js"
+  },
+  "keywords": [
+    "AI",
+    "game",
+    "terminal",
+    "voice",
+    "space"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "nodemon": "^3.1.10",
+    "typescript": "^5.9.2",
+    "vite": "^5.4.19"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  }
+}
