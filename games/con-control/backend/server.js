@@ -85,9 +85,8 @@ function createInitialGameState() {
   return {
     systems: {
       power: 'offline',
-      security: 'locked',
-      atmosphere: 'stable',
-      navigation: 'offline'
+      atmosphere: 'depressurized',  // NEW: Start with depressurized atmosphere
+      // Removed: security, navigation
     },
     powerGrid: {
       red: null,    // Primary grid - disconnected
@@ -123,15 +122,11 @@ const tools = {
     },
     execute: (state) => {
       const powerStatus = state.systems.power === 'offline' ? 'CRITICAL - Power systems offline' : 'ONLINE';
-      const securityStatus = state.systems.security === 'locked' ? 'LOCKED - Access denied' : 'UNLOCKED';
-      const navStatus = state.systems.navigation === 'offline' ? 'OFFLINE' : state.systems.navigation.toUpperCase();
       
       return {
         success: true,
         data: {
           power: powerStatus,
-          security: securityStatus,
-          navigation: navStatus,
           atmosphere: state.systems.atmosphere.toUpperCase(),
           lifeSupportRemaining: `${state.shipStatus.lifeSupportRemaining} minutes`,
           playerLocation: state.playerLocation,
@@ -326,107 +321,103 @@ const tools = {
     }
   },
 
-  security_override: {
-    name: "security_override",
-    description: "Override ship security systems to unlock doors and restricted areas",
+  open_door: {
+    name: "open_door",
+    description: "Attempt to open various ship doors",
     input_schema: {
       type: "object",
-      properties: {},
-      required: []
+      properties: {
+        door_id: {
+          type: "string",
+          description: "The door to attempt opening",
+          enum: ["brig_door", "cargo_bay", "engineering", "crew_quarters", "bridge", "medbay"]
+        }
+      },
+      required: ["door_id"]
     },
-    execute: (state) => {
+    execute: (state, params) => {
+      const { door_id } = params;
+      
       if (state.systems.power === 'offline') {
         return {
           success: false,
-          error: 'Cannot access security systems without main power'
+          error: 'Cannot operate doors without main power'
         };
       }
-
-      if (state.systems.security === 'unlocked') {
+      
+      if (state.systems.atmosphere === 'depressurized') {
         return {
           success: false,
-          error: 'Security systems are already unlocked'
+          error: 'Cannot open door - no atmosphere detected on the other side. Restore HVAC systems first.'
         };
       }
-
-      return {
-        success: true,
-        data: {
-          message: 'Security override successful. Brig door unlocked.',
-          doorStatus: 'UNLOCKED',
-          newLocation: 'corridor',
-          accessGranted: ['main_corridor', 'escape_pods']
-        }
-      };
+      
+      if (door_id === 'brig_door') {
+        return {
+          success: true,
+          data: {
+            message: 'Brig door opened successfully! You have escaped the detention facility.',
+            doorStatus: 'OPEN',
+            newLocation: 'corridor',
+            outcome: 'MISSION_COMPLETE'
+          }
+        };
+      } else {
+        return {
+          success: false,
+          error: `Access denied to ${door_id.replace('_', ' ')}. Security protocols active.`
+        };
+      }
     }
   },
 
-  navigation_access: {
-    name: "navigation_access",
-    description: "Access ship navigation systems for escape pod preparation",
+  hvac_control: {
+    name: "hvac_control",
+    description: "Control ship's HVAC (atmosphere) systems",
     input_schema: {
       type: "object",
-      properties: {},
-      required: []
+      properties: {
+        action: {
+          type: "string",
+          description: "HVAC action to perform",
+          enum: ["power_cycle", "adjust_temperature", "adjust_humidity", "vent_system", "emergency_purge"]
+        }
+      },
+      required: ["action"]
     },
-    execute: (state) => {
+    execute: (state, params) => {
+      const { action } = params;
+      
       if (state.systems.power === 'offline') {
         return {
           success: false,
-          error: 'Navigation systems require main power'
+          error: 'Cannot access HVAC systems without main power'
         };
       }
-
-      if (state.systems.navigation === 'online') {
-        return {
-          success: false,
-          error: 'Navigation systems are already online'
-        };
-      }
-
-      return {
-        success: true,
-        data: {
-          message: 'Navigation systems activated. Escape pod systems now accessible.',
-          navStatus: 'ONLINE',
-          escapePodStatus: 'READY',
-          coordinates: 'Safe trajectory calculated'
+      
+      if (action === 'power_cycle') {
+        if (state.systems.atmosphere === 'pressurized') {
+          return {
+            success: false,
+            error: 'HVAC systems are already online and pressurized'
+          };
         }
-      };
-    }
-  },
-
-  escape_pod_launch: {
-    name: "escape_pod_launch",
-    description: "Launch escape pod to evacuate the ship",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    },
-    execute: (state) => {
-      if (state.systems.navigation === 'offline') {
+        
+        return {
+          success: true,
+          data: {
+            message: 'HVAC power cycle initiated. Atmosphere systems coming online...',
+            action: 'power_cycle',
+            status: 'Atmosphere pressurization in progress',
+            estimatedTime: '30 seconds'
+          }
+        };
+      } else {
         return {
           success: false,
-          error: 'Navigation systems required for safe launch'
+          error: `HVAC action '${action}' had no effect. Try power cycling the system.`
         };
       }
-
-      if (state.playerLocation !== 'corridor' && state.systems.security === 'locked') {
-        return {
-          success: false,
-          error: 'Cannot access escape pods from current location'
-        };
-      }
-
-      return {
-        success: true,
-        data: {
-          message: 'Escape pod launched successfully. You have evacuated the ship safely.',
-          status: 'ESCAPED',
-          outcome: 'MISSION_COMPLETE'
-        }
-      };
     }
   }
 };
@@ -461,8 +452,8 @@ function updateGameState(currentState, toolName, toolResult, toolInput = {}) {
           
         if (isCorrectRouting) {
           newState.systems.power = 'online';
-          newState.availableTools.push('security_override', 'navigation_access');
-          newState.objectives.current = 'Access security systems to unlock detention facility';
+          newState.availableTools.push('open_door', 'hvac_control');
+          newState.objectives.current = 'Restore atmosphere systems to open brig door';
           console.log('🔋 Power routing correct! Emergency → Secondary → Primary flow established');
         } else {
           // Power still offline if routing is incorrect
@@ -481,31 +472,20 @@ function updateGameState(currentState, toolName, toolResult, toolInput = {}) {
       }
       break;
       
-    case 'security_override':
+    case 'open_door':
       if (toolResult.success && newState.systems.power === 'online') {
-        newState.systems.security = 'unlocked';
-        newState.playerLocation = 'corridor';
-        newState.gamePhase = 'escaped_brig';
-        newState.objectives.current = 'Reach navigation systems to prepare escape';
-        console.log('🚪 Security unlocked, player moved to corridor');
-      }
-      break;
-      
-    case 'navigation_access':
-      if (toolResult.success && newState.systems.power === 'online') {
-        newState.systems.navigation = 'online';
-        newState.availableTools.push('escape_pod_launch');
-        newState.objectives.current = 'Launch escape pod to evacuate ship';
-        console.log('🧭 Navigation online, escape pod available');
-      }
-      break;
-      
-    case 'escape_pod_launch':
-      if (toolResult.success) {
         newState.gamePhase = 'complete';
-        newState.playerLocation = 'escaped';
+        newState.playerLocation = 'corridor';
         newState.objectives.current = 'Mission accomplished - You have successfully escaped!';
-        console.log('🚀 Escape pod launched, mission complete!');
+        console.log('🚪 Brig door opened, player escaped!');
+      }
+      break;
+      
+    case 'hvac_control':
+      if (toolResult.success && newState.systems.power === 'online') {
+        newState.systems.atmosphere = 'pressurized';
+        newState.objectives.current = 'Open brig door to escape';
+        console.log('🌬️ Atmosphere pressurized, door opening now possible');
       }
       break;
   }
