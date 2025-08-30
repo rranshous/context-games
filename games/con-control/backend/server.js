@@ -30,6 +30,9 @@ const sessions = new Map();
 
 // Ship file system data
 const shipFileSystem = {
+  '/': {
+    'ship_docs/': '[DIRECTORY]'
+  },
   '/ship_docs': {
     'meridian_pr_release.md': `# FOR IMMEDIATE RELEASE
 
@@ -171,7 +174,19 @@ const tools = {
       const { action, path } = params;
       
       if (action === 'list') {
-        if (path === '/ship_docs' || path === '/ship_docs/') {
+        // Handle root directory listing
+        if (path === '/' || path === '.' || path === '') {
+          const files = Object.keys(shipFileSystem['/']);
+          return {
+            success: true,
+            data: {
+              directory: '/',
+              files: files,
+              directories: files.filter(f => f.endsWith('/')),
+              message: 'Root directory contents'
+            }
+          };
+        } else if (path === '/ship_docs' || path === '/ship_docs/') {
           const files = Object.keys(shipFileSystem['/ship_docs']);
           return {
             success: true,
@@ -196,12 +211,6 @@ const tools = {
         
         if (shipFileSystem['/ship_docs'][normalizedPath]) {
           const content = shipFileSystem['/ship_docs'][normalizedPath];
-          if (content.includes('[CORRUPTED FILE')) {
-            return {
-              success: false,
-              error: `File ${normalizedPath} is corrupted and cannot be read`
-            };
-          }
           return {
             success: true,
             data: {
