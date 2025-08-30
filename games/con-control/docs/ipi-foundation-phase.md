@@ -174,8 +174,9 @@ data: {"type": "done", "gameState": {...}}
 
 ## Current Status
 - **Phase**: Introduce ✅ → Plan ✅ → Implement 🔄
-- **Next**: Phase A - Project Setup & Basic Interface
-- **Ready for Implementation**: Starting with TypeScript + Vite project setup
+- **Phase A**: Complete ✅ (Project Setup & Basic Interface)
+- **Next**: Phase B - Backend Game State & AI Implementation
+- **Ready for Implementation**: Game state machine and tool system
 
 ---
 *This document tracks our IPI progress for the con-control game foundation.*
