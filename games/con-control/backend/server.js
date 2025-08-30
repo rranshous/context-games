@@ -1,11 +1,19 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from the dist directory
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // Session storage (in production, use Redis or database)
 const sessions = new Map();
@@ -60,7 +68,7 @@ const tools = {
   }
 };
 
-// Streaming chat endpoint
+// API endpoint
 app.post('/api/chat', (req, res) => {
   const { message, sessionId } = req.body;
 
@@ -177,6 +185,7 @@ function simulateShipAIResponse(message, state, res) {
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 Con-Control backend server running on http://localhost:${PORT}`);
-  console.log(`🎮 Game API available at http://localhost:${PORT}/api/chat`);
+  console.log(`🚀 Con-Control server running on http://localhost:${PORT}`);
+  console.log(`🎮 Game available at http://localhost:${PORT}`);
+  console.log(`🔧 API endpoint: http://localhost:${PORT}/api/chat`);
 });
