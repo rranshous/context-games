@@ -50,7 +50,7 @@ The Meridian features SDC's proprietary **TrinaryFlow Power Distribution System�
 
 "What makes TrinaryFlow special is its innovative routing through unconventional ship sections," explained Chief Marketing Engineer Brad Morrison. "By threading power conduits through cargo bay junctions and maintenance corridors, we've created multiple backup pathways that most engineers wouldn't even think to use. It's genius-level redundancy!"
 
-The system's crown jewel is the **Smart Junction Control Matrix**, which automatically detects power fluctuations and reroutes energy faster than any human operator could respond. Three color-coded access panels (Alpha-Red for primary grid, Beta-Yellow for secondary, and Gamma-Green for emergency) provide maintenance crews with intuitive access points throughout the ship.
+The system's crown jewel is the **Smart Junction Control Matrix**, which automatically detects power fluctuations and reroutes energy faster than any human operator could respond. Three color-coded junction boxes (Alpha-Red for primary grid, Beta-Yellow for secondary, and Gamma-Green for emergency) provide maintenance crews with intuitive access points throughout the ship.
 
 ## Life Support Excellence  
 
@@ -600,111 +600,117 @@ async function processWithClaude(message, state, res, req) {
 }
 
 async function handleClaudeResponse(response, state, res, req, originalMessage) {
-  let responseText = '';
   let updatedState = { ...state };
-  let hasToolCalls = false;
-  let toolResults = [];
+  let conversationMessages = [...updatedState.conversationHistory];
+  conversationMessages.push({ role: "user", content: originalMessage });
   
-  // First pass: Process Claude's response and execute any tool calls
-  for (const content of response.content) {
-    if (content.type === 'text') {
-      responseText += content.text;
-    } else if (content.type === 'tool_use') {
-      hasToolCalls = true;
-      console.log(`🔧 Claude is calling tool: ${content.name}`);
-      
-      const toolName = content.name;
-      const toolInput = content.input || {};
-      
-      if (tools[toolName] && isToolAvailable(updatedState, toolName)) {
-        // Execute the tool
-        const toolResult = tools[toolName].execute(updatedState, toolInput);
-        console.log(`⚙️ Tool ${toolName} result:`, toolResult);
-        
-        // Update game state based on tool result
-        updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
-        
-        // Collect tool result for Claude
-        toolResults.push({
-          tool_use_id: content.id,
-          type: "tool_result",
-          content: JSON.stringify(toolResult)
-        });
-        
-      } else {
-        console.log(`❌ Tool ${toolName} not available or not found`);
-        toolResults.push({
-          tool_use_id: content.id,
-          type: "tool_result",
-          content: JSON.stringify({ success: false, error: `Tool ${toolName} not available` })
-        });
-      }
-    }
-  }
+  let currentResponse = response;
+  let finalResponseText = '';
+  let turnCount = 0;
+  const MAX_TURNS = 10;
   
-  // If there were tool calls, make another Claude call with the tool results
-  if (hasToolCalls && toolResults.length > 0) {
-    console.log(`� Calling Claude again with ${toolResults.length} tool results...`);
+  while (turnCount < MAX_TURNS) {
+    turnCount++;
+    console.log(`🔄 Processing turn ${turnCount}...`);
     
-    // Build messages for the follow-up call
-    const followUpMessages = [...updatedState.conversationHistory];
-    followUpMessages.push({ role: "user", content: originalMessage });
-    followUpMessages.push({ role: "assistant", content: response.content });
-    followUpMessages.push({ role: "user", content: toolResults });
+    let hasToolCalls = false;
+    let toolResults = [];
+    let responseText = '';
     
-    try {
-      const availableTools = getAvailableToolDefinitions(updatedState);
-      const followUpResponse = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 10000,
-        system: `You are the Ship AI aboard the ISV Meridian`,
-        messages: followUpMessages,
-        tools: availableTools.length > 0 ? availableTools : undefined
-      });
-      
-      console.log(`✅ Claude follow-up response received`);
-      
-      // Stream the follow-up response (which interprets the tool results)
-      let finalResponseText = '';
-      for (const content of followUpResponse.content) {
-        if (content.type === 'text') {
-          finalResponseText += content.text;
-          // Stream the text in chunks for realistic feel
-          const words = content.text.split(' ');
-          for (let i = 0; i < words.length; i += 3) {
-            const chunk = words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
-            res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
+    // Process current response content
+    for (const content of currentResponse.content) {
+      if (content.type === 'text') {
+        responseText += content.text;
+      } else if (content.type === 'tool_use') {
+        hasToolCalls = true;
+        console.log(`🔧 Claude is calling tool: ${content.name}`);
+        
+        const toolName = content.name;
+        const toolInput = content.input || {};
+        
+        if (tools[toolName] && isToolAvailable(updatedState, toolName)) {
+          // Execute the tool
+          const toolResult = tools[toolName].execute(updatedState, toolInput);
+          console.log(`⚙️ Tool ${toolName} result:`, toolResult);
+          
+          // Update game state based on tool result
+          updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
+          
+          // Collect tool result for Claude
+          toolResults.push({
+            tool_use_id: content.id,
+            type: "tool_result",
+            content: JSON.stringify(toolResult)
+          });
+          
+        } else {
+          console.log(`❌ Tool ${toolName} not available or not found`);
+          toolResults.push({
+            tool_use_id: content.id,
+            type: "tool_result",
+            content: JSON.stringify({ success: false, error: `Tool ${toolName} not available` })
+          });
         }
       }
-      
-      // Update conversation history with the final response
-      updatedState.conversationHistory.push(
-        { role: "user", content: originalMessage },
-        { role: "assistant", content: finalResponseText }
-      );
-      
-    } catch (error) {
-      console.error('❌ Error in follow-up Claude call:', error);
-      res.write(`data: ${JSON.stringify({ type: 'text', content: 'Error processing ship systems response.' })}\n\n`);
     }
     
-  } else {
-    // No tool calls, just stream the original response
-    const words = responseText.split(' ');
-    for (let i = 0; i < words.length; i += 3) {
-      const chunk = words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
-      res.write(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`);
-      await new Promise(resolve => setTimeout(resolve, 200));
+    // Add assistant's response to conversation
+    conversationMessages.push({ role: "assistant", content: currentResponse.content });
+    
+    // Stream any text response to the user
+    if (responseText.trim()) {
+      const words = responseText.split(' ');
+      for (let i = 0; i < words.length; i += 3) {
+        const chunk = words.slice(i, i + 3).join(' ');
+        // Always add a space after each chunk except the very last one
+        const finalChunk = (i + 3 < words.length) ? chunk + ' ' : chunk;
+        res.write(`data: ${JSON.stringify({ type: 'text', content: finalChunk })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      finalResponseText += responseText;
     }
     
-    // Update conversation history
-    updatedState.conversationHistory.push(
-      { role: "user", content: originalMessage },
-      { role: "assistant", content: responseText }
-    );
+    // If there were tool calls, continue the conversation
+    if (hasToolCalls && toolResults.length > 0) {
+      console.log(`🔧 Calling Claude again with ${toolResults.length} tool results...`);
+      
+      // Add tool results as user message
+      conversationMessages.push({ role: "user", content: toolResults });
+      
+      try {
+        const availableTools = getAvailableToolDefinitions(updatedState);
+        currentResponse = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 10000,
+          system: `You are the Ship AI aboard the ISV Meridian`,
+          messages: conversationMessages,
+          tools: availableTools.length > 0 ? availableTools : undefined
+        });
+        
+        console.log(`✅ Claude turn ${turnCount} response received`);
+        
+      } catch (error) {
+        console.error('❌ Error in Claude follow-up call:', error);
+        res.write(`data: ${JSON.stringify({ type: 'text', content: 'Error processing ship systems response.' })}\n\n`);
+        break;
+      }
+    } else {
+      // No more tool calls, conversation is complete
+      console.log(`✅ Conversation complete after ${turnCount} turns`);
+      break;
+    }
   }
+  
+  if (turnCount >= MAX_TURNS) {
+    console.log(`⚠️ Reached maximum turns (${MAX_TURNS}), ending conversation`);
+    res.write(`data: ${JSON.stringify({ type: 'text', content: '[System: Maximum conversation turns reached]' })}\n\n`);
+  }
+  
+  // Update conversation history with the final complete exchange
+  updatedState.conversationHistory.push(
+    { role: "user", content: originalMessage },
+    { role: "assistant", content: finalResponseText || "I've completed the requested actions." }
+  );
   
   // Update session state
   const sessionId = Object.keys(Object.fromEntries(sessions)).find(key => sessions.get(key) === state);
