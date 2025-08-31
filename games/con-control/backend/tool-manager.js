@@ -44,7 +44,6 @@ export const tools = {
           door: doorStatus,
           oxygenRemaining: oxygenStatus,
           playerLocation: state.playerLocation,
-          currentObjective: state.objectives.current,
           isOxygenDepleted: oxygenInfo.isExpired
         }
       };

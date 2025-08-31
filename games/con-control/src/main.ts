@@ -14,32 +14,45 @@ class Terminal {
   private micButton: HTMLButtonElement;
   private voiceStatus: HTMLElement;
   private transcript: HTMLElement;
+  private floatingTranscript: HTMLElement;
   private chatHistory: HTMLElement;
   private typingIndicator: HTMLElement;
+  private textInputFallback: HTMLElement;
   private textInput: HTMLInputElement;
   private sendButton: HTMLButtonElement;
   private isListening = false;
+  private isAiResponding = false;
+  private isUsingFallback = false; // Track if we're using text input fallback
   private recognition: any = null;
   private currentAiMessage: HTMLElement | null = null;
+  private mouseX = 0;
+  private mouseY = 0;
 
   constructor() {
     this.micButton = document.getElementById('mic-button') as HTMLButtonElement;
     this.voiceStatus = document.getElementById('voice-status') as HTMLElement;
     this.transcript = document.getElementById('transcript') as HTMLElement;
+    this.floatingTranscript = document.getElementById('floating-transcript') as HTMLElement;
     this.chatHistory = document.getElementById('chat-history') as HTMLElement;
     this.typingIndicator = document.getElementById('typing-indicator') as HTMLElement;
+    this.textInputFallback = document.getElementById('text-input-fallback') as HTMLElement;
     this.textInput = document.getElementById('text-input') as HTMLInputElement;
     this.sendButton = document.getElementById('send-button') as HTMLButtonElement;
 
     this.initializeSpeechRecognition();
     this.setupEventListeners();
+    this.updateMicButtonState();
   }
 
   private initializeSpeechRecognition() {
-    if ('webkitSpeechRecognition' in window) {
-      this.recognition = new (window as any).webkitSpeechRecognition();
-    } else if ('SpeechRecognition' in window) {
-      this.recognition = new (window as any).SpeechRecognition();
+    // Check for speech recognition support with better detection
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      this.recognition = new SpeechRecognition();
+      console.log('✅ Speech recognition supported');
+    } else {
+      console.log('❌ Speech recognition not supported in this browser');
     }
 
     if (this.recognition) {
@@ -48,9 +61,11 @@ class Terminal {
       this.recognition.lang = 'en-US';
 
       this.recognition.onstart = () => {
+        console.log('🎤 Speech recognition started');
         this.isListening = true;
-        this.micButton.classList.add('listening');
+        this.updateMicButtonState();
         this.voiceStatus.textContent = 'Listening... speak now';
+        this.showFloatingTranscript();
       };
 
       this.recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -66,34 +81,77 @@ class Terminal {
           }
         }
 
-        this.transcript.textContent = finalTranscript || interimTranscript;
+        const currentTranscript = finalTranscript || interimTranscript;
+        this.transcript.textContent = currentTranscript;
+        this.updateFloatingTranscript(currentTranscript);
 
         if (finalTranscript) {
+          console.log('🗣️ Final transcript:', finalTranscript);
+          this.hideFloatingTranscript();
           this.sendToShipAI(finalTranscript);
         }
       };
 
       this.recognition.onend = () => {
+        console.log('🎤 Speech recognition ended');
         this.isListening = false;
-        this.micButton.classList.remove('listening');
-        this.voiceStatus.textContent = 'Click microphone to speak to Ship AI';
+        this.updateMicButtonState();
+        this.hideFloatingTranscript();
+        if (!this.isAiResponding && !this.isUsingFallback) {
+          this.voiceStatus.textContent = 'Click microphone or press SPACE to speak to Ship AI';
+        }
       };
 
       this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error:', event.error);
-        this.voiceStatus.textContent = `Error: ${event.error}`;
+        console.error('❌ Speech recognition error:', event.error);
+        
+        let errorMessage = 'Speech error';
+        switch (event.error) {
+          case 'no-speech':
+            errorMessage = 'No speech detected. Try speaking louder.';
+            break;
+          case 'audio-capture':
+            errorMessage = 'Microphone access denied or unavailable.';
+            break;
+          case 'not-allowed':
+            errorMessage = 'Microphone permission denied. Please allow microphone access.';
+            break;
+          case 'network':
+            errorMessage = 'Network error. Check your internet connection.';
+            break;
+          default:
+            errorMessage = `Speech error: ${event.error}`;
+        }
+        
+        this.voiceStatus.textContent = errorMessage;
         this.isListening = false;
-        this.micButton.classList.remove('listening');
+        this.updateMicButtonState();
+        this.hideFloatingTranscript();
       };
+      
+      // Success - speech recognition is available
+      this.voiceStatus.textContent = 'Click microphone or press SPACE to speak to Ship AI';
+      
     } else {
-      this.voiceStatus.textContent = 'Voice recognition not supported. Use text input instead.';
+      // No speech recognition support - show fallback text input
+      this.isUsingFallback = true;
+      this.voiceStatus.innerHTML = `
+        <div style="color: #ff6666;">⚠ Speech recognition not supported in this browser.</div>
+        <div style="color: #888; font-size: 12px; margin-top: 5px;">
+          Using text input fallback. For speech: try Chrome, Edge, or Safari.
+        </div>
+      `;
       this.micButton.disabled = true;
+      this.micButton.classList.add('disabled');
+      
+      // Show the text input fallback
+      this.textInputFallback.style.display = 'flex';
     }
   }
 
   private setupEventListeners() {
     this.micButton.addEventListener('click', () => {
-      if (this.recognition) {
+      if (this.recognition && !this.isAiResponding) {
         if (this.isListening) {
           this.recognition.stop();
         } else {
@@ -102,7 +160,24 @@ class Terminal {
       }
     });
 
-    // Text input listeners
+    // Add keyboard shortcut for spacebar to activate mic
+    document.addEventListener('keydown', (event) => {
+      if (event.code === 'Space' && !this.isListening && !this.isAiResponding && this.recognition) {
+        event.preventDefault();
+        this.recognition.start();
+      }
+    });
+
+    // Track mouse position for floating transcript
+    document.addEventListener('mousemove', (event) => {
+      this.mouseX = event.clientX;
+      this.mouseY = event.clientY;
+      if (this.isListening) {
+        this.positionFloatingTranscript();
+      }
+    });
+
+    // Text input fallback listeners (for when speech recognition isn't available)
     this.sendButton.addEventListener('click', () => {
       this.sendTextMessage();
     });
@@ -111,14 +186,6 @@ class Terminal {
       if (event.key === 'Enter') {
         event.preventDefault();
         this.sendTextMessage();
-      }
-    });
-
-    // Add keyboard shortcut for spacebar to activate mic
-    document.addEventListener('keydown', (event) => {
-      if (event.code === 'Space' && !this.isListening && this.recognition) {
-        event.preventDefault();
-        this.recognition.start();
       }
     });
   }
@@ -131,11 +198,54 @@ class Terminal {
     }
   }
 
+  private updateMicButtonState() {
+    this.micButton.classList.remove('listening', 'disabled');
+    
+    if (this.isUsingFallback) {
+      // Keep mic disabled in fallback mode
+      this.micButton.classList.add('disabled');
+      this.micButton.disabled = true;
+    } else if (this.isAiResponding) {
+      this.micButton.classList.add('disabled');
+    } else if (this.isListening) {
+      this.micButton.classList.add('listening');
+    }
+  }
+
+  private showFloatingTranscript() {
+    this.floatingTranscript.style.display = 'block';
+    this.positionFloatingTranscript();
+  }
+
+  private hideFloatingTranscript() {
+    this.floatingTranscript.style.display = 'none';
+    this.floatingTranscript.textContent = '';
+  }
+
+  private updateFloatingTranscript(text: string) {
+    this.floatingTranscript.textContent = text;
+    this.positionFloatingTranscript();
+  }
+
+  private positionFloatingTranscript() {
+    if (this.floatingTranscript.style.display === 'block') {
+      this.floatingTranscript.style.left = `${this.mouseX + 10}px`;
+      this.floatingTranscript.style.top = `${this.mouseY - 40}px`;
+    }
+  }
+
   private async sendToShipAI(message: string) {
     // Add player message to chat
     this.addPlayerMessage(message);
     this.showTypingIndicator();
-    this.transcript.textContent = `You: ${message}`;
+    this.transcript.textContent = '';
+    
+    // Block mic during AI response
+    this.isAiResponding = true;
+    this.updateMicButtonState();
+    if (!this.isUsingFallback) {
+      this.voiceStatus.textContent = 'Ship AI is responding...';
+    }
 
     try {
       // First, send the message to the server and get a stream URL
@@ -162,6 +272,12 @@ class Terminal {
             this.addToolResult(parsed.name, parsed.result);
           } else if (parsed.type === 'done') {
             eventSource.close();
+            // Re-enable mic when AI is done
+            this.isAiResponding = false;
+            this.updateMicButtonState();
+            if (!this.isUsingFallback) {
+              this.voiceStatus.textContent = 'Click microphone or press SPACE to speak to Ship AI';
+            }
           }
         } catch (e) {
           console.error('Error parsing SSE data:', e);
@@ -175,6 +291,12 @@ class Terminal {
           this.currentAiMessage.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
         }
         eventSource.close();
+        // Re-enable mic on error
+        this.isAiResponding = false;
+        this.updateMicButtonState();
+        if (!this.isUsingFallback) {
+          this.voiceStatus.textContent = 'Click microphone or press SPACE to speak to Ship AI';
+        }
       };
 
     } catch (error) {
@@ -182,6 +304,12 @@ class Terminal {
       this.hideTypingIndicator();
       if (this.currentAiMessage) {
         this.currentAiMessage.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
+      }
+      // Re-enable mic on error
+      this.isAiResponding = false;
+      this.updateMicButtonState();
+      if (!this.isUsingFallback) {
+        this.voiceStatus.textContent = 'Click microphone or press SPACE to speak to Ship AI';
       }
     }
   }
