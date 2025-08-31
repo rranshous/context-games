@@ -223,10 +223,10 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           newState.objectives.current = 'Open brig door to escape';
           
           // Atmospheric restoration gives additional oxygen time (simulate atmosphere recycling)
-          const ATMOSPHERIC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
+          const ATMOSPHERIC_BONUS_MS = 1 * 60 * 1000; // 1 extra minute
           newState.shipStatus.oxygenDepletionTime += ATMOSPHERIC_BONUS_MS;
           
-          console.log('🌬️ Atmosphere pressurized, target settings applied to current readings. Door opening now possible. +5 minutes oxygen from recycling.');
+          console.log('🌬️ Atmosphere pressurized, target settings applied to current readings. Door opening now possible. +1 minute oxygen from recycling.');
         } else if (['set_temperature', 'set_humidity', 'set_pressure'].includes(toolResult.data.action)) {
           // Settings configuration updates target values only - current values unchanged until power cycle
           console.log(`🌡️ Atmospheric target settings updated. Current readings unchanged until power cycle.`);
