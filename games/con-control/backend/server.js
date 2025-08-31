@@ -111,7 +111,7 @@ async function processWithClaude(message, state, res, req) {
     // Track costs from initial call
     if (response.usage) {
       const cost = calculateCost(response.usage);
-      state = addCostToSession(state, cost);
+      state = addCostToSession(state, cost, true); // Mark as initial call
       
       // Send cost update event
       responseHandler.sendCostUpdate(res, state.sessionCosts);

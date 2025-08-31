@@ -88,7 +88,11 @@ export class ClaudeClient {
       });
       
       console.log(`✅ Claude response received`);
-      console.log(`📊 Token usage: ${response.usage.input_tokens} input + ${response.usage.output_tokens} output = ${response.usage.input_tokens + response.usage.output_tokens} total`);
+      console.log(`📊 DETAILED TOKEN BREAKDOWN:`);
+      console.log(`   🔤 Input tokens: ${response.usage.input_tokens}`);
+      console.log(`   🔤 Output tokens: ${response.usage.output_tokens}`);
+      console.log(`   🔤 Total tokens: ${response.usage.input_tokens + response.usage.output_tokens}`);
+      console.log(`   💰 Raw usage object:`, JSON.stringify(response.usage, null, 2));
       return response;
       
     } catch (error) {
@@ -119,7 +123,11 @@ export class ClaudeClient {
       });
       
       console.log(`✅ Claude turn ${turnCount} response received`);
-      console.log(`📊 Token usage: ${response.usage.input_tokens} input + ${response.usage.output_tokens} output = ${response.usage.input_tokens + response.usage.output_tokens} total`);
+      console.log(`📊 FOLLOW-UP TOKEN BREAKDOWN (Turn ${turnCount}):`);
+      console.log(`   🔤 Input tokens: ${response.usage.input_tokens}`);
+      console.log(`   🔤 Output tokens: ${response.usage.output_tokens}`);
+      console.log(`   🔤 Total tokens: ${response.usage.input_tokens + response.usage.output_tokens}`);
+      console.log(`   💰 Raw usage object:`, JSON.stringify(response.usage, null, 2));
       return response;
       
     } catch (error) {

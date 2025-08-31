@@ -3,10 +3,14 @@
  */
 
 // Claude 4 pricing (as of August 2025)
+// NOTE: These rates may need verification against actual Anthropic pricing
 const CLAUDE_4_PRICING = {
-  input: 0.000015,  // $0.000015 per input token
-  output: 0.000075  // $0.000075 per output token
+  input: 0.000015,  // $0.000015 per input token ($15 per 1M)
+  output: 0.000075  // $0.000075 per output token ($75 per 1M)
 };
+
+// DEBUGGING: Let's verify these rates against your actual usage
+console.log(`💰 Using pricing rates: $${CLAUDE_4_PRICING.input} input, $${CLAUDE_4_PRICING.output} output per token`);
 
 /**
  * Calculate the cost for a Claude API response
@@ -28,12 +32,16 @@ export function calculateCost(usage) {
     };
   }
 
-  console.log(`🔍 Token calculation: ${usage.input_tokens} input + ${usage.output_tokens} output = ${usage.input_tokens + usage.output_tokens} total`);
+  console.log(`🧮 COST CALCULATION:`);
+  console.log(`   📥 Input tokens: ${usage.input_tokens} × $${CLAUDE_4_PRICING.input} = $${(usage.input_tokens * CLAUDE_4_PRICING.input).toFixed(6)}`);
+  console.log(`   📤 Output tokens: ${usage.output_tokens} × $${CLAUDE_4_PRICING.output} = $${(usage.output_tokens * CLAUDE_4_PRICING.output).toFixed(6)}`);
 
   const inputCost = usage.input_tokens * CLAUDE_4_PRICING.input;
   const outputCost = usage.output_tokens * CLAUDE_4_PRICING.output;
   const totalCost = inputCost + outputCost;
   const totalTokens = usage.input_tokens + usage.output_tokens;
+
+  console.log(`   💵 Total call cost: $${totalCost.toFixed(6)} (${totalTokens} tokens)`);
 
   return {
     inputCost,
@@ -46,12 +54,13 @@ export function calculateCost(usage) {
 }
 
 /**
- * Add cost information to session state
+ * Add cost information to session state with corrected token counting
  * @param {Object} state - Current game state
  * @param {Object} cost - Cost breakdown from calculateCost
+ * @param {boolean} isInitialCall - Whether this is the first call in a conversation
  * @returns {Object} Updated state with cost tracking
  */
-export function addCostToSession(state, cost) {
+export function addCostToSession(state, cost, isInitialCall = false) {
   // Initialize session costs if not present
   if (!state.sessionCosts) {
     state.sessionCosts = {
@@ -63,14 +72,39 @@ export function addCostToSession(state, cost) {
     };
   }
 
-  // Accumulate costs
-  state.sessionCosts.totalCost += cost.totalCost;
-  state.sessionCosts.totalTokens += cost.totalTokens;
-  state.sessionCosts.inputTokens += cost.inputTokens;
-  state.sessionCosts.outputTokens += cost.outputTokens;
-  state.sessionCosts.callCount += 1;
-
-  console.log(`💰 Session cost update: +$${cost.totalCost.toFixed(6)} (+${cost.totalTokens} tokens) | Total: $${state.sessionCosts.totalCost.toFixed(6)} (${state.sessionCosts.totalTokens} tokens)`);
+  // For the initial call, count all tokens
+  if (isInitialCall) {
+    const fullCost = cost.totalCost;
+    const fullTokens = cost.totalTokens;
+    
+    state.sessionCosts.totalCost += fullCost;
+    state.sessionCosts.totalTokens += fullTokens;
+    state.sessionCosts.inputTokens += cost.inputTokens;
+    state.sessionCosts.outputTokens += cost.outputTokens;
+    state.sessionCosts.callCount += 1;
+    
+    console.log(`� Initial call: +$${fullCost.toFixed(6)} (+${fullTokens} tokens) | Total: $${state.sessionCosts.totalCost.toFixed(6)} (${state.sessionCosts.totalTokens} tokens)`);
+  } else {
+    // For follow-up calls, only count the NEW OUTPUT tokens + minimal input overhead
+    // This is more conservative and avoids double-counting context
+    const newOutputTokens = cost.outputTokens;
+    const estimatedNewInputTokens = 50; // Conservative estimate for tool results + system overhead
+    const newTokens = newOutputTokens + estimatedNewInputTokens;
+    const newCost = (estimatedNewInputTokens * CLAUDE_4_PRICING.input) + (newOutputTokens * CLAUDE_4_PRICING.output);
+    
+    state.sessionCosts.totalCost += newCost;
+    state.sessionCosts.totalTokens += newTokens;
+    state.sessionCosts.inputTokens += estimatedNewInputTokens;
+    state.sessionCosts.outputTokens += newOutputTokens;
+    state.sessionCosts.callCount += 1;
+    
+    console.log(`💰 FOLLOW-UP CALL ADDED TO SESSION:`);
+    console.log(`   📊 API reported: ${cost.inputTokens} input + ${cost.outputTokens} output = ${cost.totalTokens} total`);
+    console.log(`   📊 We counted: ${estimatedNewInputTokens} input + ${newOutputTokens} output = ${newTokens} total`);
+    console.log(`   � This call: $${newCost.toFixed(6)} (${newTokens} conservative tokens)`);
+    console.log(`   💵 Session total: $${state.sessionCosts.totalCost.toFixed(6)} (${state.sessionCosts.totalTokens} tokens)`);
+    console.log(`   ⚠️ Note: Conservative count to avoid double-counting context`);
+  }
 
   return state;
 }

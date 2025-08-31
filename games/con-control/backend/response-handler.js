@@ -149,7 +149,7 @@ export class ResponseHandler {
           // Track costs from follow-up call
           if (currentResponse.usage) {
             const cost = calculateCost(currentResponse.usage);
-            updatedState = addCostToSession(updatedState, cost);
+            updatedState = addCostToSession(updatedState, cost, false); // Mark as follow-up call
             
             // Send cost update event
             this.sendCostUpdate(res, updatedState.sessionCosts);
