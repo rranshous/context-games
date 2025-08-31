@@ -5,7 +5,10 @@
 export const shipFileSystem = {
   '/': {
     'ship_docs/': '[DIRECTORY]',
-    'crew_communications/': '[DIRECTORY]'
+    'crew_communications/': '[DIRECTORY]',
+    'administrative/': '[DIRECTORY]',
+    'training/': '[DIRECTORY]',
+    'technical_specs/': '[DIRECTORY]'
   },
   '/ship_docs': {
     'meridian_pr_release.md': `# FOR IMMEDIATE RELEASE
@@ -685,5 +688,558 @@ Please bring your departmental status reports and any pressing issues for group 
 Estimated duration: 90 minutes
 
 Lisa Hoffman`
+  },
+
+  // Administrative Documents Directory
+  '/administrative': {
+    'personnel_handbook.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
+    'ship_regulations.pdf': `# ISV MERIDIAN SHIP REGULATIONS
+## Document ID: ADM-REG-2147-Rev3
+
+### Section 1: General Conduct
+1.1 All crew members must maintain professional demeanor during duty hours
+1.2 Personal items in common areas limited to designated storage
+1.3 Quiet hours: 2200-0600 standard ship time
+1.4 No gambling with ship resources or equipment
+
+### Section 2: Safety Protocols  
+2.1 Emergency drills mandatory for all personnel
+2.2 Personal protective equipment required in designated areas
+2.3 Two-person verification required for airlock operations
+2.4 Report all safety hazards immediately to department heads
+
+### Section 3: Food Service
+3.1 Food replicator access limited to authorized personnel
+3.2 Personal food storage restricted to individual quarters
+3.3 Mess hall cleanup is crew responsibility
+3.4 No alcohol synthesis without captain's approval
+
+### Section 4: Recreation
+4.1 Gym equipment must be shared equitably
+4.2 Recreation room scheduling via ship services
+4.3 Personal entertainment devices: volume restrictions apply
+4.4 No modifications to ship entertainment systems
+
+This document is 47 pages long. [TRUNCATED FOR BREVITY]`,
+
+    'emergency_contact_list.pdf': `# EMERGENCY CONTACT DIRECTORY
+## ISV MERIDIAN - Updated 2147-03-01
+
+### Medical Emergencies
+Primary: Dr. James Park - Extension 2-MED
+Backup: Dr. Jennifer Martinez - Extension 3-MED
+Critical Care: Auto-contact Earth Medical via subspace
+
+### Engineering Emergencies  
+Primary: Chief Marcus Hale - Extension 1-ENG
+Backup: Kim Walsh - Extension 4-ENG
+After Hours: Engineering duty officer rotation
+
+### Security Issues
+Primary: Commander Sarah Mitchell - Extension 1-SEC
+Backup: Officer David Chen - Extension 2-SEC
+Lockdown Authority: Captain or Security Chief only
+
+### Fire/Environmental
+All Personnel: Red emergency stations
+Atmospheric: Contact Engineering immediately
+Evacuation: Follow posted evacuation routes
+
+### Communications Failure
+Primary: Sam Bradley - Extension 1-COM
+Backup: Michael Thompson - Extension 2-COM
+Emergency Transmitter: Bridge manual activation
+
+### Ship Services
+General Issues: Lisa Hoffman - Extension 1-SRV
+After Hours: Contact duty officer
+
+[Rest of 23-page document continues with detailed procedures]`,
+
+    'shift_rotation_schedule.pdf': `# CREW SHIFT ROTATION SCHEDULE
+## Quarter 2, 2147
+
+### Alpha Shift (0600-1400)
+- Bridge: Captain Vasquez
+- Navigation: Maria Torres  
+- Communications: Sam Bradley
+- Engineering: Marcus Hale (Mon/Wed/Fri)
+- Medical: Dr. Park
+- Security: Commander Mitchell
+
+### Beta Shift (1400-2200)
+- Bridge: First Officer Chen
+- Navigation: Rodriguez backup
+- Communications: Thompson  
+- Engineering: Kim Walsh
+- Medical: Dr. Martinez
+- Security: Officer Reynolds
+
+### Gamma Shift (2200-0600)
+- Bridge: Navigation Officer Torres (rotating)
+- Skeleton crew operations
+- Engineering: On-call rotation
+- Medical: Emergency only
+- Security: Automated systems + roving patrol
+
+### Rotation Notes:
+- Engineering maintains 24/7 coverage due to system complexity
+- Medical has on-call backup for all shifts
+- Security rotating patrols during gamma shift
+- Communications maintains continuous monitoring
+
+This schedule effective March 1 - May 31, 2147`,
+
+    'quarterly_performance_metrics.pdf': `# Q1 2147 PERFORMANCE METRICS
+## ISV MERIDIAN OPERATIONAL EFFICIENCY
+
+### Overall Ship Performance: 87.3%
+- Navigation Accuracy: 94.2%
+- Communications Uptime: 91.7% 
+- Engineering Efficiency: 89.1%
+- Medical Response: 96.8%
+- Security Compliance: 82.4%
+- Administrative Tasks: 78.9%
+
+### Department Highlights:
+**Medical Department:** Exceeded response time targets
+**Navigation:** Zero course corrections needed this quarter
+**Engineering:** 15% reduction in non-critical system downtime
+
+### Areas for Improvement:
+**Security:** Update training protocols for new regulations
+**Administrative:** Reduce paperwork processing delays
+**Communications:** Address equipment maintenance backlog
+
+### Crew Satisfaction Index: 73.2%
+- Work Environment: 78%
+- Food Service: 52% (major concern)
+- Recreation Facilities: 71%
+- Career Development: 79%
+
+[Full 31-page report continues with detailed metrics]`,
+
+    'recreational_activities_guide.pdf': `# RECREATIONAL ACTIVITIES GUIDE
+## ISV MERIDIAN CREW WELLNESS
+
+### Physical Recreation
+- Gymnasium: Equipment usage guidelines and schedules
+- Walking Track: Located on Deck 3, 0.25km circuit
+- Exercise Pods: Individual fitness stations
+- Group Activities: Weekly volleyball, monthly tournaments
+
+### Mental Recreation  
+- Library Access: 10,000+ digital books and media
+- Game Room: Cards, board games, simulation pods
+- Hobby Crafts: 3D printing, art supplies available
+- Educational Courses: Self-paced learning modules
+
+### Social Activities
+- Movie Nights: Fridays 1900 hours, Recreation Deck
+- Birthday Celebrations: Monthly group events
+- Cultural Events: Holiday observances, theme nights
+- Discussion Groups: Book clubs, current events
+
+### Quiet Recreation
+- Observation Deck: Star gazing, meditation
+- Personal Quarters: Private relaxation space  
+- Reading Nooks: Quiet spaces throughout ship
+- Music Practice: Soundproofed rooms available
+
+### Recreation Schedule Coordinator: Lisa Hoffman
+Contact ship services for activity sign-ups and equipment reservations.
+
+Remember: Recreation is essential for crew mental health during long voyages!`,
+
+    'expense_reports_q1.pdf': '[CORRUPTED FILE - UNABLE TO READ]'
+  },
+
+  // Training Materials Directory  
+  '/training': {
+    'waste_management_certification.pdf': `# WASTE MANAGEMENT CERTIFICATION
+## Module 15-ENV: Environmental Systems Training
+
+### Learning Objectives:
+Upon completion, crew members will be able to:
+- Operate waste processing equipment safely
+- Identify different waste categories and disposal methods
+- Respond to waste system emergencies
+- Maintain sanitation standards in zero-gravity
+
+### Module 1: Waste Categories
+**Organic Waste:** Food scraps, biological materials
+- Processing: Compost recycler system
+- Safety: Use protective equipment, avoid contamination
+
+**Technical Waste:** Electronic components, metals
+- Processing: Reclamation facility
+- Safety: Check for hazardous materials first
+
+**Liquid Waste:** Gray water, chemical byproducts  
+- Processing: Filtration and reclamation systems
+- Safety: Never mix chemical waste types
+
+### Module 2: Emergency Procedures
+- Waste system blockages: Immediate reporting protocols
+- Contamination events: Quarantine and cleanup
+- Equipment failures: Backup system activation
+
+### Certification Test:
+25 questions, 80% pass rate required
+Valid for 12 months, recertification required
+
+This is a 67-page comprehensive training manual.`,
+
+    'zero_g_cooking_basics.pdf': `# ZERO-G COOKING FUNDAMENTALS  
+## Culinary Arts in Microgravity
+
+### Chapter 1: Physics of Space Cooking
+Understanding how heat transfer, fluid dynamics, and ingredient behavior change in zero gravity environments.
+
+### Key Principles:
+- Convection doesn't work the same way
+- Liquids form spheres and can escape
+- Spices and seasonings require containment
+- Heat distribution needs active circulation
+
+### Chapter 2: Equipment Usage
+**Food Replicators:** Standard operation and maintenance
+**Heating Units:** Conduction-based warming systems  
+**Mixing Containers:** Sealed environment cooking
+**Storage Systems:** Preventing ingredient drift
+
+### Chapter 3: Recipe Modifications  
+Traditional Earth recipes require significant modification:
+- Increase binding agents for cohesion
+- Pre-mix dry ingredients to prevent floating
+- Use enclosed cooking methods
+- Account for different heat distribution
+
+### Chapter 4: Safety Protocols
+- Never cook with open flames
+- Secure all ingredients before preparation
+- Clean spills immediately to prevent contamination
+- Maintain proper ventilation during cooking
+
+This 89-page manual covers all aspects of space cuisine preparation.`,
+
+    'interpersonal_conflict_resolution.pdf': `# INTERPERSONAL CONFLICT RESOLUTION
+## Module 12-HR: Workplace Harmony in Confined Spaces
+
+### Module Overview:
+Living and working in close quarters for extended periods creates unique challenges for crew relationships. This training provides tools for preventing, managing, and resolving conflicts.
+
+### Section A: Conflict Prevention
+**Communication Strategies:**
+- Active listening techniques
+- Clear, respectful language
+- Cultural sensitivity awareness
+- Non-verbal communication awareness
+
+**Space Management:**
+- Respecting personal boundaries
+- Sharing common areas fairly
+- Managing noise levels appropriately
+- Coordinating schedules considerately
+
+### Section B: Early Intervention
+**Recognizing Warning Signs:**
+- Increased irritability or isolation
+- Communication breakdown
+- Escalating minor disagreements
+- Changes in work performance
+
+**De-escalation Techniques:**
+- Stay calm and neutral
+- Focus on specific behaviors, not personalities
+- Seek to understand all perspectives
+- Suggest cooling-off periods when needed
+
+### Section C: Formal Resolution Process
+When informal resolution fails:
+1. Document the conflict objectively
+2. Involve appropriate supervisors
+3. Mediation with neutral third party
+4. Follow company conflict resolution procedures
+
+This 45-page training manual includes role-playing scenarios and assessment questions.`,
+
+    'emergency_evacuation_drills.pdf': `# EMERGENCY EVACUATION PROCEDURES
+## Module 7-G: Zero-G Emergency Response
+
+### Evacuation Scenarios:
+This manual covers response procedures for various emergency situations requiring crew evacuation or shelter protocols.
+
+### Scenario 1: Fire Emergency
+**Immediate Response:**
+- Sound general alarm (Red Alert)
+- Don emergency breathing apparatus
+- Proceed to nearest emergency station
+- Await further instructions from bridge
+
+**Evacuation Routes:**
+- Primary: Main corridors to emergency pods
+- Secondary: Maintenance shafts to backup exits
+- Tertiary: Emergency airlocks (last resort)
+
+### Scenario 2: Hull Breach
+**Immediate Response:**
+- Emergency bulkhead activation
+- Pressure suit donning (under 60 seconds)
+- Report to designated safe zones
+- Damage control teams to action stations
+
+### Scenario 3: System Failures
+**Life Support Failure:**
+- Switch to emergency life support
+- Reduce physical activity to conserve oxygen
+- Gather in designated areas for resource sharing
+
+**Gravity System Failure:**
+- Secure all loose objects immediately
+- Use handholds and guide cables
+- Assist crew members unfamiliar with zero-G
+
+### Drill Requirements:
+- Monthly evacuation drills for all crew
+- Quarterly specialized scenario training
+- Annual certification renewal required
+
+This 78-page manual includes detailed deck plans and emergency equipment locations.`,
+
+    'cultural_sensitivity_training.pdf': `# CULTURAL SENSITIVITY IN SPACE
+## Module 18-SOC: Diversity and Inclusion
+
+### Introduction:
+Deep space crews bring together people from many different cultural backgrounds, belief systems, and personal traditions. This training helps build understanding and respect for diversity.
+
+### Module 1: Cultural Awareness
+**Understanding Differences:**
+- Religious observances and dietary restrictions
+- Communication styles across cultures
+- Personal space and privacy expectations
+- Holiday and celebration traditions
+
+**Common Misconceptions:**
+- Stereotyping based on origin planet/station
+- Assuming universal customs
+- Misinterpreting cultural practices
+- Applying Earth-centric standards
+
+### Module 2: Inclusive Communication
+**Language Considerations:**
+- Avoid cultural idioms that don't translate
+- Be patient with non-native speakers
+- Use clear, simple language when needed
+- Respect accent and pronunciation differences
+
+**Inclusive Behavior:**
+- Learn about crew members' backgrounds
+- Participate in cultural sharing events
+- Offer support during cultural observances
+- Address exclusionary behavior when observed
+
+### Module 3: Conflict Prevention
+**Potential Issues:**
+- Food preparation conflicts
+- Religious practice scheduling
+- Cultural celebration space usage
+- Misunderstandings due to different customs
+
+**Resolution Strategies:**
+- Open dialogue and education
+- Compromise and accommodation
+- Involve cultural liaisons when available
+- Focus on shared goals and experiences
+
+This 52-page training includes interactive scenarios and cultural competency assessments.`,
+
+    'time_management_efficiency.pdf': `# TIME MANAGEMENT & PERSONAL EFFICIENCY  
+## Professional Development Module
+
+### Introduction:
+Effective time management is crucial for productivity and personal well-being during long space missions. This guide provides practical strategies for optimizing your work and personal time.
+
+### Chapter 1: Priority Management
+**The Space Mission Matrix:**
+- Critical/Urgent: Safety issues, system failures
+- Critical/Not Urgent: Preventive maintenance, training
+- Not Critical/Urgent: Routine reports, meetings
+- Not Critical/Not Urgent: Personal projects, leisure
+
+**Daily Planning Strategies:**
+- Start each shift with priority review
+- Block time for important tasks
+- Build in buffer time for unexpected issues
+- End-of-shift planning for next day
+
+### Chapter 2: Interruption Management
+**Common Workplace Interruptions:**
+- Emergency alarms and system alerts
+- Colleagues needing assistance
+- Administrative requests
+- Personal communications from home
+
+**Management Techniques:**
+- Immediate assessment of urgency
+- Polite deferral when appropriate
+- Quick resolution vs. scheduled follow-up
+- Communication of availability windows
+
+### Chapter 3: Personal Efficiency
+**Workspace Organization:**
+- Keep frequently used items accessible
+- Minimize clutter in shared spaces
+- Digital file organization systems
+- Regular cleanup and maintenance routines
+
+**Energy Management:**
+- Align complex tasks with peak energy periods
+- Take regular breaks to maintain focus
+- Use exercise and recreation for mental clarity
+- Proper sleep hygiene for sustained performance
+
+This 43-page guide includes worksheets and self-assessment tools.`
+  },
+
+  // Technical Specifications Directory
+  '/technical_specs': {
+    'laundry_system_manual.pdf': `# LAUNDRY SYSTEM TECHNICAL MANUAL
+## Model: CleanSpace 3000 Industrial Washing System
+
+### System Overview:
+The CleanSpace 3000 provides automated clothing and textile cleaning for crews of up to 50 personnel. Designed for water-efficient operation in space environments.
+
+### Technical Specifications:
+- Wash Capacity: 15kg per cycle
+- Water Usage: 12 liters per standard cycle  
+- Power Requirements: 3.2kW during operation
+- Cycle Time: 45 minutes standard, 75 minutes deep clean
+- Detergent Capacity: 50-cycle reservoir
+
+### Operation Procedures:
+**Standard Washing:**
+1. Sort textiles by fabric type and soil level
+2. Load washer ensuring even distribution
+3. Select appropriate wash cycle
+4. Add detergent if reservoir is low
+5. Initiate cycle and monitor for completion
+
+**Maintenance Schedule:**
+- Daily: Check detergent levels, inspect for clogs
+- Weekly: Clean lint filters, calibrate sensors
+- Monthly: Deep clean wash chamber, test safety systems
+- Quarterly: Replace filtration elements
+
+### Troubleshooting Guide:
+**Common Issues:**
+- Water not draining: Check drain filters
+- Excessive vibration: Redistribute load evenly
+- Poor cleaning results: Verify detergent concentration
+- Error codes: Refer to diagnostic section (pages 47-52)
+
+This 67-page manual includes detailed schematics and parts diagrams.`,
+
+    'gravity_generator_specs.pdf': `# ARTIFICIAL GRAVITY GENERATOR 
+## Technical Specifications: GravWell Mark VII
+
+### System Description:
+The GravWell Mark VII creates artificial gravity through controlled gravitational field manipulation. Provides Earth-normal 1G throughout ship living areas.
+
+### Core Components:
+- Primary Gravity Core: Quantum field generator
+- Distribution Network: Field projection arrays
+- Control Systems: Automated regulation and safety monitoring
+- Power Interface: Direct connection to main power grid
+
+### Operational Parameters:
+- Standard Output: 9.81 m/s² (1G Earth equivalent)
+- Field Stability: ±0.02G variance maximum
+- Coverage Area: 95% of ship habitable zones
+- Power Consumption: 850kW continuous operation
+
+### Safety Systems:
+**Automatic Shutdowns:**
+- Power grid instability detection
+- Core temperature exceeding safe limits
+- Field irregularity warnings
+- Emergency override activation
+
+**Manual Overrides:**
+- Engineering emergency access
+- Captain's authorization required
+- Gradual shutdown protocols only
+- No instant gravity cutoff capability
+
+### Maintenance Protocols:
+**Daily Monitoring:**
+- Field strength readings
+- Core temperature checks
+- Power consumption analysis
+- Stability variance measurements
+
+**Scheduled Maintenance:**
+- Weekly: Full system diagnostics
+- Monthly: Core alignment verification  
+- Quarterly: Safety system testing
+- Annual: Complete overhaul and recalibration
+
+This 89-page technical manual requires Engineering Level 3 certification to access.`,
+
+    'water_recycling_system.pdf': `# WATER RECLAMATION & RECYCLING SYSTEM
+## AquaPure Mark V: Complete Water Management
+
+### System Function:
+The AquaPure Mark V processes all ship wastewater and atmospheric moisture recovery to provide potable water for crew consumption and system operations.
+
+### Processing Stages:
+**Stage 1: Collection and Initial Filtration**
+- Gray water collection from sinks and showers
+- Black water processing from sanitation systems
+- Atmospheric moisture recovery systems
+- Initial debris and particle filtration
+
+**Stage 2: Biological Treatment**
+- Bacterial breakdown of organic compounds
+- Oxygenation and biological filtration
+- Nutrient extraction and processing
+- Pathogen elimination protocols
+
+**Stage 3: Chemical Purification**
+- Multi-stage chemical filtration
+- Heavy metal extraction
+- Chemical contamination removal
+- pH balance and mineral adjustment
+
+**Stage 4: Final Processing**
+- UV sterilization treatment
+- Taste and odor correction
+- Quality testing and verification
+- Distribution to ship water systems
+
+### Quality Standards:
+- Bacterial Count: <1 CFU/100ml
+- Chemical Purity: 99.97% contaminant-free
+- Taste Profile: Earth-standard potable water
+- Safety Margin: 150% above minimum health requirements
+
+### Maintenance Requirements:
+**Daily Operations:**
+- Monitor processing rates and quality
+- Check chemical levels and bacterial cultures
+- Review system alerts and warnings
+- Perform required quality tests
+
+**Regular Maintenance:**
+- Weekly: Replace filtration elements
+- Monthly: Deep clean biological chambers
+- Quarterly: Recalibrate quality sensors
+- Annually: Replace major system components
+
+This 72-page manual includes troubleshooting guides and emergency procedures.`,
+
+    'communications_array_manual.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
+    'navigation_computer_specs.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
+    'cargo_handling_equipment.pdf': '[CORRUPTED FILE - UNABLE TO READ]'
   }
 };
