@@ -25,6 +25,8 @@ class Terminal {
   private isUsingFallback = false; // Track if we're using text input fallback
   private recognition: any = null;
   private currentAiMessage: HTMLElement | null = null;
+  private typewriterQueue: Array<{text: string, callback?: () => void}> = [];
+  private isTypewriting = false;
   private mouseX = 0;
   private mouseY = 0;
 
@@ -262,9 +264,9 @@ class Terminal {
         try {
           const parsed = JSON.parse(event.data);
           if (parsed.type === 'text') {
-            if (this.currentAiMessage) {
-              this.currentAiMessage.innerHTML += parsed.content;
-              this.scrollToBottom();
+            if (this.currentAiMessage && parsed.content) {
+              // Use typewriter effect for text content
+              this.addToTypewriterQueue(parsed.content);
             }
           } else if (parsed.type === 'tool_call') {
             this.addToolUsage(parsed.name, parsed.input);
@@ -365,6 +367,60 @@ class Terminal {
       localStorage.setItem('ship-ai-session', sessionId);
     }
     return sessionId;
+  }
+
+  // Typewriter effect methods
+  private addToTypewriterQueue(text: string, callback?: () => void) {
+    this.typewriterQueue.push({ text, callback });
+    if (!this.isTypewriting) {
+      this.processTypewriterQueue();
+    }
+  }
+
+  private processTypewriterQueue() {
+    if (this.typewriterQueue.length === 0) {
+      this.isTypewriting = false;
+      return;
+    }
+
+    this.isTypewriting = true;
+    const { text, callback } = this.typewriterQueue.shift()!;
+    this.typewriteText(text, () => {
+      if (callback) callback();
+      this.processTypewriterQueue();
+    });
+  }
+
+  private typewriteText(text: string, onComplete: () => void) {
+    if (!this.currentAiMessage) return;
+    
+    let i = 0;
+    const cursor = '<span class="typewriter-cursor">█</span>';
+    
+    const type = () => {
+      if (i < text.length) {
+        // Remove cursor, add character, add cursor back
+        const currentContent = this.currentAiMessage!.innerHTML.replace(cursor, '');
+        this.currentAiMessage!.innerHTML = currentContent + text.charAt(i) + cursor;
+        i++;
+        this.scrollToBottom();
+        
+        // Vary typing speed for more natural feel
+        const delay = text.charAt(i-1) === ' ' ? 20 : 
+                     text.charAt(i-1) === '.' ? 100 :
+                     text.charAt(i-1) === ',' ? 50 :
+                     Math.random() * 30 + 20;
+        
+        setTimeout(type, delay);
+      } else {
+        // Remove cursor when done
+        const finalContent = this.currentAiMessage!.innerHTML.replace(cursor, '');
+        this.currentAiMessage!.innerHTML = finalContent;
+        onComplete();
+      }
+    };
+    
+    type();
   }
 }
 
