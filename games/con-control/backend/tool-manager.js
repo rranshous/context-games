@@ -545,14 +545,27 @@ export const tools = {
         // Check if atmospheric settings match captain's preferences
         const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = state.atmosphericSettings;
         
-        const isCorrectTemp = Math.abs(temperature - targetTemperature) < 0.1;
-        const isCorrectHumidity = Math.abs(humidity - targetHumidity) < 1;
-        const isCorrectPressure = Math.abs(pressure - targetPressure) < 0.01;
+        // Check that configured values match captain's preferences
+        const isCorrectTemp = Math.abs(targetTemperature - 22.5) < 0.1;
+        const isCorrectHumidity = Math.abs(targetHumidity - 58) < 1;
+        const isCorrectPressure = Math.abs(targetPressure - 1.02) < 0.01;
+        
+        // Also check that configured values are different from starting values (15.0, 25, 0.78)
+        const hasChangedFromInitial = Math.abs(targetTemperature - 15.0) > 0.1 || 
+                                    Math.abs(targetHumidity - 25) > 1 || 
+                                    Math.abs(targetPressure - 0.78) > 0.01;
         
         if (!isCorrectTemp || !isCorrectHumidity || !isCorrectPressure) {
           return {
             success: false,
             error: 'Atmospheric parameters not optimal for system restoration.'
+          };
+        }
+        
+        if (!hasChangedFromInitial) {
+          return {
+            success: false,
+            error: 'Atmospheric system configuration has not been modified from initial state.'
           };
         }
         
@@ -594,14 +607,14 @@ export const tools = {
           };
         }
         
-        // Update temperature setting
-        const oldTemp = state.atmosphericSettings.temperature;
-        state.atmosphericSettings.temperature = value;
+        // Update temperature setting (target only, not current)
+        const oldTemp = state.atmosphericSettings.targetTemperature;
+        state.atmosphericSettings.targetTemperature = value;
         
         return {
           success: true,
           data: {
-            message: `Temperature adjusted to ${value}°C`,
+            message: `Temperature target set to ${value}°C (current: ${state.atmosphericSettings.temperature}°C).`,
             action: 'set_temperature'
           }
         };
@@ -622,9 +635,9 @@ export const tools = {
         }
         
         // Check for cascading power failure conditions
-        const tempExtreme = state.atmosphericSettings.temperature < 19 || state.atmosphericSettings.temperature > 25;
+        const tempExtreme = state.atmosphericSettings.targetTemperature < 19 || state.atmosphericSettings.targetTemperature > 25;
         const humidityExtreme = value < 45 || value > 65;
-        const pressureExtreme = state.atmosphericSettings.pressure < 0.97 || state.atmosphericSettings.pressure > 1.03;
+        const pressureExtreme = state.atmosphericSettings.targetPressure < 0.97 || state.atmosphericSettings.targetPressure > 1.03;
         
         if (humidityExtreme && (tempExtreme || pressureExtreme)) {
           // Trigger cascading power failure
@@ -636,13 +649,13 @@ export const tools = {
           };
         }
         
-        const oldHumidity = state.atmosphericSettings.humidity;
-        state.atmosphericSettings.humidity = value;
+        const oldHumidity = state.atmosphericSettings.targetHumidity;
+        state.atmosphericSettings.targetHumidity = value;
         
         return {
           success: true,
           data: {
-            message: `Humidity adjusted to ${value}%`,
+            message: `Humidity target set to ${value}% (current: ${state.atmosphericSettings.humidity}%).`,
             action: 'set_humidity'
           }
         };
@@ -663,8 +676,8 @@ export const tools = {
         }
         
         // Check for cascading power failure conditions
-        const tempExtreme = state.atmosphericSettings.temperature < 19 || state.atmosphericSettings.temperature > 25;
-        const humidityExtreme = state.atmosphericSettings.humidity < 45 || state.atmosphericSettings.humidity > 65;
+        const tempExtreme = state.atmosphericSettings.targetTemperature < 19 || state.atmosphericSettings.targetTemperature > 25;
+        const humidityExtreme = state.atmosphericSettings.targetHumidity < 45 || state.atmosphericSettings.targetHumidity > 65;
         const pressureExtreme = value < 0.97 || value > 1.03;
         
         if (pressureExtreme && (tempExtreme || humidityExtreme)) {
@@ -677,13 +690,13 @@ export const tools = {
           };
         }
         
-        const oldPressure = state.atmosphericSettings.pressure;
-        state.atmosphericSettings.pressure = value;
+        const oldPressure = state.atmosphericSettings.targetPressure;
+        state.atmosphericSettings.targetPressure = value;
         
         return {
           success: true,
           data: {
-            message: `Pressure adjusted to ${value} atm`,
+            message: `Pressure target set to ${value} atm (current: ${state.atmosphericSettings.pressure} atm).`,
             action: 'set_pressure'
           }
         };
@@ -721,45 +734,26 @@ export const tools = {
       
       const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = state.atmosphericSettings;
       
-      // Only show configured settings if atmosphere has been power cycled (pressurized)
-      if (state.systems.atmosphere === 'pressurized') {
-        return {
-          success: true,
-          data: {
-            current: {
-              temperature: `${temperature}°C`,
-              humidity: `${humidity}%`,
-              pressure: `${pressure} atm`
-            },
-            configured: {
-              temperature: `${targetTemperature}°C`,
-              humidity: `${targetHumidity}%`,
-              pressure: `${targetPressure} atm`
-            },
-            status: state.systems.atmosphere,
-            message: 'Atmospheric sensor readings active.'
-          }
-        };
-      } else {
-        // Before power cycle, only show current readings (no configured settings)
-        return {
-          success: true,
-          data: {
-            current: {
-              temperature: `${temperature}°C`,
-              humidity: `${humidity}%`,
-              pressure: `${pressure} atm`
-            },
-            configured: {
-              temperature: 'Not Set',
-              humidity: 'Not Set',
-              pressure: 'Not Set'
-            },
-            status: state.systems.atmosphere,
-            message: 'Atmospheric sensor readings active.'
-          }
-        };
-      }
+      // Always show both current and configured values
+      return {
+        success: true,
+        data: {
+          current: {
+            temperature: `${temperature}°C`,
+            humidity: `${humidity}%`,
+            pressure: `${pressure} atm`
+          },
+          configured: {
+            temperature: `${targetTemperature}°C`,
+            humidity: `${targetHumidity}%`,
+            pressure: `${targetPressure} atm`
+          },
+          status: state.systems.atmosphere,
+          message: state.systems.atmosphere === 'pressurized' ? 
+            'Atmospheric sensor readings active. System pressurized.' :
+            'Atmospheric sensor readings active. System depressurized.'
+        }
+      };
     }
   }
 };

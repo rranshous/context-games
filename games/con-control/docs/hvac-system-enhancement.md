@@ -36,11 +36,19 @@ Changed door error from MC-specific language:
 
 ### Key Logic:
 - Atmospheric sensors now check `state.systems.atmosphere === 'pressurized'` to determine if configured settings should be shown
+- **Setting atmospheric values only updates target settings, not current readings**
+- **Power cycle applies target settings to current readings and pressurizes the system**
 - Door error message is now more generic and system-focused rather than MC-specific
 
 ## Game Flow Impact
 Players will now discover through emails that:
 1. Setting atmospheric values doesn't immediately change the environment
-2. A power cycle is required to activate new configurations
+2. A power cycle is required to activate new configurations  
 3. This is a safety feature, not a bug
 4. The atmospheric sensors will reflect this behavior accurately
+
+**Current vs Target Logic:**
+- Current readings remain unchanged when setting values
+- Target settings are updated when configuring values
+- Power cycle copies target settings to current readings
+- Only then does the environment actually change

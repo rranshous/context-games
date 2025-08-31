@@ -20,9 +20,9 @@ export function createInitialGameState() {
       temperature: 15.0,  // Current temperature in Celsius - dangerously low
       humidity: 25,       // Current humidity percentage - very dry
       pressure: 0.78,     // Current pressure in atm - dangerously low
-      targetTemperature: 22.5,  // Target from captain's email preferences
-      targetHumidity: 58,
-      targetPressure: 1.02
+      targetTemperature: 15.0,  // Start with same as current
+      targetHumidity: 25,       // Start with same as current
+      targetPressure: 0.78      // Start with same as current
     },
     powerGrid: {
       red: null,    // Primary grid - disconnected
@@ -187,6 +187,11 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
     case 'atmospheric_control':
       if (toolResult.success) {
         if (toolResult.data.action === 'power_cycle' && newState.systems.power === 'online') {
+          // Apply target settings to current settings when power cycling
+          newState.atmosphericSettings.temperature = newState.atmosphericSettings.targetTemperature;
+          newState.atmosphericSettings.humidity = newState.atmosphericSettings.targetHumidity;
+          newState.atmosphericSettings.pressure = newState.atmosphericSettings.targetPressure;
+          
           newState.systems.atmosphere = 'pressurized';
           newState.objectives.current = 'Open brig door to escape';
           
@@ -194,27 +199,10 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           const ATMOSPHERIC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
           newState.shipStatus.oxygenDepletionTime += ATMOSPHERIC_BONUS_MS;
           
-          console.log('🌬️ Atmosphere pressurized, door opening now possible. +5 minutes oxygen from recycling.');
+          console.log('🌬️ Atmosphere pressurized, target settings applied to current readings. Door opening now possible. +5 minutes oxygen from recycling.');
         } else if (['set_temperature', 'set_humidity', 'set_pressure'].includes(toolResult.data.action)) {
-          // Check if all atmospheric settings match captain's preferences
-          const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = newState.atmosphericSettings;
-          
-          const isCorrectTemp = Math.abs(temperature - targetTemperature) < 0.1;
-          const isCorrectHumidity = Math.abs(humidity - targetHumidity) < 1;
-          const isCorrectPressure = Math.abs(pressure - targetPressure) < 0.01;
-          
-          if (isCorrectTemp && isCorrectHumidity && isCorrectPressure) {
-            newState.systems.atmosphere = 'pressurized';
-            newState.objectives.current = 'Open brig door to escape';
-            
-            // Atmospheric restoration gives additional oxygen time
-            const ATMOSPHERIC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
-            newState.shipStatus.oxygenDepletionTime += ATMOSPHERIC_BONUS_MS;
-            
-            console.log('🌬️ Atmospheric settings correct! Atmosphere pressurized, door opening now possible. +5 minutes oxygen from recycling.');
-          } else {
-            console.log(`🌡️ Atmospheric settings updated. Current: ${temperature}°C, ${humidity}%, ${pressure} atm`);
-          }
+          // Settings configuration updates target values only - current values unchanged until power cycle
+          console.log(`🌡️ Atmospheric target settings updated. Current readings unchanged until power cycle.`);
         }
       } else if (toolResult.error && toolResult.error.includes('CRITICAL FAILURE')) {
         // Handle cascading power failure from extreme atmospheric settings
