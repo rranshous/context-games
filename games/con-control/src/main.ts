@@ -301,9 +301,15 @@ class Terminal {
               this.addToTypewriterQueue(parsed.content);
             }
           } else if (parsed.type === 'tool_call') {
-            this.addToolUsage(parsed.name, parsed.input);
+            // Queue tool call display after current typewriting completes
+            this.addToTypewriterQueue('', () => {
+              this.addToolUsage(parsed.name, parsed.input);
+            });
           } else if (parsed.type === 'tool_result') {
-            this.addToolResult(parsed.name, parsed.result);
+            // Queue tool result display after current typewriting completes
+            this.addToTypewriterQueue('', () => {
+              this.addToolResult(parsed.name, parsed.result);
+            });
           } else if (parsed.type === 'done') {
             eventSource.close();
             // Re-enable mic when AI is done
@@ -437,11 +443,11 @@ class Terminal {
         i++;
         this.scrollToBottom();
         
-        // Vary typing speed for more natural feel
-        const delay = text.charAt(i-1) === ' ' ? 20 : 
-                     text.charAt(i-1) === '.' ? 100 :
-                     text.charAt(i-1) === ',' ? 50 :
-                     Math.random() * 30 + 20;
+        // Vary typing speed for more natural feel (20% faster)
+        const delay = text.charAt(i-1) === ' ' ? 16 : 
+                     text.charAt(i-1) === '.' ? 80 :
+                     text.charAt(i-1) === ',' ? 40 :
+                     Math.random() * 24 + 16;
         
         setTimeout(type, delay);
       } else {
