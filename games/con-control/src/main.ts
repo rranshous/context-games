@@ -14,18 +14,19 @@ class Terminal {
   private micButton: HTMLButtonElement;
   private voiceStatus: HTMLElement;
   private transcript: HTMLElement;
-  private aiResponse: HTMLElement;
+  private chatHistory: HTMLElement;
   private typingIndicator: HTMLElement;
   private textInput: HTMLInputElement;
   private sendButton: HTMLButtonElement;
   private isListening = false;
   private recognition: any = null;
+  private currentAiMessage: HTMLElement | null = null;
 
   constructor() {
     this.micButton = document.getElementById('mic-button') as HTMLButtonElement;
     this.voiceStatus = document.getElementById('voice-status') as HTMLElement;
     this.transcript = document.getElementById('transcript') as HTMLElement;
-    this.aiResponse = document.getElementById('ai-response') as HTMLElement;
+    this.chatHistory = document.getElementById('chat-history') as HTMLElement;
     this.typingIndicator = document.getElementById('typing-indicator') as HTMLElement;
     this.textInput = document.getElementById('text-input') as HTMLInputElement;
     this.sendButton = document.getElementById('send-button') as HTMLButtonElement;
@@ -131,6 +132,8 @@ class Terminal {
   }
 
   private async sendToShipAI(message: string) {
+    // Add player message to chat
+    this.addPlayerMessage(message);
     this.showTypingIndicator();
     this.transcript.textContent = `You: ${message}`;
 
@@ -141,15 +144,22 @@ class Terminal {
       // Create EventSource for SSE
       const eventSource = new EventSource(`/api/chat?message=${encodeURIComponent(message)}&sessionId=${encodeURIComponent(sessionId)}`);
       
-      this.aiResponse.textContent = '';
+      // Create new AI message element
+      this.currentAiMessage = this.createAiMessage();
       this.hideTypingIndicator();
 
       eventSource.onmessage = (event) => {
         try {
           const parsed = JSON.parse(event.data);
           if (parsed.type === 'text') {
-            this.aiResponse.textContent += parsed.content;
-            this.scrollToBottom();
+            if (this.currentAiMessage) {
+              this.currentAiMessage.innerHTML += parsed.content;
+              this.scrollToBottom();
+            }
+          } else if (parsed.type === 'tool_call') {
+            this.addToolUsage(parsed.name, parsed.input);
+          } else if (parsed.type === 'tool_result') {
+            this.addToolResult(parsed.name, parsed.result);
           } else if (parsed.type === 'done') {
             eventSource.close();
           }
@@ -161,14 +171,18 @@ class Terminal {
       eventSource.onerror = (error) => {
         console.error('EventSource error:', error);
         this.hideTypingIndicator();
-        this.aiResponse.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
+        if (this.currentAiMessage) {
+          this.currentAiMessage.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
+        }
         eventSource.close();
       };
 
     } catch (error) {
       console.error('Error communicating with Ship AI:', error);
       this.hideTypingIndicator();
-      this.aiResponse.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
+      if (this.currentAiMessage) {
+        this.currentAiMessage.textContent = 'Error: Unable to communicate with Ship AI. Please try again.';
+      }
     }
   }
 
@@ -181,7 +195,44 @@ class Terminal {
   }
 
   private scrollToBottom() {
-    this.aiResponse.scrollTop = this.aiResponse.scrollHeight;
+    // Automatically scroll to bottom so new text pushes old text up and off screen
+    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
+  }
+
+  private addPlayerMessage(message: string) {
+    const messageEl = document.createElement('div');
+    messageEl.className = 'message player-message';
+    messageEl.textContent = `> ${message}`;
+    this.chatHistory.appendChild(messageEl);
+    this.scrollToBottom();
+  }
+
+  private createAiMessage(): HTMLElement {
+    const messageEl = document.createElement('div');
+    messageEl.className = 'message ai-message';
+    messageEl.innerHTML = '> '; // Use innerHTML so we can append to it properly
+    this.chatHistory.appendChild(messageEl);
+    this.scrollToBottom();
+    return messageEl;
+  }
+
+  private addToolUsage(toolName: string, toolInput: any) {
+    if (this.currentAiMessage) {
+      // Add tool usage inline with the current AI message (on new line)
+      const toolText = `\n[ACCESSING: ${toolName.toUpperCase()}${toolInput && Object.keys(toolInput).length > 0 ? ` - ${JSON.stringify(toolInput)}` : ''}]`;
+      this.currentAiMessage.innerHTML += `<span class="tool-usage-inline">${toolText}</span>`;
+      this.scrollToBottom();
+    }
+  }
+
+  private addToolResult(toolName: string, toolResult: any) {
+    if (this.currentAiMessage) {
+      // Add tool result inline with the current AI message (on new line)
+      const success = toolResult.success ? 'SUCCESS' : 'FAILED';
+      const resultText = `[${toolName.toUpperCase()}: ${success}]`;
+      this.currentAiMessage.innerHTML += `<span class="tool-usage-inline">${resultText}</span>`;
+      this.scrollToBottom();
+    }
   }
 
   private getSessionId(): string {

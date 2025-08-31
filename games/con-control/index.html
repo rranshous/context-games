@@ -44,6 +44,48 @@
       flex-direction: column;
       font-size: 16px;
       line-height: 1.4;
+      overflow: hidden;
+    }
+    
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 10px;
+      margin-bottom: 10px;
+      position: relative;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* Internet Explorer 10+ */
+    }
+
+    .chat-history::-webkit-scrollbar {
+      display: none; /* WebKit */
+    }    .message {
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    
+    .player-message {
+      color: #00ffff;
+    }
+    
+    .ai-message {
+      color: #00ff41;
+    }
+    
+    .tool-usage {
+      color: #888;
+      font-size: 14px;
+      font-style: italic;
+      margin: 4px 0;
+      padding-left: 20px;
+      border-left: 2px solid #333;
+    }
+
+    .tool-usage-inline {
+      color: #666;
+      font-size: 12px;
+      font-style: italic;
     }
     
     .ai-response {
@@ -149,14 +191,7 @@
     </div>
     
     <div class="terminal-content">
-      <div id="ai-response" class="ai-response">
-        Ship AI initialization in progress...
-        
-        Welcome to the ISV Meridian Ship AI interface. I am operating with limited functionality due to recent system reset. 
-        
-        My current status: Basic voice interface online. Diagnostic tools partially available.
-        
-        I detect you are currently in the detention facility. Please state your requirements.
+      <div id="chat-history" class="chat-history">
       </div>
       
       <div id="typing-indicator" class="typing-indicator" style="display: none;">

@@ -176,7 +176,7 @@ const tools = {
 
   file_storage: {
     name: "file_storage",
-    description: "Access ship file storage system to list directories or read files",
+    description: "Access ship file storage system to list directories or read files. Current working directory is /. Use relative paths like 'ship_docs/' or absolute paths like '/ship_docs/'",
     input_schema: {
       type: "object",
       properties: {
@@ -187,7 +187,7 @@ const tools = {
         },
         path: {
           type: "string",
-          description: "File path or directory path"
+          description: "File path or directory path (relative to / or absolute)"
         }
       },
       required: ["action", "path"]
@@ -195,9 +195,19 @@ const tools = {
     execute: (state, params) => {
       const { action, path } = params;
       
+      // Normalize path - convert relative paths to absolute
+      let normalizedPath = path;
+      if (!path.startsWith('/')) {
+        normalizedPath = '/' + path;
+      }
+      // Remove trailing slash for consistency, except for root
+      if (normalizedPath !== '/' && normalizedPath.endsWith('/')) {
+        normalizedPath = normalizedPath.slice(0, -1);
+      }
+      
       if (action === 'list') {
         // Handle root directory listing
-        if (path === '/' || path === '.' || path === '') {
+        if (normalizedPath === '/' || normalizedPath === '.' || normalizedPath === '') {
           const files = Object.keys(shipFileSystem['/']);
           return {
             success: true,
@@ -208,7 +218,7 @@ const tools = {
               message: 'Root directory contents'
             }
           };
-        } else if (path === '/ship_docs' || path === '/ship_docs/') {
+        } else if (normalizedPath === '/ship_docs') {
           const files = Object.keys(shipFileSystem['/ship_docs']);
           return {
             success: true,
@@ -222,28 +232,35 @@ const tools = {
         } else {
           return {
             success: false,
-            error: `Directory ${path} not found or access denied`
+            error: `Directory ${normalizedPath} not found or access denied`
           };
         }
       } else if (action === 'read') {
-        // Handle file reading
-        const normalizedPath = path.startsWith('/ship_docs/') ? 
-          path.substring('/ship_docs/'.length) : 
-          path;
+        // Handle file reading - files are stored in /ship_docs/
+        let filePath;
+        if (normalizedPath.startsWith('/ship_docs/')) {
+          filePath = normalizedPath.substring('/ship_docs/'.length);
+        } else if (normalizedPath.startsWith('ship_docs/')) {
+          filePath = normalizedPath.substring('ship_docs/'.length);
+        } else {
+          // Try to read from ship_docs if no directory specified
+          filePath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+        }
         
-        if (shipFileSystem['/ship_docs'][normalizedPath]) {
-          const content = shipFileSystem['/ship_docs'][normalizedPath];
+        if (shipFileSystem['/ship_docs'][filePath]) {
+          const content = shipFileSystem['/ship_docs'][filePath];
           return {
             success: true,
             data: {
-              filename: normalizedPath,
+              filename: filePath,
+              fullPath: `/ship_docs/${filePath}`,
               content: content
             }
           };
         } else {
           return {
             success: false,
-            error: `File ${normalizedPath} not found`
+            error: `File ${filePath} not found in /ship_docs/`
           };
         }
       } else {
@@ -616,7 +633,7 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
   let currentResponse = response;
   let finalResponseText = '';
   let turnCount = 0;
-  const MAX_TURNS = 50;
+  const MAX_TURNS = 10;
   
   while (turnCount < MAX_TURNS) {
     turnCount++;
@@ -627,6 +644,8 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
     let responseText = '';
     
     // Process current response content
+    let bufferedToolCalls = []; // Buffer tool calls to send after text
+    
     for (const content of currentResponse.content) {
       if (content.type === 'text') {
         responseText += content.text;
@@ -637,36 +656,16 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
         const toolName = content.name;
         const toolInput = content.input || {};
         
-        if (tools[toolName] && isToolAvailable(updatedState, toolName)) {
-          // Execute the tool
-          const toolResult = tools[toolName].execute(updatedState, toolInput);
-          console.log(`⚙️ Tool ${toolName} result:`, toolResult);
-          
-          // Update game state based on tool result
-          updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
-          
-          // Collect tool result for Claude
-          toolResults.push({
-            tool_use_id: content.id,
-            type: "tool_result",
-            content: JSON.stringify(toolResult)
-          });
-          
-        } else {
-          console.log(`❌ Tool ${toolName} not available or not found`);
-          toolResults.push({
-            tool_use_id: content.id,
-            type: "tool_result",
-            content: JSON.stringify({ success: false, error: `Tool ${toolName} not available` })
-          });
-        }
+        // Buffer tool call info instead of sending immediately
+        bufferedToolCalls.push({
+          name: toolName,
+          input: toolInput,
+          contentId: content.id
+        });
       }
     }
     
-    // Add assistant's response to conversation
-    conversationMessages.push({ role: "assistant", content: currentResponse.content });
-    
-    // Stream any text response to the user
+    // Stream any text response to the user FIRST
     if (responseText.trim()) {
       const words = responseText.split(' ');
       for (let i = 0; i < words.length; i += 3) {
@@ -674,15 +673,68 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
         // Always add a space after each chunk except the very last one
         const finalChunk = (i + 3 < words.length) ? chunk + ' ' : chunk;
         res.write(`data: ${JSON.stringify({ type: 'text', content: finalChunk })}\n\n`);
-        await new Promise(resolve => setTimeout(resolve, 200));
       }
       finalResponseText += responseText;
+    }
+    
+    // NOW process buffered tool calls AFTER text has been sent
+    for (const bufferedTool of bufferedToolCalls) {
+      const { name: toolName, input: toolInput, contentId } = bufferedTool;
       
-      // Add newline after each response segment to separate from next response
-      if (hasToolCalls && toolResults.length > 0) {
-        res.write(`data: ${JSON.stringify({ type: 'text', content: '\n\n' })}\n\n`);
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Send tool call info to frontend
+      res.write(`data: ${JSON.stringify({ 
+        type: 'tool_call', 
+        name: toolName, 
+        input: toolInput 
+      })}\n\n`);
+      
+      if (tools[toolName] && isToolAvailable(updatedState, toolName)) {
+        // Execute the tool
+        const toolResult = tools[toolName].execute(updatedState, toolInput);
+        console.log(`⚙️ Tool ${toolName} result:`, toolResult);
+        
+        // Send tool result to frontend
+        res.write(`data: ${JSON.stringify({ 
+          type: 'tool_result', 
+          name: toolName, 
+          result: toolResult 
+        })}\n\n`);
+        
+        // Update game state based on tool result
+        updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
+        
+        // Collect tool result for Claude
+        toolResults.push({
+          tool_use_id: contentId,
+          type: "tool_result",
+          content: JSON.stringify(toolResult)
+        });
+        
+      } else {
+        console.log(`❌ Tool ${toolName} not available or not found`);
+        const errorResult = { success: false, error: `Tool ${toolName} not available` };
+        
+        // Send error result to frontend
+        res.write(`data: ${JSON.stringify({ 
+          type: 'tool_result', 
+          name: toolName, 
+          result: errorResult 
+        })}\n\n`);
+        
+        toolResults.push({
+          tool_use_id: contentId,
+          type: "tool_result",
+          content: JSON.stringify(errorResult)
+        });
       }
+    }
+    
+    // Add assistant's response to conversation
+    conversationMessages.push({ role: "assistant", content: currentResponse.content });
+    
+    // Add newline after each response segment to separate from next response
+    if (hasToolCalls && toolResults.length > 0) {
+      res.write(`data: ${JSON.stringify({ type: 'text', content: '\n\n' })}\n\n`);
     }
     
     // If there were tool calls, continue the conversation
