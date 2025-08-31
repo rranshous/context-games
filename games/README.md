@@ -4,6 +4,14 @@ This directory contains all game development projects as submodules. Projects ex
 
 ## Games 🎮
 
+### [Con-Control](./con-control/)
+AI collaboration space escape game where players work with a Ship AI (literally powered by Claude 4) to repair systems and escape a detention cell. The AI's limitations are genuine technical constraints that unlock through player-guided repairs.  
+🎯 **Status:** Enhanced prototype with complex puzzles - fully playable  
+🎮 **Published:** Not yet  
+🤖 **AI:** ✅ Claude Sonnet 4 for real-time ship AI character with tool-based constraints  
+🔧 **Next:** Enhanced gameplay, multiple story paths, improved UI/UX  
+✨ **Unique:** Authentic AI collaboration, discovery-driven puzzles, voice + text input, streaming responses
+
 ### [RitSim](./ritsim/)
 AI-driven ritual simulator where Claude interprets mystical object arrangements. Players drag sacred items on a ritual table, and AI generates both atmospheric prose and visual effects based on established magical rules and spatial patterns.  
 🎯 **Status:** Core features complete, visual effects refinement in progress  
