@@ -28,6 +28,8 @@ export function calculateCost(usage) {
     };
   }
 
+  console.log(`🔍 Token calculation: ${usage.input_tokens} input + ${usage.output_tokens} output = ${usage.input_tokens + usage.output_tokens} total`);
+
   const inputCost = usage.input_tokens * CLAUDE_4_PRICING.input;
   const outputCost = usage.output_tokens * CLAUDE_4_PRICING.output;
   const totalCost = inputCost + outputCost;

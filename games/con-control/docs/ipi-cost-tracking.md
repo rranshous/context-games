@@ -48,7 +48,7 @@ Add a real-time cost tracking display to the con-control game UI showing:
 ### **Phase 3: Cost Configuration**
 - ✅ Add configurable cost rates for different models
 - ✅ Implement cost reset on full session restart only
-- 🔄 Test cost accuracy within sessions
+- ✅ Test cost accuracy within sessions
 
 ### **Technical Considerations**
 - **Token Counting**: Use Anthropic API response headers/metadata
@@ -93,10 +93,18 @@ Add a real-time cost tracking display to the con-control game UI showing:
   - `index.html` - Added cost display elements
   - Updated CSS for cost display styling
 
-### **Testing Plan** 🔄
-- [ ] Cost accuracy validation
-- [ ] UI integration testing  
-- [ ] Session lifecycle testing
+### **Testing Plan** ✅
+- ✅ Cost accuracy validation with detailed token logging
+- ✅ UI integration testing  
+- ✅ Session lifecycle testing
+- ✅ **FIX**: Cost preservation across game restarts (difficulty changes)
+- ✅ **FIX**: Session costs only reset on full session restart
+
+### **Post-Implementation Fixes**
+- **Session Cost Persistence**: Modified `createInitialGameState()` to accept preserved session costs
+- **Game Restart Behavior**: Difficulty increases now preserve session costs and session ID
+- **Token Tracking Accuracy**: Added detailed logging to verify Claude API usage reporting
+- **Cost Reset Logic**: Only full session restart (page refresh) resets costs, not difficulty changes
 
 ---
 

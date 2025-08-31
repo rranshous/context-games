@@ -6,9 +6,10 @@
 /**
  * Initialize new game state
  * @param {number} difficultyLevel - The difficulty level (0 = first play, 1+ = harder restarts)
+ * @param {Object} preservedSessionCosts - Optional existing session costs to preserve
  * @returns {Object} Initial game state
  */
-export function createInitialGameState(difficultyLevel = 0) {
+export function createInitialGameState(difficultyLevel = 0, preservedSessionCosts = null) {
   const now = Date.now();
   
   // Progressive difficulty: 18min base, -5min per level, minimum 1min
@@ -58,7 +59,7 @@ export function createInitialGameState(difficultyLevel = 0) {
       oxygenRemaining: null,
       totalDuration: null
     },
-    sessionCosts: {
+    sessionCosts: preservedSessionCosts || {
       totalCost: 0,
       totalTokens: 0,
       inputTokens: 0,

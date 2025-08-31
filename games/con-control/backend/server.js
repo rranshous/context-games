@@ -161,21 +161,22 @@ app.post('/api/restart-harder', (req, res) => {
     const currentDifficulty = currentSession?.difficulty?.level || 0;
     const newDifficulty = currentDifficulty + 1;
     
-    // Create new session with increased difficulty
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newState = createInitialGameState(newDifficulty);
+    // Preserve session costs across game restarts
+    const preservedCosts = currentSession.sessionCosts;
     
-    sessions.set(newSessionId, newState);
+    // Create new game state with preserved costs
+    const newState = createInitialGameState(newDifficulty, preservedCosts);
     
-    // Clear old session
-    sessions.delete(sessionId);
+    // Update the same session (don't create new session ID)
+    sessions.set(sessionId, newState);
     
     console.log(`🎯 Restarted with harder difficulty: Level ${currentDifficulty} → ${newDifficulty} (${newState.difficulty.oxygenMinutes} minutes oxygen)`);
+    console.log(`💰 Preserved session costs: $${preservedCosts.totalCost.toFixed(6)} (${preservedCosts.totalTokens} tokens)`);
     
     res.json({ 
       success: true, 
-      message: 'Restarted with increased difficulty',
-      sessionId: newSessionId,
+      message: `Restarted with harder difficulty (Level ${newDifficulty})`,
+      sessionId: sessionId, // Same session ID
       difficulty: {
         level: newDifficulty,
         oxygenMinutes: newState.difficulty.oxygenMinutes
