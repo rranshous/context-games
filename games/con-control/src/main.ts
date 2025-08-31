@@ -20,6 +20,8 @@ class Terminal {
   private textInputFallback: HTMLElement;
   private textInput: HTMLInputElement;
   private sendButton: HTMLButtonElement;
+  private introScreen: HTMLElement;
+  private mainTerminal: HTMLElement;
   private isListening = false;
   private isAiResponding = false;
   private isUsingFallback = false; // Track if we're using text input fallback
@@ -40,10 +42,40 @@ class Terminal {
     this.textInputFallback = document.getElementById('text-input-fallback') as HTMLElement;
     this.textInput = document.getElementById('text-input') as HTMLInputElement;
     this.sendButton = document.getElementById('send-button') as HTMLButtonElement;
+    this.introScreen = document.getElementById('intro-screen') as HTMLElement;
+    this.mainTerminal = document.getElementById('main-terminal') as HTMLElement;
 
+    this.initializeIntroScreen();
     this.initializeSpeechRecognition();
     this.setupEventListeners();
     this.updateMicButtonState();
+  }
+
+  private initializeIntroScreen() {
+    const introContinue = document.getElementById('intro-continue') as HTMLButtonElement;
+    
+    introContinue.addEventListener('click', () => {
+      this.transitionToTerminal();
+    });
+
+    // Also allow pressing Enter to continue
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !this.introScreen.classList.contains('hidden')) {
+        this.transitionToTerminal();
+      }
+    });
+  }
+
+  private transitionToTerminal() {
+    // Fade out intro screen
+    this.introScreen.classList.add('fade-out');
+    
+    // After fade out completes, hide intro and show terminal
+    setTimeout(() => {
+      this.introScreen.classList.add('hidden');
+      this.mainTerminal.style.opacity = '1';
+      this.mainTerminal.classList.add('fade-in');
+    }, 1000);
   }
 
   private initializeSpeechRecognition() {

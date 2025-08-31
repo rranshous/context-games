@@ -228,10 +228,105 @@
       0%, 50% { opacity: 1; }
       51%, 100% { opacity: 0; }
     }
+    
+    /* Intro Screen Styles */
+    .intro-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #001122 0%, #000511 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      z-index: 1000;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .intro-screen.hidden {
+      display: none;
+    }
+    
+    .intro-title {
+      font-size: 32px;
+      font-weight: bold;
+      color: #ff6666;
+      margin-bottom: 30px;
+      text-shadow: 0 0 10px rgba(255, 102, 102, 0.5);
+    }
+    
+    .intro-text {
+      font-size: 18px;
+      line-height: 1.6;
+      max-width: 600px;
+      margin-bottom: 40px;
+      color: #cccccc;
+    }
+    
+    .intro-terminal-text {
+      font-size: 16px;
+      color: #00ff41;
+      margin-bottom: 20px;
+      font-style: italic;
+    }
+    
+    .intro-continue {
+      background: rgba(0, 255, 65, 0.1);
+      border: 2px solid #00ff41;
+      color: #00ff41;
+      padding: 15px 30px;
+      font-size: 16px;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .intro-continue:hover {
+      background: rgba(0, 255, 65, 0.2);
+      box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+      transform: scale(1.05);
+    }
+    
+    .fade-out {
+      opacity: 0;
+      transition: opacity 1s ease-out;
+    }
+    
+    .fade-in {
+      opacity: 1;
+      transition: opacity 1s ease-in;
+    }
   </style>
 </head>
 <body>
-  <div class="terminal">
+  <!-- Intro Screen -->
+  <div id="intro-screen" class="intro-screen">
+    <div class="intro-title">ISV MERIDIAN</div>
+    <div class="intro-text">
+      You awaken in a cold metal room.<br><br>
+      
+      Your head throbs as consciousness returns. The air tastes stale, recycled.<br>
+      Around you: bare metal walls, a narrow bed, a basic sanitation unit.<br><br>
+      
+      A single door - sealed tight. No handle on this side.<br><br>
+      
+      But there - embedded in the wall - a computer terminal glows with soft green light.<br>
+      The only source of illumination in this stark chamber.
+    </div>
+    <div class="intro-terminal-text">
+      You approach the terminal...
+    </div>
+    <button id="intro-continue" class="intro-continue">Access Terminal</button>
+  </div>
+
+  <!-- Main Terminal Interface -->
+  <div id="main-terminal" class="terminal" style="opacity: 0;">
     <div class="terminal-header">
       ISV MERIDIAN - SHIP AI TERMINAL
     </div>
