@@ -5,6 +5,47 @@ import { calculateOxygenRemaining, isOxygenDepleted } from './game-state.js';
  * Handles all tool definitions, execution, and state updates
  */
 
+/**
+ * Detect circular loops in power grid configuration
+ * @param {Object} powerGrid - Power grid configuration {red: 'yellow', yellow: 'green', green: null}
+ * @returns {Object} {found: boolean, path: Array, description: string}
+ */
+function detectCircularLoop(powerGrid) {
+  const nodes = ['red', 'yellow', 'green'];
+  
+  // Check each node as a starting point
+  for (const startNode of nodes) {
+    const visited = new Set();
+    const path = [];
+    let currentNode = startNode;
+    
+    // Follow the chain until we hit null, revisit a node, or run out of connections
+    while (currentNode !== null && powerGrid[currentNode] !== null) {
+      if (visited.has(currentNode)) {
+        // Found a loop! Extract the circular portion
+        const loopStartIndex = path.indexOf(currentNode);
+        const circularPath = path.slice(loopStartIndex);
+        
+        return {
+          found: true,
+          path: circularPath,
+          description: `${circularPath.join(' → ')} → ${circularPath[0]}`
+        };
+      }
+      
+      visited.add(currentNode);
+      path.push(currentNode);
+      currentNode = powerGrid[currentNode];
+    }
+  }
+  
+  return {
+    found: false,
+    path: [],
+    description: ''
+  };
+}
+
 // Enhanced AI tools with proper game progression
 export const tools = {
   basic_diagnostics: {
@@ -79,6 +120,14 @@ export const tools = {
       required: []
     },
     execute: (state) => {
+      // Check if power system is burned out
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
       return {
         success: true,
         data: {
@@ -118,7 +167,7 @@ export const tools = {
             powerStatus: 'CATASTROPHIC FAILURE - Power distribution system destroyed',
             gridRouting: 'ERROR: All junction nodes burned out and fused',
             systemMessage: 'TrinaryFlow Power Distribution System OFFLINE. Diagnostic Error: Extensive burn damage detected. All power routing components show signs of electrical overload. Junction matrices are completely destroyed. Smoke residue detected in all power conduits.',
-            technicalDetails: 'System failure caused by feedback loop: Red → Yellow → Green routing created power surge that exceeded design limits by 300%. All components are irreparable.',
+            technicalDetails: 'System failure caused by circular power routing. Electrical feedback loop exceeded design limits by 300%. All components are irreparable.',
           }
         };
       }
@@ -321,21 +370,23 @@ export const tools = {
         };
       } else {
         // Connect - but first check for feedback loop
-        // We need to simulate the new grid state to detect red → yellow → green
+        // We need to simulate the new grid state to detect any circular configuration
         const tempGrid = { ...state.powerGrid };
         tempGrid[from_node] = to_node;
         
-        // Check for the dangerous red → yellow → green feedback loop
-        if (tempGrid.red === 'yellow' && tempGrid.yellow === 'green' && tempGrid.green !== null) {
+        // Check for any circular power routing (feedback loops)
+        const hasCircularLoop = detectCircularLoop(tempGrid);
+        if (hasCircularLoop.found) {
           return {
             success: false,
-            error: 'CATASTROPHIC FAILURE: Power feedback loop detected! Red → Yellow → Green configuration creates massive power surge!',
+            error: `CATASTROPHIC FAILURE: Circular power feedback loop detected! ${hasCircularLoop.description} creates massive power surge!`,
             data: {
               action: 'feedback_loop_failure',
               from: from_node,
               to: to_node,
               systemStatus: 'BURNED_OUT',
-              technicalDetails: 'TrinaryFlow Power Distribution System has experienced cascade failure. All junction matrices have been destroyed by electrical feedback.'
+              loopPath: hasCircularLoop.path,
+              technicalDetails: `TrinaryFlow Power Distribution System has experienced cascade failure. Circular routing path: ${hasCircularLoop.path.join(' → ')} → ${hasCircularLoop.path[0]} created electrical feedback that destroyed all junction matrices.`
             }
           };
         }
