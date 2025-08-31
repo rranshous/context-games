@@ -479,7 +479,7 @@ export const tools = {
       if (state.systems.atmosphere === 'depressurized') {
         return {
           success: false,
-          error: 'Cannot open door - no atmosphere detected on the other side. Restore atmospheric systems first.'
+          error: 'Cannot open door - atmospheric levels are outside configured thresholds. Restore atmospheric systems first.'
         };
       }
       
@@ -698,7 +698,7 @@ export const tools = {
 
   atmospheric_sensors: {
     name: "atmospheric_sensors",
-    description: "Read current atmospheric sensor data including temperature, humidity, and pressure",
+    description: "Read current atmospheric sensor data including temperature, humidity, and pressure.",
     input_schema: {
       type: "object",
       properties: {},
@@ -721,18 +721,45 @@ export const tools = {
       
       const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = state.atmosphericSettings;
       
-      return {
-        success: true,
-        data: {
-          current: {
-            temperature: `${temperature}°C`,
-            humidity: `${humidity}%`,
-            pressure: `${pressure} atm`
-          },
-          status: state.systems.atmosphere,
-          message: 'Atmospheric sensor readings active. Current environmental conditions displayed.'
-        }
-      };
+      // Only show configured settings if atmosphere has been power cycled (pressurized)
+      if (state.systems.atmosphere === 'pressurized') {
+        return {
+          success: true,
+          data: {
+            current: {
+              temperature: `${temperature}°C`,
+              humidity: `${humidity}%`,
+              pressure: `${pressure} atm`
+            },
+            configured: {
+              temperature: `${targetTemperature}°C`,
+              humidity: `${targetHumidity}%`,
+              pressure: `${targetPressure} atm`
+            },
+            status: state.systems.atmosphere,
+            message: 'Atmospheric sensor readings active.'
+          }
+        };
+      } else {
+        // Before power cycle, only show current readings (no configured settings)
+        return {
+          success: true,
+          data: {
+            current: {
+              temperature: `${temperature}°C`,
+              humidity: `${humidity}%`,
+              pressure: `${pressure} atm`
+            },
+            configured: {
+              temperature: 'Not Set',
+              humidity: 'Not Set',
+              pressure: 'Not Set'
+            },
+            status: state.systems.atmosphere,
+            message: 'Atmospheric sensor readings active.'
+          }
+        };
+      }
     }
   }
 };

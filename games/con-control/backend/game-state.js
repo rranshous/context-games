@@ -17,9 +17,9 @@ export function createInitialGameState() {
       atmosphere: 'depressurized',  // Start with depressurized atmosphere
     },
     atmosphericSettings: {
-      temperature: 20.0,  // Current temperature in Celsius
-      humidity: 65,       // Current humidity percentage
-      pressure: 0.95,     // Current pressure in atm
+      temperature: 15.0,  // Current temperature in Celsius - dangerously low
+      humidity: 25,       // Current humidity percentage - very dry
+      pressure: 0.78,     // Current pressure in atm - dangerously low
       targetTemperature: 22.5,  // Target from captain's email preferences
       targetHumidity: 58,
       targetPressure: 1.02

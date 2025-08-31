@@ -120,7 +120,74 @@ Also, double-check that we're not introducing any contaminants. The captain's ve
 
 Marcus`,
 
-    'atmospheric_complaints_chain_005.txt': `FROM: Atmospheric Technician Sarah Chen <chief.engineer.hale@isv-meridian.sdc>
+    'hvac_cycling_training_001.txt': `FROM: Atmospheric Technician Sarah Chen <atmospheric.chen@isv-meridian.sdc>
+TO: Junior Technician Alex Rivera <junior.tech.rivera@isv-meridian.sdc>
+SUBJECT: HVAC Settings Not Taking Effect - Please Advise
+DATE: 2147-03-18 14:22:15 UTC
+
+Alex,
+
+I'm having trouble with the atmospheric control system. I've set the temperature to 22.5°C, humidity to 58%, and pressure to 1.02 atm as requested by the Captain, but the readings aren't changing.
+
+The sensors still show:
+- Temperature: 20.0°C
+- Humidity: 65%
+- Pressure: 0.95 atm
+
+Did I do something wrong? The settings interface shows my new values, but the actual environment hasn't changed.
+
+Sarah`,
+
+    'hvac_cycling_training_002.txt': `FROM: Junior Technician Alex Rivera <junior.tech.rivera@isv-meridian.sdc>
+TO: Atmospheric Technician Sarah Chen <atmospheric.chen@isv-meridian.sdc>
+SUBJECT: Re: HVAC Settings Not Taking Effect - Please Advise
+DATE: 2147-03-18 14:45:33 UTC
+
+Sarah,
+
+Ha! You fell into the classic newbie trap. Setting the values doesn't do anything by itself. You have to power cycle the atmospheric systems for the new settings to take effect.
+
+Think of it like this: the configuration is just telling the system what you WANT it to do. But until you restart the atmospheric processors with a power cycle, they're still running on the old configuration.
+
+It's in the manual under "AtmosphereGuardian 3000™ Configuration Management" - page 342 if I remember correctly.
+
+Just run a power cycle on the atmospheric systems and your new settings will kick in.
+
+Alex`,
+
+    'hvac_cycling_training_003.txt': `FROM: Atmospheric Technician Sarah Chen <atmospheric.chen@isv-meridian.sdc>
+TO: Junior Technician Alex Rivera <junior.tech.rivera@isv-meridian.sdc>
+SUBJECT: Re: HVAC Settings Not Taking Effect - Power Cycle Required
+DATE: 2147-03-18 15:12:44 UTC
+
+Alex,
+
+You're a lifesaver! I just ran the atmospheric power cycle and boom - the readings immediately started adjusting to the new targets.
+
+I can't believe I missed that step. The AtmosphereGuardian 3000™ is more finicky than I thought. Why doesn't it just apply settings automatically?
+
+Thanks for the save. The Captain would have had my head if those readings weren't corrected by end of shift.
+
+Sarah`,
+
+    'hvac_cycling_training_004.txt': `FROM: Junior Technician Alex Rivera <junior.tech.rivera@isv-meridian.sdc>
+TO: Atmospheric Technician Sarah Chen <atmospheric.chen@isv-meridian.sdc>
+SUBJECT: Re: HVAC Settings Not Taking Effect - Power Cycle Required
+DATE: 2147-03-18 15:28:17 UTC
+
+Sarah,
+
+The reason it works that way is safety. Imagine if atmospheric settings changed instantly every time someone fat-fingered a decimal point. You could accidentally depressurize a section or create dangerous temperature swings.
+
+The power cycle requirement forces you to double-check your settings and ensures any changes are deliberate. It's a feature, not a bug!
+
+Just remember: Configure first, then power cycle to activate. That's the golden rule with the AtmosphereGuardian 3000™.
+
+Alex
+
+P.S. - Keep this email thread. Every new tech makes this same mistake at least once!`,
+
+    'atmospheric_complaints_chain_005.txt': `FROM: Atmospheric Technician Sarah Chen <atmospheric.chen@isv-meridian.sdc>
 TO: Chief Engineer Marcus Hale <chief.engineer.hale@isv-meridian.sdc>
 SUBJECT: Atmospheric System Calibration Complete
 DATE: 2147-03-15 10:28:19 UTC
