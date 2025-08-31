@@ -194,6 +194,12 @@ class Terminal {
       }
     });
 
+    // Restart game button
+    const restartButton = document.getElementById('restart-button') as HTMLButtonElement;
+    restartButton.addEventListener('click', () => {
+      this.restartGame();
+    });
+
     // Add keyboard shortcut for spacebar to activate mic
     document.addEventListener('keydown', (event) => {
       if (event.code === 'Space' && !this.isListening && !this.isAiResponding && this.recognition) {
@@ -473,6 +479,32 @@ class Terminal {
     };
     
     type();
+  }
+
+  private async restartGame() {
+    try {
+      // Get current session ID to clear it on the backend
+      const sessionId = localStorage.getItem('ship-ai-session');
+      
+      // Clear session from backend if it exists
+      if (sessionId) {
+        await fetch(`/api/restart?sessionId=${encodeURIComponent(sessionId)}`, {
+          method: 'POST'
+        });
+      }
+      
+      // Clear local session storage
+      localStorage.removeItem('ship-ai-session');
+      
+      // Refresh the page for complete reset
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error restarting game:', error);
+      // Fallback: just clear local storage and refresh
+      localStorage.removeItem('ship-ai-session');
+      window.location.reload();
+    }
   }
 }
 

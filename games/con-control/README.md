@@ -32,6 +32,7 @@ Players wake up locked in the ISV Meridian's brig. The ship's AI has been reset 
 - **Passenger Location System**: AI can scan for and locate crew/passengers aboard the ship
 - **Atmospheric Control**: HVAC system management for life support restoration
 - **Catastrophic Failure System**: Dangerous power configurations trigger permanent system destruction
+- **Instant Game Restart**: One-click restart button for fresh playthroughs without server restart
 
 ## 🔧 **Technical Implementation**
 
@@ -102,6 +103,10 @@ After power is restored, the second challenge involves restoring ship atmosphere
    - Watch Claude solve the power routing puzzle through careful experimentation
    - Help Claude restore atmosphere systems to pressurize the ship
    - Successfully open the brig door to escape!
+
+4. **Restart**: 
+   - Click "Restart Game" button in the top-right corner to start fresh
+   - No need to restart the server - instant reset to beginning!
 
 ## 📚 **Documentation**
 

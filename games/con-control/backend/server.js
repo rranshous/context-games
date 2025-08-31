@@ -95,6 +95,20 @@ async function processWithClaude(message, state, res, req) {
   }
 }
 
+// Restart endpoint to clear session state
+app.post('/api/restart', (req, res) => {
+  const { sessionId } = req.query;
+  
+  if (sessionId && sessions.has(sessionId)) {
+    sessions.delete(sessionId);
+    console.log(`🔄 Cleared session state for: ${sessionId}`);
+    res.json({ success: true, message: 'Session cleared' });
+  } else {
+    console.log(`⚠️ Session not found for restart: ${sessionId}`);
+    res.json({ success: true, message: 'Session not found (already cleared)' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Con-Control server running on http://localhost:${PORT}`);
   console.log(`🎮 Game available at http://localhost:${PORT}`);
