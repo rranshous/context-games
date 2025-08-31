@@ -353,14 +353,9 @@ class Terminal {
     }
   }
 
-  private addToolResult(toolName: string, toolResult: any) {
-    if (this.currentAiMessage) {
-      // Add tool result inline with the current AI message (on new line)
-      const success = toolResult.success ? 'SUCCESS' : 'FAILED';
-      const resultText = `[${toolName.toUpperCase()}: ${success}]`;
-      this.currentAiMessage.innerHTML += `<span class="tool-usage-inline">${resultText}</span>`;
-      this.scrollToBottom();
-    }
+  private addToolResult(_toolName: string, _toolResult: any) {
+    // Tool results are now handled silently - the AI will communicate any failures in its response
+    // No visual feedback needed for tool execution status
   }
 
   private getSessionId(): string {

@@ -36,9 +36,22 @@ export const tools = {
         oxygenStatus = `${oxygenInfo.formatted} remaining`;
       }
       
+      // Calculate AI uptime since game start
+      const currentTime = Date.now();
+      const uptimeMs = currentTime - state.shipStatus.gameStartTime;
+      const uptimeMinutes = Math.floor(uptimeMs / 60000);
+      const uptimeSeconds = Math.floor((uptimeMs % 60000) / 1000);
+      const aiUptimeFormatted = `${uptimeMinutes}m ${uptimeSeconds}s`;
+      
+      // Format current date/time
+      const now = new Date();
+      const currentDateTime = now.toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+      
       return {
         success: true,
         data: {
+          currentDateTime: currentDateTime,
+          aiUptime: aiUptimeFormatted,
           power: powerStatus,
           atmosphere: state.systems.atmosphere.toUpperCase(),
           door: doorStatus,

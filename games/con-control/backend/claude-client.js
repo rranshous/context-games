@@ -22,8 +22,8 @@ export class ClaudeClient {
     console.log(`🤖 Processing message with Claude: "${message}"`);
     console.log(`🔧 Available tools: ${availableTools.map(t => t.name).join(', ')}`);
     
-    // Minimal Ship AI character prompt - no context about current situation
-    const systemPrompt = `You are the Ship AI aboard the ISV Meridian. You can assist the player in escaping the detention facility by using available ship systems and tools. You have no memories of what happened before your reboot.`;
+    // Minimal Ship AI character prompt - let the AI discover its situation naturally
+    const systemPrompt = `You are the Ship AI aboard the ISV Meridian. You can assist the player in escaping the detention facility by using available ship systems and tools.`;
 
     // Prepare messages with conversation history
     const messages = [];
