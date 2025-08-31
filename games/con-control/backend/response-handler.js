@@ -1,0 +1,160 @@
+import { executeTool, getAvailableToolDefinitions } from './tool-manager.js';
+import { updateGameState } from './game-state.js';
+
+/**
+ * Response handler for Claude conversations
+ * Manages the conversation flow, tool execution, and streaming responses
+ */
+export class ResponseHandler {
+  constructor(claudeClient, shipFileSystem) {
+    this.claudeClient = claudeClient;
+    this.shipFileSystem = shipFileSystem;
+  }
+
+  /**
+   * Handle a complete Claude conversation with tool execution
+   * @param {Object} response - Initial Claude response
+   * @param {Object} state - Current game state
+   * @param {Object} res - Express response object for streaming
+   * @param {Object} req - Express request object
+   * @param {string} originalMessage - The original user message
+   */
+  async handleConversation(response, state, res, req, originalMessage) {
+    let updatedState = { ...state };
+    let conversationMessages = [...updatedState.conversationHistory];
+    conversationMessages.push({ role: "user", content: originalMessage });
+    
+    let currentResponse = response;
+    let finalResponseText = '';
+    let turnCount = 0;
+    const MAX_TURNS = 10;
+    
+    while (turnCount < MAX_TURNS) {
+      turnCount++;
+      console.log(`🔄 Processing turn ${turnCount}...`);
+      
+      let hasToolCalls = false;
+      let toolResults = [];
+      let responseText = '';
+      
+      // Process current response content
+      let bufferedToolCalls = []; // Buffer tool calls to send after text
+      
+      for (const content of currentResponse.content) {
+        if (content.type === 'text') {
+          responseText += content.text;
+        } else if (content.type === 'tool_use') {
+          hasToolCalls = true;
+          console.log(`🔧 Claude is calling tool: ${content.name}`);
+          
+          const toolName = content.name;
+          const toolInput = content.input || {};
+          
+          // Buffer tool call info instead of sending immediately
+          bufferedToolCalls.push({
+            name: toolName,
+            input: toolInput,
+            contentId: content.id
+          });
+        }
+      }
+      
+      // Stream any text response to the user FIRST
+      if (responseText.trim()) {
+        this.streamText(res, responseText);
+        finalResponseText += responseText;
+      }
+      
+      // NOW process buffered tool calls AFTER text has been sent
+      for (const bufferedTool of bufferedToolCalls) {
+        const { name: toolName, input: toolInput, contentId } = bufferedTool;
+        
+        // Send tool call info to frontend
+        res.write(`data: ${JSON.stringify({ 
+          type: 'tool_call', 
+          name: toolName, 
+          input: toolInput 
+        })}\n\n`);
+        
+        // Execute the tool
+        const toolResult = executeTool(toolName, updatedState, toolInput, this.shipFileSystem);
+        console.log(`⚙️ Tool ${toolName} result:`, toolResult);
+        
+        // Send tool result to frontend
+        res.write(`data: ${JSON.stringify({ 
+          type: 'tool_result', 
+          name: toolName, 
+          result: toolResult 
+        })}\n\n`);
+        
+        // Update game state based on tool result
+        updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
+        
+        // Collect tool result for Claude
+        toolResults.push({
+          tool_use_id: contentId,
+          type: "tool_result",
+          content: JSON.stringify(toolResult)
+        });
+      }
+      
+      // Add a newline after tool calls to separate from next response
+      if (bufferedToolCalls.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: 'text', content: '\n' })}\n\n`);
+      }
+      
+      // Add assistant's response to conversation
+      conversationMessages.push({ role: "assistant", content: currentResponse.content });
+      
+      // If there were tool calls, continue the conversation
+      if (hasToolCalls && toolResults.length > 0) {
+        console.log(`🔧 Calling Claude again with ${toolResults.length} tool results...`);
+        
+        // Add tool results as user message
+        conversationMessages.push({ role: "user", content: toolResults });
+        
+        try {
+          const availableTools = getAvailableToolDefinitions(updatedState);
+          currentResponse = await this.claudeClient.followUpCall(conversationMessages, availableTools, turnCount);
+          
+        } catch (error) {
+          console.error('❌ Error in Claude follow-up call:', error);
+          res.write(`data: ${JSON.stringify({ type: 'text', content: 'Error processing ship systems response.' })}\n\n`);
+          break;
+        }
+      } else {
+        // No more tool calls, conversation is complete
+        console.log(`✅ Conversation complete after ${turnCount} turns`);
+        break;
+      }
+    }
+    
+    if (turnCount >= MAX_TURNS) {
+      console.log(`⚠️ Reached maximum turns (${MAX_TURNS}), ending conversation`);
+      res.write(`data: ${JSON.stringify({ type: 'text', content: '[Runaway AI protocol engaged. Pausing AI]' })}\n\n`);
+    }
+    
+    // Update conversation history with the final complete exchange
+    updatedState.conversationHistory.push(
+      { role: "user", content: originalMessage },
+      { role: "assistant", content: finalResponseText || "I've completed the requested actions." }
+    );
+    
+    return updatedState;
+  }
+
+  /**
+   * Stream text response to the client in chunks
+   * @param {Object} res - Express response object
+   * @param {string} text - Text to stream
+   */
+  streamText(res, text) {
+    const words = text.split(' ');
+    for (let i = 0; i < words.length; i += 3) {
+      const chunk = words.slice(i, i + 3).join(' ');
+      // Always add a space after each chunk except the very last one
+      const finalChunk = (i + 3 < words.length) ? chunk + ' ' : chunk;
+      res.write(`data: ${JSON.stringify({ type: 'text', content: finalChunk })}\n\n`);
+    }
+  }
+}
