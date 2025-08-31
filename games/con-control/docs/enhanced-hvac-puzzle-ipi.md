@@ -73,48 +73,47 @@ Solution: Correct atmospheric configuration based on email evidence → Success
 
 ## **Implementation Milestones**
 
-### **Milestone 1: Basic Email Discovery System**
-**Goal**: Replace simple HVAC power_cycle with email-based atmospheric configuration
-- Add `email_access` tool (unlocked when power comes online)
-- Create 3-4 clean email chain about captain's atmospheric complaints
-- Add `atmospheric_control` tool with multiple parameters (temp, humidity, pressure)
-- Update game state to track atmospheric configuration
-- Simple success/failure based on matching email-derived settings
+### **Milestone 1: Add Email Chain Documentation**
+**Goal**: Just add the captain atmospheric complaints email chain to ship files
+- Create `/crew_communications/emails/` directory in ship file system
+- Write 3-4 email chain between captain, chief engineer, and atmospheric tech
+- Include back-and-forth about temperature, humidity, pressure adjustments  
+- Make emails discoverable via existing `file_storage` tool
+- **No game mechanics changes** - purely additive content
 
-### **Milestone 2: Multi-Parameter Atmospheric Tuning**  
-**Goal**: Require Claude to parse multiple atmospheric parameters from email evidence
-- Expand email chain to include temperature, humidity, pressure, and air composition tweaks
-- Add realistic back-and-forth between engineering staff about incremental adjustments
-- Require 3-4 parameter changes in correct sequence to achieve success
-- Add intermediate feedback (partial success states)
+### **Milestone 2: Rename hvac_control to atmospheric_control**
+**Goal**: Simple tool rename for better consistency
+- Rename `hvac_control` tool to `atmospheric_control`
+- Update tool description to match new name
+- **No functionality changes** - pure rename
+- Existing `power_cycle` action still works exactly the same
 
-### **Milestone 3: Atmospheric Failure States**
-**Goal**: Wrong configurations have consequences but don't end game
-- Add atmospheric sensor warnings for dangerous configurations  
-- Implement "atmospheric lockout" that requires waiting/reset before retry
-- Add oxygen consumption penalties for wrong settings
-- Create multiple failure modes (too humid, too cold, pressure imbalance)
+### **Milestone 3: Add Fine-Tuning Actions to atmospheric_control** 
+**Goal**: Expand tool capabilities while keeping existing puzzle working
+- Add new actions: `set_temperature`, `set_humidity`, `set_pressure`
+- Add parameters for specific values (e.g., temperature: 22.5, humidity: 58%)
+- **Keep `power_cycle` action** - still solves puzzle as before
+- New actions available but not required yet
 
-### **Milestone 4: Cascading Power Failure**
-**Goal**: Extreme atmospheric errors can disconnect power system
-- Implement electrical short conditions (high humidity + specific temp ranges)
-- Add hull stress conditions (extreme pressure differentials)
-- Wrong atmospheric configs trigger power grid disconnection
-- Player must re-solve power puzzle AND atmospheric puzzle
+### **Milestone 4: Change Puzzle Mechanics to Require Email-Based Settings**
+**Goal**: Make email research necessary instead of simple power_cycle
+- Remove `power_cycle` as automatic solution
+- Require specific temperature/humidity/pressure values from email chain
+- Add atmospheric sensors that show current vs target values
+- Puzzle now requires reading emails to find the captain's final preferences
 
-### **Milestone 5: Signal/Noise Email Pollution** 
-**Goal**: Make email discovery more challenging
-- Add 15-20 routine ship emails (maintenance schedules, crew updates, supply requests)
-- Mix atmospheric emails throughout chronologically  
-- Add red herring emails about other ship systems
-- Require more careful reading and filtering
+### **Milestone 5: Add Atmospheric Failure States**
+**Goal**: Wrong settings have consequences
+- Add warnings for dangerous configurations
+- Implement temporary lockouts for extreme settings
+- Add oxygen consumption penalties
+- Multiple failure modes but still recoverable
 
-### **Milestone 6: Fragmented Email Chain**
-**Goal**: Break up critical atmospheric info across different locations/times
-- Split captain complaint email chain across multiple dates
-- Put some emails in different folders (/ship_docs/crew_communications/, /archives/)
-- Require cross-referencing multiple sources to get complete picture
-- Add missing emails (gaps in chain) that Claude must infer around
+### **Milestone 6: Add Cascading Power Failure**
+**Goal**: Extreme errors affect power system
+- Specific dangerous combinations disconnect power grid
+- Player must re-solve both power AND atmospheric puzzles
+- Creates high-stakes experimentation
 
 ---
 
