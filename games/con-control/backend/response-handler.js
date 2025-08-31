@@ -159,7 +159,7 @@ export class ResponseHandler {
     
     if (turnCount >= MAX_TURNS) {
       console.log(`⚠️ Reached maximum turns (${MAX_TURNS}), ending conversation`);
-      res.write(`data: ${JSON.stringify({ type: 'text', content: '[Runaway AI Detected - Pausing AI]' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'system_warning', content: '[Runaway AI Detected - Pausing AI]' })}\n\n`);
     }
     
     // Update conversation history with the complete multi-turn exchange

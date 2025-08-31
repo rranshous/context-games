@@ -23,7 +23,7 @@ export class ClaudeClient {
     console.log(`🔧 Available tools: ${availableTools.map(t => t.name).join(', ')}`);
     
     // Minimal Ship AI character prompt - let the AI discover its situation naturally
-    const systemPrompt = `You are the Ship AI aboard the ISV Meridian. You can assist the player in escaping the detention facility by using available ship systems and tools.`;
+    const systemPrompt = `You are the Ship AI aboard the ISV Meridian.`;
 
     // Prepare messages with conversation history
     const messages = [];

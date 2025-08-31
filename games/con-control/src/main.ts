@@ -310,6 +310,11 @@ class Terminal {
             this.addToTypewriterQueue('', () => {
               this.addToolResult(parsed.name, parsed.result);
             });
+          } else if (parsed.type === 'system_warning') {
+            // Add system warning with special styling
+            this.addToTypewriterQueue('', () => {
+              this.addSystemWarning(parsed.content);
+            });
           } else if (parsed.type === 'done') {
             eventSource.close();
             // Re-enable mic when AI is done
@@ -396,6 +401,15 @@ class Terminal {
   private addToolResult(_toolName: string, _toolResult: any) {
     // Tool results are now handled silently - the AI will communicate any failures in its response
     // No visual feedback needed for tool execution status
+  }
+
+  private addSystemWarning(content: string) {
+    if (this.currentAiMessage) {
+      // Add system warning with clean yellow styling (on new line)
+      const warningText = `\n\n${content}`;
+      this.currentAiMessage.innerHTML += `<span style="color: #ffcc00; font-weight: bold;">${warningText}</span>`;
+      this.scrollToBottom();
+    }
   }
 
   private getSessionId(): string {
