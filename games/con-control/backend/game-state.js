@@ -118,7 +118,15 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           
         if (isCorrectRouting) {
           newState.systems.power = 'online';
-          newState.availableTools.push('open_door', 'hvac_control');
+          
+          // Add new tools only if they're not already available
+          const newTools = ['open_door', 'hvac_control'];
+          for (const tool of newTools) {
+            if (!newState.availableTools.includes(tool)) {
+              newState.availableTools.push(tool);
+            }
+          }
+          
           newState.objectives.current = 'Restore atmosphere systems to open brig door';
           console.log('🔋 Power routing correct! Emergency → Secondary → Primary flow established');
         } else {
