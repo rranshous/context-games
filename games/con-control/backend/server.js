@@ -26,8 +26,41 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
+// Add request logging middleware
+app.use((req, res, next) => {
+  const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  const timestamp = new Date().toISOString();
+  const method = req.method;
+  const url = req.url;
+  
+  // Log all requests, but highlight HTML page requests
+  if (url === '/' || url === '/index.html') {
+    console.log(`🌐 [${timestamp}] ${method} ${url} - HTML PAGE REQUEST`);
+    console.log(`   📍 Client IP: ${clientIP}`);
+    console.log(`   🔍 User Agent: ${userAgent}`);
+    console.log(`   📄 Serving fresh page (no-cache headers set)`);
+  } else {
+    console.log(`📁 [${timestamp}] ${method} ${url} - Static asset`);
+    console.log(`   📍 Client IP: ${clientIP}`);
+  }
+  
+  // Set no-cache headers for HTML pages
+  if (url === '/' || url === '/index.html') {
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+  }
+  
+  next();
+});
+
 // Serve static files from the dist directory
 app.use(express.static(path.join(__dirname, '../dist')));
+
+// Remove the custom route handlers since middleware handles logging now
 
 // Session storage (in production, use Redis or database)
 const sessions = new Map();
