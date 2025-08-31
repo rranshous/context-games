@@ -449,7 +449,7 @@ export const tools = {
       if (state.systems.atmosphere === 'depressurized') {
         return {
           success: false,
-          error: 'Cannot open door - no atmosphere detected on the other side. Restore HVAC systems first.'
+          error: 'Cannot open door - no atmosphere detected on the other side. Restore atmospheric systems first.'
         };
       }
       
@@ -473,22 +473,26 @@ export const tools = {
     }
   },
 
-  hvac_control: {
-    name: "hvac_control",
-    description: "Control ship's HVAC (atmosphere) systems",
+  atmospheric_control: {
+    name: "atmospheric_control",
+    description: "Control ship's atmospheric systems",
     input_schema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          description: "HVAC action to perform",
-          enum: ["power_cycle", "adjust_temperature", "adjust_humidity", "vent_system", "emergency_purge"]
+          description: "Atmospheric action to perform",
+          enum: ["power_cycle", "set_temperature", "set_humidity", "set_pressure", "adjust_temperature", "adjust_humidity", "vent_system", "emergency_purge"]
+        },
+        value: {
+          type: "number",
+          description: "Value for setting atmospheric parameters (temperature in °C, humidity in %, pressure in atm)"
         }
       },
       required: ["action"]
     },
     execute: (state, params) => {
-      const { action } = params;
+      const { action, value } = params;
       
       // Check if power system is burned out
       if (state.powerSystemBurnedOut) {
@@ -501,41 +505,223 @@ export const tools = {
       if (state.systems.power === 'offline') {
         return {
           success: false,
-          error: 'Cannot access HVAC systems without main power'
+          error: 'Cannot access atmospheric systems without main power'
         };
       }
       
       const oxygenInfo = calculateOxygenRemaining(state);
       
       if (action === 'power_cycle') {
+        // Check if atmospheric settings match captain's preferences
+        const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = state.atmosphericSettings;
+        
+        const isCorrectTemp = Math.abs(temperature - targetTemperature) < 0.1;
+        const isCorrectHumidity = Math.abs(humidity - targetHumidity) < 1;
+        const isCorrectPressure = Math.abs(pressure - targetPressure) < 0.01;
+        
+        if (!isCorrectTemp || !isCorrectHumidity || !isCorrectPressure) {
+          return {
+            success: false,
+            error: 'Atmospheric settings do not match required parameters. Use set_temperature, set_humidity, and set_pressure to adjust settings based on captain\'s email preferences before attempting power cycle.'
+          };
+        }
+        
         if (state.systems.atmosphere === 'pressurized') {
           return {
             success: false,
-            error: 'HVAC systems are already online and pressurized'
+            error: 'Atmospheric systems are already online and pressurized'
           };
         }
         
         if (oxygenInfo.isExpired) {
           return {
             success: false,
-            error: 'HVAC power cycle failed - insufficient oxygen remaining for system startup'
+            error: 'Atmospheric power cycle failed - insufficient oxygen remaining for system startup'
           };
         }
         
         return {
           success: true,
           data: {
-            message: `HVAC power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds remaining.`,
+            message: `Atmospheric power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds remaining.`,
             action: 'power_cycle',
             status: 'Atmosphere pressurization in progress'
+          }
+        };
+      } else if (action === 'set_temperature') {
+        if (typeof value !== 'number' || value < 15 || value > 30) {
+          return {
+            success: false,
+            error: 'Invalid temperature value. Must be between 15°C and 30°C.'
+          };
+        }
+        
+        // Check for dangerous temperature settings
+        if (value < 18 || value > 26) {
+          return {
+            success: false,
+            error: `WARNING: Temperature ${value}°C is outside safe operating range (18-26°C). This could cause system instability or crew discomfort. Please adjust to captain's preferred 22.5°C.`
+          };
+        }
+        
+        // Update temperature setting
+        const oldTemp = state.atmosphericSettings.temperature;
+        state.atmosphericSettings.temperature = value;
+        
+        return {
+          success: true,
+          data: {
+            message: `Temperature set to ${value}°C (was ${oldTemp}°C)`,
+            action: 'set_temperature',
+            currentSettings: {
+              temperature: state.atmosphericSettings.temperature,
+              humidity: state.atmosphericSettings.humidity,
+              pressure: state.atmosphericSettings.pressure
+            }
+          }
+        };
+      } else if (action === 'set_humidity') {
+        if (typeof value !== 'number' || value < 30 || value > 80) {
+          return {
+            success: false,
+            error: 'Invalid humidity value. Must be between 30% and 80%.'
+          };
+        }
+        
+        // Check for dangerous humidity settings
+        if (value < 40 || value > 70) {
+          return {
+            success: false,
+            error: `WARNING: Humidity ${value}% is outside safe operating range (40-70%). This could cause condensation issues or crew discomfort. Please adjust to captain's preferred 58%.`
+          };
+        }
+        
+        // Check for cascading power failure conditions
+        const tempExtreme = state.atmosphericSettings.temperature < 19 || state.atmosphericSettings.temperature > 25;
+        const humidityExtreme = value < 45 || value > 65;
+        const pressureExtreme = state.atmosphericSettings.pressure < 0.97 || state.atmosphericSettings.pressure > 1.03;
+        
+        if (humidityExtreme && (tempExtreme || pressureExtreme)) {
+          // Trigger cascading power failure
+          state.powerSystemBurnedOut = true;
+          state.systems.power = 'destroyed';
+          return {
+            success: false,
+            error: 'CRITICAL FAILURE: Extreme atmospheric settings have caused power system overload! Power grid has been permanently disconnected. You must restore power routing before continuing with atmospheric adjustments.'
+          };
+        }
+        
+        const oldHumidity = state.atmosphericSettings.humidity;
+        state.atmosphericSettings.humidity = value;
+        
+        return {
+          success: true,
+          data: {
+            message: `Humidity set to ${value}% (was ${oldHumidity}%)`,
+            action: 'set_humidity',
+            currentSettings: {
+              temperature: state.atmosphericSettings.temperature,
+              humidity: state.atmosphericSettings.humidity,
+              pressure: state.atmosphericSettings.pressure
+            }
+          }
+        };
+      } else if (action === 'set_pressure') {
+        if (typeof value !== 'number' || value < 0.8 || value > 1.2) {
+          return {
+            success: false,
+            error: 'Invalid pressure value. Must be between 0.8 atm and 1.2 atm.'
+          };
+        }
+        
+        // Check for dangerous pressure settings
+        if (value < 0.95 || value > 1.05) {
+          return {
+            success: false,
+            error: `WARNING: Pressure ${value} atm is outside safe operating range (0.95-1.05 atm). This could cause structural stress or crew health issues. Please adjust to captain's preferred 1.02 atm.`
+          };
+        }
+        
+        // Check for cascading power failure conditions
+        const tempExtreme = state.atmosphericSettings.temperature < 19 || state.atmosphericSettings.temperature > 25;
+        const humidityExtreme = state.atmosphericSettings.humidity < 45 || state.atmosphericSettings.humidity > 65;
+        const pressureExtreme = value < 0.97 || value > 1.03;
+        
+        if (pressureExtreme && (tempExtreme || humidityExtreme)) {
+          // Trigger cascading power failure
+          state.powerSystemBurnedOut = true;
+          state.systems.power = 'destroyed';
+          return {
+            success: false,
+            error: 'CRITICAL FAILURE: Extreme atmospheric settings have caused power system overload! Power grid has been permanently disconnected. You must restore power routing before continuing with atmospheric adjustments.'
+          };
+        }
+        
+        const oldPressure = state.atmosphericSettings.pressure;
+        state.atmosphericSettings.pressure = value;
+        
+        return {
+          success: true,
+          data: {
+            message: `Pressure set to ${value} atm (was ${oldPressure} atm)`,
+            action: 'set_pressure',
+            currentSettings: {
+              temperature: state.atmosphericSettings.temperature,
+              humidity: state.atmosphericSettings.humidity,
+              pressure: state.atmosphericSettings.pressure
+            }
           }
         };
       } else {
         return {
           success: false,
-          error: `HVAC action '${action}' complete.`
+          error: `Atmospheric action '${action}' not implemented yet.`
         };
       }
+    }
+  },
+
+  atmospheric_sensors: {
+    name: "atmospheric_sensors",
+    description: "Read current atmospheric sensor data including temperature, humidity, and pressure",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    },
+    execute: (state) => {
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
+      if (state.systems.power === 'offline') {
+        return {
+          success: false,
+          error: 'Cannot access atmospheric sensors without main power'
+        };
+      }
+      
+      const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = state.atmosphericSettings;
+      
+      return {
+        success: true,
+        data: {
+          current: {
+            temperature: `${temperature}°C`,
+            humidity: `${humidity}%`,
+            pressure: `${pressure} atm`
+          },
+          targets: {
+            temperature: targetTemperature ? `${targetTemperature}°C` : 'Unknown',
+            humidity: targetHumidity ? `${targetHumidity}%` : 'Unknown', 
+            pressure: targetPressure ? `${targetPressure} atm` : 'Unknown'
+          },
+          status: state.systems.atmosphere
+        }
+      };
     }
   }
 };

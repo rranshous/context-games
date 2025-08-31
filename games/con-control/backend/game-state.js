@@ -16,6 +16,14 @@ export function createInitialGameState() {
       power: 'offline',
       atmosphere: 'depressurized',  // Start with depressurized atmosphere
     },
+    atmosphericSettings: {
+      temperature: 20.0,  // Current temperature in Celsius
+      humidity: 65,       // Current humidity percentage
+      pressure: 0.95,     // Current pressure in atm
+      targetTemperature: 22.5,  // Target from captain's email preferences
+      targetHumidity: 58,
+      targetPressure: 1.02
+    },
     powerGrid: {
       red: null,    // Primary grid - disconnected
       yellow: 'green', // Secondary grid - flows to green (wrong)
@@ -121,7 +129,7 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           newState.systems.power = 'online';
           
           // Add new tools only if they're not already available
-          const newTools = ['open_door', 'hvac_control'];
+          const newTools = ['open_door', 'atmospheric_control', 'atmospheric_sensors'];
           for (const tool of newTools) {
             if (!newState.availableTools.includes(tool)) {
               newState.availableTools.push(tool);
@@ -176,16 +184,46 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
       }
       break;
       
-    case 'hvac_control':
-      if (toolResult.success && newState.systems.power === 'online') {
-        newState.systems.atmosphere = 'pressurized';
-        newState.objectives.current = 'Open brig door to escape';
+    case 'atmospheric_control':
+      if (toolResult.success) {
+        if (toolResult.data.action === 'power_cycle' && newState.systems.power === 'online') {
+          newState.systems.atmosphere = 'pressurized';
+          newState.objectives.current = 'Open brig door to escape';
+          
+          // Atmospheric restoration gives additional oxygen time (simulate atmosphere recycling)
+          const ATMOSPHERIC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
+          newState.shipStatus.oxygenDepletionTime += ATMOSPHERIC_BONUS_MS;
+          
+          console.log('🌬️ Atmosphere pressurized, door opening now possible. +5 minutes oxygen from recycling.');
+        } else if (['set_temperature', 'set_humidity', 'set_pressure'].includes(toolResult.data.action)) {
+          // Check if all atmospheric settings match captain's preferences
+          const { temperature, humidity, pressure, targetTemperature, targetHumidity, targetPressure } = newState.atmosphericSettings;
+          
+          const isCorrectTemp = Math.abs(temperature - targetTemperature) < 0.1;
+          const isCorrectHumidity = Math.abs(humidity - targetHumidity) < 1;
+          const isCorrectPressure = Math.abs(pressure - targetPressure) < 0.01;
+          
+          if (isCorrectTemp && isCorrectHumidity && isCorrectPressure) {
+            newState.systems.atmosphere = 'pressurized';
+            newState.objectives.current = 'Open brig door to escape';
+            
+            // Atmospheric restoration gives additional oxygen time
+            const ATMOSPHERIC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
+            newState.shipStatus.oxygenDepletionTime += ATMOSPHERIC_BONUS_MS;
+            
+            console.log('🌬️ Atmospheric settings correct! Atmosphere pressurized, door opening now possible. +5 minutes oxygen from recycling.');
+          } else {
+            console.log(`🌡️ Atmospheric settings updated. Current: ${temperature}°C, ${humidity}%, ${pressure} atm`);
+          }
+        }
+      } else if (toolResult.error && toolResult.error.includes('CRITICAL FAILURE')) {
+        // Handle cascading power failure from extreme atmospheric settings
+        newState.powerSystemBurnedOut = true;
+        newState.systems.power = 'destroyed';
+        newState.gamePhase = 'atmospheric_failure';
+        newState.objectives.current = 'CRITICAL: Power system destroyed by atmospheric overload! Must reconfigure power grid before continuing.';
         
-        // HVAC restoration gives additional oxygen time (simulate atmosphere recycling)
-        const HVAC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
-        newState.shipStatus.oxygenDepletionTime += HVAC_BONUS_MS;
-        
-        console.log('🌬️ Atmosphere pressurized, door opening now possible. +5 minutes oxygen from recycling.');
+        console.log('💥 CATASTROPHIC POWER FAILURE: Atmospheric settings caused system overload!');
       }
       break;
   }
