@@ -1,3 +1,5 @@
+import { calculateOxygenRemaining, isOxygenDepleted } from './game-state.js';
+
 /**
  * Tool execution and management for the con-control game
  * Handles all tool definitions, execution, and state updates
@@ -22,15 +24,28 @@ export const tools = {
         doorStatus = 'LOCKED';
       }
       
+      const oxygenInfo = calculateOxygenRemaining(state);
+      let oxygenStatus;
+      if (oxygenInfo.isExpired) {
+        oxygenStatus = 'DEPLETED - Life support failure';
+      } else if (oxygenInfo.minutes < 5) {
+        oxygenStatus = `CRITICAL - ${oxygenInfo.formatted} remaining`;
+      } else if (oxygenInfo.minutes < 10) {
+        oxygenStatus = `LOW - ${oxygenInfo.formatted} remaining`;
+      } else {
+        oxygenStatus = `${oxygenInfo.formatted} remaining`;
+      }
+      
       return {
         success: true,
         data: {
           power: powerStatus,
           atmosphere: state.systems.atmosphere.toUpperCase(),
           door: doorStatus,
-          lifeSupportRemaining: `${state.shipStatus.lifeSupportRemaining} minutes`,
+          oxygenRemaining: oxygenStatus,
           playerLocation: state.playerLocation,
-          currentObjective: state.objectives.current
+          currentObjective: state.objectives.current,
+          isOxygenDepleted: oxygenInfo.isExpired
         }
       };
     }
@@ -255,6 +270,14 @@ export const tools = {
     execute: (state, params) => {
       const { door_id } = params;
       
+      // Check oxygen first - can't escape if already dead
+      if (isOxygenDepleted(state)) {
+        return {
+          success: false,
+          error: 'Cannot operate doors - life support systems have failed. Oxygen depleted.'
+        };
+      }
+      
       if (state.systems.power === 'offline') {
         return {
           success: false,
@@ -270,10 +293,11 @@ export const tools = {
       }
       
       if (door_id === 'brig_door') {
+        const oxygenInfo = calculateOxygenRemaining(state);
         return {
           success: true,
           data: {
-            message: 'Brig door opened successfully! You have escaped the detention facility.',
+            message: `Brig door opened successfully! You have escaped the detention facility with ${oxygenInfo.formatted} of oxygen remaining.`,
             doorStatus: 'OPEN',
             newLocation: 'corridor',
             outcome: 'MISSION_COMPLETE'
@@ -312,6 +336,8 @@ export const tools = {
         };
       }
       
+      const oxygenInfo = calculateOxygenRemaining(state);
+      
       if (action === 'power_cycle') {
         if (state.systems.atmosphere === 'pressurized') {
           return {
@@ -320,13 +346,21 @@ export const tools = {
           };
         }
         
+        if (oxygenInfo.isExpired) {
+          return {
+            success: false,
+            error: 'HVAC power cycle failed - insufficient oxygen remaining for system startup'
+          };
+        }
+        
         return {
           success: true,
           data: {
-            message: 'HVAC power cycle initiated. Atmosphere systems coming online...',
+            message: `HVAC power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.formatted}`,
             action: 'power_cycle',
             status: 'Atmosphere pressurization in progress',
-            estimatedTime: '30 seconds'
+            estimatedTime: '30 seconds',
+            oxygenBonus: '+5:00 minutes from recycling'
           }
         };
       } else {

@@ -1,5 +1,5 @@
 import { executeTool, getAvailableToolDefinitions } from './tool-manager.js';
-import { updateGameState } from './game-state.js';
+import { updateGameState, isOxygenDepleted, calculateOxygenRemaining } from './game-state.js';
 
 /**
  * Response handler for Claude conversations
@@ -32,6 +32,20 @@ export class ResponseHandler {
     while (turnCount < MAX_TURNS) {
       turnCount++;
       console.log(`🔄 Processing turn ${turnCount}...`);
+      
+      // Check for oxygen depletion at the start of each turn
+      if (isOxygenDepleted(updatedState)) {
+        console.log('💀 Oxygen depleted - Game Over');
+        updatedState.gamePhase = 'failed';
+        updatedState.objectives.current = 'GAME OVER - Oxygen depleted';
+        
+        res.write(`data: ${JSON.stringify({ 
+          type: 'text', 
+          content: '\n🚨 EMERGENCY ALERT: Life support systems have failed. Oxygen levels critical. You have succumbed to hypoxia...\n\n**GAME OVER**\n\nYour escape attempt has failed. The Ship AI systems are shutting down to preserve remaining power for emergency beacon transmission.' 
+        })}\n\n`);
+        
+        return updatedState;
+      }
       
       let hasToolCalls = false;
       let toolResults = [];
@@ -89,6 +103,20 @@ export class ResponseHandler {
         
         // Update game state based on tool result
         updatedState = updateGameState(updatedState, toolName, toolResult, toolInput);
+        
+        // Check for oxygen depletion after tool execution
+        if (isOxygenDepleted(updatedState)) {
+          console.log('💀 Oxygen depleted during tool execution - Game Over');
+          updatedState.gamePhase = 'failed';
+          updatedState.objectives.current = 'GAME OVER - Oxygen depleted';
+          
+          res.write(`data: ${JSON.stringify({ 
+            type: 'text', 
+            content: '\n🚨 CRITICAL: Oxygen levels have dropped to zero during system operations. Emergency life support failure...\n\n**GAME OVER**' 
+          })}\n\n`);
+          
+          return updatedState;
+        }
         
         // Collect tool result for Claude
         toolResults.push({

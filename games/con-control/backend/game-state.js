@@ -8,6 +8,9 @@
  * @returns {Object} Initial game state
  */
 export function createInitialGameState() {
+  const now = Date.now();
+  const OXYGEN_DURATION_MS = 18 * 60 * 1000; // 18 minutes in milliseconds
+  
   return {
     systems: {
       power: 'offline',
@@ -27,13 +30,55 @@ export function createInitialGameState() {
       current: 'Live'
     },
     shipStatus: {
-      lifeSupportRemaining: 18, // minutes
+      gameStartTime: now,
+      oxygenDepletionTime: now + OXYGEN_DURATION_MS, // When oxygen runs out
       emergencyLighting: true,
       aiSystemsOnline: true
     },
     repairHistory: [],
     conversationHistory: []
   };
+}
+
+/**
+ * Calculate remaining oxygen time in minutes and seconds
+ * @param {Object} state - Current game state
+ * @returns {Object} Time remaining info
+ */
+export function calculateOxygenRemaining(state) {
+  const now = Date.now();
+  const timeRemainingMs = state.shipStatus.oxygenDepletionTime - now;
+  
+  if (timeRemainingMs <= 0) {
+    return {
+      totalSeconds: 0,
+      minutes: 0,
+      seconds: 0,
+      isExpired: true,
+      formatted: "00:00"
+    };
+  }
+  
+  const totalSeconds = Math.floor(timeRemainingMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  
+  return {
+    totalSeconds,
+    minutes,
+    seconds,
+    isExpired: false,
+    formatted: `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  };
+}
+
+/**
+ * Check if the game should end due to oxygen depletion
+ * @param {Object} state - Current game state
+ * @returns {boolean} Whether oxygen has run out
+ */
+export function isOxygenDepleted(state) {
+  return Date.now() >= state.shipStatus.oxygenDepletionTime;
 }
 
 /**
@@ -107,7 +152,12 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
       if (toolResult.success && newState.systems.power === 'online') {
         newState.systems.atmosphere = 'pressurized';
         newState.objectives.current = 'Open brig door to escape';
-        console.log('🌬️ Atmosphere pressurized, door opening now possible');
+        
+        // HVAC restoration gives additional oxygen time (simulate atmosphere recycling)
+        const HVAC_BONUS_MS = 5 * 60 * 1000; // 5 extra minutes
+        newState.shipStatus.oxygenDepletionTime += HVAC_BONUS_MS;
+        
+        console.log('🌬️ Atmosphere pressurized, door opening now possible. +5 minutes oxygen from recycling.');
       }
       break;
   }
