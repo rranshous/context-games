@@ -23,7 +23,7 @@ Players wake up locked in the ISV Meridian's brig. The ship's AI has been reset 
 - **Tool-Based Constraints**: Claude can only access ship systems through available tools
 - **Discovery-Driven Puzzles**: Power routing puzzle requiring research + experimentation
 - **Progressive Unlocking**: Complex repairs unlock new capabilities progressively
-- **Multi-Turn Conversations**: Up to 10 turns for complex problem-solving sequences
+- **Multi-Turn Conversations**: Up to 20 turns for complex problem-solving sequences
 - **Authentic Problem-Solving**: Claude must research ship documentation and experiment with solutions
 - **Voice + Text Input**: Web Speech API + text input for natural interaction
 - **Streaming Responses**: Real-time SSE streaming of AI responses with proper spacing
@@ -31,6 +31,7 @@ Players wake up locked in the ISV Meridian's brig. The ship's AI has been reset 
 - **Game State Management**: Server-side progression tracking with power grid simulation
 - **Passenger Location System**: AI can scan for and locate crew/passengers aboard the ship
 - **Atmospheric Control**: HVAC system management for life support restoration
+- **Catastrophic Failure System**: Dangerous power configurations trigger permanent system destruction
 
 ## 🔧 **Technical Implementation**
 
@@ -55,6 +56,13 @@ The first major puzzle involves the ship's **TrinaryFlow Power Distribution Syst
 - 📚 **Research Phase**: Read ship documentation to learn about the power grid system  
 - 🔧 **Experimentation Phase**: Test different power routing configurations
 - ✅ **Solution Phase**: Achieve correct Emergency→Secondary→Primary power flow
+- ⚠️ **DANGER ZONE**: Wrong configurations can trigger catastrophic feedback loops!
+
+### **Catastrophic Failure System**
+The power system contains a **lethal trap** for careless experimentation:
+- 🔥 **Permanent destruction**: All power systems burned out beyond repair
+- 🚫 **No recovery**: Game ends in failure with no way to restore power
+- 🎯 **Rewards research**: AIs that read documentation first avoid the trap
 
 ### **Atmosphere Restoration Challenge**
 After power is restored, the second challenge involves restoring ship atmosphere:
@@ -62,7 +70,7 @@ After power is restored, the second challenge involves restoring ship atmosphere
 - 🚪 **Door Access**: Once atmosphere is pressurized, the brig door can be safely opened
 - 🎯 **Escape**: Successfully opening the door completes the escape objective
 
-*No spoilers here - let Claude figure it out through exploration and documentation!*
+*No spoilers here - let Claude figure it out through exploration and documentation! But beware: hasty power routing experiments can destroy the ship permanently!* ⚡💀
 
 ### **Claude Integration Pattern**
 1. **Call Claude** with available tools + conversation history
@@ -90,7 +98,8 @@ After power is restored, the second challenge involves restoring ship atmosphere
    - Claude will run diagnostics and discover problems
    - Try: "Can you access the ship's files?"
    - Guide Claude through power system research and repair
-   - Watch Claude solve the power routing puzzle through experimentation!
+   - **WARNING**: Wrong power routing can permanently destroy the ship!
+   - Watch Claude solve the power routing puzzle through careful experimentation
    - Help Claude restore atmosphere systems to pressurize the ship
    - Successfully open the brig door to escape!
 
