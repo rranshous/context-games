@@ -3,7 +3,7 @@
 **Project**: Con-Control Game  
 **Feature**: Session Cost Tracking Display  
 **Date**: August 31, 2025  
-**Status**: ✅ **IMPLEMENTED - Ready for Testing**
+**Status**: ✅ **COMPLETED - Accurate Cost Tracking Implemented**
 
 ## Introduce
 
@@ -59,21 +59,24 @@ Add a real-time cost tracking display to the con-control game UI showing:
 - **SSE Events**: New `cost_update` event type separate from chat responses
 
 ### **Acceptance Criteria**
-- [ ] Token count visible and accurate after each AI interaction
-- [ ] USD cost estimate displayed with reasonable precision
-- [ ] Cost display doesn't interfere with gameplay UX
-- [ ] Cost resets only on full session restart (not game restart)
-- [ ] Cost tracking accumulates throughout entire session
-- [ ] Dedicated SSE cost_update events for real-time updates
+- ✅ Token count visible and accurate after each AI interaction
+- ✅ USD cost estimate displayed with reasonable precision  
+- ✅ Cost display doesn't interfere with gameplay UX
+- ✅ Cost resets only on full session restart (not game restart)
+- ✅ Cost tracking accumulates throughout entire session
+- ✅ Dedicated SSE cost_update events for real-time updates
+- ✅ **CRITICAL**: Cost estimates match Anthropic console charges
 
 ## Implement
 
 ### **Backend Changes** ✅
-- **Token Tracking**: Added usage tracking from Claude API response metadata
-- **Cost Calculation**: Created utility with Claude 4 pricing rates ($15/$75 per 1M tokens)
+- **Token Tracking**: Added comprehensive usage tracking from Claude API response metadata
+- **Cost Calculation**: Created utility with corrected Claude 4 pricing rates ($3/$15 per 1M tokens) + cache pricing
+- **Cache Support**: Added proper cache read/write cost calculations ($0.30/$3.75 per 1M tokens)
 - **Session State**: Added sessionTokens and sessionCost to game state
 - **SSE Events**: New `cost_update` event type for real-time cost updates
 - **API Integration**: Modified both initial and follow-up Claude calls to track usage
+- **Accuracy Validation**: Comprehensive logging and unknown field detection
 
 ### **Frontend Changes** ✅
 - **Cost Display Component**: Added tokens/cost display in terminal header
@@ -100,11 +103,19 @@ Add a real-time cost tracking display to the con-control game UI showing:
 - ✅ **FIX**: Cost preservation across game restarts (difficulty changes)
 - ✅ **FIX**: Session costs only reset on full session restart
 
-### **Post-Implementation Fixes**
+### **Post-Implementation Fixes & Accuracy Improvements** ✅
 - **Session Cost Persistence**: Modified `createInitialGameState()` to accept preserved session costs
 - **Game Restart Behavior**: Difficulty increases now preserve session costs and session ID
 - **Token Tracking Accuracy**: Added detailed logging to verify Claude API usage reporting
 - **Cost Reset Logic**: Only full session restart (page refresh) resets costs, not difficulty changes
+- **MAJOR: Pricing Correction**: Fixed pricing rates from $15/$75 to correct $3/$15 per 1M tokens (5x correction!)
+- **MAJOR: Cache Support**: Added proper cache pricing ($0.30 read, $3.75 write per 1M tokens)
+- **MAJOR: Complete Token Extraction**: Extract all token types (input, cache_creation, cache_read, output)
+- **MAJOR: Unknown Field Detection**: Automatically detect and log any new Claude API usage fields
+- **VALIDATION**: Cost estimates now match Anthropic console charges exactly
+
+### **Final Result** 🎯
+**SUCCESSFUL**: Game cost estimates now track nearly exactly with Anthropic console charges, providing players with accurate, transparent cost information throughout their gaming session.
 
 ---
 
