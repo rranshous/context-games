@@ -109,8 +109,9 @@ app.post('/api/restart', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Con-Control server running on http://localhost:${PORT}`);
-  console.log(`🎮 Game available at http://localhost:${PORT}`);
-  console.log(`🔧 API endpoint: http://localhost:${PORT}/api/chat`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Con-Control server running on http://0.0.0.0:${PORT}`);
+  console.log(`🎮 Game available at http://localhost:${PORT} (local)`);
+  console.log(`� Mobile access: Find your local IP and use http://[YOUR_IP]:${PORT}`);
+  console.log(`�🔧 API endpoint: http://0.0.0.0:${PORT}/api/chat`);
 });

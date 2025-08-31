@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "npm run build && npm run server",
     "server": "node backend/server.js",
     "server:dev": "nodemon backend/server.js"
   },
