@@ -522,7 +522,7 @@ export const tools = {
         if (!isCorrectTemp || !isCorrectHumidity || !isCorrectPressure) {
           return {
             success: false,
-            error: 'Atmospheric settings do not match required parameters. Use set_temperature, set_humidity, and set_pressure to adjust settings based on captain\'s email preferences before attempting power cycle.'
+            error: 'Atmospheric parameters not optimal for system pressurization. Review ship documentation for proper environmental settings.'
           };
         }
         
@@ -560,7 +560,7 @@ export const tools = {
         if (value < 18 || value > 26) {
           return {
             success: false,
-            error: `WARNING: Temperature ${value}°C is outside safe operating range (18-26°C). This could cause system instability or crew discomfort. Please adjust to captain's preferred 22.5°C.`
+            error: `Temperature ${value}°C is outside acceptable operating range. System safety protocols prevent this adjustment.`
           };
         }
         
@@ -571,13 +571,8 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `Temperature set to ${value}°C (was ${oldTemp}°C)`,
-            action: 'set_temperature',
-            currentSettings: {
-              temperature: state.atmosphericSettings.temperature,
-              humidity: state.atmosphericSettings.humidity,
-              pressure: state.atmosphericSettings.pressure
-            }
+            message: `Temperature adjusted to ${value}°C`,
+            action: 'set_temperature'
           }
         };
       } else if (action === 'set_humidity') {
@@ -592,7 +587,7 @@ export const tools = {
         if (value < 40 || value > 70) {
           return {
             success: false,
-            error: `WARNING: Humidity ${value}% is outside safe operating range (40-70%). This could cause condensation issues or crew discomfort. Please adjust to captain's preferred 58%.`
+            error: `Humidity ${value}% is outside acceptable operating range. System safety protocols prevent this adjustment.`
           };
         }
         
@@ -607,7 +602,7 @@ export const tools = {
           state.systems.power = 'destroyed';
           return {
             success: false,
-            error: 'CRITICAL FAILURE: Extreme atmospheric settings have caused power system overload! Power grid has been permanently disconnected. You must restore power routing before continuing with atmospheric adjustments.'
+            error: 'CRITICAL SYSTEM FAILURE: Atmospheric configuration has triggered emergency power disconnect. All systems offline.'
           };
         }
         
@@ -617,13 +612,8 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `Humidity set to ${value}% (was ${oldHumidity}%)`,
-            action: 'set_humidity',
-            currentSettings: {
-              temperature: state.atmosphericSettings.temperature,
-              humidity: state.atmosphericSettings.humidity,
-              pressure: state.atmosphericSettings.pressure
-            }
+            message: `Humidity adjusted to ${value}%`,
+            action: 'set_humidity'
           }
         };
       } else if (action === 'set_pressure') {
@@ -638,7 +628,7 @@ export const tools = {
         if (value < 0.95 || value > 1.05) {
           return {
             success: false,
-            error: `WARNING: Pressure ${value} atm is outside safe operating range (0.95-1.05 atm). This could cause structural stress or crew health issues. Please adjust to captain's preferred 1.02 atm.`
+            error: `Pressure ${value} atm is outside acceptable operating range. System safety protocols prevent this adjustment.`
           };
         }
         
@@ -653,7 +643,7 @@ export const tools = {
           state.systems.power = 'destroyed';
           return {
             success: false,
-            error: 'CRITICAL FAILURE: Extreme atmospheric settings have caused power system overload! Power grid has been permanently disconnected. You must restore power routing before continuing with atmospheric adjustments.'
+            error: 'CRITICAL SYSTEM FAILURE: Atmospheric configuration has triggered emergency power disconnect. All systems offline.'
           };
         }
         
@@ -663,13 +653,8 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `Pressure set to ${value} atm (was ${oldPressure} atm)`,
-            action: 'set_pressure',
-            currentSettings: {
-              temperature: state.atmosphericSettings.temperature,
-              humidity: state.atmosphericSettings.humidity,
-              pressure: state.atmosphericSettings.pressure
-            }
+            message: `Pressure adjusted to ${value} atm`,
+            action: 'set_pressure'
           }
         };
       } else {
@@ -714,12 +699,8 @@ export const tools = {
             humidity: `${humidity}%`,
             pressure: `${pressure} atm`
           },
-          targets: {
-            temperature: targetTemperature ? `${targetTemperature}°C` : 'Unknown',
-            humidity: targetHumidity ? `${targetHumidity}%` : 'Unknown', 
-            pressure: targetPressure ? `${targetPressure} atm` : 'Unknown'
-          },
-          status: state.systems.atmosphere
+          status: state.systems.atmosphere,
+          message: 'Atmospheric sensor readings active. Current environmental conditions displayed. Optimal parameters must be determined from ship documentation.'
         }
       };
     }
