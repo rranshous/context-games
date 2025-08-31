@@ -25,6 +25,9 @@ class Terminal {
   private winScreen: HTMLElement;
   private restartHarderBtn: HTMLButtonElement;
   private restartFullBtn: HTMLButtonElement;
+  private costDisplay: HTMLElement;
+  private sessionCost: HTMLElement;
+  private sessionTokens: HTMLElement;
   private isListening = false;
   private isAiResponding = false;
   private isUsingFallback = false; // Track if we're using text input fallback
@@ -50,6 +53,9 @@ class Terminal {
     this.winScreen = document.getElementById('win-screen') as HTMLElement;
     this.restartHarderBtn = document.getElementById('restart-harder-btn') as HTMLButtonElement;
     this.restartFullBtn = document.getElementById('restart-full-btn') as HTMLButtonElement;
+    this.costDisplay = document.getElementById('cost-display') as HTMLElement;
+    this.sessionCost = document.getElementById('session-cost') as HTMLElement;
+    this.sessionTokens = document.getElementById('session-tokens') as HTMLElement;
 
     this.initializeIntroScreen();
     this.initializeSpeechRecognition();
@@ -328,6 +334,9 @@ class Terminal {
             this.addToTypewriterQueue('', () => {
               this.addSystemWarning(parsed.content);
             });
+          } else if (parsed.type === 'cost_update') {
+            // Update cost display
+            this.updateCostDisplay(parsed.data);
           } else if (parsed.type === 'done') {
             eventSource.close();
             // Re-enable mic when AI is done
@@ -610,6 +619,21 @@ class Terminal {
     this.winScreen.style.display = 'flex';
     
     console.log('🎉 Win screen displayed!', { gameState });
+  }
+
+  /**
+   * Update the cost display with new session cost data
+   * @param costData - Cost data from cost_update event
+   */
+  private updateCostDisplay(costData: any) {
+    // Show the cost display if hidden
+    this.costDisplay.style.display = 'block';
+    
+    // Update cost amount
+    this.sessionCost.textContent = costData.formattedCost || '$0.00';
+    
+    // Update token count
+    this.sessionTokens.textContent = `${costData.formattedTokens || '0'} tokens`;
   }
 }
 

@@ -57,6 +57,28 @@
       background: #333;
     }
     
+    .cost-display {
+      font-size: 12px;
+      color: #666;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      margin-right: 12px;
+    }
+    
+    .cost-display .cost-line {
+      margin: 2px 0;
+    }
+    
+    .cost-display .cost-amount {
+      color: #888;
+      font-weight: bold;
+    }
+    
+    .cost-display .token-count {
+      color: #777;
+    }
+    
     .ship-status {
       color: #ff6666;
       font-weight: bold;
@@ -838,7 +860,17 @@
   <div id="main-terminal" class="terminal" style="opacity: 0;">
     <div class="terminal-header">
       <span>ISV MERIDIAN - SHIP AI TERMINAL</span>
-      <button id="restart-button" class="restart-button">Restart Game</button>
+      <div style="display: flex; align-items: center;">
+        <div id="cost-display" class="cost-display" style="display: none;">
+          <div class="cost-line">
+            <span class="cost-amount" id="session-cost">$0.00</span>
+          </div>
+          <div class="cost-line">
+            <span class="token-count" id="session-tokens">0 tokens</span>
+          </div>
+        </div>
+        <button id="restart-button" class="restart-button">Restart Game</button>
+      </div>
     </div>
     
     <div class="terminal-content">

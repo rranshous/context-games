@@ -1,5 +1,6 @@
 import { executeTool, getAvailableToolDefinitions } from './tool-manager.js';
 import { updateGameState, isOxygenDepleted, calculateOxygenRemaining } from './game-state.js';
+import { calculateCost, addCostToSession, formatCost, formatTokens } from './cost-calculator.js';
 
 /**
  * Response handler for Claude conversations
@@ -145,6 +146,15 @@ export class ResponseHandler {
           const availableTools = getAvailableToolDefinitions(updatedState);
           currentResponse = await this.claudeClient.followUpCall(conversationMessages, availableTools, turnCount);
           
+          // Track costs from follow-up call
+          if (currentResponse.usage) {
+            const cost = calculateCost(currentResponse.usage);
+            updatedState = addCostToSession(updatedState, cost);
+            
+            // Send cost update event
+            this.sendCostUpdate(res, updatedState.sessionCosts);
+          }
+          
         } catch (error) {
           console.error('❌ Error in Claude follow-up call:', error);
           res.write(`data: ${JSON.stringify({ type: 'text', content: 'Error processing ship systems response.' })}\n\n`);
@@ -183,5 +193,27 @@ export class ResponseHandler {
       const finalChunk = (i + 3 < words.length) ? chunk + ' ' : chunk;
       res.write(`data: ${JSON.stringify({ type: 'text', content: finalChunk })}\n\n`);
     }
+  }
+
+  /**
+   * Send cost update event via SSE
+   * @param {Object} res - Express response object
+   * @param {Object} sessionCosts - Current session cost data
+   */
+  sendCostUpdate(res, sessionCosts) {
+    const costEvent = {
+      type: 'cost_update',
+      data: {
+        totalCost: sessionCosts.totalCost,
+        totalTokens: sessionCosts.totalTokens,
+        inputTokens: sessionCosts.inputTokens,
+        outputTokens: sessionCosts.outputTokens,
+        callCount: sessionCosts.callCount,
+        formattedCost: formatCost(sessionCosts.totalCost),
+        formattedTokens: formatTokens(sessionCosts.totalTokens)
+      }
+    };
+    
+    res.write(`data: ${JSON.stringify(costEvent)}\n\n`);
   }
 }

@@ -58,6 +58,13 @@ export function createInitialGameState(difficultyLevel = 0) {
       oxygenRemaining: null,
       totalDuration: null
     },
+    sessionCosts: {
+      totalCost: 0,
+      totalTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      callCount: 0
+    },
     repairHistory: [],
     conversationHistory: []
   };

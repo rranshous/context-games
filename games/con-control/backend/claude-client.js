@@ -50,7 +50,7 @@ export class ClaudeClient {
    * @param {string} message - The user's message
    * @param {Object} state - The current game state
    * @param {Array} availableTools - Tools available to Claude
-   * @returns {Promise<Object>} Claude's response
+   * @returns {Promise<Object>} Claude's response with usage metadata
    */
   async initialCall(message, state, availableTools) {
     console.log(`🤖 Processing message with Claude: "${message}"`);
@@ -88,6 +88,7 @@ export class ClaudeClient {
       });
       
       console.log(`✅ Claude response received`);
+      console.log(`📊 Token usage: ${response.usage.input_tokens} input + ${response.usage.output_tokens} output = ${response.usage.input_tokens + response.usage.output_tokens} total`);
       return response;
       
     } catch (error) {
@@ -101,7 +102,7 @@ export class ClaudeClient {
    * @param {Array} conversationMessages - The conversation history including tool results
    * @param {Array} availableTools - Tools available to Claude
    * @param {number} turnCount - Current turn number for logging
-   * @returns {Promise<Object>} Claude's response
+   * @returns {Promise<Object>} Claude's response with usage metadata
    */
   async followUpCall(conversationMessages, availableTools, turnCount) {
     console.log(`🔧 Calling Claude again with tool results (turn ${turnCount})...`);
@@ -118,6 +119,7 @@ export class ClaudeClient {
       });
       
       console.log(`✅ Claude turn ${turnCount} response received`);
+      console.log(`📊 Token usage: ${response.usage.input_tokens} input + ${response.usage.output_tokens} output = ${response.usage.input_tokens + response.usage.output_tokens} total`);
       return response;
       
     } catch (error) {

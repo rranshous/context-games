@@ -3,7 +3,7 @@
 **Project**: Con-Control Game  
 **Feature**: Session Cost Tracking Display  
 **Date**: August 31, 2025  
-**Status**: Introduce Phase
+**Status**: ✅ **IMPLEMENTED - Ready for Testing**
 
 ## Introduce
 
@@ -34,21 +34,21 @@ Add a real-time cost tracking display to the con-control game UI showing:
 ## Plan
 
 ### **Phase 1: Backend Token Tracking**
-- [ ] Add token counting to Claude API responses
-- [ ] Implement session cost accumulation 
-- [ ] Create cost calculation utilities
-- [ ] Add cost data to API responses
+- ✅ Add token counting to Claude API responses
+- ✅ Implement session cost accumulation 
+- ✅ Create cost calculation utilities
+- ✅ Add cost data to API responses
 
 ### **Phase 2: Frontend Cost Display**
-- [ ] Design cost display UI component
-- [ ] Add cost tracking state management
-- [ ] Integrate cost updates with existing SSE stream
-- [ ] Style cost display for visual hierarchy
+- ✅ Design cost display UI component
+- ✅ Add cost tracking state management
+- ✅ Integrate cost updates with existing SSE stream
+- ✅ Style cost display for visual hierarchy
 
 ### **Phase 3: Cost Configuration**
-- [ ] Add configurable cost rates for different models
-- [ ] Implement cost reset on full session restart only
-- [ ] Test cost accuracy within sessions
+- ✅ Add configurable cost rates for different models
+- ✅ Implement cost reset on full session restart only
+- 🔄 Test cost accuracy within sessions
 
 ### **Technical Considerations**
 - **Token Counting**: Use Anthropic API response headers/metadata
@@ -68,22 +68,35 @@ Add a real-time cost tracking display to the con-control game UI showing:
 
 ## Implement
 
-*Implementation details to be added during Plan → Implement transition*
+### **Backend Changes** ✅
+- **Token Tracking**: Added usage tracking from Claude API response metadata
+- **Cost Calculation**: Created utility with Claude 4 pricing rates ($15/$75 per 1M tokens)
+- **Session State**: Added sessionTokens and sessionCost to game state
+- **SSE Events**: New `cost_update` event type for real-time cost updates
+- **API Integration**: Modified both initial and follow-up Claude calls to track usage
 
-### **Backend Changes**
-- TBD: Token tracking implementation
-- TBD: Cost calculation service
-- TBD: API response modifications
+### **Frontend Changes** ✅
+- **Cost Display Component**: Added tokens/cost display in terminal header
+- **State Management**: Added cost tracking variables and update methods
+- **SSE Integration**: Added cost_update event handler for real-time updates
+- **UI Styling**: Clean, minimal display showing "Tokens: X | Cost: $Y.ZZ"
 
-### **Frontend Changes**  
-- TBD: Cost display component
-- TBD: State management updates
-- TBD: SSE integration updates
+### **Implementation Details**
+- **Backend Files Modified**:
+  - `backend/claude-client.js` - Added token tracking wrapper
+  - `backend/cost-calculator.js` - New cost calculation utility
+  - `backend/game-state.js` - Added session cost state
+  - `backend/response-handler.js` - Added cost tracking and SSE events
+  - `backend/server.js` - Added cost tracking to initial Claude calls
+- **Frontend Files Modified**:
+  - `src/terminal.ts` - Added cost display and event handling
+  - `index.html` - Added cost display elements
+  - Updated CSS for cost display styling
 
-### **Testing Plan**
-- TBD: Cost accuracy validation
-- TBD: UI integration testing
-- TBD: Session lifecycle testing
+### **Testing Plan** 🔄
+- [ ] Cost accuracy validation
+- [ ] UI integration testing  
+- [ ] Session lifecycle testing
 
 ---
 

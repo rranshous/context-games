@@ -16,6 +16,7 @@ import { ResponseHandler } from './response-handler.js';
 import { createInitialGameState } from './game-state.js';
 import { getAvailableToolDefinitions } from './tool-manager.js';
 import { shipFileSystem } from './ship-data.js';
+import { calculateCost, addCostToSession } from './cost-calculator.js';
 
 const claudeClient = new ClaudeClient(process.env.ANTHROPIC_API_KEY);
 const responseHandler = new ResponseHandler(claudeClient, shipFileSystem);
@@ -106,6 +107,15 @@ async function processWithClaude(message, state, res, req) {
     
     // Call Claude with initial message
     const response = await claudeClient.initialCall(message, state, availableTools);
+    
+    // Track costs from initial call
+    if (response.usage) {
+      const cost = calculateCost(response.usage);
+      state = addCostToSession(state, cost);
+      
+      // Send cost update event
+      responseHandler.sendCostUpdate(res, state.sessionCosts);
+    }
     
     // Handle the complete conversation with tool execution
     const updatedState = await responseHandler.handleConversation(response, state, res, req, message);
