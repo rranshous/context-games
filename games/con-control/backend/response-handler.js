@@ -27,7 +27,7 @@ export class ResponseHandler {
     let currentResponse = response;
     let finalResponseText = '';
     let turnCount = 0;
-    const MAX_TURNS = 10;
+    const MAX_TURNS = 20;
     
     while (turnCount < MAX_TURNS) {
       turnCount++;

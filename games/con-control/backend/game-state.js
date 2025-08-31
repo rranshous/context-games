@@ -21,6 +21,7 @@ export function createInitialGameState() {
       yellow: 'green', // Secondary grid - flows to green (wrong)
       green: null   // Emergency grid - disconnected
     },
+    powerSystemBurnedOut: false,  // Track if power system is permanently failed
     availableTools: ['basic_diagnostics', 'locate_passengers', 'power_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',
@@ -142,6 +143,25 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           to: to_node,
           timestamp: Date.now(),
           result: 'successful'
+        });
+      } else if (toolResult.data && toolResult.data.action === 'feedback_loop_failure') {
+        // Handle catastrophic power system failure
+        console.log('💥 CATASTROPHIC POWER FAILURE: Feedback loop detected!');
+        newState.powerSystemBurnedOut = true;
+        newState.systems.power = 'destroyed';
+        newState.gamePhase = 'failed';
+        newState.objectives.current = 'GAME OVER - Power system destroyed by feedback loop';
+        
+        // Keep all tools available but they will return errors when used
+        // This allows the AI to discover the full extent of the damage
+        
+        newState.repairHistory.push({
+          system: 'power_routing',
+          action: 'catastrophic_failure',
+          from: toolInput.from_node,
+          to: toolInput.to_node,
+          timestamp: Date.now(),
+          result: 'system_destroyed'
         });
       }
       break;

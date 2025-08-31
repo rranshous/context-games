@@ -16,7 +16,15 @@ export const tools = {
       required: []
     },
     execute: (state) => {
-      const powerStatus = state.systems.power === 'offline' ? 'CRITICAL - Power systems offline' : 'ONLINE';
+      let powerStatus;
+      if (state.powerSystemBurnedOut) {
+        powerStatus = 'DESTROYED - Power distribution system burned out';
+      } else if (state.systems.power === 'offline') {
+        powerStatus = 'CRITICAL - Power systems offline';
+      } else {
+        powerStatus = 'ONLINE';
+      }
+      
       let doorStatus;
       if (state.doorOpened) {
         doorStatus = 'OPEN';
@@ -29,11 +37,11 @@ export const tools = {
       if (oxygenInfo.isExpired) {
         oxygenStatus = 'DEPLETED - Life support failure';
       } else if (oxygenInfo.minutes < 5) {
-        oxygenStatus = `CRITICAL - ${oxygenInfo.formatted} remaining`;
+        oxygenStatus = `CRITICAL - ${oxygenInfo.formatted} (${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds) remaining`;
       } else if (oxygenInfo.minutes < 10) {
-        oxygenStatus = `LOW - ${oxygenInfo.formatted} remaining`;
+        oxygenStatus = `LOW - ${oxygenInfo.formatted} (${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds) remaining`;
       } else {
-        oxygenStatus = `${oxygenInfo.formatted} remaining`;
+        oxygenStatus = `${oxygenInfo.formatted} (${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds) remaining`;
       }
       
       // Calculate AI uptime since game start
@@ -102,7 +110,20 @@ export const tools = {
       required: []
     },
     execute: (state) => {
-      // Generate power grid routing display
+      // Check if power system is burned out
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: true,
+          data: {
+            powerStatus: 'CATASTROPHIC FAILURE - Power distribution system destroyed',
+            gridRouting: 'ERROR: All junction nodes burned out and fused',
+            systemMessage: 'TrinaryFlow Power Distribution System OFFLINE. Diagnostic Error: Extensive burn damage detected. All power routing components show signs of electrical overload. Junction matrices are completely destroyed. Smoke residue detected in all power conduits.',
+            technicalDetails: 'System failure caused by feedback loop: Red → Yellow → Green routing created power surge that exceeded design limits by 300%. All components are irreparable.',
+          }
+        };
+      }
+      
+      // Generate power grid routing display for working system
       const powerRouting = [];
       Object.entries(state.powerGrid).forEach(([from, to]) => {
         if (to === null) {
@@ -112,10 +133,17 @@ export const tools = {
         }
       });
       
+      let powerStatus;
+      if (state.systems.power === 'offline') {
+        powerStatus = 'CRITICAL - Power systems offline';
+      } else {
+        powerStatus = 'ONLINE';
+      }
+      
       return {
         success: true,
         data: {
-          powerStatus: state.systems.power === 'offline' ? 'CRITICAL - Power systems offline' : 'ONLINE',
+          powerStatus: powerStatus,
           gridRouting: powerRouting.join(', '),
           systemMessage: 'TrinaryFlow Power Distribution System detected. Analyzing grid connections...'
         }
@@ -243,6 +271,18 @@ export const tools = {
     execute: (state, params) => {
       const { from_node, to_node } = params;
       
+      // Check if power system is already burned out
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'CRITICAL FAILURE: Power system is permanently damaged. All power routing components have been destroyed by feedback loop overload. No repairs are possible.',
+          data: {
+            systemStatus: 'IRREPARABLE_DAMAGE',
+            message: 'Power distribution system shows extensive burn damage. All junction nodes are fused shut.'
+          }
+        };
+      }
+      
       // Validate nodes
       const validNodes = ['red', 'yellow', 'green'];
       if (!validNodes.includes(from_node)) {
@@ -280,7 +320,27 @@ export const tools = {
           }
         };
       } else {
-        // Connect
+        // Connect - but first check for feedback loop
+        // We need to simulate the new grid state to detect red → yellow → green
+        const tempGrid = { ...state.powerGrid };
+        tempGrid[from_node] = to_node;
+        
+        // Check for the dangerous red → yellow → green feedback loop
+        if (tempGrid.red === 'yellow' && tempGrid.yellow === 'green' && tempGrid.green !== null) {
+          return {
+            success: false,
+            error: 'CATASTROPHIC FAILURE: Power feedback loop detected! Red → Yellow → Green configuration creates massive power surge!',
+            data: {
+              action: 'feedback_loop_failure',
+              from: from_node,
+              to: to_node,
+              systemStatus: 'BURNED_OUT',
+              technicalDetails: 'TrinaryFlow Power Distribution System has experienced cascade failure. All junction matrices have been destroyed by electrical feedback.'
+            }
+          };
+        }
+        
+        // Safe connection
         return {
           success: true,
           data: {
@@ -320,6 +380,14 @@ export const tools = {
         };
       }
       
+      // Check if power system is burned out
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
       if (state.systems.power === 'offline') {
         return {
           success: false,
@@ -339,7 +407,7 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `Brig door opened successfully! You have escaped the detention facility with ${oxygenInfo.formatted} of oxygen remaining.`,
+            message: `Brig door opened successfully! You have escaped the detention facility with ${oxygenInfo.minutes} minutes and ${oxygenInfo.seconds} seconds of oxygen remaining.`,
             doorStatus: 'OPEN',
             newLocation: 'corridor',
             outcome: 'MISSION_COMPLETE'
@@ -371,6 +439,14 @@ export const tools = {
     execute: (state, params) => {
       const { action } = params;
       
+      // Check if power system is burned out
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
       if (state.systems.power === 'offline') {
         return {
           success: false,
@@ -398,7 +474,7 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `HVAC power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.formatted}`,
+            message: `HVAC power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds remaining.`,
             action: 'power_cycle',
             status: 'Atmosphere pressurization in progress'
           }
