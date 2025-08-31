@@ -387,15 +387,13 @@ export const tools = {
           data: {
             message: `HVAC power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.formatted}`,
             action: 'power_cycle',
-            status: 'Atmosphere pressurization in progress',
-            estimatedTime: '30 seconds',
-            oxygenBonus: '+5:00 minutes from recycling'
+            status: 'Atmosphere pressurization in progress'
           }
         };
       } else {
         return {
           success: false,
-          error: `HVAC action '${action}' had no effect. Try power cycling the system.`
+          error: `HVAC action '${action}' complete.`
         };
       }
     }
