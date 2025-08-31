@@ -162,11 +162,10 @@ export class ResponseHandler {
       res.write(`data: ${JSON.stringify({ type: 'text', content: '[Runaway AI Detected - Pausing AI]' })}\n\n`);
     }
     
-    // Update conversation history with the final complete exchange
-    updatedState.conversationHistory.push(
-      { role: "user", content: originalMessage },
-      { role: "assistant", content: finalResponseText || "I've completed the requested actions." }
-    );
+    // Update conversation history with the complete multi-turn exchange
+    // conversationMessages already contains the full conversation including tool calls/results
+    // Skip the first message since it's the originalMessage we already added at the start
+    updatedState.conversationHistory = conversationMessages;
     
     return updatedState;
   }
