@@ -2,6 +2,8 @@
 
 *AI Collaboration Space Escape Game*
 
+<img width="1186" height="962" alt="Screenshot from 2025-08-31 19-53-55" src="https://github.com/user-attachments/assets/0dfb0f2d-6832-42d4-8bed-cc25cb365572" />
+
 ## 🎉 **Status: PROOF OF CONCEPT WORKING!** 
 
 **Phase**: ✅ **Foundation Complete + Discovery-Driven Puzzle System Working**
