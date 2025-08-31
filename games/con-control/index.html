@@ -327,6 +327,122 @@
       transition: opacity 1s ease-in;
     }
 
+    /* Win Screen Styles */
+    .win-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      backdrop-filter: blur(5px);
+    }
+
+    .win-content {
+      background: linear-gradient(135deg, #001122 0%, #000511 100%);
+      border: 2px solid #00ff41;
+      border-radius: 10px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+      max-width: 500px;
+      width: 90%;
+    }
+
+    .win-title {
+      font-size: 24px;
+      color: #00ff41;
+      margin-bottom: 30px;
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 10px rgba(0, 255, 65, 0.5); }
+      to { text-shadow: 0 0 20px rgba(0, 255, 65, 0.8); }
+    }
+
+    .win-stats {
+      margin-bottom: 30px;
+    }
+
+    .win-stat {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(0, 255, 65, 0.1);
+      border-radius: 5px;
+    }
+
+    .win-label {
+      color: #cccccc;
+      font-size: 16px;
+    }
+
+    .win-value {
+      color: #00ff41;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .win-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .win-button {
+      background: rgba(0, 255, 65, 0.1);
+      border: 2px solid #00ff41;
+      color: #00ff41;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      border-radius: 5px;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      min-width: 180px;
+    }
+
+    .win-button:hover {
+      background: rgba(0, 255, 65, 0.2);
+      box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+      transform: scale(1.05);
+    }
+
+    .win-button-primary {
+      border-color: #ff6666;
+      color: #ff6666;
+      background: rgba(255, 102, 102, 0.1);
+    }
+
+    .win-button-primary:hover {
+      background: rgba(255, 102, 102, 0.2);
+      box-shadow: 0 0 15px rgba(255, 102, 102, 0.4);
+    }
+
+    .win-button-secondary {
+      border-color: #888;
+      color: #888;
+      background: rgba(136, 136, 136, 0.1);
+    }
+
+    .win-button-secondary:hover {
+      background: rgba(136, 136, 136, 0.2);
+      box-shadow: 0 0 15px rgba(136, 136, 136, 0.4);
+      border-color: #aaa;
+      color: #aaa;
+    }
+
     /* Mobile Responsive Styles */
     @media (max-width: 768px) {
       body, html {
@@ -497,6 +613,43 @@
       .tool-usage {
         font-size: 12px;
         padding-left: 15px;
+      }
+
+      /* Win screen mobile styles */
+      .win-content {
+        padding: 20px;
+        margin: 20px;
+        max-width: none;
+        width: auto;
+      }
+
+      .win-title {
+        font-size: 18px;
+        margin-bottom: 20px;
+      }
+
+      .win-stat {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 5px;
+      }
+
+      .win-label,
+      .win-value {
+        font-size: 14px;
+      }
+
+      .win-buttons {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .win-button {
+        min-width: auto;
+        width: 100%;
+        font-size: 12px;
+        padding: 10px 16px;
       }
     }
 
@@ -714,6 +867,35 @@
 
   <!-- Floating transcript that follows cursor -->
   <div id="floating-transcript" class="floating-transcript"></div>
+
+  <!-- Win Screen Modal -->
+  <div id="win-screen" class="win-screen" style="display: none;">
+    <div class="win-content">
+      <div class="win-title">🎉 ESCAPE SUCCESSFUL! 🎉</div>
+      <div class="win-stats">
+        <div class="win-stat">
+          <span class="win-label">Oxygen Remaining:</span>
+          <span id="win-oxygen-time" class="win-value">--:--</span>
+        </div>
+        <div class="win-stat">
+          <span class="win-label">Total Mission Time:</span>
+          <span id="win-total-time" class="win-value">--:--</span>
+        </div>
+        <div class="win-stat">
+          <span class="win-label">Difficulty Level:</span>
+          <span id="win-difficulty" class="win-value">Level 0</span>
+        </div>
+      </div>
+      <div class="win-buttons">
+        <button id="restart-harder-btn" class="win-button win-button-primary">
+          🚀 Restart Harder Challenge
+        </button>
+        <button id="restart-full-btn" class="win-button win-button-secondary">
+          🔄 Full Restart
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

@@ -22,6 +22,9 @@ class Terminal {
   private sendButton: HTMLButtonElement;
   private introScreen: HTMLElement;
   private mainTerminal: HTMLElement;
+  private winScreen: HTMLElement;
+  private restartHarderBtn: HTMLButtonElement;
+  private restartFullBtn: HTMLButtonElement;
   private isListening = false;
   private isAiResponding = false;
   private isUsingFallback = false; // Track if we're using text input fallback
@@ -44,10 +47,14 @@ class Terminal {
     this.sendButton = document.getElementById('send-button') as HTMLButtonElement;
     this.introScreen = document.getElementById('intro-screen') as HTMLElement;
     this.mainTerminal = document.getElementById('main-terminal') as HTMLElement;
+    this.winScreen = document.getElementById('win-screen') as HTMLElement;
+    this.restartHarderBtn = document.getElementById('restart-harder-btn') as HTMLButtonElement;
+    this.restartFullBtn = document.getElementById('restart-full-btn') as HTMLButtonElement;
 
     this.initializeIntroScreen();
     this.initializeSpeechRecognition();
     this.setupEventListeners();
+    this.setupWinScreen();
     this.updateMicButtonState();
   }
 
@@ -329,6 +336,11 @@ class Terminal {
             if (!this.isUsingFallback) {
               this.voiceStatus.textContent = 'Click microphone or press SPACE to speak to Ship AI';
             }
+            
+            // Check for win condition if game state is provided
+            if (parsed.gameState) {
+              this.checkForWinCondition(parsed);
+            }
           }
         } catch (e) {
           console.error('Error parsing SSE data:', e);
@@ -505,6 +517,99 @@ class Terminal {
       localStorage.removeItem('ship-ai-session');
       window.location.reload();
     }
+  }
+
+  private setupWinScreen() {
+    // Setup restart harder button
+    this.restartHarderBtn.addEventListener('click', () => {
+      this.restartHarder();
+    });
+
+    // Setup full restart button  
+    this.restartFullBtn.addEventListener('click', () => {
+      this.restartGame();
+    });
+  }
+
+  private async restartHarder() {
+    try {
+      const sessionId = localStorage.getItem('ship-ai-session');
+      
+      if (sessionId) {
+        const response = await fetch(`/api/restart-harder?sessionId=${encodeURIComponent(sessionId)}`, {
+          method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.sessionId) {
+          // Store new session ID
+          localStorage.setItem('ship-ai-session', result.sessionId);
+          
+          // Hide win screen and refresh page for new game
+          this.winScreen.style.display = 'none';
+          window.location.reload();
+        } else {
+          console.error('Failed to restart with harder difficulty:', result);
+          // Fallback to regular restart
+          this.restartGame();
+        }
+      } else {
+        // No session, fallback to regular restart
+        this.restartGame();
+      }
+    } catch (error) {
+      console.error('Error restarting with harder difficulty:', error);
+      // Fallback to regular restart
+      this.restartGame();
+    }
+  }
+
+  private checkForWinCondition(data: any) {
+    // Check if the AI response indicates game completion
+    if (data.gameState && data.gameState.gamePhase === 'complete' && data.gameState.completionStats) {
+      this.showWinScreen(data.gameState);
+    }
+  }
+
+  private showWinScreen(gameState: any) {
+    const { completionStats, difficulty } = gameState;
+    
+    // Format oxygen remaining time
+    const oxygenElement = document.getElementById('win-oxygen-time') as HTMLElement;
+    if (completionStats.oxygenRemaining && !completionStats.oxygenRemaining.isExpired) {
+      oxygenElement.textContent = completionStats.oxygenRemaining.formatted;
+    } else {
+      oxygenElement.textContent = '00:00';
+    }
+    
+    // Format total mission time
+    const totalTimeElement = document.getElementById('win-total-time') as HTMLElement;
+    if (completionStats.totalDuration) {
+      const totalMinutes = Math.floor(completionStats.totalDuration / (1000 * 60));
+      const totalSeconds = Math.floor((completionStats.totalDuration % (1000 * 60)) / 1000);
+      totalTimeElement.textContent = `${totalMinutes.toString().padStart(2, '0')}:${totalSeconds.toString().padStart(2, '0')}`;
+    } else {
+      totalTimeElement.textContent = '--:--';
+    }
+    
+    // Show difficulty level
+    const difficultyElement = document.getElementById('win-difficulty') as HTMLElement;
+    difficultyElement.textContent = `Level ${difficulty?.level || 0}`;
+    
+    // Update button text based on difficulty
+    if (difficulty?.level >= 4) {
+      // At maximum difficulty (1 minute oxygen)
+      this.restartHarderBtn.textContent = '🔥 Ultimate Challenge (1 min)';
+    } else {
+      const nextOxygenTime = Math.max(18 - ((difficulty?.level + 1) * 5), 1);
+      this.restartHarderBtn.textContent = `🚀 Harder Challenge (${nextOxygenTime} min)`;
+    }
+    
+    // Show the win screen
+    this.winScreen.style.display = 'flex';
+    
+    console.log('🎉 Win screen displayed!', { gameState });
   }
 }
 
