@@ -729,13 +729,13 @@ async function handleClaudeResponse(response, state, res, req, originalMessage) 
       }
     }
     
+    // Add a newline after tool calls to separate from next response
+    if (bufferedToolCalls.length > 0) {
+      res.write(`data: ${JSON.stringify({ type: 'text', content: '\n' })}\n\n`);
+    }
+    
     // Add assistant's response to conversation
     conversationMessages.push({ role: "assistant", content: currentResponse.content });
-    
-    // Add newline after each response segment to separate from next response
-    if (hasToolCalls && toolResults.length > 0) {
-      res.write(`data: ${JSON.stringify({ type: 'text', content: '\n\n' })}\n\n`);
-    }
     
     // If there were tool calls, continue the conversation
     if (hasToolCalls && toolResults.length > 0) {
