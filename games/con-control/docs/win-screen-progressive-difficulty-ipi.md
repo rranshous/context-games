@@ -122,12 +122,15 @@ gamePhase: 'start' → 'active' → 'complete' → WIN SCREEN
 - ✅ Enhanced win detection in `open_door` case to capture completion statistics
 - ✅ Build successful - ready for Phase 2
 
-#### **🚧 Phase 2: Progressive Restart System - IN PROGRESS**
-- ⏳ Add `/api/restart-harder` endpoint to server.js  
-- ⏳ Modify session management to accept difficulty parameter
-- ⏳ Update existing `/api/restart` to preserve current behavior
+#### **✅ Phase 2: Progressive Restart System - COMPLETE**
+- ✅ Added `/api/restart-harder` endpoint to server.js  
+- ✅ Modified session management to accept difficulty parameter
+- ✅ Updated existing `/api/restart` to preserve current behavior (full reset)
+- ✅ Progressive difficulty logic: increments level and reduces oxygen time
+- ✅ Graceful handling of missing sessions
+- ✅ Build successful - ready for Phase 3
 
-#### **📋 Phase 3: Frontend Win Screen - PENDING**
+#### **� Phase 3: Frontend Win Screen - IN PROGRESS**
 - ⏳ Win screen UI component
 - ⏳ Game state monitoring for win triggers
 - ⏳ Button handlers for restart options
