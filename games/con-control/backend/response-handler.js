@@ -1,6 +1,6 @@
 import { executeTool, getAvailableToolDefinitions } from './tool-manager.js';
 import { updateGameState, isOxygenDepleted, calculateOxygenRemaining } from './game-state.js';
-import { calculateCost, addCostToSession, formatCost, formatTokens } from './cost-calculator.js';
+import { calculateCost, addCostToSession, formatCost, formatTokens, getSessionSummary } from './cost-calculator.js';
 
 /**
  * Response handler for Claude conversations
@@ -176,6 +176,15 @@ export class ResponseHandler {
     // conversationMessages already contains the full conversation including tool calls/results
     // Skip the first message since it's the originalMessage we already added at the start
     updatedState.conversationHistory = conversationMessages;
+    
+    // Add session cost summary
+    const sessionSummary = getSessionSummary();
+    console.log(`\n💰 SESSION COST SUMMARY:`);
+    console.log(`   🎯 Conservative estimate: $${updatedState.sessionCosts.totalCost.toFixed(6)} (${updatedState.sessionCosts.totalTokens} tokens)`);
+    console.log(`   📊 Raw API total: $${sessionSummary.rawCost.toFixed(6)} (${sessionSummary.rawTokens} tokens)`);
+    console.log(`   📈 Ratio: ${(sessionSummary.rawCost / updatedState.sessionCosts.totalCost).toFixed(2)}x raw vs conservative`);
+    console.log(`   🔍 Compare these to your Anthropic console actual charges!`);
+    console.log(`   💡 Anthropic may use caching/optimization that reduces actual costs\n`);
     
     return updatedState;
   }
