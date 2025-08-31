@@ -220,6 +220,470 @@ Thank you for the prompt attention to the atmospheric controls. The conditions a
 
 This is exactly what I was looking for. Excellent work.
 
-Captain Vasquez`
+Captain Vasquez`,
+
+    // Office Drama & Interpersonal Noise Emails
+    'birthday_party_planning_001.txt': `FROM: Medical Officer Dr. James Park <dr.park@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: March Birthday Celebrations
+DATE: 2147-03-02 16:30:15 UTC
+
+Team,
+
+It's that time of month again! We have three birthdays coming up in March:
+- Engineering Specialist Kim Walsh (March 12th)
+- Navigation Officer Torres (March 18th) 
+- Communications Tech Bradley (March 25th)
+
+Since the recreation budget was slashed again, we'll need to keep it simple. Thinking cake in the mess hall at 1900 hours for each celebration.
+
+Who's volunteering to organize? Last month's party for Rodriguez was great - simple but heartfelt.
+
+Dr. Park`,
+
+    'birthday_party_planning_002.txt': `FROM: Engineering Specialist Kim Walsh <kim.walsh@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Re: March Birthday Celebrations
+DATE: 2147-03-02 17:15:42 UTC
+
+Thanks Dr. Park!
+
+Honestly, I'd prefer we skip mine this year. Been working double shifts and just want to sleep on my birthday. Maybe just combine all three into one party at the end of the month?
+
+Besides, the mess hall cake dispenser has been acting up. Last time it gave us something that tasted like cardboard with frosting.
+
+Kim`,
+
+    'birthday_party_planning_003.txt': `FROM: Communications Tech Sam Bradley <sam.bradley@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Re: March Birthday Celebrations
+DATE: 2147-03-02 18:22:07 UTC
+
+No way Kim! Birthdays are sacred. Even if the cake tastes like recycled air filters, it's about the gesture.
+
+I say we do individual parties AND pool our credits for better cake from the premium dispenser. Life's too short to skip birthdays, especially out here in the void.
+
+Torres, what do you think?
+
+Sam`,
+
+    'birthday_party_planning_004.txt': `FROM: Navigation Officer Maria Torres <maria.torres@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Re: March Birthday Celebrations
+DATE: 2147-03-02 19:45:18 UTC
+
+I'm with Sam on this one. Individual celebrations make people feel special.
+
+BUT let's compromise - how about themed parties? Kim gets an "Engineering Appreciation" theme (we could decorate with spare circuit boards), Sam gets a "Communications" theme with old radio equipment, and I'll take whatever's left.
+
+Just please, no surprise parties. The last time someone surprised Rodriguez, he thought it was a security drill and nearly activated the emergency lockdown.
+
+Maria`,
+
+    'coffee_machine_complaints_001.txt': `FROM: Medical Officer Dr. James Park <dr.park@isv-meridian.sdc>
+TO: Chief Engineer Marcus Hale <chief.engineer.hale@isv-meridian.sdc>
+SUBJECT: Coffee Machine Premium Pod Access
+DATE: 2147-03-08 07:30:41 UTC
+
+Marcus,
+
+I'm writing to formally request that Medical gets priority access to the premium coffee pods. We're dealing with life-and-death situations here, and frankly, the standard coffee tastes like it was filtered through the waste reclamation system.
+
+During the night shift medical emergencies, quality caffeine isn't a luxury - it's a necessity. Dr. Martinez fell asleep during a routine appendectomy simulation last week because the regular coffee barely counts as coffee.
+
+Can we work something out?
+
+Dr. Park`,
+
+    'coffee_machine_complaints_002.txt': `FROM: Chief Engineer Marcus Hale <chief.engineer.hale@isv-meridian.sdc>
+TO: Medical Officer Dr. James Park <dr.park@isv-meridian.sdc>
+SUBJECT: Re: Coffee Machine Premium Pod Access
+DATE: 2147-03-08 08:15:23 UTC
+
+Jim,
+
+With all due respect, Engineering has been pulling 16-hour shifts keeping this rust bucket running. We've had three coolant leaks, two gravity fluctuations, and the recycling system keeps making that weird humming noise.
+
+If anyone needs premium coffee, it's the people making sure you have air to breathe and a floor to stand on.
+
+How about we alternate weeks? Medical gets premium access even weeks, Engineering gets odd weeks?
+
+Marcus`,
+
+    'coffee_machine_complaints_003.txt': `FROM: Medical Officer Dr. James Park <dr.park@isv-meridian.sdc>
+TO: Chief Engineer Marcus Hale <chief.engineer.hale@isv-meridian.sdc>
+SUBJECT: Re: Coffee Machine Premium Pod Access
+DATE: 2147-03-08 09:45:17 UTC
+
+Marcus,
+
+Alternating weeks could work, but what about the other departments? Security, Navigation, and Communications will want in on this arrangement.
+
+Maybe we should just petition for a second premium coffee machine? The budget for crew morale has to cover basic caffeine needs, right?
+
+Also, your recycling system's "weird humming" might be the harmonic resonance from the artificial gravity generator. Just a thought.
+
+Dr. Park`,
+
+    'mess_hall_menu_complaints_001.txt': `FROM: Security Officer Janet Reynolds <janet.reynolds@isv-meridian.sdc>
+TO: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+SUBJECT: Food Replicator Menu Rotation
+DATE: 2147-03-10 12:30:55 UTC
+
+Lisa,
+
+Can we PLEASE update the mess hall replicator menu? We've had the same 12 options for three months now. I'm getting sick of "Chicken Surprise" (the surprise is that it doesn't taste like chicken) and "Vegetable Medley" (which is just different shaped protein blocks in green sauce).
+
+The crew is starting to get restless. Yesterday, Thompson from Communications was seen trying to eat a nutrition bar with hot sauce just for variety.
+
+Any chance we can get some new recipes uploaded? Even if they're just variations of the same protein base?
+
+Janet`,
+
+    'mess_hall_menu_complaints_002.txt': `FROM: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+TO: Security Officer Janet Reynolds <janet.reynolds@isv-meridian.sdc>
+SUBJECT: Re: Food Replicator Menu Rotation
+DATE: 2147-03-10 14:15:22 UTC
+
+Janet,
+
+I hear you, but we're stuck with what corporate loaded into the system. The recipe database is locked down tighter than the captain's quarters.
+
+I've put in three requests for menu updates, but they keep getting bounced back with "budget considerations" and "nutritional compliance reviews."
+
+The best I can do is adjust the seasoning protocols. Maybe make the "Italian Style" actually taste like something from Italy instead of recycled cardboard?
+
+Lisa`,
+
+    'mess_hall_menu_complaints_003.txt': `FROM: Communications Tech Sam Bradley <sam.bradley@isv-meridian.sdc>
+TO: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+SUBJECT: Re: Food Replicator Menu Rotation - A Proposal
+DATE: 2147-03-10 16:45:38 UTC
+
+Lisa,
+
+What if we started a "recipe of the week" contest? Crew members submit creative ways to combine the existing menu items, and the winner gets... I don't know, extra dessert privileges?
+
+I've been experimenting with mixing the "Chicken Surprise" with the "Asian Fusion Noodles" and it's actually edible. Almost tastes like real food.
+
+We could call it "Creative Combinations" or "Mess Hall Innovation Challenge." At least it would give us something to look forward to.
+
+Sam`,
+
+    'gym_equipment_hogging_001.txt': `FROM: Engineering Specialist Kim Walsh <kim.walsh@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Gym Equipment Courtesy Reminder
+DATE: 2147-03-12 18:00:33 UTC
+
+Fellow Crew Members,
+
+Can we please establish some basic gym etiquette? I've been trying to use the resistance trainer for three days now, but someone keeps leaving their water bottle and towel on it for hours at a time.
+
+When you're done working out, please clear your stuff. There are only six pieces of equipment for 23 crew members. We need to share.
+
+Also, please wipe down the equipment after use. Nobody wants to use a machine covered in someone else's sweat.
+
+Kim`,
+
+    'gym_equipment_hogging_002.txt': `FROM: Security Officer David Chen <david.chen@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Re: Gym Equipment Courtesy Reminder
+DATE: 2147-03-12 19:15:47 UTC
+
+Kim's absolutely right. I propose a simple rule: 30-minute maximum per machine when others are waiting. Use the timer on your personal device.
+
+And for the love of all that's sacred in space, PUT YOUR WEIGHTS BACK. I found the 15kg dumbbells in the storage compartment yesterday. They belong on the rack.
+
+The gym isn't your personal equipment storage locker.
+
+David`,
+
+    'gym_equipment_hogging_003.txt': `FROM: Medical Officer Dr. Jennifer Martinez <dr.martinez@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Re: Gym Equipment Courtesy Reminder
+DATE: 2147-03-12 20:30:12 UTC
+
+From a medical perspective, I support the 30-minute rule. However, I'd like to add that if you're doing rehabilitation exercises (like Rodriguez with his back injury), please inform others so they can plan accordingly.
+
+Also, the stationary bike's heart rate monitor is malfunctioning. It told me I was dead yesterday. I've submitted a repair request.
+
+Dr. Martinez`,
+
+    // Management & Administrative Noise Emails
+    'mandatory_training_reminders_001.txt': `FROM: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: REMINDER: Q2 Safety Training Modules Due
+DATE: 2147-03-05 09:00:00 UTC
+
+All Personnel,
+
+This is your THIRD reminder that the following mandatory training modules are due by March 31st:
+
+1. Zero-G Emergency Procedures (Module 7-G)
+2. Interpersonal Conflict Resolution (Module 12-HR)
+3. Waste Management Protocols (Module 15-ENV)
+4. Cultural Sensitivity in Confined Spaces (Module 18-SOC)
+
+Completion rate is currently at 47%. Corporate has threatened to dock shore leave for incomplete training records.
+
+Please complete these ASAP. The modules take approximately 2.5 hours total.
+
+Lisa Hoffman
+Ship Services Coordinator`,
+
+    'mandatory_training_reminders_002.txt': `FROM: Engineering Specialist Kim Walsh <kim.walsh@isv-meridian.sdc>
+TO: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+SUBJECT: Re: REMINDER: Q2 Safety Training Modules Due
+DATE: 2147-03-05 11:30:17 UTC
+
+Lisa,
+
+When exactly are we supposed to find 2.5 hours for training modules? I've been working 14-hour shifts for the past two weeks. 
+
+The "Cultural Sensitivity in Confined Spaces" module is particularly ridiculous. We all get along fine. We don't need a computer program telling us not to hog the bathroom.
+
+Can we get an extension? Or maybe do these during normal shift rotations instead of personal time?
+
+Kim`,
+
+    'budget_cuts_memo_001.txt': `FROM: Captain Elena Vasquez <captain.vasquez@isv-meridian.sdc>
+TO: All Department Heads <dept-heads@isv-meridian.sdc>
+SUBJECT: Q2 Budget Adjustments - Immediate Implementation
+DATE: 2147-03-01 10:00:00 UTC
+
+Department Heads,
+
+Effective immediately, the following budget adjustments are in effect:
+
+- Recreation Fund: Reduced by 35%
+- Non-Essential Supplies: Reduced by 20%
+- Food Service Variety Budget: Reduced by 15%
+- Equipment Replacement (non-critical): Deferred to Q3
+
+Essential systems maintenance and crew safety are unaffected. All other expenditures require captain's approval.
+
+Please adjust your department spending accordingly and inform your teams.
+
+Captain Vasquez`,
+
+    'budget_cuts_memo_002.txt': `FROM: Chief Engineer Marcus Hale <chief.engineer.hale@isv-meridian.sdc>
+TO: Captain Elena Vasquez <captain.vasquez@isv-meridian.sdc>
+SUBJECT: Re: Q2 Budget Adjustments - Engineering Concerns
+DATE: 2147-03-01 11:15:28 UTC
+
+Captain,
+
+The 20% cut to non-essential supplies is problematic. What Engineering considers "non-essential," corporate might classify differently.
+
+For example, the backup cooling fans for the computer core aren't technically required for operation, but they prevent overheating during peak loads.
+
+Can we get a clearer definition of "non-essential" to avoid conflicts later?
+
+Marcus`,
+
+    'performance_review_notice_001.txt': `FROM: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Q1 Performance Review Schedule
+DATE: 2147-03-20 14:00:00 UTC
+
+All Personnel,
+
+Q1 performance reviews will be conducted March 25-30. Each crew member will meet with their department head for a 30-minute evaluation session.
+
+Review topics include:
+- Job performance and goal achievement
+- Professional development opportunities
+- Interpersonal collaboration assessment
+- Career advancement planning
+
+Please prepare a brief self-evaluation summary (1-2 pages) highlighting your Q1 accomplishments and goals for Q2.
+
+Schedule appointments with your department head by March 23rd.
+
+Lisa Hoffman`,
+
+    'uniform_regulations_001.txt': `FROM: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Uniform Standards Enforcement
+DATE: 2147-03-07 08:00:00 UTC
+
+All Personnel,
+
+Recent uniform standards have become lax. Effective immediately, the following regulations will be strictly enforced:
+
+1. Name tags must be visible and properly aligned
+2. Uniform shirts must be tucked in during duty hours
+3. Personal accessories limited to one small item per person
+4. Footwear must be regulation issue or approved alternatives
+
+This isn't about being petty - it's about maintaining professional standards and crew identification in emergency situations.
+
+Violations will result in verbal warnings, followed by written documentation.
+
+Commander Mitchell`,
+
+    'shift_schedule_disputes_001.txt': `FROM: Navigation Officer Maria Torres <maria.torres@isv-meridian.sdc>
+TO: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+SUBJECT: Shift Trade Request - Urgent Family Matter
+DATE: 2147-03-14 16:22:33 UTC
+
+Lisa,
+
+I need to trade shifts with someone for March 22nd. My sister's graduation ceremony is being broadcast from Earth, and it's the only time I can watch due to transmission delays.
+
+I'll take anyone's extra shift in exchange. I'm qualified for basic operations in Medical, Communications, or Security backup.
+
+This is really important to me - it's the first family event I might actually be able to participate in while we're out here.
+
+Maria`,
+
+    'shift_schedule_disputes_002.txt': `FROM: Communications Tech Sam Bradley <sam.bradley@isv-meridian.sdc>
+TO: Navigation Officer Maria Torres <maria.torres@isv-meridian.sdc>
+SUBJECT: Re: Shift Trade Request - I Can Help
+DATE: 2147-03-14 17:45:11 UTC
+
+Maria,
+
+I can cover your Navigation shift on the 22nd. I've been cross-trained on basic nav systems and Thompson can handle Communications solo for a few hours.
+
+No trade needed - family stuff is important. Just owe me a favor sometime.
+
+Besides, I've been curious about the navigation console. Might be fun to pilot this bucket for a shift.
+
+Sam`,
+
+    'noise_complaints_quarters_001.txt': `FROM: Medical Officer Dr. Jennifer Martinez <dr.martinez@isv-meridian.sdc>
+TO: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+SUBJECT: Noise Complaint - Quarters Section C
+DATE: 2147-03-11 23:45:17 UTC
+
+Commander,
+
+I'm filing a formal noise complaint about quarters C-7. Every night around 2300 hours, there's loud music and what sounds like furniture being moved around.
+
+Some of us work early medical shifts and need sleep. The sound carries through the ventilation system directly into C-5 and C-6.
+
+Can you have a word with whoever's in C-7? This has been going on for a week.
+
+Dr. Martinez`,
+
+    'noise_complaints_quarters_002.txt': `FROM: Engineering Specialist Kim Walsh <kim.walsh@isv-meridian.sdc>
+TO: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+SUBJECT: Re: Noise Complaint - My Explanation
+DATE: 2147-03-12 07:30:28 UTC
+
+Commander,
+
+I'm in C-7. The "loud music" is my workout routine. The "furniture moving" is me pushing my bunk aside to make space for exercises.
+
+I work late Engineering shifts and 2300 is the only time I can work out without conflicts. The gym is always packed during normal hours.
+
+I had no idea the sound carried. I'll switch to floor exercises and use headphones. Sorry for disturbing everyone.
+
+Kim`,
+
+    // Routine Operations & Corporate Communications Noise Emails
+    'cargo_manifest_001.txt': `FROM: Cargo Operations Chief Tony Rodriguez <tony.rodriguez@isv-meridian.sdc>
+TO: All Department Heads <dept-heads@isv-meridian.sdc>
+SUBJECT: March Cargo Manifest - Received Supplies
+DATE: 2147-03-03 11:00:00 UTC
+
+Department Heads,
+
+The following supplies were received during our last station dock:
+
+- Food Service: 200 protein ration packs, 150 beverage concentrate units
+- Medical: Basic pharmaceutical refill, 50 diagnostic strips
+- Engineering: Standard replacement parts kit, 25m optical cable
+- General: Personal hygiene supplies, 30 crew recreational items
+- Communications: 2 backup transmitter modules
+
+All items have been inventoried and distributed to department storage. The next supply run is scheduled for April 15th - submit requests by April 1st.
+
+Tony Rodriguez
+Cargo Operations`,
+
+    'personnel_transfer_001.txt': `FROM: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+TO: All Crew <all-crew@isv-meridian.sdc>
+SUBJECT: Personnel Transfer Notice - Thompson Reassignment
+DATE: 2147-03-16 10:00:00 UTC
+
+All Personnel,
+
+Communications Technician Michael Thompson will be transferring to the ISV Perseus effective April 1st. This is part of the regular crew rotation program.
+
+Thompson has been with us for 18 months and has been an excellent team member. We'll miss his technical expertise and his terrible jokes during night shifts.
+
+A replacement communications tech will be assigned before Thompson's departure. Please join me in wishing him well on his new assignment.
+
+Lisa Hoffman`,
+
+    'company_newsletter_001.txt': `FROM: Stellar Dynamics Corporate Communications <news@stellardynamics.corp>
+TO: All SDC Personnel <all-personnel@stellardynamics.corp>
+SUBJECT: Stellar Dynamics Quarterly Newsletter - Q1 2147
+DATE: 2147-03-25 12:00:00 UTC
+
+Stellar Dynamics Family,
+
+Q1 2147 has been another successful quarter for the Stellar Dynamics Corporation family!
+
+HIGHLIGHTS:
+- 15% increase in cargo delivery efficiency across all routes
+- New partnership with Titan Mining Consortium
+- Employee satisfaction survey results show 73% positive ratings
+- Safety record improved by 8% compared to Q4 2146
+
+UPCOMING EVENTS:
+- Annual SDC Family Day (June 15th on Mars Station Alpha)
+- Technical Innovation Awards (July 20th)
+- New employee orientation programs starting in April
+
+Remember: "Connecting the Stars, Delivering the Future!"
+
+SDC Corporate Communications`,
+
+    'safety_reminder_001.txt': `FROM: Safety Compliance Officer Robert Kane <safety.kane@stellardynamics.corp>
+TO: All Starship Personnel <all-starship@stellardynamics.corp>
+SUBJECT: Monthly Safety Reminder - March 2147
+DATE: 2147-03-01 08:00:00 UTC
+
+All Starship Personnel,
+
+Your monthly safety reminders:
+
+1. Always wear magnetic boots in zero-G work areas
+2. Report any unusual system noises immediately
+3. Never consume unidentified substances from storage
+4. Emergency suits must be checked weekly
+5. Airlock procedures require two-person verification
+
+Remember: "Safety First, Stars Second!"
+
+Recent incident reports show a 12% increase in minor injuries due to negligence. Let's keep each other safe out there.
+
+Robert Kane
+Corporate Safety Compliance`,
+
+    'meeting_request_001.txt': `FROM: Ship Services Coordinator Lisa Hoffman <lisa.hoffman@isv-meridian.sdc>
+TO: All Department Heads <dept-heads@isv-meridian.sdc>
+SUBJECT: Weekly Department Head Meeting - Agenda
+DATE: 2147-03-18 09:00:00 UTC
+
+Department Heads,
+
+Weekly meeting scheduled for March 20th at 1400 hours in Conference Room A.
+
+AGENDA:
+1. Review of monthly efficiency reports
+2. Discussion of upcoming crew rotation schedules
+3. Budget allocation for Q2 non-essential purchases
+4. Status update on outstanding maintenance requests
+5. Planning for next station dock procedures
+
+Please bring your departmental status reports and any pressing issues for group discussion.
+
+Estimated duration: 90 minutes
+
+Lisa Hoffman`
   }
 };
