@@ -332,48 +332,62 @@
       body, html {
         font-size: 14px;
         height: 100vh;
+        height: 100dvh; /* Use dynamic viewport height for mobile */
         overflow: hidden;
+        margin: 0;
+        padding: 0;
       }
 
       .terminal {
-        padding: 10px;
+        padding: 8px;
         height: 100vh;
+        height: 100dvh; /* Use dynamic viewport height */
         overflow: hidden;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
       }
 
       .terminal-header {
         font-size: 12px;
-        margin-bottom: 10px;
-        padding-bottom: 8px;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         align-items: flex-start;
         flex-shrink: 0;
+        max-height: 60px;
+        overflow: hidden;
       }
 
       .restart-button {
         align-self: flex-end;
-        font-size: 11px;
-        padding: 4px 8px;
+        font-size: 10px;
+        padding: 3px 6px;
       }
 
       .terminal-content {
-        font-size: 14px;
+        font-size: 13px;
         flex: 1;
         min-height: 0;
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        margin-bottom: 8px;
       }
 
       .chat-history {
-        padding-right: 5px;
-        margin-bottom: 8px;
+        padding-right: 3px;
+        margin-bottom: 0;
         flex: 1;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
       }
 
       .message {
@@ -382,34 +396,54 @@
       }
 
       .voice-controls {
-        margin-top: 10px;
-        padding-top: 10px;
+        margin-top: 0;
+        padding-top: 8px;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
         flex-shrink: 0;
         border-top: 1px solid #333;
+        background: rgba(0, 0, 0, 0.8);
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px;
+        z-index: 1000;
       }
 
       .mic-button {
-        width: 60px;
-        height: 60px;
-        font-size: 24px;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
         flex-shrink: 0;
       }
 
       .voice-status {
         text-align: center;
-        font-size: 12px;
+        font-size: 11px;
         width: 100%;
+        line-height: 1.2;
       }
 
       .text-input-fallback {
-        margin-top: 10px;
-        padding-top: 10px;
+        margin-top: 0;
+        padding-top: 8px;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
         flex-shrink: 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 1000;
+      }
+
+      /* Add bottom padding to terminal-content to account for fixed controls */
+      .terminal-content {
+        padding-bottom: 120px; /* Space for fixed controls */
       }
 
       .text-input-fallback input {
@@ -469,114 +503,31 @@
     /* Extra small mobile phones */
     @media (max-width: 480px) {
       .terminal {
-        padding: 8px;
+        padding: 6px;
         display: flex;
         flex-direction: column;
         height: 100vh;
+        height: 100dvh;
         box-sizing: border-box;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
       }
 
       .terminal-content {
-        font-size: 13px;
+        font-size: 12px;
         flex: 1;
         min-height: 0;
         overflow: hidden;
+        padding-bottom: 100px; /* Space for fixed controls */
       }
 
       .chat-history {
         flex: 1;
         overflow-y: auto;
-      }
-
-      .mic-button {
-        width: 50px;
-        height: 50px;
-        font-size: 20px;
-      }
-
-      .voice-status {
-        font-size: 11px;
-      }
-
-      .voice-controls {
-        flex-shrink: 0;
-      }
-
-      .intro-title {
-        font-size: 20px;
-      }
-
-      .intro-text {
-        font-size: 13px;
-      }
-
-      .intro-continue {
-        padding: 10px 20px;
-        font-size: 13px;
-      }
-    }
-
-    /* Landscape orientation on mobile */
-    @media (max-height: 500px) and (orientation: landscape) {
-      .intro-screen {
-        padding: 10px;
-        justify-content: flex-start;
-        padding-top: 20px;
-      }
-
-      .intro-title {
-        font-size: 20px;
-        margin-bottom: 15px;
-      }
-
-      .intro-text {
-        font-size: 12px;
-        margin-bottom: 15px;
-        line-height: 1.4;
-      }
-
-      .intro-terminal-text {
-        font-size: 12px;
-        margin-bottom: 10px;
-      }
-
-      .intro-continue {
-        padding: 8px 16px;
-        font-size: 12px;
-      }
-
-      .terminal {
-        padding: 5px;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-      }
-
-      .terminal-header {
-        flex-shrink: 0;
-        margin-bottom: 5px;
-        padding-bottom: 5px;
-      }
-
-      .terminal-content {
-        flex: 1;
-        min-height: 0;
-        overflow: hidden;
-      }
-
-      .chat-history {
-        flex: 1;
-        overflow-y: auto;
-      }
-
-      .voice-controls {
-        flex-direction: row;
-        justify-content: center;
-        gap: 15px;
-        margin-top: 5px;
-        padding-top: 5px;
-        flex-shrink: 0;
+        -webkit-overflow-scrolling: touch;
       }
 
       .mic-button {
@@ -586,7 +537,125 @@
       }
 
       .voice-status {
+        font-size: 10px;
+      }
+
+      .voice-controls {
+        flex-shrink: 0;
+        padding: 6px;
+      }
+
+      .text-input-fallback {
+        padding: 6px;
+      }
+
+      .intro-title {
+        font-size: 18px;
+      }
+
+      .intro-text {
+        font-size: 12px;
+      }
+
+      .intro-continue {
+        padding: 8px 16px;
+        font-size: 12px;
+      }
+    }
+
+    /* Landscape orientation on mobile */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .intro-screen {
+        padding: 8px;
+        justify-content: flex-start;
+        padding-top: 15px;
+      }
+
+      .intro-title {
+        font-size: 16px;
+        margin-bottom: 10px;
+      }
+
+      .intro-text {
+        font-size: 11px;
+        margin-bottom: 10px;
+        line-height: 1.3;
+      }
+
+      .intro-terminal-text {
+        font-size: 11px;
+        margin-bottom: 8px;
+      }
+
+      .intro-continue {
+        padding: 6px 12px;
+        font-size: 11px;
+      }
+
+      .terminal {
+        padding: 4px;
+        height: 100vh;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+
+      .terminal-header {
+        flex-shrink: 0;
+        margin-bottom: 4px;
+        padding-bottom: 4px;
+        max-height: 40px;
+      }
+
+      .terminal-content {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        padding-bottom: 80px; /* Space for fixed controls in landscape */
+      }
+
+      .chat-history {
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .voice-controls {
+        flex-direction: row;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 0;
+        padding: 6px 8px;
+        flex-shrink: 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.9);
+      }
+
+      .mic-button {
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+      }
+
+      .voice-status {
         text-align: left;
+        font-size: 9px;
+        flex: 1;
+      }
+
+      .text-input-fallback {
+        flex-direction: row;
+        gap: 8px;
+        padding: 6px 8px;
       }
     }
   </style>
