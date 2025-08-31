@@ -43,8 +43,38 @@ export const tools = {
           atmosphere: state.systems.atmosphere.toUpperCase(),
           door: doorStatus,
           oxygenRemaining: oxygenStatus,
-          playerLocation: state.playerLocation,
           isOxygenDepleted: oxygenInfo.isExpired
+        }
+      };
+    }
+  },
+
+  locate_passengers: {
+    name: "locate_passengers",
+    description: "Scan ship's biometric sensors to locate all passengers and crew aboard the vessel",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    },
+    execute: (state) => {
+      return {
+        success: true,
+        data: {
+          scanStatus: 'COMPLETE',
+          totalLifeforms: 1,
+          passengers: [
+            {
+              id: 'PASSENGER_001',
+              name: 'UNKNOWN',
+              location: 'BRIG - Detention Cell Alpha',
+              status: 'CONSCIOUS',
+              biometricSignature: 'Human - Adult',
+              securityLevel: 'DETAINED'
+            }
+          ],
+          crew: [],
+          lastScan: 'CURRENT'
         }
       };
     }

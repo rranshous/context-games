@@ -21,7 +21,7 @@ export function createInitialGameState() {
       yellow: 'green', // Secondary grid - flows to green (wrong)
       green: null   // Emergency grid - disconnected
     },
-    availableTools: ['basic_diagnostics', 'power_diagnostics', 'file_storage', 'reroute_power'],
+    availableTools: ['basic_diagnostics', 'locate_passengers', 'power_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',
     doorOpened: false,  // Track if door has been opened
