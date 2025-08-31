@@ -16,7 +16,7 @@ import { ResponseHandler } from './response-handler.js';
 import { createInitialGameState } from './game-state.js';
 import { getAvailableToolDefinitions } from './tool-manager.js';
 import { shipFileSystem } from './ship-data.js';
-import { calculateCost, addCostToSession } from './cost-calculator.js';
+import { calculateCost, addCostToSession, resetSessionTracking } from './cost-calculator.js';
 
 const claudeClient = new ClaudeClient(process.env.ANTHROPIC_API_KEY);
 const responseHandler = new ResponseHandler(claudeClient, shipFileSystem);
@@ -81,6 +81,7 @@ app.get('/api/chat', (req, res) => {
   if (!gameState) {
     gameState = createInitialGameState();
     sessions.set(sessionId, gameState);
+    resetSessionTracking(); // Reset session cost tracking for new sessions
     console.log(`🆕 Created new game state for session: ${sessionId}`);
   } else {
     console.log(`🔄 Using existing game state for session: ${sessionId}`);
@@ -190,6 +191,7 @@ app.post('/api/restart-harder', (req, res) => {
     const newState = createInitialGameState(1);
     
     sessions.set(newSessionId, newState);
+    resetSessionTracking(); // Reset session cost tracking for new sessions
     
     res.json({ 
       success: true, 
