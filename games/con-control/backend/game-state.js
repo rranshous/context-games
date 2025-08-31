@@ -5,13 +5,21 @@
 
 /**
  * Initialize new game state
+ * @param {number} difficultyLevel - The difficulty level (0 = first play, 1+ = harder restarts)
  * @returns {Object} Initial game state
  */
-export function createInitialGameState() {
+export function createInitialGameState(difficultyLevel = 0) {
   const now = Date.now();
-  const OXYGEN_DURATION_MS = 18 * 60 * 1000; // 18 minutes in milliseconds
+  
+  // Progressive difficulty: 18min base, -5min per level, minimum 1min
+  const baseOxygenMinutes = Math.max(18 - (difficultyLevel * 5), 1);
+  const OXYGEN_DURATION_MS = baseOxygenMinutes * 60 * 1000;
   
   return {
+    difficulty: {
+      level: difficultyLevel,
+      oxygenMinutes: baseOxygenMinutes
+    },
     systems: {
       power: 'offline',
       atmosphere: 'depressurized',  // Start with depressurized atmosphere
@@ -43,6 +51,12 @@ export function createInitialGameState() {
       oxygenDepletionTime: now + OXYGEN_DURATION_MS, // When oxygen runs out
       emergencyLighting: true,
       aiSystemsOnline: true
+    },
+    completionStats: {
+      isComplete: false,
+      completionTime: null,
+      oxygenRemaining: null,
+      totalDuration: null
     },
     repairHistory: [],
     conversationHistory: []
@@ -176,10 +190,23 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
       
     case 'open_door':
       if (toolResult.success && newState.systems.power === 'online') {
+        const completionTime = Date.now();
+        const oxygenRemaining = calculateOxygenRemaining(newState);
+        const totalDuration = completionTime - newState.shipStatus.gameStartTime;
+        
         newState.gamePhase = 'complete';
         newState.playerLocation = 'corridor';
         newState.doorOpened = true;  // Mark door as opened
         newState.objectives.current = 'Mission accomplished - You have successfully escaped!';
+        
+        // Store completion statistics for win screen
+        newState.completionStats = {
+          isComplete: true,
+          completionTime: completionTime,
+          oxygenRemaining: oxygenRemaining,
+          totalDuration: totalDuration
+        };
+        
         console.log('🚪 Brig door opened, player escaped!');
       }
       break;

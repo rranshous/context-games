@@ -142,6 +142,62 @@ app.post('/api/restart', (req, res) => {
   }
 });
 
+// Restart with increased difficulty endpoint
+app.post('/api/restart-harder', (req, res) => {
+  const { sessionId } = req.query;
+  
+  if (sessionId && sessions.has(sessionId)) {
+    const currentSession = sessions.get(sessionId);
+    const currentDifficulty = currentSession.state?.difficulty?.level || 0;
+    const newDifficulty = currentDifficulty + 1;
+    
+    // Create new session with increased difficulty
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newState = createInitialGameState(newDifficulty);
+    
+    sessions.set(newSessionId, {
+      state: newState,
+      conversationHistory: []
+    });
+    
+    // Clear old session
+    sessions.delete(sessionId);
+    
+    console.log(`🎯 Restarted with harder difficulty: Level ${currentDifficulty} → ${newDifficulty} (${newState.difficulty.oxygenMinutes} minutes oxygen)`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Restarted with increased difficulty',
+      sessionId: newSessionId,
+      difficulty: {
+        level: newDifficulty,
+        oxygenMinutes: newState.difficulty.oxygenMinutes
+      }
+    });
+  } else {
+    console.log(`⚠️ Session not found for harder restart: ${sessionId}`);
+    
+    // Create new session with difficulty level 1 if no session exists
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newState = createInitialGameState(1);
+    
+    sessions.set(newSessionId, {
+      state: newState,
+      conversationHistory: []
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Started new harder game',
+      sessionId: newSessionId,
+      difficulty: {
+        level: 1,
+        oxygenMinutes: newState.difficulty.oxygenMinutes
+      }
+    });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Con-Control server running on http://0.0.0.0:${PORT}`);
   console.log(`🎮 Game available at http://localhost:${PORT} (local)`);
