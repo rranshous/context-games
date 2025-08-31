@@ -586,7 +586,7 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `Atmospheric power cycle initiated. Atmosphere systems coming online... This will add 5 minutes to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds remaining.`,
+            message: `Atmospheric power cycle initiated. Atmosphere systems coming online... This will add 1 minute to remaining oxygen supply through recycling. Current oxygen: ${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds remaining.`,
             action: 'power_cycle',
             status: 'Atmosphere pressurization in progress'
           }
