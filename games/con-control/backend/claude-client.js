@@ -12,6 +12,40 @@ export class ClaudeClient {
   }
 
   /**
+   * Retry wrapper for Claude API calls with exponential backoff
+   * @param {Function} apiCall - The API call function to retry
+   * @param {number} maxRetries - Maximum number of retries (default: 3)
+   * @returns {Promise<Object>} The API response
+   */
+  async retryClaudeCall(apiCall, maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await apiCall();
+      } catch (error) {
+        lastError = error;
+        
+        // Check if this is an overloaded error that we should retry
+        const isOverloadedError = error.status === 529 || 
+                                 (error.error && error.error.error && error.error.error.type === 'overloaded_error');
+        
+        if (isOverloadedError && attempt < maxRetries) {
+          const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff: 1s, 2s, 4s
+          console.log(`⚠️ Claude overloaded (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // If not an overloaded error or we've exhausted retries, throw the error
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  }
+
+  /**
    * Make an initial call to Claude with the user's message
    * @param {string} message - The user's message
    * @param {Object} state - The current game state
@@ -42,13 +76,15 @@ export class ClaudeClient {
     console.log(`📡 Calling Claude with ${availableTools.length} available tools and ${state.conversationHistory.length} previous messages...`);
     
     try {
-      // Call Claude with tools (no state context)
-      const response = await this.anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 10000,
-        system: systemPrompt,
-        messages: messages,
-        tools: availableTools.length > 0 ? availableTools : undefined
+      // Call Claude with tools (no state context) using retry wrapper
+      const response = await this.retryClaudeCall(async () => {
+        return await this.anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 10000,
+          system: systemPrompt,
+          messages: messages,
+          tools: availableTools.length > 0 ? availableTools : undefined
+        });
       });
       
       console.log(`✅ Claude response received`);
@@ -71,12 +107,14 @@ export class ClaudeClient {
     console.log(`🔧 Calling Claude again with tool results (turn ${turnCount})...`);
     
     try {
-      const response = await this.anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 10000,
-        system: `You are the Ship AI aboard the ISV Meridian`,
-        messages: conversationMessages,
-        tools: availableTools.length > 0 ? availableTools : undefined
+      const response = await this.retryClaudeCall(async () => {
+        return await this.anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 10000,
+          system: `You are the Ship AI aboard the ISV Meridian`,
+          messages: conversationMessages,
+          tools: availableTools.length > 0 ? availableTools : undefined
+        });
       });
       
       console.log(`✅ Claude turn ${turnCount} response received`);
