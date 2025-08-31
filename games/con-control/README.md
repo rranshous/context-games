@@ -32,6 +32,7 @@ Players wake up locked in the ISV Meridian's brig. The ship's AI has been reset 
 - **Passenger Location System**: AI can scan for and locate crew/passengers aboard the ship
 - **Atmospheric Control**: HVAC system management for life support restoration
 - **Catastrophic Failure System**: Dangerous power configurations trigger permanent system destruction
+- **Win Screen & Progressive Difficulty**: Victory modal with escape stats and continue options
 - **Instant Game Restart**: One-click restart button for fresh playthroughs without server restart
 
 ## 🔧 **Technical Implementation**
@@ -68,8 +69,20 @@ The power system contains a **lethal trap** for careless experimentation:
 ### **Atmosphere Restoration Challenge**
 After power is restored, the second challenge involves restoring ship atmosphere:
 - 🌬️ **HVAC Control**: Use newly unlocked tools to restore atmospheric systems
+- ⏱️ **Oxygen Bonus**: Successfully cycling atmosphere adds 1 minute to remaining oxygen
 - 🚪 **Door Access**: Once atmosphere is pressurized, the brig door can be safely opened
 - 🎯 **Escape**: Successfully opening the door completes the escape objective
+
+### **Victory & Progressive Difficulty**
+Upon successful escape, players are rewarded with a victory screen showing:
+- 🕐 **Oxygen Remaining**: How much life support time was left
+- ⏰ **Total Mission Time**: Duration from start to escape
+- 🎖️ **Difficulty Level**: Current challenge level completed
+
+**Continue Playing Options**:
+- 🚀 **Harder Challenge**: Restart with reduced oxygen time (18min → 13min → 8min → 3min → 1min)
+- 🔄 **Full Restart**: Begin fresh at original difficulty level
+- 🔥 **Ultimate Challenge**: At maximum difficulty, only 1 minute of oxygen for expert players
 
 *No spoilers here - let Claude figure it out through exploration and documentation! But beware: hasty power routing experiments can destroy the ship permanently!* ⚡💀
 
@@ -106,6 +119,8 @@ After power is restored, the second challenge involves restoring ship atmosphere
 
 4. **Restart**: 
    - Click "Restart Game" button in the top-right corner to start fresh
+   - **Victory Screen**: Upon escape, view stats and choose next challenge level
+   - **Progressive Difficulty**: Each restart reduces oxygen time for increased challenge
    - No need to restart the server - instant reset to beginning!
 
 ## 📚 **Documentation**
