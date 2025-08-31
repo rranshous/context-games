@@ -255,6 +255,25 @@ export const tools = {
               corrupted: files.filter(f => shipFileSystem['/ship_docs'][f].includes('[CORRUPTED FILE'))
             }
           };
+        } else if (normalizedPath === '/crew_communications') {
+          const files = Object.keys(shipFileSystem['/crew_communications']);
+          return {
+            success: true,
+            data: {
+              directory: '/crew_communications',
+              files: files,
+              directories: files.filter(f => f.endsWith('/'))
+            }
+          };
+        } else if (normalizedPath === '/crew_communications/emails') {
+          const files = Object.keys(shipFileSystem['/crew_communications/emails']);
+          return {
+            success: true,
+            data: {
+              directory: '/crew_communications/emails',
+              files: files
+            }
+          };
         } else {
           return {
             success: false,
@@ -262,31 +281,42 @@ export const tools = {
           };
         }
       } else if (action === 'read') {
-        // Handle file reading - files are stored in /ship_docs/
+        // Handle file reading
         let filePath;
+        let fileSystem;
+        
         if (normalizedPath.startsWith('/ship_docs/')) {
           filePath = normalizedPath.substring('/ship_docs/'.length);
+          fileSystem = shipFileSystem['/ship_docs'];
+        } else if (normalizedPath.startsWith('/crew_communications/emails/')) {
+          filePath = normalizedPath.substring('/crew_communications/emails/'.length);
+          fileSystem = shipFileSystem['/crew_communications/emails'];
         } else if (normalizedPath.startsWith('ship_docs/')) {
           filePath = normalizedPath.substring('ship_docs/'.length);
+          fileSystem = shipFileSystem['/ship_docs'];
+        } else if (normalizedPath.startsWith('crew_communications/emails/')) {
+          filePath = normalizedPath.substring('crew_communications/emails/'.length);
+          fileSystem = shipFileSystem['/crew_communications/emails'];
         } else {
           // Try to read from ship_docs if no directory specified
           filePath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+          fileSystem = shipFileSystem['/ship_docs'];
         }
         
-        if (shipFileSystem['/ship_docs'][filePath]) {
-          const content = shipFileSystem['/ship_docs'][filePath];
+        if (fileSystem && fileSystem[filePath]) {
+          const content = fileSystem[filePath];
           return {
             success: true,
             data: {
               filename: filePath,
-              fullPath: `/ship_docs/${filePath}`,
+              fullPath: normalizedPath,
               content: content
             }
           };
         } else {
           return {
             success: false,
-            error: `File ${filePath} not found in /ship_docs/`
+            error: `File ${filePath} not found`
           };
         }
       } else {
@@ -522,7 +552,7 @@ export const tools = {
         if (!isCorrectTemp || !isCorrectHumidity || !isCorrectPressure) {
           return {
             success: false,
-            error: 'Atmospheric parameters not optimal for system pressurization. Review ship documentation for proper environmental settings.'
+            error: 'Atmospheric parameters not optimal for system restoration.'
           };
         }
         
@@ -700,7 +730,7 @@ export const tools = {
             pressure: `${pressure} atm`
           },
           status: state.systems.atmosphere,
-          message: 'Atmospheric sensor readings active. Current environmental conditions displayed. Optimal parameters must be determined from ship documentation.'
+          message: 'Atmospheric sensor readings active. Current environmental conditions displayed.'
         }
       };
     }
