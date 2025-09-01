@@ -41,6 +41,7 @@ class Terminal {
   // Token and character tracking for efficiency metrics
   private totalTokens = 0;
   private userInputCharCount = 0;
+  private baselineTokens = -1; // Track the starting point for this page load
   
   // Win screen stat elements
   private winTotalTokensElement: HTMLElement | null = null;
@@ -532,6 +533,10 @@ class Terminal {
       // Clear local session storage
       localStorage.removeItem('ship-ai-session');
       
+      // Reset efficiency tracking for new game
+      this.totalTokens = 0;
+      this.userInputCharCount = 0;
+      
       // Refresh the page for complete reset
       window.location.reload();
       
@@ -539,6 +544,9 @@ class Terminal {
       console.error('Error restarting game:', error);
       // Fallback: just clear local storage and refresh
       localStorage.removeItem('ship-ai-session');
+      // Reset efficiency tracking even on error
+      this.totalTokens = 0;
+      this.userInputCharCount = 0;
       window.location.reload();
     }
   }
@@ -569,6 +577,10 @@ class Terminal {
         if (result.success && result.sessionId) {
           // Store new session ID
           localStorage.setItem('ship-ai-session', result.sessionId);
+          
+          // Reset efficiency tracking for new game
+          this.totalTokens = 0;
+          this.userInputCharCount = 0;
           
           // Hide win screen and refresh page for new game
           this.winScreen.style.display = 'none';
@@ -659,9 +671,17 @@ class Terminal {
     // Update token count
     this.sessionTokens.textContent = `${costData.formattedTokens || '0'} tokens`;
     
-    // Track total tokens for efficiency metrics
+    // Track tokens for per-round efficiency metrics
     if (costData.totalTokens) {
-      this.totalTokens = costData.totalTokens;
+      if (this.baselineTokens === -1) {
+        // First cost update since page load - establish baseline
+        // This handles the case where backend preserves cumulative costs
+        this.baselineTokens = costData.totalTokens;
+        this.totalTokens = 0; // Start counting from zero for this round
+      } else {
+        // Calculate tokens used since our baseline (this page load)
+        this.totalTokens = costData.totalTokens - this.baselineTokens;
+      }
     }
   }
 }
