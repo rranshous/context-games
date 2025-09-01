@@ -50,6 +50,7 @@ export function createInitialGameState(difficultyLevel = 0, preservedSessionCost
     shipStatus: {
       gameStartTime: now,
       oxygenDepletionTime: now + OXYGEN_DURATION_MS, // When oxygen runs out
+      eventHorizonTime: now + (4.5 * 60 * 60 * 1000), // 4.5 hours initial time to event horizon
       emergencyLighting: true,
       aiSystemsOnline: true
     },
@@ -100,6 +101,59 @@ export function calculateOxygenRemaining(state) {
     seconds,
     isExpired: false,
     formatted: `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  };
+}
+
+/**
+ * Calculate time remaining until event horizon with accelerating countdown
+ * @param {Object} state - Current game state
+ * @returns {Object} Event horizon time info
+ */
+export function calculateEventHorizonRemaining(state) {
+  const now = Date.now();
+  const gameElapsedMs = now - state.shipStatus.gameStartTime;
+  const gameElapsedMinutes = gameElapsedMs / (60 * 1000);
+  
+  // Accelerating countdown: 4.5 hours of event horizon time should elapse in 30 minutes of wall time
+  // This means we need roughly 9x acceleration overall
+  // Using exponential acceleration: 1.08^(wall_minutes) gives us ~9x at 30 minutes
+  const accelerationFactor = Math.pow(1.08, gameElapsedMinutes); // 8% acceleration per wall minute
+  const acceleratedElapsed = gameElapsedMs * accelerationFactor;
+  
+  const timeRemainingMs = state.shipStatus.eventHorizonTime - state.shipStatus.gameStartTime - acceleratedElapsed;
+  
+  if (timeRemainingMs <= 0) {
+    return {
+      totalHours: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      isExpired: true,
+      formatted: "00h 00m 00s",
+      urgencyLevel: "CRITICAL"
+    };
+  }
+  
+  const totalHours = timeRemainingMs / (60 * 60 * 1000);
+  const hours = Math.floor(totalHours);
+  const minutes = Math.floor((totalHours % 1) * 60);
+  const seconds = Math.floor(((totalHours % 1) * 60 % 1) * 60);
+  
+  let urgencyLevel = "MODERATE";
+  if (totalHours < 1) {
+    urgencyLevel = "CRITICAL";
+  } else if (totalHours < 2) {
+    urgencyLevel = "HIGH";
+  }
+  
+  return {
+    totalHours,
+    hours,
+    minutes,
+    seconds,
+    isExpired: false,
+    formatted: `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`,
+    urgencyLevel
   };
 }
 

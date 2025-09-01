@@ -1,4 +1,4 @@
-import { calculateOxygenRemaining, isOxygenDepleted } from './game-state.js';
+import { calculateOxygenRemaining, calculateEventHorizonRemaining, isOxygenDepleted } from './game-state.js';
 
 /**
  * Tool execution and management for the con-control game
@@ -85,6 +85,19 @@ export const tools = {
         oxygenStatus = `${oxygenInfo.formatted} (${oxygenInfo.minutes} minutes, ${oxygenInfo.seconds} seconds) remaining`;
       }
       
+      // Calculate event horizon countdown
+      const eventHorizonInfo = calculateEventHorizonRemaining(state);
+      let navigationStatus;
+      if (eventHorizonInfo.isExpired) {
+        navigationStatus = 'CRITICAL FAILURE - Event horizon reached';
+      } else if (eventHorizonInfo.urgencyLevel === 'CRITICAL') {
+        navigationStatus = `CRITICAL - Navigation drift, ${eventHorizonInfo.formatted} to event horizon`;
+      } else if (eventHorizonInfo.urgencyLevel === 'HIGH') {
+        navigationStatus = `HIGH ISSUE - Navigation drift, ${eventHorizonInfo.formatted} to event horizon`;
+      } else {
+        navigationStatus = `MODERATE ISSUE - Navigation drift, ${eventHorizonInfo.formatted} to event horizon`;
+      }
+      
       // Calculate AI uptime since game start
       const currentTime = Date.now();
       const uptimeMs = currentTime - state.shipStatus.gameStartTime;
@@ -105,7 +118,7 @@ export const tools = {
           atmosphere: state.systems.atmosphere.toUpperCase(),
           door: doorStatus,
           oxygenRemaining: oxygenStatus,
-          navigation: 'MODERATE ISSUE - Navigation drift detected',
+          navigation: navigationStatus,
           isOxygenDepleted: oxygenInfo.isExpired
         }
       };
