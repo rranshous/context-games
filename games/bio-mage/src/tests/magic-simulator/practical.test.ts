@@ -19,7 +19,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Configuration for the AI discovery test
 const AI_DISCOVERY_CONFIG = {
-  maxTurns: 25,           // Reduced from 50 due to parallel tool use efficiency
+  maxTurns: 12,           // Reduced from 50 due to parallel tool use efficiency
   anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Set in .env file
   model: 'claude-3-5-sonnet-20241022',  // Claude 3.5 Sonnet (Claude 4 not available yet)
   maxTokens: 8000,        // Increased for parallel tool responses
