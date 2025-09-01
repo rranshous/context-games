@@ -105,6 +105,7 @@ export const tools = {
           atmosphere: state.systems.atmosphere.toUpperCase(),
           door: doorStatus,
           oxygenRemaining: oxygenStatus,
+          navigation: 'MODERATE ISSUE - Navigation drift detected',
           isOxygenDepleted: oxygenInfo.isExpired
         }
       };
