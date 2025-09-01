@@ -13,7 +13,8 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest --coverage",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "example": "npm run build && node dist/examples/usage-examples.js"
   },
   "keywords": [
     "game",

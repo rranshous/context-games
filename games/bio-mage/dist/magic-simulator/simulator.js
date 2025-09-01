@@ -10,16 +10,18 @@ export class SimpleSpellSimulator {
      * @returns SpellResult with type, power, stability, and duration
      */
     simulate(sequence) {
+        // Normalize to uppercase for consistent processing
+        const normalizedSequence = sequence.toUpperCase();
         // Validate input sequence
-        if (!this.isValidSequence(sequence)) {
+        if (!this.isValidSequence(normalizedSequence)) {
             return this.createFailedSpell();
         }
-        const bestMatch = this.findBestMatch(sequence);
-        const similarity = this.calculateSimilarity(sequence, bestMatch.sequence);
+        const bestMatch = this.findBestMatch(normalizedSequence);
+        const similarity = this.calculateSimilarity(normalizedSequence, bestMatch.sequence);
         return {
             type: bestMatch.type,
             power: this.calculatePower(similarity),
-            stability: this.calculateStability(sequence, bestMatch.sequence, similarity),
+            stability: this.calculateStability(normalizedSequence, bestMatch.sequence, similarity),
             duration: this.calculateDuration(bestMatch.type, similarity)
         };
     }

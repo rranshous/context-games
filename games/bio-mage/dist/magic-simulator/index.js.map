@@ -1,1 +1,1 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["../../src/magic-simulator/index.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,EAAE,oBAAoB,EAAE,MAAM,gBAAgB,CAAC;AAEtD,OAAO,EAAE,YAAY,EAAE,aAAa,EAAE,WAAW,EAAE,MAAM,gBAAgB,CAAC"}
+{"version":3,"file":"index.js","sourceRoot":"","sources":["../../src/magic-simulator/index.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;;;;;;;;;GAyBG;AAEH,uBAAuB;AACvB,OAAO,EAAE,oBAAoB,EAAE,MAAM,gBAAgB,CAAC;AAUtD,8BAA8B;AAC9B,OAAO,EACL,YAAY,EACZ,aAAa,EACb,WAAW,EACZ,MAAM,gBAAgB,CAAC"}
