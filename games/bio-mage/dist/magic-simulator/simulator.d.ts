@@ -7,7 +7,7 @@ export declare class AdvancedSpellSimulator {
     /**
      * Main entry point for spell interpretation using multi-pass analysis
      */
-    interpret(rawSequence: string): SpellResult;
+    interpret(sequence: string): SpellResult;
     /**
      * First pass: Identify regulatory sequences that control spell casting
      */
@@ -24,6 +24,14 @@ export declare class AdvancedSpellSimulator {
      * Final pass: Synthesize all analysis into spell result
      */
     private synthesizeEffect;
+    /**
+     * Check if sequence exactly matches a complete perfect spell
+     */
+    private checkForPerfectSpell;
+    /**
+     * Get duration for specific spell types
+     */
+    private getSpellDuration;
     private cleanSequence;
     private isValidSequence;
     private createFailureResult;
@@ -31,8 +39,6 @@ export declare class AdvancedSpellSimulator {
     private coreNameToSpellType;
     private calculateStructuralConfidence;
     private findBestPartialStructuralMatch;
-    private classifyModifierEffect;
-    private calculateModifierMagnitude;
     private calculateOverallConfidence;
     private assessRiskLevel;
     private determinePrimarySpellType;
