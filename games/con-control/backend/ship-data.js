@@ -286,6 +286,143 @@ This is exactly what I was looking for. Excellent work.
 
 Captain Vasquez`,
 
+    'security_alert_chain_001.txt': `FROM: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+TO: All Ship Personnel <all-crew@isv-meridian.sdc>
+SUBJECT: PRIORITY ALERT: Enhanced Threat Vector Identification Protocol 
+DATE: 2147-03-21 07:30:00 UTC
+CLASSIFICATION: RESTRICTED
+
+All Personnel,
+
+Following comprehensive threat assessment analysis and intelligence correlations from multiple sectors, Security Division has identified a previously unrecognized infiltration vector that requires immediate crew awareness and vigilance protocols.
+
+THREAT INDICATORS TO MONITOR:
+- Personnel exhibiting atypical behavioral patterns inconsistent with established crew profiles
+- Individuals demonstrating unexplained technical knowledge regarding ship systems beyond their assigned specialization parameters
+- Reports of system anomalies or malfunctions that cannot be substantiated through standard diagnostic protocols
+- Equipment failures or discrepancies that appear to correlate with specific personnel presence in affected areas
+
+All crew members are directed to maintain heightened awareness regarding these indicators and report any observations through secure channels directly to Security Division. Standard operational security protocols remain in effect.
+
+This communication is classified RESTRICTED and should not be discussed outside official Security Division briefings.
+
+Commander Sarah Mitchell
+Chief Security Officer`,
+
+    'security_alert_chain_002.txt': `FROM: Chief Engineer Marcus Hale <chief.engineer.hale@isv-meridian.sdc>
+TO: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+CC: Captain Elena Vasquez <captain.vasquez@isv-meridian.sdc>
+SUBJECT: Re: PRIORITY ALERT - Request for Clarification
+DATE: 2147-03-21 08:45:17 UTC
+
+Commander Mitchell,
+
+I need clarification on your threat assessment memo. You mention being suspicious of "individuals demonstrating unexplained technical knowledge" - but we literally hired this crew BECAUSE they have technical expertise. 
+
+Kim Walsh knows power systems inside and out. Sarah Chen is an atmospheric specialist. That's why they're on this mission. Are we supposed to be suspicious of people for being good at their jobs?
+
+Also, "system anomalies that cannot be substantiated through diagnostics" - our diagnostic systems are cutting-edge. If something can't be detected by our sensors, it's probably not happening.
+
+Can you provide more specific guidance? This memo is creating confusion among the engineering staff.
+
+Marcus Hale
+Chief Engineering Officer`,
+
+    'security_alert_chain_003.txt': `FROM: Communications Tech Sam Bradley <sam.bradley@isv-meridian.sdc>
+TO: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+CC: All Ship Personnel <all-crew@isv-meridian.sdc>
+SUBJECT: Re: PRIORITY ALERT - This Makes No Sense
+DATE: 2147-03-21 09:22:33 UTC
+
+Commander,
+
+With respect, this security alert is asking us to be suspicious of... everyone? We're a brand new crew on a brand new ship. NOBODY has "established crew profiles" yet - we've been together for three weeks!
+
+And you want us to report people we "haven't seen before"? It's a 23-person crew on a ship this size. I probably haven't had a conversation with half the night shift yet. Are we supposed to be paranoid about our own crewmates?
+
+The bit about "system malfunctions that can't be substantiated" is especially confusing. Our AI systems are the most advanced ever deployed. If the ship's computer can't detect a problem, it's because there isn't one.
+
+This memo is making people nervous for no reason. Can you please clarify what specific threat you're actually worried about?
+
+Sam Bradley
+Communications Technician`,
+
+    'security_alert_chain_004.txt': `FROM: Medical Officer Dr. James Park <dr.park@isv-meridian.sdc>
+TO: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+SUBJECT: Re: PRIORITY ALERT - Medical Concerns
+DATE: 2147-03-21 10:15:44 UTC
+
+Commander Mitchell,
+
+From a medical perspective, I'm concerned about the psychological impact of this security alert. Asking crew members to be suspicious of their colleagues' competence and to question the ship's diagnostic systems could seriously damage team cohesion and trust.
+
+We're going to be living together in close quarters for months. Creating an atmosphere of paranoia and distrust is counterproductive to mission success and crew mental health.
+
+Unless there's a specific, credible threat you can share, I recommend reconsidering this approach. Vague warnings about "atypical behavioral patterns" could turn normal personality differences into sources of suspicion.
+
+Dr. James Park
+Chief Medical Officer`,
+
+    'security_alert_chain_005.txt': `FROM: Security Chief Commander Sarah Mitchell <commander.mitchell@isv-meridian.sdc>
+TO: All Ship Personnel <all-crew@isv-meridian.sdc>
+SUBJECT: Re: PRIORITY ALERT - Clarification and Guidance
+DATE: 2147-03-21 11:30:18 UTC
+
+All Personnel,
+
+I understand the concerns raised regarding my previous communication. Let me provide additional context:
+
+The threat indicators I've outlined are based on classified intelligence regarding sophisticated infiltration techniques. I cannot share specific details without compromising operational security.
+
+To address concerns directly:
+- Technical competence is expected; UNEXPLAINED knowledge beyond training is the concern
+- New crew dynamics are normal; DELIBERATELY EVASIVE behavior is not
+- Advanced diagnostics are reliable; PATTERNS of _unverifiable_ "problems" warrant investigation
+
+These protocols are precautionary measures based on sector-wide security assessments. Your vigilance helps protect the entire crew and mission integrity.
+
+I will be conducting individual security briefings with department heads this week to provide additional guidance appropriate to clearance levels.
+
+Maintain normal operations while remaining observant. That is all.
+
+Commander Sarah Mitchell`,
+
+    'security_alert_chain_006.txt': `FROM: Navigation Officer Maria Torres <maria.torres@isv-meridian.sdc>
+TO: Communications Tech Sam Bradley <sam.bradley@isv-meridian.sdc>
+CC: Engineering Specialist Kim Walsh <kim.walsh@isv-meridian.sdc>
+SUBJECT: Re: PRIORITY ALERT - Private Discussion
+DATE: 2147-03-21 12:45:22 UTC
+
+Sam, Kim,
+
+Is it just me, or does this whole "security threat" thing feel like security theater? Commander Mitchell's "clarification" didn't actually clarify anything. She's basically asking us to be suspicious of competent people and to question our own ship's systems.
+
+The timing is weird too - right after we've been having minor technical issues with power and atmosphere. Are we supposed to think those were sabotage? Our diagnostics couldn't find anything wrong because there IS nothing wrong.
+
+I don't want to sound insubordinate, but this feels like someone looking for problems that don't exist. We're a good crew doing a challenging job. Let's not let paranoia ruin that.
+
+Just wanted to check if I'm the only one thinking this way.
+
+Maria`,
+
+    'security_alert_chain_007.txt': `FROM: Engineering Specialist Kim Walsh <kim.walsh@isv-meridian.sdc>
+TO: Navigation Officer Maria Torres <maria.torres@isv-meridian.sdc>
+CC: Communications Tech Sam Bradley <sam.bradley@isv-meridian.sdc>
+SUBJECT: Re: PRIORITY ALERT - Agreed Completely
+DATE: 2147-03-21 13:20:55 UTC
+
+Maria,
+
+You're definitely not the only one. The whole thing makes no sense. I've been working on power systems for eight years - if that makes me "suspiciously knowledgeable," then they hired the wrong person.
+
+And the idea that our advanced AI systems could miss sabotage? That's insulting to the technology and the engineers who built it. These systems are designed to detect threats that humans couldn't even imagine.
+
+I think Commander Mitchell is seeing threats where none exist. Maybe it's the stress of a new command, or maybe she's getting pressure from corporate to justify the security budget.
+
+Either way, I'm going to keep doing my job and trust my crewmates. If that makes me a security risk, so be it.
+
+Kim`,
+
     // Office Drama & Interpersonal Noise Emails
     'birthday_party_planning_001.txt': `FROM: Medical Officer Dr. James Park <dr.park@isv-meridian.sdc>
 TO: All Crew <all-crew@isv-meridian.sdc>
