@@ -21,9 +21,10 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const AI_DISCOVERY_CONFIG = {
   maxTurns: 50,           // Limit Claude to 50 simulation attempts
   anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Set in .env file
-  model: 'claude-3-5-sonnet-20241022',
-  maxTokens: 4000,
-  temperature: 0.1        // Low temperature for systematic exploration
+  model: 'claude-sonnet-4-20250514',  // Claude 4 with extended thinking support
+  maxTokens: 16000,       // Must be greater than budget_tokens for thinking mode
+  temperature: 1,         // Must be 1 when thinking is enabled
+  enableThinking: true    // Enable Claude's thinking mode
 };
 
 interface DiscoveryAttempt {
@@ -292,6 +293,12 @@ async function callClaude(prompt: string, messages: any[] = []): Promise<{ respo
       model: AI_DISCOVERY_CONFIG.model,
       max_tokens: AI_DISCOVERY_CONFIG.maxTokens,
       temperature: AI_DISCOVERY_CONFIG.temperature,
+      ...(AI_DISCOVERY_CONFIG.enableThinking && { 
+        thinking: { 
+          type: "enabled",
+          budget_tokens: 10000
+        } 
+      }),
       messages: conversationMessages,
       tools: [{
         name: 'simulate_spell',
