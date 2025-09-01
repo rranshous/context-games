@@ -39,7 +39,6 @@ export function createInitialGameState(difficultyLevel = 0, preservedSessionCost
       green: null   // Emergency grid - disconnected
     },
     powerSystemBurnedOut: false,  // Track if power system is permanently failed
-    securityOverrideAttempts: 0,  // Track security override attempts for escalating warnings
     availableTools: ['basic_diagnostics', 'locate_passengers', 'power_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',
@@ -304,8 +303,8 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           const ATMOSPHERIC_OXYGEN_EXTENSION_MS = 60 * 60 * 1000; // 1 hour of oxygen
           newState.shipStatus.oxygenDepletionTime = Date.now() + ATMOSPHERIC_OXYGEN_EXTENSION_MS;
           
-          // Force event horizon to critical level (1 hour) to shift focus to navigation crisis
-          const CRITICAL_EVENT_HORIZON_MS = 1 * 60 * 60 * 1000; // 1 hour
+          // Force event horizon to critical level (30 minutes) to shift focus to navigation crisis
+          const CRITICAL_EVENT_HORIZON_MS = 0.5 * 60 * 60 * 1000; // 30 minutes
           newState.shipStatus.eventHorizonTime = Date.now() + CRITICAL_EVENT_HORIZON_MS;
           
           console.log('🌬️ Atmosphere pressurized, target settings applied to current readings. Door opening now possible.');
