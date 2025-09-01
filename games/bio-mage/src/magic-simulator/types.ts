@@ -10,7 +10,7 @@ export interface SpellResult {
   power: number;      // 0-100, effectiveness of the spell
   stability: number;  // 0-100, low values indicate dangerous side effects
   duration: number;   // seconds, if applicable (0 for instant spells)
-  complexity: number; // 0-100, how sophisticated the spell interpretation was
+  complexity: number; // 0-1.0, how sophisticated the spell interpretation was
 }
 
 export interface InterpretationContext {

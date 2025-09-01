@@ -76,7 +76,7 @@ interface SpellResult {
   power: number;        // 0-100, effectiveness of the spell
   stability: number;    // 0-100, safety/reliability (low = dangerous)
   duration: number;     // Seconds, 0 for instant spells
-  complexity: number;   // 0-100, sophistication of interpretation
+  complexity: number;   // 0-1.0, sophistication of interpretation
 }
 ```
 

@@ -67,37 +67,6 @@ describe('Advanced AI Discovery Test', () => {
     let currentTurn = 0;
     let totalToolCalls = 0;
 
-    // Updated initial prompt for advanced system
-    const initialPrompt = `
-You are a scientist studying an advanced magical system that treats spells as complex genetic-like sequences using ATCG base-4 encoding (like DNA).
-
-This is a sophisticated multi-pass interpretation system with:
-- Regulatory sequences (promoters, enhancers, silencers) that control spell expression
-- Structural cores that define the primary spell effect
-- Modifier sequences that amplify, stabilize, or add effects
-
-Your goal: Discover all available spells and understand the underlying biological patterns through systematic experimentation.
-
-You have access to an "interpret_spell" tool that takes an ATCG sequence and returns:
-- type: The detected spell type (pyroblast, regeneration, ward, storm, phase, or unknown)
-- power: 0-100, effectiveness of the spell  
-- stability: 0-100, safety/reliability (low = dangerous)
-- duration: seconds (0 for instant spells)
-- complexity: 0-100, sophistication of the interpretation
-
-Rules:
-- You have ${AI_DISCOVERY_CONFIG.maxTurns} attempts maximum
-- Valid characters are: A, T, C, G
-- The system is completely deterministic
-- Perfect complete spells have 100% power and stability
-- Fragments and partial sequences can still produce effects
-- Regulatory sequences control expression, structural cores define effects, modifiers enhance
-
-Advanced spells are longer and more complex than simple systems. Think like a molecular biologist!
-
-Start your investigation! What sequence would you like to test first?
-`;
-
     try {
       const conversationHistory: any[] = [];
       
@@ -117,6 +86,7 @@ You have access to an "interpret_spell" tool that takes an ATCG sequence and ret
 Rules:
 - You have ${AI_DISCOVERY_CONFIG.maxTurns} attempts maximum
 - Valid characters are: A, T, C, G
+- sequences can be up to 36 characters long
 - The system is completely deterministic
 - Perfect complete spells have 100% power and stability
 - Fragments and partial sequences can still produce effects
@@ -177,7 +147,7 @@ Use the interpret_spell tool to test sequences (you can test multiple sequences 
               
               discoveryLog.push(attempt);
               
-              console.log(`  Tool Call ${totalToolCalls}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability, ${result.complexity}% complexity)`);
+              console.log(`  Tool Call ${totalToolCalls}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability, ${Math.round(result.complexity * 100)}% complexity)`);
 
               // Collect tool call for batch processing
               toolCallContents.push({
@@ -283,7 +253,7 @@ Format as a structured report.
       console.log(`Spells discovered: ${analysis.uniqueSpellTypes.size}/5`);
       console.log(`Perfect sequences found: ${analysis.perfectSequences.length}`);
       console.log(`Max power achieved: ${analysis.maxPower}%`);
-      console.log(`Max complexity achieved: ${analysis.maxComplexity}%`);
+      console.log(`Max complexity achieved: ${Math.round(analysis.maxComplexity * 100)}%`);
       console.log(`Efficiency: ${(totalToolCalls / currentTurn).toFixed(1)} tool calls per turn`);
       
       console.log('\n📊 Claude\'s Final Report:');
