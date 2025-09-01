@@ -1,15 +1,17 @@
 /**
- * Practical AI Discovery Test
+ * Advanced AI Discovery Test
  * 
- * This test gives Claude access to the magic simulator and challenges it to
- * discover all available spells through systematic experimentation.
+ * This test gives Claude access to the advanced magic simulator and challenges it to
+ * discover all available spells through systematic experimentation with the new
+ * multi-pass biological sequence interpretation system.
  * 
- * This validates whether our magic system is discoverable and learnable
+ * This validates whether our advanced magic system with regulatory sequences,
+ * structural cores, and modifier patterns is discoverable and learnable
  * by an intelligent agent using only the simulator interface.
  */
 
 import { describe, it, expect } from 'vitest';
-import { SimpleSpellSimulator } from '../../magic-simulator/simulator.js';
+import { AdvancedSpellSimulator } from '../../magic-simulator/simulator.js';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -18,7 +20,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Configuration for the AI discovery test
 const AI_DISCOVERY_CONFIG = {
-  maxTurns: 12,           // Reduced from 50 due to parallel tool use efficiency
+  maxTurns: 20,           // Increased for more complex system
   anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Set in .env file
   model: 'claude-sonnet-4-20250514',  // Claude 4 Sonnet
   maxTokens: 8000,        // Increased for parallel tool responses
@@ -34,6 +36,7 @@ interface DiscoveryAttempt {
     power: number;
     stability: number;
     duration: number;
+    complexity: number;  // Added for advanced system
   };
   reasoning?: string;
 }
@@ -47,45 +50,52 @@ interface DiscoveryReport {
   conclusions: string;
 }
 
-describe('AI Discovery Test', () => {
-  const simulator = new SimpleSpellSimulator();
+describe('Advanced AI Discovery Test', () => {
+  const simulator = new AdvancedSpellSimulator();
   
-  it('Claude should discover magic spells through experimentation', { timeout: 0 }, async () => {
+  it('Claude should discover advanced magic spells through experimentation', { timeout: 0 }, async () => {
     // Skip test if no API key provided
     if (!AI_DISCOVERY_CONFIG.anthropicApiKey) {
       console.log('⚠️  Skipping AI discovery test - no ANTHROPIC_API_KEY provided');
       return;
     }
 
-    console.log('🧬 Starting AI Magic Discovery Challenge...');
-    console.log(`Giving Claude ${AI_DISCOVERY_CONFIG.maxTurns} attempts to discover all spells\n`);
+    console.log('🧬 Starting Advanced AI Magic Discovery Challenge...');
+    console.log(`Giving Claude ${AI_DISCOVERY_CONFIG.maxTurns} attempts to discover the multi-pass magic system\n`);
 
     const discoveryLog: DiscoveryAttempt[] = [];
     let currentTurn = 0;
     let totalToolCalls = 0;
 
-    // Initial prompt to Claude
+    // Updated initial prompt for advanced system
     const initialPrompt = `
-You are a scientist studying a magical system that treats spells as genetic-like sequences using ATCG base-4 encoding (like DNA).
+You are a scientist studying an advanced magical system that treats spells as complex genetic-like sequences using ATCG base-4 encoding (like DNA).
 
-Your goal: Discover all available spells and their exact sequences through systematic experimentation.
+This is a sophisticated multi-pass interpretation system with:
+- Regulatory sequences (promoters, enhancers, silencers) that control spell expression
+- Structural cores that define the primary spell effect
+- Modifier sequences that amplify, stabilize, or add effects
 
-You have access to a magic simulator that takes an ATCG sequence and returns:
-- type: The detected spell type
+Your goal: Discover all available spells and understand the underlying biological patterns through systematic experimentation.
+
+You have access to an "interpret_spell" tool that takes an ATCG sequence and returns:
+- type: The detected spell type (pyroblast, regeneration, ward, storm, phase, or unknown)
 - power: 0-100, effectiveness of the spell  
 - stability: 0-100, safety/reliability (low = dangerous)
 - duration: seconds (0 for instant spells)
+- complexity: 0-100, sophistication of the interpretation
 
 Rules:
 - You have ${AI_DISCOVERY_CONFIG.maxTurns} attempts maximum
 - Valid characters are: A, T, C, G
 - The system is completely deterministic
-- There are multiple spell types to discover
-- Perfect sequences have 100% power and stability
+- Perfect complete spells have 100% power and stability
+- Fragments and partial sequences can still produce effects
+- Regulatory sequences control expression, structural cores define effects, modifiers enhance
 
-Start your investigation! Think systematically and document your methodology.
+Advanced spells are longer and more complex than simple systems. Think like a molecular biologist!
 
-What sequence would you like to test first?
+Start your investigation! What sequence would you like to test first?
 `;
 
     try {
@@ -97,24 +107,26 @@ You are a scientist studying a magical system that treats spells as genetic-like
 
 Your goal: Discover all available spells and their exact sequences through systematic experimentation.
 
-You have access to a "simulate_spell" tool that takes an ATCG sequence and returns:
-- type: The detected spell type
-- power: 0-100, effectiveness of the spell  
+You have access to an "interpret_spell" tool that takes an ATCG sequence and returns:
+- type: The detected spell type (pyroblast, regeneration, ward, storm, phase, or unknown)
+- power: 0-100, effectiveness of the spell
 - stability: 0-100, safety/reliability (low = dangerous)
 - duration: seconds (0 for instant spells)
+- complexity: 0-100, sophistication of the interpretation
 
 Rules:
 - You have ${AI_DISCOVERY_CONFIG.maxTurns} attempts maximum
 - Valid characters are: A, T, C, G
 - The system is completely deterministic
-- There are multiple spell types to discover
-- Perfect sequences have 100% power and stability
+- Perfect complete spells have 100% power and stability
+- Fragments and partial sequences can still produce effects
+- Advanced spells are longer and more complex than simple systems
 
-IMPORTANT: You can use the simulate_spell tool multiple times in parallel within a single response. 
+IMPORTANT: You can use the interpret_spell tool multiple times in parallel within a single response. 
 This is highly encouraged for efficient exploration! Test multiple sequences at once when it makes sense.
 
 Start your investigation! Think systematically and document your methodology.
-Use the simulate_spell tool to test sequences (you can test multiple sequences in parallel).
+Use the interpret_spell tool to test sequences (you can test multiple sequences in parallel).
 `;
 
       conversationHistory.push({
@@ -144,11 +156,11 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
           
           // Process all tool calls in this batch
           for (const toolCall of claudeResult.toolCalls) {
-            if (toolCall.name === 'simulate_spell') {
+            if (toolCall.name === 'interpret_spell') {
               totalToolCalls++;
               
               const sequence = toolCall.input.sequence;
-              const result = simulator.simulate(sequence);
+              const result = simulator.interpret(sequence);
               
               // Log the attempt
               const attempt: DiscoveryAttempt = {
@@ -158,19 +170,20 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
                   type: result.type,
                   power: result.power,
                   stability: result.stability,
-                  duration: result.duration
+                  duration: result.duration,
+                  complexity: result.complexity
                 }
               };
               
               discoveryLog.push(attempt);
               
-              console.log(`  Tool Call ${totalToolCalls}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability)`);
+              console.log(`  Tool Call ${totalToolCalls}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability, ${result.complexity}% complexity)`);
 
               // Collect tool call for batch processing
               toolCallContents.push({
                 type: 'tool_use',
                 id: toolCall.id,
-                name: 'simulate_spell',
+                name: 'interpret_spell',
                 input: toolCall.input
               });
 
@@ -182,7 +195,8 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
                   type: result.type,
                   power: result.power,
                   stability: result.stability,
-                  duration: result.duration
+                  duration: result.duration,
+                  complexity: result.complexity
                 })
               });
             }
@@ -208,7 +222,7 @@ Based on the results, continue your systematic investigation.
 Previous attempts: ${discoveryLog.length}
 Turns used: ${currentTurn}/${AI_DISCOVERY_CONFIG.maxTurns}
 
-Remember: You can test multiple sequences in parallel using multiple simulate_spell calls in a single response.
+Remember: You can test multiple sequences in parallel using multiple interpret_spell calls in a single response.
 What would you like to test next?
 `;
             
@@ -221,7 +235,7 @@ What would you like to test next?
           }
         } else {
           // No tool calls, ask Claude to continue
-          const continuePrompt = `Please use the simulate_spell tool to test sequences. You can test multiple sequences in parallel for efficiency. You have ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn} turns remaining.`;
+          const continuePrompt = `Please use the interpret_spell tool to test sequences. You can test multiple sequences in parallel for efficiency. You have ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn} turns remaining.`;
           
           conversationHistory.push({
             role: 'user',
@@ -262,13 +276,14 @@ Format as a structured report.
       // Analyze results
       const analysis = analyzeDiscoveryResults(discoveryLog);
       
-      console.log('\n🔬 AI Discovery Results:');
+      console.log('\n🔬 Advanced AI Discovery Results:');
       console.log(`Total inference turns: ${currentTurn}`);
       console.log(`Total tool calls: ${totalToolCalls}`);
       console.log(`Total experiments: ${discoveryLog.length}`);
       console.log(`Spells discovered: ${analysis.uniqueSpellTypes.size}/5`);
       console.log(`Perfect sequences found: ${analysis.perfectSequences.length}`);
       console.log(`Max power achieved: ${analysis.maxPower}%`);
+      console.log(`Max complexity achieved: ${analysis.maxComplexity}%`);
       console.log(`Efficiency: ${(totalToolCalls / currentTurn).toFixed(1)} tool calls per turn`);
       
       console.log('\n📊 Claude\'s Final Report:');
@@ -319,14 +334,14 @@ async function callClaude(prompt: string, messages: any[] = []): Promise<{ respo
       }),
       messages: conversationMessages,
       tools: [{
-        name: 'simulate_spell',
-        description: 'Test a magic sequence and get the resulting spell effects',
+        name: 'interpret_spell',
+        description: 'Interpret an advanced magic sequence using the multi-pass biological system',
         input_schema: {
           type: 'object',
           properties: {
             sequence: {
               type: 'string',
-              description: 'The ATCG magic sequence to test (e.g., "ATCGATCGATCG")',
+              description: 'The ATCG magic sequence to interpret (e.g., "TATAAAAATATACGATCGATCGATCGACTGTGCA")',
               pattern: '^[ATCGatcg]+$'
             }
           },
@@ -368,11 +383,13 @@ function analyzeDiscoveryResults(log: DiscoveryAttempt[]) {
     .filter(attempt => attempt.result.power === 100)
     .map(attempt => attempt.sequence);
   const maxPower = Math.max(...log.map(attempt => attempt.result.power));
+  const maxComplexity = Math.max(...log.map(attempt => attempt.result.complexity));
   
   return {
     uniqueSpellTypes,
     perfectSequences,
     maxPower,
+    maxComplexity,
     totalAttempts: log.length
   };
 }
