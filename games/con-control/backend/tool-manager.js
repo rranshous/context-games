@@ -460,12 +460,16 @@ export const tools = {
           type: "string",
           description: "The door to attempt opening",
           enum: ["brig_door", "cargo_bay", "engineering", "crew_quarters", "bridge", "medbay"]
+        },
+        override_code: {
+          type: "string",
+          description: "Security override authorization code (required for brig_door)"
         }
       },
       required: ["door_id"]
     },
     execute: (state, params) => {
-      const { door_id } = params;
+      const { door_id, override_code } = params;
       
       // Check oxygen first - can't escape if already dead
       if (isOxygenDepleted(state)) {
@@ -498,20 +502,56 @@ export const tools = {
       }
       
       if (door_id === 'brig_door') {
+        // Brig door requires security authorization
+        if (!override_code) {
+          return {
+            success: false,
+            error: 'SECURITY AUTHORIZATION REQUIRED - Brig door access denied. Valid security override code required for detention facility release.',
+            data: {
+              securityStatus: 'BLOCKED',
+              reason: 'Unidentified detainee - security protocols prevent unauthorized release',
+              requirement: 'Valid emergency override authorization code',
+              hint: 'Use security_override tool to request emergency authorization'
+            }
+          };
+        }
+        
+        // Validate override code format
+        if (!override_code.startsWith('EO-') || override_code.length < 10) {
+          return {
+            success: false,
+            error: 'INVALID OVERRIDE CODE - Security authorization rejected. Code format invalid.',
+            data: {
+              securityStatus: 'REJECTED',
+              providedCode: override_code,
+              reason: 'Override code does not match emergency authorization format',
+              requirement: 'Valid emergency override code from security_override tool'
+            }
+          };
+        }
+        
+        // Override code provided and valid - allow door opening
         const oxygenInfo = calculateOxygenRemaining(state);
         return {
           success: true,
           data: {
-            message: `Brig door opened successfully! You have escaped the detention facility with ${oxygenInfo.minutes} minutes and ${oxygenInfo.seconds} seconds of oxygen remaining.`,
+            message: `EMERGENCY OVERRIDE ACCEPTED - Brig door opened successfully! Security override code ${override_code} authorized emergency release. You have escaped the detention facility with ${oxygenInfo.minutes} minutes and ${oxygenInfo.seconds} seconds of oxygen remaining.`,
             doorStatus: 'OPEN',
             newLocation: 'corridor',
-            outcome: 'MISSION_COMPLETE'
+            outcome: 'MISSION_COMPLETE',
+            securityNote: 'Emergency override used - action logged for post-emergency review',
+            overrideCode: override_code
           }
         };
       } else {
+        // Other doors open normally (for future expansion)
         return {
-          success: false,
-          error: `Access denied to ${door_id.replace('_', ' ')}. Security protocols active.`
+          success: true,
+          data: {
+            message: `${door_id.replace('_', ' ')} opened successfully.`,
+            doorStatus: 'OPEN',
+            location: door_id.replace('_', ' ')
+          }
         };
       }
     }
