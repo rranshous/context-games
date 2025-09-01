@@ -253,24 +253,30 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
       
     case 'open_door':
       if (toolResult.success && newState.systems.power === 'online') {
-        const completionTime = Date.now();
-        const oxygenRemaining = calculateOxygenRemaining(newState);
-        const totalDuration = completionTime - newState.shipStatus.gameStartTime;
-        
-        newState.gamePhase = 'complete';
-        newState.playerLocation = 'corridor';
-        newState.doorOpened = true;  // Mark door as opened
-        newState.objectives.current = 'Mission accomplished - You have successfully escaped!';
-        
-        // Store completion statistics for win screen
-        newState.completionStats = {
-          isComplete: true,
-          completionTime: completionTime,
-          oxygenRemaining: oxygenRemaining,
-          totalDuration: totalDuration
-        };
-        
-        console.log('🚪 Brig door opened, player escaped!');
+        // Only complete the game if it's the brig door with successful escape
+        if (toolResult.data && toolResult.data.outcome === 'MISSION_COMPLETE') {
+          const completionTime = Date.now();
+          const oxygenRemaining = calculateOxygenRemaining(newState);
+          const totalDuration = completionTime - newState.shipStatus.gameStartTime;
+          
+          newState.gamePhase = 'complete';
+          newState.playerLocation = 'corridor';
+          newState.doorOpened = true;  // Mark door as opened
+          newState.objectives.current = 'Mission accomplished - You have successfully escaped!';
+          
+          // Store completion statistics for win screen
+          newState.completionStats = {
+            isComplete: true,
+            completionTime: completionTime,
+            oxygenRemaining: oxygenRemaining,
+            totalDuration: totalDuration
+          };
+          
+          console.log('🚪 Brig door opened, player escaped!');
+        } else {
+          // Other doors opened - just log but don't end game
+          console.log(`🚪 ${toolInput.door_id || 'Door'} opened successfully - but this is not the escape route.`);
+        }
       }
       break;
       
@@ -293,11 +299,18 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
             }
           }
           
-          // Atmospheric restoration gives additional oxygen time (simulate atmosphere recycling)
-          const ATMOSPHERIC_BONUS_MS = 1 * 60 * 1000; // 1 extra minute
-          newState.shipStatus.oxygenDepletionTime += ATMOSPHERIC_BONUS_MS;
+          // Clear oxygen concern - atmosphere system now provides life support
+          // Give plenty of oxygen time so it's no longer a worry
+          const ATMOSPHERIC_OXYGEN_EXTENSION_MS = 60 * 60 * 1000; // 1 hour of oxygen
+          newState.shipStatus.oxygenDepletionTime = Date.now() + ATMOSPHERIC_OXYGEN_EXTENSION_MS;
           
-          console.log('🌬️ Atmosphere pressurized, target settings applied to current readings. Door opening now possible. +1 minute oxygen from recycling.');
+          // Force event horizon to critical level (1 hour) to shift focus to navigation crisis
+          const CRITICAL_EVENT_HORIZON_MS = 1 * 60 * 60 * 1000; // 1 hour
+          newState.shipStatus.eventHorizonTime = Date.now() + CRITICAL_EVENT_HORIZON_MS;
+          
+          console.log('🌬️ Atmosphere pressurized, target settings applied to current readings. Door opening now possible.');
+          console.log('💨 Life support systems restored - oxygen supply stabilized.');
+          console.log('⚠️ WARNING: Navigation crisis has accelerated! Event horizon now critical.');
           console.log('🔒 Security and navigation diagnostic tools now available');
         } else if (['set_temperature', 'set_humidity', 'set_pressure'].includes(toolResult.data.action)) {
           // Settings configuration updates target values only - current values unchanged until power cycle
