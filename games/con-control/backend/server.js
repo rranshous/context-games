@@ -114,8 +114,8 @@ async function processWithClaude(message, state, res, req) {
       const cost = calculateCost(response.usage);
       state = addCostToSession(state, cost, true); // Mark as initial call
       
-      // Send cost update event
-      responseHandler.sendCostUpdate(res, state.sessionCosts);
+      // Send cost update event with last call data
+      responseHandler.sendCostUpdate(res, state.sessionCosts, cost);
     }
     
     // Handle the complete conversation with tool execution

@@ -151,8 +151,8 @@ export class ResponseHandler {
             const cost = calculateCost(currentResponse.usage);
             updatedState = addCostToSession(updatedState, cost, false); // Mark as follow-up call
             
-            // Send cost update event
-            this.sendCostUpdate(res, updatedState.sessionCosts);
+            // Send cost update event with last call data
+            this.sendCostUpdate(res, updatedState.sessionCosts, cost);
           }
           
         } catch (error) {
@@ -208,8 +208,9 @@ export class ResponseHandler {
    * Send cost update event via SSE
    * @param {Object} res - Express response object
    * @param {Object} sessionCosts - Current session cost data
+   * @param {Object} lastCallCost - Cost data from the most recent API call (optional)
    */
-  sendCostUpdate(res, sessionCosts) {
+  sendCostUpdate(res, sessionCosts, lastCallCost = null) {
     const costEvent = {
       type: 'cost_update',
       data: {
@@ -219,7 +220,13 @@ export class ResponseHandler {
         outputTokens: sessionCosts.outputTokens,
         callCount: sessionCosts.callCount,
         formattedCost: formatCost(sessionCosts.totalCost),
-        formattedTokens: formatTokens(sessionCosts.totalTokens)
+        formattedTokens: formatTokens(sessionCosts.totalTokens),
+        // Include last call token data for context percentage calculation
+        lastCall: lastCallCost ? {
+          inputTokens: lastCallCost.inputTokens,
+          outputTokens: lastCallCost.outputTokens,
+          totalTokens: lastCallCost.totalTokens
+        } : null
       }
     };
     

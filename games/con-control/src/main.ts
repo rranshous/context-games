@@ -28,6 +28,7 @@ class Terminal {
   private costDisplay: HTMLElement;
   private sessionCost: HTMLElement;
   private sessionTokens: HTMLElement;
+  private contextUsage: HTMLElement;
   private isListening = false;
   private isAiResponding = false;
   private isUsingFallback = false; // Track if we're using text input fallback
@@ -66,6 +67,7 @@ class Terminal {
     this.costDisplay = document.getElementById('cost-display') as HTMLElement;
     this.sessionCost = document.getElementById('session-cost') as HTMLElement;
     this.sessionTokens = document.getElementById('session-tokens') as HTMLElement;
+    this.contextUsage = document.getElementById('context-usage') as HTMLElement;
 
     // Initialize win screen stat elements
     this.winTotalTokensElement = document.getElementById('win-total-tokens');
@@ -751,6 +753,29 @@ class Terminal {
     
     // Update token count
     this.sessionTokens.textContent = `${costData.formattedTokens || '0'} tokens`;
+    
+    // Calculate and update context window usage based on LAST CALL (not session totals)
+    if (costData.lastCall && costData.lastCall.totalTokens) {
+      const lastCallTokens = costData.lastCall.totalTokens;
+      const maxContextWindow = 200000; // 200k token context window
+      const contextPercentage = Math.min(100, Math.round((lastCallTokens / maxContextWindow) * 100));
+      this.contextUsage.textContent = `${contextPercentage}% context used`;
+      
+      // Color code the context usage based on how full it is
+      if (contextPercentage >= 90) {
+        this.contextUsage.style.color = '#ff6666'; // Red - nearly full
+      } else if (contextPercentage >= 75) {
+        this.contextUsage.style.color = '#ffcc00'; // Yellow - getting full
+      } else if (contextPercentage >= 50) {
+        this.contextUsage.style.color = '#999'; // Gray - moderate usage
+      } else {
+        this.contextUsage.style.color = '#777'; // Darker gray - low usage
+      }
+    } else {
+      // Fallback for when lastCall data isn't available
+      this.contextUsage.textContent = '0% context';
+      this.contextUsage.style.color = '#777';
+    }
     
     // Track tokens for per-round efficiency metrics
     if (costData.totalTokens) {
