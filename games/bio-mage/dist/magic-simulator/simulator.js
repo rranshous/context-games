@@ -1,0 +1,122 @@
+/**
+ * Simple spell simulator that treats magic as genetic-like sequences
+ * Completely deterministic implementation based on sequence similarity
+ */
+import { KNOWN_SPELLS, VALID_BASES } from './constants.js';
+export class SimpleSpellSimulator {
+    /**
+     * Simulate a magic sequence and return the resulting spell effect
+     * @param sequence - ATCG sequence to simulate
+     * @returns SpellResult with type, power, stability, and duration
+     */
+    simulate(sequence) {
+        // Validate input sequence
+        if (!this.isValidSequence(sequence)) {
+            return this.createFailedSpell();
+        }
+        const bestMatch = this.findBestMatch(sequence);
+        const similarity = this.calculateSimilarity(sequence, bestMatch.sequence);
+        return {
+            type: bestMatch.type,
+            power: this.calculatePower(similarity),
+            stability: this.calculateStability(sequence, bestMatch.sequence, similarity),
+            duration: this.calculateDuration(bestMatch.type, similarity)
+        };
+    }
+    /**
+     * Find the known spell that best matches the input sequence
+     */
+    findBestMatch(sequence) {
+        let bestSimilarity = 0;
+        let bestSpell = 'fireball';
+        for (const [spellType, spellSequence] of Object.entries(KNOWN_SPELLS)) {
+            const similarity = this.calculateSimilarity(sequence, spellSequence);
+            if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestSpell = spellType;
+            }
+        }
+        return { type: bestSpell, sequence: KNOWN_SPELLS[bestSpell] };
+    }
+    /**
+     * Calculate similarity between two sequences using simple position-based matching
+     * Returns a value between 0 and 1
+     */
+    calculateSimilarity(seq1, seq2) {
+        if (seq1.length === 0 && seq2.length === 0)
+            return 1;
+        if (seq1.length === 0 || seq2.length === 0)
+            return 0;
+        // For sequences of different lengths, compare up to the shorter length
+        // and penalize the length difference
+        const minLength = Math.min(seq1.length, seq2.length);
+        const maxLength = Math.max(seq1.length, seq2.length);
+        let matches = 0;
+        for (let i = 0; i < minLength; i++) {
+            if (seq1[i] === seq2[i]) {
+                matches++;
+            }
+        }
+        const positionSimilarity = matches / minLength;
+        const lengthPenalty = minLength / maxLength;
+        return positionSimilarity * lengthPenalty;
+    }
+    /**
+     * Calculate spell power based on sequence similarity (0-100)
+     */
+    calculatePower(similarity) {
+        return Math.floor(similarity * 100);
+    }
+    /**
+     * Calculate spell stability based on sequence accuracy (0-100)
+     * More accurate sequences are more stable
+     */
+    calculateStability(inputSequence, targetSequence, similarity) {
+        // Base stability from similarity
+        let stability = similarity * 100;
+        // Additional penalty for length mismatches (deterministic)
+        const lengthDiff = Math.abs(inputSequence.length - targetSequence.length);
+        const lengthPenalty = lengthDiff * 5; // 5 points per character difference
+        stability = Math.max(0, stability - lengthPenalty);
+        return Math.floor(stability);
+    }
+    /**
+     * Calculate spell duration based on spell type and accuracy (deterministic)
+     */
+    calculateDuration(spellType, similarity) {
+        // Base durations for different spell types
+        const baseDurations = {
+            fireball: 0, // Instant
+            heal: 0, // Instant
+            shield: 30, // 30 seconds base
+            lightning: 0, // Instant
+            teleport: 0 // Instant
+        };
+        const baseDuration = baseDurations[spellType];
+        // For non-instant spells, duration scales with similarity
+        if (baseDuration > 0) {
+            return Math.floor(baseDuration * similarity);
+        }
+        return 0;
+    }
+    /**
+     * Validate that a sequence contains only valid ATCG bases
+     */
+    isValidSequence(sequence) {
+        if (sequence.length === 0)
+            return false;
+        return sequence.split('').every(char => VALID_BASES.includes(char.toUpperCase()));
+    }
+    /**
+     * Create a failed spell result for invalid inputs
+     */
+    createFailedSpell() {
+        return {
+            type: 'fireball', // Default type
+            power: 0,
+            stability: 0,
+            duration: 0
+        };
+    }
+}
+//# sourceMappingURL=simulator.js.map
