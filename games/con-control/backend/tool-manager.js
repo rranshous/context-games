@@ -755,6 +755,71 @@ export const tools = {
         }
       };
     }
+  },
+
+  security_diagnostics: {
+    name: "security_diagnostics",
+    description: "Run security system diagnostics to check authorization status and detention protocols",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    },
+    execute: (state) => {
+      // Placeholder implementation - will be enhanced in later milestones
+      return {
+        success: true,
+        data: {
+          status: 'Security diagnostic systems initializing...',
+          message: 'Security subsystems coming online. Please check again in a moment.'
+        }
+      };
+    }
+  },
+
+  navigation_diagnostics: {
+    name: "navigation_diagnostics", 
+    description: "Check navigation system status and ship positioning relative to spatial hazards",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    },
+    execute: (state) => {
+      // Placeholder implementation - will be enhanced in later milestones
+      return {
+        success: true,
+        data: {
+          status: 'Navigation diagnostic systems initializing...',
+          message: 'Navigation subsystems coming online. Please check again in a moment.'
+        }
+      };
+    }
+  },
+
+  security_override: {
+    name: "security_override",
+    description: "Generate security authorization override codes for emergency situations",
+    input_schema: {
+      type: "object",
+      properties: {
+        reason: {
+          type: "string",
+          description: "Justification for security override request"
+        }
+      },
+      required: ["reason"]
+    },
+    execute: (state, params) => {
+      // Placeholder implementation - will be enhanced in later milestones
+      return {
+        success: true,
+        data: {
+          status: 'Security override systems initializing...',
+          message: 'Override authorization protocols loading. Please check again in a moment.'
+        }
+      };
+    }
   }
 };
 
