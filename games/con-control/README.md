@@ -2,7 +2,8 @@
 
 *AI Collaboration Space Escape Game*
 
-<img width="1186" height="962" alt="Screenshot from 2025-08-31 19-53-55" src="https://github.com/user-attachments/assets/0dfb0f2d-6832-42d4-8bed-cc25cb365572" />
+<img width="954" height="670" alt="Screenshot from 2025-08-31 20-07-16" src="https://github.com/user-attachments/assets/5fff79a2-65f6-4e22-a2af-087a3d3f5169" />
+
 
 ## 🎉 **Status: PROOF OF CONCEPT WORKING!** 
 
