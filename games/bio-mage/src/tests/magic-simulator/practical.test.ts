@@ -63,6 +63,7 @@ describe('AI Discovery Test', () => {
 
     const discoveryLog: DiscoveryAttempt[] = [];
     let currentTurn = 0;
+    let totalToolCalls = 0;
 
     // Initial prompt to Claude
     const initialPrompt = `
@@ -125,6 +126,7 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
       let claudeResult = await callClaude('', conversationHistory);
       
       while (currentTurn < AI_DISCOVERY_CONFIG.maxTurns && !isDiscoveryComplete(discoveryLog)) {
+        currentTurn++; // Increment turn for each inference call
         
         // Add Claude's response to conversation
         if (claudeResult.response) {
@@ -139,10 +141,12 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
           const toolCallContents: any[] = [];
           const toolResultContents: any[] = [];
           
+          console.log(`\nTurn ${currentTurn}: Claude made ${claudeResult.toolCalls.length} parallel tool call(s)`);
+          
           // Process all tool calls in this batch
           for (const toolCall of claudeResult.toolCalls) {
             if (toolCall.name === 'simulate_spell') {
-              currentTurn++;
+              totalToolCalls++;
               
               const sequence = toolCall.input.sequence;
               const result = simulator.simulate(sequence);
@@ -161,7 +165,7 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
               
               discoveryLog.push(attempt);
               
-              console.log(`Turn ${currentTurn}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability)`);
+              console.log(`  Tool Call ${totalToolCalls}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability)`);
 
               // Collect tool call for batch processing
               toolCallContents.push({
@@ -203,7 +207,7 @@ Use the simulate_spell tool to test sequences (you can test multiple sequences i
             const continuePrompt = `
 Based on the results, continue your systematic investigation.
 Previous attempts: ${discoveryLog.length}
-Remaining attempts: ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn}
+Turns used: ${currentTurn}/${AI_DISCOVERY_CONFIG.maxTurns}
 
 Remember: You can test multiple sequences in parallel using multiple simulate_spell calls in a single response.
 What would you like to test next?
@@ -218,7 +222,7 @@ What would you like to test next?
           }
         } else {
           // No tool calls, ask Claude to continue
-          const continuePrompt = `Please use the simulate_spell tool to test sequences. You can test multiple sequences in parallel for efficiency. You have ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn} attempts remaining.`;
+          const continuePrompt = `Please use the simulate_spell tool to test sequences. You can test multiple sequences in parallel for efficiency. You have ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn} turns remaining.`;
           
           conversationHistory.push({
             role: 'user',
@@ -260,10 +264,13 @@ Format as a structured report.
       const analysis = analyzeDiscoveryResults(discoveryLog);
       
       console.log('\n🔬 AI Discovery Results:');
-      console.log(`Total attempts: ${discoveryLog.length}`);
+      console.log(`Total inference turns: ${currentTurn}`);
+      console.log(`Total tool calls: ${totalToolCalls}`);
+      console.log(`Total experiments: ${discoveryLog.length}`);
       console.log(`Spells discovered: ${analysis.uniqueSpellTypes.size}/5`);
       console.log(`Perfect sequences found: ${analysis.perfectSequences.length}`);
       console.log(`Max power achieved: ${analysis.maxPower}%`);
+      console.log(`Efficiency: ${(totalToolCalls / currentTurn).toFixed(1)} tool calls per turn`);
       
       console.log('\n📊 Claude\'s Final Report:');
       console.log(finalReport);
