@@ -10,7 +10,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { SimpleSpellSimulator } from '../../magic-simulator/simulator.js';
-import { KNOWN_SPELLS } from '../../magic-simulator/constants.js';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -21,7 +20,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const AI_DISCOVERY_CONFIG = {
   maxTurns: 12,           // Reduced from 50 due to parallel tool use efficiency
   anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Set in .env file
-  model: 'claude-3-5-sonnet-20241022',  // Claude 3.5 Sonnet (Claude 4 not available yet)
+  model: 'claude-sonnet-4-20250514',  // Claude 4 Sonnet
   maxTokens: 8000,        // Increased for parallel tool responses
   temperature: 0.1,       // Low temperature for systematic exploration
   enableThinking: false   // Disable thinking mode for now (Claude 4 feature)

@@ -2,7 +2,7 @@
  * Advanced multi-pass spell simulator that treats magic as complex biological sequences
  * Replaces the simple similarity-based approach with sophisticated sequence analysis
  */
-import { REGULATORY_PATTERNS, STRUCTURAL_CORES, COMPLETE_SPELL_SEQUENCES } from './constants.js';
+import { REGULATORY_PATTERNS, STRUCTURAL_CORES, MODIFIER_PATTERNS, COMPLETE_SPELL_SEQUENCES } from './constants.js';
 export class AdvancedSpellSimulator {
     /**
      * Main entry point for spell interpretation using multi-pass analysis
@@ -92,10 +92,21 @@ export class AdvancedSpellSimulator {
      * Third pass: Identify modifier sequences that alter spell behavior
      */
     modifierPass(sequence, context) {
-        // Simplified modifier pass for now - just return context
+        const modifierEffects = [];
+        // Search for known modifier patterns
+        for (const [modifierName, pattern] of Object.entries(MODIFIER_PATTERNS)) {
+            let searchIndex = 0;
+            while ((searchIndex = sequence.indexOf(pattern, searchIndex)) !== -1) {
+                const effect = this.classifyModifierEffect(modifierName, searchIndex, context);
+                if (effect) {
+                    modifierEffects.push(effect);
+                }
+                searchIndex += pattern.length;
+            }
+        }
         return {
             ...context,
-            modifierEffects: [],
+            modifierEffects,
             confidence: this.calculateOverallConfidence(context),
             riskLevel: this.assessRiskLevel(context)
         };
@@ -251,55 +262,43 @@ export class AdvancedSpellSimulator {
         }
         return bestMatch;
     }
-    // TODO: Fix ModifierEffect type and re-enable
-    /*
-    private classifyModifierEffect(modifierName: string, position: number, context: InterpretationContext): ModifierEffect | null {
-      const modifierMap: Record<string, ModifierEffect['type']> = {
-        'AMPLIFIER': 'amplifier',
-        'STABILIZER': 'stabilizer',
-        'EXTENDER': 'duration_extend',
-        'FOCUSER': 'focus',
-        'CHAOS_MOD': 'chaos'
-      };
-  
-      const type = modifierMap[modifierName];
-      if (!type) return null;
-  
-      // Calculate magnitude based on context
-      const magnitude = this.calculateModifierMagnitude(type, context);
-  
-      return {
-        type,
-        magnitude,
-        position
-      };
+    classifyModifierEffect(modifierName, position, context) {
+        const modifierMap = {
+            'AMPLIFIER': 'amplifier',
+            'STABILIZER': 'stabilizer',
+            'EXTENDER': 'duration_extend',
+            'FOCUSER': 'focus',
+            'CHAOS_MOD': 'chaos'
+        };
+        const type = modifierMap[modifierName];
+        if (!type)
+            return null;
+        // Calculate magnitude based on context
+        const magnitude = this.calculateModifierMagnitude(type, context);
+        return {
+            type,
+            magnitude,
+            position
+        };
     }
-  
-    private calculateModifierMagnitude(type: ModifierEffect['type'], context: InterpretationContext): number {
-      // Base magnitudes
-      const baseMagnitudes = {
-        amplifier: 0.3,
-        stabilizer: 0.25,
-        duration_extend: 0.4,
-        focus: 0.2,
-        chaos: -0.15
-      };
-  
-      let magnitude = baseMagnitudes[type];
-  
-      // Modify based on regulatory context
-      const relevantRegulatory = context.regulatoryEffects.filter(effect =>
-        (effect.type === 'enhancer' && type === 'amplifier') ||
-        (effect.type === 'silencer' && type === 'stabilizer')
-      );
-  
-      if (relevantRegulatory.length > 0) {
-        magnitude *= 1.5; // Regulatory enhancement
-      }
-  
-      return magnitude;
+    calculateModifierMagnitude(type, context) {
+        // Base magnitudes
+        const baseMagnitudes = {
+            amplifier: 0.3,
+            stabilizer: 0.25,
+            duration_extend: 0.4,
+            focus: 0.2,
+            chaos: -0.15
+        };
+        let magnitude = baseMagnitudes[type];
+        // Modify based on regulatory context
+        const relevantRegulatory = context.regulatoryEffects.filter(effect => (effect.type === 'enhancer' && type === 'amplifier') ||
+            (effect.type === 'silencer' && type === 'stabilizer'));
+        if (relevantRegulatory.length > 0) {
+            magnitude *= 1.5; // Regulatory enhancement
+        }
+        return magnitude;
     }
-    */
     calculateOverallConfidence(context) {
         if (context.structuralComponents.length === 0) {
             return 0;

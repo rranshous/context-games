@@ -9,7 +9,8 @@ import {
   SpellType, 
   InterpretationContext, 
   RegulatoryEffect, 
-  StructuralComponent 
+  StructuralComponent,
+  ModifierEffect 
 } from './types.js';
 import { 
   REGULATORY_PATTERNS, 
@@ -124,10 +125,23 @@ export class AdvancedSpellSimulator {
    * Third pass: Identify modifier sequences that alter spell behavior
    */
   private modifierPass(sequence: string, context: InterpretationContext): InterpretationContext {
-    // Simplified modifier pass for now - just return context
+    const modifierEffects: ModifierEffect[] = [];
+
+    // Search for known modifier patterns
+    for (const [modifierName, pattern] of Object.entries(MODIFIER_PATTERNS)) {
+      let searchIndex = 0;
+      while ((searchIndex = sequence.indexOf(pattern, searchIndex)) !== -1) {
+        const effect = this.classifyModifierEffect(modifierName, searchIndex, context);
+        if (effect) {
+          modifierEffects.push(effect);
+        }
+        searchIndex += pattern.length;
+      }
+    }
+
     return {
       ...context,
-      modifierEffects: [],
+      modifierEffects,
       confidence: this.calculateOverallConfidence(context),
       riskLevel: this.assessRiskLevel(context)
     };
@@ -305,8 +319,6 @@ export class AdvancedSpellSimulator {
     return bestMatch;
   }
 
-  // TODO: Fix ModifierEffect type and re-enable
-  /*
   private classifyModifierEffect(modifierName: string, position: number, context: InterpretationContext): ModifierEffect | null {
     const modifierMap: Record<string, ModifierEffect['type']> = {
       'AMPLIFIER': 'amplifier',
@@ -353,7 +365,6 @@ export class AdvancedSpellSimulator {
 
     return magnitude;
   }
-  */
 
   private calculateOverallConfidence(context: InterpretationContext): number {
     if (context.structuralComponents.length === 0) {

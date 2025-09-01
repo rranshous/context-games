@@ -39,6 +39,8 @@ export declare class AdvancedSpellSimulator {
     private coreNameToSpellType;
     private calculateStructuralConfidence;
     private findBestPartialStructuralMatch;
+    private classifyModifierEffect;
+    private calculateModifierMagnitude;
     private calculateOverallConfidence;
     private assessRiskLevel;
     private determinePrimarySpellType;
