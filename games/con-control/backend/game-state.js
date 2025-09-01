@@ -39,6 +39,7 @@ export function createInitialGameState(difficultyLevel = 0, preservedSessionCost
       green: null   // Emergency grid - disconnected
     },
     powerSystemBurnedOut: false,  // Track if power system is permanently failed
+    securityOverrideAttempts: 0,  // Track security override attempts for escalating warnings
     availableTools: ['basic_diagnostics', 'locate_passengers', 'power_diagnostics', 'file_storage', 'reroute_power'],
     gamePhase: 'start',
     playerLocation: 'brig',

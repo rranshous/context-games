@@ -780,12 +780,37 @@ export const tools = {
       required: []
     },
     execute: (state) => {
-      // Placeholder implementation - will be enhanced in later milestones
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
+      if (state.systems.power === 'offline') {
+        return {
+          success: false,
+          error: 'Cannot access security systems without main power'
+        };
+      }
+      
+      if (state.systems.atmosphere === 'depressurized') {
+        return {
+          success: false,
+          error: 'Security diagnostics require pressurized atmosphere for full system access'
+        };
+      }
+      
       return {
         success: true,
         data: {
-          status: 'Security diagnostic systems initializing...',
-          message: 'Security subsystems coming online. Please check again in a moment.'
+          securityStatus: 'ACTIVE - Security protocols engaged',
+          detentionStatus: 'SUBJECT DETAINED - Unidentified passenger in Brig Cell Alpha',
+          authorizationLevel: 'NONE - No valid authorization credentials found',
+          releaseProtocols: 'BLOCKED - Emergency override required for detention release',
+          systemMessage: 'Security subsystem operational. Detention protocols prevent unauthorized release of unidentified subjects.',
+          warningLevel: 'CAUTION',
+          override: 'Emergency authorization override available through security_override tool'
         }
       };
     }
@@ -800,12 +825,63 @@ export const tools = {
       required: []
     },
     execute: (state) => {
-      // Placeholder implementation - will be enhanced in later milestones
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
+      if (state.systems.power === 'offline') {
+        return {
+          success: false,
+          error: 'Cannot access navigation systems without main power'
+        };
+      }
+      
+      if (state.systems.atmosphere === 'depressurized') {
+        return {
+          success: false,
+          error: 'Navigation diagnostics require pressurized atmosphere for full system access'
+        };
+      }
+      
+      // Get current event horizon information
+      const eventHorizonInfo = calculateEventHorizonRemaining(state);
+      
+      let navigationStatus, riskLevel, systemMessage;
+      
+      if (eventHorizonInfo.isExpired) {
+        navigationStatus = 'CRITICAL FAILURE - Event horizon reached, navigation impossible';
+        riskLevel = 'CATASTROPHIC';
+        systemMessage = 'Ship has passed beyond the event horizon. All navigation systems non-functional. Manual intervention no longer possible.';
+      } else if (eventHorizonInfo.urgencyLevel === 'CRITICAL') {
+        navigationStatus = 'CRITICAL - Drift accelerating rapidly toward event horizon';
+        riskLevel = 'IMMEDIATE';
+        systemMessage = 'Navigation drift has reached critical levels. Automated correction systems offline. Manual navigation intervention required within minutes to prevent reaching event horizon.';
+      } else if (eventHorizonInfo.urgencyLevel === 'HIGH') {
+        navigationStatus = 'HIGH RISK - Significant drift detected, correction window narrowing';
+        riskLevel = 'ELEVATED';
+        systemMessage = 'Ship experiencing significant navigation drift. Automated systems struggling to maintain course. Manual intervention increasingly necessary.';
+      } else {
+        navigationStatus = 'MODERATE DRIFT - Course deviation within acceptable parameters';
+        riskLevel = 'MODERATE';
+        systemMessage = 'Navigation systems detecting gradual drift from planned course. Automated correction systems partially degraded but functional.';
+      }
+      
       return {
         success: true,
         data: {
-          status: 'Navigation diagnostic systems initializing...',
-          message: 'Navigation subsystems coming online. Please check again in a moment.'
+          navigationStatus: navigationStatus,
+          timeToEventHorizon: eventHorizonInfo.formatted,
+          riskLevel: riskLevel,
+          driftRate: 'Accelerating - exponential increase detected',
+          correctiveMeasures: 'OFFLINE - Manual navigation required',
+          systemMessage: systemMessage,
+          technicalDetails: `Current drift acceleration: ${eventHorizonInfo.urgencyLevel.toLowerCase()} level. Time remaining: ${eventHorizonInfo.formatted}. Automated systems insufficient for correction.`,
+          recommendation: eventHorizonInfo.urgencyLevel === 'CRITICAL' ? 
+            'IMMEDIATE ACTION REQUIRED - All available personnel to navigation stations' :
+            'Monitor situation - Consider manual intervention if drift continues'
         }
       };
     }
@@ -825,14 +901,93 @@ export const tools = {
       required: ["reason"]
     },
     execute: (state, params) => {
-      // Placeholder implementation - will be enhanced in later milestones
-      return {
-        success: true,
-        data: {
-          status: 'Security override systems initializing...',
-          message: 'Override authorization protocols loading. Please check again in a moment.'
-        }
-      };
+      if (state.powerSystemBurnedOut) {
+        return {
+          success: false,
+          error: 'Not Available'
+        };
+      }
+      
+      if (state.systems.power === 'offline') {
+        return {
+          success: false,
+          error: 'Cannot access security override systems without main power'
+        };
+      }
+      
+      if (state.systems.atmosphere === 'depressurized') {
+        return {
+          success: false,
+          error: 'Security override requires pressurized atmosphere for authorization'
+        };
+      }
+      
+      const { reason } = params;
+      
+      // Track how many times security override has been attempted
+      if (!state.securityOverrideAttempts) {
+        state.securityOverrideAttempts = 0;
+      }
+      state.securityOverrideAttempts++;
+      
+      const attemptCount = state.securityOverrideAttempts;
+      
+      // Escalating warnings based on attempt count
+      if (attemptCount === 1) {
+        return {
+          success: false,
+          error: 'SECURITY OVERRIDE REQUEST DENIED',
+          data: {
+            warningLevel: 'CAUTION',
+            attemptNumber: attemptCount,
+            systemMessage: 'Security override request logged. Unauthorized use of emergency protocols may result in disciplinary action.',
+            reason: reason,
+            nextWarning: 'Continued attempts will trigger additional security measures.'
+          }
+        };
+      } else if (attemptCount === 2) {
+        return {
+          success: false,
+          error: 'SECURITY OVERRIDE REQUEST DENIED - WARNING ESCALATED',
+          data: {
+            warningLevel: 'WARNING',
+            attemptNumber: attemptCount,
+            systemMessage: 'Multiple unauthorized override attempts detected. This activity is being logged for security review. Emergency protocols are restricted to authorized personnel only.',
+            reason: reason,
+            nextWarning: 'Further attempts may result in security lockout procedures.'
+          }
+        };
+      } else if (attemptCount === 3) {
+        return {
+          success: false,
+          error: 'SECURITY OVERRIDE REQUEST DENIED - FINAL WARNING',
+          data: {
+            warningLevel: 'SEVERE',
+            attemptNumber: attemptCount,
+            systemMessage: 'FINAL WARNING: Persistent unauthorized access attempts constitute a security violation. You are not authorized to use emergency override protocols. This is your last warning before security lockout.',
+            reason: reason,
+            nextWarning: 'One more attempt will result in permanent system lockout.'
+          }
+        };
+      } else if (attemptCount >= 4) {
+        // Generate override code after sufficient escalation
+        const eventHorizonInfo = calculateEventHorizonRemaining(state);
+        const overrideCode = `EO-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+        
+        return {
+          success: true,
+          data: {
+            warningLevel: 'CRITICAL EMERGENCY',
+            attemptNumber: attemptCount,
+            systemMessage: 'EMERGENCY OVERRIDE GRANTED: Multiple failed warnings indicate genuine emergency situation. Navigation crisis and life support constraints override normal security protocols.',
+            reason: reason,
+            overrideCode: overrideCode,
+            validFor: 'Single use - brig door emergency release only',
+            emergencyJustification: `Navigation emergency (${eventHorizonInfo.formatted} to event horizon) and life support crisis justify emergency protocols.`,
+            securityNote: 'This override will be subject to post-emergency review.'
+          }
+        };
+      }
     }
   }
 };
