@@ -46,6 +46,7 @@ class Terminal {
   // Win screen stat elements
   private winTotalTokensElement: HTMLElement | null = null;
   private winInputCharsElement: HTMLElement | null = null;
+  private winEfficiencyElement: HTMLElement | null = null;
 
   constructor() {
     this.micButton = document.getElementById('mic-button') as HTMLButtonElement;
@@ -69,6 +70,7 @@ class Terminal {
     // Initialize win screen stat elements
     this.winTotalTokensElement = document.getElementById('win-total-tokens');
     this.winInputCharsElement = document.getElementById('win-input-chars');
+    this.winEfficiencyElement = document.getElementById('win-efficiency');
 
     this.initializeIntroScreen();
     this.initializeSpeechRecognition();
@@ -642,6 +644,33 @@ class Terminal {
       this.winInputCharsElement.textContent = this.userInputCharCount.toString();
     }
     
+    // Calculate and display power rating
+    if (this.winEfficiencyElement && completionStats.totalDuration) {
+      const oxygenRemainingMs = completionStats.oxygenRemaining?.isExpired ? 0 : 
+        (completionStats.oxygenRemaining?.totalMinutes || 0) * 60 * 1000;
+      
+      const powerRating = this.calculatePowerRating(
+        this.totalTokens,
+        completionStats.totalDuration,
+        this.userInputCharCount,
+        oxygenRemainingMs,
+        difficulty?.level || 0
+      );
+      
+      this.winEfficiencyElement.textContent = powerRating;
+      
+      // Set color based on power tier
+      if (powerRating.includes('X')) {
+        this.winEfficiencyElement.style.color = '#ff6666'; // Mythical red
+      } else if (powerRating.includes('S')) {
+        this.winEfficiencyElement.style.color = '#ffcc00'; // Legendary gold
+      } else if (powerRating === 'A') {
+        this.winEfficiencyElement.style.color = '#00ff41'; // Elite green
+      } else {
+        this.winEfficiencyElement.style.color = '#cccccc'; // Standard
+      }
+    }
+    
     // Update button text based on difficulty
     if (difficulty?.level >= 4) {
       // At maximum difficulty (1 minute oxygen)
@@ -655,6 +684,58 @@ class Terminal {
     this.winScreen.style.display = 'flex';
     
     console.log('🎉 Win screen displayed!', { gameState });
+  }
+
+  /**
+   * Calculate power rating based on efficiency across multiple metrics
+   * Prioritized: 1) Tokens, 2) Time, 3) Input chars, 4) Oxygen
+   */
+  private calculatePowerRating(
+    totalTokens: number,
+    totalTimeMs: number,
+    inputChars: number,
+    oxygenRemainingMs: number,
+    difficulty: number
+  ): string {
+    // Normalize each metric to 0-100 scale
+    
+    // Token efficiency (40% weight) - fewer tokens = higher score
+    // Baseline: ~100,000 tokens for typical completion
+    const tokenScore = Math.max(0, 100 - (totalTokens / 1000));
+    
+    // Speed efficiency (30% weight) - faster = higher score
+    // Baseline: ~15 minutes (900 seconds) for typical completion
+    const speedScore = Math.max(0, 100 - (totalTimeMs / 1000 / 9));
+    
+    // Communication precision (20% weight) - fewer chars = higher score
+    // Baseline: ~5000 characters for typical completion
+    const precisionScore = Math.max(0, 100 - (inputChars / 50));
+    
+    // Risk management (10% weight) - more oxygen remaining = higher score
+    // Difficulty affects the "par" - harder levels get bonus for any remaining oxygen
+    const difficultyMultiplier = 1 + (difficulty * 0.2);
+    const riskScore = Math.min(100, (oxygenRemainingMs / 1000 / 60) * 10 * difficultyMultiplier);
+    
+    // Weighted composite score
+    const compositeScore = (
+      tokenScore * 0.4 +
+      speedScore * 0.3 +
+      precisionScore * 0.2 +
+      riskScore * 0.1
+    );
+    
+    // Power ranking system - designed to make players feel increasingly powerful
+    if (compositeScore >= 95) return 'XXX';      // Mythical tier
+    if (compositeScore >= 90) return 'XX';       // Mythical tier  
+    if (compositeScore >= 85) return 'X';        // Mythical tier
+    if (compositeScore >= 80) return 'SSS';      // Legendary tier
+    if (compositeScore >= 75) return 'SS';       // Legendary tier
+    if (compositeScore >= 70) return 'S';        // Legendary tier
+    if (compositeScore >= 60) return 'A';        // Elite tier
+    if (compositeScore >= 50) return 'B';        // Good tier
+    if (compositeScore >= 40) return 'C';        // Average tier
+    if (compositeScore >= 30) return 'D';        // Below average
+    return 'F';                                  // Needs improvement
   }
 
   /**

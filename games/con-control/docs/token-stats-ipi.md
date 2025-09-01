@@ -63,14 +63,16 @@ This creates a rich optimization puzzle where players can pursue different strat
 - Ensure stats are prominently displayed and easy to read
 
 #### 3. Efficiency Score Calculation
-- Develop algorithm to combine time, oxygen, tokens, and character metrics
-- Display overall efficiency score on win screen
-- Balance scoring to make all optimization strategies viable
+- **Power Rating System**: F → D → C → B → A → S → SS → SSS → X → XX → XXX
+- **Weighted Algorithm**: Tokens (40%) + Speed (30%) + Precision (20%) + Risk (10%)
+- **Visual Tiers**: Color-coded display (Mythical red, Legendary gold, Elite green)
+- **Progressive Feel**: Players advance through power rankings, feeling increasingly capable
 
 ### Success Criteria
-- [ ] **Phase 1**: Total tokens and user character count accurately tracked throughout game
-- [ ] **Phase 2**: Win screen displays all metrics clearly: time, oxygen, tokens, character count
-- [ ] **Phase 2**: New stats integrate seamlessly with existing win screen layout
+- [x] **Phase 1**: Total tokens and user character count accurately tracked throughout game
+- [x] **Phase 2**: Win screen displays all metrics clearly: time, oxygen, tokens, character count
+- [x] **Phase 2**: New stats integrate seamlessly with existing win screen layout
+- [x] **Phase 2**: Per-round tracking works correctly across difficulty increases
 - [ ] **Phase 3**: Efficiency score algorithm balances all metrics meaningfully
 - [ ] **Phase 3**: Overall efficiency score encourages multiple optimization strategies
 
