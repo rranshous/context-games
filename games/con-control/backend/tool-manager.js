@@ -640,7 +640,7 @@ export const tools = {
         return {
           success: true,
           data: {
-            message: `Atmospheric power cycle initiated. Atmosphere systems coming online...`,
+            message: `Atmospheric power cycle initiated. Atmosphere systems coming online... Oxygen levels normalized. Safety and comfort restored.`,
             action: 'power_cycle',
             status: 'Atmosphere pressurization in progress'
           }

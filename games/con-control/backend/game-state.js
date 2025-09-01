@@ -300,7 +300,7 @@ export function updateGameState(currentState, toolName, toolResult, toolInput = 
           
           // Clear oxygen concern - atmosphere system now provides life support
           // Give plenty of oxygen time so it's no longer a worry
-          const ATMOSPHERIC_OXYGEN_EXTENSION_MS = 60 * 60 * 1000; // 1 hour of oxygen
+          const ATMOSPHERIC_OXYGEN_EXTENSION_MS = 10 * 60 * 60 * 1000; // 10 hours of oxygen
           newState.shipStatus.oxygenDepletionTime = Date.now() + ATMOSPHERIC_OXYGEN_EXTENSION_MS;
           
           // Force event horizon to critical level (30 minutes) to shift focus to navigation crisis
