@@ -80,4 +80,48 @@ Start: basic_diagnostics, locate_passengers, power_diagnostics, file_storage, re
 
 ---
 
-**Next Phase**: Plan the detailed implementation of security tools, navigation crisis system, and event horizon countdown mechanics.
+## **Plan**
+
+### **Implementation Milestones**
+
+**Milestone 1: Add New Tools After Atmosphere Correction**
+- Add `security_diagnostics`, `navigation_diagnostics`, `security_override` to available tools after atmosphere is corrected
+- Tools are present but not useful yet - return placeholder/empty responses
+- Establishes tool presence for iterative development
+
+**Milestone 2: Add Navigation Issue to Basic Diagnostics**
+- Add entry to basic_diagnostics response showing "moderate navigation issue"
+- Keep it as background information, not urgent
+- Foundation for escalating navigation crisis
+
+**Milestone 3: Implement Event Horizon Timer**
+- Add time to event horizon timer in game state starting at 4+ hours
+- Timer accelerates (non-linear countdown) rather than counting down steadily
+- Return this time to event horizon alongside the moderate navigation issue warning in basic_diagnostics
+- Background threat that will become critical
+
+**Milestone 4: Make Security and Navigation Tools Functional**
+- Implement `security_diagnostics` to show authorization problems and player status
+- Implement `navigation_diagnostics` to show detailed drift crisis information
+- Implement `security_override` with escalating warning system and code generation
+- Tools are now functional but not yet required (door still opens normally)
+
+**Milestone 5: Update Door Tool for Brig Security**
+- Modify open_door tool so it won't open brig_door without override code from security tool
+- Door tool will still open other doors (cargo_bay, engineering, etc.) normally
+- Brig door specifically requires security authorization
+- Creates the core blocking mechanism
+
+### **Success Criteria**
+- Player experiences door failure after atmosphere restoration
+- AI discovers navigation crisis through diagnostic tools
+- Security override requires genuine AI decision-making
+- Escalating warnings create authentic ethical tension
+- Door opens successfully with valid override code
+- Game maintains existing power and atmosphere puzzle quality
+
+### **Out of Scope**
+- Changes to existing power or atmosphere puzzle mechanics
+- New UI elements (focus on backend game logic)
+- Multiple security override paths or complexity
+- Permanent consequences for using security override
