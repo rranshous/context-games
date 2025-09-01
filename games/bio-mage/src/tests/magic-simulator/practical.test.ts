@@ -19,12 +19,12 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Configuration for the AI discovery test
 const AI_DISCOVERY_CONFIG = {
-  maxTurns: 50,           // Limit Claude to 50 simulation attempts
+  maxTurns: 25,           // Reduced from 50 due to parallel tool use efficiency
   anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Set in .env file
-  model: 'claude-sonnet-4-20250514',  // Claude 4 with extended thinking support
-  maxTokens: 16000,       // Must be greater than budget_tokens for thinking mode
-  temperature: 1,         // Must be 1 when thinking is enabled
-  enableThinking: true    // Enable Claude's thinking mode
+  model: 'claude-3-5-sonnet-20241022',  // Claude 3.5 Sonnet (Claude 4 not available yet)
+  maxTokens: 8000,        // Increased for parallel tool responses
+  temperature: 0.1,       // Low temperature for systematic exploration
+  enableThinking: false   // Disable thinking mode for now (Claude 4 feature)
 };
 
 interface DiscoveryAttempt {
@@ -110,8 +110,11 @@ Rules:
 - There are multiple spell types to discover
 - Perfect sequences have 100% power and stability
 
+IMPORTANT: You can use the simulate_spell tool multiple times in parallel within a single response. 
+This is highly encouraged for efficient exploration! Test multiple sequences at once when it makes sense.
+
 Start your investigation! Think systematically and document your methodology.
-Use the simulate_spell tool to test sequences.
+Use the simulate_spell tool to test sequences (you can test multiple sequences in parallel).
 `;
 
       conversationHistory.push({
@@ -131,8 +134,12 @@ Use the simulate_spell tool to test sequences.
           });
         }
 
-        // Process any tool calls
+        // Process any tool calls (can be multiple in parallel)
         if (claudeResult.toolCalls && claudeResult.toolCalls.length > 0) {
+          const toolCallContents: any[] = [];
+          const toolResultContents: any[] = [];
+          
+          // Process all tool calls in this batch
           for (const toolCall of claudeResult.toolCalls) {
             if (toolCall.name === 'simulate_spell') {
               currentTurn++;
@@ -156,35 +163,39 @@ Use the simulate_spell tool to test sequences.
               
               console.log(`Turn ${currentTurn}: "${sequence}" -> ${result.type} (${result.power}% power, ${result.stability}% stability)`);
 
-              // Add tool call and result to conversation
-              conversationHistory.push({
-                role: 'assistant',
-                content: [
-                  {
-                    type: 'tool_use',
-                    id: toolCall.id,
-                    name: 'simulate_spell',
-                    input: toolCall.input
-                  }
-                ]
+              // Collect tool call for batch processing
+              toolCallContents.push({
+                type: 'tool_use',
+                id: toolCall.id,
+                name: 'simulate_spell',
+                input: toolCall.input
               });
 
-              conversationHistory.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'tool_result',
-                    tool_use_id: toolCall.id,
-                    content: JSON.stringify({
-                      type: result.type,
-                      power: result.power,
-                      stability: result.stability,
-                      duration: result.duration
-                    })
-                  }
-                ]
+              // Collect tool result for batch processing
+              toolResultContents.push({
+                type: 'tool_result',
+                tool_use_id: toolCall.id,
+                content: JSON.stringify({
+                  type: result.type,
+                  power: result.power,
+                  stability: result.stability,
+                  duration: result.duration
+                })
               });
             }
+          }
+
+          // Add all tool calls and results to conversation in batches
+          if (toolCallContents.length > 0) {
+            conversationHistory.push({
+              role: 'assistant',
+              content: toolCallContents
+            });
+
+            conversationHistory.push({
+              role: 'user',
+              content: toolResultContents
+            });
           }
 
           // Continue conversation after tool results
@@ -194,6 +205,7 @@ Based on the results, continue your systematic investigation.
 Previous attempts: ${discoveryLog.length}
 Remaining attempts: ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn}
 
+Remember: You can test multiple sequences in parallel using multiple simulate_spell calls in a single response.
 What would you like to test next?
 `;
             
@@ -206,7 +218,7 @@ What would you like to test next?
           }
         } else {
           // No tool calls, ask Claude to continue
-          const continuePrompt = `Please use the simulate_spell tool to test sequences. You have ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn} attempts remaining.`;
+          const continuePrompt = `Please use the simulate_spell tool to test sequences. You can test multiple sequences in parallel for efficiency. You have ${AI_DISCOVERY_CONFIG.maxTurns - currentTurn} attempts remaining.`;
           
           conversationHistory.push({
             role: 'user',
