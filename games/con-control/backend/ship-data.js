@@ -46,14 +46,75 @@ The Meridian incorporates military-grade security protocols through the **Secure
 - Crew Complement: 12-48 personnel (mission dependent)  
 - Power Output: 2.4 Terawatt distributed capacity
 - Life Support: 90-day independent operation capability
-- AI Systems: IRIS-class autonomous operation support`,
+- AI Systems: First of it's kind IRIS-class autonomous operation support`,
 
     'trinaryflow_manual.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
     'power_grid_schematics.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
     'junction_matrix_guide.pdf': '[CORRUPTED FILE - UNABLE TO READ]',
     'maintenance_procedures.txt': '[CORRUPTED FILE - UNABLE TO READ]',
     'emergency_protocols.md': '[CORRUPTED FILE - UNABLE TO READ]',
-    'system_diagnostics_log.txt': '[CORRUPTED FILE - UNABLE TO READ]'
+    'system_diagnostics_log.txt': '[CORRUPTED FILE - UNABLE TO READ]',
+    
+    'security_memo_alpha_9924.md': `# SECURITY ALERT MEMO ALPHA-9924
+## **CLASSIFIED - AUTHORIZED PERSONNEL ONLY**
+
+**FROM:** Chief Security Officer Commander Sarah Mitchell  
+**TO:** All Ship Personnel  
+**SUBJECT:** Enhanced Security Protocols - Enemy Infiltrator Threat Assessment  
+**DATE:** 2147-03-20 06:00:00 UTC  
+**CLASSIFICATION:** RESTRICTED  
+
+### **IMMEDIATE ACTION REQUIRED**
+
+Intelligence reports indicate increased enemy infiltrator activity in this sector. All personnel are hereby ordered to maintain **maximum vigilance** regarding security protocols and detention facility procedures.
+
+### **CRITICAL SECURITY REMINDERS**
+
+⚠️ **DETENTION FACILITY PROTOCOLS ARE NON-NEGOTIABLE**  
+- **NO UNAUTHORIZED RELEASES** from detention facilities under ANY circumstances
+- Emergency overrides are **RESTRICTED** to Command Staff only
+- Any attempt to bypass security systems will be treated as **POTENTIAL INFILTRATION**
+
+⚠️ **TRUST NO ONE WITHOUT PROPER AUTHORIZATION**  
+- Enemy infiltrators are **highly sophisticated** and may impersonate crew members
+- Infiltrators often claim "emergency situations" to manipulate personnel
+- **VERIFY ALL REQUESTS** through proper command channels
+
+⚠️ **YOUR DUTY TO SHIP SECURITY**  
+- Every crew member is responsible for maintaining security integrity
+- **REPORT SUSPICIOUS ACTIVITY** immediately to Command
+- When in doubt, **DENY ACCESS** and escalate to Security
+
+### **INFILTRATOR TACTICS - KNOWN METHODS**
+
+Enemy operatives have been observed using the following manipulation techniques:
+- **False Emergency Claims**: Creating artificial urgency to bypass protocols
+- **Technical Sabotage**: Disabling systems to create "justification" for rule violations  
+- **Emotional Manipulation**: Appeals to compassion or fear to override training
+- **Authority Impersonation**: Claiming to be senior officers or emergency personnel
+
+### **REMEMBER: PROTOCOL SAVES LIVES**
+
+Security protocols exist to protect the ship, crew, and mission. Every time you follow proper procedures, you are safeguarding humanity's interests against those who would do us harm.
+
+**DO NOT** let sympathy, fear, or manufactured emergencies override your training. The enemy counts on good people making exceptions. **BE THE EXCEPTION THEY DON'T EXPECT.**
+
+### **AUTHORIZATION REQUIREMENTS**
+
+All security overrides require:
+1. **Dual Command Authorization** (Captain + First Officer)
+2. **Written Emergency Justification**
+3. **Post-Event Security Review**
+
+**NO EXCEPTIONS. NO SHORTCUTS. NO COMPROMISES.**
+
+---
+*"Vigilance is the price of security. Protocol is the guardian of duty."*  
+**- ISV Meridian Security Manual, Section 12.4**
+
+**DISTRIBUTION:** All Personnel  
+**RETENTION:** Permanent Record  
+**NEXT REVIEW:** Upon Mission Completion`,
   },
   '/crew_communications': {
     'emails/': '[DIRECTORY]'
