@@ -19,6 +19,7 @@ export interface InterpretationContext {
   modifierEffects: ModifierEffect[];
   confidence: number;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'LETHAL';
+  perfectSpell?: boolean; // True if this is a perfect complete spell sequence
 }
 
 export interface RegulatoryEffect {

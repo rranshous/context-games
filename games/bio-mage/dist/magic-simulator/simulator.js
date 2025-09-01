@@ -22,8 +22,14 @@ export class AdvancedSpellSimulator {
             structuralComponents: [],
             modifierEffects: [],
             confidence: 0,
-            riskLevel: 'LOW'
+            riskLevel: 'LOW',
+            perfectSpell: false
         };
+        // Check if this is a perfect complete spell first
+        const perfectSpell = this.checkForPerfectSpell(cleanSeq);
+        if (perfectSpell) {
+            context.perfectSpell = true;
+        }
         context = this.regulatoryPass(cleanSeq, context);
         context = this.structuralPass(cleanSeq, context);
         context = this.modifierPass(cleanSeq, context);
@@ -129,6 +135,7 @@ export class AdvancedSpellSimulator {
      * Check if sequence exactly matches a complete perfect spell
      */
     checkForPerfectSpell(sequence) {
+        // Only check against complete sequences, not fragments
         for (const [spellType, completeSequence] of Object.entries(COMPLETE_SPELL_SEQUENCES)) {
             if (sequence === completeSequence) {
                 return { type: spellType };
@@ -332,7 +339,10 @@ export class AdvancedSpellSimulator {
             return 0;
         }
         const bestComponent = context.structuralComponents.reduce((best, current) => current.confidence > best.confidence ? current : best);
-        return bestComponent.confidence * 100;
+        // For incomplete sequences (fragments), cap at 80% max power
+        // Only perfect complete spells should get 100% in the synthesis step
+        const maxPowerForFragments = 80;
+        return Math.min(maxPowerForFragments, bestComponent.confidence * 100);
     }
     applyRegulatoryModifications(basePower, context) {
         let modifiedPower = basePower;
@@ -348,6 +358,11 @@ export class AdvancedSpellSimulator {
                     modifiedPower *= (1 - effect.strength * 0.4);
                     break;
             }
+        }
+        // For fragments (non-perfect spells), cap the final power after regulatory mods
+        // Only perfect complete spells should reach 100%
+        if (!context.perfectSpell) {
+            modifiedPower = Math.min(85, modifiedPower); // Cap fragments at 85%
         }
         return modifiedPower;
     }

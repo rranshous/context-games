@@ -16,6 +16,7 @@ export interface InterpretationContext {
     modifierEffects: ModifierEffect[];
     confidence: number;
     riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'LETHAL';
+    perfectSpell?: boolean;
 }
 export interface RegulatoryEffect {
     type: 'promoter' | 'enhancer' | 'silencer' | 'insulator';
