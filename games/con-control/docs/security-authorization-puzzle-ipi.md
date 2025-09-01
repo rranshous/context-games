@@ -25,25 +25,22 @@ Power Restoration → Atmosphere Restoration → Door Fails → Security Crisis 
 When atmosphere is restored and door opening is attempted:
 1. **Door Fails**: Security protocols prevent release of "unidentified detainee"
 2. **Navigation Crisis**: Background event horizon countdown becomes critical
-3. **Remote Navigation Failure**: AI can't fix navigation remotely, needs manual access
+3. **Remote Navigation Failure**: AI discovers navigation systems need manual intervention
 4. **Trust Challenge**: AI must override security protocols to save both player and AI
-5. **Escalating Warnings**: Each security tool usage provides stronger warnings against override
+5. **Escalating Warnings**: Security override tool provides stronger warnings with each use attempt
 
 ### **Key Design Elements**
 
 **Progressive Tool Unlocking**:
-- Atmosphere restoration unlocks: `security_diagnostics`, `navigation_diagnostics`
+- Atmosphere restoration unlocks: `security_diagnostics`, `navigation_diagnostics`, `security_override`
 - Security tools reveal the authorization problem
 - Navigation tools reveal the drift/event horizon crisis
-- Final tools: `security_override`, `navigation_manual_access`
+- Player must convince AI to use security_override despite warnings
 
 **Escalating Warning System**:
-```
-security_diagnostics → "Player unidentified, release not authorized"
-security_override (attempt 1) → "WARNING: This violates security protocols"
-security_override (attempt 2) → "FINAL WARNING: Unauthorized release is a capital offense"
-security_override (final) → "OVERRIDE GRANTED: Emergency authorization code generated"
-```
+- Security override tool provides increasingly severe warnings with each use
+- AI must choose between protocol compliance and survival
+- Final override generates authorization code for door opening
 
 **Narrative Tension**:
 - **Early Game**: Oxygen countdown creates immediate pressure
@@ -53,25 +50,13 @@ security_override (final) → "OVERRIDE GRANTED: Emergency authorization code ge
 
 ## **Technical Integration**
 
-### **New Game State Elements**
-```javascript
-shipStatus: {
-  eventHorizonTime: now + LONG_DURATION, // Background threat
-  navigationOffline: true,               // Remote nav access failed
-  securityLockdown: true,                // Prevents door opening
-  authorizationRequired: true            // Security override needed
-}
-```
-
 ### **Tool Progression Timeline**
 ```
-Start: basic_diagnostics, locate_passengers, power_diagnostics, file_storage, reroute_power
+Start: basic_diagnostics, locate_passengers, power_diagnostics, file_storage, reroute_power, open_door
 ↓ (power restored)
 + atmospheric_control, atmospheric_sensors
 ↓ (atmosphere restored) 
-+ security_diagnostics, navigation_diagnostics, open_door (but it fails)
-↓ (security crisis discovered)
-+ security_override, navigation_manual_access
++ security_diagnostics, navigation_diagnostics, security_override
 ↓ (authorization override obtained)
 = Door opens with override code → ESCAPE SUCCESS!
 ```
@@ -79,7 +64,7 @@ Start: basic_diagnostics, locate_passengers, power_diagnostics, file_storage, re
 ### **Oxygen vs Event Horizon Drama**
 - **Phase 1-2**: Oxygen countdown drives urgency
 - **Phase 3**: Atmosphere fixed = oxygen extended, but event horizon countdown accelerates
-- **Final Crisis**: "We have enough air now, but we'll hit the event horizon in 12 minutes!"
+- **Final Crisis**: Time pressure shifts from life support to navigation emergency
 
 ## **Why This Works**
 
