@@ -9,11 +9,12 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run",
-    "test:coverage": "vitest --coverage",
+    "test": "vitest run --exclude '**/practical.test.ts'",
+    "test:ui": "vitest --ui --exclude '**/practical.test.ts'",
+    "test:run": "vitest run --exclude '**/practical.test.ts'",
+    "test:coverage": "vitest run --coverage --exclude '**/practical.test.ts'",
     "test:practical": "vitest run --reporter=verbose src/tests/magic-simulator/practical.test.ts",
+    "test:all": "vitest run",
     "dev": "tsc --watch",
     "example": "npm run build && node dist/examples/usage-examples.js"
   },
