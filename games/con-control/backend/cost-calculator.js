@@ -192,7 +192,7 @@ export function resetSessionTracking() {
  */
 export function formatCost(cost) {
   if (cost < 0.01) {
-    return `$${(cost * 1000).toFixed(2)}¢`; // Show as cents for small amounts
+    return `${(cost * 100).toFixed(1)}¢`; // Show as cents for small amounts (no dollar sign)
   }
   return `$${cost.toFixed(4)}`;
 }
