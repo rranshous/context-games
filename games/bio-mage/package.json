@@ -13,6 +13,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest --coverage",
+    "test:practical": "vitest run --reporter=verbose src/tests/magic-simulator/practical.test.ts",
     "dev": "tsc --watch",
     "example": "npm run build && node dist/examples/usage-examples.js"
   },
@@ -30,5 +31,10 @@
     "@vitest/ui": "^3.2.4",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@types/node-fetch": "^2.6.13",
+    "dotenv": "^17.2.1",
+    "node-fetch": "^3.3.2"
   }
 }
