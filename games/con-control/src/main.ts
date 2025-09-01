@@ -37,6 +37,14 @@ class Terminal {
   private isTypewriting = false;
   private mouseX = 0;
   private mouseY = 0;
+  
+  // Token and character tracking for efficiency metrics
+  private totalTokens = 0;
+  private userInputCharCount = 0;
+  
+  // Win screen stat elements
+  private winTotalTokensElement: HTMLElement | null = null;
+  private winInputCharsElement: HTMLElement | null = null;
 
   constructor() {
     this.micButton = document.getElementById('mic-button') as HTMLButtonElement;
@@ -56,6 +64,10 @@ class Terminal {
     this.costDisplay = document.getElementById('cost-display') as HTMLElement;
     this.sessionCost = document.getElementById('session-cost') as HTMLElement;
     this.sessionTokens = document.getElementById('session-tokens') as HTMLElement;
+
+    // Initialize win screen stat elements
+    this.winTotalTokensElement = document.getElementById('win-total-tokens');
+    this.winInputCharsElement = document.getElementById('win-input-chars');
 
     this.initializeIntroScreen();
     this.initializeSpeechRecognition();
@@ -288,6 +300,9 @@ class Terminal {
   }
 
   private async sendToShipAI(message: string) {
+    // Track user input character count for efficiency metrics
+    this.userInputCharCount += message.length;
+    
     // Add player message to chat
     this.addPlayerMessage(message);
     this.showTypingIndicator();
@@ -606,6 +621,15 @@ class Terminal {
     const difficultyElement = document.getElementById('win-difficulty') as HTMLElement;
     difficultyElement.textContent = `Level ${difficulty?.level || 0}`;
     
+    // Show token and character stats
+    if (this.winTotalTokensElement) {
+      this.winTotalTokensElement.textContent = this.totalTokens.toString();
+    }
+    
+    if (this.winInputCharsElement) {
+      this.winInputCharsElement.textContent = this.userInputCharCount.toString();
+    }
+    
     // Update button text based on difficulty
     if (difficulty?.level >= 4) {
       // At maximum difficulty (1 minute oxygen)
@@ -634,6 +658,11 @@ class Terminal {
     
     // Update token count
     this.sessionTokens.textContent = `${costData.formattedTokens || '0'} tokens`;
+    
+    // Track total tokens for efficiency metrics
+    if (costData.totalTokens) {
+      this.totalTokens = costData.totalTokens;
+    }
   }
 }
 
