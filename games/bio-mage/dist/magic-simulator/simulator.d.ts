@@ -1,44 +1,44 @@
 /**
- * Simple spell simulator that treats magic as genetic-like sequences
- * Completely deterministic implementation based on sequence similarity
+ * Advanced multi-pass spell simulator that treats magic as complex biological sequences
+ * Replaces the simple similarity-based approach with sophisticated sequence analysis
  */
-import { SpellResult, MagicSequence } from './types.js';
-export declare class SimpleSpellSimulator {
+import { SpellResult } from './types.js';
+export declare class AdvancedSpellSimulator {
     /**
-     * Simulate a magic sequence and return the resulting spell effect
-     * @param sequence - ATCG sequence to simulate
-     * @returns SpellResult with type, power, stability, and duration
+     * Main entry point for spell interpretation using multi-pass analysis
      */
-    simulate(sequence: MagicSequence): SpellResult;
+    interpret(rawSequence: string): SpellResult;
     /**
-     * Find the known spell that best matches the input sequence
+     * First pass: Identify regulatory sequences that control spell casting
      */
-    private findBestMatch;
+    private regulatoryPass;
     /**
-     * Calculate similarity between two sequences using simple position-based matching
-     * Returns a value between 0 and 1
+     * Second pass: Identify structural components that define spell type and core effects
      */
-    private calculateSimilarity;
+    private structuralPass;
     /**
-     * Calculate spell power based on sequence similarity (0-100)
+     * Third pass: Identify modifier sequences that alter spell behavior
      */
-    private calculatePower;
+    private modifierPass;
     /**
-     * Calculate spell stability based on sequence accuracy (0-100)
-     * More accurate sequences are more stable
+     * Final pass: Synthesize all analysis into spell result
      */
-    private calculateStability;
-    /**
-     * Calculate spell duration based on spell type and accuracy (deterministic)
-     */
-    private calculateDuration;
-    /**
-     * Validate that a sequence contains only valid ATCG bases
-     */
+    private synthesizeEffect;
+    private cleanSequence;
     private isValidSequence;
-    /**
-     * Create a failed spell result for invalid inputs
-     */
-    private createFailedSpell;
+    private createFailureResult;
+    private classifyRegulatoryEffect;
+    private coreNameToSpellType;
+    private calculateStructuralConfidence;
+    private findBestPartialStructuralMatch;
+    private classifyModifierEffect;
+    private calculateModifierMagnitude;
+    private calculateOverallConfidence;
+    private assessRiskLevel;
+    private determinePrimarySpellType;
+    private calculateBasePower;
+    private applyRegulatoryModifications;
+    private applyModifierEffects;
+    private calculateSimilarity;
 }
 //# sourceMappingURL=simulator.d.ts.map

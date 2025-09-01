@@ -1,31 +1,31 @@
 /**
- * Magic Simulator Module
+ * Advanced Magic Simulator Module
  *
- * A deterministic magic simulation system that treats spells as genetic-like sequences.
- * Based on ATCG base-4 encoding for biological-inspired magic mechanics.
+ * A sophisticated multi-pass magic simulation system that treats spells as complex biological sequences.
+ * Features regulatory elements, structural components, and modifier sequences for realistic magic mechanics.
  *
  * @example Basic Usage
  * ```typescript
- * import { SimpleSpellSimulator, KNOWN_SPELLS } from './magic-simulator';
+ * import { AdvancedSpellSimulator, COMPLETE_SPELL_SEQUENCES } from './magic-simulator';
  *
- * const simulator = new SimpleSpellSimulator();
- * const result = simulator.simulate(KNOWN_SPELLS.fireball);
+ * const simulator = new AdvancedSpellSimulator();
+ * const result = simulator.interpret(COMPLETE_SPELL_SEQUENCES.pyroblast);
  *
- * console.log(`Cast ${result.type} with ${result.power}% power`);
+ * console.log(`Cast ${result.type} with ${result.power}% power and ${result.complexity}% complexity`);
  * ```
  *
  * @example Fragment Discovery
  * ```typescript
- * const fragment = 'ATCGAT'; // Partial fireball sequence
- * const result = simulator.simulate(fragment);
+ * const fragment = 'TATAAAAATATAATCGATCGATCGATCG'; // Partial pyroblast sequence
+ * const result = simulator.interpret(fragment);
  *
  * if (result.power > 0) {
- *   console.log(`Detected ${result.type} spell (${result.power}% complete)`);
+ *   console.log(`Detected ${result.type} spell (${result.power}% complete, risk: ${result.riskLevel})`);
  * }
  * ```
  */
 // Core simulator class
-export { SimpleSpellSimulator } from './simulator.js';
+export { AdvancedSpellSimulator } from './simulator.js';
 // Constants and spell library
-export { KNOWN_SPELLS, SPELL_LIBRARY, VALID_BASES } from './constants.js';
+export { COMPLEX_SPELLS, COMPLETE_SPELL_SEQUENCES, REGULATORY_PATTERNS, STRUCTURAL_CORES, MODIFIER_PATTERNS, VALID_BASES } from './constants.js';
 //# sourceMappingURL=index.js.map

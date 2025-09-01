@@ -1,5 +1,5 @@
 /**
- * Simple usage examples for the Magic Simulator
+ * Advanced usage examples for the Magic Simulator
  *
  * Run with: npx ts-node examples/usage-examples.ts
  */

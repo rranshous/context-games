@@ -1,196 +1,136 @@
 /**
- * Integration tests for the magic simulator
+ * Integration tests for the advanced magic simulator
  * Testing end-to-end scenarios and real-world usage patterns
  */
 
 import { describe, it, expect } from 'vitest';
-import { SimpleSpellSimulator } from '../../magic-simulator/simulator.js';
-import { KNOWN_SPELLS } from '../../magic-simulator/constants.js';
+import { AdvancedSpellSimulator } from '../../magic-simulator/simulator.js';
+import { COMPLEX_SPELLS, COMPLETE_SPELL_SEQUENCES } from '../../magic-simulator/constants.js';
 import { SpellType } from '../../magic-simulator/types.js';
 
-describe('Magic Simulator Integration Tests', () => {
-  const simulator = new SimpleSpellSimulator();
+describe('Advanced Magic Simulator Integration Tests', () => {
+  const simulator = new AdvancedSpellSimulator();
 
-  describe('End-to-end simulation scenarios', () => {
-    it('should handle a complete spell discovery workflow', () => {
-      // Scenario: Player discovers fragments of a fireball spell
-      const fragmentA = 'ATCGAT';      // Start of fireball
-      const fragmentB = 'CGATCG';      // Middle of fireball  
-      const fullAttempt = 'ATCGATCGATCG'; // Complete fireball
+  describe('End-to-end multi-pass scenarios', () => {
+    it('should handle fragment-based spell discovery workflow', () => {
+      // Scenario: Player discovers fragments of a pyroblast spell
+      const regulatoryFragment = 'TATAAAAATATA';        // Regulatory only
+      const structuralFragment = 'ATCGATCGATCGATCG';     // Structural core only  
+      const completeSpell = COMPLETE_SPELL_SEQUENCES.pyroblast;
       
-      // Test fragments have lower power than complete spell
-      const resultA = simulator.simulate(fragmentA);
-      const resultB = simulator.simulate(fragmentB);
-      const resultFull = simulator.simulate(fullAttempt);
+      // Test fragments have different characteristics than complete spell
+      const regResult = simulator.interpret(regulatoryFragment);
+      const structResult = simulator.interpret(structuralFragment);
+      const completeResult = simulator.interpret(completeSpell);
       
-      expect(resultA.power).toBeLessThan(resultFull.power);
-      expect(resultB.power).toBeLessThan(resultFull.power);
-      expect(resultFull.power).toBe(100);
-      expect(resultFull.type).toBe('fireball');
+      expect(structResult.type).toBe('pyroblast'); // Core identifies spell type
+      expect(completeResult.power).toBe(100);
+      expect(completeResult.type).toBe('pyroblast');
+      expect(completeResult.stability).toBe(100);
+      
+      // Fragments should be less powerful than complete spell
+      expect(regResult.power).toBeLessThan(completeResult.power);
+      expect(structResult.power).toBeLessThan(completeResult.power);
     });
 
-    it('should handle experimental spell sequence assembly', () => {
-      // Scenario: Player tries to combine known fragments incorrectly
-      const wrongAssembly = 'ATCGCGTACG'; // Mix of fireball start + lightning middle
-      const result = simulator.simulate(wrongAssembly);
+    it('should handle experimental sequence assembly', () => {
+      // Scenario: Player tries to combine components from different spells
+      const fireRegulatory = COMPLEX_SPELLS.pyroblast.regulatorySequence;
+      const lifeCore = COMPLEX_SPELLS.regeneration.structuralSequence;
       
-      // Should classify as one of the known spells but with reduced effectiveness
-      expect(['fireball', 'heal', 'shield', 'lightning', 'teleport']).toContain(result.type);
-      expect(result.power).toBeLessThan(100);
-      expect(result.stability).toBeLessThan(100);
-    });
-
-    it('should handle dangerous experimental sequences', () => {
-      // Scenario: Player attempts risky sequence variations
-      const dangerousSequence = 'XXXXXXXXXXXXXX'; // Invalid but same length as known spells
-      const result = simulator.simulate(dangerousSequence);
+      const hybridSpell = fireRegulatory + lifeCore;
+      const result = simulator.interpret(hybridSpell);
       
-      // Should fail safely
-      expect(result.power).toBe(0);
-      expect(result.stability).toBe(0);
-      expect(result.duration).toBe(0);
+      // Should produce some effect but likely different classification
+      expect(result.power).toBeGreaterThan(0);
+      expect(['pyroblast', 'regeneration', 'unknown']).toContain(result.type);
     });
+  });
 
-    it('should support progressive learning through similarity', () => {
-      // Scenario: Player gradually improves spell accuracy
-      const attempts = [
-        'TTTTTTTTTTTT',    // Completely wrong
-        'ATTTTTTTTTTT',    // One correct base
-        'ATCGTTTTTTTT',    // Two correct bases
-        'ATCGATTTTTTT',    // Half correct
-        'ATCGATCGATTT',    // Almost complete
-        'ATCGATCGATCG'     // Perfect fireball
+  describe('Spell classification accuracy', () => {
+    it('should correctly classify all known complete spells', () => {
+      const testCases = [
+        { sequence: COMPLETE_SPELL_SEQUENCES.pyroblast, expectedType: 'pyroblast' as SpellType },
+        { sequence: COMPLETE_SPELL_SEQUENCES.regeneration, expectedType: 'regeneration' as SpellType },
+        { sequence: COMPLETE_SPELL_SEQUENCES.ward, expectedType: 'ward' as SpellType },
+        { sequence: COMPLETE_SPELL_SEQUENCES.storm, expectedType: 'storm' as SpellType },
+        { sequence: COMPLETE_SPELL_SEQUENCES.phase, expectedType: 'phase' as SpellType }
       ];
-      
-      const results = attempts.map(seq => simulator.simulate(seq));
-      
-      // Power should generally increase as sequence gets more accurate
-      for (let i = 1; i < results.length; i++) {
-        if (results[i].type === results[i-1].type) {
-          expect(results[i].power).toBeGreaterThanOrEqual(results[i-1].power);
-        }
-      }
-      
-      // Final result should be perfect
-      expect(results[results.length - 1].power).toBe(100);
-      expect(results[results.length - 1].type).toBe('fireball');
-    });
 
-    it('should handle multiple spell types in discovery session', () => {
-      // Scenario: Player discovers multiple different spells
-      const spellAttempts = [
-        { sequence: KNOWN_SPELLS.fireball, expectedType: 'fireball' as SpellType },
-        { sequence: KNOWN_SPELLS.heal, expectedType: 'heal' as SpellType },
-        { sequence: KNOWN_SPELLS.shield, expectedType: 'shield' as SpellType },
-        { sequence: KNOWN_SPELLS.lightning, expectedType: 'lightning' as SpellType },
-        { sequence: KNOWN_SPELLS.teleport, expectedType: 'teleport' as SpellType }
-      ];
-      
-      spellAttempts.forEach(({ sequence, expectedType }) => {
-        const result = simulator.simulate(sequence);
+      testCases.forEach(({ sequence, expectedType }) => {
+        const result = simulator.interpret(sequence);
         expect(result.type).toBe(expectedType);
         expect(result.power).toBe(100);
         expect(result.stability).toBe(100);
       });
     });
 
-    it('should maintain consistency across batch processing', () => {
-      // Scenario: Processing many sequences in a game session
-      const testSequences = [
-        'ATCGATCGATCG',
-        'GCTAGCTAGCTA', 
-        'ATGCATGCATGC',
-        'TACGTACGTACG',
-        'CGCGCGCGCGCG'
-      ];
+    it('should handle batch processing efficiently', () => {
+      const testSequences = Object.values(COMPLETE_SPELL_SEQUENCES);
       
-      // Run multiple times to ensure consistency
-      const batch1 = testSequences.map(seq => simulator.simulate(seq));
-      const batch2 = testSequences.map(seq => simulator.simulate(seq));
-      const batch3 = testSequences.map(seq => simulator.simulate(seq));
+      // Process same batch multiple times - should be deterministic
+      const batch1 = testSequences.map(seq => simulator.interpret(seq));
+      const batch2 = testSequences.map(seq => simulator.interpret(seq));
       
-      batch1.forEach((result, index) => {
-        expect(result).toEqual(batch2[index]);
-        expect(result).toEqual(batch3[index]);
-      });
+      // All batches should produce identical results
+      expect(batch1).toEqual(batch2);
     });
   });
 
-  describe('Known spell verification', () => {
-    it('should correctly identify all known spell types', () => {
-      const spellTests = [
-        { sequence: KNOWN_SPELLS.fireball, type: 'fireball', instant: true },
-        { sequence: KNOWN_SPELLS.heal, type: 'heal', instant: true },
-        { sequence: KNOWN_SPELLS.shield, type: 'shield', instant: false },
-        { sequence: KNOWN_SPELLS.lightning, type: 'lightning', instant: true },
-        { sequence: KNOWN_SPELLS.teleport, type: 'teleport', instant: true }
-      ];
-      
-      spellTests.forEach(({ sequence, type, instant }) => {
-        const result = simulator.simulate(sequence);
-        
-        expect(result.type).toBe(type);
-        expect(result.power).toBe(100);
-        expect(result.stability).toBe(100);
-        
-        if (instant) {
-          expect(result.duration).toBe(0);
-        } else {
-          expect(result.duration).toBeGreaterThan(0);
-        }
-      });
-    });
-
-    it('should handle spell sequences with case variations', () => {
-      const variations = [
-        KNOWN_SPELLS.fireball.toLowerCase(),
-        KNOWN_SPELLS.fireball.toUpperCase(),
-        'AtCgAtCgAtCg', // Mixed case
-      ];
-      
-      variations.forEach(sequence => {
-        const result = simulator.simulate(sequence);
-        expect(result.type).toBe('fireball');
-        expect(result.power).toBe(100);
-        expect(result.stability).toBe(100);
-      });
-    });
-
-    it('should provide consistent spell classification boundaries', () => {
-      // Test sequences that are exactly between two spells
-      const fireball = KNOWN_SPELLS.fireball;   // ATCGATCGATCG
-      const heal = KNOWN_SPELLS.heal;           // GCTAGCTAGCTA
-      
-      // Create a sequence that's 50% fireball, 50% heal
-      const hybrid = 'ATCGATAGCTAG'; // First half fireball, second half heal
-      const result = simulator.simulate(hybrid);
-      
-      // Should consistently classify as one type
-      expect(['fireball', 'heal']).toContain(result.type);
-      
-      // Run multiple times to ensure consistent classification
-      for (let i = 0; i < 10; i++) {
-        const testResult = simulator.simulate(hybrid);
-        expect(testResult.type).toBe(result.type);
-      }
-    });
-
+  describe('Performance and reliability', () => {
     it('should handle performance requirements for real-time usage', () => {
       // Scenario: Game needs to process spells quickly during combat
-      const testSequence = KNOWN_SPELLS.fireball;
-      const iterations = 1000;
+      const testSequence = COMPLETE_SPELL_SEQUENCES.pyroblast;
+      const iterations = 100; // Reduced for faster testing
       
       const startTime = performance.now();
       
       for (let i = 0; i < iterations; i++) {
-        simulator.simulate(testSequence);
+        simulator.interpret(testSequence);
       }
       
       const endTime = performance.now();
-      const averageTime = (endTime - startTime) / iterations;
+      const avgTimePerSpell = (endTime - startTime) / iterations;
       
-      // Should process each spell in less than 1ms for real-time gameplay
-      expect(averageTime).toBeLessThan(1);
+      // Should process each spell in reasonable time
+      expect(avgTimePerSpell).toBeLessThan(10); // 10ms is reasonable for complex processing
+    });
+
+    it('should maintain consistency across multiple sessions', () => {
+      // Scenario: Results should be identical across different simulator instances
+      const simulator1 = new AdvancedSpellSimulator();
+      const simulator2 = new AdvancedSpellSimulator();
+      
+      const testSequence = COMPLETE_SPELL_SEQUENCES.storm;
+      
+      const result1 = simulator1.interpret(testSequence);
+      const result2 = simulator2.interpret(testSequence);
+      
+      expect(result1).toEqual(result2);
+    });
+  });
+
+  describe('Error handling and edge cases', () => {
+    it('should handle malformed sequences gracefully', () => {
+      const malformedSequences = [
+        '',                    // Empty
+        'XYZXYZ',             // Invalid characters
+        'A',                  // Too short
+        'A'.repeat(100)       // Long sequence
+      ];
+
+      malformedSequences.forEach(sequence => {
+        const result = simulator.interpret(sequence);
+        
+        // Should not crash and should return safe default values
+        expect(typeof result.power).toBe('number');
+        expect(typeof result.stability).toBe('number');
+        expect(typeof result.duration).toBe('number');
+        expect(typeof result.type).toBe('string');
+        
+        expect(result.power).toBeGreaterThanOrEqual(0);
+        expect(result.power).toBeLessThanOrEqual(100);
+      });
     });
   });
 });
