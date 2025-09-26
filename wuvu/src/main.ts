@@ -12,7 +12,7 @@ interface GameAction {
     source: 'player' | 'script' | 'ai';
 }
 
-type CreatureState = 'idle' | 'eating' | 'playing' | 'happy';
+type CreatureState = 'idle' | 'eating' | 'playing' | 'happy' | 'dead';
 
 class Creature {
     public x: number;
@@ -133,6 +133,12 @@ class Creature {
                 bodyColor = '#FF8888';
                 eyeScale = 1.1;
                 break;
+            case 'dead':
+                bodyColor = '#666666'; // Gray when dead
+                eyeScale = 0.8; // Smaller eyes
+                speedMultiplier = 0; // No tail movement
+                bodyBounce = 0; // No bobbing
+                break;
         }
 
         // Apply bounce effect
@@ -208,6 +214,16 @@ class Creature {
         } else if (this.needs.health > targetHealth) {
             this.needs.health = Math.max(0, this.needs.health - (healthChangeRate * deltaTime / 1000));
         }
+
+        // Check for death
+        if (this.needs.health <= 0 && this.state !== 'dead') {
+            this.state = 'dead';
+            console.log(`💀 ${this.id} has died from poor health!`);
+        }
+    }
+
+    isDead(): boolean {
+        return this.state === 'dead';
     }
 
     // Unified action handler - same interface for player/script/AI actions
@@ -459,10 +475,12 @@ class Game {
         const cleanlinessDecayRate = 0.2; // Loses 0.2 cleanliness per second
         this.bowlCleanliness = Math.max(0, this.bowlCleanliness - (cleanlinessDecayRate * deltaTime / 1000));
 
-        // Update all creatures
+        // Update all creatures (only if alive)
         for (const creature of this.creatures) {
-            creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
-            creature.updateHealthFromCleanliness(this.bowlCleanliness, deltaTime);
+            if (!creature.isDead()) {
+                creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
+            }
+            creature.updateHealthFromCleanliness(this.bowlCleanliness, deltaTime); // Health still updates for death check
         }
         
         // Render
@@ -491,9 +509,9 @@ class Game {
             // Check if clicked on menu buttons
             this.handleMenuClick(clickX, clickY);
         } else {
-            // Check if clicked on any creature
+            // Check if clicked on any living creature
             for (const creature of this.creatures) {
-                if (creature.isClickedOn(clickX, clickY)) {
+                if (!creature.isDead() && creature.isClickedOn(clickX, clickY)) {
                     this.showInteractionMenu = true;
                     this.menuX = clickX;
                     this.menuY = clickY;
