@@ -375,7 +375,19 @@ export class AdvancedSpellSimulator {
     const regulatoryBonus = Math.min(0.2, context.regulatoryEffects.length * 0.05);
     const modifierBonus = Math.min(0.1, context.modifierEffects.length * 0.02);
 
-    return Math.min(1.0, structuralConfidence + regulatoryBonus + modifierBonus);
+    let totalComplexity = structuralConfidence + regulatoryBonus + modifierBonus;
+
+    // For fragments (structural cores without regulatory/modifiers), cap complexity at 70%
+    // Only complete spells with all components should achieve near 100% complexity
+    if (context.regulatoryEffects.length === 0 && context.modifierEffects.length === 0) {
+      // Pure structural core - sophisticated but incomplete
+      totalComplexity = Math.min(0.7, totalComplexity);
+    } else if (context.regulatoryEffects.length === 0 || context.modifierEffects.length === 0) {
+      // Missing either regulatory or modifier components - cap at 85%
+      totalComplexity = Math.min(0.85, totalComplexity);
+    }
+
+    return Math.min(1.0, totalComplexity);
   }
 
   private assessRiskLevel(context: InterpretationContext): 'LOW' | 'MEDIUM' | 'HIGH' | 'LETHAL' {
