@@ -38,6 +38,104 @@ abstract class Agent {
     }
 }
 
+class AIAssistAgent extends Agent {
+    id = 'ai-assist-agent';
+    name = 'AI Assist Agent';
+    private executeAction: (action: GameAction) => boolean;
+    
+    constructor(executeActionFn: (action: GameAction) => boolean) {
+        super();
+        this.executeAction = executeActionFn;
+    }
+    
+    async evaluate(gameState: GameState): Promise<void> {
+        if (!this.isActive) return;
+        
+        // Import ollama dynamically
+        const { default: ollama } = await import('ollama');
+        
+        // Define the executeAction tool for ollama
+        const executeActionTool = {
+            type: 'function' as const,
+            function: {
+                name: 'executeAction',
+                description: 'Perform an action in the game (feed creature, play with creature, or clean bowl)',
+                parameters: {
+                    type: 'object',
+                    required: ['type', 'target'],
+                    properties: {
+                        type: { 
+                            type: 'string', 
+                            enum: ['feed', 'play', 'clean'],
+                            description: 'The action to perform' 
+                        },
+                        target: { 
+                            type: 'string', 
+                            description: 'creature1, creature2, creature3, or bowl' 
+                        }
+                    }
+                }
+            }
+        };
+
+        // Create prompt with current game state
+        const prompt = this.createPrompt(gameState);
+        
+        try {
+            const response = await ollama.chat({
+                model: 'deepseek-r1:1.5b',
+                messages: [{ role: 'user', content: prompt }],
+                tools: [executeActionTool]
+            });
+
+            // Handle tool calls
+            if (response.message.tool_calls) {
+                for (const toolCall of response.message.tool_calls) {
+                    if (toolCall.function.name === 'executeAction') {
+                        const args = toolCall.function.arguments;
+                        const action: GameAction = {
+                            type: args.type,
+                            target: args.target,
+                            source: 'ai-assist-agent'
+                        };
+                        
+                        const success = this.executeAction(action);
+                        console.log(`🤖 AI Assist Agent: ${args.type} ${args.target} ${success ? '✅' : '❌'}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('AI Assist Agent error:', error);
+        }
+    }
+    
+    private createPrompt(gameState: GameState): string {
+        const livingCreatures = gameState.creatures.filter(c => !c.isDead);
+        const deadCount = gameState.creatures.length - livingCreatures.length;
+        
+        let prompt = `You are the AI Assist Agent helping care for digital pets.
+
+Current Status:
+- Bowl cleanliness: ${Math.round(gameState.bowlCleanliness)}% (clean when > 70%)
+- Living creatures: ${livingCreatures.length}${deadCount > 0 ? ` (${deadCount} have died)` : ''}
+
+Creatures:`;
+
+        livingCreatures.forEach(creature => {
+            prompt += `\n- ${creature.id}: hunger=${Math.round(creature.hunger)}%, happiness=${Math.round(creature.happiness)}%, health=${Math.round(creature.health)}%`;
+        });
+
+        prompt += `\n\nPriority Rules:
+1. Clean bowl if cleanliness < 30% (saves all creatures' health)
+2. Feed creatures with hunger < 20% (prevents death)
+3. Play with creatures that have happiness < 30% (improves wellbeing)
+
+Use executeAction tool or do nothing if everything looks good.`;
+
+        return prompt;
+    }
+}
+
 type CreatureState = 'idle' | 'eating' | 'playing' | 'happy' | 'dead';
 
 class Creature {
@@ -511,6 +609,10 @@ class Game {
             new Creature(450, 320, 'creature2'), 
             new Creature(400, 350, 'creature3')
         ];
+        
+        // Create and register AI Assist Agent
+        const aiAssistAgent = new AIAssistAgent((action: GameAction) => this.executeAction(action));
+        this.addAgent(aiAssistAgent);
     }
 
     init() {
