@@ -7,8 +7,8 @@ interface CreatureNeeds {
 }
 
 interface GameAction {
-    type: 'feed' | 'play';
-    target: string; // creature id (for future multi-creature support)
+    type: 'feed' | 'play' | 'clean';
+    target: string; // creature id or 'bowl' for environment actions
     source: 'player' | 'script' | 'ai';
 }
 
@@ -406,27 +406,40 @@ class GameRenderer {
         drawMiniBar(creature.needs.health, startY + barSpacing * 2, '#FF9800'); // Orange for health
     }
 
-    drawInteractionMenu(x: number, y: number) {
+    drawInteractionMenu(x: number, y: number, isBowlMenu: boolean = false) {
         const buttonWidth = 80;
         const buttonHeight = 30;
         const buttonSpacing = 10;
 
-        // Menu background
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        this.ctx.fillRect(x - 5, y - 5, buttonWidth + 10, (buttonHeight * 2) + buttonSpacing + 10);
+        if (isBowlMenu) {
+            // Bowl menu - just clean option
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillRect(x - 5, y - 5, buttonWidth + 10, buttonHeight + 10);
 
-        // Feed button
-        this.ctx.fillStyle = '#4CAF50';
-        this.ctx.fillRect(x, y, buttonWidth, buttonHeight);
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '14px Arial';
-        this.ctx.fillText('Feed', x + 25, y + 20);
+            // Clean button
+            this.ctx.fillStyle = '#00BCD4';
+            this.ctx.fillRect(x, y, buttonWidth, buttonHeight);
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '14px Arial';
+            this.ctx.fillText('Clean', x + 22, y + 20);
+        } else {
+            // Creature menu - feed and play options
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillRect(x - 5, y - 5, buttonWidth + 10, (buttonHeight * 2) + buttonSpacing + 10);
 
-        // Play button
-        this.ctx.fillStyle = '#2196F3';
-        this.ctx.fillRect(x, y + buttonHeight + buttonSpacing, buttonWidth, buttonHeight);
-        this.ctx.fillStyle = 'white';
-        this.ctx.fillText('Play', x + 25, y + buttonHeight + buttonSpacing + 20);
+            // Feed button
+            this.ctx.fillStyle = '#4CAF50';
+            this.ctx.fillRect(x, y, buttonWidth, buttonHeight);
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '14px Arial';
+            this.ctx.fillText('Feed', x + 25, y + 20);
+
+            // Play button
+            this.ctx.fillStyle = '#2196F3';
+            this.ctx.fillRect(x, y + buttonHeight + buttonSpacing, buttonWidth, buttonHeight);
+            this.ctx.fillStyle = 'white';
+            this.ctx.fillText('Play', x + 25, y + buttonHeight + buttonSpacing + 20);
+        }
     }
 }
 
@@ -494,7 +507,8 @@ class Game {
         }
         
         if (this.showInteractionMenu) {
-            this.renderer.drawInteractionMenu(this.menuX, this.menuY);
+            const isBowlMenu = this.selectedCreatureId === null;
+            this.renderer.drawInteractionMenu(this.menuX, this.menuY, isBowlMenu);
         }
 
         requestAnimationFrame(this.gameLoop);
@@ -509,7 +523,7 @@ class Game {
             // Check if clicked on menu buttons
             this.handleMenuClick(clickX, clickY);
         } else {
-            // Check if clicked on any living creature
+            // Check if clicked on any living creature first
             for (const creature of this.creatures) {
                 if (!creature.isDead() && creature.isClickedOn(clickX, clickY)) {
                     this.showInteractionMenu = true;
@@ -519,6 +533,14 @@ class Game {
                     return;
                 }
             }
+            
+            // If no creature was clicked, check if clicked in bowl area
+            if (this.isClickInBowl(clickX, clickY)) {
+                this.showInteractionMenu = true;
+                this.menuX = clickX;
+                this.menuY = clickY;
+                this.selectedCreatureId = null; // No specific creature, this is a bowl action
+            }
         }
     }
 
@@ -526,33 +548,51 @@ class Game {
         const buttonWidth = 80;
         const buttonHeight = 30;
         const buttonSpacing = 10;
+        const isBowlMenu = this.selectedCreatureId === null;
 
-        // Feed button
-        const feedButtonX = this.menuX;
-        const feedButtonY = this.menuY;
-        if (clickX >= feedButtonX && clickX <= feedButtonX + buttonWidth &&
-            clickY >= feedButtonY && clickY <= feedButtonY + buttonHeight) {
-            this.executeAction({
-                type: 'feed',
-                target: this.selectedCreatureId || 'creature1',
-                source: 'player'
-            });
-            this.showInteractionMenu = false;
-            return;
-        }
+        if (isBowlMenu) {
+            // Bowl menu - clean button
+            const cleanButtonX = this.menuX;
+            const cleanButtonY = this.menuY;
+            if (clickX >= cleanButtonX && clickX <= cleanButtonX + buttonWidth &&
+                clickY >= cleanButtonY && clickY <= cleanButtonY + buttonHeight) {
+                this.executeAction({
+                    type: 'clean',
+                    target: 'bowl',
+                    source: 'player'
+                });
+                this.showInteractionMenu = false;
+                return;
+            }
+        } else {
+            // Creature menu - feed and play buttons
+            // Feed button
+            const feedButtonX = this.menuX;
+            const feedButtonY = this.menuY;
+            if (clickX >= feedButtonX && clickX <= feedButtonX + buttonWidth &&
+                clickY >= feedButtonY && clickY <= feedButtonY + buttonHeight) {
+                this.executeAction({
+                    type: 'feed',
+                    target: this.selectedCreatureId || 'creature1',
+                    source: 'player'
+                });
+                this.showInteractionMenu = false;
+                return;
+            }
 
-        // Play button
-        const playButtonX = this.menuX;
-        const playButtonY = this.menuY + buttonHeight + buttonSpacing;
-        if (clickX >= playButtonX && clickX <= playButtonX + buttonWidth &&
-            clickY >= playButtonY && clickY <= playButtonY + buttonHeight) {
-            this.executeAction({
-                type: 'play',
-                target: this.selectedCreatureId || 'creature1',
-                source: 'player'
-            });
-            this.showInteractionMenu = false;
-            return;
+            // Play button
+            const playButtonX = this.menuX;
+            const playButtonY = this.menuY + buttonHeight + buttonSpacing;
+            if (clickX >= playButtonX && clickX <= playButtonX + buttonWidth &&
+                clickY >= playButtonY && clickY <= playButtonY + buttonHeight) {
+                this.executeAction({
+                    type: 'play',
+                    target: this.selectedCreatureId || 'creature1',
+                    source: 'player'
+                });
+                this.showInteractionMenu = false;
+                return;
+            }
         }
 
         // Click outside menu closes it
@@ -564,6 +604,11 @@ class Game {
         // This is where we'd add logging, validation, etc.
         console.log(`Executing ${action.type} action from ${action.source} on ${action.target}`);
         
+        // Handle bowl actions
+        if (action.target === 'bowl') {
+            return this.handleBowlAction(action);
+        }
+        
         // Route to the appropriate creature
         for (const creature of this.creatures) {
             if (creature.id === action.target) {
@@ -572,6 +617,34 @@ class Game {
         }
         
         return false;
+    }
+
+    private handleBowlAction(action: GameAction): boolean {
+        switch (action.type) {
+            case 'clean':
+                // Restore bowl cleanliness
+                const cleaningPower = 40; // Restores 40 points
+                this.bowlCleanliness = Math.min(100, this.bowlCleanliness + cleaningPower);
+                console.log(`Bowl cleaned by ${action.source}! Cleanliness: ${Math.round(this.bowlCleanliness)}`);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private isClickInBowl(clickX: number, clickY: number): boolean {
+        // Check if click is within the bowl ellipse bounds
+        const centerX = 400;
+        const centerY = 300;
+        const bowlWidth = 500;
+        const bowlHeight = 350;
+        
+        const dx = clickX - centerX;
+        const dy = clickY - centerY;
+        const normalizedDistance = Math.sqrt((dx * dx) / ((bowlWidth/2) * (bowlWidth/2)) + 
+                                           (dy * dy) / ((bowlHeight/2) * (bowlHeight/2)));
+        
+        return normalizedDistance <= 1; // Inside the ellipse
     }
 }
 
