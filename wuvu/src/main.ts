@@ -1,7 +1,7 @@
 console.log('Wuvu game starting...');
 
 interface CreatureNeeds {
-    hunger: number;      // 0-100, decreases over time
+    satiation: number;      // 0-100, decreases over time
     happiness: number;   // 0-100, decreases over time
     health: number;      // 0-100, derived from bowl cleanliness
 }
@@ -13,7 +13,7 @@ interface GameAction {
 }
 
 interface GameState {
-    creatures: {id: string, hunger: number, happiness: number, health: number, isDead: boolean}[];
+    creatures: {id: string, satiation: number, happiness: number, health: number, isDead: boolean}[];
     bowlCleanliness: number;
     timestamp: number;
 }
@@ -129,7 +129,7 @@ Use your tools to care for the creatures, take any action necessary to keep them
 You can perform up to 5 tool calls at a time.
 You can execute an action multiple times and execute an action for a creature multiple times in a row if needed.
 You can Clean the bowl when it is dirty.
-You can Feed a creature when it is hungry.
+You can Feed a creature when it is not satiated.
 You can Play with a creature when it is unhappy.
 
 example tool calls:
@@ -148,7 +148,7 @@ creatures:`;
         livingCreatures.forEach(creature => {
             prompt += `
   ${creature.id}:
-    fullness: ${this.getStatusDescription(creature.hunger)}
+    satiation: ${this.getStatusDescription(creature.satiation)}
     happiness: ${this.getStatusDescription(creature.happiness)}
     health: ${this.getStatusDescription(creature.health)}`;
         });
@@ -202,7 +202,7 @@ class Creature {
         
         // Start with good stats (slight variation per creature)
         this.needs = {
-            hunger: 70 + Math.random() * 20,    // 70-90 range
+            satiation: 70 + Math.random() * 20,    // 70-90 range
             happiness: 65 + Math.random() * 20, // 65-85 range
             health: 90                          // Will be updated by bowl cleanliness
         };
@@ -375,11 +375,11 @@ class Creature {
 
     private updateNeeds(deltaTime: number) {
         // Decay rates (per second) - much slower for better gameplay
-        const hungerDecayRate = 0.5;   // Loses 0.5 hunger per second
+        const satiationDecayRate = 0.5;   // Loses 0.5 satiation per second
         const happinessDecayRate = 0.3; // Loses 0.3 happiness per second
         
         // Apply decay
-        this.needs.hunger = Math.max(0, this.needs.hunger - (hungerDecayRate * deltaTime / 1000));
+        this.needs.satiation = Math.max(0, this.needs.satiation - (satiationDecayRate * deltaTime / 1000));
         this.needs.happiness = Math.max(0, this.needs.happiness - (happinessDecayRate * deltaTime / 1000));
     }
 
@@ -422,34 +422,34 @@ class Creature {
     }
 
     private feed(source: 'player' | 'script' | 'ai-assist-agent'): boolean {
-        // Feeding increases hunger, slight happiness boost
-        const hungerIncrease = 25;
+        // Feeding increases satiation, slight happiness boost
+        const satiationIncrease = 25;
         const happinessBonus = 5;
 
-        this.needs.hunger = Math.min(100, this.needs.hunger + hungerIncrease);
+        this.needs.satiation = Math.min(100, this.needs.satiation + satiationIncrease);
         this.needs.happiness = Math.min(100, this.needs.happiness + happinessBonus);
 
         // Visual feedback
         this.state = 'eating';
         this.stateTimer = 2000; // 2 seconds of eating animation
 
-        console.log(`Creature fed by ${source}! Hunger: ${Math.round(this.needs.hunger)}, Happiness: ${Math.round(this.needs.happiness)}`);
+        console.log(`Creature fed by ${source}! satiation: ${Math.round(this.needs.satiation)}, Happiness: ${Math.round(this.needs.happiness)}`);
         return true;
     }
 
     private play(source: 'player' | 'script' | 'ai-assist-agent'): boolean {
-        // Playing increases happiness, slight hunger cost
+        // Playing increases happiness, slight satiation cost
         const happinessIncrease = 20;
-        const hungerCost = 5;
+        const satiationCost = 5;
 
         this.needs.happiness = Math.min(100, this.needs.happiness + happinessIncrease);
-        this.needs.hunger = Math.max(0, this.needs.hunger - hungerCost);
+        this.needs.satiation = Math.max(0, this.needs.satiation - satiationCost);
 
         // Visual feedback
         this.state = 'playing';
         this.stateTimer = 3000; // 3 seconds of playing animation
 
-        console.log(`Creature played with by ${source}! Happiness: ${Math.round(this.needs.happiness)}, Hunger: ${Math.round(this.needs.hunger)}`);
+        console.log(`Creature played with by ${source}! Happiness: ${Math.round(this.needs.happiness)}, satiation: ${Math.round(this.needs.satiation)}`);
         return true;
     }
 }
@@ -580,7 +580,7 @@ class GameRenderer {
         };
 
         // Draw small floating bars (no labels, just colors)
-        drawMiniBar(creature.needs.hunger, startY, '#4CAF50');           // Green for hunger
+        drawMiniBar(creature.needs.satiation, startY, '#4CAF50');           // Green for satiation
         drawMiniBar(creature.needs.happiness, startY + barSpacing, '#2196F3'); // Blue for happiness
         drawMiniBar(creature.needs.health, startY + barSpacing * 2, '#FF9800'); // Orange for health
     }
@@ -933,7 +933,7 @@ class Game {
         return {
             creatures: this.creatures.map(c => ({
                 id: c.id,
-                hunger: c.needs.hunger,
+                satiation: c.needs.satiation,
                 happiness: c.needs.happiness,
                 health: c.needs.health,
                 isDead: c.isDead()
