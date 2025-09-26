@@ -87,7 +87,7 @@ class AIAssistAgent extends Agent {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'qwen3:0.6b',
+                    model: 'qwen3:1.7b',
                     messages: [{ role: 'user', content: prompt }],
                     tools: [executeActionTool],
                     stream: false
@@ -131,6 +131,7 @@ You can execute an action multiple times and execute an action for a creature mu
 You can Clean the bowl when it is dirty.
 You can Feed a creature when it is hungry.
 You can Play with a creature when it is unhappy.
+
 example tool calls:
 - executeAction clean bowl
 - executeAction feed creature1
@@ -152,7 +153,8 @@ creatures:`;
     health: ${this.getStatusDescription(creature.health)}`;
         });
 
-        prompt += `\`\`\` /no_think`;
+        prompt += `\`\`\`
+        You do not need to return any text, just make tool calls /no_think`;
 
         return prompt;
     }
