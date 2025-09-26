@@ -53,6 +53,7 @@ class AIAssistAgent extends Agent {
         if (!this.isActive) return;
         
         this.isEvaluating = true;
+        console.log('🤖 AI Assist Agent evaluating...');
         
         // Define the executeAction tool for ollama
         const executeActionTool = {
@@ -121,27 +122,50 @@ class AIAssistAgent extends Agent {
     private createPrompt(gameState: GameState): string {
         const livingCreatures = gameState.creatures.filter(c => !c.isDead);
         const deadCount = gameState.creatures.length - livingCreatures.length;
-        
-        let prompt = `You are the AI Assist Agent helping care for digital pets.
 
-        Use your tools to care for the creatures.
-        You can perform multiple tool calls at a time, run all the tool calls you want.
+        let prompt = `You are the AI Assist Agent helping care for digital pets. You are in charge of keeping them healthy and happy.
 
-Current Status:
-- Bowl cleanliness: ${Math.round(gameState.bowlCleanliness)}% (clean when > 70%)
-- Living creatures: ${livingCreatures.length}${deadCount > 0 ? ` (${deadCount} have died)` : ''}
+Use your tools to care for the creatures, take any action necessary to keep them healthy and happy.
+You can perform up to 5 tool calls at a time.
+You can execute an action multiple times and execute an action for a creature multiple times in a row if needed.
+You can Clean the bowl when it is dirty.
+You can Feed a creature when it is hungry.
+You can Play with a creature when it is unhappy.
+example tool calls:
+- executeAction clean bowl
+- executeAction feed creature1
 
-Creatures:`;
+Current Game State (YAML):
+\`\`\`yaml
+environment:
+  bowl_cleanliness: ${this.getStatusDescription(gameState.bowlCleanliness)}
+  living_creatures: ${livingCreatures.length}
+  dead_creatures: ${deadCount}
+
+creatures:`;
 
         livingCreatures.forEach(creature => {
-            prompt += `\n- ${creature.id}: fullness=${Math.round(creature.hunger)}%, happiness=${Math.round(creature.happiness)}%, health=${Math.round(creature.health)}%`;
+            prompt += `
+  ${creature.id}:
+    fullness: ${this.getStatusDescription(creature.hunger)}
+    happiness: ${this.getStatusDescription(creature.happiness)}
+    health: ${this.getStatusDescription(creature.health)}`;
         });
+
+        prompt += `\`\`\` /no_think`;
 
         return prompt;
     }
     
     isEvaluatingNow(): boolean {
         return this.isEvaluating;
+    }
+
+    private getStatusDescription(value: number): string {
+        if (value >= 70) return 'high';
+        if (value >= 50) return 'middling';
+        if (value >= 30) return 'low';
+        return 'critical';
     }
 }
 
@@ -650,7 +674,7 @@ class Game {
     private bowlCleanliness: number = 90; // 0-100, starts clean
     private agents: Agent[] = [];
     private lastAgentEvaluation: number = 0;
-    private agentEvaluationInterval: number = 60000; // 60 seconds (1 minute)
+    private agentEvaluationInterval: number = 30000; // 60 seconds (1 minute)
 
     constructor() {
         this.renderer = new GameRenderer();
