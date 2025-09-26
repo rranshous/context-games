@@ -42,6 +42,7 @@ class AIAssistAgent extends Agent {
     id = 'ai-assist-agent';
     name = 'AI Assist Agent';
     private executeAction: (action: GameAction) => boolean;
+    private isEvaluating: boolean = false;
     
     constructor(executeActionFn: (action: GameAction) => boolean) {
         super();
@@ -50,6 +51,8 @@ class AIAssistAgent extends Agent {
     
     async evaluate(gameState: GameState): Promise<void> {
         if (!this.isActive) return;
+        
+        this.isEvaluating = true;
         
         // Define the executeAction tool for ollama
         const executeActionTool = {
@@ -83,7 +86,7 @@ class AIAssistAgent extends Agent {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'qwen3:1.7b',
+                    model: 'qwen3:0.6b',
                     messages: [{ role: 'user', content: prompt }],
                     tools: [executeActionTool],
                     stream: false
@@ -110,6 +113,8 @@ class AIAssistAgent extends Agent {
             }
         } catch (error) {
             console.error('AI Assist Agent error:', error);
+        } finally {
+            this.isEvaluating = false;
         }
     }
     
@@ -118,6 +123,9 @@ class AIAssistAgent extends Agent {
         const deadCount = gameState.creatures.length - livingCreatures.length;
         
         let prompt = `You are the AI Assist Agent helping care for digital pets.
+
+        Use your tools to care for the creatures.
+        You can perform multiple tool calls at a time.
 
 Current Status:
 - Bowl cleanliness: ${Math.round(gameState.bowlCleanliness)}% (clean when > 70%)
@@ -129,14 +137,11 @@ Creatures:`;
             prompt += `\n- ${creature.id}: hunger=${Math.round(creature.hunger)}%, happiness=${Math.round(creature.happiness)}%, health=${Math.round(creature.health)}%`;
         });
 
-        prompt += `\n\nPriority Rules:
-1. Clean bowl if cleanliness < 30% (saves all creatures' health)
-2. Feed creatures with hunger < 20% (prevents death)
-3. Play with creatures that have happiness < 30% (improves wellbeing)
-
-Use executeAction tool or do nothing if everything looks good.`;
-
         return prompt;
+    }
+    
+    isEvaluatingNow(): boolean {
+        return this.isEvaluating;
     }
 }
 
@@ -598,8 +603,17 @@ class GameRenderer {
             const buttonY = y + (index * (buttonHeight + 10));
             const isActive = agent.getStatus();
             
-            // Button background
-            this.ctx.fillStyle = isActive ? '#4CAF50' : '#757575';
+            // Check if agent is currently evaluating (for pulsing effect)
+            const isEvaluating = (agent as any).isEvaluatingNow && (agent as any).isEvaluatingNow();
+            
+            // Button background with pulsing effect during evaluation
+            let buttonColor = isActive ? '#4CAF50' : '#757575';
+            if (isEvaluating) {
+                const pulse = Math.sin(performance.now() * 0.005) * 0.3 + 0.7; // Gentle pulse between 0.4 and 1.0
+                buttonColor = `rgba(76, 175, 80, ${pulse})`; // Green with pulsing opacity
+            }
+            
+            this.ctx.fillStyle = buttonColor;
             this.ctx.fillRect(x, buttonY, buttonWidth, buttonHeight);
             
             // Button border
@@ -636,7 +650,7 @@ class Game {
     private bowlCleanliness: number = 90; // 0-100, starts clean
     private agents: Agent[] = [];
     private lastAgentEvaluation: number = 0;
-    private agentEvaluationInterval: number = 15000; // 15 seconds
+    private agentEvaluationInterval: number = 60000; // 60 seconds (1 minute)
 
     constructor() {
         this.renderer = new GameRenderer();
@@ -869,6 +883,8 @@ class Game {
                 } else {
                     agent.start();
                     console.log(`🤖 ${agent.name} activated`);
+                    // Trigger immediate evaluation when activated
+                    this.triggerAgentEvaluation(agent);
                 }
                 return true;
             }
@@ -907,6 +923,17 @@ class Game {
 
     getAgents(): Agent[] {
         return [...this.agents];
+    }
+    
+    private async triggerAgentEvaluation(agent: Agent) {
+        if (!agent.getStatus()) return;
+        
+        try {
+            const gameState = this.getGameState();
+            await agent.evaluate(gameState);
+        } catch (error) {
+            console.error(`Immediate agent ${agent.id} evaluation failed:`, error);
+        }
     }
 }
 
