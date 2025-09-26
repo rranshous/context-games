@@ -25,6 +25,8 @@ class Creature {
     public id: string = 'creature1'; // For future multi-creature support
     private state: CreatureState = 'idle';
     private stateTimer: number = 0;
+    private baseColor: string;
+    private personalitySpeed: number;
 
     constructor(x: number, y: number, id?: string) {
         this.x = x;
@@ -33,12 +35,27 @@ class Creature {
         this.vy = (Math.random() - 0.5) * 0.5;
         this.id = id || 'creature1';
         
+        // Personality variations based on ID
+        const personality = this.getPersonality(this.id);
+        this.baseColor = personality.color;
+        this.personalitySpeed = personality.speed;
+        this.size = personality.size;
+        
         // Start with good stats (slight variation per creature)
         this.needs = {
             hunger: 70 + Math.random() * 20,    // 70-90 range
             happiness: 65 + Math.random() * 20, // 65-85 range
             health: 90                          // Will be updated by bowl cleanliness
         };
+    }
+
+    private getPersonality(id: string) {
+        const personalities = {
+            'creature1': { color: '#FF6B6B', speed: 1.0, size: 20 },   // Red, normal
+            'creature2': { color: '#4ECDC4', speed: 0.7, size: 18 },   // Teal, slower, smaller  
+            'creature3': { color: '#45B7D1', speed: 1.3, size: 22 }    // Blue, faster, larger
+        };
+        return personalities[id as keyof typeof personalities] || personalities['creature1'];
     }
 
     update(deltaTime: number, bowlCenterX: number, bowlCenterY: number, bowlWidth: number, bowlHeight: number) {
@@ -112,10 +129,11 @@ class Creature {
         ctx.translate(this.x, this.y);
 
         // Animation variations based on state
-        let bodyColor = '#FF6B6B';
+        let bodyColor = this.baseColor;
         let eyeScale = 1;
         let bodyBounce = 0;
-        let speedMultiplier = 1;
+        let speedMultiplier = this.personalitySpeed;
+        let rotation = 0;
 
         switch (this.state) {
             case 'eating':
@@ -135,14 +153,16 @@ class Creature {
                 break;
             case 'dead':
                 bodyColor = '#666666'; // Gray when dead
-                eyeScale = 0.8; // Smaller eyes
+                eyeScale = 0.5; // Much smaller eyes
                 speedMultiplier = 0; // No tail movement
-                bodyBounce = 0; // No bobbing
+                bodyBounce = Math.sin(this.animationTime * 0.002) * 2; // Slow floating
+                rotation = Math.PI; // Upside down
                 break;
         }
 
-        // Apply bounce effect
+        // Apply bounce effect and rotation
         ctx.translate(0, bodyBounce);
+        ctx.rotate(rotation);
 
         // Simple fish-like creature with state-based animations
         const tailWiggle = Math.sin(this.animationTime * 0.005 * speedMultiplier) * 0.2;
