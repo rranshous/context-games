@@ -122,9 +122,9 @@ class Creature {
     }
 
     private updateNeeds(deltaTime: number) {
-        // Decay rates (per second)
-        const hungerDecayRate = 2;     // Loses 2 hunger per second
-        const happinessDecayRate = 1.5; // Loses 1.5 happiness per second
+        // Decay rates (per second) - much slower for better gameplay
+        const hungerDecayRate = 0.5;   // Loses 0.5 hunger per second
+        const happinessDecayRate = 0.3; // Loses 0.3 happiness per second
         
         // Apply decay
         this.needs.hunger = Math.max(0, this.needs.hunger - (hungerDecayRate * deltaTime / 1000));
@@ -214,37 +214,30 @@ class GameRenderer {
     }
 
     drawStatsUI(creature: Creature) {
-        const barWidth = 200;
-        const barHeight = 20;
-        const barSpacing = 30;
-        const startX = 20;
-        const startY = 30;
+        const barWidth = 25;
+        const barHeight = 3;
+        const barSpacing = 6;
+        
+        // Position bars to the right of the creature
+        const startX = creature.x + 30;
+        const startY = creature.y - 20;
 
-        // Helper function to draw a stat bar
-        const drawStatBar = (label: string, value: number, y: number, color: string) => {
+        // Helper function to draw a tiny floating stat bar
+        const drawMiniBar = (value: number, y: number, color: string) => {
             // Background
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             this.ctx.fillRect(startX, y, barWidth, barHeight);
             
             // Fill based on value
             const fillWidth = (value / 100) * barWidth;
             this.ctx.fillStyle = color;
             this.ctx.fillRect(startX, y, fillWidth, barHeight);
-            
-            // Border
-            this.ctx.strokeStyle = 'white';
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(startX, y, barWidth, barHeight);
-            
-            // Label
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '14px Arial';
-            this.ctx.fillText(`${label}: ${Math.round(value)}`, startX, y - 5);
         };
 
-        drawStatBar('Hunger', creature.needs.hunger, startY, '#4CAF50');
-        drawStatBar('Happiness', creature.needs.happiness, startY + barSpacing, '#2196F3');
-        drawStatBar('Health', creature.needs.health, startY + barSpacing * 2, '#FF9800');
+        // Draw small floating bars (no labels, just colors)
+        drawMiniBar(creature.needs.hunger, startY, '#4CAF50');           // Green for hunger
+        drawMiniBar(creature.needs.happiness, startY + barSpacing, '#2196F3'); // Blue for happiness  
+        drawMiniBar(creature.needs.health, startY + barSpacing * 2, '#FF9800'); // Orange for health
     }
 }
 
