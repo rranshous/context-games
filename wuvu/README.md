@@ -1,4 +1,9 @@
-# Wuvu - AI-Collaborative Digital Pet Game
+# Wuvu - AI-Collaborative Digi### AI Assist Agent
+- **Local inference** using Ollama (qwen3:1.7b model)
+- **Tool-based architecture** - AI calls same actions as players
+- **Autonomous decision making** - AI analyzes game state and chooses actions without rigid rules
+- **Descriptive status understanding** - AI receives "high/middling/low/critical" statuses instead of percentages
+- **Strategic timing** - 60-second evaluation intervals for thoughtful decisions Game
 
 **Wuvu** is a digital aquarium game that demonstrates human-AI collaboration through creature care management. Players manage multiple aquatic creatures while an AI assistant helps handle the growing complexity.
 
@@ -12,9 +17,10 @@ The game deliberately scales complexity (multiple creatures + environmental mana
 
 ### Multi-Creature Management
 - **3 unique creatures** with individual personalities, colors, and behaviors
-- **Individual needs**: hunger, happiness (decay over time)
+- **Individual needs**: satiation (~20 min to deplete), happiness (~33 min to deplete) 
 - **Environmental health**: shared bowl cleanliness affects all creatures
 - **Real consequences**: creatures die if health reaches 0
+- **Relaxed pacing**: strategic gameplay vs frantic maintenance
 
 ### Environmental System  
 - **Bowl cleanliness** degrades naturally (0.2 points/second)
@@ -22,8 +28,8 @@ The game deliberately scales complexity (multiple creatures + environmental mana
 - **Shared responsibility**: dirty water threatens all creatures equally
 
 ### Actions Available
-- **Feed creatures** - increases hunger, slight happiness boost
-- **Play with creatures** - increases happiness, costs hunger  
+- **Feed creatures** - increases satiation (+25), slight happiness boost (+5)
+- **Play with creatures** - increases happiness (+20), costs satiation (-5)  
 - **Clean bowl** - restores water quality (+40 cleanliness points)
 
 ## 🤖 AI Collaboration
@@ -39,14 +45,16 @@ The game deliberately scales complexity (multiple creatures + environmental mana
 ### Visual Feedback
 - **Toggle button** - click to activate/deactivate agent
 - **Status indicators** - green when active, gray when inactive
-- **Pulsing effect** - button pulses during AI evaluation
+- **Pulsing effect** - button pulses during AI evaluation (~30 second inference)
 - **Console logging** - see agent decisions in real-time
+- **Immediate activation** - agent evaluates immediately when turned on
 
 ### Technical Architecture
 - **Unified action system** - humans and AI use identical `executeAction()` interface
-- **Game state serialization** - AI receives complete context
-- **Vite proxy integration** - seamless local ollama connection
+- **YAML game state** - AI receives structured, descriptive status data
+- **Vite proxy integration** - seamless local ollama connection  
 - **60-second evaluation cycle** with immediate activation response
+- **Semantic clarity** - "satiation" instead of confusing "hunger" terminology
 
 ## 🛠️ Technical Stack
 
@@ -114,6 +122,16 @@ executeAction({
     target: 'creature1' | 'creature2' | 'creature3' | 'bowl',
     source: 'player' | 'ai-assist-agent'
 });
+
+// AI receives YAML game state:
+environment:
+  bowl_cleanliness: high
+  living_creatures: 3
+creatures:
+  creature1:
+    satiation: middling  
+    happiness: high
+    health: high
 ```
 
 ## 🎯 Design Philosophy
