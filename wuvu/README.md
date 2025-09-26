@@ -1,9 +1,4 @@
-# Wuvu - AI-Collaborative Digi### AI Assist Agent
-- **Local inference** using Ollama (qwen3:1.7b model)
-- **Tool-based architecture** - AI calls same actions as players
-- **Autonomous decision making** - AI analyzes game state and chooses actions without rigid rules
-- **Descriptive status understanding** - AI receives "high/middling/low/critical" statuses instead of percentages
-- **Strategic timing** - 60-second evaluation intervals for thoughtful decisions Game
+# Wuvu - AI-Collaborative Digital Pet Game
 
 **Wuvu** is a digital aquarium game that demonstrates human-AI collaboration through creature care management. Players manage multiple aquatic creatures while an AI assistant helps handle the growing complexity.
 
@@ -37,10 +32,9 @@ The game deliberately scales complexity (multiple creatures + environmental mana
 ### AI Assist Agent
 - **Local inference** using Ollama (qwen3:1.7b model)
 - **Tool-based architecture** - AI calls same actions as players
-- **Smart decision making** based on priority rules:
-  1. Clean bowl if cleanliness < 30% (saves all creatures)
-  2. Feed creatures with hunger < 20% (prevents death)  
-  3. Play with creatures if happiness < 30% (wellbeing)
+- **Autonomous decision making** - AI analyzes game state and chooses actions without rigid rules
+- **Descriptive status understanding** - AI receives "high/middling/low/critical" statuses instead of percentages
+- **Strategic timing** - 60-second evaluation intervals for thoughtful decisions
 
 ### Visual Feedback
 - **Toggle button** - click to activate/deactivate agent
