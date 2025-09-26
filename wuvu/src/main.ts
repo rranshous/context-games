@@ -9,7 +9,33 @@ interface CreatureNeeds {
 interface GameAction {
     type: 'feed' | 'play' | 'clean';
     target: string; // creature id or 'bowl' for environment actions
-    source: 'player' | 'script' | 'ai';
+    source: 'player' | 'script' | 'ai-assist-agent';
+}
+
+interface GameState {
+    creatures: {id: string, hunger: number, happiness: number, health: number, isDead: boolean}[];
+    bowlCleanliness: number;
+    timestamp: number;
+}
+
+abstract class Agent {
+    abstract id: string;
+    abstract name: string;
+    protected isActive: boolean = false;
+    
+    abstract evaluate(gameState: GameState): Promise<void>;
+    
+    start() {
+        this.isActive = true;
+    }
+    
+    stop() {
+        this.isActive = false;
+    }
+    
+    getStatus() {
+        return this.isActive;
+    }
 }
 
 type CreatureState = 'idle' | 'eating' | 'playing' | 'happy' | 'dead';
@@ -262,7 +288,7 @@ class Creature {
         }
     }
 
-    private feed(source: 'player' | 'script' | 'ai'): boolean {
+    private feed(source: 'player' | 'script' | 'ai-assist-agent'): boolean {
         // Feeding increases hunger, slight happiness boost
         const hungerIncrease = 25;
         const happinessBonus = 5;
@@ -278,7 +304,7 @@ class Creature {
         return true;
     }
 
-    private play(source: 'player' | 'script' | 'ai'): boolean {
+    private play(source: 'player' | 'script' | 'ai-assist-agent'): boolean {
         // Playing increases happiness, slight hunger cost
         const happinessIncrease = 20;
         const hungerCost = 5;
@@ -472,6 +498,9 @@ class Game {
     private menuY: number = 0;
     private selectedCreatureId: string | null = null;
     private bowlCleanliness: number = 90; // 0-100, starts clean
+    private agents: Agent[] = [];
+    private lastAgentEvaluation: number = 0;
+    private agentEvaluationInterval: number = 15000; // 15 seconds
 
     constructor() {
         this.renderer = new GameRenderer();
@@ -507,6 +536,12 @@ class Game {
         // Update bowl cleanliness (degrades over time)
         const cleanlinessDecayRate = 0.2; // Loses 0.2 cleanliness per second
         this.bowlCleanliness = Math.max(0, this.bowlCleanliness - (cleanlinessDecayRate * deltaTime / 1000));
+
+        // Agent evaluation loop
+        if (performance.now() - this.lastAgentEvaluation > this.agentEvaluationInterval) {
+            this.evaluateAgents();
+            this.lastAgentEvaluation = performance.now();
+        }
 
         // Update all creatures (only if alive)
         for (const creature of this.creatures) {
@@ -665,6 +700,39 @@ class Game {
                                            (dy * dy) / ((bowlHeight/2) * (bowlHeight/2)));
         
         return normalizedDistance <= 1; // Inside the ellipse
+    }
+
+    private async evaluateAgents() {
+        const gameState = this.getGameState();
+        for (const agent of this.agents.filter(a => a.getStatus())) {
+            try {
+                await agent.evaluate(gameState);
+            } catch (error) {
+                console.error(`Agent ${agent.id} evaluation failed:`, error);
+            }
+        }
+    }
+
+    private getGameState(): GameState {
+        return {
+            creatures: this.creatures.map(c => ({
+                id: c.id,
+                hunger: c.needs.hunger,
+                happiness: c.needs.happiness,
+                health: c.needs.health,
+                isDead: c.isDead()
+            })),
+            bowlCleanliness: this.bowlCleanliness,
+            timestamp: Date.now()
+        };
+    }
+
+    addAgent(agent: Agent) {
+        this.agents.push(agent);
+    }
+
+    getAgents(): Agent[] {
+        return [...this.agents];
     }
 }
 
