@@ -51,9 +51,6 @@ class AIAssistAgent extends Agent {
     async evaluate(gameState: GameState): Promise<void> {
         if (!this.isActive) return;
         
-        // Import ollama dynamically
-        const { default: ollama } = await import('ollama');
-        
         // Define the executeAction tool for ollama
         const executeActionTool = {
             type: 'function' as const,
@@ -82,15 +79,22 @@ class AIAssistAgent extends Agent {
         const prompt = this.createPrompt(gameState);
         
         try {
-            const response = await ollama.chat({
-                model: 'deepseek-r1:1.5b',
-                messages: [{ role: 'user', content: prompt }],
-                tools: [executeActionTool]
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'qwen3:1.7b',
+                    messages: [{ role: 'user', content: prompt }],
+                    tools: [executeActionTool],
+                    stream: false
+                })
             });
+            
+            const data = await response.json();
 
             // Handle tool calls
-            if (response.message.tool_calls) {
-                for (const toolCall of response.message.tool_calls) {
+            if (data.message && data.message.tool_calls) {
+                for (const toolCall of data.message.tool_calls) {
                     if (toolCall.function.name === 'executeAction') {
                         const args = toolCall.function.arguments;
                         const action: GameAction = {
