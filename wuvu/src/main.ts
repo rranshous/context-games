@@ -22,19 +22,36 @@ class Creature {
         this.x += this.vx;
         this.y += this.vy;
 
-        // Keep creature in bowl bounds (ellipse)
+        // Keep creature in bowl bounds (ellipse) - smoother collision
         const dx = this.x - bowlCenterX;
         const dy = this.y - bowlCenterY;
-        const distanceFromCenter = Math.sqrt((dx * dx) / ((bowlWidth/2) * (bowlWidth/2)) + (dy * dy) / ((bowlHeight/2) * (bowlHeight/2)));
+        const normalizedDistance = Math.sqrt((dx * dx) / ((bowlWidth/2 - this.size) * (bowlWidth/2 - this.size)) + 
+                                           (dy * dy) / ((bowlHeight/2 - this.size) * (bowlHeight/2 - this.size)));
         
-        if (distanceFromCenter > 0.8) {
-            // Bounce off bowl walls
-            this.vx = -this.vx * 0.8;
-            this.vy = -this.vy * 0.8;
+        if (normalizedDistance > 1) {
+            // Calculate reflection vector for smooth bouncing
+            const normalX = (2 * dx) / ((bowlWidth/2) * (bowlWidth/2));
+            const normalY = (2 * dy) / ((bowlHeight/2) * (bowlHeight/2));
+            const normalLength = Math.sqrt(normalX * normalX + normalY * normalY);
             
-            // Move back inside
-            this.x = bowlCenterX + dx * 0.7;
-            this.y = bowlCenterY + dy * 0.7;
+            if (normalLength > 0) {
+                const unitNormalX = normalX / normalLength;
+                const unitNormalY = normalY / normalLength;
+                
+                // Reflect velocity
+                const dotProduct = this.vx * unitNormalX + this.vy * unitNormalY;
+                this.vx = this.vx - 2 * dotProduct * unitNormalX;
+                this.vy = this.vy - 2 * dotProduct * unitNormalY;
+                
+                // Apply some damping
+                this.vx *= 0.8;
+                this.vy *= 0.8;
+            }
+            
+            // Gently push back inside bounds
+            const pushBackStrength = 0.1;
+            this.x += -dx * pushBackStrength;
+            this.y += -dy * pushBackStrength;
         }
 
         // Add some random movement variation
@@ -112,14 +129,21 @@ class GameRenderer {
     }
 
     clear() {
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        // Deep ocean background gradient
+        const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0, '#1a237e'); // Deep blue at top
+        gradient.addColorStop(0.5, '#283593'); // Medium blue in middle
+        gradient.addColorStop(1, '#1565c0'); // Lighter blue at bottom
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
     drawBowl() {
         const centerX = this.width / 2;
         const centerY = this.height / 2;
-        const bowlWidth = 300;
-        const bowlHeight = 200;
+        const bowlWidth = 500;
+        const bowlHeight = 350;
 
         // Bowl background (water)
         this.ctx.fillStyle = '#4A90E2';
@@ -179,7 +203,7 @@ class Game {
         this.lastTime = currentTime;
 
         // Update game state
-        this.creature.update(deltaTime, 400, 300, 300, 200); // Bowl center and dimensions
+        this.creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
         
         // Render
         this.renderer.render();
