@@ -25,16 +25,17 @@ class Creature {
     private state: CreatureState = 'idle';
     private stateTimer: number = 0;
 
-    constructor(x: number, y: number) {
+    constructor(x: number, y: number, id?: string) {
         this.x = x;
         this.y = y;
         this.vx = (Math.random() - 0.5) * 0.5;
         this.vy = (Math.random() - 0.5) * 0.5;
+        this.id = id || 'creature1';
         
-        // Start with good stats
+        // Start with good stats (slight variation per creature)
         this.needs = {
-            hunger: 80,
-            happiness: 75
+            hunger: 70 + Math.random() * 20,    // 70-90 range
+            happiness: 65 + Math.random() * 20  // 65-85 range
         };
     }
 
@@ -368,14 +369,21 @@ class GameRenderer {
 class Game {
     private renderer: GameRenderer;
     private lastTime: number = 0;
-    private creature: Creature;
+    private creatures: Creature[] = [];
     private showInteractionMenu: boolean = false;
     private menuX: number = 0;
     private menuY: number = 0;
+    private selectedCreatureId: string | null = null;
 
     constructor() {
         this.renderer = new GameRenderer();
-        this.creature = new Creature(400, 300); // Start in center of canvas
+        
+        // Create 3 creatures with different starting positions
+        this.creatures = [
+            new Creature(350, 280, 'creature1'),
+            new Creature(450, 320, 'creature2'), 
+            new Creature(400, 350, 'creature3')
+        ];
     }
 
     init() {
@@ -398,13 +406,19 @@ class Game {
         const deltaTime = currentTime - this.lastTime;
         this.lastTime = currentTime;
 
-        // Update game state
-        this.creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
+        // Update all creatures
+        for (const creature of this.creatures) {
+            creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
+        }
         
         // Render
         this.renderer.render();
-        this.renderer.drawCreature(this.creature);
-        this.renderer.drawStatsUI(this.creature);
+        
+        // Draw all creatures
+        for (const creature of this.creatures) {
+            this.renderer.drawCreature(creature);
+            this.renderer.drawStatsUI(creature);
+        }
         
         if (this.showInteractionMenu) {
             this.renderer.drawInteractionMenu(this.menuX, this.menuY);
@@ -422,11 +436,15 @@ class Game {
             // Check if clicked on menu buttons
             this.handleMenuClick(clickX, clickY);
         } else {
-            // Check if clicked on creature
-            if (this.creature.isClickedOn(clickX, clickY)) {
-                this.showInteractionMenu = true;
-                this.menuX = clickX;
-                this.menuY = clickY;
+            // Check if clicked on any creature
+            for (const creature of this.creatures) {
+                if (creature.isClickedOn(clickX, clickY)) {
+                    this.showInteractionMenu = true;
+                    this.menuX = clickX;
+                    this.menuY = clickY;
+                    this.selectedCreatureId = creature.id;
+                    return;
+                }
             }
         }
     }
@@ -443,7 +461,7 @@ class Game {
             clickY >= feedButtonY && clickY <= feedButtonY + buttonHeight) {
             this.executeAction({
                 type: 'feed',
-                target: this.creature.id,
+                target: this.selectedCreatureId || 'creature1',
                 source: 'player'
             });
             this.showInteractionMenu = false;
@@ -457,7 +475,7 @@ class Game {
             clickY >= playButtonY && clickY <= playButtonY + buttonHeight) {
             this.executeAction({
                 type: 'play',
-                target: this.creature.id,
+                target: this.selectedCreatureId || 'creature1',
                 source: 'player'
             });
             this.showInteractionMenu = false;
@@ -474,8 +492,10 @@ class Game {
         console.log(`Executing ${action.type} action from ${action.source} on ${action.target}`);
         
         // Route to the appropriate creature
-        if (action.target === this.creature.id) {
-            return this.creature.handleAction(action);
+        for (const creature of this.creatures) {
+            if (creature.id === action.target) {
+                return creature.handleAction(action);
+            }
         }
         
         return false;
