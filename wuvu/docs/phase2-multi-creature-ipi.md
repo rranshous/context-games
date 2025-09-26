@@ -24,23 +24,28 @@ Expand from single creature to small community (3 creatures) and add environment
 
 ### Complexity Scaling Test
 - **Manual management challenge**: 3 individual creature needs + shared environment
+- **Real consequences**: Creatures can die from neglect (health = 0)
 - **First taste** of juggling multiple priorities (foundation for AI collaboration)
+- **Emotional stakes**: Losing creatures creates urgency for better management
 - More clicking required, hints at future automation benefits
 
 ## Implement
-1. **Multi-creature architecture**: Creature array, individual positioning/movement
+1. ✅ **Multi-creature architecture**: Creature array, individual positioning/movement
 2. **Bowl cleanliness system**: New stat, decay logic, visual algae overlay
 3. **Health stat restoration**: Derived from bowl cleanliness, affects all creatures
-4. **Enhanced click targeting**: Detect creature vs. bowl clicks
-5. **Bowl interaction menu**: Clean action with environmental feedback
-6. **Visual polish**: Algae effects, multiple creature animations
+4. **Creature mortality**: Creatures die when health reaches 0 (real consequences!)
+5. **Enhanced click targeting**: Detect creature vs. bowl clicks
+6. **Bowl interaction menu**: Clean action with environmental feedback
+7. **Visual polish**: Algae effects, multiple creature animations, death states
 
 ### Success Criteria
 - 3 creatures swimming with individual stats and interactions
 - Bowl cleanliness visibly affects water quality (green tint/algae)
 - Clicking bowl shows clean option that improves all creature health
+- **Creatures die when health reaches 0** - real consequences for neglect
 - Player can manage individual creature needs + shared environment
 - Increased complexity creates motivation for future automation
+- Death creates urgency and emotional investment in creature care
 
 ### Technical Notes
 - Reuse existing action system for multi-targeting

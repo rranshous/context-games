@@ -307,6 +307,39 @@ class GameRenderer {
         this.ctx.fill();
     }
 
+    drawBowlCleanliness(cleanliness: number) {
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        const bowlWidth = 500;
+        const bowlHeight = 350;
+
+        // Add algae overlay based on dirtiness (lower cleanliness = more algae)
+        const dirtiness = (100 - cleanliness) / 100; // 0 = clean, 1 = very dirty
+        
+        if (dirtiness > 0.1) { // Only show algae when somewhat dirty
+            const algaeAlpha = Math.min(0.6, dirtiness * 0.8); // Max 60% opacity
+            
+            // Green algae overlay
+            this.ctx.fillStyle = `rgba(34, 139, 34, ${algaeAlpha})`;
+            this.ctx.beginPath();
+            this.ctx.ellipse(centerX, centerY, (bowlWidth / 2) - 2, (bowlHeight / 2) - 2, 0, 0, 2 * Math.PI);
+            this.ctx.fill();
+
+            // Add some algae spots for texture
+            for (let i = 0; i < dirtiness * 8; i++) {
+                const angle = (i / 8) * Math.PI * 2 + performance.now() * 0.0005;
+                const spotRadius = 20 + dirtiness * 15;
+                const spotX = centerX + Math.cos(angle) * spotRadius * (1 + Math.sin(performance.now() * 0.001 + i) * 0.3);
+                const spotY = centerY + Math.sin(angle) * spotRadius * 0.6 * (1 + Math.cos(performance.now() * 0.001 + i) * 0.2);
+                
+                this.ctx.fillStyle = `rgba(0, 100, 0, ${algaeAlpha * 0.8})`;
+                this.ctx.beginPath();
+                this.ctx.ellipse(spotX, spotY, 8 + dirtiness * 4, 6 + dirtiness * 3, 0, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+        }
+    }
+
     render() {
         this.clear();
         this.drawBowl();
@@ -374,6 +407,7 @@ class Game {
     private menuX: number = 0;
     private menuY: number = 0;
     private selectedCreatureId: string | null = null;
+    private bowlCleanliness: number = 90; // 0-100, starts clean
 
     constructor() {
         this.renderer = new GameRenderer();
@@ -406,6 +440,10 @@ class Game {
         const deltaTime = currentTime - this.lastTime;
         this.lastTime = currentTime;
 
+        // Update bowl cleanliness (degrades over time)
+        const cleanlinessDecayRate = 0.2; // Loses 0.2 cleanliness per second
+        this.bowlCleanliness = Math.max(0, this.bowlCleanliness - (cleanlinessDecayRate * deltaTime / 1000));
+
         // Update all creatures
         for (const creature of this.creatures) {
             creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
@@ -413,6 +451,7 @@ class Game {
         
         // Render
         this.renderer.render();
+        this.renderer.drawBowlCleanliness(this.bowlCleanliness);
         
         // Draw all creatures
         for (const creature of this.creatures) {
