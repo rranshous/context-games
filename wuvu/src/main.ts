@@ -125,7 +125,7 @@ class AIAssistAgent extends Agent {
         let prompt = `You are the AI Assist Agent helping care for digital pets.
 
         Use your tools to care for the creatures.
-        You can perform multiple tool calls at a time.
+        You can perform multiple tool calls at a time, run all the tool calls you want.
 
 Current Status:
 - Bowl cleanliness: ${Math.round(gameState.bowlCleanliness)}% (clean when > 70%)
@@ -134,7 +134,7 @@ Current Status:
 Creatures:`;
 
         livingCreatures.forEach(creature => {
-            prompt += `\n- ${creature.id}: hunger=${Math.round(creature.hunger)}%, happiness=${Math.round(creature.happiness)}%, health=${Math.round(creature.health)}%`;
+            prompt += `\n- ${creature.id}: fullness=${Math.round(creature.hunger)}%, happiness=${Math.round(creature.happiness)}%, health=${Math.round(creature.health)}%`;
         });
 
         return prompt;
