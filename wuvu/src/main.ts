@@ -121,6 +121,11 @@ class Creature {
         ctx.restore();
     }
 
+    isClickedOn(clickX: number, clickY: number): boolean {
+        const distance = Math.sqrt((clickX - this.x) * (clickX - this.x) + (clickY - this.y) * (clickY - this.y));
+        return distance <= this.size * 1.5; // Slightly larger hit area for easier clicking
+    }
+
     private updateNeeds(deltaTime: number) {
         // Decay rates (per second) - much slower for better gameplay
         const hungerDecayRate = 0.5;   // Loses 0.5 hunger per second
@@ -143,7 +148,7 @@ class Creature {
 }
 
 class GameRenderer {
-    private canvas: HTMLCanvasElement;
+    public canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private width: number = 800;
     private height: number = 600;
@@ -239,12 +244,38 @@ class GameRenderer {
         drawMiniBar(creature.needs.happiness, startY + barSpacing, '#2196F3'); // Blue for happiness  
         drawMiniBar(creature.needs.health, startY + barSpacing * 2, '#FF9800'); // Orange for health
     }
+
+    drawInteractionMenu(x: number, y: number) {
+        const buttonWidth = 80;
+        const buttonHeight = 30;
+        const buttonSpacing = 10;
+
+        // Menu background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillRect(x - 5, y - 5, buttonWidth + 10, (buttonHeight * 2) + buttonSpacing + 10);
+
+        // Feed button
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.fillRect(x, y, buttonWidth, buttonHeight);
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '14px Arial';
+        this.ctx.fillText('Feed', x + 25, y + 20);
+
+        // Play button
+        this.ctx.fillStyle = '#2196F3';
+        this.ctx.fillRect(x, y + buttonHeight + buttonSpacing, buttonWidth, buttonHeight);
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillText('Play', x + 25, y + buttonHeight + buttonSpacing + 20);
+    }
 }
 
 class Game {
     private renderer: GameRenderer;
     private lastTime: number = 0;
     private creature: Creature;
+    private showInteractionMenu: boolean = false;
+    private menuX: number = 0;
+    private menuY: number = 0;
 
     constructor() {
         this.renderer = new GameRenderer();
@@ -259,6 +290,9 @@ class Game {
 
         app.innerHTML = '<h1>Wuvu - Your Digital Aquatic Friend</h1>';
         this.renderer.appendToDOM(app);
+
+        // Add click listener
+        this.renderer.canvas.addEventListener('click', this.handleClick);
 
         // Start the game loop
         this.gameLoop(0);
@@ -275,8 +309,59 @@ class Game {
         this.renderer.render();
         this.renderer.drawCreature(this.creature);
         this.renderer.drawStatsUI(this.creature);
+        
+        if (this.showInteractionMenu) {
+            this.renderer.drawInteractionMenu(this.menuX, this.menuY);
+        }
 
         requestAnimationFrame(this.gameLoop);
+    }
+
+    private handleClick = (event: MouseEvent) => {
+        const rect = this.renderer.canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+
+        if (this.showInteractionMenu) {
+            // Check if clicked on menu buttons
+            this.handleMenuClick(clickX, clickY);
+        } else {
+            // Check if clicked on creature
+            if (this.creature.isClickedOn(clickX, clickY)) {
+                this.showInteractionMenu = true;
+                this.menuX = clickX;
+                this.menuY = clickY;
+            }
+        }
+    }
+
+    private handleMenuClick(clickX: number, clickY: number) {
+        const buttonWidth = 80;
+        const buttonHeight = 30;
+        const buttonSpacing = 10;
+
+        // Feed button
+        const feedButtonX = this.menuX;
+        const feedButtonY = this.menuY;
+        if (clickX >= feedButtonX && clickX <= feedButtonX + buttonWidth &&
+            clickY >= feedButtonY && clickY <= feedButtonY + buttonHeight) {
+            console.log('Feed clicked!'); // Placeholder for now
+            this.showInteractionMenu = false;
+            return;
+        }
+
+        // Play button
+        const playButtonX = this.menuX;
+        const playButtonY = this.menuY + buttonHeight + buttonSpacing;
+        if (clickX >= playButtonX && clickX <= playButtonX + buttonWidth &&
+            clickY >= playButtonY && clickY <= playButtonY + buttonHeight) {
+            console.log('Play clicked!'); // Placeholder for now
+            this.showInteractionMenu = false;
+            return;
+        }
+
+        // Click outside menu closes it
+        this.showInteractionMenu = false;
     }
 }
 

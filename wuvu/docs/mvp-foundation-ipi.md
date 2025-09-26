@@ -48,7 +48,8 @@ interface GameAction {
 ### Progress Notes
 - **Canvas & Bowl**: Complete! 800x600 canvas with blue elliptical bowl, rim, and water highlights  
 - **Creature System**: Complete! Swimming fish with tail animation and boundary collision
-- **Needs System**: Complete! Hunger/happiness/health bars with time-based decay and interdependence
+- **Needs System**: Complete! Hunger/happiness/health with slow decay, floating mini-bars UI
+- **Click Interactions**: In progress - detecting clicks on creature for feed/play menu
 
 ### Success Criteria
 - Player can click on creature to see interaction options
