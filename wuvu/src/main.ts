@@ -1,5 +1,11 @@
 console.log('Wuvu game starting...');
 
+interface CreatureNeeds {
+    hunger: number;      // 0-100, decreases over time
+    happiness: number;   // 0-100, decreases over time  
+    health: number;      // 0-100, affected by hunger and happiness
+}
+
 class Creature {
     public x: number;
     public y: number;
@@ -7,31 +13,44 @@ class Creature {
     private vy: number = 0;
     private size: number = 20;
     private animationTime: number = 0;
+    public needs: CreatureNeeds;
 
     constructor(x: number, y: number) {
         this.x = x;
         this.y = y;
         this.vx = (Math.random() - 0.5) * 0.5;
         this.vy = (Math.random() - 0.5) * 0.5;
+        
+        // Start with good stats
+        this.needs = {
+            hunger: 80,
+            happiness: 75,
+            health: 90
+        };
     }
 
     update(deltaTime: number, bowlCenterX: number, bowlCenterY: number, bowlWidth: number, bowlHeight: number) {
         this.animationTime += deltaTime;
 
+        // Update needs (decay over time)
+        this.updateNeeds(deltaTime);
+
         // Simple swimming movement
         this.x += this.vx;
         this.y += this.vy;
 
-        // Keep creature in bowl bounds (ellipse) - smoother collision
+        // Keep creature in bowl bounds (ellipse) - account for creature size
         const dx = this.x - bowlCenterX;
         const dy = this.y - bowlCenterY;
-        const normalizedDistance = Math.sqrt((dx * dx) / ((bowlWidth/2 - this.size) * (bowlWidth/2 - this.size)) + 
-                                           (dy * dy) / ((bowlHeight/2 - this.size) * (bowlHeight/2 - this.size)));
+        const effectiveBowlWidth = bowlWidth - (this.size * 2);
+        const effectiveBowlHeight = bowlHeight - (this.size * 2);
+        const normalizedDistance = Math.sqrt((dx * dx) / ((effectiveBowlWidth/2) * (effectiveBowlWidth/2)) + 
+                                           (dy * dy) / ((effectiveBowlHeight/2) * (effectiveBowlHeight/2)));
         
         if (normalizedDistance > 1) {
             // Calculate reflection vector for smooth bouncing
-            const normalX = (2 * dx) / ((bowlWidth/2) * (bowlWidth/2));
-            const normalY = (2 * dy) / ((bowlHeight/2) * (bowlHeight/2));
+            const normalX = (2 * dx) / ((effectiveBowlWidth/2) * (effectiveBowlWidth/2));
+            const normalY = (2 * dy) / ((effectiveBowlHeight/2) * (effectiveBowlHeight/2));
             const normalLength = Math.sqrt(normalX * normalX + normalY * normalY);
             
             if (normalLength > 0) {
@@ -100,6 +119,26 @@ class Creature {
         ctx.fill();
 
         ctx.restore();
+    }
+
+    private updateNeeds(deltaTime: number) {
+        // Decay rates (per second)
+        const hungerDecayRate = 2;     // Loses 2 hunger per second
+        const happinessDecayRate = 1.5; // Loses 1.5 happiness per second
+        
+        // Apply decay
+        this.needs.hunger = Math.max(0, this.needs.hunger - (hungerDecayRate * deltaTime / 1000));
+        this.needs.happiness = Math.max(0, this.needs.happiness - (happinessDecayRate * deltaTime / 1000));
+        
+        // Health is affected by hunger and happiness
+        const targetHealth = (this.needs.hunger + this.needs.happiness) / 2;
+        const healthChangeRate = 3; // Health changes 3 points per second toward target
+        
+        if (this.needs.health < targetHealth) {
+            this.needs.health = Math.min(100, this.needs.health + (healthChangeRate * deltaTime / 1000));
+        } else if (this.needs.health > targetHealth) {
+            this.needs.health = Math.max(0, this.needs.health - (healthChangeRate * deltaTime / 1000));
+        }
     }
 }
 
@@ -173,6 +212,40 @@ class GameRenderer {
     drawCreature(creature: Creature) {
         creature.draw(this.ctx);
     }
+
+    drawStatsUI(creature: Creature) {
+        const barWidth = 200;
+        const barHeight = 20;
+        const barSpacing = 30;
+        const startX = 20;
+        const startY = 30;
+
+        // Helper function to draw a stat bar
+        const drawStatBar = (label: string, value: number, y: number, color: string) => {
+            // Background
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillRect(startX, y, barWidth, barHeight);
+            
+            // Fill based on value
+            const fillWidth = (value / 100) * barWidth;
+            this.ctx.fillStyle = color;
+            this.ctx.fillRect(startX, y, fillWidth, barHeight);
+            
+            // Border
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(startX, y, barWidth, barHeight);
+            
+            // Label
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '14px Arial';
+            this.ctx.fillText(`${label}: ${Math.round(value)}`, startX, y - 5);
+        };
+
+        drawStatBar('Hunger', creature.needs.hunger, startY, '#4CAF50');
+        drawStatBar('Happiness', creature.needs.happiness, startY + barSpacing, '#2196F3');
+        drawStatBar('Health', creature.needs.health, startY + barSpacing * 2, '#FF9800');
+    }
 }
 
 class Game {
@@ -208,6 +281,7 @@ class Game {
         // Render
         this.renderer.render();
         this.renderer.drawCreature(this.creature);
+        this.renderer.drawStatsUI(this.creature);
 
         requestAnimationFrame(this.gameLoop);
     }
