@@ -6,6 +6,12 @@ interface CreatureNeeds {
     health: number;      // 0-100, affected by hunger and happiness
 }
 
+interface GameAction {
+    type: 'feed' | 'play';
+    target: string; // creature id (for future multi-creature support)
+    source: 'player' | 'script' | 'ai';
+}
+
 class Creature {
     public x: number;
     public y: number;
@@ -14,6 +20,7 @@ class Creature {
     private size: number = 20;
     private animationTime: number = 0;
     public needs: CreatureNeeds;
+    public id: string = 'creature1'; // For future multi-creature support
 
     constructor(x: number, y: number) {
         this.x = x;
@@ -144,6 +151,46 @@ class Creature {
         } else if (this.needs.health > targetHealth) {
             this.needs.health = Math.max(0, this.needs.health - (healthChangeRate * deltaTime / 1000));
         }
+    }
+
+    // Unified action handler - same interface for player/script/AI actions
+    handleAction(action: GameAction): boolean {
+        if (action.target !== this.id) {
+            return false; // Action not for this creature
+        }
+
+        switch (action.type) {
+            case 'feed':
+                return this.feed(action.source);
+            case 'play':
+                return this.play(action.source);
+            default:
+                return false;
+        }
+    }
+
+    private feed(source: 'player' | 'script' | 'ai'): boolean {
+        // Feeding increases hunger, slight happiness boost
+        const hungerIncrease = 25;
+        const happinessBonus = 5;
+
+        this.needs.hunger = Math.min(100, this.needs.hunger + hungerIncrease);
+        this.needs.happiness = Math.min(100, this.needs.happiness + happinessBonus);
+
+        console.log(`Creature fed by ${source}! Hunger: ${Math.round(this.needs.hunger)}, Happiness: ${Math.round(this.needs.happiness)}`);
+        return true;
+    }
+
+    private play(source: 'player' | 'script' | 'ai'): boolean {
+        // Playing increases happiness, slight hunger cost
+        const happinessIncrease = 20;
+        const hungerCost = 5;
+
+        this.needs.happiness = Math.min(100, this.needs.happiness + happinessIncrease);
+        this.needs.hunger = Math.max(0, this.needs.hunger - hungerCost);
+
+        console.log(`Creature played with by ${source}! Happiness: ${Math.round(this.needs.happiness)}, Hunger: ${Math.round(this.needs.hunger)}`);
+        return true;
     }
 }
 
@@ -345,7 +392,11 @@ class Game {
         const feedButtonY = this.menuY;
         if (clickX >= feedButtonX && clickX <= feedButtonX + buttonWidth &&
             clickY >= feedButtonY && clickY <= feedButtonY + buttonHeight) {
-            console.log('Feed clicked!'); // Placeholder for now
+            this.executeAction({
+                type: 'feed',
+                target: this.creature.id,
+                source: 'player'
+            });
             this.showInteractionMenu = false;
             return;
         }
@@ -355,13 +406,30 @@ class Game {
         const playButtonY = this.menuY + buttonHeight + buttonSpacing;
         if (clickX >= playButtonX && clickX <= playButtonX + buttonWidth &&
             clickY >= playButtonY && clickY <= playButtonY + buttonHeight) {
-            console.log('Play clicked!'); // Placeholder for now
+            this.executeAction({
+                type: 'play',
+                target: this.creature.id,
+                source: 'player'
+            });
             this.showInteractionMenu = false;
             return;
         }
 
         // Click outside menu closes it
         this.showInteractionMenu = false;
+    }
+
+    // Unified action processor - entry point for all actions
+    executeAction(action: GameAction): boolean {
+        // This is where we'd add logging, validation, etc.
+        console.log(`Executing ${action.type} action from ${action.source} on ${action.target}`);
+        
+        // Route to the appropriate creature
+        if (action.target === this.creature.id) {
+            return this.creature.handleAction(action);
+        }
+        
+        return false;
     }
 }
 
