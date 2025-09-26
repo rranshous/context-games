@@ -2,7 +2,8 @@ console.log('Wuvu game starting...');
 
 interface CreatureNeeds {
     hunger: number;      // 0-100, decreases over time
-    happiness: number;   // 0-100, decreases over time  
+    happiness: number;   // 0-100, decreases over time
+    health: number;      // 0-100, derived from bowl cleanliness
 }
 
 interface GameAction {
@@ -35,7 +36,8 @@ class Creature {
         // Start with good stats (slight variation per creature)
         this.needs = {
             hunger: 70 + Math.random() * 20,    // 70-90 range
-            happiness: 65 + Math.random() * 20  // 65-85 range
+            happiness: 65 + Math.random() * 20, // 65-85 range
+            health: 90                          // Will be updated by bowl cleanliness
         };
     }
 
@@ -194,6 +196,18 @@ class Creature {
         // Apply decay
         this.needs.hunger = Math.max(0, this.needs.hunger - (hungerDecayRate * deltaTime / 1000));
         this.needs.happiness = Math.max(0, this.needs.happiness - (happinessDecayRate * deltaTime / 1000));
+    }
+
+    updateHealthFromCleanliness(bowlCleanliness: number, deltaTime: number) {
+        // Health tends toward bowl cleanliness level
+        const targetHealth = bowlCleanliness;
+        const healthChangeRate = 2; // Health changes 2 points per second toward target
+        
+        if (this.needs.health < targetHealth) {
+            this.needs.health = Math.min(100, this.needs.health + (healthChangeRate * deltaTime / 1000));
+        } else if (this.needs.health > targetHealth) {
+            this.needs.health = Math.max(0, this.needs.health - (healthChangeRate * deltaTime / 1000));
+        }
     }
 
     // Unified action handler - same interface for player/script/AI actions
@@ -373,6 +387,7 @@ class GameRenderer {
         // Draw small floating bars (no labels, just colors)
         drawMiniBar(creature.needs.hunger, startY, '#4CAF50');           // Green for hunger
         drawMiniBar(creature.needs.happiness, startY + barSpacing, '#2196F3'); // Blue for happiness
+        drawMiniBar(creature.needs.health, startY + barSpacing * 2, '#FF9800'); // Orange for health
     }
 
     drawInteractionMenu(x: number, y: number) {
@@ -447,6 +462,7 @@ class Game {
         // Update all creatures
         for (const creature of this.creatures) {
             creature.update(deltaTime, 400, 300, 500, 350); // Bowl center and dimensions
+            creature.updateHealthFromCleanliness(this.bowlCleanliness, deltaTime);
         }
         
         // Render
