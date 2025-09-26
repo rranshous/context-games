@@ -131,6 +131,8 @@ You can execute an action multiple times and execute an action for a creature mu
 You can Clean the bowl when it is dirty.
 You can Feed a creature when it is not satiated.
 You can Play with a creature when it is unhappy.
+work to keep the creature's metrics "high"
+work to keep the bowl cleanliness level "high"
 
 example tool calls:
 - executeAction clean bowl
@@ -374,9 +376,9 @@ class Creature {
     }
 
     private updateNeeds(deltaTime: number) {
-        // Decay rates (per second) - much slower for better gameplay
-        const satiationDecayRate = 0.5;   // Loses 0.5 satiation per second
-        const happinessDecayRate = 0.3; // Loses 0.3 happiness per second
+        // Decay rates (per second) - much slower for relaxed gameplay
+        const satiationDecayRate = 0.08;   // Loses 0.08 satiation per second (~20 minutes to empty)
+        const happinessDecayRate = 0.05; // Loses 0.05 happiness per second (~33 minutes to empty)
         
         // Apply decay
         this.needs.satiation = Math.max(0, this.needs.satiation - (satiationDecayRate * deltaTime / 1000));
