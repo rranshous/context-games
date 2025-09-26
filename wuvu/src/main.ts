@@ -3,7 +3,6 @@ console.log('Wuvu game starting...');
 interface CreatureNeeds {
     hunger: number;      // 0-100, decreases over time
     happiness: number;   // 0-100, decreases over time  
-    health: number;      // 0-100, affected by hunger and happiness
 }
 
 interface GameAction {
@@ -11,6 +10,8 @@ interface GameAction {
     target: string; // creature id (for future multi-creature support)
     source: 'player' | 'script' | 'ai';
 }
+
+type CreatureState = 'idle' | 'eating' | 'playing' | 'happy';
 
 class Creature {
     public x: number;
@@ -21,6 +22,8 @@ class Creature {
     private animationTime: number = 0;
     public needs: CreatureNeeds;
     public id: string = 'creature1'; // For future multi-creature support
+    private state: CreatureState = 'idle';
+    private stateTimer: number = 0;
 
     constructor(x: number, y: number) {
         this.x = x;
@@ -31,13 +34,20 @@ class Creature {
         // Start with good stats
         this.needs = {
             hunger: 80,
-            happiness: 75,
-            health: 90
+            happiness: 75
         };
     }
 
     update(deltaTime: number, bowlCenterX: number, bowlCenterY: number, bowlWidth: number, bowlHeight: number) {
         this.animationTime += deltaTime;
+
+        // Update state timer
+        if (this.stateTimer > 0) {
+            this.stateTimer -= deltaTime;
+            if (this.stateTimer <= 0) {
+                this.state = 'idle';
+            }
+        }
 
         // Update needs (decay over time)
         this.updateNeeds(deltaTime);
@@ -98,11 +108,38 @@ class Creature {
         ctx.save();
         ctx.translate(this.x, this.y);
 
-        // Simple fish-like creature
-        const tailWiggle = Math.sin(this.animationTime * 0.005) * 0.2;
+        // Animation variations based on state
+        let bodyColor = '#FF6B6B';
+        let eyeScale = 1;
+        let bodyBounce = 0;
+        let speedMultiplier = 1;
+
+        switch (this.state) {
+            case 'eating':
+                bodyColor = '#FF9999'; // Lighter when eating
+                bodyBounce = Math.sin(this.animationTime * 0.01) * 3; // Gentle bobbing
+                speedMultiplier = 0.5; // Slower tail wiggle
+                break;
+            case 'playing':
+                bodyColor = '#FF4444'; // Brighter when playing
+                eyeScale = 1.2; // Bigger eyes when excited
+                bodyBounce = Math.sin(this.animationTime * 0.015) * 5; // More energetic bobbing
+                speedMultiplier = 2; // Faster tail wiggle
+                break;
+            case 'happy':
+                bodyColor = '#FF8888';
+                eyeScale = 1.1;
+                break;
+        }
+
+        // Apply bounce effect
+        ctx.translate(0, bodyBounce);
+
+        // Simple fish-like creature with state-based animations
+        const tailWiggle = Math.sin(this.animationTime * 0.005 * speedMultiplier) * 0.2;
         
         // Body
-        ctx.fillStyle = '#FF6B6B';
+        ctx.fillStyle = bodyColor;
         ctx.beginPath();
         ctx.ellipse(0, 0, this.size, this.size * 0.7, 0, 0, 2 * Math.PI);
         ctx.fill();
@@ -113,17 +150,32 @@ class Creature {
         ctx.ellipse(-this.size * 1.2, tailWiggle * this.size, this.size * 0.6, this.size * 0.4, 0, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Eye
+        // Eye (with state-based scaling)
         ctx.fillStyle = 'white';
         ctx.beginPath();
-        ctx.ellipse(this.size * 0.3, -this.size * 0.2, this.size * 0.3, this.size * 0.3, 0, 0, 2 * Math.PI);
+        ctx.ellipse(this.size * 0.3, -this.size * 0.2, this.size * 0.3 * eyeScale, this.size * 0.3 * eyeScale, 0, 0, 2 * Math.PI);
         ctx.fill();
         
         // Pupil
         ctx.fillStyle = 'black';
         ctx.beginPath();
-        ctx.ellipse(this.size * 0.3, -this.size * 0.2, this.size * 0.15, this.size * 0.15, 0, 0, 2 * Math.PI);
+        ctx.ellipse(this.size * 0.3, -this.size * 0.2, this.size * 0.15 * eyeScale, this.size * 0.15 * eyeScale, 0, 0, 2 * Math.PI);
         ctx.fill();
+
+        // Add sparkles when playing
+        if (this.state === 'playing' && this.stateTimer > 0) {
+            for (let i = 0; i < 3; i++) {
+                const sparkleAngle = (this.animationTime * 0.01 + i * Math.PI * 2 / 3) % (Math.PI * 2);
+                const sparkleRadius = 35;
+                const sparkleX = Math.cos(sparkleAngle) * sparkleRadius;
+                const sparkleY = Math.sin(sparkleAngle) * sparkleRadius;
+                
+                ctx.fillStyle = `rgba(255, 255, 0, ${0.5 + Math.sin(this.animationTime * 0.02) * 0.3})`;
+                ctx.beginPath();
+                ctx.ellipse(sparkleX, sparkleY, 3, 3, 0, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
 
         ctx.restore();
     }
@@ -141,16 +193,6 @@ class Creature {
         // Apply decay
         this.needs.hunger = Math.max(0, this.needs.hunger - (hungerDecayRate * deltaTime / 1000));
         this.needs.happiness = Math.max(0, this.needs.happiness - (happinessDecayRate * deltaTime / 1000));
-        
-        // Health is affected by hunger and happiness
-        const targetHealth = (this.needs.hunger + this.needs.happiness) / 2;
-        const healthChangeRate = 3; // Health changes 3 points per second toward target
-        
-        if (this.needs.health < targetHealth) {
-            this.needs.health = Math.min(100, this.needs.health + (healthChangeRate * deltaTime / 1000));
-        } else if (this.needs.health > targetHealth) {
-            this.needs.health = Math.max(0, this.needs.health - (healthChangeRate * deltaTime / 1000));
-        }
     }
 
     // Unified action handler - same interface for player/script/AI actions
@@ -177,6 +219,10 @@ class Creature {
         this.needs.hunger = Math.min(100, this.needs.hunger + hungerIncrease);
         this.needs.happiness = Math.min(100, this.needs.happiness + happinessBonus);
 
+        // Visual feedback
+        this.state = 'eating';
+        this.stateTimer = 2000; // 2 seconds of eating animation
+
         console.log(`Creature fed by ${source}! Hunger: ${Math.round(this.needs.hunger)}, Happiness: ${Math.round(this.needs.happiness)}`);
         return true;
     }
@@ -188,6 +234,10 @@ class Creature {
 
         this.needs.happiness = Math.min(100, this.needs.happiness + happinessIncrease);
         this.needs.hunger = Math.max(0, this.needs.hunger - hungerCost);
+
+        // Visual feedback
+        this.state = 'playing';
+        this.stateTimer = 3000; // 3 seconds of playing animation
 
         console.log(`Creature played with by ${source}! Happiness: ${Math.round(this.needs.happiness)}, Hunger: ${Math.round(this.needs.hunger)}`);
         return true;
@@ -288,8 +338,7 @@ class GameRenderer {
 
         // Draw small floating bars (no labels, just colors)
         drawMiniBar(creature.needs.hunger, startY, '#4CAF50');           // Green for hunger
-        drawMiniBar(creature.needs.happiness, startY + barSpacing, '#2196F3'); // Blue for happiness  
-        drawMiniBar(creature.needs.health, startY + barSpacing * 2, '#FF9800'); // Orange for health
+        drawMiniBar(creature.needs.happiness, startY + barSpacing, '#2196F3'); // Blue for happiness
     }
 
     drawInteractionMenu(x: number, y: number) {
