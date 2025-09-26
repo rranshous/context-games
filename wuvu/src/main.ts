@@ -585,6 +585,40 @@ class GameRenderer {
             this.ctx.fillText('Play', x + 25, y + buttonHeight + buttonSpacing + 20);
         }
     }
+
+    drawAgentControls(agents: Agent[], x: number, y: number) {
+        const buttonWidth = 120;
+        const buttonHeight = 30;
+        
+        agents.forEach((agent, index) => {
+            const buttonY = y + (index * (buttonHeight + 10));
+            const isActive = agent.getStatus();
+            
+            // Button background
+            this.ctx.fillStyle = isActive ? '#4CAF50' : '#757575';
+            this.ctx.fillRect(x, buttonY, buttonWidth, buttonHeight);
+            
+            // Button border
+            this.ctx.strokeStyle = '#333';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(x, buttonY, buttonWidth, buttonHeight);
+            
+            // Button text
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '12px Arial';
+            const text = `${agent.name}: ${isActive ? 'ON' : 'OFF'}`;
+            const textWidth = this.ctx.measureText(text).width;
+            this.ctx.fillText(text, x + (buttonWidth - textWidth) / 2, buttonY + 20);
+            
+            // Status indicator
+            if (isActive) {
+                this.ctx.fillStyle = '#FFF';
+                this.ctx.beginPath();
+                this.ctx.arc(x + buttonWidth - 15, buttonY + 10, 4, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+        });
+    }
 }
 
 class Game {
@@ -668,6 +702,9 @@ class Game {
             this.renderer.drawInteractionMenu(this.menuX, this.menuY, isBowlMenu);
         }
 
+        // Draw agent controls
+        this.renderer.drawAgentControls(this.agents, 10, 10);
+
         requestAnimationFrame(this.gameLoop);
     }
 
@@ -675,6 +712,11 @@ class Game {
         const rect = this.renderer.canvas.getBoundingClientRect();
         const clickX = event.clientX - rect.left;
         const clickY = event.clientY - rect.top;
+
+        // Check agent button clicks first
+        if (this.handleAgentButtonClick(clickX, clickY)) {
+            return;
+        }
 
         if (this.showInteractionMenu) {
             // Check if clicked on menu buttons
@@ -802,6 +844,32 @@ class Game {
                                            (dy * dy) / ((bowlHeight/2) * (bowlHeight/2)));
         
         return normalizedDistance <= 1; // Inside the ellipse
+    }
+
+    private handleAgentButtonClick(clickX: number, clickY: number): boolean {
+        const buttonWidth = 120;
+        const buttonHeight = 30;
+        const startX = 10;
+        const startY = 10;
+        
+        for (let i = 0; i < this.agents.length; i++) {
+            const buttonY = startY + (i * (buttonHeight + 10));
+            
+            if (clickX >= startX && clickX <= startX + buttonWidth &&
+                clickY >= buttonY && clickY <= buttonY + buttonHeight) {
+                
+                const agent = this.agents[i];
+                if (agent.getStatus()) {
+                    agent.stop();
+                    console.log(`🤖 ${agent.name} deactivated`);
+                } else {
+                    agent.start();
+                    console.log(`🤖 ${agent.name} activated`);
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     private async evaluateAgents() {
