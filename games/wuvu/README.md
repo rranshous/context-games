@@ -206,7 +206,7 @@ This project demonstrates AI collaboration patterns for game development. The ar
 
 ## 📄 License
 
-Part of the [Context Games](../README.md) collection - experimental games exploring AI-human collaboration.
+Part of the [Context Games](../../README.md) collection - experimental games exploring AI-human collaboration.
 
 ---
 
