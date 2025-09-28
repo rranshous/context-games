@@ -34,7 +34,7 @@ The game deliberately scales complexity (multiple creatures + environmental mana
 - **Tool-based architecture** - AI calls same actions as players
 - **Autonomous decision making** - AI analyzes game state and chooses actions without rigid rules
 - **Descriptive status understanding** - AI receives "high/middling/low/critical" statuses instead of percentages
-- **Strategic timing** - 60-second evaluation intervals for thoughtful decisions
+- **Strategic timing** - 30-second evaluation intervals for thoughtful decisions
 
 ### Visual Feedback
 - **Toggle button** - click to activate/deactivate agent
