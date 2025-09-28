@@ -5,12 +5,12 @@ This directory contains all game development projects as submodules. Projects ex
 ## Games 🎮
 
 ### [Wuvu](./wuvu/)
-AI-collaborative digital pet game that demonstrates genuine human-AI partnership in managing game complexity. Players care for 3 unique aquatic creatures while an AI Assist Agent helps with routine maintenance and environmental management.  
-🎯 **Status:** ✅ **Phase 3A Complete** - Working AI collaboration with tool-based architecture  
+AI-collaborative digital pet game where players care for 3 unique aquatic creatures while a simple AI Assist Agent helps with routine creature care. Demonstrates basic human-AI collaboration using local inference and shared game actions.  
+🎯 **Status:** ✅ **Complete** - Simple AI assistant successfully implemented  
 🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Local Ollama integration (qwen3:1.7b) with function calling for creature care decisions  
-🔧 **Next:** User-defined agents, multi-agent coordination, advanced collaboration patterns  
-✨ **Unique:** **Tool-based AI architecture**, complexity scaling that motivates AI partnership, unified human-AI action system, visual agent feedback, local inference integration, established foundation for advanced AI collaboration
+🤖 **AI:** ✅ Local Ollama integration (qwen3:1.7b) with tool-based actions for feeding/cleaning/playing  
+🔧 **Technical:** Tool-based agent architecture, unified human-AI action system, descriptive game state format  
+✨ **Features:** Agent toggle, visual feedback, autonomous decision-making, transparent action logging
 
 ### [Con-Control](./con-control/)
 AI collaboration space escape game where players work with a Ship AI (literally powered by Claude 4) to repair systems and escape a detention cell. Features **three escalating crises**: Power→Atmosphere→**Security Authorization**. The final phase creates an authentic AI ethical dilemma where Claude must choose between security protocols and human survival.  
