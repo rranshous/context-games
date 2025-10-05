@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
+import AdmZip from 'adm-zip';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ interface GameMetadata {
   uploadDate: string;
   fileName: string;
   fileType: string;
+  isZip: boolean;
 }
 
 // Get metadata file path
@@ -104,20 +106,46 @@ app.post('/api/games', upload.single('game'), async (req: Request, res: Response
     const gameName = req.body.name || req.file.originalname;
     const gameId = Date.now().toString();
     
-    // Move file to games directory with game ID
+    // Create game directory
     const gameDir = path.join(GAMES_DIR, gameId);
     await fs.mkdir(gameDir, { recursive: true });
     
-    const newPath = path.join(gameDir, req.file.originalname);
-    await fs.rename(req.file.path, newPath);
+    const isZip = req.file.originalname.endsWith('.zip');
+    
+    if (isZip) {
+      // Extract ZIP file (itch.io style)
+      try {
+        const zip = new AdmZip(req.file.path);
+        zip.extractAllTo(gameDir, true);
+        
+        // Clean up uploaded zip
+        await fs.unlink(req.file.path);
+        
+        // Verify index.html exists
+        const indexPath = path.join(gameDir, 'index.html');
+        if (!existsSync(indexPath)) {
+          await fs.rm(gameDir, { recursive: true });
+          return res.status(400).json({ error: 'ZIP must contain index.html at root level' });
+        }
+      } catch (zipError) {
+        console.error('ZIP extraction error:', zipError);
+        await fs.rm(gameDir, { recursive: true });
+        return res.status(400).json({ error: 'Failed to extract ZIP file' });
+      }
+    } else {
+      // Single HTML file
+      const newPath = path.join(gameDir, req.file.originalname);
+      await fs.rename(req.file.path, newPath);
+    }
 
     // Create metadata
     const metadata: GameMetadata = {
       id: gameId,
       name: gameName,
       uploadDate: new Date().toISOString(),
-      fileName: req.file.originalname,
+      fileName: isZip ? 'index.html' : req.file.originalname,
       fileType: req.file.mimetype,
+      isZip: isZip,
     };
 
     // Save metadata
