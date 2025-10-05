@@ -8,6 +8,7 @@ import AdmZip from 'adm-zip';
 import session from 'express-session';
 import passport from './auth/passport.js';
 import authRoutes from './auth/routes.js';
+import inferenceRoutes from './inference/routes.js';
 import { initializeDatabase } from './db/schema.js';
 import { createUser, getUserByUsername } from './db/queries.js';
 import dotenv from 'dotenv';
@@ -51,6 +52,9 @@ app.use(express.static('public'));
 
 // Auth routes
 app.use('/auth', authRoutes);
+
+// Inference routes
+app.use('/api/inference', inferenceRoutes);
 
 // Ensure directories exist
 const GAMES_DIR = path.join(__dirname, '../games');

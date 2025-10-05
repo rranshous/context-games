@@ -37,22 +37,64 @@ curl -X POST http://localhost:3000/auth/login \
 
 ---
 
-## Sprint 2: Anthropic Proxy (IN PROGRESS)
+## Sprint 2: Anthropic Proxy ✅ COMPLETE
 
-### Tasks
-- [ ] Install and configure @anthropic-ai/sdk
-- [ ] Create inference/anthropic.ts proxy module
-- [ ] Add POST /api/inference/anthropic/messages endpoint
-- [ ] Implement token counting from responses
-- [ ] Add usage tracking middleware
-- [ ] Test with curl/Postman
+### Completed Tasks
+- ✅ Created inference/anthropic.ts with lazy client initialization
+- ✅ Implemented proxyAnthropicMessages function with streaming support
+- ✅ Added checkTokenLimit middleware
+- ✅ Created inference routes with /anthropic/messages endpoint
+- ✅ Added /usage and /usage/stats endpoints
+- ✅ Fixed dotenv loading issue with lazy initialization
+- ✅ Integrated routes into server.ts
 
-### Progress
-Starting now...
+### Testing Results
+```javascript
+// Test Anthropic API
+const response = await fetch('/api/inference/anthropic/messages', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    messages: [{ role: 'user', content: 'Say "Hello from Anthropic!"' }],
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 50
+  }),
+  credentials: 'include'
+});
+
+// Response:
+{
+  "id": "msg_01Hr7yjjhuCDTxY5x66FwJxa",
+  "model": "claude-3-5-sonnet-20241022",
+  "role": "assistant",
+  "content": [{ "type": "text", "text": "Hello from Anthropic!" }],
+  "usage": {
+    "input_tokens": 20,
+    "output_tokens": 9
+  }
+}
+
+// Token usage tracked:
+{
+  "total_tokens": 29,
+  "usage_history": [
+    {
+      "backend": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "prompt_tokens": 20,
+      "completion_tokens": 9,
+      "total_tokens": 29
+    }
+  ]
+}
+```
+
+### Milestone: ✅ Can call Claude via proxy
+**Status**: PASSED
 
 ---
 
-## Sprint 3: Ollama Proxy (NOT STARTED)
+## Sprint 3: Ollama Proxy (IN PROGRESS)
 
 ## Sprint 4: Admin UI (NOT STARTED)
 
