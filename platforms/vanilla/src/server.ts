@@ -182,6 +182,19 @@ app.use('/games/:id', async (req: Request, res: Response, next) => {
     return res.sendFile(gamePath);
   }
   
+  // Set proper MIME type for JavaScript modules
+  if (requestedPath.endsWith('.js')) {
+    res.type('application/javascript');
+  } else if (requestedPath.endsWith('.mjs')) {
+    res.type('application/javascript');
+  } else if (requestedPath.endsWith('.json')) {
+    res.type('application/json');
+  } else if (requestedPath.endsWith('.css')) {
+    res.type('text/css');
+  } else if (requestedPath.endsWith('.html')) {
+    res.type('text/html');
+  }
+  
   // Serve static files from game directory
   express.static(gameDir)(req, res, next);
 });
