@@ -177,6 +177,11 @@ app.use('/games/:id', async (req: Request, res: Response, next) => {
   const requestedPath = req.path.replace(`/games/${gameId}`, '');
   
   if (requestedPath === '' || requestedPath === '/') {
+    // Redirect to trailing slash if missing (ensures correct relative path resolution)
+    if (requestedPath === '') {
+      return res.redirect(`/games/${gameId}/`);
+    }
+    
     // Serve the main game file
     const gamePath = path.join(gameDir, game.fileName);
     return res.sendFile(gamePath);
