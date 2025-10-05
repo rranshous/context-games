@@ -5,14 +5,52 @@ import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import AdmZip from 'adm-zip';
+import session from 'express-session';
+import passport from './auth/passport.js';
+import authRoutes from './auth/routes.js';
+import { initializeDatabase } from './db/schema.js';
+import { createUser, getUserByUsername } from './db/queries.js';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
+
+// Session middleware (BEFORE passport)
+const SQLiteStore = require('connect-sqlite3')(session);
+app.use(session({
+  store: new SQLiteStore({
+    db: 'sessions.db',
+    dir: './'
+  }),
+  secret: process.env.SESSION_SECRET || 'vanilla-game-platform-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    httpOnly: true,
+    secure: false // Set to true in production with HTTPS
+  }
+}));
+
+// Passport middleware (AFTER session)
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Public files
 app.use(express.static('public'));
+
+// Auth routes
+app.use('/auth', authRoutes);
 
 // Ensure directories exist
 const GAMES_DIR = path.join(__dirname, '../games');
@@ -228,6 +266,17 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Start server
 async function startServer() {
+  // Initialize database first
+  await initializeDatabase();
+  
+  // Create default admin user if none exists
+  const admin = await getUserByUsername('admin');
+  if (!admin) {
+    await createUser('admin', 'admin123', true);
+    console.log('📝 Created default admin user (username: admin, password: admin123)');
+    console.log('⚠️  Please change the password after first login!');
+  }
+  
   await ensureDirectories();
   
   app.listen(PORT, () => {
