@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vanilla Game Platform</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: white;
+      text-align: center;
+      margin-bottom: 2rem;
+      font-size: 3rem;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .upload-section {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .upload-section h2 {
+      margin-bottom: 1rem;
+      color: #333;
+    }
+
+    .upload-form {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .form-group {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #555;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    input[type="text"]:focus,
+    input[type="file"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      padding: 0.75rem 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .games-section {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .games-section h2 {
+      margin-bottom: 1.5rem;
+      color: #333;
+    }
+
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .game-card {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      border-radius: 8px;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .game-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+      border-color: #667eea;
+    }
+
+    .game-card h3 {
+      color: #333;
+      margin-bottom: 0.5rem;
+      font-size: 1.25rem;
+    }
+
+    .game-card p {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .no-games {
+      text-align: center;
+      color: #999;
+      padding: 3rem;
+      font-size: 1.1rem;
+    }
+
+    .message {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .message.show {
+      display: block;
+    }
+
+    .loading {
+      text-align: center;
+      color: #999;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 Vanilla Game Platform</h1>
+
+    <div class="upload-section">
+      <h2>Upload New Game</h2>
+      <div id="uploadMessage" class="message"></div>
+      <form id="uploadForm" class="upload-form">
+        <div class="form-group">
+          <label for="gameName">Game Name</label>
+          <input type="text" id="gameName" name="gameName" placeholder="My Awesome Game" required>
+        </div>
+        <div class="form-group">
+          <label for="gameFile">Game File (HTML)</label>
+          <input type="file" id="gameFile" name="gameFile" accept=".html,.htm" required>
+        </div>
+        <button type="submit">Upload Game</button>
+      </form>
+    </div>
+
+    <div class="games-section">
+      <h2>Available Games</h2>
+      <div id="gamesContainer">
+        <div class="loading">Loading games...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // Load and display games
+    async function loadGames() {
+      const container = document.getElementById('gamesContainer');
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/games`);
+        const data = await response.json();
+        
+        if (data.games.length === 0) {
+          container.innerHTML = '<div class="no-games">No games uploaded yet. Upload your first game above!</div>';
+          return;
+        }
+
+        const gamesGrid = document.createElement('div');
+        gamesGrid.className = 'games-grid';
+        
+        data.games.forEach(game => {
+          const card = document.createElement('div');
+          card.className = 'game-card';
+          card.onclick = () => playGame(game.id);
+          
+          const uploadDate = new Date(game.uploadDate).toLocaleDateString();
+          
+          card.innerHTML = `
+            <h3>${escapeHtml(game.name)}</h3>
+            <p><strong>Uploaded:</strong> ${uploadDate}</p>
+            <p><strong>File:</strong> ${escapeHtml(game.fileName)}</p>
+          `;
+          
+          gamesGrid.appendChild(card);
+        });
+        
+        container.innerHTML = '';
+        container.appendChild(gamesGrid);
+      } catch (error) {
+        console.error('Failed to load games:', error);
+        container.innerHTML = '<div class="no-games">Failed to load games. Please try again.</div>';
+      }
+    }
+
+    // Play a game
+    function playGame(gameId) {
+      window.open(`${API_BASE}/games/${gameId}`, '_blank');
+    }
+
+    // Upload game form handler
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const messageEl = document.getElementById('uploadMessage');
+      const formData = new FormData();
+      const gameFile = document.getElementById('gameFile').files[0];
+      const gameName = document.getElementById('gameName').value;
+      
+      if (!gameFile) {
+        showMessage('Please select a file', 'error');
+        return;
+      }
+      
+      formData.append('game', gameFile);
+      formData.append('name', gameName);
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/games`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showMessage('Game uploaded successfully!', 'success');
+          document.getElementById('uploadForm').reset();
+          loadGames(); // Refresh game list
+        } else {
+          showMessage(result.error || 'Upload failed', 'error');
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        showMessage('Upload failed. Please try again.', 'error');
+      }
+    });
+
+    // Show message helper
+    function showMessage(text, type) {
+      const messageEl = document.getElementById('uploadMessage');
+      messageEl.textContent = text;
+      messageEl.className = `message ${type} show`;
+      
+      setTimeout(() => {
+        messageEl.className = 'message';
+      }, 5000);
+    }
+
+    // Escape HTML helper
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load games on page load
+    loadGames();
+  </script>
+</body>
+</html>
