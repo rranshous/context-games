@@ -182,21 +182,38 @@ app.use('/games/:id', async (req: Request, res: Response, next) => {
     return res.sendFile(gamePath);
   }
   
-  // Set proper MIME type for JavaScript modules
-  if (requestedPath.endsWith('.js')) {
-    res.type('application/javascript');
-  } else if (requestedPath.endsWith('.mjs')) {
-    res.type('application/javascript');
-  } else if (requestedPath.endsWith('.json')) {
-    res.type('application/json');
-  } else if (requestedPath.endsWith('.css')) {
-    res.type('text/css');
-  } else if (requestedPath.endsWith('.html')) {
-    res.type('text/html');
+  // Manually serve files with correct MIME types
+  const filePath = path.join(gameDir, requestedPath);
+  
+  // Check if file exists
+  if (!existsSync(filePath)) {
+    return res.status(404).send('File not found');
   }
   
-  // Serve static files from game directory
-  express.static(gameDir)(req, res, next);
+  // Set proper MIME type based on extension
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes: { [key: string]: string } = {
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.json': 'application/json',
+    '.css': 'text/css',
+    '.html': 'text/html',
+    '.htm': 'text/html',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.wasm': 'application/wasm',
+    '.map': 'application/json',
+  };
+  
+  const mimeType = mimeTypes[ext] || 'application/octet-stream';
+  
+  // Send file with correct MIME type
+  res.type(mimeType);
+  res.sendFile(filePath);
 });
 
 // Health check
