@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import { requireAuth, requireActive } from '../auth/middleware.js';
 import { checkTokenLimit } from './middleware.js';
 import { proxyAnthropicMessages } from './anthropic.js';
+import { proxyOllamaChat, listOllamaModels } from './ollama.js';
 import { getUserTokenUsage, getUserTotalTokens } from '../db/queries.js';
 
 const router: Router = express.Router();
@@ -12,6 +13,10 @@ router.use(requireActive);
 
 // Anthropic routes
 router.post('/anthropic/messages', checkTokenLimit, proxyAnthropicMessages);
+
+// Ollama routes
+router.post('/ollama/chat', checkTokenLimit, proxyOllamaChat);
+router.get('/ollama/models', listOllamaModels);
 
 // Get current user's token usage
 router.get('/usage', async (req, res) => {

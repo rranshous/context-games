@@ -94,7 +94,62 @@ const response = await fetch('/api/inference/anthropic/messages', {
 
 ---
 
-## Sprint 3: Ollama Proxy (IN PROGRESS)
+## Sprint 3: Ollama Proxy ✅ COMPLETE
+
+### Completed Tasks
+- ✅ Created inference/ollama.ts with lazy client initialization
+- ✅ Implemented proxyOllamaChat function with streaming support
+- ✅ Added token estimation (chars / 4)
+- ✅ Implemented listOllamaModels endpoint
+- ✅ Added routes to inference/routes.ts
+- ✅ Tested with qwen3:0.6b model
+
+### Testing Results
+```javascript
+// List available models
+const models = await fetch('/api/inference/ollama/models');
+// Returns: deepseek-r1:1.5b, qwen3:1.7b, qwen3:0.6b, falcon3:1b
+
+// Test Ollama chat
+const response = await fetch('/api/inference/ollama/chat', {
+  method: 'POST',
+  body: JSON.stringify({
+    messages: [{ role: 'user', content: 'Say "Hello from Ollama!"' }],
+    model: 'qwen3:0.6b',
+    stream: false
+  })
+});
+
+// Response:
+{
+  "model": "qwen3:0.6b",
+  "message": {
+    "role": "assistant",
+    "content": "Hello from Ollama!"
+  },
+  "estimated_tokens": {
+    "prompt_tokens": 12,
+    "completion_tokens": 205,
+    "total_tokens": 217
+  }
+}
+
+// Combined usage tracked:
+{
+  "total_tokens": 246,
+  "usage_history": [
+    { "backend": "ollama", "model": "qwen3:0.6b", "total_tokens": 217 },
+    { "backend": "anthropic", "model": "claude-3-5-sonnet-20241022", "total_tokens": 29 }
+  ]
+}
+```
+
+### Milestone: ✅ Can call Ollama via proxy
+**Status**: PASSED
+
+---
+
+## Sprint 4: Admin UI (IN PROGRESS)
 
 ## Sprint 4: Admin UI (NOT STARTED)
 
