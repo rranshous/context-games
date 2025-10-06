@@ -9,6 +9,7 @@ import session from 'express-session';
 import passport from './auth/passport.js';
 import authRoutes from './auth/routes.js';
 import inferenceRoutes from './inference/routes.js';
+import adminRoutes from './admin/routes.js';
 import { initializeDatabase } from './db/schema.js';
 import { createUser, getUserByUsername } from './db/queries.js';
 import dotenv from 'dotenv';
@@ -55,6 +56,9 @@ app.use('/auth', authRoutes);
 
 // Inference routes
 app.use('/api/inference', inferenceRoutes);
+
+// Admin routes
+app.use('/admin', adminRoutes);
 
 // Ensure directories exist
 const GAMES_DIR = path.join(__dirname, '../games');

@@ -149,7 +149,48 @@ const response = await fetch('/api/inference/ollama/chat', {
 
 ---
 
-## Sprint 4: Admin UI (IN PROGRESS)
+## Sprint 4: Admin UI ✅ COMPLETE
+
+### Completed Tasks
+- ✅ Created admin/routes.ts with user management endpoints
+- ✅ Implemented GET /admin/api/users (list all users with token usage)
+- ✅ Implemented POST /admin/api/users (create new user)
+- ✅ Implemented PUT /admin/api/users/:id (update user status/limits)
+- ✅ Implemented GET /admin/api/usage (system-wide usage stats)
+- ✅ Created beautiful admin.html dashboard with:
+  - Stats cards (users, tokens, by backend)
+  - User creation form
+  - User management table
+  - Usage breakdown by model
+  - Real-time updates every 30s
+- ✅ Integrated admin routes into server.ts
+
+### Features
+- **Dashboard Stats**: Total users, total tokens, Anthropic tokens, Ollama tokens
+- **User Management**: Create users with optional token limits
+- **User Actions**: Activate/deactivate users, set/update token limits
+- **Usage Tracking**: View token usage by model and backend
+- **Security**: All routes require admin authentication
+- **UX**: Beautiful gradient UI with success/error messages
+
+### Testing Results
+```
+Admin Dashboard URL: http://localhost:3000/admin.html
+
+Features Tested:
+✅ Dashboard loads with stats (2 users, 246 tokens total)
+✅ Create user "testuser" with 10,000 token limit
+✅ User table shows both users with correct info
+✅ Stats updated in real-time
+✅ Usage breakdown shows models (qwen3:0.6b, claude-3-5-sonnet)
+```
+
+### Milestone: ✅ Admin can manage users via UI
+**Status**: PASSED
+
+---
+
+## Sprint 5: Polish & Testing (IN PROGRESS)
 
 ## Sprint 4: Admin UI (NOT STARTED)
 
