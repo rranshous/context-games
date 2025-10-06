@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Test Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #667eea;
+            text-align: center;
+        }
+        
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            background: #f9f9f9;
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .message-user {
+            background: #667eea;
+            color: white;
+            margin-left: 50px;
+        }
+        
+        .message-ai {
+            background: #e0e0e0;
+            margin-right: 50px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .backend-selector {
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        select {
+            padding: 8px;
+            border-radius: 5px;
+            border: 2px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI Chat Test</h1>
+        
+        <div class="backend-selector">
+            <label>Backend:</label>
+            <select id="backend">
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="ollama">Ollama (Local)</option>
+            </select>
+            
+            <label style="margin-left: 20px;">Model:</label>
+            <select id="model">
+                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+            </select>
+        </div>
+        
+        <div class="chat-container" id="chat"></div>
+        
+        <div class="input-group">
+            <input type="text" id="input" placeholder="Type a message..." 
+                   onkeypress="if(event.key==='Enter') send()">
+            <button onclick="send()" id="send-btn">Send</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="total-tokens">0</div>
+                <div class="stat-label">Total Tokens</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="anthropic-tokens">0</div>
+                <div class="stat-label">Anthropic</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="ollama-tokens">0</div>
+                <div class="stat-label">Ollama</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let conversationHistory = [];
+        
+        // Check auth on load
+        async function init() {
+            try {
+                const response = await fetch('/auth/me', { credentials: 'include' });
+                if (!response.ok) {
+                    alert('Please login first!');
+                    window.location.href = '/';
+                    return;
+                }
+                
+                const { user } = await response.json();
+                console.log('Logged in as:', user.username);
+                
+                // Load Ollama models
+                await loadOllamaModels();
+                
+                // Load usage stats
+                await updateStats();
+                
+                addMessage('ai', 'Hello! I\'m ready to chat. Ask me anything!');
+            } catch (error) {
+                console.error('Init error:', error);
+                alert('Failed to initialize: ' + error.message);
+            }
+        }
+        
+        // Load available Ollama models
+        async function loadOllamaModels() {
+            try {
+                const response = await fetch('/api/inference/ollama/models', {
+                    credentials: 'include'
+                });
+                const { models } = await response.json();
+                
+                console.log('Available Ollama models:', models);
+                
+                // Store models for when user switches to Ollama
+                window.ollamaModels = models;
+            } catch (error) {
+                console.error('Failed to load Ollama models:', error);
+            }
+        }
+        
+        // Backend selector changed
+        document.getElementById('backend').addEventListener('change', (e) => {
+            const modelSelect = document.getElementById('model');
+            modelSelect.innerHTML = '';
+            
+            if (e.target.value === 'anthropic') {
+                modelSelect.innerHTML = `
+                    <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                    <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                `;
+            } else {
+                if (window.ollamaModels) {
+                    window.ollamaModels.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = model.name;
+                        modelSelect.appendChild(option);
+                    });
+                }
+            }
+        });
+        
+        // Send message
+        async function send() {
+            const input = document.getElementById('input');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            addMessage('user', message);
+            input.value = '';
+            
+            const sendBtn = document.getElementById('send-btn');
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Thinking...';
+            
+            try {
+                const backend = document.getElementById('backend').value;
+                const model = document.getElementById('model').value;
+                
+                conversationHistory.push({ role: 'user', content: message });
+                
+                let response;
+                if (backend === 'anthropic') {
+                    response = await callAnthropic(model);
+                } else {
+                    response = await callOllama(model);
+                }
+                
+                if (response) {
+                    addMessage('ai', response);
+                    conversationHistory.push({ role: 'assistant', content: response });
+                    await updateStats();
+                }
+            } catch (error) {
+                addMessage('ai', '❌ Error: ' + error.message);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+            }
+        }
+        
+        // Call Anthropic API
+        async function callAnthropic(model) {
+            const response = await fetch('/api/inference/anthropic/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    messages: conversationHistory,
+                    model: model,
+                    max_tokens: 500
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'API call failed');
+            }
+            
+            const data = await response.json();
+            return data.content[0].text;
+        }
+        
+        // Call Ollama API
+        async function callOllama(model) {
+            const response = await fetch('/api/inference/ollama/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    messages: conversationHistory,
+                    model: model,
+                    stream: false
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'API call failed');
+            }
+            
+            const data = await response.json();
+            return data.message.content;
+        }
+        
+        // Add message to chat
+        function addMessage(type, text) {
+            const chat = document.getElementById('chat');
+            const msg = document.createElement('div');
+            msg.className = `message message-${type}`;
+            msg.textContent = text;
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        
+        // Update usage stats
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/inference/usage/stats', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                document.getElementById('total-tokens').textContent = 
+                    data.total_tokens.toLocaleString();
+                document.getElementById('anthropic-tokens').textContent = 
+                    (data.by_backend.anthropic || 0).toLocaleString();
+                document.getElementById('ollama-tokens').textContent = 
+                    (data.by_backend.ollama || 0).toLocaleString();
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+        }
+        
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
