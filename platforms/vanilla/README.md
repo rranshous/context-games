@@ -1,12 +1,16 @@
 # Vanilla Game Platform
 
-A super simple HTML5 game hosting platform for personal use. Upload, manage, and play HTML5 games with zero fuss.
+A simple HTML5 game hosting platform with AI inference capabilities. Upload, manage, and play HTML5 games that can use AI models without exposing API keys.
 
 ## Quick Start
 
 ```bash
 # Install dependencies
 npm install
+
+# Configure environment (copy and edit)
+cp .env.example .env
+# Add your ANTHROPIC_API_KEY and SESSION_SECRET
 
 # Run in development mode (recommended for testing)
 npm run dev
@@ -18,7 +22,10 @@ npm start
 
 The platform will start on `http://localhost:3000`
 
-Open your browser and visit the URL to see the web interface!
+**Default Admin Login:**
+- Username: `admin`
+- Password: `admin123`
+- ⚠️ **Change this immediately after first login!**
 
 ## Features
 
@@ -28,9 +35,23 @@ Open your browser and visit the URL to see the web interface!
 - Browse all your games in a grid layout
 - Click to play games in a new tab
 
+🤖 **AI Inference Proxy**
+- Secure proxy for Anthropic (Claude) API
+- Local model support via Ollama
+- Per-user token tracking and limits
+- No API keys exposed to client code
+- Games can use AI without managing credentials
+
+🔐 **User Management**
+- Passport.js authentication
+- Admin dashboard at `/admin.html`
+- User creation and management
+- Token limit enforcement
+- Usage statistics and monitoring
+
 🚀 **Zero Configuration**
 - Works out of the box
-- File-based storage (no database needed)
+- SQLite database (no setup needed)
 - Automatic metadata tracking
 - REST API included
 
@@ -38,6 +59,7 @@ Open your browser and visit the URL to see the web interface!
 - Single HTML file games
 - Self-contained HTML5 games
 - Games with embedded assets
+- AI-powered games (see Sacred Scribe example)
 
 ## How to Use
 
@@ -56,16 +78,64 @@ Open your browser and visit the URL to see the web interface!
 3. The game opens in a new tab
 4. Play!
 
-### Game Requirements
+### Admin Dashboard
 
-Your HTML game file should be:
-- A single `.html` or `.htm` file
-- Self-contained (all assets embedded or referenced externally)
-- Standard HTML5 format
+1. Login as admin
+2. Visit `/admin.html`
+3. View usage statistics
+4. Create new users
+5. Set token limits
+6. Manage user accounts
+
+### Example: Sacred Scribe
+
+Visit `/sacred-scribe.html` to play Sacred Scribe - a cult copywriter game that uses AI to evaluate your recruitment advertisements. This demonstrates how games can use the inference API.
+
+## AI Inference API
+
+Games can call AI models through the platform's proxy without exposing API keys.
+
+### Anthropic (Claude)
+
+```javascript
+const response = await fetch('/api/inference/anthropic/messages', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({
+    messages: [{ role: 'user', content: 'Hello!' }],
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 500
+  })
+});
+
+const data = await response.json();
+console.log(data.content[0].text);
+```
+
+### Ollama (Local Models)
+
+```javascript
+const response = await fetch('/api/inference/ollama/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({
+    messages: [{ role: 'user', content: 'Hello!' }],
+    model: 'qwen3:0.6b',
+    stream: false
+  })
+});
+
+const data = await response.json();
+console.log(data.message.content);
+```
+
+See `docs/inference-api.md` for complete documentation.
 
 ## API Documentation
 
-The platform provides a REST API for programmatic access:
+The platform provides REST APIs for games and inference:
 
 ### `GET /api/games`
 List all uploaded games.
@@ -126,12 +196,37 @@ Get metadata for a specific game.
 ### `GET /games/:id`
 Play a game directly. Returns the HTML file.
 
+### Authentication Endpoints
+
+- `POST /auth/login` - Login with username/password
+- `POST /auth/logout` - Logout
+- `POST /auth/register` - Create new user
+- `GET /auth/me` - Get current user info
+
+### Inference Endpoints
+
+- `POST /api/inference/anthropic/messages` - Call Claude models
+- `POST /api/inference/ollama/chat` - Call Ollama models
+- `GET /api/inference/ollama/models` - List available Ollama models
+- `GET /api/inference/usage` - Get current user's token usage
+- `GET /api/inference/usage/stats` - Get usage statistics
+
+### Admin Endpoints (admin only)
+
+- `GET /admin/api/users` - List all users
+- `POST /admin/api/users` - Create user
+- `PUT /admin/api/users/:id` - Update user (status, limits)
+- `GET /admin/api/usage` - System-wide usage stats
+
 ## Tech Stack
 
 - **TypeScript** - Type-safe development
 - **Express.js** - Web server and REST API
+- **SQLite** - Database for users and usage tracking
+- **Passport.js** - Authentication
+- **Anthropic SDK** - Claude AI integration
+- **Ollama** - Local model support
 - **Multer** - File upload handling
-- **File-based storage** - No database required
 - **Vanilla JavaScript** - Simple client-side code
 
 ## Project Structure
@@ -139,16 +234,55 @@ Play a game directly. Returns the HTML file.
 ```
 platforms/vanilla/
 ├── src/
-│   └── server.ts          # Express server with REST API
+│   ├── server.ts          # Express server with REST API
+│   ├── db/
+│   │   ├── schema.ts      # Database initialization
+│   │   └── queries.ts     # User & usage queries
+│   ├── auth/
+│   │   ├── passport.ts    # Passport configuration
+│   │   ├── middleware.ts  # Auth guards
+│   │   └── routes.ts      # Login/logout endpoints
+│   ├── inference/
+│   │   ├── anthropic.ts   # Anthropic proxy
+│   │   ├── ollama.ts      # Ollama proxy
+│   │   ├── middleware.ts  # Token limit checks
+│   │   └── routes.ts      # Inference endpoints
+│   └── admin/
+│       └── routes.ts      # Admin API
 ├── public/
-│   └── index.html         # Web interface
-├── games/                 # Uploaded games (created at runtime)
-│   ├── metadata.json      # Game metadata
-│   └── [game-id]/         # Individual game directories
-├── uploads/               # Temporary upload directory
+│   ├── index.html         # Main game browser
+│   ├── admin.html         # Admin dashboard
+│   ├── sacred-scribe.html # Example AI game
+│   └── test-inference.html # Inference API test
+├── docs/
+│   ├── inference-api.md   # Complete API docs
+│   ├── FINAL_SUMMARY.md   # Project overview
+│   └── *.md               # IPI documentation
+├── games/                 # Uploaded games
+├── vanilla.db             # SQLite database
+├── sessions.db            # Session storage
+├── .env                   # Environment variables
 ├── package.json
 ├── tsconfig.json
 └── README.md
+```
+
+## Environment Variables
+
+Create a `.env` file:
+
+```bash
+# Required for Anthropic proxy
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# Optional - defaults to localhost
+OLLAMA_URL=http://localhost:11434
+
+# Required for sessions
+SESSION_SECRET=your-random-secret-here
+
+# Optional - defaults to 3000
+PORT=3000
 ```
 
 ## Development
@@ -163,30 +297,47 @@ This uses `tsx watch` to automatically restart the server when you make changes.
 
 ## Production Deployment
 
-1. Build the TypeScript:
+1. Set up environment variables
+
+2. Build the TypeScript:
 ```bash
 npm run build
 ```
 
-2. Start the server:
+3. Start the server:
 ```bash
 npm start
 ```
 
-Or use PM2 or similar for process management:
+Or use PM2 for process management:
 ```bash
 pm2 start dist/server.js --name vanilla-games
 ```
 
-## Future Plans
+## Documentation
 
-- Support for zipped game projects with multiple files
-- Game categories and tags
-- Search and filtering
-- Integration with AI inference for dynamic games
-- User authentication (optional)
-- Game analytics
+- **`docs/inference-api.md`** - Complete inference API documentation
+- **`docs/FINAL_SUMMARY.md`** - Full project overview and architecture
+- **`docs/inference-integration-*.md`** - IPI development documentation
+
+## Example Games
+
+### Sacred Scribe
+A cult copywriter simulator where you write recruitment advertisements and AI evaluates their psychological effectiveness. Visit `/sacred-scribe.html` to play.
+
+### Test Inference
+A simple chat interface for testing both Anthropic and Ollama backends. Visit `/test-inference.html`.
+
+## Security Notes
+
+- API keys never exposed to client code
+- Session-based authentication
+- Per-user token limits enforced
+- Admin-only routes protected
+- Password hashing with bcrypt
+- Default admin password should be changed immediately
 
 ## License
 
 MIT
+
