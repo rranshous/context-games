@@ -819,51 +819,157 @@
         // AI INTEGRATION (Claude Haiku)
         // ===========================================
         
-        // Tool definitions in Claude API format
-        const CLAUDE_TOOLS = [
+        // Tool definitions with implementations
+        // Players can edit these - implementation is JS using stdlib.*
+        const DEFAULT_TOOLS = [
             {
                 name: "scan",
                 description: "Look around and scan the surroundings. Returns your current position, the tile you're on, what direction you're facing, whether you have a person in the car, and what's in each cardinal direction (north, south, east, west) including tile type, whether it's passable, and if there's a person or safe zone there.",
-                input_schema: {
-                    type: "object",
-                    properties: {},
-                    required: []
-                }
+                parameters: [],
+                implementation: `
+const pos = stdlib.getCarPosition();
+const directions = ['north', 'south', 'east', 'west'];
+const offsets = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+
+const surroundings = {};
+for (const dir of directions) {
+    const [dx, dy] = offsets[dir];
+    const nx = pos.x + dx;
+    const ny = pos.y + dy;
+    const tile = stdlib.getTileAt(nx, ny);
+    const info = { ...tile };
+    
+    const personPos = stdlib.getPersonPosition();
+    if (personPos && personPos.x === nx && personPos.y === ny) {
+        info.person_here = true;
+    }
+    
+    const szPos = stdlib.getSafeZonePosition();
+    if (szPos.x === nx && szPos.y === ny) {
+        info.safe_zone_here = true;
+    }
+    
+    surroundings[dir] = info;
+}
+
+const result = {
+    current_position: pos,
+    current_tile: stdlib.getTileAt(pos.x, pos.y).type,
+    facing: stdlib.getCarDirection(),
+    person_in_car: stdlib.isPersonInCar(),
+    surroundings
+};
+
+const personPos = stdlib.getPersonPosition();
+if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
+    result.person_at_current_location = true;
+}
+const szPos = stdlib.getSafeZonePosition();
+if (szPos.x === pos.x && szPos.y === pos.y) {
+    result.at_safe_zone = true;
+}
+
+return result;
+`
             },
             {
                 name: "move",
                 description: "Move the car one tile in the specified direction. The car can only move on road tiles. Returns success status and your new position.",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        direction: {
-                            type: "string",
-                            enum: ["north", "south", "east", "west"],
-                            description: "The direction to move: north (up), south (down), east (right), or west (left)"
-                        }
-                    },
-                    required: ["direction"]
-                }
+                parameters: [
+                    {
+                        name: "direction",
+                        type: "string",
+                        enum: ["north", "south", "east", "west"],
+                        description: "The direction to move: north (up), south (down), east (right), or west (left)",
+                        required: true
+                    }
+                ],
+                implementation: `
+const result = stdlib.moveCarOneStep(input.direction);
+if (result.success) {
+    const pos = stdlib.getCarPosition();
+    result.new_position = pos;
+    result.facing = stdlib.getCarDirection();
+    
+    const personPos = stdlib.getPersonPosition();
+    if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
+        result.person_at_current_location = true;
+    }
+    const szPos = stdlib.getSafeZonePosition();
+    if (szPos.x === pos.x && szPos.y === pos.y) {
+        result.at_safe_zone = true;
+    }
+}
+return result;
+`
             },
             {
                 name: "pickup",
                 description: "Pick up a person if they are at your current location. You must be on the same tile as the person to pick them up.",
-                input_schema: {
-                    type: "object",
-                    properties: {},
-                    required: []
-                }
+                parameters: [],
+                implementation: `
+const result = stdlib.pickupPerson();
+if (result.success) {
+    result.message = 'Person picked up! Now take them to the safe zone.';
+}
+return result;
+`
             },
             {
                 name: "dropoff",
                 description: "Drop off the person you're carrying. You must be at the safe zone and have a person in the car to drop them off. This completes the rescue!",
-                input_schema: {
-                    type: "object",
-                    properties: {},
-                    required: []
-                }
+                parameters: [],
+                implementation: `
+const result = stdlib.dropoffPerson();
+if (result.success) {
+    result.message = 'Person dropped off at safe zone! RESCUE COMPLETE!';
+}
+return result;
+`
             }
         ];
+        
+        // Current tools (can be modified by player)
+        let currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
+        
+        // Convert tool definitions to Claude API format
+        function getClaudeTools() {
+            return currentTools.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                input_schema: {
+                    type: "object",
+                    properties: tool.parameters.reduce((props, param) => {
+                        props[param.name] = {
+                            type: param.type,
+                            description: param.description
+                        };
+                        if (param.enum) {
+                            props[param.name].enum = param.enum;
+                        }
+                        return props;
+                    }, {}),
+                    required: tool.parameters.filter(p => p.required).map(p => p.name)
+                }
+            }));
+        }
+        
+        // Execute a tool by running its implementation
+        function executeTool(toolName, toolInput) {
+            const tool = currentTools.find(t => t.name === toolName);
+            if (!tool) {
+                return { error: `Unknown tool: ${toolName}` };
+            }
+            
+            try {
+                // Create a function from the implementation string
+                // It has access to 'stdlib' and 'input'
+                const fn = new Function('stdlib', 'input', tool.implementation);
+                return fn(stdlib, toolInput || {});
+            } catch (e) {
+                return { error: `Tool execution error: ${e.message}` };
+            }
+        }
         
         // AI state
         const aiState = {
@@ -924,22 +1030,6 @@ STRATEGY:
 Be efficient - plan your route and execute it. You have limited moves.`;
         }
         
-        // Execute a tool and return the result
-        function executeTool(toolName, toolInput) {
-            switch (toolName) {
-                case 'scan':
-                    return toolScan();
-                case 'move':
-                    return toolMove(toolInput.direction);
-                case 'pickup':
-                    return toolPickup();
-                case 'dropoff':
-                    return toolDropoff();
-                default:
-                    return { error: `Unknown tool: ${toolName}` };
-            }
-        }
-        
         // Call Claude API via vanilla platform proxy
         async function callClaude(messages) {
             const response = await fetch('/api/inference/anthropic/messages', {
@@ -950,7 +1040,7 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                     model: 'claude-haiku-4-5-20251001',
                     max_tokens: 1024,
                     system: buildSystemPrompt(),
-                    tools: CLAUDE_TOOLS,
+                    tools: getClaudeTools(),
                     messages: messages
                 })
             });

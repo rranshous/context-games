@@ -60,8 +60,8 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [x] Document stdlib API (for players to reference)
 - [x] **Verify via Playwright:** stdlib functions work correctly
 
-### Milestone 2: Tool Definition Format
-- [ ] Define tool data structure:
+### Milestone 2: Tool Definition Format ✅
+- [x] Define tool data structure:
   ```js
   {
     name: "scan",
@@ -70,10 +70,10 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
     implementation: "..." // JS code using stdlib
   }
   ```
-- [ ] Tool implementation runs in sandboxed context with stdlib access
-- [ ] Convert existing hardcoded tools to this format
-- [ ] Validate tool implementations don't break
-- [ ] **Verify via Playwright:** AI completes rescue with new tool format
+- [x] Tool implementation runs in sandboxed context with stdlib access
+- [x] Convert existing hardcoded tools to this format
+- [x] Validate tool implementations don't break
+- [x] **Verify via Playwright:** AI completes rescue with new tool format
 
 ### Milestone 3: Simplified UI + Tool Editor
 - [ ] Remove manual controls (move buttons, scan button, etc.)
@@ -110,7 +110,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 1 Complete
+### Status: Milestone 2 Complete
 
 ---
 
