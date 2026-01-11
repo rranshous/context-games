@@ -207,6 +207,7 @@
             <div class="game-panel">
                 <h2>Status</h2>
                 <div id="status" class="status playing">Ready</div>
+                <button id="btn-reset" style="margin-top: 10px; display: none;">🔄 Reset Game</button>
             </div>
             
             <div class="game-panel">
@@ -641,7 +642,56 @@
             
             gameState.personInCar = false;
             gameState.person.rescued = true;
+            gameState.status = 'won';
+            checkWinCondition();
             return { success: true, message: 'Person dropped off at safe zone! RESCUE COMPLETE!' };
+        }
+
+        // ===========================================
+        // WIN DETECTION & RESET
+        // ===========================================
+        
+        function checkWinCondition() {
+            if (gameState.person.rescued) {
+                gameState.status = 'won';
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = '🎉 RESCUE COMPLETE!';
+                statusEl.className = 'status won';
+                
+                // Show reset button
+                document.getElementById('btn-reset').style.display = 'block';
+                
+                // Disable tool buttons
+                document.querySelectorAll('.control-group button').forEach(btn => {
+                    btn.disabled = true;
+                });
+            }
+        }
+        
+        function resetGame() {
+            // Reset game state
+            gameState.car = { x: 1, y: 1, direction: 'east' };
+            gameState.person = { x: 6, y: 5, rescued: false };
+            gameState.personInCar = false;
+            gameState.status = 'playing';
+            
+            // Reset UI
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'Ready';
+            statusEl.className = 'status playing';
+            document.getElementById('btn-reset').style.display = 'none';
+            
+            // Re-enable buttons
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                btn.disabled = false;
+            });
+            
+            // Clear log
+            const logEl = document.getElementById('log');
+            logEl.innerHTML = '<div class="entry info">Game initializing...</div>';
+            
+            log('Game reset! Rescue the person.', 'success');
+            render();
         }
 
         // ===========================================
@@ -704,8 +754,13 @@
                 render();
             });
             
-            // Enable all buttons
-            document.querySelectorAll('.controls button').forEach(btn => {
+            // Reset button
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                resetGame();
+            });
+            
+            // Enable all tool buttons (not reset)
+            document.querySelectorAll('.control-group button').forEach(btn => {
                 btn.disabled = false;
             });
         }

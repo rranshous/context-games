@@ -53,10 +53,10 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 - [x] Simple UI buttons to trigger each tool manually
 - [x] Visual feedback when tools execute
 
-### Milestone 3: Win/Lose Detection
-- [ ] Detect win: person delivered to safe zone
-- [ ] Display win message
-- [ ] Reset/restart button
+### Milestone 3: Win/Lose Detection ✅
+- [x] Detect win: person delivered to safe zone
+- [x] Display win message
+- [x] Reset/restart button
 
 ### Milestone 4: AI Integration (Claude Haiku)
 - [ ] Define tools in Claude tool format (name, description, input_schema)
@@ -80,7 +80,7 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 2 Complete
+### Status: Milestone 3 Complete
 
 ---
 
