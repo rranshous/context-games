@@ -558,6 +558,31 @@
             flex-direction: column;
             gap: 6px;
         }
+        
+        .review-hints {
+            background: rgba(255, 152, 0, 0.15);
+            border: 1px solid #ff9800;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+        }
+        
+        .review-hints h4 {
+            margin: 0 0 8px 0;
+            color: #ff9800;
+            font-size: 0.9rem;
+        }
+        
+        .review-hints ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .review-hints li {
+            margin-bottom: 4px;
+            color: #ddd;
+        }
     </style>
 </head>
 <body>
@@ -606,6 +631,7 @@
                     <div id="review-panel" class="review-panel" style="display: none;">
                         <h3>📊 Review <button id="btn-close-review" style="padding: 2px 8px; font-size: 0.75rem;">×</button></h3>
                         <div id="review-result" class="review-result"></div>
+                        <div id="review-hints" class="review-hints" style="display: none;"></div>
                         <div id="review-stats" class="review-stats"></div>
                         <div class="review-actions">
                             <button id="btn-edit-after-review">✏️ Edit Tools</button>
@@ -1456,6 +1482,74 @@ Good luck!`;
         // REVIEW PANEL
         // ===========================================
         
+        function generateHints(state) {
+            const hints = [];
+            const stats = state.toolStats;
+            const history = state.toolHistory;
+            
+            // Check if failed
+            if (state.result !== 'success') {
+                // Never used pickup
+                if (stats.pickup?.calls === 0) {
+                    hints.push("The AI never tried to pick up the person. Does your <code>scan</code> tool tell the AI where the person is?");
+                }
+                
+                // Never used dropoff but has person
+                if (stats.dropoff?.calls === 0 && stats.pickup?.calls > 0) {
+                    hints.push("The AI picked up the person but never found the safe zone. Does <code>scan</code> reveal safe zone locations?");
+                }
+                
+                // Lots of move failures
+                const moveFailures = stats.move?.failures || 0;
+                if (moveFailures > 5) {
+                    hints.push(`The AI hit walls ${moveFailures} times. Does <code>scan</code> tell it which directions are passable?`);
+                }
+                
+                // Scan not used or barely used
+                if ((stats.scan?.calls || 0) < 3) {
+                    hints.push("The AI barely scanned its surroundings. Is the <code>scan</code> tool description clear about what it does?");
+                }
+            }
+            
+            // Even on success, check for inefficiency
+            if (state.result === 'success' && state.totalTurns > 40) {
+                hints.push("Success! But the AI took many turns. Could your tools provide better information to help it navigate more directly?");
+            }
+            
+            // Check for looping patterns
+            const loopPattern = detectLoopPattern(history);
+            if (loopPattern) {
+                hints.push(`The AI seemed to loop (${loopPattern}). It might not have enough info to make good decisions.`);
+            }
+            
+            return hints;
+        }
+        
+        function detectLoopPattern(history) {
+            if (!history || history.length < 8) return null;
+            
+            // Look for repeating direction patterns (e.g., north-south-north-south)
+            const moves = history.filter(h => h.name === 'move').map(h => h.args?.direction);
+            if (moves.length < 6) return null;
+            
+            // Check last 6 moves for back-and-forth
+            const last6 = moves.slice(-6);
+            const backForth = last6.filter((m, i) => {
+                if (i === 0) return false;
+                const prev = last6[i - 1];
+                return (m === 'north' && prev === 'south') ||
+                       (m === 'south' && prev === 'north') ||
+                       (m === 'east' && prev === 'west') ||
+                       (m === 'west' && prev === 'east');
+            }).length;
+            
+            if (backForth >= 3) {
+                return 'back-and-forth movement';
+            }
+            
+            return null;
+        }
+        
         function showReview() {
             const panel = document.getElementById('review-panel');
             const resultEl = document.getElementById('review-result');
@@ -1471,6 +1565,16 @@ Good luck!`;
             
             resultEl.textContent = resultMessages[aiState.result] || 'Unknown result';
             resultEl.className = `review-result ${aiState.result === 'success' ? 'success' : 'failure'}`;
+            
+            // Generate hints based on what happened
+            const hints = generateHints(aiState);
+            const hintsEl = document.getElementById('review-hints');
+            if (hints.length > 0) {
+                hintsEl.innerHTML = `<h4>💡 Suggestions</h4><ul>${hints.map(h => `<li>${h}</li>`).join('')}</ul>`;
+                hintsEl.style.display = 'block';
+            } else {
+                hintsEl.style.display = 'none';
+            }
             
             // Build the story - compress consecutive same calls
             const story = buildToolStory(aiState.toolHistory);
