@@ -1209,16 +1209,45 @@ return result;
         function executeTool(toolName, toolInput) {
             const tool = currentTools.find(t => t.name === toolName);
             if (!tool) {
-                return { error: `Unknown tool: ${toolName}` };
+                return { success: false, error: `Unknown tool: ${toolName}` };
             }
             
             try {
                 // Create a function from the implementation string
                 // It has access to 'stdlib' and 'input'
                 const fn = new Function('stdlib', 'input', tool.implementation);
-                return fn(stdlib, toolInput || {});
+                const result = fn(stdlib, toolInput || {});
+                
+                // If result is undefined, the tool forgot to return
+                if (result === undefined) {
+                    return { 
+                        success: false, 
+                        error: `Tool "${toolName}" didn't return anything. Add a return statement.` 
+                    };
+                }
+                
+                return result;
             } catch (e) {
-                return { error: `Tool execution error: ${e.message}` };
+                // Parse error messages to be more helpful
+                const errorMsg = e.message;
+                let friendlyError = errorMsg;
+                
+                // Common JS errors
+                if (errorMsg.includes('is not defined')) {
+                    const match = errorMsg.match(/(\w+) is not defined/);
+                    const varName = match ? match[1] : 'variable';
+                    friendlyError = `"${varName}" is not defined. Did you mean stdlib.${varName}() or misspell something?`;
+                } else if (errorMsg.includes('is not a function')) {
+                    const match = errorMsg.match(/(\w+) is not a function/);
+                    const fnName = match ? match[1] : 'something';
+                    friendlyError = `"${fnName}" is not a function. Check the stdlib reference for available functions.`;
+                } else if (errorMsg.includes('Unexpected token')) {
+                    friendlyError = `Syntax error: ${errorMsg}. Check for missing brackets, quotes, or semicolons.`;
+                } else if (errorMsg.includes('Cannot read properties of undefined')) {
+                    friendlyError = `Tried to access a property on undefined. A stdlib function might have returned null/undefined.`;
+                }
+                
+                return { success: false, error: friendlyError };
             }
         }
         
@@ -1762,6 +1791,9 @@ Good luck!`;
             
             document.getElementById('tool-editor-modal').style.display = 'flex';
             
+            // Hide any previous errors
+            hideToolError();
+            
             // Refresh CodeMirror after modal is visible
             setTimeout(() => codeEditor.refresh(), 10);
         }
@@ -1774,15 +1806,68 @@ Good luck!`;
         function saveTool() {
             if (editingToolIndex < 0) return;
             
+            const name = document.getElementById('edit-name').value;
+            const description = document.getElementById('edit-description').value;
+            const implementation = codeEditor.getValue();
+            
+            // Validate the implementation - try to create the function
+            const validationError = validateToolImplementation(implementation);
+            if (validationError) {
+                showToolError(validationError);
+                return;
+            }
+            
             const tool = currentTools[editingToolIndex];
-            tool.name = document.getElementById('edit-name').value;
-            tool.description = document.getElementById('edit-description').value;
-            tool.implementation = codeEditor.getValue();
+            tool.name = name;
+            tool.description = description;
+            tool.implementation = implementation;
             
             // Save to localStorage
             saveTools();
             renderToolsList();
             closeToolEditor();
+        }
+        
+        function validateToolImplementation(code) {
+            try {
+                // Try to create the function - catches syntax errors
+                new Function('stdlib', 'input', code);
+                return null; // No error
+            } catch (e) {
+                let errorMsg = e.message;
+                
+                // Make syntax errors more friendly
+                if (errorMsg.includes('Unexpected token')) {
+                    errorMsg = `Syntax error: ${errorMsg}. Check for missing brackets, quotes, or semicolons.`;
+                } else if (errorMsg.includes('Unexpected end of input')) {
+                    errorMsg = 'Unexpected end of code. You might be missing a closing bracket } or )';
+                } else if (errorMsg.includes('Unexpected identifier')) {
+                    errorMsg = `Syntax error: ${errorMsg}. Check for missing operators or semicolons.`;
+                }
+                
+                return errorMsg;
+            }
+        }
+        
+        function showToolError(message) {
+            // Show error in the modal
+            let errorEl = document.getElementById('tool-error');
+            if (!errorEl) {
+                errorEl = document.createElement('div');
+                errorEl.id = 'tool-error';
+                errorEl.style.cssText = 'background: rgba(255,80,80,0.2); border: 1px solid #f55; color: #f88; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-size: 0.85rem;';
+                const wrapper = document.getElementById('edit-implementation-wrapper');
+                wrapper.parentNode.insertBefore(errorEl, wrapper.nextSibling);
+            }
+            errorEl.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
+            errorEl.style.display = 'block';
+        }
+        
+        function hideToolError() {
+            const errorEl = document.getElementById('tool-error');
+            if (errorEl) {
+                errorEl.style.display = 'none';
+            }
         }
         
         function saveTools() {
