@@ -60,6 +60,13 @@ app.use('/api/inference', inferenceRoutes);
 // Admin routes
 app.use('/admin', adminRoutes);
 
+// Dev mode: serve games from workspace for development
+// Access games at /dev/game-name/index.html (e.g., /dev/rescue-run/index.html)
+// Note: __dirname is dist/ when compiled, so we need to go up 3 levels to reach games/
+const DEV_GAMES_DIR = path.join(__dirname, '../../../games');
+app.use('/dev', express.static(DEV_GAMES_DIR));
+console.log(`🔧 Dev mode enabled: serving games from ${DEV_GAMES_DIR}`);
+
 // Ensure directories exist
 const GAMES_DIR = path.join(__dirname, '../games');
 const UPLOADS_DIR = path.join(__dirname, '../uploads');

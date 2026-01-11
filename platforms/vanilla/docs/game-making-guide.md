@@ -4,6 +4,32 @@
 
 Build HTML5 games that can use AI inference (Claude/Ollama) through the platform's secure proxy. No API keys in your game code!
 
+## Development Workflow
+
+### 1. Create your game in `games/` directory
+```
+games/
+└── my-game/
+    ├── index.html
+    └── assets/
+```
+
+### 2. Start Vanilla Platform
+```bash
+cd platforms/vanilla
+npm run dev
+```
+
+### 3. Access your game via dev route
+```
+http://localhost:3000/dev/my-game/index.html
+```
+
+Your game has full access to auth and inference APIs while developing!
+
+### 4. Publish when ready
+Upload via the web UI at `http://localhost:3000` or copy to `public/`
+
 ## Quick Start Template
 
 ```html
