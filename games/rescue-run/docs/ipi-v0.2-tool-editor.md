@@ -58,6 +58,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [ ] Refactor existing tool functions to use stdlib
 - [ ] Ensure stdlib functions are pure/predictable
 - [ ] Document stdlib API (for players to reference)
+- [ ] **Verify via Playwright:** stdlib functions work correctly
 
 ### Milestone 2: Tool Definition Format
 - [ ] Define tool data structure:
@@ -72,27 +73,38 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [ ] Tool implementation runs in sandboxed context with stdlib access
 - [ ] Convert existing hardcoded tools to this format
 - [ ] Validate tool implementations don't break
+- [ ] **Verify via Playwright:** AI completes rescue with new tool format
 
-### Milestone 3: Tool Editor UI
-- [ ] Add "Edit Tools" panel/modal
+### Milestone 3: Simplified UI + Tool Editor
+- [ ] Remove manual controls (move buttons, scan button, etc.)
+- [ ] Remove game log panel (AI log is sufficient)
+- [ ] Add "Edit Tools" button/panel
 - [ ] List current tools with edit buttons
-- [ ] Edit form: name, description, parameters, implementation
-- [ ] Syntax highlighting for implementation code (optional)
-- [ ] Save/load tool definitions (localStorage for now)
+- [ ] Edit form: name, description, parameters, implementation (JS)
+- [ ] Save/load tool definitions (localStorage)
 - [ ] "Reset to defaults" button
+- [ ] **Verify via Playwright:** Can edit a tool and run AI with modified tool
 
 ### Milestone 4: Minimal System Prompt
 - [ ] Strip system prompt to bare minimum
 - [ ] Remove map info, coordinates, strategy hints
 - [ ] AI must discover through tools
-- [ ] Test that AI can still complete with good tools
-- [ ] Test that AI struggles with bad/missing tools
+- [ ] **Verify via Playwright:** AI can still complete with good default tools
+- [ ] **Verify via Playwright:** AI struggles with intentionally bad tools
 
-### Milestone 5: Teaching Iteration
-- [ ] Show tool call history after run
-- [ ] Highlight where AI got stuck/confused
-- [ ] Add "hints" system for struggling players
-- [ ] Maybe: suggested tool improvements based on failures
+### Milestone 5: Review Mode
+- [ ] After AI run, show "Review" panel
+- [ ] Display tool call history with results
+- [ ] Highlight where AI got stuck/confused (repeated failures, loops)
+- [ ] Show which tools were never used
+- [ ] Add "hints" system for struggling players (optional)
+- [ ] **Verify via Playwright:** Review panel shows meaningful feedback
+
+### Milestone 6: Polish (Optional)
+- [ ] Syntax highlighting for JS implementation editor
+- [ ] Better error messages for invalid tool implementations
+- [ ] Keyboard shortcuts
+- [ ] Mobile-friendly layout
 
 ---
 
@@ -168,7 +180,8 @@ return stdlib.getCarPosition();
 ┌─────────────────────────────────────────────────────────┐
 │ 🚗 Rescue Run                                           │
 ├─────────────────────┬───────────────────────────────────┤
-│                     │ Status: Ready          [Run AI]   │
+│                     │ Status: Ready                     │
+│                     │ [▶️ Run AI]  [🔄 Reset]            │
 │    [Game Canvas]    ├───────────────────────────────────┤
 │                     │ 🔧 Tools           [Edit Tools]   │
 │                     │ • scan()                          │
@@ -176,9 +189,31 @@ return stdlib.getCarPosition();
 │                     │ • pickup()                        │
 │                     │ • dropoff()                       │
 │                     ├───────────────────────────────────┤
-│                     │ AI Log                            │
+│                     │ 🤖 AI Log                         │
 │                     │ [Turn 1] scan() → ...             │
+│                     │ [Turn 2] move("east") → OK        │
 └─────────────────────┴───────────────────────────────────┘
+```
+
+After run completes → Review panel:
+```
+┌─────────────────────────────────────────────────────────┐
+│ 📊 Review                                    [Close]    │
+├─────────────────────────────────────────────────────────┤
+│ Result: ✅ SUCCESS (23 turns)                           │
+│                                                         │
+│ Tool Usage:                                             │
+│ • scan() - called 5 times                               │
+│ • move() - called 16 times (2 failures)                 │
+│ • pickup() - called 1 time                              │
+│ • dropoff() - called 1 time                             │
+│                                                         │
+│ ⚠️ Observations:                                        │
+│ • AI hit obstacles twice before scanning                │
+│ • Consider: add obstacle info to scan result?           │
+│                                                         │
+│              [Edit Tools]  [Run Again]                  │
+└─────────────────────────────────────────────────────────┘
 ```
 
 Tool Editor Modal:
