@@ -58,15 +58,15 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 - [x] Display win message
 - [x] Reset/restart button
 
-### Milestone 4: AI Integration (Claude Haiku)
-- [ ] Define tools in Claude tool format (name, description, input_schema)
-- [ ] System prompt: describe scenario, goal, current state
-- [ ] Agentic loop:
+### Milestone 4: AI Integration (Claude Haiku) ✅
+- [x] Define tools in Claude tool format (name, description, input_schema)
+- [x] System prompt: describe scenario, goal, current state
+- [x] Agentic loop:
   - Send state → Claude picks tool → execute → update state → repeat
-- [ ] Use `claude-haiku-4-5-20251001` model
-- [ ] Display AI's tool calls in a log panel
-- [ ] Watch AI complete (or fail) the rescue
-- [ ] Reference: [game-making-guide.md](../../../platforms/vanilla/docs/game-making-guide.md)
+- [x] Use `claude-haiku-4-5-20251001` model
+- [x] Display AI's tool calls in a log panel
+- [x] Watch AI complete (or fail) the rescue
+- [x] Reference: [game-making-guide.md](../../../platforms/vanilla/docs/game-making-guide.md)
 
 ### Milestone 5: Deploy to Vanilla Platform
 - [ ] Add auth check on load
@@ -80,7 +80,7 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 3 Complete
+### Status: Milestone 4 Complete
 
 ---
 

@@ -176,6 +176,90 @@
             height: 16px;
             border-radius: 2px;
         }
+        
+        .ai-panel {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .ai-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .ai-controls button {
+            flex: 1;
+        }
+        
+        #btn-run-ai {
+            background: #e94560;
+        }
+        
+        #btn-run-ai:hover {
+            background: #ff6b8a;
+        }
+        
+        #btn-run-ai:disabled {
+            background: #333;
+        }
+        
+        #btn-stop-ai {
+            background: #ff9800;
+        }
+        
+        #btn-stop-ai:hover {
+            background: #ffb74d;
+        }
+        
+        #ai-log {
+            background: #0a0a15;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #ccc;
+        }
+        
+        #ai-log .ai-thinking {
+            color: #ff9800;
+            font-style: italic;
+        }
+        
+        #ai-log .ai-tool {
+            color: #4fc3f7;
+        }
+        
+        #ai-log .ai-result {
+            color: #8f8;
+            margin-left: 10px;
+        }
+        
+        #ai-log .ai-error {
+            color: #f88;
+        }
+        
+        .ai-status {
+            font-size: 0.85rem;
+            padding: 6px;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 8px;
+            background: #333;
+        }
+        
+        .ai-status.running {
+            background: #e94560;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
     </style>
 </head>
 <body>
@@ -244,6 +328,18 @@
                 <h2>Log</h2>
                 <div id="log">
                     <div class="entry info">Game initializing...</div>
+                </div>
+            </div>
+            
+            <div class="game-panel">
+                <h2>🤖 AI Control</h2>
+                <div class="ai-panel">
+                    <div id="ai-status" class="ai-status">AI Ready</div>
+                    <div class="ai-controls">
+                        <button id="btn-run-ai">▶️ Run AI</button>
+                        <button id="btn-stop-ai" disabled>⏹️ Stop</button>
+                    </div>
+                    <div id="ai-log"></div>
                 </div>
             </div>
         </div>
@@ -695,6 +791,293 @@
         }
 
         // ===========================================
+        // AI INTEGRATION (Claude Haiku)
+        // ===========================================
+        
+        // Tool definitions in Claude API format
+        const CLAUDE_TOOLS = [
+            {
+                name: "scan",
+                description: "Look around and scan the surroundings. Returns your current position, the tile you're on, what direction you're facing, whether you have a person in the car, and what's in each cardinal direction (north, south, east, west) including tile type, whether it's passable, and if there's a person or safe zone there.",
+                input_schema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: "move",
+                description: "Move the car one tile in the specified direction. The car can only move on road tiles. Returns success status and your new position.",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        direction: {
+                            type: "string",
+                            enum: ["north", "south", "east", "west"],
+                            description: "The direction to move: north (up), south (down), east (right), or west (left)"
+                        }
+                    },
+                    required: ["direction"]
+                }
+            },
+            {
+                name: "pickup",
+                description: "Pick up a person if they are at your current location. You must be on the same tile as the person to pick them up.",
+                input_schema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: "dropoff",
+                description: "Drop off the person you're carrying. You must be at the safe zone and have a person in the car to drop them off. This completes the rescue!",
+                input_schema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            }
+        ];
+        
+        // AI state
+        const aiState = {
+            running: false,
+            messages: [],
+            stopRequested: false
+        };
+        
+        // AI logging
+        const aiLogEl = document.getElementById('ai-log');
+        
+        function aiLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = message;
+            aiLogEl.appendChild(entry);
+            aiLogEl.scrollTop = aiLogEl.scrollHeight;
+        }
+        
+        function clearAiLog() {
+            aiLogEl.innerHTML = '';
+        }
+        
+        // Build system prompt with current game state
+        function buildSystemPrompt() {
+            const scan = toolScan();
+            return `You are an AI controlling a rescue car in a top-down grid-based game.
+
+YOUR MISSION: Rescue the person and bring them to the safe zone.
+
+CURRENT STATE:
+- Your position: (${scan.current_position.x}, ${scan.current_position.y})
+- You are on: ${scan.current_tile}
+- You are facing: ${scan.facing}
+- Person in car: ${scan.person_in_car}
+${scan.person_at_current_location ? '- PERSON IS AT YOUR CURRENT LOCATION! Use pickup() to rescue them.' : ''}
+${scan.at_safe_zone ? '- YOU ARE AT THE SAFE ZONE!' : ''}
+
+SURROUNDINGS:
+- North: ${JSON.stringify(scan.surroundings.north)}
+- South: ${JSON.stringify(scan.surroundings.south)}  
+- East: ${JSON.stringify(scan.surroundings.east)}
+- West: ${JSON.stringify(scan.surroundings.west)}
+
+GAME INFO:
+- Grid is 8x8 (coordinates 0-7)
+- You can only drive on road tiles
+- Person starts at (6, 5)
+- Safe zone is at (1, 6)
+
+STRATEGY:
+1. First, use scan() to understand your surroundings
+2. Navigate to the person's location using move()
+3. When on the same tile as the person, use pickup()
+4. Navigate to the safe zone at (1, 6)
+5. When at the safe zone with the person, use dropoff()
+
+Be efficient - plan your route and execute it. You have limited moves.`;
+        }
+        
+        // Execute a tool and return the result
+        function executeTool(toolName, toolInput) {
+            switch (toolName) {
+                case 'scan':
+                    return toolScan();
+                case 'move':
+                    return toolMove(toolInput.direction);
+                case 'pickup':
+                    return toolPickup();
+                case 'dropoff':
+                    return toolDropoff();
+                default:
+                    return { error: `Unknown tool: ${toolName}` };
+            }
+        }
+        
+        // Call Claude API via vanilla platform proxy
+        async function callClaude(messages) {
+            const response = await fetch('/api/inference/anthropic/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    model: 'claude-haiku-4-5-20251001',
+                    max_tokens: 1024,
+                    system: buildSystemPrompt(),
+                    tools: CLAUDE_TOOLS,
+                    messages: messages
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'API call failed');
+            }
+            
+            return await response.json();
+        }
+        
+        // Main agentic loop
+        async function runAI() {
+            if (aiState.running) return;
+            
+            aiState.running = true;
+            aiState.stopRequested = false;
+            aiState.messages = [];
+            
+            clearAiLog();
+            updateAiStatus('Running...', true);
+            
+            document.getElementById('btn-run-ai').disabled = true;
+            document.getElementById('btn-stop-ai').disabled = false;
+            
+            // Disable manual controls while AI runs
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                btn.disabled = true;
+            });
+            
+            aiLog('🤖 AI starting rescue mission...', 'ai-thinking');
+            
+            // Start with a user message asking to complete the rescue
+            aiState.messages.push({
+                role: 'user',
+                content: 'Please rescue the person and bring them to the safe zone. Use the tools available to you. Start by scanning your surroundings to understand the situation.'
+            });
+            
+            let iterations = 0;
+            const maxIterations = 30; // Safety limit
+            
+            try {
+                while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
+                    iterations++;
+                    
+                    if (gameState.status === 'won') {
+                        aiLog('🎉 RESCUE COMPLETE! Mission successful!', 'ai-result');
+                        break;
+                    }
+                    
+                    // Call Claude
+                    aiLog(`[Turn ${iterations}] Thinking...`, 'ai-thinking');
+                    const response = await callClaude(aiState.messages);
+                    
+                    // Process response
+                    const assistantContent = response.content;
+                    aiState.messages.push({ role: 'assistant', content: assistantContent });
+                    
+                    // Check if Claude wants to use tools
+                    const toolUses = assistantContent.filter(block => block.type === 'tool_use');
+                    const textBlocks = assistantContent.filter(block => block.type === 'text');
+                    
+                    // Log any text Claude says
+                    for (const text of textBlocks) {
+                        if (text.text.trim()) {
+                            aiLog(`💭 ${text.text}`, 'ai-thinking');
+                        }
+                    }
+                    
+                    if (toolUses.length === 0) {
+                        // No tool use, check if we're done
+                        if (response.stop_reason === 'end_turn') {
+                            aiLog('AI finished without completing rescue', 'ai-error');
+                            break;
+                        }
+                    }
+                    
+                    // Execute each tool and collect results
+                    const toolResults = [];
+                    for (const toolUse of toolUses) {
+                        aiLog(`🔧 ${toolUse.name}(${JSON.stringify(toolUse.input)})`, 'ai-tool');
+                        
+                        const result = executeTool(toolUse.name, toolUse.input);
+                        
+                        // Log result
+                        if (result.success === false) {
+                            aiLog(`   ❌ ${result.error}`, 'ai-error');
+                        } else if (result.success === true) {
+                            aiLog(`   ✅ ${result.message || 'OK'}`, 'ai-result');
+                        } else {
+                            // Scan result - summarize it
+                            aiLog(`   📍 Pos: (${result.current_position.x},${result.current_position.y})`, 'ai-result');
+                        }
+                        
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify(result)
+                        });
+                        
+                        // Update display
+                        render();
+                        
+                        // Small delay for visual feedback
+                        await new Promise(r => setTimeout(r, 300));
+                    }
+                    
+                    // Add tool results to messages
+                    if (toolResults.length > 0) {
+                        aiState.messages.push({ role: 'user', content: toolResults });
+                    }
+                    
+                    // Small delay between turns
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
+                if (iterations >= maxIterations) {
+                    aiLog('⚠️ Max iterations reached', 'ai-error');
+                }
+                
+            } catch (error) {
+                aiLog(`❌ Error: ${error.message}`, 'ai-error');
+                console.error('AI error:', error);
+            }
+            
+            // Cleanup
+            aiState.running = false;
+            updateAiStatus('AI Ready', false);
+            document.getElementById('btn-run-ai').disabled = false;
+            document.getElementById('btn-stop-ai').disabled = true;
+            
+            // Re-enable manual controls if game not won
+            if (gameState.status !== 'won') {
+                document.querySelectorAll('.control-group button').forEach(btn => {
+                    btn.disabled = false;
+                });
+            }
+        }
+        
+        function stopAI() {
+            aiState.stopRequested = true;
+            aiLog('⏹️ Stop requested...', 'ai-thinking');
+        }
+        
+        function updateAiStatus(text, running) {
+            const statusEl = document.getElementById('ai-status');
+            statusEl.textContent = text;
+            statusEl.className = running ? 'ai-status running' : 'ai-status';
+        }
+
+        // ===========================================
         // UI BUTTON HANDLERS
         // ===========================================
         
@@ -757,6 +1140,15 @@
             // Reset button
             document.getElementById('btn-reset').addEventListener('click', () => {
                 resetGame();
+            });
+            
+            // AI buttons
+            document.getElementById('btn-run-ai').addEventListener('click', () => {
+                runAI();
+            });
+            
+            document.getElementById('btn-stop-ai').addEventListener('click', () => {
+                stopAI();
             });
             
             // Enable all tool buttons (not reset)
