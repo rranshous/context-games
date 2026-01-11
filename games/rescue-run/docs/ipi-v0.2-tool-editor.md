@@ -95,16 +95,14 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 ### Milestone 5: Review Mode
 - [ ] After AI run, show "Review" panel
 - [ ] Display tool call history with results
-- [ ] Highlight where AI got stuck/confused (repeated failures, loops)
 - [ ] Show which tools were never used
-- [ ] Add "hints" system for struggling players (optional)
 - [ ] **Verify via Playwright:** Review panel shows meaningful feedback
 
 ### Milestone 6: Polish (Optional)
 - [ ] Syntax highlighting for JS implementation editor
 - [ ] Better error messages for invalid tool implementations
-- [ ] Keyboard shortcuts
-- [ ] Mobile-friendly layout
+- [ ] Highlight where AI got stuck/confused (repeated failures, loops)
+- [ ] Add "hints" system for struggling players
 
 ---
 
