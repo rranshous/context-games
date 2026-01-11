@@ -35,23 +35,23 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 
 ## Plan
 
-### Milestone 1: Static Map Rendering
-- [ ] Create HTML file with canvas
-- [ ] Define simple tile grid (roads, grass, buildings)
-- [ ] Render car sprite at start position
-- [ ] Render person icon at rescue location
-- [ ] Render safe zone marker
-- [ ] Assets copied locally to `assets/` folder
+### Milestone 1: Static Map Rendering ✅
+- [x] Create HTML file with canvas
+- [x] Define simple tile grid (roads, grass, buildings)
+- [x] Render car sprite at start position
+- [x] Render person icon at rescue location
+- [x] Render safe zone marker
+- [x] Assets copied locally to `assets/` folder
 
-### Milestone 2: Game State & Tool Functions
-- [ ] Game state object (car position, car direction, person location, person picked up, etc.)
-- [ ] Implement tool functions:
+### Milestone 2: Game State & Tool Functions ✅
+- [x] Game state object (car position, car direction, person location, person picked up, etc.)
+- [x] Implement tool functions:
   - `scan()` - returns what's visible around the car
   - `move(direction)` - moves car one tile in direction
   - `pickup()` - picks up person if on same tile
   - `dropoff()` - drops person if at safe zone
-- [ ] Simple UI buttons to trigger each tool manually
-- [ ] Visual feedback when tools execute
+- [x] Simple UI buttons to trigger each tool manually
+- [x] Visual feedback when tools execute
 
 ### Milestone 3: Win/Lose Detection
 - [ ] Detect win: person delivered to safe zone
@@ -80,7 +80,7 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Not Started
+### Status: Milestone 2 Complete
 
 ---
 

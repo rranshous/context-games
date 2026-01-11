@@ -461,14 +461,264 @@
         }
 
         // ===========================================
+        // TOOL FUNCTIONS
+        // ===========================================
+        
+        // Helper: get tile type name
+        function getTileName(tileType) {
+            switch (tileType) {
+                case TILE.GRASS: return 'grass';
+                case TILE.ROAD: return 'road';
+                case TILE.BUILDING: return 'building';
+                default: return 'unknown';
+            }
+        }
+        
+        // Helper: check if position is valid
+        function isValidPosition(x, y) {
+            return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
+        }
+        
+        // Helper: check if position is road (car can move there)
+        function isRoad(x, y) {
+            if (!isValidPosition(x, y)) return false;
+            return gameState.map[y][x] === TILE.ROAD;
+        }
+        
+        // TOOL: scan() - Look around and report what's visible
+        function toolScan() {
+            const car = gameState.car;
+            const directions = [
+                { name: 'north', dx: 0, dy: -1 },
+                { name: 'south', dx: 0, dy: 1 },
+                { name: 'east', dx: 1, dy: 0 },
+                { name: 'west', dx: -1, dy: 0 }
+            ];
+            
+            const result = {
+                current_position: { x: car.x, y: car.y },
+                current_tile: getTileName(gameState.map[car.y][car.x]),
+                facing: car.direction,
+                person_in_car: gameState.personInCar,
+                surroundings: {}
+            };
+            
+            // Check each direction
+            for (const dir of directions) {
+                const nx = car.x + dir.dx;
+                const ny = car.y + dir.dy;
+                
+                if (isValidPosition(nx, ny)) {
+                    const tile = gameState.map[ny][nx];
+                    const info = {
+                        tile: getTileName(tile),
+                        passable: tile === TILE.ROAD
+                    };
+                    
+                    // Check for person
+                    if (!gameState.personInCar && 
+                        gameState.person.x === nx && 
+                        gameState.person.y === ny) {
+                        info.person_here = true;
+                    }
+                    
+                    // Check for safe zone
+                    if (gameState.safeZone.x === nx && gameState.safeZone.y === ny) {
+                        info.safe_zone_here = true;
+                    }
+                    
+                    result.surroundings[dir.name] = info;
+                } else {
+                    result.surroundings[dir.name] = { tile: 'edge', passable: false };
+                }
+            }
+            
+            // Check current tile for person/safe zone
+            if (!gameState.personInCar && 
+                gameState.person.x === car.x && 
+                gameState.person.y === car.y) {
+                result.person_at_current_location = true;
+            }
+            if (gameState.safeZone.x === car.x && gameState.safeZone.y === car.y) {
+                result.at_safe_zone = true;
+            }
+            
+            return result;
+        }
+        
+        // TOOL: move(direction) - Move the car one tile
+        function toolMove(direction) {
+            const car = gameState.car;
+            const moves = {
+                north: { dx: 0, dy: -1 },
+                south: { dx: 0, dy: 1 },
+                east: { dx: 1, dy: 0 },
+                west: { dx: -1, dy: 0 }
+            };
+            
+            if (!moves[direction]) {
+                return { success: false, error: `Invalid direction: ${direction}. Use: north, south, east, west` };
+            }
+            
+            const move = moves[direction];
+            const newX = car.x + move.dx;
+            const newY = car.y + move.dy;
+            
+            // Update facing direction
+            car.direction = direction;
+            
+            if (!isValidPosition(newX, newY)) {
+                return { success: false, error: 'Cannot move: would go off the map' };
+            }
+            
+            if (!isRoad(newX, newY)) {
+                const tileName = getTileName(gameState.map[newY][newX]);
+                return { success: false, error: `Cannot move: ${tileName} is not passable` };
+            }
+            
+            // Move the car
+            car.x = newX;
+            car.y = newY;
+            
+            const result = { 
+                success: true, 
+                new_position: { x: car.x, y: car.y },
+                facing: car.direction
+            };
+            
+            // Check what's at new location
+            if (!gameState.personInCar && 
+                gameState.person.x === car.x && 
+                gameState.person.y === car.y) {
+                result.person_at_current_location = true;
+            }
+            if (gameState.safeZone.x === car.x && gameState.safeZone.y === car.y) {
+                result.at_safe_zone = true;
+            }
+            
+            return result;
+        }
+        
+        // TOOL: pickup() - Pick up person if on same tile
+        function toolPickup() {
+            const car = gameState.car;
+            
+            if (gameState.personInCar) {
+                return { success: false, error: 'Person is already in the car' };
+            }
+            
+            if (gameState.person.rescued) {
+                return { success: false, error: 'Person has already been rescued' };
+            }
+            
+            if (gameState.person.x !== car.x || gameState.person.y !== car.y) {
+                return { 
+                    success: false, 
+                    error: 'No person at current location. Person is at (' + 
+                           gameState.person.x + ', ' + gameState.person.y + ')' 
+                };
+            }
+            
+            gameState.personInCar = true;
+            return { success: true, message: 'Person picked up! Now take them to the safe zone.' };
+        }
+        
+        // TOOL: dropoff() - Drop off person at safe zone
+        function toolDropoff() {
+            const car = gameState.car;
+            
+            if (!gameState.personInCar) {
+                return { success: false, error: 'No person in the car to drop off' };
+            }
+            
+            if (gameState.safeZone.x !== car.x || gameState.safeZone.y !== car.y) {
+                return { 
+                    success: false, 
+                    error: 'Not at safe zone. Safe zone is at (' + 
+                           gameState.safeZone.x + ', ' + gameState.safeZone.y + ')' 
+                };
+            }
+            
+            gameState.personInCar = false;
+            gameState.person.rescued = true;
+            return { success: true, message: 'Person dropped off at safe zone! RESCUE COMPLETE!' };
+        }
+
+        // ===========================================
+        // UI BUTTON HANDLERS
+        // ===========================================
+        
+        function setupButtons() {
+            // Scan button
+            document.getElementById('btn-scan').addEventListener('click', () => {
+                const result = toolScan();
+                log('scan() called', 'info');
+                log(JSON.stringify(result, null, 2), 'success');
+                render();
+            });
+            
+            // Move buttons
+            document.getElementById('btn-north').addEventListener('click', () => {
+                const result = toolMove('north');
+                log(`move('north') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            document.getElementById('btn-south').addEventListener('click', () => {
+                const result = toolMove('south');
+                log(`move('south') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            document.getElementById('btn-east').addEventListener('click', () => {
+                const result = toolMove('east');
+                log(`move('east') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            document.getElementById('btn-west').addEventListener('click', () => {
+                const result = toolMove('west');
+                log(`move('west') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            // Pickup button
+            document.getElementById('btn-pickup').addEventListener('click', () => {
+                const result = toolPickup();
+                log(`pickup() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (result.success) log(result.message, 'success');
+                else log(result.error, 'error');
+                render();
+            });
+            
+            // Dropoff button
+            document.getElementById('btn-dropoff').addEventListener('click', () => {
+                const result = toolDropoff();
+                log(`dropoff() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (result.success) log(result.message, 'success');
+                else log(result.error, 'error');
+                render();
+            });
+            
+            // Enable all buttons
+            document.querySelectorAll('.controls button').forEach(btn => {
+                btn.disabled = false;
+            });
+        }
+
+        // ===========================================
         // INITIALIZATION
         // ===========================================
         async function init() {
             log('Loading assets...');
             await loadAssets();
             render();
-            log('Milestone 1 complete - static rendering', 'success');
-            log('Tools disabled until Milestone 2', 'info');
+            setupButtons();
+            log('Ready! Use the tools to rescue the person.', 'success');
         }
 
         init();
