@@ -68,11 +68,11 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 - [x] Watch AI complete (or fail) the rescue
 - [x] Reference: [game-making-guide.md](../../../platforms/vanilla/docs/game-making-guide.md)
 
-### Milestone 5: Deploy to Vanilla Platform
-- [ ] Add auth check on load
-- [ ] Use vanilla platform inference endpoints
-- [ ] Test on vanilla platform
-- [ ] Basic error handling (auth fail, API errors, token limits)
+### Milestone 5: Deploy to Vanilla Platform ✅
+- [x] Add auth check on load
+- [x] Use vanilla platform inference endpoints
+- [x] Test on vanilla platform
+- [x] Basic error handling (auth fail, API errors, token limits)
 
 ---
 
@@ -80,7 +80,7 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 4 Complete
+### Status: Milestone 5 Complete - v0.1 Demo Done! 🎉
 
 ---
 

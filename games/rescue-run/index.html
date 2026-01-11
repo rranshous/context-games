@@ -932,7 +932,15 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.error || 'API call failed');
+                const errorMsg = error.error || 'API call failed';
+                
+                // Handle specific error types
+                if (response.status === 401) {
+                    throw new Error('AUTH_REQUIRED');
+                } else if (errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('limit')) {
+                    throw new Error('TOKEN_LIMIT');
+                }
+                throw new Error(errorMsg);
             }
             
             return await response.json();
@@ -941,6 +949,12 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         // Main agentic loop
         async function runAI() {
             if (aiState.running) return;
+            
+            // Check auth before starting
+            if (!currentUser) {
+                aiLog('❌ Please login first', 'ai-error');
+                return;
+            }
             
             aiState.running = true;
             aiState.stopRequested = false;
@@ -1048,14 +1062,23 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                 }
                 
             } catch (error) {
-                aiLog(`❌ Error: ${error.message}`, 'ai-error');
+                // Handle specific error types with user-friendly messages
+                if (error.message === 'AUTH_REQUIRED') {
+                    aiLog('❌ Session expired. Please login again.', 'ai-error');
+                    currentUser = null;
+                    showLoginPrompt();
+                } else if (error.message === 'TOKEN_LIMIT') {
+                    aiLog('❌ Token limit reached! Contact admin for more tokens.', 'ai-error');
+                } else {
+                    aiLog(`❌ Error: ${error.message}`, 'ai-error');
+                }
                 console.error('AI error:', error);
             }
             
             // Cleanup
             aiState.running = false;
             updateAiStatus('AI Ready', false);
-            document.getElementById('btn-run-ai').disabled = false;
+            document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
             
             // Re-enable manual controls if game not won
@@ -1158,14 +1181,58 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         }
 
         // ===========================================
-        // INITIALIZATION
+        // INITIALIZATION & AUTH
         // ===========================================
+        
+        let currentUser = null;
+        
+        async function checkAuth() {
+            try {
+                const res = await fetch('/auth/me', { credentials: 'include' });
+                if (!res.ok) {
+                    return null;
+                }
+                const data = await res.json();
+                return data.user;
+            } catch (e) {
+                console.error('Auth check failed:', e);
+                return null;
+            }
+        }
+        
+        function showLoginPrompt() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `
+                <div style="color: #ff9800;">⚠️ Login Required</div>
+                <div style="font-size: 0.8rem; margin-top: 5px;">
+                    <a href="/" style="color: #4fc3f7;">Go to login page</a>
+                </div>
+            `;
+            statusEl.className = 'status';
+            
+            // Disable AI button
+            document.getElementById('btn-run-ai').disabled = true;
+            
+            aiLog('Please login to use AI features', 'ai-error');
+        }
+        
         async function init() {
             log('Loading assets...');
             await loadAssets();
             render();
             setupButtons();
-            log('Ready! Use the tools to rescue the person.', 'success');
+            
+            // Check authentication
+            log('Checking authentication...');
+            currentUser = await checkAuth();
+            
+            if (currentUser) {
+                log(`Logged in as ${currentUser.username}`, 'success');
+                log('Ready! Use the tools to rescue the person.', 'success');
+            } else {
+                log('Not logged in - AI features disabled', 'error');
+                showLoginPrompt();
+            }
         }
 
         init();
