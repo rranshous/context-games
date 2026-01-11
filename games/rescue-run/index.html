@@ -515,6 +515,32 @@
             padding: 8px;
             font-size: 0.85rem;
         }
+        
+        .review-story {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #aaa;
+            padding: 10px;
+            background: #0a0a15;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+        
+        .review-story .story-fail {
+            color: #f88;
+        }
+        
+        .review-story .story-success {
+            color: #8f8;
+        }
+        
+        .review-tool-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
     </style>
 </head>
 <body>
@@ -1153,12 +1179,14 @@ return result;
             stopRequested: false,
             // Review tracking
             toolStats: {},      // { toolName: { calls: 0, successes: 0, failures: 0 } }
+            toolHistory: [],    // [{ name: 'scan', args: {}, success: true }, ...]
             totalTurns: 0,
             result: null        // 'success' | 'failure' | 'stopped' | 'error'
         };
         
         function resetToolStats() {
             aiState.toolStats = {};
+            aiState.toolHistory = [];
             aiState.totalTurns = 0;
             aiState.result = null;
             // Initialize stats for all tools
@@ -1167,16 +1195,19 @@ return result;
             });
         }
         
-        function trackToolCall(toolName, result) {
+        function trackToolCall(toolName, toolInput, result) {
             if (!aiState.toolStats[toolName]) {
                 aiState.toolStats[toolName] = { calls: 0, successes: 0, failures: 0 };
             }
             aiState.toolStats[toolName].calls++;
-            if (result.success === false) {
-                aiState.toolStats[toolName].failures++;
-            } else {
+            const success = result.success !== false;
+            if (success) {
                 aiState.toolStats[toolName].successes++;
+            } else {
+                aiState.toolStats[toolName].failures++;
             }
+            // Record in history
+            aiState.toolHistory.push({ name: toolName, args: toolInput, success });
         }
         
         // AI logging
@@ -1322,7 +1353,7 @@ Good luck!`;
                         const result = executeTool(toolUse.name, toolUse.input);
                         
                         // Track for review
-                        trackToolCall(toolUse.name, result);
+                        trackToolCall(toolUse.name, toolUse.input, result);
                         
                         // Log result
                         if (result.success === false) {
@@ -1424,10 +1455,18 @@ Good luck!`;
             resultEl.textContent = resultMessages[aiState.result] || 'Unknown result';
             resultEl.className = `review-result ${aiState.result === 'success' ? 'success' : 'failure'}`;
             
+            // Build the story - compress consecutive same calls
+            const story = buildToolStory(aiState.toolHistory);
+            
             // Tool stats
             const toolNames = currentTools.map(t => t.name);
             let statsHtml = '';
             
+            // Story section
+            statsHtml += `<div class="review-story">${story}</div>`;
+            
+            // Stats per tool
+            statsHtml += '<div class="review-tool-stats">';
             for (const toolName of toolNames) {
                 const stats = aiState.toolStats[toolName] || { calls: 0, successes: 0, failures: 0 };
                 const neverUsed = stats.calls === 0;
@@ -1437,17 +1476,64 @@ Good luck!`;
                         <span class="tool-name">${toolName}()</span>
                         <span class="stat-counts">
                             ${neverUsed ? '' : `
-                                <span class="calls">${stats.calls} calls</span>
-                                ${stats.successes > 0 ? `<span class="success-count">✓${stats.successes}</span>` : ''}
                                 ${stats.failures > 0 ? `<span class="fail-count">✗${stats.failures}</span>` : ''}
+                                ${stats.successes > 0 ? `<span class="success-count">✓${stats.successes}</span>` : ''}
                             `}
                         </span>
                     </div>
                 `;
             }
+            statsHtml += '</div>';
             
             statsEl.innerHTML = statsHtml;
             panel.style.display = 'block';
+        }
+        
+        function buildToolStory(history) {
+            if (!history || history.length === 0) return '<em>No tool calls</em>';
+            
+            const parts = [];
+            let i = 0;
+            
+            while (i < history.length) {
+                const call = history[i];
+                let count = 1;
+                
+                // For move, group by same direction
+                if (call.name === 'move') {
+                    const dir = call.args?.direction;
+                    while (i + count < history.length && 
+                           history[i + count].name === 'move' && 
+                           history[i + count].args?.direction === dir) {
+                        count++;
+                    }
+                    const failCount = history.slice(i, i + count).filter(c => !c.success).length;
+                    let text = `move(${dir})`;
+                    if (count > 1) text += `×${count}`;
+                    if (failCount > 0) text = `<span class="story-fail">${text}</span>`;
+                    parts.push(text);
+                }
+                // For scan, just count consecutive scans
+                else if (call.name === 'scan') {
+                    while (i + count < history.length && history[i + count].name === 'scan') {
+                        count++;
+                    }
+                    let text = 'scan';
+                    if (count > 1) text += `×${count}`;
+                    parts.push(text);
+                }
+                // For pickup/dropoff, show success/fail
+                else {
+                    let text = call.name;
+                    if (!call.success) text = `<span class="story-fail">${text}!</span>`;
+                    else text = `<span class="story-success">${text}✓</span>`;
+                    parts.push(text);
+                }
+                
+                i += count;
+            }
+            
+            return parts.join(' → ');
         }
         
         function hideReview() {
