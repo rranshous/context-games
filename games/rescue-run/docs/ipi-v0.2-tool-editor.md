@@ -92,11 +92,11 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [x] **Verify via Playwright:** AI can still complete with good default tools (35 turns)
 - [x] **Verify via Playwright:** AI struggles with intentionally bad tools (failed at 50 turns)
 
-### Milestone 5: Review Mode
-- [ ] After AI run, show "Review" panel
-- [ ] Display tool call history with results
-- [ ] Show which tools were never used
-- [ ] **Verify via Playwright:** Review panel shows meaningful feedback
+### Milestone 5: Review Mode ✅
+- [x] After AI run, show "Review" panel
+- [x] Display tool call history with results
+- [x] Show which tools were never used
+- [x] **Verify via Playwright:** Review panel shows meaningful feedback
 
 ### Milestone 6: Polish (Optional)
 - [ ] Syntax highlighting for JS implementation editor
@@ -110,7 +110,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 4 Complete
+### Status: Milestone 5 Complete (v0.2 Done!)
 
 ---
 

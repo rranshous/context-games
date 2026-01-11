@@ -420,6 +420,101 @@
         #btn-cancel-edit {
             background: #666;
         }
+        
+        /* Review Panel */
+        .review-panel {
+            margin-top: 15px;
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        
+        .review-panel h3 {
+            margin: 0 0 12px 0;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .review-result {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        
+        .review-result.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #8f8;
+        }
+        
+        .review-result.failure {
+            background: rgba(233, 69, 96, 0.2);
+            color: #f88;
+        }
+        
+        .review-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .review-stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: #0a0a15;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .review-stat-item .tool-name {
+            font-family: monospace;
+            color: #4fc3f7;
+        }
+        
+        .review-stat-item .stat-counts {
+            display: flex;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .review-stat-item .stat-counts .calls {
+            color: #aaa;
+        }
+        
+        .review-stat-item .stat-counts .success-count {
+            color: #8f8;
+        }
+        
+        .review-stat-item .stat-counts .fail-count {
+            color: #f88;
+        }
+        
+        .review-stat-item.never-used {
+            opacity: 0.5;
+        }
+        
+        .review-stat-item.never-used .tool-name::after {
+            content: " (never used)";
+            color: #888;
+            font-style: italic;
+        }
+        
+        .review-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .review-actions button {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
@@ -463,6 +558,17 @@
                         <button id="btn-stop-ai" disabled>⏹️ Stop</button>
                     </div>
                     <div id="ai-log"></div>
+                    
+                    <!-- Review Panel (hidden until run completes) -->
+                    <div id="review-panel" class="review-panel" style="display: none;">
+                        <h3>📊 Review <button id="btn-close-review" style="padding: 2px 8px; font-size: 0.75rem;">×</button></h3>
+                        <div id="review-result" class="review-result"></div>
+                        <div id="review-stats" class="review-stats"></div>
+                        <div class="review-actions">
+                            <button id="btn-edit-after-review">✏️ Edit Tools</button>
+                            <button id="btn-run-again">▶️ Run Again</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -1044,8 +1150,34 @@ return result;
         const aiState = {
             running: false,
             messages: [],
-            stopRequested: false
+            stopRequested: false,
+            // Review tracking
+            toolStats: {},      // { toolName: { calls: 0, successes: 0, failures: 0 } }
+            totalTurns: 0,
+            result: null        // 'success' | 'failure' | 'stopped' | 'error'
         };
+        
+        function resetToolStats() {
+            aiState.toolStats = {};
+            aiState.totalTurns = 0;
+            aiState.result = null;
+            // Initialize stats for all tools
+            currentTools.forEach(tool => {
+                aiState.toolStats[tool.name] = { calls: 0, successes: 0, failures: 0 };
+            });
+        }
+        
+        function trackToolCall(toolName, result) {
+            if (!aiState.toolStats[toolName]) {
+                aiState.toolStats[toolName] = { calls: 0, successes: 0, failures: 0 };
+            }
+            aiState.toolStats[toolName].calls++;
+            if (result.success === false) {
+                aiState.toolStats[toolName].failures++;
+            } else {
+                aiState.toolStats[toolName].successes++;
+            }
+        }
         
         // AI logging
         const aiLogEl = document.getElementById('ai-log');
@@ -1120,6 +1252,10 @@ Good luck!`;
             aiState.stopRequested = false;
             aiState.messages = [];
             
+            // Reset tracking for review
+            resetToolStats();
+            hideReview();
+            
             clearAiLog();
             updateAiStatus('Running...', true);
             
@@ -1185,6 +1321,9 @@ Good luck!`;
                         
                         const result = executeTool(toolUse.name, toolUse.input);
                         
+                        // Track for review
+                        trackToolCall(toolUse.name, result);
+                        
                         // Log result
                         if (result.success === false) {
                             aiLog(`   ❌ ${result.error}`, 'ai-error');
@@ -1219,9 +1358,24 @@ Good luck!`;
                 
                 if (iterations >= maxIterations) {
                     aiLog('⚠️ Max iterations reached', 'ai-error');
+                    aiState.result = 'failure';
                 }
                 
+                // Set result based on game state
+                if (gameState.status === 'won') {
+                    aiState.result = 'success';
+                } else if (aiState.stopRequested) {
+                    aiState.result = 'stopped';
+                } else if (!aiState.result) {
+                    aiState.result = 'failure';
+                }
+                
+                aiState.totalTurns = iterations;
+                
             } catch (error) {
+                aiState.result = 'error';
+                aiState.totalTurns = iterations;
+                
                 // Handle specific error types with user-friendly messages
                 if (error.message === 'AUTH_REQUIRED') {
                     aiLog('❌ Session expired. Please login again.', 'ai-error');
@@ -1240,11 +1394,64 @@ Good luck!`;
             updateAiStatus('AI Ready', false);
             document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
+            
+            // Show review panel
+            showReview();
         }
         
         function stopAI() {
             aiState.stopRequested = true;
             aiLog('⏹️ Stop requested...', 'ai-thinking');
+        }
+        
+        // ===========================================
+        // REVIEW PANEL
+        // ===========================================
+        
+        function showReview() {
+            const panel = document.getElementById('review-panel');
+            const resultEl = document.getElementById('review-result');
+            const statsEl = document.getElementById('review-stats');
+            
+            // Result summary
+            const resultMessages = {
+                success: `✅ SUCCESS! Rescued in ${aiState.totalTurns} turns`,
+                failure: `❌ FAILED after ${aiState.totalTurns} turns`,
+                stopped: `⏹️ STOPPED at turn ${aiState.totalTurns}`,
+                error: `⚠️ ERROR at turn ${aiState.totalTurns}`
+            };
+            
+            resultEl.textContent = resultMessages[aiState.result] || 'Unknown result';
+            resultEl.className = `review-result ${aiState.result === 'success' ? 'success' : 'failure'}`;
+            
+            // Tool stats
+            const toolNames = currentTools.map(t => t.name);
+            let statsHtml = '';
+            
+            for (const toolName of toolNames) {
+                const stats = aiState.toolStats[toolName] || { calls: 0, successes: 0, failures: 0 };
+                const neverUsed = stats.calls === 0;
+                
+                statsHtml += `
+                    <div class="review-stat-item ${neverUsed ? 'never-used' : ''}">
+                        <span class="tool-name">${toolName}()</span>
+                        <span class="stat-counts">
+                            ${neverUsed ? '' : `
+                                <span class="calls">${stats.calls} calls</span>
+                                ${stats.successes > 0 ? `<span class="success-count">✓${stats.successes}</span>` : ''}
+                                ${stats.failures > 0 ? `<span class="fail-count">✗${stats.failures}</span>` : ''}
+                            `}
+                        </span>
+                    </div>
+                `;
+            }
+            
+            statsEl.innerHTML = statsHtml;
+            panel.style.display = 'block';
+        }
+        
+        function hideReview() {
+            document.getElementById('review-panel').style.display = 'none';
         }
         
         function updateAiStatus(text, running) {
@@ -1374,6 +1581,19 @@ Good luck!`;
                 if (e.target.id === 'tool-editor-modal') {
                     closeToolEditor();
                 }
+            });
+            
+            // Review panel buttons
+            document.getElementById('btn-close-review').addEventListener('click', hideReview);
+            document.getElementById('btn-edit-after-review').addEventListener('click', () => {
+                if (currentTools.length > 0) {
+                    openToolEditor(0);
+                }
+            });
+            document.getElementById('btn-run-again').addEventListener('click', () => {
+                resetGame();
+                hideReview();
+                runAI();
             });
         }
 
