@@ -98,11 +98,11 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [x] Show which tools were never used
 - [x] **Verify via Playwright:** Review panel shows meaningful feedback
 
-### Milestone 6: Polish (Optional)
-- [ ] Syntax highlighting for JS implementation editor
-- [ ] Better error messages for invalid tool implementations
-- [ ] Highlight where AI got stuck/confused (repeated failures, loops)
-- [ ] Add "hints" system for struggling players
+### Milestone 6: Polish ✅
+- [x] Syntax highlighting for JS implementation editor (CodeMirror + Dracula theme)
+- [x] Better error messages for invalid tool implementations
+- [x] Highlight where AI got stuck/confused (back-and-forth, consecutive failures)
+- [x] Add "hints" system for struggling players
 
 ---
 
@@ -110,7 +110,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 5 Complete (v0.2 Done!)
+### Status: v0.2 COMPLETE (All Milestones Done!)
 
 ---
 
