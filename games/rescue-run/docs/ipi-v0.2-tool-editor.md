@@ -53,12 +53,12 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 ## Plan
 
-### Milestone 1: Extract Standard Library
-- [ ] Create `stdlib` object with all low-level functions
-- [ ] Refactor existing tool functions to use stdlib
-- [ ] Ensure stdlib functions are pure/predictable
-- [ ] Document stdlib API (for players to reference)
-- [ ] **Verify via Playwright:** stdlib functions work correctly
+### Milestone 1: Extract Standard Library ✅
+- [x] Create `stdlib` object with all low-level functions
+- [x] Refactor existing tool functions to use stdlib
+- [x] Ensure stdlib functions are pure/predictable
+- [x] Document stdlib API (for players to reference)
+- [x] **Verify via Playwright:** stdlib functions work correctly
 
 ### Milestone 2: Tool Definition Format
 - [ ] Define tool data structure:
@@ -110,7 +110,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Not Started
+### Status: Milestone 1 Complete
 
 ---
 

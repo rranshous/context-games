@@ -558,85 +558,149 @@
         }
 
         // ===========================================
-        // TOOL FUNCTIONS
+        // STANDARD LIBRARY (stdlib)
+        // Low-level game primitives for tool implementations
         // ===========================================
-        
-        // Helper: get tile type name
-        function getTileName(tileType) {
-            switch (tileType) {
-                case TILE.GRASS: return 'grass';
-                case TILE.ROAD: return 'road';
-                case TILE.BUILDING: return 'building';
-                default: return 'unknown';
+        const stdlib = {
+            // === Position/State ===
+            getCarPosition: () => ({ x: gameState.car.x, y: gameState.car.y }),
+            getCarDirection: () => gameState.car.direction,
+            getPersonPosition: () => gameState.person.rescued ? null : { x: gameState.person.x, y: gameState.person.y },
+            getSafeZonePosition: () => ({ x: gameState.safeZone.x, y: gameState.safeZone.y }),
+            isPersonInCar: () => gameState.personInCar,
+            isPersonRescued: () => gameState.person.rescued,
+            
+            // === Map ===
+            getGridSize: () => ({ width: GRID_SIZE, height: GRID_SIZE }),
+            isValidPosition: (x, y) => x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE,
+            getTileAt: (x, y) => {
+                if (!stdlib.isValidPosition(x, y)) {
+                    return { type: 'edge', passable: false };
+                }
+                const tile = gameState.map[y][x];
+                const typeNames = { [TILE.GRASS]: 'grass', [TILE.ROAD]: 'road', [TILE.BUILDING]: 'building' };
+                return {
+                    type: typeNames[tile] || 'unknown',
+                    passable: tile === TILE.ROAD
+                };
+            },
+            
+            // === Actions ===
+            moveCarOneStep: (direction) => {
+                const moves = {
+                    north: { dx: 0, dy: -1 },
+                    south: { dx: 0, dy: 1 },
+                    east: { dx: 1, dy: 0 },
+                    west: { dx: -1, dy: 0 }
+                };
+                
+                if (!moves[direction]) {
+                    return { success: false, error: `Invalid direction: ${direction}` };
+                }
+                
+                const move = moves[direction];
+                const newX = gameState.car.x + move.dx;
+                const newY = gameState.car.y + move.dy;
+                
+                // Always update facing direction
+                gameState.car.direction = direction;
+                
+                if (!stdlib.isValidPosition(newX, newY)) {
+                    return { success: false, error: 'Would go off the map' };
+                }
+                
+                const tile = stdlib.getTileAt(newX, newY);
+                if (!tile.passable) {
+                    return { success: false, error: `${tile.type} is not passable` };
+                }
+                
+                // Move the car
+                gameState.car.x = newX;
+                gameState.car.y = newY;
+                return { success: true };
+            },
+            
+            pickupPerson: () => {
+                if (gameState.personInCar) {
+                    return { success: false, error: 'Person already in car' };
+                }
+                if (gameState.person.rescued) {
+                    return { success: false, error: 'Person already rescued' };
+                }
+                const car = gameState.car;
+                const person = gameState.person;
+                if (car.x !== person.x || car.y !== person.y) {
+                    return { success: false, error: 'No person at current location' };
+                }
+                gameState.personInCar = true;
+                return { success: true };
+            },
+            
+            dropoffPerson: () => {
+                if (!gameState.personInCar) {
+                    return { success: false, error: 'No person in car' };
+                }
+                const car = gameState.car;
+                const sz = gameState.safeZone;
+                if (car.x !== sz.x || car.y !== sz.y) {
+                    return { success: false, error: 'Not at safe zone' };
+                }
+                gameState.personInCar = false;
+                gameState.person.rescued = true;
+                gameState.status = 'won';
+                checkWinCondition();
+                return { success: true };
             }
-        }
-        
-        // Helper: check if position is valid
-        function isValidPosition(x, y) {
-            return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
-        }
-        
-        // Helper: check if position is road (car can move there)
-        function isRoad(x, y) {
-            if (!isValidPosition(x, y)) return false;
-            return gameState.map[y][x] === TILE.ROAD;
-        }
+        };
+
+        // ===========================================
+        // TOOL FUNCTIONS (use stdlib)
+        // ===========================================
         
         // TOOL: scan() - Look around and report what's visible
         function toolScan() {
-            const car = gameState.car;
-            const directions = [
-                { name: 'north', dx: 0, dy: -1 },
-                { name: 'south', dx: 0, dy: 1 },
-                { name: 'east', dx: 1, dy: 0 },
-                { name: 'west', dx: -1, dy: 0 }
-            ];
+            const pos = stdlib.getCarPosition();
+            const directions = ['north', 'south', 'east', 'west'];
+            const offsets = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+            
+            const surroundings = {};
+            for (const dir of directions) {
+                const [dx, dy] = offsets[dir];
+                const nx = pos.x + dx;
+                const ny = pos.y + dy;
+                const tile = stdlib.getTileAt(nx, ny);
+                const info = { ...tile };
+                
+                // Check for person
+                const personPos = stdlib.getPersonPosition();
+                if (personPos && personPos.x === nx && personPos.y === ny) {
+                    info.person_here = true;
+                }
+                
+                // Check for safe zone
+                const szPos = stdlib.getSafeZonePosition();
+                if (szPos.x === nx && szPos.y === ny) {
+                    info.safe_zone_here = true;
+                }
+                
+                surroundings[dir] = info;
+            }
             
             const result = {
-                current_position: { x: car.x, y: car.y },
-                current_tile: getTileName(gameState.map[car.y][car.x]),
-                facing: car.direction,
-                person_in_car: gameState.personInCar,
-                surroundings: {}
+                current_position: pos,
+                current_tile: stdlib.getTileAt(pos.x, pos.y).type,
+                facing: stdlib.getCarDirection(),
+                person_in_car: stdlib.isPersonInCar(),
+                surroundings
             };
             
-            // Check each direction
-            for (const dir of directions) {
-                const nx = car.x + dir.dx;
-                const ny = car.y + dir.dy;
-                
-                if (isValidPosition(nx, ny)) {
-                    const tile = gameState.map[ny][nx];
-                    const info = {
-                        tile: getTileName(tile),
-                        passable: tile === TILE.ROAD
-                    };
-                    
-                    // Check for person
-                    if (!gameState.personInCar && 
-                        gameState.person.x === nx && 
-                        gameState.person.y === ny) {
-                        info.person_here = true;
-                    }
-                    
-                    // Check for safe zone
-                    if (gameState.safeZone.x === nx && gameState.safeZone.y === ny) {
-                        info.safe_zone_here = true;
-                    }
-                    
-                    result.surroundings[dir.name] = info;
-                } else {
-                    result.surroundings[dir.name] = { tile: 'edge', passable: false };
-                }
-            }
-            
             // Check current tile for person/safe zone
-            if (!gameState.personInCar && 
-                gameState.person.x === car.x && 
-                gameState.person.y === car.y) {
+            const personPos = stdlib.getPersonPosition();
+            if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
                 result.person_at_current_location = true;
             }
-            if (gameState.safeZone.x === car.x && gameState.safeZone.y === car.y) {
+            const szPos = stdlib.getSafeZonePosition();
+            if (szPos.x === pos.x && szPos.y === pos.y) {
                 result.at_safe_zone = true;
             }
             
@@ -645,102 +709,41 @@
         
         // TOOL: move(direction) - Move the car one tile
         function toolMove(direction) {
-            const car = gameState.car;
-            const moves = {
-                north: { dx: 0, dy: -1 },
-                south: { dx: 0, dy: 1 },
-                east: { dx: 1, dy: 0 },
-                west: { dx: -1, dy: 0 }
-            };
-            
-            if (!moves[direction]) {
-                return { success: false, error: `Invalid direction: ${direction}. Use: north, south, east, west` };
+            const result = stdlib.moveCarOneStep(direction);
+            if (result.success) {
+                const pos = stdlib.getCarPosition();
+                result.new_position = pos;
+                result.facing = stdlib.getCarDirection();
+                
+                // Check what's at new location
+                const personPos = stdlib.getPersonPosition();
+                if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
+                    result.person_at_current_location = true;
+                }
+                const szPos = stdlib.getSafeZonePosition();
+                if (szPos.x === pos.x && szPos.y === pos.y) {
+                    result.at_safe_zone = true;
+                }
             }
-            
-            const move = moves[direction];
-            const newX = car.x + move.dx;
-            const newY = car.y + move.dy;
-            
-            // Update facing direction
-            car.direction = direction;
-            
-            if (!isValidPosition(newX, newY)) {
-                return { success: false, error: 'Cannot move: would go off the map' };
-            }
-            
-            if (!isRoad(newX, newY)) {
-                const tileName = getTileName(gameState.map[newY][newX]);
-                return { success: false, error: `Cannot move: ${tileName} is not passable` };
-            }
-            
-            // Move the car
-            car.x = newX;
-            car.y = newY;
-            
-            const result = { 
-                success: true, 
-                new_position: { x: car.x, y: car.y },
-                facing: car.direction
-            };
-            
-            // Check what's at new location
-            if (!gameState.personInCar && 
-                gameState.person.x === car.x && 
-                gameState.person.y === car.y) {
-                result.person_at_current_location = true;
-            }
-            if (gameState.safeZone.x === car.x && gameState.safeZone.y === car.y) {
-                result.at_safe_zone = true;
-            }
-            
             return result;
         }
         
         // TOOL: pickup() - Pick up person if on same tile
         function toolPickup() {
-            const car = gameState.car;
-            
-            if (gameState.personInCar) {
-                return { success: false, error: 'Person is already in the car' };
+            const result = stdlib.pickupPerson();
+            if (result.success) {
+                result.message = 'Person picked up! Now take them to the safe zone.';
             }
-            
-            if (gameState.person.rescued) {
-                return { success: false, error: 'Person has already been rescued' };
-            }
-            
-            if (gameState.person.x !== car.x || gameState.person.y !== car.y) {
-                return { 
-                    success: false, 
-                    error: 'No person at current location. Person is at (' + 
-                           gameState.person.x + ', ' + gameState.person.y + ')' 
-                };
-            }
-            
-            gameState.personInCar = true;
-            return { success: true, message: 'Person picked up! Now take them to the safe zone.' };
+            return result;
         }
         
         // TOOL: dropoff() - Drop off person at safe zone
         function toolDropoff() {
-            const car = gameState.car;
-            
-            if (!gameState.personInCar) {
-                return { success: false, error: 'No person in the car to drop off' };
+            const result = stdlib.dropoffPerson();
+            if (result.success) {
+                result.message = 'Person dropped off at safe zone! RESCUE COMPLETE!';
             }
-            
-            if (gameState.safeZone.x !== car.x || gameState.safeZone.y !== car.y) {
-                return { 
-                    success: false, 
-                    error: 'Not at safe zone. Safe zone is at (' + 
-                           gameState.safeZone.x + ', ' + gameState.safeZone.y + ')' 
-                };
-            }
-            
-            gameState.personInCar = false;
-            gameState.person.rescued = true;
-            gameState.status = 'won';
-            checkWinCondition();
-            return { success: true, message: 'Person dropped off at safe zone! RESCUE COMPLETE!' };
+            return result;
         }
 
         // ===========================================
