@@ -66,11 +66,11 @@ Create a minimal playable demo with hardcoded tools and a single objective. Prov
 - [ ] Use `claude-haiku-4-5-20251001` model
 - [ ] Display AI's tool calls in a log panel
 - [ ] Watch AI complete (or fail) the rescue
+- [ ] Reference: [game-making-guide.md](../../../platforms/vanilla/docs/game-making-guide.md)
 
 ### Milestone 5: Deploy to Vanilla Platform
 - [ ] Add auth check on load
 - [ ] Use vanilla platform inference endpoints
-- [ ] Reference: [game-making-guide.md](../../../platforms/vanilla/docs/game-making-guide.md)
 - [ ] Test on vanilla platform
 - [ ] Basic error handling (auth fail, API errors, token limits)
 

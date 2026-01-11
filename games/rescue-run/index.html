@@ -416,8 +416,8 @@
             ctx.save();
             ctx.translate(carX, carY);
             
-            // Rotate based on direction
-            const angles = { north: -Math.PI/2, south: Math.PI/2, east: 0, west: Math.PI };
+            // Rotate based on direction (sprite faces north/up by default)
+            const angles = { north: 0, east: Math.PI/2, south: Math.PI, west: -Math.PI/2 };
             ctx.rotate(angles[car.direction] || 0);
             
             if (assets.carSprite) {
