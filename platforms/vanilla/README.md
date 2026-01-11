@@ -31,8 +31,8 @@ The platform will start on `http://localhost:3000`
 
 ✨ **Simple & Clean**
 - Beautiful, responsive web interface
-- Upload HTML5 games via drag-and-drop form
-- Browse all your games in a grid layout
+- Public game browsing for all visitors
+- Admin-only game upload via `/manage.html`
 - Click to play games in a new tab
 
 🤖 **AI Inference Proxy**
@@ -43,9 +43,9 @@ The platform will start on `http://localhost:3000`
 - Games can use AI without managing credentials
 
 🔐 **User Management**
-- Passport.js authentication
+- Login page at `/login.html`
 - Admin dashboard at `/admin.html`
-- User creation and management
+- Game management at `/manage.html` (admin only)
 - Token limit enforcement
 - Usage statistics and monitoring
 
@@ -55,41 +55,55 @@ The platform will start on `http://localhost:3000`
 - Automatic metadata tracking
 - REST API included
 
-🎮 **Game Support**
-- Single HTML file games
-- Self-contained HTML5 games
-- Games with embedded assets
-- AI-powered games (see Sacred Scribe example)
+🎮 **Game Development**
+- Dev mode: serve games from `games/` directory
+- Access dev games at `/dev/game-name/index.html`
+- No upload needed during development
+- See `docs/game-making-guide.md` for workflow
+
+## Pages
+
+| Page | URL | Access | Purpose |
+|------|-----|--------|---------|
+| Home | `/` | Public | Browse and play games |
+| Login | `/login.html` | Public | User authentication |
+| Manage Games | `/manage.html` | Admin | Upload and manage games |
+| Admin | `/admin.html` | Admin | User management, stats |
+| Test Inference | `/test-inference.html` | Logged in | Test AI APIs |
 
 ## How to Use
 
-### Uploading a Game
+### Playing Games (Everyone)
 
-1. Open `http://localhost:3000` in your browser
-2. Fill in the game name
-3. Select your HTML game file
+1. Visit `http://localhost:3000`
+2. Browse the games grid
+3. Click any game card to play
+
+### Uploading Games (Admin)
+
+1. Login at `/login.html` as admin
+2. Go to `/manage.html`
+3. Fill in game name, select HTML file
 4. Click "Upload Game"
-5. Done! Your game appears in the grid below
 
-### Playing a Game
+### Developing Games
 
-1. Browse the games grid on the homepage
-2. Click any game card
-3. The game opens in a new tab
-4. Play!
+1. Create your game in `games/my-game/index.html`
+2. Start the platform: `npm run dev`
+3. Access at `http://localhost:3000/dev/my-game/index.html`
+4. Full access to auth and inference APIs while developing
+5. Upload via `/manage.html` when ready to publish
+
+See `docs/game-making-guide.md` for complete guide.
 
 ### Admin Dashboard
 
-1. Login as admin
+1. Login as admin at `/login.html`
 2. Visit `/admin.html`
 3. View usage statistics
 4. Create new users
 5. Set token limits
 6. Manage user accounts
-
-### Example: Sacred Scribe
-
-Visit `/sacred-scribe.html` to play Sacred Scribe - a cult copywriter game that uses AI to evaluate your recruitment advertisements. This demonstrates how games can use the inference API.
 
 ## AI Inference API
 
