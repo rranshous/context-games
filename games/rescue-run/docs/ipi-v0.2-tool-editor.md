@@ -85,12 +85,12 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [x] "Reset to defaults" button
 - [x] **Verify via Playwright:** Can edit a tool and run AI with modified tool
 
-### Milestone 4: Minimal System Prompt
-- [ ] Strip system prompt to bare minimum
-- [ ] Remove map info, coordinates, strategy hints
-- [ ] AI must discover through tools
-- [ ] **Verify via Playwright:** AI can still complete with good default tools
-- [ ] **Verify via Playwright:** AI struggles with intentionally bad tools
+### Milestone 4: Minimal System Prompt ✅
+- [x] Strip system prompt to bare minimum
+- [x] Remove map info, coordinates, strategy hints
+- [x] AI must discover through tools
+- [x] **Verify via Playwright:** AI can still complete with good default tools (35 turns)
+- [x] **Verify via Playwright:** AI struggles with intentionally bad tools (failed at 50 turns)
 
 ### Milestone 5: Review Mode
 - [ ] After AI run, show "Review" panel
@@ -110,7 +110,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 3 Complete
+### Status: Milestone 4 Complete
 
 ---
 

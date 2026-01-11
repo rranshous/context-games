@@ -1062,41 +1062,17 @@ return result;
             aiLogEl.innerHTML = '';
         }
         
-        // Build system prompt with current game state
+        // Build minimal system prompt - AI must discover through tools
         function buildSystemPrompt() {
-            const scan = executeTool('scan', {});
-            return `You are an AI controlling a rescue car in a top-down grid-based game.
+            return `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
 
-YOUR MISSION: Rescue the person and bring them to the safe zone.
+Use your available tools to:
+1. Explore and understand your environment
+2. Find and pick up the person
+3. Navigate to the safe zone
+4. Drop off the person to complete the rescue
 
-CURRENT STATE:
-- Your position: (${scan.current_position.x}, ${scan.current_position.y})
-- You are on: ${scan.current_tile}
-- You are facing: ${scan.facing}
-- Person in car: ${scan.person_in_car}
-${scan.person_at_current_location ? '- PERSON IS AT YOUR CURRENT LOCATION! Use pickup() to rescue them.' : ''}
-${scan.at_safe_zone ? '- YOU ARE AT THE SAFE ZONE!' : ''}
-
-SURROUNDINGS:
-- North: ${JSON.stringify(scan.surroundings.north)}
-- South: ${JSON.stringify(scan.surroundings.south)}  
-- East: ${JSON.stringify(scan.surroundings.east)}
-- West: ${JSON.stringify(scan.surroundings.west)}
-
-GAME INFO:
-- Grid is 8x8 (coordinates 0-7)
-- You can only drive on road tiles
-- Person starts at (6, 5)
-- Safe zone is at (1, 6)
-
-STRATEGY:
-1. First, use scan() to understand your surroundings
-2. Navigate to the person's location using move()
-3. When on the same tile as the person, use pickup()
-4. Navigate to the safe zone at (1, 6)
-5. When at the safe zone with the person, use dropoff()
-
-Be efficient - plan your route and execute it. You have limited moves.`;
+Good luck!`;
         }
         
         // Call Claude API via vanilla platform proxy
@@ -1164,7 +1140,7 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             });
             
             let iterations = 0;
-            const maxIterations = 30; // Safety limit
+            const maxIterations = 50; // Safety limit
             
             try {
                 while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
