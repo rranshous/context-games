@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rescue Run</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .game-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .game-panel {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #e94560;
+        }
+        
+        h2 {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #0f3460;
+            background: #e94560;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        
+        #game-canvas {
+            border: 3px solid #0f3460;
+            border-radius: 8px;
+            background: #2d4a3e;
+            image-rendering: pixelated;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 200px;
+        }
+        
+        .control-group {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .control-group h3 {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        button {
+            background: #0f3460;
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        button:hover {
+            background: #e94560;
+        }
+        
+        button:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+        
+        .direction-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+        
+        .direction-buttons button {
+            padding: 10px;
+            font-size: 1.2rem;
+        }
+        
+        .direction-buttons .empty {
+            visibility: hidden;
+        }
+        
+        #log {
+            background: #0a0a15;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+            color: #8f8;
+        }
+        
+        #log .entry {
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #222;
+        }
+        
+        #log .error {
+            color: #f88;
+        }
+        
+        #log .success {
+            color: #8f8;
+        }
+        
+        #log .info {
+            color: #88f;
+        }
+        
+        .status {
+            font-size: 0.9rem;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .status.playing {
+            background: #0f3460;
+        }
+        
+        .status.won {
+            background: #2e7d32;
+        }
+        
+        .legend {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+        }
+        
+        .ai-panel {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .ai-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .ai-controls button {
+            flex: 1;
+        }
+        
+        #btn-run-ai {
+            background: #e94560;
+        }
+        
+        #btn-run-ai:hover {
+            background: #ff6b8a;
+        }
+        
+        #btn-run-ai:disabled {
+            background: #333;
+        }
+        
+        #btn-stop-ai {
+            background: #ff9800;
+        }
+        
+        #btn-stop-ai:hover {
+            background: #ffb74d;
+        }
+        
+        #ai-log {
+            background: #0a0a15;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #ccc;
+        }
+        
+        #ai-log .ai-thinking {
+            color: #ff9800;
+            font-style: italic;
+        }
+        
+        #ai-log .ai-tool {
+            color: #4fc3f7;
+        }
+        
+        #ai-log .ai-result {
+            color: #8f8;
+            margin-left: 10px;
+        }
+        
+        #ai-log .ai-error {
+            color: #f88;
+        }
+        
+        .ai-status {
+            font-size: 0.85rem;
+            padding: 6px;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 8px;
+            background: #333;
+        }
+        
+        .ai-status.running {
+            background: #e94560;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-panel">
+            <h1>🚗 Rescue Run</h1>
+            <canvas id="game-canvas" width="256" height="256"></canvas>
+            <div class="legend" style="margin-top: 10px;">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4a7c59;"></div>
+                    <span>Grass</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #555;"></div>
+                    <span>Road</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e94560;"></div>
+                    <span>Person (rescue target)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4fc3f7;"></div>
+                    <span>Safe Zone</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="game-panel">
+                <h2>Status</h2>
+                <div id="status" class="status playing">Ready</div>
+                <button id="btn-reset" style="margin-top: 10px; display: none;">🔄 Reset Game</button>
+            </div>
+            
+            <div class="game-panel">
+                <h2>🤖 AI Control</h2>
+                <div class="ai-panel">
+                    <div id="ai-status" class="ai-status">AI Ready</div>
+                    <div class="ai-controls">
+                        <button id="btn-run-ai">▶️ Run AI</button>
+                        <button id="btn-stop-ai" disabled>⏹️ Stop</button>
+                    </div>
+                    <div id="ai-log"></div>
+                </div>
+            </div>
+            
+            <div class="game-panel">
+                <h2>Manual Tools</h2>
+                
+                <div class="control-group">
+                    <h3>Scan</h3>
+                    <button id="btn-scan" disabled>scan()</button>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Move</h3>
+                    <div class="direction-buttons">
+                        <div class="empty"></div>
+                        <button id="btn-north" disabled>⬆️</button>
+                        <div class="empty"></div>
+                        <button id="btn-west" disabled>⬅️</button>
+                        <div class="empty"></div>
+                        <button id="btn-east" disabled>➡️</button>
+                        <div class="empty"></div>
+                        <button id="btn-south" disabled>⬇️</button>
+                        <div class="empty"></div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Actions</h3>
+                    <button id="btn-pickup" disabled>pickup()</button>
+                    <button id="btn-dropoff" disabled>dropoff()</button>
+                </div>
+            </div>
+            
+            <div class="game-panel">
+                <h2>Log</h2>
+                <div id="log">
+                    <div class="entry info">Game initializing...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===========================================
+        // GAME CONSTANTS
+        // ===========================================
+        const TILE_SIZE = 32;
+        const GRID_SIZE = 8;
+        const CANVAS_SIZE = TILE_SIZE * GRID_SIZE;
+
+        // Tile types
+        const TILE = {
+            GRASS: 0,
+            ROAD: 1,
+            BUILDING: 2
+        };
+
+        // ===========================================
+        // GAME STATE
+        // ===========================================
+        const gameState = {
+            // Car state
+            car: { x: 1, y: 1, direction: 'east' },
+            
+            // Person to rescue
+            person: { x: 6, y: 5, rescued: false },
+            
+            // Safe zone location
+            safeZone: { x: 1, y: 6 },
+            
+            // Is person in car?
+            personInCar: false,
+            
+            // Game status
+            status: 'playing', // 'playing', 'won'
+            
+            // The map grid
+            map: [
+                // y=0 (top row)
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                // y=1
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                // y=2
+                [0, 1, 0, 0, 0, 0, 1, 0],
+                // y=3
+                [0, 1, 0, 2, 2, 0, 1, 0],
+                // y=4
+                [0, 1, 0, 2, 2, 0, 1, 0],
+                // y=5
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                // y=6
+                [0, 1, 0, 0, 0, 0, 1, 0],
+                // y=7 (bottom row)
+                [0, 0, 0, 0, 0, 0, 0, 0],
+            ]
+        };
+
+        // ===========================================
+        // ASSETS
+        // ===========================================
+        const assets = {
+            carSprite: null,
+            loaded: false
+        };
+
+        function loadAssets() {
+            return new Promise((resolve, reject) => {
+                const carImg = new Image();
+                carImg.onload = () => {
+                    assets.carSprite = carImg;
+                    assets.loaded = true;
+                    log('Assets loaded', 'success');
+                    resolve();
+                };
+                carImg.onerror = () => {
+                    log('Failed to load car sprite, using fallback', 'error');
+                    assets.loaded = true;
+                    resolve(); // Continue anyway with fallback rendering
+                };
+                carImg.src = 'assets/Cars/Player_blue%20(16%20x%2016).png';
+            });
+        }
+
+        // ===========================================
+        // RENDERING
+        // ===========================================
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = CANVAS_SIZE;
+        canvas.height = CANVAS_SIZE;
+
+        function render() {
+            // Clear
+            ctx.fillStyle = '#2d4a3e';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            
+            // Draw tiles
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const tile = gameState.map[y][x];
+                    const px = x * TILE_SIZE;
+                    const py = y * TILE_SIZE;
+                    
+                    switch (tile) {
+                        case TILE.GRASS:
+                            ctx.fillStyle = '#4a7c59';
+                            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                            // Add some texture
+                            ctx.fillStyle = '#3d6b4a';
+                            ctx.fillRect(px + 4, py + 4, 2, 2);
+                            ctx.fillRect(px + 20, py + 12, 2, 2);
+                            ctx.fillRect(px + 10, py + 24, 2, 2);
+                            break;
+                        case TILE.ROAD:
+                            ctx.fillStyle = '#555';
+                            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                            // Road markings
+                            ctx.fillStyle = '#777';
+                            ctx.fillRect(px, py, TILE_SIZE, 1);
+                            ctx.fillRect(px, py + TILE_SIZE - 1, TILE_SIZE, 1);
+                            break;
+                        case TILE.BUILDING:
+                            ctx.fillStyle = '#8b7355';
+                            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                            // Building detail
+                            ctx.fillStyle = '#6b5344';
+                            ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                            ctx.fillStyle = '#ffeb3b';
+                            ctx.fillRect(px + 8, py + 8, 6, 6);
+                            break;
+                    }
+                }
+            }
+            
+            // Draw safe zone
+            const sz = gameState.safeZone;
+            ctx.fillStyle = 'rgba(79, 195, 247, 0.5)';
+            ctx.fillRect(sz.x * TILE_SIZE, sz.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            ctx.strokeStyle = '#4fc3f7';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sz.x * TILE_SIZE + 2, sz.y * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+            // Safe zone icon
+            ctx.fillStyle = '#4fc3f7';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏠', sz.x * TILE_SIZE + TILE_SIZE/2, sz.y * TILE_SIZE + TILE_SIZE/2 + 5);
+            
+            // Draw person (if not rescued/in car)
+            if (!gameState.personInCar && !gameState.person.rescued) {
+                const p = gameState.person;
+                ctx.fillStyle = '#e94560';
+                ctx.beginPath();
+                ctx.arc(p.x * TILE_SIZE + TILE_SIZE/2, p.y * TILE_SIZE + TILE_SIZE/2, 8, 0, Math.PI * 2);
+                ctx.fill();
+                // Person icon
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('🧍', p.x * TILE_SIZE + TILE_SIZE/2, p.y * TILE_SIZE + TILE_SIZE/2 + 4);
+            }
+            
+            // Draw car
+            const car = gameState.car;
+            const carX = car.x * TILE_SIZE + TILE_SIZE/2;
+            const carY = car.y * TILE_SIZE + TILE_SIZE/2;
+            
+            ctx.save();
+            ctx.translate(carX, carY);
+            
+            // Rotate based on direction (sprite faces north/up by default)
+            const angles = { north: 0, east: Math.PI/2, south: Math.PI, west: -Math.PI/2 };
+            ctx.rotate(angles[car.direction] || 0);
+            
+            if (assets.carSprite) {
+                // Draw sprite (first frame, 16x16, scaled to ~24px)
+                const scale = 1.5;
+                const spriteSize = 16;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(
+                    assets.carSprite,
+                    0, 0, spriteSize, spriteSize,  // Source
+                    -spriteSize * scale / 2, -spriteSize * scale / 2, spriteSize * scale, spriteSize * scale  // Dest
+                );
+            } else {
+                // Fallback: draw a simple car shape
+                ctx.fillStyle = '#2196f3';
+                ctx.fillRect(-10, -6, 20, 12);
+                ctx.fillStyle = '#1565c0';
+                ctx.fillRect(6, -4, 4, 8);
+            }
+            
+            ctx.restore();
+            
+            // If person is in car, show indicator
+            if (gameState.personInCar) {
+                ctx.fillStyle = '#e94560';
+                ctx.font = '12px Arial';
+                ctx.fillText('🧍', carX + 12, carY - 12);
+            }
+        }
+
+        // ===========================================
+        // LOGGING
+        // ===========================================
+        const logEl = document.getElementById('log');
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `entry ${type}`;
+            entry.textContent = `> ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // ===========================================
+        // TOOL FUNCTIONS
+        // ===========================================
+        
+        // Helper: get tile type name
+        function getTileName(tileType) {
+            switch (tileType) {
+                case TILE.GRASS: return 'grass';
+                case TILE.ROAD: return 'road';
+                case TILE.BUILDING: return 'building';
+                default: return 'unknown';
+            }
+        }
+        
+        // Helper: check if position is valid
+        function isValidPosition(x, y) {
+            return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
+        }
+        
+        // Helper: check if position is road (car can move there)
+        function isRoad(x, y) {
+            if (!isValidPosition(x, y)) return false;
+            return gameState.map[y][x] === TILE.ROAD;
+        }
+        
+        // TOOL: scan() - Look around and report what's visible
+        function toolScan() {
+            const car = gameState.car;
+            const directions = [
+                { name: 'north', dx: 0, dy: -1 },
+                { name: 'south', dx: 0, dy: 1 },
+                { name: 'east', dx: 1, dy: 0 },
+                { name: 'west', dx: -1, dy: 0 }
+            ];
+            
+            const result = {
+                current_position: { x: car.x, y: car.y },
+                current_tile: getTileName(gameState.map[car.y][car.x]),
+                facing: car.direction,
+                person_in_car: gameState.personInCar,
+                surroundings: {}
+            };
+            
+            // Check each direction
+            for (const dir of directions) {
+                const nx = car.x + dir.dx;
+                const ny = car.y + dir.dy;
+                
+                if (isValidPosition(nx, ny)) {
+                    const tile = gameState.map[ny][nx];
+                    const info = {
+                        tile: getTileName(tile),
+                        passable: tile === TILE.ROAD
+                    };
+                    
+                    // Check for person
+                    if (!gameState.personInCar && 
+                        gameState.person.x === nx && 
+                        gameState.person.y === ny) {
+                        info.person_here = true;
+                    }
+                    
+                    // Check for safe zone
+                    if (gameState.safeZone.x === nx && gameState.safeZone.y === ny) {
+                        info.safe_zone_here = true;
+                    }
+                    
+                    result.surroundings[dir.name] = info;
+                } else {
+                    result.surroundings[dir.name] = { tile: 'edge', passable: false };
+                }
+            }
+            
+            // Check current tile for person/safe zone
+            if (!gameState.personInCar && 
+                gameState.person.x === car.x && 
+                gameState.person.y === car.y) {
+                result.person_at_current_location = true;
+            }
+            if (gameState.safeZone.x === car.x && gameState.safeZone.y === car.y) {
+                result.at_safe_zone = true;
+            }
+            
+            return result;
+        }
+        
+        // TOOL: move(direction) - Move the car one tile
+        function toolMove(direction) {
+            const car = gameState.car;
+            const moves = {
+                north: { dx: 0, dy: -1 },
+                south: { dx: 0, dy: 1 },
+                east: { dx: 1, dy: 0 },
+                west: { dx: -1, dy: 0 }
+            };
+            
+            if (!moves[direction]) {
+                return { success: false, error: `Invalid direction: ${direction}. Use: north, south, east, west` };
+            }
+            
+            const move = moves[direction];
+            const newX = car.x + move.dx;
+            const newY = car.y + move.dy;
+            
+            // Update facing direction
+            car.direction = direction;
+            
+            if (!isValidPosition(newX, newY)) {
+                return { success: false, error: 'Cannot move: would go off the map' };
+            }
+            
+            if (!isRoad(newX, newY)) {
+                const tileName = getTileName(gameState.map[newY][newX]);
+                return { success: false, error: `Cannot move: ${tileName} is not passable` };
+            }
+            
+            // Move the car
+            car.x = newX;
+            car.y = newY;
+            
+            const result = { 
+                success: true, 
+                new_position: { x: car.x, y: car.y },
+                facing: car.direction
+            };
+            
+            // Check what's at new location
+            if (!gameState.personInCar && 
+                gameState.person.x === car.x && 
+                gameState.person.y === car.y) {
+                result.person_at_current_location = true;
+            }
+            if (gameState.safeZone.x === car.x && gameState.safeZone.y === car.y) {
+                result.at_safe_zone = true;
+            }
+            
+            return result;
+        }
+        
+        // TOOL: pickup() - Pick up person if on same tile
+        function toolPickup() {
+            const car = gameState.car;
+            
+            if (gameState.personInCar) {
+                return { success: false, error: 'Person is already in the car' };
+            }
+            
+            if (gameState.person.rescued) {
+                return { success: false, error: 'Person has already been rescued' };
+            }
+            
+            if (gameState.person.x !== car.x || gameState.person.y !== car.y) {
+                return { 
+                    success: false, 
+                    error: 'No person at current location. Person is at (' + 
+                           gameState.person.x + ', ' + gameState.person.y + ')' 
+                };
+            }
+            
+            gameState.personInCar = true;
+            return { success: true, message: 'Person picked up! Now take them to the safe zone.' };
+        }
+        
+        // TOOL: dropoff() - Drop off person at safe zone
+        function toolDropoff() {
+            const car = gameState.car;
+            
+            if (!gameState.personInCar) {
+                return { success: false, error: 'No person in the car to drop off' };
+            }
+            
+            if (gameState.safeZone.x !== car.x || gameState.safeZone.y !== car.y) {
+                return { 
+                    success: false, 
+                    error: 'Not at safe zone. Safe zone is at (' + 
+                           gameState.safeZone.x + ', ' + gameState.safeZone.y + ')' 
+                };
+            }
+            
+            gameState.personInCar = false;
+            gameState.person.rescued = true;
+            gameState.status = 'won';
+            checkWinCondition();
+            return { success: true, message: 'Person dropped off at safe zone! RESCUE COMPLETE!' };
+        }
+
+        // ===========================================
+        // WIN DETECTION & RESET
+        // ===========================================
+        
+        function checkWinCondition() {
+            if (gameState.person.rescued) {
+                gameState.status = 'won';
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = '🎉 RESCUE COMPLETE!';
+                statusEl.className = 'status won';
+                
+                // Show reset button
+                document.getElementById('btn-reset').style.display = 'block';
+                
+                // Disable tool buttons
+                document.querySelectorAll('.control-group button').forEach(btn => {
+                    btn.disabled = true;
+                });
+            }
+        }
+        
+        function resetGame() {
+            // Reset game state
+            gameState.car = { x: 1, y: 1, direction: 'east' };
+            gameState.person = { x: 6, y: 5, rescued: false };
+            gameState.personInCar = false;
+            gameState.status = 'playing';
+            
+            // Reset UI
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'Ready';
+            statusEl.className = 'status playing';
+            document.getElementById('btn-reset').style.display = 'none';
+            
+            // Re-enable buttons
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                btn.disabled = false;
+            });
+            
+            // Clear log
+            const logEl = document.getElementById('log');
+            logEl.innerHTML = '<div class="entry info">Game initializing...</div>';
+            
+            log('Game reset! Rescue the person.', 'success');
+            render();
+        }
+
+        // ===========================================
+        // AI INTEGRATION (Claude Haiku)
+        // ===========================================
+        
+        // Tool definitions in Claude API format
+        const CLAUDE_TOOLS = [
+            {
+                name: "scan",
+                description: "Look around and scan the surroundings. Returns your current position, the tile you're on, what direction you're facing, whether you have a person in the car, and what's in each cardinal direction (north, south, east, west) including tile type, whether it's passable, and if there's a person or safe zone there.",
+                input_schema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: "move",
+                description: "Move the car one tile in the specified direction. The car can only move on road tiles. Returns success status and your new position.",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        direction: {
+                            type: "string",
+                            enum: ["north", "south", "east", "west"],
+                            description: "The direction to move: north (up), south (down), east (right), or west (left)"
+                        }
+                    },
+                    required: ["direction"]
+                }
+            },
+            {
+                name: "pickup",
+                description: "Pick up a person if they are at your current location. You must be on the same tile as the person to pick them up.",
+                input_schema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: "dropoff",
+                description: "Drop off the person you're carrying. You must be at the safe zone and have a person in the car to drop them off. This completes the rescue!",
+                input_schema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            }
+        ];
+        
+        // AI state
+        const aiState = {
+            running: false,
+            messages: [],
+            stopRequested: false
+        };
+        
+        // AI logging
+        const aiLogEl = document.getElementById('ai-log');
+        
+        function aiLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = message;
+            aiLogEl.appendChild(entry);
+            aiLogEl.scrollTop = aiLogEl.scrollHeight;
+        }
+        
+        function clearAiLog() {
+            aiLogEl.innerHTML = '';
+        }
+        
+        // Build system prompt with current game state
+        function buildSystemPrompt() {
+            const scan = toolScan();
+            return `You are an AI controlling a rescue car in a top-down grid-based game.
+
+YOUR MISSION: Rescue the person and bring them to the safe zone.
+
+CURRENT STATE:
+- Your position: (${scan.current_position.x}, ${scan.current_position.y})
+- You are on: ${scan.current_tile}
+- You are facing: ${scan.facing}
+- Person in car: ${scan.person_in_car}
+${scan.person_at_current_location ? '- PERSON IS AT YOUR CURRENT LOCATION! Use pickup() to rescue them.' : ''}
+${scan.at_safe_zone ? '- YOU ARE AT THE SAFE ZONE!' : ''}
+
+SURROUNDINGS:
+- North: ${JSON.stringify(scan.surroundings.north)}
+- South: ${JSON.stringify(scan.surroundings.south)}  
+- East: ${JSON.stringify(scan.surroundings.east)}
+- West: ${JSON.stringify(scan.surroundings.west)}
+
+GAME INFO:
+- Grid is 8x8 (coordinates 0-7)
+- You can only drive on road tiles
+- Person starts at (6, 5)
+- Safe zone is at (1, 6)
+
+STRATEGY:
+1. First, use scan() to understand your surroundings
+2. Navigate to the person's location using move()
+3. When on the same tile as the person, use pickup()
+4. Navigate to the safe zone at (1, 6)
+5. When at the safe zone with the person, use dropoff()
+
+Be efficient - plan your route and execute it. You have limited moves.`;
+        }
+        
+        // Execute a tool and return the result
+        function executeTool(toolName, toolInput) {
+            switch (toolName) {
+                case 'scan':
+                    return toolScan();
+                case 'move':
+                    return toolMove(toolInput.direction);
+                case 'pickup':
+                    return toolPickup();
+                case 'dropoff':
+                    return toolDropoff();
+                default:
+                    return { error: `Unknown tool: ${toolName}` };
+            }
+        }
+        
+        // Call Claude API via vanilla platform proxy
+        async function callClaude(messages) {
+            const response = await fetch('/api/inference/anthropic/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    model: 'claude-haiku-4-5-20251001',
+                    max_tokens: 1024,
+                    system: buildSystemPrompt(),
+                    tools: CLAUDE_TOOLS,
+                    messages: messages
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                const errorMsg = error.error || 'API call failed';
+                
+                // Handle specific error types
+                if (response.status === 401) {
+                    throw new Error('AUTH_REQUIRED');
+                } else if (errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('limit')) {
+                    throw new Error('TOKEN_LIMIT');
+                }
+                throw new Error(errorMsg);
+            }
+            
+            return await response.json();
+        }
+        
+        // Main agentic loop
+        async function runAI() {
+            if (aiState.running) return;
+            
+            // Check auth before starting
+            if (!currentUser) {
+                aiLog('❌ Please login first', 'ai-error');
+                return;
+            }
+            
+            aiState.running = true;
+            aiState.stopRequested = false;
+            aiState.messages = [];
+            
+            clearAiLog();
+            updateAiStatus('Running...', true);
+            
+            document.getElementById('btn-run-ai').disabled = true;
+            document.getElementById('btn-stop-ai').disabled = false;
+            
+            // Disable manual controls while AI runs
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                btn.disabled = true;
+            });
+            
+            aiLog('🤖 AI starting rescue mission...', 'ai-thinking');
+            
+            // Start with a user message asking to complete the rescue
+            aiState.messages.push({
+                role: 'user',
+                content: 'Please rescue the person and bring them to the safe zone. Use the tools available to you. Start by scanning your surroundings to understand the situation.'
+            });
+            
+            let iterations = 0;
+            const maxIterations = 30; // Safety limit
+            
+            try {
+                while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
+                    iterations++;
+                    
+                    if (gameState.status === 'won') {
+                        aiLog('🎉 RESCUE COMPLETE! Mission successful!', 'ai-result');
+                        break;
+                    }
+                    
+                    // Call Claude
+                    aiLog(`[Turn ${iterations}] Thinking...`, 'ai-thinking');
+                    const response = await callClaude(aiState.messages);
+                    
+                    // Process response
+                    const assistantContent = response.content;
+                    aiState.messages.push({ role: 'assistant', content: assistantContent });
+                    
+                    // Check if Claude wants to use tools
+                    const toolUses = assistantContent.filter(block => block.type === 'tool_use');
+                    const textBlocks = assistantContent.filter(block => block.type === 'text');
+                    
+                    // Log any text Claude says
+                    for (const text of textBlocks) {
+                        if (text.text.trim()) {
+                            aiLog(`💭 ${text.text}`, 'ai-thinking');
+                        }
+                    }
+                    
+                    if (toolUses.length === 0) {
+                        // No tool use, check if we're done
+                        if (response.stop_reason === 'end_turn') {
+                            aiLog('AI finished without completing rescue', 'ai-error');
+                            break;
+                        }
+                    }
+                    
+                    // Execute each tool and collect results
+                    const toolResults = [];
+                    for (const toolUse of toolUses) {
+                        aiLog(`🔧 ${toolUse.name}(${JSON.stringify(toolUse.input)})`, 'ai-tool');
+                        
+                        const result = executeTool(toolUse.name, toolUse.input);
+                        
+                        // Log result
+                        if (result.success === false) {
+                            aiLog(`   ❌ ${result.error}`, 'ai-error');
+                        } else if (result.success === true) {
+                            aiLog(`   ✅ ${result.message || 'OK'}`, 'ai-result');
+                        } else {
+                            // Scan result - summarize it
+                            aiLog(`   📍 Pos: (${result.current_position.x},${result.current_position.y})`, 'ai-result');
+                        }
+                        
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify(result)
+                        });
+                        
+                        // Update display
+                        render();
+                        
+                        // Small delay for visual feedback
+                        await new Promise(r => setTimeout(r, 300));
+                    }
+                    
+                    // Add tool results to messages
+                    if (toolResults.length > 0) {
+                        aiState.messages.push({ role: 'user', content: toolResults });
+                    }
+                    
+                    // Small delay between turns
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
+                if (iterations >= maxIterations) {
+                    aiLog('⚠️ Max iterations reached', 'ai-error');
+                }
+                
+            } catch (error) {
+                // Handle specific error types with user-friendly messages
+                if (error.message === 'AUTH_REQUIRED') {
+                    aiLog('❌ Session expired. Please login again.', 'ai-error');
+                    currentUser = null;
+                    showLoginPrompt();
+                } else if (error.message === 'TOKEN_LIMIT') {
+                    aiLog('❌ Token limit reached! Contact admin for more tokens.', 'ai-error');
+                } else {
+                    aiLog(`❌ Error: ${error.message}`, 'ai-error');
+                }
+                console.error('AI error:', error);
+            }
+            
+            // Cleanup
+            aiState.running = false;
+            updateAiStatus('AI Ready', false);
+            document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
+            document.getElementById('btn-stop-ai').disabled = true;
+            
+            // Re-enable manual controls if game not won
+            if (gameState.status !== 'won') {
+                document.querySelectorAll('.control-group button').forEach(btn => {
+                    btn.disabled = false;
+                });
+            }
+        }
+        
+        function stopAI() {
+            aiState.stopRequested = true;
+            aiLog('⏹️ Stop requested...', 'ai-thinking');
+        }
+        
+        function updateAiStatus(text, running) {
+            const statusEl = document.getElementById('ai-status');
+            statusEl.textContent = text;
+            statusEl.className = running ? 'ai-status running' : 'ai-status';
+        }
+
+        // ===========================================
+        // UI BUTTON HANDLERS
+        // ===========================================
+        
+        function setupButtons() {
+            // Scan button
+            document.getElementById('btn-scan').addEventListener('click', () => {
+                const result = toolScan();
+                log('scan() called', 'info');
+                log(JSON.stringify(result, null, 2), 'success');
+                render();
+            });
+            
+            // Move buttons
+            document.getElementById('btn-north').addEventListener('click', () => {
+                const result = toolMove('north');
+                log(`move('north') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            document.getElementById('btn-south').addEventListener('click', () => {
+                const result = toolMove('south');
+                log(`move('south') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            document.getElementById('btn-east').addEventListener('click', () => {
+                const result = toolMove('east');
+                log(`move('east') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            document.getElementById('btn-west').addEventListener('click', () => {
+                const result = toolMove('west');
+                log(`move('west') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (!result.success) log(result.error, 'error');
+                render();
+            });
+            
+            // Pickup button
+            document.getElementById('btn-pickup').addEventListener('click', () => {
+                const result = toolPickup();
+                log(`pickup() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (result.success) log(result.message, 'success');
+                else log(result.error, 'error');
+                render();
+            });
+            
+            // Dropoff button
+            document.getElementById('btn-dropoff').addEventListener('click', () => {
+                const result = toolDropoff();
+                log(`dropoff() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
+                if (result.success) log(result.message, 'success');
+                else log(result.error, 'error');
+                render();
+            });
+            
+            // Reset button
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                resetGame();
+            });
+            
+            // AI buttons
+            document.getElementById('btn-run-ai').addEventListener('click', () => {
+                runAI();
+            });
+            
+            document.getElementById('btn-stop-ai').addEventListener('click', () => {
+                stopAI();
+            });
+            
+            // Enable all tool buttons (not reset)
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                btn.disabled = false;
+            });
+        }
+
+        // ===========================================
+        // INITIALIZATION & AUTH
+        // ===========================================
+        
+        let currentUser = null;
+        
+        async function checkAuth() {
+            try {
+                const res = await fetch('/auth/me', { credentials: 'include' });
+                if (!res.ok) {
+                    return null;
+                }
+                const data = await res.json();
+                return data.user;
+            } catch (e) {
+                console.error('Auth check failed:', e);
+                return null;
+            }
+        }
+        
+        function showLoginPrompt() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `
+                <div style="color: #ff9800;">⚠️ Login Required</div>
+                <div style="font-size: 0.8rem; margin-top: 5px;">
+                    <a href="/" style="color: #4fc3f7;">Go to login page</a>
+                </div>
+            `;
+            statusEl.className = 'status';
+            
+            // Disable AI button
+            document.getElementById('btn-run-ai').disabled = true;
+            
+            aiLog('Please login to use AI features', 'ai-error');
+        }
+        
+        async function init() {
+            log('Loading assets...');
+            await loadAssets();
+            render();
+            setupButtons();
+            
+            // Check authentication
+            log('Checking authentication...');
+            currentUser = await checkAuth();
+            
+            if (currentUser) {
+                log(`Logged in as ${currentUser.username}`, 'success');
+                log('Ready! Use the tools to rescue the person.', 'success');
+            } else {
+                log('Not logged in - AI features disabled', 'error');
+                showLoginPrompt();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
