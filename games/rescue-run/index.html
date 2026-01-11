@@ -553,6 +553,13 @@
             color: #8f8;
         }
         
+        .review-story .story-stuck {
+            background: rgba(255, 152, 0, 0.3);
+            padding: 1px 3px;
+            border-radius: 2px;
+            border-bottom: 2px solid #ff9800;
+        }
+        
         .review-tool-stats {
             display: flex;
             flex-direction: column;
@@ -1632,7 +1639,7 @@ Good luck!`;
                     let text = `move(${dir})`;
                     if (count > 1) text += `×${count}`;
                     if (failCount > 0) text = `<span class="story-fail">${text}</span>`;
-                    parts.push(text);
+                    parts.push({ text, startIdx: i, endIdx: i + count - 1 });
                 }
                 // For scan, just count consecutive scans
                 else if (call.name === 'scan') {
@@ -1641,20 +1648,52 @@ Good luck!`;
                     }
                     let text = 'scan';
                     if (count > 1) text += `×${count}`;
-                    parts.push(text);
+                    parts.push({ text, startIdx: i, endIdx: i + count - 1 });
                 }
                 // For pickup/dropoff, show success/fail
                 else {
                     let text = call.name;
                     if (!call.success) text = `<span class="story-fail">${text}!</span>`;
                     else text = `<span class="story-success">${text}✓</span>`;
-                    parts.push(text);
+                    parts.push({ text, startIdx: i, endIdx: i });
                 }
                 
                 i += count;
             }
             
-            return parts.join(' → ');
+            // Detect stuck patterns: back-and-forth moves
+            const stuckIndices = new Set();
+            for (let p = 1; p < parts.length; p++) {
+                const curr = parts[p].text;
+                const prev = parts[p - 1].text;
+                // Check for opposite directions
+                if ((curr.includes('north') && prev.includes('south')) ||
+                    (curr.includes('south') && prev.includes('north')) ||
+                    (curr.includes('east') && prev.includes('west')) ||
+                    (curr.includes('west') && prev.includes('east'))) {
+                    stuckIndices.add(p - 1);
+                    stuckIndices.add(p);
+                }
+            }
+            
+            // Also mark consecutive failures as stuck
+            for (let p = 0; p < parts.length; p++) {
+                if (parts[p].text.includes('story-fail')) {
+                    // Check if next is also a failure
+                    if (p + 1 < parts.length && parts[p + 1].text.includes('story-fail')) {
+                        stuckIndices.add(p);
+                        stuckIndices.add(p + 1);
+                    }
+                }
+            }
+            
+            // Build final story with stuck highlights
+            return parts.map((p, idx) => {
+                if (stuckIndices.has(idx)) {
+                    return `<span class="story-stuck">${p.text}</span>`;
+                }
+                return p.text;
+            }).join(' → ');
         }
         
         function hideReview() {
