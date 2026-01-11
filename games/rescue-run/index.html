@@ -260,6 +260,166 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
+        
+        /* Tools List */
+        #tools-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .tool-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .tool-item .tool-name {
+            font-family: monospace;
+            color: #4fc3f7;
+        }
+        
+        .tool-item button {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+        
+        #btn-edit-tools, #btn-reset-tools {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+        }
+        
+        #btn-reset-tools {
+            background: #666;
+        }
+        
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: #16213e;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+        }
+        
+        .close-btn:hover {
+            color: #fff;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            background: #0a0a15;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            font-family: monospace;
+        }
+        
+        .stdlib-reference {
+            margin-top: 10px;
+        }
+        
+        .stdlib-reference summary {
+            cursor: pointer;
+            color: #4fc3f7;
+            font-size: 0.85rem;
+        }
+        
+        .stdlib-reference pre {
+            background: #0a0a15;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            margin: 10px 0 0 0;
+        }
+        
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #333;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .modal-footer button {
+            padding: 8px 16px;
+        }
+        
+        #btn-save-tool {
+            background: #4caf50;
+        }
+        
+        #btn-save-tool:hover {
+            background: #66bb6a;
+        }
+        
+        #btn-cancel-edit {
+            background: #666;
+        }
     </style>
 </head>
 <body>
@@ -307,40 +467,67 @@
             </div>
             
             <div class="game-panel">
-                <h2>Manual Tools</h2>
-                
-                <div class="control-group">
-                    <h3>Scan</h3>
-                    <button id="btn-scan" disabled>scan()</button>
-                </div>
-                
-                <div class="control-group">
-                    <h3>Move</h3>
-                    <div class="direction-buttons">
-                        <div class="empty"></div>
-                        <button id="btn-north" disabled>⬆️</button>
-                        <div class="empty"></div>
-                        <button id="btn-west" disabled>⬅️</button>
-                        <div class="empty"></div>
-                        <button id="btn-east" disabled>➡️</button>
-                        <div class="empty"></div>
-                        <button id="btn-south" disabled>⬇️</button>
-                        <div class="empty"></div>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <h3>Actions</h3>
-                    <button id="btn-pickup" disabled>pickup()</button>
-                    <button id="btn-dropoff" disabled>dropoff()</button>
+                <h2>🔧 Tools</h2>
+                <div id="tools-list"></div>
+                <div style="margin-top: 10px;">
+                    <button id="btn-edit-tools">✏️ Edit Tools</button>
+                    <button id="btn-reset-tools">↩️ Reset</button>
                 </div>
             </div>
-            
-            <div class="game-panel">
-                <h2>Log</h2>
-                <div id="log">
-                    <div class="entry info">Game initializing...</div>
+        </div>
+    </div>
+    
+    <!-- Tool Editor Modal -->
+    <div id="tool-editor-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Tool: <span id="edit-tool-name"></span></h2>
+                <button id="btn-close-modal" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Name:</label>
+                    <input type="text" id="edit-name" />
                 </div>
+                <div class="form-group">
+                    <label>Description (AI sees this):</label>
+                    <textarea id="edit-description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Parameters:</label>
+                    <div id="edit-parameters"></div>
+                </div>
+                <div class="form-group">
+                    <label>Implementation (JS using stdlib.*):</label>
+                    <textarea id="edit-implementation" rows="12" style="font-family: monospace;"></textarea>
+                </div>
+                <div class="stdlib-reference">
+                    <details>
+                        <summary>📚 Stdlib Reference</summary>
+                        <pre>
+Position/State:
+  stdlib.getCarPosition()      → {x, y}
+  stdlib.getCarDirection()     → "north"|"south"|"east"|"west"
+  stdlib.getPersonPosition()   → {x, y} or null
+  stdlib.getSafeZonePosition() → {x, y}
+  stdlib.isPersonInCar()       → boolean
+
+Map:
+  stdlib.getGridSize()         → {width, height}
+  stdlib.isValidPosition(x,y)  → boolean
+  stdlib.getTileAt(x,y)        → {type, passable}
+
+Actions:
+  stdlib.moveCarOneStep(dir)   → {success, error?}
+  stdlib.pickupPerson()        → {success, error?}
+  stdlib.dropoffPerson()       → {success, error?}
+                        </pre>
+                    </details>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-cancel-edit">Cancel</button>
+                <button id="btn-save-tool">💾 Save Tool</button>
             </div>
         </div>
     </div>
@@ -414,11 +601,9 @@
                 carImg.onload = () => {
                     assets.carSprite = carImg;
                     assets.loaded = true;
-                    log('Assets loaded', 'success');
                     resolve();
                 };
                 carImg.onerror = () => {
-                    log('Failed to load car sprite, using fallback', 'error');
                     assets.loaded = true;
                     resolve(); // Continue anyway with fallback rendering
                 };
@@ -545,18 +730,6 @@
         }
 
         // ===========================================
-        // LOGGING
-        // ===========================================
-        const logEl = document.getElementById('log');
-        
-        function log(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `entry ${type}`;
-            entry.textContent = `> ${message}`;
-            logEl.appendChild(entry);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
-
         // ===========================================
         // STANDARD LIBRARY (stdlib)
         // Low-level game primitives for tool implementations
@@ -676,99 +849,6 @@
         };
 
         // ===========================================
-        // TOOL FUNCTIONS (use stdlib)
-        // ===========================================
-        
-        // TOOL: scan() - Look around and report what's visible
-        function toolScan() {
-            const pos = stdlib.getCarPosition();
-            const directions = ['north', 'south', 'east', 'west'];
-            const offsets = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
-            
-            const surroundings = {};
-            for (const dir of directions) {
-                const [dx, dy] = offsets[dir];
-                const nx = pos.x + dx;
-                const ny = pos.y + dy;
-                const tile = stdlib.getTileAt(nx, ny);
-                const info = { ...tile };
-                
-                // Check for person
-                const personPos = stdlib.getPersonPosition();
-                if (personPos && personPos.x === nx && personPos.y === ny) {
-                    info.person_here = true;
-                }
-                
-                // Check for safe zone
-                const szPos = stdlib.getSafeZonePosition();
-                if (szPos.x === nx && szPos.y === ny) {
-                    info.safe_zone_here = true;
-                }
-                
-                surroundings[dir] = info;
-            }
-            
-            const result = {
-                current_position: pos,
-                current_tile: stdlib.getTileAt(pos.x, pos.y).type,
-                facing: stdlib.getCarDirection(),
-                person_in_car: stdlib.isPersonInCar(),
-                surroundings
-            };
-            
-            // Check current tile for person/safe zone
-            const personPos = stdlib.getPersonPosition();
-            if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
-                result.person_at_current_location = true;
-            }
-            const szPos = stdlib.getSafeZonePosition();
-            if (szPos.x === pos.x && szPos.y === pos.y) {
-                result.at_safe_zone = true;
-            }
-            
-            return result;
-        }
-        
-        // TOOL: move(direction) - Move the car one tile
-        function toolMove(direction) {
-            const result = stdlib.moveCarOneStep(direction);
-            if (result.success) {
-                const pos = stdlib.getCarPosition();
-                result.new_position = pos;
-                result.facing = stdlib.getCarDirection();
-                
-                // Check what's at new location
-                const personPos = stdlib.getPersonPosition();
-                if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
-                    result.person_at_current_location = true;
-                }
-                const szPos = stdlib.getSafeZonePosition();
-                if (szPos.x === pos.x && szPos.y === pos.y) {
-                    result.at_safe_zone = true;
-                }
-            }
-            return result;
-        }
-        
-        // TOOL: pickup() - Pick up person if on same tile
-        function toolPickup() {
-            const result = stdlib.pickupPerson();
-            if (result.success) {
-                result.message = 'Person picked up! Now take them to the safe zone.';
-            }
-            return result;
-        }
-        
-        // TOOL: dropoff() - Drop off person at safe zone
-        function toolDropoff() {
-            const result = stdlib.dropoffPerson();
-            if (result.success) {
-                result.message = 'Person dropped off at safe zone! RESCUE COMPLETE!';
-            }
-            return result;
-        }
-
-        // ===========================================
         // WIN DETECTION & RESET
         // ===========================================
         
@@ -781,11 +861,6 @@
                 
                 // Show reset button
                 document.getElementById('btn-reset').style.display = 'block';
-                
-                // Disable tool buttons
-                document.querySelectorAll('.control-group button').forEach(btn => {
-                    btn.disabled = true;
-                });
             }
         }
         
@@ -802,16 +877,10 @@
             statusEl.className = 'status playing';
             document.getElementById('btn-reset').style.display = 'none';
             
-            // Re-enable buttons
-            document.querySelectorAll('.control-group button').forEach(btn => {
-                btn.disabled = false;
-            });
+            // Clear AI log
+            clearAiLog();
+            aiLog('Game reset. Ready to run AI.', 'ai-result');
             
-            // Clear log
-            const logEl = document.getElementById('log');
-            logEl.innerHTML = '<div class="entry info">Game initializing...</div>';
-            
-            log('Game reset! Rescue the person.', 'success');
             render();
         }
 
@@ -995,7 +1064,7 @@ return result;
         
         // Build system prompt with current game state
         function buildSystemPrompt() {
-            const scan = toolScan();
+            const scan = executeTool('scan', {});
             return `You are an AI controlling a rescue car in a top-down grid-based game.
 
 YOUR MISSION: Rescue the person and bring them to the safe zone.
@@ -1195,13 +1264,6 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             updateAiStatus('AI Ready', false);
             document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
-            
-            // Re-enable manual controls if game not won
-            if (gameState.status !== 'won') {
-                document.querySelectorAll('.control-group button').forEach(btn => {
-                    btn.disabled = false;
-                });
-            }
         }
         
         function stopAI() {
@@ -1216,65 +1278,91 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         }
 
         // ===========================================
-        // UI BUTTON HANDLERS
+        // TOOL EDITOR
         // ===========================================
         
-        function setupButtons() {
-            // Scan button
-            document.getElementById('btn-scan').addEventListener('click', () => {
-                const result = toolScan();
-                log('scan() called', 'info');
-                log(JSON.stringify(result, null, 2), 'success');
-                render();
-            });
+        let editingToolIndex = -1;
+        
+        function renderToolsList() {
+            const listEl = document.getElementById('tools-list');
+            listEl.innerHTML = currentTools.map((tool, i) => `
+                <div class="tool-item">
+                    <span class="tool-name">${tool.name}(${tool.parameters.map(p => p.name).join(', ')})</span>
+                    <button onclick="openToolEditor(${i})">Edit</button>
+                </div>
+            `).join('');
+        }
+        
+        function openToolEditor(index) {
+            editingToolIndex = index;
+            const tool = currentTools[index];
             
-            // Move buttons
-            document.getElementById('btn-north').addEventListener('click', () => {
-                const result = toolMove('north');
-                log(`move('north') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            document.getElementById('edit-tool-name').textContent = tool.name;
+            document.getElementById('edit-name').value = tool.name;
+            document.getElementById('edit-description').value = tool.description;
+            document.getElementById('edit-implementation').value = tool.implementation.trim();
             
-            document.getElementById('btn-south').addEventListener('click', () => {
-                const result = toolMove('south');
-                log(`move('south') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            // Render parameters (simplified - just show as text for now)
+            const paramsEl = document.getElementById('edit-parameters');
+            if (tool.parameters.length === 0) {
+                paramsEl.innerHTML = '<em style="color: #666;">None</em>';
+            } else {
+                paramsEl.innerHTML = tool.parameters.map(p => 
+                    `<code style="background: #0a0a15; padding: 2px 6px; border-radius: 2px; margin-right: 5px;">${p.name}: ${p.type}</code>`
+                ).join('');
+            }
             
-            document.getElementById('btn-east').addEventListener('click', () => {
-                const result = toolMove('east');
-                log(`move('east') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            document.getElementById('tool-editor-modal').style.display = 'flex';
+        }
+        
+        function closeToolEditor() {
+            document.getElementById('tool-editor-modal').style.display = 'none';
+            editingToolIndex = -1;
+        }
+        
+        function saveTool() {
+            if (editingToolIndex < 0) return;
             
-            document.getElementById('btn-west').addEventListener('click', () => {
-                const result = toolMove('west');
-                log(`move('west') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            const tool = currentTools[editingToolIndex];
+            tool.name = document.getElementById('edit-name').value;
+            tool.description = document.getElementById('edit-description').value;
+            tool.implementation = document.getElementById('edit-implementation').value;
             
-            // Pickup button
-            document.getElementById('btn-pickup').addEventListener('click', () => {
-                const result = toolPickup();
-                log(`pickup() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (result.success) log(result.message, 'success');
-                else log(result.error, 'error');
-                render();
-            });
-            
-            // Dropoff button
-            document.getElementById('btn-dropoff').addEventListener('click', () => {
-                const result = toolDropoff();
-                log(`dropoff() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (result.success) log(result.message, 'success');
-                else log(result.error, 'error');
-                render();
-            });
-            
+            // Save to localStorage
+            saveTools();
+            renderToolsList();
+            closeToolEditor();
+        }
+        
+        function saveTools() {
+            localStorage.setItem('rescue-run-tools', JSON.stringify(currentTools));
+        }
+        
+        function loadTools() {
+            const saved = localStorage.getItem('rescue-run-tools');
+            if (saved) {
+                try {
+                    currentTools = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load saved tools:', e);
+                    currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
+                }
+            }
+        }
+        
+        function resetTools() {
+            if (confirm('Reset all tools to defaults? Your changes will be lost.')) {
+                currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
+                localStorage.removeItem('rescue-run-tools');
+                renderToolsList();
+            }
+        }
+
+        // ===========================================
+        // UI SETUP
+        // ===========================================
+        
+        function setupUI() {
             // Reset button
             document.getElementById('btn-reset').addEventListener('click', () => {
                 resetGame();
@@ -1289,9 +1377,27 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                 stopAI();
             });
             
-            // Enable all tool buttons (not reset)
-            document.querySelectorAll('.control-group button').forEach(btn => {
-                btn.disabled = false;
+            // Tool editor buttons
+            document.getElementById('btn-edit-tools').addEventListener('click', () => {
+                if (currentTools.length > 0) {
+                    openToolEditor(0);
+                }
+            });
+            
+            document.getElementById('btn-reset-tools').addEventListener('click', () => {
+                resetTools();
+            });
+            
+            // Modal buttons
+            document.getElementById('btn-close-modal').addEventListener('click', closeToolEditor);
+            document.getElementById('btn-cancel-edit').addEventListener('click', closeToolEditor);
+            document.getElementById('btn-save-tool').addEventListener('click', saveTool);
+            
+            // Close modal on background click
+            document.getElementById('tool-editor-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'tool-editor-modal') {
+                    closeToolEditor();
+                }
             });
         }
 
@@ -1332,20 +1438,20 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         }
         
         async function init() {
-            log('Loading assets...');
+            // Load saved tools
+            loadTools();
+            renderToolsList();
+            
             await loadAssets();
             render();
-            setupButtons();
+            setupUI();
             
             // Check authentication
-            log('Checking authentication...');
             currentUser = await checkAuth();
             
             if (currentUser) {
-                log(`Logged in as ${currentUser.username}`, 'success');
-                log('Ready! Use the tools to rescue the person.', 'success');
+                aiLog(`Logged in as ${currentUser.username}`, 'ai-result');
             } else {
-                log('Not logged in - AI features disabled', 'error');
                 showLoginPrompt();
             }
         }

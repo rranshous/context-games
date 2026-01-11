@@ -75,15 +75,15 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [x] Validate tool implementations don't break
 - [x] **Verify via Playwright:** AI completes rescue with new tool format
 
-### Milestone 3: Simplified UI + Tool Editor
-- [ ] Remove manual controls (move buttons, scan button, etc.)
-- [ ] Remove game log panel (AI log is sufficient)
-- [ ] Add "Edit Tools" button/panel
-- [ ] List current tools with edit buttons
-- [ ] Edit form: name, description, parameters, implementation (JS)
-- [ ] Save/load tool definitions (localStorage)
-- [ ] "Reset to defaults" button
-- [ ] **Verify via Playwright:** Can edit a tool and run AI with modified tool
+### Milestone 3: Simplified UI + Tool Editor ✅
+- [x] Remove manual controls (move buttons, scan button, etc.)
+- [x] Remove game log panel (AI log is sufficient)
+- [x] Add "Edit Tools" button/panel
+- [x] List current tools with edit buttons
+- [x] Edit form: name, description, parameters, implementation (JS)
+- [x] Save/load tool definitions (localStorage)
+- [x] "Reset to defaults" button
+- [x] **Verify via Playwright:** Can edit a tool and run AI with modified tool
 
 ### Milestone 4: Minimal System Prompt
 - [ ] Strip system prompt to bare minimum
@@ -110,7 +110,7 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 
 *Progress tracked below as we work through milestones.*
 
-### Status: Milestone 2 Complete
+### Status: Milestone 3 Complete
 
 ---
 
