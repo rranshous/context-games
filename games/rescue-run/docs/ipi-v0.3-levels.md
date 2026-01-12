@@ -69,34 +69,35 @@ This forces the AI to move blindly and hit walls. Works (slowly) on small maps, 
 - [ ] Create level parser (ASCII string → game state)
 - [ ] Convert current hardcoded map to ASCII format (Level 1)
 - [ ] Level loads and renders correctly
-- [ ] **Verify:** Game plays identically with parsed level
+- [ ] **Verify via Playwright:** Game plays identically with parsed level
 
-### Milestone 2: Degraded Default Tools
+### Milestone 2: Level Selection UI
+- [ ] Simple level picker (Level 1 button only initially)
+- [ ] Show current level name/turn limit
+- [ ] Reset game state when switching levels
+- [ ] Persist completed levels (localStorage)
+- [ ] **Verify via Playwright:** Can select Level 1, game loads correctly
+
+### Milestone 3: Degraded Default Tools
 - [ ] Create degraded scan (position only, no surroundings)
 - [ ] Keep move, pickup, dropoff as-is (they're already minimal)
 - [ ] Update DEFAULT_TOOLS with degraded versions
 - [ ] Tune turn limit so L1 *barely* succeeds with degraded tools
-- [ ] **Verify:** AI completes L1 but inefficiently (near turn limit)
+- [ ] **Verify via Playwright:** AI completes L1 but inefficiently (near turn limit)
 
-### Milestone 3: Level 2 - Bigger Map
+### Milestone 4: Level 2 - Bigger Map
 - [ ] Design Level 2 ASCII map (larger, longer path)
-- [ ] Add level to game
+- [ ] Add Level 2 to level selector
 - [ ] Confirm degraded tools timeout on L2
 - [ ] Document what tool improvement is needed (scan surroundings)
-- [ ] **Verify:** Improved scan allows L2 completion
-
-### Milestone 4: Level Selection UI
-- [ ] Simple level picker (Level 1, Level 2 buttons)
-- [ ] Show current level name/turn limit
-- [ ] Persist completed levels (localStorage)
-- [ ] Reset game state when switching levels
-- [ ] **Verify:** Can switch between levels, progress persists
+- [ ] **Verify via Playwright:** Degraded tools fail L2, improved scan succeeds
 
 ### Milestone 5: Polish
 - [ ] Level complete celebration/feedback
 - [ ] "Next Level" button on success
 - [ ] Show turn limit in UI during play
 - [ ] Hints reference level-specific tool improvements
+- [ ] **Verify via Playwright:** Full flow L1 → L2 works
 
 ---
 
