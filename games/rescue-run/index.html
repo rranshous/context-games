@@ -1323,81 +1323,39 @@ Actions:
         const DEFAULT_TOOLS = [
             {
                 name: "scan",
-                description: "Look around and scan the surroundings. Returns your current position, the tile you're on, what direction you're facing, whether you have a person in the car, and what's in each cardinal direction (north, south, east, west) including tile type, whether it's passable, and if there's a person or safe zone there.",
+                description: "Check your current status. Returns your position, whether you have a person in the car, and whether you're at the person or safe zone.",
                 parameters: [],
                 implementation: `
 // ========================================
-// SCAN TOOL - Look around and gather info
+// SCAN TOOL - Check current status
 // ========================================
-// This tool returns information about:
-// - Where the car is (current_position)
-// - What's in each direction (surroundings)
-// - Whether the person or safe zone is nearby
+// This is a BASIC scan - it tells you:
+// - Where you are (current_position)
+// - Whether you have a person in the car
+// - Whether person or safe zone is at your location
+//
+// TIP: To navigate better, you might want to 
+// improve this tool to show what's AROUND you!
 
-// Get the car's current position (returns {x, y})
 const pos = stdlib.getCarPosition();
 
-// Define the four directions we can look
-const directions = ['north', 'south', 'east', 'west'];
-
-// Map each direction to how x,y coordinates change
-// north = up = y-1, south = down = y+1
-// east = right = x+1, west = left = x-1
-const offsets = { 
-    north: [0, -1], 
-    south: [0, 1], 
-    east: [1, 0], 
-    west: [-1, 0] 
-};
-
-// Build information about each direction
-const surroundings = {};
-for (const dir of directions) {
-    // Calculate the position in this direction
-    const [dx, dy] = offsets[dir];
-    const nx = pos.x + dx;  // neighbor x
-    const ny = pos.y + dy;  // neighbor y
-    
-    // Get tile info (type like 'road'/'grass', and passable true/false)
-    const tile = stdlib.getTileAt(nx, ny);
-    const info = { ...tile };  // Copy tile info
-    
-    // Check if the person is in this direction
-    // getPersonPosition() returns null if person is already picked up
-    const personPos = stdlib.getPersonPosition();
-    if (personPos && personPos.x === nx && personPos.y === ny) {
-        info.person_here = true;  // Tell AI the person is here!
-    }
-    
-    // Check if the safe zone is in this direction
-    const szPos = stdlib.getSafeZonePosition();
-    if (szPos.x === nx && szPos.y === ny) {
-        info.safe_zone_here = true;  // Tell AI the safe zone is here!
-    }
-    
-    surroundings[dir] = info;
-}
-
-// Build the result object to return to the AI
 const result = {
     current_position: pos,
-    current_tile: stdlib.getTileAt(pos.x, pos.y).type,
-    facing: stdlib.getCarDirection(),
-    person_in_car: stdlib.isPersonInCar(),
-    surroundings: surroundings
+    person_in_car: stdlib.isPersonInCar()
 };
 
-// Also check if person/safe zone is at CURRENT position
+// Check if person is at current location
 const personPos = stdlib.getPersonPosition();
 if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
-    result.person_at_current_location = true;
+    result.person_here = true;
 }
+
+// Check if safe zone is at current location
 const szPos = stdlib.getSafeZonePosition();
 if (szPos.x === pos.x && szPos.y === pos.y) {
     result.at_safe_zone = true;
 }
 
-// Return the result - this is what the AI sees!
 return result;
 `
             },
@@ -1423,27 +1381,9 @@ return result;
 // Try to move - returns {success: true} or {success: false, error: "..."}
 const result = stdlib.moveCarOneStep(input.direction);
 
-// If move succeeded, add helpful info about new location
-if (result.success) {
-    // Get new position after moving
-    const pos = stdlib.getCarPosition();
-    result.new_position = pos;
-    result.facing = stdlib.getCarDirection();
-    
-    // Check if person is at new location
-    const personPos = stdlib.getPersonPosition();
-    if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
-        result.person_at_current_location = true;
-    }
-    
-    // Check if safe zone is at new location
-    const szPos = stdlib.getSafeZonePosition();
-    if (szPos.x === pos.x && szPos.y === pos.y) {
-        result.at_safe_zone = true;
-    }
-}
+// TIP: You could improve this tool to tell you
+// what's at your new location after moving!
 
-// Return result to AI
 return result;
 `
             },

@@ -2,7 +2,12 @@
 
 ## Goal
 
-Add multiple levels with increasing complexity. Degrade default tools so players must iterate and improve them to progress.
+Add multiple levels with increasing comp### Milestone 3: Degraded Default Tools ✅
+- [x] Create degraded scan (position, cargo, person_here, at_safe_zone - no surroundings)
+- [x] Keep move, pickup, dropoff as-is (already minimal)
+- [x] Update DEFAULT_TOOLS with degraded versions
+- [x] Tune turn limit so L1 *barely* succeeds (50 turns)
+- [x] **Verify via Playwright:** AI completes L1 in exactly 50 turns (barely!). Degrade default tools so players must iterate and improve them to progress.
 
 ---
 
