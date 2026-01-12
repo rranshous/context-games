@@ -71,12 +71,12 @@ This forces the AI to move blindly and hit walls. Works (slowly) on small maps, 
 - [x] Level loads and renders correctly
 - [x] **Verify via Playwright:** Game plays identically with parsed level (33 turns)
 
-### Milestone 2: Level Selection UI
-- [ ] Simple level picker (Level 1 button only initially)
-- [ ] Show current level name/turn limit
-- [ ] Reset game state when switching levels
-- [ ] Persist completed levels (localStorage)
-- [ ] **Verify via Playwright:** Can select Level 1, game loads correctly
+### Milestone 2: Level Selection UI ✅
+- [x] Simple level picker (Level 1 button only initially)
+- [x] Show current level name/turn limit
+- [x] Reset game state when switching levels
+- [x] Persist completed levels (localStorage)
+- [x] **Verify via Playwright:** Can select Level 1, game loads correctly, completion persists
 
 ### Milestone 3: Degraded Default Tools
 - [ ] Create degraded scan (position only, no surroundings)

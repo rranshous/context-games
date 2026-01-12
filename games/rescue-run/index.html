@@ -299,6 +299,42 @@
             background: #666;
         }
         
+        /* Level selector */
+        .level-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            background: #333;
+            border: 1px solid #555;
+            color: #aaa;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .level-btn:hover {
+            background: #444;
+            color: #fff;
+        }
+        
+        .level-btn.selected {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+        
+        .level-btn.completed {
+            border-color: #4caf50;
+        }
+        
+        .level-btn.completed::after {
+            content: ' ✓';
+            color: #4caf50;
+        }
+        
+        .level-btn.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         /* Modal */
         .modal {
             position: fixed;
@@ -634,6 +670,17 @@
         
         <div class="controls">
             <div class="game-panel">
+                <h2>📍 Level</h2>
+                <div id="level-info">
+                    <div id="level-name" style="font-weight: bold; margin-bottom: 5px;">Level 1: Tutorial</div>
+                    <div id="level-turns" style="font-size: 0.85rem; color: #aaa;">Turn limit: 50</div>
+                </div>
+                <div id="level-selector" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button class="level-btn selected" data-level="1">Level 1</button>
+                </div>
+            </div>
+            
+            <div class="game-panel">
                 <h2>Status</h2>
                 <div id="status" class="status playing">Ready</div>
                 <button id="btn-reset" style="margin-top: 10px; display: none;">🔄 Reset Game</button>
@@ -837,6 +884,39 @@ Actions:
         // Current level (default to 1)
         let currentLevelNum = 1;
         let currentLevel = parseLevel(LEVELS[1]);
+        
+        // Track completed levels
+        let completedLevels = new Set();
+        
+        function loadCompletedLevels() {
+            try {
+                const saved = localStorage.getItem('rescue-run-completed');
+                if (saved) {
+                    completedLevels = new Set(JSON.parse(saved));
+                }
+            } catch (e) {
+                console.error('Failed to load completed levels:', e);
+            }
+        }
+        
+        function saveCompletedLevels() {
+            localStorage.setItem('rescue-run-completed', JSON.stringify([...completedLevels]));
+        }
+        
+        function markLevelCompleted(levelNum) {
+            completedLevels.add(levelNum);
+            saveCompletedLevels();
+            updateLevelButtons();
+        }
+        
+        function updateLevelButtons() {
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                const levelNum = parseInt(btn.dataset.level);
+                if (completedLevels.has(levelNum)) {
+                    btn.classList.add('completed');
+                }
+            });
+        }
         
         // ===========================================
         // GAME STATE
@@ -1156,7 +1236,65 @@ Actions:
             gameState.personInCar = false;
             gameState.status = 'playing';
             
+            // Update level info display
+            updateLevelDisplay();
+            
             return true;
+        }
+        
+        function updateLevelDisplay() {
+            document.getElementById('level-name').textContent = 
+                `Level ${currentLevelNum}: ${currentLevel.name}`;
+            document.getElementById('level-turns').textContent = 
+                `Turn limit: ${currentLevel.turns}`;
+            
+            // Update button selection
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (parseInt(btn.dataset.level) === currentLevelNum) {
+                    btn.classList.add('selected');
+                }
+            });
+        }
+        
+        function setupLevelSelector() {
+            const selector = document.getElementById('level-selector');
+            
+            // Add click handlers to level buttons
+            selector.addEventListener('click', (e) => {
+                const btn = e.target.closest('.level-btn');
+                if (!btn || btn.classList.contains('locked')) return;
+                
+                const levelNum = parseInt(btn.dataset.level);
+                if (levelNum !== currentLevelNum) {
+                    selectLevel(levelNum);
+                }
+            });
+            
+            // Initialize display
+            updateLevelDisplay();
+        }
+        
+        function selectLevel(levelNum) {
+            if (!LEVELS[levelNum]) return;
+            
+            // Load the level
+            loadLevel(levelNum);
+            
+            // Reset game UI
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'Ready';
+            statusEl.className = 'status playing';
+            document.getElementById('btn-reset').style.display = 'none';
+            
+            // Clear AI log
+            clearAiLog();
+            aiLog(`Level ${levelNum}: ${currentLevel.name} loaded. Turn limit: ${currentLevel.turns}`, 'ai-result');
+            
+            // Hide review panel
+            hideReview();
+            
+            render();
         }
         
         function resetGame() {
@@ -1559,7 +1697,7 @@ Good luck!`;
             });
             
             let iterations = 0;
-            const maxIterations = 50; // Safety limit
+            const maxIterations = currentLevel.turns || 50; // Use level turn limit
             
             try {
                 while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
@@ -1567,6 +1705,7 @@ Good luck!`;
                     
                     if (gameState.status === 'won') {
                         aiLog('🎉 RESCUE COMPLETE! Mission successful!', 'ai-result');
+                        markLevelCompleted(currentLevelNum);
                         break;
                     }
                     
@@ -2072,6 +2211,9 @@ Good luck!`;
         // ===========================================
         
         function setupUI() {
+            // Level selector
+            setupLevelSelector();
+            
             // Reset button
             document.getElementById('btn-reset').addEventListener('click', () => {
                 resetGame();
@@ -2158,9 +2300,15 @@ Good luck!`;
             loadTools();
             renderToolsList();
             
+            // Load completed levels
+            loadCompletedLevels();
+            
             await loadAssets();
             render();
             setupUI();
+            
+            // Update level buttons with completion status
+            updateLevelButtons();
             
             // Check authentication
             currentUser = await checkAuth();
