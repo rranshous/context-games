@@ -746,15 +746,111 @@ Actions:
         // ===========================================
         // GAME STATE
         // ===========================================
+        // ===========================================
+        // LEVEL DEFINITIONS (ASCII FORMAT)
+        // ===========================================
+        // Legend:
+        //   = : grass (impassable)
+        //   . : road (passable)
+        //   # : building (impassable)
+        //   C : car start (on road)
+        //   P : person (on road)
+        //   S : safe zone (on road)
+        
+        const LEVELS = {
+            1: {
+                name: "Tutorial",
+                turns: 50,
+                map: `
+========
+=C.....=
+=.====.=
+=.=##=.=
+=.=##=.=
+=.....P=
+=S====.=
+========
+`
+            }
+        };
+        
+        // ===========================================
+        // LEVEL PARSER
+        // ===========================================
+        
+        function parseLevel(levelData) {
+            const lines = levelData.map.trim().split('\n');
+            const height = lines.length;
+            const width = lines[0].length;
+            
+            const map = [];
+            let car = null;
+            let person = null;
+            let safeZone = null;
+            
+            for (let y = 0; y < height; y++) {
+                const row = [];
+                for (let x = 0; x < width; x++) {
+                    const char = lines[y][x] || '=';
+                    
+                    switch (char) {
+                        case '=': // grass
+                            row.push(0);
+                            break;
+                        case '.': // road
+                            row.push(1);
+                            break;
+                        case '#': // building
+                            row.push(2);
+                            break;
+                        case 'C': // car (on road)
+                            row.push(1);
+                            car = { x, y, direction: 'east' };
+                            break;
+                        case 'P': // person (on road)
+                            row.push(1);
+                            person = { x, y, rescued: false };
+                            break;
+                        case 'S': // safe zone (on road)
+                            row.push(1);
+                            safeZone = { x, y };
+                            break;
+                        default:
+                            row.push(0); // unknown = grass
+                    }
+                }
+                map.push(row);
+            }
+            
+            return {
+                name: levelData.name,
+                turns: levelData.turns,
+                map,
+                car,
+                person,
+                safeZone,
+                width,
+                height
+            };
+        }
+        
+        // Current level (default to 1)
+        let currentLevelNum = 1;
+        let currentLevel = parseLevel(LEVELS[1]);
+        
+        // ===========================================
+        // GAME STATE
+        // ===========================================
+        
         const gameState = {
             // Car state
-            car: { x: 1, y: 1, direction: 'east' },
+            car: { ...currentLevel.car },
             
             // Person to rescue
-            person: { x: 6, y: 5, rescued: false },
+            person: { ...currentLevel.person },
             
             // Safe zone location
-            safeZone: { x: 1, y: 6 },
+            safeZone: { ...currentLevel.safeZone },
             
             // Is person in car?
             personInCar: false,
@@ -763,24 +859,7 @@ Actions:
             status: 'playing', // 'playing', 'won'
             
             // The map grid
-            map: [
-                // y=0 (top row)
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                // y=1
-                [0, 1, 1, 1, 1, 1, 1, 0],
-                // y=2
-                [0, 1, 0, 0, 0, 0, 1, 0],
-                // y=3
-                [0, 1, 0, 2, 2, 0, 1, 0],
-                // y=4
-                [0, 1, 0, 2, 2, 0, 1, 0],
-                // y=5
-                [0, 1, 1, 1, 1, 1, 1, 0],
-                // y=6
-                [0, 1, 0, 0, 0, 0, 1, 0],
-                // y=7 (bottom row)
-                [0, 0, 0, 0, 0, 0, 0, 0],
-            ]
+            map: currentLevel.map
         };
 
         // ===========================================
@@ -1060,12 +1139,29 @@ Actions:
             }
         }
         
-        function resetGame() {
-            // Reset game state
-            gameState.car = { x: 1, y: 1, direction: 'east' };
-            gameState.person = { x: 6, y: 5, rescued: false };
+        function loadLevel(levelNum) {
+            if (!LEVELS[levelNum]) {
+                console.error(`Level ${levelNum} not found`);
+                return false;
+            }
+            
+            currentLevelNum = levelNum;
+            currentLevel = parseLevel(LEVELS[levelNum]);
+            
+            // Update game state with level data
+            gameState.car = { ...currentLevel.car };
+            gameState.person = { ...currentLevel.person };
+            gameState.safeZone = { ...currentLevel.safeZone };
+            gameState.map = currentLevel.map;
             gameState.personInCar = false;
             gameState.status = 'playing';
+            
+            return true;
+        }
+        
+        function resetGame() {
+            // Reload current level
+            loadLevel(currentLevelNum);
             
             // Reset UI
             const statusEl = document.getElementById('status');

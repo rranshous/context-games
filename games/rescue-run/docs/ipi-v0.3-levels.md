@@ -64,12 +64,12 @@ This forces the AI to move blindly and hit walls. Works (slowly) on small maps, 
 
 ## Plan
 
-### Milestone 1: ASCII Level Format
-- [ ] Define level format (ASCII grid + metadata)
-- [ ] Create level parser (ASCII string → game state)
-- [ ] Convert current hardcoded map to ASCII format (Level 1)
-- [ ] Level loads and renders correctly
-- [ ] **Verify via Playwright:** Game plays identically with parsed level
+### Milestone 1: ASCII Level Format ✅
+- [x] Define level format (ASCII grid + metadata)
+- [x] Create level parser (ASCII string → game state)
+- [x] Convert current hardcoded map to ASCII format (Level 1)
+- [x] Level loads and renders correctly
+- [x] **Verify via Playwright:** Game plays identically with parsed level (33 turns)
 
 ### Milestone 2: Level Selection UI
 - [ ] Simple level picker (Level 1 button only initially)
