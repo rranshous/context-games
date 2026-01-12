@@ -1074,39 +1074,68 @@ Actions:
                 description: "Look around and scan the surroundings. Returns your current position, the tile you're on, what direction you're facing, whether you have a person in the car, and what's in each cardinal direction (north, south, east, west) including tile type, whether it's passable, and if there's a person or safe zone there.",
                 parameters: [],
                 implementation: `
-const pos = stdlib.getCarPosition();
-const directions = ['north', 'south', 'east', 'west'];
-const offsets = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+// ========================================
+// SCAN TOOL - Look around and gather info
+// ========================================
+// This tool returns information about:
+// - Where the car is (current_position)
+// - What's in each direction (surroundings)
+// - Whether the person or safe zone is nearby
 
+// Get the car's current position (returns {x, y})
+const pos = stdlib.getCarPosition();
+
+// Define the four directions we can look
+const directions = ['north', 'south', 'east', 'west'];
+
+// Map each direction to how x,y coordinates change
+// north = up = y-1, south = down = y+1
+// east = right = x+1, west = left = x-1
+const offsets = { 
+    north: [0, -1], 
+    south: [0, 1], 
+    east: [1, 0], 
+    west: [-1, 0] 
+};
+
+// Build information about each direction
 const surroundings = {};
 for (const dir of directions) {
+    // Calculate the position in this direction
     const [dx, dy] = offsets[dir];
-    const nx = pos.x + dx;
-    const ny = pos.y + dy;
-    const tile = stdlib.getTileAt(nx, ny);
-    const info = { ...tile };
+    const nx = pos.x + dx;  // neighbor x
+    const ny = pos.y + dy;  // neighbor y
     
+    // Get tile info (type like 'road'/'grass', and passable true/false)
+    const tile = stdlib.getTileAt(nx, ny);
+    const info = { ...tile };  // Copy tile info
+    
+    // Check if the person is in this direction
+    // getPersonPosition() returns null if person is already picked up
     const personPos = stdlib.getPersonPosition();
     if (personPos && personPos.x === nx && personPos.y === ny) {
-        info.person_here = true;
+        info.person_here = true;  // Tell AI the person is here!
     }
     
+    // Check if the safe zone is in this direction
     const szPos = stdlib.getSafeZonePosition();
     if (szPos.x === nx && szPos.y === ny) {
-        info.safe_zone_here = true;
+        info.safe_zone_here = true;  // Tell AI the safe zone is here!
     }
     
     surroundings[dir] = info;
 }
 
+// Build the result object to return to the AI
 const result = {
     current_position: pos,
     current_tile: stdlib.getTileAt(pos.x, pos.y).type,
     facing: stdlib.getCarDirection(),
     person_in_car: stdlib.isPersonInCar(),
-    surroundings
+    surroundings: surroundings
 };
 
+// Also check if person/safe zone is at CURRENT position
 const personPos = stdlib.getPersonPosition();
 if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
     result.person_at_current_location = true;
@@ -1116,6 +1145,7 @@ if (szPos.x === pos.x && szPos.y === pos.y) {
     result.at_safe_zone = true;
 }
 
+// Return the result - this is what the AI sees!
 return result;
 `
             },
@@ -1132,21 +1162,36 @@ return result;
                     }
                 ],
                 implementation: `
+// ========================================
+// MOVE TOOL - Move the car one tile
+// ========================================
+// input.direction contains the direction the AI wants to move
+// (north, south, east, or west)
+
+// Try to move - returns {success: true} or {success: false, error: "..."}
 const result = stdlib.moveCarOneStep(input.direction);
+
+// If move succeeded, add helpful info about new location
 if (result.success) {
+    // Get new position after moving
     const pos = stdlib.getCarPosition();
     result.new_position = pos;
     result.facing = stdlib.getCarDirection();
     
+    // Check if person is at new location
     const personPos = stdlib.getPersonPosition();
     if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
         result.person_at_current_location = true;
     }
+    
+    // Check if safe zone is at new location
     const szPos = stdlib.getSafeZonePosition();
     if (szPos.x === pos.x && szPos.y === pos.y) {
         result.at_safe_zone = true;
     }
 }
+
+// Return result to AI
 return result;
 `
             },
@@ -1155,10 +1200,19 @@ return result;
                 description: "Pick up a person if they are at your current location. You must be on the same tile as the person to pick them up.",
                 parameters: [],
                 implementation: `
+// ========================================
+// PICKUP TOOL - Pick up the person
+// ========================================
+// The car must be on the same tile as the person
+
+// Try to pick up - returns {success: true} or {success: false, error: "..."}
 const result = stdlib.pickupPerson();
+
+// Add a friendly message on success
 if (result.success) {
     result.message = 'Person picked up! Now take them to the safe zone.';
 }
+
 return result;
 `
             },
@@ -1167,10 +1221,19 @@ return result;
                 description: "Drop off the person you're carrying. You must be at the safe zone and have a person in the car to drop them off. This completes the rescue!",
                 parameters: [],
                 implementation: `
+// ========================================
+// DROPOFF TOOL - Drop off at safe zone
+// ========================================
+// Must have person in car AND be at safe zone
+
+// Try to drop off - returns {success: true} or {success: false, error: "..."}
 const result = stdlib.dropoffPerson();
+
+// Add a celebration message on success!
 if (result.success) {
     result.message = 'Person dropped off at safe zone! RESCUE COMPLETE!';
 }
+
 return result;
 `
             }
