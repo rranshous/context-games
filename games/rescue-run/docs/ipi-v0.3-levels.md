@@ -28,18 +28,19 @@ Add multiple levels with increasing complexity. Degrade default tools so players
 Level 1: Tutorial
 Turns: 50
 
-==========
-==========
-=C........
-==========
-=......P==
-==========
-=S........
-==========
+========
+=C.....=
+=.====.=
+=.=##=.=
+=.=##=.=
+=.....P=
+=S====.=
+========
 
 Legend:
   = = grass (impassable)
   . = road (passable)
+  # = building (impassable)
   C = car start (on road)
   P = person (on road)
   S = safe zone (on road)
