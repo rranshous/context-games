@@ -684,6 +684,7 @@
                 <div id="level-selector" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
                     <button class="level-btn selected" data-level="1">Level 1</button>
                     <button class="level-btn" data-level="2">Level 2</button>
+                    <button class="level-btn" data-level="3">Level 3</button>
                 </div>
             </div>
             
@@ -838,6 +839,20 @@ Actions:
 =......=
 =S====.=
 ========
+`
+            },
+            3: {
+                name: "Fork in the Road",
+                turns: 55,
+                map: `
+==========
+=C.......=
+=.==.===.=
+=.==.=...=
+=....=.=.=
+=.==.=.=.=
+=S==...=P=
+==========
 `
             }
         };
@@ -1837,6 +1852,10 @@ Good luck!`;
                 // Level-specific hints
                 if (currentLevelNum === 2 && stats.pickup?.calls === 0) {
                     hints.push("<strong>Level 2 Tip:</strong> The person is hidden in a side alley. Your scan needs to show what's in <em>each direction</em> so the AI can spot them!");
+                }
+                
+                if (currentLevelNum === 3 && stats.pickup?.calls === 0) {
+                    hints.push("<strong>Level 3 Tip:</strong> There's a fork in the road! The stdlib has <code>getPersonPosition()</code> - use it to tell the AI exactly where to go!");
                 }
             }
             
