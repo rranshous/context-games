@@ -90,12 +90,12 @@ This forces the AI to move blindly and hit walls. Works (slowly) on small maps, 
 - [ ] Tune turn limit so L1 *barely* succeeds with degraded tools
 - [ ] **Verify via Playwright:** AI completes L1 but inefficiently (near turn limit)
 
-### Milestone 4: Level 2 - Bigger Map
-- [ ] Design Level 2 ASCII map (larger, longer path)
-- [ ] Add Level 2 to level selector
-- [ ] Confirm degraded tools timeout on L2
-- [ ] Document what tool improvement is needed (scan surroundings)
-- [ ] **Verify via Playwright:** Degraded tools fail L2, improved scan succeeds
+### Milestone 4: Level 2 - Bigger Map ✅
+- [x] Design Level 2 ASCII map (14x14 spiral maze)
+- [x] Add Level 2 to level selector
+- [x] Confirm degraded tools timeout on L2 (FAILED at 75 turns)
+- [x] Document what tool improvement is needed (scan surroundings)
+- [x] **Verify via Playwright:** Degraded tools fail L2, hints guide improvement
 
 ### Milestone 5: Polish
 - [ ] Level complete celebration/feedback

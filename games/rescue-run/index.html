@@ -677,6 +677,7 @@
                 </div>
                 <div id="level-selector" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
                     <button class="level-btn selected" data-level="1">Level 1</button>
+                    <button class="level-btn" data-level="2">Level 2</button>
                 </div>
             </div>
             
@@ -780,8 +781,7 @@ Actions:
         // GAME CONSTANTS
         // ===========================================
         const TILE_SIZE = 32;
-        const GRID_SIZE = 8;
-        const CANVAS_SIZE = TILE_SIZE * GRID_SIZE;
+        // Grid size is now dynamic per level
 
         // Tile types
         const TILE = {
@@ -817,6 +817,26 @@ Actions:
 =.....P=
 =S====.=
 ========
+`
+            },
+            2: {
+                name: "The Long Road",
+                turns: 75,
+                map: `
+==============
+=C...........=
+=.==========.=
+=.=........=.=
+=.=.======.=.=
+=.=.=....=.=.=
+=.=.=.==.=.=.=
+=.=.=.==.=.=.=
+=.=.=....=.=.=
+=.=.======.=.=
+=.=........=P=
+=.==========.=
+=S...........=
+==============
 `
             }
         };
@@ -971,17 +991,27 @@ Actions:
         // ===========================================
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = CANVAS_SIZE;
-        canvas.height = CANVAS_SIZE;
+        
+        function resizeCanvas() {
+            const width = currentLevel.width * TILE_SIZE;
+            const height = currentLevel.height * TILE_SIZE;
+            canvas.width = width;
+            canvas.height = height;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+        }
+        
+        // Initialize canvas size
+        resizeCanvas();
 
         function render() {
             // Clear
             ctx.fillStyle = '#2d4a3e';
-            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // Draw tiles
-            for (let y = 0; y < GRID_SIZE; y++) {
-                for (let x = 0; x < GRID_SIZE; x++) {
+            for (let y = 0; y < currentLevel.height; y++) {
+                for (let x = 0; x < currentLevel.width; x++) {
                     const tile = gameState.map[y][x];
                     const px = x * TILE_SIZE;
                     const py = y * TILE_SIZE;
@@ -1121,8 +1151,8 @@ Actions:
             isPersonRescued: () => gameState.person.rescued,
             
             // === Map ===
-            getGridSize: () => ({ width: GRID_SIZE, height: GRID_SIZE }),
-            isValidPosition: (x, y) => x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE,
+            getGridSize: () => ({ width: currentLevel.width, height: currentLevel.height }),
+            isValidPosition: (x, y) => x >= 0 && x < currentLevel.width && y >= 0 && y < currentLevel.height,
             getTileAt: (x, y) => {
                 if (!stdlib.isValidPosition(x, y)) {
                     return { type: 'edge', passable: false };
@@ -1235,6 +1265,9 @@ Actions:
             gameState.map = currentLevel.map;
             gameState.personInCar = false;
             gameState.status = 'playing';
+            
+            // Resize canvas for this level
+            resizeCanvas();
             
             // Update level info display
             updateLevelDisplay();
