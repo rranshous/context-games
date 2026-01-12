@@ -293,12 +293,9 @@
             font-size: 0.75rem;
         }
         
-        #btn-edit-tools, #btn-reset-tools {
+        #btn-reset-tools {
             padding: 8px 12px;
             font-size: 0.85rem;
-        }
-        
-        #btn-reset-tools {
             background: #666;
         }
         
@@ -652,8 +649,7 @@
                 <h2>🔧 Tools</h2>
                 <div id="tools-list"></div>
                 <div style="margin-top: 10px;">
-                    <button id="btn-edit-tools">✏️ Edit Tools</button>
-                    <button id="btn-reset-tools">↩️ Reset</button>
+                    <button id="btn-reset-tools">↩️ Reset Tools</button>
                 </div>
             </div>
         </div>
@@ -1914,12 +1910,6 @@ Good luck!`;
             });
             
             // Tool editor buttons
-            document.getElementById('btn-edit-tools').addEventListener('click', () => {
-                if (currentTools.length > 0) {
-                    openToolEditor(0);
-                }
-            });
-            
             document.getElementById('btn-reset-tools').addEventListener('click', () => {
                 resetTools();
             });
