@@ -104,13 +104,18 @@ Add the core gameplay mechanic: **players design the tools** the AI uses. Introd
 - [x] Highlight where AI got stuck/confused (back-and-forth, consecutive failures)
 - [x] Add "hints" system for struggling players
 
+### Post-Milestone Refinements ✅
+- [x] Removed redundant "Edit Tools" button (each tool has its own Edit button)
+- [x] Added extensive comments to default tool implementations (beginner-friendly)
+- [x] Made tool editor modal much larger (900px wide, 90vh tall) for easier editing
+
 ---
 
 ## Implement
 
 *Progress tracked below as we work through milestones.*
 
-### Status: v0.2 COMPLETE (All Milestones Done!)
+### Status: v0.2 COMPLETE (All Milestones + Refinements Done!)
 
 ---
 
