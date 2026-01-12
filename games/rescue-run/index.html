@@ -162,6 +162,12 @@
         
         .status.won {
             background: #2e7d32;
+            animation: celebrate 0.5s ease-in-out;
+        }
+        
+        @keyframes celebrate {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
         
         .legend {
@@ -706,6 +712,7 @@
                         <div class="review-actions">
                             <button id="btn-edit-after-review">✏️ Edit Tools</button>
                             <button id="btn-run-again">▶️ Run Again</button>
+                            <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
                         </div>
                     </div>
                 </div>
@@ -1645,7 +1652,6 @@ Good luck!`;
             hideReview();
             
             clearAiLog();
-            updateAiStatus('Running...', true);
             
             document.getElementById('btn-run-ai').disabled = true;
             document.getElementById('btn-stop-ai').disabled = false;
@@ -1654,6 +1660,9 @@ Good luck!`;
             document.querySelectorAll('.control-group button').forEach(btn => {
                 btn.disabled = true;
             });
+            
+            const maxIterations = currentLevel.turns || 50; // Use level turn limit
+            updateAiStatus(`Turn 0/${maxIterations}`, true);
             
             aiLog('🤖 AI starting rescue mission...', 'ai-thinking');
             
@@ -1664,11 +1673,11 @@ Good luck!`;
             });
             
             let iterations = 0;
-            const maxIterations = currentLevel.turns || 50; // Use level turn limit
             
             try {
                 while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
                     iterations++;
+                    updateAiStatus(`Turn ${iterations}/${maxIterations}`, true);
                     
                     if (gameState.status === 'won') {
                         aiLog('🎉 RESCUE COMPLETE! Mission successful!', 'ai-result');
@@ -1824,6 +1833,11 @@ Good luck!`;
                 if ((stats.scan?.calls || 0) < 3) {
                     hints.push("The AI barely scanned its surroundings. Is the <code>scan</code> tool description clear about what it does?");
                 }
+                
+                // Level-specific hints
+                if (currentLevelNum === 2 && stats.pickup?.calls === 0) {
+                    hints.push("<strong>Level 2 Tip:</strong> The person is hidden in a side alley. Your scan needs to show what's in <em>each direction</em> so the AI can spot them!");
+                }
             }
             
             // Even on success, check for inefficiency
@@ -1922,6 +1936,20 @@ Good luck!`;
             statsHtml += '</div>';
             
             statsEl.innerHTML = statsHtml;
+            
+            // Show/hide Next Level button
+            const nextLevelBtn = document.getElementById('btn-next-level');
+            const nextLevelNum = currentLevelNum + 1;
+            if (aiState.result === 'success' && LEVELS[nextLevelNum]) {
+                nextLevelBtn.style.display = 'inline-block';
+                nextLevelBtn.onclick = () => {
+                    hideReview();
+                    selectLevel(nextLevelNum);
+                };
+            } else {
+                nextLevelBtn.style.display = 'none';
+            }
+            
             panel.style.display = 'block';
         }
         
