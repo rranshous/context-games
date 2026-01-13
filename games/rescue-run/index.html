@@ -1422,6 +1422,9 @@ Actions:
             statusEl.className = 'status playing';
             document.getElementById('btn-reset').style.display = 'none';
             
+            // Show turn limit in AI status
+            updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
+            
             // Clear AI log
             clearAiLog();
             aiLog(`Level ${levelNum}: ${currentLevel.name} loaded. Turn limit: ${currentLevel.turns}`, 'ai-result');
@@ -1445,6 +1448,9 @@ Actions:
             statusEl.textContent = 'Ready';
             statusEl.className = 'status playing';
             document.getElementById('btn-reset').style.display = 'none';
+            
+            // Show turn limit in AI status
+            updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
             
             // Clear AI log
             clearAiLog();
@@ -1900,7 +1906,7 @@ Good luck!`;
             
             // Cleanup
             aiState.running = false;
-            updateAiStatus('AI Ready', false);
+            updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
             document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
             

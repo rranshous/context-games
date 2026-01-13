@@ -26,6 +26,14 @@ Par: ~8 turns (move to person, pickup, move to safe zone, dropoff)
 
 ---
 
+## UI Improvements
+
+### Turn Limit Always Visible ✅ DONE
+**Issue:** Turn count only showed after starting run.
+**Fix:** Show "Ready (X turns)" in AI status before and after runs.
+
+---
+
 ## Tool Management
 
 ### Toggle Tools On/Off
