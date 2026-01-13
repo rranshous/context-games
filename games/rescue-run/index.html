@@ -751,7 +751,13 @@
             </div>
             
             <div class="game-panel">
-                <h2>🔧 Tools</h2>
+                <h2>� System Prompt</h2>
+                <textarea id="system-prompt" rows="3" placeholder="Optional: Add instructions for the AI here..." style="width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.85rem; padding: 8px; resize: vertical; font-family: inherit;"></textarea>
+                <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Leave empty for default behavior</div>
+            </div>
+            
+            <div class="game-panel">
+                <h2>�🔧 Tools</h2>
                 <div id="tools-list"></div>
                 <div style="margin-top: 10px; display: flex; gap: 8px;">
                     <button id="btn-add-tool" style="background: #4caf50;">➕ Add Tool</button>
@@ -1672,9 +1678,11 @@ return result;
             aiLogEl.innerHTML = '';
         }
         
-        // Build minimal system prompt - AI must discover through tools
+        // Build system prompt - combines default with user's custom prompt
         function buildSystemPrompt() {
-            return `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
+            const userPrompt = getSystemPrompt();
+            
+            const defaultPrompt = `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
 
 Use your available tools to:
 1. Explore and understand your environment
@@ -1683,6 +1691,12 @@ Use your available tools to:
 4. Drop off the person to complete the rescue
 
 Good luck!`;
+            
+            // If user has custom prompt, prepend it
+            if (userPrompt) {
+                return userPrompt + '\n\n' + defaultPrompt;
+            }
+            return defaultPrompt;
         }
         
         // Call Claude API via vanilla platform proxy
@@ -2362,6 +2376,26 @@ return { message: "Tool executed" };`
                 renderToolsList();
             }
         }
+        
+        // ===========================================
+        // SYSTEM PROMPT
+        // ===========================================
+        
+        function saveSystemPrompt() {
+            const prompt = document.getElementById('system-prompt').value;
+            localStorage.setItem('rescue-run-system-prompt', prompt);
+        }
+        
+        function loadSystemPrompt() {
+            const saved = localStorage.getItem('rescue-run-system-prompt');
+            if (saved) {
+                document.getElementById('system-prompt').value = saved;
+            }
+        }
+        
+        function getSystemPrompt() {
+            return document.getElementById('system-prompt').value.trim();
+        }
 
         // ===========================================
         // UI SETUP
@@ -2391,6 +2425,11 @@ return { message: "Tool executed" };`
             });
             document.getElementById('btn-reset-tools').addEventListener('click', () => {
                 resetTools();
+            });
+            
+            // System prompt auto-save on blur
+            document.getElementById('system-prompt').addEventListener('blur', () => {
+                saveSystemPrompt();
             });
             
             // Review panel buttons
@@ -2447,6 +2486,9 @@ return { message: "Tool executed" };`
             // Load saved tools
             loadTools();
             renderToolsList();
+            
+            // Load saved system prompt
+            loadSystemPrompt();
             
             // Load completed levels
             loadCompletedLevels();
