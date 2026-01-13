@@ -32,17 +32,18 @@
             box-sizing: border-box;
         }
         
-        /* v0.7: Three-column layout - Game | Tools | AI Control */
+        /* v0.7: Four-column layout - Game | Prompt | Tools | Review */
+        /* Workflow: edit → run → review → edit */
         .game-container {
             display: grid;
-            grid-template-columns: auto minmax(260px, 360px) 1fr;
+            grid-template-columns: auto minmax(200px, 300px) 1fr minmax(280px, 400px);
             gap: 6px;
             max-width: 100%;
             margin: 0;
             height: 100%;
         }
         
-        /* Left column: Game - auto width based on canvas */
+        /* Left column: Game + Controls - auto width based on canvas */
         .game-column {
             display: flex;
             flex-direction: column;
@@ -51,7 +52,21 @@
             min-width: 180px;
         }
         
-        /* Middle column: System Prompt + Tools */
+        /* Second column: System Prompt */
+        .prompt-column {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0;
+        }
+        
+        /* v0.7: Disabled state for prompt column during runs */
+        .prompt-column.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Third column: Tools */
         .tools-column {
             display: flex;
             flex-direction: column;
@@ -59,7 +74,13 @@
             min-height: 0; /* Allow flex shrinking */
         }
         
-        /* Right column: AI Control + Log + Review */
+        /* v0.7: Disabled state for tools column during runs */
+        .tools-column.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Right column: Review */
         .ai-column {
             display: flex;
             flex-direction: column;
@@ -268,8 +289,8 @@
             font-size: 0.65rem;
             overflow-y: auto;
             color: #ccc;
-            max-height: 150px;
-            flex-shrink: 0;
+            /* flex: 1 in inline style handles height - no max-height cap */
+            min-height: 0; /* Allow flex shrinking */
         }
         
         #ai-log .ai-thinking {
@@ -409,7 +430,7 @@
         }
         
         .tool-editor-wrapper .CodeMirror {
-            height: 120px;
+            height: 300px; /* v0.7: More space for code editing */
             font-size: 0.75rem;
         }
         
@@ -733,11 +754,11 @@
         }
         
         .call-history-list {
-            max-height: 200px;
+            flex: 1;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 3px;
+            gap: 2px; /* v0.7: Tighter spacing */
         }
         
         .call-history-item {
@@ -804,10 +825,15 @@
         }
         
         .call-history-detail {
-            display: block;
+            display: none; /* v0.7: Collapsed by default */
             padding: 8px;
             border-top: 1px solid #333;
             background: #0f1628;
+        }
+        
+        /* v0.7: Show detail when item is expanded */
+        .call-history-item.expanded .call-history-detail {
+            display: block;
         }
         
         .call-history-json {
@@ -910,18 +936,39 @@
                 <h2>Status</h2>
                 <div id="status" class="status playing">Ready</div>
                 <div id="turn-counter" style="margin-top: 8px; font-size: 0.85rem; color: #aaa;">Turn: 0</div>
-                <button id="btn-reset" style="margin-top: 10px;">🔄 Reset Level</button>
+            </div>
+            
+            <!-- Game Controls: Run, Stop, Reset -->
+            <div class="game-panel">
+                <h2>🎮 Controls</h2>
+                <div id="ai-status" class="ai-status">Ready</div>
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">
+                    <button id="btn-run-ai" style="background: #e94560;">▶️ Run AI</button>
+                    <button id="btn-stop-ai" style="background: #ff9800;" disabled>⏹️ Stop</button>
+                    <button id="btn-reset">🔄 Reset Level</button>
+                </div>
+                <!-- Post-run actions (shown after AI completes) -->
+                <div id="post-run-actions" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <button id="btn-edit-after-review">✏️ Edit Tools</button>
+                        <button id="btn-run-again">▶️ Run Again</button>
+                        <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <!-- MIDDLE COLUMN: System Prompt + Tools -->
-        <div class="tools-column">
-            <div class="game-panel">
+        <!-- SECOND COLUMN: System Prompt -->
+        <div class="prompt-column">
+            <div class="game-panel" style="flex: 1; display: flex; flex-direction: column;">
                 <h2>📝 System Prompt</h2>
-                <textarea id="system-prompt" rows="4" style="width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.8rem; padding: 6px; resize: vertical; font-family: inherit;"></textarea>
+                <textarea id="system-prompt" style="flex: 1; width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.8rem; padding: 6px; resize: none; font-family: inherit; min-height: 100px;"></textarea>
                 <div style="font-size: 0.7rem; color: #666; margin-top: 3px;">Prompt sent to AI</div>
             </div>
-            
+        </div>
+        
+        <!-- THIRD COLUMN: Tools -->
+        <div class="tools-column">
             <div class="game-panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
                 <h2>🔧 Tools</h2>
                 <div id="tools-list" style="flex: 1; overflow-y: auto;"></div>
@@ -932,38 +979,22 @@
             </div>
         </div>
         
-        <!-- RIGHT COLUMN: AI Control + Log + Review -->
+        <!-- FOURTH COLUMN: Review -->
         <div class="ai-column">
             <div class="game-panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                <h2>🤖 AI Control</h2>
-                <div class="ai-panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                    <div id="ai-status" class="ai-status">AI Ready</div>
-                    <div class="ai-controls">
-                        <button id="btn-run-ai">▶️ Run AI</button>
-                        <button id="btn-stop-ai" disabled>⏹️ Stop</button>
-                    </div>
-                    <div id="ai-log" style="flex: 1; overflow-y: auto;"></div>
+                <h2>📊 Review</h2>
+                <div id="ai-log" style="flex: 1; overflow-y: auto;"></div>
+                
+                <!-- Review Panel (hidden until run completes) -->
+                <div id="review-panel" class="review-panel" style="display: none;">
+                    <div id="review-result" class="review-result"></div>
+                    <div id="review-hints" class="review-hints" style="display: none;"></div>
+                    <div id="review-stats" class="review-stats"></div>
                     
-                    <!-- Review Panel (hidden until run completes) -->
-                    <div id="review-panel" class="review-panel" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <h3 style="margin: 0; font-size: 0.85rem;">📊 Review</h3>
-                            <button id="btn-close-review" style="padding: 2px 6px; font-size: 0.7rem;">×</button>
-                        </div>
-                        <div id="review-result" class="review-result"></div>
-                        <div id="review-hints" class="review-hints" style="display: none;"></div>
-                        <div id="review-stats" class="review-stats"></div>
-                        <div class="review-actions">
-                            <button id="btn-edit-after-review">✏️ Edit Tools</button>
-                            <button id="btn-run-again">▶️ Run Again</button>
-                            <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
-                        </div>
-                        
-                        <!-- v0.6: Tool Call History -->
-                        <div class="call-history-section">
-                            <h4 style="margin: 0 0 6px 0; font-size: 0.8rem; color: #4fc3f7;">🔍 Tool Call History</h4>
-                            <div id="call-history-list" class="call-history-list"></div>
-                        </div>
+                    <!-- v0.6: Tool Call History -->
+                    <div class="call-history-section">
+                        <h4 style="margin: 0 0 6px 0; font-size: 0.8rem; color: #4fc3f7;">🔍 Tool Call History</h4>
+                        <div id="call-history-list" class="call-history-list"></div>
                     </div>
                 </div>
             </div>
@@ -1704,8 +1735,8 @@
             clearAiLog();
             aiLog('Game reset. Ready to run AI.', 'ai-result');
             
-            // v0.7: Hide review panel on reset
-            hideReview();
+            // v0.7: Set UI mode back to idle
+            setUiMode('idle');
             
             render();
         }
@@ -1899,6 +1930,70 @@ return result;
             }
         }
         
+        // ===========================================
+        // v0.7: UI MODE STATE
+        // ===========================================
+        // Modes: 'idle' | 'running' | 'reviewing'
+        let uiMode = 'idle';
+        
+        function setUiMode(mode) {
+            uiMode = mode;
+            document.body.setAttribute('data-ui-mode', mode);
+            
+            // Update prompt column - disable editing during runs
+            const promptColumn = document.querySelector('.prompt-column');
+            // Update tools column - disable editing during runs
+            const toolsColumn = document.querySelector('.tools-column');
+            
+            if (mode === 'running') {
+                promptColumn.classList.add('disabled');
+                toolsColumn.classList.add('disabled');
+                // Disable all inputs in both columns
+                promptColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = true;
+                });
+                toolsColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = true;
+                });
+            } else {
+                promptColumn.classList.remove('disabled');
+                toolsColumn.classList.remove('disabled');
+                // Re-enable all inputs in both columns
+                promptColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = false;
+                });
+                toolsColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = false;
+                });
+            }
+            
+            // Update AI column based on mode
+            updateAiColumnForMode(mode);
+        }
+        
+        function updateAiColumnForMode(mode) {
+            const aiLog = document.getElementById('ai-log');
+            const reviewPanel = document.getElementById('review-panel');
+            const postRunActions = document.getElementById('post-run-actions');
+            
+            if (mode === 'running') {
+                // Show log, hide review
+                aiLog.style.display = 'block';
+                reviewPanel.style.display = 'none';
+                postRunActions.style.display = 'none';
+            } else if (mode === 'reviewing') {
+                // Keep log visible, show review, show post-run actions
+                aiLog.style.display = 'block';
+                reviewPanel.style.display = 'block';
+                postRunActions.style.display = 'block';
+            } else {
+                // Idle: show log (for next run), hide review, hide post-run actions
+                aiLog.style.display = 'block';
+                reviewPanel.style.display = 'none';
+                postRunActions.style.display = 'none';
+            }
+        }
+        
         // AI state
         const aiState = {
             running: false,
@@ -2018,13 +2113,15 @@ return result;
                 return;
             }
             
+            // v0.7: Set UI mode to running
+            setUiMode('running');
+            
             aiState.running = true;
             aiState.stopRequested = false;
             aiState.messages = [];
             
             // Reset tracking for review
             resetToolStats();
-            hideReview();
             
             clearAiLog();
             
@@ -2181,7 +2278,8 @@ return result;
             document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
             
-            // Show review panel
+            // v0.7: Switch to review mode and show review panel
+            setUiMode('reviewing');
             showReview();
         }
         
@@ -2447,17 +2545,19 @@ return result;
             
             listEl.innerHTML = history.map((call, idx) => {
                 const isSuccess = call.output.success !== false;
-                const inputSummary = summarizeJson(call.input);
-                const outputSummary = summarizeJson(call.output);
+                // v0.7: Compact summary for collapsed view
+                const argSummary = call.name === 'move' && call.input?.direction 
+                    ? `(${call.input.direction.charAt(0).toUpperCase()})` 
+                    : '';
                 
                 return `
                     <div class="call-history-item ${isSuccess ? 'success' : 'failure'}" data-index="${idx}">
-                        <div class="call-history-item-header">
+                        <div class="call-history-item-header" onclick="toggleCallHistoryItem(${idx})">
                             <div class="call-history-item-left">
                                 <span class="call-history-turn">T${call.turn}</span>
-                                <span class="call-history-name">${call.name}</span>
-                                <span class="call-history-summary">${inputSummary}</span>
+                                <span class="call-history-name">${call.name}${argSummary}</span>
                             </div>
+                            <span class="call-history-expand">▶</span>
                         </div>
                         <div class="call-history-detail" id="call-detail-${idx}">
                             <div class="call-history-json">
@@ -2478,6 +2578,14 @@ return result;
                     </div>
                 `;
             }).join('');
+        }
+        
+        // v0.7: Toggle call history item expansion
+        function toggleCallHistoryItem(idx) {
+            const item = document.querySelector(`.call-history-item[data-index="${idx}"]`);
+            if (item) {
+                item.classList.toggle('expanded');
+            }
         }
         
         function summarizeJson(obj) {
@@ -2637,12 +2745,10 @@ return { message: "Tool executed" };`
             const item = document.getElementById(`tool-item-${index}`);
             const wasExpanded = item.classList.contains('expanded');
             
-            // Collapse all
-            document.querySelectorAll('.tool-item.expanded').forEach(el => {
-                el.classList.remove('expanded');
-            });
-            
-            if (!wasExpanded) {
+            // Toggle this tool (allow multiple to be open)
+            if (wasExpanded) {
+                item.classList.remove('expanded');
+            } else {
                 item.classList.add('expanded');
                 expandedToolIndex = index;
                 
@@ -2662,8 +2768,6 @@ return { message: "Tool executed" };`
                 }
                 // Refresh CodeMirror after expansion animation
                 setTimeout(() => toolEditors[index].refresh(), 10);
-            } else {
-                expandedToolIndex = -1;
             }
         }
         
@@ -2824,15 +2928,14 @@ Good luck!`;
             });
             
             // Review panel buttons
-            document.getElementById('btn-close-review').addEventListener('click', hideReview);
             document.getElementById('btn-edit-after-review').addEventListener('click', () => {
+                setUiMode('idle');
                 if (currentTools.length > 0) {
                     toggleToolExpand(0);
                 }
             });
             document.getElementById('btn-run-again').addEventListener('click', () => {
                 resetGame();
-                hideReview();
                 runAI();
             });
         }
