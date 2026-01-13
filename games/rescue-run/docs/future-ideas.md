@@ -26,6 +26,46 @@ Par: ~8 turns (move to person, pickup, move to safe zone, dropoff)
 
 ---
 
+## Tool Management
+
+### Toggle Tools On/Off
+**Idea:** Let players enable/disable individual tools for experimentation.
+
+**Use cases:**
+- "Can I beat this with just scan + move?"
+- Test if a tool is actually helping or hurting
+- Challenge runs with limited toolset
+
+**UI:** Checkbox next to each tool in the Tools panel
+
+### Add Custom Tools
+**Idea:** Let players create entirely new tools, not just edit existing ones.
+
+**Use cases:**
+- "What if I had a 'pathfind' tool?"
+- Experiment with different tool designs
+- Share tool configurations
+
+**Considerations:**
+- Need tool name, description, parameters, implementation
+- Validate implementation syntax
+- Maybe tool templates to start from?
+
+### AI Coding Assistant for Tools
+**Idea:** Built-in AI helper for writing tool implementations.
+
+**Why:**
+- Lower barrier to entry for non-coders
+- Practice AI collaboration
+- "Help me make scan show distance to person"
+
+**Implementation options:**
+- Chat interface in tool editor
+- "Suggest improvement" button
+- Explain what current code does
+
+---
+
 ## Optimal Path & Scoring
 
 ### 1. Pre-calculated Optimal Paths
