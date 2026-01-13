@@ -888,7 +888,10 @@
                     
                     <!-- Review Panel (hidden until run completes) -->
                     <div id="review-panel" class="review-panel" style="display: none;">
-                        <h3>📊 Review <button id="btn-close-review" style="padding: 2px 8px; font-size: 0.75rem;">×</button></h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0;">📊 Review</h3>
+                            <button id="btn-close-review" style="padding: 2px 8px; font-size: 0.75rem;">×</button>
+                        </div>
                         <div id="review-result" class="review-result"></div>
                         <div id="review-hints" class="review-hints" style="display: none;"></div>
                         <div id="review-stats" class="review-stats"></div>
