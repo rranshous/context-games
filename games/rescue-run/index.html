@@ -395,6 +395,61 @@
             background: #66bb6a !important;
         }
         
+        /* Tool Toggle Switch */
+        .tool-toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+        
+        .tool-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .tool-toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: 0.2s;
+            border-radius: 20px;
+        }
+        
+        .tool-toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.2s;
+            border-radius: 50%;
+        }
+        
+        .tool-toggle input:checked + .tool-toggle-slider {
+            background-color: #4caf50;
+        }
+        
+        .tool-toggle input:checked + .tool-toggle-slider:before {
+            transform: translateX(16px);
+        }
+        
+        .tool-item.disabled {
+            opacity: 0.5;
+        }
+        
+        .tool-item.disabled .tool-name {
+            text-decoration: line-through;
+            color: #888;
+        }
+        
         .tool-error {
             background: rgba(255,80,80,0.2);
             border: 1px solid #f55;
@@ -1493,9 +1548,11 @@ return result;
         // Current tools (can be modified by player)
         let currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
         
-        // Convert tool definitions to Claude API format
+        // Convert tool definitions to Claude API format (only enabled tools)
         function getClaudeTools() {
-            return currentTools.map(tool => ({
+            return currentTools
+                .filter(tool => tool.enabled !== false)
+                .map(tool => ({
                 name: tool.name,
                 description: tool.description,
                 input_schema: {
@@ -2086,13 +2143,19 @@ Good luck!`;
         
         function renderToolsList() {
             const listEl = document.getElementById('tools-list');
-            listEl.innerHTML = currentTools.map((tool, i) => `
-                <div class="tool-item" data-index="${i}" id="tool-item-${i}">
+            listEl.innerHTML = currentTools.map((tool, i) => {
+                const enabled = tool.enabled !== false; // default to true
+                return `
+                <div class="tool-item ${enabled ? '' : 'disabled'}" data-index="${i}" id="tool-item-${i}">
                     <div class="tool-header" onclick="toggleToolExpand(${i})">
                         <div class="tool-header-left">
                             <span class="tool-expand-icon">▶</span>
                             <span class="tool-name">${tool.name}(${tool.parameters.map(p => p.name).join(', ')})</span>
                         </div>
+                        <label class="tool-toggle" onclick="event.stopPropagation();">
+                            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleToolEnabled(${i}, this.checked)" />
+                            <span class="tool-toggle-slider"></span>
+                        </label>
                     </div>
                     <div class="tool-body">
                         <div class="tool-form-group">
@@ -2137,10 +2200,21 @@ Actions:
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
             
             // Clear old CodeMirror instances
             toolEditors = {};
+        }
+        
+        function toggleToolEnabled(index, enabled) {
+            currentTools[index].enabled = enabled;
+            const item = document.getElementById(`tool-item-${index}`);
+            if (enabled) {
+                item.classList.remove('disabled');
+            } else {
+                item.classList.add('disabled');
+            }
+            saveTools();
         }
         
         function escapeHtml(str) {
