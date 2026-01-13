@@ -2,7 +2,8 @@
 
 A puzzle game that teaches **AI tool design** through a rescue vehicle simulation. You don't control the car directly—you design the tools it uses to perceive and act, then watch the AI use your tools to rescue stranded people.
 
-![Screenshots coming soon]
+<img width="1558" height="845" alt="Screenshot from 2026-01-13 09-41-57" src="https://github.com/user-attachments/assets/3492cc8b-4716-45f4-9b77-733b460d8154" />
+
 
 ## 🎮 How It Works
 
