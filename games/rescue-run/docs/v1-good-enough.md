@@ -49,17 +49,16 @@ The UI should present embodiment editing as the PRIMARY interaction, with the si
 ## Minimum Scope for v1.0
 
 ### Must Have
-- [ ] New layout: game left, embodiment right
-- [ ] No modal for tool editing (inline expand or side panel)
-- [ ] Tool toggle on/off
-- [ ] Add new tools button
-- [ ] Editable system prompt (NO default - start empty)
-- [ ] Persist level selection on refresh
-- [ ] Clean stop/reset without refresh needed
-- [ ] Persist tool edits in localStorage
-- [ ] Interactive tool call history (hover/click to see full JSON input/output)
-- [ ] Personal best tracking per level
-- [ ] Level 0: pure basics (no obstacles, just test tools work)
+- [x] New layout: game left, embodiment right *(DONE - 4-column layout)*
+- [x] No modal for tool editing (inline expand or side panel) *(DONE - inline accordion)*
+- [x] Tool toggle on/off *(DONE)*
+- [x] Add new tools button *(DONE)*
+- [x] Editable system prompt (NO default - start empty) *(PARTIAL - editable but has default)*
+- [x] Persist level selection on refresh *(DONE)*
+- [x] Clean stop/reset without refresh needed *(DONE)*
+- [x] Persist tool edits in localStorage *(DONE)*
+- [x] Interactive tool call history (hover/click to see full JSON input/output) *(DONE - expandable)*
+- [x] Personal best tracking per level *(DONE)*
 
 ### Nice to Have (if easy)
 - [ ] Better visual feedback during run
@@ -71,10 +70,19 @@ The UI should present embodiment editing as the PRIMARY interaction, with the si
 - Token metrics
 - Mobile support
 - Pretty styling (functional > beautiful)
+- ~~Level 0: pure basics~~ (SCRAPPED - existing levels sufficient for testing)
+- ~~URL routing / deep linking~~ (SCRAPPED - not needed for v1)
+
+### Scrapped Features (v0.8 IPI cancelled)
+The v0.8 IPI proposed Level 0 (tutorial) and URL routing. Decision: **scrapped**.
+- Level 0 adds complexity without clear value - existing levels work fine
+- URL routing is nice-to-have but not essential for core experience
 
 ## Success Criteria
 
 "I can sit down, tweak embodiment, run, observe, tweak again—without frustration or page refreshes. The loop feels smooth."
+
+**Status: ESSENTIALLY COMPLETE** - All major features implemented. Only minor tweak remaining (empty default prompt) if desired.
 
 ## Technical Notes
 
