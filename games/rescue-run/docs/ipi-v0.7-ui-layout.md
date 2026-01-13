@@ -551,3 +551,44 @@ Modified `toggleToolExpand(index)` function:
 
 ### Verified
 Screenshot confirms both `scan()` and `move()` can be expanded at the same time.
+
+---
+
+## Session 3 - Review Column Scrolling ✅
+
+### Goal
+Fix the Review column (rightmost) scrolling behavior after a run completes.
+
+### Current Behavior
+- AI log shows during run ✅
+- AI log stays visible after run ✅
+- After run: review result panels appear above the log
+- Problem: Sub-panels scroll independently (log has its own scroll, review panel has its own scroll)
+
+### Desired Behavior
+1. After run completes, the Review column shows:
+   - Result banner (success/fail, turns)
+   - Quick stats (tool usage counts)
+   - Tool Call History
+   - AI Log at the BOTTOM
+2. The entire column scrolls as ONE unit (no independent scrolling of sub-panels)
+3. No sub-panel should have its own scrollbar
+
+### Implementation ✅
+
+**CSS Changes:**
+1. `#ai-log` - removed `overflow-y: auto` and `min-height: 0`
+2. `.review-panel` - removed `overflow-y: auto`, `flex: 1`, and `min-height: 0`
+3. `.call-history-list` - removed `overflow-y: auto` and `flex: 1`
+4. Parent `.game-panel` retains `overflow-y: auto` - this is the ONLY scroll container
+
+**HTML Changes:**
+- Reordered elements: Review panel now appears BEFORE AI log in DOM
+- AI log renders at the bottom of the column
+
+### Verified with Playwright ✅
+- Sub-panels all have `overflow-y: visible` (no individual scrollbars)
+- Parent panel has `overflow-y: auto` 
+- Column scrolls as one unit (scrollHeight: 1974, clientHeight: 950)
+- Review results at TOP, AI log at BOTTOM
+- Screenshots confirm expected layout

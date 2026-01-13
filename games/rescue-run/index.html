@@ -287,10 +287,8 @@
             padding: 6px;
             font-family: monospace;
             font-size: 0.65rem;
-            overflow-y: auto;
             color: #ccc;
-            /* flex: 1 in inline style handles height - no max-height cap */
-            min-height: 0; /* Allow flex shrinking */
+            /* v0.7: No independent scroll - parent .game-panel scrolls */
         }
         
         #ai-log .ai-thinking {
@@ -587,9 +585,7 @@
             background: #1a1a2e;
             border-radius: 4px;
             border: 1px solid #333;
-            flex: 1;
-            overflow-y: auto;
-            min-height: 0;
+            /* v0.7: No independent scroll - parent .game-panel scrolls */
         }
         
         .review-panel h3 {
@@ -754,11 +750,10 @@
         }
         
         .call-history-list {
-            flex: 1;
-            overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 2px; /* v0.7: Tighter spacing */
+            /* v0.7: No independent scroll - parent .game-panel scrolls */
         }
         
         .call-history-item {
@@ -981,9 +976,8 @@
         
         <!-- FOURTH COLUMN: Review -->
         <div class="ai-column">
-            <div class="game-panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div class="game-panel" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
                 <h2>📊 Review</h2>
-                <div id="ai-log" style="flex: 1; overflow-y: auto;"></div>
                 
                 <!-- Review Panel (hidden until run completes) -->
                 <div id="review-panel" class="review-panel" style="display: none;">
@@ -997,6 +991,9 @@
                         <div id="call-history-list" class="call-history-list"></div>
                     </div>
                 </div>
+                
+                <!-- AI Log (at bottom - less important after run completes) -->
+                <div id="ai-log"></div>
             </div>
         </div>
     </div>
