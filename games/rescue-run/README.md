@@ -22,7 +22,7 @@ You are the engineer programming an autonomous rescue vehicle. Instead of contro
 
 - **Low vs high-level tools**: `move_north()` vs `navigate_to(location)`
 - **Context injection**: Baking helpful reminders into tool responses
-- **Tool completeness**: Forgetting `wait()` means AI can't pause
+- **Tool completeness**: Missing tools = missing capabilities
 - **Clarity matters**: Vague descriptions = unpredictable behavior
 - **Embodiment design**: Creating systems that "lean toward success"
 
@@ -62,7 +62,21 @@ Your goal: Design tools and prompts so the AI can:
 This is a single HTML file with no build step required.
 
 1. Open `index.html` in a browser
-2. **Requires an AI proxy** for inference (e.g., running on localhost)
+2. **Requires the [Vanilla platform](../../platforms/vanilla/README.md)** for AI inference
+
+### Development Mode
+
+The easiest way to run during development:
+
+```bash
+cd platforms/vanilla
+npm install
+npm run dev
+```
+
+Then access the game at `http://localhost:3000/dev/rescue-run/index.html`
+
+See the [Vanilla platform README](../../platforms/vanilla/README.md) for full setup instructions.
 
 ### Building for Distribution
 
