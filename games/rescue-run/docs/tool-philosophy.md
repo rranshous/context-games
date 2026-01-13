@@ -1,5 +1,41 @@
 # Tool Philosophy & Agentic System Pitfalls
 
+## Embodiment
+
+**Embodiment** is the central concept of this game.
+
+The Claude model's weights are fixed. But its *embodiment*—the context, tools, and accumulated code we wrap around it—is malleable. That's where capability growth happens.
+
+**What is embodiment?**
+- The tools available to the model
+- The context/prompt shaping its behavior  
+- The code it has written or been given
+- The accumulated state across interactions
+
+**Why "embodiment"?**
+- **Agency** - an embodied model acts in the world
+- **Persistence** - the embodiment outlasts any single conversation
+- **Identity** - different embodiments = different "beings" from same base model
+- **Evolution** - embodiments can grow, adapt, improve
+
+### The Dead Fish Principle
+
+Dead fish nearly "swim" because their bodies are *made* to swim. The physics of their form—the flex of the spine, the shape of the fins—leans toward swimming even without a living brain directing it.
+
+This is the deepest lesson for system design:
+
+> **Create an embodiment that leans toward success.**
+
+Don't fight the problem with more intelligence. Shape the body/tools/environment so that success is the natural falling-into-place.
+
+In Rescue Run:
+- Bad embodiment: AI reasons through every move, fights the maze
+- Good embodiment: Tools that make correct action obvious, AI just follows the gradient
+
+The game is about crafting an embodiment for Claude Haiku that makes rescue missions *easy*—not by making the AI smarter, but by making success the path of least resistance.
+
+---
+
 ## The Core Insight
 
 Writing the solver IS playing the game.
