@@ -56,18 +56,19 @@ The UI should present embodiment editing as the PRIMARY interaction, with the si
 - [ ] Editable system prompt (NO default - start empty)
 - [ ] Persist level selection on refresh
 - [ ] Clean stop/reset without refresh needed
+- [ ] Persist tool edits in localStorage
+- [ ] Interactive tool call history (hover/click to see full JSON input/output)
+- [ ] Personal best tracking per level
+- [ ] Level 0: pure basics (no obstacles, just test tools work)
 
 ### Nice to Have (if easy)
-- [ ] Persist tool edits in localStorage
 - [ ] Better visual feedback during run
 
 ### NOT in v1.0
 - Context visualization
 - AI assistant for tool writing  
 - Optimal path / par calculation
-- Personal best tracking
 - Token metrics
-- Interactive tool call history
 - Mobile support
 - Pretty styling (functional > beautiful)
 
