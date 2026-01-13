@@ -59,6 +59,8 @@ _To be filled in as work progresses_
 
 ## Testing Notes
 
+**Dev Server:** Use `http://localhost:3000/dev/rescue-run/index.html` for testing - refresh to pick up changes without re-uploading.
+
 **Use Playwright to verify each milestone:**
 - Test Level 0 completion with basic tools
 - Navigate with various URL params

@@ -55,6 +55,8 @@ _To be filled in as work progresses_
 
 ## Testing Notes
 
+**Dev Server:** Use `http://localhost:3000/dev/rescue-run/index.html` for testing - refresh to pick up changes without re-uploading.
+
 **Use Playwright to verify each milestone:**
 - Run a game with multiple tool calls
 - Inspect the call history UI
