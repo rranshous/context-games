@@ -2,17 +2,17 @@
 
 ## Goal
 
-Add interactive tool call history to aid in tool creation and debugging, plus minor enhancements.
+Add tool call history to aid in tool creation and debugging, plus prompt transparency.
 
 ---
 
 ## Introduce
 
-**What we're building:** A log of AI tool calls that's interactive - hover/click to see full JSON input/output for each call.
+**What we're building:** A log of AI tool calls with full JSON input/output visible for debugging.
 
 **Why:** When creating/debugging tools, you need to see:
-- What the AI asked for
-- What the tool returned
+- What the AI asked for (input args)
+- What the tool returned (output)
 - The full context, not just truncated summaries
 
 **Current state:** Turn log exists but doesn't show full tool call details.
@@ -28,82 +28,82 @@ Add interactive tool call history to aid in tool creation and debugging, plus mi
 - [x] **Verify with Playwright:** Run game, check call history populated
 
 ### Milestone 2: Display Call History
-- [x] Show tool calls in AI Log panel (or dedicated section)
-- [x] Each call shows: tool name, turn, summary
-- [x] Collapsed by default
+- [x] Show tool calls in Review panel
+- [x] Each call shows: tool name, turn, input summary
+- [x] **Always visible** - no collapse/expand
 - [x] **Verify with Playwright:** Run game, see tool calls listed
 
-### Milestone 3: Interactive Detail View
-- [x] Click/hover on call to expand full JSON
-- [x] Input args (what AI passed)
-- [x] Output (what tool returned)
+### Milestone 3: Full Detail View  
+- [x] Show full JSON for each call (input and output)
 - [x] Pretty-printed JSON
-- [x] **Verify with Playwright:** Click tool call, verify JSON displayed correctly
+- [x] **Always visible** - no collapse/expand on individual items
+- [x] **Verify with Playwright:** Verify JSON displayed for all calls
 
 ### Milestone 4: Copy to Clipboard
 - [x] Add copy button for input/output JSON
 - [x] Easy to grab for debugging
 - [x] **Verify with Playwright:** Click copy, verify clipboard contents
 
+### Milestone 5: Prompt Transparency
+- [x] User's system prompt is the ONLY prompt sent to AI
+- [x] No hidden default system prompt
+- [x] Default prompt value shown in textarea (editable)
+- [x] First user message is just "BEGIN" (minimal)
+- [x] Label says "This is the only prompt sent to the AI"
+- [x] **Verify with Playwright:** Check prompt textarea has default, AI still works
+
+### Milestone 6: UX Fixes
+- [x] Review panel close button (×) isolated from header text
+- [x] Clicking "📊 Review" header doesn't accidentally close panel
+- [x] **Verify with Playwright:** Click header, panel stays open
+
 ---
 
-## Implement
+## Implementation Notes
 
 ### Changes Made:
 
-1. **Enhanced aiState** (`index.html` ~line 1634):
-   - Added `toolCallHistory` array to store full call details
-   - Added `currentTurn` to track turn number during execution
+1. **Enhanced aiState** - Added toolCallHistory array and currentTurn tracking
 
-2. **Enhanced trackToolCall()** (`index.html` ~line 1651):
-   - Now stores complete input/output JSON with turn and timestamp
-   - Uses JSON.parse(JSON.stringify()) to deep clone and avoid reference issues
+2. **Enhanced trackToolCall()** - Stores complete input/output JSON with turn/timestamp
 
-3. **New CSS Styles** (`index.html` ~line 670):
-   - `.call-history-section` - Container for the call history feature
-   - `.call-history-header` - Clickable header to show/hide
-   - `.call-history-list` - Scrollable list container
-   - `.call-history-item` - Individual call entry with success/failure border
-   - `.call-history-detail` - Expandable JSON detail view
-   - `.call-history-copy-btn` - Copy button styling
+3. **CSS Styles**:
+   - .call-history-section - Container for call history
+   - .call-history-list - Scrollable list (max-height: 300px)
+   - .call-history-item - Individual call with success/failure border
+   - .call-history-detail - Always visible (display: block)
 
-4. **New HTML** (`index.html` ~line 897):
-   - Added call history section inside review panel
-   - Collapsible header with toggle
-   - List container for call entries
+4. **HTML Structure** - Call history in review panel, no toggle/collapse UI
 
-5. **New JavaScript Functions** (`index.html` ~line 2320):
-   - `toggleCallHistory()` - Show/hide the call history list
-   - `renderCallHistory()` - Build HTML for all tool calls
-   - `toggleCallHistoryItem()` - Expand/collapse individual calls
-   - `summarizeJson()` - Create compact summary for preview
-   - `formatJson()` - Pretty-print JSON with escaping
-   - `copyCallJson()` - Copy input/output to clipboard
+5. **JavaScript Functions**:
+   - renderCallHistory() - Build HTML for all tool calls
+   - summarizeJson() - Compact summary for header
+   - formatJson() - Pretty-print JSON
+   - copyCallJson() - Copy to clipboard
 
-6. **Updated version** to v0.6
+6. **System Prompt Changes**:
+   - buildSystemPrompt() returns user's prompt directly
+   - DEFAULT_SYSTEM_PROMPT constant for default value
+   - loadSystemPrompt() sets default if nothing saved
+   - First message changed to just "BEGIN"
+
+7. **Review Panel Header Fix** - Header and close button in separate flex container
+
+---
+
+## Decisions Made
+
+1. **No collapse/expand** - Call history and individual call details always visible. Simpler for debugging.
+
+2. **Prompt transparency** - User sees and controls the only prompt. No hidden instructions.
+
+3. **Default in textarea** - Default system prompt shown in textarea, not hidden.
 
 ---
 
 ## Testing Notes
 
-**Dev Server:** Use `http://localhost:3000/dev/rescue-run/index.html` for testing - refresh to pick up changes without re-uploading.
+**Dev Server:** http://localhost:3000/dev/rescue-run/index.html
 
 **IMPORTANT - Claude must verify with Playwright:**
-Each milestone has a "Verify with Playwright" step. Claude MUST actually run Playwright to verify the feature works before marking the milestone complete. Do not skip verification - run the tests, check the results, then mark complete.
-
-**Manual Testing Steps:**
-1. Run a game with AI
-2. After completion, review panel appears
-3. Click "🔍 Tool Call History" header to expand
-4. See list of all tool calls with turn numbers
-5. Click any call to expand and see full JSON
-6. Click copy buttons to copy input/output to clipboard
-
----
-
-## Notes
-
-- Call history is cleared when running a new game (via `resetToolStats()`)
-- History persists during review until next run
-- JSON is deep-cloned to avoid reference issues
-- Scrollable list for long runs (max-height: 300px)
+Each milestone has a "Verify with Playwright" step. Claude MUST actually run Playwright before marking complete.

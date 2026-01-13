@@ -704,7 +704,6 @@
             background: #0a0a15;
             border-radius: 4px;
             border: 1px solid #333;
-            overflow: hidden;
         }
         
         .call-history-item.success {
@@ -765,14 +764,10 @@
         }
         
         .call-history-detail {
-            display: none;
+            display: block;
             padding: 10px;
             border-top: 1px solid #333;
             background: #0f1628;
-        }
-        
-        .call-history-item.expanded .call-history-detail {
-            display: block;
         }
         
         .call-history-json {
@@ -901,22 +896,19 @@
                             <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
                         </div>
                         
-                        <!-- v0.6: Tool Call History -->
+                        <!-- v0.6: Tool Call History (always visible) -->
                         <div class="call-history-section">
-                            <div class="call-history-header" onclick="toggleCallHistory()">
-                                <h4>🔍 Tool Call History</h4>
-                                <span class="call-history-toggle" id="call-history-toggle">▶ Show</span>
-                            </div>
-                            <div id="call-history-list" class="call-history-list" style="display: none;"></div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: #4fc3f7;">🔍 Tool Call History</h4>
+                            <div id="call-history-list" class="call-history-list"></div>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="game-panel">
-                <h2>� System Prompt</h2>
-                <textarea id="system-prompt" rows="3" placeholder="Optional: Add instructions for the AI here..." style="width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.85rem; padding: 8px; resize: vertical; font-family: inherit;"></textarea>
-                <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Leave empty for default behavior</div>
+                <h2>📝 System Prompt</h2>
+                <textarea id="system-prompt" rows="6" style="width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.85rem; padding: 8px; resize: vertical; font-family: inherit;"></textarea>
+                <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">This is the only prompt sent to the AI</div>
             </div>
             
             <div class="game-panel">
@@ -1855,25 +1847,9 @@ return result;
             aiLogEl.innerHTML = '';
         }
         
-        // Build system prompt - combines default with user's custom prompt
+        // Build system prompt - just use user's prompt directly
         function buildSystemPrompt() {
-            const userPrompt = getSystemPrompt();
-            
-            const defaultPrompt = `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
-
-Use your available tools to:
-1. Explore and understand your environment
-2. Find and pick up the person
-3. Navigate to the safe zone
-4. Drop off the person to complete the rescue
-
-Good luck!`;
-            
-            // If user has custom prompt, prepend it
-            if (userPrompt) {
-                return userPrompt + '\n\n' + defaultPrompt;
-            }
-            return defaultPrompt;
+            return getSystemPrompt();
         }
         
         // Call Claude API via vanilla platform proxy
@@ -1946,10 +1922,10 @@ Good luck!`;
             
             aiLog('🤖 AI starting rescue mission...', 'ai-thinking');
             
-            // Start with a user message asking to complete the rescue
+            // Start with a minimal user message to kick off the conversation
             aiState.messages.push({
                 role: 'user',
-                content: 'Please rescue the person and bring them to the safe zone. Use the tools available to you. Start by scanning your surroundings to understand the situation.'
+                content: 'BEGIN'
             });
             
             let iterations = 0;
@@ -2236,9 +2212,8 @@ Good luck!`;
             }
             
             // v0.6: Reset call history state when showing review
-            callHistoryExpanded = false;
-            document.getElementById('call-history-list').style.display = 'none';
-            document.getElementById('call-history-toggle').textContent = '▶ Show';
+            // v0.6: Render call history immediately (always visible)
+            renderCallHistory();
             
             panel.style.display = 'block';
         }
@@ -2324,31 +2299,11 @@ Good luck!`;
         
         function hideReview() {
             document.getElementById('review-panel').style.display = 'none';
-            // Also hide call history when hiding review
-            document.getElementById('call-history-list').style.display = 'none';
-            document.getElementById('call-history-toggle').textContent = '▶ Show';
         }
         
         // ===========================================
         // v0.6: TOOL CALL HISTORY
         // ===========================================
-        
-        let callHistoryExpanded = false;
-        
-        function toggleCallHistory() {
-            callHistoryExpanded = !callHistoryExpanded;
-            const listEl = document.getElementById('call-history-list');
-            const toggleEl = document.getElementById('call-history-toggle');
-            
-            if (callHistoryExpanded) {
-                renderCallHistory();
-                listEl.style.display = 'flex';
-                toggleEl.textContent = '▼ Hide';
-            } else {
-                listEl.style.display = 'none';
-                toggleEl.textContent = '▶ Show';
-            }
-        }
         
         function renderCallHistory() {
             const listEl = document.getElementById('call-history-list');
@@ -2366,13 +2321,12 @@ Good luck!`;
                 
                 return `
                     <div class="call-history-item ${isSuccess ? 'success' : 'failure'}" data-index="${idx}">
-                        <div class="call-history-item-header" onclick="toggleCallHistoryItem(${idx})">
+                        <div class="call-history-item-header">
                             <div class="call-history-item-left">
                                 <span class="call-history-turn">T${call.turn}</span>
                                 <span class="call-history-name">${call.name}</span>
                                 <span class="call-history-summary">${inputSummary}</span>
                             </div>
-                            <span class="call-history-expand">▶</span>
                         </div>
                         <div class="call-history-detail" id="call-detail-${idx}">
                             <div class="call-history-json">
@@ -2393,13 +2347,6 @@ Good luck!`;
                     </div>
                 `;
             }).join('');
-        }
-        
-        function toggleCallHistoryItem(idx) {
-            const item = document.querySelector(`.call-history-item[data-index="${idx}"]`);
-            if (item) {
-                item.classList.toggle('expanded');
-            }
         }
         
         function summarizeJson(obj) {
@@ -2681,6 +2628,16 @@ return { message: "Tool executed" };`
         // SYSTEM PROMPT
         // ===========================================
         
+        const DEFAULT_SYSTEM_PROMPT = `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
+
+Use your available tools to:
+1. Explore and understand your environment
+2. Find and pick up the person
+3. Navigate to the safe zone
+4. Drop off the person to complete the rescue
+
+Good luck!`;
+        
         function saveSystemPrompt() {
             const prompt = document.getElementById('system-prompt').value;
             localStorage.setItem('rescue-run-system-prompt', prompt);
@@ -2690,6 +2647,9 @@ return { message: "Tool executed" };`
             const saved = localStorage.getItem('rescue-run-system-prompt');
             if (saved) {
                 document.getElementById('system-prompt').value = saved;
+            } else {
+                // Set default if nothing saved
+                document.getElementById('system-prompt').value = DEFAULT_SYSTEM_PROMPT;
             }
         }
         
