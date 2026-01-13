@@ -1409,6 +1409,10 @@ Actions:
             // Load the level
             loadLevel(levelNum);
             
+            // Reset AI state for fresh start
+            aiState.result = null;
+            aiState.messages = [];
+            
             // Reset game UI
             const statusEl = document.getElementById('status');
             statusEl.textContent = 'Ready';
@@ -1428,6 +1432,10 @@ Actions:
         function resetGame() {
             // Reload current level
             loadLevel(currentLevelNum);
+            
+            // Reset AI state so it can be run again
+            aiState.result = null;
+            aiState.messages = [];
             
             // Reset UI
             const statusEl = document.getElementById('status');
@@ -1730,6 +1738,12 @@ Good luck!`;
         // Main agentic loop
         async function runAI() {
             if (aiState.running) return;
+            
+            // Can't continue after failure - must reset
+            if (aiState.result === 'failure' || aiState.result === 'error') {
+                aiLog('❌ Level failed. Reset the game to try again.', 'ai-error');
+                return;
+            }
             
             // Check auth before starting
             if (!currentUser) {
