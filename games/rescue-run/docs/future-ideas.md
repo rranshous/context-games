@@ -56,6 +56,21 @@ Par: ~8 turns (move to person, pickup, move to safe zone, dropoff)
 **Issue:** Turn count only showed after starting run.
 **Fix:** Show "Ready (X turns)" in AI status before and after runs.
 
+### Interactive Tool Call History
+**Idea:** Make the tool call summary in review panel interactive - hover/click to see full details.
+
+**Current:** `scan → move(east) → move(south) → pickup✓`
+
+**Improved:**
+- Mouse over `scan` → tooltip shows full JSON result
+- Mouse over `move(east)` → shows `{direction: "east"}` input and `{success: true}` result
+- Click to expand inline?
+
+**Benefits:**
+- Debug why AI made certain decisions
+- See exactly what info the AI received
+- Learn what tool outputs look like
+
 ---
 
 ## Tool Management
