@@ -695,7 +695,7 @@
             <div class="game-panel">
                 <h2>Status</h2>
                 <div id="status" class="status playing">Ready</div>
-                <button id="btn-reset" style="margin-top: 10px; display: none;">🔄 Reset Game</button>
+                <button id="btn-reset" style="margin-top: 10px;">🔄 Reset Level</button>
             </div>
             
             <div class="game-panel">
@@ -1344,9 +1344,6 @@ Actions:
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = '🎉 RESCUE COMPLETE!';
                 statusEl.className = 'status won';
-                
-                // Show reset button
-                document.getElementById('btn-reset').style.display = 'block';
             }
         }
         
@@ -1423,7 +1420,6 @@ Actions:
             const statusEl = document.getElementById('status');
             statusEl.textContent = 'Ready';
             statusEl.className = 'status playing';
-            document.getElementById('btn-reset').style.display = 'none';
             
             // Show turn limit in AI status
             updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
@@ -1450,7 +1446,6 @@ Actions:
             const statusEl = document.getElementById('status');
             statusEl.textContent = 'Ready';
             statusEl.className = 'status playing';
-            document.getElementById('btn-reset').style.display = 'none';
             
             // Show turn limit in AI status
             updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
@@ -1461,7 +1456,6 @@ Actions:
             
             render();
         }
-
         // ===========================================
         // AI INTEGRATION (Claude Haiku)
         // ===========================================
