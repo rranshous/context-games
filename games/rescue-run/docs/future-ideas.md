@@ -1,5 +1,31 @@
 # Rescue Run - Future Ideas
 
+## Level Design
+
+### Level 0: Pure Basics
+**Idea:** Super simple level with NO obstacles. Just open space + person + safe zone.
+
+**Purpose:**
+- Test that tools work at all
+- Learn the core loop: scan → move → pickup → move → dropoff
+- Zero navigation complexity
+- Perfect for first-time players or debugging tools
+
+**Example map (6x6):**
+```
+======
+=C...=
+=....=
+=....=
+=..P.=
+=S...=
+======
+```
+
+Par: ~8 turns (move to person, pickup, move to safe zone, dropoff)
+
+---
+
 ## Optimal Path & Scoring
 
 ### 1. Pre-calculated Optimal Paths
