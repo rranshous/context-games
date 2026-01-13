@@ -26,6 +26,30 @@ Par: ~8 turns (move to person, pickup, move to safe zone, dropoff)
 
 ---
 
+## AI Configuration
+
+### Custom AI Directions / System Prompt
+**Idea:** Let users add static instructions that get prepended to every AI conversation.
+
+**Use cases:**
+- "Always scan before moving"
+- "Prefer moving east when possible"
+- "Be concise in your reasoning"
+- "Remember previous dead ends"
+- Strategy hints without changing tools
+
+**Implementation:**
+- Text area in UI for custom directions
+- Appended to system prompt at conversation start
+- Saved per user or per level?
+
+**Benefits:**
+- Teaches prompt engineering
+- Another axis of optimization beyond tools
+- Lets players guide AI behavior without code
+
+---
+
 ## UI Improvements
 
 ### Turn Limit Always Visible ✅ DONE
