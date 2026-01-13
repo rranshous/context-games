@@ -15,91 +15,75 @@ Current gameplay loop is frustrating:
 
 The UI should present embodiment editing as the PRIMARY interaction, with the simulation/gameplay as the RESULT you watch.
 
+## Layout: Game Left, Embodiment Right
+
 ```
-+--------------------------------------------------+
-|  EMBODIMENT                    |   SIMULATION    |
-|  (what you craft)              |   (what happens)|
-+--------------------------------------------------+
-|  [System Prompt]               |                 |
-|  [Tools Panel]                 |   [Game Canvas] |
-|  - scan() [edit] [toggle]      |                 |
-|  - move() [edit] [toggle]      |   [AI Log]      |
-|  - pickup() [edit] [toggle]    |                 |
-|  - [+ Add Tool]                |   [Status]      |
-|  [Context Viz?]                |                 |
-+--------------------------------------------------+
++------------------+----------------------------------------+
+| GAME COLUMN      | EMBODIMENT / CONTROLS COLUMNS          |
+| (fixed width)    | (fills remaining space)                |
++------------------+----------------------------------------+
+|                  |                                        |
+| [Game Canvas]    | [System Prompt - editable textarea]    |
+|                  |                                        |
+| [Legend]         | [Tools Panel]                          |
+|   🟩 Grass       |   scan() [edit] [on/off]               |
+|   ⬜ Road        |   move() [edit] [on/off]               |
+|   🧍 Person      |   pickup() [edit] [on/off]             |
+|   🏠 Safe Zone   |   dropoff() [edit] [on/off]            |
+|                  |   [+ Add Tool]                         |
+| [Level Select]   |                                        |
+|   L1 L2 L3...    | [AI Log / Run Controls]                |
+|                  |   [▶️ Run] [⏹️ Stop] [🔄 Reset]         |
+| [Game Status]    |   [turn log scrolls here]              |
+|   Ready (50 turns)|                                       |
+|                  | [Review Panel - when run completes]    |
++------------------+----------------------------------------+
 ```
 
-Everything on the table:
-- **System prompt** - editable, always visible
-- **Tools** - add/edit/toggle, inline or side panel (NOT modal)
-- **Context visualization** - see what the AI sees
-- **Simulation** - game canvas + AI log + controls
+**Key principles:**
+- Game column is fixed width - always fits the largest board
+- Everything else fills the remaining space in columns to the right
+- No modals - tool editing is inline/expandable
+- All embodiment controls always visible
 
-## Key Changes
+## Minimum Scope for v1.0
 
-### 1. No More Modal for Tool Editing
-- Inline expansion or side-by-side
-- See game while editing
-- Edit doesn't interrupt flow
+### Must Have
+- [ ] New layout: game left, embodiment right
+- [ ] No modal for tool editing (inline expand or side panel)
+- [ ] Tool toggle on/off
+- [ ] Add new tools button
+- [ ] Editable system prompt (NO default - start empty)
+- [ ] Persist level selection on refresh
+- [ ] Clean stop/reset without refresh needed
 
-### 2. Persist State Across Refresh
-- Save level selection
-- Save tool edits
-- Maybe: auto-save on change
+### Nice to Have (if easy)
+- [ ] Persist tool edits in localStorage
+- [ ] Better visual feedback during run
 
-### 3. Tool Toggle
-- Quick on/off without deleting
-- Experiment easily
-
-### 4. Add New Tools
-- Not just edit existing
-- Player-defined tools
-
-### 5. Editable System Prompt
-- Full control over AI's base instructions
-- Part of the embodiment
-
-### 6. Better Run/Stop/Reset Flow
-- Stop shouldn't require refresh
-- Clear state management
-- Easy restart with current embodiment
-
-## NOT in v1.0 (Future)
-
-- AI assistant for collaborative play (AI helps edit tools)
-- Optimal path calculation / par
+### NOT in v1.0
+- Context visualization
+- AI assistant for tool writing  
+- Optimal path / par calculation
 - Personal best tracking
-- Token burn metrics
+- Token metrics
 - Interactive tool call history
-- Context window visualization
+- Mobile support
+- Pretty styling (functional > beautiful)
 
 ## Success Criteria
 
 "I can sit down, tweak embodiment, run, observe, tweak again—without frustration or page refreshes. The loop feels smooth."
 
-## UI Layout Options
+## Technical Notes
 
-### Option A: Left/Right Split
-```
-[Embodiment Panel 40%] | [Game + Log 60%]
-```
+- Game canvas size varies by level (L1 is 8x8, L7 is 20x18)
+- Left column width should accommodate largest level
+- Could use CSS grid or flexbox
+- Tool editing: accordion expand? Or always-visible code blocks?
 
-### Option B: Top/Bottom
-```
-[Game Canvas + Controls]
---------------------------
-[Embodiment: Prompt | Tools | Context]
-```
+## Open Questions
 
-### Option C: Tabs + Persistent Game
-```
-[Game always visible in corner]
-[Main area: tab between Prompt / Tools / Log / Review]
-```
-
-## Notes
-
-- Mobile can wait
-- Polish can wait
-- Core loop must be smooth
+1. Tool editing UI - accordion expand in place, or fixed panel with selected tool?
+2. How much vertical scroll is acceptable?
+3. System prompt - how big should the textarea be?
