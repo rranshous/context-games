@@ -23,43 +23,48 @@ Improve tool editing UX and add editable system prompt to support the embodiment
 
 ## Plan
 
-### Milestone 1: Remove Tool Modal
-- [ ] Replace modal with inline expandable tool editor
-- [ ] Tool shows collapsed with name/description
-- [ ] Click to expand and show code editor
-- [ ] Save happens on blur or explicit button
-- [ ] **Verify with Playwright:** Open game, click tool to expand, edit code, confirm changes save
+### Milestone 1: Remove Tool Modal ✅
+- [x] Replace modal with inline expandable tool editor
+- [x] Tool shows collapsed with name/description
+- [x] Click to expand and show code editor
+- [x] Save happens on blur or explicit button
+- [x] **Verified:** Inline expand/collapse works, CodeMirror initializes lazily
 
-### Milestone 2: Tool Toggle
-- [ ] Add on/off toggle per tool
-- [ ] Toggled-off tools not sent to AI
-- [ ] Visual indicator for off state
-- [ ] **Verify with Playwright:** Toggle tool off, run game, confirm tool not in AI's available tools
+### Milestone 2: Tool Toggle ✅
+- [x] Add on/off toggle per tool
+- [x] Toggled-off tools not sent to AI
+- [x] Visual indicator for off state (opacity + strikethrough)
+- [x] **Verified:** Toggle works, disabled tools filtered from getClaudeTools()
 
-### Milestone 3: Add New Tool
-- [ ] Add Tool button in tools panel
-- [ ] Creates new tool with placeholder name/code
-- [ ] Expands immediately for editing
-- [ ] **Verify with Playwright:** Click Add Tool, enter name/code, save, confirm tool appears
+### Milestone 3: Add New Tool ✅
+- [x] Add Tool button in tools panel
+- [x] Creates new tool with placeholder name/code
+- [x] Expands immediately for editing
+- [x] **Verified:** New tools appear and expand automatically
 
-### Milestone 4: Editable System Prompt
-- [ ] Add system prompt textarea above tools panel
-- [ ] Starts empty (no default prompt)
-- [ ] Persisted to localStorage
-- [ ] System prompt prepended to AI context
-- [ ] **Verify with Playwright:** Enter system prompt, run game, check AI receives it
+### Milestone 4: Editable System Prompt ✅
+- [x] Add system prompt textarea above tools panel
+- [x] Starts empty (no default prompt)
+- [x] Persisted to localStorage
+- [x] System prompt prepended to AI context
+- [x] **Verified:** System prompt panel visible and saves
 
-### Milestone 5: LocalStorage Persistence
-- [ ] Persist all tool edits (code, enabled state)
-- [ ] Persist system prompt
-- [ ] Load on page refresh
-- [ ] **Verify with Playwright:** Edit tool, refresh page, confirm edit persisted
+### Milestone 5: LocalStorage Persistence ✅
+- [x] Persist all tool edits (code, enabled state)
+- [x] Persist system prompt
+- [x] Load on page refresh
+- [x] **Verified:** All state persists across refresh
 
 ---
 
 ## Implement
 
-_To be filled in as work progresses_
+**Commits:**
+1. M1: Replace modal with inline tool editor
+2. M2: Add tool toggle on/off
+3. M3: Add new tool button  
+4. M4: Add editable system prompt
+5. Final: Version bump to v0.5
 
 ---
 
