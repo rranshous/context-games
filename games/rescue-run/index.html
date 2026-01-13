@@ -753,7 +753,8 @@
             <div class="game-panel">
                 <h2>🔧 Tools</h2>
                 <div id="tools-list"></div>
-                <div style="margin-top: 10px;">
+                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                    <button id="btn-add-tool" style="background: #4caf50;">➕ Add Tool</button>
                     <button id="btn-reset-tools">↩️ Reset Tools</button>
                 </div>
             </div>
@@ -2217,6 +2218,25 @@ Actions:
             saveTools();
         }
         
+        function addNewTool() {
+            const newTool = {
+                name: 'newTool',
+                description: 'Describe what this tool does for the AI',
+                parameters: [],
+                enabled: true,
+                implementation: `// Your tool implementation here
+// Use stdlib.* functions to interact with the game
+return { message: "Tool executed" };`
+            };
+            currentTools.push(newTool);
+            saveTools();
+            renderToolsList();
+            
+            // Expand the new tool immediately
+            const newIndex = currentTools.length - 1;
+            setTimeout(() => toggleToolExpand(newIndex), 50);
+        }
+        
         function escapeHtml(str) {
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
@@ -2366,6 +2386,9 @@ Actions:
             });
             
             // Tool editor buttons
+            document.getElementById('btn-add-tool').addEventListener('click', () => {
+                addNewTool();
+            });
             document.getElementById('btn-reset-tools').addEventListener('click', () => {
                 resetTools();
             });
