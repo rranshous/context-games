@@ -83,6 +83,9 @@ _To be filled in as work progresses_
 
 **Dev Server:** Use `http://localhost:3000/dev/rescue-run/index.html` for testing - refresh to pick up changes without re-uploading.
 
+**IMPORTANT - Claude must verify with Playwright:**
+Each milestone has a "Verify with Playwright" step. Claude MUST actually run Playwright to verify the feature works before marking the milestone complete. Do not skip verification - run the tests, check the results, then mark complete.
+
 **Use Playwright to verify each milestone:**
 - Check layout and component positioning
 - Test interactions (level select, stop, reset)
