@@ -97,3 +97,71 @@ Each milestone has a "Verify with Playwright" step. Claude MUST actually run Pla
 ## Notes
 
 _Space for implementation discoveries_
+
+---
+
+## UI Space Optimization (In Progress)
+
+### Current State (Jan 2026)
+- Using 3-column layout: Game | Tools | AI Control
+- After running AI, Review Panel + Tool Call History appear in right column
+- Problem: AI log takes too much vertical space, pushing Review panel down/off screen
+
+### Completed Changes
+1. ✅ Reduced gaps and padding throughout (6px → 4px, 8px → 6px)
+2. ✅ Shrunk font sizes for log entries (0.7rem → 0.65rem)
+3. ✅ Added `max-height: 150px` and `flex-shrink: 0` to `#ai-log` - caps the AI log height
+4. ✅ Made columns use `min-height: 0` for proper flex shrinking
+
+### Goals
+Users need to debug runs and edit tools. Key visibility needs:
+- See tool call history (inputs/outputs for each turn)
+- See tool definitions and edit them
+- See the game state
+- All without collapsing/expanding sections
+
+### Approach (No Collapsibles)
+1. **Fixed heights for scrollable regions** - AI log capped at 150px, Review panel gets remaining space
+2. **Compact rendering** - Smaller fonts, tighter spacing
+3. **Review panel scrolls as a whole** - Contains story, stats, and call history
+4. **Tool Call History stays visible** - Shows all calls with expandable details per item
+
+### Next Steps
+1. Make Review panel itself scrollable (overflow-y: auto) 
+2. Shrink Tool Call History items - use single-line compact format
+3. Test with Playwright after changes
+4. Consider: split AI column into two rows (log top, review bottom) with explicit heights
+
+### CSS Structure Reference
+```
+.ai-column
+  └── .game-panel (flex: 1, overflow: hidden)
+       └── .ai-panel (flex: 1, overflow: hidden)
+            ├── #ai-status
+            ├── .ai-controls (Run/Stop buttons)
+            ├── #ai-log (max-height: 150px, overflow-y: auto)
+            └── #review-panel (needs overflow-y: auto, flex: 1)
+                 ├── review-result
+                 ├── review-hints
+                 ├── review-stats (story + tool counts)
+                 ├── review-actions (Edit/Run/Next buttons)
+                 └── call-history-section
+                      └── call-history-list (max-height: 200px)
+```
+
+### Dev URL
+`http://localhost:3000/dev/rescue-run/index.html`
+
+### Progress Update (Session 1)
+
+**Changes made:**
+1. ✅ AI log capped at 150px max-height
+2. ✅ Review panel now has `flex: 1` and `overflow-y: auto` - scrolls to show all content
+3. ✅ Overall more compact spacing
+
+**Current result:** Layout works well - AI log stays small, Review panel fills remaining space and scrolls. Tool Call History visible and scrollable within Review panel.
+
+**Still to consider for future sessions:**
+- Tool Call History items could be more compact (currently shows full JSON for each)
+- Could use smaller font for JSON output display
+- Consider making Tool Call History items start collapsed and expand on click
