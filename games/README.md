@@ -28,6 +28,14 @@ AI-driven ritual simulator where Claude interprets mystical object arrangements.
 🔧 **Next:** Refine energy mist rendering and effect combinations  
 ✨ **Unique:** Inference-driven game engine, visual pattern recognition, structured XML AI responses
 
+### [Rescue Run](./rescue-run/)
+Puzzle game teaching AI tool design through a rescue vehicle simulation. You don't control the car—you design the tools it uses to perceive and act, then watch the AI rescue stranded people. The core insight: how you define tools determines how well the AI performs.  
+🎯 **Status:** v0.7 - Four-column UI, tool editing, review panel  
+🎮 **Published:** Not yet  
+🤖 **AI:** ✅ Claude Haiku for autonomous vehicle control via player-designed tools  
+🔧 **Next:** Additional levels, polish  
+✨ **Unique:** Teaches AI embodiment/tool design, meta-gameplay (designing tools IS playing), persistent tool configurations
+
 ### [RaceOn](./raceon/)
 Desert combat racing game that evolved from closed-track racing to open-world water bandit hunting. Good foundation for forking and potential base for AI-driven game making experiments.  
 🎯 **Status:** Foundation ready for expansion  
