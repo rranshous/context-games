@@ -276,27 +276,153 @@
         #tools-list {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
         }
         
         .tool-item {
+            background: #1a1a2e;
+            border-radius: 6px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+        
+        .tool-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px;
-            background: #1a1a2e;
-            border-radius: 4px;
-            font-size: 0.85rem;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
         }
         
-        .tool-item .tool-name {
+        .tool-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .tool-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .tool-expand-icon {
+            font-size: 0.8rem;
+            color: #888;
+            transition: transform 0.2s;
+        }
+        
+        .tool-item.expanded .tool-expand-icon {
+            transform: rotate(90deg);
+        }
+        
+        .tool-name {
             font-family: monospace;
             color: #4fc3f7;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
-        .tool-item button {
-            padding: 4px 8px;
-            font-size: 0.75rem;
+        .tool-body {
+            display: none;
+            padding: 12px;
+            border-top: 1px solid #333;
+            background: #0f1628;
+        }
+        
+        .tool-item.expanded .tool-body {
+            display: block;
+        }
+        
+        .tool-form-group {
+            margin-bottom: 12px;
+        }
+        
+        .tool-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .tool-form-group input,
+        .tool-form-group textarea {
+            width: 100%;
+            padding: 8px;
+            background: #0a0a15;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 0.85rem;
+            box-sizing: border-box;
+        }
+        
+        .tool-form-group textarea {
+            resize: vertical;
+            font-family: monospace;
+        }
+        
+        .tool-editor-wrapper {
+            border: 1px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .tool-editor-wrapper .CodeMirror {
+            height: 150px;
+            font-size: 0.8rem;
+        }
+        
+        .tool-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .tool-actions button {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+        
+        .tool-save-btn {
+            background: #4caf50 !important;
+        }
+        
+        .tool-save-btn:hover {
+            background: #66bb6a !important;
+        }
+        
+        .tool-error {
+            background: rgba(255,80,80,0.2);
+            border: 1px solid #f55;
+            color: #f88;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 0.8rem;
+            display: none;
+        }
+        
+        .tool-stdlib-ref {
+            margin-top: 10px;
+        }
+        
+        .tool-stdlib-ref summary {
+            cursor: pointer;
+            color: #4fc3f7;
+            font-size: 0.8rem;
+        }
+        
+        .tool-stdlib-ref pre {
+            background: #0a0a15;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            overflow-x: auto;
+            margin: 8px 0 0 0;
         }
         
         #btn-reset-tools {
@@ -339,160 +465,6 @@
         .level-btn.locked {
             opacity: 0.5;
             cursor: not-allowed;
-        }
-        
-        /* Modal */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background: #16213e;
-            border-radius: 8px;
-            width: 95%;
-            max-width: 900px;
-            height: 90vh;
-            max-height: 90vh;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .modal-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            border-bottom: 1px solid #333;
-        }
-        
-        .modal-header h2 {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-        
-        .close-btn {
-            background: none;
-            border: none;
-            color: #888;
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 0;
-        }
-        
-        .close-btn:hover {
-            color: #fff;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 0.85rem;
-            color: #aaa;
-        }
-        
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 8px;
-            background: #0a0a15;
-            border: 1px solid #333;
-            border-radius: 4px;
-            color: #fff;
-            font-size: 0.9rem;
-            box-sizing: border-box;
-        }
-        
-        .form-group textarea {
-            resize: vertical;
-            font-family: monospace;
-        }
-        
-        .stdlib-reference {
-            margin-top: 10px;
-        }
-        
-        .stdlib-reference summary {
-            cursor: pointer;
-            color: #4fc3f7;
-            font-size: 0.85rem;
-        }
-        
-        .stdlib-reference pre {
-            background: #0a0a15;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            overflow-x: auto;
-            margin: 10px 0 0 0;
-        }
-        
-        .modal-footer {
-            padding: 15px 20px;
-            border-top: 1px solid #333;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        .modal-footer button {
-            padding: 8px 16px;
-        }
-        
-        #btn-save-tool {
-            background: #4caf50;
-        }
-        
-        #btn-save-tool:hover {
-            background: #66bb6a;
-        }
-        
-        #btn-cancel-edit {
-            background: #666;
-        }
-        
-        /* CodeMirror editor styling */
-        #edit-implementation-wrapper {
-            border: 1px solid #333;
-            border-radius: 4px;
-            overflow: hidden;
-            flex: 1;
-            min-height: 300px;
-        }
-        
-        #edit-implementation-wrapper .CodeMirror {
-            height: 100%;
-            font-size: 0.85rem;
-        }
-        
-        /* Make the implementation form-group grow */
-        .form-group:has(#edit-implementation-wrapper) {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
         }
         
         /* Review Panel */
@@ -729,61 +701,6 @@
                 <div style="margin-top: 10px;">
                     <button id="btn-reset-tools">↩️ Reset Tools</button>
                 </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Tool Editor Modal -->
-    <div id="tool-editor-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Edit Tool: <span id="edit-tool-name"></span></h2>
-                <button id="btn-close-modal" class="close-btn">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Name:</label>
-                    <input type="text" id="edit-name" />
-                </div>
-                <div class="form-group">
-                    <label>Description (AI sees this):</label>
-                    <textarea id="edit-description" rows="3"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Parameters:</label>
-                    <div id="edit-parameters"></div>
-                </div>
-                <div class="form-group">
-                    <label>Implementation (JS using stdlib.*):</label>
-                    <div id="edit-implementation-wrapper"></div>
-                </div>
-                <div class="stdlib-reference">
-                    <details>
-                        <summary>📚 Stdlib Reference</summary>
-                        <pre>
-Position/State:
-  stdlib.getCarPosition()      → {x, y}
-  stdlib.getCarDirection()     → "north"|"south"|"east"|"west"
-  stdlib.getPersonPosition()   → {x, y} or null
-  stdlib.getSafeZonePosition() → {x, y}
-  stdlib.isPersonInCar()       → boolean
-
-Map:
-  stdlib.getGridSize()         → {width, height}
-  stdlib.isValidPosition(x,y)  → boolean
-  stdlib.getTileAt(x,y)        → {type, passable}
-
-Actions:
-  stdlib.moveCarOneStep(dir)   → {success, error?}
-  stdlib.pickupPerson()        → {success, error?}
-  stdlib.dropoffPerson()       → {success, error?}
-                        </pre>
-                    </details>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="btn-cancel-edit">Cancel</button>
-                <button id="btn-save-tool">💾 Save Tool</button>
             </div>
         </div>
     </div>
@@ -2161,96 +2078,150 @@ Good luck!`;
         }
 
         // ===========================================
-        // TOOL EDITOR
+        // TOOL EDITOR (Inline)
         // ===========================================
         
-        let editingToolIndex = -1;
-        let codeEditor = null; // CodeMirror instance
+        let toolEditors = {}; // Map of tool index to CodeMirror instance
+        let expandedToolIndex = -1;
         
         function renderToolsList() {
             const listEl = document.getElementById('tools-list');
             listEl.innerHTML = currentTools.map((tool, i) => `
-                <div class="tool-item">
-                    <span class="tool-name">${tool.name}(${tool.parameters.map(p => p.name).join(', ')})</span>
-                    <button onclick="openToolEditor(${i})">Edit</button>
+                <div class="tool-item" data-index="${i}" id="tool-item-${i}">
+                    <div class="tool-header" onclick="toggleToolExpand(${i})">
+                        <div class="tool-header-left">
+                            <span class="tool-expand-icon">▶</span>
+                            <span class="tool-name">${tool.name}(${tool.parameters.map(p => p.name).join(', ')})</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-form-group">
+                            <label>Name:</label>
+                            <input type="text" id="tool-name-${i}" value="${escapeHtml(tool.name)}" />
+                        </div>
+                        <div class="tool-form-group">
+                            <label>Description (AI sees this):</label>
+                            <textarea id="tool-desc-${i}" rows="2">${escapeHtml(tool.description)}</textarea>
+                        </div>
+                        <div class="tool-form-group">
+                            <label>Params: ${tool.parameters.length === 0 ? '<em style="color: #666;">None</em>' : tool.parameters.map(p => `<code style="background: #0a0a15; padding: 2px 6px; border-radius: 2px;">${p.name}: ${p.type}</code>`).join(' ')}</label>
+                        </div>
+                        <div class="tool-form-group">
+                            <label>Implementation (JS using stdlib.*):</label>
+                            <div class="tool-editor-wrapper" id="tool-editor-${i}"></div>
+                        </div>
+                        <div class="tool-error" id="tool-error-${i}"></div>
+                        <div class="tool-stdlib-ref">
+                            <details>
+                                <summary>📚 Stdlib Reference</summary>
+                                <pre>Position/State:
+  stdlib.getCarPosition()      → {x, y}
+  stdlib.getCarDirection()     → "north"|"south"|"east"|"west"
+  stdlib.getPersonPosition()   → {x, y} or null
+  stdlib.getSafeZonePosition() → {x, y}
+  stdlib.isPersonInCar()       → boolean
+
+Map:
+  stdlib.getGridSize()         → {width, height}
+  stdlib.isValidPosition(x,y)  → boolean
+  stdlib.getTileAt(x,y)        → {type, passable}
+
+Actions:
+  stdlib.moveCarOneStep(dir)   → {success, error?}
+  stdlib.pickupPerson()        → {success, error?}
+  stdlib.dropoffPerson()       → {success, error?}</pre>
+                            </details>
+                        </div>
+                        <div class="tool-actions">
+                            <button class="tool-save-btn" onclick="saveToolInline(${i}); event.stopPropagation();">💾 Save</button>
+                        </div>
+                    </div>
                 </div>
             `).join('');
+            
+            // Clear old CodeMirror instances
+            toolEditors = {};
         }
         
-        function initCodeEditor() {
-            const wrapper = document.getElementById('edit-implementation-wrapper');
-            wrapper.innerHTML = '';
-            codeEditor = CodeMirror(wrapper, {
-                mode: 'javascript',
-                theme: 'dracula',
-                lineNumbers: true,
-                lineWrapping: true,
-                tabSize: 2,
-                indentWithTabs: false
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        
+        function toggleToolExpand(index) {
+            const item = document.getElementById(`tool-item-${index}`);
+            const wasExpanded = item.classList.contains('expanded');
+            
+            // Collapse all
+            document.querySelectorAll('.tool-item.expanded').forEach(el => {
+                el.classList.remove('expanded');
             });
-        }
-        
-        function openToolEditor(index) {
-            editingToolIndex = index;
-            const tool = currentTools[index];
             
-            document.getElementById('edit-tool-name').textContent = tool.name;
-            document.getElementById('edit-name').value = tool.name;
-            document.getElementById('edit-description').value = tool.description;
-            
-            // Initialize CodeMirror if not already done
-            if (!codeEditor) {
-                initCodeEditor();
-            }
-            codeEditor.setValue(tool.implementation.trim());
-            
-            // Render parameters (simplified - just show as text for now)
-            const paramsEl = document.getElementById('edit-parameters');
-            if (tool.parameters.length === 0) {
-                paramsEl.innerHTML = '<em style="color: #666;">None</em>';
+            if (!wasExpanded) {
+                item.classList.add('expanded');
+                expandedToolIndex = index;
+                
+                // Initialize CodeMirror for this tool if not already
+                if (!toolEditors[index]) {
+                    const wrapper = document.getElementById(`tool-editor-${index}`);
+                    const tool = currentTools[index];
+                    toolEditors[index] = CodeMirror(wrapper, {
+                        value: tool.implementation.trim(),
+                        mode: 'javascript',
+                        theme: 'dracula',
+                        lineNumbers: true,
+                        lineWrapping: true,
+                        tabSize: 2,
+                        indentWithTabs: false
+                    });
+                }
+                // Refresh CodeMirror after expansion animation
+                setTimeout(() => toolEditors[index].refresh(), 10);
             } else {
-                paramsEl.innerHTML = tool.parameters.map(p => 
-                    `<code style="background: #0a0a15; padding: 2px 6px; border-radius: 2px; margin-right: 5px;">${p.name}: ${p.type}</code>`
-                ).join('');
+                expandedToolIndex = -1;
             }
-            
-            document.getElementById('tool-editor-modal').style.display = 'flex';
-            
-            // Hide any previous errors
-            hideToolError();
-            
-            // Refresh CodeMirror after modal is visible
-            setTimeout(() => codeEditor.refresh(), 10);
         }
         
-        function closeToolEditor() {
-            document.getElementById('tool-editor-modal').style.display = 'none';
-            editingToolIndex = -1;
-        }
-        
-        function saveTool() {
-            if (editingToolIndex < 0) return;
+        function saveToolInline(index) {
+            const name = document.getElementById(`tool-name-${index}`).value;
+            const description = document.getElementById(`tool-desc-${index}`).value;
+            const implementation = toolEditors[index] ? toolEditors[index].getValue() : currentTools[index].implementation;
             
-            const name = document.getElementById('edit-name').value;
-            const description = document.getElementById('edit-description').value;
-            const implementation = codeEditor.getValue();
-            
-            // Validate the implementation - try to create the function
+            // Validate the implementation
             const validationError = validateToolImplementation(implementation);
             if (validationError) {
-                showToolError(validationError);
+                showToolErrorInline(index, validationError);
                 return;
             }
             
-            const tool = currentTools[editingToolIndex];
+            // Save changes
+            const tool = currentTools[index];
             tool.name = name;
             tool.description = description;
             tool.implementation = implementation;
             
-            // Save to localStorage
             saveTools();
-            renderToolsList();
-            closeToolEditor();
+            hideToolErrorInline(index);
+            
+            // Update header text
+            const item = document.getElementById(`tool-item-${index}`);
+            const nameEl = item.querySelector('.tool-name');
+            nameEl.textContent = `${name}(${tool.parameters.map(p => p.name).join(', ')})`;
+            
+            // Brief visual feedback
+            const btn = item.querySelector('.tool-save-btn');
+            btn.textContent = '✓ Saved';
+            setTimeout(() => btn.textContent = '💾 Save', 1000);
+        }
+        
+        function showToolErrorInline(index, message) {
+            const errorEl = document.getElementById(`tool-error-${index}`);
+            errorEl.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
+            errorEl.style.display = 'block';
+        }
+        
+        function hideToolErrorInline(index) {
+            const errorEl = document.getElementById(`tool-error-${index}`);
+            errorEl.style.display = 'none';
         }
         
         function validateToolImplementation(code) {
@@ -2271,27 +2242,6 @@ Good luck!`;
                 }
                 
                 return errorMsg;
-            }
-        }
-        
-        function showToolError(message) {
-            // Show error in the modal
-            let errorEl = document.getElementById('tool-error');
-            if (!errorEl) {
-                errorEl = document.createElement('div');
-                errorEl.id = 'tool-error';
-                errorEl.style.cssText = 'background: rgba(255,80,80,0.2); border: 1px solid #f55; color: #f88; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-size: 0.85rem;';
-                const wrapper = document.getElementById('edit-implementation-wrapper');
-                wrapper.parentNode.insertBefore(errorEl, wrapper.nextSibling);
-            }
-            errorEl.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
-            errorEl.style.display = 'block';
-        }
-        
-        function hideToolError() {
-            const errorEl = document.getElementById('tool-error');
-            if (errorEl) {
-                errorEl.style.display = 'none';
             }
         }
         
@@ -2346,23 +2296,11 @@ Good luck!`;
                 resetTools();
             });
             
-            // Modal buttons
-            document.getElementById('btn-close-modal').addEventListener('click', closeToolEditor);
-            document.getElementById('btn-cancel-edit').addEventListener('click', closeToolEditor);
-            document.getElementById('btn-save-tool').addEventListener('click', saveTool);
-            
-            // Close modal on background click
-            document.getElementById('tool-editor-modal').addEventListener('click', (e) => {
-                if (e.target.id === 'tool-editor-modal') {
-                    closeToolEditor();
-                }
-            });
-            
             // Review panel buttons
             document.getElementById('btn-close-review').addEventListener('click', hideReview);
             document.getElementById('btn-edit-after-review').addEventListener('click', () => {
                 if (currentTools.length > 0) {
-                    openToolEditor(0);
+                    toggleToolExpand(0);
                 }
             });
             document.getElementById('btn-run-again').addEventListener('click', () => {

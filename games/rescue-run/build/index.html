@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rescue Run</title>
+    <!-- CodeMirror for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -157,6 +162,12 @@
         
         .status.won {
             background: #2e7d32;
+            animation: celebrate 0.5s ease-in-out;
+        }
+        
+        @keyframes celebrate {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
         
         .legend {
@@ -260,6 +271,354 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
+        
+        /* Tools List */
+        #tools-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .tool-item {
+            background: #1a1a2e;
+            border-radius: 6px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+        
+        .tool-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .tool-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .tool-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .tool-expand-icon {
+            font-size: 0.8rem;
+            color: #888;
+            transition: transform 0.2s;
+        }
+        
+        .tool-item.expanded .tool-expand-icon {
+            transform: rotate(90deg);
+        }
+        
+        .tool-name {
+            font-family: monospace;
+            color: #4fc3f7;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .tool-body {
+            display: none;
+            padding: 12px;
+            border-top: 1px solid #333;
+            background: #0f1628;
+        }
+        
+        .tool-item.expanded .tool-body {
+            display: block;
+        }
+        
+        .tool-form-group {
+            margin-bottom: 12px;
+        }
+        
+        .tool-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .tool-form-group input,
+        .tool-form-group textarea {
+            width: 100%;
+            padding: 8px;
+            background: #0a0a15;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 0.85rem;
+            box-sizing: border-box;
+        }
+        
+        .tool-form-group textarea {
+            resize: vertical;
+            font-family: monospace;
+        }
+        
+        .tool-editor-wrapper {
+            border: 1px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .tool-editor-wrapper .CodeMirror {
+            height: 150px;
+            font-size: 0.8rem;
+        }
+        
+        .tool-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .tool-actions button {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+        
+        .tool-save-btn {
+            background: #4caf50 !important;
+        }
+        
+        .tool-save-btn:hover {
+            background: #66bb6a !important;
+        }
+        
+        .tool-error {
+            background: rgba(255,80,80,0.2);
+            border: 1px solid #f55;
+            color: #f88;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 0.8rem;
+            display: none;
+        }
+        
+        .tool-stdlib-ref {
+            margin-top: 10px;
+        }
+        
+        .tool-stdlib-ref summary {
+            cursor: pointer;
+            color: #4fc3f7;
+            font-size: 0.8rem;
+        }
+        
+        .tool-stdlib-ref pre {
+            background: #0a0a15;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            overflow-x: auto;
+            margin: 8px 0 0 0;
+        }
+        
+        #btn-reset-tools {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            background: #666;
+        }
+        
+        /* Level selector */
+        .level-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            background: #333;
+            border: 1px solid #555;
+            color: #aaa;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .level-btn:hover {
+            background: #444;
+            color: #fff;
+        }
+        
+        .level-btn.selected {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+        
+        .level-btn.completed {
+            border-color: #4caf50;
+        }
+        
+        .level-btn.completed::after {
+            content: ' ✓';
+            color: #4caf50;
+        }
+        
+        .level-btn.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Review Panel */
+        .review-panel {
+            margin-top: 15px;
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        
+        .review-panel h3 {
+            margin: 0 0 12px 0;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .review-result {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        
+        .review-result.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #8f8;
+        }
+        
+        .review-result.failure {
+            background: rgba(233, 69, 96, 0.2);
+            color: #f88;
+        }
+        
+        .review-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .review-stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: #0a0a15;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .review-stat-item .tool-name {
+            font-family: monospace;
+            color: #4fc3f7;
+        }
+        
+        .review-stat-item .stat-counts {
+            display: flex;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .review-stat-item .stat-counts .calls {
+            color: #aaa;
+        }
+        
+        .review-stat-item .stat-counts .success-count {
+            color: #8f8;
+        }
+        
+        .review-stat-item .stat-counts .fail-count {
+            color: #f88;
+        }
+        
+        .review-stat-item.never-used {
+            opacity: 0.5;
+        }
+        
+        .review-stat-item.never-used .tool-name::after {
+            content: " (never used)";
+            color: #888;
+            font-style: italic;
+        }
+        
+        .review-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .review-actions button {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .review-story {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #aaa;
+            padding: 10px;
+            background: #0a0a15;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+        
+        .review-story .story-fail {
+            color: #f88;
+        }
+        
+        .review-story .story-success {
+            color: #8f8;
+        }
+        
+        .review-story .story-stuck {
+            background: rgba(255, 152, 0, 0.3);
+            padding: 1px 3px;
+            border-radius: 2px;
+            border-bottom: 2px solid #ff9800;
+        }
+        
+        .review-tool-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .review-hints {
+            background: rgba(255, 152, 0, 0.15);
+            border: 1px solid #ff9800;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+        }
+        
+        .review-hints h4 {
+            margin: 0 0 8px 0;
+            color: #ff9800;
+            font-size: 0.9rem;
+        }
+        
+        .review-hints ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .review-hints li {
+            margin-bottom: 4px;
+            color: #ddd;
+        }
     </style>
 </head>
 <body>
@@ -289,9 +648,26 @@
         
         <div class="controls">
             <div class="game-panel">
+                <h2>📍 Level</h2>
+                <div id="level-info">
+                    <div id="level-name" style="font-weight: bold; margin-bottom: 5px;">Level 1: Tutorial</div>
+                    <div id="level-turns" style="font-size: 0.85rem; color: #aaa;">Turn limit: 50</div>
+                </div>
+                <div id="level-selector" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button class="level-btn selected" data-level="1">Level 1</button>
+                    <button class="level-btn" data-level="2">Level 2</button>
+                    <button class="level-btn" data-level="3">Level 3</button>
+                    <button class="level-btn" data-level="4">Level 4</button>
+                    <button class="level-btn" data-level="5">Level 5</button>
+                    <button class="level-btn" data-level="6">Level 6</button>
+                    <button class="level-btn" data-level="7">Level 7</button>
+                </div>
+            </div>
+            
+            <div class="game-panel">
                 <h2>Status</h2>
                 <div id="status" class="status playing">Ready</div>
-                <button id="btn-reset" style="margin-top: 10px; display: none;">🔄 Reset Game</button>
+                <button id="btn-reset" style="margin-top: 10px;">🔄 Reset Level</button>
             </div>
             
             <div class="game-panel">
@@ -303,43 +679,27 @@
                         <button id="btn-stop-ai" disabled>⏹️ Stop</button>
                     </div>
                     <div id="ai-log"></div>
-                </div>
-            </div>
-            
-            <div class="game-panel">
-                <h2>Manual Tools</h2>
-                
-                <div class="control-group">
-                    <h3>Scan</h3>
-                    <button id="btn-scan" disabled>scan()</button>
-                </div>
-                
-                <div class="control-group">
-                    <h3>Move</h3>
-                    <div class="direction-buttons">
-                        <div class="empty"></div>
-                        <button id="btn-north" disabled>⬆️</button>
-                        <div class="empty"></div>
-                        <button id="btn-west" disabled>⬅️</button>
-                        <div class="empty"></div>
-                        <button id="btn-east" disabled>➡️</button>
-                        <div class="empty"></div>
-                        <button id="btn-south" disabled>⬇️</button>
-                        <div class="empty"></div>
+                    
+                    <!-- Review Panel (hidden until run completes) -->
+                    <div id="review-panel" class="review-panel" style="display: none;">
+                        <h3>📊 Review <button id="btn-close-review" style="padding: 2px 8px; font-size: 0.75rem;">×</button></h3>
+                        <div id="review-result" class="review-result"></div>
+                        <div id="review-hints" class="review-hints" style="display: none;"></div>
+                        <div id="review-stats" class="review-stats"></div>
+                        <div class="review-actions">
+                            <button id="btn-edit-after-review">✏️ Edit Tools</button>
+                            <button id="btn-run-again">▶️ Run Again</button>
+                            <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="control-group">
-                    <h3>Actions</h3>
-                    <button id="btn-pickup" disabled>pickup()</button>
-                    <button id="btn-dropoff" disabled>dropoff()</button>
-                </div>
             </div>
             
             <div class="game-panel">
-                <h2>Log</h2>
-                <div id="log">
-                    <div class="entry info">Game initializing...</div>
+                <h2>🔧 Tools</h2>
+                <div id="tools-list"></div>
+                <div style="margin-top: 10px;">
+                    <button id="btn-reset-tools">↩️ Reset Tools</button>
                 </div>
             </div>
         </div>
@@ -350,8 +710,7 @@
         // GAME CONSTANTS
         // ===========================================
         const TILE_SIZE = 32;
-        const GRID_SIZE = 8;
-        const CANVAS_SIZE = TILE_SIZE * GRID_SIZE;
+        // Grid size is now dynamic per level
 
         // Tile types
         const TILE = {
@@ -363,15 +722,253 @@
         // ===========================================
         // GAME STATE
         // ===========================================
+        // ===========================================
+        // LEVEL DEFINITIONS (ASCII FORMAT)
+        // ===========================================
+        // Legend:
+        //   = : grass (impassable)
+        //   . : road (passable)
+        //   # : building (impassable)
+        //   C : car start (on road)
+        //   P : person (on road)
+        //   S : safe zone (on road)
+        
+        const LEVELS = {
+            1: {
+                name: "Tutorial",
+                turns: 50,
+                map: `
+========
+=C.....=
+=.====.=
+=.=##=.=
+=.=##=.=
+=.....P=
+=S====.=
+========
+`
+            },
+            2: {
+                name: "Hidden Alley",
+                turns: 50,
+                map: `
+========
+=C.....=
+=.====.=
+=.=##P.=
+=.=##=.=
+=......=
+=S====.=
+========
+`
+            },
+            3: {
+                name: "Fork in the Road",
+                turns: 55,
+                map: `
+==========
+=C.......=
+=.==.===.=
+=.==.=...=
+=....=.=.=
+=.==.=.=.=
+=S==...=P=
+==========
+`
+            },
+            4: {
+                name: "Dead End Alley",
+                turns: 65,
+                map: `
+============
+=C.........=
+=.========.=
+=.=......=.=
+=.=.====.=.=
+=.=....=.=.=
+=.====.=...=
+=......=.=P=
+=.======.=.=
+=S=#=#=#...=
+============
+`
+            },
+            5: {
+                name: "The Long Way",
+                turns: 85,
+                map: `
+==============
+=C...........=
+=.==========.=
+=.=........=.=
+=.=.======.=.=
+=.=.=....=.=.=
+=.=.=.==.=.=.=
+=.=.=.==.=.=P=
+=.=......=...=
+=.==========.=
+=S...........=
+==============
+`
+            },
+            6: {
+                name: "Crossroads",
+                turns: 75,
+                map: `
+================
+=C.....=.......=
+=.===..=..===..=
+=...=..=..=....=
+=...=.....=....=
+=...=..=..=....=
+=......=.......=
+=====..=..=====.
+=......=.......=
+=...=..=..=....=
+=...=.....=...P=
+=...=..=..=....=
+=.===..=..===..=
+=S.....=.......=
+================
+`
+            },
+            7: {
+                name: "The Labyrinth",
+                turns: 130,
+                map: `
+====================
+=C.=...=.....=.....=
+=.===.===.=..=.===.=
+=.....=...=..=.=...=
+=====.=.===.===.=.==
+=.....=.=.....=.=..=
+=.=====.=.===.=.==.=
+=.=.....=...=.=....=
+=.=.=======.=.====.=
+=.=.=.......=.......
+=.=.=.=====.=======.
+=...=.=...=.......=.
+=.===.=.=.=======.=.
+=.=...=.=.........=.
+=.=.===.=.=======.=.
+=.=.....=.=.....=.=P
+=.=======.=.===.=.==
+=S........=...=....=
+====================
+`
+            }
+        };
+        
+        // ===========================================
+        // LEVEL PARSER
+        // ===========================================
+        
+        function parseLevel(levelData) {
+            const lines = levelData.map.trim().split('\n');
+            const height = lines.length;
+            const width = lines[0].length;
+            
+            const map = [];
+            let car = null;
+            let person = null;
+            let safeZone = null;
+            
+            for (let y = 0; y < height; y++) {
+                const row = [];
+                for (let x = 0; x < width; x++) {
+                    const char = lines[y][x] || '=';
+                    
+                    switch (char) {
+                        case '=': // grass
+                            row.push(0);
+                            break;
+                        case '.': // road
+                            row.push(1);
+                            break;
+                        case '#': // building
+                            row.push(2);
+                            break;
+                        case 'C': // car (on road)
+                            row.push(1);
+                            car = { x, y, direction: 'east' };
+                            break;
+                        case 'P': // person (on road)
+                            row.push(1);
+                            person = { x, y, rescued: false };
+                            break;
+                        case 'S': // safe zone (on road)
+                            row.push(1);
+                            safeZone = { x, y };
+                            break;
+                        default:
+                            row.push(0); // unknown = grass
+                    }
+                }
+                map.push(row);
+            }
+            
+            return {
+                name: levelData.name,
+                turns: levelData.turns,
+                map,
+                car,
+                person,
+                safeZone,
+                width,
+                height
+            };
+        }
+        
+        // Current level (default to 1)
+        let currentLevelNum = 1;
+        let currentLevel = parseLevel(LEVELS[1]);
+        
+        // Track completed levels
+        let completedLevels = new Set();
+        
+        function loadCompletedLevels() {
+            try {
+                const saved = localStorage.getItem('rescue-run-completed');
+                if (saved) {
+                    completedLevels = new Set(JSON.parse(saved));
+                }
+            } catch (e) {
+                console.error('Failed to load completed levels:', e);
+            }
+        }
+        
+        function saveCompletedLevels() {
+            localStorage.setItem('rescue-run-completed', JSON.stringify([...completedLevels]));
+        }
+        
+        function markLevelCompleted(levelNum) {
+            completedLevels.add(levelNum);
+            saveCompletedLevels();
+            updateLevelButtons();
+        }
+        
+        function updateLevelButtons() {
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                const levelNum = parseInt(btn.dataset.level);
+                if (completedLevels.has(levelNum)) {
+                    btn.classList.add('completed');
+                }
+            });
+        }
+        
+        // ===========================================
+        // GAME STATE
+        // ===========================================
+        
         const gameState = {
             // Car state
-            car: { x: 1, y: 1, direction: 'east' },
+            car: { ...currentLevel.car },
             
             // Person to rescue
-            person: { x: 6, y: 5, rescued: false },
+            person: { ...currentLevel.person },
             
             // Safe zone location
-            safeZone: { x: 1, y: 6 },
+            safeZone: { ...currentLevel.safeZone },
             
             // Is person in car?
             personInCar: false,
@@ -380,24 +977,7 @@
             status: 'playing', // 'playing', 'won'
             
             // The map grid
-            map: [
-                // y=0 (top row)
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                // y=1
-                [0, 1, 1, 1, 1, 1, 1, 0],
-                // y=2
-                [0, 1, 0, 0, 0, 0, 1, 0],
-                // y=3
-                [0, 1, 0, 2, 2, 0, 1, 0],
-                // y=4
-                [0, 1, 0, 2, 2, 0, 1, 0],
-                // y=5
-                [0, 1, 1, 1, 1, 1, 1, 0],
-                // y=6
-                [0, 1, 0, 0, 0, 0, 1, 0],
-                // y=7 (bottom row)
-                [0, 0, 0, 0, 0, 0, 0, 0],
-            ]
+            map: currentLevel.map
         };
 
         // ===========================================
@@ -414,11 +994,9 @@
                 carImg.onload = () => {
                     assets.carSprite = carImg;
                     assets.loaded = true;
-                    log('Assets loaded', 'success');
                     resolve();
                 };
                 carImg.onerror = () => {
-                    log('Failed to load car sprite, using fallback', 'error');
                     assets.loaded = true;
                     resolve(); // Continue anyway with fallback rendering
                 };
@@ -431,17 +1009,27 @@
         // ===========================================
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = CANVAS_SIZE;
-        canvas.height = CANVAS_SIZE;
+        
+        function resizeCanvas() {
+            const width = currentLevel.width * TILE_SIZE;
+            const height = currentLevel.height * TILE_SIZE;
+            canvas.width = width;
+            canvas.height = height;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+        }
+        
+        // Initialize canvas size
+        resizeCanvas();
 
         function render() {
             // Clear
             ctx.fillStyle = '#2d4a3e';
-            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // Draw tiles
-            for (let y = 0; y < GRID_SIZE; y++) {
-                for (let x = 0; x < GRID_SIZE; x++) {
+            for (let y = 0; y < currentLevel.height; y++) {
+                for (let x = 0; x < currentLevel.width; x++) {
                     const tile = gameState.map[y][x];
                     const px = x * TILE_SIZE;
                     const py = y * TILE_SIZE;
@@ -545,22 +1133,32 @@
         }
 
         // ===========================================
-        // LOGGING
-        // ===========================================
-        const logEl = document.getElementById('log');
-        
-        function log(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `entry ${type}`;
-            entry.textContent = `> ${message}`;
-            logEl.appendChild(entry);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
-
         // ===========================================
         // STANDARD LIBRARY (stdlib)
         // Low-level game primitives for tool implementations
         // ===========================================
+        /*
+         * STDLIB API REFERENCE (for tool implementations)
+         * 
+         * Position/State:
+         *   stdlib.getCarPosition()      → {x, y}
+         *   stdlib.getCarDirection()     → "north"|"south"|"east"|"west"
+         *   stdlib.getPersonPosition()   → {x, y} or null if rescued
+         *   stdlib.getSafeZonePosition() → {x, y}
+         *   stdlib.isPersonInCar()       → boolean
+         *   stdlib.isPersonRescued()     → boolean
+         * 
+         * Map:
+         *   stdlib.getGridSize()         → {width, height}
+         *   stdlib.isValidPosition(x,y)  → boolean
+         *   stdlib.getTileAt(x,y)        → {type, passable}
+         *                                  type: "grass"|"road"|"building"|"edge"
+         * 
+         * Actions:
+         *   stdlib.moveCarOneStep(dir)   → {success, error?}
+         *   stdlib.pickupPerson()        → {success, error?}
+         *   stdlib.dropoffPerson()       → {success, error?}
+         */
         const stdlib = {
             // === Position/State ===
             getCarPosition: () => ({ x: gameState.car.x, y: gameState.car.y }),
@@ -571,8 +1169,8 @@
             isPersonRescued: () => gameState.person.rescued,
             
             // === Map ===
-            getGridSize: () => ({ width: GRID_SIZE, height: GRID_SIZE }),
-            isValidPosition: (x, y) => x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE,
+            getGridSize: () => ({ width: currentLevel.width, height: currentLevel.height }),
+            isValidPosition: (x, y) => x >= 0 && x < currentLevel.width && y >= 0 && y < currentLevel.height,
             getTileAt: (x, y) => {
                 if (!stdlib.isValidPosition(x, y)) {
                     return { type: 'edge', passable: false };
@@ -654,99 +1252,6 @@
         };
 
         // ===========================================
-        // TOOL FUNCTIONS (use stdlib)
-        // ===========================================
-        
-        // TOOL: scan() - Look around and report what's visible
-        function toolScan() {
-            const pos = stdlib.getCarPosition();
-            const directions = ['north', 'south', 'east', 'west'];
-            const offsets = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
-            
-            const surroundings = {};
-            for (const dir of directions) {
-                const [dx, dy] = offsets[dir];
-                const nx = pos.x + dx;
-                const ny = pos.y + dy;
-                const tile = stdlib.getTileAt(nx, ny);
-                const info = { ...tile };
-                
-                // Check for person
-                const personPos = stdlib.getPersonPosition();
-                if (personPos && personPos.x === nx && personPos.y === ny) {
-                    info.person_here = true;
-                }
-                
-                // Check for safe zone
-                const szPos = stdlib.getSafeZonePosition();
-                if (szPos.x === nx && szPos.y === ny) {
-                    info.safe_zone_here = true;
-                }
-                
-                surroundings[dir] = info;
-            }
-            
-            const result = {
-                current_position: pos,
-                current_tile: stdlib.getTileAt(pos.x, pos.y).type,
-                facing: stdlib.getCarDirection(),
-                person_in_car: stdlib.isPersonInCar(),
-                surroundings
-            };
-            
-            // Check current tile for person/safe zone
-            const personPos = stdlib.getPersonPosition();
-            if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
-                result.person_at_current_location = true;
-            }
-            const szPos = stdlib.getSafeZonePosition();
-            if (szPos.x === pos.x && szPos.y === pos.y) {
-                result.at_safe_zone = true;
-            }
-            
-            return result;
-        }
-        
-        // TOOL: move(direction) - Move the car one tile
-        function toolMove(direction) {
-            const result = stdlib.moveCarOneStep(direction);
-            if (result.success) {
-                const pos = stdlib.getCarPosition();
-                result.new_position = pos;
-                result.facing = stdlib.getCarDirection();
-                
-                // Check what's at new location
-                const personPos = stdlib.getPersonPosition();
-                if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
-                    result.person_at_current_location = true;
-                }
-                const szPos = stdlib.getSafeZonePosition();
-                if (szPos.x === pos.x && szPos.y === pos.y) {
-                    result.at_safe_zone = true;
-                }
-            }
-            return result;
-        }
-        
-        // TOOL: pickup() - Pick up person if on same tile
-        function toolPickup() {
-            const result = stdlib.pickupPerson();
-            if (result.success) {
-                result.message = 'Person picked up! Now take them to the safe zone.';
-            }
-            return result;
-        }
-        
-        // TOOL: dropoff() - Drop off person at safe zone
-        function toolDropoff() {
-            const result = stdlib.dropoffPerson();
-            if (result.success) {
-                result.message = 'Person dropped off at safe zone! RESCUE COMPLETE!';
-            }
-            return result;
-        }
-
-        // ===========================================
         // WIN DETECTION & RESET
         // ===========================================
         
@@ -756,99 +1261,343 @@
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = '🎉 RESCUE COMPLETE!';
                 statusEl.className = 'status won';
-                
-                // Show reset button
-                document.getElementById('btn-reset').style.display = 'block';
-                
-                // Disable tool buttons
-                document.querySelectorAll('.control-group button').forEach(btn => {
-                    btn.disabled = true;
-                });
             }
         }
         
-        function resetGame() {
-            // Reset game state
-            gameState.car = { x: 1, y: 1, direction: 'east' };
-            gameState.person = { x: 6, y: 5, rescued: false };
+        function loadLevel(levelNum) {
+            if (!LEVELS[levelNum]) {
+                console.error(`Level ${levelNum} not found`);
+                return false;
+            }
+            
+            currentLevelNum = levelNum;
+            currentLevel = parseLevel(LEVELS[levelNum]);
+            
+            // Update game state with level data
+            gameState.car = { ...currentLevel.car };
+            gameState.person = { ...currentLevel.person };
+            gameState.safeZone = { ...currentLevel.safeZone };
+            gameState.map = currentLevel.map;
             gameState.personInCar = false;
             gameState.status = 'playing';
+            
+            // Resize canvas for this level
+            resizeCanvas();
+            
+            // Update level info display
+            updateLevelDisplay();
+            
+            return true;
+        }
+        
+        function updateLevelDisplay() {
+            document.getElementById('level-name').textContent = 
+                `Level ${currentLevelNum}: ${currentLevel.name}`;
+            document.getElementById('level-turns').textContent = 
+                `Turn limit: ${currentLevel.turns}`;
+            
+            // Update button selection
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (parseInt(btn.dataset.level) === currentLevelNum) {
+                    btn.classList.add('selected');
+                }
+            });
+        }
+        
+        function setupLevelSelector() {
+            const selector = document.getElementById('level-selector');
+            
+            // Add click handlers to level buttons
+            selector.addEventListener('click', (e) => {
+                const btn = e.target.closest('.level-btn');
+                if (!btn || btn.classList.contains('locked')) return;
+                
+                const levelNum = parseInt(btn.dataset.level);
+                if (levelNum !== currentLevelNum) {
+                    selectLevel(levelNum);
+                }
+            });
+            
+            // Initialize display
+            updateLevelDisplay();
+        }
+        
+        function selectLevel(levelNum) {
+            if (!LEVELS[levelNum]) return;
+            
+            // Load the level
+            loadLevel(levelNum);
+            
+            // Reset AI state for fresh start
+            aiState.result = null;
+            aiState.messages = [];
+            
+            // Reset game UI
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'Ready';
+            statusEl.className = 'status playing';
+            
+            // Show turn limit in AI status
+            updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
+            
+            // Clear AI log
+            clearAiLog();
+            aiLog(`Level ${levelNum}: ${currentLevel.name} loaded. Turn limit: ${currentLevel.turns}`, 'ai-result');
+            
+            // Hide review panel
+            hideReview();
+            
+            render();
+        }
+        
+        function resetGame() {
+            // Reload current level
+            loadLevel(currentLevelNum);
+            
+            // Reset AI state so it can be run again
+            aiState.result = null;
+            aiState.messages = [];
             
             // Reset UI
             const statusEl = document.getElementById('status');
             statusEl.textContent = 'Ready';
             statusEl.className = 'status playing';
-            document.getElementById('btn-reset').style.display = 'none';
             
-            // Re-enable buttons
-            document.querySelectorAll('.control-group button').forEach(btn => {
-                btn.disabled = false;
-            });
+            // Show turn limit in AI status
+            updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
             
-            // Clear log
-            const logEl = document.getElementById('log');
-            logEl.innerHTML = '<div class="entry info">Game initializing...</div>';
+            // Clear AI log
+            clearAiLog();
+            aiLog('Game reset. Ready to run AI.', 'ai-result');
             
-            log('Game reset! Rescue the person.', 'success');
             render();
         }
-
         // ===========================================
         // AI INTEGRATION (Claude Haiku)
         // ===========================================
         
-        // Tool definitions in Claude API format
-        const CLAUDE_TOOLS = [
+        // Tool definitions with implementations
+        // Players can edit these - implementation is JS using stdlib.*
+        const DEFAULT_TOOLS = [
             {
                 name: "scan",
-                description: "Look around and scan the surroundings. Returns your current position, the tile you're on, what direction you're facing, whether you have a person in the car, and what's in each cardinal direction (north, south, east, west) including tile type, whether it's passable, and if there's a person or safe zone there.",
-                input_schema: {
-                    type: "object",
-                    properties: {},
-                    required: []
-                }
+                description: "Check your current status. Returns your position, whether you have a person in the car, and whether you're at the person or safe zone.",
+                parameters: [],
+                implementation: `
+// ========================================
+// SCAN TOOL - Check current status
+// ========================================
+// This is a BASIC scan - it tells you:
+// - Where you are (current_position)
+// - Whether you have a person in the car
+// - Whether person or safe zone is at your location
+//
+// TIP: To navigate better, you might want to 
+// improve this tool to show what's AROUND you!
+
+const pos = stdlib.getCarPosition();
+
+const result = {
+    current_position: pos,
+    person_in_car: stdlib.isPersonInCar()
+};
+
+// Check if person is at current location
+const personPos = stdlib.getPersonPosition();
+if (personPos && personPos.x === pos.x && personPos.y === pos.y) {
+    result.person_here = true;
+}
+
+// Check if safe zone is at current location
+const szPos = stdlib.getSafeZonePosition();
+if (szPos.x === pos.x && szPos.y === pos.y) {
+    result.at_safe_zone = true;
+}
+
+return result;
+`
             },
             {
                 name: "move",
                 description: "Move the car one tile in the specified direction. The car can only move on road tiles. Returns success status and your new position.",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        direction: {
-                            type: "string",
-                            enum: ["north", "south", "east", "west"],
-                            description: "The direction to move: north (up), south (down), east (right), or west (left)"
-                        }
-                    },
-                    required: ["direction"]
-                }
+                parameters: [
+                    {
+                        name: "direction",
+                        type: "string",
+                        enum: ["north", "south", "east", "west"],
+                        description: "The direction to move: north (up), south (down), east (right), or west (left)",
+                        required: true
+                    }
+                ],
+                implementation: `
+// ========================================
+// MOVE TOOL - Move the car one tile
+// ========================================
+// input.direction contains the direction the AI wants to move
+// (north, south, east, or west)
+
+// Try to move - returns {success: true} or {success: false, error: "..."}
+const result = stdlib.moveCarOneStep(input.direction);
+
+// TIP: You could improve this tool to tell you
+// what's at your new location after moving!
+
+return result;
+`
             },
             {
                 name: "pickup",
                 description: "Pick up a person if they are at your current location. You must be on the same tile as the person to pick them up.",
-                input_schema: {
-                    type: "object",
-                    properties: {},
-                    required: []
-                }
+                parameters: [],
+                implementation: `
+// ========================================
+// PICKUP TOOL - Pick up the person
+// ========================================
+// The car must be on the same tile as the person
+
+// Try to pick up - returns {success: true} or {success: false, error: "..."}
+const result = stdlib.pickupPerson();
+
+// Add a friendly message on success
+if (result.success) {
+    result.message = 'Person picked up! Now take them to the safe zone.';
+}
+
+return result;
+`
             },
             {
                 name: "dropoff",
                 description: "Drop off the person you're carrying. You must be at the safe zone and have a person in the car to drop them off. This completes the rescue!",
-                input_schema: {
-                    type: "object",
-                    properties: {},
-                    required: []
-                }
+                parameters: [],
+                implementation: `
+// ========================================
+// DROPOFF TOOL - Drop off at safe zone
+// ========================================
+// Must have person in car AND be at safe zone
+
+// Try to drop off - returns {success: true} or {success: false, error: "..."}
+const result = stdlib.dropoffPerson();
+
+// Add a celebration message on success!
+if (result.success) {
+    result.message = 'Person dropped off at safe zone! RESCUE COMPLETE!';
+}
+
+return result;
+`
             }
         ];
+        
+        // Current tools (can be modified by player)
+        let currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
+        
+        // Convert tool definitions to Claude API format
+        function getClaudeTools() {
+            return currentTools.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                input_schema: {
+                    type: "object",
+                    properties: tool.parameters.reduce((props, param) => {
+                        props[param.name] = {
+                            type: param.type,
+                            description: param.description
+                        };
+                        if (param.enum) {
+                            props[param.name].enum = param.enum;
+                        }
+                        return props;
+                    }, {}),
+                    required: tool.parameters.filter(p => p.required).map(p => p.name)
+                }
+            }));
+        }
+        
+        // Execute a tool by running its implementation
+        function executeTool(toolName, toolInput) {
+            const tool = currentTools.find(t => t.name === toolName);
+            if (!tool) {
+                return { success: false, error: `Unknown tool: ${toolName}` };
+            }
+            
+            try {
+                // Create a function from the implementation string
+                // It has access to 'stdlib' and 'input'
+                const fn = new Function('stdlib', 'input', tool.implementation);
+                const result = fn(stdlib, toolInput || {});
+                
+                // If result is undefined, the tool forgot to return
+                if (result === undefined) {
+                    return { 
+                        success: false, 
+                        error: `Tool "${toolName}" didn't return anything. Add a return statement.` 
+                    };
+                }
+                
+                return result;
+            } catch (e) {
+                // Parse error messages to be more helpful
+                const errorMsg = e.message;
+                let friendlyError = errorMsg;
+                
+                // Common JS errors
+                if (errorMsg.includes('is not defined')) {
+                    const match = errorMsg.match(/(\w+) is not defined/);
+                    const varName = match ? match[1] : 'variable';
+                    friendlyError = `"${varName}" is not defined. Did you mean stdlib.${varName}() or misspell something?`;
+                } else if (errorMsg.includes('is not a function')) {
+                    const match = errorMsg.match(/(\w+) is not a function/);
+                    const fnName = match ? match[1] : 'something';
+                    friendlyError = `"${fnName}" is not a function. Check the stdlib reference for available functions.`;
+                } else if (errorMsg.includes('Unexpected token')) {
+                    friendlyError = `Syntax error: ${errorMsg}. Check for missing brackets, quotes, or semicolons.`;
+                } else if (errorMsg.includes('Cannot read properties of undefined')) {
+                    friendlyError = `Tried to access a property on undefined. A stdlib function might have returned null/undefined.`;
+                }
+                
+                return { success: false, error: friendlyError };
+            }
+        }
         
         // AI state
         const aiState = {
             running: false,
             messages: [],
-            stopRequested: false
+            stopRequested: false,
+            // Review tracking
+            toolStats: {},      // { toolName: { calls: 0, successes: 0, failures: 0 } }
+            toolHistory: [],    // [{ name: 'scan', args: {}, success: true }, ...]
+            totalTurns: 0,
+            result: null        // 'success' | 'failure' | 'stopped' | 'error'
         };
+        
+        function resetToolStats() {
+            aiState.toolStats = {};
+            aiState.toolHistory = [];
+            aiState.totalTurns = 0;
+            aiState.result = null;
+            // Initialize stats for all tools
+            currentTools.forEach(tool => {
+                aiState.toolStats[tool.name] = { calls: 0, successes: 0, failures: 0 };
+            });
+        }
+        
+        function trackToolCall(toolName, toolInput, result) {
+            if (!aiState.toolStats[toolName]) {
+                aiState.toolStats[toolName] = { calls: 0, successes: 0, failures: 0 };
+            }
+            aiState.toolStats[toolName].calls++;
+            const success = result.success !== false;
+            if (success) {
+                aiState.toolStats[toolName].successes++;
+            } else {
+                aiState.toolStats[toolName].failures++;
+            }
+            // Record in history
+            aiState.toolHistory.push({ name: toolName, args: toolInput, success });
+        }
         
         // AI logging
         const aiLogEl = document.getElementById('ai-log');
@@ -865,57 +1614,17 @@
             aiLogEl.innerHTML = '';
         }
         
-        // Build system prompt with current game state
+        // Build minimal system prompt - AI must discover through tools
         function buildSystemPrompt() {
-            const scan = toolScan();
-            return `You are an AI controlling a rescue car in a top-down grid-based game.
+            return `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
 
-YOUR MISSION: Rescue the person and bring them to the safe zone.
+Use your available tools to:
+1. Explore and understand your environment
+2. Find and pick up the person
+3. Navigate to the safe zone
+4. Drop off the person to complete the rescue
 
-CURRENT STATE:
-- Your position: (${scan.current_position.x}, ${scan.current_position.y})
-- You are on: ${scan.current_tile}
-- You are facing: ${scan.facing}
-- Person in car: ${scan.person_in_car}
-${scan.person_at_current_location ? '- PERSON IS AT YOUR CURRENT LOCATION! Use pickup() to rescue them.' : ''}
-${scan.at_safe_zone ? '- YOU ARE AT THE SAFE ZONE!' : ''}
-
-SURROUNDINGS:
-- North: ${JSON.stringify(scan.surroundings.north)}
-- South: ${JSON.stringify(scan.surroundings.south)}  
-- East: ${JSON.stringify(scan.surroundings.east)}
-- West: ${JSON.stringify(scan.surroundings.west)}
-
-GAME INFO:
-- Grid is 8x8 (coordinates 0-7)
-- You can only drive on road tiles
-- Person starts at (6, 5)
-- Safe zone is at (1, 6)
-
-STRATEGY:
-1. First, use scan() to understand your surroundings
-2. Navigate to the person's location using move()
-3. When on the same tile as the person, use pickup()
-4. Navigate to the safe zone at (1, 6)
-5. When at the safe zone with the person, use dropoff()
-
-Be efficient - plan your route and execute it. You have limited moves.`;
-        }
-        
-        // Execute a tool and return the result
-        function executeTool(toolName, toolInput) {
-            switch (toolName) {
-                case 'scan':
-                    return toolScan();
-                case 'move':
-                    return toolMove(toolInput.direction);
-                case 'pickup':
-                    return toolPickup();
-                case 'dropoff':
-                    return toolDropoff();
-                default:
-                    return { error: `Unknown tool: ${toolName}` };
-            }
+Good luck!`;
         }
         
         // Call Claude API via vanilla platform proxy
@@ -928,7 +1637,7 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                     model: 'claude-haiku-4-5-20251001',
                     max_tokens: 1024,
                     system: buildSystemPrompt(),
-                    tools: CLAUDE_TOOLS,
+                    tools: getClaudeTools(),
                     messages: messages
                 })
             });
@@ -953,6 +1662,12 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         async function runAI() {
             if (aiState.running) return;
             
+            // Can't continue after failure - must reset
+            if (aiState.result === 'failure' || aiState.result === 'error') {
+                aiLog('❌ Level failed. Reset the game to try again.', 'ai-error');
+                return;
+            }
+            
             // Check auth before starting
             if (!currentUser) {
                 aiLog('❌ Please login first', 'ai-error');
@@ -963,8 +1678,11 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             aiState.stopRequested = false;
             aiState.messages = [];
             
+            // Reset tracking for review
+            resetToolStats();
+            hideReview();
+            
             clearAiLog();
-            updateAiStatus('Running...', true);
             
             document.getElementById('btn-run-ai').disabled = true;
             document.getElementById('btn-stop-ai').disabled = false;
@@ -973,6 +1691,9 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             document.querySelectorAll('.control-group button').forEach(btn => {
                 btn.disabled = true;
             });
+            
+            const maxIterations = currentLevel.turns || 50; // Use level turn limit
+            updateAiStatus(`Turn 0/${maxIterations}`, true);
             
             aiLog('🤖 AI starting rescue mission...', 'ai-thinking');
             
@@ -983,14 +1704,15 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             });
             
             let iterations = 0;
-            const maxIterations = 30; // Safety limit
             
             try {
                 while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
                     iterations++;
+                    updateAiStatus(`Turn ${iterations}/${maxIterations}`, true);
                     
                     if (gameState.status === 'won') {
                         aiLog('🎉 RESCUE COMPLETE! Mission successful!', 'ai-result');
+                        markLevelCompleted(currentLevelNum);
                         break;
                     }
                     
@@ -1028,6 +1750,9 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                         
                         const result = executeTool(toolUse.name, toolUse.input);
                         
+                        // Track for review
+                        trackToolCall(toolUse.name, toolUse.input, result);
+                        
                         // Log result
                         if (result.success === false) {
                             aiLog(`   ❌ ${result.error}`, 'ai-error');
@@ -1062,9 +1787,24 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                 
                 if (iterations >= maxIterations) {
                     aiLog('⚠️ Max iterations reached', 'ai-error');
+                    aiState.result = 'failure';
                 }
                 
+                // Set result based on game state
+                if (gameState.status === 'won') {
+                    aiState.result = 'success';
+                } else if (aiState.stopRequested) {
+                    aiState.result = 'stopped';
+                } else if (!aiState.result) {
+                    aiState.result = 'failure';
+                }
+                
+                aiState.totalTurns = iterations;
+                
             } catch (error) {
+                aiState.result = 'error';
+                aiState.totalTurns = iterations;
+                
                 // Handle specific error types with user-friendly messages
                 if (error.message === 'AUTH_REQUIRED') {
                     aiLog('❌ Session expired. Please login again.', 'ai-error');
@@ -1080,21 +1820,255 @@ Be efficient - plan your route and execute it. You have limited moves.`;
             
             // Cleanup
             aiState.running = false;
-            updateAiStatus('AI Ready', false);
+            updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
             document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
             
-            // Re-enable manual controls if game not won
-            if (gameState.status !== 'won') {
-                document.querySelectorAll('.control-group button').forEach(btn => {
-                    btn.disabled = false;
-                });
-            }
+            // Show review panel
+            showReview();
         }
         
         function stopAI() {
             aiState.stopRequested = true;
             aiLog('⏹️ Stop requested...', 'ai-thinking');
+        }
+        
+        // ===========================================
+        // REVIEW PANEL
+        // ===========================================
+        
+        function generateHints(state) {
+            const hints = [];
+            const stats = state.toolStats;
+            const history = state.toolHistory;
+            
+            // Check if failed
+            if (state.result !== 'success') {
+                // Never used pickup
+                if (stats.pickup?.calls === 0) {
+                    hints.push("The AI never tried to pick up the person. Does your <code>scan</code> tool tell the AI where the person is?");
+                }
+                
+                // Never used dropoff but has person
+                if (stats.dropoff?.calls === 0 && stats.pickup?.calls > 0) {
+                    hints.push("The AI picked up the person but never found the safe zone. Does <code>scan</code> reveal safe zone locations?");
+                }
+                
+                // Lots of move failures
+                const moveFailures = stats.move?.failures || 0;
+                if (moveFailures > 5) {
+                    hints.push(`The AI hit walls ${moveFailures} times. Does <code>scan</code> tell it which directions are passable?`);
+                }
+                
+                // Scan not used or barely used
+                if ((stats.scan?.calls || 0) < 3) {
+                    hints.push("The AI barely scanned its surroundings. Is the <code>scan</code> tool description clear about what it does?");
+                }
+                
+                // Level-specific hints
+                if (currentLevelNum === 2 && stats.pickup?.calls === 0) {
+                    hints.push("<strong>Level 2 Tip:</strong> The person is hidden in a side alley. Your scan needs to show what's in <em>each direction</em> so the AI can spot them!");
+                }
+                
+                if (currentLevelNum === 3 && stats.pickup?.calls === 0) {
+                    hints.push("<strong>Level 3 Tip:</strong> There's a fork in the road! The stdlib has <code>getPersonPosition()</code> - use it to tell the AI exactly where to go!");
+                }
+            }
+            
+            // Even on success, check for inefficiency
+            if (state.result === 'success' && state.totalTurns > 40) {
+                hints.push("Success! But the AI took many turns. Could your tools provide better information to help it navigate more directly?");
+            }
+            
+            // Check for looping patterns
+            const loopPattern = detectLoopPattern(history);
+            if (loopPattern) {
+                hints.push(`The AI seemed to loop (${loopPattern}). It might not have enough info to make good decisions.`);
+            }
+            
+            return hints;
+        }
+        
+        function detectLoopPattern(history) {
+            if (!history || history.length < 8) return null;
+            
+            // Look for repeating direction patterns (e.g., north-south-north-south)
+            const moves = history.filter(h => h.name === 'move').map(h => h.args?.direction);
+            if (moves.length < 6) return null;
+            
+            // Check last 6 moves for back-and-forth
+            const last6 = moves.slice(-6);
+            const backForth = last6.filter((m, i) => {
+                if (i === 0) return false;
+                const prev = last6[i - 1];
+                return (m === 'north' && prev === 'south') ||
+                       (m === 'south' && prev === 'north') ||
+                       (m === 'east' && prev === 'west') ||
+                       (m === 'west' && prev === 'east');
+            }).length;
+            
+            if (backForth >= 3) {
+                return 'back-and-forth movement';
+            }
+            
+            return null;
+        }
+        
+        function showReview() {
+            const panel = document.getElementById('review-panel');
+            const resultEl = document.getElementById('review-result');
+            const statsEl = document.getElementById('review-stats');
+            
+            // Result summary
+            const resultMessages = {
+                success: `✅ SUCCESS! Rescued in ${aiState.totalTurns} turns`,
+                failure: `❌ FAILED after ${aiState.totalTurns} turns`,
+                stopped: `⏹️ STOPPED at turn ${aiState.totalTurns}`,
+                error: `⚠️ ERROR at turn ${aiState.totalTurns}`
+            };
+            
+            resultEl.textContent = resultMessages[aiState.result] || 'Unknown result';
+            resultEl.className = `review-result ${aiState.result === 'success' ? 'success' : 'failure'}`;
+            
+            // Generate hints based on what happened
+            const hints = generateHints(aiState);
+            const hintsEl = document.getElementById('review-hints');
+            if (hints.length > 0) {
+                hintsEl.innerHTML = `<h4>💡 Suggestions</h4><ul>${hints.map(h => `<li>${h}</li>`).join('')}</ul>`;
+                hintsEl.style.display = 'block';
+            } else {
+                hintsEl.style.display = 'none';
+            }
+            
+            // Build the story - compress consecutive same calls
+            const story = buildToolStory(aiState.toolHistory);
+            
+            // Tool stats
+            const toolNames = currentTools.map(t => t.name);
+            let statsHtml = '';
+            
+            // Story section
+            statsHtml += `<div class="review-story">${story}</div>`;
+            
+            // Stats per tool
+            statsHtml += '<div class="review-tool-stats">';
+            for (const toolName of toolNames) {
+                const stats = aiState.toolStats[toolName] || { calls: 0, successes: 0, failures: 0 };
+                const neverUsed = stats.calls === 0;
+                
+                statsHtml += `
+                    <div class="review-stat-item ${neverUsed ? 'never-used' : ''}">
+                        <span class="tool-name">${toolName}()</span>
+                        <span class="stat-counts">
+                            ${neverUsed ? '' : `
+                                ${stats.failures > 0 ? `<span class="fail-count">✗${stats.failures}</span>` : ''}
+                                ${stats.successes > 0 ? `<span class="success-count">✓${stats.successes}</span>` : ''}
+                            `}
+                        </span>
+                    </div>
+                `;
+            }
+            statsHtml += '</div>';
+            
+            statsEl.innerHTML = statsHtml;
+            
+            // Show/hide Next Level button
+            const nextLevelBtn = document.getElementById('btn-next-level');
+            const nextLevelNum = currentLevelNum + 1;
+            if (aiState.result === 'success' && LEVELS[nextLevelNum]) {
+                nextLevelBtn.style.display = 'inline-block';
+                nextLevelBtn.onclick = () => {
+                    hideReview();
+                    selectLevel(nextLevelNum);
+                };
+            } else {
+                nextLevelBtn.style.display = 'none';
+            }
+            
+            panel.style.display = 'block';
+        }
+        
+        function buildToolStory(history) {
+            if (!history || history.length === 0) return '<em>No tool calls</em>';
+            
+            const parts = [];
+            let i = 0;
+            
+            while (i < history.length) {
+                const call = history[i];
+                let count = 1;
+                
+                // For move, group by same direction
+                if (call.name === 'move') {
+                    const dir = call.args?.direction;
+                    while (i + count < history.length && 
+                           history[i + count].name === 'move' && 
+                           history[i + count].args?.direction === dir) {
+                        count++;
+                    }
+                    const failCount = history.slice(i, i + count).filter(c => !c.success).length;
+                    let text = `move(${dir})`;
+                    if (count > 1) text += `×${count}`;
+                    if (failCount > 0) text = `<span class="story-fail">${text}</span>`;
+                    parts.push({ text, startIdx: i, endIdx: i + count - 1 });
+                }
+                // For scan, just count consecutive scans
+                else if (call.name === 'scan') {
+                    while (i + count < history.length && history[i + count].name === 'scan') {
+                        count++;
+                    }
+                    let text = 'scan';
+                    if (count > 1) text += `×${count}`;
+                    parts.push({ text, startIdx: i, endIdx: i + count - 1 });
+                }
+                // For pickup/dropoff, show success/fail
+                else {
+                    let text = call.name;
+                    if (!call.success) text = `<span class="story-fail">${text}!</span>`;
+                    else text = `<span class="story-success">${text}✓</span>`;
+                    parts.push({ text, startIdx: i, endIdx: i });
+                }
+                
+                i += count;
+            }
+            
+            // Detect stuck patterns: back-and-forth moves
+            const stuckIndices = new Set();
+            for (let p = 1; p < parts.length; p++) {
+                const curr = parts[p].text;
+                const prev = parts[p - 1].text;
+                // Check for opposite directions
+                if ((curr.includes('north') && prev.includes('south')) ||
+                    (curr.includes('south') && prev.includes('north')) ||
+                    (curr.includes('east') && prev.includes('west')) ||
+                    (curr.includes('west') && prev.includes('east'))) {
+                    stuckIndices.add(p - 1);
+                    stuckIndices.add(p);
+                }
+            }
+            
+            // Also mark consecutive failures as stuck
+            for (let p = 0; p < parts.length; p++) {
+                if (parts[p].text.includes('story-fail')) {
+                    // Check if next is also a failure
+                    if (p + 1 < parts.length && parts[p + 1].text.includes('story-fail')) {
+                        stuckIndices.add(p);
+                        stuckIndices.add(p + 1);
+                    }
+                }
+            }
+            
+            // Build final story with stuck highlights
+            return parts.map((p, idx) => {
+                if (stuckIndices.has(idx)) {
+                    return `<span class="story-stuck">${p.text}</span>`;
+                }
+                return p.text;
+            }).join(' → ');
+        }
+        
+        function hideReview() {
+            document.getElementById('review-panel').style.display = 'none';
         }
         
         function updateAiStatus(text, running) {
@@ -1104,64 +2078,204 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         }
 
         // ===========================================
-        // UI BUTTON HANDLERS
+        // TOOL EDITOR (Inline)
         // ===========================================
         
-        function setupButtons() {
-            // Scan button
-            document.getElementById('btn-scan').addEventListener('click', () => {
-                const result = toolScan();
-                log('scan() called', 'info');
-                log(JSON.stringify(result, null, 2), 'success');
-                render();
+        let toolEditors = {}; // Map of tool index to CodeMirror instance
+        let expandedToolIndex = -1;
+        
+        function renderToolsList() {
+            const listEl = document.getElementById('tools-list');
+            listEl.innerHTML = currentTools.map((tool, i) => `
+                <div class="tool-item" data-index="${i}" id="tool-item-${i}">
+                    <div class="tool-header" onclick="toggleToolExpand(${i})">
+                        <div class="tool-header-left">
+                            <span class="tool-expand-icon">▶</span>
+                            <span class="tool-name">${tool.name}(${tool.parameters.map(p => p.name).join(', ')})</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-form-group">
+                            <label>Name:</label>
+                            <input type="text" id="tool-name-${i}" value="${escapeHtml(tool.name)}" />
+                        </div>
+                        <div class="tool-form-group">
+                            <label>Description (AI sees this):</label>
+                            <textarea id="tool-desc-${i}" rows="2">${escapeHtml(tool.description)}</textarea>
+                        </div>
+                        <div class="tool-form-group">
+                            <label>Params: ${tool.parameters.length === 0 ? '<em style="color: #666;">None</em>' : tool.parameters.map(p => `<code style="background: #0a0a15; padding: 2px 6px; border-radius: 2px;">${p.name}: ${p.type}</code>`).join(' ')}</label>
+                        </div>
+                        <div class="tool-form-group">
+                            <label>Implementation (JS using stdlib.*):</label>
+                            <div class="tool-editor-wrapper" id="tool-editor-${i}"></div>
+                        </div>
+                        <div class="tool-error" id="tool-error-${i}"></div>
+                        <div class="tool-stdlib-ref">
+                            <details>
+                                <summary>📚 Stdlib Reference</summary>
+                                <pre>Position/State:
+  stdlib.getCarPosition()      → {x, y}
+  stdlib.getCarDirection()     → "north"|"south"|"east"|"west"
+  stdlib.getPersonPosition()   → {x, y} or null
+  stdlib.getSafeZonePosition() → {x, y}
+  stdlib.isPersonInCar()       → boolean
+
+Map:
+  stdlib.getGridSize()         → {width, height}
+  stdlib.isValidPosition(x,y)  → boolean
+  stdlib.getTileAt(x,y)        → {type, passable}
+
+Actions:
+  stdlib.moveCarOneStep(dir)   → {success, error?}
+  stdlib.pickupPerson()        → {success, error?}
+  stdlib.dropoffPerson()       → {success, error?}</pre>
+                            </details>
+                        </div>
+                        <div class="tool-actions">
+                            <button class="tool-save-btn" onclick="saveToolInline(${i}); event.stopPropagation();">💾 Save</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Clear old CodeMirror instances
+            toolEditors = {};
+        }
+        
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        
+        function toggleToolExpand(index) {
+            const item = document.getElementById(`tool-item-${index}`);
+            const wasExpanded = item.classList.contains('expanded');
+            
+            // Collapse all
+            document.querySelectorAll('.tool-item.expanded').forEach(el => {
+                el.classList.remove('expanded');
             });
             
-            // Move buttons
-            document.getElementById('btn-north').addEventListener('click', () => {
-                const result = toolMove('north');
-                log(`move('north') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            if (!wasExpanded) {
+                item.classList.add('expanded');
+                expandedToolIndex = index;
+                
+                // Initialize CodeMirror for this tool if not already
+                if (!toolEditors[index]) {
+                    const wrapper = document.getElementById(`tool-editor-${index}`);
+                    const tool = currentTools[index];
+                    toolEditors[index] = CodeMirror(wrapper, {
+                        value: tool.implementation.trim(),
+                        mode: 'javascript',
+                        theme: 'dracula',
+                        lineNumbers: true,
+                        lineWrapping: true,
+                        tabSize: 2,
+                        indentWithTabs: false
+                    });
+                }
+                // Refresh CodeMirror after expansion animation
+                setTimeout(() => toolEditors[index].refresh(), 10);
+            } else {
+                expandedToolIndex = -1;
+            }
+        }
+        
+        function saveToolInline(index) {
+            const name = document.getElementById(`tool-name-${index}`).value;
+            const description = document.getElementById(`tool-desc-${index}`).value;
+            const implementation = toolEditors[index] ? toolEditors[index].getValue() : currentTools[index].implementation;
             
-            document.getElementById('btn-south').addEventListener('click', () => {
-                const result = toolMove('south');
-                log(`move('south') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            // Validate the implementation
+            const validationError = validateToolImplementation(implementation);
+            if (validationError) {
+                showToolErrorInline(index, validationError);
+                return;
+            }
             
-            document.getElementById('btn-east').addEventListener('click', () => {
-                const result = toolMove('east');
-                log(`move('east') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            // Save changes
+            const tool = currentTools[index];
+            tool.name = name;
+            tool.description = description;
+            tool.implementation = implementation;
             
-            document.getElementById('btn-west').addEventListener('click', () => {
-                const result = toolMove('west');
-                log(`move('west') → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (!result.success) log(result.error, 'error');
-                render();
-            });
+            saveTools();
+            hideToolErrorInline(index);
             
-            // Pickup button
-            document.getElementById('btn-pickup').addEventListener('click', () => {
-                const result = toolPickup();
-                log(`pickup() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (result.success) log(result.message, 'success');
-                else log(result.error, 'error');
-                render();
-            });
+            // Update header text
+            const item = document.getElementById(`tool-item-${index}`);
+            const nameEl = item.querySelector('.tool-name');
+            nameEl.textContent = `${name}(${tool.parameters.map(p => p.name).join(', ')})`;
             
-            // Dropoff button
-            document.getElementById('btn-dropoff').addEventListener('click', () => {
-                const result = toolDropoff();
-                log(`dropoff() → ${result.success ? 'OK' : 'FAIL'}`, result.success ? 'success' : 'error');
-                if (result.success) log(result.message, 'success');
-                else log(result.error, 'error');
-                render();
-            });
+            // Brief visual feedback
+            const btn = item.querySelector('.tool-save-btn');
+            btn.textContent = '✓ Saved';
+            setTimeout(() => btn.textContent = '💾 Save', 1000);
+        }
+        
+        function showToolErrorInline(index, message) {
+            const errorEl = document.getElementById(`tool-error-${index}`);
+            errorEl.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
+            errorEl.style.display = 'block';
+        }
+        
+        function hideToolErrorInline(index) {
+            const errorEl = document.getElementById(`tool-error-${index}`);
+            errorEl.style.display = 'none';
+        }
+        
+        function validateToolImplementation(code) {
+            try {
+                // Try to create the function - catches syntax errors
+                new Function('stdlib', 'input', code);
+                return null; // No error
+            } catch (e) {
+                let errorMsg = e.message;
+                
+                // Make syntax errors more friendly
+                if (errorMsg.includes('Unexpected token')) {
+                    errorMsg = `Syntax error: ${errorMsg}. Check for missing brackets, quotes, or semicolons.`;
+                } else if (errorMsg.includes('Unexpected end of input')) {
+                    errorMsg = 'Unexpected end of code. You might be missing a closing bracket } or )';
+                } else if (errorMsg.includes('Unexpected identifier')) {
+                    errorMsg = `Syntax error: ${errorMsg}. Check for missing operators or semicolons.`;
+                }
+                
+                return errorMsg;
+            }
+        }
+        
+        function saveTools() {
+            localStorage.setItem('rescue-run-tools', JSON.stringify(currentTools));
+        }
+        
+        function loadTools() {
+            const saved = localStorage.getItem('rescue-run-tools');
+            if (saved) {
+                try {
+                    currentTools = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load saved tools:', e);
+                    currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
+                }
+            }
+        }
+        
+        function resetTools() {
+            if (confirm('Reset all tools to defaults? Your changes will be lost.')) {
+                currentTools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
+                localStorage.removeItem('rescue-run-tools');
+                renderToolsList();
+            }
+        }
+
+        // ===========================================
+        // UI SETUP
+        // ===========================================
+        
+        function setupUI() {
+            // Level selector
+            setupLevelSelector();
             
             // Reset button
             document.getElementById('btn-reset').addEventListener('click', () => {
@@ -1177,9 +2291,22 @@ Be efficient - plan your route and execute it. You have limited moves.`;
                 stopAI();
             });
             
-            // Enable all tool buttons (not reset)
-            document.querySelectorAll('.control-group button').forEach(btn => {
-                btn.disabled = false;
+            // Tool editor buttons
+            document.getElementById('btn-reset-tools').addEventListener('click', () => {
+                resetTools();
+            });
+            
+            // Review panel buttons
+            document.getElementById('btn-close-review').addEventListener('click', hideReview);
+            document.getElementById('btn-edit-after-review').addEventListener('click', () => {
+                if (currentTools.length > 0) {
+                    toggleToolExpand(0);
+                }
+            });
+            document.getElementById('btn-run-again').addEventListener('click', () => {
+                resetGame();
+                hideReview();
+                runAI();
             });
         }
 
@@ -1220,20 +2347,26 @@ Be efficient - plan your route and execute it. You have limited moves.`;
         }
         
         async function init() {
-            log('Loading assets...');
+            // Load saved tools
+            loadTools();
+            renderToolsList();
+            
+            // Load completed levels
+            loadCompletedLevels();
+            
             await loadAssets();
             render();
-            setupButtons();
+            setupUI();
+            
+            // Update level buttons with completion status
+            updateLevelButtons();
             
             // Check authentication
-            log('Checking authentication...');
             currentUser = await checkAuth();
             
             if (currentUser) {
-                log(`Logged in as ${currentUser.username}`, 'success');
-                log('Ready! Use the tools to rescue the person.', 'success');
+                aiLog(`Logged in as ${currentUser.username}`, 'ai-result');
             } else {
-                log('Not logged in - AI features disabled', 'error');
                 showLoginPrompt();
             }
         }
