@@ -42,11 +42,34 @@ Par: ~8 turns (move to person, pickup, move to safe zone, dropoff)
 - Text area in UI for custom directions
 - Appended to system prompt at conversation start
 - Saved per user or per level?
+- **Also:** Make the DEFAULT system prompt editable (full embodiment control)
 
 **Benefits:**
 - Teaches prompt engineering
 - Another axis of optimization beyond tools
 - Lets players guide AI behavior without code
+- Full control over the AI's embodiment
+
+---
+
+## UI Overhaul
+
+**Current state:** Slapped together, functional but rough.
+
+**Goals:**
+- Clean, intuitive layout
+- Better visual hierarchy
+- Mobile-friendly (stretch)
+- Consistent styling
+- Better feedback/animations
+
+**Specific areas:**
+- Tool editor modal needs polish
+- Level selector could be more visual
+- AI log scrolling/formatting
+- Review panel layout
+- Status indicators
+- Overall color scheme and spacing
 
 ---
 
