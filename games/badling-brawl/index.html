@@ -748,19 +748,35 @@
             const oldX = enemy.x;
             const oldY = enemy.y;
             
-            // Move toward player
-            const dx = player.x - enemy.x;
-            const dy = player.y - enemy.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            // Find nearest active player to chase
+            let nearestPlayer = null;
+            let nearestDist = Infinity;
+            for (const p of players) {
+                if (!p.active || p.health <= 0) continue;
+                const dx = p.x - enemy.x;
+                const dy = p.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestPlayer = p;
+                }
+            }
             
-            if (dist > 0) {
-                const nx = dx / dist;
-                const ny = dy / dist;
-                enemy.x += nx * enemy.speed * dt;
-                enemy.y += ny * enemy.speed * dt;
+            // Move toward nearest player
+            if (nearestPlayer) {
+                const dx = nearestPlayer.x - enemy.x;
+                const dy = nearestPlayer.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
                 
-                // Face the player
-                enemy.facingLeft = dx < 0;
+                if (dist > 0) {
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    enemy.x += nx * enemy.speed * dt;
+                    enemy.y += ny * enemy.speed * dt;
+                    
+                    // Face the player
+                    enemy.facingLeft = dx < 0;
+                }
             }
             
             // Check Home Base collision - enemies can't enter at all
@@ -813,53 +829,62 @@
     }
     
     function checkCollisions() {
-        const playerRadius = player.size / 2 * 0.6; // Slightly smaller hitbox
-        
-        for (const enemy of enemies) {
-            const enemyRadius = enemy.size / 2 * 0.6;
-            const dx = player.x - enemy.x;
-            const dy = player.y - enemy.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+        // Check collisions for all active players
+        for (const p of players) {
+            if (!p.active) continue;
             
-            if (dist < playerRadius + enemyRadius) {
-                // Player takes damage (with brief invulnerability handled elsewhere)
-                player.health -= enemy.damage;
+            const playerRadius = p.size / 2 * 0.6; // Slightly smaller hitbox
+            
+            for (const enemy of enemies) {
+                const enemyRadius = enemy.size / 2 * 0.6;
+                const dx = p.x - enemy.x;
+                const dy = p.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
                 
-                // Check for death
-                if (player.health <= 0) {
-                    player.health = 0;
-                    gameState = 'gameover';
-                }
-                
-                // Push enemy back slightly
-                if (dist > 0) {
-                    const pushDist = 10;
-                    enemy.x -= (dx / dist) * pushDist;
-                    enemy.y -= (dy / dist) * pushDist;
+                if (dist < playerRadius + enemyRadius) {
+                    // Player takes damage
+                    p.health -= enemy.damage;
+                    
+                    // Check for death
+                    if (p.health <= 0) {
+                        p.health = 0;
+                        // Game over only if ALL players are dead
+                        const anyAlive = players.some(pl => pl.active && pl.health > 0);
+                        if (!anyAlive) {
+                            gameState = 'gameover';
+                        }
+                    }
+                    
+                    // Push enemy back slightly
+                    if (dist > 0) {
+                        const pushDist = 10;
+                        enemy.x -= (dx / dist) * pushDist;
+                        enemy.y -= (dy / dist) * pushDist;
+                    }
                 }
             }
         }
     }
     
-    function updateCombat(dt) {
+    function updateCombatForPlayer(p, dt) {
         // Decrease attack cooldown
-        if (player.attackTimer > 0) {
-            player.attackTimer -= dt;
+        if (p.attackTimer > 0) {
+            p.attackTimer -= dt;
         }
         
         // No attacking while in home base (no camping!)
-        if (isInsideHomeBase(player.x, player.y, 0)) {
+        if (isInsideHomeBase(p.x, p.y, 0)) {
             return;
         }
         
         // Auto-attack: find nearest enemy in range
-        if (player.attackTimer <= 0) {
+        if (p.attackTimer <= 0) {
             let nearestEnemy = null;
             let nearestDist = PECK_RANGE;
             
             for (const enemy of enemies) {
-                const dx = enemy.x - player.x;
-                const dy = enemy.y - player.y;
+                const dx = enemy.x - p.x;
+                const dy = enemy.y - p.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 if (dist < nearestDist) {
@@ -871,19 +896,18 @@
             if (nearestEnemy) {
                 // Attack!
                 nearestEnemy.health -= PECK_DAMAGE;
-                player.attackTimer = PECK_COOLDOWN;
+                p.attackTimer = PECK_COOLDOWN;
                 
                 // Face the enemy
-                player.facingLeft = nearestEnemy.x < player.x;
+                p.facingLeft = nearestEnemy.x < p.x;
                 
-                // Create peck visual effect (line from bill to enemy)
-                // Offset origin to duck's bill (front of sprite)
-                const billOffsetX = player.facingLeft ? -player.size * 0.4 : player.size * 0.4;
-                const billOffsetY = -player.size * 0.1; // Slightly above center (bill height)
+                // Create peck visual effect
+                const billOffsetX = p.facingLeft ? -p.size * 0.4 : p.size * 0.4;
+                const billOffsetY = -p.size * 0.1;
                 
                 peckEffects.push({
-                    x1: player.x + billOffsetX,
-                    y1: player.y + billOffsetY,
+                    x1: p.x + billOffsetX,
+                    y1: p.y + billOffsetY,
                     x2: nearestEnemy.x,
                     y2: nearestEnemy.y,
                     timer: PECK_EFFECT_DURATION
@@ -893,6 +917,15 @@
                 if (nearestEnemy.health <= 0) {
                     killEnemy(nearestEnemy);
                 }
+            }
+        }
+    }
+    
+    function updateCombat(dt) {
+        // Update combat for all active players
+        for (const p of players) {
+            if (p.active && p.health > 0) {
+                updateCombatForPlayer(p, dt);
             }
         }
         
@@ -906,16 +939,22 @@
     }
     
     function updateEggs() {
-        // Check if player picks up eggs
+        // Check if any active player picks up eggs
         for (let i = eggs.length - 1; i >= 0; i--) {
             const egg = eggs[i];
-            const dx = player.x - egg.x;
-            const dy = player.y - egg.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < EGG_PICKUP_RANGE) {
-                player.eggs++;
-                eggs.splice(i, 1);
+            for (const p of players) {
+                if (!p.active) continue;
+                
+                const dx = p.x - egg.x;
+                const dy = p.y - egg.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < EGG_PICKUP_RANGE) {
+                    p.eggs++;
+                    eggs.splice(i, 1);
+                    break; // Egg picked up, don't check other players
+                }
             }
         }
     }
