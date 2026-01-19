@@ -478,7 +478,12 @@
             (wave.enemiesSpawned >= wave.enemiesForWave && enemies.length === 0);
         
         if (waveComplete) {
-            // Start wave pause
+            // Start wave pause - collect remaining eggs automatically
+            for (const egg of eggs) {
+                player.eggs++;
+            }
+            eggs.length = 0;
+            
             gameState = 'wavepause';
             wave.pauseTimer = WAVE_PAUSE;
         }
