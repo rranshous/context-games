@@ -1,7 +1,7 @@
-# Badling Brawl - Phase 2: Duck Run & Progression
+# Badling Brawl - Phase 2: Home Base & Progression
 
 ## Goal
-Transform discrete waves into continuous gameplay with surges/lulls, add the Duck Run safe zone with nest-based progression, enable diverse duck builds.
+Transform discrete waves into continuous gameplay with surges/lulls, add the Home Base safe zone with nest-based progression, enable diverse duck builds.
 
 ## Design Principles
 - **Continuous action** - no menus, no pause screens between waves
@@ -19,7 +19,7 @@ Replace discrete waves with continuous enemy flow:
 - No "wave complete" screen - just natural rhythm
 - **UI indicator** showing surge/lull status and overall progress
 
-### Duck Run (Safe Zone)
+### Home Base (Safe Zone)
 A natural area on the map bordered by trees/water:
 - 2-4 entrances
 - Enemies **cannot enter** (except snakes later)
@@ -78,7 +78,7 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - Basic chaser, good for variety
 
 ### �🐍 Snake (future)
-- Can enter the Duck Run!
+- Can enter the Home Base!
 - Fast, low health
 - Creates "nowhere is safe" tension
 
@@ -95,7 +95,7 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [ ] Scaling difficulty over time
 - [ ] UI: Surge/lull indicator + progress display
 
-### M2: Duck Run - Basic
+### M2: Home Base - Basic
 - [ ] Create safe zone area (trees/water border)
 - [ ] Enemies cannot enter
 - [ ] Entrances that block enemies
@@ -108,7 +108,7 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [ ] Mix into spawn system
 
 ### M4: Attack Nest - Quack Blast
-- [ ] Nest object in Duck Run
+- [ ] Nest object in Home Base
 - [ ] Deposit eggs interaction
 - [ ] Visual progress indicator
 - [ ] Claim mechanic (first duck to interact)
