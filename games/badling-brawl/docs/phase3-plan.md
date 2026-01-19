@@ -13,36 +13,37 @@ Add local multiplayer with Xbox controller support. Backend is already running.
 
 ## Milestones
 
-### M1: Controller Input Detection
-- [ ] Detect connected Xbox controllers
-- [ ] Map controller inputs to game actions
-- [ ] Support both keyboard and controller simultaneously
+### M1: Controller Input Detection ✅
+- [x] Detect connected Xbox controllers
+- [x] Map controller inputs to game actions
+- [x] Support both keyboard and controller simultaneously
 
-### M2: Second Player
-- [ ] Player 2 spawn and state
-- [ ] Independent movement for P2
-- [ ] Visual distinction between players
+### M2: Second Player ✅
+- [x] Player 2 spawn and state
+- [x] Independent movement for P2
+- [x] Visual distinction between players
 
-### M3: Shared Combat
-- [ ] Both players can attack enemies
-- [ ] Shared enemy pool
-- [ ] Death/respawn for individual players
+### M3: Shared Combat ✅
+- [x] Both players can attack enemies
+- [x] Shared enemy pool
+- [x] Death/respawn for individual players
 
-### M4: Shared Nest Economy
-- [ ] Both players can deposit eggs
-- [ ] Claim mechanic (first to interact)
-- [ ] Powers are per-player
+### M4: Shared Nest Economy ✅
+- [x] Both players can deposit eggs
+- [x] Claim mechanic (first to interact)
+- [x] Powers are per-player
 
 ### M5: Polish
 - [ ] Controller vibration on hits
 - [ ] Split UI for both players
 - [ ] Player indicators/labels
 
-## Open Questions
-- Revive mechanic for downed players?
-- Shared health pool or individual?
-- Can players damage each other?
+## Decisions Made
+- Keyboard and gamepad are separate input devices (first to press = P1)
+- Game over only when ALL players dead
+- Enemies chase nearest active player
+- Individual health pools
 
 ---
 
-*Status: Not Started*
+*Status: M1-M4 Complete, M5 In Progress*
