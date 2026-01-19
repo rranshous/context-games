@@ -473,16 +473,16 @@
         // Count down wave timer
         wave.timer -= dt;
         
-        // Check if wave is complete (time up OR all enemies spawned and killed)
-        const waveComplete = wave.timer <= 0 || 
-            (wave.enemiesSpawned >= wave.enemiesForWave && enemies.length === 0);
-        
-        if (waveComplete) {
+        // Wave completes when time runs out
+        if (wave.timer <= 0) {
             // Start wave pause - collect remaining eggs automatically
             for (const egg of eggs) {
                 player.eggs++;
             }
             eggs.length = 0;
+            
+            // Clear remaining enemies
+            enemies.length = 0;
             
             gameState = 'wavepause';
             wave.pauseTimer = WAVE_PAUSE;
