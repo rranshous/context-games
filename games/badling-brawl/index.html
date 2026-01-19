@@ -815,35 +815,50 @@
         ctx.fillStyle = '#3d6b4a';
         ctx.fillRect(hb.x, hb.y, hb.width, hb.height);
         
-        // Draw rocks border just INSIDE the boundary (cats stop at the rocks)
-        const borderSpacing = 18; // Spacing between rock tiles
-        const scale = 2; // Scale up the small tiles
-        const rockTileSize = 16 * scale; // Approximate rock size when scaled
+        // Draw mixed border just INSIDE the boundary (cats stop at the border)
+        const borderSpacing = 20; // Spacing between tiles
+        const scale = 2.5; // Scale up the small tiles
         
-        // Pick rock type based on position (for visual variety)
-        const getRockType = (x, y) => {
-            const hash = (x * 7 + y * 13) % 3;
-            return ['largeRock', 'largeRock2', 'mediumRock'][hash];
+        // Mix of border elements for natural look
+        const borderElements = [
+            'largeRock', 'largeRock2', 'mediumRock', 'littleRock',
+            'bush', 'doubleBush', 'littleBush',
+            'largeRock', 'bush', 'mediumRock'  // weighted towards rocks/bushes
+        ];
+        
+        // Pick element based on position (seeded for consistency)
+        const getElement = (x, y) => {
+            const hash = ((x * 7 + y * 13) % 97);
+            return borderElements[hash % borderElements.length];
         };
+        
+        // Get tile height for vertical positioning
+        const getTileHeight = (type) => TILE_DEFS[type].h * scale;
         
         // Top edge - inside the boundary
         for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing) {
-            drawTile(getRockType(x, hb.y), x, hb.y + 2, scale);
+            const elem = getElement(x, hb.y);
+            drawTile(elem, x, hb.y + 2, scale);
         }
         
         // Bottom edge - inside the boundary
         for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing) {
-            drawTile(getRockType(x, hb.y + hb.height), x, hb.y + hb.height - rockTileSize + 10, scale);
+            const elem = getElement(x, hb.y + hb.height);
+            const h = getTileHeight(elem);
+            drawTile(elem, x, hb.y + hb.height - h - 2, scale);
         }
         
         // Left edge - inside the boundary (skip corners)
         for (let y = hb.y + borderSpacing; y < hb.y + hb.height - borderSpacing; y += borderSpacing) {
-            drawTile(getRockType(hb.x, y), hb.x + 2, y, scale);
+            const elem = getElement(hb.x, y);
+            drawTile(elem, hb.x + 2, y, scale);
         }
         
         // Right edge - inside the boundary (skip corners)
         for (let y = hb.y + borderSpacing; y < hb.y + hb.height - borderSpacing; y += borderSpacing) {
-            drawTile(getRockType(hb.x + hb.width, y), hb.x + hb.width - rockTileSize + 10, y, scale);
+            const elem = getElement(hb.x + hb.width, y);
+            const w = TILE_DEFS[elem].w * scale;
+            drawTile(elem, hb.x + hb.width - w - 2, y, scale);
         }
         
         // DEBUG: Draw dotted line around home base boundary
