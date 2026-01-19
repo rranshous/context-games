@@ -85,6 +85,7 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 - [x] Enemy death
 - [x] Egg drop on death
 - [x] Egg collection
+- [x] Visual attack feedback (yellow beam from bill + impact burst)
 
 ### M5: Game State
 - [ ] Health system & death

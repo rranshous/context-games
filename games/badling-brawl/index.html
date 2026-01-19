@@ -48,11 +48,12 @@
     const ENEMY_HEALTH = 30;
     
     // Combat constants
-    const PECK_RANGE = 80; // pixels
+    const PECK_RANGE = 100; // pixels
     const PECK_DAMAGE = 15;
     const PECK_COOLDOWN = 0.3; // seconds
     const EGG_SIZE = 20;
     const EGG_PICKUP_RANGE = 40;
+    const PECK_EFFECT_DURATION = 0.25; // seconds (longer for visibility)
     
     // ============================================================
     // SPRITES
@@ -144,6 +145,9 @@
     
     // Eggs array (dropped items)
     const eggs = [];
+    
+    // Peck attack effects (visual feedback)
+    const peckEffects = [];
     
     // ============================================================
     // INPUT
@@ -375,6 +379,19 @@
                 // Face the enemy
                 player.facingLeft = nearestEnemy.x < player.x;
                 
+                // Create peck visual effect (line from bill to enemy)
+                // Offset origin to duck's bill (front of sprite)
+                const billOffsetX = player.facingLeft ? -player.size * 0.4 : player.size * 0.4;
+                const billOffsetY = -player.size * 0.1; // Slightly above center (bill height)
+                
+                peckEffects.push({
+                    x1: player.x + billOffsetX,
+                    y1: player.y + billOffsetY,
+                    x2: nearestEnemy.x,
+                    y2: nearestEnemy.y,
+                    timer: PECK_EFFECT_DURATION
+                });
+                
                 // Check if enemy died
                 if (nearestEnemy.health <= 0) {
                     // Drop egg at enemy position
@@ -390,6 +407,14 @@
                         enemies.splice(idx, 1);
                     }
                 }
+            }
+        }
+        
+        // Update peck effects
+        for (let i = peckEffects.length - 1; i >= 0; i--) {
+            peckEffects[i].timer -= dt;
+            if (peckEffects[i].timer <= 0) {
+                peckEffects.splice(i, 1);
             }
         }
     }
@@ -505,6 +530,39 @@
         }
     }
     
+    function drawPeckEffects() {
+        for (const effect of peckEffects) {
+            const alpha = effect.timer / PECK_EFFECT_DURATION;
+            
+            // Draw a quick "slash" line from player toward enemy
+            ctx.save();
+            ctx.strokeStyle = `rgba(255, 200, 50, ${alpha})`;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            
+            // Draw line
+            ctx.beginPath();
+            ctx.moveTo(effect.x1, effect.y1);
+            ctx.lineTo(effect.x2, effect.y2);
+            ctx.stroke();
+            
+            // Draw impact burst at hit location
+            const burstSize = 20 + (1 - alpha) * 15; // Expands as it fades
+            ctx.fillStyle = `rgba(255, 255, 100, ${alpha * 0.8})`;
+            ctx.beginPath();
+            ctx.arc(effect.x2, effect.y2, burstSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Inner bright core
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(effect.x2, effect.y2, burstSize * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    }
+    
     function drawUI() {
         // Egg counter
         ctx.fillStyle = '#fff';
@@ -545,6 +603,9 @@
         
         // Draw player
         drawPlayer();
+        
+        // Draw attack effects (on top)
+        drawPeckEffects();
         
         // Draw UI
         drawUI();
