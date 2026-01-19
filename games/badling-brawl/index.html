@@ -41,7 +41,6 @@
     
     // Enemy constants
     const ENEMY_SIZE = 56; // Display size for enemies
-    const ENEMY_SPRITE_SIZE = 48; // Cat sprite frame size
     const ENEMY_SPEED = 120; // pixels per second
     const ENEMY_SPAWN_RATE = 1.5; // seconds between spawns
     const ENEMY_DAMAGE = 10; // damage dealt to player on contact
@@ -99,6 +98,21 @@
         grass: { x: 3, y: 3, w: 7, h: 7 },
         grassBits: { x: 131, y: 3, w: 9, h: 10 }
     };
+    
+    // Cat sprite frame definitions (from tileset-cutter tool - Walk.png)
+    // Actual content bounds within each frame (not uniform squares!)
+    const CAT_WALK_FRAMES = [
+        { x: 5, y: 27, w: 34, h: 21 },
+        { x: 52, y: 25, w: 35, h: 23 },
+        { x: 97, y: 26, w: 38, h: 19 },
+        { x: 146, y: 24, w: 37, h: 22 },
+        { x: 193, y: 23, w: 38, h: 25 },
+        { x: 243, y: 23, w: 36, h: 25 }
+    ];
+    
+    // Calculate average cat sprite dimensions for collision
+    const CAT_AVG_WIDTH = CAT_WALK_FRAMES.reduce((sum, f) => sum + f.w, 0) / CAT_WALK_FRAMES.length;  // ~36
+    const CAT_AVG_HEIGHT = CAT_WALK_FRAMES.reduce((sum, f) => sum + f.h, 0) / CAT_WALK_FRAMES.length; // ~22
     
     // Home Base constants
     const HOME_BASE = {
@@ -398,22 +412,39 @@
             }
             
             // Check Home Base collision - enemies can't enter at all
-            const enemyRadius = enemy.size / 2;
-            if (overlapsHomeBase(enemy.x, enemy.y, enemyRadius)) {
-                // Revert movement - stay outside
+            // Use proportional radii based on actual sprite dimensions
+            const scale = enemy.size / Math.max(CAT_AVG_WIDTH, CAT_AVG_HEIGHT);
+            const enemyRadiusX = (CAT_AVG_WIDTH / 2) * scale;
+            const enemyRadiusY = (CAT_AVG_HEIGHT / 2) * scale;
+            
+            if (overlapsHomeBase(enemy.x, enemy.y, enemyRadiusX, enemyRadiusY)) {
+                // Revert to old position
                 enemy.x = oldX;
                 enemy.y = oldY;
                 
-                // Try to path around by sliding along the edge
-                // Try horizontal movement only
-                const testX = oldX + (dx > 0 ? 1 : -1) * enemy.speed * dt;
-                if (!overlapsHomeBase(testX, oldY, enemyRadius)) {
-                    enemy.x = testX;
-                } else {
-                    // Try vertical movement only
-                    const testY = oldY + (dy > 0 ? 1 : -1) * enemy.speed * dt;
-                    if (!overlapsHomeBase(oldX, testY, enemyRadius)) {
-                        enemy.y = testY;
+                // If still overlapping after revert, push them out
+                if (overlapsHomeBase(enemy.x, enemy.y, enemyRadiusX, enemyRadiusY)) {
+                    // Find nearest edge and push out
+                    const centerX = HOME_BASE.x + HOME_BASE.width / 2;
+                    const centerY = HOME_BASE.y + HOME_BASE.height / 2;
+                    const toEnemyX = enemy.x - centerX;
+                    const toEnemyY = enemy.y - centerY;
+                    
+                    // Determine which edge is closest based on direction from center
+                    if (Math.abs(toEnemyX) / HOME_BASE.width > Math.abs(toEnemyY) / HOME_BASE.height) {
+                        // Push horizontally
+                        if (toEnemyX > 0) {
+                            enemy.x = HOME_BASE.x + HOME_BASE.width + enemyRadiusX;
+                        } else {
+                            enemy.x = HOME_BASE.x - enemyRadiusX;
+                        }
+                    } else {
+                        // Push vertically
+                        if (toEnemyY > 0) {
+                            enemy.y = HOME_BASE.y + HOME_BASE.height + enemyRadiusY;
+                        } else {
+                            enemy.y = HOME_BASE.y - enemyRadiusY;
+                        }
                     }
                 }
             }
@@ -423,10 +454,7 @@
             const frameDuration = 1 / ANIMATION_FPS;
             if (enemy.animTimer >= frameDuration) {
                 enemy.animTimer -= frameDuration;
-                const spriteData = sprites.enemy.walk;
-                if (spriteData && spriteData.img) {
-                    enemy.animFrame = (enemy.animFrame + 1) % spriteData.frames;
-                }
+                enemy.animFrame = (enemy.animFrame + 1) % CAT_WALK_FRAMES.length;
             }
         }
     }
@@ -612,11 +640,19 @@
                 ctx.scale(-1, 1);
             }
             
-            const srcX = enemy.animFrame * ENEMY_SPRITE_SIZE;
+            // Use actual frame bounds from CAT_WALK_FRAMES
+            const frameIndex = enemy.animFrame % CAT_WALK_FRAMES.length;
+            const frame = CAT_WALK_FRAMES[frameIndex];
+            
+            // Scale to fit ENEMY_SIZE while maintaining aspect ratio
+            const scale = enemy.size / Math.max(frame.w, frame.h);
+            const drawW = frame.w * scale;
+            const drawH = frame.h * scale;
+            
             ctx.drawImage(
                 spriteData.img,
-                srcX, 0, ENEMY_SPRITE_SIZE, ENEMY_SPRITE_SIZE,
-                -enemy.size / 2, -enemy.size / 2, enemy.size, enemy.size
+                frame.x, frame.y, frame.w, frame.h,  // Actual sprite bounds
+                -drawW / 2, -drawH / 2, drawW, drawH  // Centered on enemy position
             );
             
             ctx.restore();
@@ -1007,13 +1043,13 @@
                y <= HOME_BASE.y + HOME_BASE.height;
     }
     
-    function overlapsHomeBase(x, y, radius) {
-        // Check if circle (x, y, radius) overlaps with home base rectangle
-        // Used for enemy collision blocking
-        return x + radius > HOME_BASE.x && 
-               x - radius < HOME_BASE.x + HOME_BASE.width &&
-               y + radius > HOME_BASE.y && 
-               y - radius < HOME_BASE.y + HOME_BASE.height;
+    function overlapsHomeBase(x, y, radiusX, radiusY = radiusX) {
+        // Check if axis-aligned box (x, y, radiusX, radiusY) overlaps with home base rectangle
+        // Used for enemy collision blocking - supports non-square hitboxes
+        return x + radiusX > HOME_BASE.x && 
+               x - radiusX < HOME_BASE.x + HOME_BASE.width &&
+               y + radiusY > HOME_BASE.y && 
+               y - radiusY < HOME_BASE.y + HOME_BASE.height;
     }
     
     function resizeCanvas() {

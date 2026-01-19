@@ -73,16 +73,16 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ## New Enemies
 
-### 🦊 Fox (existing)
+### 🐱 Cat (existing)
 - Medium speed, chases player
 - Health: 30, Damage: 10
 
-### � Cat (new)
-- Slower than fox, tankier
+### 🐕 Dog (new)
+- Slower than cat, tankier
 - Health: 50, Damage: 15
 - Basic chaser, good for variety
 
-### �🐍 Snake (future)
+### 🐍 Snake (future)
 - Can enter the Home Base!
 - Fast, low health
 - Creates "nowhere is safe" tension
@@ -108,9 +108,10 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [x] Bridge sprites at entrance locations (visual only for now)
 - [x] Debug: red dotted line showing collision boundary
 - [x] Ducks cannot attack while inside home base (no camping)
+- [x] Fix cat sprite rendering: use actual frame bounds from tileset-cutter
+- [x] Fix cat collision: use proportional hitbox (width/height) instead of square
 
 #### Current TODO:
-- [ ] **Simplify collision**: enemies blocked at HOME_BASE rectangle, no entrance logic
 - [ ] **Ducks free movement**: can cross boundary anywhere
 - [ ] **Verify visually**: enemies stay outside red debug line
 - [ ] **Tune border**: align visual rocks/water with collision boundary
@@ -121,11 +122,13 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 #### Notes:
 - Using `tileset - grass island v2.png` for visuals
+- Cat frames defined in `CAT_WALK_FRAMES` with actual bounds
+- Collision uses `CAT_AVG_WIDTH`/`CAT_AVG_HEIGHT` for proportional hitbox
 - See `ipi-intro.md` Session Notes for code locations and details
 
-### M3: Cat Enemy
-- [ ] New enemy type: Cat
-- [ ] Slower, tankier than fox
+### M3: Dog Enemy
+- [ ] New enemy type: Dog
+- [ ] Slower, tankier than cat
 - [ ] Mix into spawn system
 
 ### M4: Attack Nest - Quack Blast
