@@ -815,88 +815,36 @@
         ctx.fillStyle = '#3d6b4a';
         ctx.fillRect(hb.x, hb.y, hb.width, hb.height);
         
-        // Get entrance info
-        const entranceTop = HOME_BASE.entrances[0];
-        const entranceLeft = HOME_BASE.entrances[1];
-        const entranceRight = HOME_BASE.entrances[2];
-        
-        // Draw water and rocks along perimeter (skip entrance gaps)
-        const borderSpacing = 14; // Spacing between water/rock tiles
+        // Draw rocks border just INSIDE the boundary (cats stop at the rocks)
+        const borderSpacing = 18; // Spacing between rock tiles
         const scale = 2; // Scale up the small tiles
+        const rockTileSize = 16 * scale; // Approximate rock size when scaled
         
-        // Top edge - water
+        // Pick rock type based on position (for visual variety)
+        const getRockType = (x, y) => {
+            const hash = (x * 7 + y * 13) % 3;
+            return ['largeRock', 'largeRock2', 'mediumRock'][hash];
+        };
+        
+        // Top edge - inside the boundary
         for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing) {
-            // Skip if overlapping top entrance
-            if (x > entranceTop.x - 20 && x < entranceTop.x + entranceTop.w + 20) {
-                continue;
-            }
-            drawTile('water', x, hb.y - 7 * scale, scale);
+            drawTile(getRockType(x, hb.y), x, hb.y + 2, scale);
         }
         
-        // Bottom edge - rocks
-        for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing * 1.5) {
-            const rockType = ['largeRock', 'largeRock2', 'mediumRock'][Math.floor((x / borderSpacing) % 3)];
-            drawTile(rockType, x, hb.y + hb.height - 5, scale);
+        // Bottom edge - inside the boundary
+        for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing) {
+            drawTile(getRockType(x, hb.y + hb.height), x, hb.y + hb.height - rockTileSize + 10, scale);
         }
         
-        // Left edge - alternate water and rocks
-        for (let y = hb.y; y < hb.y + hb.height; y += borderSpacing) {
-            // Skip if overlapping left entrance
-            if (y > entranceLeft.y - 20 && y < entranceLeft.y + entranceLeft.h + 20) {
-                continue;
-            }
-            if ((y / borderSpacing) % 2 < 1) {
-                drawTile('water', hb.x - 7 * scale, y, scale);
-            } else {
-                drawTile('mediumRock', hb.x - 7 * scale, y, scale);
-            }
+        // Left edge - inside the boundary (skip corners)
+        for (let y = hb.y + borderSpacing; y < hb.y + hb.height - borderSpacing; y += borderSpacing) {
+            drawTile(getRockType(hb.x, y), hb.x + 2, y, scale);
         }
         
-        // Right edge - alternate water and rocks
-        for (let y = hb.y; y < hb.y + hb.height; y += borderSpacing) {
-            // Skip if overlapping right entrance
-            if (y > entranceRight.y - 20 && y < entranceRight.y + entranceRight.h + 20) {
-                continue;
-            }
-            if ((y / borderSpacing) % 2 < 1) {
-                drawTile('water', hb.x + hb.width, y, scale);
-            } else {
-                drawTile('mediumRock', hb.x + hb.width, y, scale);
-            }
+        // Right edge - inside the boundary (skip corners)
+        for (let y = hb.y + borderSpacing; y < hb.y + hb.height - borderSpacing; y += borderSpacing) {
+            drawTile(getRockType(hb.x + hb.width, y), hb.x + hb.width - rockTileSize + 10, y, scale);
         }
-        
-        // Draw bridges at entrances using tileset
-        // Bridges should go from inside to outside (perpendicular to the edge)
-        const bridgeScale = 3;
-        const bridgeH = TILE_DEFS.bridgeH; // Horizontal planks (use for side entrances)
-        const bridgeV = TILE_DEFS.bridgeV; // Vertical planks (use for top entrance)
-        
-        // Top entrance - vertical bridge (going north-south, perpendicular to top edge)
-        ctx.drawImage(
-            sprites.tileset.img,
-            bridgeV.x, bridgeV.y, bridgeV.w, bridgeV.h,
-            entranceTop.x + (entranceTop.w - bridgeV.w * bridgeScale) / 2,
-            entranceTop.y,
-            bridgeV.w * bridgeScale, bridgeV.h * bridgeScale
-        );
-        
-        // Left entrance - horizontal bridge (going east-west, perpendicular to left edge)
-        ctx.drawImage(
-            sprites.tileset.img,
-            bridgeH.x, bridgeH.y, bridgeH.w, bridgeH.h,
-            entranceLeft.x,
-            entranceLeft.y + (entranceLeft.h - bridgeH.h * bridgeScale) / 2,
-            bridgeH.w * bridgeScale, bridgeH.h * bridgeScale
-        );
-        
-        // Right entrance - horizontal bridge (going east-west, perpendicular to right edge)
-        ctx.drawImage(
-            sprites.tileset.img,
-            bridgeH.x, bridgeH.y, bridgeH.w, bridgeH.h,
-            entranceRight.x,
-            entranceRight.y + (entranceRight.h - bridgeH.h * bridgeScale) / 2,
-            bridgeH.w * bridgeScale, bridgeH.h * bridgeScale
-        );
         
         // DEBUG: Draw dotted line around home base boundary
         ctx.strokeStyle = '#ff0000';
