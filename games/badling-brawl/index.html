@@ -310,36 +310,9 @@
         const newX = player.x + dx * player.speed * dt;
         const newY = player.y + dy * player.speed * dt;
         
-        // Check home base boundary crossing - only allow via entrances
-        const wasInside = isInsideHomeBase(player.x, player.y, 0);
-        const wouldBeInside = isInsideHomeBase(newX, newY, 0);
-        
-        if (wasInside !== wouldBeInside) {
-            // Crossing boundary - only allow if in entrance
-            if (!isInEntrance(newX, newY, player.size / 4)) {
-                // Block movement - stay at current position
-                // But allow movement parallel to boundary
-                const newXOnly = player.x + dx * player.speed * dt;
-                const newYOnly = player.y + dy * player.speed * dt;
-                
-                // Try X movement only
-                if (isInsideHomeBase(newXOnly, player.y, 0) === wasInside || isInEntrance(newXOnly, player.y, player.size / 4)) {
-                    player.x = newXOnly;
-                }
-                // Try Y movement only  
-                if (isInsideHomeBase(player.x, newYOnly, 0) === wasInside || isInEntrance(player.x, newYOnly, player.size / 4)) {
-                    player.y = newYOnly;
-                }
-            } else {
-                // In entrance, allow crossing
-                player.x = newX;
-                player.y = newY;
-            }
-        } else {
-            // Not crossing boundary, normal movement
-            player.x = newX;
-            player.y = newY;
-        }
+        // Ducks can move freely - no boundary restrictions
+        player.x = newX;
+        player.y = newY;
         
         // Keep player in bounds
         const halfSize = player.size / 2;
@@ -424,9 +397,9 @@
                 enemy.facingLeft = dx < 0;
             }
             
-            // Check Home Base collision - enemies can't enter (including entrances)
+            // Check Home Base collision - enemies can't enter at all
             const enemyRadius = enemy.size / 2;
-            if (isInsideHomeBase(enemy.x, enemy.y, enemyRadius) || isInEntrance(enemy.x, enemy.y, enemyRadius)) {
+            if (overlapsHomeBase(enemy.x, enemy.y, enemyRadius)) {
                 // Revert movement - stay outside
                 enemy.x = oldX;
                 enemy.y = oldY;
@@ -434,12 +407,12 @@
                 // Try to path around by sliding along the edge
                 // Try horizontal movement only
                 const testX = oldX + (dx > 0 ? 1 : -1) * enemy.speed * dt;
-                if (!isInsideHomeBase(testX, oldY, enemyRadius) && !isInEntrance(testX, oldY, enemyRadius)) {
+                if (!overlapsHomeBase(testX, oldY, enemyRadius)) {
                     enemy.x = testX;
                 } else {
                     // Try vertical movement only
                     const testY = oldY + (dy > 0 ? 1 : -1) * enemy.speed * dt;
-                    if (!isInsideHomeBase(oldX, testY, enemyRadius) && !isInEntrance(oldX, testY, enemyRadius)) {
+                    if (!overlapsHomeBase(oldX, testY, enemyRadius)) {
                         enemy.y = testY;
                     }
                 }
@@ -1026,28 +999,21 @@
     }
     
     function isInsideHomeBase(x, y, radius = 0) {
-        // Add a small buffer (10px) to keep enemies visually outside
-        const buffer = 10;
-        return x - radius >= HOME_BASE.x - buffer && 
-               x + radius <= HOME_BASE.x + HOME_BASE.width + buffer &&
-               y - radius >= HOME_BASE.y - buffer && 
-               y + radius <= HOME_BASE.y + HOME_BASE.height + buffer;
+        // Check if point (x, y) is inside home base rectangle
+        // Used for duck "no camping" - just checks the center point
+        return x >= HOME_BASE.x && 
+               x <= HOME_BASE.x + HOME_BASE.width &&
+               y >= HOME_BASE.y && 
+               y <= HOME_BASE.y + HOME_BASE.height;
     }
     
-    function isInEntrance(x, y, radius = 0) {
-        for (const ent of HOME_BASE.entrances) {
-            // Expanded entrance area to catch approaching enemies
-            const expandedX = ent.x - radius;
-            const expandedY = ent.y - radius;
-            const expandedW = ent.w + radius * 2;
-            const expandedH = ent.h + radius * 2;
-            
-            if (x >= expandedX && x <= expandedX + expandedW &&
-                y >= expandedY && y <= expandedY + expandedH) {
-                return true;
-            }
-        }
-        return false;
+    function overlapsHomeBase(x, y, radius) {
+        // Check if circle (x, y, radius) overlaps with home base rectangle
+        // Used for enemy collision blocking
+        return x + radius > HOME_BASE.x && 
+               x - radius < HOME_BASE.x + HOME_BASE.width &&
+               y + radius > HOME_BASE.y && 
+               y - radius < HOME_BASE.y + HOME_BASE.height;
     }
     
     function resizeCanvas() {
