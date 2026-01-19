@@ -17,14 +17,14 @@ Replace discrete waves with continuous enemy flow:
 - **Lull**: Light/no spawning for ~15 seconds
 - Difficulty scales over time (surge intensity increases)
 - No "wave complete" screen - just natural rhythm
+- **UI indicator** showing surge/lull status and overall progress
 
 ### Duck Run (Safe Zone)
-A walled-off area on the map:
+A natural area on the map bordered by trees/water:
 - 2-4 entrances
 - Enemies **cannot enter** (except snakes later)
-- Enemies **crowd around exits** if ducks stay inside
 - Contains the nests for progression
-- Natural "we gotta fight out" pressure
+- Natural duck habitat feel (not built structure)
 
 ### Nest System
 Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewards individually.
@@ -44,8 +44,10 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 ```
 - Quack Blast: Medium range cone, knockback
 - Wing Slap: Spin attack, hits all around
-- Egg Bomb: Lob explosive (costs 1 egg to use?)
+- Egg Bomb: Lob explosive (no egg cost - just unlocked)
 - Feather Storm: Projectiles in all directions
+
+**All attacks are auto-fire** - duck accumulates attacks over time, all operate simultaneously. Visual indicator on duck shows current powers (simple for now).
 
 #### 🩹 Healing Nest (later)
 ```
@@ -70,12 +72,17 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - Medium speed, chases player
 - Health: 30, Damage: 10
 
-### 🐍 Snake (new)
+### � Cat (new)
+- Slower than fox, tankier
+- Health: 50, Damage: 15
+- Basic chaser, good for variety
+
+### �🐍 Snake (future)
 - Can enter the Duck Run!
 - Fast, low health
 - Creates "nowhere is safe" tension
 
-### 🦅 Hawk (new)
+### 🦅 Hawk (future)
 - Flies over obstacles
 - Swoops down to attack
 - Telegraphed attack pattern
@@ -86,51 +93,57 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [ ] Remove discrete wave transitions
 - [ ] Implement surge/lull spawn rhythm
 - [ ] Scaling difficulty over time
-- [ ] UI: Show surge/lull indicator (optional)
+- [ ] UI: Surge/lull indicator + progress display
 
 ### M2: Duck Run - Basic
-- [ ] Create walled safe zone area
-- [ ] Enemies pathfind around walls
+- [ ] Create safe zone area (trees/water border)
+- [ ] Enemies cannot enter
 - [ ] Entrances that block enemies
 - [ ] Duck can enter/exit freely
+- [ ] Robby to source tree/water sprites
 
-### M3: Attack Nest - Quack Blast
+### M3: Cat Enemy
+- [ ] New enemy type: Cat
+- [ ] Slower, tankier than fox
+- [ ] Mix into spawn system
+
+### M4: Attack Nest - Quack Blast
 - [ ] Nest object in Duck Run
 - [ ] Deposit eggs interaction
 - [ ] Visual progress indicator
 - [ ] Claim mechanic (first duck to interact)
-- [ ] Quack Blast attack (cone, knockback)
-
-### M4: Enemy Crowding
-- [ ] Enemies accumulate near Duck Run exits
-- [ ] Visual tension (see them waiting)
-- [ ] Balanced spawn positioning
+- [ ] Quack Blast attack (cone, knockback, auto-fire)
+- [ ] Simple visual indicator on duck for powers
 
 ### M5: Second Attack - Wing Slap
 - [ ] Add Wing Slap to attack line
-- [ ] Spin attack implementation
-- [ ] Attack switching (or auto-use based on situation?)
+- [ ] Spin attack implementation (auto-fire)
+- [ ] Both attacks operate simultaneously
 
-### M6: Snake Enemy
-- [ ] Snake can enter Duck Run
-- [ ] Fast movement, low health
-- [ ] Spawn during surges only (rare)
-
-### M7: Polish
+### M6: Polish
 - [ ] Balance tuning (surge timing, egg costs)
 - [ ] Visual feedback for nest progress
-- [ ] Audio cues for surge/lull transitions
+- [ ] Power indicator refinement
 
 ## Open Questions
-- [ ] Attack switching: manual or automatic?
-- [ ] Do eggs on ground decay? Adds pressure to collect
-- [ ] Duck revival mechanic for multiplayer?
-- [ ] Duck types with different base stats?
+- [x] Attack switching: manual or automatic? → **Auto, all attacks stack**
+- [x] Do eggs on ground decay? → **No decay**
+- [x] Duck revival mechanic for multiplayer? → **Not yet**
+- [x] Duck types with different base stats? → **Later**
+
+## Decisions Made
+- All attacks auto-fire simultaneously (duck builds up over time)
+- Simple visual indicator on duck for powers
+- Map stays screen-sized for now (camera/zoom later)
+- Cat enemy for variety (snake/hawk deferred)
+- No crowding mechanic yet - normal enemy AI
+- Eggs don't decay, no revival mechanic yet
 
 ## Tech Notes
 - Keep single HTML file approach
-- Map is now larger than screen? Or fixed arena with Duck Run in corner?
-- Collision system needs walls
+- Map is screen-sized (camera follow/zoom is future work)
+- Collision system needs safe zone boundaries
+- Robby sourcing tree/water sprites for Duck Run
 
 ---
 
