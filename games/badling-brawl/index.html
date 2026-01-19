@@ -223,6 +223,23 @@
     
     let lastTime = 0;
     
+    // Keyboard input state
+    const keyboardInput = {
+        up: false,
+        down: false,
+        left: false,
+        right: false
+    };
+    
+    // Gamepad input state (updated each frame)
+    const gamepadInput = {
+        up: false,
+        down: false,
+        left: false,
+        right: false
+    };
+    
+    // Combined input (keyboard OR gamepad)
     const input = {
         up: false,
         down: false,
@@ -287,6 +304,21 @@
     };
     
     // ============================================================
+    // GAMEPAD STATE
+    // ============================================================
+    const gamepads = {};  // Indexed by gamepad.index
+    
+    window.addEventListener('gamepadconnected', (e) => {
+        console.log(`Gamepad connected: ${e.gamepad.id} at index ${e.gamepad.index}`);
+        gamepads[e.gamepad.index] = e.gamepad;
+    });
+    
+    window.addEventListener('gamepaddisconnected', (e) => {
+        console.log(`Gamepad disconnected: ${e.gamepad.id}`);
+        delete gamepads[e.gamepad.index];
+    });
+    
+    // ============================================================
     // HELPERS
     // ============================================================
     function killEnemy(enemy) {
@@ -313,19 +345,19 @@
         switch (e.code) {
             case 'KeyW':
             case 'ArrowUp':
-                input.up = true;
+                keyboardInput.up = true;
                 break;
             case 'KeyS':
             case 'ArrowDown':
-                input.down = true;
+                keyboardInput.down = true;
                 break;
             case 'KeyA':
             case 'ArrowLeft':
-                input.left = true;
+                keyboardInput.left = true;
                 break;
             case 'KeyD':
             case 'ArrowRight':
-                input.right = true;
+                keyboardInput.right = true;
                 break;
             case 'KeyE':
                 handleNestInteraction();
@@ -337,19 +369,19 @@
         switch (e.code) {
             case 'KeyW':
             case 'ArrowUp':
-                input.up = false;
+                keyboardInput.up = false;
                 break;
             case 'KeyS':
             case 'ArrowDown':
-                input.down = false;
+                keyboardInput.down = false;
                 break;
             case 'KeyA':
             case 'ArrowLeft':
-                input.left = false;
+                keyboardInput.left = false;
                 break;
             case 'KeyD':
             case 'ArrowRight':
-                input.right = false;
+                keyboardInput.right = false;
                 break;
         }
     }
@@ -357,6 +389,98 @@
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     
+    // ============================================================
+    // GAMEPAD INPUT POLLING
+    // ============================================================
+    // Standard gamepad mapping (Xbox controller layout):
+    // Buttons: 0=A, 1=B, 2=X, 3=Y, 4=LB, 5=RB, 6=LT, 7=RT, 8=Back, 9=Start, 10=LS, 11=RS, 12=DUp, 13=DDown, 14=DLeft, 15=DRight
+    // Axes: 0=LeftStickX, 1=LeftStickY, 2=RightStickX, 3=RightStickY
+    const GAMEPAD_DEADZONE = 0.2;
+    
+    // Track button state for edge detection (pressed this frame)
+    const gamepadButtonsLastFrame = {};
+    
+    function updateGamepadInput() {
+        // Reset gamepad input state
+        gamepadInput.up = false;
+        gamepadInput.down = false;
+        gamepadInput.left = false;
+        gamepadInput.right = false;
+        
+        // Refresh gamepad state (required - browser updates this object)
+        const freshGamepads = navigator.getGamepads();
+        
+        // For now, just use first connected gamepad (Player 1)
+        let gp = null;
+        for (const pad of freshGamepads) {
+            if (pad && pad.connected) {
+                gp = pad;
+                break;
+            }
+        }
+        
+        if (gp) {
+            // Initialize button tracking for this gamepad if needed
+            if (!gamepadButtonsLastFrame[gp.index]) {
+                gamepadButtonsLastFrame[gp.index] = new Array(gp.buttons.length).fill(false);
+            }
+            const lastButtons = gamepadButtonsLastFrame[gp.index];
+            
+            // Left stick movement (axes 0, 1)
+            const lx = Math.abs(gp.axes[0]) > GAMEPAD_DEADZONE ? gp.axes[0] : 0;
+            const ly = Math.abs(gp.axes[1]) > GAMEPAD_DEADZONE ? gp.axes[1] : 0;
+            
+            // D-pad (buttons 12-15)
+            const dpadUp = gp.buttons[12]?.pressed;
+            const dpadDown = gp.buttons[13]?.pressed;
+            const dpadLeft = gp.buttons[14]?.pressed;
+            const dpadRight = gp.buttons[15]?.pressed;
+            
+            // Set gamepad input state (stick OR dpad)
+            gamepadInput.left = lx < 0 || dpadLeft;
+            gamepadInput.right = lx > 0 || dpadRight;
+            gamepadInput.up = ly < 0 || dpadUp;
+            gamepadInput.down = ly > 0 || dpadDown;
+            
+            // A button (0) = Nest interaction (on press, not hold)
+            if (gp.buttons[0]?.pressed && !lastButtons[0]) {
+                handleNestInteraction();
+            }
+            
+            // B button (1) = Quack Blast (if unlocked)
+            if (gp.buttons[1]?.pressed && !lastButtons[1]) {
+                if (player.powers.quackBlast && player.quackBlastTimer <= 0) {
+                    activateQuackBlast();
+                }
+            }
+            
+            // X button (2) = Wing Slap (if unlocked)
+            if (gp.buttons[2]?.pressed && !lastButtons[2]) {
+                if (player.powers.wingSlap && player.wingSlapTimer <= 0) {
+                    activateWingSlap();
+                }
+            }
+            
+            // Start button (9) = Restart when game over
+            if (gp.buttons[9]?.pressed && !lastButtons[9]) {
+                if (gameState === 'gameover') {
+                    resetGame();
+                }
+            }
+            
+            // Update last frame state
+            for (let i = 0; i < gp.buttons.length; i++) {
+                lastButtons[i] = gp.buttons[i]?.pressed || false;
+            }
+        }
+        
+        // Merge keyboard + gamepad into combined input
+        input.up = keyboardInput.up || gamepadInput.up;
+        input.down = keyboardInput.down || gamepadInput.down;
+        input.left = keyboardInput.left || gamepadInput.left;
+        input.right = keyboardInput.right || gamepadInput.right;
+    }
+
     function handleNestInteraction() {
         // Must be inside home base
         if (!isInsideHomeBase(player.x, player.y)) return;
@@ -1207,8 +1331,27 @@
         ctx.fillStyle = '#aaa';
         ctx.fillText(`Cycle ${rhythm.cycleCount + 1} | Diff ${difficultyLevel + 1}`, canvas.width - 20, 90);
         
+        // Gamepad indicator (below difficulty)
+        drawGamepadIndicator();
+        
         // Powers indicator (bottom left)
         drawPowerIndicator();
+    }
+    
+    function drawGamepadIndicator() {
+        // Check for connected gamepads
+        const freshGamepads = navigator.getGamepads();
+        let connectedCount = 0;
+        for (const pad of freshGamepads) {
+            if (pad && pad.connected) connectedCount++;
+        }
+        
+        if (connectedCount > 0) {
+            ctx.font = '14px sans-serif';
+            ctx.fillStyle = '#6f6';
+            ctx.textAlign = 'right';
+            ctx.fillText(`🎮 ${connectedCount} controller${connectedCount > 1 ? 's' : ''}`, canvas.width - 20, 110);
+        }
     }
     
     function drawPowerIndicator() {
@@ -1422,6 +1565,9 @@
         
         // Cap delta time to avoid huge jumps
         const cappedDt = Math.min(dt, 0.1);
+        
+        // Poll gamepad input every frame
+        updateGamepadInput();
         
         // Only update game state if playing
         if (gameState === 'playing') {

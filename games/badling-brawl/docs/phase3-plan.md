@@ -8,6 +8,9 @@ Add local multiplayer with Xbox controller support. Backend is already running.
 - **Testing**: Use Playwright to confirm milestones
 - **Commits**: Commit after each complete milestone
 
+## References
+- [MDN Gamepad API](https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API) - Core API for controller support
+
 ## Milestones
 
 ### M1: Controller Input Detection
