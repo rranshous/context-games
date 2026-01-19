@@ -139,10 +139,11 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [x] Simple visual indicator on duck for powers
 - [x] Refactored: killEnemy() helper for consistent death handling
 
-### M5: Second Attack - Wing Slap 🔄 IN PROGRESS
-- [ ] Add Wing Slap to attack line
-- [ ] Spin attack implementation (auto-fire)
-- [ ] Both attacks operate simultaneously
+### M5: Second Attack - Wing Slap ✅
+- [x] Add Wing Slap to attack line (25 eggs)
+- [x] Spin attack implementation (auto-fire, 360°, 80px range)
+- [x] Both attacks operate simultaneously
+- [x] Fixed: cooldowns only reset when attack actually fires
 
 ### M6: Polish
 - [ ] Balance tuning (surge timing, egg costs)
@@ -172,5 +173,5 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ---
 
-*Status: M5 In Progress*
-*Next: Wing Slap attack*
+*Status: M5 Complete*
+*Next: M6 - Polish (or move to Phase 3)*
