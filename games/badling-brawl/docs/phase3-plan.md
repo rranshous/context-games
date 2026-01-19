@@ -33,10 +33,10 @@ Add local multiplayer with Xbox controller support. Backend is already running.
 - [x] Claim mechanic (first to interact)
 - [x] Powers are per-player
 
-### M5: Polish
-- [ ] Controller vibration on hits
-- [ ] Split UI for both players
-- [ ] Player indicators/labels
+### M5: Polish ✅
+- [x] Controller vibration on hits
+- [x] Split UI for both players
+- [x] Player indicators/labels
 
 ## Decisions Made
 - Keyboard and gamepad are separate input devices (first to press = P1)
@@ -46,4 +46,4 @@ Add local multiplayer with Xbox controller support. Backend is already running.
 
 ---
 
-*Status: M1-M4 Complete, M5 In Progress*
+*Status: Phase 3 Complete! ✅*
