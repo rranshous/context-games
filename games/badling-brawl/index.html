@@ -351,6 +351,24 @@
         if (idx > -1) enemies.splice(idx, 1);
     }
     
+    // Vibrate controller for a player (if they're using a gamepad)
+    function vibrateController(playerObj, intensity = 0.5, duration = 100) {
+        if (!playerObj.inputSource || !playerObj.inputSource.startsWith('gamepad-')) return;
+        
+        // Extract gamepad index from inputSource (e.g., "gamepad-0" -> 0)
+        const gpIndex = parseInt(playerObj.inputSource.split('-')[1]);
+        const gp = navigator.getGamepads()[gpIndex];
+        
+        if (gp && gp.vibrationActuator) {
+            gp.vibrationActuator.playEffect('dual-rumble', {
+                startDelay: 0,
+                duration: duration,
+                weakMagnitude: intensity * 0.5,
+                strongMagnitude: intensity
+            }).catch(() => {}); // Ignore errors (not all browsers support this)
+        }
+    }
+    
     // ============================================================
     // INPUT
     // ============================================================
@@ -854,9 +872,14 @@
                     // Player takes damage
                     p.health -= enemy.damage;
                     
+                    // Vibrate controller on hit
+                    vibrateController(p, 0.7, 150);
+                    
                     // Check for death
                     if (p.health <= 0) {
                         p.health = 0;
+                        // Strong vibration on death
+                        vibrateController(p, 1.0, 300);
                         // Game over only if ALL players are dead
                         const anyAlive = players.some(pl => pl.active && pl.health > 0);
                         if (!anyAlive) {
