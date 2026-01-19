@@ -1502,133 +1502,136 @@
     }
     
     function drawUI() {
-        // Egg counter
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(`🥚 ${player.eggs}`, 20, 40);
+        // Draw stats for each active player
+        const activePlayers = players.filter(p => p.active);
+        const barWidth = 150;
+        const barHeight = 16;
         
-        // Health bar background
-        const barWidth = 200;
-        const barHeight = 20;
-        const barX = 20;
-        const barY = 50;
+        activePlayers.forEach((p, idx) => {
+            // P1 on left, P2 on right
+            const isLeft = p.index === 0;
+            const baseX = isLeft ? 20 : canvas.width - barWidth - 20;
+            let y = 30;
+            
+            // Player label with input icon
+            const icon = p.inputSource === 'keyboard' ? '⌨️' : '🎮';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = isLeft ? 'left' : 'right';
+            ctx.fillStyle = p.index === 0 ? '#fff' : '#ff9';
+            ctx.fillText(`${icon} P${p.index + 1}`, isLeft ? baseX : baseX + barWidth, y);
+            y += 25;
+            
+            // Egg counter
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(`🥚 ${p.eggs}`, isLeft ? baseX : baseX + barWidth, y);
+            y += 22;
+            
+            // Health bar background
+            ctx.fillStyle = '#333';
+            ctx.fillRect(baseX, y, barWidth, barHeight);
+            
+            // Health bar fill
+            const healthPercent = p.health / p.maxHealth;
+            ctx.fillStyle = healthPercent > 0.3 ? '#2ecc71' : '#e74c3c';
+            ctx.fillRect(baseX, y, barWidth * healthPercent, barHeight);
+            
+            // Health bar border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(baseX, y, barWidth, barHeight);
+            
+            // Dead indicator
+            if (p.health <= 0) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(baseX, y, barWidth, barHeight);
+                ctx.fillStyle = '#e74c3c';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('DEAD', baseX + barWidth/2, y + barHeight - 3);
+            }
+        });
         
-        ctx.fillStyle = '#333';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
+        // "Press to join" if only 1 player or none
+        if (activePlayers.length < 2) {
+            ctx.font = '14px sans-serif';
+            ctx.fillStyle = '#ff9';
+            ctx.textAlign = activePlayers.length === 0 ? 'center' : (activePlayers[0].index === 0 ? 'right' : 'left');
+            const joinX = activePlayers.length === 0 ? canvas.width / 2 : (activePlayers[0].index === 0 ? canvas.width - 20 : 20);
+            ctx.fillText('Press direction to join!', joinX, 50);
+        }
         
-        // Health bar fill
-        const healthPercent = player.health / player.maxHealth;
-        ctx.fillStyle = healthPercent > 0.3 ? '#2ecc71' : '#e74c3c';
-        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
-        
-        // Health bar border
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
-        
-        // Surge/Lull indicator (top right)
+        // Surge/Lull indicator (top center)
         const isSurge = rhythm.phase === 'surge';
         ctx.fillStyle = isSurge ? '#e74c3c' : '#3498db';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(isSurge ? '⚔️ SURGE' : '🌊 LULL', canvas.width - 20, 40);
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(isSurge ? '⚔️ SURGE' : '🌊 LULL', canvas.width / 2, 30);
         
         // Phase timer
         const timeLeft = Math.max(0, Math.ceil(rhythm.timer));
-        ctx.font = '20px sans-serif';
+        ctx.font = '16px sans-serif';
         ctx.fillStyle = '#fff';
-        ctx.fillText(`${timeLeft}s`, canvas.width - 20, 65);
+        ctx.fillText(`${timeLeft}s`, canvas.width / 2, 50);
         
         // Difficulty/cycle indicator
         const difficultyLevel = Math.floor(rhythm.totalTime / DIFFICULTY_SCALE_TIME);
-        ctx.font = '16px sans-serif';
+        ctx.font = '14px sans-serif';
         ctx.fillStyle = '#aaa';
-        ctx.fillText(`Cycle ${rhythm.cycleCount + 1} | Diff ${difficultyLevel + 1}`, canvas.width - 20, 90);
+        ctx.fillText(`Cycle ${rhythm.cycleCount + 1} | Diff ${difficultyLevel + 1}`, canvas.width / 2, 70);
         
-        // Gamepad indicator (below difficulty)
-        drawGamepadIndicator();
-        
-        // Powers indicator (bottom left)
-        drawPowerIndicator();
+        // Powers indicator (bottom)
+        drawPowerIndicators();
     }
     
-    function drawGamepadIndicator() {
-        // Show active players and their input sources
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'right';
-        
-        let y = 110;
+    function drawPowerIndicators() {
+        // Draw power indicators for each active player
         const activePlayers = players.filter(p => p.active);
         
-        if (activePlayers.length === 0) {
-            ctx.fillStyle = '#ff9';
-            ctx.fillText('Press direction to join!', canvas.width - 20, y);
-        } else {
-            for (const p of activePlayers) {
-                const icon = p.inputSource === 'keyboard' ? '⌨️' : '🎮';
-                ctx.fillStyle = p.index === 0 ? '#fff' : '#ff9';
-                ctx.fillText(`${icon} P${p.index + 1}`, canvas.width - 20, y);
-                y += 18;
+        activePlayers.forEach(p => {
+            const powers = p.powers;
+            const hasPowers = powers.quackBlast || powers.wingSlap || powers.eggBomb || powers.featherStorm;
+            
+            if (!hasPowers) return;
+            
+            const iconSize = 28;
+            const padding = 6;
+            const isLeft = p.index === 0;
+            let x = isLeft ? 20 : canvas.width - iconSize - 20;
+            const y = canvas.height - iconSize - 20;
+            const direction = isLeft ? 1 : -1;
+            
+            // Background panel
+            const powerCount = [powers.quackBlast, powers.wingSlap, powers.eggBomb, powers.featherStorm].filter(Boolean).length;
+            const panelWidth = (iconSize + padding) * powerCount + padding;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(isLeft ? x - padding : x - panelWidth + iconSize + padding, y - padding, panelWidth, iconSize + padding * 2);
+            
+            ctx.font = `${iconSize - 6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            if (powers.quackBlast) {
+                const cdRatio = p.quackBlastTimer / QUACK_BLAST_COOLDOWN;
+                if (cdRatio > 0) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
+                }
+                ctx.fillStyle = '#FFD700';
+                ctx.fillText('📢', x + iconSize / 2, y + iconSize / 2);
+                x += direction * (iconSize + padding);
             }
-        }
-    }
-    
-    function drawPowerIndicator() {
-        const powers = player.powers;
-        const hasPowers = powers.quackBlast || powers.wingSlap || powers.eggBomb || powers.featherStorm;
-        
-        if (!hasPowers) return;
-        
-        const iconSize = 32;
-        const padding = 8;
-        let x = 20;
-        const y = canvas.height - iconSize - 20;
-        
-        // Background panel
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        const powerCount = [powers.quackBlast, powers.wingSlap, powers.eggBomb, powers.featherStorm].filter(Boolean).length;
-        ctx.fillRect(x - padding, y - padding, (iconSize + padding) * powerCount + padding, iconSize + padding * 2);
-        
-        // Draw each unlocked power
-        ctx.font = `${iconSize - 8}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        if (powers.quackBlast) {
-            // Show cooldown overlay
-            const cdRatio = player.quackBlastTimer / QUACK_BLAST_COOLDOWN;
-            if (cdRatio > 0) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
+            
+            if (powers.wingSlap) {
+                const cdRatio = p.wingSlapTimer / WING_SLAP_COOLDOWN;
+                if (cdRatio > 0) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
+                }
+                ctx.fillStyle = '#87CEEB';
+                ctx.fillText('🌀', x + iconSize / 2, y + iconSize / 2);
+                x += direction * (iconSize + padding);
             }
-            ctx.fillStyle = '#FFD700';
-            ctx.fillText('📢', x + iconSize / 2, y + iconSize / 2);
-            x += iconSize + padding;
-        }
-        
-        if (powers.wingSlap) {
-            // Show cooldown overlay
-            const cdRatio = player.wingSlapTimer / WING_SLAP_COOLDOWN;
-            if (cdRatio > 0) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
-            }
-            ctx.fillStyle = '#87CEEB';
-            ctx.fillText('🌀', x + iconSize / 2, y + iconSize / 2);
-            x += iconSize + padding;
-        }
-        
-        if (powers.eggBomb) {
-            ctx.fillStyle = '#FF6B6B';
-            ctx.fillText('💣', x + iconSize / 2, y + iconSize / 2);
-            x += iconSize + padding;
-        }
-        
-        if (powers.featherStorm) {
-            ctx.fillStyle = '#DDA0DD';
-            ctx.fillText('🪶', x + iconSize / 2, y + iconSize / 2);
-        }
+        });
     }
     
     function drawGameOver() {
@@ -1640,7 +1643,7 @@
         ctx.fillStyle = '#e74c3c';
         ctx.font = 'bold 64px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 60);
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 80);
         
         // Stats
         const survivalTime = Math.floor(rhythm.totalTime);
@@ -1649,12 +1652,20 @@
         const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
         
         ctx.fillStyle = '#fff';
-        ctx.font = '28px sans-serif';
-        ctx.fillText(`Survived: ${timeStr} | Cycles: ${rhythm.cycleCount} | Eggs: ${player.eggs}`, canvas.width / 2, canvas.height / 2);
+        ctx.font = '24px sans-serif';
+        ctx.fillText(`Survived: ${timeStr} | Cycles: ${rhythm.cycleCount}`, canvas.width / 2, canvas.height / 2 - 20);
+        
+        // Per-player egg counts
+        const activePlayers = players.filter(p => p.inputSource !== null);
+        if (activePlayers.length > 0) {
+            const eggStats = activePlayers.map(p => `P${p.index + 1}: 🥚${p.eggs}`).join('  |  ');
+            ctx.font = '20px sans-serif';
+            ctx.fillText(eggStats, canvas.width / 2, canvas.height / 2 + 15);
+        }
         
         // Restart prompt
         ctx.fillStyle = '#f4d03f';
-        ctx.font = 'bold 32px sans-serif';
+        ctx.font = 'bold 28px sans-serif';
         ctx.fillText('Press SPACE or ENTER to restart', canvas.width / 2, canvas.height / 2 + 80);
     }
     
