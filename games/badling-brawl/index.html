@@ -39,6 +39,14 @@
     const SPRITE_SIZE = 32; // Original sprite frame size
     const ANIMATION_FPS = 10; // Frames per second for animations
     
+    // Enemy constants
+    const ENEMY_SIZE = 56; // Display size for enemies
+    const ENEMY_SPRITE_SIZE = 48; // Cat sprite frame size
+    const ENEMY_SPEED = 120; // pixels per second
+    const ENEMY_SPAWN_RATE = 1.5; // seconds between spawns
+    const ENEMY_DAMAGE = 10; // damage dealt to player on contact
+    const ENEMY_HEALTH = 30;
+    
     // ============================================================
     // SPRITES
     // ============================================================
@@ -49,25 +57,31 @@
             walk: { img: null, frames: 8 },
             run: { img: null, frames: 8 },
             slap: { img: null, frames: 3 }
+        },
+        enemy: {
+            walk: { img: null, frames: 6 },
+            idle: { img: null, frames: 4 }
         }
     };
     
     function loadSprites() {
         return new Promise((resolve) => {
             const toLoad = [
-                { key: 'idle', path: 'assets/ducks/white/duck_idle.png', frames: 4 },
-                { key: 'walk', path: 'assets/ducks/white/duck_walk_1.png', frames: 8 },
-                { key: 'run', path: 'assets/ducks/white/duck_run.png', frames: 8 },
-                { key: 'slap', path: 'assets/ducks/white/duck_slap.png', frames: 3 }
+                { type: 'duck', key: 'idle', path: 'assets/ducks/white/duck_idle.png', frames: 4 },
+                { type: 'duck', key: 'walk', path: 'assets/ducks/white/duck_walk_1.png', frames: 8 },
+                { type: 'duck', key: 'run', path: 'assets/ducks/white/duck_run.png', frames: 8 },
+                { type: 'duck', key: 'slap', path: 'assets/ducks/white/duck_slap.png', frames: 3 },
+                { type: 'enemy', key: 'walk', path: 'assets/enemies/cat/Walk.png', frames: 6 },
+                { type: 'enemy', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 }
             ];
             
             let loaded = 0;
             
-            toLoad.forEach(({ key, path, frames }) => {
+            toLoad.forEach(({ type, key, path, frames }) => {
                 const img = new Image();
                 img.onload = () => {
-                    sprites.duck[key].img = img;
-                    sprites.duck[key].frames = frames;
+                    sprites[type][key].img = img;
+                    sprites[type][key].frames = frames;
                     loaded++;
                     if (loaded === toLoad.length) {
                         sprites.loaded = true;
@@ -110,8 +124,14 @@
         facingLeft: false,
         animState: 'idle',
         animFrame: 0,
-        animTimer: 0
+        animTimer: 0,
+        health: 100,
+        maxHealth: 100
     };
+    
+    // Enemies array
+    const enemies = [];
+    let spawnTimer = 0;
     
     // ============================================================
     // INPUT
@@ -215,6 +235,104 @@
         player.y = Math.max(halfSize, Math.min(canvas.height - halfSize, player.y));
     }
     
+    // Enemy factory
+    function createEnemy() {
+        // Spawn from random edge
+        const edge = Math.floor(Math.random() * 4);
+        let x, y;
+        const margin = ENEMY_SIZE;
+        
+        switch (edge) {
+            case 0: // Top
+                x = Math.random() * canvas.width;
+                y = -margin;
+                break;
+            case 1: // Right
+                x = canvas.width + margin;
+                y = Math.random() * canvas.height;
+                break;
+            case 2: // Bottom
+                x = Math.random() * canvas.width;
+                y = canvas.height + margin;
+                break;
+            case 3: // Left
+                x = -margin;
+                y = Math.random() * canvas.height;
+                break;
+        }
+        
+        return {
+            x, y,
+            size: ENEMY_SIZE,
+            speed: ENEMY_SPEED,
+            health: ENEMY_HEALTH,
+            facingLeft: true,
+            animFrame: 0,
+            animTimer: 0
+        };
+    }
+    
+    function updateEnemies(dt) {
+        // Spawn timer
+        spawnTimer += dt;
+        if (spawnTimer >= ENEMY_SPAWN_RATE) {
+            spawnTimer -= ENEMY_SPAWN_RATE;
+            enemies.push(createEnemy());
+        }
+        
+        // Update each enemy
+        for (const enemy of enemies) {
+            // Move toward player
+            const dx = player.x - enemy.x;
+            const dy = player.y - enemy.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > 0) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                enemy.x += nx * enemy.speed * dt;
+                enemy.y += ny * enemy.speed * dt;
+                
+                // Face the player
+                enemy.facingLeft = dx < 0;
+            }
+            
+            // Update animation
+            enemy.animTimer += dt;
+            const frameDuration = 1 / ANIMATION_FPS;
+            if (enemy.animTimer >= frameDuration) {
+                enemy.animTimer -= frameDuration;
+                const spriteData = sprites.enemy.walk;
+                if (spriteData && spriteData.img) {
+                    enemy.animFrame = (enemy.animFrame + 1) % spriteData.frames;
+                }
+            }
+        }
+    }
+    
+    function checkCollisions() {
+        const playerRadius = player.size / 2 * 0.6; // Slightly smaller hitbox
+        
+        for (const enemy of enemies) {
+            const enemyRadius = enemy.size / 2 * 0.6;
+            const dx = player.x - enemy.x;
+            const dy = player.y - enemy.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < playerRadius + enemyRadius) {
+                // Player takes damage (with brief invulnerability handled elsewhere)
+                player.health -= ENEMY_DAMAGE;
+                
+                // Push enemy back slightly
+                if (dist > 0) {
+                    const pushDist = 30;
+                    enemy.x -= (dx / dist) * pushDist;
+                    enemy.y -= (dy / dist) * pushDist;
+                }
+            }
+        }
+    }
+    
     // ============================================================
     // RENDERING
     // ============================================================
@@ -261,10 +379,48 @@
         }
     }
     
+    function drawEnemy(enemy) {
+        const spriteData = sprites.enemy.walk;
+        
+        if (sprites.loaded && spriteData && spriteData.img) {
+            ctx.save();
+            ctx.translate(enemy.x, enemy.y);
+            
+            // Flip based on facing direction (cat sprite faces right by default)
+            if (enemy.facingLeft) {
+                ctx.scale(-1, 1);
+            }
+            
+            const srcX = enemy.animFrame * ENEMY_SPRITE_SIZE;
+            ctx.drawImage(
+                spriteData.img,
+                srcX, 0, ENEMY_SPRITE_SIZE, ENEMY_SPRITE_SIZE,
+                -enemy.size / 2, -enemy.size / 2, enemy.size, enemy.size
+            );
+            
+            ctx.restore();
+        } else {
+            // Fallback: red circle
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y, enemy.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    
+    function drawEnemies() {
+        for (const enemy of enemies) {
+            drawEnemy(enemy);
+        }
+    }
+    
     function render() {
         // Clear canvas
         ctx.fillStyle = '#4a7c59';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw enemies (behind player)
+        drawEnemies();
         
         // Draw player
         drawPlayer();
@@ -283,6 +439,8 @@
         
         // Update
         updatePlayer(cappedDt);
+        updateEnemies(cappedDt);
+        checkCollisions();
         
         // Render
         render();

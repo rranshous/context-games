@@ -72,12 +72,12 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 - [x] Basic sprite animation (if feasible)
 - [ ] ~~Skip if too complex, revisit later~~ (worked!)
 
-### M3: Enemies
-- [ ] Fox entity
-- [ ] Spawn system (from edges)
-- [ ] Movement toward player
-- [ ] Collision detection (player-enemy)
-- [ ] Player takes damage
+### M3: Enemies ✅
+- [x] Fox entity (using cat sprites)
+- [x] Spawn system (from edges)
+- [x] Movement toward player
+- [x] Collision detection (player-enemy)
+- [x] Player takes damage
 
 ### M4: Combat
 - [ ] Peck attack (auto-fire)
