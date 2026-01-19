@@ -130,15 +130,16 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [x] Slower, tankier than cat
 - [x] Mix into spawn system (70% cat, 30% dog)
 
-### M4: Attack Nest - Quack Blast
-- [ ] Nest object in Home Base
-- [ ] Deposit eggs interaction
-- [ ] Visual progress indicator
-- [ ] Claim mechanic (first duck to interact)
-- [ ] Quack Blast attack (cone, knockback, auto-fire)
-- [ ] Simple visual indicator on duck for powers
+### M4: Attack Nest - Quack Blast ✅
+- [x] Nest object in Home Base
+- [x] Deposit eggs interaction (bulk deposit)
+- [x] Visual progress indicator
+- [x] Claim mechanic (first duck to interact)
+- [x] Quack Blast attack (cone, knockback, auto-fire, aims at nearest)
+- [x] Simple visual indicator on duck for powers
+- [x] Refactored: killEnemy() helper for consistent death handling
 
-### M5: Second Attack - Wing Slap
+### M5: Second Attack - Wing Slap 🔄 IN PROGRESS
 - [ ] Add Wing Slap to attack line
 - [ ] Spin attack implementation (auto-fire)
 - [ ] Both attacks operate simultaneously
@@ -171,5 +172,5 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ---
 
-*Status: M3 Complete*
-*Next: M4 - Attack Nest*
+*Status: M5 In Progress*
+*Next: Wing Slap attack*

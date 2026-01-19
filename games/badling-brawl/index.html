@@ -77,6 +77,12 @@
     const QUACK_BLAST_KNOCKBACK = 200;
     const QUACK_BLAST_COOLDOWN = 2.0; // seconds
     
+    // Wing Slap constants
+    const WING_SLAP_RANGE = 80;  // Shorter range, melee spin
+    const WING_SLAP_DAMAGE = 15;
+    const WING_SLAP_KNOCKBACK = 150;
+    const WING_SLAP_COOLDOWN = 1.5; // seconds
+    
     // Surge/Lull constants
     const SURGE_DURATION = 45; // seconds of heavy spawning
     const LULL_DURATION = 15; // seconds of light/no spawning
@@ -246,7 +252,8 @@
             featherStorm: false
         },
         // Power cooldowns
-        quackBlastTimer: 0
+        quackBlastTimer: 0,
+        wingSlapTimer: 0
     };
     
     // Attack Nest state
@@ -717,9 +724,22 @@
             player.quackBlastTimer -= dt;
             
             if (player.quackBlastTimer <= 0 && !inBase) {
-                // Fire Quack Blast!
-                fireQuackBlast();
-                player.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+                // Fire Quack Blast - only reset timer if it actually fired
+                if (fireQuackBlast()) {
+                    player.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+                }
+            }
+        }
+        
+        // Update Wing Slap cooldown and auto-fire
+        if (player.powers.wingSlap) {
+            player.wingSlapTimer -= dt;
+            
+            if (player.wingSlapTimer <= 0 && !inBase) {
+                // Fire Wing Slap - only reset timer if it actually fired
+                if (fireWingSlap()) {
+                    player.wingSlapTimer = WING_SLAP_COOLDOWN;
+                }
             }
         }
         
@@ -730,6 +750,68 @@
                 quackBlastEffects.splice(i, 1);
             }
         }
+        
+        // Update wing slap visual effects
+        for (let i = wingSlapEffects.length - 1; i >= 0; i--) {
+            wingSlapEffects[i].timer -= dt;
+            if (wingSlapEffects[i].timer <= 0) {
+                wingSlapEffects.splice(i, 1);
+            }
+        }
+    }
+    
+    // Track active wing slap effects for rendering
+    const wingSlapEffects = [];
+    
+    function fireWingSlap() {
+        // Check if any enemies in range
+        let hasTarget = false;
+        for (const enemy of enemies) {
+            const dx = enemy.x - player.x;
+            const dy = enemy.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= WING_SLAP_RANGE) {
+                hasTarget = true;
+                break;
+            }
+        }
+        
+        // No enemies in range? Don't fire
+        if (!hasTarget) return false;
+        
+        // Add visual effect (spinning circle)
+        wingSlapEffects.push({
+            x: player.x,
+            y: player.y,
+            timer: 0.25
+        });
+        
+        // Hit ALL enemies in range (360 degree spin)
+        for (const enemy of enemies) {
+            const dx = enemy.x - player.x;
+            const dy = enemy.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist <= WING_SLAP_RANGE) {
+                // Hit! Deal damage
+                enemy.health -= WING_SLAP_DAMAGE;
+                
+                // Knockback (push away from player)
+                if (dist > 0) {
+                    const knockX = dx / dist * WING_SLAP_KNOCKBACK;
+                    const knockY = dy / dist * WING_SLAP_KNOCKBACK;
+                    enemy.x += knockX * 0.1;
+                    enemy.y += knockY * 0.1;
+                }
+                
+                // Check if enemy died
+                if (enemy.health <= 0) {
+                    killEnemy(enemy);
+                }
+            }
+        }
+        
+        return true;
     }
     
     function fireQuackBlast() {
@@ -749,7 +831,7 @@
         }
         
         // No enemies in range? Don't fire
-        if (!nearestEnemy) return;
+        if (!nearestEnemy) return false;
         
         // Aim at nearest enemy
         const dx = nearestEnemy.x - player.x;
@@ -799,6 +881,8 @@
                 }
             }
         }
+        
+        return true;
     }
     
     // ============================================================
@@ -1036,6 +1120,41 @@
         }
     }
     
+    function drawWingSlapEffects() {
+        for (const effect of wingSlapEffects) {
+            const alpha = effect.timer / 0.25;
+            const rotation = (1 - alpha) * Math.PI * 2; // Full spin as it fades
+            
+            ctx.save();
+            ctx.translate(effect.x, effect.y);
+            ctx.rotate(rotation);
+            
+            // Draw spinning circle with wing shapes
+            const radius = WING_SLAP_RANGE * (0.5 + alpha * 0.5);
+            
+            // Outer ring
+            ctx.strokeStyle = `rgba(150, 200, 255, ${alpha * 0.8})`;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Wing slashes (4 directions)
+            ctx.strokeStyle = `rgba(200, 230, 255, ${alpha})`;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            for (let i = 0; i < 4; i++) {
+                const angle = (i / 4) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * 20, Math.sin(angle) * 20);
+                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+        }
+    }
+    
     function drawUI() {
         // Egg counter
         ctx.fillStyle = '#fff';
@@ -1119,6 +1238,12 @@
         }
         
         if (powers.wingSlap) {
+            // Show cooldown overlay
+            const cdRatio = player.wingSlapTimer / WING_SLAP_COOLDOWN;
+            if (cdRatio > 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
+            }
             ctx.fillStyle = '#87CEEB';
             ctx.fillText('🌀', x + iconSize / 2, y + iconSize / 2);
             x += iconSize + padding;
@@ -1269,6 +1394,7 @@
         // Draw attack effects (on top)
         drawPeckEffects();
         drawQuackBlastEffects();
+        drawWingSlapEffects();
         
         // Draw UI
         drawUI();
@@ -1326,12 +1452,14 @@
         player.powers.eggBomb = false;
         player.powers.featherStorm = false;
         player.quackBlastTimer = 0;
+        player.wingSlapTimer = 0;
         
         // Clear entities
         enemies.length = 0;
         eggs.length = 0;
         peckEffects.length = 0;
         quackBlastEffects.length = 0;
+        wingSlapEffects.length = 0;
         
         // Reset attack nest
         attackNest.eggs = 0;
