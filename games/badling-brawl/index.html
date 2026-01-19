@@ -280,6 +280,18 @@
     };
     
     // ============================================================
+    // HELPERS
+    // ============================================================
+    function killEnemy(enemy) {
+        // Drop egg at enemy position
+        eggs.push({ x: enemy.x, y: enemy.y, size: EGG_SIZE });
+        
+        // Remove from enemies array
+        const idx = enemies.indexOf(enemy);
+        if (idx > -1) enemies.splice(idx, 1);
+    }
+    
+    // ============================================================
     // INPUT
     // ============================================================
     function handleKeyDown(e) {
@@ -584,7 +596,7 @@
                 
                 // Push enemy back slightly
                 if (dist > 0) {
-                    const pushDist = 30;
+                    const pushDist = 10;
                     enemy.x -= (dx / dist) * pushDist;
                     enemy.y -= (dy / dist) * pushDist;
                 }
@@ -642,18 +654,7 @@
                 
                 // Check if enemy died
                 if (nearestEnemy.health <= 0) {
-                    // Drop egg at enemy position
-                    eggs.push({
-                        x: nearestEnemy.x,
-                        y: nearestEnemy.y,
-                        size: EGG_SIZE
-                    });
-                    
-                    // Remove enemy
-                    const idx = enemies.indexOf(nearestEnemy);
-                    if (idx > -1) {
-                        enemies.splice(idx, 1);
-                    }
+                    killEnemy(nearestEnemy);
                 }
             }
         }
@@ -794,9 +795,7 @@
                 
                 // Check if enemy died
                 if (enemy.health <= 0) {
-                    eggs.push({ x: enemy.x, y: enemy.y, size: EGG_SIZE });
-                    const idx = enemies.indexOf(enemy);
-                    if (idx > -1) enemies.splice(idx, 1);
+                    killEnemy(enemy);
                 }
             }
         }
