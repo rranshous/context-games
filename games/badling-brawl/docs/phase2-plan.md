@@ -110,26 +110,25 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [x] Ducks cannot attack while inside home base (no camping)
 - [x] Fix cat sprite rendering: use actual frame bounds from tileset-cutter
 - [x] Fix cat collision: use proportional hitbox (width/height) instead of square
-
-#### Current TODO:
-- [ ] **Ducks free movement**: can cross boundary anywhere
-- [ ] **Verify visually**: enemies stay outside red debug line
-- [ ] **Tune border**: align visual rocks/water with collision boundary
+- [x] Ducks free movement: can cross boundary anywhere
+- [x] Verify visually: enemies stay outside boundary
+- [x] Tune border: mixed rocks/bushes aligned with collision boundary
 
 #### Deferred (may add back later):
 - Entrance-only crossing for ducks
 - Enemy pathfinding around entrances
+- Remove debug red dotted line (keeping for now)
 
 #### Notes:
 - Using `tileset - grass island v2.png` for visuals
 - Cat frames defined in `CAT_WALK_FRAMES` with actual bounds
 - Collision uses `CAT_AVG_WIDTH`/`CAT_AVG_HEIGHT` for proportional hitbox
-- See `ipi-intro.md` Session Notes for code locations and details
+- Border uses mixed rocks/bushes for natural look
 
-### M3: Dog Enemy
-- [ ] New enemy type: Dog
-- [ ] Slower, tankier than cat
-- [ ] Mix into spawn system
+### M3: Dog Enemy ✅
+- [x] New enemy type: Dog
+- [x] Slower, tankier than cat
+- [x] Mix into spawn system (70% cat, 30% dog)
 
 ### M4: Attack Nest - Quack Blast
 - [ ] Nest object in Home Base
@@ -172,5 +171,5 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ---
 
-*Status: M2 In Progress*
-*Current: Implementing Home Base*
+*Status: M3 Complete*
+*Next: M4 - Attack Nest*

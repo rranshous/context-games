@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tileset Cutter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+            color: #f4d03f;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button.danger {
+            background: #e74c3c;
+        }
+        
+        button.danger:hover {
+            background: #c0392b;
+        }
+        
+        button.success {
+            background: #2ecc71;
+        }
+        
+        button.success:hover {
+            background: #27ae60;
+        }
+        
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .zoom-controls span {
+            min-width: 50px;
+            text-align: center;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .main-area {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .canvas-container {
+            position: relative;
+            border: 2px solid #333;
+            background: #2a2a4a;
+            overflow: auto;
+            max-height: 70vh;
+        }
+        
+        #canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        
+        .sidebar {
+            min-width: 300px;
+            max-width: 400px;
+        }
+        
+        .regions-list {
+            background: #2a2a4a;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        .regions-list h3 {
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+        
+        .region-item {
+            background: #1a1a2e;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+        }
+        
+        .region-item.selected {
+            border-left-color: #f4d03f;
+            background: #2a2a3e;
+        }
+        
+        .region-item input {
+            width: 100%;
+            padding: 5px;
+            margin-top: 5px;
+            background: #333;
+            border: 1px solid #555;
+            color: #eee;
+            border-radius: 3px;
+        }
+        
+        .region-item .coords {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        
+        .region-item .actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 5px;
+        }
+        
+        .region-item button {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        
+        .output-area {
+            margin-top: 20px;
+        }
+        
+        #output {
+            width: 100%;
+            height: 200px;
+            background: #1a1a2e;
+            border: 1px solid #555;
+            color: #2ecc71;
+            font-family: monospace;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .instructions {
+            background: #2a2a4a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .instructions code {
+            background: #1a1a2e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #f4d03f;
+        }
+        
+        .preview-box {
+            margin-top: 15px;
+            padding: 10px;
+            background: #1a1a2e;
+            border-radius: 5px;
+        }
+        
+        .preview-box h4 {
+            margin-bottom: 10px;
+            color: #888;
+        }
+        
+        #previewCanvas {
+            background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 50% / 20px 20px;
+            border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔪 Tileset Cutter</h1>
+    
+    <div class="instructions">
+        <strong>How to use:</strong> 
+        Load a tileset image, then <strong>click and drag</strong> to draw bounding boxes around sprites.
+        <strong>Drag handles</strong> to resize selected region. <strong>Drag inside</strong> to move it.
+        <code>Arrow keys</code> nudge selection (hold Shift for 5px). <code>Delete</code> removes selected region.
+    </div>
+    
+    <div class="toolbar">
+        <button onclick="document.getElementById('fileInput').click()">📁 Load Image</button>
+        <input type="file" id="fileInput" accept="image/*">
+        
+        <div class="zoom-controls">
+            <button onclick="zoomOut()">➖</button>
+            <span id="zoomLevel">4x</span>
+            <button onclick="zoomIn()">➕</button>
+        </div>
+        
+        <button onclick="clearAllRegions()" class="danger">🗑️ Clear All</button>
+        <button onclick="exportJSON()" class="success">📤 Export JSON</button>
+        <button onclick="copyToClipboard()" class="success">📋 Copy JS Object</button>
+    </div>
+    
+    <div class="main-area">
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="sidebar">
+            <div class="regions-list">
+                <h3>Regions (<span id="regionCount">0</span>)</h3>
+                <div id="regionsList"></div>
+            </div>
+            
+            <div class="preview-box">
+                <h4>Preview</h4>
+                <canvas id="previewCanvas" width="64" height="64"></canvas>
+            </div>
+            
+            <div class="output-area">
+                <textarea id="output" readonly placeholder="JSON output will appear here..."></textarea>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas.getContext('2d');
+        
+        let img = null;
+        let zoom = 4;
+        let regions = [];
+        let selectedRegion = null;
+        let isDrawing = false;
+        let isResizing = false;
+        let resizeHandle = null; // 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let startX = 0;
+        let startY = 0;
+        let currentRect = null;
+        
+        const HANDLE_SIZE = 8; // pixels in screen space
+        
+        // File loading
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                img = new Image();
+                img.onload = () => {
+                    render();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // Load image from URL (for Playwright)
+        window.loadImageFromURL = function(url) {
+            img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                render();
+            };
+            img.onerror = () => {
+                console.error('Failed to load image from URL:', url);
+            };
+            img.src = url;
+        };
+        
+        // Zoom controls
+        function zoomIn() {
+            zoom = Math.min(zoom + 1, 10);
+            document.getElementById('zoomLevel').textContent = zoom + 'x';
+            render();
+        }
+        
+        function zoomOut() {
+            zoom = Math.max(zoom - 1, 1);
+            document.getElementById('zoomLevel').textContent = zoom + 'x';
+            render();
+        }
+        
+        // Get handle at position for selected region
+        function getHandleAt(x, y) {
+            if (!selectedRegion) return null;
+            
+            const r = selectedRegion;
+            const hs = HANDLE_SIZE / zoom / 2; // half handle size in image coords
+            
+            // Corner handles
+            if (Math.abs(x - r.x) <= hs && Math.abs(y - r.y) <= hs) return 'nw';
+            if (Math.abs(x - (r.x + r.w)) <= hs && Math.abs(y - r.y) <= hs) return 'ne';
+            if (Math.abs(x - r.x) <= hs && Math.abs(y - (r.y + r.h)) <= hs) return 'sw';
+            if (Math.abs(x - (r.x + r.w)) <= hs && Math.abs(y - (r.y + r.h)) <= hs) return 'se';
+            
+            // Edge handles
+            if (Math.abs(x - (r.x + r.w/2)) <= hs && Math.abs(y - r.y) <= hs) return 'n';
+            if (Math.abs(x - (r.x + r.w/2)) <= hs && Math.abs(y - (r.y + r.h)) <= hs) return 's';
+            if (Math.abs(x - r.x) <= hs && Math.abs(y - (r.y + r.h/2)) <= hs) return 'w';
+            if (Math.abs(x - (r.x + r.w)) <= hs && Math.abs(y - (r.y + r.h/2)) <= hs) return 'e';
+            
+            return null;
+        }
+        
+        // Check if point is inside selected region (for dragging)
+        function isInsideSelected(x, y) {
+            if (!selectedRegion) return false;
+            const r = selectedRegion;
+            return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+        }
+        
+        // Mouse handling
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / zoom);
+            const y = Math.floor((e.clientY - rect.top) / zoom);
+            
+            // Check for resize handle first
+            const handle = getHandleAt(x, y);
+            if (handle && selectedRegion) {
+                isResizing = true;
+                resizeHandle = handle;
+                startX = x;
+                startY = y;
+                return;
+            }
+            
+            // Check for dragging selected region
+            if (isInsideSelected(x, y) && !e.shiftKey) {
+                isDragging = true;
+                dragOffsetX = x - selectedRegion.x;
+                dragOffsetY = y - selectedRegion.y;
+                return;
+            }
+            
+            if (e.shiftKey) {
+                // Select existing region
+                const clicked = regions.find(r => 
+                    x >= r.x && x <= r.x + r.w &&
+                    y >= r.y && y <= r.y + r.h
+                );
+                selectedRegion = clicked || null;
+                updateRegionsList();
+                render();
+                updatePreview();
+                return;
+            }
+            
+            // Start drawing new region
+            isDrawing = true;
+            startX = x;
+            startY = y;
+            currentRect = { x, y, w: 0, h: 0 };
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / zoom);
+            const y = Math.floor((e.clientY - rect.top) / zoom);
+            
+            // Update cursor based on what we're hovering
+            const handle = getHandleAt(x, y);
+            if (handle) {
+                const cursors = {
+                    'nw': 'nwse-resize', 'se': 'nwse-resize',
+                    'ne': 'nesw-resize', 'sw': 'nesw-resize',
+                    'n': 'ns-resize', 's': 'ns-resize',
+                    'e': 'ew-resize', 'w': 'ew-resize'
+                };
+                canvas.style.cursor = cursors[handle];
+            } else if (isInsideSelected(x, y)) {
+                canvas.style.cursor = 'move';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+            
+            // Handle resizing
+            if (isResizing && selectedRegion) {
+                const r = selectedRegion;
+                const dx = x - startX;
+                const dy = y - startY;
+                
+                if (resizeHandle.includes('w')) {
+                    const newX = Math.min(r.x + r.w - 1, r.x + dx);
+                    r.w = r.w + (r.x - newX);
+                    r.x = newX;
+                }
+                if (resizeHandle.includes('e')) {
+                    r.w = Math.max(1, r.w + dx);
+                }
+                if (resizeHandle.includes('n')) {
+                    const newY = Math.min(r.y + r.h - 1, r.y + dy);
+                    r.h = r.h + (r.y - newY);
+                    r.y = newY;
+                }
+                if (resizeHandle.includes('s')) {
+                    r.h = Math.max(1, r.h + dy);
+                }
+                
+                startX = x;
+                startY = y;
+                updateRegionsList();
+                render();
+                updatePreview();
+                return;
+            }
+            
+            // Handle dragging
+            if (isDragging && selectedRegion) {
+                selectedRegion.x = Math.max(0, x - dragOffsetX);
+                selectedRegion.y = Math.max(0, y - dragOffsetY);
+                updateRegionsList();
+                render();
+                updatePreview();
+                return;
+            }
+            
+            // Handle drawing
+            if (isDrawing) {
+                currentRect.x = Math.min(startX, x);
+                currentRect.y = Math.min(startY, y);
+                currentRect.w = Math.abs(x - startX);
+                currentRect.h = Math.abs(y - startY);
+                render();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizeHandle = null;
+                return;
+            }
+            
+            if (isDragging) {
+                isDragging = false;
+                return;
+            }
+            
+            if (!isDrawing) return;
+            isDrawing = false;
+            
+            if (currentRect && currentRect.w > 0 && currentRect.h > 0) {
+                const newRegion = {
+                    ...currentRect,
+                    label: 'sprite_' + regions.length
+                };
+                regions.push(newRegion);
+                selectedRegion = newRegion;
+                updateRegionsList();
+                updatePreview();
+            }
+            
+            currentRect = null;
+            render();
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizeHandle = null;
+            }
+            if (isDragging) {
+                isDragging = false;
+            }
+        });
+        
+        // Keyboard handling
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' && selectedRegion) {
+                const idx = regions.indexOf(selectedRegion);
+                if (idx > -1) {
+                    regions.splice(idx, 1);
+                    selectedRegion = null;
+                    updateRegionsList();
+                    render();
+                    updatePreview();
+                }
+            }
+            
+            // Arrow keys to nudge selected region
+            if (selectedRegion && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+                const amount = e.shiftKey ? 5 : 1;
+                switch(e.key) {
+                    case 'ArrowUp': selectedRegion.y -= amount; break;
+                    case 'ArrowDown': selectedRegion.y += amount; break;
+                    case 'ArrowLeft': selectedRegion.x -= amount; break;
+                    case 'ArrowRight': selectedRegion.x += amount; break;
+                }
+                updateRegionsList();
+                render();
+                updatePreview();
+            }
+        });
+        
+        // Render
+        function render() {
+            if (!img) {
+                canvas.width = 400;
+                canvas.height = 300;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#888';
+                ctx.font = '20px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Load an image to begin', 200, 150);
+                return;
+            }
+            
+            canvas.width = img.width * zoom;
+            canvas.height = img.height * zoom;
+            
+            // Draw image scaled
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // Draw pixel grid at high zoom
+            if (zoom >= 4) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.lineWidth = 1;
+                for (let x = 0; x <= img.width; x++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x * zoom, 0);
+                    ctx.lineTo(x * zoom, canvas.height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y <= img.height; y++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y * zoom);
+                    ctx.lineTo(canvas.width, y * zoom);
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw existing regions
+            for (const region of regions) {
+                const isSelected = region === selectedRegion;
+                ctx.strokeStyle = isSelected ? '#f4d03f' : '#3498db';
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.strokeRect(
+                    region.x * zoom,
+                    region.y * zoom,
+                    region.w * zoom,
+                    region.h * zoom
+                );
+                
+                // Label
+                ctx.fillStyle = isSelected ? '#f4d03f' : '#3498db';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText(region.label, region.x * zoom + 2, region.y * zoom - 4);
+                
+                // Draw resize handles for selected region
+                if (isSelected) {
+                    const r = region;
+                    const hs = HANDLE_SIZE;
+                    ctx.fillStyle = '#f4d03f';
+                    
+                    // Corner handles
+                    ctx.fillRect(r.x * zoom - hs/2, r.y * zoom - hs/2, hs, hs);
+                    ctx.fillRect((r.x + r.w) * zoom - hs/2, r.y * zoom - hs/2, hs, hs);
+                    ctx.fillRect(r.x * zoom - hs/2, (r.y + r.h) * zoom - hs/2, hs, hs);
+                    ctx.fillRect((r.x + r.w) * zoom - hs/2, (r.y + r.h) * zoom - hs/2, hs, hs);
+                    
+                    // Edge handles
+                    ctx.fillRect((r.x + r.w/2) * zoom - hs/2, r.y * zoom - hs/2, hs, hs);
+                    ctx.fillRect((r.x + r.w/2) * zoom - hs/2, (r.y + r.h) * zoom - hs/2, hs, hs);
+                    ctx.fillRect(r.x * zoom - hs/2, (r.y + r.h/2) * zoom - hs/2, hs, hs);
+                    ctx.fillRect((r.x + r.w) * zoom - hs/2, (r.y + r.h/2) * zoom - hs/2, hs, hs);
+                }
+            }
+            
+            // Draw current rect being drawn
+            if (currentRect) {
+                ctx.strokeStyle = '#2ecc71';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(
+                    currentRect.x * zoom,
+                    currentRect.y * zoom,
+                    currentRect.w * zoom,
+                    currentRect.h * zoom
+                );
+                ctx.setLineDash([]);
+            }
+        }
+        
+        // Update regions list
+        function updateRegionsList() {
+            const list = document.getElementById('regionsList');
+            document.getElementById('regionCount').textContent = regions.length;
+            
+            list.innerHTML = regions.map((r, i) => `
+                <div class="region-item ${r === selectedRegion ? 'selected' : ''}" onclick="selectRegion(${i})">
+                    <input type="text" value="${r.label}" onchange="updateLabel(${i}, this.value)" onclick="event.stopPropagation()">
+                    <div class="coords">x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}</div>
+                    <div class="actions">
+                        <button onclick="event.stopPropagation(); deleteRegion(${i})" class="danger">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function selectRegion(idx) {
+            selectedRegion = regions[idx];
+            updateRegionsList();
+            render();
+            updatePreview();
+        }
+        
+        function updateLabel(idx, newLabel) {
+            regions[idx].label = newLabel;
+            render();
+        }
+        
+        function deleteRegion(idx) {
+            if (regions[idx] === selectedRegion) {
+                selectedRegion = null;
+            }
+            regions.splice(idx, 1);
+            updateRegionsList();
+            render();
+            updatePreview();
+        }
+        
+        function clearAllRegions() {
+            if (regions.length > 0 && !confirm('Clear all regions?')) return;
+            regions = [];
+            selectedRegion = null;
+            updateRegionsList();
+            render();
+            updatePreview();
+        }
+        
+        // Preview
+        function updatePreview() {
+            previewCtx.clearRect(0, 0, 64, 64);
+            
+            if (!img || !selectedRegion) return;
+            
+            const r = selectedRegion;
+            const scale = Math.min(64 / r.w, 64 / r.h);
+            const w = r.w * scale;
+            const h = r.h * scale;
+            const x = (64 - w) / 2;
+            const y = (64 - h) / 2;
+            
+            previewCtx.imageSmoothingEnabled = false;
+            previewCtx.drawImage(img, r.x, r.y, r.w, r.h, x, y, w, h);
+        }
+        
+        // Export
+        function exportJSON() {
+            const output = {};
+            for (const r of regions) {
+                output[r.label] = { x: r.x, y: r.y, w: r.w, h: r.h };
+            }
+            document.getElementById('output').value = JSON.stringify(output, null, 2);
+        }
+        
+        function copyToClipboard() {
+            const lines = regions.map(r => 
+                `    ${r.label}: { x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h} }`
+            );
+            const jsObj = `const TILE_DEFS = {\n${lines.join(',\n')}\n};`;
+            
+            navigator.clipboard.writeText(jsObj).then(() => {
+                alert('Copied to clipboard!');
+            });
+            
+            document.getElementById('output').value = jsObj;
+        }
+        
+        // Get regions (for Playwright)
+        window.getRegions = function() {
+            return regions;
+        };
+        
+        // Set regions (for loading saved work)
+        window.setRegions = function(newRegions) {
+            regions = newRegions;
+            updateRegionsList();
+            render();
+        };
+        
+        // Initial render
+        render();
+    </script>
+</body>
+</html>

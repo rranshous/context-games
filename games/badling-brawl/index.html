@@ -39,12 +39,18 @@
     const SPRITE_SIZE = 32; // Original sprite frame size
     const ANIMATION_FPS = 10; // Frames per second for animations
     
-    // Enemy constants
+    // Enemy constants - Cat (base enemy)
     const ENEMY_SIZE = 56; // Display size for enemies
     const ENEMY_SPEED = 120; // pixels per second
     const ENEMY_SPAWN_RATE = 1.5; // seconds between spawns
     const ENEMY_DAMAGE = 10; // damage dealt to player on contact
     const ENEMY_HEALTH = 30;
+    
+    // Enemy constants - Dog (slower, tankier)
+    const DOG_SIZE = 64;
+    const DOG_SPEED = 80;  // Slower than cat
+    const DOG_DAMAGE = 15;
+    const DOG_HEALTH = 50; // Tankier than cat
     
     // Combat constants
     const PECK_RANGE = 100; // pixels
@@ -73,9 +79,12 @@
             run: { img: null, frames: 8 },
             slap: { img: null, frames: 3 }
         },
-        enemy: {
+        cat: {
             walk: { img: null, frames: 6 },
             idle: { img: null, frames: 4 }
+        },
+        dog: {
+            walk: { img: null, frames: 6 }
         },
         tileset: { img: null }
     };
@@ -114,6 +123,20 @@
     const CAT_AVG_WIDTH = CAT_WALK_FRAMES.reduce((sum, f) => sum + f.w, 0) / CAT_WALK_FRAMES.length;  // ~36
     const CAT_AVG_HEIGHT = CAT_WALK_FRAMES.reduce((sum, f) => sum + f.h, 0) / CAT_WALK_FRAMES.length; // ~22
     
+    // Dog sprite frame definitions (from tileset-cutter tool - Walk.png)
+    const DOG_WALK_FRAMES = [
+        { x: 3, y: 21, w: 40, h: 27 },
+        { x: 53, y: 20, w: 38, h: 28 },
+        { x: 103, y: 19, w: 36, h: 28 },
+        { x: 152, y: 19, w: 35, h: 29 },
+        { x: 192, y: 20, w: 43, h: 28 },
+        { x: 241, y: 21, w: 42, h: 27 }
+    ];
+    
+    // Calculate average dog sprite dimensions for collision
+    const DOG_AVG_WIDTH = DOG_WALK_FRAMES.reduce((sum, f) => sum + f.w, 0) / DOG_WALK_FRAMES.length;   // ~39
+    const DOG_AVG_HEIGHT = DOG_WALK_FRAMES.reduce((sum, f) => sum + f.h, 0) / DOG_WALK_FRAMES.length;  // ~28
+    
     // Home Base constants
     const HOME_BASE = {
         // Relative to screen center, will be calculated on resize
@@ -133,8 +156,9 @@
                 { type: 'duck', key: 'walk', path: 'assets/ducks/white/duck_walk_1.png', frames: 8 },
                 { type: 'duck', key: 'run', path: 'assets/ducks/white/duck_run.png', frames: 8 },
                 { type: 'duck', key: 'slap', path: 'assets/ducks/white/duck_slap.png', frames: 3 },
-                { type: 'enemy', key: 'walk', path: 'assets/enemies/cat/Walk.png', frames: 6 },
-                { type: 'enemy', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 },
+                { type: 'cat', key: 'walk', path: 'assets/enemies/cat/Walk.png', frames: 6 },
+                { type: 'cat', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 },
+                { type: 'dog', key: 'walk', path: 'assets/Free Street Animal Pixel Art/1 Dog/Walk.png', frames: 6 },
                 { type: 'tileset', key: 'img', path: 'assets/tileset - grass island v2.png', frames: 1 }
             ];
             
@@ -335,11 +359,19 @@
     }
     
     // Enemy factory
-    function createEnemy() {
+    function createEnemy(type = null) {
+        // Pick enemy type if not specified: 70% cat, 30% dog
+        if (!type) {
+            type = Math.random() < 0.7 ? 'cat' : 'dog';
+        }
+        
+        const isCat = type === 'cat';
+        const size = isCat ? ENEMY_SIZE : DOG_SIZE;
+        
         // Spawn from random edge
         const edge = Math.floor(Math.random() * 4);
         let x, y;
-        const margin = ENEMY_SIZE;
+        const margin = size;
         
         switch (edge) {
             case 0: // Top
@@ -362,9 +394,11 @@
         
         return {
             x, y,
-            size: ENEMY_SIZE,
-            speed: ENEMY_SPEED,
-            health: ENEMY_HEALTH,
+            type,
+            size,
+            speed: isCat ? ENEMY_SPEED : DOG_SPEED,
+            health: isCat ? ENEMY_HEALTH : DOG_HEALTH,
+            damage: isCat ? ENEMY_DAMAGE : DOG_DAMAGE,
             facingLeft: true,
             animFrame: 0,
             animTimer: 0
@@ -454,7 +488,8 @@
             const frameDuration = 1 / ANIMATION_FPS;
             if (enemy.animTimer >= frameDuration) {
                 enemy.animTimer -= frameDuration;
-                enemy.animFrame = (enemy.animFrame + 1) % CAT_WALK_FRAMES.length;
+                const frames = enemy.type === 'cat' ? CAT_WALK_FRAMES : DOG_WALK_FRAMES;
+                enemy.animFrame = (enemy.animFrame + 1) % frames.length;
             }
         }
     }
@@ -470,7 +505,7 @@
             
             if (dist < playerRadius + enemyRadius) {
                 // Player takes damage (with brief invulnerability handled elsewhere)
-                player.health -= ENEMY_DAMAGE;
+                player.health -= enemy.damage;
                 
                 // Check for death
                 if (player.health <= 0) {
@@ -629,22 +664,24 @@
     }
     
     function drawEnemy(enemy) {
-        const spriteData = sprites.enemy.walk;
+        const isCat = enemy.type === 'cat';
+        const spriteData = isCat ? sprites.cat.walk : sprites.dog.walk;
+        const frames = isCat ? CAT_WALK_FRAMES : DOG_WALK_FRAMES;
         
         if (sprites.loaded && spriteData && spriteData.img) {
             ctx.save();
             ctx.translate(enemy.x, enemy.y);
             
-            // Flip based on facing direction (cat sprite faces right by default)
+            // Flip based on facing direction (sprites face right by default)
             if (enemy.facingLeft) {
                 ctx.scale(-1, 1);
             }
             
-            // Use actual frame bounds from CAT_WALK_FRAMES
-            const frameIndex = enemy.animFrame % CAT_WALK_FRAMES.length;
-            const frame = CAT_WALK_FRAMES[frameIndex];
+            // Use actual frame bounds
+            const frameIndex = enemy.animFrame % frames.length;
+            const frame = frames[frameIndex];
             
-            // Scale to fit ENEMY_SIZE while maintaining aspect ratio
+            // Scale to fit enemy size while maintaining aspect ratio
             const scale = enemy.size / Math.max(frame.w, frame.h);
             const drawW = frame.w * scale;
             const drawH = frame.h * scale;

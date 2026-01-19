@@ -32,6 +32,27 @@ window.getRegions();
 window.setRegions([{x: 0, y: 0, w: 16, h: 16, label: 'grass'}]);
 ```
 
+### Playwright Setup Pattern
+
+To load an asset image via Playwright automation, serve from the repo root to avoid CORS issues:
+
+```bash
+# From repo root (so assets and tool share same origin)
+cd /path/to/repo && python3 -m http.server 8765
+```
+
+Then navigate and load:
+
+```javascript
+// Navigate to tool
+await page.goto('http://localhost:8765/tools/tileset-cutter/index.html');
+
+// Load asset image (same origin, no CORS)
+await page.evaluate(() => {
+  window.loadImageFromURL('http://localhost:8765/games/my-game/assets/spritesheet.png');
+});
+```
+
 ## Output Format
 
 The "Copy JS Object" button generates code like:
