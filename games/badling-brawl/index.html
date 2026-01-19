@@ -355,6 +355,13 @@
     // INPUT
     // ============================================================
     
+    // Spawns a player at home base with offset based on index
+    function spawnPlayerAtHome(p) {
+        const offsetX = (p.index === 0) ? -30 : 30;
+        p.x = canvas.width / 2 + offsetX;
+        p.y = canvas.height / 2;
+    }
+    
     // Assigns keyboard to next available player slot
     function activateKeyboardPlayer() {
         if (keyboardPlayerIndex >= 0) return; // Already assigned
@@ -365,6 +372,7 @@
                 keyboardPlayerIndex = i;
                 players[i].active = true;
                 players[i].inputSource = 'keyboard';
+                spawnPlayerAtHome(players[i]); // Spawn at home base
                 console.log(`Keyboard joined as P${i + 1}!`);
                 return;
             }
@@ -467,6 +475,7 @@
                 gamepadAssignments[gp.index] = i;
                 players[i].active = true;
                 players[i].inputSource = `gamepad-${gp.index}`;
+                spawnPlayerAtHome(players[i]); // Spawn at home base
                 console.log(`Gamepad ${gp.index} joined as P${i + 1}!`);
                 return players[i];
             }
@@ -1779,10 +1788,8 @@
     // INITIALIZATION
     // ============================================================
     function resetSinglePlayer(p) {
-        // Position players offset from each other
-        const offsetX = (p.index === 0) ? -30 : 30;
-        p.x = canvas.width / 2 + offsetX;
-        p.y = canvas.height / 2;
+        // Position player at home base
+        spawnPlayerAtHome(p);
         p.health = p.maxHealth;
         p.eggs = 0;
         p.attackTimer = 0;
