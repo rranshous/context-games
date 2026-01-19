@@ -92,11 +92,11 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 - [x] Game over screen
 - [x] Restart functionality
 
-### M6: Wave Progression
-- [ ] Wave timer
-- [ ] Wave counter
-- [ ] Increasing enemy count per wave
-- [ ] Brief pause between waves
+### M6: Wave Progression ✅
+- [x] Wave timer
+- [x] Wave counter
+- [x] Increasing enemy count per wave
+- [x] Brief pause between waves
 
 ### M7: Polish & Balance
 - [ ] UI elements (health bar, counters)

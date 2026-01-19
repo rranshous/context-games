@@ -55,6 +55,12 @@
     const EGG_PICKUP_RANGE = 40;
     const PECK_EFFECT_DURATION = 0.25; // seconds (longer for visibility)
     
+    // Wave constants
+    const WAVE_DURATION = 45; // seconds per wave
+    const WAVE_PAUSE = 3; // seconds between waves
+    const BASE_ENEMIES_PER_WAVE = 5; // starting enemy count
+    const ENEMIES_INCREMENT = 3; // additional enemies each wave
+    
     // ============================================================
     // SPRITES
     // ============================================================
@@ -150,7 +156,16 @@
     const peckEffects = [];
     
     // Game state
-    let gameState = 'playing'; // 'playing' | 'gameover'
+    let gameState = 'playing'; // 'playing' | 'gameover' | 'wavepause'
+    
+    // Wave state
+    const wave = {
+        number: 1,
+        timer: WAVE_DURATION,
+        pauseTimer: 0,
+        enemiesSpawned: 0,
+        enemiesForWave: BASE_ENEMIES_PER_WAVE
+    };
     
     // ============================================================
     // INPUT
@@ -300,11 +315,14 @@
     }
     
     function updateEnemies(dt) {
-        // Spawn timer
-        spawnTimer += dt;
-        if (spawnTimer >= ENEMY_SPAWN_RATE) {
-            spawnTimer -= ENEMY_SPAWN_RATE;
-            enemies.push(createEnemy());
+        // Only spawn during active wave, and only up to wave limit
+        if (wave.enemiesSpawned < wave.enemiesForWave) {
+            spawnTimer += dt;
+            if (spawnTimer >= ENEMY_SPAWN_RATE) {
+                spawnTimer -= ENEMY_SPAWN_RATE;
+                enemies.push(createEnemy());
+                wave.enemiesSpawned++;
+            }
         }
         
         // Update each enemy
@@ -448,6 +466,35 @@
                 player.eggs++;
                 eggs.splice(i, 1);
             }
+        }
+    }
+    
+    function updateWave(dt) {
+        // Count down wave timer
+        wave.timer -= dt;
+        
+        // Check if wave is complete (time up OR all enemies spawned and killed)
+        const waveComplete = wave.timer <= 0 || 
+            (wave.enemiesSpawned >= wave.enemiesForWave && enemies.length === 0);
+        
+        if (waveComplete) {
+            // Start wave pause
+            gameState = 'wavepause';
+            wave.pauseTimer = WAVE_PAUSE;
+        }
+    }
+    
+    function updateWavePause(dt) {
+        wave.pauseTimer -= dt;
+        
+        if (wave.pauseTimer <= 0) {
+            // Start next wave
+            wave.number++;
+            wave.timer = WAVE_DURATION;
+            wave.enemiesSpawned = 0;
+            wave.enemiesForWave = BASE_ENEMIES_PER_WAVE + (wave.number - 1) * ENEMIES_INCREMENT;
+            spawnTimer = 0;
+            gameState = 'playing';
         }
     }
     
@@ -605,6 +652,35 @@
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
+        
+        // Wave counter (top right)
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Wave ${wave.number}`, canvas.width - 20, 40);
+        
+        // Wave timer
+        const timeLeft = Math.max(0, Math.ceil(wave.timer));
+        ctx.font = '20px sans-serif';
+        ctx.fillText(`${timeLeft}s`, canvas.width - 20, 65);
+    }
+    
+    function drawWavePause() {
+        // Semi-transparent overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Wave complete text
+        ctx.fillStyle = '#2ecc71';
+        ctx.font = 'bold 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Wave ${wave.number} Complete!`, canvas.width / 2, canvas.height / 2 - 40);
+        
+        // Next wave countdown
+        const countdown = Math.ceil(wave.pauseTimer);
+        ctx.fillStyle = '#fff';
+        ctx.font = '32px sans-serif';
+        ctx.fillText(`Next wave in ${countdown}...`, canvas.width / 2, canvas.height / 2 + 20);
     }
     
     function drawGameOver() {
@@ -621,7 +697,7 @@
         // Stats
         ctx.fillStyle = '#fff';
         ctx.font = '28px sans-serif';
-        ctx.fillText(`Eggs collected: ${player.eggs}`, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(`Wave ${wave.number} | Eggs: ${player.eggs}`, canvas.width / 2, canvas.height / 2);
         
         // Restart prompt
         ctx.fillStyle = '#f4d03f';
@@ -653,6 +729,11 @@
         if (gameState === 'gameover') {
             drawGameOver();
         }
+        
+        // Draw wave pause overlay
+        if (gameState === 'wavepause') {
+            drawWavePause();
+        }
     }
     
     // ============================================================
@@ -673,6 +754,9 @@
             updateCombat(cappedDt);
             updateEggs();
             checkCollisions();
+            updateWave(cappedDt);
+        } else if (gameState === 'wavepause') {
+            updateWavePause(cappedDt);
         }
         
         // Always render
@@ -703,6 +787,13 @@
         
         // Reset timers
         spawnTimer = 0;
+        
+        // Reset wave state
+        wave.number = 1;
+        wave.timer = WAVE_DURATION;
+        wave.pauseTimer = 0;
+        wave.enemiesSpawned = 0;
+        wave.enemiesForWave = BASE_ENEMIES_PER_WAVE;
         
         // Reset input state
         input.up = false;
