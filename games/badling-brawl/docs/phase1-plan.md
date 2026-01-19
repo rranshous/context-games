@@ -79,12 +79,12 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 - [x] Collision detection (player-enemy)
 - [x] Player takes damage
 
-### M4: Combat
-- [ ] Peck attack (auto-fire)
-- [ ] Enemy takes damage
-- [ ] Enemy death
-- [ ] Egg drop on death
-- [ ] Egg collection
+### M4: Combat ✅
+- [x] Peck attack (auto-fire)
+- [x] Enemy takes damage
+- [x] Enemy death
+- [x] Egg drop on death
+- [x] Egg collection
 
 ### M5: Game State
 - [ ] Health system & death

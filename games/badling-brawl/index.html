@@ -47,6 +47,13 @@
     const ENEMY_DAMAGE = 10; // damage dealt to player on contact
     const ENEMY_HEALTH = 30;
     
+    // Combat constants
+    const PECK_RANGE = 80; // pixels
+    const PECK_DAMAGE = 15;
+    const PECK_COOLDOWN = 0.3; // seconds
+    const EGG_SIZE = 20;
+    const EGG_PICKUP_RANGE = 40;
+    
     // ============================================================
     // SPRITES
     // ============================================================
@@ -126,12 +133,17 @@
         animFrame: 0,
         animTimer: 0,
         health: 100,
-        maxHealth: 100
+        maxHealth: 100,
+        attackTimer: 0,
+        eggs: 0
     };
     
     // Enemies array
     const enemies = [];
     let spawnTimer = 0;
+    
+    // Eggs array (dropped items)
+    const eggs = [];
     
     // ============================================================
     // INPUT
@@ -333,6 +345,70 @@
         }
     }
     
+    function updateCombat(dt) {
+        // Decrease attack cooldown
+        if (player.attackTimer > 0) {
+            player.attackTimer -= dt;
+        }
+        
+        // Auto-attack: find nearest enemy in range
+        if (player.attackTimer <= 0) {
+            let nearestEnemy = null;
+            let nearestDist = PECK_RANGE;
+            
+            for (const enemy of enemies) {
+                const dx = enemy.x - player.x;
+                const dy = enemy.y - player.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestEnemy = enemy;
+                }
+            }
+            
+            if (nearestEnemy) {
+                // Attack!
+                nearestEnemy.health -= PECK_DAMAGE;
+                player.attackTimer = PECK_COOLDOWN;
+                
+                // Face the enemy
+                player.facingLeft = nearestEnemy.x < player.x;
+                
+                // Check if enemy died
+                if (nearestEnemy.health <= 0) {
+                    // Drop egg at enemy position
+                    eggs.push({
+                        x: nearestEnemy.x,
+                        y: nearestEnemy.y,
+                        size: EGG_SIZE
+                    });
+                    
+                    // Remove enemy
+                    const idx = enemies.indexOf(nearestEnemy);
+                    if (idx > -1) {
+                        enemies.splice(idx, 1);
+                    }
+                }
+            }
+        }
+    }
+    
+    function updateEggs() {
+        // Check if player picks up eggs
+        for (let i = eggs.length - 1; i >= 0; i--) {
+            const egg = eggs[i];
+            const dx = player.x - egg.x;
+            const dy = player.y - egg.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < EGG_PICKUP_RANGE) {
+                player.eggs++;
+                eggs.splice(i, 1);
+            }
+        }
+    }
+    
     // ============================================================
     // RENDERING
     // ============================================================
@@ -414,16 +490,64 @@
         }
     }
     
+    function drawEggs() {
+        for (const egg of eggs) {
+            // Draw egg shape (oval)
+            ctx.fillStyle = '#fef9e7'; // Cream white
+            ctx.beginPath();
+            ctx.ellipse(egg.x, egg.y, egg.size / 2, egg.size / 1.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Outline
+            ctx.strokeStyle = '#f5cba7';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+    
+    function drawUI() {
+        // Egg counter
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`🥚 ${player.eggs}`, 20, 40);
+        
+        // Health bar background
+        const barWidth = 200;
+        const barHeight = 20;
+        const barX = 20;
+        const barY = 50;
+        
+        ctx.fillStyle = '#333';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Health bar fill
+        const healthPercent = player.health / player.maxHealth;
+        ctx.fillStyle = healthPercent > 0.3 ? '#2ecc71' : '#e74c3c';
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        // Health bar border
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+    }
+    
     function render() {
         // Clear canvas
         ctx.fillStyle = '#4a7c59';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw eggs (on ground)
+        drawEggs();
         
         // Draw enemies (behind player)
         drawEnemies();
         
         // Draw player
         drawPlayer();
+        
+        // Draw UI
+        drawUI();
     }
     
     // ============================================================
@@ -440,6 +564,8 @@
         // Update
         updatePlayer(cappedDt);
         updateEnemies(cappedDt);
+        updateCombat(cappedDt);
+        updateEggs();
         checkCollisions();
         
         // Render
