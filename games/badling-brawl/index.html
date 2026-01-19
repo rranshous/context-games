@@ -60,6 +60,23 @@
     const EGG_PICKUP_RANGE = 40;
     const PECK_EFFECT_DURATION = 0.25; // seconds (longer for visibility)
     
+    // Attack Nest powers definition
+    const NEST_SIZE = 50;
+    const NEST_INTERACT_RANGE = 60;
+    const ATTACK_POWERS = [
+        { key: 'quackBlast', name: 'Quack Blast', cost: 10 },
+        { key: 'wingSlap', name: 'Wing Slap', cost: 25 },
+        { key: 'eggBomb', name: 'Egg Bomb', cost: 45 },
+        { key: 'featherStorm', name: 'Feather Storm', cost: 70 }
+    ];
+    
+    // Quack Blast constants
+    const QUACK_BLAST_RANGE = 150;
+    const QUACK_BLAST_ANGLE = Math.PI / 3; // 60 degree cone
+    const QUACK_BLAST_DAMAGE = 20;
+    const QUACK_BLAST_KNOCKBACK = 200;
+    const QUACK_BLAST_COOLDOWN = 2.0; // seconds
+    
     // Surge/Lull constants
     const SURGE_DURATION = 45; // seconds of heavy spawning
     const LULL_DURATION = 15; // seconds of light/no spawning
@@ -220,7 +237,25 @@
         health: 100,
         maxHealth: 100,
         attackTimer: 0,
-        eggs: 0
+        eggs: 0,
+        // Powers (unlocked via nests)
+        powers: {
+            quackBlast: false,
+            wingSlap: false,
+            eggBomb: false,
+            featherStorm: false
+        },
+        // Power cooldowns
+        quackBlastTimer: 0
+    };
+    
+    // Attack Nest state
+    const attackNest = {
+        x: 0,  // Set on init (inside home base)
+        y: 0,
+        eggs: 0,
+        level: 0,  // 0 = nothing unlocked, 1 = quack blast available to claim, etc.
+        claimed: [false, false, false, false]  // Which levels have been claimed
     };
     
     // Enemies array
@@ -273,6 +308,9 @@
             case 'ArrowRight':
                 input.right = true;
                 break;
+            case 'KeyE':
+                handleNestInteraction();
+                break;
         }
     }
     
@@ -299,6 +337,37 @@
     
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    
+    function handleNestInteraction() {
+        // Must be inside home base
+        if (!isInsideHomeBase(player.x, player.y)) return;
+        
+        // Check distance to attack nest
+        const dx = player.x - attackNest.x;
+        const dy = player.y - attackNest.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > NEST_INTERACT_RANGE) return;
+        
+        const nextPower = ATTACK_POWERS[attackNest.level];
+        const canClaim = nextPower && attackNest.eggs >= nextPower.cost && !attackNest.claimed[attackNest.level];
+        
+        if (canClaim) {
+            // Claim the power!
+            attackNest.claimed[attackNest.level] = true;
+            player.powers[nextPower.key] = true;
+            attackNest.level++;
+            
+            console.log('Claimed: ' + nextPower.name);
+        } else if (player.eggs > 0 && nextPower) {
+            // Deposit eggs - fill the bar or use all player eggs
+            const eggsNeeded = nextPower.cost - attackNest.eggs;
+            const eggsToDeposit = Math.min(player.eggs, eggsNeeded);
+            player.eggs -= eggsToDeposit;
+            attackNest.eggs += eggsToDeposit;
+            console.log('Deposited ' + eggsToDeposit + ' eggs. Nest: ' + attackNest.eggs + '/' + nextPower.cost);
+        }
+    }
     
     // ============================================================
     // SYSTEMS
@@ -635,6 +704,104 @@
         }
     }
     
+    // Track active quack blast effects for rendering
+    const quackBlastEffects = [];
+    
+    function updatePowers(dt) {
+        // Don't auto-fire when inside home base
+        const inBase = isInsideHomeBase(player.x, player.y);
+        
+        // Update Quack Blast cooldown and auto-fire
+        if (player.powers.quackBlast) {
+            player.quackBlastTimer -= dt;
+            
+            if (player.quackBlastTimer <= 0 && !inBase) {
+                // Fire Quack Blast!
+                fireQuackBlast();
+                player.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+            }
+        }
+        
+        // Update quack blast visual effects
+        for (let i = quackBlastEffects.length - 1; i >= 0; i--) {
+            quackBlastEffects[i].timer -= dt;
+            if (quackBlastEffects[i].timer <= 0) {
+                quackBlastEffects.splice(i, 1);
+            }
+        }
+    }
+    
+    function fireQuackBlast() {
+        // Find nearest enemy to aim at
+        let nearestEnemy = null;
+        let nearestDist = QUACK_BLAST_RANGE;
+        
+        for (const enemy of enemies) {
+            const dx = enemy.x - player.x;
+            const dy = enemy.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestEnemy = enemy;
+            }
+        }
+        
+        // No enemies in range? Don't fire
+        if (!nearestEnemy) return;
+        
+        // Aim at nearest enemy
+        const dx = nearestEnemy.x - player.x;
+        const dy = nearestEnemy.y - player.y;
+        const blastAngle = Math.atan2(dy, dx);
+        
+        // Update player facing based on blast direction
+        player.facingLeft = dx < 0;
+        
+        // Add visual effect
+        quackBlastEffects.push({
+            x: player.x,
+            y: player.y,
+            angle: blastAngle,
+            timer: 0.3
+        });
+        
+        // Hit enemies in cone
+        for (const enemy of enemies) {
+            const edx = enemy.x - player.x;
+            const edy = enemy.y - player.y;
+            const dist = Math.sqrt(edx * edx + edy * edy);
+            
+            // Check range
+            if (dist > QUACK_BLAST_RANGE) continue;
+            
+            // Check angle (is enemy within cone?)
+            const angleToEnemy = Math.atan2(edy, edx);
+            let angleDiff = angleToEnemy - blastAngle;
+            // Normalize to -PI to PI
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            
+            if (Math.abs(angleDiff) <= QUACK_BLAST_ANGLE / 2) {
+                // Hit! Deal damage
+                enemy.health -= QUACK_BLAST_DAMAGE;
+                
+                // Knockback
+                const knockX = edx / dist * QUACK_BLAST_KNOCKBACK;
+                const knockY = edy / dist * QUACK_BLAST_KNOCKBACK;
+                enemy.x += knockX * 0.1; // Instant knockback portion
+                enemy.y += knockY * 0.1;
+                
+                // Check if enemy died
+                if (enemy.health <= 0) {
+                    eggs.push({ x: enemy.x, y: enemy.y, size: EGG_SIZE });
+                    const idx = enemies.indexOf(enemy);
+                    if (idx > -1) enemies.splice(idx, 1);
+                }
+            }
+        }
+    }
+    
     // ============================================================
     // RENDERING
     // ============================================================
@@ -717,6 +884,87 @@
         }
     }
     
+    function drawAttackNest() {
+        const nest = attackNest;
+        const nextPower = ATTACK_POWERS[nest.level];
+        const canClaim = nextPower && nest.eggs >= nextPower.cost && !nest.claimed[nest.level];
+        
+        // Draw nest base (brown oval)
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.ellipse(nest.x, nest.y, NEST_SIZE / 2, NEST_SIZE / 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#5D3A1A';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Draw nest twigs (inner detail)
+        ctx.fillStyle = '#A0522D';
+        ctx.beginPath();
+        ctx.ellipse(nest.x, nest.y, NEST_SIZE / 3, NEST_SIZE / 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Attack icon (sword/star shape)
+        ctx.fillStyle = canClaim ? '#FFD700' : '#CD853F';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⚔️', nest.x, nest.y - 5);
+        
+        // Progress bar below nest
+        const barWidth = 60;
+        const barHeight = 8;
+        const barX = nest.x - barWidth / 2;
+        const barY = nest.y + NEST_SIZE / 2 + 5;
+        
+        // Background
+        ctx.fillStyle = '#333';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Progress fill
+        if (nextPower) {
+            const progress = Math.min(nest.eggs / nextPower.cost, 1);
+            ctx.fillStyle = canClaim ? '#FFD700' : '#4CAF50';
+            ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+        } else {
+            // Maxed out
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+        }
+        
+        // Border
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        
+        // Egg count / cost text
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        if (nextPower) {
+            ctx.fillText(`${nest.eggs}/${nextPower.cost}`, nest.x, barY + barHeight + 10);
+            // Show what's next
+            ctx.fillStyle = canClaim ? '#FFD700' : '#aaa';
+            ctx.fillText(nextPower.name, nest.x, barY + barHeight + 22);
+        } else {
+            ctx.fillText('MAX', nest.x, barY + barHeight + 10);
+        }
+        
+        // Interaction hint when player is near
+        const dx = player.x - nest.x;
+        const dy = player.y - nest.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < NEST_INTERACT_RANGE && isInsideHomeBase(player.x, player.y)) {
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            if (canClaim) {
+                ctx.fillText('[E] Claim ' + nextPower.name, nest.x, nest.y - NEST_SIZE / 2 - 15);
+            } else if (player.eggs > 0 && nextPower) {
+                ctx.fillText('[E] Deposit Egg', nest.x, nest.y - NEST_SIZE / 2 - 15);
+            }
+        }
+    }
+    
     function drawPeckEffects() {
         for (const effect of peckEffects) {
             const alpha = effect.timer / PECK_EFFECT_DURATION;
@@ -745,6 +993,45 @@
             ctx.beginPath();
             ctx.arc(effect.x2, effect.y2, burstSize * 0.4, 0, Math.PI * 2);
             ctx.fill();
+            
+            ctx.restore();
+        }
+    }
+    
+    function drawQuackBlastEffects() {
+        for (const effect of quackBlastEffects) {
+            const alpha = effect.timer / 0.3;
+            
+            ctx.save();
+            ctx.translate(effect.x, effect.y);
+            ctx.rotate(effect.angle);
+            
+            // Draw cone shape
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const coneLength = QUACK_BLAST_RANGE * alpha;
+            const coneWidth = Math.tan(QUACK_BLAST_ANGLE / 2) * coneLength;
+            ctx.lineTo(coneLength, -coneWidth);
+            ctx.lineTo(coneLength, coneWidth);
+            ctx.closePath();
+            
+            // Gradient fill
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, coneLength);
+            gradient.addColorStop(0, `rgba(255, 255, 100, ${alpha * 0.8})`);
+            gradient.addColorStop(0.5, `rgba(255, 200, 50, ${alpha * 0.5})`);
+            gradient.addColorStop(1, `rgba(255, 150, 0, 0)`);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Sound wave rings
+            ctx.strokeStyle = `rgba(255, 255, 200, ${alpha * 0.6})`;
+            ctx.lineWidth = 3;
+            for (let i = 0; i < 3; i++) {
+                const ringDist = coneLength * (0.3 + i * 0.25);
+                ctx.beginPath();
+                ctx.arc(ringDist, 0, 20 + i * 10, -QUACK_BLAST_ANGLE / 2, QUACK_BLAST_ANGLE / 2);
+                ctx.stroke();
+            }
             
             ctx.restore();
         }
@@ -794,6 +1081,60 @@
         ctx.font = '16px sans-serif';
         ctx.fillStyle = '#aaa';
         ctx.fillText(`Cycle ${rhythm.cycleCount + 1} | Diff ${difficultyLevel + 1}`, canvas.width - 20, 90);
+        
+        // Powers indicator (bottom left)
+        drawPowerIndicator();
+    }
+    
+    function drawPowerIndicator() {
+        const powers = player.powers;
+        const hasPowers = powers.quackBlast || powers.wingSlap || powers.eggBomb || powers.featherStorm;
+        
+        if (!hasPowers) return;
+        
+        const iconSize = 32;
+        const padding = 8;
+        let x = 20;
+        const y = canvas.height - iconSize - 20;
+        
+        // Background panel
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        const powerCount = [powers.quackBlast, powers.wingSlap, powers.eggBomb, powers.featherStorm].filter(Boolean).length;
+        ctx.fillRect(x - padding, y - padding, (iconSize + padding) * powerCount + padding, iconSize + padding * 2);
+        
+        // Draw each unlocked power
+        ctx.font = `${iconSize - 8}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        if (powers.quackBlast) {
+            // Show cooldown overlay
+            const cdRatio = player.quackBlastTimer / QUACK_BLAST_COOLDOWN;
+            if (cdRatio > 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
+            }
+            ctx.fillStyle = '#FFD700';
+            ctx.fillText('📢', x + iconSize / 2, y + iconSize / 2);
+            x += iconSize + padding;
+        }
+        
+        if (powers.wingSlap) {
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillText('🌀', x + iconSize / 2, y + iconSize / 2);
+            x += iconSize + padding;
+        }
+        
+        if (powers.eggBomb) {
+            ctx.fillStyle = '#FF6B6B';
+            ctx.fillText('💣', x + iconSize / 2, y + iconSize / 2);
+            x += iconSize + padding;
+        }
+        
+        if (powers.featherStorm) {
+            ctx.fillStyle = '#DDA0DD';
+            ctx.fillText('🪶', x + iconSize / 2, y + iconSize / 2);
+        }
     }
     
     function drawGameOver() {
@@ -914,6 +1255,9 @@
         // Draw Home Base (behind everything)
         drawHomeBase();
         
+        // Draw Attack Nest (inside home base)
+        drawAttackNest();
+        
         // Draw eggs (on ground)
         drawEggs();
         
@@ -925,6 +1269,7 @@
         
         // Draw attack effects (on top)
         drawPeckEffects();
+        drawQuackBlastEffects();
         
         // Draw UI
         drawUI();
@@ -951,6 +1296,7 @@
             updatePlayer(cappedDt);
             updateEnemies(cappedDt);
             updateCombat(cappedDt);
+            updatePowers(cappedDt);
             updateEggs();
             checkCollisions();
             updateRhythm(cappedDt);
@@ -976,11 +1322,22 @@
         player.animState = 'idle';
         player.animFrame = 0;
         player.animTimer = 0;
+        player.powers.quackBlast = false;
+        player.powers.wingSlap = false;
+        player.powers.eggBomb = false;
+        player.powers.featherStorm = false;
+        player.quackBlastTimer = 0;
         
         // Clear entities
         enemies.length = 0;
         eggs.length = 0;
         peckEffects.length = 0;
+        quackBlastEffects.length = 0;
+        
+        // Reset attack nest
+        attackNest.eggs = 0;
+        attackNest.level = 0;
+        attackNest.claimed = [false, false, false, false];
         
         // Reset timers
         spawnTimer = 0;
@@ -1032,6 +1389,10 @@
                 h: ew
             }
         ];
+        
+        // Position attack nest inside home base (left side)
+        attackNest.x = HOME_BASE.x + 60;
+        attackNest.y = HOME_BASE.y + HOME_BASE.height / 2;
     }
     
     function isInsideHomeBase(x, y, radius = 0) {
