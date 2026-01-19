@@ -78,7 +78,7 @@
     const QUACK_BLAST_COOLDOWN = 2.0; // seconds
     
     // Wing Slap constants
-    const WING_SLAP_RANGE = 80;  // Shorter range, melee spin
+    const WING_SLAP_RANGE = 110;  // Medium-low range spin
     const WING_SLAP_DAMAGE = 15;
     const WING_SLAP_KNOCKBACK = 150;
     const WING_SLAP_COOLDOWN = 1.5; // seconds
@@ -972,36 +972,16 @@
         const nextPower = ATTACK_POWERS[nest.level];
         const canClaim = nextPower && nest.eggs >= nextPower.cost && !nest.claimed[nest.level];
         
-        // Draw nest base (brown oval)
-        ctx.fillStyle = '#8B4513';
-        ctx.beginPath();
-        ctx.ellipse(nest.x, nest.y, NEST_SIZE / 2, NEST_SIZE / 3, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#5D3A1A';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        
-        // Draw nest twigs (inner detail)
-        ctx.fillStyle = '#A0522D';
-        ctx.beginPath();
-        ctx.ellipse(nest.x, nest.y, NEST_SIZE / 3, NEST_SIZE / 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Attack icon (sword/star shape)
-        ctx.fillStyle = canClaim ? '#FFD700' : '#CD853F';
-        ctx.font = 'bold 20px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('⚔️', nest.x, nest.y - 5);
-        
-        // Progress bar below nest
-        const barWidth = 60;
-        const barHeight = 8;
+        // Progress bar (centered on nest position)
+        const barWidth = 80;
+        const barHeight = 12;
         const barX = nest.x - barWidth / 2;
-        const barY = nest.y + NEST_SIZE / 2 + 5;
+        const barY = nest.y - barHeight / 2;
         
         // Background
-        ctx.fillStyle = '#333';
+        ctx.fillStyle = '#222';
+        ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
+        ctx.fillStyle = '#444';
         ctx.fillRect(barX, barY, barWidth, barHeight);
         
         // Progress fill
@@ -1016,21 +996,27 @@
         }
         
         // Border
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = canClaim ? '#FFD700' : '#666';
+        ctx.lineWidth = canClaim ? 2 : 1;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
         
-        // Egg count / cost text
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px Arial';
+        // Text above bar: power name
+        ctx.fillStyle = canClaim ? '#FFD700' : '#fff';
+        ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
         if (nextPower) {
-            ctx.fillText(`${nest.eggs}/${nextPower.cost}`, nest.x, barY + barHeight + 10);
-            // Show what's next
-            ctx.fillStyle = canClaim ? '#FFD700' : '#aaa';
-            ctx.fillText(nextPower.name, nest.x, barY + barHeight + 22);
+            ctx.fillText(nextPower.name, nest.x, barY - 8);
         } else {
-            ctx.fillText('MAX', nest.x, barY + barHeight + 10);
+            ctx.fillText('ALL POWERS', nest.x, barY - 8);
+        }
+        
+        // Text below bar: egg count
+        ctx.fillStyle = '#aaa';
+        ctx.font = '11px Arial';
+        if (nextPower) {
+            ctx.fillText(`${nest.eggs} / ${nextPower.cost}`, nest.x, barY + barHeight + 14);
+        } else {
+            ctx.fillText('MAX', nest.x, barY + barHeight + 14);
         }
         
         // Interaction hint when player is near
@@ -1039,11 +1025,11 @@
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < NEST_INTERACT_RANGE && isInsideHomeBase(player.x, player.y)) {
             ctx.fillStyle = '#fff';
-            ctx.font = '12px Arial';
+            ctx.font = 'bold 12px Arial';
             if (canClaim) {
-                ctx.fillText('[E] Claim ' + nextPower.name, nest.x, nest.y - NEST_SIZE / 2 - 15);
+                ctx.fillText('[E] Claim ' + nextPower.name, nest.x, nest.y - 35);
             } else if (player.eggs > 0 && nextPower) {
-                ctx.fillText('[E] Deposit Egg', nest.x, nest.y - NEST_SIZE / 2 - 15);
+                ctx.fillText('[E] Deposit Eggs', nest.x, nest.y - 35);
             }
         }
     }
@@ -1129,25 +1115,46 @@
             ctx.translate(effect.x, effect.y);
             ctx.rotate(rotation);
             
-            // Draw spinning circle with wing shapes
             const radius = WING_SLAP_RANGE * (0.5 + alpha * 0.5);
             
-            // Outer ring
-            ctx.strokeStyle = `rgba(150, 200, 255, ${alpha * 0.8})`;
-            ctx.lineWidth = 4;
+            // Outer ring (faint)
+            ctx.strokeStyle = `rgba(150, 200, 255, ${alpha * 0.4})`;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.stroke();
             
-            // Wing slashes (4 directions)
-            ctx.strokeStyle = `rgba(200, 230, 255, ${alpha})`;
-            ctx.lineWidth = 6;
+            // Curved feather swooshes (6 of them)
+            ctx.strokeStyle = `rgba(220, 240, 255, ${alpha})`;
+            ctx.lineWidth = 5;
             ctx.lineCap = 'round';
-            for (let i = 0; i < 4; i++) {
-                const angle = (i / 4) * Math.PI * 2;
+            
+            for (let i = 0; i < 6; i++) {
+                const baseAngle = (i / 6) * Math.PI * 2;
+                
+                // Draw curved arc that swoops outward
                 ctx.beginPath();
-                ctx.moveTo(Math.cos(angle) * 20, Math.sin(angle) * 20);
-                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+                const innerR = 15;
+                const outerR = radius * 0.9;
+                
+                // Start point
+                const startAngle = baseAngle - 0.15;
+                const endAngle = baseAngle + 0.4;
+                
+                // Bezier curve for feathery swoosh
+                const startX = Math.cos(startAngle) * innerR;
+                const startY = Math.sin(startAngle) * innerR;
+                const endX = Math.cos(endAngle) * outerR;
+                const endY = Math.sin(endAngle) * outerR;
+                
+                // Control point curves it outward
+                const ctrlAngle = baseAngle + 0.1;
+                const ctrlR = outerR * 0.7;
+                const ctrlX = Math.cos(ctrlAngle) * ctrlR;
+                const ctrlY = Math.sin(ctrlAngle) * ctrlR;
+                
+                ctx.moveTo(startX, startY);
+                ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
                 ctx.stroke();
             }
             

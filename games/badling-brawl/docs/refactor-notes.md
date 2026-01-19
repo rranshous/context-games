@@ -7,48 +7,64 @@ Ideas and improvements to address in future refactoring sessions.
 ### Goal
 Enable faster AI feedback cycles without burning tokens on screenshots.
 
-### Features
-- **Feature Toggles**: Enable/disable individual game elements
-  ```javascript
-  const DEV = {
-    enemies: { cats: true, dogs: false },
-    powers: { quackBlast: true, wingSlap: false },
-    spawning: false,  // Manual spawn only
-    homeBase: true,
-    nest: true,
-    startEggs: 50,    // Start with eggs for testing
-    invincible: true  // Player can't die
-  };
-  ```
+### Approach: Throwaway Level Configs
+Instead of runtime toggles, just create level preset files that configure starting state. Simpler code, easier to reason about.
 
-- **Console Logging**: Verbose logging on code paths
-  ```javascript
-  log.combat('Peck hit enemy', { damage: 15, enemyHealth: enemy.health });
-  log.power('Quack Blast fired', { angle, enemiesHit: 3 });
-  log.nest('Deposited eggs', { amount: 10, nestTotal: 25 });
-  log.spawn('Enemy spawned', { type: 'dog', position: {x, y} });
-  ```
+```javascript
+// levels/test-quack-blast.js
+const LEVEL = {
+  name: 'Test Quack Blast',
+  player: { x: 400, y: 300, eggs: 0, powers: ['quackBlast'] },
+  enemies: [
+    { type: 'cat', x: 500, y: 300 },
+    { type: 'cat', x: 450, y: 250 },
+  ],
+  spawning: false,
+  homeBase: false,
+  nest: false
+};
 
-- **Dev Console Commands** (via browser console)
-  ```javascript
-  dev.spawnEnemy('cat')
-  dev.giveEggs(50)
-  dev.unlockPower('quackBlast')
-  dev.setPhase('lull')
-  dev.killAllEnemies()
-  ```
+// levels/test-nest-deposit.js  
+const LEVEL = {
+  name: 'Test Nest Deposit',
+  player: { x: 400, y: 300, eggs: 15, powers: [] },
+  enemies: [],
+  spawning: false,
+  homeBase: true,
+  nest: { eggs: 5 }  // Nest starts with 5
+};
 
-- **State Snapshots**: Log game state periodically
-  ```javascript
-  // Every 5 seconds, log summary
-  [STATE] t=45s | enemies=12 | eggs=5 | health=75 | powers=[quackBlast]
-  ```
+// levels/dogs-only-surge.js
+const LEVEL = {
+  name: 'Dogs Only',
+  player: { x: 400, y: 300, eggs: 0, powers: [] },
+  enemies: [],
+  spawning: { types: ['dog'], rate: 1.0 },
+  homeBase: true,
+  nest: true
+};
+```
+
+Load via URL param: `index.html?level=test-quack-blast`
+
+### Console Logging
+Verbose logging on code paths - observe without screenshots:
+```javascript
+log.combat('Peck hit enemy', { damage: 15, enemyHealth: enemy.health });
+log.power('Quack Blast fired', { angle, enemiesHit: 3 });
+log.nest('Deposited eggs', { amount: 10, nestTotal: 25 });
+log.spawn('Enemy spawned', { type: 'dog', position: {x, y} });
+
+// Periodic state summary
+[STATE] t=45s | enemies=12 | eggs=5 | health=75 | powers=[quackBlast]
+```
 
 ### Benefits for AI Dev
 - Can "observe" game state via console logs instead of screenshots
 - Test specific features in isolation
 - Reproduce scenarios quickly
 - Step through combinations systematically
+- Throwaway levels = no cleanup needed, just delete when done
 
 ## Data Structures
 
