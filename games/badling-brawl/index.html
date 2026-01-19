@@ -55,11 +55,13 @@
     const EGG_PICKUP_RANGE = 40;
     const PECK_EFFECT_DURATION = 0.25; // seconds (longer for visibility)
     
-    // Wave constants
-    const WAVE_DURATION = 45; // seconds per wave
-    const WAVE_PAUSE = 3; // seconds between waves
-    const BASE_ENEMIES_PER_WAVE = 5; // starting enemy count
-    const ENEMIES_INCREMENT = 3; // additional enemies each wave
+    // Surge/Lull constants
+    const SURGE_DURATION = 45; // seconds of heavy spawning
+    const LULL_DURATION = 15; // seconds of light/no spawning
+    const BASE_SPAWN_RATE = 1.5; // base seconds between spawns during surge
+    const LULL_SPAWN_RATE = 5; // slower spawns during lull
+    const DIFFICULTY_SCALE_TIME = 60; // seconds per difficulty increase
+    const SPAWN_RATE_MIN = 0.4; // fastest spawn rate (at high difficulty)
     
     // ============================================================
     // SPRITES
@@ -156,15 +158,14 @@
     const peckEffects = [];
     
     // Game state
-    let gameState = 'playing'; // 'playing' | 'gameover' | 'wavepause'
+    let gameState = 'playing'; // 'playing' | 'gameover'
     
-    // Wave state
-    const wave = {
-        number: 1,
-        timer: WAVE_DURATION,
-        pauseTimer: 0,
-        enemiesSpawned: 0,
-        enemiesForWave: BASE_ENEMIES_PER_WAVE
+    // Surge/Lull state
+    const rhythm = {
+        phase: 'surge', // 'surge' | 'lull'
+        timer: SURGE_DURATION,
+        cycleCount: 0, // number of completed surge/lull cycles
+        totalTime: 0 // total game time for difficulty scaling
     };
     
     // ============================================================
@@ -315,14 +316,22 @@
     }
     
     function updateEnemies(dt) {
-        // Only spawn during active wave, and only up to wave limit
-        if (wave.enemiesSpawned < wave.enemiesForWave) {
-            spawnTimer += dt;
-            if (spawnTimer >= ENEMY_SPAWN_RATE) {
-                spawnTimer -= ENEMY_SPAWN_RATE;
-                enemies.push(createEnemy());
-                wave.enemiesSpawned++;
-            }
+        // Calculate current spawn rate based on phase and difficulty
+        const difficultyLevel = Math.floor(rhythm.totalTime / DIFFICULTY_SCALE_TIME);
+        const spawnRateReduction = difficultyLevel * 0.15; // 15% faster each level
+        
+        let currentSpawnRate;
+        if (rhythm.phase === 'surge') {
+            currentSpawnRate = Math.max(SPAWN_RATE_MIN, BASE_SPAWN_RATE - spawnRateReduction);
+        } else {
+            currentSpawnRate = LULL_SPAWN_RATE; // Lulls stay slow
+        }
+        
+        // Spawn enemies
+        spawnTimer += dt;
+        if (spawnTimer >= currentSpawnRate) {
+            spawnTimer -= currentSpawnRate;
+            enemies.push(createEnemy());
         }
         
         // Update each enemy
@@ -469,37 +478,25 @@
         }
     }
     
-    function updateWave(dt) {
-        // Count down wave timer
-        wave.timer -= dt;
+    function updateRhythm(dt) {
+        // Track total time for difficulty scaling
+        rhythm.totalTime += dt;
         
-        // Wave completes when time runs out
-        if (wave.timer <= 0) {
-            // Start wave pause - collect remaining eggs automatically
-            for (const egg of eggs) {
-                player.eggs++;
+        // Count down phase timer
+        rhythm.timer -= dt;
+        
+        // Phase transition
+        if (rhythm.timer <= 0) {
+            if (rhythm.phase === 'surge') {
+                // Transition to lull
+                rhythm.phase = 'lull';
+                rhythm.timer = LULL_DURATION;
+            } else {
+                // Transition to surge
+                rhythm.phase = 'surge';
+                rhythm.timer = SURGE_DURATION;
+                rhythm.cycleCount++;
             }
-            eggs.length = 0;
-            
-            // Clear remaining enemies
-            enemies.length = 0;
-            
-            gameState = 'wavepause';
-            wave.pauseTimer = WAVE_PAUSE;
-        }
-    }
-    
-    function updateWavePause(dt) {
-        wave.pauseTimer -= dt;
-        
-        if (wave.pauseTimer <= 0) {
-            // Start next wave
-            wave.number++;
-            wave.timer = WAVE_DURATION;
-            wave.enemiesSpawned = 0;
-            wave.enemiesForWave = BASE_ENEMIES_PER_WAVE + (wave.number - 1) * ENEMIES_INCREMENT;
-            spawnTimer = 0;
-            gameState = 'playing';
         }
     }
     
@@ -658,34 +655,24 @@
         ctx.lineWidth = 2;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
         
-        // Wave counter (top right)
-        ctx.fillStyle = '#fff';
+        // Surge/Lull indicator (top right)
+        const isSurge = rhythm.phase === 'surge';
+        ctx.fillStyle = isSurge ? '#e74c3c' : '#3498db';
         ctx.font = 'bold 24px sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(`Wave ${wave.number}`, canvas.width - 20, 40);
+        ctx.fillText(isSurge ? '⚔️ SURGE' : '🌊 LULL', canvas.width - 20, 40);
         
-        // Wave timer
-        const timeLeft = Math.max(0, Math.ceil(wave.timer));
+        // Phase timer
+        const timeLeft = Math.max(0, Math.ceil(rhythm.timer));
         ctx.font = '20px sans-serif';
-        ctx.fillText(`${timeLeft}s`, canvas.width - 20, 65);
-    }
-    
-    function drawWavePause() {
-        // Semi-transparent overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Wave complete text
-        ctx.fillStyle = '#2ecc71';
-        ctx.font = 'bold 48px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`Wave ${wave.number} Complete!`, canvas.width / 2, canvas.height / 2 - 40);
-        
-        // Next wave countdown
-        const countdown = Math.ceil(wave.pauseTimer);
         ctx.fillStyle = '#fff';
-        ctx.font = '32px sans-serif';
-        ctx.fillText(`Next wave in ${countdown}...`, canvas.width / 2, canvas.height / 2 + 20);
+        ctx.fillText(`${timeLeft}s`, canvas.width - 20, 65);
+        
+        // Difficulty/cycle indicator
+        const difficultyLevel = Math.floor(rhythm.totalTime / DIFFICULTY_SCALE_TIME);
+        ctx.font = '16px sans-serif';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(`Cycle ${rhythm.cycleCount + 1} | Diff ${difficultyLevel + 1}`, canvas.width - 20, 90);
     }
     
     function drawGameOver() {
@@ -700,9 +687,14 @@
         ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 60);
         
         // Stats
+        const survivalTime = Math.floor(rhythm.totalTime);
+        const minutes = Math.floor(survivalTime / 60);
+        const seconds = survivalTime % 60;
+        const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+        
         ctx.fillStyle = '#fff';
         ctx.font = '28px sans-serif';
-        ctx.fillText(`Wave ${wave.number} | Eggs: ${player.eggs}`, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(`Survived: ${timeStr} | Cycles: ${rhythm.cycleCount} | Eggs: ${player.eggs}`, canvas.width / 2, canvas.height / 2);
         
         // Restart prompt
         ctx.fillStyle = '#f4d03f';
@@ -734,11 +726,6 @@
         if (gameState === 'gameover') {
             drawGameOver();
         }
-        
-        // Draw wave pause overlay
-        if (gameState === 'wavepause') {
-            drawWavePause();
-        }
     }
     
     // ============================================================
@@ -759,9 +746,7 @@
             updateCombat(cappedDt);
             updateEggs();
             checkCollisions();
-            updateWave(cappedDt);
-        } else if (gameState === 'wavepause') {
-            updateWavePause(cappedDt);
+            updateRhythm(cappedDt);
         }
         
         // Always render
@@ -793,12 +778,11 @@
         // Reset timers
         spawnTimer = 0;
         
-        // Reset wave state
-        wave.number = 1;
-        wave.timer = WAVE_DURATION;
-        wave.pauseTimer = 0;
-        wave.enemiesSpawned = 0;
-        wave.enemiesForWave = BASE_ENEMIES_PER_WAVE;
+        // Reset rhythm state
+        rhythm.phase = 'surge';
+        rhythm.timer = SURGE_DURATION;
+        rhythm.cycleCount = 0;
+        rhythm.totalTime = 0;
         
         // Reset input state
         input.up = false;

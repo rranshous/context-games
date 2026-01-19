@@ -3,6 +3,11 @@
 ## Goal
 Transform discrete waves into continuous gameplay with surges/lulls, add the Home Base safe zone with nest-based progression, enable diverse duck builds.
 
+## Development & Testing
+- **Dev URL**: `http://localhost:3000/dev/badling-brawl/index.html`
+- **Use Playwright** to visually verify each milestone before committing
+- **Commit after each milestone** passes verification
+
 ## Design Principles
 - **Continuous action** - no menus, no pause screens between waves
 - **Shared world, individual builds** - ducks contribute to nests but claim rewards individually
@@ -89,11 +94,11 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ## Implementation Milestones
 
-### M1: Surge/Lull System
-- [ ] Remove discrete wave transitions
-- [ ] Implement surge/lull spawn rhythm
-- [ ] Scaling difficulty over time
-- [ ] UI: Surge/lull indicator + progress display
+### M1: Surge/Lull System ✅
+- [x] Remove discrete wave transitions
+- [x] Implement surge/lull spawn rhythm
+- [x] Scaling difficulty over time
+- [x] UI: Surge/lull indicator + progress display
 
 ### M2: Home Base - Basic
 - [ ] Create safe zone area (trees/water border)
@@ -148,5 +153,5 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ---
 
-*Status: Introduction Complete*
-*Next: Review with Robby, then Plan phase*
+*Status: M1 Complete, M2 Next*
+*Current: Ready for Home Base implementation*
