@@ -96,7 +96,15 @@
     // ============================================================
     const sprites = {
         loaded: false,
+        // P1 duck (white)
         duck: {
+            idle: { img: null, frames: 4 },
+            walk: { img: null, frames: 8 },
+            run: { img: null, frames: 8 },
+            slap: { img: null, frames: 3 }
+        },
+        // P2 duck (yellow)
+        duck2: {
             idle: { img: null, frames: 4 },
             walk: { img: null, frames: 8 },
             run: { img: null, frames: 8 },
@@ -175,10 +183,17 @@
     function loadSprites() {
         return new Promise((resolve) => {
             const toLoad = [
+                // P1 duck (white)
                 { type: 'duck', key: 'idle', path: 'assets/ducks/white/duck_idle.png', frames: 4 },
                 { type: 'duck', key: 'walk', path: 'assets/ducks/white/duck_walk_1.png', frames: 8 },
                 { type: 'duck', key: 'run', path: 'assets/ducks/white/duck_run.png', frames: 8 },
                 { type: 'duck', key: 'slap', path: 'assets/ducks/white/duck_slap.png', frames: 3 },
+                // P2 duck (yellow)
+                { type: 'duck2', key: 'idle', path: 'assets/ducks/yellow/duck_idle.png', frames: 4 },
+                { type: 'duck2', key: 'walk', path: 'assets/ducks/yellow/duck_walk_1.png', frames: 8 },
+                { type: 'duck2', key: 'run', path: 'assets/ducks/yellow/duck_run.png', frames: 8 },
+                { type: 'duck2', key: 'slap', path: 'assets/ducks/yellow/duck_slap.png', frames: 3 },
+                // Enemies
                 { type: 'cat', key: 'walk', path: 'assets/enemies/cat/Walk.png', frames: 6 },
                 { type: 'cat', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 },
                 { type: 'dog', key: 'walk', path: 'assets/Free Street Animal Pixel Art/1 Dog/Walk.png', frames: 6 },
@@ -223,55 +238,61 @@
     
     let lastTime = 0;
     
-    // Keyboard input state
+    // Helper to create a fresh player state
+    function createPlayerState(playerIndex) {
+        return {
+            index: playerIndex,
+            active: false, // Activates when input device is detected
+            inputSource: null, // 'keyboard' | 'gamepad-0' | 'gamepad-1' etc.
+            x: 0,
+            y: 0,
+            size: PLAYER_SIZE,
+            speed: PLAYER_SPEED,
+            color: playerIndex === 0 ? '#f4d03f' : '#ff9933', // Fallback colors
+            spriteKey: playerIndex === 0 ? 'duck' : 'duck2',
+            facingLeft: false,
+            animState: 'idle',
+            animFrame: 0,
+            animTimer: 0,
+            health: 100,
+            maxHealth: 100,
+            attackTimer: 0,
+            eggs: 0,
+            // Per-player input state
+            input: { up: false, down: false, left: false, right: false },
+            // Powers (unlocked via nests) - per player
+            powers: {
+                quackBlast: false,
+                wingSlap: false,
+                eggBomb: false,
+                featherStorm: false
+            },
+            // Power cooldowns
+            quackBlastTimer: 0,
+            wingSlapTimer: 0
+        };
+    }
+    
+    // Players array - P1 and P2
+    const players = [
+        createPlayerState(0),
+        createPlayerState(1)
+    ];
+    
+    // Alias for backward compatibility during refactor
+    const player = players[0];
+    
+    // Keyboard "virtual controller" state
     const keyboardInput = {
         up: false,
         down: false,
         left: false,
         right: false
     };
+    let keyboardPlayerIndex = -1; // Which player slot keyboard controls (-1 = not assigned)
     
-    // Gamepad input state (updated each frame)
-    const gamepadInput = {
-        up: false,
-        down: false,
-        left: false,
-        right: false
-    };
-    
-    // Combined input (keyboard OR gamepad)
-    const input = {
-        up: false,
-        down: false,
-        left: false,
-        right: false
-    };
-    
-    const player = {
-        x: 0,
-        y: 0,
-        size: PLAYER_SIZE,
-        speed: PLAYER_SPEED,
-        color: PLAYER_COLOR,
-        facingLeft: false,
-        animState: 'idle',
-        animFrame: 0,
-        animTimer: 0,
-        health: 100,
-        maxHealth: 100,
-        attackTimer: 0,
-        eggs: 0,
-        // Powers (unlocked via nests)
-        powers: {
-            quackBlast: false,
-            wingSlap: false,
-            eggBomb: false,
-            featherStorm: false
-        },
-        // Power cooldowns
-        quackBlastTimer: 0,
-        wingSlapTimer: 0
-    };
+    // Legacy combined input - now just points to P1's input for compatibility
+    const input = player.input;
     
     // Attack Nest state
     const attackNest = {
@@ -333,6 +354,28 @@
     // ============================================================
     // INPUT
     // ============================================================
+    
+    // Assigns keyboard to next available player slot
+    function activateKeyboardPlayer() {
+        if (keyboardPlayerIndex >= 0) return; // Already assigned
+        
+        // Find first inactive player slot
+        for (let i = 0; i < players.length; i++) {
+            if (!players[i].active) {
+                keyboardPlayerIndex = i;
+                players[i].active = true;
+                players[i].inputSource = 'keyboard';
+                console.log(`Keyboard joined as P${i + 1}!`);
+                return;
+            }
+        }
+        console.log('No player slots available for keyboard');
+    }
+    
+    function getKeyboardPlayer() {
+        return keyboardPlayerIndex >= 0 ? players[keyboardPlayerIndex] : null;
+    }
+    
     function handleKeyDown(e) {
         // Handle restart in game over state
         if (gameState === 'gameover') {
@@ -340,6 +383,12 @@
                 resetGame();
             }
             return;
+        }
+        
+        // Directional keys activate keyboard as input device
+        const isDirectional = ['KeyW', 'ArrowUp', 'KeyS', 'ArrowDown', 'KeyA', 'ArrowLeft', 'KeyD', 'ArrowRight'].includes(e.code);
+        if (isDirectional) {
+            activateKeyboardPlayer();
         }
         
         switch (e.code) {
@@ -360,7 +409,9 @@
                 keyboardInput.right = true;
                 break;
             case 'KeyE':
-                handleNestInteraction();
+                // E key = nest interaction for keyboard player
+                const kbPlayer = getKeyboardPlayer();
+                if (kbPlayer) handleNestInteraction(kbPlayer);
                 break;
         }
     }
@@ -400,94 +451,136 @@
     // Track button state for edge detection (pressed this frame)
     const gamepadButtonsLastFrame = {};
     
+    // Track which gamepad index is assigned to which player slot
+    const gamepadAssignments = {}; // gamepadIndex -> playerIndex
+    
+    // Find or assign a player slot for a gamepad
+    function getOrAssignGamepadPlayer(gp) {
+        // Already assigned?
+        if (gamepadAssignments[gp.index] !== undefined) {
+            return players[gamepadAssignments[gp.index]];
+        }
+        
+        // Find first inactive player slot
+        for (let i = 0; i < players.length; i++) {
+            if (!players[i].active) {
+                gamepadAssignments[gp.index] = i;
+                players[i].active = true;
+                players[i].inputSource = `gamepad-${gp.index}`;
+                console.log(`Gamepad ${gp.index} joined as P${i + 1}!`);
+                return players[i];
+            }
+        }
+        return null; // No slots available
+    }
+    
+    // Process a single gamepad for a specific player
+    function processGamepadForPlayer(gp, playerObj) {
+        // Initialize button tracking for this gamepad if needed
+        if (!gamepadButtonsLastFrame[gp.index]) {
+            gamepadButtonsLastFrame[gp.index] = new Array(gp.buttons.length).fill(false);
+        }
+        const lastButtons = gamepadButtonsLastFrame[gp.index];
+        
+        // Left stick movement (axes 0, 1)
+        const lx = Math.abs(gp.axes[0]) > GAMEPAD_DEADZONE ? gp.axes[0] : 0;
+        const ly = Math.abs(gp.axes[1]) > GAMEPAD_DEADZONE ? gp.axes[1] : 0;
+        
+        // D-pad (buttons 12-15)
+        const dpadUp = gp.buttons[12]?.pressed;
+        const dpadDown = gp.buttons[13]?.pressed;
+        const dpadLeft = gp.buttons[14]?.pressed;
+        const dpadRight = gp.buttons[15]?.pressed;
+        
+        // Set player's input state (stick OR dpad)
+        if (lx < 0 || dpadLeft) playerObj.input.left = true;
+        if (lx > 0 || dpadRight) playerObj.input.right = true;
+        if (ly < 0 || dpadUp) playerObj.input.up = true;
+        if (ly > 0 || dpadDown) playerObj.input.down = true;
+        
+        // A button (0) = Nest interaction (on press, not hold)
+        if (gp.buttons[0]?.pressed && !lastButtons[0]) {
+            handleNestInteraction(playerObj);
+        }
+        
+        // B button (1) = Quack Blast (if unlocked)
+        if (gp.buttons[1]?.pressed && !lastButtons[1]) {
+            if (playerObj.powers.quackBlast && playerObj.quackBlastTimer <= 0) {
+                activateQuackBlast(playerObj);
+            }
+        }
+        
+        // X button (2) = Wing Slap (if unlocked)
+        if (gp.buttons[2]?.pressed && !lastButtons[2]) {
+            if (playerObj.powers.wingSlap && playerObj.wingSlapTimer <= 0) {
+                activateWingSlap(playerObj);
+            }
+        }
+        
+        // Start button (9) = Restart when game over
+        if (gp.buttons[9]?.pressed && !lastButtons[9]) {
+            if (gameState === 'gameover') {
+                resetGame();
+            }
+        }
+        
+        // Update last frame state
+        for (let i = 0; i < gp.buttons.length; i++) {
+            lastButtons[i] = gp.buttons[i]?.pressed || false;
+        }
+    }
+    
     function updateGamepadInput() {
-        // Reset gamepad input state
-        gamepadInput.up = false;
-        gamepadInput.down = false;
-        gamepadInput.left = false;
-        gamepadInput.right = false;
+        // Reset all players' input state
+        for (const p of players) {
+            p.input.up = false;
+            p.input.down = false;
+            p.input.left = false;
+            p.input.right = false;
+        }
+        
+        // Apply keyboard input to keyboard player (if assigned)
+        if (keyboardPlayerIndex >= 0) {
+            const kbPlayer = players[keyboardPlayerIndex];
+            kbPlayer.input.up = keyboardInput.up;
+            kbPlayer.input.down = keyboardInput.down;
+            kbPlayer.input.left = keyboardInput.left;
+            kbPlayer.input.right = keyboardInput.right;
+        }
         
         // Refresh gamepad state (required - browser updates this object)
         const freshGamepads = navigator.getGamepads();
         
-        // For now, just use first connected gamepad (Player 1)
-        let gp = null;
-        for (const pad of freshGamepads) {
-            if (pad && pad.connected) {
-                gp = pad;
-                break;
+        // Process each connected gamepad
+        for (const gp of freshGamepads) {
+            if (!gp || !gp.connected) continue;
+            
+            // Check if any input on this gamepad (to trigger assignment)
+            const hasInput = 
+                Math.abs(gp.axes[0]) > GAMEPAD_DEADZONE ||
+                Math.abs(gp.axes[1]) > GAMEPAD_DEADZONE ||
+                gp.buttons.some(b => b?.pressed);
+            
+            if (hasInput) {
+                const playerObj = getOrAssignGamepadPlayer(gp);
+                if (playerObj) {
+                    processGamepadForPlayer(gp, playerObj);
+                }
+            } else if (gamepadAssignments[gp.index] !== undefined) {
+                // Gamepad already assigned, process even without input
+                const playerObj = players[gamepadAssignments[gp.index]];
+                processGamepadForPlayer(gp, playerObj);
             }
         }
-        
-        if (gp) {
-            // Initialize button tracking for this gamepad if needed
-            if (!gamepadButtonsLastFrame[gp.index]) {
-                gamepadButtonsLastFrame[gp.index] = new Array(gp.buttons.length).fill(false);
-            }
-            const lastButtons = gamepadButtonsLastFrame[gp.index];
-            
-            // Left stick movement (axes 0, 1)
-            const lx = Math.abs(gp.axes[0]) > GAMEPAD_DEADZONE ? gp.axes[0] : 0;
-            const ly = Math.abs(gp.axes[1]) > GAMEPAD_DEADZONE ? gp.axes[1] : 0;
-            
-            // D-pad (buttons 12-15)
-            const dpadUp = gp.buttons[12]?.pressed;
-            const dpadDown = gp.buttons[13]?.pressed;
-            const dpadLeft = gp.buttons[14]?.pressed;
-            const dpadRight = gp.buttons[15]?.pressed;
-            
-            // Set gamepad input state (stick OR dpad)
-            gamepadInput.left = lx < 0 || dpadLeft;
-            gamepadInput.right = lx > 0 || dpadRight;
-            gamepadInput.up = ly < 0 || dpadUp;
-            gamepadInput.down = ly > 0 || dpadDown;
-            
-            // A button (0) = Nest interaction (on press, not hold)
-            if (gp.buttons[0]?.pressed && !lastButtons[0]) {
-                handleNestInteraction();
-            }
-            
-            // B button (1) = Quack Blast (if unlocked)
-            if (gp.buttons[1]?.pressed && !lastButtons[1]) {
-                if (player.powers.quackBlast && player.quackBlastTimer <= 0) {
-                    activateQuackBlast();
-                }
-            }
-            
-            // X button (2) = Wing Slap (if unlocked)
-            if (gp.buttons[2]?.pressed && !lastButtons[2]) {
-                if (player.powers.wingSlap && player.wingSlapTimer <= 0) {
-                    activateWingSlap();
-                }
-            }
-            
-            // Start button (9) = Restart when game over
-            if (gp.buttons[9]?.pressed && !lastButtons[9]) {
-                if (gameState === 'gameover') {
-                    resetGame();
-                }
-            }
-            
-            // Update last frame state
-            for (let i = 0; i < gp.buttons.length; i++) {
-                lastButtons[i] = gp.buttons[i]?.pressed || false;
-            }
-        }
-        
-        // Merge keyboard + gamepad into combined input
-        input.up = keyboardInput.up || gamepadInput.up;
-        input.down = keyboardInput.down || gamepadInput.down;
-        input.left = keyboardInput.left || gamepadInput.left;
-        input.right = keyboardInput.right || gamepadInput.right;
     }
 
-    function handleNestInteraction() {
+    function handleNestInteraction(playerObj = player) {
         // Must be inside home base
-        if (!isInsideHomeBase(player.x, player.y)) return;
+        if (!isInsideHomeBase(playerObj.x, playerObj.y)) return;
         
         // Check distance to attack nest
-        const dx = player.x - attackNest.x;
-        const dy = player.y - attackNest.y;
+        const dx = playerObj.x - attackNest.x;
+        const dy = playerObj.y - attackNest.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist > NEST_INTERACT_RANGE) return;
@@ -496,56 +589,56 @@
         const canClaim = nextPower && attackNest.eggs >= nextPower.cost && !attackNest.claimed[attackNest.level];
         
         if (canClaim) {
-            // Claim the power!
+            // Claim the power! Powers are per-player
             attackNest.claimed[attackNest.level] = true;
-            player.powers[nextPower.key] = true;
+            playerObj.powers[nextPower.key] = true;
             attackNest.level++;
             
-            console.log('Claimed: ' + nextPower.name);
-        } else if (player.eggs > 0 && nextPower) {
+            console.log(`P${playerObj.index + 1} claimed: ${nextPower.name}`);
+        } else if (playerObj.eggs > 0 && nextPower) {
             // Deposit eggs - fill the bar or use all player eggs
             const eggsNeeded = nextPower.cost - attackNest.eggs;
-            const eggsToDeposit = Math.min(player.eggs, eggsNeeded);
-            player.eggs -= eggsToDeposit;
+            const eggsToDeposit = Math.min(playerObj.eggs, eggsNeeded);
+            playerObj.eggs -= eggsToDeposit;
             attackNest.eggs += eggsToDeposit;
-            console.log('Deposited ' + eggsToDeposit + ' eggs. Nest: ' + attackNest.eggs + '/' + nextPower.cost);
+            console.log(`P${playerObj.index + 1} deposited ${eggsToDeposit} eggs. Nest: ${attackNest.eggs}/${nextPower.cost}`);
         }
     }
     
     // ============================================================
     // SYSTEMS
     // ============================================================
-    function updatePlayer(dt) {
-        // Calculate movement direction
+    function updateSinglePlayer(p, dt) {
+        // Calculate movement direction from this player's input
         let dx = 0;
         let dy = 0;
         
-        if (input.up) dy -= 1;
-        if (input.down) dy += 1;
-        if (input.left) dx -= 1;
-        if (input.right) dx += 1;
+        if (p.input.up) dy -= 1;
+        if (p.input.down) dy += 1;
+        if (p.input.left) dx -= 1;
+        if (p.input.right) dx += 1;
         
         // Track facing direction (sprite default faces left, so flip when going right)
-        if (dx < 0) player.facingLeft = true;
-        if (dx > 0) player.facingLeft = false;
+        if (dx < 0) p.facingLeft = true;
+        if (dx > 0) p.facingLeft = false;
         
         // Update animation state
         const isMoving = dx !== 0 || dy !== 0;
         const newState = isMoving ? 'walk' : 'idle';
-        if (newState !== player.animState) {
-            player.animState = newState;
-            player.animFrame = 0;
-            player.animTimer = 0;
+        if (newState !== p.animState) {
+            p.animState = newState;
+            p.animFrame = 0;
+            p.animTimer = 0;
         }
         
         // Update animation frame
-        player.animTimer += dt;
+        p.animTimer += dt;
         const frameDuration = 1 / ANIMATION_FPS;
-        if (player.animTimer >= frameDuration) {
-            player.animTimer -= frameDuration;
-            const spriteData = sprites.duck[player.animState];
+        if (p.animTimer >= frameDuration) {
+            p.animTimer -= frameDuration;
+            const spriteData = sprites[p.spriteKey][p.animState];
             if (spriteData && spriteData.img) {
-                player.animFrame = (player.animFrame + 1) % spriteData.frames;
+                p.animFrame = (p.animFrame + 1) % spriteData.frames;
             }
         }
         
@@ -557,17 +650,30 @@
         }
         
         // Calculate new position
-        const newX = player.x + dx * player.speed * dt;
-        const newY = player.y + dy * player.speed * dt;
+        const newX = p.x + dx * p.speed * dt;
+        const newY = p.y + dy * p.speed * dt;
         
         // Ducks can move freely - no boundary restrictions
-        player.x = newX;
-        player.y = newY;
+        p.x = newX;
+        p.y = newY;
         
         // Keep player in bounds
-        const halfSize = player.size / 2;
-        player.x = Math.max(halfSize, Math.min(canvas.width - halfSize, player.x));
-        player.y = Math.max(halfSize, Math.min(canvas.height - halfSize, player.y));
+        const halfSize = p.size / 2;
+        p.x = Math.max(halfSize, Math.min(canvas.width - halfSize, p.x));
+        p.y = Math.max(halfSize, Math.min(canvas.height - halfSize, p.y));
+    }
+    
+    function updatePlayers(dt) {
+        for (const p of players) {
+            if (p.active) {
+                updateSinglePlayer(p, dt);
+            }
+        }
+    }
+    
+    // Legacy alias for compatibility
+    function updatePlayer(dt) {
+        updatePlayers(dt);
     }
     
     // Enemy factory
@@ -839,30 +945,56 @@
     // Track active quack blast effects for rendering
     const quackBlastEffects = [];
     
-    function updatePowers(dt) {
-        // Don't auto-fire when inside home base
-        const inBase = isInsideHomeBase(player.x, player.y);
+    // Track active wing slap effects for rendering  
+    const wingSlapEffects = [];
+    
+    // Manual activation functions for controller buttons
+    function activateQuackBlast(playerObj = player) {
+        if (!playerObj.powers.quackBlast || playerObj.quackBlastTimer > 0) return;
+        if (isInsideHomeBase(playerObj.x, playerObj.y)) return;
         
-        // Update Quack Blast cooldown and auto-fire
-        if (player.powers.quackBlast) {
-            player.quackBlastTimer -= dt;
+        if (fireQuackBlast(playerObj)) {
+            playerObj.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+        }
+    }
+    
+    function activateWingSlap(playerObj = player) {
+        if (!playerObj.powers.wingSlap || playerObj.wingSlapTimer > 0) return;
+        if (isInsideHomeBase(playerObj.x, playerObj.y)) return;
+        
+        if (fireWingSlap(playerObj)) {
+            playerObj.wingSlapTimer = WING_SLAP_COOLDOWN;
+        }
+    }
+    
+    function updatePowers(dt) {
+        // Update cooldowns and auto-fire for all active players
+        for (const p of players) {
+            if (!p.active) continue;
             
-            if (player.quackBlastTimer <= 0 && !inBase) {
-                // Fire Quack Blast - only reset timer if it actually fired
-                if (fireQuackBlast()) {
-                    player.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+            const inBase = isInsideHomeBase(p.x, p.y);
+            
+            // Update Quack Blast cooldown and auto-fire
+            if (p.powers.quackBlast) {
+                p.quackBlastTimer -= dt;
+                
+                if (p.quackBlastTimer <= 0 && !inBase) {
+                    // Auto-fire Quack Blast
+                    if (fireQuackBlast(p)) {
+                        p.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+                    }
                 }
             }
-        }
-        
-        // Update Wing Slap cooldown and auto-fire
-        if (player.powers.wingSlap) {
-            player.wingSlapTimer -= dt;
             
-            if (player.wingSlapTimer <= 0 && !inBase) {
-                // Fire Wing Slap - only reset timer if it actually fired
-                if (fireWingSlap()) {
-                    player.wingSlapTimer = WING_SLAP_COOLDOWN;
+            // Update Wing Slap cooldown and auto-fire
+            if (p.powers.wingSlap) {
+                p.wingSlapTimer -= dt;
+                
+                if (p.wingSlapTimer <= 0 && !inBase) {
+                    // Auto-fire Wing Slap
+                    if (fireWingSlap(p)) {
+                        p.wingSlapTimer = WING_SLAP_COOLDOWN;
+                    }
                 }
             }
         }
@@ -884,15 +1016,12 @@
         }
     }
     
-    // Track active wing slap effects for rendering
-    const wingSlapEffects = [];
-    
-    function fireWingSlap() {
+    function fireWingSlap(playerObj = player) {
         // Check if any enemies in range
         let hasTarget = false;
         for (const enemy of enemies) {
-            const dx = enemy.x - player.x;
-            const dy = enemy.y - player.y;
+            const dx = enemy.x - playerObj.x;
+            const dy = enemy.y - playerObj.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist <= WING_SLAP_RANGE) {
                 hasTarget = true;
@@ -905,15 +1034,15 @@
         
         // Add visual effect (spinning circle)
         wingSlapEffects.push({
-            x: player.x,
-            y: player.y,
+            x: playerObj.x,
+            y: playerObj.y,
             timer: 0.25
         });
         
         // Hit ALL enemies in range (360 degree spin)
         for (const enemy of enemies) {
-            const dx = enemy.x - player.x;
-            const dy = enemy.y - player.y;
+            const dx = enemy.x - playerObj.x;
+            const dy = enemy.y - playerObj.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
             if (dist <= WING_SLAP_RANGE) {
@@ -938,14 +1067,14 @@
         return true;
     }
     
-    function fireQuackBlast() {
+    function fireQuackBlast(playerObj = player) {
         // Find nearest enemy to aim at
         let nearestEnemy = null;
         let nearestDist = QUACK_BLAST_RANGE;
         
         for (const enemy of enemies) {
-            const dx = enemy.x - player.x;
-            const dy = enemy.y - player.y;
+            const dx = enemy.x - playerObj.x;
+            const dy = enemy.y - playerObj.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
             if (dist < nearestDist) {
@@ -958,25 +1087,25 @@
         if (!nearestEnemy) return false;
         
         // Aim at nearest enemy
-        const dx = nearestEnemy.x - player.x;
-        const dy = nearestEnemy.y - player.y;
+        const dx = nearestEnemy.x - playerObj.x;
+        const dy = nearestEnemy.y - playerObj.y;
         const blastAngle = Math.atan2(dy, dx);
         
         // Update player facing based on blast direction
-        player.facingLeft = dx < 0;
+        playerObj.facingLeft = dx < 0;
         
         // Add visual effect
         quackBlastEffects.push({
-            x: player.x,
-            y: player.y,
+            x: playerObj.x,
+            y: playerObj.y,
             angle: blastAngle,
             timer: 0.3
         });
         
         // Hit enemies in cone
         for (const enemy of enemies) {
-            const edx = enemy.x - player.x;
-            const edy = enemy.y - player.y;
+            const edx = enemy.x - playerObj.x;
+            const edy = enemy.y - playerObj.y;
             const dist = Math.sqrt(edx * edx + edy * edy);
             
             // Check range
@@ -1012,28 +1141,43 @@
     // ============================================================
     // RENDERING
     // ============================================================
-    function drawPlayer() {
-        const spriteData = sprites.duck[player.animState];
+    function drawSinglePlayer(p) {
+        if (!p.active) return;
+        
+        const spriteData = sprites[p.spriteKey][p.animState];
         
         if (sprites.loaded && spriteData && spriteData.img) {
             // Draw sprite
             ctx.save();
-            ctx.translate(player.x, player.y);
+            ctx.translate(p.x, p.y);
             
             // Flip horizontally if facing right (sprite default is facing left)
-            if (!player.facingLeft) {
+            if (!p.facingLeft) {
                 ctx.scale(-1, 1);
             }
             
             // Draw the current animation frame
-            const srcX = player.animFrame * SPRITE_SIZE;
+            const srcX = p.animFrame * SPRITE_SIZE;
             ctx.drawImage(
                 spriteData.img,
                 srcX, 0, SPRITE_SIZE, SPRITE_SIZE,  // Source rect
-                -player.size / 2, -player.size / 2, player.size, player.size  // Dest rect
+                -p.size / 2, -p.size / 2, p.size, p.size  // Dest rect
             );
             
             ctx.restore();
+            
+            // Draw player label above head
+            ctx.fillStyle = p.index === 0 ? '#fff' : '#ff9' ;
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`P${p.index + 1}`, p.x, p.y - p.size / 2 - 8);
+        }
+    }
+    
+    function drawPlayer() {
+        // Draw all active players
+        for (const p of players) {
+            drawSinglePlayer(p);
         }
     }
     
@@ -1339,18 +1483,23 @@
     }
     
     function drawGamepadIndicator() {
-        // Check for connected gamepads
-        const freshGamepads = navigator.getGamepads();
-        let connectedCount = 0;
-        for (const pad of freshGamepads) {
-            if (pad && pad.connected) connectedCount++;
-        }
+        // Show active players and their input sources
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'right';
         
-        if (connectedCount > 0) {
-            ctx.font = '14px sans-serif';
-            ctx.fillStyle = '#6f6';
-            ctx.textAlign = 'right';
-            ctx.fillText(`🎮 ${connectedCount} controller${connectedCount > 1 ? 's' : ''}`, canvas.width - 20, 110);
+        let y = 110;
+        const activePlayers = players.filter(p => p.active);
+        
+        if (activePlayers.length === 0) {
+            ctx.fillStyle = '#ff9';
+            ctx.fillText('Press direction to join!', canvas.width - 20, y);
+        } else {
+            for (const p of activePlayers) {
+                const icon = p.inputSource === 'keyboard' ? '⌨️' : '🎮';
+                ctx.fillStyle = p.index === 0 ? '#fff' : '#ff9';
+                ctx.fillText(`${icon} P${p.index + 1}`, canvas.width - 20, y);
+                y += 18;
+            }
         }
     }
     
@@ -1590,22 +1739,43 @@
     // ============================================================
     // INITIALIZATION
     // ============================================================
+    function resetSinglePlayer(p) {
+        // Position players offset from each other
+        const offsetX = (p.index === 0) ? -30 : 30;
+        p.x = canvas.width / 2 + offsetX;
+        p.y = canvas.height / 2;
+        p.health = p.maxHealth;
+        p.eggs = 0;
+        p.attackTimer = 0;
+        p.animState = 'idle';
+        p.animFrame = 0;
+        p.animTimer = 0;
+        p.powers.quackBlast = false;
+        p.powers.wingSlap = false;
+        p.powers.eggBomb = false;
+        p.powers.featherStorm = false;
+        p.quackBlastTimer = 0;
+        p.wingSlapTimer = 0;
+        p.input.up = false;
+        p.input.down = false;
+        p.input.left = false;
+        p.input.right = false;
+        // Note: P2 active state preserved (depends on controller connection)
+    }
+    
     function resetGame() {
-        // Reset player
-        player.x = canvas.width / 2;
-        player.y = canvas.height / 2;
-        player.health = player.maxHealth;
-        player.eggs = 0;
-        player.attackTimer = 0;
-        player.animState = 'idle';
-        player.animFrame = 0;
-        player.animTimer = 0;
-        player.powers.quackBlast = false;
-        player.powers.wingSlap = false;
-        player.powers.eggBomb = false;
-        player.powers.featherStorm = false;
-        player.quackBlastTimer = 0;
-        player.wingSlapTimer = 0;
+        // Reset all players to inactive
+        for (const p of players) {
+            resetSinglePlayer(p);
+            p.active = false;
+            p.inputSource = null;
+        }
+        
+        // Reset input assignments - devices will re-register on first input
+        keyboardPlayerIndex = -1;
+        for (const key in gamepadAssignments) {
+            delete gamepadAssignments[key];
+        }
         
         // Clear entities
         enemies.length = 0;
@@ -1628,11 +1798,11 @@
         rhythm.cycleCount = 0;
         rhythm.totalTime = 0;
         
-        // Reset input state
-        input.up = false;
-        input.down = false;
-        input.left = false;
-        input.right = false;
+        // Reset keyboard input
+        keyboardInput.up = false;
+        keyboardInput.down = false;
+        keyboardInput.left = false;
+        keyboardInput.right = false;
         
         // Start playing
         gameState = 'playing';
