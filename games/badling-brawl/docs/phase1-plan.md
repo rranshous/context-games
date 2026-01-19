@@ -59,18 +59,18 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 
 ## Implementation Milestones
 
-### M1: Game Loop & Player
-- [ ] HTML/Canvas setup
-- [ ] Game loop (requestAnimationFrame)
-- [ ] Player rendering (colored circle)
-- [ ] Keyboard input (WASD)
-- [ ] Player movement with bounds
+### M1: Game Loop & Player ✅
+- [x] HTML/Canvas setup
+- [x] Game loop (requestAnimationFrame)
+- [x] Player rendering (colored circle)
+- [x] Keyboard input (WASD)
+- [x] Player movement with bounds
 
-### M2: Sprites (Timeboxed)
-- [ ] Investigate sprite pack layout
-- [ ] Load and render duck sprite
-- [ ] Basic sprite animation (if feasible)
-- [ ] Skip if too complex, revisit later
+### M2: Sprites (Timeboxed) ✅
+- [x] Investigate sprite pack layout
+- [x] Load and render duck sprite
+- [x] Basic sprite animation (if feasible)
+- [ ] ~~Skip if too complex, revisit later~~ (worked!)
 
 ### M3: Enemies
 - [ ] Fox entity

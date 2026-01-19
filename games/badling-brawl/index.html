@@ -33,9 +33,58 @@
     // ============================================================
     // CONSTANTS
     // ============================================================
-    const PLAYER_SIZE = 40;
+    const PLAYER_SIZE = 64; // Display size (scaled up from 32px sprites)
     const PLAYER_SPEED = 300; // pixels per second
-    const PLAYER_COLOR = '#f4d03f'; // Duck yellow
+    const PLAYER_COLOR = '#f4d03f'; // Duck yellow (fallback)
+    const SPRITE_SIZE = 32; // Original sprite frame size
+    const ANIMATION_FPS = 10; // Frames per second for animations
+    
+    // ============================================================
+    // SPRITES
+    // ============================================================
+    const sprites = {
+        loaded: false,
+        duck: {
+            idle: { img: null, frames: 4 },
+            walk: { img: null, frames: 8 },
+            run: { img: null, frames: 8 },
+            slap: { img: null, frames: 3 }
+        }
+    };
+    
+    function loadSprites() {
+        return new Promise((resolve) => {
+            const toLoad = [
+                { key: 'idle', path: 'assets/ducks/white/duck_idle.png', frames: 4 },
+                { key: 'walk', path: 'assets/ducks/white/duck_walk_1.png', frames: 8 },
+                { key: 'run', path: 'assets/ducks/white/duck_run.png', frames: 8 },
+                { key: 'slap', path: 'assets/ducks/white/duck_slap.png', frames: 3 }
+            ];
+            
+            let loaded = 0;
+            
+            toLoad.forEach(({ key, path, frames }) => {
+                const img = new Image();
+                img.onload = () => {
+                    sprites.duck[key].img = img;
+                    sprites.duck[key].frames = frames;
+                    loaded++;
+                    if (loaded === toLoad.length) {
+                        sprites.loaded = true;
+                        resolve();
+                    }
+                };
+                img.onerror = () => {
+                    console.warn(`Failed to load sprite: ${path}`);
+                    loaded++;
+                    if (loaded === toLoad.length) {
+                        resolve();
+                    }
+                };
+                img.src = path;
+            });
+        });
+    }
     
     // ============================================================
     // STATE
@@ -57,7 +106,11 @@
         y: 0,
         size: PLAYER_SIZE,
         speed: PLAYER_SPEED,
-        color: PLAYER_COLOR
+        color: PLAYER_COLOR,
+        facingLeft: false,
+        animState: 'idle',
+        animFrame: 0,
+        animTimer: 0
     };
     
     // ============================================================
@@ -121,6 +174,30 @@
         if (input.left) dx -= 1;
         if (input.right) dx += 1;
         
+        // Track facing direction (sprite default faces left, so flip when going right)
+        if (dx < 0) player.facingLeft = true;
+        if (dx > 0) player.facingLeft = false;
+        
+        // Update animation state
+        const isMoving = dx !== 0 || dy !== 0;
+        const newState = isMoving ? 'walk' : 'idle';
+        if (newState !== player.animState) {
+            player.animState = newState;
+            player.animFrame = 0;
+            player.animTimer = 0;
+        }
+        
+        // Update animation frame
+        player.animTimer += dt;
+        const frameDuration = 1 / ANIMATION_FPS;
+        if (player.animTimer >= frameDuration) {
+            player.animTimer -= frameDuration;
+            const spriteData = sprites.duck[player.animState];
+            if (spriteData && spriteData.img) {
+                player.animFrame = (player.animFrame + 1) % spriteData.frames;
+            }
+        }
+        
         // Normalize diagonal movement
         if (dx !== 0 && dy !== 0) {
             const len = Math.sqrt(dx * dx + dy * dy);
@@ -142,22 +219,46 @@
     // RENDERING
     // ============================================================
     function drawPlayer() {
-        ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
-        ctx.fill();
+        const spriteData = sprites.duck[player.animState];
         
-        // Simple beak to show it's a duck
-        ctx.fillStyle = '#e67e22';
-        ctx.beginPath();
-        ctx.ellipse(
-            player.x + player.size / 3,
-            player.y,
-            player.size / 6,
-            player.size / 8,
-            0, 0, Math.PI * 2
-        );
-        ctx.fill();
+        if (sprites.loaded && spriteData && spriteData.img) {
+            // Draw sprite
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            
+            // Flip horizontally if facing right (sprite default is facing left)
+            if (!player.facingLeft) {
+                ctx.scale(-1, 1);
+            }
+            
+            // Draw the current animation frame
+            const srcX = player.animFrame * SPRITE_SIZE;
+            ctx.drawImage(
+                spriteData.img,
+                srcX, 0, SPRITE_SIZE, SPRITE_SIZE,  // Source rect
+                -player.size / 2, -player.size / 2, player.size, player.size  // Dest rect
+            );
+            
+            ctx.restore();
+        } else {
+            // Fallback: draw colored circle with beak
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#e67e22';
+            ctx.beginPath();
+            const beakDir = player.facingLeft ? -1 : 1;
+            ctx.ellipse(
+                player.x + (player.size / 3) * beakDir,
+                player.y,
+                player.size / 6,
+                player.size / 8,
+                0, 0, Math.PI * 2
+            );
+            ctx.fill();
+        }
     }
     
     function render() {
@@ -207,9 +308,12 @@
         player.x = canvas.width / 2;
         player.y = canvas.height / 2;
         
-        // Start game loop
-        lastTime = performance.now();
-        requestAnimationFrame(gameLoop);
+        // Load sprites then start game
+        loadSprites().then(() => {
+            console.log('Sprites loaded:', sprites.loaded);
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        });
     }
     
     init();
