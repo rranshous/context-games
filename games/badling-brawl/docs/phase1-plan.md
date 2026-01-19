@@ -9,6 +9,11 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 - **Modular code** - clean separation for future refactoring
 - **Keyboard controls first** - gamepad in Phase 2
 
+## Development & Testing
+- **Dev URL**: `http://localhost:3000/dev/badling-brawl/index.html`
+- **Use Playwright** to visually verify each milestone before committing
+- **Commit after each milestone** passes verification
+
 ## MVP Features
 
 ### Player (Duck)

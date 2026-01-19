@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badling Brawl</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #1a1a2e;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+            background: #4a7c59; /* Grass green */
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    
+    <script>
+    // ============================================================
+    // CONSTANTS
+    // ============================================================
+    const PLAYER_SIZE = 40;
+    const PLAYER_SPEED = 300; // pixels per second
+    const PLAYER_COLOR = '#f4d03f'; // Duck yellow
+    
+    // ============================================================
+    // STATE
+    // ============================================================
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    
+    let lastTime = 0;
+    
+    const input = {
+        up: false,
+        down: false,
+        left: false,
+        right: false
+    };
+    
+    const player = {
+        x: 0,
+        y: 0,
+        size: PLAYER_SIZE,
+        speed: PLAYER_SPEED,
+        color: PLAYER_COLOR
+    };
+    
+    // ============================================================
+    // INPUT
+    // ============================================================
+    function handleKeyDown(e) {
+        switch (e.code) {
+            case 'KeyW':
+            case 'ArrowUp':
+                input.up = true;
+                break;
+            case 'KeyS':
+            case 'ArrowDown':
+                input.down = true;
+                break;
+            case 'KeyA':
+            case 'ArrowLeft':
+                input.left = true;
+                break;
+            case 'KeyD':
+            case 'ArrowRight':
+                input.right = true;
+                break;
+        }
+    }
+    
+    function handleKeyUp(e) {
+        switch (e.code) {
+            case 'KeyW':
+            case 'ArrowUp':
+                input.up = false;
+                break;
+            case 'KeyS':
+            case 'ArrowDown':
+                input.down = false;
+                break;
+            case 'KeyA':
+            case 'ArrowLeft':
+                input.left = false;
+                break;
+            case 'KeyD':
+            case 'ArrowRight':
+                input.right = false;
+                break;
+        }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    // ============================================================
+    // SYSTEMS
+    // ============================================================
+    function updatePlayer(dt) {
+        // Calculate movement direction
+        let dx = 0;
+        let dy = 0;
+        
+        if (input.up) dy -= 1;
+        if (input.down) dy += 1;
+        if (input.left) dx -= 1;
+        if (input.right) dx += 1;
+        
+        // Normalize diagonal movement
+        if (dx !== 0 && dy !== 0) {
+            const len = Math.sqrt(dx * dx + dy * dy);
+            dx /= len;
+            dy /= len;
+        }
+        
+        // Apply movement
+        player.x += dx * player.speed * dt;
+        player.y += dy * player.speed * dt;
+        
+        // Keep player in bounds
+        const halfSize = player.size / 2;
+        player.x = Math.max(halfSize, Math.min(canvas.width - halfSize, player.x));
+        player.y = Math.max(halfSize, Math.min(canvas.height - halfSize, player.y));
+    }
+    
+    // ============================================================
+    // RENDERING
+    // ============================================================
+    function drawPlayer() {
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Simple beak to show it's a duck
+        ctx.fillStyle = '#e67e22';
+        ctx.beginPath();
+        ctx.ellipse(
+            player.x + player.size / 3,
+            player.y,
+            player.size / 6,
+            player.size / 8,
+            0, 0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+    
+    function render() {
+        // Clear canvas
+        ctx.fillStyle = '#4a7c59';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw player
+        drawPlayer();
+    }
+    
+    // ============================================================
+    // GAME LOOP
+    // ============================================================
+    function gameLoop(timestamp) {
+        // Calculate delta time in seconds
+        const dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        
+        // Cap delta time to avoid huge jumps
+        const cappedDt = Math.min(dt, 0.1);
+        
+        // Update
+        updatePlayer(cappedDt);
+        
+        // Render
+        render();
+        
+        // Next frame
+        requestAnimationFrame(gameLoop);
+    }
+    
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    
+    function init() {
+        // Setup canvas
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Center player
+        player.x = canvas.width / 2;
+        player.y = canvas.height / 2;
+        
+        // Start game loop
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+    
+    init();
+    </script>
+</body>
+</html>
