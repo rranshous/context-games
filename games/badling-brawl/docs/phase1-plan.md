@@ -87,10 +87,10 @@ Build the core game loop: one duck, enemies, auto-attack, eggs, health, death/re
 - [x] Egg collection
 - [x] Visual attack feedback (yellow beam from bill + impact burst)
 
-### M5: Game State
-- [ ] Health system & death
-- [ ] Game over screen
-- [ ] Restart functionality
+### M5: Game State ✅
+- [x] Health system & death
+- [x] Game over screen
+- [x] Restart functionality
 
 ### M6: Wave Progression
 - [ ] Wave timer

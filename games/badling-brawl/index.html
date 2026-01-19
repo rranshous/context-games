@@ -149,10 +149,21 @@
     // Peck attack effects (visual feedback)
     const peckEffects = [];
     
+    // Game state
+    let gameState = 'playing'; // 'playing' | 'gameover'
+    
     // ============================================================
     // INPUT
     // ============================================================
     function handleKeyDown(e) {
+        // Handle restart in game over state
+        if (gameState === 'gameover') {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                resetGame();
+            }
+            return;
+        }
+        
         switch (e.code) {
             case 'KeyW':
             case 'ArrowUp':
@@ -338,6 +349,12 @@
             if (dist < playerRadius + enemyRadius) {
                 // Player takes damage (with brief invulnerability handled elsewhere)
                 player.health -= ENEMY_DAMAGE;
+                
+                // Check for death
+                if (player.health <= 0) {
+                    player.health = 0;
+                    gameState = 'gameover';
+                }
                 
                 // Push enemy back slightly
                 if (dist > 0) {
@@ -590,6 +607,28 @@
         ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
     
+    function drawGameOver() {
+        // Darken screen
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Game Over text
+        ctx.fillStyle = '#e74c3c';
+        ctx.font = 'bold 64px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 60);
+        
+        // Stats
+        ctx.fillStyle = '#fff';
+        ctx.font = '28px sans-serif';
+        ctx.fillText(`Eggs collected: ${player.eggs}`, canvas.width / 2, canvas.height / 2);
+        
+        // Restart prompt
+        ctx.fillStyle = '#f4d03f';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.fillText('Press SPACE or ENTER to restart', canvas.width / 2, canvas.height / 2 + 80);
+    }
+    
     function render() {
         // Clear canvas
         ctx.fillStyle = '#4a7c59';
@@ -609,6 +648,11 @@
         
         // Draw UI
         drawUI();
+        
+        // Draw game over overlay if dead
+        if (gameState === 'gameover') {
+            drawGameOver();
+        }
     }
     
     // ============================================================
@@ -622,14 +666,16 @@
         // Cap delta time to avoid huge jumps
         const cappedDt = Math.min(dt, 0.1);
         
-        // Update
-        updatePlayer(cappedDt);
-        updateEnemies(cappedDt);
-        updateCombat(cappedDt);
-        updateEggs();
-        checkCollisions();
+        // Only update game state if playing
+        if (gameState === 'playing') {
+            updatePlayer(cappedDt);
+            updateEnemies(cappedDt);
+            updateCombat(cappedDt);
+            updateEggs();
+            checkCollisions();
+        }
         
-        // Render
+        // Always render
         render();
         
         // Next frame
@@ -639,6 +685,35 @@
     // ============================================================
     // INITIALIZATION
     // ============================================================
+    function resetGame() {
+        // Reset player
+        player.x = canvas.width / 2;
+        player.y = canvas.height / 2;
+        player.health = player.maxHealth;
+        player.eggs = 0;
+        player.attackTimer = 0;
+        player.animState = 'idle';
+        player.animFrame = 0;
+        player.animTimer = 0;
+        
+        // Clear entities
+        enemies.length = 0;
+        eggs.length = 0;
+        peckEffects.length = 0;
+        
+        // Reset timers
+        spawnTimer = 0;
+        
+        // Reset input state
+        input.up = false;
+        input.down = false;
+        input.left = false;
+        input.right = false;
+        
+        // Start playing
+        gameState = 'playing';
+    }
+    
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
