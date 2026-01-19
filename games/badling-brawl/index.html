@@ -77,7 +77,39 @@
         enemy: {
             walk: { img: null, frames: 6 },
             idle: { img: null, frames: 4 }
-        }
+        },
+        tileset: { img: null }
+    };
+    
+    // Tileset sprite definitions (from tileset cutter tool - grass island v2.png)
+    // The tileset is 192x144
+    const TILE_DEFS = {
+        tree: { x: 129, y: 51, w: 30, h: 40 },
+        redFlower: { x: 134, y: 37, w: 5, h: 6 },
+        bridgeH: { x: 125, y: 129, w: 22, h: 13 },
+        bridgeV: { x: 161, y: 108, w: 14, h: 23 },
+        bush: { x: 33, y: 131, w: 14, h: 10 },
+        doubleBush: { x: 48, y: 131, w: 15, h: 10 },
+        littleBush: { x: 67, y: 132, w: 10, h: 8 },
+        water: { x: 73, y: 89, w: 7, h: 7 },
+        littleRock: { x: 114, y: 87, w: 11, h: 7 },
+        mediumRock: { x: 97, y: 84, w: 14, h: 10 },
+        largeRock: { x: 96, y: 66, w: 16, h: 14 },
+        largeRock2: { x: 113, y: 65, w: 15, h: 15 },
+        grass: { x: 3, y: 3, w: 7, h: 7 },
+        grassBits: { x: 131, y: 3, w: 9, h: 10 }
+    };
+    
+    // Home Base constants
+    const HOME_BASE = {
+        // Relative to screen center, will be calculated on resize
+        width: 300,
+        height: 200,
+        x: 0, // set on init
+        y: 0, // set on init
+        entranceWidth: 60, // gap size for entrances
+        // Entrances: positions relative to base (will hold {x, y, w, h} rects)
+        entrances: []
     };
     
     function loadSprites() {
@@ -88,18 +120,24 @@
                 { type: 'duck', key: 'run', path: 'assets/ducks/white/duck_run.png', frames: 8 },
                 { type: 'duck', key: 'slap', path: 'assets/ducks/white/duck_slap.png', frames: 3 },
                 { type: 'enemy', key: 'walk', path: 'assets/enemies/cat/Walk.png', frames: 6 },
-                { type: 'enemy', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 }
+                { type: 'enemy', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 },
+                { type: 'tileset', key: 'img', path: 'assets/tileset - grass island v2.png', frames: 1 }
             ];
             
             let loaded = 0;
+            const totalToLoad = toLoad.length;
             
             toLoad.forEach(({ type, key, path, frames }) => {
                 const img = new Image();
                 img.onload = () => {
-                    sprites[type][key].img = img;
-                    sprites[type][key].frames = frames;
+                    if (type === 'tileset') {
+                        sprites.tileset.img = img;
+                    } else {
+                        sprites[type][key].img = img;
+                        sprites[type][key].frames = frames;
+                    }
                     loaded++;
-                    if (loaded === toLoad.length) {
+                    if (loaded === totalToLoad) {
                         sprites.loaded = true;
                         resolve();
                     }
@@ -107,7 +145,7 @@
                 img.onerror = () => {
                     console.warn(`Failed to load sprite: ${path}`);
                     loaded++;
-                    if (loaded === toLoad.length) {
+                    if (loaded === totalToLoad) {
                         resolve();
                     }
                 };
@@ -268,9 +306,40 @@
             dy /= len;
         }
         
-        // Apply movement
-        player.x += dx * player.speed * dt;
-        player.y += dy * player.speed * dt;
+        // Calculate new position
+        const newX = player.x + dx * player.speed * dt;
+        const newY = player.y + dy * player.speed * dt;
+        
+        // Check home base boundary crossing - only allow via entrances
+        const wasInside = isInsideHomeBase(player.x, player.y, 0);
+        const wouldBeInside = isInsideHomeBase(newX, newY, 0);
+        
+        if (wasInside !== wouldBeInside) {
+            // Crossing boundary - only allow if in entrance
+            if (!isInEntrance(newX, newY, player.size / 4)) {
+                // Block movement - stay at current position
+                // But allow movement parallel to boundary
+                const newXOnly = player.x + dx * player.speed * dt;
+                const newYOnly = player.y + dy * player.speed * dt;
+                
+                // Try X movement only
+                if (isInsideHomeBase(newXOnly, player.y, 0) === wasInside || isInEntrance(newXOnly, player.y, player.size / 4)) {
+                    player.x = newXOnly;
+                }
+                // Try Y movement only  
+                if (isInsideHomeBase(player.x, newYOnly, 0) === wasInside || isInEntrance(player.x, newYOnly, player.size / 4)) {
+                    player.y = newYOnly;
+                }
+            } else {
+                // In entrance, allow crossing
+                player.x = newX;
+                player.y = newY;
+            }
+        } else {
+            // Not crossing boundary, normal movement
+            player.x = newX;
+            player.y = newY;
+        }
         
         // Keep player in bounds
         const halfSize = player.size / 2;
@@ -336,6 +405,10 @@
         
         // Update each enemy
         for (const enemy of enemies) {
+            // Store old position for collision resolution
+            const oldX = enemy.x;
+            const oldY = enemy.y;
+            
             // Move toward player
             const dx = player.x - enemy.x;
             const dy = player.y - enemy.y;
@@ -349,6 +422,27 @@
                 
                 // Face the player
                 enemy.facingLeft = dx < 0;
+            }
+            
+            // Check Home Base collision - enemies can't enter (including entrances)
+            const enemyRadius = enemy.size / 2;
+            if (isInsideHomeBase(enemy.x, enemy.y, enemyRadius) || isInEntrance(enemy.x, enemy.y, enemyRadius)) {
+                // Revert movement - stay outside
+                enemy.x = oldX;
+                enemy.y = oldY;
+                
+                // Try to path around by sliding along the edge
+                // Try horizontal movement only
+                const testX = oldX + (dx > 0 ? 1 : -1) * enemy.speed * dt;
+                if (!isInsideHomeBase(testX, oldY, enemyRadius) && !isInEntrance(testX, oldY, enemyRadius)) {
+                    enemy.x = testX;
+                } else {
+                    // Try vertical movement only
+                    const testY = oldY + (dy > 0 ? 1 : -1) * enemy.speed * dt;
+                    if (!isInsideHomeBase(oldX, testY, enemyRadius) && !isInEntrance(oldX, testY, enemyRadius)) {
+                        enemy.y = testY;
+                    }
+                }
             }
             
             // Update animation
@@ -397,6 +491,11 @@
         // Decrease attack cooldown
         if (player.attackTimer > 0) {
             player.attackTimer -= dt;
+        }
+        
+        // No attacking while in home base (no camping!)
+        if (isInsideHomeBase(player.x, player.y, 0)) {
+            return;
         }
         
         // Auto-attack: find nearest enemy in range
@@ -525,24 +624,6 @@
             );
             
             ctx.restore();
-        } else {
-            // Fallback: draw colored circle with beak
-            ctx.fillStyle = player.color;
-            ctx.beginPath();
-            ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#e67e22';
-            ctx.beginPath();
-            const beakDir = player.facingLeft ? -1 : 1;
-            ctx.ellipse(
-                player.x + (player.size / 3) * beakDir,
-                player.y,
-                player.size / 6,
-                player.size / 8,
-                0, 0, Math.PI * 2
-            );
-            ctx.fill();
         }
     }
     
@@ -566,12 +647,6 @@
             );
             
             ctx.restore();
-        } else {
-            // Fallback: red circle
-            ctx.fillStyle = '#e74c3c';
-            ctx.beginPath();
-            ctx.arc(enemy.x, enemy.y, enemy.size / 2, 0, Math.PI * 2);
-            ctx.fill();
         }
     }
     
@@ -702,10 +777,133 @@
         ctx.fillText('Press SPACE or ENTER to restart', canvas.width / 2, canvas.height / 2 + 80);
     }
     
+    function drawTile(tileKey, destX, destY, scale = 2) {
+        if (!sprites.tileset.img) return;
+        const tileDef = TILE_DEFS[tileKey];
+        if (!tileDef) return;
+        ctx.drawImage(
+            sprites.tileset.img,
+            tileDef.x, tileDef.y, tileDef.w, tileDef.h,
+            destX, destY, tileDef.w * scale, tileDef.h * scale
+        );
+    }
+    
+    function drawTree(x, y, scale = 1) {
+        // Use tileset tree sprite
+        const tree = TILE_DEFS.tree;
+        // Center the tree horizontally, anchor at bottom
+        ctx.drawImage(
+            sprites.tileset.img,
+            tree.x, tree.y, tree.w, tree.h,
+            x - (tree.w * scale) / 2, y - tree.h * scale, tree.w * scale, tree.h * scale
+        );
+    }
+    
+    function drawHomeBase() {
+        const hb = HOME_BASE;
+        
+        // Draw a slightly darker grass interior for the safe zone
+        ctx.fillStyle = '#3d6b4a';
+        ctx.fillRect(hb.x, hb.y, hb.width, hb.height);
+        
+        // Get entrance info
+        const entranceTop = HOME_BASE.entrances[0];
+        const entranceLeft = HOME_BASE.entrances[1];
+        const entranceRight = HOME_BASE.entrances[2];
+        
+        // Draw water and rocks along perimeter (skip entrance gaps)
+        const borderSpacing = 14; // Spacing between water/rock tiles
+        const scale = 2; // Scale up the small tiles
+        
+        // Top edge - water
+        for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing) {
+            // Skip if overlapping top entrance
+            if (x > entranceTop.x - 20 && x < entranceTop.x + entranceTop.w + 20) {
+                continue;
+            }
+            drawTile('water', x, hb.y - 7 * scale, scale);
+        }
+        
+        // Bottom edge - rocks
+        for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing * 1.5) {
+            const rockType = ['largeRock', 'largeRock2', 'mediumRock'][Math.floor((x / borderSpacing) % 3)];
+            drawTile(rockType, x, hb.y + hb.height - 5, scale);
+        }
+        
+        // Left edge - alternate water and rocks
+        for (let y = hb.y; y < hb.y + hb.height; y += borderSpacing) {
+            // Skip if overlapping left entrance
+            if (y > entranceLeft.y - 20 && y < entranceLeft.y + entranceLeft.h + 20) {
+                continue;
+            }
+            if ((y / borderSpacing) % 2 < 1) {
+                drawTile('water', hb.x - 7 * scale, y, scale);
+            } else {
+                drawTile('mediumRock', hb.x - 7 * scale, y, scale);
+            }
+        }
+        
+        // Right edge - alternate water and rocks
+        for (let y = hb.y; y < hb.y + hb.height; y += borderSpacing) {
+            // Skip if overlapping right entrance
+            if (y > entranceRight.y - 20 && y < entranceRight.y + entranceRight.h + 20) {
+                continue;
+            }
+            if ((y / borderSpacing) % 2 < 1) {
+                drawTile('water', hb.x + hb.width, y, scale);
+            } else {
+                drawTile('mediumRock', hb.x + hb.width, y, scale);
+            }
+        }
+        
+        // Draw bridges at entrances using tileset
+        // Bridges should go from inside to outside (perpendicular to the edge)
+        const bridgeScale = 3;
+        const bridgeH = TILE_DEFS.bridgeH; // Horizontal planks (use for side entrances)
+        const bridgeV = TILE_DEFS.bridgeV; // Vertical planks (use for top entrance)
+        
+        // Top entrance - vertical bridge (going north-south, perpendicular to top edge)
+        ctx.drawImage(
+            sprites.tileset.img,
+            bridgeV.x, bridgeV.y, bridgeV.w, bridgeV.h,
+            entranceTop.x + (entranceTop.w - bridgeV.w * bridgeScale) / 2,
+            entranceTop.y,
+            bridgeV.w * bridgeScale, bridgeV.h * bridgeScale
+        );
+        
+        // Left entrance - horizontal bridge (going east-west, perpendicular to left edge)
+        ctx.drawImage(
+            sprites.tileset.img,
+            bridgeH.x, bridgeH.y, bridgeH.w, bridgeH.h,
+            entranceLeft.x,
+            entranceLeft.y + (entranceLeft.h - bridgeH.h * bridgeScale) / 2,
+            bridgeH.w * bridgeScale, bridgeH.h * bridgeScale
+        );
+        
+        // Right entrance - horizontal bridge (going east-west, perpendicular to right edge)
+        ctx.drawImage(
+            sprites.tileset.img,
+            bridgeH.x, bridgeH.y, bridgeH.w, bridgeH.h,
+            entranceRight.x,
+            entranceRight.y + (entranceRight.h - bridgeH.h * bridgeScale) / 2,
+            bridgeH.w * bridgeScale, bridgeH.h * bridgeScale
+        );
+        
+        // DEBUG: Draw dotted line around home base boundary
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(hb.x, hb.y, hb.width, hb.height);
+        ctx.setLineDash([]); // Reset dash
+    }
+    
     function render() {
         // Clear canvas
         ctx.fillStyle = '#4a7c59';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw Home Base (behind everything)
+        drawHomeBase();
         
         // Draw eggs (on ground)
         drawEggs();
@@ -794,9 +992,68 @@
         gameState = 'playing';
     }
     
+    function setupHomeBase() {
+        // Center the home base on screen
+        HOME_BASE.x = (canvas.width - HOME_BASE.width) / 2;
+        HOME_BASE.y = (canvas.height - HOME_BASE.height) / 2;
+        
+        // Define entrances (gaps in the perimeter)
+        // 3 entrances: top, left, right
+        const ew = HOME_BASE.entranceWidth;
+        HOME_BASE.entrances = [
+            // Top entrance (center)
+            { 
+                x: HOME_BASE.x + (HOME_BASE.width - ew) / 2,
+                y: HOME_BASE.y - 10,
+                w: ew,
+                h: 20
+            },
+            // Left entrance (center of left side)
+            {
+                x: HOME_BASE.x - 10,
+                y: HOME_BASE.y + (HOME_BASE.height - ew) / 2,
+                w: 20,
+                h: ew
+            },
+            // Right entrance (center of right side)
+            {
+                x: HOME_BASE.x + HOME_BASE.width - 10,
+                y: HOME_BASE.y + (HOME_BASE.height - ew) / 2,
+                w: 20,
+                h: ew
+            }
+        ];
+    }
+    
+    function isInsideHomeBase(x, y, radius = 0) {
+        // Add a small buffer (10px) to keep enemies visually outside
+        const buffer = 10;
+        return x - radius >= HOME_BASE.x - buffer && 
+               x + radius <= HOME_BASE.x + HOME_BASE.width + buffer &&
+               y - radius >= HOME_BASE.y - buffer && 
+               y + radius <= HOME_BASE.y + HOME_BASE.height + buffer;
+    }
+    
+    function isInEntrance(x, y, radius = 0) {
+        for (const ent of HOME_BASE.entrances) {
+            // Expanded entrance area to catch approaching enemies
+            const expandedX = ent.x - radius;
+            const expandedY = ent.y - radius;
+            const expandedW = ent.w + radius * 2;
+            const expandedH = ent.h + radius * 2;
+            
+            if (x >= expandedX && x <= expandedX + expandedW &&
+                y >= expandedY && y <= expandedY + expandedH) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        setupHomeBase();
     }
     
     function init() {

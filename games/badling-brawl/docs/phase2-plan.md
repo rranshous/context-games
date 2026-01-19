@@ -100,12 +100,28 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - [x] Scaling difficulty over time
 - [x] UI: Surge/lull indicator + progress display
 
-### M2: Home Base - Basic
-- [ ] Create safe zone area (trees/water border)
-- [ ] Enemies cannot enter
-- [ ] Entrances that block enemies
-- [ ] Duck can enter/exit freely
-- [ ] Robby to source tree/water sprites
+### M2: Home Base - Basic 🔄 IN PROGRESS
+**Simplified approach** - get basic collision working first, add entrance restrictions later
+
+#### Done:
+- [x] Create safe zone area with visual border (rocks/water from tileset)
+- [x] Bridge sprites at entrance locations (visual only for now)
+- [x] Debug: red dotted line showing collision boundary
+- [x] Ducks cannot attack while inside home base (no camping)
+
+#### Current TODO:
+- [ ] **Simplify collision**: enemies blocked at HOME_BASE rectangle, no entrance logic
+- [ ] **Ducks free movement**: can cross boundary anywhere
+- [ ] **Verify visually**: enemies stay outside red debug line
+- [ ] **Tune border**: align visual rocks/water with collision boundary
+
+#### Deferred (may add back later):
+- Entrance-only crossing for ducks
+- Enemy pathfinding around entrances
+
+#### Notes:
+- Using `tileset - grass island v2.png` for visuals
+- See `ipi-intro.md` Session Notes for code locations and details
 
 ### M3: Cat Enemy
 - [ ] New enemy type: Cat
@@ -153,5 +169,5 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 
 ---
 
-*Status: M1 Complete, M2 Next*
-*Current: Ready for Home Base implementation*
+*Status: M2 In Progress*
+*Current: Implementing Home Base*
