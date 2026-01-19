@@ -47,7 +47,7 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - Egg Bomb: Lob explosive (no egg cost - just unlocked)
 - Feather Storm: Projectiles in all directions
 
-**All attacks are auto-fire** - duck accumulates attacks over time, all operate simultaneously. Visual indicator on duck shows current powers (simple for now).
+**All attacks are auto-fire** - duck accumulates attacks over time, all operate simultaneously. Each attack has its own independent cooldown timer. Visual indicator on duck shows current powers (simple for now).
 
 #### 🩹 Healing Nest (later)
 ```
@@ -143,7 +143,8 @@ Each nest is a skill line. Ducks deposit eggs to fund progress, then claim rewar
 - Keep single HTML file approach
 - Map is screen-sized (camera follow/zoom is future work)
 - Collision system needs safe zone boundaries
-- Robby sourcing tree/water sprites for Duck Run
+- Tileset available: `assets/tileset - grass island v2.png` (192x144, multi-tile spritesheet)
+- Each attack has independent cooldown timer
 
 ---
 
