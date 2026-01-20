@@ -31,15 +31,23 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 
 ### M4: Defensive Powers
 - [ ] **Duck Shield**: Temporary invulnerability bubble (3s), can still move
-  - Cost: 30 eggs, Cooldown: 10s
+  - Cost: 20 eggs, Cooldown: 10s
 - [ ] **Decoy Duck**: Spawn a fake duck that enemies chase for 5s
-  - Cost: 20 eggs, Cooldown: 8s
+  - Cost: 30 eggs, Cooldown: 8s
+- [ ] **Feather Armor**: Reduce incoming damage by 50% for 6s
+  - Cost: 45 eggs, Cooldown: 15s
+- [ ] **Healing Pond**: Create a zone that heals ducks standing in it
+  - Cost: 60 eggs, Cooldown: 20s
 
-### M5: Ranged Powers  
-- [ ] **Bread Crumb Trail**: Drop crumbs that slow enemies who walk over them
-  - Cost: 15 eggs, Cooldown: 5s
+### M5: Ranged/Sniper Powers  
 - [ ] **Egg Sniper**: Long range single-target high damage shot
-  - Cost: 35 eggs, Cooldown: 3s
+  - Cost: 15 eggs, Cooldown: 3s
+- [ ] **Ricochet Shot**: Egg bounces between up to 3 enemies
+  - Cost: 30 eggs, Cooldown: 4s
+- [ ] **Piercing Quack**: Quack that passes through all enemies in a line
+  - Cost: 45 eggs, Cooldown: 5s
+- [ ] **Homing Egg**: Slow but auto-targets nearest enemy, high damage
+  - Cost: 60 eggs, Cooldown: 6s
 
 ### M6: Utility Powers
 - [ ] **Nest Magnet**: Auto-collect eggs in large radius for 5s
@@ -64,18 +72,23 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 - [ ] Update game over screen for 3 players
 
 ## Power Summary Table
-| Power | Type | Cost | Cooldown | Effect |
+| Power | Nest | Cost | Cooldown | Effect |
 |-------|------|------|----------|--------|
-| Quack Blast | Offensive-Cone | 10 | 2s | Cone damage + knockback |
-| Wing Slap | Offensive-Melee | 25 | 1.5s | 360° close range |
-| Egg Bomb | Offensive-Area | 45 | 4s | Thrown explosive |
-| Feather Storm | Offensive-Multi | 70 | 6s | 8 projectiles spiral |
-| Duck Shield | Defensive | 30 | 10s | 3s invulnerability |
-| Decoy Duck | Defensive | 20 | 8s | Distract enemies 5s |
-| Bread Crumbs | Control | 15 | 5s | Slow zone |
-| Egg Sniper | Ranged | 35 | 3s | Long range snipe |
-| Nest Magnet | Utility | 25 | 12s | Auto-collect eggs |
+| Quack Blast | Attack | 10 | 2s | Cone damage + knockback |
+| Wing Slap | Attack | 25 | 1.5s | 360° close range |
+| Egg Bomb | Attack | 45 | 4s | Thrown explosive |
+| Feather Storm | Attack | 70 | 6s | 8 projectiles spiral |
+| Duck Shield | Defense | 20 | 10s | 3s invulnerability |
+| Decoy Duck | Defense | 30 | 8s | Distract enemies 5s |
+| Feather Armor | Defense | 45 | 15s | 50% damage reduction 6s |
+| Healing Pond | Defense | 60 | 20s | Healing zone |
 | Speed Waddle | Utility | 15 | 8s | Speed boost 3s |
+| Nest Magnet | Utility | 25 | 12s | Auto-collect eggs 5s |
+| Bread Crumbs | Utility | 40 | 5s | Slow zone |
+| Egg Sniper | Sniper | 15 | 3s | Long range shot |
+| Ricochet Shot | Sniper | 30 | 4s | Bounces 3 enemies |
+| Piercing Quack | Sniper | 45 | 5s | Line damage |
+| Homing Egg | Sniper | 60 | 6s | Auto-target high damage |
 
 ## Open Questions
 - Nest positions: corners of home base? Or scattered around map?
@@ -91,9 +104,9 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 | Nest | Powers (in order) | Theme |
 |------|-------------------|-------|
 | Attack | Quack Blast → Wing Slap → Egg Bomb → Feather Storm | Direct damage |
-| Defense | Duck Shield → Decoy Duck | Survivability |
+| Defense | Duck Shield → Decoy Duck → Feather Armor → Healing Pond | Survivability |
 | Utility | Speed Waddle → Nest Magnet → Bread Crumbs | Movement/control |
-| Sniper | Egg Sniper | Long range |
+| Sniper | Egg Sniper → Ricochet Shot → Piercing Quack → Homing Egg | Long range |
 
 ## Assets Available
 - **Duck sprites**: white, yellow, mallard_female, mallard_male
