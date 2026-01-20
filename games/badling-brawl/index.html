@@ -2385,52 +2385,6 @@
         ctx.font = '14px sans-serif';
         ctx.fillStyle = '#aaa';
         ctx.fillText(`Cycle ${rhythm.cycleCount + 1} | Diff ${difficultyLevel + 1}`, canvas.width / 2, 70);
-        
-        // Powers indicator (bottom)
-        drawPowerIndicators();
-    }
-    
-    function drawPowerIndicators() {
-        // Draw power indicators for each active player
-        const activePlayers = players.filter(p => p.active);
-        
-        activePlayers.forEach(p => {
-            const ownedPowers = Object.keys(p.powers).filter(k => p.powers[k]);
-            if (ownedPowers.length === 0) return;
-            
-            const iconSize = 28;
-            const padding = 6;
-            const isLeft = p.index === 0;
-            let x = isLeft ? 20 : canvas.width - iconSize - 20;
-            const y = canvas.height - iconSize - 20;
-            const direction = isLeft ? 1 : -1;
-            
-            // Background panel
-            const powerCount = ownedPowers.length;
-            const panelWidth = (iconSize + padding) * powerCount + padding;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(isLeft ? x - padding : x - panelWidth + iconSize + padding, y - padding, panelWidth, iconSize + padding * 2);
-            
-            ctx.font = `${iconSize - 6}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            // Draw each power using registry data
-            for (const powerKey of ownedPowers) {
-                const power = PowerRegistry[powerKey];
-                if (!power) continue;
-                
-                const cooldown = p.cooldowns[powerKey] || 0;
-                const cdRatio = cooldown / power.cooldown;
-                if (cdRatio > 0) {
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
-                }
-                ctx.fillStyle = '#FFD700';
-                ctx.fillText(power.icon || '⚡', x + iconSize / 2, y + iconSize / 2);
-                x += direction * (iconSize + padding);
-            }
-        });
     }
     
     function drawGameOver() {
