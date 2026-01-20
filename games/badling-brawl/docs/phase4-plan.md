@@ -55,18 +55,25 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 - [ ] **Speed Waddle**: Massive speed boost for 3s
   - Cost: 15 eggs, Cooldown: 8s
 
-### M7: Multiple Nests / Power Lines
+### M7: Healing Nest (Special)
+- [ ] No powers - purely for HP recovery
+- [ ] Deposit 1 egg → gain +2 HP (instant)
+- [ ] Can overheal? (TBD - maybe cap at max HP)
+- [ ] Strategic choice: spend eggs on powers or heal up
+
+### M8: Multiple Nests / Power Lines
 - [ ] Each nest offers a themed "line" of powers
 - [ ] Players can collect ALL powers (no limit)
-- [ ] Nest types:
-  - **Attack Nest** (existing): Quack Blast → Wing Slap → Egg Bomb → Feather Storm
-  - **Defense Nest**: Duck Shield → Decoy Duck
+- [ ] Nest types (5 total):
+  - **Attack Nest**: Quack Blast → Wing Slap → Egg Bomb → Feather Storm
+  - **Defense Nest**: Duck Shield → Decoy Duck → Feather Armor → Healing Pond
+  - **Sniper Nest**: Egg Sniper → Ricochet Shot → Piercing Quack → Homing Egg
   - **Utility Nest**: Speed Waddle → Nest Magnet → Bread Crumbs
-  - **Sniper Nest**: Egg Sniper (single powerful ranged)
+  - **Healing Nest**: No powers, 1 egg = +2 HP
 - [ ] Position nests around the home base
-- [ ] Each nest has its own egg pool (deposit to unlock that line)
+- [ ] Each nest has its own egg pool (except Healing which consumes instantly)
 
-### M8: Polish & Balance
+### M9: Polish & Balance
 - [ ] Balance power costs and cooldowns
 - [ ] Test 3-player gameplay flow
 - [ ] Update game over screen for 3 players
@@ -105,8 +112,9 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 |------|-------------------|-------|
 | Attack | Quack Blast → Wing Slap → Egg Bomb → Feather Storm | Direct damage |
 | Defense | Duck Shield → Decoy Duck → Feather Armor → Healing Pond | Survivability |
-| Utility | Speed Waddle → Nest Magnet → Bread Crumbs | Movement/control |
 | Sniper | Egg Sniper → Ricochet Shot → Piercing Quack → Homing Egg | Long range |
+| Utility | Speed Waddle → Nest Magnet → Bread Crumbs | Movement/control |
+| Healing | (no powers) - 1 egg = +2 HP | Recovery |
 
 ## Assets Available
 - **Duck sprites**: white, yellow, mallard_female, mallard_male
