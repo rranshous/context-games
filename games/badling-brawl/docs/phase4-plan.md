@@ -98,7 +98,11 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 | Homing Egg | Sniper | 60 | 6s | Auto-target high damage |
 
 ## Open Questions
-- Nest positions: corners of home base? Or scattered around map?
+- None currently
+
+## Nest Placement
+- All nests are **inside** the home base
+- Positions TBD - will verify with screenshot
 
 ## Power Claiming Rules
 - **Shared egg pool**: Any duck can deposit eggs to any nest
