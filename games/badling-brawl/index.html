@@ -60,28 +60,9 @@
     const EGG_PICKUP_RANGE = 40;
     const PECK_EFFECT_DURATION = 0.25; // seconds (longer for visibility)
     
-    // Attack Nest powers definition
+    // Nest constants
     const NEST_SIZE = 50;
     const NEST_INTERACT_RANGE = 60;
-    const ATTACK_POWERS = [
-        { key: 'quackBlast', name: 'Quack Blast', cost: 10 },
-        { key: 'wingSlap', name: 'Wing Slap', cost: 25 },
-        { key: 'eggBomb', name: 'Egg Bomb', cost: 45 },
-        { key: 'featherStorm', name: 'Feather Storm', cost: 70 }
-    ];
-    
-    // Quack Blast constants
-    const QUACK_BLAST_RANGE = 150;
-    const QUACK_BLAST_ANGLE = Math.PI / 3; // 60 degree cone
-    const QUACK_BLAST_DAMAGE = 20;
-    const QUACK_BLAST_KNOCKBACK = 200;
-    const QUACK_BLAST_COOLDOWN = 2.0; // seconds
-    
-    // Wing Slap constants
-    const WING_SLAP_RANGE = 110;  // Medium-low range spin
-    const WING_SLAP_DAMAGE = 15;
-    const WING_SLAP_KNOCKBACK = 150;
-    const WING_SLAP_COOLDOWN = 1.5; // seconds
     
     // Surge/Lull constants
     const SURGE_DURATION = 45; // seconds of heavy spawning
@@ -243,6 +224,284 @@
     }
     
     // ============================================================
+    // POWER REGISTRY
+    // ============================================================
+    // All powers are defined here with their stats and behavior
+    const PowerRegistry = {
+        quackBlast: {
+            name: 'Quack Blast',
+            nest: 'attack',
+            cost: 10,
+            cooldown: 2.0,
+            range: 150,
+            damage: 20,
+            knockback: 200,
+            angle: Math.PI / 3, // 60 degree cone
+            icon: '📢',
+            // Check if power can fire (has valid target)
+            canFire: (player, enemies) => {
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < PowerRegistry.quackBlast.range) return true;
+                }
+                return false;
+            },
+            // Execute the power
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.quackBlast;
+                
+                // Find nearest enemy to aim at
+                let nearestEnemy = null;
+                let nearestDist = power.range;
+                
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+                
+                if (!nearestEnemy) return false;
+                
+                // Aim at nearest enemy
+                const dx = nearestEnemy.x - player.x;
+                const dy = nearestEnemy.y - player.y;
+                const blastAngle = Math.atan2(dy, dx);
+                
+                // Update player facing
+                player.facingLeft = dx < 0;
+                
+                // Add visual effect
+                effects.push({
+                    type: 'quackBlast',
+                    x: player.x,
+                    y: player.y,
+                    angle: blastAngle,
+                    timer: 0.3,
+                    maxTimer: 0.3
+                });
+                
+                // Hit enemies in cone
+                const toKill = [];
+                for (const enemy of enemies) {
+                    const edx = enemy.x - player.x;
+                    const edy = enemy.y - player.y;
+                    const dist = Math.sqrt(edx * edx + edy * edy);
+                    
+                    if (dist > power.range) continue;
+                    
+                    // Check angle
+                    const angleToEnemy = Math.atan2(edy, edx);
+                    let angleDiff = angleToEnemy - blastAngle;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    
+                    if (Math.abs(angleDiff) <= power.angle / 2) {
+                        enemy.health -= power.damage;
+                        
+                        // Knockback
+                        if (dist > 0) {
+                            const knockX = edx / dist * power.knockback;
+                            const knockY = edy / dist * power.knockback;
+                            enemy.x += knockX * 0.1;
+                            enemy.y += knockY * 0.1;
+                        }
+                        
+                        if (enemy.health <= 0) {
+                            toKill.push(enemy);
+                        }
+                    }
+                }
+                
+                return toKill;
+            },
+            // Draw the effect
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                const power = PowerRegistry.quackBlast;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                ctx.rotate(effect.angle);
+                
+                // Draw cone shape
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                const coneLength = power.range * alpha;
+                const coneWidth = Math.tan(power.angle / 2) * coneLength;
+                ctx.lineTo(coneLength, -coneWidth);
+                ctx.lineTo(coneLength, coneWidth);
+                ctx.closePath();
+                
+                // Gradient fill
+                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, coneLength);
+                gradient.addColorStop(0, `rgba(255, 255, 100, ${alpha * 0.8})`);
+                gradient.addColorStop(0.5, `rgba(255, 200, 50, ${alpha * 0.5})`);
+                gradient.addColorStop(1, `rgba(255, 150, 0, 0)`);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Sound wave rings
+                ctx.strokeStyle = `rgba(255, 255, 200, ${alpha * 0.6})`;
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 3; i++) {
+                    const ringDist = coneLength * (0.3 + i * 0.25);
+                    ctx.beginPath();
+                    ctx.arc(ringDist, 0, 20 + i * 10, -power.angle / 2, power.angle / 2);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        },
+        
+        wingSlap: {
+            name: 'Wing Slap',
+            nest: 'attack',
+            cost: 25,
+            cooldown: 1.5,
+            range: 110,
+            damage: 15,
+            knockback: 150,
+            icon: '🌀',
+            // Check if power can fire
+            canFire: (player, enemies) => {
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist <= PowerRegistry.wingSlap.range) return true;
+                }
+                return false;
+            },
+            // Execute the power
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.wingSlap;
+                
+                // Add visual effect
+                effects.push({
+                    type: 'wingSlap',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.25,
+                    maxTimer: 0.25
+                });
+                
+                // Hit ALL enemies in range (360 degree spin)
+                const toKill = [];
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist <= power.range) {
+                        enemy.health -= power.damage;
+                        
+                        // Knockback
+                        if (dist > 0) {
+                            const knockX = dx / dist * power.knockback;
+                            const knockY = dy / dist * power.knockback;
+                            enemy.x += knockX * 0.1;
+                            enemy.y += knockY * 0.1;
+                        }
+                        
+                        if (enemy.health <= 0) {
+                            toKill.push(enemy);
+                        }
+                    }
+                }
+                
+                return toKill;
+            },
+            // Draw the effect
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                const rotation = (1 - alpha) * Math.PI * 2;
+                const power = PowerRegistry.wingSlap;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                ctx.rotate(rotation);
+                
+                const radius = power.range * (0.5 + alpha * 0.5);
+                
+                // Outer ring
+                ctx.strokeStyle = `rgba(150, 200, 255, ${alpha * 0.4})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Curved feather swooshes
+                ctx.strokeStyle = `rgba(220, 240, 255, ${alpha})`;
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                
+                for (let i = 0; i < 6; i++) {
+                    const baseAngle = (i / 6) * Math.PI * 2;
+                    ctx.beginPath();
+                    const innerR = 15;
+                    const outerR = radius * 0.9;
+                    const startAngle = baseAngle - 0.15;
+                    const endAngle = baseAngle + 0.4;
+                    
+                    const startX = Math.cos(startAngle) * innerR;
+                    const startY = Math.sin(startAngle) * innerR;
+                    const endX = Math.cos(endAngle) * outerR;
+                    const endY = Math.sin(endAngle) * outerR;
+                    
+                    const ctrlAngle = baseAngle + 0.1;
+                    const ctrlR = outerR * 0.7;
+                    const ctrlX = Math.cos(ctrlAngle) * ctrlR;
+                    const ctrlY = Math.sin(ctrlAngle) * ctrlR;
+                    
+                    ctx.moveTo(startX, startY);
+                    ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        }
+    };
+    
+    // Helper to get power list for a nest type
+    function getPowersForNest(nestType) {
+        return Object.entries(PowerRegistry)
+            .filter(([key, power]) => power.nest === nestType)
+            .map(([key, power]) => ({ key, ...power }));
+    }
+    
+    // ============================================================
+    // VISUAL EFFECTS SYSTEM
+    // ============================================================
+    // Unified array for all power visual effects
+    const powerEffects = [];
+    
+    function updatePowerEffects(dt) {
+        for (let i = powerEffects.length - 1; i >= 0; i--) {
+            powerEffects[i].timer -= dt;
+            if (powerEffects[i].timer <= 0) {
+                powerEffects.splice(i, 1);
+            }
+        }
+    }
+    
+    function drawPowerEffects() {
+        for (const effect of powerEffects) {
+            const power = PowerRegistry[effect.type];
+            if (power && power.drawEffect) {
+                power.drawEffect(effect, ctx);
+            }
+        }
+    }
+    
+    // ============================================================
     // STATE
     // ============================================================
     const canvas = document.getElementById('game');
@@ -272,16 +531,12 @@
             eggs: 0,
             // Per-player input state
             input: { up: false, down: false, left: false, right: false },
-            // Powers (unlocked via nests) - per player
-            powers: {
-                quackBlast: false,
-                wingSlap: false,
-                eggBomb: false,
-                featherStorm: false
-            },
-            // Power cooldowns
-            quackBlastTimer: 0,
-            wingSlapTimer: 0,
+            // Powers (unlocked via nests) - set of power keys the player has
+            powers: {},  // { quackBlast: true, wingSlap: true, ... }
+            // Power cooldowns - generic object keyed by power name
+            cooldowns: {},  // { quackBlast: 0, wingSlap: 1.5, ... }
+            // Status effects (for future use)
+            statusEffects: [],
             // Respawn timer (seconds until can rejoin after death)
             respawnTimer: 0
         };
@@ -309,14 +564,27 @@
     // Legacy combined input - now just points to P1's input for compatibility
     const input = player.input;
     
-    // Attack Nest state
+    // Attack Nest state - uses PowerRegistry to get power list
     const attackNest = {
         x: 0,  // Set on init (inside home base)
         y: 0,
+        type: 'attack',  // nest type for PowerRegistry lookup
         eggs: 0,
-        level: 0,  // 0 = nothing unlocked, 1 = quack blast available to claim, etc.
-        claimed: [false, false, false, false]  // Which levels have been claimed
+        level: 0,  // 0 = nothing unlocked, 1 = first power available to claim, etc.
+        claimed: []  // Which levels have been claimed (populated on init)
     };
+    
+    // Initialize nest claimed array based on power count
+    function initNestClaimedArray(nest) {
+        const powers = getPowersForNest(nest.type);
+        nest.claimed = powers.map(() => false);
+    }
+    
+    // Get power definition for a nest at a given level
+    function getNestPowerAtLevel(nest, level) {
+        const powers = getPowersForNest(nest.type);
+        return powers[level] || null;
+    }
     
     // Enemies array
     const enemies = [];
@@ -406,12 +674,10 @@
         p.active = true;
         p.health = p.maxHealth;
         p.eggs = 0;
-        p.powers.quackBlast = false;
-        p.powers.wingSlap = false;
-        p.powers.eggBomb = false;
-        p.powers.featherStorm = false;
-        p.quackBlastTimer = 0;
-        p.wingSlapTimer = 0;
+        // Clear all powers and cooldowns
+        p.powers = {};
+        p.cooldowns = {};
+        p.statusEffects = [];
         p.respawnTimer = 0;
         spawnPlayerAtHome(p);
         console.log(`P${p.index + 1} respawned!`);
@@ -588,16 +854,12 @@
         
         // B button (1) = Quack Blast (if unlocked)
         if (gp.buttons[1]?.pressed && !lastButtons[1]) {
-            if (playerObj.powers.quackBlast && playerObj.quackBlastTimer <= 0) {
-                activateQuackBlast(playerObj);
-            }
+            activatePower(playerObj, 'quackBlast');
         }
         
         // X button (2) = Wing Slap (if unlocked)
         if (gp.buttons[2]?.pressed && !lastButtons[2]) {
-            if (playerObj.powers.wingSlap && playerObj.wingSlapTimer <= 0) {
-                activateWingSlap(playerObj);
-            }
+            activatePower(playerObj, 'wingSlap');
         }
         
         // Start button (9) = Restart when game over
@@ -668,13 +930,14 @@
         
         if (dist > NEST_INTERACT_RANGE) return;
         
-        const nextPower = ATTACK_POWERS[attackNest.level];
+        const nextPower = getNestPowerAtLevel(attackNest, attackNest.level);
         const canClaim = nextPower && attackNest.eggs >= nextPower.cost && !attackNest.claimed[attackNest.level];
         
         if (canClaim) {
             // Claim the power! Powers are per-player
             attackNest.claimed[attackNest.level] = true;
             playerObj.powers[nextPower.key] = true;
+            playerObj.cooldowns[nextPower.key] = 0; // Initialize cooldown
             attackNest.level++;
             
             console.log(`P${playerObj.index + 1} claimed: ${nextPower.name}`);
@@ -1092,29 +1355,32 @@
         }
     }
     
-    // Track active quack blast effects for rendering
-    const quackBlastEffects = [];
-    
-    // Track active wing slap effects for rendering  
-    const wingSlapEffects = [];
-    
-    // Manual activation functions for controller buttons
-    function activateQuackBlast(playerObj = player) {
-        if (!playerObj.powers.quackBlast || playerObj.quackBlastTimer > 0) return;
+    // Manual activation functions for controller buttons (use PowerRegistry)
+    function activatePower(playerObj, powerKey) {
+        const power = PowerRegistry[powerKey];
+        if (!power) return;
+        if (!playerObj.powers[powerKey]) return;
+        if ((playerObj.cooldowns[powerKey] || 0) > 0) return;
         if (isInsideHomeBase(playerObj.x, playerObj.y)) return;
         
-        if (fireQuackBlast(playerObj)) {
-            playerObj.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+        if (power.canFire(playerObj, enemies)) {
+            const toKill = power.execute(playerObj, enemies, powerEffects);
+            if (toKill && toKill.length > 0) {
+                for (const enemy of toKill) {
+                    killEnemy(enemy);
+                }
+            }
+            playerObj.cooldowns[powerKey] = power.cooldown;
         }
     }
     
+    // Backwards compatibility wrappers
+    function activateQuackBlast(playerObj = player) {
+        activatePower(playerObj, 'quackBlast');
+    }
+    
     function activateWingSlap(playerObj = player) {
-        if (!playerObj.powers.wingSlap || playerObj.wingSlapTimer > 0) return;
-        if (isInsideHomeBase(playerObj.x, playerObj.y)) return;
-        
-        if (fireWingSlap(playerObj)) {
-            playerObj.wingSlapTimer = WING_SLAP_COOLDOWN;
-        }
+        activatePower(playerObj, 'wingSlap');
     }
     
     function updatePowers(dt) {
@@ -1124,168 +1390,35 @@
             
             const inBase = isInsideHomeBase(p.x, p.y);
             
-            // Update Quack Blast cooldown and auto-fire
-            if (p.powers.quackBlast) {
-                p.quackBlastTimer -= dt;
+            // Update all power cooldowns and auto-fire
+            for (const [powerKey, hasPower] of Object.entries(p.powers)) {
+                if (!hasPower) continue;
                 
-                if (p.quackBlastTimer <= 0 && !inBase) {
-                    // Auto-fire Quack Blast
-                    if (fireQuackBlast(p)) {
-                        p.quackBlastTimer = QUACK_BLAST_COOLDOWN;
+                const power = PowerRegistry[powerKey];
+                if (!power) continue;
+                
+                // Decrease cooldown
+                if (p.cooldowns[powerKey] > 0) {
+                    p.cooldowns[powerKey] -= dt;
+                }
+                
+                // Auto-fire when cooldown ready and not in base
+                if (p.cooldowns[powerKey] <= 0 && !inBase) {
+                    if (power.canFire(p, enemies)) {
+                        const toKill = power.execute(p, enemies, powerEffects);
+                        if (toKill && toKill.length > 0) {
+                            for (const enemy of toKill) {
+                                killEnemy(enemy);
+                            }
+                        }
+                        p.cooldowns[powerKey] = power.cooldown;
                     }
                 }
             }
-            
-            // Update Wing Slap cooldown and auto-fire
-            if (p.powers.wingSlap) {
-                p.wingSlapTimer -= dt;
-                
-                if (p.wingSlapTimer <= 0 && !inBase) {
-                    // Auto-fire Wing Slap
-                    if (fireWingSlap(p)) {
-                        p.wingSlapTimer = WING_SLAP_COOLDOWN;
-                    }
-                }
-            }
         }
         
-        // Update quack blast visual effects
-        for (let i = quackBlastEffects.length - 1; i >= 0; i--) {
-            quackBlastEffects[i].timer -= dt;
-            if (quackBlastEffects[i].timer <= 0) {
-                quackBlastEffects.splice(i, 1);
-            }
-        }
-        
-        // Update wing slap visual effects
-        for (let i = wingSlapEffects.length - 1; i >= 0; i--) {
-            wingSlapEffects[i].timer -= dt;
-            if (wingSlapEffects[i].timer <= 0) {
-                wingSlapEffects.splice(i, 1);
-            }
-        }
-    }
-    
-    function fireWingSlap(playerObj = player) {
-        // Check if any enemies in range
-        let hasTarget = false;
-        for (const enemy of enemies) {
-            const dx = enemy.x - playerObj.x;
-            const dy = enemy.y - playerObj.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist <= WING_SLAP_RANGE) {
-                hasTarget = true;
-                break;
-            }
-        }
-        
-        // No enemies in range? Don't fire
-        if (!hasTarget) return false;
-        
-        // Add visual effect (spinning circle)
-        wingSlapEffects.push({
-            x: playerObj.x,
-            y: playerObj.y,
-            timer: 0.25
-        });
-        
-        // Hit ALL enemies in range (360 degree spin)
-        for (const enemy of enemies) {
-            const dx = enemy.x - playerObj.x;
-            const dy = enemy.y - playerObj.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist <= WING_SLAP_RANGE) {
-                // Hit! Deal damage
-                enemy.health -= WING_SLAP_DAMAGE;
-                
-                // Knockback (push away from player)
-                if (dist > 0) {
-                    const knockX = dx / dist * WING_SLAP_KNOCKBACK;
-                    const knockY = dy / dist * WING_SLAP_KNOCKBACK;
-                    enemy.x += knockX * 0.1;
-                    enemy.y += knockY * 0.1;
-                }
-                
-                // Check if enemy died
-                if (enemy.health <= 0) {
-                    killEnemy(enemy);
-                }
-            }
-        }
-        
-        return true;
-    }
-    
-    function fireQuackBlast(playerObj = player) {
-        // Find nearest enemy to aim at
-        let nearestEnemy = null;
-        let nearestDist = QUACK_BLAST_RANGE;
-        
-        for (const enemy of enemies) {
-            const dx = enemy.x - playerObj.x;
-            const dy = enemy.y - playerObj.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist < nearestDist) {
-                nearestDist = dist;
-                nearestEnemy = enemy;
-            }
-        }
-        
-        // No enemies in range? Don't fire
-        if (!nearestEnemy) return false;
-        
-        // Aim at nearest enemy
-        const dx = nearestEnemy.x - playerObj.x;
-        const dy = nearestEnemy.y - playerObj.y;
-        const blastAngle = Math.atan2(dy, dx);
-        
-        // Update player facing based on blast direction
-        playerObj.facingLeft = dx < 0;
-        
-        // Add visual effect
-        quackBlastEffects.push({
-            x: playerObj.x,
-            y: playerObj.y,
-            angle: blastAngle,
-            timer: 0.3
-        });
-        
-        // Hit enemies in cone
-        for (const enemy of enemies) {
-            const edx = enemy.x - playerObj.x;
-            const edy = enemy.y - playerObj.y;
-            const dist = Math.sqrt(edx * edx + edy * edy);
-            
-            // Check range
-            if (dist > QUACK_BLAST_RANGE) continue;
-            
-            // Check angle (is enemy within cone?)
-            const angleToEnemy = Math.atan2(edy, edx);
-            let angleDiff = angleToEnemy - blastAngle;
-            // Normalize to -PI to PI
-            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-            
-            if (Math.abs(angleDiff) <= QUACK_BLAST_ANGLE / 2) {
-                // Hit! Deal damage
-                enemy.health -= QUACK_BLAST_DAMAGE;
-                
-                // Knockback
-                const knockX = edx / dist * QUACK_BLAST_KNOCKBACK;
-                const knockY = edy / dist * QUACK_BLAST_KNOCKBACK;
-                enemy.x += knockX * 0.1; // Instant knockback portion
-                enemy.y += knockY * 0.1;
-                
-                // Check if enemy died
-                if (enemy.health <= 0) {
-                    killEnemy(enemy);
-                }
-            }
-        }
-        
-        return true;
+        // Update power visual effects
+        updatePowerEffects(dt);
     }
     
     // ============================================================
@@ -1387,7 +1520,7 @@
     
     function drawAttackNest() {
         const nest = attackNest;
-        const nextPower = ATTACK_POWERS[nest.level];
+        const nextPower = getNestPowerAtLevel(nest, nest.level);
         const canClaim = nextPower && nest.eggs >= nextPower.cost && !nest.claimed[nest.level];
         
         // Progress bar (centered on nest position)
@@ -1480,101 +1613,6 @@
             ctx.beginPath();
             ctx.arc(effect.x2, effect.y2, burstSize * 0.4, 0, Math.PI * 2);
             ctx.fill();
-            
-            ctx.restore();
-        }
-    }
-    
-    function drawQuackBlastEffects() {
-        for (const effect of quackBlastEffects) {
-            const alpha = effect.timer / 0.3;
-            
-            ctx.save();
-            ctx.translate(effect.x, effect.y);
-            ctx.rotate(effect.angle);
-            
-            // Draw cone shape
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            const coneLength = QUACK_BLAST_RANGE * alpha;
-            const coneWidth = Math.tan(QUACK_BLAST_ANGLE / 2) * coneLength;
-            ctx.lineTo(coneLength, -coneWidth);
-            ctx.lineTo(coneLength, coneWidth);
-            ctx.closePath();
-            
-            // Gradient fill
-            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, coneLength);
-            gradient.addColorStop(0, `rgba(255, 255, 100, ${alpha * 0.8})`);
-            gradient.addColorStop(0.5, `rgba(255, 200, 50, ${alpha * 0.5})`);
-            gradient.addColorStop(1, `rgba(255, 150, 0, 0)`);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            
-            // Sound wave rings
-            ctx.strokeStyle = `rgba(255, 255, 200, ${alpha * 0.6})`;
-            ctx.lineWidth = 3;
-            for (let i = 0; i < 3; i++) {
-                const ringDist = coneLength * (0.3 + i * 0.25);
-                ctx.beginPath();
-                ctx.arc(ringDist, 0, 20 + i * 10, -QUACK_BLAST_ANGLE / 2, QUACK_BLAST_ANGLE / 2);
-                ctx.stroke();
-            }
-            
-            ctx.restore();
-        }
-    }
-    
-    function drawWingSlapEffects() {
-        for (const effect of wingSlapEffects) {
-            const alpha = effect.timer / 0.25;
-            const rotation = (1 - alpha) * Math.PI * 2; // Full spin as it fades
-            
-            ctx.save();
-            ctx.translate(effect.x, effect.y);
-            ctx.rotate(rotation);
-            
-            const radius = WING_SLAP_RANGE * (0.5 + alpha * 0.5);
-            
-            // Outer ring (faint)
-            ctx.strokeStyle = `rgba(150, 200, 255, ${alpha * 0.4})`;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(0, 0, radius, 0, Math.PI * 2);
-            ctx.stroke();
-            
-            // Curved feather swooshes (6 of them)
-            ctx.strokeStyle = `rgba(220, 240, 255, ${alpha})`;
-            ctx.lineWidth = 5;
-            ctx.lineCap = 'round';
-            
-            for (let i = 0; i < 6; i++) {
-                const baseAngle = (i / 6) * Math.PI * 2;
-                
-                // Draw curved arc that swoops outward
-                ctx.beginPath();
-                const innerR = 15;
-                const outerR = radius * 0.9;
-                
-                // Start point
-                const startAngle = baseAngle - 0.15;
-                const endAngle = baseAngle + 0.4;
-                
-                // Bezier curve for feathery swoosh
-                const startX = Math.cos(startAngle) * innerR;
-                const startY = Math.sin(startAngle) * innerR;
-                const endX = Math.cos(endAngle) * outerR;
-                const endY = Math.sin(endAngle) * outerR;
-                
-                // Control point curves it outward
-                const ctrlAngle = baseAngle + 0.1;
-                const ctrlR = outerR * 0.7;
-                const ctrlX = Math.cos(ctrlAngle) * ctrlR;
-                const ctrlY = Math.sin(ctrlAngle) * ctrlR;
-                
-                ctx.moveTo(startX, startY);
-                ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
-                ctx.stroke();
-            }
             
             ctx.restore();
         }
@@ -1697,10 +1735,8 @@
         const activePlayers = players.filter(p => p.active);
         
         activePlayers.forEach(p => {
-            const powers = p.powers;
-            const hasPowers = powers.quackBlast || powers.wingSlap || powers.eggBomb || powers.featherStorm;
-            
-            if (!hasPowers) return;
+            const ownedPowers = Object.keys(p.powers).filter(k => p.powers[k]);
+            if (ownedPowers.length === 0) return;
             
             const iconSize = 28;
             const padding = 6;
@@ -1710,7 +1746,7 @@
             const direction = isLeft ? 1 : -1;
             
             // Background panel
-            const powerCount = [powers.quackBlast, powers.wingSlap, powers.eggBomb, powers.featherStorm].filter(Boolean).length;
+            const powerCount = ownedPowers.length;
             const panelWidth = (iconSize + padding) * powerCount + padding;
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(isLeft ? x - padding : x - panelWidth + iconSize + padding, y - padding, panelWidth, iconSize + padding * 2);
@@ -1719,25 +1755,19 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            if (powers.quackBlast) {
-                const cdRatio = p.quackBlastTimer / QUACK_BLAST_COOLDOWN;
+            // Draw each power using registry data
+            for (const powerKey of ownedPowers) {
+                const power = PowerRegistry[powerKey];
+                if (!power) continue;
+                
+                const cooldown = p.cooldowns[powerKey] || 0;
+                const cdRatio = cooldown / power.cooldown;
                 if (cdRatio > 0) {
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                     ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
                 }
                 ctx.fillStyle = '#FFD700';
-                ctx.fillText('📢', x + iconSize / 2, y + iconSize / 2);
-                x += direction * (iconSize + padding);
-            }
-            
-            if (powers.wingSlap) {
-                const cdRatio = p.wingSlapTimer / WING_SLAP_COOLDOWN;
-                if (cdRatio > 0) {
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    ctx.fillRect(x, y, iconSize, iconSize * cdRatio);
-                }
-                ctx.fillStyle = '#87CEEB';
-                ctx.fillText('🌀', x + iconSize / 2, y + iconSize / 2);
+                ctx.fillText(power.icon || '⚡', x + iconSize / 2, y + iconSize / 2);
                 x += direction * (iconSize + padding);
             }
         });
@@ -1883,8 +1913,7 @@
         
         // Draw attack effects (on top)
         drawPeckEffects();
-        drawQuackBlastEffects();
-        drawWingSlapEffects();
+        drawPowerEffects();  // Unified power effects from registry
         
         // Draw UI
         drawUI();
@@ -1940,12 +1969,10 @@
         p.animState = 'idle';
         p.animFrame = 0;
         p.animTimer = 0;
-        p.powers.quackBlast = false;
-        p.powers.wingSlap = false;
-        p.powers.eggBomb = false;
-        p.powers.featherStorm = false;
-        p.quackBlastTimer = 0;
-        p.wingSlapTimer = 0;
+        // Clear all powers and cooldowns
+        p.powers = {};
+        p.cooldowns = {};
+        p.statusEffects = [];
         p.input.up = false;
         p.input.down = false;
         p.input.left = false;
@@ -1971,13 +1998,12 @@
         enemies.length = 0;
         eggs.length = 0;
         peckEffects.length = 0;
-        quackBlastEffects.length = 0;
-        wingSlapEffects.length = 0;
+        powerEffects.length = 0;  // Unified effects array
         
         // Reset attack nest
         attackNest.eggs = 0;
         attackNest.level = 0;
-        attackNest.claimed = [false, false, false, false];
+        initNestClaimedArray(attackNest);  // Use helper to init claimed array
         
         // Reset timers
         spawnTimer = 0;
@@ -2057,6 +2083,8 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         setupHomeBase();
+        // Initialize nest claimed arrays based on power registry
+        initNestClaimedArray(attackNest);
     }
     
     function init() {
