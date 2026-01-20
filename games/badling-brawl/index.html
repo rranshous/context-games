@@ -502,6 +502,323 @@
     }
     
     // ============================================================
+    // ENTITY SYSTEM
+    // ============================================================
+    // Generic entities for projectiles, zones, decoys, etc.
+    const entities = [];
+    
+    // Entity behavior definitions
+    const EntityBehaviors = {
+        // Standard projectile - moves in direction, damages enemies on contact
+        projectile: {
+            update: (entity, dt) => {
+                entity.x += entity.vx * dt;
+                entity.y += entity.vy * dt;
+                entity.lifetime -= dt;
+                
+                // Check collision with enemies
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    const dx = enemy.x - entity.x;
+                    const dy = enemy.y - entity.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < entity.radius + enemy.size / 2) {
+                        enemy.health -= entity.damage;
+                        if (enemy.health <= 0) {
+                            killEnemy(enemy);
+                        }
+                        
+                        // Projectile consumed on hit (unless piercing)
+                        if (!entity.piercing) {
+                            entity.lifetime = 0;
+                        }
+                        
+                        // Trigger onHit callback if defined
+                        if (entity.onHit) {
+                            entity.onHit(entity, enemy);
+                        }
+                        
+                        if (!entity.piercing) break;
+                    }
+                }
+            },
+            draw: (entity, ctx) => {
+                ctx.save();
+                ctx.translate(entity.x, entity.y);
+                
+                // Default projectile appearance (can be overridden)
+                ctx.fillStyle = entity.color || '#FFD700';
+                ctx.beginPath();
+                ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+        },
+        
+        // Homing projectile - tracks nearest enemy
+        homing: {
+            update: (entity, dt) => {
+                // Find nearest enemy
+                let nearestEnemy = null;
+                let nearestDist = Infinity;
+                for (const enemy of enemies) {
+                    const dx = enemy.x - entity.x;
+                    const dy = enemy.y - entity.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+                
+                if (nearestEnemy) {
+                    // Turn toward target
+                    const targetAngle = Math.atan2(
+                        nearestEnemy.y - entity.y,
+                        nearestEnemy.x - entity.x
+                    );
+                    const currentAngle = Math.atan2(entity.vy, entity.vx);
+                    
+                    // Smooth turn
+                    let angleDiff = targetAngle - currentAngle;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    
+                    const turnRate = entity.turnRate || 3;
+                    const newAngle = currentAngle + Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), turnRate * dt);
+                    
+                    const speed = Math.sqrt(entity.vx * entity.vx + entity.vy * entity.vy);
+                    entity.vx = Math.cos(newAngle) * speed;
+                    entity.vy = Math.sin(newAngle) * speed;
+                }
+                
+                // Move
+                entity.x += entity.vx * dt;
+                entity.y += entity.vy * dt;
+                entity.lifetime -= dt;
+                
+                // Check collision with enemies (same as projectile)
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    const dx = enemy.x - entity.x;
+                    const dy = enemy.y - entity.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < entity.radius + enemy.size / 2) {
+                        enemy.health -= entity.damage;
+                        if (enemy.health <= 0) {
+                            killEnemy(enemy);
+                        }
+                        entity.lifetime = 0;
+                        break;
+                    }
+                }
+            },
+            draw: (entity, ctx) => {
+                ctx.save();
+                ctx.translate(entity.x, entity.y);
+                ctx.rotate(Math.atan2(entity.vy, entity.vx));
+                
+                // Egg shape pointing forward
+                ctx.fillStyle = entity.color || '#FEF9E7';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, entity.radius * 1.5, entity.radius, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#F5CBA7';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+        },
+        
+        // Zone - affects entities that enter it (healing, damage, slow)
+        zone: {
+            update: (entity, dt) => {
+                entity.lifetime -= dt;
+                
+                // Apply effect to targets in radius
+                if (entity.affectsPlayers) {
+                    for (const p of players) {
+                        if (!p.active) continue;
+                        const dx = p.x - entity.x;
+                        const dy = p.y - entity.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < entity.radius) {
+                            if (entity.onPlayerInside) {
+                                entity.onPlayerInside(entity, p, dt);
+                            }
+                        }
+                    }
+                }
+                
+                if (entity.affectsEnemies) {
+                    for (const enemy of enemies) {
+                        const dx = enemy.x - entity.x;
+                        const dy = enemy.y - entity.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < entity.radius) {
+                            if (entity.onEnemyInside) {
+                                entity.onEnemyInside(entity, enemy, dt);
+                            }
+                        }
+                    }
+                }
+            },
+            draw: (entity, ctx) => {
+                ctx.save();
+                ctx.translate(entity.x, entity.y);
+                
+                const alpha = Math.min(1, entity.lifetime / 0.5); // Fade out in last 0.5s
+                
+                // Pulsing circle
+                const pulse = 1 + Math.sin(Date.now() / 200) * 0.1;
+                const radius = entity.radius * pulse;
+                
+                // Fill
+                ctx.fillStyle = entity.fillColor || `rgba(100, 200, 255, ${alpha * 0.2})`;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Border
+                ctx.strokeStyle = entity.borderColor || `rgba(100, 200, 255, ${alpha * 0.6})`;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([10, 5]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.restore();
+            }
+        },
+        
+        // Explosion - instant damage in radius, then visual effect
+        explosion: {
+            update: (entity, dt) => {
+                // Apply damage on first frame only
+                if (!entity.damageApplied) {
+                    entity.damageApplied = true;
+                    
+                    for (let i = enemies.length - 1; i >= 0; i--) {
+                        const enemy = enemies[i];
+                        const dx = enemy.x - entity.x;
+                        const dy = enemy.y - entity.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < entity.radius) {
+                            enemy.health -= entity.damage;
+                            
+                            // Knockback
+                            if (dist > 0 && entity.knockback) {
+                                const knockX = dx / dist * entity.knockback;
+                                const knockY = dy / dist * entity.knockback;
+                                enemy.x += knockX * 0.1;
+                                enemy.y += knockY * 0.1;
+                            }
+                            
+                            if (enemy.health <= 0) {
+                                killEnemy(enemy);
+                            }
+                        }
+                    }
+                }
+                
+                entity.lifetime -= dt;
+            },
+            draw: (entity, ctx) => {
+                const progress = 1 - (entity.lifetime / entity.maxLifetime);
+                const alpha = 1 - progress;
+                const expandedRadius = entity.radius * (0.5 + progress * 0.5);
+                
+                ctx.save();
+                ctx.translate(entity.x, entity.y);
+                
+                // Explosion rings
+                for (let i = 0; i < 3; i++) {
+                    const ringProgress = Math.min(1, progress * 2 - i * 0.2);
+                    if (ringProgress < 0) continue;
+                    
+                    const ringRadius = expandedRadius * ringProgress;
+                    const ringAlpha = alpha * (1 - i * 0.3);
+                    
+                    ctx.strokeStyle = `rgba(255, ${150 - i * 30}, 0, ${ringAlpha})`;
+                    ctx.lineWidth = 4 - i;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                
+                // Center flash
+                if (progress < 0.3) {
+                    ctx.fillStyle = `rgba(255, 255, 200, ${(0.3 - progress) * 3})`;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, expandedRadius * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.restore();
+            }
+        }
+    };
+    
+    // Factory to create entities
+    function createEntity(behaviorType, config) {
+        return {
+            behavior: behaviorType,
+            x: config.x,
+            y: config.y,
+            vx: config.vx || 0,
+            vy: config.vy || 0,
+            radius: config.radius || 10,
+            damage: config.damage || 0,
+            knockback: config.knockback || 0,
+            lifetime: config.lifetime || 2,
+            maxLifetime: config.lifetime || 2,
+            owner: config.owner,
+            color: config.color,
+            fillColor: config.fillColor,
+            borderColor: config.borderColor,
+            piercing: config.piercing || false,
+            turnRate: config.turnRate,
+            affectsPlayers: config.affectsPlayers || false,
+            affectsEnemies: config.affectsEnemies || false,
+            onPlayerInside: config.onPlayerInside,
+            onEnemyInside: config.onEnemyInside,
+            onHit: config.onHit,
+            ...config.extra // Any additional custom properties
+        };
+    }
+    
+    function updateEntities(dt) {
+        for (let i = entities.length - 1; i >= 0; i--) {
+            const entity = entities[i];
+            const behavior = EntityBehaviors[entity.behavior];
+            
+            if (behavior && behavior.update) {
+                behavior.update(entity, dt);
+            }
+            
+            // Remove expired entities
+            if (entity.lifetime <= 0) {
+                entities.splice(i, 1);
+            }
+        }
+    }
+    
+    function drawEntities() {
+        for (const entity of entities) {
+            const behavior = EntityBehaviors[entity.behavior];
+            if (behavior && behavior.draw) {
+                behavior.draw(entity, ctx);
+            }
+        }
+    }
+    
+    // ============================================================
     // STATE
     // ============================================================
     const canvas = document.getElementById('game');
@@ -1905,6 +2222,9 @@
         // Draw eggs (on ground)
         drawEggs();
         
+        // Draw entities (projectiles, zones, etc.)
+        drawEntities();
+        
         // Draw enemies (behind player)
         drawEnemies();
         
@@ -1944,6 +2264,7 @@
             updateEnemies(cappedDt);
             updateCombat(cappedDt);
             updatePowers(cappedDt);
+            updateEntities(cappedDt);  // Entity system update
             updateEggs();
             checkCollisions();
             updateRhythm(cappedDt);
@@ -1999,6 +2320,7 @@
         eggs.length = 0;
         peckEffects.length = 0;
         powerEffects.length = 0;  // Unified effects array
+        entities.length = 0;  // Entity system (projectiles, zones, etc.)
         
         // Reset attack nest
         attackNest.eggs = 0;
