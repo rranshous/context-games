@@ -851,6 +851,87 @@
                 
                 ctx.restore();
             }
+        },
+        
+        healingPond: {
+            name: 'Healing Pond',
+            nest: 'defense',
+            cost: 60,
+            cooldown: 20.0,
+            duration: 8.0,
+            radius: 70,
+            healPerSecond: 12,
+            icon: '💧',
+            // Always can fire
+            canFire: (player, enemies) => true,
+            // Execute - create a healing zone
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.healingPond;
+                
+                // Create healing zone at player's feet
+                entities.push(createEntity('zone', {
+                    x: player.x,
+                    y: player.y,
+                    radius: power.radius,
+                    lifetime: power.duration,
+                    owner: player,
+                    affectsPlayers: true,
+                    affectsEnemies: false,
+                    fillColor: 'rgba(100, 200, 255, 0.2)',
+                    borderColor: 'rgba(100, 200, 255, 0.6)',
+                    onPlayerInside: (entity, p, dt) => {
+                        // Heal players inside
+                        const healAmount = power.healPerSecond * dt;
+                        p.health = Math.min(p.maxHealth, p.health + healAmount);
+                    },
+                    extra: {
+                        isHealingPond: true
+                    }
+                }));
+                
+                // Add splash effect
+                effects.push({
+                    type: 'healingPond',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.4,
+                    maxTimer: 0.4
+                });
+                
+                console.log(`P${player.index + 1} created Healing Pond!`);
+                return [];
+            },
+            // Draw water splash effect
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Water droplets rising
+                ctx.fillStyle = `rgba(100, 200, 255, ${alpha * 0.7})`;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const rise = (1 - alpha) * 40;
+                    const dist = 20 + (1 - alpha) * 30;
+                    const x = Math.cos(angle) * dist;
+                    const y = Math.sin(angle) * dist - rise;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 5 * alpha, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Center splash
+                const splashRadius = 30 + (1 - alpha) * 40;
+                ctx.strokeStyle = `rgba(100, 200, 255, ${alpha * 0.5})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, splashRadius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -1119,6 +1200,23 @@
                 ctx.setLineDash([10, 5]);
                 ctx.stroke();
                 ctx.setLineDash([]);
+                
+                // Healing pond sparkles
+                if (entity.isHealingPond) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
+                    const time = Date.now() / 100;
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (i / 6) * Math.PI * 2 + time * 0.5;
+                        const dist = radius * 0.6 * (0.5 + Math.sin(time + i) * 0.3);
+                        const x = Math.cos(angle) * dist;
+                        const y = Math.sin(angle) * dist;
+                        const sparkleSize = 3 + Math.sin(time * 2 + i * 2) * 2;
+                        
+                        ctx.beginPath();
+                        ctx.arc(x, y, sparkleSize, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
                 
                 ctx.restore();
             }
