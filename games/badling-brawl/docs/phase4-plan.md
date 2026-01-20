@@ -11,10 +11,13 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 ## Milestones
 
 ### M1: Third Player Support
-- [ ] Add P3 player slot
-- [ ] P3 uses mallard_male sprites (green head)
-- [ ] UI layout: P1 top-left, P2 top-right, P3 bottom-left
-- [ ] Test with keyboard + 2 gamepads
+- [x] Add P3 player slot
+- [x] P3 uses mallard_male sprites (green head)
+- [x] UI layout: P1 top-left, P2 top-right, P3 bottom-left
+- [x] Test with keyboard + 2 gamepads
+
+**Progress:**
+- 3rd player support is live! P3 joins as green mallard duck, UI confirmed via screenshot. All join prompts and spawn positions work for 3 players.
 
 ### M2: Egg Bomb Power (Offensive - Area)
 - [ ] Throwable egg projectile in facing direction
