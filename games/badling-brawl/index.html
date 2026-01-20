@@ -584,6 +584,89 @@
                 
                 ctx.restore();
             }
+        },
+        
+        featherStorm: {
+            name: 'Feather Storm',
+            nest: 'attack',
+            cost: 70,
+            cooldown: 6.0,
+            featherCount: 8,
+            projectileSpeed: 280,
+            damage: 18,
+            lifetime: 1.2,
+            icon: '🌀',
+            // Can fire if any enemy exists
+            canFire: (player, enemies) => {
+                return enemies.length > 0;
+            },
+            // Execute - create 8 feather projectiles spiraling outward
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.featherStorm;
+                
+                // Create feathers in a circle
+                for (let i = 0; i < power.featherCount; i++) {
+                    const angle = (i / power.featherCount) * Math.PI * 2;
+                    
+                    entities.push(createEntity('projectile', {
+                        x: player.x,
+                        y: player.y,
+                        vx: Math.cos(angle) * power.projectileSpeed,
+                        vy: Math.sin(angle) * power.projectileSpeed,
+                        radius: 8,
+                        damage: power.damage,
+                        lifetime: power.lifetime,
+                        owner: player,
+                        piercing: true, // Feathers pass through enemies
+                        extra: {
+                            isFeather: true,
+                            baseAngle: angle
+                        }
+                    }));
+                }
+                
+                // Add burst effect
+                effects.push({
+                    type: 'featherStorm',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.3,
+                    maxTimer: 0.3
+                });
+                
+                return []; // Direct kills handled by projectile behavior
+            },
+            // Draw the burst effect
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                const expand = 1 - alpha;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Expanding ring of feathers
+                ctx.strokeStyle = `rgba(200, 220, 255, ${alpha * 0.8})`;
+                ctx.lineWidth = 3;
+                
+                const radius = 30 + expand * 100;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Inner swirl
+                ctx.strokeStyle = `rgba(150, 180, 255, ${alpha * 0.5})`;
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2 + expand * Math.PI;
+                    const innerR = 10 + expand * 30;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -684,6 +767,28 @@
                     ctx.beginPath();
                     ctx.arc(entity.radius * 0.6, 0, 4, 0, Math.PI * 2);
                     ctx.fill();
+                } else if (entity.isFeather) {
+                    // Feather projectile
+                    ctx.rotate(Math.atan2(entity.vy, entity.vx));
+                    
+                    // Feather shape (elongated with pointed end)
+                    ctx.fillStyle = '#E8F4FD';
+                    ctx.strokeStyle = '#87CEEB';
+                    ctx.lineWidth = 1;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(-entity.radius * 1.5, 0);
+                    ctx.quadraticCurveTo(-entity.radius * 0.5, -entity.radius * 0.6, entity.radius * 1.5, 0);
+                    ctx.quadraticCurveTo(-entity.radius * 0.5, entity.radius * 0.6, -entity.radius * 1.5, 0);
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Center line
+                    ctx.strokeStyle = '#B0D4E8';
+                    ctx.beginPath();
+                    ctx.moveTo(-entity.radius, 0);
+                    ctx.lineTo(entity.radius, 0);
+                    ctx.stroke();
                 } else {
                     // Default projectile appearance
                     ctx.fillStyle = entity.color || '#FFD700';
