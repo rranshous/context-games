@@ -1282,6 +1282,187 @@
                 
                 ctx.restore();
             }
+        },
+        
+        // ---- UTILITY POWERS ----
+        speedWaddle: {
+            name: 'Speed Waddle',
+            nest: 'utility',
+            cost: 15,
+            cooldown: 8.0,
+            duration: 3.0,
+            speedMultiplier: 2.0,
+            icon: '⚡',
+            // Always can fire
+            canFire: (player, enemies) => true,
+            // Execute - apply speed boost status effect
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.speedWaddle;
+                
+                applyStatusEffect(player, 'speedBoost', power.duration, {
+                    multiplier: power.speedMultiplier
+                });
+                
+                effects.push({
+                    type: 'speedWaddle',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.3,
+                    maxTimer: 0.3
+                });
+                
+                console.log(`P${player.index + 1} activated Speed Waddle!`);
+                return [];
+            },
+            // Draw speed burst
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Speed lines
+                ctx.strokeStyle = `rgba(0, 255, 100, ${alpha})`;
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const dist = 20 + (1 - alpha) * 40;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(angle) * 15, Math.sin(angle) * 15);
+                    ctx.lineTo(Math.cos(angle) * dist, Math.sin(angle) * dist);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        },
+        
+        nestMagnet: {
+            name: 'Nest Magnet',
+            nest: 'utility',
+            cost: 25,
+            cooldown: 12.0,
+            duration: 5.0,
+            magnetRadius: 200,
+            magnetStrength: 300,
+            icon: '🧲',
+            // Always can fire
+            canFire: (player, enemies) => true,
+            // Execute - apply egg magnet status effect
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.nestMagnet;
+                
+                applyStatusEffect(player, 'eggMagnet', power.duration, {
+                    radius: power.magnetRadius,
+                    strength: power.magnetStrength
+                });
+                
+                effects.push({
+                    type: 'nestMagnet',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.4,
+                    maxTimer: 0.4
+                });
+                
+                console.log(`P${player.index + 1} activated Nest Magnet!`);
+                return [];
+            },
+            // Draw magnet field
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Pulsing rings
+                ctx.strokeStyle = `rgba(255, 215, 0, ${alpha * 0.7})`;
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 3; i++) {
+                    const ringProgress = (1 - alpha) + i * 0.2;
+                    if (ringProgress > 1) continue;
+                    const radius = ringProgress * 100;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        },
+        
+        breadCrumbs: {
+            name: 'Bread Crumbs',
+            nest: 'utility',
+            cost: 40,
+            cooldown: 5.0,
+            duration: 6.0,
+            radius: 80,
+            slowAmount: 0.4, // Enemies move at 40% speed
+            icon: '🍞',
+            // Always can fire
+            canFire: (player, enemies) => true,
+            // Execute - create a slow zone
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.breadCrumbs;
+                
+                entities.push(createEntity('zone', {
+                    x: player.x,
+                    y: player.y,
+                    radius: power.radius,
+                    lifetime: power.duration,
+                    owner: player,
+                    affectsPlayers: false,
+                    affectsEnemies: true,
+                    fillColor: 'rgba(210, 180, 140, 0.3)',
+                    borderColor: 'rgba(210, 180, 140, 0.7)',
+                    onEnemyInside: (entity, enemy, dt) => {
+                        // Apply slow effect
+                        if (!hasStatusEffect(enemy, 'slow')) {
+                            applyStatusEffect(enemy, 'slow', 0.5, {
+                                multiplier: power.slowAmount
+                            });
+                        }
+                    },
+                    extra: {
+                        isBreadCrumbs: true
+                    }
+                }));
+                
+                effects.push({
+                    type: 'breadCrumbs',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.3,
+                    maxTimer: 0.3
+                });
+                
+                console.log(`P${player.index + 1} dropped Bread Crumbs!`);
+                return [];
+            },
+            // Draw crumb scatter
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Scattering crumbs
+                ctx.fillStyle = `rgba(210, 180, 140, ${alpha})`;
+                for (let i = 0; i < 12; i++) {
+                    const angle = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
+                    const dist = (1 - alpha) * 60 + Math.random() * 20;
+                    const x = Math.cos(angle) * dist;
+                    const y = Math.sin(angle) * dist;
+                    const size = 3 + Math.random() * 4;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -1602,6 +1783,25 @@
                         
                         ctx.beginPath();
                         ctx.arc(x, y, sparkleSize, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                
+                // Bread crumbs scattered particles
+                if (entity.isBreadCrumbs) {
+                    ctx.fillStyle = `rgba(180, 140, 100, ${alpha * 0.8})`;
+                    const time = Date.now() / 500;
+                    for (let i = 0; i < 10; i++) {
+                        // Deterministic but varied positions
+                        const angle = (i / 10) * Math.PI * 2 + i * 0.5;
+                        const distRatio = 0.3 + (i % 3) * 0.25;
+                        const dist = radius * distRatio;
+                        const x = Math.cos(angle + time * 0.2) * dist;
+                        const y = Math.sin(angle + time * 0.2) * dist;
+                        const size = 4 + (i % 3) * 2;
+                        
+                        ctx.beginPath();
+                        ctx.arc(x, y, size, 0, Math.PI * 2);
                         ctx.fill();
                     }
                 }
@@ -3808,6 +4008,13 @@
             HOME_BASE.y + 50
         );
         nests.push(sniperNestObj);
+        
+        // Create utility nest (bottom center of home base)
+        const utilityNestObj = createNest('utility',
+            HOME_BASE.x + HOME_BASE.width / 2,
+            HOME_BASE.y + HOME_BASE.height - 50
+        );
+        nests.push(utilityNestObj);
     }
     
     function isInsideHomeBase(x, y, radius = 0) {
