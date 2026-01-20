@@ -819,6 +819,261 @@
     }
     
     // ============================================================
+    // STATUS EFFECT SYSTEM
+    // ============================================================
+    // Status effects that can be applied to players or enemies
+    // Each effect has a type, duration, and optional data
+    
+    const StatusEffectTypes = {
+        // Invulnerable - cannot take damage
+        invulnerable: {
+            onApply: (target) => {
+                console.log(`${target.index !== undefined ? 'P' + (target.index + 1) : 'Enemy'} is now invulnerable!`);
+            },
+            onRemove: (target) => {
+                console.log(`${target.index !== undefined ? 'P' + (target.index + 1) : 'Enemy'} is no longer invulnerable`);
+            },
+            modifyDamage: (target, damage) => 0, // Negate all damage
+            drawIndicator: (target, ctx) => {
+                // Golden glow effect
+                ctx.save();
+                ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 100) * 0.2;
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, target.size / 2 + 8, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        },
+        
+        // Damage reduction (feather armor)
+        damageReduction: {
+            onApply: (target, effect) => {
+                console.log(`${target.index !== undefined ? 'P' + (target.index + 1) : 'Enemy'} has ${effect.data.reduction * 100}% damage reduction`);
+            },
+            modifyDamage: (target, damage, effect) => {
+                return damage * (1 - (effect.data.reduction || 0.5));
+            },
+            drawIndicator: (target, ctx) => {
+                // Feathery aura
+                ctx.save();
+                ctx.globalAlpha = 0.3;
+                ctx.strokeStyle = '#87CEEB';
+                ctx.lineWidth = 3;
+                const featherCount = 6;
+                for (let i = 0; i < featherCount; i++) {
+                    const angle = (i / featherCount) * Math.PI * 2 + Date.now() / 1000;
+                    const x = target.x + Math.cos(angle) * (target.size / 2 + 5);
+                    const y = target.y + Math.sin(angle) * (target.size / 2 + 5);
+                    ctx.beginPath();
+                    ctx.moveTo(x - 5, y);
+                    ctx.lineTo(x + 5, y);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        },
+        
+        // Speed boost
+        speedBoost: {
+            onApply: (target, effect) => {
+                target._originalSpeed = target.speed;
+                target.speed *= (effect.data.multiplier || 2);
+                console.log(`${target.index !== undefined ? 'P' + (target.index + 1) : 'Enemy'} speed boosted!`);
+            },
+            onRemove: (target) => {
+                if (target._originalSpeed !== undefined) {
+                    target.speed = target._originalSpeed;
+                    delete target._originalSpeed;
+                }
+            },
+            drawIndicator: (target, ctx) => {
+                // Speed lines behind player
+                ctx.save();
+                ctx.globalAlpha = 0.5;
+                ctx.strokeStyle = '#00FF00';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 3; i++) {
+                    const offset = i * 8;
+                    ctx.beginPath();
+                    ctx.moveTo(target.x - target.size / 2 - 10 - offset, target.y - 10 + i * 10);
+                    ctx.lineTo(target.x - target.size / 2 - 20 - offset, target.y - 10 + i * 10);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        },
+        
+        // Egg magnet - pulls eggs toward player
+        eggMagnet: {
+            onUpdate: (target, effect, dt) => {
+                const magnetRadius = effect.data.radius || 200;
+                const magnetStrength = effect.data.strength || 300;
+                
+                for (const egg of eggs) {
+                    const dx = target.x - egg.x;
+                    const dy = target.y - egg.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < magnetRadius && dist > 0) {
+                        // Pull egg toward player
+                        const pullStrength = magnetStrength * (1 - dist / magnetRadius) * dt;
+                        egg.x += (dx / dist) * pullStrength;
+                        egg.y += (dy / dist) * pullStrength;
+                    }
+                }
+            },
+            drawIndicator: (target, ctx) => {
+                // Pulsing magnet ring
+                ctx.save();
+                const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+                ctx.globalAlpha = 0.2 * pulse;
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, 100 * pulse, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+            }
+        },
+        
+        // Slow effect (for enemies)
+        slow: {
+            onApply: (target, effect) => {
+                target._originalSpeed = target._originalSpeed || target.speed;
+                target.speed = target._originalSpeed * (effect.data.multiplier || 0.5);
+            },
+            onRemove: (target) => {
+                if (target._originalSpeed !== undefined) {
+                    target.speed = target._originalSpeed;
+                    delete target._originalSpeed;
+                }
+            },
+            drawIndicator: (target, ctx) => {
+                // Blue tint
+                ctx.save();
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = '#00BFFF';
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, target.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+    };
+    
+    // Apply a status effect to a target (player or enemy)
+    function applyStatusEffect(target, type, duration, data = {}) {
+        // Initialize statusEffects array if needed
+        if (!target.statusEffects) {
+            target.statusEffects = [];
+        }
+        
+        // Check if effect already exists - refresh duration if so
+        const existing = target.statusEffects.find(e => e.type === type);
+        if (existing) {
+            existing.duration = Math.max(existing.duration, duration);
+            return existing;
+        }
+        
+        const effect = {
+            type,
+            duration,
+            maxDuration: duration,
+            data
+        };
+        
+        target.statusEffects.push(effect);
+        
+        // Call onApply hook
+        const effectType = StatusEffectTypes[type];
+        if (effectType && effectType.onApply) {
+            effectType.onApply(target, effect);
+        }
+        
+        return effect;
+    }
+    
+    // Remove a specific status effect
+    function removeStatusEffect(target, type) {
+        if (!target.statusEffects) return;
+        
+        const index = target.statusEffects.findIndex(e => e.type === type);
+        if (index >= 0) {
+            const effect = target.statusEffects[index];
+            const effectType = StatusEffectTypes[type];
+            if (effectType && effectType.onRemove) {
+                effectType.onRemove(target, effect);
+            }
+            target.statusEffects.splice(index, 1);
+        }
+    }
+    
+    // Check if target has a specific effect
+    function hasStatusEffect(target, type) {
+        return target.statusEffects && target.statusEffects.some(e => e.type === type);
+    }
+    
+    // Get a specific status effect
+    function getStatusEffect(target, type) {
+        return target.statusEffects && target.statusEffects.find(e => e.type === type);
+    }
+    
+    // Update all status effects on a target
+    function updateStatusEffects(target, dt) {
+        if (!target.statusEffects) return;
+        
+        for (let i = target.statusEffects.length - 1; i >= 0; i--) {
+            const effect = target.statusEffects[i];
+            effect.duration -= dt;
+            
+            // Call onUpdate hook
+            const effectType = StatusEffectTypes[effect.type];
+            if (effectType && effectType.onUpdate) {
+                effectType.onUpdate(target, effect, dt);
+            }
+            
+            // Remove expired effects
+            if (effect.duration <= 0) {
+                if (effectType && effectType.onRemove) {
+                    effectType.onRemove(target, effect);
+                }
+                target.statusEffects.splice(i, 1);
+            }
+        }
+    }
+    
+    // Calculate damage after status effect modifiers
+    function calculateDamage(target, baseDamage) {
+        if (!target.statusEffects) return baseDamage;
+        
+        let damage = baseDamage;
+        for (const effect of target.statusEffects) {
+            const effectType = StatusEffectTypes[effect.type];
+            if (effectType && effectType.modifyDamage) {
+                damage = effectType.modifyDamage(target, damage, effect);
+            }
+        }
+        
+        return damage;
+    }
+    
+    // Draw status effect indicators on a target
+    function drawStatusEffectIndicators(target) {
+        if (!target.statusEffects) return;
+        
+        for (const effect of target.statusEffects) {
+            const effectType = StatusEffectTypes[effect.type];
+            if (effectType && effectType.drawIndicator) {
+                effectType.drawIndicator(target, ctx);
+            }
+        }
+    }
+    
+    // ============================================================
     // STATE
     // ============================================================
     const canvas = document.getElementById('game');
@@ -1505,11 +1760,16 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 if (dist < playerRadius + enemyRadius) {
-                    // Player takes damage
-                    p.health -= enemy.damage;
+                    // Calculate damage with status effect modifiers
+                    const actualDamage = calculateDamage(p, enemy.damage);
                     
-                    // Vibrate controller on hit
-                    vibrateController(p, 0.7, 150);
+                    // Player takes damage
+                    p.health -= actualDamage;
+                    
+                    // Vibrate controller on hit (only if damage was dealt)
+                    if (actualDamage > 0) {
+                        vibrateController(p, 0.7, 150);
+                    }
                     
                     // Check for death
                     if (p.health <= 0) {
@@ -1743,6 +2003,9 @@
     // ============================================================
     function drawSinglePlayer(p) {
         if (!p.active) return;
+        
+        // Draw status effect indicators (behind player)
+        drawStatusEffectIndicators(p);
         
         const spriteData = sprites[p.spriteKey][p.animState];
         
@@ -2265,6 +2528,10 @@
             updateCombat(cappedDt);
             updatePowers(cappedDt);
             updateEntities(cappedDt);  // Entity system update
+            // Update status effects on all players
+            for (const p of players) {
+                if (p.active) updateStatusEffects(p, cappedDt);
+            }
             updateEggs();
             checkCollisions();
             updateRhythm(cappedDt);
