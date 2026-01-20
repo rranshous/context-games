@@ -10,7 +10,7 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 
 ## Milestones
 
-### M1: Third Player Support
+### M1: Third Player Support ✅
 - [x] Add P3 player slot
 - [x] P3 uses mallard_male sprites (green head)
 - [x] UI layout: P1 top-left, P2 top-right, P3 bottom-left
@@ -19,44 +19,46 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 **Progress:**
 - 3rd player support is live! P3 joins as green mallard duck, UI confirmed via screenshot. All join prompts and spawn positions work for 3 players.
 
-### M2: Egg Bomb Power (Offensive - Area)
-- [ ] Throwable egg projectile in facing direction
-- [ ] Explodes on enemy contact OR after 2 seconds
-- [ ] Area damage to all enemies in blast radius
-- [ ] Visual: egg arc trajectory, explosion effect
-- [ ] Cost: 45 eggs, Cooldown: 4s
+### M2: Egg Bomb Power (Offensive - Area) ✅
+- [x] Throwable egg projectile in facing direction
+- [x] Explodes on enemy contact OR after 2 seconds
+- [x] Area damage to all enemies in blast radius
+- [x] Visual: egg arc trajectory, explosion effect
+- [x] Cost: 45 eggs, Cooldown: 4s
 
-### M3: Feather Storm Power (Offensive - Multi)
-- [ ] Rapid 360° feather projectiles (8 feathers spiral outward)
-- [ ] Each feather damages enemies it passes through
-- [ ] Visual: swirling feather burst
-- [ ] Cost: 70 eggs, Cooldown: 6s
+### M3: Feather Storm Power (Offensive - Multi) ✅
+- [x] Rapid 360° feather projectiles (8 feathers spiral outward)
+- [x] Each feather damages enemies it passes through (piercing)
+- [x] Visual: swirling feather burst
+- [x] Cost: 70 eggs, Cooldown: 6s
 
-### M4: Defensive Powers
-- [ ] **Duck Shield**: Temporary invulnerability bubble (3s), can still move
+### M4: Defensive Powers ✅
+- [x] **Duck Shield**: Temporary invulnerability bubble (3s), can still move
   - Cost: 20 eggs, Cooldown: 10s
-- [ ] **Decoy Duck**: Spawn a fake duck that enemies chase for 5s
+- [x] **Decoy Duck**: Spawn a fake duck that enemies chase for 5s
   - Cost: 30 eggs, Cooldown: 8s
-- [ ] **Feather Armor**: Reduce incoming damage by 50% for 6s
+- [x] **Feather Armor**: Reduce incoming damage by 50% for 6s
   - Cost: 45 eggs, Cooldown: 15s
-- [ ] **Healing Pond**: Create a zone that heals ducks standing in it
+- [x] **Healing Pond**: Create a zone that heals ducks standing in it
   - Cost: 60 eggs, Cooldown: 20s
 
-### M5: Ranged/Sniper Powers  
-- [ ] **Egg Sniper**: Long range single-target high damage shot
+### M5: Ranged/Sniper Powers ✅
+- [x] **Egg Sniper**: Long range single-target high damage shot
   - Cost: 15 eggs, Cooldown: 3s
-- [ ] **Ricochet Shot**: Egg bounces between up to 3 enemies
+- [x] **Ricochet Shot**: Egg bounces between up to 3 enemies
   - Cost: 30 eggs, Cooldown: 4s
-- [ ] **Piercing Quack**: Quack that passes through all enemies in a line
+- [x] **Piercing Quack**: Quack that passes through all enemies in a line
   - Cost: 45 eggs, Cooldown: 5s
-- [ ] **Homing Egg**: Slow but auto-targets nearest enemy, high damage
+- [x] **Homing Egg**: Slow but auto-targets nearest enemy, high damage
   - Cost: 60 eggs, Cooldown: 6s
 
-### M6: Utility Powers
-- [ ] **Nest Magnet**: Auto-collect eggs in large radius for 5s
-  - Cost: 25 eggs, Cooldown: 12s
-- [ ] **Speed Waddle**: Massive speed boost for 3s
+### M6: Utility Powers ✅
+- [x] **Speed Waddle**: Massive speed boost for 3s
   - Cost: 15 eggs, Cooldown: 8s
+- [x] **Nest Magnet**: Auto-collect eggs in large radius for 5s
+  - Cost: 25 eggs, Cooldown: 12s
+- [x] **Bread Crumbs**: Slow zone for enemies (40% speed) for 6s
+  - Cost: 40 eggs, Cooldown: 5s
 
 ### M7: Healing Nest (Special)
 - [ ] No powers - purely for HP recovery
