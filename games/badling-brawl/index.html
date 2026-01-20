@@ -110,6 +110,13 @@
             run: { img: null, frames: 8 },
             slap: { img: null, frames: 3 }
         },
+        // P3 duck (mallard male - green head)
+        duck3: {
+            idle: { img: null, frames: 4 },
+            walk: { img: null, frames: 8 },
+            run: { img: null, frames: 8 },
+            slap: { img: null, frames: 3 }
+        },
         cat: {
             walk: { img: null, frames: 6 },
             idle: { img: null, frames: 4 }
@@ -193,6 +200,11 @@
                 { type: 'duck2', key: 'walk', path: 'assets/ducks/yellow/duck_walk_1.png', frames: 8 },
                 { type: 'duck2', key: 'run', path: 'assets/ducks/yellow/duck_run.png', frames: 8 },
                 { type: 'duck2', key: 'slap', path: 'assets/ducks/yellow/duck_slap.png', frames: 3 },
+                // P3 duck (mallard male - green head)
+                { type: 'duck3', key: 'idle', path: 'assets/ducks/mallard_male/duck_idle.png', frames: 4 },
+                { type: 'duck3', key: 'walk', path: 'assets/ducks/mallard_male/duck_walk_1.png', frames: 8 },
+                { type: 'duck3', key: 'run', path: 'assets/ducks/mallard_male/duck_run.png', frames: 8 },
+                { type: 'duck3', key: 'slap', path: 'assets/ducks/mallard_male/duck_slap.png', frames: 3 },
                 // Enemies
                 { type: 'cat', key: 'walk', path: 'assets/enemies/cat/Walk.png', frames: 6 },
                 { type: 'cat', key: 'idle', path: 'assets/enemies/cat/Idle.png', frames: 4 },
@@ -248,8 +260,8 @@
             y: 0,
             size: PLAYER_SIZE,
             speed: PLAYER_SPEED,
-            color: playerIndex === 0 ? '#f4d03f' : '#ff9933', // Fallback colors
-            spriteKey: playerIndex === 0 ? 'duck' : 'duck2',
+            color: ['#ffffff', '#ffcc00', '#2e8b57'][playerIndex] || '#ff69b4', // Fallback colors
+            spriteKey: ['duck', 'duck2', 'duck3'][playerIndex] || 'duck',
             facingLeft: false,
             animState: 'idle',
             animFrame: 0,
@@ -275,10 +287,11 @@
         };
     }
     
-    // Players array - P1 and P2
+    // Players array - P1, P2, P3
     const players = [
         createPlayerState(0),
-        createPlayerState(1)
+        createPlayerState(1),
+        createPlayerState(2)
     ];
     
     // Alias for backward compatibility during refactor
@@ -377,9 +390,15 @@
     
     // Spawns a player at home base with offset based on index
     function spawnPlayerAtHome(p) {
-        const offsetX = (p.index === 0) ? -30 : 30;
-        p.x = canvas.width / 2 + offsetX;
-        p.y = canvas.height / 2;
+        // P1: left, P2: right, P3: center-back
+        const offsets = [
+            { x: -40, y: 0 },   // P1 left
+            { x: 40, y: 0 },    // P2 right  
+            { x: 0, y: 30 }     // P3 center-back
+        ];
+        const offset = offsets[p.index] || { x: 0, y: 0 };
+        p.x = canvas.width / 2 + offset.x;
+        p.y = canvas.height / 2 + offset.y;
     }
     
     // Respawn a dead player (loses powers and eggs)
@@ -1567,17 +1586,29 @@
         const barWidth = 150;
         const barHeight = 16;
         
-        joinedPlayers.forEach((p, idx) => {
-            // P1 on left, P2 on right
-            const isLeft = p.index === 0;
-            const baseX = isLeft ? 20 : canvas.width - barWidth - 20;
-            let y = 30;
+        // UI positions: P1 top-left, P2 top-right, P3 bottom-left
+        const uiPositions = [
+            { x: 20, y: 30, align: 'left' },                           // P1 top-left
+            { x: canvas.width - barWidth - 20, y: 30, align: 'right' }, // P2 top-right
+            { x: 20, y: canvas.height - 90, align: 'left' }            // P3 bottom-left
+        ];
+        
+        // Player colors for labels
+        const playerColors = ['#fff', '#ffcc00', '#5f9'];
+        
+        joinedPlayers.forEach((p) => {
+            const pos = uiPositions[p.index];
+            if (!pos) return;
+            
+            const baseX = pos.x;
+            let y = pos.y;
+            const isLeft = pos.align === 'left';
             
             // Player label with input icon
             const icon = p.inputSource === 'keyboard' ? '⌨️' : '🎮';
             ctx.font = 'bold 18px sans-serif';
             ctx.textAlign = isLeft ? 'left' : 'right';
-            ctx.fillStyle = p.index === 0 ? '#fff' : '#ff9';
+            ctx.fillStyle = playerColors[p.index] || '#fff';
             ctx.fillText(`${icon} P${p.index + 1}`, isLeft ? baseX : baseX + barWidth, y);
             y += 25;
             
@@ -1617,17 +1648,25 @@
             }
         });
         
-        // "Press to join" for empty slot (if no one has joined that slot yet)
+        // "Press to join" for empty slots - show in each empty slot's position
         const emptySlots = players.filter(p => p.inputSource === null);
-        if (emptySlots.length > 0) {
-            ctx.font = '14px sans-serif';
+        if (emptySlots.length > 0 && emptySlots.length < 3) {
+            // Only show if at least one player has joined
+            ctx.font = '12px sans-serif';
             ctx.fillStyle = '#ff9';
-            // Show join prompt on side of empty slot
-            const emptySlot = emptySlots[0];
-            const isLeft = emptySlot.index === 0;
-            ctx.textAlign = isLeft ? 'left' : 'right';
-            const joinX = isLeft ? 20 : canvas.width - 20;
-            ctx.fillText('Press direction to join!', joinX, 50);
+            emptySlots.forEach(slot => {
+                const pos = uiPositions[slot.index];
+                if (!pos) return;
+                ctx.textAlign = pos.align;
+                const textX = pos.align === 'left' ? pos.x : pos.x + barWidth;
+                ctx.fillText('Press to join!', textX, pos.y);
+            });
+        } else if (emptySlots.length === 3) {
+            // No one joined yet - center prompt
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#ff9';
+            ctx.textAlign = 'center';
+            ctx.fillText('Press direction to join!', canvas.width / 2, canvas.height / 2 - 80);
         }
         
         // Surge/Lull indicator (top center)
