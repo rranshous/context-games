@@ -1074,6 +1074,91 @@
     }
     
     // ============================================================
+    // NEST SYSTEM
+    // ============================================================
+    // Nest types define appearance, powers they unlock, and position offset
+    const NEST_TYPES = {
+        attack: {
+            name: 'Attack Nest',
+            color: '#e74c3c',  // Red
+            icon: '⚔️',
+            description: 'Offensive powers that damage enemies'
+        },
+        defense: {
+            name: 'Defense Nest',
+            color: '#3498db',  // Blue
+            icon: '🛡️',
+            description: 'Protective powers and damage reduction'
+        },
+        utility: {
+            name: 'Utility Nest',
+            color: '#2ecc71',  // Green
+            icon: '🔧',
+            description: 'Speed, magnetism, and support powers'
+        },
+        summon: {
+            name: 'Summon Nest',
+            color: '#9b59b6',  // Purple
+            icon: '🥚',
+            description: 'Create decoys and projectile helpers'
+        },
+        ultimate: {
+            name: 'Ultimate Nest',
+            color: '#f1c40f',  // Gold
+            icon: '⭐',
+            description: 'Powerful abilities with long cooldowns'
+        }
+    };
+    
+    // All nests in the game
+    const nests = [];
+    
+    // Create a nest of a specific type
+    function createNest(type, x, y) {
+        const nest = {
+            type,
+            x,
+            y,
+            eggs: 0,
+            level: 0,
+            claimed: []
+        };
+        initNestClaimedArray(nest);
+        return nest;
+    }
+    
+    // Initialize nest claimed array based on power count
+    function initNestClaimedArray(nest) {
+        const powers = getPowersForNest(nest.type);
+        nest.claimed = powers.map(() => false);
+    }
+    
+    // Get power definition for a nest at a given level
+    function getNestPowerAtLevel(nest, level) {
+        const powers = getPowersForNest(nest.type);
+        return powers[level] || null;
+    }
+    
+    // Find the nearest nest to a player
+    function findNearestNest(playerObj) {
+        let nearestNest = null;
+        let nearestDist = Infinity;
+        
+        for (const nest of nests) {
+            const dx = playerObj.x - nest.x;
+            const dy = playerObj.y - nest.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestNest = nest;
+            }
+        }
+        
+        return { nest: nearestNest, dist: nearestDist };
+    }
+    
+    // ============================================================
     // STATE
     // ============================================================
     const canvas = document.getElementById('game');
@@ -1136,27 +1221,9 @@
     // Legacy combined input - now just points to P1's input for compatibility
     const input = player.input;
     
-    // Attack Nest state - uses PowerRegistry to get power list
-    const attackNest = {
-        x: 0,  // Set on init (inside home base)
-        y: 0,
-        type: 'attack',  // nest type for PowerRegistry lookup
-        eggs: 0,
-        level: 0,  // 0 = nothing unlocked, 1 = first power available to claim, etc.
-        claimed: []  // Which levels have been claimed (populated on init)
-    };
-    
-    // Initialize nest claimed array based on power count
-    function initNestClaimedArray(nest) {
-        const powers = getPowersForNest(nest.type);
-        nest.claimed = powers.map(() => false);
-    }
-    
-    // Get power definition for a nest at a given level
-    function getNestPowerAtLevel(nest, level) {
-        const powers = getPowersForNest(nest.type);
-        return powers[level] || null;
-    }
+    // Attack Nest - legacy alias for backward compatibility (points to first nest in nests[])
+    // Will be set up in setupHomeBase()
+    let attackNest = null;
     
     // Enemies array
     const enemies = [];
@@ -1495,31 +1562,28 @@
         // Must be inside home base
         if (!isInsideHomeBase(playerObj.x, playerObj.y)) return;
         
-        // Check distance to attack nest
-        const dx = playerObj.x - attackNest.x;
-        const dy = playerObj.y - attackNest.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        // Find nearest nest
+        const { nest, dist } = findNearestNest(playerObj);
+        if (!nest || dist > NEST_INTERACT_RANGE) return;
         
-        if (dist > NEST_INTERACT_RANGE) return;
-        
-        const nextPower = getNestPowerAtLevel(attackNest, attackNest.level);
-        const canClaim = nextPower && attackNest.eggs >= nextPower.cost && !attackNest.claimed[attackNest.level];
+        const nextPower = getNestPowerAtLevel(nest, nest.level);
+        const canClaim = nextPower && nest.eggs >= nextPower.cost && !nest.claimed[nest.level];
         
         if (canClaim) {
             // Claim the power! Powers are per-player
-            attackNest.claimed[attackNest.level] = true;
+            nest.claimed[nest.level] = true;
             playerObj.powers[nextPower.key] = true;
             playerObj.cooldowns[nextPower.key] = 0; // Initialize cooldown
-            attackNest.level++;
+            nest.level++;
             
             console.log(`P${playerObj.index + 1} claimed: ${nextPower.name}`);
         } else if (playerObj.eggs > 0 && nextPower) {
             // Deposit eggs - fill the bar or use all player eggs
-            const eggsNeeded = nextPower.cost - attackNest.eggs;
+            const eggsNeeded = nextPower.cost - nest.eggs;
             const eggsToDeposit = Math.min(playerObj.eggs, eggsNeeded);
             playerObj.eggs -= eggsToDeposit;
-            attackNest.eggs += eggsToDeposit;
-            console.log(`P${playerObj.index + 1} deposited ${eggsToDeposit} eggs. Nest: ${attackNest.eggs}/${nextPower.cost}`);
+            nest.eggs += eggsToDeposit;
+            console.log(`P${playerObj.index + 1} deposited ${eggsToDeposit} eggs to ${NEST_TYPES[nest.type].name}. Nest: ${nest.eggs}/${nextPower.cost}`);
         }
     }
     
@@ -2098,8 +2162,8 @@
         }
     }
     
-    function drawAttackNest() {
-        const nest = attackNest;
+    function drawSingleNest(nest) {
+        const nestType = NEST_TYPES[nest.type];
         const nextPower = getNestPowerAtLevel(nest, nest.level);
         const canClaim = nextPower && nest.eggs >= nextPower.cost && !nest.claimed[nest.level];
         
@@ -2109,16 +2173,16 @@
         const barX = nest.x - barWidth / 2;
         const barY = nest.y - barHeight / 2;
         
-        // Background
+        // Background with nest type color tint
         ctx.fillStyle = '#222';
         ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
         ctx.fillStyle = '#444';
         ctx.fillRect(barX, barY, barWidth, barHeight);
         
-        // Progress fill
+        // Progress fill (use nest type color when filling)
         if (nextPower) {
             const progress = Math.min(nest.eggs / nextPower.cost, 1);
-            ctx.fillStyle = canClaim ? '#FFD700' : '#4CAF50';
+            ctx.fillStyle = canClaim ? '#FFD700' : (nestType?.color || '#4CAF50');
             ctx.fillRect(barX, barY, barWidth * progress, barHeight);
         } else {
             // Maxed out
@@ -2127,18 +2191,19 @@
         }
         
         // Border
-        ctx.strokeStyle = canClaim ? '#FFD700' : '#666';
+        ctx.strokeStyle = canClaim ? '#FFD700' : (nestType?.color || '#666');
         ctx.lineWidth = canClaim ? 2 : 1;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
         
-        // Text above bar: power name
+        // Text above bar: nest icon + power name
         ctx.fillStyle = canClaim ? '#FFD700' : '#fff';
         ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
+        const icon = nestType?.icon || '';
         if (nextPower) {
-            ctx.fillText(nextPower.name, nest.x, barY - 8);
+            ctx.fillText(`${icon} ${nextPower.name}`, nest.x, barY - 8);
         } else {
-            ctx.fillText('ALL POWERS', nest.x, barY - 8);
+            ctx.fillText(`${icon} ALL POWERS`, nest.x, barY - 8);
         }
         
         // Text below bar: egg count
@@ -2150,19 +2215,34 @@
             ctx.fillText('MAX', nest.x, barY + barHeight + 14);
         }
         
-        // Interaction hint when player is near
-        const dx = player.x - nest.x;
-        const dy = player.y - nest.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < NEST_INTERACT_RANGE && isInsideHomeBase(player.x, player.y)) {
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 12px Arial';
-            if (canClaim) {
-                ctx.fillText('[E] Claim ' + nextPower.name, nest.x, nest.y - 35);
-            } else if (player.eggs > 0 && nextPower) {
-                ctx.fillText('[E] Deposit Eggs', nest.x, nest.y - 35);
+        // Interaction hint when any active player is near
+        for (const p of players) {
+            if (!p.active) continue;
+            const dx = p.x - nest.x;
+            const dy = p.y - nest.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < NEST_INTERACT_RANGE && isInsideHomeBase(p.x, p.y)) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial';
+                if (canClaim) {
+                    ctx.fillText('[E] Claim ' + nextPower.name, nest.x, nest.y - 35);
+                } else if (p.eggs > 0 && nextPower) {
+                    ctx.fillText('[E] Deposit Eggs', nest.x, nest.y - 35);
+                }
+                break; // Only show hint once
             }
         }
+    }
+    
+    function drawNests() {
+        for (const nest of nests) {
+            drawSingleNest(nest);
+        }
+    }
+    
+    // Legacy function name for compatibility
+    function drawAttackNest() {
+        drawNests();
     }
     
     function drawPeckEffects() {
@@ -2589,10 +2669,12 @@
         powerEffects.length = 0;  // Unified effects array
         entities.length = 0;  // Entity system (projectiles, zones, etc.)
         
-        // Reset attack nest
-        attackNest.eggs = 0;
-        attackNest.level = 0;
-        initNestClaimedArray(attackNest);  // Use helper to init claimed array
+        // Reset all nests
+        for (const nest of nests) {
+            nest.eggs = 0;
+            nest.level = 0;
+            initNestClaimedArray(nest);
+        }
         
         // Reset timers
         spawnTimer = 0;
@@ -2645,9 +2727,21 @@
             }
         ];
         
-        // Position attack nest inside home base (left side)
-        attackNest.x = HOME_BASE.x + 60;
-        attackNest.y = HOME_BASE.y + HOME_BASE.height / 2;
+        // Clear existing nests
+        nests.length = 0;
+        
+        // Create attack nest (left side of home base)
+        const attackNestObj = createNest('attack', 
+            HOME_BASE.x + 60, 
+            HOME_BASE.y + HOME_BASE.height / 2
+        );
+        nests.push(attackNestObj);
+        
+        // Legacy alias for backward compatibility
+        attackNest = attackNestObj;
+        
+        // Note: Additional nest types can be unlocked later
+        // e.g., defense nest on right side, utility nest at top, etc.
     }
     
     function isInsideHomeBase(x, y, radius = 0) {
@@ -2671,9 +2765,7 @@
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        setupHomeBase();
-        // Initialize nest claimed arrays based on power registry
-        initNestClaimedArray(attackNest);
+        setupHomeBase();  // Creates nests with proper claimed arrays
     }
     
     function init() {
