@@ -932,6 +932,91 @@
                 
                 ctx.restore();
             }
+        },
+        
+        // ---- SNIPER POWERS ----
+        eggSniper: {
+            name: 'Egg Sniper',
+            nest: 'sniper',
+            cost: 15,
+            cooldown: 3.0,
+            range: 400,
+            projectileSpeed: 600,
+            damage: 45,
+            icon: '🎯',
+            // Can fire if any enemy exists
+            canFire: (player, enemies) => enemies.length > 0,
+            // Execute - fire fast, high damage projectile at nearest enemy
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.eggSniper;
+                
+                // Find nearest enemy
+                let nearestEnemy = null;
+                let nearestDist = power.range;
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+                
+                if (!nearestEnemy) return [];
+                
+                const angle = Math.atan2(nearestEnemy.y - player.y, nearestEnemy.x - player.x);
+                player.facingLeft = Math.cos(angle) < 0;
+                
+                // Create fast projectile
+                entities.push(createEntity('projectile', {
+                    x: player.x,
+                    y: player.y,
+                    vx: Math.cos(angle) * power.projectileSpeed,
+                    vy: Math.sin(angle) * power.projectileSpeed,
+                    radius: 6,
+                    damage: power.damage,
+                    lifetime: power.range / power.projectileSpeed,
+                    owner: player,
+                    extra: {
+                        isSniperShot: true
+                    }
+                }));
+                
+                // Add tracer effect
+                effects.push({
+                    type: 'eggSniper',
+                    x: player.x,
+                    y: player.y,
+                    angle: angle,
+                    timer: 0.15,
+                    maxTimer: 0.15
+                });
+                
+                return [];
+            },
+            // Draw tracer line
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                ctx.rotate(effect.angle);
+                
+                // Long tracer line
+                const gradient = ctx.createLinearGradient(0, 0, 200, 0);
+                gradient.addColorStop(0, `rgba(255, 255, 100, ${alpha})`);
+                gradient.addColorStop(1, `rgba(255, 200, 50, 0)`);
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(200, 0);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -1054,6 +1139,26 @@
                     ctx.moveTo(-entity.radius, 0);
                     ctx.lineTo(entity.radius, 0);
                     ctx.stroke();
+                } else if (entity.isSniperShot) {
+                    // Sniper shot - elongated golden projectile with trail
+                    ctx.rotate(Math.atan2(entity.vy, entity.vx));
+                    
+                    // Trail
+                    const gradient = ctx.createLinearGradient(-20, 0, 0, 0);
+                    gradient.addColorStop(0, 'rgba(255, 200, 50, 0)');
+                    gradient.addColorStop(1, 'rgba(255, 200, 50, 0.8)');
+                    ctx.strokeStyle = gradient;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(-20, 0);
+                    ctx.lineTo(0, 0);
+                    ctx.stroke();
+                    
+                    // Projectile core
+                    ctx.fillStyle = '#FFD700';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, entity.radius * 1.5, entity.radius * 0.7, 0, 0, Math.PI * 2);
+                    ctx.fill();
                 } else {
                     // Default projectile appearance
                     ctx.fillStyle = entity.color || '#FFD700';
@@ -1689,6 +1794,12 @@
             color: '#3498db',  // Blue
             icon: '🛡️',
             description: 'Protective powers and damage reduction'
+        },
+        sniper: {
+            name: 'Sniper Nest',
+            color: '#9b59b6',  // Purple
+            icon: '🎯',
+            description: 'Long range precision attacks'
         },
         utility: {
             name: 'Utility Nest',
@@ -3317,6 +3428,13 @@
             HOME_BASE.y + HOME_BASE.height / 2
         );
         nests.push(defenseNestObj);
+        
+        // Create sniper nest (top center of home base)
+        const sniperNestObj = createNest('sniper',
+            HOME_BASE.x + HOME_BASE.width / 2,
+            HOME_BASE.y + 50
+        );
+        nests.push(sniperNestObj);
     }
     
     function isInsideHomeBase(x, y, radius = 0) {
