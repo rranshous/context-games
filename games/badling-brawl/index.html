@@ -1104,6 +1104,184 @@
                 
                 ctx.restore();
             }
+        },
+        
+        piercingQuack: {
+            name: 'Piercing Quack',
+            nest: 'sniper',
+            cost: 45,
+            cooldown: 5.0,
+            range: 350,
+            projectileSpeed: 500,
+            damage: 20,
+            width: 40, // Width of the quack wave
+            icon: '📢',
+            // Can fire if any enemy exists
+            canFire: (player, enemies) => enemies.length > 0,
+            // Execute - fire a piercing sound wave
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.piercingQuack;
+                
+                // Find nearest enemy to aim at
+                let nearestEnemy = null;
+                let nearestDist = power.range;
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+                
+                if (!nearestEnemy) return [];
+                
+                const angle = Math.atan2(nearestEnemy.y - player.y, nearestEnemy.x - player.x);
+                player.facingLeft = Math.cos(angle) < 0;
+                
+                // Create piercing projectile
+                entities.push(createEntity('projectile', {
+                    x: player.x,
+                    y: player.y,
+                    vx: Math.cos(angle) * power.projectileSpeed,
+                    vy: Math.sin(angle) * power.projectileSpeed,
+                    radius: power.width / 2,
+                    damage: power.damage,
+                    lifetime: power.range / power.projectileSpeed,
+                    owner: player,
+                    piercing: true,
+                    extra: {
+                        isPiercingQuack: true,
+                        width: power.width
+                    }
+                }));
+                
+                // Add quack wave effect
+                effects.push({
+                    type: 'piercingQuack',
+                    x: player.x,
+                    y: player.y,
+                    angle: angle,
+                    timer: 0.3,
+                    maxTimer: 0.3
+                });
+                
+                return [];
+            },
+            // Draw quack wave
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                ctx.rotate(effect.angle);
+                
+                // Expanding sound waves
+                for (let i = 0; i < 3; i++) {
+                    const waveProgress = (1 - alpha) + i * 0.15;
+                    if (waveProgress > 1) continue;
+                    
+                    const dist = waveProgress * 80;
+                    ctx.strokeStyle = `rgba(255, 200, 50, ${alpha * (1 - i * 0.3)})`;
+                    ctx.lineWidth = 3 - i;
+                    ctx.beginPath();
+                    ctx.arc(dist, 0, 25 - i * 5, -0.4, 0.4);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        },
+        
+        homingEgg: {
+            name: 'Homing Egg',
+            nest: 'sniper',
+            cost: 60,
+            cooldown: 6.0,
+            projectileSpeed: 180,
+            damage: 50,
+            turnRate: 4,
+            icon: '🥚',
+            // Can fire if any enemy exists
+            canFire: (player, enemies) => enemies.length > 0,
+            // Execute - fire a slow homing projectile
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.homingEgg;
+                
+                // Find nearest enemy to initial aim
+                let nearestEnemy = null;
+                let nearestDist = Infinity;
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+                
+                const angle = nearestEnemy 
+                    ? Math.atan2(nearestEnemy.y - player.y, nearestEnemy.x - player.x)
+                    : player.facingLeft ? Math.PI : 0;
+                
+                player.facingLeft = Math.cos(angle) < 0;
+                
+                // Create homing projectile using the homing behavior
+                entities.push(createEntity('homing', {
+                    x: player.x,
+                    y: player.y,
+                    vx: Math.cos(angle) * power.projectileSpeed,
+                    vy: Math.sin(angle) * power.projectileSpeed,
+                    radius: 14,
+                    damage: power.damage,
+                    lifetime: 5, // Long lifetime for tracking
+                    turnRate: power.turnRate,
+                    owner: player
+                }));
+                
+                // Add launch effect
+                effects.push({
+                    type: 'homingEgg',
+                    x: player.x,
+                    y: player.y,
+                    angle: angle,
+                    timer: 0.25,
+                    maxTimer: 0.25
+                });
+                
+                return [];
+            },
+            // Draw launch ring
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Target lock ring
+                const radius = 20 + (1 - alpha) * 30;
+                ctx.strokeStyle = `rgba(255, 100, 100, ${alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Crosshair lines
+                ctx.beginPath();
+                ctx.moveTo(-radius, 0);
+                ctx.lineTo(-radius * 0.5, 0);
+                ctx.moveTo(radius, 0);
+                ctx.lineTo(radius * 0.5, 0);
+                ctx.moveTo(0, -radius);
+                ctx.lineTo(0, -radius * 0.5);
+                ctx.moveTo(0, radius);
+                ctx.lineTo(0, radius * 0.5);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -1245,6 +1423,24 @@
                     ctx.fillStyle = '#FFD700';
                     ctx.beginPath();
                     ctx.ellipse(0, 0, entity.radius * 1.5, entity.radius * 0.7, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (entity.isPiercingQuack) {
+                    // Piercing quack - sound wave shape
+                    ctx.rotate(Math.atan2(entity.vy, entity.vx));
+                    
+                    // Sound wave arcs
+                    ctx.strokeStyle = 'rgba(255, 200, 50, 0.8)';
+                    ctx.lineWidth = 3;
+                    for (let i = 0; i < 3; i++) {
+                        ctx.beginPath();
+                        ctx.arc(-i * 8, 0, entity.width / 2 - i * 5, -0.6, 0.6);
+                        ctx.stroke();
+                    }
+                    
+                    // Center glow
+                    ctx.fillStyle = 'rgba(255, 255, 100, 0.6)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 8, entity.width / 3, 0, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
                     // Default projectile appearance
