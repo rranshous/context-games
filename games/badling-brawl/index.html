@@ -785,6 +785,72 @@
                 
                 ctx.restore();
             }
+        },
+        
+        featherArmor: {
+            name: 'Feather Armor',
+            nest: 'defense',
+            cost: 45,
+            cooldown: 15.0,
+            duration: 6.0,
+            damageReduction: 0.5, // 50% reduction
+            icon: '🪶',
+            // Always can fire
+            canFire: (player, enemies) => true,
+            // Execute - apply damage reduction status effect
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.featherArmor;
+                
+                // Apply damage reduction status effect
+                applyStatusEffect(player, 'damageReduction', power.duration, {
+                    reduction: power.damageReduction
+                });
+                
+                // Add activation effect
+                effects.push({
+                    type: 'featherArmor',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.4,
+                    maxTimer: 0.4
+                });
+                
+                console.log(`P${player.index + 1} activated Feather Armor!`);
+                return [];
+            },
+            // Draw feather swirl activation
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                const spin = (1 - alpha) * Math.PI * 2;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                ctx.rotate(spin);
+                
+                // Swirling feathers
+                ctx.fillStyle = `rgba(135, 206, 235, ${alpha * 0.7})`; // Sky blue
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const dist = 30 + (1 - alpha) * 20;
+                    const x = Math.cos(angle) * dist;
+                    const y = Math.sin(angle) * dist;
+                    
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(angle + Math.PI / 2);
+                    
+                    // Feather shape
+                    ctx.beginPath();
+                    ctx.moveTo(-6, 0);
+                    ctx.quadraticCurveTo(0, -4, 6, 0);
+                    ctx.quadraticCurveTo(0, 4, -6, 0);
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+                
+                ctx.restore();
+            }
         }
     };
     
