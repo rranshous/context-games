@@ -667,6 +667,63 @@
                 
                 ctx.restore();
             }
+        },
+        
+        // ---- DEFENSE POWERS ----
+        duckShield: {
+            name: 'Duck Shield',
+            nest: 'defense',
+            cost: 20,
+            cooldown: 10.0,
+            duration: 3.0,
+            icon: '🛡️',
+            // Always can fire
+            canFire: (player, enemies) => true,
+            // Execute - apply invulnerability status effect
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.duckShield;
+                
+                // Apply invulnerable status effect
+                applyStatusEffect(player, 'invulnerable', power.duration);
+                
+                // Add activation effect
+                effects.push({
+                    type: 'duckShield',
+                    x: player.x,
+                    y: player.y,
+                    timer: 0.3,
+                    maxTimer: 0.3
+                });
+                
+                console.log(`P${player.index + 1} activated Duck Shield!`);
+                return []; // No kills
+            },
+            // Draw activation flash
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                
+                // Golden shield burst
+                ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+                ctx.lineWidth = 4;
+                const radius = 40 + (1 - alpha) * 30;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Inner glow
+                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.8);
+                gradient.addColorStop(0, `rgba(255, 215, 0, ${alpha * 0.4})`);
+                gradient.addColorStop(1, `rgba(255, 215, 0, 0)`);
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -2950,8 +3007,12 @@
         // Legacy alias for backward compatibility
         attackNest = attackNestObj;
         
-        // Note: Additional nest types can be unlocked later
-        // e.g., defense nest on right side, utility nest at top, etc.
+        // Create defense nest (right side of home base)
+        const defenseNestObj = createNest('defense',
+            HOME_BASE.x + HOME_BASE.width - 60,
+            HOME_BASE.y + HOME_BASE.height / 2
+        );
+        nests.push(defenseNestObj);
     }
     
     function isInsideHomeBase(x, y, radius = 0) {
