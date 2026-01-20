@@ -79,7 +79,13 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 
 ## Open Questions
 - Nest positions: corners of home base? Or scattered around map?
-- Do all nests share one egg pool, or separate pools per nest?
+
+## Power Claiming Rules
+- **Shared egg pool**: Any duck can deposit eggs to any nest
+- **Unlock threshold**: When nest has enough eggs, next power unlocks
+- **First-come claim**: Only ONE duck can claim each unlocked power
+- **No take-backs**: Once claimed, power belongs to that duck
+- Creates strategy: deposit for team vs. save eggs to claim yourself
 
 ## Power Lines (Nests)
 | Nest | Powers (in order) | Theme |
