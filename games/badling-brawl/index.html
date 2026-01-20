@@ -269,7 +269,9 @@
             },
             // Power cooldowns
             quackBlastTimer: 0,
-            wingSlapTimer: 0
+            wingSlapTimer: 0,
+            // Respawn timer (seconds until can rejoin after death)
+            respawnTimer: 0
         };
     }
     
@@ -380,17 +382,46 @@
         p.y = canvas.height / 2;
     }
     
-    // Assigns keyboard to next available player slot
+    // Respawn a dead player (loses powers and eggs)
+    function respawnPlayer(p) {
+        p.active = true;
+        p.health = p.maxHealth;
+        p.eggs = 0;
+        p.powers.quackBlast = false;
+        p.powers.wingSlap = false;
+        p.powers.eggBomb = false;
+        p.powers.featherStorm = false;
+        p.quackBlastTimer = 0;
+        p.wingSlapTimer = 0;
+        p.respawnTimer = 0;
+        spawnPlayerAtHome(p);
+        console.log(`P${p.index + 1} respawned!`);
+    }
+    
+    // Check if a player can respawn (dead but timer expired)
+    function canRespawn(p) {
+        return p.inputSource !== null && !p.active && p.health <= 0 && p.respawnTimer <= 0;
+    }
+    
+    // Assigns keyboard to next available player slot or respawns
     function activateKeyboardPlayer() {
-        if (keyboardPlayerIndex >= 0) return; // Already assigned
+        // Already assigned to a slot?
+        if (keyboardPlayerIndex >= 0) {
+            // Check if that player is dead and can respawn
+            const p = players[keyboardPlayerIndex];
+            if (!p.active && canRespawn(p)) {
+                respawnPlayer(p);
+            }
+            return;
+        }
         
-        // Find first inactive player slot
+        // Find first inactive player slot (for new join)
         for (let i = 0; i < players.length; i++) {
-            if (!players[i].active) {
+            if (!players[i].active && players[i].inputSource === null) {
                 keyboardPlayerIndex = i;
                 players[i].active = true;
                 players[i].inputSource = 'keyboard';
-                spawnPlayerAtHome(players[i]); // Spawn at home base
+                spawnPlayerAtHome(players[i]);
                 console.log(`Keyboard joined as P${i + 1}!`);
                 return;
             }
@@ -481,19 +512,25 @@
     const gamepadAssignments = {}; // gamepadIndex -> playerIndex
     
     // Find or assign a player slot for a gamepad
+    // Find or assign a player slot for a gamepad, or respawn dead player
     function getOrAssignGamepadPlayer(gp) {
         // Already assigned?
         if (gamepadAssignments[gp.index] !== undefined) {
-            return players[gamepadAssignments[gp.index]];
+            const p = players[gamepadAssignments[gp.index]];
+            // Check if dead and can respawn
+            if (!p.active && canRespawn(p)) {
+                respawnPlayer(p);
+            }
+            return p;
         }
         
-        // Find first inactive player slot
+        // Find first inactive player slot (for new join - no inputSource yet)
         for (let i = 0; i < players.length; i++) {
-            if (!players[i].active) {
+            if (!players[i].active && players[i].inputSource === null) {
                 gamepadAssignments[gp.index] = i;
                 players[i].active = true;
                 players[i].inputSource = `gamepad-${gp.index}`;
-                spawnPlayerAtHome(players[i]); // Spawn at home base
+                spawnPlayerAtHome(players[i]);
                 console.log(`Gamepad ${gp.index} joined as P${i + 1}!`);
                 return players[i];
             }
@@ -880,9 +917,22 @@
                         p.health = 0;
                         // Strong vibration on death
                         vibrateController(p, 1.0, 300);
-                        // Game over only if ALL players are dead
+                        
+                        // Deactivate player and start respawn timer
+                        p.active = false;
+                        const difficultyLevel = Math.floor(rhythm.totalTime / DIFFICULTY_SCALE_TIME);
+                        p.respawnTimer = (difficultyLevel + 1) * 3; // difficulty * 3 seconds
+                        
+                        // Game over only if ALL players with controllers are dead
                         const anyAlive = players.some(pl => pl.active && pl.health > 0);
-                        if (!anyAlive) {
+                        const anyCanRespawn = players.some(pl => pl.inputSource !== null && !pl.active);
+                        if (!anyAlive && !anyCanRespawn) {
+                            // No one alive and no one waiting to respawn - but we want game over
+                            // when all are dead simultaneously
+                        }
+                        // Check if everyone who joined is now dead
+                        const allJoinedDead = players.every(pl => pl.inputSource === null || pl.health <= 0);
+                        if (allJoinedDead) {
                             gameState = 'gameover';
                         }
                     }
@@ -966,6 +1016,16 @@
             peckEffects[i].timer -= dt;
             if (peckEffects[i].timer <= 0) {
                 peckEffects.splice(i, 1);
+            }
+        }
+    }
+    
+    function updateRespawnTimers(dt) {
+        // Count down respawn timers for dead players
+        for (const p of players) {
+            if (p.inputSource !== null && !p.active && p.respawnTimer > 0) {
+                p.respawnTimer -= dt;
+                if (p.respawnTimer < 0) p.respawnTimer = 0;
             }
         }
     }
@@ -1502,12 +1562,12 @@
     }
     
     function drawUI() {
-        // Draw stats for each active player
-        const activePlayers = players.filter(p => p.active);
+        // Draw stats for each player who has joined (active or dead waiting to respawn)
+        const joinedPlayers = players.filter(p => p.inputSource !== null);
         const barWidth = 150;
         const barHeight = 16;
         
-        activePlayers.forEach((p, idx) => {
+        joinedPlayers.forEach((p, idx) => {
             // P1 on left, P2 on right
             const isLeft = p.index === 0;
             const baseX = isLeft ? 20 : canvas.width - barWidth - 20;
@@ -1540,23 +1600,33 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(baseX, y, barWidth, barHeight);
             
-            // Dead indicator
+            // Dead indicator with respawn timer
             if (p.health <= 0) {
                 ctx.fillStyle = 'rgba(0,0,0,0.7)';
                 ctx.fillRect(baseX, y, barWidth, barHeight);
                 ctx.fillStyle = '#e74c3c';
                 ctx.font = 'bold 12px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('DEAD', baseX + barWidth/2, y + barHeight - 3);
+                
+                if (p.respawnTimer > 0) {
+                    ctx.fillText(`DEAD - ${Math.ceil(p.respawnTimer)}s`, baseX + barWidth/2, y + barHeight - 3);
+                } else {
+                    ctx.fillStyle = '#ff9';
+                    ctx.fillText('Press to rejoin!', baseX + barWidth/2, y + barHeight - 3);
+                }
             }
         });
         
-        // "Press to join" if only 1 player or none
-        if (activePlayers.length < 2) {
+        // "Press to join" for empty slot (if no one has joined that slot yet)
+        const emptySlots = players.filter(p => p.inputSource === null);
+        if (emptySlots.length > 0) {
             ctx.font = '14px sans-serif';
             ctx.fillStyle = '#ff9';
-            ctx.textAlign = activePlayers.length === 0 ? 'center' : (activePlayers[0].index === 0 ? 'right' : 'left');
-            const joinX = activePlayers.length === 0 ? canvas.width / 2 : (activePlayers[0].index === 0 ? canvas.width - 20 : 20);
+            // Show join prompt on side of empty slot
+            const emptySlot = emptySlots[0];
+            const isLeft = emptySlot.index === 0;
+            ctx.textAlign = isLeft ? 'left' : 'right';
+            const joinX = isLeft ? 20 : canvas.width - 20;
             ctx.fillText('Press direction to join!', joinX, 50);
         }
         
@@ -1809,6 +1879,7 @@
             updateEggs();
             checkCollisions();
             updateRhythm(cappedDt);
+            updateRespawnTimers(cappedDt);
         }
         
         // Always render
