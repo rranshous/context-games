@@ -47,10 +47,16 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 - [ ] **Speed Waddle**: Massive speed boost for 3s
   - Cost: 15 eggs, Cooldown: 8s
 
-### M7: Power Selection System
-- [ ] Nest now offers choice of available powers
-- [ ] Can't have all powers - must choose loadout (4 max?)
-- [ ] UI to show equipped powers vs available
+### M7: Multiple Nests / Power Lines
+- [ ] Each nest offers a themed "line" of powers
+- [ ] Players can collect ALL powers (no limit)
+- [ ] Nest types:
+  - **Attack Nest** (existing): Quack Blast → Wing Slap → Egg Bomb → Feather Storm
+  - **Defense Nest**: Duck Shield → Decoy Duck
+  - **Utility Nest**: Speed Waddle → Nest Magnet → Bread Crumbs
+  - **Sniper Nest**: Egg Sniper (single powerful ranged)
+- [ ] Position nests around the home base
+- [ ] Each nest has its own egg pool (deposit to unlock that line)
 
 ### M8: Polish & Balance
 - [ ] Balance power costs and cooldowns
@@ -72,9 +78,16 @@ Expand to 3-player co-op and implement many new attack powers with variety (offe
 | Speed Waddle | Utility | 15 | 8s | Speed boost 3s |
 
 ## Open Questions
-- Max powers per player? (suggest 4)
-- Can players swap powers at nest?
-- Shared nest pool or per-player progress?
+- Nest positions: corners of home base? Or scattered around map?
+- Do all nests share one egg pool, or separate pools per nest?
+
+## Power Lines (Nests)
+| Nest | Powers (in order) | Theme |
+|------|-------------------|-------|
+| Attack | Quack Blast → Wing Slap → Egg Bomb → Feather Storm | Direct damage |
+| Defense | Duck Shield → Decoy Duck | Survivability |
+| Utility | Speed Waddle → Nest Magnet → Bread Crumbs | Movement/control |
+| Sniper | Egg Sniper | Long range |
 
 ## Assets Available
 - **Duck sprites**: white, yellow, mallard_female, mallard_male
