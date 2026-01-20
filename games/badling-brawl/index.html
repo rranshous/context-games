@@ -1017,6 +1017,93 @@
                 
                 ctx.restore();
             }
+        },
+        
+        ricochetShot: {
+            name: 'Ricochet Shot',
+            nest: 'sniper',
+            cost: 30,
+            cooldown: 4.0,
+            projectileSpeed: 400,
+            damage: 25,
+            maxBounces: 3,
+            bounceRange: 200, // Max distance to find next target
+            icon: '↩️',
+            // Can fire if any enemy exists
+            canFire: (player, enemies) => enemies.length > 0,
+            // Execute - fire a bouncing projectile
+            execute: (player, enemies, effects) => {
+                const power = PowerRegistry.ricochetShot;
+                
+                // Find nearest enemy
+                let nearestEnemy = null;
+                let nearestDist = 300;
+                for (const enemy of enemies) {
+                    const dx = enemy.x - player.x;
+                    const dy = enemy.y - player.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestEnemy = enemy;
+                    }
+                }
+                
+                if (!nearestEnemy) return [];
+                
+                const angle = Math.atan2(nearestEnemy.y - player.y, nearestEnemy.x - player.x);
+                player.facingLeft = Math.cos(angle) < 0;
+                
+                // Create ricochet projectile
+                entities.push(createEntity('ricochet', {
+                    x: player.x,
+                    y: player.y,
+                    vx: Math.cos(angle) * power.projectileSpeed,
+                    vy: Math.sin(angle) * power.projectileSpeed,
+                    radius: 10,
+                    damage: power.damage,
+                    lifetime: 3,
+                    owner: player,
+                    extra: {
+                        bouncesLeft: power.maxBounces,
+                        bounceRange: power.bounceRange,
+                        hitEnemies: [], // Track which enemies were hit
+                        speed: power.projectileSpeed
+                    }
+                }));
+                
+                // Add fire effect
+                effects.push({
+                    type: 'ricochetShot',
+                    x: player.x,
+                    y: player.y,
+                    angle: angle,
+                    timer: 0.2,
+                    maxTimer: 0.2
+                });
+                
+                return [];
+            },
+            // Draw bounce indicator
+            drawEffect: (effect, ctx) => {
+                const alpha = effect.timer / effect.maxTimer;
+                
+                ctx.save();
+                ctx.translate(effect.x, effect.y);
+                ctx.rotate(effect.angle);
+                
+                // Arrow indicator
+                ctx.strokeStyle = `rgba(50, 255, 150, ${alpha})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(40, 0);
+                ctx.lineTo(30, -8);
+                ctx.moveTo(40, 0);
+                ctx.lineTo(30, 8);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
         }
     };
     
@@ -1452,6 +1539,96 @@
                 ctx.arc(0, 0, 25, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.setLineDash([]);
+                
+                ctx.restore();
+            }
+        },
+        
+        // Ricochet - bounces between enemies
+        ricochet: {
+            update: (entity, dt) => {
+                entity.x += entity.vx * dt;
+                entity.y += entity.vy * dt;
+                entity.lifetime -= dt;
+                
+                // Check collision with enemies
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    
+                    // Skip already-hit enemies
+                    if (entity.hitEnemies.includes(enemy)) continue;
+                    
+                    const dx = enemy.x - entity.x;
+                    const dy = enemy.y - entity.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < entity.radius + enemy.size / 2) {
+                        // Hit!
+                        enemy.health -= entity.damage;
+                        entity.hitEnemies.push(enemy);
+                        
+                        if (enemy.health <= 0) {
+                            killEnemy(enemy);
+                        }
+                        
+                        // Try to bounce
+                        entity.bouncesLeft--;
+                        if (entity.bouncesLeft <= 0) {
+                            entity.lifetime = 0;
+                            break;
+                        }
+                        
+                        // Find next target
+                        let nextTarget = null;
+                        let nextDist = entity.bounceRange;
+                        for (const nextEnemy of enemies) {
+                            if (entity.hitEnemies.includes(nextEnemy)) continue;
+                            if (nextEnemy.health <= 0) continue;
+                            
+                            const ndx = nextEnemy.x - entity.x;
+                            const ndy = nextEnemy.y - entity.y;
+                            const nDist = Math.sqrt(ndx * ndx + ndy * ndy);
+                            
+                            if (nDist < nextDist) {
+                                nextDist = nDist;
+                                nextTarget = nextEnemy;
+                            }
+                        }
+                        
+                        if (nextTarget) {
+                            // Redirect toward next target
+                            const toNextX = nextTarget.x - entity.x;
+                            const toNextY = nextTarget.y - entity.y;
+                            const toNextDist = Math.sqrt(toNextX * toNextX + toNextY * toNextY);
+                            entity.vx = (toNextX / toNextDist) * entity.speed;
+                            entity.vy = (toNextY / toNextDist) * entity.speed;
+                        } else {
+                            // No more targets
+                            entity.lifetime = 0;
+                        }
+                        
+                        break;
+                    }
+                }
+            },
+            draw: (entity, ctx) => {
+                ctx.save();
+                ctx.translate(entity.x, entity.y);
+                ctx.rotate(Math.atan2(entity.vy, entity.vx));
+                
+                // Bouncy egg with green tint
+                ctx.fillStyle = '#90EE90';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, entity.radius * 1.2, entity.radius * 0.8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#32CD32';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Bounce indicator arrows
+                ctx.fillStyle = '#228B22';
+                ctx.font = '10px Arial';
+                ctx.fillText('↩', -3, 3);
                 
                 ctx.restore();
             }
