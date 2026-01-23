@@ -105,3 +105,35 @@ node deploy.js prod   # Deploy to production platform
    export VANILLA_PROD_PASSWORD="secret"
    ```
 4. Run `node deploy.js prod` to deploy
+
+### `change-password.js`
+
+Command line tool to change user passwords in the Vanilla platform database.
+
+**Usage:**
+```bash
+# Change admin password
+node bin/change-password.js admin newpassword123
+
+# Change any user's password
+node bin/change-password.js username newpassword123
+```
+
+**Requirements:**
+- The Vanilla platform must be stopped (not running) when changing passwords
+- Passwords must be at least 6 characters long
+- Run from the project root directory
+
+**Examples:**
+```bash
+# Change default admin password
+node bin/change-password.js admin mysecurepassword
+
+# Change a regular user's password
+node bin/change-password.js player1 newplayerpass
+```
+
+**Security Notes:**
+- Passwords are hashed using bcrypt before storage
+- The script updates the database directly
+- Make sure to restart the platform after changing passwords
