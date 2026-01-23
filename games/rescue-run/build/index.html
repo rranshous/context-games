@@ -16,69 +16,126 @@
             box-sizing: border-box;
         }
         
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background: #1a1a2e;
             color: #eee;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            height: 100vh;
+            padding: 4px;
+            overflow: hidden;
+            box-sizing: border-box;
         }
         
+        /* v0.7: Four-column layout - Game | Prompt | Tools | Review */
+        /* Workflow: edit → run → review → edit */
         .game-container {
+            display: grid;
+            grid-template-columns: auto minmax(200px, 300px) 1fr minmax(280px, 400px);
+            gap: 6px;
+            max-width: 100%;
+            margin: 0;
+            height: 100%;
+        }
+        
+        /* Left column: Game + Controls - auto width based on canvas */
+        .game-column {
             display: flex;
-            gap: 20px;
-            align-items: flex-start;
+            flex-direction: column;
+            gap: 4px;
+            overflow-y: auto;
+            min-width: 180px;
+        }
+        
+        /* Second column: System Prompt */
+        .prompt-column {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0;
+        }
+        
+        /* v0.7: Disabled state for prompt column during runs */
+        .prompt-column.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Third column: Tools */
+        .tools-column {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0; /* Allow flex shrinking */
+        }
+        
+        /* v0.7: Disabled state for tools column during runs */
+        .tools-column.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Right column: Review */
+        .ai-column {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0; /* Allow flex shrinking */
         }
         
         .game-panel {
             background: #16213e;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border-radius: 4px;
+            padding: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         
         h1 {
-            font-size: 1.5rem;
-            margin-bottom: 15px;
+            font-size: 1rem;
+            margin-bottom: 6px;
             color: #e94560;
         }
         
         h2 {
-            font-size: 1rem;
-            margin-bottom: 10px;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
             color: #0f3460;
             background: #e94560;
-            padding: 5px 10px;
-            border-radius: 4px;
+            padding: 2px 6px;
+            border-radius: 3px;
         }
         
         #game-canvas {
-            border: 3px solid #0f3460;
-            border-radius: 8px;
+            border: 2px solid #0f3460;
+            border-radius: 4px;
             background: #2d4a3e;
             image-rendering: pixelated;
+            max-width: 100%;
         }
         
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-width: 200px;
+        /* Level buttons - compact */
+        .level-btn {
+            padding: 4px 8px !important;
+            font-size: 0.75rem !important;
+            width: auto !important;
+            min-width: 36px;
         }
         
         .control-group {
             background: #1a1a2e;
-            padding: 10px;
-            border-radius: 8px;
+            padding: 6px;
+            border-radius: 4px;
         }
         
         .control-group h3 {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: #888;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
@@ -87,13 +144,13 @@
             background: #0f3460;
             color: #fff;
             border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 5px 8px;
+            border-radius: 3px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             transition: background 0.2s;
             width: 100%;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         
         button:hover {
@@ -108,12 +165,12 @@
         .direction-buttons {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 4px;
+            gap: 3px;
         }
         
         .direction-buttons button {
-            padding: 10px;
-            font-size: 1.2rem;
+            padding: 6px;
+            font-size: 1rem;
         }
         
         .direction-buttons .empty {
@@ -122,18 +179,18 @@
         
         #log {
             background: #0a0a15;
-            border-radius: 4px;
-            padding: 10px;
+            border-radius: 3px;
+            padding: 6px;
             font-family: monospace;
-            font-size: 0.8rem;
-            max-height: 200px;
+            font-size: 0.75rem;
+            max-height: 150px;
             overflow-y: auto;
             color: #8f8;
         }
         
         #log .entry {
-            margin-bottom: 4px;
-            padding-bottom: 4px;
+            margin-bottom: 2px;
+            padding-bottom: 2px;
             border-bottom: 1px solid #222;
         }
         
@@ -150,9 +207,9 @@
         }
         
         .status {
-            font-size: 0.9rem;
-            padding: 8px;
-            border-radius: 4px;
+            font-size: 0.8rem;
+            padding: 5px;
+            border-radius: 3px;
             text-align: center;
         }
         
@@ -171,33 +228,33 @@
         }
         
         .legend {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: #888;
         }
         
         .legend-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 4px;
+            gap: 6px;
+            margin-bottom: 2px;
         }
         
         .legend-color {
-            width: 16px;
-            height: 16px;
+            width: 12px;
+            height: 12px;
             border-radius: 2px;
         }
         
         .ai-panel {
             background: #1a1a2e;
-            padding: 10px;
-            border-radius: 8px;
+            padding: 6px;
+            border-radius: 4px;
         }
         
         .ai-controls {
             display: flex;
-            gap: 8px;
-            margin-bottom: 10px;
+            gap: 6px;
+            margin-bottom: 6px;
         }
         
         .ai-controls button {
@@ -226,13 +283,12 @@
         
         #ai-log {
             background: #0a0a15;
-            border-radius: 4px;
-            padding: 10px;
+            border-radius: 3px;
+            padding: 6px;
             font-family: monospace;
-            font-size: 0.75rem;
-            max-height: 300px;
-            overflow-y: auto;
+            font-size: 0.65rem;
             color: #ccc;
+            /* v0.7: No independent scroll - parent .game-panel scrolls */
         }
         
         #ai-log .ai-thinking {
@@ -254,11 +310,11 @@
         }
         
         .ai-status {
-            font-size: 0.85rem;
-            padding: 6px;
-            border-radius: 4px;
+            font-size: 0.75rem;
+            padding: 4px;
+            border-radius: 3px;
             text-align: center;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             background: #333;
         }
         
@@ -276,12 +332,12 @@
         #tools-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
         
         .tool-item {
             background: #1a1a2e;
-            border-radius: 6px;
+            border-radius: 4px;
             border: 1px solid #333;
             overflow: hidden;
         }
@@ -290,7 +346,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 12px;
+            padding: 6px 8px;
             cursor: pointer;
             transition: background 0.2s;
         }
@@ -302,13 +358,13 @@
         .tool-header-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
             flex: 1;
             min-width: 0;
         }
         
         .tool-expand-icon {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: #888;
             transition: transform 0.2s;
         }
@@ -320,7 +376,7 @@
         .tool-name {
             font-family: monospace;
             color: #4fc3f7;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -328,7 +384,7 @@
         
         .tool-body {
             display: none;
-            padding: 12px;
+            padding: 8px;
             border-top: 1px solid #333;
             background: #0f1628;
         }
@@ -338,25 +394,25 @@
         }
         
         .tool-form-group {
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
         
         .tool-form-group label {
             display: block;
-            margin-bottom: 5px;
-            font-size: 0.8rem;
+            margin-bottom: 3px;
+            font-size: 0.75rem;
             color: #888;
         }
         
         .tool-form-group input,
         .tool-form-group textarea {
             width: 100%;
-            padding: 8px;
+            padding: 5px;
             background: #0a0a15;
             border: 1px solid #333;
-            border-radius: 4px;
+            border-radius: 3px;
             color: #fff;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             box-sizing: border-box;
         }
         
@@ -367,24 +423,24 @@
         
         .tool-editor-wrapper {
             border: 1px solid #333;
-            border-radius: 4px;
+            border-radius: 3px;
             overflow: hidden;
         }
         
         .tool-editor-wrapper .CodeMirror {
-            height: 150px;
-            font-size: 0.8rem;
+            height: 300px; /* v0.7: More space for code editing */
+            font-size: 0.75rem;
         }
         
         .tool-actions {
             display: flex;
-            gap: 8px;
-            margin-top: 12px;
+            gap: 6px;
+            margin-top: 8px;
         }
         
         .tool-actions button {
-            padding: 6px 12px;
-            font-size: 0.8rem;
+            padding: 4px 10px;
+            font-size: 0.75rem;
         }
         
         .tool-save-btn {
@@ -398,8 +454,8 @@
         /* Tool Toggle Switch */
         .tool-toggle {
             position: relative;
-            width: 36px;
-            height: 20px;
+            width: 32px;
+            height: 18px;
             flex-shrink: 0;
         }
         
@@ -418,14 +474,14 @@
             bottom: 0;
             background-color: #555;
             transition: 0.2s;
-            border-radius: 20px;
+            border-radius: 18px;
         }
         
         .tool-toggle-slider:before {
             position: absolute;
             content: "";
-            height: 14px;
-            width: 14px;
+            height: 12px;
+            width: 12px;
             left: 3px;
             bottom: 3px;
             background-color: white;
@@ -438,7 +494,7 @@
         }
         
         .tool-toggle input:checked + .tool-toggle-slider:before {
-            transform: translateX(16px);
+            transform: translateX(14px);
         }
         
         .tool-item.disabled {
@@ -454,46 +510,46 @@
             background: rgba(255,80,80,0.2);
             border: 1px solid #f55;
             color: #f88;
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 8px;
-            font-size: 0.8rem;
+            padding: 6px;
+            border-radius: 3px;
+            margin-top: 6px;
+            font-size: 0.75rem;
             display: none;
         }
         
         .tool-stdlib-ref {
-            margin-top: 10px;
+            margin-top: 6px;
         }
         
         .tool-stdlib-ref summary {
             cursor: pointer;
             color: #4fc3f7;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
         }
         
         .tool-stdlib-ref pre {
             background: #0a0a15;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 0.7rem;
+            padding: 6px;
+            border-radius: 3px;
+            font-size: 0.65rem;
             overflow-x: auto;
-            margin: 8px 0 0 0;
+            margin: 6px 0 0 0;
         }
         
         #btn-reset-tools {
-            padding: 8px 12px;
-            font-size: 0.85rem;
+            padding: 5px 10px;
+            font-size: 0.75rem;
             background: #666;
         }
         
         /* Level selector */
         .level-btn {
-            padding: 6px 12px;
-            font-size: 0.8rem;
+            padding: 4px 8px;
+            font-size: 0.75rem;
             background: #333;
             border: 1px solid #555;
             color: #aaa;
-            border-radius: 4px;
+            border-radius: 3px;
             cursor: pointer;
         }
         
@@ -524,26 +580,27 @@
         
         /* Review Panel */
         .review-panel {
-            margin-top: 15px;
-            padding: 15px;
+            margin-top: 8px;
+            padding: 8px;
             background: #1a1a2e;
-            border-radius: 8px;
+            border-radius: 4px;
             border: 1px solid #333;
+            /* v0.7: No independent scroll - parent .game-panel scrolls */
         }
         
         .review-panel h3 {
-            margin: 0 0 12px 0;
-            font-size: 1rem;
+            margin: 0 0 8px 0;
+            font-size: 0.9rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         
         .review-result {
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 6px 10px;
+            border-radius: 3px;
             font-weight: bold;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
         
         .review-result.success {
@@ -559,17 +616,17 @@
         .review-stats {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
         
         .review-stat-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 10px;
+            padding: 4px 8px;
             background: #0a0a15;
-            border-radius: 4px;
-            font-size: 0.85rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
         }
         
         .review-stat-item .tool-name {
@@ -579,8 +636,8 @@
         
         .review-stat-item .stat-counts {
             display: flex;
-            gap: 10px;
-            font-size: 0.8rem;
+            gap: 8px;
+            font-size: 0.7rem;
         }
         
         .review-stat-item .stat-counts .calls {
@@ -606,26 +663,26 @@
         }
         
         .review-actions {
-            margin-top: 12px;
+            margin-top: 8px;
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
         
         .review-actions button {
             flex: 1;
-            padding: 8px;
-            font-size: 0.85rem;
+            padding: 6px;
+            font-size: 0.75rem;
         }
         
         .review-story {
             font-family: monospace;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: #aaa;
-            padding: 10px;
+            padding: 8px;
             background: #0a0a15;
-            border-radius: 4px;
-            margin-bottom: 10px;
-            line-height: 1.6;
+            border-radius: 3px;
+            margin-bottom: 8px;
+            line-height: 1.5;
             word-wrap: break-word;
         }
         
@@ -647,61 +704,212 @@
         .review-tool-stats {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
         }
         
         .review-hints {
             background: rgba(255, 152, 0, 0.15);
             border: 1px solid #ff9800;
-            border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 10px;
-            font-size: 0.85rem;
+            border-radius: 3px;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+        }
+        
+        /* v0.6: Tool Call History */
+        .call-history-section {
+            margin-top: 10px;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+        }
+        
+        .call-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
+            margin-bottom: 6px;
+        }
+        
+        .call-history-header:hover {
+            background: #222244;
+        }
+        
+        .call-history-header h4 {
+            margin: 0;
+            font-size: 0.8rem;
+            color: #4fc3f7;
+        }
+        
+        .call-history-toggle {
+            font-size: 0.7rem;
+            color: #888;
+        }
+        
+        .call-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px; /* v0.7: Tighter spacing */
+            /* v0.7: No independent scroll - parent .game-panel scrolls */
+        }
+        
+        .call-history-item {
+            background: #0a0a15;
+            border-radius: 3px;
+            border: 1px solid #333;
+        }
+        
+        .call-history-item.success {
+            border-left: 2px solid #4caf50;
+        }
+        
+        .call-history-item.failure {
+            border-left: 2px solid #f44336;
+        }
+        
+        .call-history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 8px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        
+        .call-history-item-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .call-history-item-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .call-history-turn {
+            color: #888;
+            font-size: 0.65rem;
+            min-width: 30px;
+        }
+        
+        .call-history-name {
+            font-family: monospace;
+            color: #4fc3f7;
+        }
+        
+        .call-history-summary {
+            color: #aaa;
+            font-size: 0.7rem;
+            max-width: 120px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .call-history-expand {
+            color: #888;
+            font-size: 0.65rem;
+            transition: transform 0.2s;
+        }
+        
+        .call-history-item.expanded .call-history-expand {
+            transform: rotate(90deg);
+        }
+        
+        .call-history-detail {
+            display: none; /* v0.7: Collapsed by default */
+            padding: 8px;
+            border-top: 1px solid #333;
+            background: #0f1628;
+        }
+        
+        /* v0.7: Show detail when item is expanded */
+        .call-history-item.expanded .call-history-detail {
+            display: block;
+        }
+        
+        .call-history-json {
+            font-family: monospace;
+            font-size: 0.7rem;
+            margin-bottom: 6px;
+        }
+        
+        .call-history-json-label {
+            color: #888;
+            margin-bottom: 3px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+        }
+        
+        .call-history-json pre {
+            background: #0a0a15;
+            padding: 6px;
+            border-radius: 3px;
+            margin: 0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #ddd;
+        }
+        
+        .call-history-copy-btn {
+            padding: 3px 6px !important;
+            font-size: 0.65rem !important;
+            background: #333 !important;
+            margin-left: 6px;
+        }
+        
+        .call-history-copy-btn:hover {
+            background: #4fc3f7 !important;
         }
         
         .review-hints h4 {
-            margin: 0 0 8px 0;
+            margin: 0 0 6px 0;
             color: #ff9800;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
         
         .review-hints ul {
             margin: 0;
-            padding-left: 20px;
+            padding-left: 16px;
         }
         
         .review-hints li {
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             color: #ddd;
         }
     </style>
 </head>
 <body>
     <div class="game-container">
-        <div class="game-panel">
-            <h1>🚗 Rescue Run</h1>
-            <canvas id="game-canvas" width="256" height="256"></canvas>
-            <div class="legend" style="margin-top: 10px;">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #4a7c59;"></div>
-                    <span>Grass</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #555;"></div>
-                    <span>Road</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #e94560;"></div>
-                    <span>Person (rescue target)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #4fc3f7;"></div>
-                    <span>Safe Zone</span>
+        <!-- LEFT COLUMN: Game -->
+        <div class="game-column">
+            <div class="game-panel">
+                <h1>🚗 Rescue Run <span style="font-size: 0.5em; color: #666;">v0.7</span></h1>
+                <canvas id="game-canvas" width="280" height="252"></canvas>
+                <div class="legend" style="margin-top: 10px;">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4a7c59;"></div>
+                        <span>Grass</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #555;"></div>
+                        <span>Road</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #e94560;"></div>
+                        <span>Person (rescue target)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4fc3f7;"></div>
+                        <span>Safe Zone</span>
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="controls">
+            
             <div class="game-panel">
                 <h2>📍 Level</h2>
                 <div id="level-info">
@@ -709,60 +917,83 @@
                     <div id="level-turns" style="font-size: 0.85rem; color: #aaa;">Turn limit: 50</div>
                 </div>
                 <div id="level-selector" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button class="level-btn selected" data-level="1">Level 1</button>
-                    <button class="level-btn" data-level="2">Level 2</button>
-                    <button class="level-btn" data-level="3">Level 3</button>
-                    <button class="level-btn" data-level="4">Level 4</button>
-                    <button class="level-btn" data-level="5">Level 5</button>
-                    <button class="level-btn" data-level="6">Level 6</button>
-                    <button class="level-btn" data-level="7">Level 7</button>
+                    <button class="level-btn selected" data-level="1">L1</button>
+                    <button class="level-btn" data-level="2">L2</button>
+                    <button class="level-btn" data-level="3">L3</button>
+                    <button class="level-btn" data-level="4">L4</button>
+                    <button class="level-btn" data-level="5">L5</button>
+                    <button class="level-btn" data-level="6">L6</button>
+                    <button class="level-btn" data-level="7">L7</button>
                 </div>
             </div>
             
             <div class="game-panel">
                 <h2>Status</h2>
                 <div id="status" class="status playing">Ready</div>
-                <button id="btn-reset" style="margin-top: 10px;">🔄 Reset Level</button>
+                <div id="turn-counter" style="margin-top: 8px; font-size: 0.85rem; color: #aaa;">Turn: 0</div>
             </div>
             
+            <!-- Game Controls: Run, Stop, Reset -->
             <div class="game-panel">
-                <h2>🤖 AI Control</h2>
-                <div class="ai-panel">
-                    <div id="ai-status" class="ai-status">AI Ready</div>
-                    <div class="ai-controls">
-                        <button id="btn-run-ai">▶️ Run AI</button>
-                        <button id="btn-stop-ai" disabled>⏹️ Stop</button>
+                <h2>🎮 Controls</h2>
+                <div id="ai-status" class="ai-status">Ready</div>
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">
+                    <button id="btn-run-ai" style="background: #e94560;">▶️ Run AI</button>
+                    <button id="btn-stop-ai" style="background: #ff9800;" disabled>⏹️ Stop</button>
+                    <button id="btn-reset">🔄 Reset Level</button>
+                </div>
+                <!-- Post-run actions (shown after AI completes) -->
+                <div id="post-run-actions" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <button id="btn-edit-after-review">✏️ Edit Tools</button>
+                        <button id="btn-run-again">▶️ Run Again</button>
+                        <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
                     </div>
-                    <div id="ai-log"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- SECOND COLUMN: System Prompt -->
+        <div class="prompt-column">
+            <div class="game-panel" style="flex: 1; display: flex; flex-direction: column;">
+                <h2>📝 System Prompt</h2>
+                <textarea id="system-prompt" style="flex: 1; width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.8rem; padding: 6px; resize: none; font-family: inherit; min-height: 100px;"></textarea>
+                <div style="font-size: 0.7rem; color: #666; margin-top: 3px;">Prompt sent to AI</div>
+            </div>
+        </div>
+        
+        <!-- THIRD COLUMN: Tools -->
+        <div class="tools-column">
+            <div class="game-panel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <h2>🔧 Tools</h2>
+                <div id="tools-list" style="flex: 1; overflow-y: auto;"></div>
+                <div style="margin-top: 8px; display: flex; gap: 6px;">
+                    <button id="btn-add-tool" style="background: #4caf50; flex: 1;">➕ Add Tool</button>
+                    <button id="btn-reset-tools" style="flex: 1;">↩️ Reset</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FOURTH COLUMN: Review -->
+        <div class="ai-column">
+            <div class="game-panel" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
+                <h2>📊 Review</h2>
+                
+                <!-- Review Panel (hidden until run completes) -->
+                <div id="review-panel" class="review-panel" style="display: none;">
+                    <div id="review-result" class="review-result"></div>
+                    <div id="review-hints" class="review-hints" style="display: none;"></div>
+                    <div id="review-stats" class="review-stats"></div>
                     
-                    <!-- Review Panel (hidden until run completes) -->
-                    <div id="review-panel" class="review-panel" style="display: none;">
-                        <h3>📊 Review <button id="btn-close-review" style="padding: 2px 8px; font-size: 0.75rem;">×</button></h3>
-                        <div id="review-result" class="review-result"></div>
-                        <div id="review-hints" class="review-hints" style="display: none;"></div>
-                        <div id="review-stats" class="review-stats"></div>
-                        <div class="review-actions">
-                            <button id="btn-edit-after-review">✏️ Edit Tools</button>
-                            <button id="btn-run-again">▶️ Run Again</button>
-                            <button id="btn-next-level" style="display: none; background: #4CAF50;">➡️ Next Level</button>
-                        </div>
+                    <!-- v0.6: Tool Call History -->
+                    <div class="call-history-section">
+                        <h4 style="margin: 0 0 6px 0; font-size: 0.8rem; color: #4fc3f7;">🔍 Tool Call History</h4>
+                        <div id="call-history-list" class="call-history-list"></div>
                     </div>
                 </div>
-            </div>
-            
-            <div class="game-panel">
-                <h2>� System Prompt</h2>
-                <textarea id="system-prompt" rows="3" placeholder="Optional: Add instructions for the AI here..." style="width: 100%; background: #0a0a15; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 0.85rem; padding: 8px; resize: vertical; font-family: inherit;"></textarea>
-                <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Leave empty for default behavior</div>
-            </div>
-            
-            <div class="game-panel">
-                <h2>�🔧 Tools</h2>
-                <div id="tools-list"></div>
-                <div style="margin-top: 10px; display: flex; gap: 8px;">
-                    <button id="btn-add-tool" style="background: #4caf50;">➕ Add Tool</button>
-                    <button id="btn-reset-tools">↩️ Reset Tools</button>
-                </div>
+                
+                <!-- AI Log (at bottom - less important after run completes) -->
+                <div id="ai-log"></div>
             </div>
         </div>
     </div>
@@ -771,7 +1002,7 @@
         // ===========================================
         // GAME CONSTANTS
         // ===========================================
-        const TILE_SIZE = 32;
+        const TILE_SIZE = 14; // v0.7: Compact layout (20x18 grid @ 14px = 280x252)
         // Grid size is now dynamic per level
 
         // Tile types
@@ -1009,12 +1240,73 @@
             updateLevelButtons();
         }
         
+        // v0.7: Save/load selected level
+        function saveSelectedLevel(levelNum) {
+            localStorage.setItem('rescue-run-selected-level', levelNum.toString());
+        }
+        
+        function loadSelectedLevel() {
+            try {
+                const saved = localStorage.getItem('rescue-run-selected-level');
+                if (saved) {
+                    const levelNum = parseInt(saved);
+                    if (levelNum >= 1 && levelNum <= 7) {
+                        return levelNum;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load selected level:', e);
+            }
+            return 1; // Default to level 1
+        }
+        
+        // v0.7: Personal best tracking
+        let personalBests = {}; // { levelNum: turnCount }
+        
+        function loadPersonalBests() {
+            try {
+                const saved = localStorage.getItem('rescue-run-personal-bests');
+                if (saved) {
+                    personalBests = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Failed to load personal bests:', e);
+            }
+        }
+        
+        function savePersonalBests() {
+            localStorage.setItem('rescue-run-personal-bests', JSON.stringify(personalBests));
+        }
+        
+        function updatePersonalBest(levelNum, turnCount) {
+            const currentBest = personalBests[levelNum];
+            if (!currentBest || turnCount < currentBest) {
+                personalBests[levelNum] = turnCount;
+                savePersonalBests();
+                updateLevelButtons();
+                return true; // New best!
+            }
+            return false;
+        }
+        
+        function getPersonalBest(levelNum) {
+            return personalBests[levelNum] || null;
+        }
+        
         function updateLevelButtons() {
             document.querySelectorAll('.level-btn').forEach(btn => {
                 const levelNum = parseInt(btn.dataset.level);
+                const best = getPersonalBest(levelNum);
+                
+                // Build button text: L1 (12) - CSS ::after adds ✓ for completed
+                let text = `L${levelNum}`;
                 if (completedLevels.has(levelNum)) {
                     btn.classList.add('completed');
                 }
+                if (best) {
+                    text += ` (${best})`;
+                }
+                btn.textContent = text;
             });
         }
         
@@ -1391,6 +1683,9 @@
             // Load the level
             loadLevel(levelNum);
             
+            // v0.7: Save selected level
+            saveSelectedLevel(levelNum);
+            
             // Reset AI state for fresh start
             aiState.result = null;
             aiState.messages = [];
@@ -1420,11 +1715,15 @@
             // Reset AI state so it can be run again
             aiState.result = null;
             aiState.messages = [];
+            aiState.toolCallHistory = []; // v0.7: Clear tool call history
             
             // Reset UI
             const statusEl = document.getElementById('status');
             statusEl.textContent = 'Ready';
             statusEl.className = 'status playing';
+            
+            // Update turn counter
+            document.getElementById('turn-counter').textContent = 'Turn: 0';
             
             // Show turn limit in AI status
             updateAiStatus(`Ready (${currentLevel.turns} turns)`, false);
@@ -1432,6 +1731,9 @@
             // Clear AI log
             clearAiLog();
             aiLog('Game reset. Ready to run AI.', 'ai-result');
+            
+            // v0.7: Set UI mode back to idle
+            setUiMode('idle');
             
             render();
         }
@@ -1625,6 +1927,70 @@ return result;
             }
         }
         
+        // ===========================================
+        // v0.7: UI MODE STATE
+        // ===========================================
+        // Modes: 'idle' | 'running' | 'reviewing'
+        let uiMode = 'idle';
+        
+        function setUiMode(mode) {
+            uiMode = mode;
+            document.body.setAttribute('data-ui-mode', mode);
+            
+            // Update prompt column - disable editing during runs
+            const promptColumn = document.querySelector('.prompt-column');
+            // Update tools column - disable editing during runs
+            const toolsColumn = document.querySelector('.tools-column');
+            
+            if (mode === 'running') {
+                promptColumn.classList.add('disabled');
+                toolsColumn.classList.add('disabled');
+                // Disable all inputs in both columns
+                promptColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = true;
+                });
+                toolsColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = true;
+                });
+            } else {
+                promptColumn.classList.remove('disabled');
+                toolsColumn.classList.remove('disabled');
+                // Re-enable all inputs in both columns
+                promptColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = false;
+                });
+                toolsColumn.querySelectorAll('input, textarea, button').forEach(el => {
+                    el.disabled = false;
+                });
+            }
+            
+            // Update AI column based on mode
+            updateAiColumnForMode(mode);
+        }
+        
+        function updateAiColumnForMode(mode) {
+            const aiLog = document.getElementById('ai-log');
+            const reviewPanel = document.getElementById('review-panel');
+            const postRunActions = document.getElementById('post-run-actions');
+            
+            if (mode === 'running') {
+                // Show log, hide review
+                aiLog.style.display = 'block';
+                reviewPanel.style.display = 'none';
+                postRunActions.style.display = 'none';
+            } else if (mode === 'reviewing') {
+                // Keep log visible, show review, show post-run actions
+                aiLog.style.display = 'block';
+                reviewPanel.style.display = 'block';
+                postRunActions.style.display = 'block';
+            } else {
+                // Idle: show log (for next run), hide review, hide post-run actions
+                aiLog.style.display = 'block';
+                reviewPanel.style.display = 'none';
+                postRunActions.style.display = 'none';
+            }
+        }
+        
         // AI state
         const aiState = {
             running: false,
@@ -1633,6 +1999,9 @@ return result;
             // Review tracking
             toolStats: {},      // { toolName: { calls: 0, successes: 0, failures: 0 } }
             toolHistory: [],    // [{ name: 'scan', args: {}, success: true }, ...]
+            // v0.6: Full tool call history for debugging
+            toolCallHistory: [], // [{ turn, timestamp, name, input, output }, ...]
+            currentTurn: 0,
             totalTurns: 0,
             result: null        // 'success' | 'failure' | 'stopped' | 'error'
         };
@@ -1640,6 +2009,8 @@ return result;
         function resetToolStats() {
             aiState.toolStats = {};
             aiState.toolHistory = [];
+            aiState.toolCallHistory = []; // v0.6: Reset full call history
+            aiState.currentTurn = 0;
             aiState.totalTurns = 0;
             aiState.result = null;
             // Initialize stats for all tools
@@ -1659,8 +2030,17 @@ return result;
             } else {
                 aiState.toolStats[toolName].failures++;
             }
-            // Record in history
+            // Record in history (compact version for review)
             aiState.toolHistory.push({ name: toolName, args: toolInput, success });
+            
+            // v0.6: Record full call details for debugging
+            aiState.toolCallHistory.push({
+                turn: aiState.currentTurn,
+                timestamp: Date.now(),
+                name: toolName,
+                input: JSON.parse(JSON.stringify(toolInput || {})),
+                output: JSON.parse(JSON.stringify(result))
+            });
         }
         
         // AI logging
@@ -1678,25 +2058,9 @@ return result;
             aiLogEl.innerHTML = '';
         }
         
-        // Build system prompt - combines default with user's custom prompt
+        // Build system prompt - just use user's prompt directly
         function buildSystemPrompt() {
-            const userPrompt = getSystemPrompt();
-            
-            const defaultPrompt = `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
-
-Use your available tools to:
-1. Explore and understand your environment
-2. Find and pick up the person
-3. Navigate to the safe zone
-4. Drop off the person to complete the rescue
-
-Good luck!`;
-            
-            // If user has custom prompt, prepend it
-            if (userPrompt) {
-                return userPrompt + '\n\n' + defaultPrompt;
-            }
-            return defaultPrompt;
+            return getSystemPrompt();
         }
         
         // Call Claude API via vanilla platform proxy
@@ -1746,13 +2110,15 @@ Good luck!`;
                 return;
             }
             
+            // v0.7: Set UI mode to running
+            setUiMode('running');
+            
             aiState.running = true;
             aiState.stopRequested = false;
             aiState.messages = [];
             
             // Reset tracking for review
             resetToolStats();
-            hideReview();
             
             clearAiLog();
             
@@ -1769,10 +2135,10 @@ Good luck!`;
             
             aiLog('🤖 AI starting rescue mission...', 'ai-thinking');
             
-            // Start with a user message asking to complete the rescue
+            // Start with a minimal user message to kick off the conversation
             aiState.messages.push({
                 role: 'user',
-                content: 'Please rescue the person and bring them to the safe zone. Use the tools available to you. Start by scanning your surroundings to understand the situation.'
+                content: 'BEGIN'
             });
             
             let iterations = 0;
@@ -1780,11 +2146,24 @@ Good luck!`;
             try {
                 while (aiState.running && !aiState.stopRequested && iterations < maxIterations) {
                     iterations++;
+                    aiState.currentTurn = iterations; // v0.6: Track current turn for call history
                     updateAiStatus(`Turn ${iterations}/${maxIterations}`, true);
+                    
+                    // v0.7: Update turn counter in game column
+                    document.getElementById('turn-counter').textContent = `Turn: ${iterations}`;
                     
                     if (gameState.status === 'won') {
                         aiLog('🎉 RESCUE COMPLETE! Mission successful!', 'ai-result');
                         markLevelCompleted(currentLevelNum);
+                        
+                        // v0.7: Track personal best
+                        const isNewBest = updatePersonalBest(currentLevelNum, iterations);
+                        if (isNewBest) {
+                            aiLog(`🏆 NEW PERSONAL BEST: ${iterations} turns!`, 'ai-result');
+                        } else {
+                            const best = getPersonalBest(currentLevelNum);
+                            aiLog(`Completed in ${iterations} turns (best: ${best})`, 'ai-result');
+                        }
                         break;
                     }
                     
@@ -1896,7 +2275,8 @@ Good luck!`;
             document.getElementById('btn-run-ai').disabled = currentUser ? false : true;
             document.getElementById('btn-stop-ai').disabled = true;
             
-            // Show review panel
+            // v0.7: Switch to review mode and show review panel
+            setUiMode('reviewing');
             showReview();
         }
         
@@ -2057,6 +2437,10 @@ Good luck!`;
                 nextLevelBtn.style.display = 'none';
             }
             
+            // v0.6: Reset call history state when showing review
+            // v0.6: Render call history immediately (always visible)
+            renderCallHistory();
+            
             panel.style.display = 'block';
         }
         
@@ -2141,6 +2525,105 @@ Good luck!`;
         
         function hideReview() {
             document.getElementById('review-panel').style.display = 'none';
+        }
+        
+        // ===========================================
+        // v0.6: TOOL CALL HISTORY
+        // ===========================================
+        
+        function renderCallHistory() {
+            const listEl = document.getElementById('call-history-list');
+            const history = aiState.toolCallHistory;
+            
+            if (!history || history.length === 0) {
+                listEl.innerHTML = '<div style="color: #888; padding: 10px; font-size: 0.8rem;">No tool calls recorded</div>';
+                return;
+            }
+            
+            listEl.innerHTML = history.map((call, idx) => {
+                const isSuccess = call.output.success !== false;
+                // v0.7: Compact summary for collapsed view
+                const argSummary = call.name === 'move' && call.input?.direction 
+                    ? `(${call.input.direction.charAt(0).toUpperCase()})` 
+                    : '';
+                
+                return `
+                    <div class="call-history-item ${isSuccess ? 'success' : 'failure'}" data-index="${idx}">
+                        <div class="call-history-item-header" onclick="toggleCallHistoryItem(${idx})">
+                            <div class="call-history-item-left">
+                                <span class="call-history-turn">T${call.turn}</span>
+                                <span class="call-history-name">${call.name}${argSummary}</span>
+                            </div>
+                            <span class="call-history-expand">▶</span>
+                        </div>
+                        <div class="call-history-detail" id="call-detail-${idx}">
+                            <div class="call-history-json">
+                                <div class="call-history-json-label">
+                                    Input
+                                    <button class="call-history-copy-btn" onclick="copyCallJson(${idx}, 'input', this); event.stopPropagation();">📋 Copy</button>
+                                </div>
+                                <pre>${formatJson(call.input)}</pre>
+                            </div>
+                            <div class="call-history-json">
+                                <div class="call-history-json-label">
+                                    Output
+                                    <button class="call-history-copy-btn" onclick="copyCallJson(${idx}, 'output', this); event.stopPropagation();">📋 Copy</button>
+                                </div>
+                                <pre>${formatJson(call.output)}</pre>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // v0.7: Toggle call history item expansion
+        function toggleCallHistoryItem(idx) {
+            const item = document.querySelector(`.call-history-item[data-index="${idx}"]`);
+            if (item) {
+                item.classList.toggle('expanded');
+            }
+        }
+        
+        function summarizeJson(obj) {
+            if (!obj || Object.keys(obj).length === 0) return '{}';
+            const keys = Object.keys(obj);
+            if (keys.length === 1) {
+                const val = obj[keys[0]];
+                if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+                    return `${keys[0]}: ${val}`;
+                }
+            }
+            // Compact summary
+            const summary = JSON.stringify(obj);
+            return summary.length > 30 ? summary.substring(0, 30) + '...' : summary;
+        }
+        
+        function formatJson(obj) {
+            try {
+                return escapeHtml(JSON.stringify(obj, null, 2));
+            } catch (e) {
+                return escapeHtml(String(obj));
+            }
+        }
+        
+        function copyCallJson(idx, type, btnElement) {
+            const call = aiState.toolCallHistory[idx];
+            if (!call) return;
+            
+            const data = type === 'input' ? call.input : call.output;
+            const text = JSON.stringify(data, null, 2);
+            
+            navigator.clipboard.writeText(text).then(() => {
+                // Visual feedback
+                if (btnElement) {
+                    const originalText = btnElement.textContent;
+                    btnElement.textContent = '✓ Copied';
+                    setTimeout(() => btnElement.textContent = originalText, 1000);
+                }
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
         }
         
         function updateAiStatus(text, running) {
@@ -2259,12 +2742,10 @@ return { message: "Tool executed" };`
             const item = document.getElementById(`tool-item-${index}`);
             const wasExpanded = item.classList.contains('expanded');
             
-            // Collapse all
-            document.querySelectorAll('.tool-item.expanded').forEach(el => {
-                el.classList.remove('expanded');
-            });
-            
-            if (!wasExpanded) {
+            // Toggle this tool (allow multiple to be open)
+            if (wasExpanded) {
+                item.classList.remove('expanded');
+            } else {
                 item.classList.add('expanded');
                 expandedToolIndex = index;
                 
@@ -2284,8 +2765,6 @@ return { message: "Tool executed" };`
                 }
                 // Refresh CodeMirror after expansion animation
                 setTimeout(() => toolEditors[index].refresh(), 10);
-            } else {
-                expandedToolIndex = -1;
             }
         }
         
@@ -2381,6 +2860,16 @@ return { message: "Tool executed" };`
         // SYSTEM PROMPT
         // ===========================================
         
+        const DEFAULT_SYSTEM_PROMPT = `You are controlling a rescue vehicle. Your goal is to rescue the person and bring them to the safe zone.
+
+Use your available tools to:
+1. Explore and understand your environment
+2. Find and pick up the person
+3. Navigate to the safe zone
+4. Drop off the person to complete the rescue
+
+Good luck!`;
+        
         function saveSystemPrompt() {
             const prompt = document.getElementById('system-prompt').value;
             localStorage.setItem('rescue-run-system-prompt', prompt);
@@ -2390,6 +2879,9 @@ return { message: "Tool executed" };`
             const saved = localStorage.getItem('rescue-run-system-prompt');
             if (saved) {
                 document.getElementById('system-prompt').value = saved;
+            } else {
+                // Set default if nothing saved
+                document.getElementById('system-prompt').value = DEFAULT_SYSTEM_PROMPT;
             }
         }
         
@@ -2433,15 +2925,14 @@ return { message: "Tool executed" };`
             });
             
             // Review panel buttons
-            document.getElementById('btn-close-review').addEventListener('click', hideReview);
             document.getElementById('btn-edit-after-review').addEventListener('click', () => {
+                setUiMode('idle');
                 if (currentTools.length > 0) {
                     toggleToolExpand(0);
                 }
             });
             document.getElementById('btn-run-again').addEventListener('click', () => {
                 resetGame();
-                hideReview();
                 runAI();
             });
         }
@@ -2492,6 +2983,15 @@ return { message: "Tool executed" };`
             
             // Load completed levels
             loadCompletedLevels();
+            
+            // v0.7: Load personal bests
+            loadPersonalBests();
+            
+            // v0.7: Load last selected level
+            const savedLevel = loadSelectedLevel();
+            if (savedLevel !== 1) {
+                selectLevel(savedLevel);
+            }
             
             await loadAssets();
             render();

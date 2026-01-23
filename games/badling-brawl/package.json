@@ -1,6 +1,6 @@
 {
   "name": "badling-brawl",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Local multiplayer duck survival game - defend your nest, collect eggs, unlock powers!",
   "main": "index.html",
   "scripts": {
@@ -11,7 +11,15 @@
     "upload:vanilla": "node ../../platforms/vanilla/bin/upload-game.js -n \"Badling Brawl\" releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip",
     "release:vanilla": "npm run zip:vanilla && npm run upload:vanilla"
   },
-  "keywords": ["game", "multiplayer", "local-coop", "survival", "ducks", "html5", "canvas"],
+  "keywords": [
+    "game",
+    "multiplayer",
+    "local-coop",
+    "survival",
+    "ducks",
+    "html5",
+    "canvas"
+  ],
   "author": "Robby & GitHub Copilot",
   "license": "MIT"
 }

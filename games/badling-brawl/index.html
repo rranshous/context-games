@@ -3748,6 +3748,14 @@
     function drawHomeBase() {
         const hb = HOME_BASE;
         
+        // Don't draw border tiles until tileset is loaded
+        if (!sprites.tileset.img) {
+            // Just draw the base rectangle without tiles
+            ctx.fillStyle = '#3d6b4a';
+            ctx.fillRect(hb.x, hb.y, hb.width, hb.height);
+            return;
+        }
+        
         // Draw a slightly darker grass interior for the safe zone
         ctx.fillStyle = '#3d6b4a';
         ctx.fillRect(hb.x, hb.y, hb.width, hb.height);
@@ -3765,12 +3773,31 @@
         
         // Pick element based on position (seeded for consistency)
         const getElement = (x, y) => {
-            const hash = ((x * 7 + y * 13) % 97);
-            return borderElements[hash % borderElements.length];
+            // Use Math.floor to handle floating point coordinates
+            const ix = Math.floor(x);
+            const iy = Math.floor(y);
+            const hash = Math.abs((ix * 7 + iy * 13) % 97);
+            const index = hash % borderElements.length;
+            return borderElements[index] || 'largeRock'; // fallback
         };
         
         // Get tile height for vertical positioning
-        const getTileHeight = (type) => TILE_DEFS[type].h * scale;
+        const getTileHeight = (type) => {
+            const def = TILE_DEFS[type];
+            if (!def) {
+                return 20 * scale; // fallback
+            }
+            return def.h * scale;
+        };
+        
+        // Get tile width for horizontal positioning
+        const getTileWidth = (type) => {
+            const def = TILE_DEFS[type];
+            if (!def) {
+                return 20 * scale; // fallback
+            }
+            return def.w * scale;
+        };
         
         // Top edge - inside the boundary
         for (let x = hb.x; x < hb.x + hb.width; x += borderSpacing) {
@@ -3794,7 +3821,7 @@
         // Right edge - inside the boundary (skip corners)
         for (let y = hb.y + borderSpacing; y < hb.y + hb.height - borderSpacing; y += borderSpacing) {
             const elem = getElement(hb.x + hb.width, y);
-            const w = TILE_DEFS[elem].w * scale;
+            const w = getTileWidth(elem);
             drawTile(elem, hb.x + hb.width - w - 2, y, scale);
         }
         
