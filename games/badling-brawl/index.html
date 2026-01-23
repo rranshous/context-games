@@ -1234,7 +1234,7 @@
                     y: player.y,
                     vx: Math.cos(angle) * power.projectileSpeed,
                     vy: Math.sin(angle) * power.projectileSpeed,
-                    radius: 14,
+                    radius: 8, // Smaller than regular projectiles
                     damage: power.damage,
                     lifetime: 5, // Long lifetime for tracking
                     turnRate: power.turnRate,
@@ -1303,37 +1303,9 @@
                     multiplier: power.speedMultiplier
                 });
                 
-                effects.push({
-                    type: 'speedWaddle',
-                    x: player.x,
-                    y: player.y,
-                    timer: 0.3,
-                    maxTimer: 0.3
-                });
-                
+                // No activation effect - the wobble and speed lines are enough
                 console.log(`P${player.index + 1} activated Speed Waddle!`);
                 return [];
-            },
-            // Draw speed burst
-            drawEffect: (effect, ctx) => {
-                const alpha = effect.timer / effect.maxTimer;
-                
-                ctx.save();
-                ctx.translate(effect.x, effect.y);
-                
-                // Speed lines
-                ctx.strokeStyle = `rgba(0, 255, 100, ${alpha})`;
-                ctx.lineWidth = 3;
-                for (let i = 0; i < 8; i++) {
-                    const angle = (i / 8) * Math.PI * 2;
-                    const dist = 20 + (1 - alpha) * 40;
-                    ctx.beginPath();
-                    ctx.moveTo(Math.cos(angle) * 15, Math.sin(angle) * 15);
-                    ctx.lineTo(Math.cos(angle) * dist, Math.sin(angle) * dist);
-                    ctx.stroke();
-                }
-                
-                ctx.restore();
             }
         },
         
@@ -1959,7 +1931,7 @@
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
                     if (dist < entity.radius + enemy.size / 2) {
-                        // Hit!
+                        // Hit! Always apply damage
                         enemy.health -= entity.damage;
                         entity.hitEnemies.push(enemy);
                         
@@ -1967,14 +1939,14 @@
                             killEnemy(enemy);
                         }
                         
-                        // Try to bounce
-                        entity.bouncesLeft--;
+                        // Check if we have bounces left
                         if (entity.bouncesLeft <= 0) {
+                            // No bounces left, expire after this hit
                             entity.lifetime = 0;
                             break;
                         }
                         
-                        // Find next target
+                        // Find next target to bounce to
                         let nextTarget = null;
                         let nextDist = entity.bounceRange;
                         for (const nextEnemy of enemies) {
@@ -1992,14 +1964,15 @@
                         }
                         
                         if (nextTarget) {
-                            // Redirect toward next target
+                            // Bounce! Consume one bounce and redirect
+                            entity.bouncesLeft--;
                             const toNextX = nextTarget.x - entity.x;
                             const toNextY = nextTarget.y - entity.y;
                             const toNextDist = Math.sqrt(toNextX * toNextX + toNextY * toNextY);
                             entity.vx = (toNextX / toNextDist) * entity.speed;
                             entity.vy = (toNextY / toNextDist) * entity.speed;
                         } else {
-                            // No more targets
+                            // No target to bounce to, expire
                             entity.lifetime = 0;
                         }
                         
@@ -2167,16 +2140,21 @@
                 }
             },
             drawIndicator: (target, ctx) => {
-                // Speed lines behind player
+                // Speed lines behind player (based on facing direction)
                 ctx.save();
                 ctx.globalAlpha = 0.5;
                 ctx.strokeStyle = '#00FF00';
                 ctx.lineWidth = 2;
+                
+                // Direction: lines go opposite of facing
+                const dir = target.facingLeft ? 1 : -1; // Lines on right if facing left, left if facing right
+                
                 for (let i = 0; i < 3; i++) {
                     const offset = i * 8;
+                    const xBase = target.x + dir * (target.size / 2 + 10 + offset);
                     ctx.beginPath();
-                    ctx.moveTo(target.x - target.size / 2 - 10 - offset, target.y - 10 + i * 10);
-                    ctx.lineTo(target.x - target.size / 2 - 20 - offset, target.y - 10 + i * 10);
+                    ctx.moveTo(xBase, target.y - 10 + i * 10);
+                    ctx.lineTo(xBase + dir * 10, target.y - 10 + i * 10);
                     ctx.stroke();
                 }
                 ctx.restore();
@@ -2677,6 +2655,22 @@
                 // E key = nest interaction for keyboard player
                 const kbPlayer = getKeyboardPlayer();
                 if (kbPlayer) handleNestInteraction(kbPlayer);
+                break;
+            case 'KeyG':
+                // G key = debug: give +10 eggs to keyboard player
+                const debugPlayer = getKeyboardPlayer();
+                if (debugPlayer) {
+                    debugPlayer.eggs += 10;
+                    console.log(`DEBUG: P${debugPlayer.index + 1} now has ${debugPlayer.eggs} eggs`);
+                }
+                break;
+            case 'KeyH':
+                // H key = debug: give +20 health to keyboard player
+                const healthPlayer = getKeyboardPlayer();
+                if (healthPlayer) {
+                    healthPlayer.health = Math.min(healthPlayer.maxHealth, healthPlayer.health + 20);
+                    console.log(`DEBUG: P${healthPlayer.index + 1} now has ${healthPlayer.health} health`);
+                }
                 break;
         }
     }
@@ -3378,6 +3372,12 @@
             // Draw sprite
             ctx.save();
             ctx.translate(p.x, p.y);
+            
+            // Speed waddle effect - rapid side-to-side rotation
+            if (hasStatusEffect(p, 'speedBoost')) {
+                const wobble = Math.sin(Date.now() / 50) * 0.15; // Fast wobble
+                ctx.rotate(wobble);
+            }
             
             // Flip horizontally if facing right (sprite default is facing left)
             if (!p.facingLeft) {
