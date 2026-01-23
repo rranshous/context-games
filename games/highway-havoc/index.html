@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Highway Havoc</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: monospace;
+      color: #fff;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+    }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+    #instructions {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      font-size: 14px;
+      text-align: center;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div>Score: <span id="score">0</span></div>
+    <div>Health: <span id="health">100</span></div>
+    <div>Ammo: <span id="ammo">∞</span></div>
+  </div>
+  <div id="instructions">
+    Player 1 (Driver): Left stick to steer • Player 2 (Gunner): Right stick to aim, trigger to shoot
+  </div>
+  <canvas id="game-canvas"></canvas>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

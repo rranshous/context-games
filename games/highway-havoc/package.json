@@ -1,0 +1,21 @@
+{
+  "name": "highway-havoc",
+  "version": "1.0.0",
+  "description": "cooperative 2-player vehicle shooter on endless highway",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:itch": "npm run build && mkdir -p releases && cd dist && zip -r ../releases/highway-havoc-$(date +%Y%m%d-%H%M%S).zip . && cd .. && echo 'Build complete! ZIP ready in releases/ folder'",
+    "preview": "vite preview",
+    "start": "npm run dev"
+  },
+  "keywords": ["shooter", "cooperative", "gamepad", "typescript", "canvas"],
+  "author": "Robby and Claude",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vite": "^4.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
