@@ -149,7 +149,7 @@ app.get('/api/games/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Upload a new game
+// Upload a new game (or update existing by name)
 app.post('/api/games', upload.single('game'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
@@ -157,10 +157,23 @@ app.post('/api/games', upload.single('game'), async (req: Request, res: Response
     }
 
     const gameName = req.body.name || req.file.originalname;
-    const gameId = Date.now().toString();
     
-    // Create game directory
+    // Check if game with same name exists (upsert)
+    const existingGames = await loadMetadata();
+    const existingGame = existingGames.find(g => g.name === gameName);
+    
+    // Use existing ID or create new one
+    const gameId = existingGame ? existingGame.id : Date.now().toString();
+    
+    // Create/overwrite game directory
     const gameDir = path.join(GAMES_DIR, gameId);
+    
+    // If updating, remove old directory first
+    if (existingGame && existsSync(gameDir)) {
+      await fs.rm(gameDir, { recursive: true });
+    }
+    
+    await fs.mkdir(gameDir, { recursive: true });
     await fs.mkdir(gameDir, { recursive: true });
     
     const isZip = req.file.originalname.endsWith('.zip');
@@ -201,9 +214,16 @@ app.post('/api/games', upload.single('game'), async (req: Request, res: Response
       isZip: isZip,
     };
 
-    // Save metadata
+    // Save metadata (upsert - update existing or add new)
     const games = await loadMetadata();
-    games.push(metadata);
+    const existingIndex = games.findIndex(g => g.id === gameId);
+    if (existingIndex >= 0) {
+      games[existingIndex] = metadata;
+      console.log(`Updated existing game: ${gameName} (${gameId})`);
+    } else {
+      games.push(metadata);
+      console.log(`Created new game: ${gameName} (${gameId})`);
+    }
     await saveMetadata(games);
 
     res.json({ success: true, game: metadata });
