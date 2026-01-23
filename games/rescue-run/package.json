@@ -1,0 +1,11 @@
+{
+  "name": "rescue-run",
+  "version": "0.7.0",
+  "description": "Rescue Run - AI pathfinding puzzle game",
+  "scripts": {
+    "build": "./build.sh",
+    "publish:vanilla": "npm run build && cd build && zip -r ../rescue-run.zip . && cd .. && node ../../platforms/vanilla/bin/upload-game.js -n 'Rescue Run' rescue-run.zip"
+  },
+  "keywords": ["game", "puzzle", "ai"],
+  "license": "MIT"
+}
