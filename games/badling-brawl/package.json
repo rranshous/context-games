@@ -7,8 +7,9 @@
     "version:patch": "npm version patch --no-git-tag-version && echo \"Version bumped to $(node -p \"require('./package.json').version\")\"",
     "version:minor": "npm version minor --no-git-tag-version && echo \"Version bumped to $(node -p \"require('./package.json').version\")\"",
     "version:major": "npm version major --no-git-tag-version && echo \"Version bumped to $(node -p \"require('./package.json').version\")\"",
-    "build:vanilla": "mkdir -p releases && cp index.html releases/badling-brawl-v$(node -p \"require('./package.json').version\").html && echo \"✅ Created releases/badling-brawl-v$(node -p \"require('./package.json').version\").html\"",
-    "zip:vanilla": "mkdir -p releases && zip -r releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip index.html assets/ && echo \"✅ Created releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip\""
+    "zip:vanilla": "mkdir -p releases && zip -r releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip index.html assets/ && echo \"✅ Created releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip\"",
+    "upload:vanilla": "node ../../platforms/vanilla/bin/upload-game.js -n \"Badling Brawl\" releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip",
+    "release:vanilla": "npm run zip:vanilla && npm run upload:vanilla"
   },
   "keywords": ["game", "multiplayer", "local-coop", "survival", "ducks", "html5", "canvas"],
   "author": "Robby & GitHub Copilot",

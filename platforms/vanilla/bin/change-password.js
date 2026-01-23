@@ -17,7 +17,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 async function changePassword(username, newPassword) {
-  const dbPath = path.join(__dirname, 'vanilla.db');
+  const dbPath = path.join(__dirname, '../vanilla.db');
 
   return new Promise((resolve, reject) => {
     const db = new sqlite3.Database(dbPath, (err) => {
