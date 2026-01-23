@@ -28,3 +28,6 @@ Thumbs.db
 
 # Playwright screenshots
 .playwright-mcp/*.png
+
+# Release artifacts (uploaded to platforms manually)
+**/releases/

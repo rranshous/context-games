@@ -1,0 +1,17 @@
+{
+  "name": "badling-brawl",
+  "version": "0.1.0",
+  "description": "Local multiplayer duck survival game - defend your nest, collect eggs, unlock powers!",
+  "main": "index.html",
+  "scripts": {
+    "version:patch": "npm version patch --no-git-tag-version && echo \"Version bumped to $(node -p \"require('./package.json').version\")\"",
+    "version:minor": "npm version minor --no-git-tag-version && echo \"Version bumped to $(node -p \"require('./package.json').version\")\"",
+    "version:major": "npm version major --no-git-tag-version && echo \"Version bumped to $(node -p \"require('./package.json').version\")\"",
+    "build:vanilla": "mkdir -p releases && cp index.html releases/badling-brawl-v$(node -p \"require('./package.json').version\").html && echo \"✅ Created releases/badling-brawl-v$(node -p \"require('./package.json').version\").html\"",
+    "zip:vanilla": "mkdir -p releases && cp index.html releases/ && cd releases && zip badling-brawl-v$(node -p \"require('../package.json').version\").zip index.html && rm index.html && echo \"✅ Created releases/badling-brawl-v$(node -p \"require('../package.json').version\").zip\"",
+    "publish:vanilla": "npm run zip:vanilla && ../../bin/upload-game.js -n \"Badling Brawl v$(node -p \"require('./package.json').version\")\" releases/badling-brawl-v$(node -p \"require('./package.json').version\").zip"
+  },
+  "keywords": ["game", "multiplayer", "local-coop", "survival", "ducks", "html5", "canvas"],
+  "author": "Robby & GitHub Copilot",
+  "license": "MIT"
+}

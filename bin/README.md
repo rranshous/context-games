@@ -28,3 +28,80 @@ node bin/fetch-itch-games.js
 - Games sorted by publication date (newest first)
 
 **Note:** This script is designed for Claude to use during collaboration sessions to verify and update game documentation with current itch.io data.
+
+### `upload-game.js`
+
+Command line tool to upload games to the Vanilla platform programmatically.
+
+**Usage:**
+```bash
+# Basic upload with default settings
+node bin/upload-game.js my-game.zip
+
+# Upload with custom name
+node bin/upload-game.js -n "My Awesome Game" my-game.zip
+
+# Upload to remote platform
+node bin/upload-game.js --url https://my-platform.com my-game.zip
+
+# Upload with custom credentials
+node bin/upload-game.js --username admin --password secret my-game.zip
+```
+
+**Options:**
+- `-n, --name <name>`: Game name (defaults to filename without .zip)
+- `-u, --url <url>`: Platform URL (default: http://localhost:3000)
+- `--username <username>`: Admin username (default: admin)
+- `--password <password>`: Admin password (default: admin123)
+
+**Environment Variables:**
+- `VANILLA_URL`: Platform URL
+- `VANILLA_USERNAME`: Admin username  
+- `VANILLA_PASSWORD`: Admin password
+
+**Examples:**
+```bash
+# Upload to local development platform
+node bin/upload-game.js dist/my-game.zip
+
+# Upload to production with environment variables
+export VANILLA_URL="https://games.example.com"
+export VANILLA_USERNAME="deploy"
+export VANILLA_PASSWORD="secret123"
+node bin/upload-game.js -n "Production Game" my-game.zip
+```
+
+**Note:** This tool handles authentication automatically and can be integrated into CI/CD pipelines or build scripts for automated game deployment.
+
+### `deploy-template.js`
+
+Template script for integrating game deployment into your project's build process.
+
+**Usage:**
+```bash
+# Copy to your game directory
+cp bin/deploy-template.js games/your-game/deploy.js
+
+# Customize for your game (edit buildGame(), createZip(), etc.)
+# Then deploy:
+node deploy.js dev    # Deploy to local platform
+node deploy.js prod   # Deploy to production platform
+```
+
+**Features:**
+- Environment-based configuration (dev/prod)
+- Automatic ZIP creation
+- Version-aware naming
+- Error handling and logging
+- Environment variable support for credentials
+
+**Setup:**
+1. Copy `deploy-template.js` to your game directory
+2. Customize the `buildGame()` and `createZip()` functions for your build process
+3. Set production environment variables:
+   ```bash
+   export VANILLA_PROD_URL="https://your-platform.com"
+   export VANILLA_PROD_USERNAME="deploy-user"
+   export VANILLA_PROD_PASSWORD="secret"
+   ```
+4. Run `node deploy.js prod` to deploy
