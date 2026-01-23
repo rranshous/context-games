@@ -213,6 +213,41 @@ app.post('/api/games', upload.single('game'), async (req: Request, res: Response
   }
 });
 
+// Delete a game (admin only)
+app.delete('/api/games/:id', async (req: Request, res: Response) => {
+  try {
+    // Check if user is authenticated and is admin
+    if (!req.isAuthenticated || !req.isAuthenticated() || !(req.user as any)?.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const gameId = req.params.id;
+    const games = await loadMetadata();
+    const gameIndex = games.findIndex((g) => g.id === gameId);
+
+    if (gameIndex === -1) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    const game = games[gameIndex];
+
+    // Remove game directory
+    const gameDir = path.join(GAMES_DIR, gameId);
+    if (existsSync(gameDir)) {
+      await fs.rm(gameDir, { recursive: true, force: true });
+    }
+
+    // Update metadata
+    games.splice(gameIndex, 1);
+    await saveMetadata(games);
+
+    res.json({ success: true, message: `Game "${game.name}" removed` });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete game' });
+  }
+});
+
 // Serve game files
 app.use('/games/:id', async (req: Request, res: Response, next) => {
   const gameId = req.params.id;

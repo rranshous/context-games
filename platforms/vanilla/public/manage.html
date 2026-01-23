@@ -166,6 +166,15 @@
             text-decoration: underline;
         }
 
+        .game-actions .remove-btn {
+            color: #dc3545;
+            cursor: pointer;
+        }
+
+        .game-actions .remove-btn:hover {
+            color: #a71d2a;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -277,16 +286,49 @@
                     <li>
                         <div class="game-info">
                             <div class="game-name">${game.name}</div>
-                            <div class="game-meta">Uploaded: ${new Date(game.uploadDate).toLocaleDateString()} • ${game.fileName}</div>
+                            <div class="game-meta">Uploaded: ${new Date(game.uploadDate).toLocaleString()} • ${game.fileName}</div>
                         </div>
                         <div class="game-actions">
                             <a href="/games/${game.id}" target="_blank">Play</a>
+                            <a href="#" class="remove-btn" data-id="${game.id}" data-name="${game.name}">Remove</a>
                         </div>
                     </li>
                 `).join('');
+
+                // Add click handlers for remove buttons
+                list.querySelectorAll('.remove-btn').forEach(btn => {
+                    btn.addEventListener('click', handleRemove);
+                });
             } catch (error) {
                 document.getElementById('games-list').innerHTML = 
                     '<li class="empty-state">Failed to load games.</li>';
+            }
+        }
+
+        async function handleRemove(e) {
+            e.preventDefault();
+            const gameId = e.target.dataset.id;
+            const gameName = e.target.dataset.name;
+
+            if (!confirm(`Remove "${gameName}"? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/games/${gameId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    loadGames();
+                } else {
+                    alert(data.error || 'Failed to remove game');
+                }
+            } catch (error) {
+                alert('Connection error. Please try again.');
             }
         }
 
