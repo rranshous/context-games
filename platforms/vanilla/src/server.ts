@@ -262,7 +262,8 @@ app.use('/games/:id', async (req: Request, res: Response, next) => {
   }
   
   // Serve the game's index.html or the file itself
-  const requestedPath = req.path.replace(`/games/${gameId}`, '');
+  // Decode URL-encoded characters (e.g., %20 -> space) for filesystem access
+  const requestedPath = decodeURIComponent(req.path);
   
   if (requestedPath === '' || requestedPath === '/') {
     // Redirect to trailing slash if missing (ensures correct relative path resolution)
