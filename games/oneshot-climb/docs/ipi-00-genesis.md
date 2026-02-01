@@ -735,3 +735,40 @@ Player now respawns at full health when HP hits 0. Simple reset to keep explorat
 - Continue exploring gameplay possibilities
 - See what interesting item combinations emerge
 - Figure out what this game wants to be
+
+---
+
+## Design Observations (To Explore)
+
+### 1. Movement/Routing Helpers
+
+Could be helpful to have World API mechanisms for random or patterned movement:
+- `world.randomDirection()` or `world.randomPoint()`
+- Patrol patterns: `entity.patrol(points)` or `entity.wander(radius)`
+- Pathfinding toward player: `entity.chasePlayer(speed)`
+
+Right now each item implements its own movement logic in `onUpdate`. Common patterns could be extracted.
+
+### 2. Button Press Hooks
+
+Items could assign new abilities to button presses:
+- `player.onButtonPress('Y', callback)` - trigger ability on Y button
+- `player.onButtonHold('LB', callback)` - while held
+- This would let items add "powers" the player can actively use
+
+Currently items only have passive effects or spawns. Active abilities would add depth.
+
+### 3. Cross-Item Synergy Problem
+
+Items reference each other and spawn entities that other items created. Questions:
+- How can item N+1 reliably build on item N's entities/effects?
+- Each item implements its own low-level logic - lots of duplication
+- Could we have higher-level primitives? ("spawn an enemy that does X" vs raw entity defs)
+
+Possible approaches:
+- **Entity registry**: Named entity types persist across items, can be queried
+- **Effect stacking**: Items declare effects, system combines them
+- **Semantic prompting**: Tell AI what entities already exist, encourage building on them
+- **Behavior presets**: `world.spawnChaser()`, `world.spawnOrbiter()` instead of raw defineEntity
+
+The tension: more abstraction = less chaos/creativity, but also less broken interactions.
