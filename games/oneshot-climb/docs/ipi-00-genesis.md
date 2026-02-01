@@ -146,11 +146,11 @@ Create the next item. Build on what exists.
 - [x] "Ready" state with collect prompt
 - [x] Full idle → forging → ready → idle cycle
 
-### M4: Inference Integration
-- [ ] Call vanilla platform API
-- [ ] Construct generation prompt with world API docs
-- [ ] Parse JSON response
-- [ ] Handle failures gracefully
+### M4: Inference Integration ✅
+- [x] Call vanilla platform API (Haiku model)
+- [x] Construct generation prompt with world API docs
+- [x] Parse pure JS response (not JSON)
+- [x] Handle failures gracefully ("creation unstable")
 
 ### M5: Code Injection
 - [ ] Compile item hooks from strings
@@ -168,7 +168,7 @@ Create the next item. Build on what exists.
 
 ## Progress
 
-*Status: M1+M2+M3 complete, ready for M4 (inference integration)*
+*Status: M1-M4 complete, ready for M5 (code injection polish) and M6 (the loop)*
 
 ---
 
@@ -221,3 +221,42 @@ Create the next item. Build on what exists.
 
 **Next:**
 - M4: Inference integration (user wants Haiku model)
+
+### 2026-02-01: M4 Complete - Inference Integration
+
+**Inference Pipeline Working:**
+- Added `generateItem()` function that calls vanilla platform API
+- Using `claude-haiku-4-5-20251001` for fast gameplay inference
+- Prompt includes world API docs, palette, constraints, example
+- Journal context fed to prompt for narrative continuity
+
+**Code Injection Working:**
+- AI returns pure JavaScript (not JSON) - cleaner, no escaping issues
+- Two-pass execution: validate/capture metadata first, execute effects at pickup
+- Forbidden pattern check (window, document, fetch, eval, etc.)
+- Try/catch wrapper for safety
+
+**World API Implemented:**
+- `world.defineEntity(name, def)` - create entity types with sprites
+- `world.spawn(type, x, y)` - spawn entities
+- `world.onUpdate(callback)` - per-frame logic
+- `world.onPlayerHit(callback)` - damage handlers
+- `world.damageNearby(x, y, radius, amount)` - area damage
+- `world.win()` - trigger win condition
+
+**Player API Implemented:**
+- `player.x, player.y` - position (read-only)
+- `player.addSpeed(multiplier)` - affects movement
+- `player.addJumpPower(amount)` - affects jump height
+- `player.heal/damage(amount)` - placeholders
+
+**First Generated Item - "Chronosphere":**
+- Teal orb sprite
+- +15% speed, +25 jump power
+- Spawns 8 pink "echo" entities in circle every 8 seconds
+- Heals player when hit during slow time
+- All effects working correctly!
+
+**Next:**
+- M5: Polish code injection (timeout protection, better error handling)
+- M6: Complete the loop (journal, multiple forges, win condition)

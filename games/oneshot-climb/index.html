@@ -183,10 +183,18 @@
         y: 200 - 64,  // On top of the platform at y=200
         width: 16 * PIXEL_SCALE,
         height: 16 * PIXEL_SCALE,
-        state: 'idle',        // 'idle' | 'forging' | 'ready'
+        state: 'idle',        // 'idle' | 'forging' | 'ready' | 'failed'
         forgeTimer: 0,        // Time spent forging
-        forgeDuration: 2.0,   // Seconds to forge (placeholder before inference)
+        forgeDuration: 2.0,   // Minimum visual duration (inference may take longer)
+        pendingItem: null,    // Item waiting to be collected
+        inferencePromise: null, // Active inference call
     };
+
+    // Journal - tracks collected items for prompt context
+    const journal = [];
+
+    // Spawned item waiting to be picked up
+    let spawnedItem = null;
 
     // Controller state
     let gamepadIndex = null;
@@ -194,6 +202,251 @@
 
     // Keyboard state (fallback)
     const keys = {};
+
+    // ============================================================
+    // INFERENCE & ITEM GENERATION
+    // ============================================================
+
+    const ITEM_GENERATION_PROMPT = `You are generating a unique item for a roguelite game. Return ONLY JavaScript code - no markdown, no explanation.
+
+When the player picks up your item it should cause a change to the world. Giving the player new powers? Spawning entities? Changing stats or physics? Be creative!
+
+## Item Registration API
+
+Call registerItem() exactly once to define your item:
+
+  registerItem({
+    name: "Item Name",           // short, evocative name
+    description: "What it does", // prose description for the journal
+    sprite: \`
+      ..kkkk..
+      .kwwwwk.
+      kwwwwwwk
+      kwwwwwwk
+      .kwwwwk.
+      ..kkkk..
+      ........
+      ........
+    \`,  // 8x8 grid using palette below
+
+    onPickup() {
+      // Effects go here - runs when player collects the item
+    }
+  });
+
+## Sprite Palette (8x8 grid)
+Use ONLY these characters:
+  . = transparent
+  k = outline/dark brown
+  w = warm white/highlight
+  g = muted green
+  b = soft blue
+  r = soft red
+  o = orange
+  y = yellow
+  p = pink
+  t = teal
+  n = brown
+  d = dark brown
+
+## Player API (available in onPickup)
+
+  player.x, player.y           // position (read-only)
+  player.heal(amount)
+  player.damage(amount)
+  player.addSpeed(multiplier)  // e.g. 0.2 for 20% faster
+  player.addJumpPower(amount)  // e.g. 50 for higher jumps
+
+## World API (available in onPickup)
+
+  // Define new entity types (must define before spawning!)
+  world.defineEntity("typename", {
+    sprite: \`...8x8...\`,
+    damage: 5,           // optional: damage on contact
+    lifetime: 3,         // optional: seconds before despawn
+    friendly: true,      // optional: doesn't hurt player
+  });
+
+  world.spawn("typename", x, y)     // spawn a defined entity
+  world.onUpdate(callback)          // register per-frame logic: fn(dt)
+  world.onPlayerHit(callback)       // when player takes damage
+  world.damageNearby(x, y, radius, amount)
+  world.entities                    // current entities array
+  world.win()                       // trigger win condition
+
+## Constraints
+- No infinite loops
+- No window/document/eval/fetch access
+- Keep it under 40 lines
+- Call registerItem exactly once
+
+## Example
+
+registerItem({
+  name: "Ember Heart",
+  description: "A smoldering core that leaves fire in your wake",
+  sprite: \`
+    ...rr...
+    ..roor..
+    .roooor.
+    .roooor.
+    ..roor..
+    ...rr...
+    ........
+    ........
+  \`,
+
+  onPickup() {
+    world.defineEntity("fire", {
+      sprite: \`
+        ...rr...
+        ..royr..
+        .royyor.
+        ..royr..
+        ...rr...
+        ........
+        ........
+        ........
+      \`,
+      damage: 3,
+      lifetime: 2
+    });
+
+    world.onUpdate((dt) => {
+      if (Math.random() < 0.1) {
+        world.spawn("fire", player.x, player.y + 20);
+      }
+    });
+  }
+});`;
+
+    /**
+     * Build the full prompt with current game state
+     */
+    function buildItemPrompt() {
+        let prompt = ITEM_GENERATION_PROMPT;
+
+        // Add current state
+        prompt += `\n\n## Current State\n`;
+        prompt += `- Items collected so far: ${journal.length}\n`;
+
+        // Add journal context
+        if (journal.length > 0) {
+            prompt += `\n## Previous Items (for narrative continuity)\n`;
+            for (const item of journal.slice(-5)) {  // Last 5 items
+                prompt += `- "${item.name}": ${item.description}\n`;
+            }
+            prompt += `\nBuild on what exists. Create something that complements or contrasts with previous items.\n`;
+        } else {
+            prompt += `\nThis is the first item! Set the tone for the run.\n`;
+        }
+
+        return prompt;
+    }
+
+    /**
+     * Call inference API to generate item
+     */
+    async function generateItem() {
+        const prompt = buildItemPrompt();
+
+        try {
+            const response = await fetch('/api/inference/anthropic/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    messages: [{ role: 'user', content: prompt }],
+                    model: 'claude-haiku-4-5-20251001',  // Fast model for gameplay
+                    max_tokens: 1500
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Inference failed');
+            }
+
+            const data = await response.json();
+            const code = data.content[0].text;
+
+            console.log('Generated item code:', code);
+            return parseItemCode(code);
+
+        } catch (e) {
+            console.error('Inference error:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Forbidden patterns for safety
+     */
+    const FORBIDDEN_PATTERNS = [
+        'window', 'document', 'eval', 'Function(',
+        'fetch', 'XMLHttpRequest', 'import',
+        'while(true)', 'for(;;)', 'localStorage', 'sessionStorage'
+    ];
+
+    /**
+     * Parse and validate generated item code
+     * Returns item metadata + raw code for later execution
+     */
+    function parseItemCode(code) {
+        // Strip markdown code fences if present
+        code = code.replace(/^```(?:javascript|js)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+        // Check for forbidden patterns
+        for (const pattern of FORBIDDEN_PATTERNS) {
+            if (code.includes(pattern)) {
+                console.warn('Forbidden pattern found:', pattern);
+                return null;
+            }
+        }
+
+        // Create item registry to capture metadata only
+        let registeredItem = null;
+
+        const registerItem = (def) => {
+            if (registeredItem) {
+                throw new Error('registerItem called twice');
+            }
+
+            // Validate required fields
+            if (!def.name || !def.description || !def.sprite) {
+                throw new Error('Missing required item fields');
+            }
+
+            // Parse sprite (trim and split into lines)
+            const spriteLines = def.sprite.trim().split('\n').map(line => line.trim());
+
+            // Only capture metadata - we'll re-execute for effects
+            registeredItem = {
+                name: def.name,
+                description: def.description,
+                sprite: spriteLines,
+            };
+        };
+
+        // First pass: validate syntax and capture metadata
+        try {
+            const execute = new Function('registerItem', 'player', 'world', code);
+            // Use stub APIs - just capturing metadata
+            execute(registerItem, {}, {});
+        } catch (e) {
+            console.error('Item code execution error:', e);
+            return null;
+        }
+
+        if (!registeredItem) {
+            console.warn('No item was registered');
+            return null;
+        }
+
+        // Store raw code for execution at pickup time
+        registeredItem.code = code;
+        return registeredItem;
+    }
 
     // ============================================================
     // SPRITE RENDERING
@@ -365,16 +618,16 @@
      * Update player physics
      */
     function updatePlayer(dt, input) {
-        // Horizontal movement
-        player.vx = input.moveX * PLAYER_SPEED;
+        // Horizontal movement (with speed modifier from items)
+        player.vx = input.moveX * PLAYER_SPEED * playerAPI.speedMultiplier;
 
         // Update facing direction
         if (input.moveX > 0) player.facingRight = true;
         if (input.moveX < 0) player.facingRight = false;
 
-        // Jump (only on button press, not hold)
+        // Jump (only on button press, not hold) - with jump bonus from items
         if (input.jump && !prevInput.jump && player.onGround) {
-            player.vy = JUMP_VELOCITY;
+            player.vy = JUMP_VELOCITY - playerAPI.jumpBonus;
             player.onGround = false;
         }
 
@@ -430,6 +683,19 @@
     }
 
     /**
+     * Check if player is touching the spawned item
+     */
+    function isPlayerTouchingItem() {
+        if (!spawnedItem) return false;
+        return (
+            player.x < spawnedItem.x + spawnedItem.width &&
+            player.x + player.width > spawnedItem.x &&
+            player.y < spawnedItem.y + spawnedItem.height &&
+            player.y + player.height > spawnedItem.y
+        );
+    }
+
+    /**
      * Update forge state
      */
     function updateForge(dt, input) {
@@ -438,24 +704,244 @@
             if (input.interact && !prevInput.interact && isPlayerNearForge()) {
                 forge.state = 'forging';
                 forge.forgeTimer = 0;
-                console.log('Forge activated! Forging...');
+                forge.pendingItem = null;
+                console.log('Forge activated! Calling inference...');
+
+                // Start inference (async)
+                forge.inferencePromise = generateItem().then(item => {
+                    forge.pendingItem = item;
+                    forge.inferencePromise = null;
+                    console.log('Inference complete:', item ? item.name : 'failed');
+                });
             }
         } else if (forge.state === 'forging') {
             forge.forgeTimer += dt;
 
-            // Forging complete - placeholder for inference result
-            if (forge.forgeTimer >= forge.forgeDuration) {
-                forge.state = 'ready';
-                console.log('Forging complete! Item ready.');
-                // TODO M4: This is where inference will be called
-                // TODO M5: Item will be spawned with generated code
+            // Wait for both: minimum visual duration AND inference complete
+            const visualReady = forge.forgeTimer >= forge.forgeDuration;
+            const inferenceReady = forge.inferencePromise === null;
+
+            if (visualReady && inferenceReady) {
+                if (forge.pendingItem) {
+                    // Success! Spawn the item
+                    forge.state = 'ready';
+                    spawnedItem = {
+                        ...forge.pendingItem,
+                        x: forge.x + forge.width/2 - 16,  // Center above forge
+                        y: forge.y - 40,
+                        width: 8 * PIXEL_SCALE,
+                        height: 8 * PIXEL_SCALE,
+                    };
+                    console.log('Item spawned:', spawnedItem.name);
+                } else {
+                    // Failure - creation unstable
+                    forge.state = 'failed';
+                    forge.forgeTimer = 0;  // Reuse for failure animation
+                    console.log('Creation unstable - forge failed');
+                }
             }
         } else if (forge.state === 'ready') {
-            // For now, reset after a moment (will be replaced with item pickup)
-            // Player can interact again to "collect" and reset
-            if (input.interact && !prevInput.interact && isPlayerNearForge()) {
+            // Item can be collected by touching it
+            if (isPlayerTouchingItem()) {
+                collectItem(spawnedItem);
+                spawnedItem = null;
                 forge.state = 'idle';
-                console.log('Item collected! (placeholder)');
+            }
+        } else if (forge.state === 'failed') {
+            // Brief failure animation then reset
+            forge.forgeTimer += dt;
+            if (forge.forgeTimer >= 1.5) {
+                forge.state = 'idle';
+            }
+        }
+    }
+
+    // ============================================================
+    // WORLD & PLAYER APIs (for item effects)
+    // ============================================================
+
+    // Persistent world state for item effects
+    const world = {
+        entityTypes: {},
+        entities: [],
+        updateCallbacks: [],
+        playerHitCallbacks: [],
+        hasWon: false,
+
+        defineEntity(name, def) {
+            console.log('Entity type defined:', name, def);
+            // Parse sprite
+            if (def.sprite) {
+                def.sprite = def.sprite.trim().split('\n').map(line => line.trim());
+            }
+            this.entityTypes[name] = def;
+        },
+
+        spawn(type, x, y) {
+            const typeDef = this.entityTypes[type];
+            if (!typeDef) {
+                console.warn('Unknown entity type:', type);
+                return null;
+            }
+            const entity = {
+                type,
+                x,
+                y,
+                width: 8 * PIXEL_SCALE,
+                height: 8 * PIXEL_SCALE,
+                lifetime: typeDef.lifetime || Infinity,
+                age: 0,
+                ...typeDef
+            };
+            this.entities.push(entity);
+            return entity;
+        },
+
+        onUpdate(callback) {
+            console.log('Update callback registered');
+            this.updateCallbacks.push(callback);
+        },
+
+        onPlayerHit(callback) {
+            console.log('Player hit callback registered');
+            this.playerHitCallbacks.push(callback);
+        },
+
+        damageNearby(x, y, radius, amount) {
+            console.log('Area damage:', amount, 'at', x, y, 'radius', radius);
+            // Damage entities in radius
+            for (const entity of this.entities) {
+                if (entity.friendly) continue;
+                const dist = Math.hypot(entity.x - x, entity.y - y);
+                if (dist < radius) {
+                    entity.health = (entity.health || 0) - amount;
+                }
+            }
+        },
+
+        win() {
+            if (this.hasWon) return;
+            this.hasWon = true;
+            console.log('=== YOU WIN! ===');
+            // Could trigger a win screen here
+        }
+    };
+
+    // Player API proxy (exposes safe interface)
+    const playerAPI = {
+        get x() { return player.x; },
+        get y() { return player.y; },
+        speedMultiplier: 1,
+        jumpBonus: 0,
+
+        heal(amount) {
+            console.log('Player healed:', amount);
+            // TODO: implement health system
+        },
+
+        damage(amount) {
+            console.log('Player damaged:', amount);
+            // TODO: implement health system
+        },
+
+        addSpeed(multiplier) {
+            this.speedMultiplier += multiplier;
+            console.log('Player speed now:', this.speedMultiplier);
+        },
+
+        addJumpPower(amount) {
+            this.jumpBonus += amount;
+            console.log('Player jump bonus now:', this.jumpBonus);
+        }
+    };
+
+    /**
+     * Collect an item - re-execute code with real APIs
+     */
+    function collectItem(item) {
+        console.log('=== Collecting item:', item.name, '===');
+
+        // Add to journal
+        journal.push({
+            name: item.name,
+            description: item.description
+        });
+
+        // Re-execute the full code with real APIs
+        // This time onPickup will run with working player/world refs
+        try {
+            let pickupFn = null;
+
+            const registerItem = (def) => {
+                // Capture the onPickup function
+                pickupFn = def.onPickup;
+            };
+
+            // Execute with real APIs in scope
+            const execute = new Function('registerItem', 'player', 'world', item.code);
+            execute(registerItem, playerAPI, world);
+
+            // Now call onPickup if it exists
+            if (pickupFn) {
+                pickupFn();
+                console.log('Item effects activated!');
+            }
+        } catch (e) {
+            console.warn('onPickup error:', e);
+            // Item still collected, effects just don't work
+        }
+    }
+
+    /**
+     * Update world entities and callbacks
+     */
+    function updateWorld(dt) {
+        // Run item update callbacks
+        for (const callback of world.updateCallbacks) {
+            try {
+                callback(dt);
+            } catch (e) {
+                console.warn('Update callback error:', e);
+            }
+        }
+
+        // Update entities
+        for (let i = world.entities.length - 1; i >= 0; i--) {
+            const entity = world.entities[i];
+            entity.age += dt;
+
+            // Remove expired entities
+            if (entity.age >= entity.lifetime) {
+                world.entities.splice(i, 1);
+                continue;
+            }
+
+            // Check collision with player (for damaging entities)
+            if (entity.damage && !entity.friendly) {
+                const touching =
+                    player.x < entity.x + entity.width &&
+                    player.x + player.width > entity.x &&
+                    player.y < entity.y + entity.height &&
+                    player.y + player.height > entity.y;
+
+                if (touching) {
+                    console.log('Player hit by', entity.type, 'for', entity.damage);
+                    // TODO: apply damage to player
+                    for (const cb of world.playerHitCallbacks) {
+                        try { cb(entity.damage, entity); } catch (e) {}
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Render world entities
+     */
+    function renderEntities() {
+        for (const entity of world.entities) {
+            if (entity.sprite) {
+                drawSprite(entity.sprite, entity.x, entity.y, PIXEL_SCALE);
             }
         }
     }
@@ -477,6 +963,9 @@
         // Draw forge
         drawSprite(FORGE_SPRITE, forge.x, forge.y, PIXEL_SCALE);
 
+        // Draw world entities (from item effects)
+        renderEntities();
+
         // Draw player
         drawSprite(
             PLAYER_SPRITE,
@@ -485,6 +974,39 @@
             PIXEL_SCALE,
             !player.facingRight  // Flip if facing left
         );
+
+        // Draw spawned item if exists
+        if (spawnedItem) {
+            // Floating animation
+            const floatY = Math.sin(Date.now() / 300) * 4;
+            drawSprite(spawnedItem.sprite, spawnedItem.x, spawnedItem.y + floatY, PIXEL_SCALE);
+
+            // Glow effect
+            const glow = Math.sin(Date.now() / 200) * 0.2 + 0.5;
+            ctx.fillStyle = `rgba(244, 208, 63, ${glow * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(
+                spawnedItem.x + spawnedItem.width/2,
+                spawnedItem.y + spawnedItem.height/2 + floatY,
+                30,
+                0, Math.PI * 2
+            );
+            ctx.fill();
+
+            // Item name label
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            const nameWidth = ctx.measureText(spawnedItem.name).width + 16;
+            ctx.fillRect(
+                spawnedItem.x + spawnedItem.width/2 - nameWidth/2,
+                spawnedItem.y - 25,
+                nameWidth, 20
+            );
+            ctx.fillStyle = '#f4d03f';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(spawnedItem.name, spawnedItem.x + spawnedItem.width/2, spawnedItem.y - 10);
+            ctx.textAlign = 'left';
+        }
 
         // Draw forge state feedback
         const nearForge = isPlayerNearForge();
@@ -502,8 +1024,7 @@
             );
             ctx.fill();
 
-            // Progress bar
-            const progress = forge.forgeTimer / forge.forgeDuration;
+            // Progress indicator (pulsing since we don't know exact duration)
             const barWidth = 80;
             const barX = forge.x + forge.width/2 - barWidth/2;
             const barY = forge.y - 35;
@@ -512,6 +1033,10 @@
             ctx.fillRect(barX - 2, barY - 2, barWidth + 4, 14);
             ctx.fillStyle = '#4a3728';
             ctx.fillRect(barX, barY, barWidth, 10);
+
+            // Animated progress (bounces while waiting for inference)
+            const progress = forge.pendingItem !== null ? 1.0 :
+                (Math.sin(forge.forgeTimer * 3) * 0.3 + 0.5);
             ctx.fillStyle = '#f4d03f';
             ctx.fillRect(barX, barY, barWidth * progress, 10);
 
@@ -522,19 +1047,29 @@
             ctx.textAlign = 'left';
 
         } else if (forge.state === 'ready') {
-            // Item ready - sparkle effect
+            // Item ready - gentle glow on forge
             const sparkle = Math.sin(Date.now() / 100) * 0.3 + 0.7;
-            ctx.fillStyle = `rgba(244, 208, 63, ${sparkle * 0.5})`;
+            ctx.fillStyle = `rgba(244, 208, 63, ${sparkle * 0.3})`;
             ctx.beginPath();
-            ctx.arc(forge.x + forge.width/2, forge.y + forge.height/2, 50, 0, Math.PI * 2);
+            ctx.arc(forge.x + forge.width/2, forge.y + forge.height/2, 40, 0, Math.PI * 2);
             ctx.fill();
 
-            // Prompt to collect
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(forge.x - 15, forge.y - 35, 110, 28);
-            ctx.fillStyle = '#f4d03f';
-            ctx.font = '14px monospace';
-            ctx.fillText(controllerConnected ? '[X] Collect!' : '[E] Collect!', forge.x - 5, forge.y - 15);
+        } else if (forge.state === 'failed') {
+            // Failed - red fizzle effect
+            const fade = 1 - (forge.forgeTimer / 1.5);
+            ctx.fillStyle = `rgba(196, 92, 74, ${fade * 0.5})`;
+            ctx.beginPath();
+            ctx.arc(forge.x + forge.width/2, forge.y + forge.height/2, 50 * fade, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Failure message
+            ctx.fillStyle = `rgba(0, 0, 0, ${fade * 0.7})`;
+            ctx.fillRect(forge.x - 30, forge.y - 35, 140, 24);
+            ctx.fillStyle = `rgba(196, 92, 74, ${fade})`;
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('Creation unstable...', forge.x + forge.width/2, forge.y - 18);
+            ctx.textAlign = 'left';
 
         } else if (nearForge) {
             // Idle - show interact prompt
@@ -547,12 +1082,13 @@
 
         // Debug: show status
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(10, 10, 200, 64);
+        ctx.fillRect(10, 10, 200, 80);
         ctx.fillStyle = '#fff8e7';
         ctx.font = '12px monospace';
         ctx.fillText(`Controller: ${controllerConnected ? 'Connected' : 'None'}`, 20, 28);
         ctx.fillText(`Player: (${Math.floor(player.x)}, ${Math.floor(player.y)})`, 20, 44);
         ctx.fillText(`Forge: ${forge.state}`, 20, 60);
+        ctx.fillText(`Items: ${journal.length}`, 20, 76);
     }
 
     // ============================================================
@@ -572,6 +1108,7 @@
         // Update
         updatePlayer(dt, input);
         updateForge(dt, input);
+        updateWorld(dt);
 
         // Store previous input for edge detection
         prevInput = { ...input };
