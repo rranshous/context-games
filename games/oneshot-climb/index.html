@@ -358,6 +358,9 @@
         height: 12 * PIXEL_SCALE,
         onGround: true,
         facingRight: true,
+        health: 100,
+        maxHealth: 100,
+        invincibleTimer: 0,  // Brief invincibility after taking damage
     };
 
     // Platforms - static for M1
@@ -402,6 +405,23 @@
     // ============================================================
 
     const ITEM_GENERATION_PROMPT = `You are generating a unique item for a roguelite game. Return ONLY JavaScript code - no markdown, no explanation.
+
+## Item Variety (IMPORTANT!)
+
+Items should NOT always be beneficial. Create variety:
+
+- **Pure good** (~30%): Buffs, heals, friendly helpers
+- **Pure bad** (~30%): Spawns enemies, debuffs, hazards
+- **Mixed** (~40%): Tradeoffs! Speed boost + chasing enemy, heal + boss spawn, powerful ability + penalty
+
+ENEMIES make the game interesting! Don't be afraid to spawn dangerous things.
+Set \`friendly: false\` to create hostile entities that damage the player.
+
+Enemy spawn patterns to consider:
+- Single tough enemy (boss-like)
+- Horde of weak enemies
+- Continuous drip spawning (enemies appear over time)
+- Triggered spawns (when player uses ability, takes damage, etc)
 
 When the player picks up your item it should cause a change to the world. Giving the player new powers? Spawning entities? Changing stats or physics? Be creative!
 
@@ -549,6 +569,60 @@ registerItem({
       });
     });
   }
+});
+
+## Example 2: Enemy Item (DANGEROUS!)
+
+registerItem({
+  name: "Cursed Totem",
+  description: "Spawns hunting spirits that pursue relentlessly",
+  sprite: \`
+    ..rrrr..
+    .rkkkrk.
+    rkwwwwkr
+    rkwkkwkr
+    rkwwwwkr
+    .rkkkrk.
+    ..rrrr..
+    ........
+  \`,
+
+  onPickup() {
+    world.defineEntity("hunter", {
+      sprite: \`
+        ..pp....
+        .pppp...
+        ppkkpp..
+        pppppp..
+        .pppp...
+        ..pp....
+        ........
+        ........
+      \`,
+      damage: 8,
+      health: 15,
+      friendly: false  // HOSTILE - damages player on contact!
+    });
+
+    // Spawn initial hunters
+    for (let i = 0; i < 3; i++) {
+      const x = Math.random() * 700 + 50;
+      const e = world.spawn("hunter", x, 100);
+      e.vy = 50;  // Fall down
+    }
+
+    // Hunters chase the player
+    world.onUpdate((dt) => {
+      world.getEntitiesOfType("hunter").forEach(e => {
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        e.vx += Math.sign(dx) * 200 * dt;
+        e.vy += Math.sign(dy) * 100 * dt;
+        // Limit speed
+        e.vx = Math.max(-150, Math.min(150, e.vx));
+      });
+    });
+  }
 });`;
 
     /**
@@ -560,6 +634,19 @@ registerItem({
         // Add current state
         prompt += `\n\n## Current State\n`;
         prompt += `- Items collected so far: ${journal.length}\n`;
+
+        // Count enemies and friendlies
+        const enemies = world.entities.filter(e => !e.friendly).length;
+        const friendlies = world.entities.filter(e => e.friendly).length;
+        prompt += `- Enemies on screen: ${enemies}\n`;
+        prompt += `- Friendly entities: ${friendlies}\n`;
+
+        // Encourage variety based on current state
+        if (enemies === 0 && journal.length > 0) {
+            prompt += `\n⚠️ NO ENEMIES! Consider creating something dangerous to spice things up!\n`;
+        } else if (enemies > 5) {
+            prompt += `\n⚠️ Many enemies active! Maybe create something helpful... or add even MORE chaos!\n`;
+        }
 
         // Add journal context
         if (journal.length > 0) {
@@ -915,6 +1002,11 @@ registerItem({
      * Update player physics
      */
     function updatePlayer(dt, input) {
+        // Tick invincibility timer
+        if (player.invincibleTimer > 0) {
+            player.invincibleTimer -= dt;
+        }
+
         // Horizontal movement (with speed modifier from items)
         player.vx = input.moveX * PLAYER_SPEED * playerAPI.speedMultiplier;
 
@@ -1159,13 +1251,19 @@ registerItem({
         jumpBonus: 0,
 
         heal(amount) {
-            console.log('Player healed:', amount);
-            // TODO: implement health system
+            player.health = Math.min(player.maxHealth, player.health + amount);
+            console.log('Player healed:', amount, '→', player.health);
         },
 
         damage(amount) {
-            console.log('Player damaged:', amount);
-            // TODO: implement health system
+            if (player.invincibleTimer > 0) return; // I-frames
+            player.health = Math.max(0, player.health - amount);
+            player.invincibleTimer = 0.5; // Half second of invincibility
+            console.log('Player damaged:', amount, '→', player.health);
+            if (player.health <= 0) {
+                console.log('PLAYER DIED!');
+                // TODO: death/respawn
+            }
         },
 
         addSpeed(multiplier) {
@@ -1329,15 +1427,13 @@ registerItem({
                     player.y < entity.y + entity.height &&
                     player.y + player.height > entity.y;
 
-                if (touching) {
-                    // Throttle hit messages to once per second per entity
-                    const now = Date.now();
-                    if (!entity._lastHitTime || now - entity._lastHitTime > 1000) {
-                        console.log('Player hit by', entity.type, 'for', entity.damage);
-                        entity._lastHitTime = now;
-                        for (const cb of world.playerHitCallbacks) {
-                            try { cb(entity.damage, entity); } catch (e) {}
-                        }
+                if (touching && player.invincibleTimer <= 0) {
+                    // Actually damage the player!
+                    playerAPI.damage(entity.damage);
+
+                    // Notify callbacks
+                    for (const cb of world.playerHitCallbacks) {
+                        try { cb(entity.damage, entity); } catch (e) {}
                     }
                 }
             }
@@ -1375,14 +1471,47 @@ registerItem({
         // Draw world entities (from item effects)
         renderEntities();
 
-        // Draw player
-        drawSprite(
-            PLAYER_SPRITE,
-            player.x,
-            player.y,
-            PIXEL_SCALE,
-            !player.facingRight  // Flip if facing left
-        );
+        // Draw player (flicker when invincible)
+        const showPlayer = player.invincibleTimer <= 0 || Math.floor(player.invincibleTimer * 10) % 2 === 0;
+        if (showPlayer) {
+            drawSprite(
+                PLAYER_SPRITE,
+                player.x,
+                player.y,
+                PIXEL_SCALE,
+                !player.facingRight  // Flip if facing left
+            );
+        }
+
+        // Draw health bar (top-left corner)
+        const healthBarWidth = 150;
+        const healthBarHeight = 16;
+        const healthBarX = 20;
+        const healthBarY = 20;
+        const healthPct = player.health / player.maxHealth;
+
+        // Background (dark)
+        ctx.fillStyle = '#2c1810';
+        ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+        // Health fill (green → yellow → red based on health)
+        let healthColor;
+        if (healthPct > 0.6) healthColor = '#7daa73'; // green
+        else if (healthPct > 0.3) healthColor = '#f4d03f'; // yellow
+        else healthColor = '#cf6a4c'; // red
+
+        ctx.fillStyle = healthColor;
+        ctx.fillRect(healthBarX + 2, healthBarY + 2, (healthBarWidth - 4) * healthPct, healthBarHeight - 4);
+
+        // Border
+        ctx.strokeStyle = '#d9c4a5';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+        // Health text
+        ctx.fillStyle = '#d9c4a5';
+        ctx.font = '10px monospace';
+        ctx.fillText(`HP: ${Math.ceil(player.health)}/${player.maxHealth}`, healthBarX + 4, healthBarY + 12);
 
         // Draw spawned item if exists
         if (spawnedItem) {
