@@ -177,10 +177,10 @@
         { x: 350, y: 200, width: 128, height: 32 },  // Forge platform
     ];
 
-    // Forge - on the high platform
+    // Forge - right at player start for easy testing
     const forge = {
-        x: 380,
-        y: 200 - 64,  // On top of the platform at y=200
+        x: 100,
+        y: GROUND_Y - 64,  // On the ground, at player start
         width: 16 * PIXEL_SCALE,
         height: 16 * PIXEL_SCALE,
         state: 'idle',        // 'idle' | 'forging' | 'ready' | 'failed'

@@ -260,3 +260,94 @@ Create the next item. Build on what exists.
 **Next:**
 - M5: Polish code injection (timeout protection, better error handling)
 - M6: Complete the loop (journal, multiple forges, win condition)
+
+### 2026-02-01: World API Discovery Session
+
+**Methodology:**
+- Used Playwright to automate forge interactions
+- Generated 5+ items and analyzed what the model tried to do
+- Documented patterns in model output to inform API design
+
+**Items Generated:**
+
+1. **Chrono Shard** - Time slow effect with visual particles
+2. **Singularity Core** - Gravity pull toward player
+3. **Void Echo** - Spawns hostile phantom duplicates behind player
+4. **Causality Rupture** - Rewind effect with collapse damage
+5. **Temporal Anchor** - Time freeze zones that trap enemies
+
+**What the Model Consistently Tries to Do:**
+
+| Pattern | Example Code | Status |
+|---------|--------------|--------|
+| Read entity position | `entity.x`, `entity.y` | ❌ Not exposed |
+| Write entity position | `entity.x += force * dt` | ❌ Not exposed |
+| Read/write velocity | `entity.vx *= 0.85` | ❌ Entities have no velocity |
+| Check entity type | `entity.type === "phantom"` | ❌ Not exposed |
+| Modify entity health | `entity.health -= 12` | ❌ No health system |
+| Add custom properties | `enemy.frozen = true` | ❌ Not supported |
+| Create hostile entities | `friendly: false` | ✅ Works! |
+| Use `world.damageNearby()` | | ✅ Works |
+| Use `player.addSpeed()` | | ✅ Works |
+| Track with `setTimeout` | | ⚠️ Works but uncontrolled |
+
+**Specific Patterns Observed:**
+
+1. **Orbital/Following Entities**
+   - Model wants entities that orbit the player
+   - Needs to update entity positions each frame
+   - Example: Prism of Fracture tried to make shards orbit
+
+2. **Enemy Slowing/Freezing**
+   - Very common pattern: slow or stop enemy movement
+   - Tries to modify `vx`/`vy` directly
+   - Example: Chrono Shard, Temporal Anchor
+
+3. **Movement-Triggered Spawning**
+   - Spawn entities based on player movement distance
+   - Tracks `lastSpawnX/Y` and spawns when delta exceeds threshold
+   - Example: Void Echo spawns phantoms in player's wake
+
+4. **Distance-Based Effects**
+   - Constantly calculates distance: `Math.sqrt(dx*dx + dy*dy)`
+   - Applies effects when within radius
+   - Example: Singularity Core pulls enemies closer
+
+5. **Damage/Health Manipulation**
+   - Expects entities to have health that can be modified
+   - Tries direct assignment: `entity.health -= amount`
+   - Example: Causality Rupture deals 12 damage to nearby entities
+
+6. **Hostile Entity Creation**
+   - Model correctly uses `friendly: false` to create enemies
+   - Void Echo created phantoms that damage the player!
+   - Damage system works - saw "Player hit by phantom for 2" spam
+
+**API Improvements Needed:**
+
+```javascript
+// Entities need these properties:
+entity.x, entity.y       // Position (read/write)
+entity.vx, entity.vy     // Velocity (read/write)
+entity.type              // What kind of entity (read)
+entity.health            // Health points (read/write)
+
+// Entity movement should be automatic:
+// Each frame: entity.x += entity.vx * dt
+
+// Nice to have:
+world.getEntitiesOfType(type)
+world.getEntitiesInRadius(x, y, radius)
+entity.id                // Unique identifier for tracking
+```
+
+**Console Spam Issues:**
+- `world.damageNearby()` logs every call - floods console
+- `world.onPlayerHit()` fires every frame when touching enemy
+- Need to throttle or debounce these for sanity
+
+**Next Steps:**
+- Implement entity position/velocity properties
+- Add entity movement to update loop
+- Expose `entity.type` for type checking
+- Consider entity health system
