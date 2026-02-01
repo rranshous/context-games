@@ -124,23 +124,23 @@ Create the next item. Build on what exists.
 
 ## Milestones
 
-### M1: Static Frame
-- [ ] HTML5 canvas setup
-- [ ] Game loop (requestAnimationFrame)
-- [ ] Draw platforms (static rectangles for now)
-- [ ] Draw player (sprite from palette)
-- [ ] Draw forge (sprite from palette)
+### M1: Static Frame ✅
+- [x] HTML5 canvas setup
+- [x] Game loop (requestAnimationFrame)
+- [x] Draw platforms (static rectangles for now)
+- [x] Draw player (sprite from palette)
+- [x] Draw forge (sprite from palette)
 
-### M2: Player Movement
-- [ ] Keyboard input (arrows/WASD)
-- [ ] Xbox controller input (Gamepad API)
-- [ ] Horizontal movement
-- [ ] Jump with gravity
-- [ ] Platform collision (stand on platforms)
+### M2: Player Movement ✅
+- [x] Keyboard input (arrows/WASD)
+- [x] Xbox controller input (Gamepad API)
+- [x] Horizontal movement
+- [x] Jump with gravity
+- [x] Platform collision (stand on platforms)
 
-### M3: Forge Interaction
-- [ ] Detect player near forge
-- [ ] Show interaction prompt
+### M3: Forge Interaction (partial)
+- [x] Detect player near forge
+- [x] Show interaction prompt
 - [ ] Button press triggers forge activation
 - [ ] Placeholder "forging" state (before inference)
 
@@ -166,10 +166,39 @@ Create the next item. Build on what exists.
 
 ## Progress
 
-*Status: Idea phase*
+*Status: M1+M2 complete, starting M3*
 
 ---
 
 ## Session Notes
 
-(Add notes as we work)
+### 2026-02-01: Initial Implementation
+
+**M1 & M2 Complete:**
+- Created `index.html` with full game frame
+- Paper Pixels palette implemented (12 colors)
+- ASCII sprite renderer working at 4x scale
+- Player sprite (8x12), forge sprite (16x16), platform tiles
+- Full physics: gravity, jumping, platform collision
+- Xbox controller support (Gamepad API) + keyboard fallback
+- Jump tuned: velocity -550, gravity 1200 for snappy feel
+
+**Tools Created:**
+- `tools/sprite-editor.html` - Paper Pixels sprite editor
+  - Full palette with keyboard shortcuts
+  - Draw/Erase/Fill/Pick tools
+  - Live preview at 1x/2x/4x/8x
+  - Playwright automation API for Claude collaboration
+  - See `tools/README.md` for usage
+
+**Infrastructure:**
+- `package.json` and `build.sh` for deployment
+- `.mcp.json` added to repo root for Playwright MCP
+
+**Sprite Editor Workflow:**
+- Created Playwright MCP integration for collaborative sprite editing
+- Workflow: Claude loads sprite → User edits in browser → Claude reads result
+- Successfully used to redesign player sprite (blue character with yellow eyes)
+
+**Next:**
+- Complete M3: forge activation triggers inference

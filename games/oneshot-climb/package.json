@@ -1,0 +1,11 @@
+{
+  "name": "oneshot-climb",
+  "version": "0.1.0",
+  "description": "A roguelike where AI generates game mechanics as code at runtime",
+  "scripts": {
+    "build": "./build.sh",
+    "publish:vanilla": "npm run build && cd build && zip -r ../oneshot-climb.zip . && cd .. && node ../../platforms/vanilla/bin/upload-game.js -n 'Oneshot Climb' oneshot-climb.zip"
+  },
+  "keywords": ["game", "roguelike", "ai", "procedural"],
+  "license": "MIT"
+}

@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Pixels Sprite Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #f5f0e1;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #f4d03f;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 30px;
+            max-width: 1200px;
+        }
+
+        /* Left panel: Editor */
+        .editor-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Palette */
+        .palette {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 10px;
+            background: #16213e;
+            border-radius: 8px;
+            max-width: 300px;
+        }
+
+        .palette-color {
+            width: 36px;
+            height: 36px;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.1s;
+        }
+
+        .palette-color:hover {
+            transform: scale(1.1);
+        }
+
+        .palette-color.selected {
+            border-color: #f4d03f;
+            box-shadow: 0 0 8px #f4d03f;
+        }
+
+        .palette-color .key {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 10px;
+            font-weight: bold;
+            color: #000;
+            text-shadow: 0 0 2px #fff;
+        }
+
+        .palette-color.transparent-color {
+            background: repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 12px 12px;
+        }
+
+        /* Grid canvas */
+        .grid-container {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        #grid-canvas {
+            border: 1px solid #5d4e37;
+            cursor: crosshair;
+            image-rendering: pixelated;
+        }
+
+        /* Size controls */
+        .size-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            background: #16213e;
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+
+        .size-controls label {
+            font-size: 0.9rem;
+        }
+
+        .size-controls input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #5d4e37;
+            border-radius: 4px;
+            background: #0a0a15;
+            color: #f5f0e1;
+            font-size: 0.9rem;
+        }
+
+        .size-controls button {
+            padding: 6px 12px;
+            background: #5d4e37;
+            color: #f5f0e1;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .size-controls button:hover {
+            background: #7d9f5a;
+        }
+
+        /* Right panel: Preview & Output */
+        .preview-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .preview-section {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .preview-section h3 {
+            color: #a8c0b0;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Preview canvases */
+        .previews {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .preview-box {
+            text-align: center;
+        }
+
+        .preview-box canvas {
+            background: #f5f0e1;
+            border: 1px solid #5d4e37;
+            image-rendering: pixelated;
+        }
+
+        .preview-box .label {
+            margin-top: 5px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        /* Output */
+        #output {
+            width: 100%;
+            height: 200px;
+            background: #0a0a15;
+            border: 1px solid #5d4e37;
+            border-radius: 4px;
+            color: #7d9f5a;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            padding: 10px;
+            resize: vertical;
+        }
+
+        .output-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .output-buttons button {
+            padding: 8px 16px;
+            background: #5d4e37;
+            color: #f5f0e1;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .output-buttons button:hover {
+            background: #7d9f5a;
+        }
+
+        .output-buttons button.primary {
+            background: #c45c4a;
+        }
+
+        .output-buttons button.primary:hover {
+            background: #e67e22;
+        }
+
+        /* Tools */
+        .tools {
+            display: flex;
+            gap: 8px;
+            background: #16213e;
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+
+        .tool-btn {
+            padding: 8px 12px;
+            background: #0a0a15;
+            color: #f5f0e1;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .tool-btn:hover {
+            background: #5d4e37;
+        }
+
+        .tool-btn.selected {
+            border-color: #f4d03f;
+            background: #5d4e37;
+        }
+
+        /* Instructions */
+        .instructions {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .instructions kbd {
+            background: #0a0a15;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        /* Toast notification */
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #7d9f5a;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        #toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>Paper Pixels Sprite Editor</h1>
+
+    <div class="container">
+        <div class="editor-panel">
+            <!-- Size controls -->
+            <div class="size-controls">
+                <label>Width: <input type="number" id="width" value="8" min="1" max="32"></label>
+                <label>Height: <input type="number" id="height" value="12" min="1" max="32"></label>
+                <button onclick="resizeGrid()">Resize</button>
+                <button onclick="clearGrid()">Clear</button>
+            </div>
+
+            <!-- Palette -->
+            <div class="palette" id="palette"></div>
+
+            <!-- Tools -->
+            <div class="tools">
+                <button class="tool-btn selected" data-tool="draw" onclick="selectTool('draw')">Draw</button>
+                <button class="tool-btn" data-tool="erase" onclick="selectTool('erase')">Erase</button>
+                <button class="tool-btn" data-tool="fill" onclick="selectTool('fill')">Fill</button>
+                <button class="tool-btn" data-tool="pick" onclick="selectTool('pick')">Pick</button>
+            </div>
+
+            <!-- Grid -->
+            <div class="grid-container">
+                <canvas id="grid-canvas"></canvas>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions">
+                <strong>Controls:</strong><br>
+                <kbd>Left click</kbd> Draw/Fill &nbsp;
+                <kbd>Right click</kbd> Erase<br>
+                <kbd>1-9, 0</kbd> Quick palette select &nbsp;
+                <kbd>E</kbd> Erase tool<br>
+                <kbd>D</kbd> Draw tool &nbsp;
+                <kbd>F</kbd> Fill tool &nbsp;
+                <kbd>P</kbd> Pick tool
+            </div>
+        </div>
+
+        <div class="preview-panel">
+            <!-- Previews -->
+            <div class="preview-section">
+                <h3>Preview</h3>
+                <div class="previews">
+                    <div class="preview-box">
+                        <canvas id="preview-1x"></canvas>
+                        <div class="label">1x</div>
+                    </div>
+                    <div class="preview-box">
+                        <canvas id="preview-2x"></canvas>
+                        <div class="label">2x</div>
+                    </div>
+                    <div class="preview-box">
+                        <canvas id="preview-4x"></canvas>
+                        <div class="label">4x (game)</div>
+                    </div>
+                    <div class="preview-box">
+                        <canvas id="preview-8x"></canvas>
+                        <div class="label">8x</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output -->
+            <div class="preview-section">
+                <h3>Sprite Code</h3>
+                <textarea id="output" readonly></textarea>
+                <div class="output-buttons">
+                    <button class="primary" onclick="copyToClipboard()">Copy to Clipboard</button>
+                    <button onclick="downloadSprite()">Download .txt</button>
+                    <button onclick="loadFromCode()">Load from Code</button>
+                </div>
+            </div>
+
+            <!-- Load section -->
+            <div class="preview-section">
+                <h3>Load Existing Sprite</h3>
+                <textarea id="load-input" placeholder="Paste sprite array here...
+Example:
+[
+    '..ww..',
+    '.kwwk.',
+    '.kwwk.',
+]" style="width: 100%; height: 100px; background: #0a0a15; border: 1px solid #5d4e37; border-radius: 4px; color: #f5f0e1; font-family: monospace; font-size: 12px; padding: 10px;"></textarea>
+                <div class="output-buttons" style="margin-top: 10px;">
+                    <button onclick="loadSprite()">Load Sprite</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast">Copied to clipboard!</div>
+
+    <script>
+    // ============================================================
+    // PAPER PIXELS PALETTE
+    // ============================================================
+    const PALETTE = {
+        '.': { color: 'transparent', name: 'Transparent', key: '.' },
+        'k': { color: '#5d4e37', name: 'Outline', key: 'k' },
+        'w': { color: '#fff8e7', name: 'White', key: 'w' },
+        'g': { color: '#7d9f5a', name: 'Green', key: 'g' },
+        'b': { color: '#6b8fa3', name: 'Blue', key: 'b' },
+        'r': { color: '#c45c4a', name: 'Red', key: 'r' },
+        'o': { color: '#e67e22', name: 'Orange', key: 'o' },
+        'y': { color: '#f4d03f', name: 'Yellow', key: 'y' },
+        'p': { color: '#d4a5a5', name: 'Pink', key: 'p' },
+        't': { color: '#a8c0b0', name: 'Teal', key: 't' },
+        'n': { color: '#8b7355', name: 'Brown', key: 'n' },
+        'd': { color: '#4a3728', name: 'Dark', key: 'd' },
+    };
+
+    const PALETTE_ORDER = ['.', 'k', 'w', 'g', 'b', 'r', 'o', 'y', 'p', 't', 'n', 'd'];
+    const KEY_TO_PALETTE = { '1': '.', '2': 'k', '3': 'w', '4': 'g', '5': 'b', '6': 'r', '7': 'o', '8': 'y', '9': 'p', '0': 't' };
+
+    // ============================================================
+    // STATE
+    // ============================================================
+    let gridWidth = 8;
+    let gridHeight = 12;
+    let pixels = [];  // 2D array of palette keys
+    let selectedColor = 'k';
+    let currentTool = 'draw';
+    let isDrawing = false;
+
+    const CELL_SIZE = 24;  // Size of each cell in the editor grid
+
+    // Canvas refs
+    const gridCanvas = document.getElementById('grid-canvas');
+    const gridCtx = gridCanvas.getContext('2d');
+
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+
+    function init() {
+        createPalette();
+        resizeGrid();
+        setupEvents();
+    }
+
+    function createPalette() {
+        const paletteEl = document.getElementById('palette');
+        paletteEl.innerHTML = '';
+
+        PALETTE_ORDER.forEach((key, index) => {
+            const item = PALETTE[key];
+            const el = document.createElement('div');
+            el.className = 'palette-color' + (key === '.' ? ' transparent-color' : '') + (key === selectedColor ? ' selected' : '');
+            el.style.background = key === '.' ? '' : item.color;
+            el.dataset.key = key;
+            el.title = `${item.name} (${key})`;
+            el.innerHTML = `<span class="key">${index < 10 ? index + 1 : ''}</span>`;
+            el.onclick = () => selectColor(key);
+            paletteEl.appendChild(el);
+        });
+    }
+
+    function selectColor(key) {
+        selectedColor = key;
+        document.querySelectorAll('.palette-color').forEach(el => {
+            el.classList.toggle('selected', el.dataset.key === key);
+        });
+        // Switch to draw tool when selecting a color
+        if (currentTool === 'erase') {
+            selectTool('draw');
+        }
+    }
+
+    function selectTool(tool) {
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(el => {
+            el.classList.toggle('selected', el.dataset.tool === tool);
+        });
+    }
+
+    // ============================================================
+    // GRID
+    // ============================================================
+
+    function resizeGrid() {
+        gridWidth = parseInt(document.getElementById('width').value) || 8;
+        gridHeight = parseInt(document.getElementById('height').value) || 12;
+
+        // Preserve existing pixels where possible
+        const oldPixels = pixels;
+        pixels = [];
+        for (let y = 0; y < gridHeight; y++) {
+            pixels[y] = [];
+            for (let x = 0; x < gridWidth; x++) {
+                pixels[y][x] = (oldPixels[y] && oldPixels[y][x]) || '.';
+            }
+        }
+
+        gridCanvas.width = gridWidth * CELL_SIZE;
+        gridCanvas.height = gridHeight * CELL_SIZE;
+
+        renderGrid();
+        renderPreviews();
+        updateOutput();
+    }
+
+    function clearGrid() {
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                pixels[y][x] = '.';
+            }
+        }
+        renderGrid();
+        renderPreviews();
+        updateOutput();
+    }
+
+    function renderGrid() {
+        gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+        // Draw checkerboard for transparency
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                const isLight = (x + y) % 2 === 0;
+                gridCtx.fillStyle = isLight ? '#3a3a4e' : '#2a2a3e';
+                gridCtx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+        }
+
+        // Draw pixels
+        for (let y = 0; y < gridHeight; y++) {
+            for (let x = 0; x < gridWidth; x++) {
+                const key = pixels[y][x];
+                if (key !== '.') {
+                    gridCtx.fillStyle = PALETTE[key].color;
+                    gridCtx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+        }
+
+        // Draw grid lines
+        gridCtx.strokeStyle = '#5d4e37';
+        gridCtx.lineWidth = 1;
+        for (let x = 0; x <= gridWidth; x++) {
+            gridCtx.beginPath();
+            gridCtx.moveTo(x * CELL_SIZE + 0.5, 0);
+            gridCtx.lineTo(x * CELL_SIZE + 0.5, gridHeight * CELL_SIZE);
+            gridCtx.stroke();
+        }
+        for (let y = 0; y <= gridHeight; y++) {
+            gridCtx.beginPath();
+            gridCtx.moveTo(0, y * CELL_SIZE + 0.5);
+            gridCtx.lineTo(gridWidth * CELL_SIZE, y * CELL_SIZE + 0.5);
+            gridCtx.stroke();
+        }
+    }
+
+    // ============================================================
+    // PREVIEW
+    // ============================================================
+
+    function renderPreviews() {
+        [1, 2, 4, 8].forEach(scale => {
+            const canvas = document.getElementById(`preview-${scale}x`);
+            canvas.width = gridWidth * scale;
+            canvas.height = gridHeight * scale;
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            ctx.fillStyle = '#f5f0e1';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Pixels
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    const key = pixels[y][x];
+                    if (key !== '.') {
+                        ctx.fillStyle = PALETTE[key].color;
+                        ctx.fillRect(x * scale, y * scale, scale, scale);
+                    }
+                }
+            }
+        });
+    }
+
+    // ============================================================
+    // OUTPUT
+    // ============================================================
+
+    function updateOutput() {
+        const lines = pixels.map(row => `    '${row.join('')}',`);
+        const output = `const SPRITE = [\n${lines.join('\n')}\n];`;
+        document.getElementById('output').value = output;
+    }
+
+    function copyToClipboard() {
+        const output = document.getElementById('output');
+        output.select();
+        document.execCommand('copy');
+
+        // Show toast
+        const toast = document.getElementById('toast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function downloadSprite() {
+        const output = document.getElementById('output').value;
+        const blob = new Blob([output], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sprite.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function loadFromCode() {
+        const input = document.getElementById('output').value;
+        parseAndLoad(input);
+    }
+
+    function loadSprite() {
+        const input = document.getElementById('load-input').value;
+        parseAndLoad(input);
+    }
+
+    function parseAndLoad(input) {
+        try {
+            // Extract strings from the input
+            const matches = input.match(/'([^']+)'/g) || input.match(/"([^"]+)"/g);
+            if (!matches || matches.length === 0) {
+                alert('Could not parse sprite. Make sure it\'s in the format:\n[\n  \'..ww..\',\n  \'.kwwk.\',\n]');
+                return;
+            }
+
+            const rows = matches.map(m => m.slice(1, -1));  // Remove quotes
+
+            // Update dimensions
+            gridHeight = rows.length;
+            gridWidth = Math.max(...rows.map(r => r.length));
+
+            document.getElementById('width').value = gridWidth;
+            document.getElementById('height').value = gridHeight;
+
+            // Load pixels
+            pixels = [];
+            for (let y = 0; y < gridHeight; y++) {
+                pixels[y] = [];
+                const row = rows[y] || '';
+                for (let x = 0; x < gridWidth; x++) {
+                    const char = row[x] || '.';
+                    pixels[y][x] = PALETTE[char] ? char : '.';
+                }
+            }
+
+            // Update canvas size and render
+            gridCanvas.width = gridWidth * CELL_SIZE;
+            gridCanvas.height = gridHeight * CELL_SIZE;
+
+            renderGrid();
+            renderPreviews();
+            updateOutput();
+        } catch (e) {
+            alert('Error loading sprite: ' + e.message);
+        }
+    }
+
+    // ============================================================
+    // DRAWING
+    // ============================================================
+
+    function getGridPos(e) {
+        const rect = gridCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+        const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+        return { x: Math.max(0, Math.min(x, gridWidth - 1)), y: Math.max(0, Math.min(y, gridHeight - 1)) };
+    }
+
+    function setPixel(x, y, color) {
+        if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+            if (pixels[y][x] !== color) {
+                pixels[y][x] = color;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function floodFill(startX, startY, newColor) {
+        const oldColor = pixels[startY][startX];
+        if (oldColor === newColor) return;
+
+        const stack = [[startX, startY]];
+        const visited = new Set();
+
+        while (stack.length > 0) {
+            const [x, y] = stack.pop();
+            const key = `${x},${y}`;
+
+            if (visited.has(key)) continue;
+            if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) continue;
+            if (pixels[y][x] !== oldColor) continue;
+
+            visited.add(key);
+            pixels[y][x] = newColor;
+
+            stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+    }
+
+    function handleDraw(e) {
+        const { x, y } = getGridPos(e);
+        const isRightClick = e.buttons === 2 || e.button === 2;
+
+        if (currentTool === 'pick') {
+            selectColor(pixels[y][x]);
+            return;
+        }
+
+        if (currentTool === 'fill') {
+            floodFill(x, y, isRightClick ? '.' : selectedColor);
+            renderGrid();
+            renderPreviews();
+            updateOutput();
+            return;
+        }
+
+        const color = (currentTool === 'erase' || isRightClick) ? '.' : selectedColor;
+        if (setPixel(x, y, color)) {
+            renderGrid();
+            renderPreviews();
+            updateOutput();
+        }
+    }
+
+    // ============================================================
+    // EVENTS
+    // ============================================================
+
+    function setupEvents() {
+        // Mouse events
+        gridCanvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            handleDraw(e);
+        });
+
+        gridCanvas.addEventListener('mousemove', (e) => {
+            if (isDrawing && currentTool !== 'fill' && currentTool !== 'pick') {
+                handleDraw(e);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        // Prevent context menu on canvas
+        gridCanvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            // Number keys for palette
+            if (KEY_TO_PALETTE[e.key]) {
+                selectColor(KEY_TO_PALETTE[e.key]);
+                return;
+            }
+
+            // Tool shortcuts
+            switch (e.key.toLowerCase()) {
+                case 'd': selectTool('draw'); break;
+                case 'e': selectTool('erase'); break;
+                case 'f': selectTool('fill'); break;
+                case 'p': selectTool('pick'); break;
+            }
+        });
+    }
+
+    // ============================================================
+    // PLAYWRIGHT AUTOMATION API
+    // These functions are exposed globally for automation
+    // ============================================================
+
+    /**
+     * Get the current sprite as an array of strings
+     * @returns {string[]} The sprite data
+     */
+    window.getSprite = function() {
+        return pixels.map(row => row.join(''));
+    };
+
+    /**
+     * Get the sprite as JavaScript code (ready to paste)
+     * @returns {string} The sprite code
+     */
+    window.getSpriteCode = function() {
+        return document.getElementById('output').value;
+    };
+
+    /**
+     * Load a sprite from an array of strings
+     * @param {string[]} sprite - Array of strings representing pixel rows
+     */
+    window.setSprite = function(sprite) {
+        if (!Array.isArray(sprite) || sprite.length === 0) {
+            console.error('setSprite: expected non-empty array of strings');
+            return false;
+        }
+
+        gridHeight = sprite.length;
+        gridWidth = Math.max(...sprite.map(r => r.length));
+
+        document.getElementById('width').value = gridWidth;
+        document.getElementById('height').value = gridHeight;
+
+        pixels = [];
+        for (let y = 0; y < gridHeight; y++) {
+            pixels[y] = [];
+            const row = sprite[y] || '';
+            for (let x = 0; x < gridWidth; x++) {
+                const char = row[x] || '.';
+                pixels[y][x] = PALETTE[char] ? char : '.';
+            }
+        }
+
+        gridCanvas.width = gridWidth * CELL_SIZE;
+        gridCanvas.height = gridHeight * CELL_SIZE;
+
+        renderGrid();
+        renderPreviews();
+        updateOutput();
+        return true;
+    };
+
+    /**
+     * Clear the sprite (all transparent)
+     */
+    window.clearSprite = function() {
+        clearGrid();
+    };
+
+    /**
+     * Resize the sprite canvas
+     * @param {number} width - New width
+     * @param {number} height - New height
+     */
+    window.resizeSprite = function(width, height) {
+        document.getElementById('width').value = width;
+        document.getElementById('height').value = height;
+        resizeGrid();
+    };
+
+    /**
+     * Get sprite dimensions
+     * @returns {{width: number, height: number}}
+     */
+    window.getSpriteDimensions = function() {
+        return { width: gridWidth, height: gridHeight };
+    };
+
+    // ============================================================
+    // START
+    // ============================================================
+    init();
+    </script>
+</body>
+</html>

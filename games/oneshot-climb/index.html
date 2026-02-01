@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oneshot Climb</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Controller prompt overlay */
+        #controller-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff8e7;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #controller-prompt.hidden {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <div id="controller-prompt">Press any button on controller to connect...</div>
+
+    <script>
+    // ============================================================
+    // ONESHOT CLIMB - M1: Static Frame
+    // A roguelike where AI generates game mechanics at runtime
+    // ============================================================
+
+    // ============================================================
+    // PAPER PIXELS PALETTE
+    // Fixed palette - all sprites use these characters/colors
+    // ============================================================
+    const PALETTE = {
+        '.': 'transparent',           // Transparent
+        'k': '#5d4e37',              // Outline/dark brown
+        'w': '#fff8e7',              // Warm white/highlight
+        'g': '#7d9f5a',              // Muted green
+        'b': '#6b8fa3',              // Soft blue
+        'r': '#c45c4a',              // Soft red
+        'o': '#e67e22',              // Orange
+        'y': '#f4d03f',              // Yellow
+        'p': '#d4a5a5',              // Pink
+        't': '#a8c0b0',              // Teal
+        'n': '#8b7355',              // Brown (for platforms)
+        'd': '#4a3728',              // Dark brown
+    };
+
+    const BACKGROUND_COLOR = '#f5f0e1'; // Cream/paper background
+
+    // ============================================================
+    // GAME CONSTANTS
+    // ============================================================
+    const PIXEL_SCALE = 4;           // Each sprite pixel = 4 screen pixels
+    const CANVAS_WIDTH = 960;
+    const CANVAS_HEIGHT = 540;
+
+    // Player constants
+    const PLAYER_SPEED = 200;        // pixels per second
+    const JUMP_VELOCITY = -550;      // initial jump velocity (strong enough to reach platforms)
+    const GRAVITY = 1200;            // gravity acceleration (snappier feel)
+    const GROUND_Y = CANVAS_HEIGHT - 60; // ground level
+
+    // ============================================================
+    // SPRITES (Paper Pixels style - ASCII art)
+    // ============================================================
+
+    // Player sprite - blue character with yellow eyes (8x12)
+    const PLAYER_SPRITE = [
+        '........',
+        '..bbbb..',
+        '..byyb..',
+        '...bb...',
+        '.bbbbbb.',
+        '...bb...',
+        '...bb...',
+        '...bb...',
+        '...bb...',
+        '...bb...',
+        '..b..b..',
+        '..b..b..',
+    ];
+
+    // Forge sprite - magical anvil/altar (16x16)
+    const FORGE_SPRITE = [
+        '......yyyy......',
+        '.....yooooy.....',
+        '....yorrrroy....',
+        '...yorrrrroy....',
+        '....yorrrroy....',
+        '.....yooooy.....',
+        '......yyyy......',
+        '....kkkkkkkk....',
+        '...kttttttttk...',
+        '..ktttttttttk...',
+        '..ktttttttttk...',
+        '.kttttttttttk...',
+        '.kttttttttttk...',
+        'kkkkkkkkkkkkkk..',
+        'knnnnnnnnnnnnk..',
+        '.kkkkkkkkkkkk...',
+    ];
+
+    // Platform tile (16x8) - simple wooden platform
+    const PLATFORM_SPRITE = [
+        'knnnnnnnnnnnnnnk',
+        'knnnnnnnnnnnnnk.',
+        'kddnnddnnddnndk.',
+        'kddddddddddddk..',
+        'kdddddddddddk...',
+        '.kdddddddddk....',
+        '..kkkkkkkkk.....',
+        '................',
+    ];
+
+    // ============================================================
+    // GAME STATE
+    // ============================================================
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const controllerPrompt = document.getElementById('controller-prompt');
+
+    // Set canvas size
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
+
+    // Player state
+    const player = {
+        x: 100,
+        y: GROUND_Y - 48,  // Start on ground
+        vx: 0,
+        vy: 0,
+        width: 8 * PIXEL_SCALE,
+        height: 12 * PIXEL_SCALE,
+        onGround: true,
+        facingRight: true,
+    };
+
+    // Platforms - static for M1
+    const platforms = [
+        // Ground platform (long)
+        { x: 0, y: GROUND_Y, width: CANVAS_WIDTH, height: 60, isGround: true },
+        // Floating platforms
+        { x: 200, y: 380, width: 128, height: 32 },
+        { x: 450, y: 300, width: 128, height: 32 },
+        { x: 700, y: 350, width: 128, height: 32 },
+        { x: 350, y: 200, width: 128, height: 32 },  // Forge platform
+    ];
+
+    // Forge - on the high platform
+    const forge = {
+        x: 380,
+        y: 200 - 64,  // On top of the platform at y=200
+        width: 16 * PIXEL_SCALE,
+        height: 16 * PIXEL_SCALE,
+    };
+
+    // Controller state
+    let gamepadIndex = null;
+    let controllerConnected = false;
+
+    // Keyboard state (fallback)
+    const keys = {};
+
+    // ============================================================
+    // SPRITE RENDERING
+    // ============================================================
+
+    /**
+     * Render an ASCII sprite to canvas
+     * @param {string[]} sprite - Array of strings representing pixel rows
+     * @param {number} x - X position (top-left)
+     * @param {number} y - Y position (top-left)
+     * @param {number} scale - Pixel scale (default PIXEL_SCALE)
+     * @param {boolean} flipX - Flip horizontally
+     */
+    function drawSprite(sprite, x, y, scale = PIXEL_SCALE, flipX = false) {
+        const width = sprite[0].length;
+        const height = sprite.length;
+
+        for (let row = 0; row < height; row++) {
+            for (let col = 0; col < width; col++) {
+                const char = sprite[row][flipX ? width - 1 - col : col];
+                const color = PALETTE[char];
+
+                if (color && color !== 'transparent') {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(
+                        Math.floor(x + col * scale),
+                        Math.floor(y + row * scale),
+                        scale,
+                        scale
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Draw a platform using tiled sprites
+     */
+    function drawPlatform(platform) {
+        if (platform.isGround) {
+            // Ground is just a solid color
+            ctx.fillStyle = PALETTE['n'];
+            ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+            // Top edge
+            ctx.fillStyle = PALETTE['g'];
+            ctx.fillRect(platform.x, platform.y, platform.width, 8);
+            return;
+        }
+
+        // Tile the platform sprite
+        const tileWidth = 16 * PIXEL_SCALE;
+        const tilesNeeded = Math.ceil(platform.width / tileWidth);
+
+        for (let i = 0; i < tilesNeeded; i++) {
+            const tileX = platform.x + i * tileWidth;
+            // Clip to platform width
+            if (tileX < platform.x + platform.width) {
+                drawSprite(PLATFORM_SPRITE, tileX, platform.y);
+            }
+        }
+    }
+
+    // ============================================================
+    // INPUT HANDLING
+    // ============================================================
+
+    // Keyboard events (fallback)
+    window.addEventListener('keydown', (e) => {
+        keys[e.code] = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        keys[e.code] = false;
+    });
+
+    // Gamepad connection
+    window.addEventListener('gamepadconnected', (e) => {
+        console.log('Gamepad connected:', e.gamepad.id);
+        gamepadIndex = e.gamepad.index;
+        controllerConnected = true;
+        controllerPrompt.classList.add('hidden');
+    });
+
+    window.addEventListener('gamepaddisconnected', (e) => {
+        console.log('Gamepad disconnected');
+        if (e.gamepad.index === gamepadIndex) {
+            gamepadIndex = null;
+            controllerConnected = false;
+            controllerPrompt.classList.remove('hidden');
+        }
+    });
+
+    /**
+     * Get current input state from controller or keyboard
+     */
+    function getInput() {
+        const input = {
+            moveX: 0,
+            jump: false,
+            interact: false,
+        };
+
+        // Try gamepad first
+        if (gamepadIndex !== null) {
+            const gamepads = navigator.getGamepads();
+            const gamepad = gamepads[gamepadIndex];
+
+            if (gamepad) {
+                // Left stick X axis (with deadzone)
+                const deadzone = 0.15;
+                const stickX = gamepad.axes[0];
+                if (Math.abs(stickX) > deadzone) {
+                    input.moveX = stickX;
+                }
+
+                // A button = Jump (button 0)
+                input.jump = gamepad.buttons[0].pressed;
+
+                // X button = Interact (button 2)
+                input.interact = gamepad.buttons[2].pressed;
+            }
+        }
+
+        // Keyboard fallback (or combine)
+        if (keys['ArrowLeft'] || keys['KeyA']) {
+            input.moveX = -1;
+        }
+        if (keys['ArrowRight'] || keys['KeyD']) {
+            input.moveX = 1;
+        }
+        if (keys['ArrowUp'] || keys['KeyW'] || keys['Space']) {
+            input.jump = true;
+        }
+        if (keys['KeyE'] || keys['KeyX']) {
+            input.interact = true;
+        }
+
+        return input;
+    }
+
+    // Track previous input state for edge detection
+    let prevInput = { jump: false, interact: false };
+
+    // ============================================================
+    // PHYSICS & COLLISION
+    // ============================================================
+
+    /**
+     * Check if player is colliding with a platform from above
+     */
+    function checkPlatformCollision(px, py, pw, ph) {
+        for (const platform of platforms) {
+            // Simple AABB collision
+            const onPlatform =
+                px + pw > platform.x &&
+                px < platform.x + platform.width &&
+                py + ph >= platform.y &&
+                py + ph <= platform.y + 20 && // Only collide from above
+                player.vy >= 0;  // Only when falling
+
+            if (onPlatform) {
+                return platform;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Update player physics
+     */
+    function updatePlayer(dt, input) {
+        // Horizontal movement
+        player.vx = input.moveX * PLAYER_SPEED;
+
+        // Update facing direction
+        if (input.moveX > 0) player.facingRight = true;
+        if (input.moveX < 0) player.facingRight = false;
+
+        // Jump (only on button press, not hold)
+        if (input.jump && !prevInput.jump && player.onGround) {
+            player.vy = JUMP_VELOCITY;
+            player.onGround = false;
+        }
+
+        // Apply gravity
+        if (!player.onGround) {
+            player.vy += GRAVITY * dt;
+        }
+
+        // Update position
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+
+        // Check platform collision
+        const platform = checkPlatformCollision(
+            player.x, player.y, player.width, player.height
+        );
+
+        if (platform) {
+            player.y = platform.y - player.height;
+            player.vy = 0;
+            player.onGround = true;
+        } else if (player.vy > 0) {
+            player.onGround = false;
+        }
+
+        // Screen bounds
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.width > CANVAS_WIDTH) {
+            player.x = CANVAS_WIDTH - player.width;
+        }
+
+        // Prevent falling through bottom (safety)
+        if (player.y > CANVAS_HEIGHT) {
+            player.y = GROUND_Y - player.height;
+            player.vy = 0;
+            player.onGround = true;
+        }
+    }
+
+    // ============================================================
+    // RENDERING
+    // ============================================================
+
+    function render() {
+        // Clear with background color
+        ctx.fillStyle = BACKGROUND_COLOR;
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Draw platforms
+        for (const platform of platforms) {
+            drawPlatform(platform);
+        }
+
+        // Draw forge
+        drawSprite(FORGE_SPRITE, forge.x, forge.y, PIXEL_SCALE);
+
+        // Draw player
+        drawSprite(
+            PLAYER_SPRITE,
+            player.x,
+            player.y,
+            PIXEL_SCALE,
+            !player.facingRight  // Flip if facing left
+        );
+
+        // Draw interaction hint if near forge
+        const distToForge = Math.hypot(
+            (player.x + player.width/2) - (forge.x + forge.width/2),
+            (player.y + player.height/2) - (forge.y + forge.height/2)
+        );
+
+        if (distToForge < 80) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(forge.x - 10, forge.y - 30, 100, 24);
+            ctx.fillStyle = '#fff8e7';
+            ctx.font = '14px monospace';
+            ctx.fillText(controllerConnected ? '[X] Forge' : '[E] Forge', forge.x, forge.y - 12);
+        }
+
+        // Debug: show controller status
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(10, 10, 200, 50);
+        ctx.fillStyle = '#fff8e7';
+        ctx.font = '12px monospace';
+        ctx.fillText(`Controller: ${controllerConnected ? 'Connected' : 'None'}`, 20, 28);
+        ctx.fillText(`Player: (${Math.floor(player.x)}, ${Math.floor(player.y)})`, 20, 44);
+    }
+
+    // ============================================================
+    // GAME LOOP
+    // ============================================================
+
+    let lastTime = 0;
+
+    function gameLoop(timestamp) {
+        // Calculate delta time (capped at 100ms to prevent spiral of death)
+        const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+        lastTime = timestamp;
+
+        // Get input
+        const input = getInput();
+
+        // Update
+        updatePlayer(dt, input);
+
+        // Store previous input for edge detection
+        prevInput = { ...input };
+
+        // Render
+        render();
+
+        // Next frame
+        requestAnimationFrame(gameLoop);
+    }
+
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+
+    function init() {
+        console.log('Oneshot Climb - M1: Static Frame');
+        console.log('Controls:');
+        console.log('  Xbox Controller: Left stick move, A jump, X interact');
+        console.log('  Keyboard: WASD/Arrows move, Space jump, E interact');
+
+        // Check for existing gamepads (in case already connected)
+        const gamepads = navigator.getGamepads();
+        for (let i = 0; i < gamepads.length; i++) {
+            if (gamepads[i]) {
+                gamepadIndex = i;
+                controllerConnected = true;
+                controllerPrompt.classList.add('hidden');
+                console.log('Found existing gamepad:', gamepads[i].id);
+                break;
+            }
+        }
+
+        // Start game loop
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    </script>
+</body>
+</html>
