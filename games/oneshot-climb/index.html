@@ -183,6 +183,9 @@
         y: 200 - 64,  // On top of the platform at y=200
         width: 16 * PIXEL_SCALE,
         height: 16 * PIXEL_SCALE,
+        state: 'idle',        // 'idle' | 'forging' | 'ready'
+        forgeTimer: 0,        // Time spent forging
+        forgeDuration: 2.0,   // Seconds to forge (placeholder before inference)
     };
 
     // Controller state
@@ -412,6 +415,52 @@
     }
 
     // ============================================================
+    // FORGE LOGIC
+    // ============================================================
+
+    /**
+     * Check if player is near the forge
+     */
+    function isPlayerNearForge() {
+        const distToForge = Math.hypot(
+            (player.x + player.width/2) - (forge.x + forge.width/2),
+            (player.y + player.height/2) - (forge.y + forge.height/2)
+        );
+        return distToForge < 80;
+    }
+
+    /**
+     * Update forge state
+     */
+    function updateForge(dt, input) {
+        if (forge.state === 'idle') {
+            // Check for interaction (button press, not hold)
+            if (input.interact && !prevInput.interact && isPlayerNearForge()) {
+                forge.state = 'forging';
+                forge.forgeTimer = 0;
+                console.log('Forge activated! Forging...');
+            }
+        } else if (forge.state === 'forging') {
+            forge.forgeTimer += dt;
+
+            // Forging complete - placeholder for inference result
+            if (forge.forgeTimer >= forge.forgeDuration) {
+                forge.state = 'ready';
+                console.log('Forging complete! Item ready.');
+                // TODO M4: This is where inference will be called
+                // TODO M5: Item will be spawned with generated code
+            }
+        } else if (forge.state === 'ready') {
+            // For now, reset after a moment (will be replaced with item pickup)
+            // Player can interact again to "collect" and reset
+            if (input.interact && !prevInput.interact && isPlayerNearForge()) {
+                forge.state = 'idle';
+                console.log('Item collected! (placeholder)');
+            }
+        }
+    }
+
+    // ============================================================
     // RENDERING
     // ============================================================
 
@@ -437,13 +486,58 @@
             !player.facingRight  // Flip if facing left
         );
 
-        // Draw interaction hint if near forge
-        const distToForge = Math.hypot(
-            (player.x + player.width/2) - (forge.x + forge.width/2),
-            (player.y + player.height/2) - (forge.y + forge.height/2)
-        );
+        // Draw forge state feedback
+        const nearForge = isPlayerNearForge();
 
-        if (distToForge < 80) {
+        if (forge.state === 'forging') {
+            // Forging animation - pulsing glow
+            const pulse = Math.sin(forge.forgeTimer * 8) * 0.3 + 0.7;
+            ctx.fillStyle = `rgba(244, 208, 63, ${pulse * 0.4})`;
+            ctx.beginPath();
+            ctx.arc(
+                forge.x + forge.width/2,
+                forge.y + forge.height/2,
+                60 + Math.sin(forge.forgeTimer * 6) * 10,
+                0, Math.PI * 2
+            );
+            ctx.fill();
+
+            // Progress bar
+            const progress = forge.forgeTimer / forge.forgeDuration;
+            const barWidth = 80;
+            const barX = forge.x + forge.width/2 - barWidth/2;
+            const barY = forge.y - 35;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(barX - 2, barY - 2, barWidth + 4, 14);
+            ctx.fillStyle = '#4a3728';
+            ctx.fillRect(barX, barY, barWidth, 10);
+            ctx.fillStyle = '#f4d03f';
+            ctx.fillRect(barX, barY, barWidth * progress, 10);
+
+            ctx.fillStyle = '#fff8e7';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('Forging...', forge.x + forge.width/2, barY - 6);
+            ctx.textAlign = 'left';
+
+        } else if (forge.state === 'ready') {
+            // Item ready - sparkle effect
+            const sparkle = Math.sin(Date.now() / 100) * 0.3 + 0.7;
+            ctx.fillStyle = `rgba(244, 208, 63, ${sparkle * 0.5})`;
+            ctx.beginPath();
+            ctx.arc(forge.x + forge.width/2, forge.y + forge.height/2, 50, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Prompt to collect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(forge.x - 15, forge.y - 35, 110, 28);
+            ctx.fillStyle = '#f4d03f';
+            ctx.font = '14px monospace';
+            ctx.fillText(controllerConnected ? '[X] Collect!' : '[E] Collect!', forge.x - 5, forge.y - 15);
+
+        } else if (nearForge) {
+            // Idle - show interact prompt
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(forge.x - 10, forge.y - 30, 100, 24);
             ctx.fillStyle = '#fff8e7';
@@ -451,13 +545,14 @@
             ctx.fillText(controllerConnected ? '[X] Forge' : '[E] Forge', forge.x, forge.y - 12);
         }
 
-        // Debug: show controller status
+        // Debug: show status
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(10, 10, 200, 50);
+        ctx.fillRect(10, 10, 200, 64);
         ctx.fillStyle = '#fff8e7';
         ctx.font = '12px monospace';
         ctx.fillText(`Controller: ${controllerConnected ? 'Connected' : 'None'}`, 20, 28);
         ctx.fillText(`Player: (${Math.floor(player.x)}, ${Math.floor(player.y)})`, 20, 44);
+        ctx.fillText(`Forge: ${forge.state}`, 20, 60);
     }
 
     // ============================================================
@@ -476,6 +571,7 @@
 
         // Update
         updatePlayer(dt, input);
+        updateForge(dt, input);
 
         // Store previous input for edge detection
         prevInput = { ...input };

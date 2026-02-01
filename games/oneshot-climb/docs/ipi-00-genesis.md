@@ -138,11 +138,13 @@ Create the next item. Build on what exists.
 - [x] Jump with gravity
 - [x] Platform collision (stand on platforms)
 
-### M3: Forge Interaction (partial)
+### M3: Forge Interaction ✅
 - [x] Detect player near forge
 - [x] Show interaction prompt
-- [ ] Button press triggers forge activation
-- [ ] Placeholder "forging" state (before inference)
+- [x] Button press triggers forge activation
+- [x] Placeholder "forging" state with progress bar
+- [x] "Ready" state with collect prompt
+- [x] Full idle → forging → ready → idle cycle
 
 ### M4: Inference Integration
 - [ ] Call vanilla platform API
@@ -166,7 +168,7 @@ Create the next item. Build on what exists.
 
 ## Progress
 
-*Status: M1+M2 complete, starting M3*
+*Status: M1+M2+M3 complete, ready for M4 (inference integration)*
 
 ---
 
@@ -202,3 +204,20 @@ Create the next item. Build on what exists.
 
 **Next:**
 - Complete M3: forge activation triggers inference
+
+### 2026-02-01: M3 Complete
+
+**Forge Interaction Implemented:**
+- Added forge state machine: `idle` → `forging` → `ready` → `idle`
+- Forging state shows pulsing yellow glow + progress bar (2 second duration)
+- Ready state shows sparkle effect + "[E] Collect!" prompt
+- Player can activate forge with E/X when nearby
+- Full interaction loop working
+
+**Testing Setup:**
+- Vanilla platform should be running (`cd platforms/vanilla && npm run dev`)
+- Use Playwright MCP to test at `http://localhost:3000` (or `http://localhost:8765` for local dev server)
+- Keyboard events need `code: 'KeyE'` format for proper detection
+
+**Next:**
+- M4: Inference integration (user wants Haiku model)
