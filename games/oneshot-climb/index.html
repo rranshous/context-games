@@ -45,11 +45,205 @@
         #controller-prompt.hidden {
             opacity: 0;
         }
+
+        /* Explorer Panel */
+        #explorer-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100vh;
+            background: #1a1a2e;
+            border-left: 2px solid #5d4e37;
+            font-family: monospace;
+            font-size: 12px;
+            color: #fff8e7;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        #explorer-panel.collapsed {
+            transform: translateX(280px);
+        }
+
+        #explorer-toggle {
+            position: absolute;
+            left: -32px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 80px;
+            background: #1a1a2e;
+            border: 2px solid #5d4e37;
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+            color: #f4d03f;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        #explorer-header {
+            padding: 12px;
+            background: #2a2a4e;
+            border-bottom: 1px solid #5d4e37;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #explorer-header h3 {
+            margin: 0;
+            color: #f4d03f;
+            font-size: 14px;
+        }
+
+        #explorer-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            background: #4a3728;
+        }
+
+        #explorer-status.running { background: #7d9f5a; color: #1a1a2e; }
+        #explorer-status.error { background: #c45c4a; }
+
+        #explorer-state {
+            padding: 12px;
+            border-bottom: 1px solid #5d4e37;
+            flex-shrink: 0;
+        }
+
+        #explorer-state h4 {
+            margin: 0 0 8px 0;
+            color: #a8c0b0;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .state-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 12px;
+        }
+
+        .state-label { color: #6b8fa3; }
+        .state-value { color: #fff8e7; text-align: right; }
+
+        #explorer-observations {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            border-bottom: 1px solid #5d4e37;
+        }
+
+        #explorer-observations h4 {
+            margin: 0 0 8px 0;
+            color: #a8c0b0;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .observation {
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            background: #2a2a4e;
+        }
+
+        .observation.success { border-left: 3px solid #7d9f5a; }
+        .observation.failure { border-left: 3px solid #c45c4a; }
+        .observation.info { border-left: 3px solid #6b8fa3; }
+
+        #explorer-log {
+            height: 120px;
+            overflow-y: auto;
+            padding: 8px 12px;
+            background: #0a0a1e;
+            font-size: 10px;
+            color: #a8c0b0;
+        }
+
+        #explorer-controls {
+            padding: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        #explorer-controls button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #btn-run {
+            background: #7d9f5a;
+            color: #1a1a2e;
+        }
+
+        #btn-run:hover { background: #8daf6a; }
+        #btn-run:disabled { background: #4a4a4a; color: #888; cursor: not-allowed; }
+
+        #btn-stop {
+            background: #c45c4a;
+            color: #fff8e7;
+        }
+
+        #btn-stop:hover { background: #d46c5a; }
+        #btn-stop:disabled { background: #4a4a4a; color: #888; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <canvas id="game"></canvas>
     <div id="controller-prompt">Press any button on controller to connect...</div>
+
+    <!-- Explorer Panel -->
+    <div id="explorer-panel" class="collapsed">
+        <button id="explorer-toggle">◀</button>
+        <div id="explorer-header">
+            <h3>Explorer Claude</h3>
+            <span id="explorer-status">idle</span>
+        </div>
+        <div id="explorer-state">
+            <h4>Game State</h4>
+            <div class="state-grid">
+                <span class="state-label">Player:</span>
+                <span class="state-value" id="state-player">-</span>
+                <span class="state-label">Forge:</span>
+                <span class="state-value" id="state-forge">-</span>
+                <span class="state-label">Items:</span>
+                <span class="state-value" id="state-items">0</span>
+                <span class="state-label">Entities:</span>
+                <span class="state-value" id="state-entities">0</span>
+                <span class="state-label">Forges done:</span>
+                <span class="state-value" id="state-forges">0</span>
+                <span class="state-label">API misses:</span>
+                <span class="state-value" id="state-misses">0</span>
+                <span class="state-label">Patterns:</span>
+                <span class="state-value" id="state-patterns">0</span>
+            </div>
+        </div>
+        <div id="explorer-observations">
+            <h4>API Observations</h4>
+            <div id="observations-list">
+                <div class="observation info">Waiting to start...</div>
+            </div>
+        </div>
+        <div id="explorer-log"></div>
+        <div id="explorer-controls">
+            <button id="btn-run">Run (10 forges)</button>
+            <button id="btn-stop" disabled>Stop</button>
+        </div>
+    </div>
 
     <script>
     // ============================================================
@@ -389,6 +583,64 @@ registerItem({
     ];
 
     /**
+     * Patterns to detect in generated code for API discovery
+     */
+    const API_PATTERNS = [
+        // Entity property access
+        { regex: /entity\.x\b(?!\s*[+\-*\/]?=)/g, name: 'entity.x (read)' },
+        { regex: /entity\.x\s*[+\-*\/]?=/g, name: 'entity.x (write)' },
+        { regex: /entity\.y\b(?!\s*[+\-*\/]?=)/g, name: 'entity.y (read)' },
+        { regex: /entity\.y\s*[+\-*\/]?=/g, name: 'entity.y (write)' },
+        { regex: /entity\.vx/g, name: 'entity.vx' },
+        { regex: /entity\.vy/g, name: 'entity.vy' },
+        { regex: /entity\.velocity/g, name: 'entity.velocity' },
+        { regex: /entity\.health/g, name: 'entity.health' },
+        { regex: /entity\.type\b/g, name: 'entity.type' },
+        { regex: /entity\.id\b/g, name: 'entity.id' },
+        { regex: /entity\.frozen/g, name: 'entity.frozen' },
+        { regex: /entity\.remove|entity\.destroy/g, name: 'entity.remove()' },
+
+        // World queries
+        { regex: /world\.entities\b/g, name: 'world.entities (direct)' },
+        { regex: /world\.getEntities\w*/g, name: 'world.getEntities*()' },
+        { regex: /world\.findEntit/g, name: 'world.findEntit*()' },
+        { regex: /world\.getNearby/g, name: 'world.getNearby()' },
+
+        // Entity iteration
+        { regex: /for\s*\([^)]*entit/gi, name: 'for-loop entities' },
+        { regex: /\.forEach\s*\([^)]*entit/gi, name: 'forEach entities' },
+        { regex: /\.filter\s*\([^)]*entit/gi, name: 'filter entities' },
+
+        // Player props
+        { regex: /player\.health/g, name: 'player.health' },
+        { regex: /player\.vx/g, name: 'player.vx' },
+        { regex: /player\.vy/g, name: 'player.vy' },
+        { regex: /player\.speed\b/g, name: 'player.speed' },
+
+        // World modification
+        { regex: /world\.removeEntity/g, name: 'world.removeEntity()' },
+        { regex: /world\.destroyEntity/g, name: 'world.destroyEntity()' },
+
+        // Timing
+        { regex: /setTimeout/g, name: 'setTimeout' },
+        { regex: /setInterval/g, name: 'setInterval' },
+    ];
+
+    /**
+     * Analyze generated code for API usage patterns
+     */
+    function analyzeGeneratedCode(code) {
+        const results = {};
+        for (const pattern of API_PATTERNS) {
+            const matches = code.match(pattern.regex);
+            if (matches) {
+                results[pattern.name] = matches.length;
+            }
+        }
+        return results;
+    }
+
+    /**
      * Parse and validate generated item code
      * Returns item metadata + raw code for later execution
      */
@@ -548,6 +800,14 @@ registerItem({
             jump: false,
             interact: false,
         };
+
+        // Explorer input takes priority when running
+        if (explorer.running) {
+            input.moveX = explorerInput.moveX;
+            input.jump = explorerInput.jump;
+            input.interact = explorerInput.interact;
+            return input;
+        }
 
         // Try gamepad first
         if (gamepadIndex !== null) {
@@ -856,6 +1116,48 @@ registerItem({
     };
 
     /**
+     * Create instrumented proxy for observation
+     */
+    function createInstrumentedProxy(target, name) {
+        return new Proxy(target, {
+            get(obj, prop) {
+                // Check if property exists
+                if (prop in obj) {
+                    const value = obj[prop];
+                    // Log method calls
+                    if (typeof value === 'function') {
+                        return function(...args) {
+                            if (explorer.running) {
+                                explorer.recordApiSuccess(prop, name);
+                            }
+                            return value.apply(obj, args);
+                        };
+                    }
+                    return value;
+                } else {
+                    // Property doesn't exist - record the miss!
+                    if (explorer.running) {
+                        explorer.recordApiMiss(prop, name);
+                    }
+                    console.warn(`[API Miss] ${name}.${prop} is undefined`);
+                    return undefined;
+                }
+            },
+            set(obj, prop, value) {
+                // Record attempts to set properties
+                if (!(prop in obj)) {
+                    if (explorer.running) {
+                        explorer.recordApiMiss(prop + ' (write)', name);
+                    }
+                    console.warn(`[API Miss] Attempted to set ${name}.${prop}`);
+                }
+                obj[prop] = value;
+                return true;
+            }
+        });
+    }
+
+    /**
      * Collect an item - re-execute code with real APIs
      */
     function collectItem(item) {
@@ -867,7 +1169,16 @@ registerItem({
             description: item.description
         });
 
-        // Re-execute the full code with real APIs
+        // Analyze code patterns if explorer is running
+        if (explorer.running) {
+            explorer.analyzeItemCode(item);
+        }
+
+        // Create instrumented versions of APIs for observation
+        const instrumentedPlayer = createInstrumentedProxy(playerAPI, 'player');
+        const instrumentedWorld = createInstrumentedProxy(world, 'world');
+
+        // Re-execute the full code with instrumented APIs
         // This time onPickup will run with working player/world refs
         try {
             let pickupFn = null;
@@ -877,17 +1188,23 @@ registerItem({
                 pickupFn = def.onPickup;
             };
 
-            // Execute with real APIs in scope
+            // Execute with instrumented APIs in scope
             const execute = new Function('registerItem', 'player', 'world', item.code);
-            execute(registerItem, playerAPI, world);
+            execute(registerItem, instrumentedPlayer, instrumentedWorld);
 
             // Now call onPickup if it exists
             if (pickupFn) {
                 pickupFn();
                 console.log('Item effects activated!');
+                if (explorer.running) {
+                    explorer.addObservation('success', `Item collected: ${item.name}`);
+                }
             }
         } catch (e) {
             console.warn('onPickup error:', e);
+            if (explorer.running) {
+                explorer.addObservation('failure', `Item error: ${e.message}`);
+            }
             // Item still collected, effects just don't work
         }
     }
@@ -1121,6 +1438,383 @@ registerItem({
     }
 
     // ============================================================
+    // EXPLORER CLAUDE - Autonomous playtesting agent
+    // ============================================================
+
+    const explorer = {
+        running: false,
+        targetForges: 10,
+        completedForges: 0,
+        observations: [],      // API observations
+        apiMisses: {},         // Tracks undefined property access counts
+        codePatterns: {},      // Tracks patterns found in generated code
+        generatedItems: [],    // Stores raw code from each item for analysis
+        lastAction: null,
+        actionQueue: [],       // Commands to execute
+
+        // UI elements (set in init)
+        panel: null,
+        toggle: null,
+        status: null,
+        log: null,
+
+        // Initialize explorer
+        init() {
+            this.panel = document.getElementById('explorer-panel');
+            this.toggle = document.getElementById('explorer-toggle');
+            this.status = document.getElementById('explorer-status');
+            this.log = document.getElementById('explorer-log');
+
+            // Toggle panel
+            this.toggle.addEventListener('click', () => {
+                this.panel.classList.toggle('collapsed');
+                this.toggle.textContent = this.panel.classList.contains('collapsed') ? '◀' : '▶';
+            });
+
+            // Run/Stop buttons
+            document.getElementById('btn-run').addEventListener('click', () => this.start());
+            document.getElementById('btn-stop').addEventListener('click', () => this.stop());
+
+            // Start state update loop
+            setInterval(() => this.updateStateDisplay(), 100);
+
+            this.logMessage('Explorer initialized. Click Run to start autonomous exploration.');
+        },
+
+        // Update state display in panel
+        updateStateDisplay() {
+            document.getElementById('state-player').textContent =
+                `(${Math.floor(player.x)}, ${Math.floor(player.y)})`;
+            document.getElementById('state-forge').textContent = forge.state;
+            document.getElementById('state-items').textContent = journal.length;
+            document.getElementById('state-entities').textContent = world.entities.length;
+            document.getElementById('state-forges').textContent = this.completedForges;
+            document.getElementById('state-misses').textContent = Object.keys(this.apiMisses).length;
+            document.getElementById('state-patterns').textContent = Object.keys(this.codePatterns).length;
+        },
+
+        // Log message to explorer console
+        logMessage(msg) {
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            this.log.innerHTML += `<div>[${time}] ${msg}</div>`;
+            this.log.scrollTop = this.log.scrollHeight;
+            console.log('[Explorer]', msg);
+        },
+
+        // Add observation
+        addObservation(type, message) {
+            const obs = { type, message, time: Date.now() };
+            this.observations.push(obs);
+
+            const list = document.getElementById('observations-list');
+            const div = document.createElement('div');
+            div.className = `observation ${type}`;
+            div.textContent = message;
+            list.appendChild(div);
+            list.scrollTop = list.scrollHeight;
+
+            // Keep only last 50
+            while (list.children.length > 50) {
+                list.removeChild(list.firstChild);
+            }
+        },
+
+        // Record API miss (undefined property access)
+        recordApiMiss(property, context) {
+            const key = `${context}.${property}`;
+            this.apiMisses[key] = (this.apiMisses[key] || 0) + 1;
+            if (this.apiMisses[key] === 1) {
+                // First time seeing this miss
+                this.addObservation('failure', `Missing: ${key}`);
+            }
+        },
+
+        // Record API success
+        recordApiSuccess(method, context) {
+            this.addObservation('success', `Used: ${context}.${method}()`);
+        },
+
+        // Analyze item code and track patterns
+        analyzeItemCode(item) {
+            if (!item || !item.code) return;
+
+            // Store the item for later inspection
+            this.generatedItems.push({
+                name: item.name,
+                description: item.description,
+                code: item.code
+            });
+
+            // Run pattern analysis
+            const patterns = analyzeGeneratedCode(item.code);
+            for (const [pattern, count] of Object.entries(patterns)) {
+                this.codePatterns[pattern] = (this.codePatterns[pattern] || 0) + count;
+                this.addObservation('pattern', `${pattern}: ${count}x`);
+            }
+        },
+
+        // Start exploration
+        async start() {
+            if (this.running) return;
+
+            this.running = true;
+            this.completedForges = 0;
+            this.observations = [];
+            this.apiMisses = {};
+            this.codePatterns = {};
+            this.generatedItems = [];
+            document.getElementById('observations-list').innerHTML = '';
+
+            this.setStatus('running');
+            document.getElementById('btn-run').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+
+            this.logMessage(`Starting exploration: ${this.targetForges} forge cycles`);
+            this.addObservation('info', 'Exploration started');
+
+            // Run the exploration loop
+            await this.explorationLoop();
+        },
+
+        // Stop exploration
+        stop() {
+            this.running = false;
+            this.setStatus('idle');
+            document.getElementById('btn-run').disabled = false;
+            document.getElementById('btn-stop').disabled = true;
+            this.logMessage('Exploration stopped by user');
+            this.generateReport();
+        },
+
+        setStatus(status) {
+            this.status.textContent = status;
+            this.status.className = status;
+        },
+
+        // Main exploration loop
+        async explorationLoop() {
+            while (this.running && this.completedForges < this.targetForges) {
+                try {
+                    // Get current state
+                    const state = this.getGameState();
+
+                    // Decide action via inference
+                    const action = await this.decideAction(state);
+
+                    if (!this.running) break;
+
+                    // Execute action
+                    await this.executeAction(action);
+
+                    // Track forge completion via items collected
+                    const currentItems = journal.length;
+                    if (currentItems > this.completedForges) {
+                        this.completedForges = currentItems;
+                        this.logMessage(`Forge ${this.completedForges}/${this.targetForges} complete`);
+                    }
+
+                    // Small delay between actions
+                    await this.sleep(100);
+
+                } catch (e) {
+                    this.logMessage(`Error: ${e.message}`);
+                    this.setStatus('error');
+                    await this.sleep(1000);
+                    this.setStatus('running');
+                }
+            }
+
+            if (this.completedForges >= this.targetForges) {
+                this.logMessage('Exploration complete!');
+                this.stop();
+            }
+        },
+
+        // Get current game state for inference
+        getGameState() {
+            return {
+                player: { x: player.x, y: player.y, onGround: player.onGround },
+                forge: { x: forge.x, y: forge.y, state: forge.state },
+                nearForge: isPlayerNearForge(),
+                itemsCollected: journal.length,
+                entities: world.entities.length,
+                spawnedItem: spawnedItem ? { name: spawnedItem.name, x: spawnedItem.x, y: spawnedItem.y } : null,
+                completedForges: this.completedForges,
+                targetForges: this.targetForges
+            };
+        },
+
+        // Decide next action - using simple heuristics first, can upgrade to inference later
+        async decideAction(state) {
+            // Simple state machine for now:
+            // 1. If item spawned, go collect it (move + jump if needed)
+            // 2. If forge idle and near it, activate
+            // 3. If forge idle and not near, move toward it
+            // 4. If forge forging/ready, wait
+
+            if (state.spawnedItem) {
+                // Move toward and collect item
+                const dx = state.spawnedItem.x - state.player.x;
+                const dy = state.spawnedItem.y - state.player.y;
+
+                // If we're not horizontally aligned, move toward item
+                if (Math.abs(dx) > 30) {
+                    return { type: 'move', direction: dx > 0 ? 'right' : 'left', duration: 100 };
+                }
+
+                // If item is above us, jump to reach it
+                if (dy < -20 && state.player.onGround) {
+                    return { type: 'jump', duration: 400 };
+                }
+
+                // Otherwise keep trying to touch it
+                if (Math.abs(dx) > 5) {
+                    return { type: 'move', direction: dx > 0 ? 'right' : 'left', duration: 50 };
+                }
+
+                return { type: 'wait_for_item', duration: 100 };
+            }
+
+            if (state.forge.state === 'idle') {
+                if (state.nearForge) {
+                    return { type: 'interact' };
+                } else {
+                    // Move toward forge
+                    const dx = state.forge.x - state.player.x;
+                    return { type: 'move', direction: dx > 0 ? 'right' : 'left', duration: 150 };
+                }
+            }
+
+            if (state.forge.state === 'forging') {
+                return { type: 'wait', duration: 500 };
+            }
+
+            if (state.forge.state === 'ready') {
+                return { type: 'wait_for_item', duration: 100 };
+            }
+
+            if (state.forge.state === 'failed') {
+                return { type: 'wait', duration: 500 };
+            }
+
+            return { type: 'wait', duration: 100 };
+        },
+
+        // Execute an action
+        async executeAction(action) {
+            this.lastAction = action;
+
+            switch (action.type) {
+                case 'move':
+                    // Inject movement input
+                    explorerInput.moveX = action.direction === 'right' ? 1 : -1;
+                    await this.sleep(action.duration || 100);
+                    explorerInput.moveX = 0;
+                    break;
+
+                case 'jump':
+                    explorerInput.jump = true;
+                    await this.sleep(50);
+                    explorerInput.jump = false;
+                    await this.sleep(action.duration || 300);
+                    break;
+
+                case 'interact':
+                    this.logMessage('Activating forge...');
+                    explorerInput.interact = true;
+                    await this.sleep(50);
+                    explorerInput.interact = false;
+                    await this.sleep(200);
+                    break;
+
+                case 'wait':
+                case 'wait_for_item':
+                    await this.sleep(action.duration || 100);
+                    break;
+            }
+        },
+
+        sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        },
+
+        // Generate final report
+        generateReport() {
+            this.logMessage('');
+            this.logMessage('========================================');
+            this.logMessage('       EXPLORER REPORT');
+            this.logMessage('========================================');
+            this.logMessage(`Items generated: ${this.generatedItems.length}`);
+            this.logMessage(`Items collected: ${journal.length}`);
+            this.logMessage('');
+
+            // Code patterns - sorted by frequency
+            const sortedPatterns = Object.entries(this.codePatterns)
+                .sort((a, b) => b[1] - a[1]);
+
+            if (sortedPatterns.length > 0) {
+                this.logMessage('CODE PATTERNS DETECTED:');
+                this.logMessage('(patterns the item AI tried to use)');
+                this.logMessage('----------------------------------------');
+                for (const [pattern, count] of sortedPatterns) {
+                    this.logMessage(`  ${pattern}: ${count}x`);
+                }
+                this.logMessage('');
+            }
+
+            // Runtime API misses
+            if (Object.keys(this.apiMisses).length > 0) {
+                this.logMessage('RUNTIME API MISSES:');
+                this.logMessage('(undefined properties accessed at runtime)');
+                this.logMessage('----------------------------------------');
+                for (const [key, count] of Object.entries(this.apiMisses)) {
+                    this.logMessage(`  ${key}: ${count}x`);
+                }
+                this.logMessage('');
+            }
+
+            this.logMessage('========================================');
+            this.logMessage('Report saved to window.explorerReport');
+            this.logMessage('Access generated code: window.explorerReport.generatedItems');
+
+            // Store report in window for external access
+            window.explorerReport = {
+                completedForges: this.completedForges,
+                itemsCollected: journal.length,
+                codePatterns: { ...this.codePatterns },
+                apiMisses: { ...this.apiMisses },
+                generatedItems: [...this.generatedItems],
+                observations: [...this.observations],
+                journal: [...journal],
+                // Helper to print report as text
+                print() {
+                    console.log('\n=== EXPLORER REPORT ===');
+                    console.log(`Items: ${this.itemsCollected}`);
+                    console.log('\nCode patterns (what AI tried to use):');
+                    Object.entries(this.codePatterns)
+                        .sort((a, b) => b[1] - a[1])
+                        .forEach(([p, c]) => console.log(`  ${p}: ${c}x`));
+                    if (Object.keys(this.apiMisses).length > 0) {
+                        console.log('\nRuntime misses:');
+                        Object.entries(this.apiMisses)
+                            .forEach(([k, c]) => console.log(`  ${k}: ${c}x`));
+                    }
+                }
+            };
+        }
+    };
+
+    // Explorer input state (overrides normal input when explorer is running)
+    const explorerInput = {
+        moveX: 0,
+        jump: false,
+        interact: false
+    };
+
+    // Modify getInput to merge explorer input
+    const originalGetInput = getInput;
+
+    // ============================================================
     // INITIALIZATION
     // ============================================================
 
@@ -1141,6 +1835,9 @@ registerItem({
                 break;
             }
         }
+
+        // Initialize Explorer Claude
+        explorer.init();
 
         // Start game loop
         requestAnimationFrame(gameLoop);

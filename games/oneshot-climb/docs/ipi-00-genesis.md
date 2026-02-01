@@ -351,3 +351,221 @@ entity.id                // Unique identifier for tracking
 - Add entity movement to update loop
 - Expose `entity.type` for type checking
 - Consider entity health system
+
+### 2026-02-01: Explorer Claude - Autonomous Playtesting Agent
+
+**Concept:**
+User proposed embedding a "Claude" into the game that can autonomously play, observe item generation, and report API findings - essentially farming out API refinement work to sub-agents that don't pollute the main conversation context.
+
+**Implementation Complete:**
+Added Explorer Claude panel to `index.html` (lines ~29-170 CSS, ~152-179 HTML, ~1270-1430 JS)
+
+**Components Built:**
+
+1. **Explorer Panel UI** (collapsible sidebar)
+   - Status display (running/idle/error)
+   - Real-time game state: player position, forge state, items, entities
+   - API observations list (successes/failures)
+   - Log console
+   - Run/Stop controls
+
+2. **Programmatic Player Control**
+   - `explorerInput` object overrides keyboard/gamepad when running
+   - Actions: move left/right, jump, interact
+   - Async action execution with timing
+
+3. **Observation Hooks**
+   - `createInstrumentedProxy()` wraps World and Player APIs
+   - Catches undefined property access (API misses)
+   - Logs successful API method calls
+   - Reports saved to `window.explorerReport`
+
+4. **Exploration Loop**
+   - Heuristic-based decision making (no inference needed for simple navigation)
+   - State machine: move to forge → activate → wait → collect item → repeat
+   - Handles item spawning above player (jumps to collect)
+
+**Test Results (first run):**
+- ✅ 14 items collected autonomously
+- ✅ 100 entities spawned by item effects
+- ✅ API observations working (world.spawn, defineEntity, onUpdate, damageNearby, player.heal, player.addSpeed)
+- ✅ Report generation working
+- ⚠️ 0 API misses detected - Haiku stays within documented API
+
+**Key Finding:**
+Haiku generates code that respects the documented API. No attempts to use undocumented properties like `entity.vx` or `world.getEntitiesInRadius()`. This suggests:
+1. The prompt/examples are effective at constraining behavior
+2. To discover API gaps, we may need to explicitly encourage experimentation
+3. Or generate many more items to find edge cases
+
+**Items Generated During Test:**
+- Prism Shard (shield, heal)
+- Gravity Well (orbit entities)
+- Chrono Fracture (echo spawns, speed boost)
+- Void Mirror (reflection, player hit callback)
+- Resonance Tuner (harmonic waves)
+- Catalyst Bloom (decay waves)
+- Parasitic Vine (vine tendrils, heal on damage)
+- Chronos Shard (slow fields, speed boost)
+- Resonance Tuning Fork (echo spawns)
+- Echoing Recursion (clone spawns, speed boost)
+- Prism of Convergence (prism clones, convergence pulses)
+- Fracture Cascade (shockwaves, fractured echoes)
+
+**Code Locations:**
+- Explorer CSS: `index.html` lines 29-170
+- Explorer HTML: `index.html` lines 152-179
+- Explorer JS: `index.html` lines 1270-1430
+- Instrumented Proxy: `index.html` lines 1060-1100
+- Modified collectItem: `index.html` lines 1103-1135
+- Modified getInput: `index.html` lines 610-660
+
+**Future Improvements:**
+1. Use inference for smarter action decisions (currently heuristic)
+2. Add "experimental mode" that encourages Haiku to try unsupported patterns
+3. Parallel explorers with different prompts
+4. Longer runs (50+ items) to find statistical API gaps
+5. Direct entity observation hooks (not just API calls)
+
+**Usage:**
+1. Open game at `http://localhost:3000/dev/oneshot-climb/index.html`
+2. Click arrow button on right edge to expand Explorer panel
+3. Click "Run (10 forges)" to start
+4. Watch observations and log
+5. Report saved to `window.explorerReport` when stopped
+
+### 2026-02-01: Explorer Code Analysis + API Refinement Session
+
+**Explorer Improvements Made:**
+- Added static code pattern analyzer (`API_PATTERNS` array, `analyzeGeneratedCode()`)
+- Explorer now captures generated code for each item
+- Report shows patterns the model tried to use (not just runtime misses)
+- `window.explorerReport.generatedItems` contains all raw code for inspection
+
+**10-Item Run Patterns Detected:**
+```
+world.entities (direct): 4x
+entity.x (read): 3x
+entity.y (read): 3x
+entity.x (write): 1x
+entity.y (write): 1x
+forEach entities: 1x
+setTimeout: 1x
+```
+
+**Critical Finding: Model IS Creating Enemies**
+The model uses `friendly: false` to create hostile entities. Example from "Entropy Catalyst":
+```javascript
+world.defineEntity("void_rift", {
+  damage: 8,
+  lifetime: 1.5,
+  friendly: false  // <-- THIS MAKES IT AN ENEMY
+});
+```
+But enemies just sit there - no movement, no AI, no pursuit.
+
+**What Model Tries To Do With Entities (from generated code):**
+
+1. **Pull/push entities** (Singularity Siphon, Quantum Anchor):
+   ```javascript
+   e.vx = Math.cos(angle) * 200;  // FAILS - vx not exposed
+   e.vy = Math.sin(angle) * 200;
+   ```
+
+2. **Teleport entities** (Quantum Anchor):
+   ```javascript
+   entity.x = player.x + offset;  // FAILS - x not writable from item code
+   entity.y = player.y + offset;
+   ```
+
+3. **Kill entities** (Singularity Siphon):
+   ```javascript
+   e.health = 0;  // FAILS - health not exposed
+   ```
+
+4. **Query entities** (Paradox Engine, Convergence Core):
+   ```javascript
+   world.entities.filter(e => e.type === "rift")  // WORKS (direct access)
+   world.entities.filter(e => !e.friendly)        // WORKS
+   ```
+
+5. **Check entity type**:
+   ```javascript
+   e.sprite.includes('w')  // Hacky workaround since e.type not exposed
+   ```
+
+**API Gaps To Fill (Priority Order):**
+
+| Feature | What Model Tries | Current State | Priority |
+|---------|------------------|---------------|----------|
+| `entity.vx/vy` | Set velocity to move entities | Not exposed | HIGH |
+| `entity.x/y` write | Teleport/reposition entities | Not writable | HIGH |
+| `entity.health` | Damage/kill entities | Not exposed | MEDIUM |
+| `entity.type` | Check what kind of entity | Not exposed | MEDIUM |
+| Auto-movement | Entities should move by vx/vy each frame | Not implemented | HIGH |
+
+**Enemy AI Patterns Model Wants:**
+- Enemies that chase player
+- Enemies that patrol/wander
+- Enemies that can be pushed/pulled
+- Enemies that can be killed
+
+**Next Session TODO:**
+1. Expose `entity.x`, `entity.y` as read/write
+2. Add `entity.vx`, `entity.vy` velocity properties
+3. Update `updateWorld()` to apply velocity: `entity.x += entity.vx * dt`
+4. Expose `entity.type` for type checking
+5. Add `entity.health` and death when health <= 0
+6. Consider `world.removeEntity(entity)` or `entity.destroy()`
+
+**Code Locations:**
+- Pattern analyzer: `index.html` lines ~582-640
+- Explorer object: `index.html` lines ~1437-1760
+- Entity update loop: `index.html` lines ~1150-1190 (needs velocity integration)
+
+---
+
+## Quick Start for Next Session
+
+**The Big Picture:**
+This is a roguelike where items are generated by AI inference. The item code can call a World API to affect the game. We're iteratively discovering what the World API needs by watching what the AI *tries* to do.
+
+**Current Loop:**
+1. Run Explorer Claude (in-game autonomous agent) via Playwright
+2. Explorer generates items, collects patterns from generated code
+3. Read report: `window.explorerReport` or look at explorer panel
+4. Implement missing API features based on what model attempts
+5. Repeat
+
+**The Immediate Problem:**
+Enemies exist (`friendly: false`) but are **stationary blobs**. Model wants them to move, chase, be pushable, and die. Need to expose entity velocity and position.
+
+**Concrete Next Steps:**
+```javascript
+// In world.spawn(), initialize velocity:
+entity.vx = 0;
+entity.vy = 0;
+
+// In updateWorld(), apply velocity:
+entity.x += entity.vx * dt;
+entity.y += entity.vy * dt;
+
+// Expose entity.type so items can check it:
+entity.type = type; // already passed to spawn()
+```
+
+**To Test Changes:**
+1. `cd platforms/vanilla && npm run dev` (if not running)
+2. Open `http://localhost:3000/dev/oneshot-climb/index.html`
+3. Expand Explorer panel (arrow on right edge)
+4. Click "Run (10 forges)"
+5. Check if entities now move when model sets vx/vy
+
+**Key Files:**
+- `games/oneshot-climb/index.html` - entire game in one file
+- `games/oneshot-climb/docs/ipi-00-genesis.md` - this doc, session notes
+
+**Don't Forget:**
+- The item generation prompt is in `buildItemPrompt()` around line ~480
+- Update prompt's World API docs when adding new features
+- Model is Haiku (`claude-haiku-4-5-20251001`) for fast gameplay
