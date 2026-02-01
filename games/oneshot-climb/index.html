@@ -200,11 +200,183 @@
 
         #btn-stop:hover { background: #d46c5a; }
         #btn-stop:disabled { background: #4a4a4a; color: #888; cursor: not-allowed; }
+
+        /* Item Detail Panel (left side) */
+        #item-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: #1a1a2e;
+            border-right: 2px solid #5d4e37;
+            font-family: monospace;
+            font-size: 12px;
+            color: #fff8e7;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        #item-panel.collapsed {
+            transform: translateX(-240px);
+        }
+
+        #item-toggle {
+            position: absolute;
+            right: -32px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 80px;
+            background: #1a1a2e;
+            border: 2px solid #5d4e37;
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            color: #f4d03f;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        #item-header {
+            padding: 12px;
+            background: #2a2a4e;
+            border-bottom: 1px solid #5d4e37;
+        }
+
+        #item-header h3 {
+            margin: 0;
+            color: #f4d03f;
+            font-size: 14px;
+        }
+
+        #item-empty {
+            padding: 20px;
+            text-align: center;
+            color: #6b8fa3;
+            font-style: italic;
+        }
+
+        #item-content {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #item-content.active {
+            display: flex;
+        }
+
+        #item-sprite-container {
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a1e;
+            border-bottom: 1px solid #5d4e37;
+        }
+
+        #item-sprite-canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #item-name {
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #f4d03f;
+            text-align: center;
+            border-bottom: 1px solid #5d4e37;
+        }
+
+        #item-description {
+            padding: 12px;
+            border-bottom: 1px solid #5d4e37;
+            flex-shrink: 0;
+        }
+
+        #item-description h4 {
+            margin: 0 0 8px 0;
+            color: #a8c0b0;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        #item-description p {
+            margin: 0;
+            line-height: 1.4;
+            color: #fff8e7;
+        }
+
+        #item-technical {
+            padding: 12px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        #item-technical h4 {
+            margin: 0 0 8px 0;
+            color: #a8c0b0;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        #item-effects {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #item-effects li {
+            padding: 4px 0;
+            color: #fff8e7;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        #item-effects li::before {
+            content: '•';
+            color: #6b8fa3;
+        }
+
+        .effect-good { color: #7d9f5a; }
+        .effect-bad { color: #c45c4a; }
+        .effect-neutral { color: #6b8fa3; }
     </style>
 </head>
 <body>
     <canvas id="game"></canvas>
     <div id="controller-prompt">Press any button on controller to connect...</div>
+
+    <!-- Item Detail Panel (left side) -->
+    <div id="item-panel" class="collapsed">
+        <button id="item-toggle">▶</button>
+        <div id="item-header">
+            <h3>Last Item</h3>
+        </div>
+        <div id="item-empty">No items collected yet</div>
+        <div id="item-content">
+            <div id="item-sprite-container">
+                <canvas id="item-sprite-canvas" width="64" height="64"></canvas>
+            </div>
+            <div id="item-name">-</div>
+            <div id="item-description">
+                <h4>Description</h4>
+                <p id="item-desc-text">-</p>
+            </div>
+            <div id="item-technical">
+                <h4>Effects</h4>
+                <ul id="item-effects"></ul>
+            </div>
+        </div>
+    </div>
 
     <!-- Explorer Panel -->
     <div id="explorer-panel" class="collapsed">
@@ -392,6 +564,9 @@
 
     // Spawned item waiting to be picked up
     let spawnedItem = null;
+
+    // Last collected item (for detail panel)
+    let lastCollectedItem = null;
 
     // Controller state
     let gamepadIndex = null;
@@ -1261,8 +1436,8 @@ registerItem({
             player.invincibleTimer = 0.5; // Half second of invincibility
             console.log('Player damaged:', amount, '→', player.health);
             if (player.health <= 0) {
-                console.log('PLAYER DIED!');
-                // TODO: death/respawn
+                console.log('PLAYER DIED! Respawning...');
+                player.health = player.maxHealth;
             }
         },
 
@@ -1330,6 +1505,10 @@ registerItem({
             name: item.name,
             description: item.description
         });
+
+        // Update item detail panel
+        lastCollectedItem = item;
+        itemPanel.update(item);
 
         // Analyze code patterns if explorer is running
         if (explorer.running) {
@@ -1657,6 +1836,178 @@ registerItem({
         // Next frame
         requestAnimationFrame(gameLoop);
     }
+
+    // ============================================================
+    // ITEM DETAIL PANEL
+    // ============================================================
+
+    const itemPanel = {
+        panel: null,
+        toggle: null,
+        canvas: null,
+        ctx: null,
+
+        init() {
+            this.panel = document.getElementById('item-panel');
+            this.toggle = document.getElementById('item-toggle');
+            this.canvas = document.getElementById('item-sprite-canvas');
+            this.ctx = this.canvas.getContext('2d');
+
+            // Toggle panel
+            this.toggle.addEventListener('click', () => {
+                this.panel.classList.toggle('collapsed');
+                this.toggle.textContent = this.panel.classList.contains('collapsed') ? '▶' : '◀';
+            });
+        },
+
+        // Parse item code to extract technical effects
+        parseEffects(code) {
+            const effects = [];
+
+            // Player stat changes
+            if (code.includes('player.addSpeed')) {
+                const match = code.match(/player\.addSpeed\(([\d.-]+)\)/);
+                if (match) {
+                    const val = parseFloat(match[1]);
+                    effects.push({
+                        text: val > 0 ? `+${Math.round(val * 100)}% speed` : `${Math.round(val * 100)}% speed`,
+                        type: val > 0 ? 'good' : 'bad'
+                    });
+                }
+            }
+
+            if (code.includes('player.addJumpPower')) {
+                const match = code.match(/player\.addJumpPower\(([\d.-]+)\)/);
+                if (match) {
+                    const val = parseFloat(match[1]);
+                    effects.push({
+                        text: val > 0 ? `+${val} jump power` : `${val} jump power`,
+                        type: val > 0 ? 'good' : 'bad'
+                    });
+                }
+            }
+
+            if (code.includes('player.heal')) {
+                const match = code.match(/player\.heal\(([\d.]+)\)/);
+                if (match) {
+                    effects.push({ text: `Heals ${match[1]} HP`, type: 'good' });
+                }
+            }
+
+            if (code.includes('player.damage')) {
+                const match = code.match(/player\.damage\(([\d.]+)\)/);
+                if (match) {
+                    effects.push({ text: `Deals ${match[1]} damage to you`, type: 'bad' });
+                }
+            }
+
+            // Entity spawning
+            const defineMatches = code.matchAll(/world\.defineEntity\s*\(\s*["']([^"']+)["']\s*,\s*\{([^}]+)\}/g);
+            for (const match of defineMatches) {
+                const entityName = match[1];
+                const props = match[2];
+                const isFriendly = !props.includes('friendly: false') && !props.includes('friendly:false');
+
+                // Check if this entity is actually spawned
+                if (code.includes(`world.spawn("${entityName}"`) || code.includes(`world.spawn('${entityName}'`)) {
+                    effects.push({
+                        text: isFriendly ? `Spawns friendly ${entityName}` : `Spawns hostile ${entityName}`,
+                        type: isFriendly ? 'good' : 'bad'
+                    });
+                }
+            }
+
+            // Area damage
+            if (code.includes('world.damageNearby')) {
+                effects.push({ text: 'Damages nearby enemies', type: 'good' });
+            }
+
+            // Periodic effects (onUpdate)
+            if (code.includes('world.onUpdate')) {
+                effects.push({ text: 'Has ongoing effects', type: 'neutral' });
+            }
+
+            // Player hit callbacks
+            if (code.includes('world.onPlayerHit')) {
+                effects.push({ text: 'Triggers on taking damage', type: 'neutral' });
+            }
+
+            // Win condition
+            if (code.includes('world.win()')) {
+                effects.push({ text: 'Can win the game!', type: 'good' });
+            }
+
+            // If no effects detected, add a generic one
+            if (effects.length === 0) {
+                effects.push({ text: 'Unknown effects', type: 'neutral' });
+            }
+
+            return effects;
+        },
+
+        // Render sprite to the panel canvas
+        renderSprite(sprite) {
+            const scale = 8; // Larger scale for visibility
+            const width = sprite[0].length;
+            const height = sprite.length;
+
+            // Resize canvas to fit sprite
+            this.canvas.width = width * scale;
+            this.canvas.height = height * scale;
+
+            // Clear canvas
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Draw sprite
+            for (let row = 0; row < height; row++) {
+                for (let col = 0; col < width; col++) {
+                    const char = sprite[row][col];
+                    const color = PALETTE[char];
+
+                    if (color && color !== 'transparent') {
+                        this.ctx.fillStyle = color;
+                        this.ctx.fillRect(col * scale, row * scale, scale, scale);
+                    }
+                }
+            }
+        },
+
+        // Update panel with new item
+        update(item) {
+            if (!item) return;
+
+            // Show content, hide empty state
+            document.getElementById('item-empty').style.display = 'none';
+            document.getElementById('item-content').classList.add('active');
+
+            // Update name
+            document.getElementById('item-name').textContent = item.name;
+
+            // Update description
+            document.getElementById('item-desc-text').textContent = item.description;
+
+            // Render sprite
+            this.renderSprite(item.sprite);
+
+            // Parse and display effects
+            const effects = this.parseEffects(item.code);
+            const effectsList = document.getElementById('item-effects');
+            effectsList.innerHTML = '';
+
+            for (const effect of effects) {
+                const li = document.createElement('li');
+                li.textContent = effect.text;
+                li.className = `effect-${effect.type}`;
+                effectsList.appendChild(li);
+            }
+
+            // Auto-expand panel when item is collected
+            if (this.panel.classList.contains('collapsed')) {
+                this.panel.classList.remove('collapsed');
+                this.toggle.textContent = '◀';
+            }
+        }
+    };
 
     // ============================================================
     // EXPLORER CLAUDE - Autonomous playtesting agent
@@ -2056,6 +2407,9 @@ registerItem({
                 break;
             }
         }
+
+        // Initialize Item Detail Panel
+        itemPanel.init();
 
         // Initialize Explorer Claude
         explorer.init();
