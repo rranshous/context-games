@@ -12,12 +12,26 @@ Puzzle game teaching AI tool design through a rescue vehicle simulation. You don
 🔧 **Next:** Additional levels, polish  
 ✨ **Unique:** Teaches AI embodiment/tool design, meta-gameplay (designing tools IS playing), persistent tool configurations
 
+### [Badling Brawl](./badling-brawl/)
+Chaotic local co-op survival game where ducks defend their nest from waves of cats and dogs. Features surge/lull rhythm gameplay, power upgrades via egg collection, and support for keyboard and gamepad controls.
+🎯 **Status:** Playable with core mechanics complete
+🎮 **Published:** Not yet
+🤖 **AI:** None
+✨ **Unique:** Local co-op duck defense, egg-based power progression, surge/lull wave rhythm, gamepad support
+
+### [Highway Havoc](./highway-havoc/)
+Cooperative 2-player HTML5 game where one player drives and dodges obstacles while the other aims and shoots enemies. Battle through an endless procedurally-generated highway with power-ups, enemy vehicles, and increasing difficulty.
+🎯 **Status:** Playable with full game loop
+🎮 **Published:** Not yet
+🤖 **AI:** None
+✨ **Unique:** Asymmetric co-op (driver + gunner), procedural highway generation, gamepad-focused controls
+
 ### [Wuvu](./wuvu/)
-AI-collaborative digital pet game where players care for 3 unique aquatic creatures while a simple AI Assist Agent helps with routine creature care. Demonstrates basic human-AI collaboration using local inference and shared game actions.  
-🎯 **Status:** ✅ **Complete** - Simple AI assistant successfully implemented  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Local Ollama integration (qwen3:1.7b) with tool-based actions for feeding/cleaning/playing  
-🔧 **Technical:** Tool-based agent architecture, unified human-AI action system, descriptive game state format  
+AI-collaborative digital pet game where players care for 3 unique aquatic creatures while a simple AI Assist Agent helps with routine creature care. Demonstrates basic human-AI collaboration using local inference and shared game actions.
+🎯 **Status:** ✅ **Complete** - Simple AI assistant successfully implemented
+🎮 **Published:** Not yet
+🤖 **AI:** ✅ Local Ollama integration (qwen3:1.7b) with tool-based actions for feeding/cleaning/playing
+🔧 **Technical:** Tool-based agent architecture, unified human-AI action system, descriptive game state format
 ✨ **Features:** Agent toggle, visual feedback, autonomous decision-making, transparent action logging
 
 ### [Con-Control](./con-control/)
@@ -74,11 +88,18 @@ Pre-AI collaboration experiment exploring WASM-based agent architectures. Each a
 ✨ **Unique:** WASM-based agent system, modular entity architecture
 
 ### [Fastfall](./fastfall/)
-High-speed first-person perspective falling game where you jump from a hot air balloon and navigate through increasingly complex platforms as you plummet toward the ground. Full viewport POV experience with 3D-like scaling and atmospheric progression.  
-🎯 **Status:** Just started development  
-🎮 **Published:** Not yet  
-🤖 **AI:** None  
+High-speed first-person perspective falling game where you jump from a hot air balloon and navigate through increasingly complex platforms as you plummet toward the ground. Full viewport POV experience with 3D-like scaling and atmospheric progression.
+🎯 **Status:** Just started development
+🎮 **Published:** Not yet
+🤖 **AI:** None
 ✨ **Unique:** Immersive first-person freefall experience, 3D-like perspective using 2D canvas, atmospheric sky-to-ground progression, arcade-style wind physics
+
+### [Spree-and-a-Half](./spree-and-a-half/)
+Swarm-controlled sword game exploring collective behavior and emergent gameplay. Instead of managing a single character, you command an entire flock of swords that moves, attacks, and responds as a collective entity using boids flocking algorithms.
+🎯 **Status:** Phase 1 Complete - Working prototype with natural swarm behavior
+🎮 **Published:** Not yet
+🤖 **AI:** None
+✨ **Unique:** Swarm control mechanics, boids flocking algorithm, collective sword behavior, experimental input schemes
 
 ## Interactive Experiences 🎨
 
