@@ -459,13 +459,28 @@ Use ONLY these characters:
     damage: 5,           // optional: damage on contact
     lifetime: 3,         // optional: seconds before despawn
     friendly: true,      // optional: doesn't hurt player
+    health: 10,          // optional: health points (dies at 0)
+    vx: 0, vy: 0,        // optional: initial velocity
+    flying: true,        // optional: ignores gravity
   });
 
-  world.spawn("typename", x, y)     // spawn a defined entity
+  // Spawning returns the entity object
+  const e = world.spawn("typename", x, y);
+
+  // Entity properties (read/write after spawning):
+  e.x, e.y               // position - can be modified!
+  e.vx, e.vy             // velocity - entities move automatically
+  e.health               // reduce to 0 to kill
+  e.type                 // the type name string
+
+  // World methods
   world.onUpdate(callback)          // register per-frame logic: fn(dt)
   world.onPlayerHit(callback)       // when player takes damage
   world.damageNearby(x, y, radius, amount)
-  world.entities                    // current entities array
+  world.removeEntity(entity)        // explicitly remove an entity
+  world.getEntitiesInRadius(x, y, r) // find entities near a point
+  world.getEntitiesOfType("type")   // find entities by type
+  world.entities                    // all entities array
   world.win()                       // trigger win condition
 
 ## Constraints
@@ -477,39 +492,61 @@ Use ONLY these characters:
 ## Example
 
 registerItem({
-  name: "Ember Heart",
-  description: "A smoldering core that leaves fire in your wake",
+  name: "Gravity Well",
+  description: "Spawns orbs that orbit you and pull enemies inward",
   sprite: \`
-    ...rr...
-    ..roor..
-    .roooor.
-    .roooor.
-    ..roor..
-    ...rr...
+    ..kbbk..
+    .kbttbk.
+    kbttttbk
+    kbttttbk
+    .kbttbk.
+    ..kbbk..
     ........
     ........
   \`,
 
   onPickup() {
-    world.defineEntity("fire", {
+    world.defineEntity("orb", {
       sprite: \`
-        ...rr...
-        ..royr..
-        .royyor.
-        ..royr..
-        ...rr...
+        ..tt....
+        .tttt...
+        .tttt...
+        ..tt....
+        ........
         ........
         ........
         ........
       \`,
-      damage: 3,
-      lifetime: 2
+      friendly: true,
+      flying: true
     });
 
+    // Spawn 3 orbiting orbs
+    for (let i = 0; i < 3; i++) {
+      world.spawn("orb", player.x, player.y - 40);
+    }
+
+    let angle = 0;
     world.onUpdate((dt) => {
-      if (Math.random() < 0.1) {
-        world.spawn("fire", player.x, player.y + 20);
-      }
+      angle += dt * 3;
+      // Make orbs orbit the player
+      const orbs = world.getEntitiesOfType("orb");
+      orbs.forEach((orb, i) => {
+        const a = angle + (i * Math.PI * 2 / 3);
+        orb.x = player.x + Math.cos(a) * 60;
+        orb.y = player.y + Math.sin(a) * 40;
+      });
+
+      // Pull nearby enemies toward player
+      const nearby = world.getEntitiesInRadius(player.x, player.y, 150);
+      nearby.forEach(e => {
+        if (!e.friendly) {
+          const dx = player.x - e.x;
+          const dy = player.y - e.y;
+          e.vx += dx * 0.5 * dt;
+          e.vy += dy * 0.5 * dt;
+        }
+      });
     });
   }
 });`;
@@ -1047,9 +1084,12 @@ registerItem({
                 type,
                 x,
                 y,
+                vx: typeDef.vx || 0,    // Velocity (can be set by item code)
+                vy: typeDef.vy || 0,
                 width: 8 * PIXEL_SCALE,
                 height: 8 * PIXEL_SCALE,
                 lifetime: typeDef.lifetime || Infinity,
+                health: typeDef.health || 10,  // Default health
                 age: 0,
                 ...typeDef
             };
@@ -1068,15 +1108,39 @@ registerItem({
         },
 
         damageNearby(x, y, radius, amount) {
-            console.log('Area damage:', amount, 'at', x, y, 'radius', radius);
-            // Damage entities in radius
+            // Damage entities in radius (throttled logging)
+            let damaged = 0;
             for (const entity of this.entities) {
                 if (entity.friendly) continue;
                 const dist = Math.hypot(entity.x - x, entity.y - y);
                 if (dist < radius) {
-                    entity.health = (entity.health || 0) - amount;
+                    entity.health = (entity.health || 10) - amount;
+                    damaged++;
                 }
             }
+            if (damaged > 0) {
+                console.log('Area damage:', amount, 'hit', damaged, 'entities');
+            }
+        },
+
+        removeEntity(entity) {
+            const idx = this.entities.indexOf(entity);
+            if (idx !== -1) {
+                this.entities.splice(idx, 1);
+                return true;
+            }
+            return false;
+        },
+
+        getEntitiesInRadius(x, y, radius) {
+            return this.entities.filter(e => {
+                const dist = Math.hypot(e.x - x, e.y - y);
+                return dist < radius;
+            });
+        },
+
+        getEntitiesOfType(type) {
+            return this.entities.filter(e => e.type === type);
         },
 
         win() {
@@ -1227,8 +1291,32 @@ registerItem({
             const entity = world.entities[i];
             entity.age += dt;
 
+            // Apply velocity (entities can now move!)
+            entity.x += entity.vx * dt;
+            entity.y += entity.vy * dt;
+
+            // Apply gravity to non-flying entities (if not explicitly marked as flying)
+            if (!entity.flying && !entity.friendly) {
+                entity.vy += GRAVITY * 0.5 * dt;  // Half gravity for floatier feel
+            }
+
+            // Keep entities on screen (simple bounds)
+            if (entity.x < 0) entity.x = 0;
+            if (entity.x > CANVAS_WIDTH - entity.width) entity.x = CANVAS_WIDTH - entity.width;
+            if (entity.y > GROUND_Y - entity.height) {
+                entity.y = GROUND_Y - entity.height;
+                entity.vy = 0;  // Stop falling when hitting ground
+            }
+
             // Remove expired entities
             if (entity.age >= entity.lifetime) {
+                world.entities.splice(i, 1);
+                continue;
+            }
+
+            // Remove dead entities (health <= 0)
+            if (entity.health <= 0) {
+                console.log('Entity died:', entity.type);
                 world.entities.splice(i, 1);
                 continue;
             }
@@ -1242,10 +1330,14 @@ registerItem({
                     player.y + player.height > entity.y;
 
                 if (touching) {
-                    console.log('Player hit by', entity.type, 'for', entity.damage);
-                    // TODO: apply damage to player
-                    for (const cb of world.playerHitCallbacks) {
-                        try { cb(entity.damage, entity); } catch (e) {}
+                    // Throttle hit messages to once per second per entity
+                    const now = Date.now();
+                    if (!entity._lastHitTime || now - entity._lastHitTime > 1000) {
+                        console.log('Player hit by', entity.type, 'for', entity.damage);
+                        entity._lastHitTime = now;
+                        for (const cb of world.playerHitCallbacks) {
+                            try { cb(entity.damage, entity); } catch (e) {}
+                        }
                     }
                 }
             }
