@@ -117,6 +117,11 @@
             font-style: italic;
             animation: pulse 2s ease-in-out infinite;
         }
+
+        #loading-text a {
+            color: #e8852a;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -134,23 +139,14 @@
 
         const openingScene = {
             background: 'sunset-beach',
-            mailbox: { x: 0.50, groundY: 0.90, spriteScale: 6 },
+            sprites: [
+                { type: 'catalog', name: 'mailbox', x: 0.50, groundY: 0.90, scale: 6 }
+            ],
             narration: "You open your eyes to warm sunlight and the sound of gentle waves. Sand beneath your fingers. A soft breeze carries the smell of salt and something sweet.\n\nAs your vision clears, you notice something odd: a bright red mailbox, standing upright in the sand just a few feet away. Its little flag is up.",
             choices: [
                 "Open the mailbox",
                 "Look around the beach",
                 "Walk toward the water"
-            ]
-        };
-
-        const forestScene = {
-            background: 'twilight-forest',
-            signpost: { x: 0.50, groundY: 0.88, spriteScale: 5 },
-            narration: "You follow a narrow trail away from the beach, pushing through broad leaves and dangling vines. The air grows cooler, thick with the smell of earth and flowers you can't name.\n\nThe path forks at a weathered wooden signpost. One arrow reads \"The Garden.\" The other: \"The Workshop.\" Tiny lights drift lazily between the trees.",
-            choices: [
-                "Take the path to The Garden",
-                "Head toward The Workshop",
-                "Go back to the beach"
             ]
         };
 
@@ -554,17 +550,6 @@
             }
         }
 
-        function drawMailboxSprite(mailbox) {
-            const spriteW = MAILBOX_SPRITE[0].length;
-            const spriteH = MAILBOX_SPRITE.length;
-            const scale = mailbox.spriteScale;
-
-            const px = Math.round(W * mailbox.x - (spriteW * scale) / 2);
-            const py = Math.round(H * mailbox.groundY - spriteH * scale);
-
-            drawSprite(MAILBOX_SPRITE, SPRITE_PALETTE, px, py, scale);
-        }
-
         // 11 wide x 18 tall signpost sprite
         const SIGNPOST_SPRITE = [
             '...........',
@@ -586,6 +571,45 @@
             '.....nn....',
             '...........',
         ];
+
+        // ========================================
+        // Sprite Catalog
+        // ========================================
+
+        const SPRITE_CATALOG = {
+            'mailbox': { grid: MAILBOX_SPRITE, palette: SPRITE_PALETTE },
+            'signpost': { grid: SIGNPOST_SPRITE, palette: SPRITE_PALETTE },
+        };
+
+        function drawSceneSprite(spriteSpec) {
+            let grid, palette;
+
+            if (spriteSpec.type === 'catalog') {
+                const entry = SPRITE_CATALOG[spriteSpec.name];
+                if (!entry) {
+                    console.warn(`Unknown catalog sprite: ${spriteSpec.name}`);
+                    return;
+                }
+                grid = entry.grid;
+                palette = entry.palette;
+            } else if (spriteSpec.type === 'custom') {
+                grid = spriteSpec.grid.split('\n');
+                palette = { '.': null };
+                spriteSpec.palette.forEach(p => { palette[p.char] = p.color; });
+            } else {
+                console.warn(`Unknown sprite type: ${spriteSpec.type}`);
+                return;
+            }
+
+            const spriteW = grid[0].length;
+            const spriteH = grid.length;
+            const scale = spriteSpec.scale || 5;
+
+            const px = Math.round(W * spriteSpec.x - (spriteW * scale) / 2);
+            const py = Math.round(H * spriteSpec.groundY - spriteH * scale);
+
+            drawSprite(grid, palette, px, py, scale);
+        }
 
         function drawStars() {
             ctx.fillStyle = '#ffffff';
@@ -676,16 +700,6 @@
             }
         }
 
-        function drawSignpostSprite(signpost) {
-            const spriteW = SIGNPOST_SPRITE[0].length;
-            const spriteH = SIGNPOST_SPRITE.length;
-            const scale = signpost.spriteScale;
-
-            const px = Math.round(W * signpost.x - (spriteW * scale) / 2);
-            const py = Math.round(H * signpost.groundY - spriteH * scale);
-
-            drawSprite(SIGNPOST_SPRITE, SPRITE_PALETTE, px, py, scale);
-        }
 
         // ========================================
         // Backgrounds
@@ -755,6 +769,470 @@
                 ctx.fillStyle = vig;
                 ctx.fillRect(0, 0, W, H);
             },
+
+            'cave-entrance': function() {
+                // Dusky sky behind the cave opening
+                drawSky({ colors: ['#0a0820', '#1a1040', '#3a2060', '#6a3050', '#8a5040'], height: 0.55 });
+                drawStars();
+
+                // Rocky cliff face — left and right walls framing a dark opening
+                const rockGrad = ctx.createLinearGradient(0, 0, 0, H);
+                rockGrad.addColorStop(0, '#2a2018');
+                rockGrad.addColorStop(0.5, '#3a2a1a');
+                rockGrad.addColorStop(1, '#1a1208');
+                ctx.fillStyle = rockGrad;
+
+                // Left rock wall
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(W * 0.32, 0);
+                ctx.lineTo(W * 0.28, H * 0.25);
+                ctx.lineTo(W * 0.22, H * 0.55);
+                ctx.lineTo(W * 0.18, H);
+                ctx.lineTo(0, H);
+                ctx.closePath();
+                ctx.fill();
+
+                // Right rock wall
+                ctx.beginPath();
+                ctx.moveTo(W, 0);
+                ctx.lineTo(W * 0.68, 0);
+                ctx.lineTo(W * 0.72, H * 0.25);
+                ctx.lineTo(W * 0.78, H * 0.55);
+                ctx.lineTo(W * 0.82, H);
+                ctx.lineTo(W, H);
+                ctx.closePath();
+                ctx.fill();
+
+                // Rock overhang across top
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(W, 0);
+                ctx.lineTo(W * 0.72, H * 0.25);
+                ctx.quadraticCurveTo(W * 0.5, H * 0.18, W * 0.28, H * 0.25);
+                ctx.lineTo(0, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                // Rock texture — faint cracks
+                ctx.strokeStyle = 'rgba(60, 45, 30, 0.3)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 15; i++) {
+                    const sx = (i * 157 + 20) % W;
+                    const sy = (i * 93 + 10) % H;
+                    if (sx > W * 0.25 && sx < W * 0.75 && sy > H * 0.25) continue;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(sx + 15 - (i % 3) * 8, sy + 10 + (i % 4) * 5);
+                    ctx.stroke();
+                }
+
+                // Mossy ground
+                const groundY = H * 0.75;
+                const groundGrad = ctx.createLinearGradient(0, groundY, 0, H);
+                groundGrad.addColorStop(0, '#2a3a18');
+                groundGrad.addColorStop(0.5, '#1a2a10');
+                groundGrad.addColorStop(1, '#0f1a08');
+                ctx.fillStyle = groundGrad;
+                ctx.fillRect(0, groundY, W, H - groundY);
+
+                // Warm glow from inside the cave
+                const glow = ctx.createRadialGradient(W * 0.5, H * 0.65, 10, W * 0.5, H * 0.65, W * 0.25);
+                glow.addColorStop(0, 'rgba(230, 140, 50, 0.15)');
+                glow.addColorStop(0.4, 'rgba(200, 100, 30, 0.06)');
+                glow.addColorStop(1, 'rgba(200, 100, 30, 0)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(0, 0, W, H);
+
+                // Vignette
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.2, W * 0.5, H * 0.4, W * 0.65);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.6, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
+
+            'cave-inside': function() {
+                // Dark cavern — no sky
+                ctx.fillStyle = '#080808';
+                ctx.fillRect(0, 0, W, H);
+
+                // Stone walls — subtle gradient from dark gray
+                const wallGrad = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.1, W * 0.5, H * 0.5, W * 0.6);
+                wallGrad.addColorStop(0, '#1a1818');
+                wallGrad.addColorStop(0.5, '#121010');
+                wallGrad.addColorStop(1, '#080808');
+                ctx.fillStyle = wallGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // Stalactites hanging from ceiling
+                for (let i = 0; i < 12; i++) {
+                    const sx = W * 0.05 + (i * 137.7 + 30) % (W * 0.9);
+                    const sLen = 30 + (i * 47.3 % 50);
+                    const sWidth = 4 + (i % 3) * 3;
+                    const grad = ctx.createLinearGradient(sx, 0, sx, sLen);
+                    grad.addColorStop(0, '#2a2525');
+                    grad.addColorStop(1, '#181515');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.moveTo(sx - sWidth, 0);
+                    ctx.lineTo(sx, sLen);
+                    ctx.lineTo(sx + sWidth, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                // Stalagmites rising from floor
+                const floorY = H * 0.70;
+                for (let i = 0; i < 10; i++) {
+                    const sx = W * 0.05 + (i * 163.3 + 50) % (W * 0.9);
+                    const sLen = 25 + (i * 53.7 % 40);
+                    const sWidth = 5 + (i % 3) * 3;
+                    const grad = ctx.createLinearGradient(sx, H, sx, floorY - sLen);
+                    grad.addColorStop(0, '#2a2525');
+                    grad.addColorStop(1, '#181515');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.moveTo(sx - sWidth, H);
+                    ctx.lineTo(sx, floorY - sLen);
+                    ctx.lineTo(sx + sWidth, H);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                // Damp stone floor
+                const floorGrad = ctx.createLinearGradient(0, floorY, 0, H);
+                floorGrad.addColorStop(0, '#1a1818');
+                floorGrad.addColorStop(0.3, '#151313');
+                floorGrad.addColorStop(1, '#0e0c0c');
+                ctx.fillStyle = floorGrad;
+                ctx.fillRect(0, floorY, W, H - floorY);
+
+                // Glowing crystals — scattered colored light sources
+                const crystalColors = [
+                    { r: 100, g: 180, b: 255 },
+                    { r: 180, g: 100, b: 255 },
+                    { r: 100, g: 255, b: 180 },
+                    { r: 255, g: 180, b: 100 },
+                ];
+                for (let i = 0; i < 8; i++) {
+                    const cx = W * 0.1 + (i * 173.5 + 60) % (W * 0.8);
+                    const cy = H * 0.2 + (i * 97.3 + 30) % (H * 0.5);
+                    const c = crystalColors[i % crystalColors.length];
+                    const size = 2 + (i % 3);
+
+                    // Glow halo
+                    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 15);
+                    glow.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, 0.2)`);
+                    glow.addColorStop(0.3, `rgba(${c.r}, ${c.g}, ${c.b}, 0.06)`);
+                    glow.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+                    ctx.fillStyle = glow;
+                    ctx.fillRect(cx - size * 15, cy - size * 15, size * 30, size * 30);
+
+                    // Crystal core
+                    ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.7)`;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy - size * 2);
+                    ctx.lineTo(cx + size, cy);
+                    ctx.lineTo(cx, cy + size);
+                    ctx.lineTo(cx - size, cy);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                // Vignette — extra strong for cave feel
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.45, W * 0.15, W * 0.5, H * 0.45, W * 0.55);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
+
+            'winding-path': function() {
+                // Bright daytime sky
+                drawSky({ colors: ['#1a3a6a', '#2a5a9a', '#4a8acc', '#7ab8e8', '#a8d8f0'], height: 0.50 });
+
+                // Fluffy white clouds
+                const clouds = [
+                    { x: 0.18, y: 0.10, w: 120, h: 20, opacity: 0.6 },
+                    { x: 0.45, y: 0.08, w: 160, h: 24, opacity: 0.5 },
+                    { x: 0.72, y: 0.14, w: 100, h: 18, opacity: 0.55 },
+                    { x: 0.88, y: 0.06, w: 80, h: 16, opacity: 0.4 },
+                ];
+                clouds.forEach(c => {
+                    const cx = W * c.x;
+                    const cy = H * c.y;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${c.opacity})`;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, c.w / 2, c.h / 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Softer edge
+                    ctx.fillStyle = `rgba(255, 255, 255, ${c.opacity * 0.3})`;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, c.w / 2 + 15, c.h / 2 + 6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Rolling green hills
+                const hillY = H * 0.45;
+                const hillGrad = ctx.createLinearGradient(0, hillY, 0, H);
+                hillGrad.addColorStop(0, '#4a8a30');
+                hillGrad.addColorStop(0.3, '#3a7025');
+                hillGrad.addColorStop(0.7, '#2a5a1a');
+                hillGrad.addColorStop(1, '#1a4010');
+                ctx.fillStyle = hillGrad;
+                ctx.fillRect(0, hillY, W, H - hillY);
+
+                // Hill contours
+                ctx.fillStyle = '#3a7828';
+                ctx.beginPath();
+                ctx.moveTo(0, H * 0.52);
+                ctx.quadraticCurveTo(W * 0.2, H * 0.42, W * 0.4, H * 0.50);
+                ctx.quadraticCurveTo(W * 0.6, H * 0.58, W * 0.8, H * 0.48);
+                ctx.quadraticCurveTo(W * 0.95, H * 0.42, W, H * 0.50);
+                ctx.lineTo(W, H);
+                ctx.lineTo(0, H);
+                ctx.closePath();
+                ctx.fill();
+
+                // Winding dirt path
+                ctx.strokeStyle = '#8a6a3a';
+                ctx.lineWidth = 30;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(W * 0.45, H);
+                ctx.bezierCurveTo(W * 0.42, H * 0.80, W * 0.55, H * 0.65, W * 0.48, H * 0.50);
+                ctx.stroke();
+                // Path edge highlight
+                ctx.strokeStyle = '#a08050';
+                ctx.lineWidth = 18;
+                ctx.beginPath();
+                ctx.moveTo(W * 0.45, H);
+                ctx.bezierCurveTo(W * 0.42, H * 0.80, W * 0.55, H * 0.65, W * 0.48, H * 0.50);
+                ctx.stroke();
+
+                // Wildflowers — small colored dots
+                const flowerColors = ['#e84060', '#e8a040', '#e8e040', '#a040e8', '#40a0e8'];
+                for (let i = 0; i < 40; i++) {
+                    const fx = (i * 157.3 + 40) % W;
+                    const fy = hillY + 20 + ((i * 83.7 + 15) % (H - hillY - 30));
+                    // Skip if on the path
+                    if (fx > W * 0.38 && fx < W * 0.58 && fy > H * 0.50) continue;
+                    ctx.fillStyle = flowerColors[i % flowerColors.length];
+                    ctx.globalAlpha = 0.5 + (i % 3) * 0.15;
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, 2 + (i % 2), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+
+                // Warm sunlight wash
+                const warmWash = ctx.createRadialGradient(W * 0.6, H * 0.15, 30, W * 0.5, H * 0.4, W * 0.6);
+                warmWash.addColorStop(0, 'rgba(255, 240, 180, 0.1)');
+                warmWash.addColorStop(0.5, 'rgba(255, 240, 180, 0.03)');
+                warmWash.addColorStop(1, 'rgba(255, 240, 180, 0)');
+                ctx.fillStyle = warmWash;
+                ctx.fillRect(0, 0, W, H);
+
+                // Vignette — lighter than night scenes
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.3, W * 0.5, H * 0.4, W * 0.7);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
+
+            'moonlit-lake': function() {
+                // Night sky
+                drawSky({ colors: ['#020210', '#050520', '#0a0a35', '#101045', '#151555'], height: 0.50 });
+                drawStars();
+
+                // Moon — adapted from drawSun with silver palette
+                const moonX = W * 0.7;
+                const moonY = H * 0.18;
+                const moonR = 22;
+
+                // Moon glow
+                const moonGlow = ctx.createRadialGradient(moonX, moonY, moonR * 0.5, moonX, moonY, moonR * 5);
+                moonGlow.addColorStop(0, 'rgba(200, 220, 255, 0.3)');
+                moonGlow.addColorStop(0.3, 'rgba(180, 200, 240, 0.08)');
+                moonGlow.addColorStop(1, 'rgba(180, 200, 240, 0)');
+                ctx.fillStyle = moonGlow;
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, moonR * 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Moon disc
+                const moonDisc = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR);
+                moonDisc.addColorStop(0, '#f0f0ff');
+                moonDisc.addColorStop(0.6, '#d8dce8');
+                moonDisc.addColorStop(1, '#b0b8c8');
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+                ctx.fillStyle = moonDisc;
+                ctx.fill();
+
+                // Lake water
+                const lakeY = H * 0.50;
+                const lakeGrad = ctx.createLinearGradient(0, lakeY, 0, H);
+                lakeGrad.addColorStop(0, '#0a1530');
+                lakeGrad.addColorStop(0.3, '#081020');
+                lakeGrad.addColorStop(1, '#050a15');
+                ctx.fillStyle = lakeGrad;
+                ctx.fillRect(0, lakeY, W, H - lakeY);
+
+                // Moon reflection on water
+                const refGrad = ctx.createRadialGradient(moonX, lakeY + 10, 0, moonX, lakeY + H * 0.2, 80);
+                refGrad.addColorStop(0, 'rgba(200, 220, 255, 0.2)');
+                refGrad.addColorStop(0.3, 'rgba(180, 200, 240, 0.08)');
+                refGrad.addColorStop(1, 'rgba(180, 200, 240, 0)');
+                ctx.fillStyle = refGrad;
+                ctx.fillRect(0, lakeY, W, H - lakeY);
+
+                // Reflection shimmer streaks
+                ctx.globalAlpha = 0.08;
+                ctx.strokeStyle = '#c0d0ff';
+                ctx.lineWidth = 1.5;
+                for (let i = 0; i < 5; i++) {
+                    const sy = lakeY + 15 + i * 20;
+                    const sw = 20 + (3 - Math.abs(i - 2)) * 15;
+                    ctx.beginPath();
+                    ctx.moveTo(moonX - sw / 2, sy);
+                    ctx.lineTo(moonX + sw / 2, sy);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+
+                // Reeds along shore — left and right clusters
+                for (let i = 0; i < 20; i++) {
+                    const rx = i < 10
+                        ? W * 0.02 + (i * 23)
+                        : W * 0.78 + ((i - 10) * 25);
+                    const ry = lakeY;
+                    const rh = 25 + (i * 37 % 20);
+                    ctx.strokeStyle = i % 2 === 0 ? '#1a2a15' : '#152210';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(rx, ry);
+                    ctx.lineTo(rx + (i % 3 - 1) * 3, ry - rh);
+                    ctx.stroke();
+                }
+
+                // Mist hovering over water
+                for (let i = 0; i < 4; i++) {
+                    const my = lakeY + 5 + i * 18;
+                    const mx = W * (0.1 + i * 0.2);
+                    const mw = 150 + (i * 50);
+                    ctx.fillStyle = `rgba(150, 170, 200, ${0.04 - i * 0.008})`;
+                    ctx.beginPath();
+                    ctx.ellipse(mx, my, mw / 2, 6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Cool wash
+                const coolWash = ctx.createRadialGradient(W * 0.5, H * 0.3, 30, W * 0.5, H * 0.5, W * 0.5);
+                coolWash.addColorStop(0, 'rgba(80, 120, 180, 0.05)');
+                coolWash.addColorStop(1, 'rgba(80, 120, 180, 0)');
+                ctx.fillStyle = coolWash;
+                ctx.fillRect(0, 0, W, H);
+
+                // Vignette
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.2, W * 0.5, H * 0.4, W * 0.6);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.6, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
+
+            'meadow-clearing': function() {
+                // Golden hour sky — different palette than sunset-beach
+                drawSky({ colors: ['#2a3a5a', '#4a5a7a', '#7a8a60', '#a8a850', '#c8b840', '#e0d060'], height: 0.45 });
+
+                // Soft sun glow (lower, more diffuse than beach)
+                const sunGlow = ctx.createRadialGradient(W * 0.4, H * 0.35, 20, W * 0.4, H * 0.35, 150);
+                sunGlow.addColorStop(0, 'rgba(240, 220, 100, 0.25)');
+                sunGlow.addColorStop(0.3, 'rgba(240, 200, 80, 0.08)');
+                sunGlow.addColorStop(1, 'rgba(240, 200, 80, 0)');
+                ctx.fillStyle = sunGlow;
+                ctx.fillRect(0, 0, W, H * 0.5);
+
+                // Grassland ground
+                const groundY = H * 0.48;
+                const grassGrad = ctx.createLinearGradient(0, groundY, 0, H);
+                grassGrad.addColorStop(0, '#5a8a30');
+                grassGrad.addColorStop(0.3, '#4a7a28');
+                grassGrad.addColorStop(0.7, '#3a6820');
+                grassGrad.addColorStop(1, '#2a5018');
+                ctx.fillStyle = grassGrad;
+                ctx.fillRect(0, groundY, W, H - groundY);
+
+                // Tall grass strokes
+                for (let i = 0; i < 120; i++) {
+                    const gx = (i * 97.3 + 15) % W;
+                    const gy = groundY + ((i * 67.7 + 20) % (H - groundY - 5));
+                    const gh = 8 + (i * 37.3 % 12);
+                    const lean = (i % 5 - 2) * 1.5;
+                    ctx.strokeStyle = i % 3 === 0 ? '#6a9a38' : i % 3 === 1 ? '#5a8830' : '#4a7528';
+                    ctx.lineWidth = 1;
+                    ctx.globalAlpha = 0.4 + (i % 4) * 0.1;
+                    ctx.beginPath();
+                    ctx.moveTo(gx, gy);
+                    ctx.lineTo(gx + lean, gy - gh);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+
+                // Wildflowers scattered
+                const flowerColors = ['#e85060', '#f0a030', '#f0e040', '#d060d0', '#f0f0f0'];
+                for (let i = 0; i < 25; i++) {
+                    const fx = (i * 143.7 + 30) % W;
+                    const fy = groundY + 15 + ((i * 77.3 + 20) % (H - groundY - 25));
+                    ctx.fillStyle = flowerColors[i % flowerColors.length];
+                    ctx.globalAlpha = 0.6 + (i % 3) * 0.1;
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+
+                // Butterflies — similar to fireflies but daytime colors
+                for (let i = 0; i < 6; i++) {
+                    const bx = W * 0.1 + (i * 187.3 + 50) % (W * 0.8);
+                    const by = H * 0.25 + (i * 117.7 + 30) % (H * 0.45);
+                    const bc = flowerColors[i % flowerColors.length];
+
+                    ctx.fillStyle = bc;
+                    ctx.globalAlpha = 0.5;
+                    // Two little wing dots
+                    ctx.beginPath();
+                    ctx.ellipse(bx - 2, by, 2.5, 1.5, -0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.ellipse(bx + 2, by, 2.5, 1.5, 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+
+                // Warm golden wash
+                const warmWash = ctx.createRadialGradient(W * 0.4, H * 0.35, 50, W * 0.5, H * 0.5, W * 0.6);
+                warmWash.addColorStop(0, 'rgba(240, 210, 80, 0.08)');
+                warmWash.addColorStop(0.5, 'rgba(230, 190, 60, 0.03)');
+                warmWash.addColorStop(1, 'rgba(230, 190, 60, 0)');
+                ctx.fillStyle = warmWash;
+                ctx.fillRect(0, 0, W, H);
+
+                // Light vignette
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.3, W * 0.5, H * 0.4, W * 0.7);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
         };
 
         // ========================================
@@ -768,8 +1246,9 @@
             BACKGROUNDS[scene.background]();
 
             // Draw foreground sprites
-            if (scene.mailbox) drawMailboxSprite(scene.mailbox);
-            if (scene.signpost) drawSignpostSprite(scene.signpost);
+            if (scene.sprites) {
+                scene.sprites.forEach(drawSceneSprite);
+            }
 
             // Display narration
             const narrationEl = document.getElementById('narration');
@@ -799,16 +1278,141 @@
         }
 
         // ========================================
+        // AI Generation
+        // ========================================
+
+        const SCENE_SCHEMA = {
+            type: 'object',
+            properties: {
+                background: {
+                    type: 'string',
+                    enum: Object.keys(BACKGROUNDS),
+                    description: 'Background scene name from the available catalog'
+                },
+                narration: {
+                    type: 'string',
+                    description: 'Scene narration, 1-4 sentences'
+                },
+                choices: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '2-3 choices for the player'
+                },
+                sprites: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            type: { type: 'string', enum: ['catalog', 'custom'] },
+                            name: { type: 'string', description: 'Sprite identifier' },
+                            x: { type: 'number', description: '0.0 (left) to 1.0 (right)' },
+                            groundY: { type: 'number', description: '0.7-0.95, vertical base position' },
+                            scale: { type: 'number', description: '3-7, pixel scale factor' },
+                            grid: { type: 'string', description: 'For custom sprites: rows separated by \\n, each char maps to a palette color, . = transparent' },
+                            palette: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        char: { type: 'string' },
+                                        color: { type: 'string' }
+                                    },
+                                    required: ['char', 'color'],
+                                    additionalProperties: false
+                                },
+                                description: 'For custom sprites: color mappings'
+                            }
+                        },
+                        required: ['type', 'name', 'x', 'groundY', 'scale'],
+                        additionalProperties: false
+                    },
+                    description: '0-2 foreground sprites'
+                }
+            },
+            required: ['background', 'narration', 'choices', 'sprites'],
+            additionalProperties: false
+        };
+
+        const SYSTEM_PROMPT = `You are the narrator of Story Cauldron, a whimsical choose-your-own-adventure game set on a mysterious island. You speak in second person ("You see...", "You hear..."). Your tone is warm, playful, and full of wonder — like a storybook read aloud to a family. This is a family-friendly game.
+
+RULES:
+- Narration: 1-4 sentences. Vivid but concise. Describe what the player sees, hears, smells.
+- Choices: Exactly 2-3 options. Short action phrases. At least one should be unexpected or whimsical.
+- Background: Pick the most fitting background from the available set.
+- Sprites: 0-2 sprites per scene. Use catalog sprites when they fit. Create custom sprites for new objects the story calls for (keep grids small: 8-16 wide, 8-20 tall, use single characters for colors, '.' for transparent).
+- Continuity: Remember what happened in previous scenes. Reference earlier events naturally.
+- Never break character. Never mention AI, tokens, or the game engine.
+- The island is mysterious but friendly. Not scary. Think whimsical bedtime story.
+
+AVAILABLE BACKGROUNDS: ${Object.keys(BACKGROUNDS).join(', ')}
+
+SPRITE CATALOG (use type "catalog" with these names): ${Object.keys(SPRITE_CATALOG).join(', ')}
+
+CUSTOM SPRITES (type "custom"):
+- grid: A string with rows separated by \\n. Each character maps to a color. Use '.' for transparent.
+- palette: Array of {char, color} pairs. Only include non-transparent characters.
+- Keep sprites small and charming. 8-16 characters wide, 8-20 rows tall.
+- x: 0.0 (left) to 1.0 (right), groundY: 0.7-0.95 (vertical position where sprite base sits)
+- scale: 3-7 (pixel scale factor)`;
+
+        const conversationHistory = [];
+
+        async function generateScene(choiceText) {
+            const userMessage = conversationHistory.length === 0
+                ? `The player chose: "${choiceText}"\n\nThis is their first choice after waking up on a beach at sunset and finding a bright red mailbox standing in the sand with its flag up. Generate the next scene.`
+                : `The player chose: "${choiceText}"`;
+
+            conversationHistory.push({ role: 'user', content: userMessage });
+
+            const response = await fetch('/api/inference/anthropic/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    model: 'claude-haiku-4-5-20251001',
+                    max_tokens: 1024,
+                    system: SYSTEM_PROMPT,
+                    messages: [...conversationHistory],
+                    output_config: {
+                        format: {
+                            type: 'json_schema',
+                            schema: SCENE_SCHEMA
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                if (response.status === 401) throw new Error('AUTH_REQUIRED');
+                throw new Error(err.error || err.message || `API error ${response.status}`);
+            }
+
+            const data = await response.json();
+            const sceneText = data.content[0].text;
+            const scene = JSON.parse(sceneText);
+
+            // Validate background exists
+            if (!BACKGROUNDS[scene.background]) {
+                console.warn(`AI picked unknown background "${scene.background}", falling back`);
+                scene.background = 'twilight-forest';
+            }
+
+            // Add assistant response to history
+            conversationHistory.push({ role: 'assistant', content: sceneText });
+
+            return scene;
+        }
+
+        // ========================================
         // Scene Transition
         // ========================================
 
-        function handleChoice(choice) {
+        async function handleChoice(choice) {
             console.log(`Choice selected: ${choice}`);
-            transitionToScene(forestScene);
-        }
 
-        function transitionToScene(newScene) {
             const overlay = document.getElementById('transition-overlay');
+            const loadingText = document.getElementById('loading-text');
 
             // Disable choice buttons
             document.querySelectorAll('.choice-btn').forEach(btn => {
@@ -816,18 +1420,47 @@
                 btn.style.opacity = '0.5';
             });
 
-            // Fade in overlay
+            // Show overlay
+            loadingText.textContent = 'The story unfolds...';
+            loadingText.style.animation = 'pulse 2s ease-in-out infinite';
             overlay.classList.add('active');
 
-            setTimeout(() => {
-                // Render new scene behind overlay
-                renderScene(newScene, false);
+            try {
+                const scene = await generateScene(choice);
 
-                // Fade out overlay to reveal new scene
+                // Let overlay fully appear before rendering behind it
+                await new Promise(r => setTimeout(r, 400));
+
+                renderScene(scene, false);
+
+                // Fade out overlay
                 setTimeout(() => {
                     overlay.classList.remove('active');
-                }, 600);
-            }, 1000);
+                }, 300);
+            } catch (err) {
+                console.error('Scene generation failed:', err);
+                loadingText.style.animation = 'none';
+
+                if (err.message === 'AUTH_REQUIRED') {
+                    loadingText.innerHTML = 'Please <a href="/login.html" style="color: #e8852a;">log in</a> to play.';
+                } else {
+                    loadingText.textContent = 'Something went wrong. Click to try again.';
+                    overlay.style.cursor = 'pointer';
+                    const retry = () => {
+                        overlay.style.cursor = '';
+                        overlay.removeEventListener('click', retry);
+                        overlay.classList.remove('active');
+                        // Re-enable choice buttons
+                        document.querySelectorAll('.choice-btn').forEach(btn => {
+                            btn.disabled = false;
+                            btn.style.opacity = '1';
+                        });
+                        // Remove the failed user message from history
+                        conversationHistory.pop();
+                    };
+                    overlay.addEventListener('click', retry);
+                }
+            }
         }
 
         // ========================================

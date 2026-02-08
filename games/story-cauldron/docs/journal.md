@@ -174,3 +174,102 @@ Sprite draw functions originally snuck smooth canvas ellipses underneath as shad
 - M3: AI generation — call Haiku via vanilla platform API, have it generate scene data + narration
 - AI picks a background name from the catalog + generates narration + choices + optional sprite placement
 - Open question: Should AI be able to define new sprites inline (character grids), or only place pre-built ones?
+
+---
+
+## Session 3: M3 AI Generation (2026-02-08)
+
+### What we built
+
+AI-generated scenes via Claude Haiku with structured output. Click a choice on the opening scene → AI generates the next scene with background, narration, choices, and optional sprites → scene renders → repeat. The core loop is alive.
+
+### Key decision: Structured output over freeform JSON
+
+Anthropic's structured output feature (`output_config` with `json_schema`) uses constrained decoding to guarantee the response matches our schema exactly. No regex extraction, no `JSON.parse` hoping for the best, no retry loops for malformed output.
+
+The parameter is `output_config: { format: { type: "json_schema", schema: {...} } }`. It's GA for Haiku 4.5. The vanilla platform proxy forwards it via the `...otherParams` spread in `proxyAnthropicMessages` — no platform changes needed.
+
+**Why not just prompt for JSON?** Constrained decoding is a hard guarantee. The model literally cannot produce tokens that violate the schema. With prompt-based JSON you always need validation, fallbacks, and retries. Structured output eliminates that entire class of bugs.
+
+### Key decision: Sprite grid as ASCII art string
+
+For custom sprites (AI-created), the grid is a single `\n`-separated string rather than an array of strings:
+
+```
+"..RR..\nRGGGR\nRRRRR"
+```
+
+This feels more like "drawing" to the model — it thinks in terms of a block of characters, row by row. We split on `\n` in game code to get the array `drawSprite` expects.
+
+The palette is an array of `{ char, color }` pairs rather than a `{ char: color }` object because Anthropic's structured output requires `additionalProperties: false` on all objects — which forbids dynamic/freeform keys. The array-of-pairs format is schema-compliant and trivial to convert: `palette.forEach(p => obj[p.char] = p.color)`.
+
+### Key decision: Multi-turn conversation with full history
+
+Each AI call sends the full conversation history — all previous narrations (as assistant messages) and all choices (as user messages). Simple, maximizes coherence, and Haiku's 200K context window means we won't hit limits in a typical play session.
+
+We chose this over rolling summaries because: (1) it's simpler to implement, (2) full context gives the AI the best chance at narrative continuity, (3) token cost for text-only conversation is low. Can optimize later if sessions get very long.
+
+### Key decision: Prompt-enforced constraints
+
+Structured output doesn't support `maxLength` (string) or `maxItems` (array) constraints. So narration length (max 4 sentences) and choice count (2-3) are enforced via the system prompt and field descriptions. The model follows these reliably.
+
+### Key decision: Hybrid sprite approach
+
+The AI can either:
+- **Use catalog sprites** (`type: "catalog"`) — pick from pre-built sprites like mailbox, signpost
+- **Create custom sprites** (`type: "custom"`) — define a new character grid + palette inline
+
+Custom sprites get added to the visual catalog for the session. The prompt guides the AI to keep custom sprites small (8-16 wide, 8-20 tall) for consistent pixel-art aesthetic.
+
+### Key decision: Opening scene stays hardcoded
+
+The beach/mailbox opening is hand-crafted. AI takes over from the player's first choice. This ensures a consistent starting experience and gives the AI a concrete narrative anchor ("the player just woke up on a beach and found a red mailbox").
+
+### Scene data structure (final)
+
+```javascript
+{
+    background: 'cave-entrance',     // enum from BACKGROUNDS catalog
+    narration: "...",                 // 1-4 sentences
+    choices: ["...", "...", "..."],   // 2-3 options
+    sprites: [                        // 0+ sprites
+        { type: 'catalog', name: 'mailbox', x: 0.5, groundY: 0.85, scale: 6 },
+        { type: 'custom', name: 'chest',
+          grid: "..RR..\nRGGGR\nRRRRR",
+          palette: [{ char: 'R', color: '#8B4513' }],
+          x: 0.3, groundY: 0.85, scale: 5 }
+    ]
+}
+```
+
+### Background catalog expansion
+
+Added 5 new backgrounds for AI variety (7 total):
+- `cave-entrance` — rocky overhang, dusky sky, dark opening, warm glow from inside
+- `cave-inside` — dark cavern, glowing crystals, stalagmites, damp stone floor
+- `winding-path` — daytime trail, blue sky, green hills, wildflowers
+- `moonlit-lake` — night, moon reflection on still water, reeds, mist
+- `meadow-clearing` — golden hour grassland, tall grass, butterflies
+
+These are functional, not over-polished. Easy to refine later.
+
+### Sprite catalog system
+
+Replaced per-sprite rendering functions (`drawMailboxSprite`, `drawSignpostSprite`) with a generic `SPRITE_CATALOG` + `drawSceneSprite()` dispatcher. Scenes now carry a `sprites` array instead of named sprite fields. Same renderer, more flexible.
+
+### Gotcha: `name` field in `output_config.format`
+
+Initial implementation included `name: 'scene'` inside the format object (following some doc examples). The Anthropic API rejected it with `400: output_config.format.name: Extra inputs are not permitted`. The correct shape is just `{ type: "json_schema", schema: {...} }` — no `name` field.
+
+### Error handling
+
+Overlay-based — same overlay used for transitions shows error state:
+- Auth errors → login link
+- Other errors → "something went wrong" with click-to-retry
+
+### What's next
+
+- M4: Loop testing — play through 5+ scenes, verify narrative coherence
+- Possible: context trimming for very long sessions
+- Possible: voice input (Web Speech API)
+- Possible: "say your own" custom choice input

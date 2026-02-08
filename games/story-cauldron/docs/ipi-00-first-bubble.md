@@ -76,11 +76,11 @@ Game runs on the vanilla platform which proxies AI requests:
 - [x] Proves the render-transition-render flow
 
 ### M3: AI Generation
-- [ ] Call vanilla platform API (Haiku)
-- [ ] Send story context + choice
-- [ ] Parse response JSON
-- [ ] Render generated scene
-- [ ] Handle errors gracefully
+- [x] Call vanilla platform API (Haiku)
+- [x] Send story context + choice
+- [x] Parse response JSON (structured output via `output_config`)
+- [x] Render generated scene
+- [x] Handle errors gracefully
 
 ### M4: The Loop
 - [ ] Story context accumulates
@@ -91,8 +91,8 @@ Game runs on the vanilla platform which proxies AI requests:
 ## Success Criteria
 
 - [x] Open the game, see opening scene
-- [ ] Click a choice, see a new AI-generated scene
-- [ ] Click again, story builds on previous choice
+- [x] Click a choice, see a new AI-generated scene
+- [x] Click again, story builds on previous choice
 - [ ] Play for 5 minutes without it breaking
 - [ ] At least one moment that makes us smile
 
