@@ -1383,7 +1383,8 @@ registerItem({
             player.y = platform.y - player.height;
             player.vy = 0;
             player.onGround = true;
-        } else if (player.vy > 0) {
+        } else {
+            // No platform below - player is in the air
             player.onGround = false;
         }
 

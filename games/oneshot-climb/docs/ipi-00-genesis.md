@@ -12,6 +12,7 @@ Not trying to make a "good game" yet. Embracing chaos to find what's interesting
 - [art-style.md](art-style.md) - Paper Pixels aesthetic, sprite format, palette
 - [forge-mechanic.md](forge-mechanic.md) - the defend/create loop
 - [code-injection.md](code-injection.md) - inference, parsing, safety
+- [explorer-claude.md](explorer-claude.md) - autonomous playtesting agent
 
 ## Scope
 
@@ -853,3 +854,27 @@ Possible approaches:
 - **Behavior presets**: `world.spawnChaser()`, `world.spawnOrbiter()` instead of raw defineEntity
 
 The tension: more abstraction = less chaos/creativity, but also less broken interactions.
+
+### 2026-02-08: Platform Collision Bug Fix
+
+**Bug:** Player could walk off platform edges without falling. They would float in mid-air.
+
+**Root Cause:** In `updatePlayer()`, collision check only set `onGround = false` when `player.vy > 0`:
+```javascript
+} else if (player.vy > 0) {
+    player.onGround = false;
+}
+```
+
+When standing still on a platform, `vy = 0`. Walking off edge → no collision → but `vy > 0` check fails → `onGround` stays true → gravity not applied.
+
+**Fix:** Remove the `vy > 0` condition - if no platform collision detected, player is in the air:
+```javascript
+} else {
+    player.onGround = false;
+}
+```
+
+**Verification:** Used Playwright to jump onto platform, walk off edge, confirm player now falls correctly.
+
+**Also:** Created [explorer-claude.md](explorer-claude.md) - dedicated documentation for the autonomous playtesting agent.
