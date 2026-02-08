@@ -60,72 +60,15 @@ Game runs on the vanilla platform which proxies AI requests:
 - Inference: `/api/inference/anthropic/messages`
 - Model: `claude-haiku-4-5-20251001` (fast, cheap)
 
-### Scene Data Structure
-
-```javascript
-const scene = {
-  id: "beach_start",
-  narration: "You wake up on a warm sandy beach...",
-  visual: {
-    background: "beach",
-    elements: ["mailbox", "palm_tree"]
-  },
-  choices: [
-    { text: "Open the mailbox", leadsTo: "generated" },
-    { text: "Look around the beach", leadsTo: "generated" },
-    { text: "Walk toward the forest", leadsTo: "generated" }
-  ]
-};
-```
-
-### AI Generation Prompt (rough sketch)
-
-```
-You are the Caretaker, guiding a family through a whimsical island adventure.
-
-Story so far:
-{accumulated_story}
-
-The player chose: "{choice}"
-
-Generate the next scene. Return JSON:
-{
-  "narration": "2-3 sentences describing what happens",
-  "visual": {
-    "background": "beach|forest|cave|etc",
-    "elements": ["object1", "object2"]
-  },
-  "choices": [
-    { "text": "Choice 1" },
-    { "text": "Choice 2" },
-    { "text": "Choice 3" }
-  ]
-}
-
-Keep it playful and family-friendly. Build on what came before.
-Introduce small surprises and callbacks to earlier moments.
-```
-
-### Story Context
-
-Accumulate a running summary:
-```javascript
-const storyContext = [
-  "Woke up on beach, found mailbox with welcome letter from The Caretaker",
-  "Opened mailbox, found a brass key and note saying 'for the treehouse'",
-  "Walked into forest, discovered an ancient treehouse"
-];
-```
-
-Feed last N entries to prompt (avoid context overflow).
 
 ## Milestones
 
 ### M1: Static Scene Display
-- [ ] HTML/CSS layout (scene area + choice buttons)
-- [ ] Hardcoded opening scene displays
-- [ ] Choices are clickable (no action yet)
-- [ ] Projector-friendly styling (dark bg, big text)
+- [x] HTML/CSS layout (scene area + choice buttons)
+- [x] Hardcoded opening scene displays
+- [x] Choices are clickable (no action yet)
+- [x] Projector-friendly styling (dark bg, big text)
+- [x] Hybrid rendering: smooth backgrounds + pixel-art sprite foreground objects
 
 ### M2: Scene Transition
 - [ ] Click choice → loading state
@@ -157,4 +100,4 @@ Feed last N entries to prompt (avoid context overflow).
 
 ## Session Notes
 
-*To be filled in as we build...*
+See [journal.md](journal.md) for detailed build log, decisions, and tradeoffs.

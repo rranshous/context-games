@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Cauldron</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a1a;
+            color: #e8e0d4;
+            font-family: Georgia, 'Times New Roman', serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #scene-container {
+            width: 100%;
+            flex: 1 1 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 20px 0;
+            min-height: 0;
+        }
+
+        #scene {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 12px;
+            box-shadow: 0 0 60px rgba(230, 126, 34, 0.15), 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        #narration {
+            padding: 24px 48px 4px;
+            text-align: center;
+            font-size: 1.4rem;
+            line-height: 1.7;
+            max-width: 800px;
+            white-space: pre-line;
+            flex-shrink: 0;
+            opacity: 0;
+            animation: fadeIn 2s ease forwards;
+            animation-delay: 0.5s;
+        }
+
+        #choices {
+            padding: 16px 48px 32px;
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            opacity: 0;
+            animation: fadeIn 1.5s ease forwards;
+            animation-delay: 2.5s;
+        }
+
+        .choice-btn {
+            background: rgba(229, 152, 80, 0.1);
+            border: 2px solid rgba(229, 152, 80, 0.35);
+            color: #e8e0d4;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 1.15rem;
+            padding: 14px 28px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.02em;
+        }
+
+        .choice-btn:hover {
+            background: rgba(229, 152, 80, 0.25);
+            border-color: rgba(229, 152, 80, 0.7);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(229, 152, 80, 0.15);
+        }
+
+        .choice-btn:active {
+            transform: translateY(0);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene-container">
+        <canvas id="scene" width="1120" height="520"></canvas>
+    </div>
+    <div id="narration"></div>
+    <div id="choices"></div>
+
+    <script>
+        // ========================================
+        // Scene Data
+        // ========================================
+
+        const openingScene = {
+            sky: {
+                colors: ['#070422', '#1a0d44', '#4a1a6b', '#8b2252', '#c44a2f', '#e8852a', '#f5c040']
+            },
+            sun: { x: 0.5, y: 0.35, radius: 32, glowRadius: 130 },
+            ocean: {
+                y: 0.40,
+                height: 0.13,
+                deepColor: '#0d2847',
+                shallowColor: '#1a4a6b',
+            },
+            sand: {
+                y: 0.53,
+                color: '#c9a34e',
+                wetColor: '#a08030',
+                darkColor: '#7a6020'
+            },
+            palms: [
+                { x: 0.08, trunkHeight: 220, lean: -0.16, scale: 1.0 },
+                { x: 0.02, trunkHeight: 160, lean: -0.22, scale: 0.8 },
+                { x: 0.92, trunkHeight: 210, lean: 0.14, scale: 0.95 },
+                { x: 0.98, trunkHeight: 140, lean: 0.26, scale: 0.75 },
+            ],
+            mailbox: { x: 0.50, groundY: 0.90, spriteScale: 6 },
+            narration: "You open your eyes to warm sunlight and the sound of gentle waves. Sand beneath your fingers. A soft breeze carries the smell of salt and something sweet.\n\nAs your vision clears, you notice something odd: a bright red mailbox, standing upright in the sand just a few feet away. Its little flag is up.",
+            choices: [
+                "Open the mailbox",
+                "Look around the beach",
+                "Walk toward the water"
+            ]
+        };
+
+        // ========================================
+        // Renderer
+        // ========================================
+
+        const canvas = document.getElementById('scene');
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width;
+        const H = canvas.height;
+
+        function drawSky(sky) {
+            const grad = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+            const stops = sky.colors;
+            for (let i = 0; i < stops.length; i++) {
+                grad.addColorStop(i / (stops.length - 1), stops[i]);
+            }
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H * 0.45);
+        }
+
+        function drawSun(sun) {
+            const cx = W * sun.x;
+            const cy = H * sun.y;
+
+            // Wide atmospheric glow
+            const atmo = ctx.createRadialGradient(cx, cy, 0, cx, cy, sun.glowRadius * 2);
+            atmo.addColorStop(0, 'rgba(245, 192, 64, 0.3)');
+            atmo.addColorStop(0.25, 'rgba(232, 133, 42, 0.12)');
+            atmo.addColorStop(0.5, 'rgba(196, 74, 47, 0.04)');
+            atmo.addColorStop(1, 'rgba(196, 74, 47, 0)');
+            ctx.fillStyle = atmo;
+            ctx.fillRect(0, 0, W, H * 0.55);
+
+            // Inner glow
+            const glow = ctx.createRadialGradient(cx, cy, sun.radius * 0.5, cx, cy, sun.glowRadius);
+            glow.addColorStop(0, 'rgba(245, 192, 64, 0.5)');
+            glow.addColorStop(0.4, 'rgba(245, 192, 64, 0.15)');
+            glow.addColorStop(1, 'rgba(245, 192, 64, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(cx, cy, sun.glowRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Sun disc
+            const disc = ctx.createRadialGradient(cx, cy, 0, cx, cy, sun.radius);
+            disc.addColorStop(0, '#fffbe8');
+            disc.addColorStop(0.5, '#f5d868');
+            disc.addColorStop(0.85, '#eca530');
+            disc.addColorStop(1, '#d4782a');
+            ctx.beginPath();
+            ctx.arc(cx, cy, sun.radius, 0, Math.PI * 2);
+            ctx.fillStyle = disc;
+            ctx.fill();
+        }
+
+        function drawClouds() {
+            // Wispy sunset clouds — lit from below by golden light
+            const clouds = [
+                { x: 0.15, y: 0.12, w: 140, h: 12, opacity: 0.15 },
+                { x: 0.22, y: 0.15, w: 100, h: 8, opacity: 0.10 },
+                { x: 0.70, y: 0.10, w: 160, h: 14, opacity: 0.14 },
+                { x: 0.78, y: 0.14, w: 90, h: 9, opacity: 0.09 },
+                { x: 0.35, y: 0.22, w: 120, h: 10, opacity: 0.18 },
+                { x: 0.60, y: 0.20, w: 110, h: 11, opacity: 0.12 },
+            ];
+
+            clouds.forEach(c => {
+                const cx = W * c.x;
+                const cy = H * c.y;
+
+                // Cloud lit from below — warm orange/gold on bottom, cooler on top
+                const grad = ctx.createLinearGradient(cx, cy - c.h, cx, cy + c.h);
+                grad.addColorStop(0, `rgba(180, 120, 160, ${c.opacity * 0.5})`);
+                grad.addColorStop(0.6, `rgba(232, 160, 80, ${c.opacity})`);
+                grad.addColorStop(1, `rgba(245, 200, 100, ${c.opacity * 0.7})`);
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, c.w / 2, c.h / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Softer halo
+                ctx.fillStyle = `rgba(245, 200, 120, ${c.opacity * 0.3})`;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, c.w / 2 + 10, c.h / 2 + 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawOcean(ocean) {
+            const y = H * ocean.y;
+            const h = H * ocean.height;
+
+            // Ocean body
+            const grad = ctx.createLinearGradient(0, y, 0, y + h);
+            grad.addColorStop(0, ocean.shallowColor);
+            grad.addColorStop(0.4, ocean.deepColor);
+            grad.addColorStop(1, '#081c30');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, y, W, h);
+
+            // Sun reflection path on water
+            const refGrad = ctx.createRadialGradient(W * 0.5, y + 5, 0, W * 0.5, y + h * 0.5, 200);
+            refGrad.addColorStop(0, 'rgba(245, 192, 64, 0.35)');
+            refGrad.addColorStop(0.25, 'rgba(245, 192, 64, 0.15)');
+            refGrad.addColorStop(0.6, 'rgba(245, 192, 64, 0.03)');
+            refGrad.addColorStop(1, 'rgba(245, 192, 64, 0)');
+            ctx.fillStyle = refGrad;
+            ctx.fillRect(0, y, W, h);
+
+            // Shimmer streaks on water
+            ctx.globalAlpha = 0.1;
+            ctx.strokeStyle = '#f5d868';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 6; i++) {
+                const streakY = y + h * (0.2 + i * 0.12);
+                const centerX = W * 0.5;
+                const streakW = 40 + (3 - Math.abs(i - 3)) * 25;
+                ctx.beginPath();
+                ctx.moveTo(centerX - streakW / 2, streakY);
+                ctx.lineTo(centerX + streakW / 2, streakY);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+
+            // Subtle wave lines
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 3; i++) {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.04 + i * 0.015})`;
+                ctx.beginPath();
+                const waveY = y + h * (0.25 + i * 0.25);
+                for (let x = 0; x < W; x += 2) {
+                    const wy = waveY + Math.sin(x * 0.015 + i * 1.8) * 2;
+                    if (x === 0) ctx.moveTo(x, wy);
+                    else ctx.lineTo(x, wy);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function drawSand(sand) {
+            const y = H * sand.y;
+            const h = H - y;
+
+            // Main sand gradient
+            const grad = ctx.createLinearGradient(0, y, 0, H);
+            grad.addColorStop(0, sand.color);
+            grad.addColorStop(0.25, sand.wetColor);
+            grad.addColorStop(1, sand.darkColor);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, y, W, h);
+
+            // Wet sand strip near waterline
+            const wetGrad = ctx.createLinearGradient(0, y, 0, y + 24);
+            wetGrad.addColorStop(0, 'rgba(13, 40, 71, 0.25)');
+            wetGrad.addColorStop(1, 'rgba(13, 40, 71, 0)');
+            ctx.fillStyle = wetGrad;
+            ctx.fillRect(0, y, W, 24);
+
+            // Foam/surf line at water's edge
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let x = 0; x < W; x += 2) {
+                const fy = y + Math.sin(x * 0.03) * 2 + Math.sin(x * 0.07) * 1;
+                if (x === 0) ctx.moveTo(x, fy);
+                else ctx.lineTo(x, fy);
+            }
+            ctx.stroke();
+            // Second softer foam line
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let x = 0; x < W; x += 2) {
+                const fy = y + 6 + Math.sin(x * 0.025 + 1) * 2.5;
+                if (x === 0) ctx.moveTo(x, fy);
+                else ctx.lineTo(x, fy);
+            }
+            ctx.stroke();
+
+            // Sand wind ripples — subtle curved lines
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 8; i++) {
+                const rippleY = y + 30 + i * (h - 40) / 8;
+                const alpha = 0.04 + (i % 2) * 0.02;
+                ctx.strokeStyle = `rgba(255, 248, 220, ${alpha})`;
+                ctx.beginPath();
+                for (let x = 0; x < W; x += 3) {
+                    const ry = rippleY + Math.sin(x * 0.008 + i * 0.7) * 6
+                        + Math.sin(x * 0.02 + i * 1.3) * 2;
+                    if (x === 0) ctx.moveTo(x, ry);
+                    else ctx.lineTo(x, ry);
+                }
+                ctx.stroke();
+            }
+
+            // Sand texture — faint speckles
+            ctx.globalAlpha = 0.05;
+            ctx.fillStyle = '#fff8e0';
+            for (let i = 0; i < 120; i++) {
+                const sx = (i * 137.5 + 50) % W;
+                const sy = y + 15 + ((i * 97.3 + 30) % (h - 20));
+                ctx.fillRect(sx, sy, 1.5, 1.5);
+            }
+            ctx.globalAlpha = 1;
+
+            // A few small shells scattered on the sand
+            drawShell(W * 0.30, H * 0.72, 0.7);
+            drawShell(W * 0.72, H * 0.88, 0.5);
+            drawShell(W * 0.62, H * 0.76, 0.6);
+        }
+
+        function drawShell(x, y, scale) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+            ctx.fillStyle = 'rgba(230, 210, 180, 0.3)';
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI, true);
+            ctx.closePath();
+            ctx.fill();
+            // Ridge lines
+            ctx.strokeStyle = 'rgba(200, 180, 150, 0.2)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(-2, 0);
+            ctx.lineTo(0, -3);
+            ctx.lineTo(2, 0);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawPalm(palm) {
+            const baseX = W * palm.x;
+            const baseY = H * 0.53; // rooted at sand line
+            const trunkH = palm.trunkHeight * palm.scale;
+            const lean = palm.lean;
+
+            const topX = baseX + lean * trunkH;
+            const topY = baseY - trunkH;
+            const cpX = baseX + lean * trunkH * 0.6;
+            const cpY = baseY - trunkH * 0.5;
+
+            // Trunk shadow
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.lineWidth = 14 * palm.scale;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(baseX + 3, baseY + 3);
+            ctx.quadraticCurveTo(cpX + 3, cpY + 3, topX + 3, topY + 3);
+            ctx.stroke();
+
+            // Trunk
+            ctx.strokeStyle = '#1a0e08';
+            ctx.lineWidth = 10 * palm.scale;
+            ctx.beginPath();
+            ctx.moveTo(baseX, baseY);
+            ctx.quadraticCurveTo(cpX, cpY, topX, topY);
+            ctx.stroke();
+
+            // Trunk highlight edge
+            ctx.strokeStyle = '#2d1a10';
+            ctx.lineWidth = 6 * palm.scale;
+            ctx.beginPath();
+            ctx.moveTo(baseX, baseY);
+            ctx.quadraticCurveTo(cpX, cpY, topX, topY);
+            ctx.stroke();
+
+            // Fronds — stem with leaflets (feather pattern)
+            const frondDefs = [
+                { angle: -2.8, len: 75 },
+                { angle: -2.2, len: 90 },
+                { angle: -1.6, len: 85 },
+                { angle: -1.0, len: 95 },
+                { angle: -0.4, len: 88 },
+                { angle: 0.15, len: 80 },
+                { angle: 0.65, len: 70 },
+            ];
+
+            frondDefs.forEach(({ angle, len }) => {
+                const frondLen = len * palm.scale;
+                const droop = 0.35; // how much the frond droops
+
+                // Calculate stem curve points
+                const stemPoints = [];
+                const segments = 12;
+                for (let t = 0; t <= segments; t++) {
+                    const frac = t / segments;
+                    // Stem curves outward then droops
+                    const sx = topX + Math.cos(angle) * frondLen * frac;
+                    const sy = topY + Math.sin(angle) * frondLen * frac * 0.5
+                        + frondLen * droop * frac * frac; // quadratic droop
+                    stemPoints.push({ x: sx, y: sy });
+                }
+
+                // Draw stem
+                ctx.strokeStyle = '#0a1f0a';
+                ctx.lineWidth = 2.5 * palm.scale;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(stemPoints[0].x, stemPoints[0].y);
+                for (let i = 1; i < stemPoints.length; i++) {
+                    ctx.lineTo(stemPoints[i].x, stemPoints[i].y);
+                }
+                ctx.stroke();
+
+                // Draw leaflets along the stem
+                for (let i = 1; i < stemPoints.length; i++) {
+                    const frac = i / segments;
+                    const pt = stemPoints[i];
+                    const prev = stemPoints[i - 1];
+
+                    // Direction of stem at this point
+                    const dx = pt.x - prev.x;
+                    const dy = pt.y - prev.y;
+                    const stemAngle = Math.atan2(dy, dx);
+
+                    // Leaflet length tapers toward tip
+                    const leafletLen = (18 + (1 - frac) * 14) * palm.scale;
+
+                    // Draw leaflet on each side
+                    for (const side of [-1, 1]) {
+                        const leafAngle = stemAngle + side * (0.6 + frac * 0.4);
+                        const endLX = pt.x + Math.cos(leafAngle) * leafletLen;
+                        const endLY = pt.y + Math.sin(leafAngle) * leafletLen + leafletLen * 0.15;
+
+                        ctx.strokeStyle = i % 2 === 0 ? '#0a1f0a' : '#0f2a0f';
+                        ctx.lineWidth = (2.0 - frac * 0.8) * palm.scale;
+                        ctx.beginPath();
+                        ctx.moveTo(pt.x, pt.y);
+                        ctx.lineTo(endLX, endLY);
+                        ctx.stroke();
+                    }
+                }
+            });
+        }
+
+        // ========================================
+        // Sprite System (oneshot-climb style)
+        // ========================================
+
+        const SPRITE_PALETTE = {
+            '.': null,           // transparent
+            'r': '#cc3a1e',      // red
+            'R': '#9a2010',      // dark red
+            'h': '#e85840',      // highlight red
+            'w': '#fff8e7',      // warm white
+            'b': '#5a3a22',      // brown (post)
+            'B': '#3d2415',      // dark brown
+            'k': '#1a0e08',      // outline/dark
+            'f': '#e84c30',      // flag red
+            'g': '#f5c040',      // gold/yellow
+            'n': '#8b6030',      // mid brown
+        };
+
+        // 14 wide x 24 tall mailbox sprite
+        const MAILBOX_SPRITE = [
+            '..............',
+            '..............',
+            '....rrrrrrf...',
+            '...rrrrrrrff..',
+            '..hhrrrrrrfgf.',
+            '..rrrrrrrrf.f.',
+            '..rrrrrrrrf...',
+            '..rrrrrrrrf...',
+            '..rrrrrrrrr...',
+            '..kkkkkkkkk...',
+            '..RRRRRRRRR...',
+            '..RRRRRRRRR...',
+            '..RRRRRRRRR...',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......bBb.....',
+            '......nnn.....',
+            '..............',
+        ];
+
+        function drawSprite(sprite, palette, x, y, scale) {
+            for (let row = 0; row < sprite.length; row++) {
+                for (let col = 0; col < sprite[row].length; col++) {
+                    const ch = sprite[row][col];
+                    const color = palette[ch];
+                    if (!color) continue; // transparent
+                    ctx.fillStyle = color;
+                    ctx.fillRect(
+                        x + col * scale,
+                        y + row * scale,
+                        scale,
+                        scale
+                    );
+                }
+            }
+        }
+
+        function drawMailboxSprite(mailbox) {
+            const spriteW = MAILBOX_SPRITE[0].length;
+            const spriteH = MAILBOX_SPRITE.length;
+            const scale = mailbox.spriteScale;
+
+            // Position: center horizontally at mailbox.x, bottom at mailbox.groundY
+            const px = Math.round(W * mailbox.x - (spriteW * scale) / 2);
+            const py = Math.round(H * mailbox.groundY - spriteH * scale);
+
+            // Shadow on sand (still smooth — it's part of the background)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.beginPath();
+            ctx.ellipse(
+                px + (spriteW * scale) / 2 + 6,
+                H * mailbox.groundY + 2,
+                spriteW * scale * 0.4,
+                4, 0, 0, Math.PI * 2
+            );
+            ctx.fill();
+
+            drawSprite(MAILBOX_SPRITE, SPRITE_PALETTE, px, py, scale);
+        }
+
+        function renderScene(scene) {
+            ctx.clearRect(0, 0, W, H);
+
+            drawSky(scene.sky);
+            drawClouds();
+            drawSun(scene.sun);
+            drawOcean(scene.ocean);
+            drawSand(scene.sand);
+            scene.palms.forEach(p => drawPalm(p));
+            drawMailboxSprite(scene.mailbox);
+
+            // Golden hour light wash on sand
+            const warmWash = ctx.createRadialGradient(W * 0.5, H * 0.38, 50, W * 0.5, H * 0.55, W * 0.6);
+            warmWash.addColorStop(0, 'rgba(245, 200, 80, 0.08)');
+            warmWash.addColorStop(0.5, 'rgba(230, 160, 60, 0.04)');
+            warmWash.addColorStop(1, 'rgba(230, 160, 60, 0)');
+            ctx.fillStyle = warmWash;
+            ctx.fillRect(0, H * 0.5, W, H * 0.5);
+
+            // Vignette — darker edges to focus attention
+            const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.25, W * 0.5, H * 0.4, W * 0.65);
+            vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            vig.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+            vig.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+            ctx.fillStyle = vig;
+            ctx.fillRect(0, 0, W, H);
+
+            // Display narration
+            document.getElementById('narration').textContent = scene.narration;
+
+            // Display choices
+            const choicesEl = document.getElementById('choices');
+            choicesEl.innerHTML = '';
+            scene.choices.forEach((choice) => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.textContent = choice;
+                btn.addEventListener('click', () => {
+                    console.log(`Choice selected: ${choice}`);
+                });
+                choicesEl.appendChild(btn);
+            });
+        }
+
+        // ========================================
+        // Init
+        // ========================================
+
+        renderScene(openingScene);
+    </script>
+</body>
+</html>
