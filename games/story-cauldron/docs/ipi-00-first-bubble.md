@@ -71,9 +71,9 @@ Game runs on the vanilla platform which proxies AI requests:
 - [x] Hybrid rendering: smooth backgrounds + pixel-art sprite foreground objects
 
 ### M2: Scene Transition
-- [ ] Click choice → loading state
-- [ ] Hardcoded second scene appears
-- [ ] Proves the render-transition-render flow
+- [x] Click choice → loading state
+- [x] Hardcoded second scene appears - scene background is different than the first scene
+- [x] Proves the render-transition-render flow
 
 ### M3: AI Generation
 - [ ] Call vanilla platform API (Haiku)

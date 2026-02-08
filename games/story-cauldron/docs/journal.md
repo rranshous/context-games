@@ -73,3 +73,84 @@ Scenes are defined as plain objects — this is the shape AI will eventually gen
 - M2: Scene transitions — click a choice, loading state, hardcoded second scene
 - Open question: Should palm trees also become sprites? Or stay as background elements?
 - Open question: How much of the scene description should AI control? Just objects + narration? Or also background params?
+
+---
+
+## Session 2: M2 Scene Transition (2026-02-08)
+
+### What we built
+
+Click any choice → smooth overlay transition → a completely different scene renders. Proves the render-transition-render loop works end to end.
+
+### The second scene: Twilight Forest Path
+
+Wanted something visually unmistakable from the beach. Went with a nighttime forest trail:
+
+- Deep blue/purple starfield sky (vs. warm sunset)
+- Green forest ground with a dirt path, grass tufts, and leaf debris (vs. golden sand + ocean)
+- Fireflies drifting through the scene with soft radial glows
+- Pixel-art signpost sprite at a fork in the path (two signs on a wooden post)
+- Dense palm trees framing both sides (they're tropical island palms, but in a jungle context they work)
+- Cool moonlit atmospheric wash + stronger vignette (vs. warm golden hour)
+
+The contrast really sells it — beach feels warm and open, forest feels cool and enclosed.
+
+### Key decision: Data-driven conditional renderer
+
+Rather than writing a separate render function per scene type, `renderScene` now checks which properties exist on the scene object and draws accordingly:
+
+```javascript
+if (scene.sky) drawSky(scene.sky);
+if (scene.stars) drawStars();
+if (scene.ocean) drawOcean(scene.ocean);
+if (scene.sand) drawSand(scene.sand);
+if (scene.ground) drawForestGround(scene.ground);
+if (scene.fireflies) drawFireflies();
+// ... etc
+```
+
+This means scenes are fully defined by their data. A scene with `ocean` gets water; one with `ground` gets a forest floor. Same renderer, different output. This is the shape AI will generate into.
+
+### Scene data structure (updated)
+
+New optional fields added:
+
+```javascript
+{
+    sky: { colors: [...], height: 0.50 },  // height is now configurable
+    stars: true,                             // optional starfield
+    ground: { y, color, wetColor, darkColor }, // alternative to sand
+    fireflies: true,                         // optional glowing particles
+    signpost: { x, groundY, spriteScale },   // new sprite type
+    ambience: 'cool',                        // 'cool' = moonlit, default = warm
+    // ... plus all existing fields (sun, ocean, sand, palms, mailbox)
+}
+```
+
+### Transition system
+
+Overlay-based approach — clean and foolproof:
+
+1. Click choice → buttons dim + disable
+2. Full-screen overlay (matches body bg `#0a0a1a`) fades in over 0.8s
+3. "The story unfolds..." text pulses while overlay is opaque
+4. Behind the overlay, new scene renders on canvas + narration/choices update
+5. Overlay fades out to reveal the new scene
+
+CSS animations for narration/choices are retriggered on subsequent scenes with shorter delays (0.1s and 1.0s vs. the initial 0.5s and 2.5s) — returning players don't need the slow build-up.
+
+### Renderer changes
+
+- `drawSky`: Now accepts `sky.height` (default 0.45) and fills full canvas — ground layers paint over
+- `drawPalm`: Accepts `groundY` parameter instead of hardcoded 0.53 sand line
+- New: `drawStars()` — deterministic scatter of 80 stars with varying size/opacity
+- New: `drawForestGround()` — earth-tone gradient, centered dirt path, grass tufts, leaf debris
+- New: `drawFireflies()` — 20 particles with radial glow halos + bright core dots
+- New: `drawSignpostSprite()` — pixel-art signpost (11x18, reuses existing palette)
+- Ambience system: `'cool'` → blue moonlit wash, default → golden hour wash. Vignette strength varies.
+
+### What's next
+
+- M3: AI generation — call Haiku via vanilla platform API, have it generate scene data + narration
+- The data-driven renderer is ready for AI output — just need to define the prompt and parse the response
+- Open question: How strict should the scene schema be? Loose (AI picks what to include) or templated (always sky + ground + sprite)?
