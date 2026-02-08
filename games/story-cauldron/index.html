@@ -559,20 +559,8 @@
             const spriteH = MAILBOX_SPRITE.length;
             const scale = mailbox.spriteScale;
 
-            // Position: center horizontally at mailbox.x, bottom at mailbox.groundY
             const px = Math.round(W * mailbox.x - (spriteW * scale) / 2);
             const py = Math.round(H * mailbox.groundY - spriteH * scale);
-
-            // Shadow on sand (still smooth — it's part of the background)
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-            ctx.beginPath();
-            ctx.ellipse(
-                px + (spriteW * scale) / 2 + 6,
-                H * mailbox.groundY + 2,
-                spriteW * scale * 0.4,
-                4, 0, 0, Math.PI * 2
-            );
-            ctx.fill();
 
             drawSprite(MAILBOX_SPRITE, SPRITE_PALETTE, px, py, scale);
         }
@@ -695,17 +683,6 @@
 
             const px = Math.round(W * signpost.x - (spriteW * scale) / 2);
             const py = Math.round(H * signpost.groundY - spriteH * scale);
-
-            // Shadow
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.beginPath();
-            ctx.ellipse(
-                px + (spriteW * scale) / 2 + 4,
-                H * signpost.groundY + 2,
-                spriteW * scale * 0.3,
-                3, 0, 0, Math.PI * 2
-            );
-            ctx.fill();
 
             drawSprite(SIGNPOST_SPRITE, SPRITE_PALETTE, px, py, scale);
         }

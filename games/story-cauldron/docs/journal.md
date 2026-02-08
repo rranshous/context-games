@@ -95,37 +95,53 @@ Wanted something visually unmistakable from the beach. Went with a nighttime for
 
 The contrast really sells it — beach feels warm and open, forest feels cool and enclosed.
 
-### Key decision: Data-driven conditional renderer
+### Key decision: Named background presets
 
-Rather than writing a separate render function per scene type, `renderScene` now checks which properties exist on the scene object and draws accordingly:
+Initially built a data-driven conditional renderer where scenes carried all their rendering parameters (sky colors, ground colors, palm positions, etc.) and `renderScene` checked which properties existed. This worked but raised a problem: when AI generates scenes later, it would need to produce gradient hex values and precise rendering parameters — fragile and hard to validate.
+
+**Better approach: named backgrounds as a catalog.**
+
+Each background is a self-contained function in a `BACKGROUNDS` collection. All rendering details (sky, ground, palms, atmospheric effects, vignette) are baked in. Scenes just reference a background by name:
 
 ```javascript
-if (scene.sky) drawSky(scene.sky);
-if (scene.stars) drawStars();
-if (scene.ocean) drawOcean(scene.ocean);
-if (scene.sand) drawSand(scene.sand);
-if (scene.ground) drawForestGround(scene.ground);
-if (scene.fireflies) drawFireflies();
-// ... etc
+const BACKGROUNDS = {
+    'sunset-beach': function() {
+        drawSky({ colors: [...] });
+        drawClouds();
+        drawSun({ ... });
+        drawOcean({ ... });
+        drawSand({ ... });
+        // palms, warm wash, vignette — all hardcoded
+    },
+    'twilight-forest': function() {
+        drawSky({ colors: [...], height: 0.50 });
+        drawStars();
+        drawForestGround({ ... });
+        // palms, fireflies, cool wash, vignette — all hardcoded
+    },
+};
 ```
 
-This means scenes are fully defined by their data. A scene with `ocean` gets water; one with `ground` gets a forest floor. Same renderer, different output. This is the shape AI will generate into.
+**Why this is better:**
+- AI just picks a name: `background: 'sunset-beach'` — no gradient tuning
+- Each background is visually polished by hand, not generated
+- Easy to grow the catalog — add new backgrounds without touching the renderer or scene schema
+- Later we can add parameterization if needed, but the simple version works now
 
 ### Scene data structure (updated)
 
-New optional fields added:
+Scenes are now very lean — just a background name, optional foreground sprites, narration, and choices:
 
 ```javascript
 {
-    sky: { colors: [...], height: 0.50 },  // height is now configurable
-    stars: true,                             // optional starfield
-    ground: { y, color, wetColor, darkColor }, // alternative to sand
-    fireflies: true,                         // optional glowing particles
-    signpost: { x, groundY, spriteScale },   // new sprite type
-    ambience: 'cool',                        // 'cool' = moonlit, default = warm
-    // ... plus all existing fields (sun, ocean, sand, palms, mailbox)
+    background: 'sunset-beach',              // picks from BACKGROUNDS catalog
+    mailbox: { x, groundY, spriteScale },    // optional foreground sprite
+    narration: "...",
+    choices: ["...", "...", "..."]
 }
 ```
+
+The draw utilities (`drawSky`, `drawOcean`, `drawSand`, `drawPalm`, `drawStars`, `drawForestGround`, `drawFireflies`) still exist as helpers — the background functions compose them internally.
 
 ### Transition system
 
@@ -138,6 +154,10 @@ Overlay-based approach — clean and foolproof:
 5. Overlay fades out to reveal the new scene
 
 CSS animations for narration/choices are retriggered on subsequent scenes with shorter delays (0.1s and 1.0s vs. the initial 0.5s and 2.5s) — returning players don't need the slow build-up.
+
+### Sprite discipline: keep them self-contained
+
+Sprite draw functions originally snuck smooth canvas ellipses underneath as shadows — mixing background-layer rendering into what should be a pure pixel-art layer. Removed those. Sprites are now strictly `drawSprite()` calls: position the grid, render the pixels, nothing else. This keeps the two-layer contract clean (smooth backgrounds, pixelated foreground) and means sprites stay portable — any sprite works on any background without assumptions about what's underneath.
 
 ### Renderer changes
 
@@ -152,5 +172,5 @@ CSS animations for narration/choices are retriggered on subsequent scenes with s
 ### What's next
 
 - M3: AI generation — call Haiku via vanilla platform API, have it generate scene data + narration
-- The data-driven renderer is ready for AI output — just need to define the prompt and parse the response
-- Open question: How strict should the scene schema be? Loose (AI picks what to include) or templated (always sky + ground + sprite)?
+- AI picks a background name from the catalog + generates narration + choices + optional sprite placement
+- Open question: Should AI be able to define new sprites inline (character grids), or only place pre-built ones?
