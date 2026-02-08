@@ -133,28 +133,7 @@
         // ========================================
 
         const openingScene = {
-            sky: {
-                colors: ['#070422', '#1a0d44', '#4a1a6b', '#8b2252', '#c44a2f', '#e8852a', '#f5c040']
-            },
-            sun: { x: 0.5, y: 0.35, radius: 32, glowRadius: 130 },
-            ocean: {
-                y: 0.40,
-                height: 0.13,
-                deepColor: '#0d2847',
-                shallowColor: '#1a4a6b',
-            },
-            sand: {
-                y: 0.53,
-                color: '#c9a34e',
-                wetColor: '#a08030',
-                darkColor: '#7a6020'
-            },
-            palms: [
-                { x: 0.08, trunkHeight: 220, lean: -0.16, scale: 1.0 },
-                { x: 0.02, trunkHeight: 160, lean: -0.22, scale: 0.8 },
-                { x: 0.92, trunkHeight: 210, lean: 0.14, scale: 0.95 },
-                { x: 0.98, trunkHeight: 140, lean: 0.26, scale: 0.75 },
-            ],
+            background: 'sunset-beach',
             mailbox: { x: 0.50, groundY: 0.90, spriteScale: 6 },
             narration: "You open your eyes to warm sunlight and the sound of gentle waves. Sand beneath your fingers. A soft breeze carries the smell of salt and something sweet.\n\nAs your vision clears, you notice something odd: a bright red mailbox, standing upright in the sand just a few feet away. Its little flag is up.",
             choices: [
@@ -165,28 +144,8 @@
         };
 
         const forestScene = {
-            sky: {
-                colors: ['#030318', '#050528', '#0a0a38', '#121250', '#1a1a60', '#202868'],
-                height: 0.50
-            },
-            stars: true,
-            ground: {
-                y: 0.50,
-                color: '#2a4a20',
-                wetColor: '#1a3515',
-                darkColor: '#0f200a',
-            },
-            palms: [
-                { x: 0.04, trunkHeight: 280, lean: -0.06, scale: 1.15 },
-                { x: 0.14, trunkHeight: 240, lean: -0.10, scale: 1.0 },
-                { x: 0.86, trunkHeight: 260, lean: 0.08, scale: 1.05 },
-                { x: 0.96, trunkHeight: 230, lean: 0.12, scale: 0.95 },
-                { x: -0.02, trunkHeight: 200, lean: -0.18, scale: 0.85 },
-                { x: 1.02, trunkHeight: 210, lean: 0.16, scale: 0.9 },
-            ],
-            fireflies: true,
+            background: 'twilight-forest',
             signpost: { x: 0.50, groundY: 0.88, spriteScale: 5 },
-            ambience: 'cool',
             narration: "You follow a narrow trail away from the beach, pushing through broad leaves and dangling vines. The air grows cooler, thick with the smell of earth and flowers you can't name.\n\nThe path forks at a weathered wooden signpost. One arrow reads \"The Garden.\" The other: \"The Workshop.\" Tiny lights drift lazily between the trees.",
             choices: [
                 "Take the path to The Garden",
@@ -751,30 +710,25 @@
             drawSprite(SIGNPOST_SPRITE, SPRITE_PALETTE, px, py, scale);
         }
 
-        function renderScene(scene, isFirstScene) {
-            ctx.clearRect(0, 0, W, H);
+        // ========================================
+        // Backgrounds
+        // ========================================
 
-            // Background
-            if (scene.sky) drawSky(scene.sky);
-            if (scene.stars) drawStars();
-            if (!scene.stars) drawClouds();
-            if (scene.sun) drawSun(scene.sun);
-            if (scene.ocean) drawOcean(scene.ocean);
+        const BACKGROUNDS = {
+            'sunset-beach': function() {
+                drawSky({ colors: ['#070422', '#1a0d44', '#4a1a6b', '#8b2252', '#c44a2f', '#e8852a', '#f5c040'] });
+                drawClouds();
+                drawSun({ x: 0.5, y: 0.35, radius: 32, glowRadius: 130 });
+                drawOcean({ y: 0.40, height: 0.13, deepColor: '#0d2847', shallowColor: '#1a4a6b' });
+                drawSand({ y: 0.53, color: '#c9a34e', wetColor: '#a08030', darkColor: '#7a6020' });
 
-            // Ground
-            if (scene.sand) drawSand(scene.sand);
-            if (scene.ground) drawForestGround(scene.ground);
+                [
+                    { x: 0.08, trunkHeight: 220, lean: -0.16, scale: 1.0 },
+                    { x: 0.02, trunkHeight: 160, lean: -0.22, scale: 0.8 },
+                    { x: 0.92, trunkHeight: 210, lean: 0.14, scale: 0.95 },
+                    { x: 0.98, trunkHeight: 140, lean: 0.26, scale: 0.75 },
+                ].forEach(p => drawPalm(p, 0.53));
 
-            // Scene objects
-            const groundLevel = scene.sand?.y || scene.ground?.y || 0.53;
-            if (scene.palms) scene.palms.forEach(p => drawPalm(p, groundLevel));
-            if (scene.mailbox) drawMailboxSprite(scene.mailbox);
-            if (scene.signpost) drawSignpostSprite(scene.signpost);
-
-            // Atmospheric effects
-            if (scene.fireflies) drawFireflies();
-
-            if (scene.ambience !== 'cool') {
                 // Warm golden hour light wash
                 const warmWash = ctx.createRadialGradient(W * 0.5, H * 0.38, 50, W * 0.5, H * 0.55, W * 0.6);
                 warmWash.addColorStop(0, 'rgba(245, 200, 80, 0.08)');
@@ -782,7 +736,32 @@
                 warmWash.addColorStop(1, 'rgba(230, 160, 60, 0)');
                 ctx.fillStyle = warmWash;
                 ctx.fillRect(0, H * 0.5, W, H * 0.5);
-            } else {
+
+                // Vignette
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.25, W * 0.5, H * 0.4, W * 0.65);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
+
+            'twilight-forest': function() {
+                drawSky({ colors: ['#030318', '#050528', '#0a0a38', '#121250', '#1a1a60', '#202868'], height: 0.50 });
+                drawStars();
+                drawForestGround({ y: 0.50, color: '#2a4a20', wetColor: '#1a3515', darkColor: '#0f200a' });
+
+                [
+                    { x: 0.04, trunkHeight: 280, lean: -0.06, scale: 1.15 },
+                    { x: 0.14, trunkHeight: 240, lean: -0.10, scale: 1.0 },
+                    { x: 0.86, trunkHeight: 260, lean: 0.08, scale: 1.05 },
+                    { x: 0.96, trunkHeight: 230, lean: 0.12, scale: 0.95 },
+                    { x: -0.02, trunkHeight: 200, lean: -0.18, scale: 0.85 },
+                    { x: 1.02, trunkHeight: 210, lean: 0.16, scale: 0.9 },
+                ].forEach(p => drawPalm(p, 0.50));
+
+                drawFireflies();
+
                 // Cool moonlit wash
                 const coolWash = ctx.createRadialGradient(W * 0.5, H * 0.3, 30, W * 0.5, H * 0.5, W * 0.5);
                 coolWash.addColorStop(0, 'rgba(100, 140, 200, 0.06)');
@@ -790,16 +769,30 @@
                 coolWash.addColorStop(1, 'rgba(80, 100, 160, 0)');
                 ctx.fillStyle = coolWash;
                 ctx.fillRect(0, 0, W, H);
-            }
 
-            // Vignette
-            const vigStrength = scene.ambience === 'cool' ? 0.5 : 0.35;
-            const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.25, W * 0.5, H * 0.4, W * 0.65);
-            vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
-            vig.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
-            vig.addColorStop(1, `rgba(0, 0, 0, ${vigStrength})`);
-            ctx.fillStyle = vig;
-            ctx.fillRect(0, 0, W, H);
+                // Vignette
+                const vig = ctx.createRadialGradient(W * 0.5, H * 0.4, W * 0.25, W * 0.5, H * 0.4, W * 0.65);
+                vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+                vig.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, W, H);
+            },
+        };
+
+        // ========================================
+        // Scene Renderer
+        // ========================================
+
+        function renderScene(scene, isFirstScene) {
+            ctx.clearRect(0, 0, W, H);
+
+            // Draw background
+            BACKGROUNDS[scene.background]();
+
+            // Draw foreground sprites
+            if (scene.mailbox) drawMailboxSprite(scene.mailbox);
+            if (scene.signpost) drawSignpostSprite(scene.signpost);
 
             // Display narration
             const narrationEl = document.getElementById('narration');
