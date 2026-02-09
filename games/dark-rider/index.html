@@ -93,6 +93,10 @@ path.rotation.x = -Math.PI / 2;
 path.position.y = 0.01;
 scene.add(path);
 
+// --- Collisions ---
+// All collidable objects: { x, z, radius } in world space
+const colliders = [];
+
 // --- Trees ---
 function createTree(x, z) {
     const group = new THREE.Group();
@@ -116,6 +120,7 @@ function createTree(x, z) {
 
     group.position.set(x, 0, z);
     scene.add(group);
+    colliders.push({ x, z, radius: 0.6 }); // trunk collision radius
     return group;
 }
 
@@ -129,19 +134,21 @@ for (let i = 0; i < 20; i++) {
 }
 
 // --- Rocks ---
-function createRock(x, z) {
-    const geo = new THREE.DodecahedronGeometry(0.3 + Math.random() * 0.4, 0);
+function createRock(x, z, rockRadius) {
+    const geo = new THREE.DodecahedronGeometry(rockRadius, 0);
     const rock = new THREE.Mesh(geo, toonMat(0x777777));
     rock.position.set(x, 0.2, z);
     rock.rotation.set(Math.random(), Math.random(), Math.random());
     rock.castShadow = true;
     scene.add(rock);
+    colliders.push({ x, z, radius: rockRadius + 0.1 });
     return rock;
 }
 
 for (let i = 0; i < 12; i++) {
     const side = Math.random() > 0.5 ? 1 : -1;
-    createRock(side * (1.8 + Math.random() * 8), (Math.random() - 0.5) * 30);
+    const rockRadius = 0.3 + Math.random() * 0.4;
+    createRock(side * (1.8 + Math.random() * 8), (Math.random() - 0.5) * 30, rockRadius);
 }
 
 // --- Rider character ---
@@ -261,6 +268,27 @@ function animate() {
     if (keys['a'] || keys['arrowleft']) dx -= speed;
     if (keys['d'] || keys['arrowright']) dx += speed;
 
+    // Collision check — test proposed position against all colliders
+    const riderRadius = 0.5;
+    const proposedX = worldOffset.x + dx;
+    const proposedZ = worldOffset.z + dz;
+    let blocked = false;
+    for (const c of colliders) {
+        const cx = c.x - proposedX;
+        const cz = c.z - proposedZ;
+        const dist = Math.sqrt(cx * cx + cz * cz);
+        const minDist = c.radius + riderRadius;
+        if (dist < minDist) {
+            blocked = true;
+            // Push rider out along the collision normal
+            const nx = cx / dist;
+            const nz = cz / dist;
+            const overlap = minDist - dist;
+            dx += nx * overlap;
+            dz += nz * overlap;
+        }
+    }
+
     // Move world instead of player (infinite scroll illusion)
     worldOffset.x += dx;
     worldOffset.z += dz;
@@ -277,17 +305,10 @@ function animate() {
     legs[2].rotation.x = -legSwing;
     legs[3].rotation.x = legSwing;
 
-    // Face direction of movement
+    // Face direction of movement (+ PI because horse model faces -Z)
     if (isMoving) {
-        rider.rotation.y = Math.atan2(dx, dz);
+        rider.rotation.y = Math.atan2(dx, dz) + Math.PI;
     }
-
-    // Scroll trees and rocks with world
-    scene.children.forEach(obj => {
-        if (obj === rider || obj === ground || obj === path ||
-            obj === sun || obj === ambient || obj === hemi) return;
-        // This keeps environment objects feeling infinite
-    });
 
     // Move ground and path to follow camera
     ground.position.x = -worldOffset.x;
