@@ -101,6 +101,22 @@ Swarm-controlled sword game exploring collective behavior and emergent gameplay.
 🤖 **AI:** None
 ✨ **Unique:** Swarm control mechanics, boids flocking algorithm, collective sword behavior, experimental input schemes
 
+### [Story Cauldron](./story-cauldron/)
+Choose-your-own-adventure where AI generates the story and visuals as you play. First-person POV on a mysterious island — smooth canvas backgrounds with pixel-art sprite foreground objects. Family-friendly, projector-optimized.
+🎯 **Status:** Core loop complete (M1-M4), playtesting phase
+🎮 **Published:** Not yet
+🤖 **AI:** ✅ Claude Haiku for scene generation via structured output (narration, choices, backgrounds, sprites)
+🔧 **Next:** Voice input, custom player choices, story persistence
+✨ **Unique:** Hybrid rendering (smooth backgrounds + AI-generated pixel-art sprites), structured output for guaranteed valid scenes, family projector play
+
+### [Oneshot Climb](./oneshot-climb/)
+Platform game where AI generates items with executable code and pixel-art sprites at a magical forge. Includes an autonomous Explorer Claude agent that playtests the game and reports API findings.
+🎯 **Status:** Active development, experimentation phase
+🎮 **Published:** Not yet
+🤖 **AI:** ✅ Claude for item generation (behavior code + ASCII sprites) and autonomous playtesting agent
+🔧 **Next:** Refine World API based on Explorer agent findings
+✨ **Unique:** AI-generated executable game items, instrumented proxy tracking API usage, autonomous playtesting agent
+
 ## Interactive Experiences 🎨
 
 ### [Wallverine](./wallverine/)
