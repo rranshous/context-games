@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Rider</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// --- Config ---
+const RENDER_W = 320;
+const RENDER_H = 240;
+const PIXEL_SCALE = 3;
+
+// --- Renderer ---
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(RENDER_W, RENDER_H);
+renderer.domElement.style.width = `${RENDER_W * PIXEL_SCALE}px`;
+renderer.domElement.style.height = `${RENDER_H * PIXEL_SCALE}px`;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.BasicShadowMap; // hard pixel shadows
+renderer.setClearColor(0x87CEEB); // sky blue
+document.body.appendChild(renderer.domElement);
+
+// --- Scene ---
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.025);
+
+// --- Orthographic Camera (isometric) ---
+const aspect = RENDER_W / RENDER_H;
+const frustum = 12;
+const camera = new THREE.OrthographicCamera(
+    -frustum * aspect, frustum * aspect,
+    frustum, -frustum,
+    0.1, 100
+);
+// True isometric angle: rotate 45° on Y, ~35.264° on X
+camera.position.set(20, 20, 20);
+camera.lookAt(0, 0, 0);
+
+// --- Toon gradient for cel-shading ---
+const toonGradient = new THREE.DataTexture(
+    new Uint8Array([80, 160, 255]),
+    3, 1, THREE.RedFormat
+);
+toonGradient.minFilter = THREE.NearestFilter;
+toonGradient.magFilter = THREE.NearestFilter;
+toonGradient.needsUpdate = true;
+
+function toonMat(color) {
+    return new THREE.MeshToonMaterial({ color, gradientMap: toonGradient });
+}
+
+// --- Ground plane ---
+const groundGeo = new THREE.PlaneGeometry(60, 60);
+const groundMat = toonMat(0x4a7a3b);
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.01;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// --- Path / road ---
+const pathGeo = new THREE.PlaneGeometry(3, 60);
+const pathMat = toonMat(0x8B7355);
+const path = new THREE.Mesh(pathGeo, pathMat);
+path.rotation.x = -Math.PI / 2;
+path.position.y = 0.01;
+scene.add(path);
+
+// --- Trees ---
+function createTree(x, z) {
+    const group = new THREE.Group();
+
+    // Trunk
+    const trunkGeo = new THREE.CylinderGeometry(0.2, 0.3, 1.5, 6);
+    const trunk = new THREE.Mesh(trunkGeo, toonMat(0x6B4226));
+    trunk.position.y = 0.75;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    // Foliage — stacked cones
+    const colors = [0x2d6b1e, 0x358722, 0x3da328];
+    for (let i = 0; i < 3; i++) {
+        const coneGeo = new THREE.ConeGeometry(1.2 - i * 0.25, 1.2, 6);
+        const cone = new THREE.Mesh(coneGeo, toonMat(colors[i]));
+        cone.position.y = 1.8 + i * 0.7;
+        cone.castShadow = true;
+        group.add(cone);
+    }
+
+    group.position.set(x, 0, z);
+    scene.add(group);
+    return group;
+}
+
+// Scatter trees along the sides of the path
+const trees = [];
+for (let i = 0; i < 20; i++) {
+    const side = Math.random() > 0.5 ? 1 : -1;
+    const x = side * (2.5 + Math.random() * 10);
+    const z = (Math.random() - 0.5) * 40;
+    trees.push(createTree(x, z));
+}
+
+// --- Rocks ---
+function createRock(x, z) {
+    const geo = new THREE.DodecahedronGeometry(0.3 + Math.random() * 0.4, 0);
+    const rock = new THREE.Mesh(geo, toonMat(0x777777));
+    rock.position.set(x, 0.2, z);
+    rock.rotation.set(Math.random(), Math.random(), Math.random());
+    rock.castShadow = true;
+    scene.add(rock);
+    return rock;
+}
+
+for (let i = 0; i < 12; i++) {
+    const side = Math.random() > 0.5 ? 1 : -1;
+    createRock(side * (1.8 + Math.random() * 8), (Math.random() - 0.5) * 30);
+}
+
+// --- Rider character ---
+function createRider() {
+    const group = new THREE.Group();
+
+    // Horse body
+    const bodyGeo = new THREE.BoxGeometry(0.8, 0.6, 1.4);
+    const bodyMat = toonMat(0x1a1a1a);
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.9;
+    body.castShadow = true;
+    group.add(body);
+
+    // Horse head
+    const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.6);
+    const head = new THREE.Mesh(headGeo, bodyMat);
+    head.position.set(0, 1.2, -0.8);
+    head.rotation.x = -0.3;
+    head.castShadow = true;
+    group.add(head);
+
+    // Legs (4)
+    const legGeo = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const legMat = toonMat(0x111111);
+    const legPositions = [
+        [-0.25, 0.3, -0.5],
+        [0.25, 0.3, -0.5],
+        [-0.25, 0.3, 0.5],
+        [0.25, 0.3, 0.5],
+    ];
+    const legs = [];
+    for (const [lx, ly, lz] of legPositions) {
+        const leg = new THREE.Mesh(legGeo, legMat);
+        leg.position.set(lx, ly, lz);
+        leg.castShadow = true;
+        group.add(leg);
+        legs.push(leg);
+    }
+    group.userData.legs = legs;
+
+    // Rider torso
+    const torsoGeo = new THREE.BoxGeometry(0.5, 0.7, 0.4);
+    const torso = new THREE.Mesh(torsoGeo, toonMat(0x2a1a3a));
+    torso.position.y = 1.55;
+    torso.castShadow = true;
+    group.add(torso);
+
+    // Rider head
+    const rHeadGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+    const rHead = new THREE.Mesh(rHeadGeo, toonMat(0xd4a574));
+    rHead.position.y = 2.1;
+    rHead.castShadow = true;
+    group.add(rHead);
+
+    // Hood/cloak
+    const hoodGeo = new THREE.ConeGeometry(0.28, 0.4, 4);
+    const hood = new THREE.Mesh(hoodGeo, toonMat(0x1a0a2a));
+    hood.position.y = 2.4;
+    hood.castShadow = true;
+    group.add(hood);
+
+    // Eyes — tiny red dots
+    const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeL.position.set(-0.1, 2.12, -0.18);
+    group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeR.position.set(0.1, 2.12, -0.18);
+    group.add(eyeR);
+
+    scene.add(group);
+    return group;
+}
+
+const rider = createRider();
+
+// --- Lighting ---
+// Warm directional (sun)
+const sun = new THREE.DirectionalLight(0xffe4b5, 1.8);
+sun.position.set(10, 15, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(512, 512);
+sun.shadow.camera.left = -20;
+sun.shadow.camera.right = 20;
+sun.shadow.camera.top = 20;
+sun.shadow.camera.bottom = -20;
+scene.add(sun);
+
+// Cool ambient fill
+const ambient = new THREE.AmbientLight(0x6688aa, 0.6);
+scene.add(ambient);
+
+// Slight hemisphere for sky/ground color bleed
+const hemi = new THREE.HemisphereLight(0x87CEEB, 0x4a7a3b, 0.3);
+scene.add(hemi);
+
+// --- Input ---
+const keys = {};
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// --- Game loop ---
+let time = 0;
+const worldOffset = { x: 0, z: 0 };
+
+function animate() {
+    requestAnimationFrame(animate);
+    time += 0.016;
+
+    // Movement
+    let dx = 0, dz = 0;
+    const speed = 0.08;
+    if (keys['w'] || keys['arrowup']) dz -= speed;
+    if (keys['s'] || keys['arrowdown']) dz += speed;
+    if (keys['a'] || keys['arrowleft']) dx -= speed;
+    if (keys['d'] || keys['arrowright']) dx += speed;
+
+    // Move world instead of player (infinite scroll illusion)
+    worldOffset.x += dx;
+    worldOffset.z += dz;
+
+    // Rider stays centered, animate bob
+    rider.position.y = Math.sin(time * 6) * 0.05;
+
+    // Leg animation
+    const legs = rider.userData.legs;
+    const isMoving = dx !== 0 || dz !== 0;
+    const legSwing = isMoving ? Math.sin(time * 12) * 0.3 : 0;
+    legs[0].rotation.x = legSwing;
+    legs[1].rotation.x = -legSwing;
+    legs[2].rotation.x = -legSwing;
+    legs[3].rotation.x = legSwing;
+
+    // Face direction of movement
+    if (isMoving) {
+        rider.rotation.y = Math.atan2(dx, dz);
+    }
+
+    // Scroll trees and rocks with world
+    scene.children.forEach(obj => {
+        if (obj === rider || obj === ground || obj === path ||
+            obj === sun || obj === ambient || obj === hemi) return;
+        // This keeps environment objects feeling infinite
+    });
+
+    // Move ground and path to follow camera
+    ground.position.x = -worldOffset.x;
+    ground.position.z = -worldOffset.z;
+    path.position.x = -worldOffset.x;
+    path.position.z = -worldOffset.z;
+
+    // Move trees/rocks relative to world scroll
+    scene.traverse(obj => {
+        if (obj.userData.worldAnchor) {
+            obj.position.x = obj.userData.worldAnchor.x - worldOffset.x;
+            obj.position.z = obj.userData.worldAnchor.z - worldOffset.z;
+        }
+    });
+
+    // Camera follows rider
+    camera.position.set(
+        rider.position.x + 20,
+        20,
+        rider.position.z + 20
+    );
+    camera.lookAt(rider.position);
+
+    renderer.render(scene, camera);
+}
+
+// Tag world objects with anchor positions so scrolling works
+scene.traverse(obj => {
+    if (obj.parent === scene && obj !== rider && obj !== ground &&
+        obj !== path && obj !== sun && obj !== ambient && obj !== hemi) {
+        obj.userData.worldAnchor = { x: obj.position.x, z: obj.position.z };
+    }
+});
+
+animate();
+</script>
+</body>
+</html>
