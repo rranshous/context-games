@@ -85,6 +85,54 @@ ground.position.y = -0.01;
 ground.receiveShadow = true;
 scene.add(ground);
 
+// --- Grass detail ---
+// Dark patches for ground variation
+const patchGreens = [0x3d6b30, 0x567d3a, 0x426832, 0x4e8a3e];
+for (let i = 0; i < 60; i++) {
+    const size = 0.5 + Math.random() * 1.5;
+    const geo = new THREE.CircleGeometry(size, 5 + Math.floor(Math.random() * 3));
+    const mat = toonMat(patchGreens[Math.floor(Math.random() * patchGreens.length)]);
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = -1 - i * 0.01; // unique offset prevents z-fighting
+    mat.polygonOffsetUnits = -1;
+    const patch = new THREE.Mesh(geo, mat);
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(
+        (Math.random() - 0.5) * 50,
+        0.005 + i * 0.0001,
+        (Math.random() - 0.5) * 50
+    );
+    patch.receiveShadow = true;
+    scene.add(patch);
+}
+
+// Grass tufts — small thin cones
+const tuftColors = [0x3a8a2e, 0x4a9a38, 0x2d7a22];
+for (let i = 0; i < 100; i++) {
+    const x = (Math.random() - 0.5) * 50;
+    const z = (Math.random() - 0.5) * 50;
+    // Skip tufts on the path
+    if (Math.abs(x) < 2) continue;
+    const cluster = new THREE.Group();
+    const blades = 2 + Math.floor(Math.random() * 3);
+    for (let b = 0; b < blades; b++) {
+        const h = 0.15 + Math.random() * 0.25;
+        const geo = new THREE.ConeGeometry(0.04, h, 3);
+        const mat = toonMat(tuftColors[Math.floor(Math.random() * tuftColors.length)]);
+        const blade = new THREE.Mesh(geo, mat);
+        blade.position.set(
+            (Math.random() - 0.5) * 0.15,
+            h / 2,
+            (Math.random() - 0.5) * 0.15
+        );
+        blade.rotation.x = (Math.random() - 0.5) * 0.3;
+        blade.rotation.z = (Math.random() - 0.5) * 0.3;
+        cluster.add(blade);
+    }
+    cluster.position.set(x, 0, z);
+    scene.add(cluster);
+}
+
 // --- Path / road ---
 const pathGeo = new THREE.PlaneGeometry(3, 60);
 const pathMat = toonMat(0x8B7355);
@@ -213,14 +261,14 @@ function createRider() {
     hood.castShadow = true;
     group.add(hood);
 
-    // Eyes — tiny red dots
-    const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
-    const eyeMat = toonMat(0xff2222);
+    // Eyes — subtle dark red, nearly flush with face
+    const eyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.02);
+    const eyeMat = toonMat(0x661111);
     const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeL.position.set(-0.1, 2.12, -0.18);
+    eyeL.position.set(-0.09, 2.12, -0.175);
     group.add(eyeL);
     const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeR.position.set(0.1, 2.12, -0.18);
+    eyeR.position.set(0.09, 2.12, -0.175);
     group.add(eyeR);
 
     scene.add(group);
