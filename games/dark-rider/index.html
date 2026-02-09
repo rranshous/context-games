@@ -49,7 +49,7 @@ document.body.appendChild(renderer.domElement);
 
 // --- Scene ---
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x87CEEB, 0.025);
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.015);
 
 // --- Orthographic Camera (isometric) ---
 const aspect = RENDER_W / RENDER_H;
@@ -248,14 +248,14 @@ const hemi = new THREE.HemisphereLight(0x87CEEB, 0x4a7a3b, 0.3);
 scene.add(hemi);
 
 // --- Day/Night cycle ---
-const DAY_CYCLE = 60; // seconds for a full cycle
+const DAY_CYCLE = 300; // seconds for a full cycle (5 minutes)
 const skyColors = {
     day:     new THREE.Color(0x87CEEB),
     sunset:  new THREE.Color(0xB8735A),
     night:   new THREE.Color(0x0f1535),
     dawn:    new THREE.Color(0xD4886B),
 };
-const fogDensity = { day: 0.025, night: 0.018 };
+const fogDensity = { day: 0.015, night: 0.012 };
 const tmpColor = new THREE.Color();
 
 function lerpColor(a, b, t) {
@@ -328,7 +328,7 @@ window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 // --- Game loop ---
-let time = DAY_CYCLE * 0.5; // start at noon
+let time = DAY_CYCLE * 0.5; // start at noon (2.5 min in)
 const worldOffset = { x: 0, z: 0 };
 
 function animate() {
@@ -405,7 +405,7 @@ function animate() {
         20,
         rider.position.z + 20
     );
-    camera.lookAt(rider.position.x, 0, rider.position.z);
+    camera.lookAt(rider.position.x, rider.position.y * 0.5, rider.position.z);
 
     renderer.render(scene, camera);
 }
