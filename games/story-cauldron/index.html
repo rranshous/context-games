@@ -1356,6 +1356,8 @@ CUSTOM SPRITES (type "custom"):
 - scale: 3-7 (pixel scale factor)`;
 
         const conversationHistory = [];
+        let sceneCount = 0;
+        let isTransitioning = false;
 
         async function generateScene(choiceText) {
             const userMessage = conversationHistory.length === 0
@@ -1363,6 +1365,16 @@ CUSTOM SPRITES (type "custom"):
                 : `The player chose: "${choiceText}"`;
 
             conversationHistory.push({ role: 'user', content: userMessage });
+
+            // Trim old context if conversation gets very long (keep first + recent)
+            const MAX_MESSAGES = 40; // ~20 scenes worth
+            if (conversationHistory.length > MAX_MESSAGES) {
+                const first = conversationHistory.slice(0, 2);  // opening exchange
+                const recent = conversationHistory.slice(-MAX_MESSAGES + 2);
+                conversationHistory.length = 0;
+                conversationHistory.push(...first, ...recent);
+                console.log('Trimmed conversation history to keep recent context');
+            }
 
             const response = await fetch('/api/inference/anthropic/messages', {
                 method: 'POST',
@@ -1398,6 +1410,26 @@ CUSTOM SPRITES (type "custom"):
                 scene.background = 'twilight-forest';
             }
 
+            // Validate choices
+            if (!scene.choices || scene.choices.length === 0) {
+                scene.choices = ['Look around', 'Keep going'];
+            }
+
+            // Validate sprites
+            if (scene.sprites) {
+                scene.sprites = scene.sprites.filter(s => {
+                    if (s.type === 'catalog' && !SPRITE_CATALOG[s.name]) {
+                        console.warn(`Unknown catalog sprite "${s.name}", skipping`);
+                        return false;
+                    }
+                    if (s.type === 'custom' && (!s.grid || !s.palette)) {
+                        console.warn(`Malformed custom sprite "${s.name}", skipping`);
+                        return false;
+                    }
+                    return true;
+                });
+            }
+
             // Add assistant response to history
             conversationHistory.push({ role: 'assistant', content: sceneText });
 
@@ -1409,6 +1441,9 @@ CUSTOM SPRITES (type "custom"):
         // ========================================
 
         async function handleChoice(choice) {
+            if (isTransitioning) return;
+            isTransitioning = true;
+
             console.log(`Choice selected: ${choice}`);
 
             const overlay = document.getElementById('transition-overlay');
@@ -1433,9 +1468,13 @@ CUSTOM SPRITES (type "custom"):
 
                 renderScene(scene, false);
 
+                sceneCount++;
+                console.log(`Scene ${sceneCount} rendered (${scene.background})`);
+
                 // Fade out overlay
                 setTimeout(() => {
                     overlay.classList.remove('active');
+                    isTransitioning = false;
                 }, 300);
             } catch (err) {
                 console.error('Scene generation failed:', err);
@@ -1450,6 +1489,7 @@ CUSTOM SPRITES (type "custom"):
                         overlay.style.cursor = '';
                         overlay.removeEventListener('click', retry);
                         overlay.classList.remove('active');
+                        isTransitioning = false;
                         // Re-enable choice buttons
                         document.querySelectorAll('.choice-btn').forEach(btn => {
                             btn.disabled = false;

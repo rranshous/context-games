@@ -83,10 +83,10 @@ Game runs on the vanilla platform which proxies AI requests:
 - [x] Handle errors gracefully
 
 ### M4: The Loop
-- [ ] Story context accumulates
-- [ ] Multiple transitions work
-- [ ] Story maintains some coherence
-- [ ] Can play through 5+ scenes
+- [x] Story context accumulates (full conversation history, trimming after ~20 scenes)
+- [x] Multiple transitions work (transition guard prevents double-click races)
+- [x] Story maintains some coherence (full history + structured output)
+- [x] Can play through 5+ scenes (validated sprites, fallback choices, context trimming)
 
 ## Success Criteria
 

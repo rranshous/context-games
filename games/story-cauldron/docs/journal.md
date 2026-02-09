@@ -273,3 +273,39 @@ Overlay-based — same overlay used for transitions shows error state:
 - Possible: context trimming for very long sessions
 - Possible: voice input (Web Speech API)
 - Possible: "say your own" custom choice input
+
+---
+
+## Session 4: M4 The Loop (2026-02-08)
+
+### What we built
+
+Robustness hardening to make the core loop survive 5+ scenes without breaking. No new features — just making the existing loop bulletproof.
+
+### Transition guard
+
+Added `isTransitioning` flag to prevent double-click race conditions. Without it, a fast double-click on a choice button could fire `handleChoice` twice before the buttons get disabled — sending duplicate API calls and corrupting conversation history. The flag is set at entry, cleared on success (after overlay fades out) and on error (when retry dismisses the overlay).
+
+### Scene validation
+
+Structured output guarantees the JSON shape matches our schema, but we still defend against edge cases in the content:
+
+- **Unknown background** — falls back to `twilight-forest` (already existed in M3, kept as-is)
+- **Empty choices** — falls back to `['Look around', 'Keep going']` so the player never gets stuck
+- **Bad sprites** — filters out catalog sprites referencing unknown names and custom sprites missing grid/palette data. Warns in console but doesn't break rendering.
+
+These are belt-and-suspenders for structured output — the schema prevents most of these — but they protect against model weirdness or future catalog changes.
+
+### Context trimming
+
+Added a safety valve: if conversation history exceeds 40 messages (~20 scenes), we keep the first exchange (establishes the beach/mailbox anchor) and the most recent messages, discarding the middle. This is conservative — Haiku's 200K context can handle far more — but prevents unbounded growth in marathon sessions. Logs when trimming happens for debugging.
+
+### Scene counter
+
+Added `sceneCount` that increments on each successful AI generation. Logged to console with the background name. Useful for debugging and verifying play depth.
+
+### What's left for IPI-00
+
+All four M4 checklist items are addressed in code. Two success criteria remain that need manual playtesting:
+- Play for 5 minutes without breaking
+- At least one moment that makes us smile
