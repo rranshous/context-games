@@ -91,6 +91,7 @@ const pathMat = toonMat(0x8B7355);
 const path = new THREE.Mesh(pathGeo, pathMat);
 path.rotation.x = -Math.PI / 2;
 path.position.y = 0.01;
+path.receiveShadow = true;
 scene.add(path);
 
 // --- Collisions ---
@@ -140,6 +141,7 @@ function createRock(x, z, rockRadius) {
     rock.position.set(x, 0.2, z);
     rock.rotation.set(Math.random(), Math.random(), Math.random());
     rock.castShadow = true;
+    rock.receiveShadow = true;
     scene.add(rock);
     colliders.push({ x, z, radius: rockRadius + 0.1 });
     return rock;
@@ -213,7 +215,7 @@ function createRider() {
 
     // Eyes — tiny red dots
     const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+    const eyeMat = toonMat(0xff2222);
     const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
     eyeL.position.set(-0.1, 2.12, -0.18);
     group.add(eyeL);
@@ -228,7 +230,7 @@ function createRider() {
 const rider = createRider();
 
 // --- Lighting ---
-// Warm directional (sun)
+// Directional light (sun/moon)
 const sun = new THREE.DirectionalLight(0xffe4b5, 1.8);
 sun.position.set(10, 15, 10);
 sun.castShadow = true;
@@ -239,13 +241,86 @@ sun.shadow.camera.top = 20;
 sun.shadow.camera.bottom = -20;
 scene.add(sun);
 
-// Cool ambient fill
 const ambient = new THREE.AmbientLight(0x6688aa, 0.6);
 scene.add(ambient);
 
-// Slight hemisphere for sky/ground color bleed
 const hemi = new THREE.HemisphereLight(0x87CEEB, 0x4a7a3b, 0.3);
 scene.add(hemi);
+
+// --- Day/Night cycle ---
+const DAY_CYCLE = 60; // seconds for a full cycle
+const skyColors = {
+    day:     new THREE.Color(0x87CEEB),
+    sunset:  new THREE.Color(0xB8735A),
+    night:   new THREE.Color(0x0f1535),
+    dawn:    new THREE.Color(0xD4886B),
+};
+const fogDensity = { day: 0.025, night: 0.018 };
+const tmpColor = new THREE.Color();
+
+function lerpColor(a, b, t) {
+    tmpColor.copy(a).lerp(b, t);
+    return tmpColor;
+}
+
+function updateDayNight(time) {
+    // t goes 0..1 over a full cycle. 0=noon, 0.25=sunset, 0.5=midnight, 0.75=dawn
+    const t = (time % DAY_CYCLE) / DAY_CYCLE;
+
+    // Sun angle — orbits overhead
+    const sunAngle = t * Math.PI * 2 - Math.PI / 2; // starts at top
+    const sunY = Math.sin(sunAngle);
+    const sunXZ = Math.cos(sunAngle);
+    sun.position.set(sunXZ * 15, sunY * 15 + 5, sunXZ * 10);
+
+    // Sky color blend
+    let skyColor;
+    if (sunY > 0.3) {
+        // Full day
+        skyColor = skyColors.day;
+    } else if (sunY > 0) {
+        // Sunset/dawn transition
+        const blend = sunY / 0.3;
+        const edgeColor = t < 0.5 ? skyColors.sunset : skyColors.dawn;
+        skyColor = lerpColor(edgeColor, skyColors.day, blend);
+    } else {
+        // Night — blend toward deep dark
+        const blend = Math.min(1, -sunY / 0.5);
+        const edgeColor = t < 0.5 ? skyColors.sunset : skyColors.dawn;
+        skyColor = lerpColor(edgeColor, skyColors.night, blend);
+    }
+
+    renderer.setClearColor(skyColor);
+    scene.fog.color.copy(skyColor);
+
+    // Fog denser at night
+    scene.fog.density = THREE.MathUtils.lerp(
+        fogDensity.day, fogDensity.night,
+        Math.max(0, -sunY / 0.5)
+    );
+
+    // Sun light intensity and color
+    const dayIntensity = Math.max(0, sunY) * 1.8;
+    sun.intensity = dayIntensity;
+    if (sunY > 0) {
+        // Warm at low angles, white at high
+        const warmth = 1 - Math.min(1, sunY / 0.5);
+        sun.color.setRGB(1, 0.9 - warmth * 0.1, 0.7 - warmth * 0.2);
+    }
+
+    // Ambient — cool blue at night, warm during day
+    const nightAmbient = Math.max(0.5, sunY * 0.4 + 0.5);
+    ambient.intensity = nightAmbient;
+    if (sunY < 0) {
+        ambient.color.setHex(0x4466aa);
+    } else {
+        ambient.color.setHex(0x6688aa);
+    }
+
+    // Hemisphere
+    hemi.intensity = Math.max(0.15, sunY * 0.3 + 0.2);
+    hemi.color.copy(skyColor);
+}
 
 // --- Input ---
 const keys = {};
@@ -253,7 +328,7 @@ window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 // --- Game loop ---
-let time = 0;
+let time = DAY_CYCLE * 0.5; // start at noon
 const worldOffset = { x: 0, z: 0 };
 
 function animate() {
@@ -321,13 +396,16 @@ function animate() {
         }
     });
 
+    // Day/night cycle
+    updateDayNight(time);
+
     // Camera follows rider
     camera.position.set(
         rider.position.x + 20,
         20,
         rider.position.z + 20
     );
-    camera.lookAt(rider.position);
+    camera.lookAt(rider.position.x, 0, rider.position.z);
 
     renderer.render(scene, camera);
 }
