@@ -268,26 +268,23 @@ function animate() {
     if (keys['a'] || keys['arrowleft']) dx -= speed;
     if (keys['d'] || keys['arrowright']) dx += speed;
 
-    // Collision check — test proposed position against all colliders
+    // Collision — resolve proposed position so it never overlaps
     const riderRadius = 0.5;
-    const proposedX = worldOffset.x + dx;
-    const proposedZ = worldOffset.z + dz;
-    let blocked = false;
+    let px = worldOffset.x + dx;
+    let pz = worldOffset.z + dz;
     for (const c of colliders) {
-        const cx = c.x - proposedX;
-        const cz = c.z - proposedZ;
-        const dist = Math.sqrt(cx * cx + cz * cz);
+        const ex = px - c.x;
+        const ez = pz - c.z;
+        const dist = Math.sqrt(ex * ex + ez * ez);
         const minDist = c.radius + riderRadius;
-        if (dist < minDist) {
-            blocked = true;
-            // Push rider out along the collision normal
-            const nx = cx / dist;
-            const nz = cz / dist;
-            const overlap = minDist - dist;
-            dx += nx * overlap;
-            dz += nz * overlap;
+        if (dist < minDist && dist > 0.001) {
+            // Push position out to exactly the boundary
+            px = c.x + (ex / dist) * minDist;
+            pz = c.z + (ez / dist) * minDist;
         }
     }
+    dx = px - worldOffset.x;
+    dz = pz - worldOffset.z;
 
     // Move world instead of player (infinite scroll illusion)
     worldOffset.x += dx;
