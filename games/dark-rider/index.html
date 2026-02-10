@@ -201,6 +201,78 @@ for (let i = 0; i < 12; i++) {
     createRock(side * (1.8 + Math.random() * 8), (Math.random() - 0.5) * 30, rockRadius);
 }
 
+// --- Town Edge ---
+function createBuilding(x, z, w, d, h, roofColor) {
+    const group = new THREE.Group();
+
+    // Walls
+    const wallGeo = new THREE.BoxGeometry(w, h, d);
+    const wall = new THREE.Mesh(wallGeo, toonMat(0x8B7B6B));
+    wall.position.y = h / 2;
+    wall.castShadow = true;
+    group.add(wall);
+
+    // Roof — pyramid via 4-sided cone
+    const roofOverhang = 0.3;
+    const roofH = Math.max(w, d) * 0.8;
+    const roofGeo = new THREE.ConeGeometry(
+        Math.max(w, d) / 2 + roofOverhang, roofH, 4
+    );
+    const roof = new THREE.Mesh(roofGeo, toonMat(roofColor));
+    roof.position.y = h + roofH / 2;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    group.add(roof);
+
+    // Windows — emissive planes on all four faces
+    const windowMat = new THREE.MeshStandardMaterial({
+        color: 0xffcc66,
+        emissive: 0xffaa33,
+        emissiveIntensity: 0,
+    });
+    const winW = new THREE.PlaneGeometry(w * 0.3, h * 0.3);
+    const winD = new THREE.PlaneGeometry(d * 0.3, h * 0.3);
+    const windowPositions = [
+        { geo: winW, pos: [0, h * 0.5, -d / 2 - 0.01], rot: [0, Math.PI, 0] },
+        { geo: winW, pos: [0, h * 0.5, d / 2 + 0.01], rot: [0, 0, 0] },
+        { geo: winD, pos: [-w / 2 - 0.01, h * 0.5, 0], rot: [0, -Math.PI / 2, 0] },
+        { geo: winD, pos: [w / 2 + 0.01, h * 0.5, 0], rot: [0, Math.PI / 2, 0] },
+    ];
+    for (const wp of windowPositions) {
+        const win = new THREE.Mesh(wp.geo, windowMat);
+        win.position.set(...wp.pos);
+        win.rotation.set(...wp.rot);
+        group.add(win);
+    }
+    group.userData.windowMat = windowMat;
+
+    // Warm interior glow — small point light inside
+    const glow = new THREE.PointLight(0xffaa33, 0, 8, 2);
+    glow.position.set(0, h * 0.5, 0);
+    group.add(glow);
+    group.userData.glowLight = glow;
+
+    group.position.set(x, 0, z);
+    scene.add(group);
+    colliders.push({ x, z, radius: Math.sqrt(w * w + d * d) / 2 });
+    return group;
+}
+
+const buildings = [];
+const townLayout = [
+    { x: 19, z: -6, w: 2.5, d: 2.0, h: 2.5, roof: 0x6B3A2A },
+    { x: 22, z: -3, w: 3.0, d: 2.5, h: 3.5, roof: 0x5A2E1A },
+    { x: 20, z:  1, w: 2.0, d: 2.0, h: 2.0, roof: 0x7B4A3A },
+    { x: 24, z:  3, w: 2.8, d: 2.2, h: 3.0, roof: 0x6B3A2A },
+    { x: 21, z:  7, w: 2.2, d: 2.0, h: 2.8, roof: 0x5A2E1A },
+    { x: 26, z:  0, w: 3.2, d: 2.5, h: 3.8, roof: 0x6B3A2A },
+    { x: 25, z: -5, w: 2.0, d: 1.8, h: 2.2, roof: 0x7B4A3A },
+    { x: 27, z:  5, w: 2.5, d: 2.0, h: 2.5, roof: 0x5A2E1A },
+];
+for (const b of townLayout) {
+    buildings.push(createBuilding(b.x, b.z, b.w, b.d, b.h, b.roof));
+}
+
 // --- Rider character ---
 function createRider() {
     const group = new THREE.Group();
@@ -271,6 +343,28 @@ function createRider() {
     eyeR.position.set(0.09, 2.12, -0.175);
     group.add(eyeR);
 
+    // Lantern mesh — small glowing box at hand height
+    const lanternGeo = new THREE.BoxGeometry(0.12, 0.18, 0.12);
+    const lanternMat = new THREE.MeshStandardMaterial({
+        color: 0xffb347,
+        emissive: 0xffb347,
+        emissiveIntensity: 0.8,
+    });
+    const lanternMesh = new THREE.Mesh(lanternGeo, lanternMat);
+    lanternMesh.position.set(0.35, 1.5, -0.3);
+    group.add(lanternMesh);
+    group.userData.lanternMesh = lanternMesh;
+
+    // Lantern point light
+    const lanternLight = new THREE.PointLight(0xffb347, 0, 12, 2);
+    lanternLight.position.set(0.35, 1.5, -0.3);
+    lanternLight.castShadow = true;
+    lanternLight.shadow.mapSize.set(256, 256);
+    lanternLight.shadow.camera.near = 0.1;
+    lanternLight.shadow.camera.far = 12;
+    group.add(lanternLight);
+    group.userData.lanternLight = lanternLight;
+
     scene.add(group);
     return group;
 }
@@ -304,6 +398,7 @@ const skyColors = {
     dawn:    new THREE.Color(0xD4886B),
 };
 const fogDensity = { day: 0.015, night: 0.012 };
+let sunY = 1;
 const tmpColor = new THREE.Color();
 
 function lerpColor(a, b, t) {
@@ -317,7 +412,7 @@ function updateDayNight(time) {
 
     // Sun angle — orbits overhead
     const sunAngle = t * Math.PI * 2 - Math.PI / 2; // starts at top
-    const sunY = Math.sin(sunAngle);
+    sunY = Math.sin(sunAngle);
     const sunXZ = Math.cos(sunAngle);
     sun.position.set(sunXZ * 15, sunY * 15 + 5, sunXZ * 10);
 
@@ -446,6 +541,18 @@ function animate() {
 
     // Day/night cycle
     updateDayNight(time);
+
+    // Lantern intensity — ramps up at night, off during day
+    const lanternT = THREE.MathUtils.smoothstep(-sunY, -0.3, 0.2);
+    rider.userData.lanternLight.intensity = lanternT * 3.0;
+    rider.userData.lanternMesh.material.emissiveIntensity = lanternT * 1.2;
+
+    // Town window glow — warm at night, off during day
+    const windowT = THREE.MathUtils.smoothstep(-sunY, -0.1, 0.3);
+    for (const bldg of buildings) {
+        bldg.userData.windowMat.emissiveIntensity = windowT * 1.5;
+        bldg.userData.glowLight.intensity = windowT * 2.0;
+    }
 
     // Camera follows rider
     camera.position.set(
