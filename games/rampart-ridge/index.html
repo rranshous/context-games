@@ -53,11 +53,13 @@
     </div>
     <div class="hud-row" style="margin-top:4px">
         <span id="hud-score" style="color:#ffcc00;text-shadow:0 0 4px #ffcc0088">SCORE: 0</span>
+        <span id="hud-credits" style="color:#44ddff;text-shadow:0 0 4px #44ddff88">&#9889; 150</span>
         <span id="hud-enemies" style="color:#ff666688">0 enemies</span>
     </div>
+    <div id="hud-build" style="margin-top:4px;display:none;color:#44ddff;text-shadow:0 0 4px #44ddff66"></div>
 </div>
 <div id="hud-bottom">
-    <span id="hud-controls">[D-PAD] Navigate &bull; [A] Hop In/Out &bull; [RT/F] Fire &bull; [START/Enter] Start Wave</span>
+    <span id="hud-controls">[D-PAD] Navigate &bull; [A/Space] Hop &bull; [X/B] Build &bull; [B/Q] Sell &bull; [RT/F] Fire &bull; [START] Go</span>
 </div>
 
 <script type="importmap">
@@ -274,11 +276,13 @@ let gateHP = 100;
 // TOWER PADS & TOWERS
 // ============================================================
 const TOWER_TYPES = {
-    laser:   { name: 'Laser Turret',      color: 0xff3333, barrel: 0xcc2222 },
-    missile: { name: 'Missile Pod',        color: 0x3366ff, barrel: 0x2244cc },
-    shield:  { name: 'Shield Generator',   color: 0x33ff99, barrel: 0x22cc77 },
-    emp:     { name: 'EMP Pylon',          color: 0xcc66ff, barrel: 0xaa44dd },
+    laser:   { name: 'Laser Turret',      color: 0xff3333, barrel: 0xcc2222, cost: 50 },
+    missile: { name: 'Missile Pod',        color: 0x3366ff, barrel: 0x2244cc, cost: 75 },
+    shield:  { name: 'Shield Generator',   color: 0x33ff99, barrel: 0x22cc77, cost: 60 },
+    emp:     { name: 'EMP Pylon',          color: 0xcc66ff, barrel: 0xaa44dd, cost: 80 },
 };
+const BUILD_ORDER = ['laser', 'missile', 'shield', 'emp'];
+let credits = 150; // starting credits — enough for 2-3 towers
 
 // Tower pad positions: 2 columns x 3 rows
 const TOWER_POSITIONS = [
@@ -290,14 +294,10 @@ const TOWER_POSITIONS = [
     { x:  3.5, z:  5, row: 2, col: 1 },  // T5 lower-right
 ];
 
-// Pre-assign tower types
-const TOWER_ASSIGNMENTS = ['laser', 'missile', 'laser', 'emp', 'shield', 'missile'];
-
 const towers = [];
 
-function createTowerPad(pos, towerType, index) {
+function createTowerPad(pos, index) {
     const group = new THREE.Group();
-    const info = TOWER_TYPES[towerType];
 
     // Platform base — hexagonal pad
     const padGeo = new THREE.CylinderGeometry(1.2, 1.3, 0.3, 6);
@@ -315,55 +315,6 @@ function createTowerPad(pos, towerType, index) {
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.31;
     group.add(ring);
-
-    // Tower base — cylinder
-    const baseGeo = new THREE.CylinderGeometry(0.5, 0.6, 0.8, 6);
-    const baseMat = toonMat(0x4a4a55);
-    const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = 0.7;
-    base.castShadow = true;
-    group.add(base);
-
-    // Tower body — colored by type
-    const bodyGeo = new THREE.CylinderGeometry(0.35, 0.45, 1.2, 6);
-    const bodyMat = toonMat(info.color);
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 1.7;
-    body.castShadow = true;
-    group.add(body);
-
-    // Tower top / barrel — varies by type
-    let topMesh;
-    if (towerType === 'laser') {
-        const barrelGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 4);
-        topMesh = new THREE.Mesh(barrelGeo, toonMat(info.barrel));
-        topMesh.rotation.x = Math.PI / 2;
-        topMesh.position.set(0, 2.2, -0.5);
-    } else if (towerType === 'missile') {
-        const podGeo = new THREE.BoxGeometry(0.6, 0.4, 0.4);
-        topMesh = new THREE.Mesh(podGeo, toonMat(info.barrel));
-        topMesh.position.set(0, 2.5, 0);
-    } else if (towerType === 'shield') {
-        const domeGeo = new THREE.SphereGeometry(0.4, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-        topMesh = new THREE.Mesh(domeGeo, toonMat(info.barrel));
-        topMesh.position.set(0, 2.3, 0);
-    } else if (towerType === 'emp') {
-        const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.0, 4);
-        topMesh = new THREE.Mesh(antennaGeo, toonMat(info.barrel));
-        topMesh.position.set(0, 2.8, 0);
-        // EMP ring
-        const empRing = new THREE.Mesh(
-            new THREE.TorusGeometry(0.3, 0.04, 4, 8),
-            toonMat(info.color)
-        );
-        empRing.position.set(0, 2.9, 0);
-        empRing.rotation.x = Math.PI / 2;
-        group.add(empRing);
-    }
-    if (topMesh) {
-        topMesh.castShadow = true;
-        group.add(topMesh);
-    }
 
     // Cursor ring — glowing selection indicator (hidden by default)
     const cursorGeo = new THREE.TorusGeometry(1.4, 0.08, 4, 16);
@@ -395,23 +346,120 @@ function createTowerPad(pos, towerType, index) {
 
     const towerData = {
         id: index,
-        type: towerType,
-        name: info.name,
+        type: null,      // null = empty pad
+        name: 'Empty Pad',
         group,
+        towerMeshGroup: null, // sub-group for tower meshes (removable)
         cursorMat,
         indicatorMat,
         occupied: false,
         playerIdx: -1,
         pos,
+        fireCooldown: 0,
+        empReady: true,
     };
     towers.push(towerData);
     return towerData;
 }
 
-// Create all tower pads
-for (let i = 0; i < TOWER_POSITIONS.length; i++) {
-    createTowerPad(TOWER_POSITIONS[i], TOWER_ASSIGNMENTS[i], i);
+function buildTowerMeshes(towerType) {
+    const info = TOWER_TYPES[towerType];
+    const sub = new THREE.Group();
+
+    // Tower base — cylinder
+    const baseGeo = new THREE.CylinderGeometry(0.5, 0.6, 0.8, 6);
+    const baseMat = toonMat(0x4a4a55);
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = 0.7;
+    base.castShadow = true;
+    sub.add(base);
+
+    // Tower body — colored by type
+    const bodyGeo = new THREE.CylinderGeometry(0.35, 0.45, 1.2, 6);
+    const bodyMat = toonMat(info.color);
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 1.7;
+    body.castShadow = true;
+    sub.add(body);
+
+    // Tower top / barrel — varies by type
+    let topMesh;
+    if (towerType === 'laser') {
+        const barrelGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 4);
+        topMesh = new THREE.Mesh(barrelGeo, toonMat(info.barrel));
+        topMesh.rotation.x = Math.PI / 2;
+        topMesh.position.set(0, 2.2, -0.5);
+    } else if (towerType === 'missile') {
+        const podGeo = new THREE.BoxGeometry(0.6, 0.4, 0.4);
+        topMesh = new THREE.Mesh(podGeo, toonMat(info.barrel));
+        topMesh.position.set(0, 2.5, 0);
+    } else if (towerType === 'shield') {
+        const domeGeo = new THREE.SphereGeometry(0.4, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+        topMesh = new THREE.Mesh(domeGeo, toonMat(info.barrel));
+        topMesh.position.set(0, 2.3, 0);
+    } else if (towerType === 'emp') {
+        const antennaGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.0, 4);
+        topMesh = new THREE.Mesh(antennaGeo, toonMat(info.barrel));
+        topMesh.position.set(0, 2.8, 0);
+        const empRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.3, 0.04, 4, 8),
+            toonMat(info.color)
+        );
+        empRing.position.set(0, 2.9, 0);
+        empRing.rotation.x = Math.PI / 2;
+        sub.add(empRing);
+    }
+    if (topMesh) {
+        topMesh.castShadow = true;
+        sub.add(topMesh);
+    }
+
+    return sub;
 }
+
+function buildTowerOn(towerData, towerType) {
+    const info = TOWER_TYPES[towerType];
+    towerData.type = towerType;
+    towerData.name = info.name;
+    towerData.fireCooldown = 0;
+    towerData.empReady = true;
+
+    // Add tower meshes
+    const meshGroup = buildTowerMeshes(towerType);
+    towerData.group.add(meshGroup);
+    towerData.towerMeshGroup = meshGroup;
+}
+
+function sellTower(towerData) {
+    if (!towerData.type) return 0;
+    const refund = Math.floor(TOWER_TYPES[towerData.type].cost * 0.5);
+
+    // Remove tower meshes
+    if (towerData.towerMeshGroup) {
+        towerData.group.remove(towerData.towerMeshGroup);
+        towerData.towerMeshGroup = null;
+    }
+
+    // Evict any player
+    if (towerData.occupied) {
+        const p = players[towerData.playerIdx];
+        if (p) p.inTower = false;
+        towerData.occupied = false;
+        towerData.playerIdx = -1;
+    }
+
+    towerData.type = null;
+    towerData.name = 'Empty Pad';
+    return refund;
+}
+
+// Create all tower pads (start empty)
+for (let i = 0; i < TOWER_POSITIONS.length; i++) {
+    createTowerPad(TOWER_POSITIONS[i], i);
+}
+// Give player 2 starter towers so they can fight wave 1
+buildTowerOn(towers[0], 'laser');
+buildTowerOn(towers[1], 'missile');
 
 // ============================================================
 // SPAWN ZONE MARKER
@@ -584,7 +632,10 @@ function updateEnemies(dt) {
 function killEnemy(index, giveScore) {
     const e = enemies[index];
     e.dead = true;
-    if (giveScore) score += e.score;
+    if (giveScore) {
+        score += e.score;
+        credits += e.score; // credits mirror score
+    }
 
     // Death effect: flash and scale
     const pos = e.group.position.clone();
@@ -745,12 +796,6 @@ const TOWER_STATS = {
     emp:     { range: 5.5, stunDuration: 3, cooldown: 8 },
 };
 
-// Per-tower combat state
-for (const t of towers) {
-    t.fireCooldown = 0;
-    t.empReady = true;
-}
-
 function findClosestEnemy(x, z, range) {
     let closest = null;
     let closestDist = range;
@@ -769,7 +814,7 @@ function findClosestEnemy(x, z, range) {
 
 function updateCombat(dt) {
     for (const tower of towers) {
-        if (!tower.occupied) continue;
+        if (!tower.occupied || !tower.type) continue;
         const player = players[tower.playerIdx];
         if (!player || !player.firing) continue;
 
@@ -912,6 +957,16 @@ function beginNextWave() {
     waveEnemiesLeft = waveSpawnQueue.length;
 }
 
+function updateBuildPhase(dt) {
+    if (gamePhase !== 'build') return;
+    buildTimer -= dt;
+    if (buildTimer <= 0) {
+        // Auto-start next wave
+        for (const p of players) p.buildMode = false;
+        beginNextWave();
+    }
+}
+
 function updateWaveSpawning(dt) {
     if (gamePhase !== 'wave') return;
 
@@ -929,6 +984,7 @@ function updateWaveSpawning(dt) {
     // Check wave complete (all spawned + all dead)
     if (waveSpawnQueue.length === 0 && enemies.length === 0) {
         gamePhase = 'build';
+        buildTimer = BUILD_TIMER_DURATION;
         // Reset tower cooldowns
         for (const t of towers) {
             t.fireCooldown = 0;
@@ -940,11 +996,14 @@ function updateWaveSpawning(dt) {
 // ============================================================
 // PLAYER STATE
 // ============================================================
+const BUILD_TIMER_DURATION = 15; // seconds between waves
+let buildTimer = 0;
+
 const players = [
-    { idx: 0, cursorAt: 0, inTower: false, firing: false, color: '#00ccff', gamepadIndex: -1, active: false },
-    { idx: 1, cursorAt: 1, inTower: false, firing: false, color: '#ff4444', gamepadIndex: -1, active: false },
-    { idx: 2, cursorAt: 2, inTower: false, firing: false, color: '#44ff44', gamepadIndex: -1, active: false },
-    { idx: 3, cursorAt: 3, inTower: false, firing: false, color: '#ffcc00', gamepadIndex: -1, active: false },
+    { idx: 0, cursorAt: 0, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#00ccff', gamepadIndex: -1, active: false },
+    { idx: 1, cursorAt: 1, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#ff4444', gamepadIndex: -1, active: false },
+    { idx: 2, cursorAt: 2, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#44ff44', gamepadIndex: -1, active: false },
+    { idx: 3, cursorAt: 3, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#ffcc00', gamepadIndex: -1, active: false },
 ];
 
 // Player 0 always active (keyboard fallback)
@@ -1004,6 +1063,8 @@ function pollKeyboard() {
     if (pressed('d') || pressed('arrowright')) queueAction(0, 'right');
     if (pressed(' '))                          queueAction(0, 'hop');
     if (pressed('enter'))                      queueAction(0, 'startwave');
+    if (pressed('b'))                          queueAction(0, 'build');
+    if (pressed('q') || pressed('escape'))     queueAction(0, 'cancel');
     // Fire is hold-based, not press-based (don't override injected fire)
     if (!players[0]._injectedFiring) {
         players[0].firing = !!(keyState['f'] || keyState['e']);
@@ -1042,6 +1103,12 @@ function pollGamepads() {
 
         // A button (button 0)
         if (justPressed(0)) queueAction(p.idx, 'hop');
+
+        // X button (button 2) — build / cycle
+        if (justPressed(2)) queueAction(p.idx, 'build');
+
+        // B button (button 1) — cancel / sell
+        if (justPressed(1)) queueAction(p.idx, 'cancel');
 
         // Start button (button 9)
         if (justPressed(9)) queueAction(p.idx, 'startwave');
@@ -1084,29 +1151,73 @@ function processInputs() {
 
         if (action === 'startwave') {
             if (gamePhase === 'idle' || gamePhase === 'build') {
+                // Exit all players' build mode
+                for (const p of players) p.buildMode = false;
                 beginNextWave();
             }
             continue;
         }
 
+        const tower = towers[player.cursorAt];
+
+        // BUILD MODE — available during 'idle' or 'build' phase
+        if (gamePhase === 'idle' || gamePhase === 'build') {
+            if (action === 'build') {
+                if (player.buildMode) {
+                    // Cycle to next tower type
+                    player.buildIdx = (player.buildIdx + 1) % BUILD_ORDER.length;
+                } else if (!tower.type) {
+                    // Enter build mode on empty pad
+                    player.buildMode = true;
+                    player.buildIdx = 0;
+                } else if (tower.type && !tower.occupied) {
+                    // Sell existing tower (X on a built tower = sell)
+                    const refund = sellTower(tower);
+                    credits += refund;
+                }
+                continue;
+            }
+
+            if (action === 'cancel') {
+                if (player.buildMode) {
+                    player.buildMode = false;
+                } else if (tower.type && !tower.occupied) {
+                    // Sell tower
+                    const refund = sellTower(tower);
+                    credits += refund;
+                }
+                continue;
+            }
+
+            if (action === 'hop' && player.buildMode) {
+                // Confirm purchase
+                const selectedType = BUILD_ORDER[player.buildIdx];
+                const cost = TOWER_TYPES[selectedType].cost;
+                if (credits >= cost) {
+                    credits -= cost;
+                    buildTowerOn(tower, selectedType);
+                    player.buildMode = false;
+                }
+                continue;
+            }
+        }
+
+        // Navigation / hopping (always available)
         if (action === 'hop') {
             if (player.inTower) {
                 // Hop out
-                const tower = towers[player.cursorAt];
                 tower.occupied = false;
                 tower.playerIdx = -1;
                 player.inTower = false;
-            } else {
-                // Hop in (if tower not already occupied by someone else)
-                const tower = towers[player.cursorAt];
-                if (!tower.occupied) {
-                    tower.occupied = true;
-                    tower.playerIdx = playerIdx;
-                    player.inTower = true;
-                }
+            } else if (tower.type && !tower.occupied) {
+                // Hop in (only if tower is built and not occupied)
+                tower.occupied = true;
+                tower.playerIdx = playerIdx;
+                player.inTower = true;
             }
-        } else if (!player.inTower) {
-            // Navigate between towers (only when not in a tower)
+        } else if (!player.inTower && ['up', 'down', 'left', 'right'].includes(action)) {
+            // Navigate between towers
+            player.buildMode = false; // exit build mode on move
             const newIdx = navigate(player.cursorAt, action);
             player.cursorAt = newIdx;
         }
@@ -1120,13 +1231,25 @@ const hudTower = document.getElementById('hud-tower');
 const hudGate = document.getElementById('hud-gate');
 const hudWave = document.getElementById('hud-wave');
 const hudScore = document.getElementById('hud-score');
+const hudCredits = document.getElementById('hud-credits');
 const hudEnemies = document.getElementById('hud-enemies');
+const hudBuild = document.getElementById('hud-build');
 
 function updateHUD() {
     const p = players[0]; // Show P1 info for now
     const tower = towers[p.cursorAt];
-    const status = p.inTower ? (p.firing ? ' [FIRING]' : ' [MANNED]') : '';
-    hudTower.textContent = `P1 → ${tower.name}${status}`;
+
+    if (p.buildMode) {
+        const selectedType = BUILD_ORDER[p.buildIdx];
+        const info = TOWER_TYPES[selectedType];
+        const canAfford = credits >= info.cost;
+        hudTower.textContent = `BUILD: ${info.name} (${info.cost}⚡)`;
+        hudTower.style.color = canAfford ? '#44ddff' : '#ff4444';
+    } else {
+        const status = p.inTower ? (p.firing ? ' [FIRING]' : ' [MANNED]') : '';
+        hudTower.textContent = `P1 → ${tower.name}${status}`;
+        hudTower.style.color = '#00ffcc';
+    }
 
     const hpPct = Math.round(gateHP);
     hudGate.textContent = `GATE: ${hpPct}%`;
@@ -1134,10 +1257,28 @@ function updateHUD() {
 
     if (gamePhase === 'idle') hudWave.textContent = 'PRESS START';
     else if (gamePhase === 'wave') hudWave.textContent = `WAVE ${currentWave}`;
-    else if (gamePhase === 'build') hudWave.textContent = `WAVE ${currentWave} CLEAR!`;
+    else if (gamePhase === 'build') {
+        const secs = Math.ceil(buildTimer);
+        hudWave.textContent = `BUILD PHASE (${secs}s)`;
+    }
 
     hudScore.textContent = `SCORE: ${score}`;
+    hudCredits.textContent = `⚡ ${credits}`;
     hudEnemies.textContent = gamePhase === 'wave' ? `${enemies.length} enemies` : '';
+
+    // Build mode sub-menu
+    if (p.buildMode) {
+        let items = BUILD_ORDER.map((type, i) => {
+            const info = TOWER_TYPES[type];
+            const sel = i === p.buildIdx ? '▸ ' : '  ';
+            const afford = credits >= info.cost ? '' : ' ✗';
+            return `${sel}${info.name} ${info.cost}⚡${afford}`;
+        });
+        hudBuild.innerHTML = items.join(' &bull; ');
+        hudBuild.style.display = 'block';
+    } else {
+        hudBuild.style.display = 'none';
+    }
 }
 
 // ============================================================
@@ -1151,6 +1292,8 @@ window.gameState = {
     enemies: [],
     players: [],
     score: 0,
+    credits: 150,
+    buildTimer: 0,
 };
 
 window.injectInput = function(playerIdx, action) {
@@ -1204,6 +1347,8 @@ function updateWindowAPI() {
     window.gameState.wave = currentWave;
     window.gameState.gateHP = gateHP;
     window.gameState.score = score;
+    window.gameState.credits = credits;
+    window.gameState.buildTimer = gamePhase === 'build' ? Math.ceil(buildTimer) : 0;
     window.gameState.towers = towers.map(t => ({
         id: t.id,
         type: t.type,
@@ -1225,6 +1370,8 @@ function updateWindowAPI() {
         cursorAt: p.cursorAt,
         inTower: p.inTower,
         firing: p.firing,
+        buildMode: p.buildMode,
+        buildIdx: p.buildIdx,
         color: p.color,
     }));
 }
@@ -1245,6 +1392,7 @@ function animate() {
     processInputs();
 
     // Game systems
+    updateBuildPhase(dt);
     updateWaveSpawning(dt);
     updateEnemies(dt);
     updateCombat(dt);
