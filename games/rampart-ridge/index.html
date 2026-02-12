@@ -47,19 +47,18 @@
 <body>
 <div id="hud">
     <div class="hud-row">
-        <span id="hud-tower">No Tower</span>
         <span id="hud-wave">IDLE</span>
+        <span id="hud-credits" style="color:#44ddff;text-shadow:0 0 4px #44ddff88">&#9889; 150</span>
         <span id="hud-gate">GATE: 100%</span>
     </div>
     <div class="hud-row" style="margin-top:4px">
         <span id="hud-score" style="color:#ffcc00;text-shadow:0 0 4px #ffcc0088">SCORE: 0</span>
-        <span id="hud-credits" style="color:#44ddff;text-shadow:0 0 4px #44ddff88">&#9889; 150</span>
-        <span id="hud-enemies" style="color:#ff666688">0 enemies</span>
+        <span id="hud-enemies" style="color:#ff666688"></span>
     </div>
-    <div id="hud-build" style="margin-top:4px;display:none;color:#44ddff;text-shadow:0 0 4px #44ddff66"></div>
+    <div id="hud-players" style="margin-top:6px;font-size:12px;line-height:1.6"></div>
 </div>
 <div id="hud-bottom">
-    <span id="hud-controls">[D-PAD] Navigate &bull; [A/Space] Hop &bull; [X/B] Build &bull; [B/Q] Sell &bull; [RT/F] Fire &bull; [START] Go</span>
+    <span id="hud-controls">[D-PAD] Move &bull; [A] Hop &bull; [X] Build &bull; [B] Sell &bull; [RT] Fire &bull; [START] Go</span>
 </div>
 
 <script type="importmap">
@@ -316,20 +315,6 @@ function createTowerPad(pos, index) {
     ring.position.y = 0.31;
     group.add(ring);
 
-    // Cursor ring — glowing selection indicator (hidden by default)
-    const cursorGeo = new THREE.TorusGeometry(1.4, 0.08, 4, 16);
-    const cursorMat = new THREE.MeshStandardMaterial({
-        color: 0x00ffcc,
-        emissive: 0x00ffcc,
-        emissiveIntensity: 1.0,
-        transparent: true,
-        opacity: 0,
-    });
-    const cursor = new THREE.Mesh(cursorGeo, cursorMat);
-    cursor.rotation.x = -Math.PI / 2;
-    cursor.position.y = 0.35;
-    group.add(cursor);
-
     // Occupied indicator light
     const indicatorMat = new THREE.MeshStandardMaterial({
         color: 0x00ff88,
@@ -350,7 +335,6 @@ function createTowerPad(pos, index) {
         name: 'Empty Pad',
         group,
         towerMeshGroup: null, // sub-group for tower meshes (removable)
-        cursorMat,
         indicatorMat,
         occupied: false,
         playerIdx: -1,
@@ -1009,6 +993,24 @@ const players = [
 // Player 0 always active (keyboard fallback)
 players[0].active = true;
 
+// Per-player cursor rings (independent of tower pads)
+const PLAYER_COLORS_HEX = [0x00ccff, 0xff4444, 0x44ff44, 0xffcc00];
+const playerCursors = players.map((p, i) => {
+    const geo = new THREE.TorusGeometry(1.4 + i * 0.08, 0.07, 4, 16);
+    const mat = new THREE.MeshStandardMaterial({
+        color: PLAYER_COLORS_HEX[i],
+        emissive: PLAYER_COLORS_HEX[i],
+        emissiveIntensity: 1.0,
+        transparent: true,
+        opacity: 0,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.35;
+    scene.add(mesh);
+    return { mesh, mat };
+});
+
 // ============================================================
 // INPUT SYSTEM
 // ============================================================
@@ -1039,7 +1041,18 @@ window.addEventListener('gamepaddisconnected', e => {
     for (const p of players) {
         if (p.gamepadIndex === e.gamepad.index) {
             p.gamepadIndex = -1;
-            if (p.idx !== 0) p.active = false; // P0 stays active (keyboard)
+            if (p.idx !== 0) {
+                p.active = false;
+                // Evict from tower
+                if (p.inTower) {
+                    const tower = towers[p.cursorAt];
+                    tower.occupied = false;
+                    tower.playerIdx = -1;
+                    p.inTower = false;
+                }
+                p.firing = false;
+                p.buildMode = false;
+            }
         }
     }
 });
@@ -1227,30 +1240,16 @@ function processInputs() {
 // ============================================================
 // HUD UPDATE
 // ============================================================
-const hudTower = document.getElementById('hud-tower');
 const hudGate = document.getElementById('hud-gate');
 const hudWave = document.getElementById('hud-wave');
 const hudScore = document.getElementById('hud-score');
 const hudCredits = document.getElementById('hud-credits');
 const hudEnemies = document.getElementById('hud-enemies');
-const hudBuild = document.getElementById('hud-build');
+const hudPlayers = document.getElementById('hud-players');
+
+const PLAYER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 function updateHUD() {
-    const p = players[0]; // Show P1 info for now
-    const tower = towers[p.cursorAt];
-
-    if (p.buildMode) {
-        const selectedType = BUILD_ORDER[p.buildIdx];
-        const info = TOWER_TYPES[selectedType];
-        const canAfford = credits >= info.cost;
-        hudTower.textContent = `BUILD: ${info.name} (${info.cost}⚡)`;
-        hudTower.style.color = canAfford ? '#44ddff' : '#ff4444';
-    } else {
-        const status = p.inTower ? (p.firing ? ' [FIRING]' : ' [MANNED]') : '';
-        hudTower.textContent = `P1 → ${tower.name}${status}`;
-        hudTower.style.color = '#00ffcc';
-    }
-
     const hpPct = Math.round(gateHP);
     hudGate.textContent = `GATE: ${hpPct}%`;
     hudGate.style.color = hpPct > 50 ? '#00ffcc' : hpPct > 25 ? '#ffcc00' : '#ff4444';
@@ -1259,26 +1258,32 @@ function updateHUD() {
     else if (gamePhase === 'wave') hudWave.textContent = `WAVE ${currentWave}`;
     else if (gamePhase === 'build') {
         const secs = Math.ceil(buildTimer);
-        hudWave.textContent = `BUILD PHASE (${secs}s)`;
+        hudWave.textContent = `BUILD (${secs}s)`;
     }
 
     hudScore.textContent = `SCORE: ${score}`;
     hudCredits.textContent = `⚡ ${credits}`;
     hudEnemies.textContent = gamePhase === 'wave' ? `${enemies.length} enemies` : '';
 
-    // Build mode sub-menu
-    if (p.buildMode) {
-        let items = BUILD_ORDER.map((type, i) => {
-            const info = TOWER_TYPES[type];
-            const sel = i === p.buildIdx ? '▸ ' : '  ';
-            const afford = credits >= info.cost ? '' : ' ✗';
-            return `${sel}${info.name} ${info.cost}⚡${afford}`;
-        });
-        hudBuild.innerHTML = items.join(' &bull; ');
-        hudBuild.style.display = 'block';
-    } else {
-        hudBuild.style.display = 'none';
+    // Per-player status lines
+    let lines = '';
+    for (const p of players) {
+        if (!p.active) continue;
+        const tower = towers[p.cursorAt];
+        let info;
+        if (p.buildMode) {
+            const selectedType = BUILD_ORDER[p.buildIdx];
+            const ti = TOWER_TYPES[selectedType];
+            const afford = credits >= ti.cost ? '' : ' ✗';
+            info = `BUILD: ${ti.name} (${ti.cost}⚡${afford})`;
+        } else if (p.inTower) {
+            info = `${tower.name}${p.firing ? ' [FIRING]' : ' [MANNED]'}`;
+        } else {
+            info = tower.name;
+        }
+        lines += `<span style="color:${p.color};text-shadow:0 0 4px ${p.color}88">${PLAYER_NAMES[p.idx]}</span> <span style="color:#aabbcc">${info}</span><br>`;
     }
+    hudPlayers.innerHTML = lines;
 }
 
 // ============================================================
@@ -1342,6 +1347,12 @@ window.skipToWave = function(n) {
     beginNextWave();
 };
 
+window.activatePlayer = function(playerIdx) {
+    if (playerIdx >= 0 && playerIdx < 4) {
+        players[playerIdx].active = true;
+    }
+};
+
 function updateWindowAPI() {
     window.gameState.phase = gamePhase;
     window.gameState.wave = currentWave;
@@ -1400,20 +1411,22 @@ function animate() {
     updateBeams(dt);
     updateDeathEffects(dt);
 
-    // Update cursor visuals
-    for (const tower of towers) {
-        let targetOpacity = 0;
-        let cursorColor = 0x00ffcc;
-        let indicatorIntensity = 0;
-
-        for (const p of players) {
-            if (!p.active) continue;
-            if (p.cursorAt === tower.id) {
-                targetOpacity = 0.7 + Math.sin(time * 6) * 0.3; // pulse
-                cursorColor = parseInt(p.color.replace('#', '0x'));
-            }
+    // Update per-player cursor rings
+    for (let i = 0; i < 4; i++) {
+        const p = players[i];
+        const pc = playerCursors[i];
+        if (!p.active) {
+            pc.mat.opacity = 0;
+            continue;
         }
+        const towerPos = TOWER_POSITIONS[p.cursorAt];
+        pc.mesh.position.set(towerPos.x, 0.35, towerPos.z);
+        pc.mat.opacity = 0.7 + Math.sin(time * 6 + i * 1.5) * 0.3;
+    }
 
+    // Update tower occupied indicators
+    for (const tower of towers) {
+        let indicatorIntensity = 0;
         if (tower.occupied) {
             indicatorIntensity = 0.8 + Math.sin(time * 4) * 0.2;
             const occupant = players[tower.playerIdx];
@@ -1421,12 +1434,6 @@ function animate() {
                 tower.indicatorMat.color.set(occupant.color);
                 tower.indicatorMat.emissive.set(occupant.color);
             }
-        }
-
-        tower.cursorMat.opacity = targetOpacity;
-        if (targetOpacity > 0) {
-            tower.cursorMat.color.set(cursorColor);
-            tower.cursorMat.emissive.set(cursorColor);
         }
         tower.indicatorMat.emissiveIntensity = indicatorIntensity;
     }
