@@ -48,11 +48,16 @@
 <div id="hud">
     <div class="hud-row">
         <span id="hud-tower">No Tower</span>
+        <span id="hud-wave">IDLE</span>
         <span id="hud-gate">GATE: 100%</span>
+    </div>
+    <div class="hud-row" style="margin-top:4px">
+        <span id="hud-score" style="color:#ffcc00;text-shadow:0 0 4px #ffcc0088">SCORE: 0</span>
+        <span id="hud-enemies" style="color:#ff666688">0 enemies</span>
     </div>
 </div>
 <div id="hud-bottom">
-    <span id="hud-controls">[D-PAD] Navigate &bull; [A] Hop In/Out &bull; [WASD/SPACE on keyboard]</span>
+    <span id="hud-controls">[D-PAD] Navigate &bull; [A] Hop In/Out &bull; [RT/F] Fire &bull; [START/Enter] Start Wave</span>
 </div>
 
 <script type="importmap">
@@ -445,13 +450,501 @@ const hemi = new THREE.HemisphereLight(0x2a2a4a, 0x3a3530, 0.5);
 scene.add(hemi);
 
 // ============================================================
+// ENEMY SYSTEM
+// ============================================================
+const ENEMY_TYPES = {
+    drone:   { name: 'Drone',          hp: 20,  speed: 2.0, damage: 5,  score: 10, color: 0x88aacc, size: 0.25 },
+    scout:   { name: 'Scout',          hp: 8,   speed: 4.5, damage: 3,  score: 15, color: 0xffaa33, size: 0.2 },
+    walker:  { name: 'Armored Walker', hp: 60,  speed: 1.0, damage: 15, score: 25, color: 0x556655, size: 0.4 },
+    heavy:   { name: 'Heavy Mech',     hp: 150, speed: 0.7, damage: 30, score: 50, color: 0x993333, size: 0.55 },
+};
+
+const enemies = [];
+let nextEnemyId = 0;
+
+function createEnemy(type, laneOffset) {
+    const info = ENEMY_TYPES[type];
+    const group = new THREE.Group();
+
+    if (type === 'drone') {
+        // Hovering hexagonal body
+        const bodyGeo = new THREE.BoxGeometry(0.3, 0.2, 0.3);
+        const body = new THREE.Mesh(bodyGeo, toonMat(info.color));
+        body.castShadow = true;
+        group.add(body);
+        // Eye
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), eyeMat);
+        eye.position.set(0, 0.02, -0.16);
+        group.add(eye);
+    } else if (type === 'scout') {
+        // Wedge shape
+        const bodyGeo = new THREE.ConeGeometry(0.18, 0.5, 3);
+        const body = new THREE.Mesh(bodyGeo, toonMat(info.color));
+        body.rotation.x = Math.PI / 2;
+        body.castShadow = true;
+        group.add(body);
+    } else if (type === 'walker') {
+        // Bulky box with legs
+        const bodyGeo = new THREE.BoxGeometry(0.5, 0.35, 0.5);
+        const body = new THREE.Mesh(bodyGeo, toonMat(info.color));
+        body.position.y = 0.1;
+        body.castShadow = true;
+        group.add(body);
+        for (const [lx, lz] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]) {
+            const leg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.08, 0.3, 0.08),
+                toonMat(0x444444)
+            );
+            leg.position.set(lx, -0.2, lz);
+            group.add(leg);
+        }
+    } else if (type === 'heavy') {
+        // Big mech body + shoulder guns
+        const bodyGeo = new THREE.BoxGeometry(0.6, 0.5, 0.6);
+        const body = new THREE.Mesh(bodyGeo, toonMat(info.color));
+        body.position.y = 0.15;
+        body.castShadow = true;
+        group.add(body);
+        for (const side of [-1, 1]) {
+            const gun = new THREE.Mesh(
+                new THREE.BoxGeometry(0.15, 0.15, 0.3),
+                toonMat(0x666666)
+            );
+            gun.position.set(side * 0.35, 0.35, -0.15);
+            group.add(gun);
+        }
+        for (const [lx, lz] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) {
+            const leg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 0.35, 0.1),
+                toonMat(0x444444)
+            );
+            leg.position.set(lx, -0.25, lz);
+            group.add(leg);
+        }
+    }
+
+    const spawnZ = -11;
+    group.position.set(laneOffset, info.size + 0.1, spawnZ);
+    scene.add(group);
+
+    const enemy = {
+        id: nextEnemyId++,
+        type,
+        hp: info.hp,
+        maxHp: info.hp,
+        speed: info.speed,
+        damage: info.damage,
+        score: info.score,
+        group,
+        x: laneOffset,
+        z: spawnZ,
+        stunTimer: 0,
+        slowFactor: 1,
+        dead: false,
+    };
+    enemies.push(enemy);
+    return enemy;
+}
+
+function updateEnemies(dt) {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        if (e.dead) continue;
+
+        // Stun countdown
+        if (e.stunTimer > 0) {
+            e.stunTimer -= dt;
+            // Visual: blink when stunned
+            e.group.visible = Math.sin(time * 20) > 0;
+            continue;
+        }
+        e.group.visible = true;
+
+        // Move toward gate
+        const effectiveSpeed = e.speed * e.slowFactor;
+        e.z += effectiveSpeed * dt;
+        e.slowFactor = 1; // Reset each frame (shield re-applies)
+
+        // Hover bob for drones/scouts
+        const bob = (e.type === 'drone' || e.type === 'scout')
+            ? Math.sin(time * 5 + e.id * 2) * 0.1 + 0.3
+            : ENEMY_TYPES[e.type].size + 0.1;
+
+        e.group.position.set(e.x, bob, e.z);
+
+        // Reached the gate?
+        if (e.z >= 9) {
+            gateHP = Math.max(0, gateHP - e.damage);
+            killEnemy(i, false); // no score for reaching gate
+        }
+    }
+}
+
+function killEnemy(index, giveScore) {
+    const e = enemies[index];
+    e.dead = true;
+    if (giveScore) score += e.score;
+
+    // Death effect: flash and scale
+    const pos = e.group.position.clone();
+    scene.remove(e.group);
+    enemies.splice(index, 1);
+
+    // Particle burst
+    spawnDeathEffect(pos, ENEMY_TYPES[e.type].color);
+}
+
+// ============================================================
+// DEATH EFFECTS
+// ============================================================
+const deathEffects = [];
+
+function spawnDeathEffect(pos, color) {
+    const count = 6;
+    for (let i = 0; i < count; i++) {
+        const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const mat = new THREE.MeshStandardMaterial({
+            color, emissive: color, emissiveIntensity: 1.0,
+        });
+        const particle = new THREE.Mesh(geo, mat);
+        particle.position.copy(pos);
+        const angle = (i / count) * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 1.5;
+        scene.add(particle);
+        deathEffects.push({
+            mesh: particle,
+            vx: Math.cos(angle) * speed,
+            vy: 2 + Math.random() * 2,
+            vz: Math.sin(angle) * speed,
+            life: 0.5,
+        });
+    }
+}
+
+function updateDeathEffects(dt) {
+    for (let i = deathEffects.length - 1; i >= 0; i--) {
+        const p = deathEffects[i];
+        p.life -= dt;
+        if (p.life <= 0) {
+            scene.remove(p.mesh);
+            deathEffects.splice(i, 1);
+            continue;
+        }
+        p.vy -= 8 * dt; // gravity
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.mesh.material.opacity = p.life * 2;
+        p.mesh.material.transparent = true;
+    }
+}
+
+// ============================================================
+// PROJECTILE SYSTEM
+// ============================================================
+const projectiles = [];
+
+function spawnProjectile(from, target, damage, splash) {
+    const geo = new THREE.BoxGeometry(0.12, 0.12, 0.2);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0x3366ff, emissive: 0x3366ff, emissiveIntensity: 0.8,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(from.x, 2.5, from.z);
+    scene.add(mesh);
+    projectiles.push({
+        mesh,
+        tx: target.x, tz: target.z,
+        damage, splash,
+        speed: 15,
+    });
+}
+
+function updateProjectiles(dt) {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        const dx = p.tx - p.mesh.position.x;
+        const dz = p.tz - p.mesh.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        if (dist < 0.3) {
+            // Impact — splash damage
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                const e = enemies[j];
+                if (e.dead) continue;
+                const ex = e.x - p.mesh.position.x;
+                const ez = e.z - p.mesh.position.z;
+                if (Math.sqrt(ex * ex + ez * ez) <= p.splash) {
+                    e.hp -= p.damage;
+                    if (e.hp <= 0) killEnemy(j, true);
+                }
+            }
+            spawnDeathEffect(p.mesh.position.clone(), 0x3366ff);
+            scene.remove(p.mesh);
+            projectiles.splice(i, 1);
+            continue;
+        }
+
+        const move = p.speed * dt;
+        p.mesh.position.x += (dx / dist) * move;
+        p.mesh.position.z += (dz / dist) * move;
+        p.mesh.position.y = 2.5 - (1 - dist / 10) * 1; // slight arc
+    }
+}
+
+// ============================================================
+// BEAM VISUALS (for laser)
+// ============================================================
+const beams = [];
+
+function showBeam(fromPos, toPos, color) {
+    const dx = toPos.x - fromPos.x;
+    const dy = (toPos.y || 0.5) - 2.2;
+    const dz = toPos.z - fromPos.z;
+    const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    const geo = new THREE.CylinderGeometry(0.03, 0.03, length, 4);
+    const mat = new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 1.5,
+        transparent: true, opacity: 0.8,
+    });
+    const beam = new THREE.Mesh(geo, mat);
+
+    // Position at midpoint
+    beam.position.set(
+        fromPos.x + dx / 2,
+        2.2 + dy / 2,
+        fromPos.z + dz / 2
+    );
+    // Orient toward target
+    beam.lookAt(toPos.x, toPos.y || 0.5, toPos.z);
+    beam.rotateX(Math.PI / 2);
+
+    scene.add(beam);
+    beams.push({ mesh: beam, life: 0.05 }); // flash for ~3 frames
+}
+
+function updateBeams(dt) {
+    for (let i = beams.length - 1; i >= 0; i--) {
+        beams[i].life -= dt;
+        if (beams[i].life <= 0) {
+            scene.remove(beams[i].mesh);
+            beams.splice(i, 1);
+        }
+    }
+}
+
+// ============================================================
+// COMBAT SYSTEM
+// ============================================================
+const TOWER_STATS = {
+    laser:   { range: 6, dps: 30, cooldown: 0 },
+    missile: { range: 8, damage: 18, splash: 1.8, cooldown: 1.0 },
+    shield:  { range: 4.5, slowAmount: 0.3 },
+    emp:     { range: 5.5, stunDuration: 3, cooldown: 8 },
+};
+
+// Per-tower combat state
+for (const t of towers) {
+    t.fireCooldown = 0;
+    t.empReady = true;
+}
+
+function findClosestEnemy(x, z, range) {
+    let closest = null;
+    let closestDist = range;
+    for (const e of enemies) {
+        if (e.dead || e.hp <= 0) continue;
+        const dx = e.x - x;
+        const dz = e.z - z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < closestDist) {
+            closestDist = dist;
+            closest = e;
+        }
+    }
+    return closest;
+}
+
+function updateCombat(dt) {
+    for (const tower of towers) {
+        if (!tower.occupied) continue;
+        const player = players[tower.playerIdx];
+        if (!player || !player.firing) continue;
+
+        const stats = TOWER_STATS[tower.type];
+        const tx = tower.pos.x;
+        const tz = tower.pos.z;
+
+        if (tower.type === 'laser') {
+            // Continuous beam damage to nearest enemy
+            const target = findClosestEnemy(tx, tz, stats.range);
+            if (target) {
+                const dmg = stats.dps * dt;
+                target.hp -= dmg;
+                showBeam(
+                    { x: tx, z: tz },
+                    { x: target.x, y: ENEMY_TYPES[target.type].size + 0.1, z: target.z },
+                    0xff3333
+                );
+                if (target.hp <= 0) {
+                    const idx = enemies.indexOf(target);
+                    if (idx >= 0) killEnemy(idx, true);
+                }
+            }
+        } else if (tower.type === 'missile') {
+            tower.fireCooldown -= dt;
+            if (tower.fireCooldown <= 0) {
+                const target = findClosestEnemy(tx, tz, stats.range);
+                if (target) {
+                    spawnProjectile(
+                        { x: tx, z: tz },
+                        { x: target.x, z: target.z },
+                        stats.damage,
+                        stats.splash
+                    );
+                    tower.fireCooldown = stats.cooldown;
+                }
+            }
+        } else if (tower.type === 'shield') {
+            // Slow all enemies in range
+            for (const e of enemies) {
+                if (e.dead) continue;
+                const dx = e.x - tx;
+                const dz = e.z - tz;
+                if (Math.sqrt(dx * dx + dz * dz) <= stats.range) {
+                    e.slowFactor = stats.slowAmount;
+                }
+            }
+        } else if (tower.type === 'emp') {
+            if (tower.empReady) {
+                // Stun all enemies in range
+                for (const e of enemies) {
+                    if (e.dead) continue;
+                    const dx = e.x - tx;
+                    const dz = e.z - tz;
+                    if (Math.sqrt(dx * dx + dz * dz) <= stats.range) {
+                        e.stunTimer = stats.stunDuration;
+                    }
+                }
+                tower.empReady = false;
+                tower.fireCooldown = stats.cooldown;
+                // EMP flash effect
+                spawnDeathEffect(
+                    new THREE.Vector3(tx, 2, tz),
+                    0xcc66ff
+                );
+            }
+        }
+
+        // EMP cooldown recovery
+        if (tower.type === 'emp' && !tower.empReady) {
+            tower.fireCooldown -= dt;
+            if (tower.fireCooldown <= 0) tower.empReady = true;
+        }
+    }
+}
+
+// ============================================================
+// WAVE SYSTEM
+// ============================================================
+let gamePhase = 'idle'; // 'idle', 'wave', 'build'
+let currentWave = 0;
+let score = 0;
+let waveEnemiesLeft = 0; // enemies still to spawn
+let waveSpawnTimer = 0;
+let waveSpawnQueue = []; // [{type, laneOffset}]
+
+const WAVE_DEFS = [
+    // Wave 1: intro drones
+    { enemies: [
+        ...Array(5).fill({ type: 'drone', lane: 0 }),
+    ], spawnRate: 1.2 },
+    // Wave 2: drones + scouts
+    { enemies: [
+        ...Array(6).fill({ type: 'drone', lane: 0 }),
+        ...Array(3).fill({ type: 'scout', lane: 0 }),
+    ], spawnRate: 0.9 },
+    // Wave 3: walkers arrive
+    { enemies: [
+        ...Array(4).fill({ type: 'drone', lane: 0 }),
+        ...Array(3).fill({ type: 'walker', lane: 0 }),
+    ], spawnRate: 1.5 },
+    // Wave 4: scout swarm
+    { enemies: [
+        ...Array(12).fill({ type: 'scout', lane: 0 }),
+    ], spawnRate: 0.4 },
+    // Wave 5: boss wave
+    { enemies: [
+        ...Array(4).fill({ type: 'drone', lane: 0 }),
+        ...Array(2).fill({ type: 'walker', lane: 0 }),
+        { type: 'heavy', lane: 0 },
+    ], spawnRate: 1.8 },
+    // Wave 6+: escalating
+    { enemies: [
+        ...Array(6).fill({ type: 'drone', lane: 0 }),
+        ...Array(4).fill({ type: 'scout', lane: 0 }),
+        ...Array(3).fill({ type: 'walker', lane: 0 }),
+        { type: 'heavy', lane: 0 },
+    ], spawnRate: 0.8 },
+];
+
+function beginNextWave() {
+    currentWave++;
+    gamePhase = 'wave';
+    const waveIdx = Math.min(currentWave - 1, WAVE_DEFS.length - 1);
+    const def = WAVE_DEFS[waveIdx];
+
+    // Scale difficulty for waves beyond defined ones
+    const scale = currentWave > WAVE_DEFS.length ? 1 + (currentWave - WAVE_DEFS.length) * 0.3 : 1;
+
+    waveSpawnQueue = def.enemies.map(e => ({
+        type: e.type,
+        laneOffset: (Math.random() - 0.5) * 1.5, // slight lane variation
+    }));
+    // Shuffle spawn order
+    for (let i = waveSpawnQueue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [waveSpawnQueue[i], waveSpawnQueue[j]] = [waveSpawnQueue[j], waveSpawnQueue[i]];
+    }
+    waveSpawnTimer = 0;
+    waveEnemiesLeft = waveSpawnQueue.length;
+}
+
+function updateWaveSpawning(dt) {
+    if (gamePhase !== 'wave') return;
+
+    // Spawn enemies from queue
+    if (waveSpawnQueue.length > 0) {
+        waveSpawnTimer -= dt;
+        if (waveSpawnTimer <= 0) {
+            const next = waveSpawnQueue.shift();
+            createEnemy(next.type, next.laneOffset);
+            const waveIdx = Math.min(currentWave - 1, WAVE_DEFS.length - 1);
+            waveSpawnTimer = WAVE_DEFS[waveIdx].spawnRate;
+        }
+    }
+
+    // Check wave complete (all spawned + all dead)
+    if (waveSpawnQueue.length === 0 && enemies.length === 0) {
+        gamePhase = 'build';
+        // Reset tower cooldowns
+        for (const t of towers) {
+            t.fireCooldown = 0;
+            t.empReady = true;
+        }
+    }
+}
+
+// ============================================================
 // PLAYER STATE
 // ============================================================
 const players = [
-    { idx: 0, cursorAt: 0, inTower: false, color: '#00ccff', gamepadIndex: -1, active: false },
-    { idx: 1, cursorAt: 1, inTower: false, color: '#ff4444', gamepadIndex: -1, active: false },
-    { idx: 2, cursorAt: 2, inTower: false, color: '#44ff44', gamepadIndex: -1, active: false },
-    { idx: 3, cursorAt: 3, inTower: false, color: '#ffcc00', gamepadIndex: -1, active: false },
+    { idx: 0, cursorAt: 0, inTower: false, firing: false, color: '#00ccff', gamepadIndex: -1, active: false },
+    { idx: 1, cursorAt: 1, inTower: false, firing: false, color: '#ff4444', gamepadIndex: -1, active: false },
+    { idx: 2, cursorAt: 2, inTower: false, firing: false, color: '#44ff44', gamepadIndex: -1, active: false },
+    { idx: 3, cursorAt: 3, inTower: false, firing: false, color: '#ffcc00', gamepadIndex: -1, active: false },
 ];
 
 // Player 0 always active (keyboard fallback)
@@ -509,7 +1002,12 @@ function pollKeyboard() {
     if (pressed('s') || pressed('arrowdown'))  queueAction(0, 'down');
     if (pressed('a') || pressed('arrowleft'))  queueAction(0, 'left');
     if (pressed('d') || pressed('arrowright')) queueAction(0, 'right');
-    if (pressed(' ') || pressed('enter'))      queueAction(0, 'hop');
+    if (pressed(' '))                          queueAction(0, 'hop');
+    if (pressed('enter'))                      queueAction(0, 'startwave');
+    // Fire is hold-based, not press-based (don't override injected fire)
+    if (!players[0]._injectedFiring) {
+        players[0].firing = !!(keyState['f'] || keyState['e']);
+    }
     Object.assign(prevKeyState, keyState);
 }
 
@@ -545,6 +1043,14 @@ function pollGamepads() {
         // A button (button 0)
         if (justPressed(0)) queueAction(p.idx, 'hop');
 
+        // Start button (button 9)
+        if (justPressed(9)) queueAction(p.idx, 'startwave');
+
+        // RT (button 7) — fire (hold-based, don't override injected fire)
+        if (!p._injectedFiring) {
+            p.firing = !!(gp.buttons[7]?.pressed);
+        }
+
         // Save button state
         prevGamepadButtons[p.idx] = gp.buttons.map(b => b.pressed);
     }
@@ -576,6 +1082,13 @@ function processInputs() {
         const player = players[playerIdx];
         if (!player.active) continue;
 
+        if (action === 'startwave') {
+            if (gamePhase === 'idle' || gamePhase === 'build') {
+                beginNextWave();
+            }
+            continue;
+        }
+
         if (action === 'hop') {
             if (player.inTower) {
                 // Hop out
@@ -605,13 +1118,26 @@ function processInputs() {
 // ============================================================
 const hudTower = document.getElementById('hud-tower');
 const hudGate = document.getElementById('hud-gate');
+const hudWave = document.getElementById('hud-wave');
+const hudScore = document.getElementById('hud-score');
+const hudEnemies = document.getElementById('hud-enemies');
 
 function updateHUD() {
     const p = players[0]; // Show P1 info for now
     const tower = towers[p.cursorAt];
-    const status = p.inTower ? ' [MANNED]' : '';
+    const status = p.inTower ? (p.firing ? ' [FIRING]' : ' [MANNED]') : '';
     hudTower.textContent = `P1 → ${tower.name}${status}`;
-    hudGate.textContent = `GATE: ${gateHP}%`;
+
+    const hpPct = Math.round(gateHP);
+    hudGate.textContent = `GATE: ${hpPct}%`;
+    hudGate.style.color = hpPct > 50 ? '#00ffcc' : hpPct > 25 ? '#ffcc00' : '#ff4444';
+
+    if (gamePhase === 'idle') hudWave.textContent = 'PRESS START';
+    else if (gamePhase === 'wave') hudWave.textContent = `WAVE ${currentWave}`;
+    else if (gamePhase === 'build') hudWave.textContent = `WAVE ${currentWave} CLEAR!`;
+
+    hudScore.textContent = `SCORE: ${score}`;
+    hudEnemies.textContent = gamePhase === 'wave' ? `${enemies.length} enemies` : '';
 }
 
 // ============================================================
@@ -630,6 +1156,25 @@ window.gameState = {
 window.injectInput = function(playerIdx, action) {
     if (playerIdx >= 0 && playerIdx < 4) {
         players[playerIdx].active = true;
+        // Handle fire as a hold-state (persists until 'fire-stop')
+        if (action === 'fire') {
+            players[playerIdx].firing = true;
+            players[playerIdx]._injectedFiring = true;
+            return new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    resolve(window.gameState);
+                }));
+            });
+        }
+        if (action === 'fire-stop') {
+            players[playerIdx].firing = false;
+            players[playerIdx]._injectedFiring = false;
+            return new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    resolve(window.gameState);
+                }));
+            });
+        }
         // Bypass cooldown for testing
         inputCooldown[playerIdx] = 0;
         queueAction(playerIdx, action);
@@ -644,16 +1189,21 @@ window.injectInput = function(playerIdx, action) {
 };
 
 window.startWave = function() {
-    // M2: will start enemy spawning
-    console.log('startWave() — not yet implemented (M2)');
+    if (gamePhase === 'idle' || gamePhase === 'build') {
+        beginNextWave();
+    }
 };
 
 window.skipToWave = function(n) {
-    console.log(`skipToWave(${n}) — not yet implemented (M2)`);
+    currentWave = n - 1;
+    beginNextWave();
 };
 
 function updateWindowAPI() {
+    window.gameState.phase = gamePhase;
+    window.gameState.wave = currentWave;
     window.gameState.gateHP = gateHP;
+    window.gameState.score = score;
     window.gameState.towers = towers.map(t => ({
         id: t.id,
         type: t.type,
@@ -661,10 +1211,20 @@ function updateWindowAPI() {
         occupied: t.occupied,
         playerIdx: t.playerIdx,
     }));
+    window.gameState.enemies = enemies.map(e => ({
+        id: e.id,
+        type: e.type,
+        hp: e.hp,
+        maxHp: e.maxHp,
+        x: e.x,
+        z: e.z,
+        stunTimer: e.stunTimer,
+    }));
     window.gameState.players = players.filter(p => p.active).map(p => ({
         idx: p.idx,
         cursorAt: p.cursorAt,
         inTower: p.inTower,
+        firing: p.firing,
         color: p.color,
     }));
 }
@@ -676,12 +1236,21 @@ let time = 0;
 
 function animate() {
     requestAnimationFrame(animate);
-    time += 0.016;
+    const dt = 0.016;
+    time += dt;
 
     // Input
     pollKeyboard();
     pollGamepads();
     processInputs();
+
+    // Game systems
+    updateWaveSpawning(dt);
+    updateEnemies(dt);
+    updateCombat(dt);
+    updateProjectiles(dt);
+    updateBeams(dt);
+    updateDeathEffects(dt);
 
     // Update cursor visuals
     for (const tower of towers) {
