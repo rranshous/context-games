@@ -341,6 +341,7 @@ function createTowerPad(pos, index) {
         pos,
         fireCooldown: 0,
         empReady: true,
+        shieldDome: null, // managed by combat system for shield towers
     };
     towers.push(towerData);
     return towerData;
@@ -608,7 +609,11 @@ function updateEnemies(dt) {
         // Reached the gate?
         if (e.z >= 9) {
             gateHP = Math.max(0, gateHP - e.damage);
+            triggerShake(e.type === 'heavy' ? 1.5 : 0.6);
             killEnemy(i, false); // no score for reaching gate
+            if (gateHP <= 0 && gamePhase !== 'gameover') {
+                gamePhase = 'gameover';
+            }
         }
     }
 }
@@ -619,6 +624,7 @@ function killEnemy(index, giveScore) {
     if (giveScore) {
         score += e.score;
         credits += e.score; // credits mirror score
+        if (e.type === 'heavy') triggerShake(1.0);
     }
 
     // Death effect: flash and scale
@@ -672,6 +678,89 @@ function updateDeathEffects(dt) {
         p.mesh.position.z += p.vz * dt;
         p.mesh.material.opacity = p.life * 2;
         p.mesh.material.transparent = true;
+    }
+}
+
+// ============================================================
+// SCREEN SHAKE
+// ============================================================
+let shakeIntensity = 0;
+const cameraBasePos = new THREE.Vector3(18, 22, 18);
+
+function triggerShake(intensity) {
+    shakeIntensity = Math.max(shakeIntensity, intensity);
+}
+
+function updateScreenShake(dt) {
+    if (shakeIntensity > 0) {
+        const ox = (Math.random() - 0.5) * shakeIntensity;
+        const oy = (Math.random() - 0.5) * shakeIntensity;
+        camera.position.set(cameraBasePos.x + ox, cameraBasePos.y + oy, cameraBasePos.z + ox);
+        shakeIntensity *= 0.85; // decay
+        if (shakeIntensity < 0.01) {
+            shakeIntensity = 0;
+            camera.position.copy(cameraBasePos);
+        }
+    }
+}
+
+// ============================================================
+// SHIELD DOME EFFECT
+// ============================================================
+const shieldDomes = [];
+
+function createShieldDome(towerPos, range) {
+    const geo = new THREE.SphereGeometry(range, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0x33ff99,
+        emissive: 0x33ff99,
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
+        wireframe: true,
+    });
+    const dome = new THREE.Mesh(geo, mat);
+    dome.position.set(towerPos.x, 0.3, towerPos.z);
+    scene.add(dome);
+    return { mesh: dome, mat };
+}
+
+// ============================================================
+// EMP PULSE RING EFFECT
+// ============================================================
+const empPulses = [];
+
+function spawnEmpPulse(x, z, range) {
+    const geo = new THREE.TorusGeometry(0.3, 0.08, 4, 16);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0xcc66ff,
+        emissive: 0xcc66ff,
+        emissiveIntensity: 2.0,
+        transparent: true,
+        opacity: 1.0,
+    });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, 2, z);
+    scene.add(ring);
+    empPulses.push({ mesh: ring, mat, maxRadius: range, life: 0.6, maxLife: 0.6 });
+}
+
+function updateEmpPulses(dt) {
+    for (let i = empPulses.length - 1; i >= 0; i--) {
+        const p = empPulses[i];
+        p.life -= dt;
+        if (p.life <= 0) {
+            scene.remove(p.mesh);
+            empPulses.splice(i, 1);
+            continue;
+        }
+        const t = 1 - (p.life / p.maxLife);
+        const radius = p.maxRadius * t;
+        p.mesh.scale.set(radius / 0.3, radius / 0.3, 1);
+        p.mat.opacity = 1 - t;
+        p.mesh.position.y = 2 + t * 0.5;
     }
 }
 
@@ -837,6 +926,13 @@ function updateCombat(dt) {
                 }
             }
         } else if (tower.type === 'shield') {
+            // Show shield dome when firing
+            if (!tower.shieldDome) {
+                tower.shieldDome = createShieldDome(tower.pos, stats.range);
+            }
+            // Pulse dome opacity
+            tower.shieldDome.mat.opacity = 0.1 + Math.sin(time * 4) * 0.05;
+            tower.shieldDome.mesh.rotation.y += dt * 0.5;
             // Slow all enemies in range
             for (const e of enemies) {
                 if (e.dead) continue;
@@ -859,11 +955,9 @@ function updateCombat(dt) {
                 }
                 tower.empReady = false;
                 tower.fireCooldown = stats.cooldown;
-                // EMP flash effect
-                spawnDeathEffect(
-                    new THREE.Vector3(tx, 2, tz),
-                    0xcc66ff
-                );
+                // EMP pulse ring effect
+                spawnEmpPulse(tx, tz, stats.range);
+                triggerShake(0.4);
             }
         }
 
@@ -873,12 +967,23 @@ function updateCombat(dt) {
             if (tower.fireCooldown <= 0) tower.empReady = true;
         }
     }
+
+    // Remove shield domes for towers that are not actively shielding
+    for (const tower of towers) {
+        if (tower.shieldDome) {
+            const isShielding = tower.type === 'shield' && tower.occupied && players[tower.playerIdx]?.firing;
+            if (!isShielding) {
+                scene.remove(tower.shieldDome.mesh);
+                tower.shieldDome = null;
+            }
+        }
+    }
 }
 
 // ============================================================
 // WAVE SYSTEM
 // ============================================================
-let gamePhase = 'idle'; // 'idle', 'wave', 'build'
+let gamePhase = 'idle'; // 'idle', 'wave', 'build', 'gameover'
 let currentWave = 0;
 let score = 0;
 let waveEnemiesLeft = 0; // enemies still to spawn
@@ -928,9 +1033,21 @@ function beginNextWave() {
     // Scale difficulty for waves beyond defined ones
     const scale = currentWave > WAVE_DEFS.length ? 1 + (currentWave - WAVE_DEFS.length) * 0.3 : 1;
 
-    waveSpawnQueue = def.enemies.map(e => ({
+    // Build base spawn queue
+    let enemyList = [...def.enemies];
+    // Difficulty scaling: add extra enemies for waves beyond defined
+    if (scale > 1) {
+        const extras = Math.floor((scale - 1) * 4); // +4 enemies per scale step
+        for (let i = 0; i < extras; i++) {
+            const pick = def.enemies[Math.floor(Math.random() * def.enemies.length)];
+            enemyList.push(pick);
+        }
+    }
+
+    waveSpawnQueue = enemyList.map(e => ({
         type: e.type,
-        laneOffset: (Math.random() - 0.5) * 1.5, // slight lane variation
+        laneOffset: (Math.random() - 0.5) * 1.5,
+        hpScale: scale, // pass scale to createEnemy
     }));
     // Shuffle spawn order
     for (let i = waveSpawnQueue.length - 1; i > 0; i--) {
@@ -959,7 +1076,12 @@ function updateWaveSpawning(dt) {
         waveSpawnTimer -= dt;
         if (waveSpawnTimer <= 0) {
             const next = waveSpawnQueue.shift();
-            createEnemy(next.type, next.laneOffset);
+            const e = createEnemy(next.type, next.laneOffset);
+            // Apply difficulty HP scaling
+            if (next.hpScale > 1) {
+                e.hp = Math.round(e.hp * next.hpScale);
+                e.maxHp = e.hp;
+            }
             const waveIdx = Math.min(currentWave - 1, WAVE_DEFS.length - 1);
             waveSpawnTimer = WAVE_DEFS[waveIdx].spawnRate;
         }
@@ -1167,6 +1289,8 @@ function processInputs() {
                 // Exit all players' build mode
                 for (const p of players) p.buildMode = false;
                 beginNextWave();
+            } else if (gamePhase === 'gameover') {
+                restartGame();
             }
             continue;
         }
@@ -1259,6 +1383,10 @@ function updateHUD() {
     else if (gamePhase === 'build') {
         const secs = Math.ceil(buildTimer);
         hudWave.textContent = `BUILD (${secs}s)`;
+    } else if (gamePhase === 'gameover') {
+        hudWave.textContent = 'GAME OVER';
+        hudWave.style.color = '#ff4444';
+        hudWave.style.textShadow = '0 0 8px #ff444488';
     }
 
     hudScore.textContent = `SCORE: ${score}`;
@@ -1353,6 +1481,9 @@ window.activatePlayer = function(playerIdx) {
     }
 };
 
+// Debug: set gate HP for testing
+window.setGateHP = function(hp) { gateHP = hp; };
+
 function updateWindowAPI() {
     window.gameState.phase = gamePhase;
     window.gameState.wave = currentWave;
@@ -1388,6 +1519,58 @@ function updateWindowAPI() {
 }
 
 // ============================================================
+// RESTART
+// ============================================================
+function restartGame() {
+    // Clear enemies
+    for (const e of enemies) scene.remove(e.group);
+    enemies.length = 0;
+    // Clear projectiles
+    for (const p of projectiles) scene.remove(p.mesh);
+    projectiles.length = 0;
+    // Clear beams
+    for (const b of beams) scene.remove(b.mesh);
+    beams.length = 0;
+    // Clear death effects
+    for (const d of deathEffects) scene.remove(d.mesh);
+    deathEffects.length = 0;
+    // Clear EMP pulses
+    for (const p of empPulses) scene.remove(p.mesh);
+    empPulses.length = 0;
+    // Clear shield domes
+    for (const t of towers) {
+        if (t.shieldDome) { scene.remove(t.shieldDome.mesh); t.shieldDome = null; }
+    }
+
+    // Reset towers — sell all, rebuild starters
+    for (const t of towers) sellTower(t);
+    buildTowerOn(towers[0], 'laser');
+    buildTowerOn(towers[1], 'missile');
+
+    // Reset state
+    gateHP = 100;
+    score = 0;
+    credits = 150;
+    currentWave = 0;
+    gamePhase = 'idle';
+    shakeIntensity = 0;
+    camera.position.copy(cameraBasePos);
+
+    // Reset players
+    for (const p of players) {
+        p.inTower = false;
+        p.firing = false;
+        p.buildMode = false;
+        p.buildIdx = 0;
+    }
+
+    // Reset HUD styling
+    const hudW = document.getElementById('hud-wave');
+    hudW.style.color = '#00ffcc';
+    hudW.style.textShadow = '0 0 4px #00ffcc88';
+}
+
+// ============================================================
 // GAME LOOP
 // ============================================================
 let time = 0;
@@ -1402,14 +1585,18 @@ function animate() {
     pollGamepads();
     processInputs();
 
-    // Game systems
-    updateBuildPhase(dt);
-    updateWaveSpawning(dt);
-    updateEnemies(dt);
-    updateCombat(dt);
+    // Game systems (paused on game over except effects)
+    if (gamePhase !== 'gameover') {
+        updateBuildPhase(dt);
+        updateWaveSpawning(dt);
+        updateEnemies(dt);
+        updateCombat(dt);
+    }
     updateProjectiles(dt);
     updateBeams(dt);
     updateDeathEffects(dt);
+    updateEmpPulses(dt);
+    updateScreenShake(dt);
 
     // Update per-player cursor rings
     for (let i = 0; i < 4; i++) {
