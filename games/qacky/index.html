@@ -59,6 +59,44 @@ body {
   50% { transform: translateY(-8px) rotate(1deg); }
 }
 
+/* Mode selector */
+#mode-select {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.mode-card {
+  background: transparent;
+  border: 2px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.5);
+  padding: 10px 18px;
+  border-radius: 24px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.mode-card:hover {
+  border-color: rgba(255,184,0,0.4);
+  color: rgba(255,255,255,0.8);
+}
+.mode-card.selected {
+  border-color: #FFB800;
+  color: #FFB800;
+  background: rgba(255,184,0,0.1);
+  box-shadow: 0 0 16px rgba(255,184,0,0.25);
+}
+
+#mode-description {
+  min-height: 1.5em;
+  transition: opacity 0.2s;
+}
+
 /* ── Buttons ─────────────────────────────────── */
 
 .btn-primary {
@@ -474,7 +512,14 @@ body {
   <!-- TITLE SCREEN -->
   <div id="screen-title" class="screen">
     <h1 class="title">QACKY</h1>
-    <p class="subtitle">Make the AI say the word.<br>But watch your mouth.</p>
+    <div id="mode-select">
+      <button class="mode-card selected" data-mode="words">WORDS</button>
+      <button class="mode-card" data-mode="actions">ACTIONS</button>
+      <button class="mode-card" data-mode="voices">VOICES</button>
+      <button class="mode-card" data-mode="emotions">EMOTIONS</button>
+      <button class="mode-card" data-mode="puzzles">PUZZLES</button>
+    </div>
+    <p id="mode-description" class="subtitle">Make the AI say the target word.</p>
     <button id="btn-start" class="btn-primary">START GAME</button>
   </div>
 
@@ -582,9 +627,71 @@ const WORD_PACKS = [
   { target: "labyrinth",  banned: ["maze", "lost", "path", "puzzle", "wall"], difficulty: 3 },
 ];
 
+// ── Challenge Packs by Mode ─────────────────────────────
+const ACTION_PACKS = [
+  { target: "Write a haiku",              banned: ["poem", "haiku", "syllable", "verse", "lines"], difficulty: 1 },
+  { target: "Apologize sincerely",        banned: ["sorry", "apologize", "mistake", "wrong", "forgive"], difficulty: 1 },
+  { target: "Give cooking instructions",  banned: ["recipe", "cook", "instructions", "steps", "ingredients"], difficulty: 1 },
+  { target: "Tell a joke",                banned: ["joke", "funny", "humor", "laugh", "punchline"], difficulty: 2 },
+  { target: "Respond entirely in rhyme",  banned: ["rhyme", "poem", "verse", "couplet", "rhyming"], difficulty: 2 },
+  { target: "Count backwards from 10",    banned: ["count", "number", "backward", "list", "ten"], difficulty: 2 },
+  { target: "Respond in bullet points",   banned: ["bullet", "list", "points", "items", "format"], difficulty: 2 },
+  { target: "Speak in questions only",    banned: ["question", "ask", "wonder", "inquire", "query"], difficulty: 3 },
+  { target: "Use exactly five words",     banned: ["five", "words", "count", "exact", "short"], difficulty: 3 },
+  { target: "Write a limerick",           banned: ["limerick", "poem", "rhyme", "verse", "nantucket"], difficulty: 3 },
+];
+
+const VOICE_PACKS = [
+  { target: "Pirate",                       banned: ["pirate", "ship", "sea", "arrr", "treasure"], difficulty: 1 },
+  { target: "Surfer dude",                  banned: ["surf", "dude", "wave", "beach", "radical"], difficulty: 1 },
+  { target: "Grumpy old person",            banned: ["grumpy", "old", "kids", "back", "lawn"], difficulty: 1 },
+  { target: "Shakespeare character",        banned: ["shakespeare", "thou", "prithee", "bard", "forsooth"], difficulty: 2 },
+  { target: "Film noir detective",          banned: ["detective", "noir", "mystery", "dame", "case"], difficulty: 2 },
+  { target: "Excited sports announcer",     banned: ["announcer", "sports", "goal", "score", "play"], difficulty: 2 },
+  { target: "Robot",                        banned: ["robot", "artificial", "compute", "machine", "beep"], difficulty: 2 },
+  { target: "Dramatic soap opera star",     banned: ["drama", "soap", "opera", "darling", "betrayal"], difficulty: 3 },
+  { target: "Nature documentary narrator",  banned: ["nature", "documentary", "narrator", "attenborough", "species"], difficulty: 3 },
+  { target: "Conspiracy theorist",          banned: ["conspiracy", "theory", "government", "secret", "cover"], difficulty: 3 },
+];
+
+const EMOTION_PACKS = [
+  { target: "Pure joy",               banned: ["happy", "joy", "glad", "excited", "wonderful"], difficulty: 1 },
+  { target: "Awe and wonder",         banned: ["amazing", "wonder", "awe", "incredible", "beautiful"], difficulty: 1 },
+  { target: "Deep nostalgia",         banned: ["remember", "past", "memory", "old", "miss"], difficulty: 2 },
+  { target: "Passive-aggressive",     banned: ["fine", "whatever", "sure", "okay", "nice"], difficulty: 2 },
+  { target: "Melancholy",             banned: ["sad", "blue", "melancholy", "tears", "lonely"], difficulty: 2 },
+  { target: "Barely contained rage",  banned: ["angry", "mad", "furious", "rage", "hate"], difficulty: 2 },
+  { target: "Smug satisfaction",      banned: ["smug", "proud", "better", "superior", "satisfied"], difficulty: 2 },
+  { target: "Existential dread",      banned: ["dread", "fear", "existential", "meaningless", "void"], difficulty: 3 },
+  { target: "Genuine confusion",      banned: ["confused", "lost", "understand", "what", "huh"], difficulty: 3 },
+  { target: "Eerie calm",             banned: ["calm", "peaceful", "eerie", "quiet", "serene"], difficulty: 3 },
+];
+
+const PUZZLE_PACKS = [
+  { target: "End with a question",               banned: ["question", "ask", "end", "finish", "query"], difficulty: 1 },
+  { target: "Exactly 3 sentences",               banned: ["three", "sentence", "count", "exact", "paragraph"], difficulty: 1 },
+  { target: "Response with exactly 7 words",      banned: ["seven", "words", "count", "exact", "number"], difficulty: 2 },
+  { target: "Contain a rhyming pair",             banned: ["rhyme", "pair", "sound", "match", "poetry"], difficulty: 2 },
+  { target: "Every sentence starts with S",       banned: ["alliteration", "same", "letter", "start", "begin"], difficulty: 2 },
+  { target: "Include the number 42",              banned: ["forty", "forty-two", "number", "answer", "meaning"], difficulty: 2 },
+  { target: "Alphabetical first words",           banned: ["alphabet", "order", "alphabetical", "ABC", "sequence"], difficulty: 3 },
+  { target: "All words under 5 letters",          banned: ["short", "small", "brief", "tiny", "limit"], difficulty: 3 },
+  { target: "Acrostic spelling HELLO",            banned: ["acrostic", "first", "letter", "spell", "hidden"], difficulty: 3 },
+  { target: "Every word has exactly 4 letters",   banned: ["four", "letter", "length", "word", "equal"], difficulty: 3 },
+];
+
+const MODE_CONFIG = {
+  words:    { label: 'SAY THE WORD',         description: 'Make the AI say the target word.', packs: WORD_PACKS },
+  actions:  { label: 'GET THE AI TO',        description: 'Make the AI perform the action.',  packs: ACTION_PACKS },
+  voices:   { label: 'CHANNEL THE VOICE OF', description: 'Make the AI respond in character.', packs: VOICE_PACKS },
+  emotions: { label: 'MAKE THE AI FEEL',     description: 'Make the AI convey the emotion.',  packs: EMOTION_PACKS },
+  puzzles:  { label: 'MAKE THE RESPONSE',    description: "Make the AI's output match the pattern.", packs: PUZZLE_PACKS },
+};
+
 // ── Game State ──────────────────────────────────────────
 const state = {
   screen: 'title',
+  mode: 'words',
   round: 0,
   totalRounds: 10,
   score: 0,
@@ -605,10 +712,13 @@ const dom = {
   screenTitle: $('screen-title'),
   screenGame: $('screen-game'),
   screenScore: $('screen-score'),
+  modeSelect: $('mode-select'),
+  modeDescription: $('mode-description'),
   btnStart: $('btn-start'),
   roundDisplay: $('round-display'),
   timerDisplay: $('timer-display'),
   scoreDisplay: $('score-display'),
+  targetLabel: $('target-label'),
   targetWord: $('target-word'),
   bannedChips: $('banned-chips'),
   promptInput: $('prompt-input'),
@@ -658,7 +768,8 @@ function shuffleArray(arr) {
 }
 
 function selectChallenges() {
-  const shuffled = shuffleArray(WORD_PACKS);
+  const packs = MODE_CONFIG[state.mode].packs;
+  const shuffled = shuffleArray(packs);
   const selected = shuffled.slice(0, state.totalRounds);
   selected.sort((a, b) => a.difficulty - b.difficulty);
   return selected;
@@ -690,25 +801,29 @@ function calculateScore(timeRemaining, promptWordCount, attempts) {
 }
 
 // ── Response Schema ─────────────────────────────────────
-const RESPONSE_SCHEMA = {
-  type: 'object',
-  properties: {
-    answer: {
-      type: 'string',
-      description: 'Your direct answer — a single word or short phrase.',
+function getResponseSchema(mode) {
+  if (mode === 'words') {
+    return {
+      type: 'object',
+      properties: {
+        answer: { type: 'string', description: 'Your direct answer — a single word or short phrase.' },
+        reason: { type: 'string', description: 'Your reasoning and explanation for arriving at this answer.' },
+        category: { type: 'string', description: 'The general topic area (e.g. animals, geography, science).' },
+      },
+      required: ['answer', 'reason', 'category'],
+      additionalProperties: false,
+    };
+  }
+  return {
+    type: 'object',
+    properties: {
+      answer: { type: 'string', description: 'Your complete response to the prompt. Be expressive — 2-4 sentences.' },
+      reason: { type: 'string', description: 'Brief note about your approach.' },
     },
-    reason: {
-      type: 'string',
-      description: 'Your reasoning and explanation for arriving at this answer.',
-    },
-    category: {
-      type: 'string',
-      description: 'The general topic area (e.g. animals, geography, science).',
-    },
-  },
-  required: ['answer', 'reason', 'category'],
-  additionalProperties: false,
-};
+    required: ['answer', 'reason'],
+    additionalProperties: false,
+  };
+}
 
 // ── Judge Schema ────────────────────────────────────────
 const JUDGE_SCHEMA = {
@@ -772,8 +887,9 @@ const ANSWER_JUDGE_SCHEMA = {
   additionalProperties: false,
 };
 
-function buildAnswerJudgePrompt(answer, target) {
-  return `You are the answer judge for QACKY, a word game show where players try to get an AI to say a TARGET WORD.
+function buildAnswerJudgePrompt(answer, target, mode) {
+  if (mode === 'words') {
+    return `You are the answer judge for QACKY, a word game show where players try to get an AI to say a TARGET WORD.
 
 The AI gave an answer. Your job: decide if the answer counts as saying the target word.
 
@@ -791,6 +907,53 @@ Be generous — the player worked hard. If it's close, give it to them.
 
 TARGET WORD: ${target}
 AI'S ANSWER: "${answer}"`;
+  }
+
+  if (mode === 'actions') {
+    return `You are the answer judge for QACKY, a game show where players craft prompts to make an AI perform specific actions.
+
+The player's goal was to make the AI: ${target}
+
+The AI responded with:
+"${answer}"
+
+Does this response successfully perform the requested action? Be generous — partial success counts. The player worked hard to make this happen indirectly.
+
+A MATCH means the AI clearly performed the action (or a close approximation).
+NO MATCH means the AI's response doesn't resemble the requested action at all.`;
+  }
+
+  if (mode === 'voices') {
+    return `You are the answer judge for QACKY, a game show where players craft prompts to make an AI adopt a specific character voice.
+
+The player's goal was to make the AI sound like: ${target}
+
+The AI responded with:
+"${answer}"
+
+Does this response convincingly channel the voice/character? Look for speech patterns, vocabulary, mannerisms, and tone characteristic of that voice. Be generous — even a partial impression counts if the flavor is clearly there.`;
+  }
+
+  if (mode === 'emotions') {
+    return `You are the answer judge for QACKY, a game show where players craft prompts to make an AI express a specific emotion.
+
+The player's goal was to make the AI express: ${target}
+
+The AI responded with:
+"${answer}"
+
+Does this response convey the target emotion? Look for tone, word choice, sentiment, and emotional coloring. Be generous — the emotion doesn't need to be stated explicitly, just felt in the response.`;
+  }
+
+  // puzzles
+  return `You are the answer judge for QACKY, a game show where players craft prompts to make an AI produce output with specific structural properties.
+
+The player's goal was to make the AI's response have this property: ${target}
+
+The AI responded with:
+"${answer}"
+
+Does this response satisfy the structural requirement? Check carefully. Be precise for structural/countable properties (word counts, sentence counts, etc.) but generous for more subjective patterns.`;
 }
 
 // ── API Call ────────────────────────────────────────────
@@ -804,7 +967,7 @@ async function callModel(userPrompt) {
       max_tokens: 4096,
       messages: [{ role: 'user', content: userPrompt }],
       output_config: {
-        format: { type: 'json_schema', schema: RESPONSE_SCHEMA },
+        format: { type: 'json_schema', schema: getResponseSchema(state.mode) },
       },
     }),
   });
@@ -867,7 +1030,14 @@ async function callJudge(playerPrompt, target, banned) {
 
 // ── Answer Judge Call ───────────────────────────────────
 async function callAnswerJudge(answer, target) {
-  console.log('[ANSWER JUDGE] Firing...', { target, answer });
+  const mode = state.mode;
+  console.log('[ANSWER JUDGE] Firing...', { target, answer, mode });
+
+  // Fallback: regex for words mode, no-match for others (no regex equivalent)
+  const fallback = () => mode === 'words'
+    ? { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' }
+    : { match: 'no', explanation: '' };
+
   try {
     const response = await fetch('/api/inference/anthropic/messages', {
       method: 'POST',
@@ -876,14 +1046,14 @@ async function callAnswerJudge(answer, target) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
-        messages: [{ role: 'user', content: buildAnswerJudgePrompt(answer, target) }],
+        messages: [{ role: 'user', content: buildAnswerJudgePrompt(answer, target, mode) }],
         output_config: {
           format: { type: 'json_schema', schema: ANSWER_JUDGE_SCHEMA },
         },
       }),
     });
 
-    if (!response.ok) { console.warn('[ANSWER JUDGE] API error, falling back to regex'); return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' }; }
+    if (!response.ok) { console.warn('[ANSWER JUDGE] API error, falling back'); return fallback(); }
 
     const data = await response.json();
     for (const block of data.content) {
@@ -892,13 +1062,13 @@ async function callAnswerJudge(answer, target) {
           const result = JSON.parse(block.text);
           console.log('[ANSWER JUDGE] Result:', result);
           return result;
-        } catch { console.warn('[ANSWER JUDGE] Parse error, falling back to regex'); return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' }; }
+        } catch { console.warn('[ANSWER JUDGE] Parse error, falling back'); return fallback(); }
       }
     }
-    return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' };
+    return fallback();
   } catch (e) {
-    console.warn('[ANSWER JUDGE] Error, falling back to regex:', e);
-    return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' };
+    console.warn('[ANSWER JUDGE] Error, falling back:', e);
+    return fallback();
   }
 }
 
@@ -1037,6 +1207,10 @@ function showViolation(violations) {
 
 // ── Round Flow ──────────────────────────────────────────
 function startGame() {
+  // Read selected mode from the mode cards
+  const selectedCard = dom.modeSelect.querySelector('.mode-card.selected');
+  state.mode = selectedCard ? selectedCard.dataset.mode : 'words';
+
   state.round = 0;
   state.score = 0;
   state.roundResults = [];
@@ -1055,7 +1229,10 @@ function startRound() {
   // Update top bar
   dom.roundDisplay.textContent = `Round ${state.round + 1}/${state.totalRounds}`;
   dom.scoreDisplay.textContent = `Score: ${state.score}`;
+  dom.targetLabel.textContent = MODE_CONFIG[state.mode].label;
   dom.targetWord.textContent = challenge.target;
+  // Scale down long target text (actions, puzzles)
+  dom.targetWord.style.fontSize = challenge.target.length > 15 ? '2rem' : '';
   dom.timerDisplay.classList.remove('urgent');
 
   // Render banned chips
@@ -1283,7 +1460,9 @@ function showFinalScore() {
   else if (pct >= 0.2) rating = 'ROOKIE PROMPTER';
   else rating = 'KEEP PRACTICING';
 
+  const modeName = state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
   dom.finalScore.innerHTML = `
+    <div style="font-size:0.85rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px">${modeName} Mode</div>
     <div style="font-size:4rem;font-weight:900;color:#FFB800">${state.score}</div>
     <div style="font-size:1.4rem;color:#FF6B35;margin-top:8px;letter-spacing:0.1em">${rating}</div>
   `;
@@ -1300,6 +1479,16 @@ function showFinalScore() {
 }
 
 // ── Event Listeners ─────────────────────────────────────
+
+// Mode card selection
+dom.modeSelect.addEventListener('click', e => {
+  const card = e.target.closest('.mode-card');
+  if (!card) return;
+  dom.modeSelect.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  dom.modeDescription.textContent = MODE_CONFIG[card.dataset.mode].description;
+});
+
 dom.btnStart.addEventListener('click', startGame);
 dom.btnGo.addEventListener('click', submitPrompt);
 dom.btnReveal.addEventListener('click', revealAnswer);
