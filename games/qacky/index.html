@@ -273,6 +273,32 @@ body {
   flex-shrink: 0;
   align-self: stretch;
 }
+#btn-mic {
+  background: rgba(255,255,255,0.08);
+  border: 2px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+#btn-mic:hover { border-color: #FFB800; color: #FFB800; }
+#btn-mic.recording {
+  background: rgba(255,51,102,0.15);
+  border-color: #FF3366;
+  color: #FF3366;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,51,102,0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(255,51,102,0); }
+}
+.no-speech #btn-mic { display: none; }
 
 /* Violation message */
 #violation-msg {
@@ -535,6 +561,7 @@ body {
 
     <div id="prompt-area">
       <textarea id="prompt-input" placeholder="Type your prompt..." rows="2"></textarea>
+      <button id="btn-mic" title="Speak your prompt"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm-1-9a1 1 0 1 1 2 0v6a1 1 0 1 1-2 0V5zm6 6a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V20H8v2h8v-2h-3v-2.07A7 7 0 0 0 19 11h-2z"/></svg></button>
       <button id="btn-go" class="btn-primary">GO!</button>
     </div>
 
@@ -715,6 +742,7 @@ const dom = {
   bannedChips: $('banned-chips'),
   promptInput: $('prompt-input'),
   btnGo: $('btn-go'),
+  btnMic: $('btn-mic'),
   violationMsg: $('violation-msg'),
   responseArea: $('response-area'),
   thinkingPanel: $('thinking-panel'),
@@ -1500,6 +1528,49 @@ dom.promptInput.addEventListener('keydown', e => {
 });
 
 window.addEventListener('resize', () => confetti.init());
+
+// ── Speech-to-Text ─────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) {
+  document.body.classList.add('no-speech');
+} else {
+  const recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  let isRecording = false;
+
+  recognition.onresult = (e) => {
+    let transcript = '';
+    for (let i = 0; i < e.results.length; i++) {
+      transcript += e.results[i][0].transcript;
+    }
+    dom.promptInput.value = transcript;
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    dom.btnMic.classList.remove('recording');
+  };
+
+  recognition.onerror = (e) => {
+    console.warn('[SPEECH] Error:', e.error);
+    isRecording = false;
+    dom.btnMic.classList.remove('recording');
+  };
+
+  dom.btnMic.addEventListener('click', () => {
+    if (dom.promptInput.disabled) return;
+    if (isRecording) {
+      recognition.stop();
+    } else {
+      isRecording = true;
+      dom.btnMic.classList.add('recording');
+      recognition.start();
+    }
+  });
+}
 
 // ── Init ────────────────────────────────────────────────
 confetti.init();
