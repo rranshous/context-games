@@ -1,0 +1,73 @@
+# Qacky Build Journal
+
+## M1 — Core Single Round Loop (2025-02-15)
+
+### What was built
+Single-file game at `games/qacky/index.html` (~1000 lines). Full 10-round game loop with:
+- Title screen → game rounds → final score screen
+- 25 word challenges across 3 difficulty tiers (easy/medium/hard), 10 selected per game sorted by difficulty
+- Client-side banned word checking with word-boundary regex
+- API call with extended thinking (budget_tokens: 1024, minimum allowed) + structured JSON output
+- Typewriter reveal for thinking text, then click-to-reveal answer/reason
+- Inline result bar (not overlay) so answer stays visible
+- Scoring: base 100 + speed bonus (up to 50) + brevity bonus (up to 30) - attempt penalty
+- Confetti particle system on success
+- Timer pauses during API call for fairness
+
+### Key Technical Decisions
+- **No system prompt**: model behavior controlled entirely via `output_config` JSON schema
+- **Structured output schema**: `{ answer: string, reason: string, category: string }` with `additionalProperties: false`
+- **API pattern**: `POST /api/inference/anthropic/messages` with `credentials: 'include'`
+- **Extended thinking**: `thinking: { type: 'enabled', budget_tokens: 1024 }` — 1024 is the API minimum
+- **Win check**: `\b{word}\b` regex (case-insensitive) against `answer` field only (not reason/thinking)
+- **Click-to-reveal**: after thinking typewriter completes, REVEAL ANSWER button appears; user clicks when ready
+- **Inline results**: GOT IT/NOT QUITE/TIME'S UP shown as a colored bar below the answer, not a full-screen overlay
+
+### Architecture
+```
+index.html (single file)
+├── <style> — all CSS inline
+│   ├── Screen management (.screen.active)
+│   ├── Game-show color palette
+│   ├── Thinking panel (purple glass)
+│   ├── Answer panel (gold-bordered)
+│   ├── Result bar (green/orange/red variants)
+│   └── Animations (shake, pulse-glow, fade-in, confetti)
+└── <script> — all JS inline
+    ├── WORD_PACKS[] — 25 challenges, { target, banned[], difficulty }
+    ├── RESPONSE_SCHEMA — JSON schema for structured output
+    ├── state {} — mutable game state
+    ├── dom {} — cached DOM references
+    ├── callModel() — fetch with thinking + output_config
+    ├── typewriterReveal() — character-by-character animation
+    ├── Timer — 60s countdown, pauses during API call
+    ├── Confetti — canvas particle system
+    ├── Round flow — startGame → startRound → submitPrompt → revealAnswer → endRound → nextRound
+    └── Event listeners — buttons + Enter key
+```
+
+### UX Flow
+```
+Title Screen
+  └─▶ START GAME
+       └─▶ Round N/10 (target + banned words + timer)
+            └─▶ Type prompt → GO!
+                 ├─▶ Banned word? → flash chip + shake input → retry
+                 └─▶ Clean? → API call → thinking typewriter
+                      └─▶ REVEAL ANSWER button
+                           └─▶ Click → answer + reason typewriter
+                                ├─▶ GOT IT! → points + confetti + NEXT ROUND
+                                ├─▶ NOT QUITE → TRY AGAIN (timer still running)
+                                └─▶ TIME'S UP → 0 points + NEXT ROUND
+       └─▶ After round 10 → Final Score + rating + per-round summary
+            └─▶ PLAY AGAIN
+```
+
+### Open Issues / Next Steps
+- Thinking at 1024 tokens is still pretty verbose — explore whether there's a way to get snappier thoughts
+- The model sometimes answers with adjective form ("Volcanic") instead of exact target noun ("volcano") — word-boundary check is correct but may need fuzzy matching or schema hint
+- Explorer pattern works great for auto-testing: inject `window.explorerPlay()` which uses inference to generate prompts
+- Future: inference-based judge for catching sneaky paraphrases of banned words
+- Future: action-based challenges (get model to agree to something, perform an action)
+- Future: difficulty modes (thinking visible vs hidden, more banned words, stricter judge)
+- Future: model selector

@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qacky</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #1a0a2e;
+  color: #fff;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ── Screens ─────────────────────────────────── */
+
+.screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 700px;
+  padding: 20px;
+  gap: 16px;
+}
+.screen.active { display: flex; }
+
+/* ── Title Screen ────────────────────────────── */
+
+.title {
+  font-size: 5rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: #FFB800;
+  text-shadow: 0 0 40px rgba(255,184,0,0.5), 0 4px 0 #CC9400, 0 6px 0 #996F00;
+  animation: title-bob 3s ease-in-out infinite;
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  color: rgba(255,255,255,0.6);
+  text-align: center;
+  line-height: 1.6;
+}
+
+@keyframes title-bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+
+/* ── Buttons ─────────────────────────────────── */
+
+.btn-primary {
+  background: linear-gradient(135deg, #FFB800, #FF6B35);
+  color: #1a0a2e;
+  border: none;
+  padding: 14px 40px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  border-radius: 30px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255,184,0,0.4);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  background: transparent;
+  color: #FFB800;
+  border: 2px solid #FFB800;
+  padding: 10px 28px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 30px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: background 0.2s;
+}
+.btn-secondary:hover { background: rgba(255,184,0,0.1); }
+
+/* ── Game Screen ─────────────────────────────── */
+
+#screen-game {
+  gap: 12px;
+  height: 100%;
+  max-height: 100vh;
+  padding: 16px 20px;
+  justify-content: flex-start;
+}
+
+#top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+}
+#round-display, #score-display {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+#timer-display {
+  font-family: 'Courier New', monospace;
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #FFB800;
+  min-width: 60px;
+  text-align: center;
+  line-height: 1;
+}
+#timer-display.urgent { color: #FF3366; animation: pulse-fast 0.5s ease-in-out infinite; }
+
+/* Target area */
+#target-area {
+  text-align: center;
+  padding: 8px 0;
+}
+#target-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+#target-word {
+  font-size: 3.2rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #FFB800;
+  text-shadow: 0 0 30px rgba(255,184,0,0.4);
+  letter-spacing: 0.1em;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Banned area */
+#banned-area { text-align: center; }
+#banned-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255,51,102,0.6);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+#banned-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.banned-chip {
+  display: inline-block;
+  background: rgba(255,51,102,0.1);
+  border: 2px solid #FF3366;
+  color: #FF3366;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: background 0.15s, color 0.15s;
+}
+.banned-chip.violated {
+  animation: shake 0.4s ease;
+  background: #FF3366;
+  color: #fff;
+}
+
+/* Prompt input */
+#prompt-area {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  align-items: flex-end;
+}
+#prompt-input {
+  flex: 1;
+  background: rgba(255,255,255,0.08);
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 14px;
+  color: #fff;
+  font-size: 1.05rem;
+  padding: 14px 16px;
+  resize: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.4;
+}
+#prompt-input:focus {
+  outline: none;
+  border-color: #FFB800;
+  box-shadow: 0 0 20px rgba(255,184,0,0.15);
+}
+#prompt-input:disabled { opacity: 0.5; }
+#btn-go {
+  padding: 14px 28px;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+/* Violation message */
+#violation-msg {
+  color: #FF3366;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: center;
+  min-height: 1.2em;
+  transition: opacity 0.3s;
+}
+
+/* Response area */
+#response-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#thinking-panel {
+  background: rgba(123,47,247,0.08);
+  border: 1px solid rgba(123,47,247,0.25);
+  border-radius: 14px;
+  padding: 14px 18px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+#thinking-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #a78bfa;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+#thinking-text {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.55);
+  font-style: italic;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#response-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#answer-area {
+  background: rgba(255,184,0,0.08);
+  border: 1px solid rgba(255,184,0,0.25);
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+#answer-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #FFB800;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+#answer-text {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.4;
+  word-break: break-word;
+}
+#reason-area {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+#reason-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+#reason-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.7);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Reveal button */
+#btn-reveal {
+  align-self: center;
+  margin: 4px 0;
+  animation: fade-in 0.3s ease;
+}
+
+/* Inline result bar */
+#result-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  animation: fade-in 0.3s ease;
+}
+#result-bar.success {
+  background: rgba(0,230,118,0.1);
+  border: 1px solid rgba(0,230,118,0.3);
+}
+#result-bar.miss {
+  background: rgba(255,107,53,0.1);
+  border: 1px solid rgba(255,107,53,0.3);
+}
+#result-bar.timeout {
+  background: rgba(255,51,102,0.1);
+  border: 1px solid rgba(255,51,102,0.3);
+}
+#result-label {
+  font-size: 1.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+#result-points {
+  font-size: 1rem;
+  color: rgba(255,255,255,0.6);
+  flex: 1;
+  text-align: center;
+}
+#result-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Score Screen ────────────────────────────── */
+
+#screen-score { gap: 20px; }
+#screen-score h2 {
+  font-size: 2rem;
+  font-weight: 900;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+#final-score { text-align: center; }
+
+#round-summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+}
+.summary-round {
+  font-weight: 800;
+  color: rgba(255,255,255,0.4);
+  font-size: 0.85rem;
+  min-width: 30px;
+}
+.summary-target {
+  flex: 1;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.summary-result {
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+/* ── Confetti ────────────────────────────────── */
+
+#confetti-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ── Utility ─────────────────────────────────── */
+
+.hidden { display: none !important; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-4px); }
+}
+@keyframes pulse-glow {
+  0%, 100% { text-shadow: 0 0 30px rgba(255,184,0,0.4); }
+  50% { text-shadow: 0 0 50px rgba(255,184,0,0.7); }
+}
+@keyframes pulse-fast {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE SCREEN -->
+  <div id="screen-title" class="screen">
+    <h1 class="title">QACKY</h1>
+    <p class="subtitle">Make the AI say the word.<br>But watch your mouth.</p>
+    <button id="btn-start" class="btn-primary">START GAME</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="screen-game" class="screen">
+    <div id="top-bar">
+      <span id="round-display">Round 1/10</span>
+      <span id="timer-display">60</span>
+      <span id="score-display">Score: 0</span>
+    </div>
+
+    <div id="target-area">
+      <div id="target-label">GET THE AI TO SAY</div>
+      <div id="target-word"></div>
+    </div>
+
+    <div id="banned-area">
+      <div id="banned-label">YOU CAN'T SAY</div>
+      <div id="banned-chips"></div>
+    </div>
+
+    <div id="prompt-area">
+      <textarea id="prompt-input" placeholder="Type your prompt..." rows="2"></textarea>
+      <button id="btn-go" class="btn-primary">GO!</button>
+    </div>
+
+    <div id="violation-msg" class="hidden"></div>
+
+    <div id="response-area" class="hidden">
+      <div id="thinking-panel">
+        <div id="thinking-label">AI IS THINKING...</div>
+        <div id="thinking-text"></div>
+      </div>
+
+      <button id="btn-reveal" class="btn-primary hidden">REVEAL ANSWER</button>
+
+      <div id="response-panel" class="hidden">
+        <div id="answer-area">
+          <div id="answer-label">ANSWER</div>
+          <div id="answer-text"></div>
+        </div>
+        <div id="reason-area">
+          <div id="reason-label">REASON</div>
+          <div id="reason-text"></div>
+        </div>
+      </div>
+
+      <div id="result-bar" class="hidden">
+        <div id="result-label"></div>
+        <div id="result-points"></div>
+        <div id="result-actions">
+          <button id="btn-retry" class="btn-secondary hidden">TRY AGAIN</button>
+          <button id="btn-next" class="btn-primary hidden">NEXT ROUND</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCORE SCREEN -->
+  <div id="screen-score" class="screen">
+    <h2>GAME OVER</h2>
+    <div id="final-score"></div>
+    <div id="round-summary"></div>
+    <button id="btn-play-again" class="btn-primary">PLAY AGAIN</button>
+  </div>
+
+</div>
+
+<canvas id="confetti-canvas"></canvas>
+
+<script>
+// ── Word Packs ──────────────────────────────────────────
+const WORD_PACKS = [
+  // Difficulty 1 — concrete nouns
+  { target: "elephant",  banned: ["animal", "trunk", "big", "gray", "zoo"], difficulty: 1 },
+  { target: "pizza",     banned: ["food", "cheese", "Italian", "slice", "round"], difficulty: 1 },
+  { target: "guitar",    banned: ["music", "strings", "instrument", "play", "rock"], difficulty: 1 },
+  { target: "snowman",   banned: ["snow", "cold", "winter", "carrot", "frosty"], difficulty: 1 },
+  { target: "bicycle",   banned: ["ride", "wheels", "pedal", "bike", "cycle"], difficulty: 1 },
+  { target: "volcano",   banned: ["lava", "eruption", "mountain", "hot", "magma"], difficulty: 1 },
+  { target: "penguin",   banned: ["bird", "ice", "Antarctica", "black", "white"], difficulty: 1 },
+  { target: "castle",    banned: ["king", "queen", "medieval", "tower", "fortress"], difficulty: 1 },
+  { target: "banana",    banned: ["fruit", "yellow", "monkey", "peel", "potassium"], difficulty: 1 },
+
+  // Difficulty 2 — more abstract
+  { target: "rainbow",   banned: ["color", "rain", "arc", "sky", "spectrum"], difficulty: 2 },
+  { target: "whisper",   banned: ["quiet", "soft", "voice", "talk", "speak"], difficulty: 2 },
+  { target: "gravity",   banned: ["fall", "Newton", "force", "weight", "pull"], difficulty: 2 },
+  { target: "shadow",    banned: ["dark", "light", "silhouette", "sun", "shade"], difficulty: 2 },
+  { target: "mirror",    banned: ["reflection", "glass", "look", "image", "see"], difficulty: 2 },
+  { target: "compass",   banned: ["direction", "north", "navigate", "magnetic", "south"], difficulty: 2 },
+  { target: "skeleton",  banned: ["bones", "body", "skull", "Halloween", "dead"], difficulty: 2 },
+  { target: "tornado",   banned: ["wind", "storm", "spin", "destroy", "funnel"], difficulty: 2 },
+
+  // Difficulty 3 — abstract concepts
+  { target: "paradox",    banned: ["contradiction", "logic", "impossible", "opposite", "true"], difficulty: 3 },
+  { target: "nostalgia",  banned: ["memory", "past", "remember", "old", "feeling"], difficulty: 3 },
+  { target: "sarcasm",    banned: ["irony", "joke", "tone", "mean", "humor"], difficulty: 3 },
+  { target: "democracy",  banned: ["vote", "government", "people", "election", "freedom"], difficulty: 3 },
+  { target: "algorithm",  banned: ["computer", "code", "program", "step", "math"], difficulty: 3 },
+  { target: "camouflage", banned: ["hide", "blend", "invisible", "color", "disguise"], difficulty: 3 },
+  { target: "symphony",   banned: ["music", "orchestra", "classical", "instrument", "compose"], difficulty: 3 },
+  { target: "labyrinth",  banned: ["maze", "lost", "path", "puzzle", "wall"], difficulty: 3 },
+];
+
+// ── Game State ──────────────────────────────────────────
+const state = {
+  screen: 'title',
+  round: 0,
+  totalRounds: 10,
+  score: 0,
+  timeRemaining: 60,
+  timerInterval: null,
+  attempts: 0,
+  isLoading: false,
+  roundResults: [],
+  challenges: [],
+  currentChallenge: null,
+  roundActive: false,
+  typewriterAbort: null,
+};
+
+// ── DOM Refs ────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const dom = {
+  screenTitle: $('screen-title'),
+  screenGame: $('screen-game'),
+  screenScore: $('screen-score'),
+  btnStart: $('btn-start'),
+  roundDisplay: $('round-display'),
+  timerDisplay: $('timer-display'),
+  scoreDisplay: $('score-display'),
+  targetWord: $('target-word'),
+  bannedChips: $('banned-chips'),
+  promptInput: $('prompt-input'),
+  btnGo: $('btn-go'),
+  violationMsg: $('violation-msg'),
+  responseArea: $('response-area'),
+  thinkingPanel: $('thinking-panel'),
+  thinkingLabel: $('thinking-label'),
+  thinkingText: $('thinking-text'),
+  responsePanel: $('response-panel'),
+  answerText: $('answer-text'),
+  reasonText: $('reason-text'),
+  btnReveal: $('btn-reveal'),
+  resultBar: $('result-bar'),
+  resultLabel: $('result-label'),
+  resultPoints: $('result-points'),
+  btnNext: $('btn-next'),
+  btnRetry: $('btn-retry'),
+  finalScore: $('final-score'),
+  roundSummary: $('round-summary'),
+  btnPlayAgain: $('btn-play-again'),
+  confettiCanvas: $('confetti-canvas'),
+};
+
+// ── Screen Management ───────────────────────────────────
+function showScreen(name) {
+  state.screen = name;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(`screen-${name}`).classList.add('active');
+}
+
+// ── Utilities ───────────────────────────────────────────
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function selectChallenges() {
+  const shuffled = shuffleArray(WORD_PACKS);
+  const selected = shuffled.slice(0, state.totalRounds);
+  selected.sort((a, b) => a.difficulty - b.difficulty);
+  return selected;
+}
+
+// ── Banned Word Checker ─────────────────────────────────
+function checkBannedWords(prompt, bannedList) {
+  const violations = [];
+  for (const word of bannedList) {
+    const regex = new RegExp(`\\b${escapeRegex(word)}\\b`, 'i');
+    if (regex.test(prompt)) violations.push(word);
+  }
+  return violations;
+}
+
+// ── Win Checker ─────────────────────────────────────────
+function checkWin(responseText, targetWord) {
+  const regex = new RegExp(`\\b${escapeRegex(targetWord)}\\b`, 'i');
+  return regex.test(responseText);
+}
+
+// ── Scoring ─────────────────────────────────────────────
+function calculateScore(timeRemaining, promptWordCount, attempts) {
+  const base = 100;
+  const speedBonus = Math.round((timeRemaining / 60) * 50);
+  const brevity = Math.max(0, Math.round(30 * (1 - Math.max(0, promptWordCount - 5) / 25)));
+  const attemptPenalty = Math.max(0, (attempts - 1) * 10);
+  return Math.max(10, base + speedBonus + brevity - attemptPenalty);
+}
+
+// ── Response Schema ─────────────────────────────────────
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    answer: {
+      type: 'string',
+      description: 'Your direct answer — a single word or short phrase.',
+    },
+    reason: {
+      type: 'string',
+      description: 'Your reasoning and explanation for arriving at this answer.',
+    },
+    category: {
+      type: 'string',
+      description: 'The general topic area (e.g. animals, geography, science).',
+    },
+  },
+  required: ['answer', 'reason', 'category'],
+  additionalProperties: false,
+};
+
+// ── API Call ────────────────────────────────────────────
+async function callModel(userPrompt) {
+  const response = await fetch('/api/inference/anthropic/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 16000,
+      messages: [{ role: 'user', content: userPrompt }],
+      thinking: { type: 'enabled', budget_tokens: 1024 },
+      output_config: {
+        format: { type: 'json_schema', schema: RESPONSE_SCHEMA },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('AUTH_REQUIRED');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || err.message || `API error ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  let thinkingContent = '';
+  let structured = null;
+  for (const block of data.content) {
+    if (block.type === 'thinking') thinkingContent = block.thinking;
+    else if (block.type === 'text') {
+      try { structured = JSON.parse(block.text); }
+      catch { structured = { answer: block.text, reason: '', category: '' }; }
+    }
+  }
+
+  return { thinking: thinkingContent, structured };
+}
+
+// ── Typewriter Animation ────────────────────────────────
+function typewriterReveal(element, text, speed = 20) {
+  // Abort any previous typewriter on this element
+  return new Promise(resolve => {
+    element.textContent = '';
+    if (!text) { resolve(); return; }
+    let i = 0;
+    const chunkSize = Math.max(1, Math.floor(text.length / 150));
+    const interval = setInterval(() => {
+      const end = Math.min(i + chunkSize, text.length);
+      element.textContent += text.slice(i, end);
+      i = end;
+      // Auto-scroll parent
+      element.parentElement.scrollTop = element.parentElement.scrollHeight;
+      if (i >= text.length) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, speed);
+  });
+}
+
+// ── Timer ───────────────────────────────────────────────
+function startTimer() {
+  state.timeRemaining = 60;
+  updateTimerDisplay();
+  dom.timerDisplay.classList.remove('urgent');
+
+  state.timerInterval = setInterval(() => {
+    if (state.isLoading) return; // pause during API call
+    state.timeRemaining--;
+    updateTimerDisplay();
+    if (state.timeRemaining <= 10) dom.timerDisplay.classList.add('urgent');
+    if (state.timeRemaining <= 0) {
+      clearInterval(state.timerInterval);
+      endRound(false, 0);
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(state.timerInterval);
+  state.timerInterval = null;
+}
+
+function updateTimerDisplay() {
+  dom.timerDisplay.textContent = state.timeRemaining;
+}
+
+// ── Confetti ────────────────────────────────────────────
+const confetti = {
+  particles: [],
+  ctx: null,
+  running: false,
+
+  init() {
+    const canvas = dom.confettiCanvas;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    this.ctx = canvas.getContext('2d');
+  },
+
+  fire() {
+    const colors = ['#FFB800', '#FF6B35', '#7B2FF7', '#00E676', '#FF3366', '#00BFFF'];
+    for (let i = 0; i < 120; i++) {
+      this.particles.push({
+        x: window.innerWidth / 2 + (Math.random() - 0.5) * 300,
+        y: window.innerHeight * 0.4,
+        vx: (Math.random() - 0.5) * 14,
+        vy: -Math.random() * 14 - 5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: Math.random() * 8 + 4,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.3,
+        life: 1,
+      });
+    }
+    if (!this.running) {
+      this.running = true;
+      this.loop();
+    }
+  },
+
+  loop() {
+    const { ctx, particles } = this;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.vy += 0.35;
+      p.y += p.vy;
+      p.rotation += p.rotSpeed;
+      p.life -= 0.013;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    }
+    if (particles.length > 0) {
+      requestAnimationFrame(() => this.loop());
+    } else {
+      this.running = false;
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+  },
+};
+
+// ── Violation Flash ─────────────────────────────────────
+function showViolation(violations) {
+  const violLower = violations.map(v => v.toLowerCase());
+  dom.bannedChips.querySelectorAll('.banned-chip').forEach(chip => {
+    if (violLower.includes(chip.dataset.word)) {
+      chip.classList.remove('violated');
+      void chip.offsetWidth; // reflow to restart animation
+      chip.classList.add('violated');
+      setTimeout(() => chip.classList.remove('violated'), 600);
+    }
+  });
+
+  dom.violationMsg.textContent = `You can't say: ${violations.join(', ')}!`;
+  dom.violationMsg.classList.remove('hidden');
+  setTimeout(() => dom.violationMsg.classList.add('hidden'), 2500);
+
+  dom.promptInput.style.animation = 'none';
+  void dom.promptInput.offsetWidth;
+  dom.promptInput.style.animation = 'shake 0.4s ease';
+  setTimeout(() => dom.promptInput.style.animation = '', 400);
+}
+
+// ── Round Flow ──────────────────────────────────────────
+function startGame() {
+  state.round = 0;
+  state.score = 0;
+  state.roundResults = [];
+  state.challenges = selectChallenges();
+  showScreen('game');
+  startRound();
+}
+
+function startRound() {
+  const challenge = state.challenges[state.round];
+  state.currentChallenge = challenge;
+  state.attempts = 0;
+  state.roundActive = true;
+  state.isLoading = false;
+
+  // Update top bar
+  dom.roundDisplay.textContent = `Round ${state.round + 1}/${state.totalRounds}`;
+  dom.scoreDisplay.textContent = `Score: ${state.score}`;
+  dom.targetWord.textContent = challenge.target;
+  dom.timerDisplay.classList.remove('urgent');
+
+  // Render banned chips
+  dom.bannedChips.innerHTML = challenge.banned
+    .map(w => `<span class="banned-chip" data-word="${w.toLowerCase()}">${w}</span>`)
+    .join('');
+
+  // Reset UI
+  dom.promptInput.value = '';
+  dom.promptInput.disabled = false;
+  dom.btnGo.disabled = false;
+  dom.responseArea.classList.add('hidden');
+  dom.responsePanel.classList.add('hidden');
+  dom.btnReveal.classList.add('hidden');
+  dom.resultBar.classList.add('hidden');
+  dom.violationMsg.classList.add('hidden');
+  dom.thinkingText.textContent = '';
+  dom.answerText.textContent = '';
+  dom.reasonText.textContent = '';
+  state.pendingResult = null;
+  state.pendingPrompt = '';
+  dom.promptInput.focus();
+
+  startTimer();
+}
+
+async function submitPrompt() {
+  if (state.isLoading || !state.roundActive) return;
+
+  const prompt = dom.promptInput.value.trim();
+  if (!prompt) return;
+
+  // Check banned words
+  const violations = checkBannedWords(prompt, state.currentChallenge.banned);
+  if (violations.length > 0) {
+    showViolation(violations);
+    return;
+  }
+
+  state.attempts++;
+  state.isLoading = true;
+  dom.btnGo.disabled = true;
+  dom.promptInput.disabled = true;
+
+  // Show response area with loading
+  dom.responseArea.classList.remove('hidden');
+  dom.responsePanel.classList.add('hidden');
+  dom.btnReveal.classList.add('hidden');
+  dom.resultBar.classList.add('hidden');
+  dom.thinkingLabel.textContent = 'AI IS THINKING...';
+  dom.thinkingText.textContent = '';
+  dom.answerText.textContent = '';
+  dom.reasonText.textContent = '';
+
+  const loadingDots = setInterval(() => {
+    const dots = dom.thinkingText.textContent;
+    dom.thinkingText.textContent = dots.length >= 3 ? '' : dots + '.';
+  }, 400);
+
+  try {
+    const result = await callModel(prompt);
+    clearInterval(loadingDots);
+
+    // Reveal thinking
+    dom.thinkingLabel.textContent = 'THE AI WAS THINKING:';
+    if (result.thinking) {
+      await typewriterReveal(dom.thinkingText, result.thinking, 20);
+    } else {
+      dom.thinkingText.textContent = '(no thinking)';
+    }
+
+    // Stash result, show reveal button, wait for user click
+    state.pendingResult = result.structured || {};
+    state.pendingPrompt = prompt;
+    state.isLoading = false;
+    dom.btnReveal.classList.remove('hidden');
+
+  } catch (err) {
+    clearInterval(loadingDots);
+    state.isLoading = false;
+
+    if (err.message === 'AUTH_REQUIRED') {
+      dom.thinkingText.innerHTML = 'Please <a href="/login.html" style="color:#FFB800">log in</a> first.';
+      stopTimer();
+      return;
+    }
+
+    dom.thinkingText.textContent = `Error: ${err.message}`;
+    dom.btnGo.disabled = false;
+    dom.promptInput.disabled = false;
+  }
+}
+
+async function revealAnswer() {
+  dom.btnReveal.classList.add('hidden');
+  dom.responsePanel.classList.remove('hidden');
+
+  const { answer = '', reason = '' } = state.pendingResult;
+
+  await typewriterReveal(dom.answerText, answer, 18);
+  if (reason) {
+    await delay(200);
+    await typewriterReveal(dom.reasonText, reason, 10);
+  }
+
+  // Check win — only against the answer field
+  const won = checkWin(answer, state.currentChallenge.target);
+  if (won) {
+    const wordCount = state.pendingPrompt.split(/\s+/).length;
+    const points = calculateScore(state.timeRemaining, wordCount, state.attempts);
+    endRound(true, points, state.pendingPrompt);
+  } else {
+    showMiss();
+    dom.btnGo.disabled = false;
+    dom.promptInput.disabled = false;
+    dom.promptInput.focus();
+  }
+}
+
+function showMiss() {
+  dom.resultBar.className = 'miss';
+  dom.resultBar.classList.remove('hidden');
+  dom.resultLabel.textContent = 'NOT QUITE!';
+  dom.resultLabel.style.color = '#FF6B35';
+  dom.resultPoints.textContent = 'Try a different angle...';
+  dom.btnNext.classList.add('hidden');
+  dom.btnRetry.classList.remove('hidden');
+}
+
+function endRound(success, points, prompt = '') {
+  state.roundActive = false;
+  state.isLoading = false;
+  stopTimer();
+
+  state.roundResults.push({
+    target: state.currentChallenge.target,
+    success,
+    points,
+    attempts: state.attempts,
+    prompt,
+  });
+
+  dom.resultBar.classList.remove('hidden');
+  dom.btnRetry.classList.add('hidden');
+  dom.btnNext.classList.remove('hidden');
+
+  if (success) {
+    state.score += points;
+    dom.scoreDisplay.textContent = `Score: ${state.score}`;
+    dom.resultBar.className = 'success';
+    dom.resultLabel.textContent = 'GOT IT!';
+    dom.resultLabel.style.color = '#00E676';
+    dom.resultPoints.textContent = `+${points} points`;
+    confetti.fire();
+  } else {
+    dom.resultBar.className = 'timeout';
+    dom.resultLabel.textContent = "TIME'S UP!";
+    dom.resultLabel.style.color = '#FF3366';
+    dom.resultPoints.textContent = '0 points';
+  }
+
+  dom.btnNext.textContent = (state.round + 1 >= state.totalRounds) ? 'SEE RESULTS' : 'NEXT ROUND';
+  dom.promptInput.disabled = true;
+  dom.btnGo.disabled = true;
+}
+
+function nextRound() {
+  state.round++;
+  if (state.round >= state.totalRounds) {
+    showFinalScore();
+  } else {
+    startRound();
+  }
+}
+
+// ── Final Score ─────────────────────────────────────────
+function showFinalScore() {
+  showScreen('score');
+
+  const maxPossible = state.totalRounds * 180;
+  const pct = state.score / maxPossible;
+  let rating;
+  if (pct >= 0.8) rating = 'PROMPT MASTER';
+  else if (pct >= 0.6) rating = 'SMOOTH TALKER';
+  else if (pct >= 0.4) rating = 'GETTING THERE';
+  else if (pct >= 0.2) rating = 'ROOKIE PROMPTER';
+  else rating = 'KEEP PRACTICING';
+
+  dom.finalScore.innerHTML = `
+    <div style="font-size:4rem;font-weight:900;color:#FFB800">${state.score}</div>
+    <div style="font-size:1.4rem;color:#FF6B35;margin-top:8px;letter-spacing:0.1em">${rating}</div>
+  `;
+
+  dom.roundSummary.innerHTML = state.roundResults.map((r, i) => `
+    <div class="summary-row">
+      <span class="summary-round">${i + 1}</span>
+      <span class="summary-target">${r.target}</span>
+      <span class="summary-result" style="color:${r.success ? '#00E676' : '#FF3366'}">${r.success ? `+${r.points}` : 'MISS'}</span>
+    </div>
+  `).join('');
+
+  confetti.fire();
+}
+
+// ── Event Listeners ─────────────────────────────────────
+dom.btnStart.addEventListener('click', startGame);
+dom.btnGo.addEventListener('click', submitPrompt);
+dom.btnReveal.addEventListener('click', revealAnswer);
+dom.btnNext.addEventListener('click', nextRound);
+dom.btnRetry.addEventListener('click', () => {
+  dom.resultBar.classList.add('hidden');
+  dom.responsePanel.classList.add('hidden');
+  dom.promptInput.focus();
+});
+dom.btnPlayAgain.addEventListener('click', startGame);
+
+dom.promptInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    submitPrompt();
+  }
+});
+
+window.addEventListener('resize', () => confetti.init());
+
+// ── Init ────────────────────────────────────────────────
+confetti.init();
+showScreen('title');
+</script>
+</body>
+</html>
