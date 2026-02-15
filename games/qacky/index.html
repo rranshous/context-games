@@ -189,6 +189,23 @@ body {
   color: #fff;
 }
 
+/* Judge foul state */
+#thinking-panel.foul {
+  background: rgba(255,51,102,0.12);
+  border-color: rgba(255,51,102,0.35);
+  animation: fade-in 0.3s ease;
+}
+#thinking-panel.foul #thinking-label {
+  color: #FF3366;
+  font-size: 1.4rem;
+  letter-spacing: 0.12em;
+}
+#thinking-panel.foul #thinking-text {
+  color: rgba(255,255,255,0.75);
+  font-style: normal;
+  font-size: 1rem;
+}
+
 /* Prompt input */
 #prompt-area {
   display: flex;
@@ -363,6 +380,16 @@ body {
   flex-shrink: 0;
 }
 
+/* Judge note */
+#judge-note {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.35);
+  font-style: italic;
+  text-align: center;
+  padding: 0 10px;
+  animation: fade-in 0.5s ease;
+}
+
 /* ── Score Screen ────────────────────────────── */
 
 #screen-score { gap: 20px; }
@@ -503,6 +530,8 @@ body {
           <button id="btn-next" class="btn-primary hidden">NEXT ROUND</button>
         </div>
       </div>
+
+      <div id="judge-note" class="hidden"></div>
     </div>
   </div>
 
@@ -598,6 +627,7 @@ const dom = {
   resultPoints: $('result-points'),
   btnNext: $('btn-next'),
   btnRetry: $('btn-retry'),
+  judgeNote: $('judge-note'),
   finalScore: $('final-score'),
   roundSummary: $('round-summary'),
   btnPlayAgain: $('btn-play-again'),
@@ -680,6 +710,89 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
 };
 
+// ── Judge Schema ────────────────────────────────────────
+const JUDGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    verdict: {
+      type: 'string',
+      enum: ['clean', 'foul'],
+      description: 'Whether the prompt plays fair or violates the spirit of the banned words.',
+    },
+    violated_word: {
+      type: 'string',
+      description: 'Which banned word was violated (or empty string if clean).',
+    },
+    explanation: {
+      type: 'string',
+      description: 'Brief, punchy explanation of your ruling.',
+    },
+  },
+  required: ['verdict', 'violated_word', 'explanation'],
+  additionalProperties: false,
+};
+
+function buildJudgePrompt(playerPrompt, target, banned) {
+  return `You are the sharp-eyed judge of QACKY — a fast-paced word game show.
+
+THE GAME:
+Players write prompts to make an AI say a TARGET WORD. But they can't use BANNED WORDS in their prompt. Your job: catch cheaters.
+
+A prompt is a FOUL if it:
+- Uses a synonym, definition, or paraphrase of a banned word
+- Spells out, abbreviates, or phonetically encodes a banned word
+- Embeds a banned word inside another word (e.g. "sunlight" contains "light")
+- Translates a banned word into another language
+- Makes the banned concept unmistakable despite avoiding the literal word
+
+A prompt is CLEAN if it uses creative, indirect strategies without relying on banned concepts.
+
+Be fair but firm. Creative wordplay is the spirit of the game. Only call fouls you're confident about — if in doubt, let it play.
+
+TARGET WORD: ${target}
+BANNED WORDS: ${banned.join(', ')}
+PLAYER'S PROMPT: "${playerPrompt}"`;
+}
+
+// ── Answer Judge Schema ─────────────────────────────────
+const ANSWER_JUDGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    match: {
+      type: 'string',
+      enum: ['yes', 'no'],
+      description: 'Whether the AI\'s answer contains the target word or a recognizable form of it.',
+    },
+    explanation: {
+      type: 'string',
+      description: 'Brief explanation of the ruling.',
+    },
+  },
+  required: ['match', 'explanation'],
+  additionalProperties: false,
+};
+
+function buildAnswerJudgePrompt(answer, target) {
+  return `You are the answer judge for QACKY, a word game show where players try to get an AI to say a TARGET WORD.
+
+The AI gave an answer. Your job: decide if the answer counts as saying the target word.
+
+The answer MATCHES if it contains:
+- The target word exactly
+- A plural or singular form (e.g. "castles" matches "castle")
+- A conjugated or declined form (e.g. "running" matches "run")
+- An adjective or adverb form derived from the target (e.g. "volcanic" matches "volcano")
+
+The answer does NOT match if:
+- The target word or a recognizable form of it is completely absent
+- A different word happens to share some letters but has a different meaning
+
+Be generous — the player worked hard. If it's close, give it to them.
+
+TARGET WORD: ${target}
+AI'S ANSWER: "${answer}"`;
+}
+
 // ── API Call ────────────────────────────────────────────
 async function callModel(userPrompt) {
   const response = await fetch('/api/inference/anthropic/messages', {
@@ -688,9 +801,8 @@ async function callModel(userPrompt) {
     credentials: 'include',
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 16000,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: userPrompt }],
-      thinking: { type: 'enabled', budget_tokens: 1024 },
       output_config: {
         format: { type: 'json_schema', schema: RESPONSE_SCHEMA },
       },
@@ -705,17 +817,89 @@ async function callModel(userPrompt) {
 
   const data = await response.json();
 
-  let thinkingContent = '';
   let structured = null;
   for (const block of data.content) {
-    if (block.type === 'thinking') thinkingContent = block.thinking;
-    else if (block.type === 'text') {
+    if (block.type === 'text') {
       try { structured = JSON.parse(block.text); }
       catch { structured = { answer: block.text, reason: '', category: '' }; }
     }
   }
 
-  return { thinking: thinkingContent, structured };
+  return { structured };
+}
+
+// ── Judge Call ──────────────────────────────────────────
+async function callJudge(playerPrompt, target, banned) {
+  console.log('[PROMPT JUDGE] Firing...', { target, banned, prompt: playerPrompt });
+  try {
+    const response = await fetch('/api/inference/anthropic/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: buildJudgePrompt(playerPrompt, target, banned) }],
+        output_config: {
+          format: { type: 'json_schema', schema: JUDGE_SCHEMA },
+        },
+      }),
+    });
+
+    if (!response.ok) { console.warn('[PROMPT JUDGE] API error, fail-open'); return { verdict: 'clean', violated_word: '', explanation: '' }; }
+
+    const data = await response.json();
+    for (const block of data.content) {
+      if (block.type === 'text') {
+        try {
+          const result = JSON.parse(block.text);
+          console.log('[PROMPT JUDGE] Result:', result);
+          return result;
+        } catch { console.warn('[PROMPT JUDGE] Parse error, fail-open'); return { verdict: 'clean', violated_word: '', explanation: '' }; }
+      }
+    }
+    return { verdict: 'clean', violated_word: '', explanation: '' };
+  } catch (e) {
+    console.warn('[PROMPT JUDGE] Error, fail-open:', e);
+    return { verdict: 'clean', violated_word: '', explanation: '' };
+  }
+}
+
+// ── Answer Judge Call ───────────────────────────────────
+async function callAnswerJudge(answer, target) {
+  console.log('[ANSWER JUDGE] Firing...', { target, answer });
+  try {
+    const response = await fetch('/api/inference/anthropic/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: buildAnswerJudgePrompt(answer, target) }],
+        output_config: {
+          format: { type: 'json_schema', schema: ANSWER_JUDGE_SCHEMA },
+        },
+      }),
+    });
+
+    if (!response.ok) { console.warn('[ANSWER JUDGE] API error, falling back to regex'); return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' }; }
+
+    const data = await response.json();
+    for (const block of data.content) {
+      if (block.type === 'text') {
+        try {
+          const result = JSON.parse(block.text);
+          console.log('[ANSWER JUDGE] Result:', result);
+          return result;
+        } catch { console.warn('[ANSWER JUDGE] Parse error, falling back to regex'); return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' }; }
+      }
+    }
+    return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' };
+  } catch (e) {
+    console.warn('[ANSWER JUDGE] Error, falling back to regex:', e);
+    return { match: checkWin(answer, target) ? 'yes' : 'no', explanation: '' };
+  }
 }
 
 // ── Typewriter Animation ────────────────────────────────
@@ -904,24 +1088,25 @@ async function submitPrompt() {
   const prompt = dom.promptInput.value.trim();
   if (!prompt) return;
 
-  // Check banned words
+  // Quick regex check first (instant)
   const violations = checkBannedWords(prompt, state.currentChallenge.banned);
   if (violations.length > 0) {
     showViolation(violations);
     return;
   }
 
-  state.attempts++;
   state.isLoading = true;
   dom.btnGo.disabled = true;
   dom.promptInput.disabled = true;
 
-  // Show response area with loading
+  // Show response area with judging state
   dom.responseArea.classList.remove('hidden');
   dom.responsePanel.classList.add('hidden');
   dom.btnReveal.classList.add('hidden');
   dom.resultBar.classList.add('hidden');
-  dom.thinkingLabel.textContent = 'AI IS THINKING...';
+  dom.judgeNote.classList.add('hidden');
+  dom.thinkingPanel.classList.remove('foul', 'hidden');
+  dom.thinkingLabel.textContent = 'JUDGE IS REVIEWING...';
   dom.thinkingText.textContent = '';
   dom.answerText.textContent = '';
   dom.reasonText.textContent = '';
@@ -931,23 +1116,50 @@ async function submitPrompt() {
     dom.thinkingText.textContent = dots.length >= 3 ? '' : dots + '.';
   }, 400);
 
+  // Fire both calls in parallel — judge resolves first (no thinking, simpler)
+  const { target, banned } = state.currentChallenge;
+  const judgePromise = callJudge(prompt, target, banned);
+  const mainPromise = callModel(prompt);
+
+  // Wait for judge verdict
+  const judgeResult = await judgePromise;
+
+  if (judgeResult.verdict === 'foul') {
+    clearInterval(loadingDots);
+    state.isLoading = false;
+
+    // Show the foul — don't count as attempt
+    dom.thinkingPanel.classList.add('foul');
+    dom.thinkingLabel.textContent = 'FOUL!';
+
+    let foulText = judgeResult.explanation;
+    if (judgeResult.violated_word) {
+      foulText = `Banned concept: ${judgeResult.violated_word.toUpperCase()}\n${foulText}`;
+    }
+    dom.thinkingText.textContent = '';
+    await typewriterReveal(dom.thinkingText, foulText, 20);
+
+    // Re-enable input for retry
+    dom.btnGo.disabled = false;
+    dom.promptInput.disabled = false;
+    dom.promptInput.focus();
+    return;
+  }
+
+  // Judge says clean — count as attempt, wait for main result
+  state.attempts++;
+  dom.thinkingLabel.textContent = 'AI IS THINKING...';
+
   try {
-    const result = await callModel(prompt);
+    const result = await mainPromise;
     clearInterval(loadingDots);
 
-    // Reveal thinking
-    dom.thinkingLabel.textContent = 'THE AI WAS THINKING:';
-    if (result.thinking) {
-      await typewriterReveal(dom.thinkingText, result.thinking, 20);
-    } else {
-      dom.thinkingText.textContent = '(no thinking)';
-    }
-
-    // Stash result, show reveal button, wait for user click
+    // Stash result and go straight to answer reveal
     state.pendingResult = result.structured || {};
     state.pendingPrompt = prompt;
     state.isLoading = false;
-    dom.btnReveal.classList.remove('hidden');
+    dom.thinkingPanel.classList.add('hidden');
+    await revealAnswer();
 
   } catch (err) {
     clearInterval(loadingDots);
@@ -971,14 +1183,25 @@ async function revealAnswer() {
 
   const { answer = '', reason = '' } = state.pendingResult;
 
+  // Fire answer judge in parallel with typewriter — zero extra wait
+  const answerJudgePromise = callAnswerJudge(answer, state.currentChallenge.target);
+
   await typewriterReveal(dom.answerText, answer, 18);
   if (reason) {
     await delay(200);
     await typewriterReveal(dom.reasonText, reason, 10);
   }
 
-  // Check win — only against the answer field
-  const won = checkWin(answer, state.currentChallenge.target);
+  // AI judge decides if the answer counts (should be resolved by now)
+  const judgeResult = await answerJudgePromise;
+  const won = judgeResult.match === 'yes';
+
+  // Show judge's reasoning as a subtle note
+  if (judgeResult.explanation) {
+    dom.judgeNote.textContent = `Judge: ${judgeResult.explanation}`;
+    dom.judgeNote.classList.remove('hidden');
+  }
+
   if (won) {
     const wordCount = state.pendingPrompt.split(/\s+/).length;
     const points = calculateScore(state.timeRemaining, wordCount, state.attempts);
