@@ -124,7 +124,78 @@ Type prompt → GO!
 ### Open Issues / Next Steps
 - Prompt judge tuning — may need iteration on false positive/negative rate after more playtesting
 - Could highlight which banned chip was violated (like regex violations do)
-- Future: judge could catch target-word-in-prompt (too-easy penalty)
-- Future: appeal system — player argues their case to the judge
-- Future: action-based challenges (get model to agree to something, perform an action)
-- Future: difficulty modes, model selector
+- Future: reverse rounds, difficulty modes, model selector
+
+## M3 — Five Game Modes (2026-02-15)
+
+### What was built
+Five selectable game modes on the title screen, each with unique challenge packs and judging criteria. All modes share the banned-words mechanic.
+
+### Modes
+1. **Words** (existing) — Make the AI say a target word
+2. **Actions** — Make the AI perform an action (write a haiku, apologize, count backwards, etc.)
+3. **Voices** — Make the AI respond in a character voice (pirate, Shakespeare, grumpy old person, etc.)
+4. **Emotions** — Make the AI convey an emotion (nostalgia, passive-aggressive, existential dread, etc.)
+5. **Puzzles** — Make the AI's output have a structural property (acrostic, exact word count, rhyming pair, etc.)
+
+### Architecture
+- `MODE_CONFIG` object maps mode → `{ label, description, packs }` for each mode
+- ~10 challenges per mode, 3 difficulty tiers, sorted ascending per game
+- `getResponseSchema(mode)` — words mode returns tight schema (`answer: "single word"`), all others return open schema (`answer: "2-4 sentences"`)
+- `buildAnswerJudgePrompt(answer, target, mode)` — dispatches to mode-specific judging criteria
+- Prompt judge unchanged — banned word enforcement is universal
+- Fallback: words mode falls back to regex, non-word modes fall to no-match (no regex equivalent)
+
+### UI Changes
+- **Title screen**: mode selector row of pill buttons, gold highlight on selected, description text updates per mode
+- **Game screen**: `#target-label` updates per mode (e.g., "CHANNEL THE VOICE OF", "GET THE AI TO")
+- **Target text**: auto-scales to `2rem` for targets longer than 15 characters
+- **Score screen**: shows mode name above final score
+
+### Scroll Fix
+- Removed `body { height: 100vh; overflow: hidden }` → `min-height: 100vh`
+- Removed inner panel `max-height` + `overflow-y: auto` constraints
+- Page now scrolls naturally when answer content exceeds viewport
+
+### Key Playtesting Observations
+- Voices mode works beautifully — grumpy old person prompt got caught for "elderly" (synonym of banned "old"), second attempt with "seen too many winters" passed judge and produced perfect in-character rant
+- Actions mode haiku challenge: AI wrote 5/7/5 *word* counts but answer judge correctly evaluated *syllable* counts and ruled NOT QUITE — shows judge depth
+- Prompt judge catches synonyms across all modes, not just words
+
+### Published
+- First publish to vanilla platform via CLI: `node bin/upload-game.js -n "Qacky" qacky.zip`
+- Play at: `/games/{id}/`
+
+### Open Issues / Next Steps
+- Prompt judge tuning across new modes
+- More challenge packs per mode (currently ~10 each, could expand)
+- Reverse rounds (see design notes below)
+- Difficulty modes, model selector
+
+## M4 Design — Reverse Rounds (planned)
+
+### Concept
+The exact same game, but flipped. The AI gets the target word + banned words and has to give clues to the player. The player reads the clue and types their guess. Same UI, same flow, roles reversed.
+
+### Key Design Decisions
+- **Not a separate mode** — reverse rounds are randomly inserted into any mode's game
+- **~10% chance per round** — each round rolls the dice, so they're a surprise but not too frequent
+- **Same game, flipped** — player sees the AI's clue (constrained by banned words), then types a guess
+- **No meta-hints** — banned words are NOT shown to the player. Player only sees the AI's clue. Clean flip.
+- **Same scoring** — speed + brevity of guess + attempts
+
+### UX Flow
+```
+Round starts → 10% roll → REVERSE ROUND!
+ └─▶ AI generates clue (target + banned words constrain it, player doesn't see banned words)
+      └─▶ Clue typewriters in
+           └─▶ Player types guess → GO!
+                ├─▶ Correct? → GOT IT! + points
+                └─▶ Wrong? → AI gives another clue → retry (attempt penalty)
+```
+
+### Open Questions
+- Should the AI generate all clues upfront (batch) or one at a time (separate calls)?
+- How many clue attempts before the round ends? (3? unlimited until timer?)
+- Does the "REVERSE ROUND!" flash need special visual treatment?
+- Which word packs work for reverse? Words mode is obvious. Do voices/actions/puzzles reverse too, or only words?
