@@ -58,7 +58,7 @@
     <div id="hud-players" style="margin-top:6px;font-size:12px;line-height:1.6"></div>
 </div>
 <div id="hud-bottom">
-    <span id="hud-controls">[D-PAD] Move &bull; [A] Hop &bull; [X] Build &bull; [B] Sell &bull; [RT] Fire &bull; [START] Go</span>
+    <span id="hud-controls">[D-PAD] Move/Aim &bull; [A] Hop &bull; [X] Build &bull; [B] Sell &bull; [START] Go</span>
 </div>
 
 <script type="importmap">
@@ -335,6 +335,7 @@ function createTowerPad(pos, index) {
         name: 'Empty Pad',
         group,
         towerMeshGroup: null, // sub-group for tower meshes (removable)
+        barrelMesh: null,     // rotatable barrel pivot (laser/missile)
         indicatorMat,
         occupied: false,
         playerIdx: -1,
@@ -342,6 +343,8 @@ function createTowerPad(pos, index) {
         fireCooldown: 0,
         empReady: true,
         shieldDome: null, // managed by combat system for shield towers
+        aimDirection: 0,      // current visual aim angle (radians)
+        _targetAimDirection: 0, // auto-target direction for unmanned
     };
     towers.push(towerData);
     return towerData;
@@ -369,15 +372,25 @@ function buildTowerMeshes(towerType) {
 
     // Tower top / barrel — varies by type
     let topMesh;
+    let barrelPivot = null;
     if (towerType === 'laser') {
+        barrelPivot = new THREE.Group();
+        barrelPivot.position.set(0, 2.2, 0);
         const barrelGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 4);
-        topMesh = new THREE.Mesh(barrelGeo, toonMat(info.barrel));
-        topMesh.rotation.x = Math.PI / 2;
-        topMesh.position.set(0, 2.2, -0.5);
+        const barrel = new THREE.Mesh(barrelGeo, toonMat(info.barrel));
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.set(0, 0, -0.5);
+        barrel.castShadow = true;
+        barrelPivot.add(barrel);
+        topMesh = barrelPivot;
     } else if (towerType === 'missile') {
+        barrelPivot = new THREE.Group();
+        barrelPivot.position.set(0, 2.5, 0);
         const podGeo = new THREE.BoxGeometry(0.6, 0.4, 0.4);
-        topMesh = new THREE.Mesh(podGeo, toonMat(info.barrel));
-        topMesh.position.set(0, 2.5, 0);
+        const pod = new THREE.Mesh(podGeo, toonMat(info.barrel));
+        pod.castShadow = true;
+        barrelPivot.add(pod);
+        topMesh = barrelPivot;
     } else if (towerType === 'shield') {
         const domeGeo = new THREE.SphereGeometry(0.4, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2);
         topMesh = new THREE.Mesh(domeGeo, toonMat(info.barrel));
@@ -395,11 +408,11 @@ function buildTowerMeshes(towerType) {
         sub.add(empRing);
     }
     if (topMesh) {
-        topMesh.castShadow = true;
+        if (!barrelPivot) topMesh.castShadow = true;
         sub.add(topMesh);
     }
 
-    return sub;
+    return { group: sub, barrelMesh: barrelPivot };
 }
 
 function buildTowerOn(towerData, towerType) {
@@ -408,11 +421,14 @@ function buildTowerOn(towerData, towerType) {
     towerData.name = info.name;
     towerData.fireCooldown = 0;
     towerData.empReady = true;
+    towerData.aimDirection = 0;
+    towerData._targetAimDirection = 0;
 
     // Add tower meshes
-    const meshGroup = buildTowerMeshes(towerType);
-    towerData.group.add(meshGroup);
-    towerData.towerMeshGroup = meshGroup;
+    const result = buildTowerMeshes(towerType);
+    towerData.group.add(result.group);
+    towerData.towerMeshGroup = result.group;
+    towerData.barrelMesh = result.barrelMesh;
 }
 
 function sellTower(towerData) {
@@ -423,6 +439,13 @@ function sellTower(towerData) {
     if (towerData.towerMeshGroup) {
         towerData.group.remove(towerData.towerMeshGroup);
         towerData.towerMeshGroup = null;
+    }
+    towerData.barrelMesh = null;
+
+    // Remove shield dome if present
+    if (towerData.shieldDome) {
+        scene.remove(towerData.shieldDome.mesh);
+        towerData.shieldDome = null;
     }
 
     // Evict any player
@@ -435,6 +458,8 @@ function sellTower(towerData) {
 
     towerData.type = null;
     towerData.name = 'Empty Pad';
+    towerData.aimDirection = 0;
+    towerData._targetAimDirection = 0;
     return refund;
 }
 
@@ -869,6 +894,13 @@ const TOWER_STATS = {
     emp:     { range: 5.5, stunDuration: 3, cooldown: 8 },
 };
 
+const TOWER_STATS_UNMANNED = {
+    laser:   { range: 6, dps: 10, cooldown: 0 },
+    missile: { range: 8, damage: 18, splash: 1.8, cooldown: 2.5 },
+    shield:  { range: 4.5, slowAmount: 0.85 },
+    emp:     { range: 5.5, stunDuration: 3, cooldown: 16 },
+};
+
 function findClosestEnemy(x, z, range) {
     let closest = null;
     let closestDist = range;
@@ -885,26 +917,65 @@ function findClosestEnemy(x, z, range) {
     return closest;
 }
 
+function findEnemyInCone(x, z, range, aimAngle, coneHalfAngle) {
+    let closest = null;
+    let closestDist = range;
+    for (const e of enemies) {
+        if (e.dead || e.hp <= 0) continue;
+        const dx = e.x - x;
+        const dz = e.z - z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist >= closestDist) continue;
+        const angleToEnemy = Math.atan2(dx, -dz);
+        let angleDiff = angleToEnemy - aimAngle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        if (Math.abs(angleDiff) <= coneHalfAngle) {
+            closestDist = dist;
+            closest = e;
+        }
+    }
+    return closest;
+}
+
 function updateCombat(dt) {
     for (const tower of towers) {
-        if (!tower.occupied || !tower.type) continue;
-        const player = players[tower.playerIdx];
-        if (!player || !player.firing) continue;
+        if (!tower.type) continue;
 
-        const stats = TOWER_STATS[tower.type];
+        const isManned = tower.occupied && tower.playerIdx >= 0;
+        const stats = isManned ? TOWER_STATS[tower.type] : TOWER_STATS_UNMANNED[tower.type];
         const tx = tower.pos.x;
         const tz = tower.pos.z;
 
+        // Propagate player aim to tower when manned
+        if (isManned) {
+            const player = players[tower.playerIdx];
+            if (player && (tower.type === 'laser' || tower.type === 'missile')) {
+                tower.aimDirection = player.aimAngle;
+            }
+        }
+
         if (tower.type === 'laser') {
-            // Continuous beam damage to nearest enemy
-            const target = findClosestEnemy(tx, tz, stats.range);
+            let target;
+            if (isManned) {
+                target = findEnemyInCone(tx, tz, stats.range, tower.aimDirection, Math.PI / 4);
+                if (!target) target = findClosestEnemy(tx, tz, stats.range);
+            } else {
+                target = findClosestEnemy(tx, tz, stats.range);
+            }
             if (target) {
+                // Update auto-aim direction for unmanned barrel rotation
+                if (!isManned) {
+                    const dx = target.x - tx;
+                    const dz = target.z - tz;
+                    tower._targetAimDirection = Math.atan2(dx, -dz);
+                }
                 const dmg = stats.dps * dt;
                 target.hp -= dmg;
                 showBeam(
                     { x: tx, z: tz },
                     { x: target.x, y: ENEMY_TYPES[target.type].size + 0.1, z: target.z },
-                    0xff3333
+                    isManned ? 0xff3333 : 0x993333
                 );
                 if (target.hp <= 0) {
                     const idx = enemies.indexOf(target);
@@ -914,8 +985,20 @@ function updateCombat(dt) {
         } else if (tower.type === 'missile') {
             tower.fireCooldown -= dt;
             if (tower.fireCooldown <= 0) {
-                const target = findClosestEnemy(tx, tz, stats.range);
+                let target;
+                if (isManned) {
+                    target = findEnemyInCone(tx, tz, stats.range, tower.aimDirection, Math.PI / 4);
+                    if (!target) target = findClosestEnemy(tx, tz, stats.range);
+                } else {
+                    target = findClosestEnemy(tx, tz, stats.range);
+                }
                 if (target) {
+                    // Update auto-aim direction for unmanned barrel rotation
+                    if (!isManned) {
+                        const dx = target.x - tx;
+                        const dz = target.z - tz;
+                        tower._targetAimDirection = Math.atan2(dx, -dz);
+                    }
                     spawnProjectile(
                         { x: tx, z: tz },
                         { x: target.x, z: target.z },
@@ -926,57 +1009,91 @@ function updateCombat(dt) {
                 }
             }
         } else if (tower.type === 'shield') {
-            // Show shield dome when firing
+            // Shield always active — dome always visible
             if (!tower.shieldDome) {
                 tower.shieldDome = createShieldDome(tower.pos, stats.range);
             }
-            // Pulse dome opacity
-            tower.shieldDome.mat.opacity = 0.1 + Math.sin(time * 4) * 0.05;
+            const baseOpacity = isManned ? 0.15 : 0.08;
+            const pulseAmount = isManned ? 0.05 : 0.02;
+            tower.shieldDome.mat.opacity = baseOpacity + Math.sin(time * 4) * pulseAmount;
             tower.shieldDome.mesh.rotation.y += dt * 0.5;
-            // Slow all enemies in range
             for (const e of enemies) {
                 if (e.dead) continue;
                 const dx = e.x - tx;
                 const dz = e.z - tz;
                 if (Math.sqrt(dx * dx + dz * dz) <= stats.range) {
-                    e.slowFactor = stats.slowAmount;
+                    e.slowFactor = Math.min(e.slowFactor, stats.slowAmount);
                 }
             }
         } else if (tower.type === 'emp') {
+            // EMP cooldown recovery
+            if (!tower.empReady) {
+                tower.fireCooldown -= dt;
+                if (tower.fireCooldown <= 0) tower.empReady = true;
+            }
             if (tower.empReady) {
-                // Stun all enemies in range
+                // Only fire if enemies in range
+                let hasTarget = false;
                 for (const e of enemies) {
                     if (e.dead) continue;
                     const dx = e.x - tx;
                     const dz = e.z - tz;
                     if (Math.sqrt(dx * dx + dz * dz) <= stats.range) {
-                        e.stunTimer = stats.stunDuration;
+                        hasTarget = true;
+                        break;
                     }
                 }
-                tower.empReady = false;
-                tower.fireCooldown = stats.cooldown;
-                // EMP pulse ring effect
-                spawnEmpPulse(tx, tz, stats.range);
-                triggerShake(0.4);
+                if (hasTarget) {
+                    for (const e of enemies) {
+                        if (e.dead) continue;
+                        const dx = e.x - tx;
+                        const dz = e.z - tz;
+                        if (Math.sqrt(dx * dx + dz * dz) <= stats.range) {
+                            e.stunTimer = stats.stunDuration;
+                        }
+                    }
+                    tower.empReady = false;
+                    tower.fireCooldown = stats.cooldown;
+                    spawnEmpPulse(tx, tz, stats.range);
+                    triggerShake(isManned ? 0.4 : 0.2);
+                }
             }
-        }
-
-        // EMP cooldown recovery
-        if (tower.type === 'emp' && !tower.empReady) {
-            tower.fireCooldown -= dt;
-            if (tower.fireCooldown <= 0) tower.empReady = true;
         }
     }
 
-    // Remove shield domes for towers that are not actively shielding
+    // Remove shield domes for towers that no longer have shield type
     for (const tower of towers) {
-        if (tower.shieldDome) {
-            const isShielding = tower.type === 'shield' && tower.occupied && players[tower.playerIdx]?.firing;
-            if (!isShielding) {
-                scene.remove(tower.shieldDome.mesh);
-                tower.shieldDome = null;
-            }
+        if (tower.shieldDome && tower.type !== 'shield') {
+            scene.remove(tower.shieldDome.mesh);
+            tower.shieldDome = null;
         }
+    }
+}
+
+// ============================================================
+// BARREL ROTATION
+// ============================================================
+function updateBarrelRotations(dt) {
+    for (const tower of towers) {
+        if (!tower.barrelMesh) continue;
+        if (tower.type !== 'laser' && tower.type !== 'missile') continue;
+
+        let targetAngle;
+        if (tower.occupied) {
+            targetAngle = tower.aimDirection;
+        } else {
+            targetAngle = tower._targetAimDirection;
+        }
+
+        // Smooth lerp rotation
+        let diff = targetAngle - tower.aimDirection;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+
+        const rotSpeed = tower.occupied ? 12 : 4;
+        tower.aimDirection += diff * Math.min(1, rotSpeed * dt);
+
+        tower.barrelMesh.rotation.y = tower.aimDirection;
     }
 }
 
@@ -1106,10 +1223,10 @@ const BUILD_TIMER_DURATION = 15; // seconds between waves
 let buildTimer = 0;
 
 const players = [
-    { idx: 0, cursorAt: 0, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#00ccff', gamepadIndex: -1, active: false },
-    { idx: 1, cursorAt: 1, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#ff4444', gamepadIndex: -1, active: false },
-    { idx: 2, cursorAt: 2, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#44ff44', gamepadIndex: -1, active: false },
-    { idx: 3, cursorAt: 3, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#ffcc00', gamepadIndex: -1, active: false },
+    { idx: 0, cursorAt: 0, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#00ccff', gamepadIndex: -1, active: false, aimAngle: 0 },
+    { idx: 1, cursorAt: 1, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#ff4444', gamepadIndex: -1, active: false, aimAngle: 0 },
+    { idx: 2, cursorAt: 2, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#44ff44', gamepadIndex: -1, active: false, aimAngle: 0 },
+    { idx: 3, cursorAt: 3, inTower: false, firing: false, buildMode: false, buildIdx: 0, color: '#ffcc00', gamepadIndex: -1, active: false, aimAngle: 0 },
 ];
 
 // Player 0 always active (keyboard fallback)
@@ -1192,17 +1309,32 @@ function queueAction(playerIdx, action) {
 
 function pollKeyboard() {
     const pressed = (key) => keyState[key] && !prevKeyState[key];
-    if (pressed('w') || pressed('arrowup'))    queueAction(0, 'up');
-    if (pressed('s') || pressed('arrowdown'))  queueAction(0, 'down');
-    if (pressed('a') || pressed('arrowleft'))  queueAction(0, 'left');
-    if (pressed('d') || pressed('arrowright')) queueAction(0, 'right');
+    const p0 = players[0];
+    const isAiming = p0.inTower && (towers[p0.cursorAt]?.type === 'laser' || towers[p0.cursorAt]?.type === 'missile');
+
+    if (isAiming) {
+        // Continuous aim from WASD/arrows when in aimable tower
+        let aimX = 0, aimZ = 0;
+        if (keyState['w'] || keyState['arrowup'])    aimZ -= 1;
+        if (keyState['s'] || keyState['arrowdown'])  aimZ += 1;
+        if (keyState['a'] || keyState['arrowleft'])  aimX -= 1;
+        if (keyState['d'] || keyState['arrowright']) aimX += 1;
+        if (aimX !== 0 || aimZ !== 0) {
+            p0.aimAngle = Math.atan2(aimX, -aimZ);
+        }
+    } else {
+        if (pressed('w') || pressed('arrowup'))    queueAction(0, 'up');
+        if (pressed('s') || pressed('arrowdown'))  queueAction(0, 'down');
+        if (pressed('a') || pressed('arrowleft'))  queueAction(0, 'left');
+        if (pressed('d') || pressed('arrowright')) queueAction(0, 'right');
+    }
     if (pressed(' '))                          queueAction(0, 'hop');
     if (pressed('enter'))                      queueAction(0, 'startwave');
     if (pressed('b'))                          queueAction(0, 'build');
     if (pressed('q') || pressed('escape'))     queueAction(0, 'cancel');
     // Fire is hold-based, not press-based (don't override injected fire)
-    if (!players[0]._injectedFiring) {
-        players[0].firing = !!(keyState['f'] || keyState['e']);
+    if (!p0._injectedFiring) {
+        p0.firing = !!(keyState['f'] || keyState['e']);
     }
     Object.assign(prevKeyState, keyState);
 }
@@ -1217,22 +1349,40 @@ function pollGamepads() {
         const prev = prevGamepadButtons[p.idx];
         const justPressed = (btnIdx) => gp.buttons[btnIdx]?.pressed && !prev[btnIdx];
 
-        // D-pad: buttons 12=up, 13=down, 14=left, 15=right
-        if (justPressed(12)) queueAction(p.idx, 'up');
-        if (justPressed(13)) queueAction(p.idx, 'down');
-        if (justPressed(14)) queueAction(p.idx, 'left');
-        if (justPressed(15)) queueAction(p.idx, 'right');
-
-        // Left stick with threshold (treat as d-pad)
         const lx = gp.axes[0] || 0;
         const ly = gp.axes[1] || 0;
-        const stickThreshold = 0.6;
-        const prevLx = p._prevLx || 0;
-        const prevLy = p._prevLy || 0;
-        if (ly < -stickThreshold && prevLy >= -stickThreshold) queueAction(p.idx, 'up');
-        if (ly > stickThreshold && prevLy <= stickThreshold)   queueAction(p.idx, 'down');
-        if (lx < -stickThreshold && prevLx >= -stickThreshold) queueAction(p.idx, 'left');
-        if (lx > stickThreshold && prevLx <= stickThreshold)   queueAction(p.idx, 'right');
+        const isAiming = p.inTower && (towers[p.cursorAt]?.type === 'laser' || towers[p.cursorAt]?.type === 'missile');
+
+        if (isAiming) {
+            // Continuous aim from D-pad + left stick when in aimable tower
+            let aimX = 0, aimZ = 0;
+            if (gp.buttons[12]?.pressed) aimZ -= 1;
+            if (gp.buttons[13]?.pressed) aimZ += 1;
+            if (gp.buttons[14]?.pressed) aimX -= 1;
+            if (gp.buttons[15]?.pressed) aimX += 1;
+            if (Math.abs(lx) > 0.3 || Math.abs(ly) > 0.3) {
+                aimX = lx;
+                aimZ = ly;
+            }
+            if (aimX !== 0 || aimZ !== 0) {
+                p.aimAngle = Math.atan2(aimX, -aimZ);
+            }
+        } else {
+            // D-pad: buttons 12=up, 13=down, 14=left, 15=right
+            if (justPressed(12)) queueAction(p.idx, 'up');
+            if (justPressed(13)) queueAction(p.idx, 'down');
+            if (justPressed(14)) queueAction(p.idx, 'left');
+            if (justPressed(15)) queueAction(p.idx, 'right');
+
+            // Left stick with threshold (treat as d-pad)
+            const stickThreshold = 0.6;
+            const prevLx = p._prevLx || 0;
+            const prevLy = p._prevLy || 0;
+            if (ly < -stickThreshold && prevLy >= -stickThreshold) queueAction(p.idx, 'up');
+            if (ly > stickThreshold && prevLy <= stickThreshold)   queueAction(p.idx, 'down');
+            if (lx < -stickThreshold && prevLx >= -stickThreshold) queueAction(p.idx, 'left');
+            if (lx > stickThreshold && prevLx <= stickThreshold)   queueAction(p.idx, 'right');
+        }
         p._prevLx = lx;
         p._prevLy = ly;
 
@@ -1405,7 +1555,8 @@ function updateHUD() {
             const afford = credits >= ti.cost ? '' : ' ✗';
             info = `BUILD: ${ti.name} (${ti.cost}⚡${afford})`;
         } else if (p.inTower) {
-            info = `${tower.name}${p.firing ? ' [FIRING]' : ' [MANNED]'}`;
+            const isAimable = tower.type === 'laser' || tower.type === 'missile';
+            info = `${tower.name} ${isAimable ? '[AIMING]' : '[BOOSTED]'}`;
         } else {
             info = tower.name;
         }
@@ -1432,6 +1583,15 @@ window.gameState = {
 window.injectInput = function(playerIdx, action) {
     if (playerIdx >= 0 && playerIdx < 4) {
         players[playerIdx].active = true;
+        // Handle aim as direct angle set
+        if (typeof action === 'string' && action.startsWith('aim:')) {
+            players[playerIdx].aimAngle = parseFloat(action.split(':')[1]);
+            return new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    resolve(window.gameState);
+                }));
+            });
+        }
         // Handle fire as a hold-state (persists until 'fire-stop')
         if (action === 'fire') {
             players[playerIdx].firing = true;
@@ -1497,6 +1657,7 @@ function updateWindowAPI() {
         name: t.name,
         occupied: t.occupied,
         playerIdx: t.playerIdx,
+        aimDirection: t.aimDirection,
     }));
     window.gameState.enemies = enemies.map(e => ({
         id: e.id,
@@ -1512,6 +1673,7 @@ function updateWindowAPI() {
         cursorAt: p.cursorAt,
         inTower: p.inTower,
         firing: p.firing,
+        aimAngle: p.aimAngle,
         buildMode: p.buildMode,
         buildIdx: p.buildIdx,
         color: p.color,
@@ -1562,6 +1724,7 @@ function restartGame() {
         p.firing = false;
         p.buildMode = false;
         p.buildIdx = 0;
+        p.aimAngle = 0;
     }
 
     // Reset HUD styling
@@ -1592,6 +1755,7 @@ function animate() {
         updateEnemies(dt);
         updateCombat(dt);
     }
+    updateBarrelRotations(dt);
     updateProjectiles(dt);
     updateBeams(dt);
     updateDeathEffects(dt);
@@ -1611,7 +1775,7 @@ function animate() {
         pc.mat.opacity = 0.7 + Math.sin(time * 6 + i * 1.5) * 0.3;
     }
 
-    // Update tower occupied indicators
+    // Update tower indicators
     for (const tower of towers) {
         let indicatorIntensity = 0;
         if (tower.occupied) {
@@ -1621,6 +1785,11 @@ function animate() {
                 tower.indicatorMat.color.set(occupant.color);
                 tower.indicatorMat.emissive.set(occupant.color);
             }
+        } else if (tower.type) {
+            // Dim pulse for unmanned active towers
+            indicatorIntensity = 0.2 + Math.sin(time * 2) * 0.1;
+            tower.indicatorMat.color.set(TOWER_TYPES[tower.type].color);
+            tower.indicatorMat.emissive.set(TOWER_TYPES[tower.type].color);
         }
         tower.indicatorMat.emissiveIntensity = indicatorIntensity;
     }

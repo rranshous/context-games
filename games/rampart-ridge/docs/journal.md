@@ -193,3 +193,46 @@ Tested all effects in-browser:
 ### Keyboard focus issue discovered
 
 During manual playtesting, keyboard input appeared unresponsive. Root cause: the canvas doesn't auto-focus on page load, so key events don't reach the game until the user clicks the canvas. Not a code bug — standard browser behavior for canvas-based games. The game works correctly once focused.
+
+---
+
+## Session 6: Unmanned Auto-Fire + Aiming Overhaul (2026-02-15)
+
+### What we built
+
+Towers now auto-fire when no player is hopped in, with weaker stats. Hopping in gives manual control with boosted stats and directional aiming. This changed the core feel — you're no longer the only thing keeping towers alive, you're the boost that makes them deadly.
+
+### Key decision: Towers always active
+
+Previously towers only fired when occupied. Now every built tower auto-targets and fires on its own using `TOWER_STATS_UNMANNED` — reduced DPS, longer cooldowns, weaker effects. Hopping in switches to `TOWER_STATS` (the original values). The tension shifts from "which tower do I need to activate" to "which tower benefits most from my boost right now."
+
+### TOWER_STATS_UNMANNED
+
+| Stat | Manned | Unmanned |
+|------|--------|----------|
+| Laser DPS | 20 | 10 |
+| Missile cooldown | 1.0s | 2.5s |
+| Shield slow | 0.3 | 0.85 |
+| EMP cooldown | 8s | 16s |
+
+### Barrel rotation and aiming
+
+Added `barrelMesh` pivot groups for laser and missile towers so barrels visually rotate toward targets. Two rotation speeds: manned (12) rotates quickly to follow player aim, unmanned (4) tracks sluggishly toward the auto-targeted enemy. The `aimDirection` and `_targetAimDirection` properties track current vs desired angle.
+
+### Directional aiming for manned towers
+
+New `findEnemyInCone()` function — manned laser and missile towers prioritize enemies within a 45-degree cone of the player's aim direction, falling back to closest-enemy if the cone is empty. This rewards good aim when piloting.
+
+### Visual distinction: manned vs unmanned
+
+- Laser beams render darker red (`0x993333`) when unmanned vs bright red (`0xff3333`) manned
+- Shield domes are dimmer when unmanned (opacity 0.08 vs 0.15, smaller pulse)
+- EMP screen shake is weaker unmanned (0.2 vs 0.4)
+- Occupied indicator light pulses brighter/faster for manned towers vs dim pulse for unmanned active towers
+
+### Other changes
+
+- HUD controls updated to `[D-PAD] Move/Aim` reflecting the aiming mechanic
+- `sellTower` now properly cleans up shield domes and resets barrel/aim state
+- Shield slow uses `Math.min(e.slowFactor, stats.slowAmount)` so multiple shields don't over-stack
+- EMP only discharges when enemies are actually in range (no wasted pulses on empty field)
