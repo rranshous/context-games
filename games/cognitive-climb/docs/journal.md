@@ -263,6 +263,29 @@ Swapped M5/M6 order: visualizer polish before full embodiment, so we have debugg
 - Tool actions in timeline make it easy to trace how rules/memory/reflexes changed and why
 - State snapshots every 30 ticks means inspector data can lag slightly between updates
 
+## Session: 2026-02-21 — M6 Design Discussion
+
+Designed the full embodiment system through extended discussion. Key insight: the embodiment IS the inference call — not "tools that edit code" but the entire prompt (identity, sensors, onTick, tools, memory) split into named XML sections that the creature can edit.
+
+**Design doc**: `docs/m6-embodiment.md` — complete specification for bootstrapping a fresh coding session.
+
+**Key decisions:**
+- 5 fixed sections: identity (text), sensors (JS), on_tick (JS), memory (JSON), tools (JSON+JS)
+- Genome stays as immutable physics (speed, size, metabolism, senseRange, diet, wakeInterval, maxEmbodimentSize) — readable but not editable. The body matters.
+- Rules system dropped — onTick replaces rules with arbitrary JS that adjusts reflex weights
+- Reflex system stays as sim physics — genome base weights + adjustments from onTick/consciousness
+- All functions get `me` and `world` APIs. `me.<section>.read()/.write()/.run()`. `world` is fog-of-war constrained by genome.senseRange
+- Edit tools (one per section) live OUTSIDE embodiment — hardcoded by sim, always available
+- `<tools>` section defines custom tools (Anthropic schema + JS executor). Starts with one example: `adjust_reflex`
+- Memory NOT inherited — creates pressure to encode knowledge in code, not data
+- Embodiment cloned wholesale on reproduction (Lamarckian), genome mutates (Darwinian)
+- maxEmbodimentSize is a genome trait — intelligence-vs-efficiency tradeoff, evolves through selection
+- Embodiment budget scales with age (young creatures = small capacity, maturity = full potential)
+- Inherited embodiment exempt from budget — budget constrains growth, not inheritance
+- No death wake-up — no lasting effect without memory inheritance
+- Single-turn consciousness for M6; multi-turn is M7
+- Observability: Playwright for live browser observation, structured debug dumps, rich console logging
+
 ## Milestones (revised 2026-02-21)
 
 - **M1** (complete): sim foundation + minimal visualizer
@@ -270,6 +293,7 @@ Swapped M5/M6 order: visualizer polish before full embodiment, so we have debugg
 - **M3** (complete): LLM consciousness — inference loop, tool use, sim pause
 - **M4** (complete): light rule-setting — consciousness gets add_rule/remove_rule
 - **M5** (complete): creature inspector — click-to-select, inspector panel, story timeline
-- **M6** (future): full embodiment — code as body (creatures edit reflex/perception/wake code)
-- **M7** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
-- **M8** (future): sim depth — seasons, speciation, food chains, save/load
+- **M6** (next): full embodiment — see `docs/m6-embodiment.md` for complete design
+- **M7** (future): multi-turn consciousness — tool results feed back to model
+- **M8** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
+- **M9** (future): sim depth — seasons, speciation, food chains, save/load
