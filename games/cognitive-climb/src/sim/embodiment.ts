@@ -36,7 +36,7 @@ export const DEFAULT_ON_TICK = `function onTick(me, world) {
 
   for (var i = 0; i < me.events.length; i++) {
     var e = me.events[i];
-    if (e.type === 'reproduced') return { wake: true, reason: 'reproduced' };
+    if (e.type === 'reproduced') return { wake: true, reason: 'you reproduced, offspring #' + e.childId };
     if (e.type === 'new_terrain') return { wake: true, reason: 'new_terrain' };
   }
   if (energy < 0.25) return { wake: true, reason: 'crisis' };
@@ -91,7 +91,7 @@ export function computeEmbodimentSize(e: EmbodimentState): number {
 }
 
 export function ageScalar(age: number): number {
-  return Math.min(1.0, 0.3 + 0.7 * (age / 100));
+  return Math.min(1.0, 0.5 + 0.5 * (age / 50));
 }
 
 // ── Code compilation ────────────────────────────────────

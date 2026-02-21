@@ -31,7 +31,7 @@ var DEFAULT_ON_TICK = `function onTick(me, world) {
 
   for (var i = 0; i < me.events.length; i++) {
     var e = me.events[i];
-    if (e.type === 'reproduced') return { wake: true, reason: 'reproduced' };
+    if (e.type === 'reproduced') return { wake: true, reason: 'you reproduced, offspring #' + e.childId };
     if (e.type === 'new_terrain') return { wake: true, reason: 'new_terrain' };
   }
   if (energy < 0.25) return { wake: true, reason: 'crisis' };
@@ -78,7 +78,7 @@ function computeEmbodimentSize(e) {
   return e.identity.length + e.sensors.length + e.on_tick.length + e.memory.length + e.tools.length;
 }
 function ageScalar(age) {
-  return Math.min(1, 0.3 + 0.7 * (age / 100));
+  return Math.min(1, 0.5 + 0.5 * (age / 50));
 }
 function extractFunctionBody(code) {
   const match = code.match(/^function\s+\w+\s*\([^)]*\)\s*\{([\s\S]*)\}\s*$/);
@@ -622,7 +622,7 @@ function randomGenome() {
     diet: rand(0, 0.3),
     // mostly herbivore to start
     wakeInterval: Math.round(rand(30, 200)),
-    maxEmbodimentSize: Math.round(rand(1500, 4e3)),
+    maxEmbodimentSize: Math.round(rand(4e3, 8e3)),
     reflexWeights: randomReflexWeights()
   };
 }
@@ -646,7 +646,7 @@ function mutateGenome(parent) {
     metabolism: mutateGene(parent.metabolism, 0.5, 1.5),
     diet: mutateGene(parent.diet, 0, 1),
     wakeInterval: Math.round(mutateGene(parent.wakeInterval, 30, 200)),
-    maxEmbodimentSize: Math.round(mutateGene(parent.maxEmbodimentSize, 500, 8e3)),
+    maxEmbodimentSize: Math.round(mutateGene(parent.maxEmbodimentSize, 2e3, 15e3)),
     reflexWeights: mutateReflexWeights(parent.reflexWeights)
   };
 }

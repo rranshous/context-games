@@ -339,3 +339,24 @@ Replaced the M4 rules system with full embodiment: the creature's entire inferen
 - `last_wake_tick` in memory enables periodic wake logic
 - Reproduction works: events buffer delivers `{type:'reproduced'}` to parent's next onTick
 - No creatures attempted to edit code sections yet (sensors, on_tick, tools) — needs more generations and pressure. This is expected; the real test is whether descendants evolve custom code.
+
+**Post-observation tuning (same session):**
+
+Two issues identified from extended observation (~120 ticks, 18 creatures):
+
+1. **Reproduction identity confusion**: Model confused parent/offspring perspective during reproduction wakes. Wake reason was just "reproduced" — ambiguous. Fix: default onTick now says `'you reproduced, offspring #' + e.childId` so the model knows it's the parent.
+
+2. **Embodiment budget too tight**: Default embodiment is 2670 chars. With initial maxEmbodimentSize range of 1500-4000, most creatures had no room for edit_memory or any growth. The intelligence-vs-efficiency tradeoff was working, but the floor was too low for any intelligence to emerge.
+
+   Fixes:
+   - `randomGenome()` range: 1500-4000 → **4000-8000** (every creature starts with real growth room)
+   - `mutateGenome()` clamp: 500-8000 → **2000-15000** (evolution can produce very large embodiments)
+   - `ageScalar()`: `0.3 + 0.7*(age/100)` → **`0.5 + 0.5*(age/50)`** (starts at 50% instead of 30%, full capacity at age 50 instead of 100)
+   - Net effect: a creature with genome embSize=6000 at age 0 gets budget max(2670, 3000) = 3000 (330 chars growth). At age 25 gets max(2670, 4500) = 4500 (1830 chars). At age 50 gets full 6000 (3330 chars). Much more room to actually modify memory and eventually attempt code edits.
+
+Other observations from the run:
+- All creatures converged on identical identity edit (replaced "strategic about wake-ups" with "can modify my own embodiment") — universal first-wake behavior
+- `adjust_reflex` is the dominant tool: 2-3 calls per wake, consistent patterns (foodAttraction +0.40, dangerAvoidance +0.30, restThreshold +0.15)
+- Consciousness cost spiral: crisis wakes drain 15% energy, often triggering another crisis → death spiral. Less conscious creatures (high wakeInterval) survived longer.
+- Population crashed to 2 at tick ~110, triggering respawn reinforcements
+- Offspring #13 (parent #1) and #14 (parent #6) inherited modified identity — Lamarckian inheritance confirmed working
