@@ -25,7 +25,7 @@
 ## Milestones
 
 - **M1** (complete): sim foundation + minimal visualizer
-- **M2** (pending): evolution+death — hazards, lineage tracking, trait distribution stats
+- **M2** (complete): evolution+death — hazards, danger avoidance, trait tracking, death breakdown
 - **M3** (pending): LLM consciousness — shouldWake(), haiku calls via vanilla inference proxy, reflex weight adjustment, energy cost
 - **M4** (pending): visualizer polish — creature sprites, inspector, god-mode panel, evolution timeline
 - **M5** (pending): depth — seasons, speciation, food chains, save/load
@@ -52,3 +52,26 @@ Built the full sim/visualizer stack from scratch.
 - Only 10 deaths in that time — food is abundant, creatures thrive
 - Creatures cluster near food-rich areas as expected
 - Need hazards (M2) to create real survival pressure
+
+## Session: 2026-02-20 — M2 Evolution & Death
+
+Added hazard zones, danger avoidance, and evolution tracking.
+
+**Changes:**
+- `CellState.danger` field — damage per tick to creatures standing in hazard cells
+- World generates hazard zones using a 3rd noise layer (seed+99999): high noise + near rock/edge → hazard
+- Reflex system now uses `dangerAvoidance` weight: penalizes moving toward danger, rewards fleeing, penalizes staying in danger
+- Engine applies hazard damage after reflex tick, tracks death causes separately
+- Stats expanded: `avgTraits` (population trait averages), `deathsByStarvation`, `deathsByHazard`
+- Renderer: red tint overlay on hazard cells, two-line stats (population + trait averages)
+- Initial creature spawn avoids hazard cells
+
+**Observations from first run:**
+- Hazard zones cluster near map edges and rocky terrain (as designed)
+- 0 hazard deaths at tick 300 — danger avoidance reflexes are effective
+- Evolution already visible in trait averages over 5 generations:
+  - Size: 1.13 → 0.98 (smaller = more energy-efficient → selected for)
+  - Metabolism: 1.13 → 1.3 (better food conversion → selected for)
+  - Diet stays low ~0.12 (herbivore, no carnivore pressure yet)
+- Population stabilized around 50-60 creatures
+- Starvation is the primary death cause (6/6 deaths) — food competition drives selection

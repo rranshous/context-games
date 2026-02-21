@@ -164,13 +164,14 @@ function scoreActions(creature, world, allCreatures, perceived) {
   const w = creature.genome.reflexWeights;
   const scores = [];
   const currentCell = world.cellAt(creature.x, creature.y);
+  const stayPenalty = currentCell.danger > 0 ? -w.dangerAvoidance * currentCell.danger * 3 : 0;
   if (currentCell.food > 0) {
     const hunger = 1 - creature.energyRatio;
     scores.push({
       action: "eat",
       dx: 0,
       dy: 0,
-      score: w.foodAttraction * (0.5 + hunger) * currentCell.food
+      score: w.foodAttraction * (0.5 + hunger) * currentCell.food + stayPenalty
     });
   }
   if (creature.energyRatio < w.restThreshold) {
@@ -178,7 +179,7 @@ function scoreActions(creature, world, allCreatures, perceived) {
       action: "rest",
       dx: 0,
       dy: 0,
-      score: (w.restThreshold - creature.energyRatio) * 2
+      score: (w.restThreshold - creature.energyRatio) * 2 + stayPenalty
     });
   }
   for (const dir of DIRS) {
@@ -186,6 +187,20 @@ function scoreActions(creature, world, allCreatures, perceived) {
     const ny = creature.y + dir.dy;
     if (!world.isWalkable(nx, ny)) continue;
     let moveScore = 0;
+    const targetCell = world.cellAt(nx, ny);
+    if (targetCell.danger > 0) {
+      moveScore -= w.dangerAvoidance * targetCell.danger * 2;
+    }
+    const dangerCells = perceived.filter((p) => p.cell.danger > 0);
+    for (const dc of dangerCells) {
+      const currentDist = Math.abs(dc.x - creature.x) + Math.abs(dc.y - creature.y);
+      const newDist = Math.abs(dc.x - nx) + Math.abs(dc.y - ny);
+      if (newDist < currentDist) {
+        moveScore -= w.dangerAvoidance * dc.cell.danger / dc.dist;
+      } else if (newDist > currentDist) {
+        moveScore += w.dangerAvoidance * 0.3 / dc.dist;
+      }
+    }
     const foodCells = perceived.filter((p) => p.cell.food > 0);
     for (const fc of foodCells) {
       const currentDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
@@ -330,8 +345,28 @@ var World = class {
         this.cells[y * this.width + x] = {
           terrain,
           elevation,
-          food: terrain === "grass" || terrain === "forest" ? Math.random() < 0.15 ? Math.floor(Math.random() * 3) + 1 : 0 : 0
+          food: terrain === "grass" || terrain === "forest" ? Math.random() < 0.15 ? Math.floor(Math.random() * 3) + 1 : 0 : 0,
+          danger: 0
         };
+      }
+    }
+    this.generateHazards(seed);
+  }
+  /** Place hazard zones — clusters of danger near rocky/edge terrain */
+  generateHazards(seed) {
+    const hazardNoise = makeNoise2D(seed + 99999);
+    const scale = 0.12;
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        const cell = this.cellAt(x, y);
+        if (cell.terrain === "water") continue;
+        const noise = fbm(hazardNoise, x * scale, y * scale, 3);
+        const nearEdge = Math.min(x, y, this.width - 1 - x, this.height - 1 - y) < 4 ? 0.15 : 0;
+        const nearRock = cell.terrain === "rock" ? 0.2 : 0;
+        const hazardChance = noise + nearEdge + nearRock;
+        if (hazardChance > 0.78) {
+          cell.danger = 1 + Math.floor((hazardChance - 0.78) * 15);
+        }
       }
     }
   }
@@ -375,6 +410,9 @@ var World = class {
 };
 
 // src/sim/engine.ts
+function round2(v) {
+  return Math.round(v * 100) / 100;
+}
 var DEFAULT_ENGINE_CONFIG = {
   initialCreatures: 12,
   foodSpawnInterval: 5,
@@ -386,6 +424,8 @@ var Engine = class {
   tick = 0;
   totalBirths = 0;
   totalDeaths = 0;
+  deathsByStarvation = 0;
+  deathsByHazard = 0;
   emit;
   config;
   constructor(emit2, config = {}) {
@@ -406,7 +446,7 @@ var Engine = class {
       x = Math.floor(Math.random() * this.world.width);
       y = Math.floor(Math.random() * this.world.height);
       attempts++;
-    } while (!this.world.isWalkable(x, y) && attempts < 200);
+    } while ((!this.world.isWalkable(x, y) || this.world.cellAt(x, y).danger > 0) && attempts < 200);
     const creature = new Creature(x, y);
     this.creatures.push(creature);
     this.totalBirths++;
@@ -445,6 +485,16 @@ var Engine = class {
           y: creature.y
         });
       }
+      if (creature.alive) {
+        const cell = this.world.cellAt(creature.x, creature.y);
+        if (cell.danger > 0) {
+          creature.energy -= cell.danger;
+          if (creature.energy <= 0) {
+            creature.energy = 0;
+            this.handleDeath(creature, "hazard");
+          }
+        }
+      }
     }
     const canReproduce = this.creatures.filter((c) => c.alive && c.canReproduce());
     for (const parent of canReproduce) {
@@ -476,6 +526,8 @@ var Engine = class {
   handleDeath(creature, cause) {
     creature.alive = false;
     this.totalDeaths++;
+    if (cause === "starvation") this.deathsByStarvation++;
+    if (cause === "hazard") this.deathsByHazard++;
     this.emit({ type: "creature:died", id: creature.id, cause, tick: this.tick });
   }
   reproduce(parent) {
@@ -507,13 +559,24 @@ var Engine = class {
   }
   getStats() {
     const alive = this.creatures.filter((c) => c.alive);
+    const n = alive.length;
+    const avgTraits = n > 0 ? {
+      speed: round2(alive.reduce((s, c) => s + c.genome.speed, 0) / n),
+      senseRange: round2(alive.reduce((s, c) => s + c.genome.senseRange, 0) / n),
+      size: round2(alive.reduce((s, c) => s + c.genome.size, 0) / n),
+      metabolism: round2(alive.reduce((s, c) => s + c.genome.metabolism, 0) / n),
+      diet: round2(alive.reduce((s, c) => s + c.genome.diet, 0) / n)
+    } : null;
     return {
       tick: this.tick,
-      creatureCount: alive.length,
+      creatureCount: n,
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
-      avgEnergy: alive.length > 0 ? Math.round(alive.reduce((s, c) => s + c.energy, 0) / alive.length * 10) / 10 : 0,
-      maxGeneration: alive.length > 0 ? Math.max(...alive.map((c) => c.generation)) : 0
+      avgEnergy: n > 0 ? Math.round(alive.reduce((s, c) => s + c.energy, 0) / n * 10) / 10 : 0,
+      maxGeneration: n > 0 ? Math.max(...alive.map((c) => c.generation)) : 0,
+      avgTraits,
+      deathsByStarvation: this.deathsByStarvation,
+      deathsByHazard: this.deathsByHazard
     };
   }
   getWorldState() {

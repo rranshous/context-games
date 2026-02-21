@@ -6,6 +6,7 @@ export interface CellState {
   terrain: TerrainType;
   elevation: number;   // 0-1
   food: number;        // 0 = none, >0 = food value
+  danger: number;      // 0 = safe, >0 = damage per tick
 }
 
 // ── Genome ───────────────────────────────────────────────
@@ -60,4 +61,14 @@ export interface SimStats {
   totalDeaths: number;
   avgEnergy: number;
   maxGeneration: number;
+  /** Average genome traits across living population — tracks evolution */
+  avgTraits: {
+    speed: number;
+    senseRange: number;
+    size: number;
+    metabolism: number;
+    diet: number;
+  } | null;
+  deathsByStarvation: number;
+  deathsByHazard: number;
 }

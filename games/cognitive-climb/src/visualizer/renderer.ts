@@ -40,7 +40,7 @@ export class Renderer {
     // Recalculate cell size to fit world
     if (this.state) {
       const maxW = rect.width / this.state.width;
-      const maxH = (rect.height - 60) / this.state.height; // reserve space for stats
+      const maxH = (rect.height - 70) / this.state.height; // reserve space for stats
       this.cellSize = Math.max(2, Math.floor(Math.min(maxW, maxH)));
     }
   }
@@ -52,7 +52,7 @@ export class Renderer {
     // Recalculate cell size on first state
     const rect = this.canvas.getBoundingClientRect();
     const maxW = rect.width / state.width;
-    const maxH = (rect.height - 60) / state.height;
+    const maxH = (rect.height - 70) / state.height;
     this.cellSize = Math.max(2, Math.floor(Math.min(maxW, maxH)));
   }
 
@@ -93,6 +93,13 @@ export class Renderer {
         const cell = this.state.cells[y * this.state.width + x];
         ctx.fillStyle = TERRAIN_COLORS[cell.terrain];
         ctx.fillRect(offsetX + x * s, offsetY + y * s, s, s);
+
+        // Hazard overlay — red tint
+        if (cell.danger > 0) {
+          const alpha = Math.min(0.5, cell.danger * 0.12);
+          ctx.fillStyle = `rgba(200, 30, 30, ${alpha})`;
+          ctx.fillRect(offsetX + x * s, offsetY + y * s, s, s);
+        }
 
         // Food indicators
         if (cell.food > 0) {
@@ -172,15 +179,26 @@ export class Renderer {
     if (!this.stats) return;
 
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, y - 5, width, 50);
+    ctx.fillRect(0, y - 5, width, 60);
 
-    ctx.fillStyle = '#ddd';
-    ctx.font = '13px monospace';
+    ctx.font = '12px monospace';
     ctx.textAlign = 'left';
 
     const s = this.stats;
-    const line = `Tick: ${s.tick}  |  Alive: ${s.creatureCount}  |  Born: ${s.totalBirths}  |  Died: ${s.totalDeaths}  |  Avg Energy: ${s.avgEnergy}  |  Gen: ${s.maxGeneration}`;
-    ctx.fillText(line, 10, y + 12);
+
+    // Line 1: population
+    ctx.fillStyle = '#ddd';
+    const deaths = s.deathsByStarvation !== undefined
+      ? `Died: ${s.totalDeaths} (${s.deathsByStarvation}☠ ${s.deathsByHazard}⚡)`
+      : `Died: ${s.totalDeaths}`;
+    ctx.fillText(`Tick: ${s.tick}  |  Alive: ${s.creatureCount}  |  Born: ${s.totalBirths}  |  ${deaths}  |  Energy: ${s.avgEnergy}  |  Gen: ${s.maxGeneration}`, 10, y + 12);
+
+    // Line 2: trait averages (evolution tracking)
+    if (s.avgTraits) {
+      const t = s.avgTraits;
+      ctx.fillStyle = '#999';
+      ctx.fillText(`Traits — spd: ${t.speed}  sns: ${t.senseRange}  sz: ${t.size}  met: ${t.metabolism}  diet: ${t.diet}`, 10, y + 28);
+    }
   }
 
   destroy(): void {

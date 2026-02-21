@@ -108,7 +108,34 @@ export class World {
           food: terrain === 'grass' || terrain === 'forest'
             ? Math.random() < 0.15 ? Math.floor(Math.random() * 3) + 1 : 0
             : 0,
+          danger: 0,
         };
+      }
+    }
+
+    this.generateHazards(seed);
+  }
+
+  /** Place hazard zones — clusters of danger near rocky/edge terrain */
+  private generateHazards(seed: number): void {
+    const hazardNoise = makeNoise2D(seed + 99999);
+    const scale = 0.12;
+
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        const cell = this.cellAt(x, y);
+        if (cell.terrain === 'water') continue;
+
+        const noise = fbm(hazardNoise, x * scale, y * scale, 3);
+
+        // Hazards form in pockets where noise is high + near rock/edges
+        const nearEdge = Math.min(x, y, this.width - 1 - x, this.height - 1 - y) < 4 ? 0.15 : 0;
+        const nearRock = cell.terrain === 'rock' ? 0.2 : 0;
+        const hazardChance = noise + nearEdge + nearRock;
+
+        if (hazardChance > 0.78) {
+          cell.danger = 1 + Math.floor((hazardChance - 0.78) * 15);
+        }
       }
     }
   }

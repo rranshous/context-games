@@ -5,6 +5,8 @@ import { mutateGenome } from './genome.js';
 import { reflexTick } from './reflex.js';
 import { World, type WorldConfig } from './world.js';
 
+function round2(v: number): number { return Math.round(v * 100) / 100; }
+
 export interface EngineConfig {
   initialCreatures: number;
   foodSpawnInterval: number;  // ticks between food spawn rounds
@@ -23,6 +25,8 @@ export class Engine {
   tick: number = 0;
   totalBirths: number = 0;
   totalDeaths: number = 0;
+  deathsByStarvation: number = 0;
+  deathsByHazard: number = 0;
 
   private emit: (event: SimEvent) => void;
   private config: EngineConfig;
@@ -48,7 +52,7 @@ export class Engine {
       x = Math.floor(Math.random() * this.world.width);
       y = Math.floor(Math.random() * this.world.height);
       attempts++;
-    } while (!this.world.isWalkable(x, y) && attempts < 200);
+    } while ((!this.world.isWalkable(x, y) || this.world.cellAt(x, y).danger > 0) && attempts < 200);
 
     const creature = new Creature(x, y);
     this.creatures.push(creature);
@@ -98,6 +102,18 @@ export class Engine {
           y: creature.y,
         });
       }
+
+      // Hazard damage
+      if (creature.alive) {
+        const cell = this.world.cellAt(creature.x, creature.y);
+        if (cell.danger > 0) {
+          creature.energy -= cell.danger;
+          if (creature.energy <= 0) {
+            creature.energy = 0;
+            this.handleDeath(creature, 'hazard');
+          }
+        }
+      }
     }
 
     // 3. Reproduction check
@@ -139,6 +155,8 @@ export class Engine {
   private handleDeath(creature: Creature, cause: 'starvation' | 'hazard' | 'predation'): void {
     creature.alive = false;
     this.totalDeaths++;
+    if (cause === 'starvation') this.deathsByStarvation++;
+    if (cause === 'hazard') this.deathsByHazard++;
     this.emit({ type: 'creature:died', id: creature.id, cause, tick: this.tick });
   }
 
@@ -179,17 +197,30 @@ export class Engine {
 
   getStats(): SimStats {
     const alive = this.creatures.filter(c => c.alive);
+    const n = alive.length;
+
+    const avgTraits = n > 0 ? {
+      speed: round2(alive.reduce((s, c) => s + c.genome.speed, 0) / n),
+      senseRange: round2(alive.reduce((s, c) => s + c.genome.senseRange, 0) / n),
+      size: round2(alive.reduce((s, c) => s + c.genome.size, 0) / n),
+      metabolism: round2(alive.reduce((s, c) => s + c.genome.metabolism, 0) / n),
+      diet: round2(alive.reduce((s, c) => s + c.genome.diet, 0) / n),
+    } : null;
+
     return {
       tick: this.tick,
-      creatureCount: alive.length,
+      creatureCount: n,
       totalBirths: this.totalBirths,
       totalDeaths: this.totalDeaths,
-      avgEnergy: alive.length > 0
-        ? Math.round(alive.reduce((s, c) => s + c.energy, 0) / alive.length * 10) / 10
+      avgEnergy: n > 0
+        ? Math.round(alive.reduce((s, c) => s + c.energy, 0) / n * 10) / 10
         : 0,
-      maxGeneration: alive.length > 0
+      maxGeneration: n > 0
         ? Math.max(...alive.map(c => c.generation))
         : 0,
+      avgTraits,
+      deathsByStarvation: this.deathsByStarvation,
+      deathsByHazard: this.deathsByHazard,
     };
   }
 

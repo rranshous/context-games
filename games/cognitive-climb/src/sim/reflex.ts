@@ -55,15 +55,18 @@ function scoreActions(
   const w = creature.genome.reflexWeights;
   const scores: ActionScore[] = [];
 
-  // Score: eat (if food at current position)
+  // Penalty for staying in a dangerous cell
   const currentCell = world.cellAt(creature.x, creature.y);
+  const stayPenalty = currentCell.danger > 0 ? -w.dangerAvoidance * currentCell.danger * 3 : 0;
+
+  // Score: eat (if food at current position)
   if (currentCell.food > 0) {
     const hunger = 1 - creature.energyRatio; // 0 = full, 1 = starving
     scores.push({
       action: 'eat',
       dx: 0,
       dy: 0,
-      score: w.foodAttraction * (0.5 + hunger) * currentCell.food,
+      score: w.foodAttraction * (0.5 + hunger) * currentCell.food + stayPenalty,
     });
   }
 
@@ -73,7 +76,7 @@ function scoreActions(
       action: 'rest',
       dx: 0,
       dy: 0,
-      score: (w.restThreshold - creature.energyRatio) * 2,
+      score: (w.restThreshold - creature.energyRatio) * 2 + stayPenalty,
     });
   }
 
@@ -84,6 +87,27 @@ function scoreActions(
     if (!world.isWalkable(nx, ny)) continue;
 
     let moveScore = 0;
+
+    const targetCell = world.cellAt(nx, ny);
+
+    // Danger avoidance: strongly penalize moving into hazardous cells
+    if (targetCell.danger > 0) {
+      moveScore -= w.dangerAvoidance * targetCell.danger * 2;
+    }
+
+    // Also repelled by nearby danger (flee gradient)
+    const dangerCells = perceived.filter(p => p.cell.danger > 0);
+    for (const dc of dangerCells) {
+      const currentDist = Math.abs(dc.x - creature.x) + Math.abs(dc.y - creature.y);
+      const newDist = Math.abs(dc.x - nx) + Math.abs(dc.y - ny);
+      if (newDist < currentDist) {
+        // Moving closer to danger — penalize
+        moveScore -= w.dangerAvoidance * dc.cell.danger / dc.dist;
+      } else if (newDist > currentDist) {
+        // Moving away from danger — reward
+        moveScore += w.dangerAvoidance * 0.3 / dc.dist;
+      }
+    }
 
     // Attraction to nearby food
     const foodCells = perceived.filter(p => p.cell.food > 0);
