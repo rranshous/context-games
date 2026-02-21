@@ -1,10 +1,10 @@
 import type { SimEvent } from '../interface/events.js';
 import type { SimStats, WorldState } from '../interface/state.js';
-import { ConsciousnessManager, type WakeReason } from './consciousness.js';
+import { ConsciousnessManager } from './consciousness.js';
 import { Creature } from './creature.js';
+import { runOnTick, computeEmbodimentSize } from './embodiment.js';
 import { mutateGenome } from './genome.js';
 import { reflexTick } from './reflex.js';
-import { mutateRules } from './rules.js';
 import { World, type WorldConfig } from './world.js';
 
 function round2(v: number): number { return Math.round(v * 100) / 100; }
@@ -64,7 +64,7 @@ export class Engine {
     } while ((!this.world.isWalkable(x, y) || this.world.cellAt(x, y).danger > 0) && attempts < 200);
 
     const creature = new Creature(x, y);
-    creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
+    this.lastTerrain.set(creature.id, this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
     this.emit({ type: 'creature:spawned', creature: creature.toState(), tick: this.tick });
@@ -77,11 +77,14 @@ export class Engine {
     if (genome) {
       Object.assign(creature.genome, genome);
     }
-    creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
+    this.lastTerrain.set(creature.id, this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
     this.emit({ type: 'creature:spawned', creature: creature.toState(), tick: this.tick });
   }
+
+  /** Track last terrain for each creature to detect new_terrain events */
+  private lastTerrain: Map<number, string> = new Map();
 
   step(): void {
     this.tick++;
@@ -91,7 +94,7 @@ export class Engine {
       this.world.spawnFood();
     }
 
-    // 2. Run reflex for each living creature
+    // 2. Process each living creature
     const alive = this.creatures.filter(c => c.alive);
     for (const creature of alive) {
       // Base energy burn
@@ -101,9 +104,8 @@ export class Engine {
         continue;
       }
 
-      // Skip reflex while thinking — body is frozen
+      // Skip all processing while thinking — body is frozen
       if (creature.thinking) {
-        // Still take hazard damage
         const cell = this.world.cellAt(creature.x, creature.y);
         if (cell.danger > 0) {
           creature.energy -= cell.danger;
@@ -115,11 +117,18 @@ export class Engine {
         continue;
       }
 
-      // Reflex action
+      // Run embodiment onTick (creature-authored JS)
+      const onTickResult = runOnTick(creature, this.world, alive, this.tick);
+
+      // Reflex action (uses genome base + adjustments set by onTick)
       const result = reflexTick(creature, this.world, alive);
+
+      // Record events for next tick's onTick and for consciousness context
+      creature.events = []; // clear for next tick
 
       if (result.action === 'eat' && result.foodEaten > 0) {
         creature.recordEvent(`Ate food (value ${result.foodEaten}) at (${creature.x},${creature.y})`);
+        creature.events.push({ type: 'ate', value: result.foodEaten });
         this.emit({
           type: 'creature:ate',
           id: creature.id,
@@ -130,12 +139,15 @@ export class Engine {
         });
       }
 
-      // Track terrain visits for new_terrain wake trigger
+      // Track terrain for new_terrain events
       if (result.action === 'move') {
         const cell = this.world.cellAt(creature.x, creature.y);
-        if (!creature.terrainsSeen.has(cell.terrain)) {
-          creature.recordEvent(`Entered ${cell.terrain} for the first time`);
+        const prevTerrain = this.lastTerrain.get(creature.id);
+        if (prevTerrain !== undefined && cell.terrain !== prevTerrain) {
+          creature.events.push({ type: 'new_terrain', terrain: cell.terrain });
+          creature.recordEvent(`Entered ${cell.terrain}`);
         }
+        this.lastTerrain.set(creature.id, cell.terrain);
       }
 
       // Hazard damage
@@ -143,6 +155,7 @@ export class Engine {
         const cell = this.world.cellAt(creature.x, creature.y);
         if (cell.danger > 0) {
           creature.energy -= cell.danger;
+          creature.events.push({ type: 'hazard_damage', amount: cell.danger });
           creature.recordEvent(`Took ${cell.danger.toFixed(1)} hazard damage at (${creature.x},${creature.y})`);
           if (creature.energy <= 0) {
             creature.energy = 0;
@@ -151,12 +164,9 @@ export class Engine {
         }
       }
 
-      // Consciousness check
-      if (creature.alive) {
-        const wakeReason = this.checkWake(creature);
-        if (wakeReason) {
-          this.consciousness.tryWake(creature, this.world, alive, this.tick, wakeReason);
-        }
+      // Queue consciousness if onTick signaled wake
+      if (creature.alive && onTickResult.wake) {
+        this.consciousness.tryWake(creature, this.world, alive, this.tick, onTickResult.reason || 'unknown');
       }
     }
 
@@ -166,8 +176,7 @@ export class Engine {
       this.reproduce(parent);
     }
 
-    // 4. Clean up dead creatures (keep in list for history but mark)
-    // Remove long-dead creatures to prevent memory bloat
+    // 4. Clean up dead creatures
     const maxDead = 100;
     const dead = this.creatures.filter(c => !c.alive);
     if (dead.length > maxDead) {
@@ -204,14 +213,7 @@ export class Engine {
 
     creature.recordEvent(`Died from ${cause} at (${creature.x},${creature.y}) energy=${Math.round(creature.energy)}`);
 
-    // Free death wake-up
-    if (!creature.thinking) {
-      this.consciousness.tryWake(
-        creature, this.world, this.creatures.filter(c => c.alive),
-        this.tick, 'death',
-      );
-    }
-
+    // No death wake-up in M6 — memory not inherited, so no lasting effect
     this.emit({ type: 'creature:died', id: creature.id, cause, tick: this.tick });
   }
 
@@ -241,47 +243,29 @@ export class Engine {
       parent.payReproductionCost();
       const childGenome = mutateGenome(parent.genome);
       const child = new Creature(nx, ny, childGenome, parent.id, parent.generation + 1);
-      child.rules = mutateRules(parent.rules);
-      child.terrainsSeen.add(this.world.cellAt(nx, ny).terrain);
+
+      // Lamarckian: clone embodiment from parent (memory starts empty)
+      child.embodiment = {
+        identity: parent.embodiment.identity,
+        sensors: parent.embodiment.sensors,
+        on_tick: parent.embodiment.on_tick,
+        memory: '{}',
+        tools: parent.embodiment.tools,
+      };
+      child.inheritedEmbodimentSize = computeEmbodimentSize(child.embodiment);
+      this.lastTerrain.set(child.id, this.world.cellAt(nx, ny).terrain);
+
       this.creatures.push(child);
       this.totalBirths++;
 
-      parent.justReproduced = true;
+      // Events for parent's next onTick
+      parent.events.push({ type: 'reproduced', childId: child.id });
       parent.recordEvent(`Reproduced — offspring #${child.id}`);
 
       this.emit({ type: 'creature:spawned', creature: child.toState(), tick: this.tick });
       this.emit({ type: 'creature:reproduced', parentId: parent.id, childId: child.id, tick: this.tick });
       return; // one offspring per tick
     }
-  }
-
-  private checkWake(creature: Creature): WakeReason | null {
-    if (!this.consciousness.enabled) return null;
-    if (creature.thinking) return null;
-
-    // Crisis: energy below 25%, with 20-tick cooldown
-    if (creature.energyRatio < 0.25 && this.tick - creature.lastWakeTick > 20) {
-      return 'crisis';
-    }
-
-    // Just reproduced (consume flag)
-    if (creature.justReproduced) {
-      creature.justReproduced = false;
-      return 'reproduced';
-    }
-
-    // New terrain type
-    const cell = this.world.cellAt(creature.x, creature.y);
-    if (!creature.terrainsSeen.has(cell.terrain)) {
-      return 'new_terrain';
-    }
-
-    // Periodic: genome-controlled interval
-    if (this.tick - creature.lastWakeTick >= creature.genome.wakeInterval) {
-      return 'periodic';
-    }
-
-    return null;
   }
 
   getStats(): SimStats {

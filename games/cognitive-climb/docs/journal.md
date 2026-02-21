@@ -293,7 +293,49 @@ Designed the full embodiment system through extended discussion. Key insight: th
 - **M3** (complete): LLM consciousness — inference loop, tool use, sim pause
 - **M4** (complete): light rule-setting — consciousness gets add_rule/remove_rule
 - **M5** (complete): creature inspector — click-to-select, inspector panel, story timeline
-- **M6** (next): full embodiment — see `docs/m6-embodiment.md` for complete design
+- **M6** (complete): full embodiment — embodiment IS the inference call, 5 editable sections
 - **M7** (future): multi-turn consciousness — tool results feed back to model
 - **M8** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
 - **M9** (future): sim depth — seasons, speciation, food chains, save/load
+
+## Session: 2026-02-21 — M6 Full Embodiment
+
+Replaced the M4 rules system with full embodiment: the creature's entire inference call IS its body. 5 named XML sections that the creature can read and edit during consciousness wake-ups.
+
+**New file: `src/sim/embodiment.ts`** — the core of M6:
+- Default embodiment constants (identity, sensors, on_tick, memory, tools)
+- `buildMeApi()` — sandboxed `me` object: section read/write, memory get/set, reflex adjust/set/reset/get, read-only state (energy, position, age, genome, events)
+- `buildWorldApi()` — fog-of-war constrained world: nearby() (within senseRange), currentCell(), tick, bounds
+- `compileFunction()` — `new Function('me', 'world', 'args', body)` with function-wrapper extraction and basic safety checks (reject infinite loops, >5000 chars)
+- `runOnTick()` — compile+execute creature's on_tick code each tick, sync memory back, return wake decision
+- `computeEmbodimentSize()`, `ageScalar()` — budget helpers
+
+**Deleted: `src/sim/rules.ts`** — the entire rules system removed
+
+**Architecture changes:**
+- `creature.ts`: Embodiment sections, reflexAdjustments (additive deltas separate from genome base), lastDx/lastDy moved from mem to dedicated fields, structured events buffer for onTick
+- `genome.ts`: New `maxEmbodimentSize` trait (1500–4000 initial, 500–8000 mutation range) — evolves through natural selection, intelligence-vs-efficiency tradeoff
+- `engine.ts`: Tick loop now runs `runOnTick()` before `reflexTick()`. Engine populates creature.events (ate, new_terrain, hazard_damage, reproduced). Wake decisions come from onTick, not hardcoded checkWake(). Reproduction clones embodiment (Lamarckian) with empty memory. No death wake-up.
+- `reflex.ts`: Uses `genome base + reflexAdjustments` as effective weights. All rule modifier code removed.
+- `consciousness.ts`: Complete rewrite — 5 hardcoded edit tools (edit_identity/sensors/on_tick/memory/tools), XML section serialization in user message, custom tool execution from `<tools>` section, budget enforcement on edits. Sets `last_wake_tick` in memory after consciousness.
+- `inspector.ts`: Shows embodiment sections (name, char count, preview), reflexes with base+adjustment display, memory from embodiment.memory JSON
+- `main.ts`: `window.__debug.dumpEmbodiment(id)` prints all 5 XML sections
+
+**Key design decisions:**
+- `inheritedEmbodimentSize` set at birth (including initial spawn) — prevents default embodiment from exceeding budget for young creatures
+- Budget = `max(inheritedSize, genome.maxEmbodimentSize × ageScalar(age))` — inherited content exempt, budget constrains growth only
+- Section writes return false on budget exceeded — creature is told why
+- onTick errors → log + return `{wake:false}` — creature runs on reflexes alone
+- Memory NOT inherited — creates pressure to encode knowledge in code
+- `me.sensors.run()` callable from onTick — default onTick calls it first
+
+**Observations from first run:**
+- All 4 wake reasons fire correctly: new_terrain, crisis, reproduced, periodic
+- Creatures use `adjust_reflex` custom tool heavily — the pattern is understood immediately
+- Some creatures hit embodiment budget when trying edit_memory with large JSON — correct behavior, genome capacity constraint working
+- reflex adjustments visible in inspector (e.g., `dangerAvoidance 0.64 +0.30` when near hazards)
+- Default onTick successfully replicates M4 behavior: sensors → reflex adjustments → wake decisions
+- Memory populated by sensors: nearby_food, total_food, energy_pct, current_terrain, etc.
+- `last_wake_tick` in memory enables periodic wake logic
+- Reproduction works: events buffer delivers `{type:'reproduced'}` to parent's next onTick
+- No creatures attempted to edit code sections yet (sensors, on_tick, tools) — needs more generations and pressure. This is expected; the real test is whether descendants evolve custom code.

@@ -18,6 +18,7 @@ export interface GenomeState {
   metabolism: number;   // energy efficiency multiplier (0.5 – 1.5)
   diet: number;         // 0 = herbivore, 1 = carnivore
   wakeInterval: number; // ticks between periodic consciousness wake-ups (30 – 200)
+  maxEmbodimentSize: number; // max total chars across all embodiment sections (500 – 8000)
   reflexWeights: ReflexWeights;
 }
 
@@ -29,12 +30,14 @@ export interface ReflexWeights {
   sociality: number;         // attraction/repulsion to other creatures
 }
 
-// ── Rules ────────────────────────────────────────────────
+// ── Embodiment ──────────────────────────────────────────
 
-export interface RuleState {
-  id: string;
-  condition: { type: string; threshold?: number; terrain?: string };
-  effect: { target: string; modifier: number };
+export interface EmbodimentState {
+  identity: string;   // self-narrative, goals, strategy notes
+  sensors: string;    // JS function — perception processing
+  on_tick: string;    // JS function — per-tick logic, wake decisions
+  memory: string;     // JSON string — working state for one lifetime
+  tools: string;      // JSON string — custom tool definitions
 }
 
 // ── Creature ─────────────────────────────────────────────
@@ -50,8 +53,8 @@ export interface CreatureState {
   genome: GenomeState;
   parentId: number | null;
   thinking?: boolean;    // true while consciousness API call in-flight
-  rules: RuleState[];    // behavioral rules (always included)
-  mem: Record<string, unknown>;  // persistent memory dict
+  embodiment: EmbodimentState;
+  reflexAdjustments: ReflexWeights;  // additive deltas on top of genome base
   recentEvents: string[];        // recent event buffer
   ticksSinceAte: number;         // ticks since last meal
 }

@@ -1,581 +1,408 @@
-// src/sim/rules.ts
-var MAX_RULES = 5;
-var CONDITION_TYPES = [
-  "energy_below",
-  "energy_above",
-  "danger_nearby",
-  "danger_here",
-  "food_nearby",
-  "food_here",
-  "creatures_nearby_above",
-  "creatures_nearby_below",
-  "on_terrain"
-];
-var EFFECT_TARGETS = [
-  "eat",
-  "rest",
-  "flee_danger",
-  "seek_food",
-  "explore",
-  "seek_company"
-];
-var TERRAINS = ["grass", "forest", "sand", "rock"];
-var RULE_DROP_RATE = 0.1;
-var RULE_MUTATE_RATE = 0.15;
-var RULE_GAIN_RATE = 0.05;
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-function gaussian(mean, stddev) {
-  const u1 = Math.random();
-  const u2 = Math.random();
-  return mean + stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-}
-var ruleIdCounter = 0;
-function generateRuleId() {
-  return `r${++ruleIdCounter}`;
-}
-function evaluateCondition(cond, ctx) {
-  switch (cond.type) {
-    case "energy_below":
-      return ctx.energyRatio < (cond.threshold ?? 0.5);
-    case "energy_above":
-      return ctx.energyRatio > (cond.threshold ?? 0.5);
-    case "danger_nearby":
-      return ctx.nearbyDangerCount > 0;
-    case "danger_here":
-      return ctx.currentDanger > 0;
-    case "food_nearby":
-      return ctx.nearbyFoodCount > 0;
-    case "food_here":
-      return ctx.currentFood > 0;
-    case "creatures_nearby_above":
-      return ctx.nearbyCreatureCount > (cond.threshold ?? 3);
-    case "creatures_nearby_below":
-      return ctx.nearbyCreatureCount < (cond.threshold ?? 1);
-    case "on_terrain":
-      return ctx.currentTerrain === cond.terrain;
-    default:
-      return false;
+// src/sim/embodiment.ts
+var DEFAULT_IDENTITY = `I am a creature in a survival simulation. I eat food to gain energy, avoid hazard zones that damage me, and reproduce when I have enough energy. My body runs on reflexes between wake-ups. I can modify my own embodiment to improve my survival.`;
+var DEFAULT_SENSORS = `function sensors(me, world) {
+  var nearby = world.nearby();
+  var foodCount = 0, dangerCount = 0, creatureCount = 0, totalFood = 0;
+  for (var i = 0; i < nearby.length; i++) {
+    var cell = nearby[i];
+    if (cell.food > 0) { foodCount++; totalFood += cell.food; }
+    if (cell.danger > 0) dangerCount++;
+    if (cell.creature) creatureCount++;
   }
-}
-function computeRuleModifiers(rules, ctx) {
-  const mods = {
-    eatBonus: 0,
-    restBonus: 0,
-    fleeDangerBonus: 0,
-    seekFoodBonus: 0,
-    exploreBonus: 0,
-    seekCompanyBonus: 0
-  };
-  for (const rule of rules) {
-    if (!evaluateCondition(rule.condition, ctx)) continue;
-    switch (rule.effect.target) {
-      case "eat":
-        mods.eatBonus += rule.effect.modifier;
-        break;
-      case "rest":
-        mods.restBonus += rule.effect.modifier;
-        break;
-      case "flee_danger":
-        mods.fleeDangerBonus += rule.effect.modifier;
-        break;
-      case "seek_food":
-        mods.seekFoodBonus += rule.effect.modifier;
-        break;
-      case "explore":
-        mods.exploreBonus += rule.effect.modifier;
-        break;
-      case "seek_company":
-        mods.seekCompanyBonus += rule.effect.modifier;
-        break;
-    }
-  }
-  return mods;
-}
-function mutateRules(parentRules) {
-  const rules = [];
-  for (const rule of parentRules) {
-    if (Math.random() < RULE_DROP_RATE) continue;
-    const mutated = {
-      id: rule.id,
-      condition: { ...rule.condition },
-      effect: { ...rule.effect }
-    };
-    if (mutated.condition.threshold !== void 0 && Math.random() < RULE_MUTATE_RATE) {
-      const isEnergy = mutated.condition.type === "energy_below" || mutated.condition.type === "energy_above";
-      const min = isEnergy ? 0.05 : 0;
-      const max = isEnergy ? 0.95 : 10;
-      const range = max - min;
-      mutated.condition.threshold = clamp(
-        gaussian(mutated.condition.threshold, range * 0.1),
-        min,
-        max
-      );
-    }
-    if (Math.random() < RULE_MUTATE_RATE) {
-      mutated.effect.modifier = clamp(
-        gaussian(mutated.effect.modifier, 0.4),
-        -2,
-        2
-      );
-    }
-    rules.push(mutated);
-  }
-  if (rules.length < MAX_RULES && Math.random() < RULE_GAIN_RATE) {
-    rules.push(randomRule());
-  }
-  return rules;
-}
-function randomRule() {
-  const condType = CONDITION_TYPES[Math.floor(Math.random() * CONDITION_TYPES.length)];
-  const condition = { type: condType };
-  if (condType === "energy_below" || condType === "energy_above") {
-    condition.threshold = 0.1 + Math.random() * 0.8;
-  } else if (condType === "creatures_nearby_above" || condType === "creatures_nearby_below") {
-    condition.threshold = Math.floor(Math.random() * 5) + 1;
-  } else if (condType === "on_terrain") {
-    condition.terrain = TERRAINS[Math.floor(Math.random() * TERRAINS.length)];
-  }
-  return {
-    id: generateRuleId(),
-    condition,
-    effect: {
-      target: EFFECT_TARGETS[Math.floor(Math.random() * EFFECT_TARGETS.length)],
-      modifier: Math.random() * 4 - 2
-      // -2 to +2
-    }
-  };
-}
-function validateRule(input) {
-  let condInput = input.condition;
-  let effectInput = input.effect;
-  if (!condInput && input.condition_type) {
-    condInput = { type: input.condition_type, threshold: input.threshold, terrain: input.terrain };
-  }
-  if (!effectInput && (input.target || input.action)) {
-    effectInput = { target: input.target || input.action, modifier: input.modifier };
-  }
-  if (!condInput || !effectInput) {
-    return { error: "Rule must have condition and effect" };
-  }
-  const condType = condInput.type;
-  if (!CONDITION_TYPES.includes(condType)) {
-    return { error: `Unknown condition type: ${condType}. Valid: ${CONDITION_TYPES.join(", ")}` };
-  }
-  const effectTarget = effectInput.target || effectInput.action || effectInput.type;
-  if (!EFFECT_TARGETS.includes(effectTarget)) {
-    return { error: `Unknown effect target: ${effectTarget}. Valid: ${EFFECT_TARGETS.join(", ")}` };
-  }
-  const modifier = Number(effectInput.modifier ?? effectInput.amount ?? effectInput.value);
-  if (isNaN(modifier)) {
-    return { error: "Effect modifier must be a number" };
-  }
-  const condition = { type: condType };
-  if (condType === "energy_below" || condType === "energy_above") {
-    const threshold = Number(condInput.threshold);
-    if (isNaN(threshold)) return { error: `${condType} requires a numeric threshold (0-1)` };
-    condition.threshold = clamp(threshold, 0.01, 0.99);
-  } else if (condType === "creatures_nearby_above" || condType === "creatures_nearby_below") {
-    const threshold = Number(condInput.threshold);
-    if (isNaN(threshold)) return { error: `${condType} requires a numeric threshold` };
-    condition.threshold = clamp(Math.round(threshold), 0, 20);
-  } else if (condType === "on_terrain") {
-    const terrain = String(condInput.terrain || "");
-    if (!TERRAINS.includes(terrain)) {
-      return { error: `Unknown terrain: ${terrain}. Valid: ${TERRAINS.join(", ")}` };
-    }
-    condition.terrain = terrain;
-  }
-  return {
-    rule: {
-      id: generateRuleId(),
-      condition,
-      effect: {
-        target: effectTarget,
-        modifier: clamp(modifier, -2, 2)
-      }
-    }
-  };
-}
-function formatRule(rule) {
-  const c = rule.condition;
-  const condStr = c.threshold !== void 0 ? `${c.type}(${c.type.startsWith("energy_") ? c.threshold.toFixed(2) : c.threshold})` : c.terrain ? `${c.type}(${c.terrain})` : c.type;
-  const e = rule.effect;
-  const sign = e.modifier > 0 ? "+" : "";
-  return `[${rule.id}] IF ${condStr} THEN ${e.target} ${sign}${e.modifier.toFixed(1)}`;
-}
+  var cur = world.currentCell();
+  me.memory.set('nearby_food', foodCount);
+  me.memory.set('total_food', totalFood);
+  me.memory.set('nearby_danger', dangerCount);
+  me.memory.set('nearby_creatures', creatureCount);
+  me.memory.set('energy_pct', me.energy / me.maxEnergy);
+  me.memory.set('current_terrain', cur.terrain);
+  me.memory.set('current_danger', cur.danger);
+  me.memory.set('current_food', cur.food);
+}`;
+var DEFAULT_ON_TICK = `function onTick(me, world) {
+  me.sensors.run();
+  var energy = me.memory.get('energy_pct');
+  var danger = me.memory.get('nearby_danger');
 
-// src/sim/reflex.ts
-var DIRS = [
-  { dx: 0, dy: -1 },
-  // N
-  { dx: 1, dy: 0 },
-  // E
-  { dx: 0, dy: 1 },
-  // S
-  { dx: -1, dy: 0 }
-  // W
-];
-function perceive(creature, world, allCreatures) {
-  const range = Math.round(creature.genome.senseRange);
-  const perceived = [];
-  for (let dy = -range; dy <= range; dy++) {
-    for (let dx = -range; dx <= range; dx++) {
-      const nx = creature.x + dx;
-      const ny = creature.y + dy;
-      if (!world.inBounds(nx, ny)) continue;
-      const dist = Math.abs(dx) + Math.abs(dy);
-      if (dist > range || dist === 0) continue;
-      perceived.push({ x: nx, y: ny, cell: world.cellAt(nx, ny), dist });
-    }
-  }
-  return perceived;
-}
-function scoreActions(creature, world, allCreatures, perceived) {
-  const w = creature.genome.reflexWeights;
-  const scores = [];
-  const dangerCells = perceived.filter((p) => p.cell.danger > 0);
-  const foodCells = perceived.filter((p) => p.cell.food > 0);
-  const range = Math.round(creature.genome.senseRange);
-  const nearbyCreatures = allCreatures.filter(
-    (c) => c.id !== creature.id && c.alive && Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
-  );
-  const currentCell = world.cellAt(creature.x, creature.y);
-  const stayPenalty = currentCell.danger > 0 ? -w.dangerAvoidance * currentCell.danger * 3 : 0;
-  if (currentCell.food > 0) {
-    const hunger = 1 - creature.energyRatio;
-    scores.push({
-      action: "eat",
-      dx: 0,
-      dy: 0,
-      score: w.foodAttraction * (0.5 + hunger) * currentCell.food + stayPenalty
-    });
-  }
-  if (creature.energyRatio < w.restThreshold) {
-    scores.push({
-      action: "rest",
-      dx: 0,
-      dy: 0,
-      score: (w.restThreshold - creature.energyRatio) * 2 + stayPenalty
-    });
-  }
-  for (const dir of DIRS) {
-    const nx = creature.x + dir.dx;
-    const ny = creature.y + dir.dy;
-    if (!world.isWalkable(nx, ny)) continue;
-    let moveScore = 0;
-    const targetCell = world.cellAt(nx, ny);
-    if (targetCell.danger > 0) {
-      moveScore -= w.dangerAvoidance * targetCell.danger * 2;
-    }
-    for (const dc of dangerCells) {
-      const currentDist = Math.abs(dc.x - creature.x) + Math.abs(dc.y - creature.y);
-      const newDist = Math.abs(dc.x - nx) + Math.abs(dc.y - ny);
-      if (newDist < currentDist) {
-        moveScore -= w.dangerAvoidance * dc.cell.danger / dc.dist;
-      } else if (newDist > currentDist) {
-        moveScore += w.dangerAvoidance * 0.3 / dc.dist;
-      }
-    }
-    for (const fc of foodCells) {
-      const currentDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
-      const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
-      if (newDist < currentDist) {
-        moveScore += w.foodAttraction * fc.cell.food / fc.dist;
-      }
-    }
-    moveScore += w.curiosity * 0.3;
-    const lastDx = creature.mem["lastDx"];
-    const lastDy = creature.mem["lastDy"];
-    if (lastDx !== void 0 && dir.dx === -lastDx && dir.dy === -lastDy) {
-      moveScore -= 0.2;
-    }
-    const dirCreatures = allCreatures.filter(
-      (c) => c.id !== creature.id && c.alive && Math.abs(c.x - nx) + Math.abs(c.y - ny) <= 3
-    );
-    if (dirCreatures.length > 0) {
-      moveScore += w.sociality * dirCreatures.length * 0.2;
-    }
-    scores.push({ action: "move", dx: dir.dx, dy: dir.dy, score: moveScore });
-  }
-  for (const s of scores) {
-    s.score += Math.random() * 0.1;
-  }
-  if (creature.rules.length > 0) {
-    const ruleCtx = {
-      energyRatio: creature.energyRatio,
-      currentDanger: currentCell.danger,
-      nearbyDangerCount: dangerCells.length,
-      currentFood: currentCell.food,
-      nearbyFoodCount: foodCells.length,
-      nearbyCreatureCount: nearbyCreatures.length,
-      currentTerrain: currentCell.terrain
-    };
-    const mods = computeRuleModifiers(creature.rules, ruleCtx);
-    for (const s of scores) {
-      if (s.action === "eat") {
-        s.score += mods.eatBonus;
-      } else if (s.action === "rest") {
-        s.score += mods.restBonus;
-      } else if (s.action === "move") {
-        const nx = creature.x + s.dx;
-        const ny = creature.y + s.dy;
-        if (mods.fleeDangerBonus !== 0) {
-          const targetCell = world.cellAt(nx, ny);
-          if (targetCell.danger > 0) {
-            s.score -= mods.fleeDangerBonus * targetCell.danger;
-          } else if (currentCell.danger > 0) {
-            s.score += mods.fleeDangerBonus * 0.5;
-          }
-        }
-        if (mods.seekFoodBonus !== 0) {
-          let foodPull = 0;
-          for (const fc of foodCells) {
-            const curDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
-            const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
-            if (newDist < curDist) foodPull += fc.cell.food / fc.dist;
-          }
-          s.score += mods.seekFoodBonus * foodPull;
-        }
-        s.score += mods.exploreBonus * 0.3;
-        if (mods.seekCompanyBonus !== 0) {
-          let socialPull = 0;
-          for (const c of nearbyCreatures) {
-            const curDist = Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y);
-            const newDist = Math.abs(c.x - nx) + Math.abs(c.y - ny);
-            if (newDist < curDist) socialPull++;
-          }
-          s.score += mods.seekCompanyBonus * socialPull * 0.3;
-        }
-      }
-    }
-  }
-  return scores.sort((a, b) => b.score - a.score);
-}
-function reflexTick(creature, world, allCreatures) {
-  creature.moveAccumulator += creature.genome.speed;
-  if (creature.moveAccumulator < 1) {
-    return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
-  }
-  creature.moveAccumulator -= 1;
-  const perceived = perceive(creature, world, allCreatures);
-  const actions = scoreActions(creature, world, allCreatures, perceived);
-  if (actions.length === 0) {
-    return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
-  }
-  const best = actions[0];
-  switch (best.action) {
-    case "eat": {
-      const eaten = world.consumeFood(creature.x, creature.y);
-      creature.feed(eaten);
-      return { action: "eat", dx: 0, dy: 0, foodEaten: eaten };
-    }
-    case "rest": {
-      creature.energy = Math.min(creature.maxEnergy, creature.energy + 0.5);
-      return { action: "rest", dx: 0, dy: 0, foodEaten: 0 };
-    }
-    case "move": {
-      creature.mem["lastDx"] = best.dx;
-      creature.mem["lastDy"] = best.dy;
-      creature.x += best.dx;
-      creature.y += best.dy;
-      creature.energy -= creature.moveCost;
-      if (creature.energy <= 0) {
-        creature.energy = 0;
-        creature.alive = false;
-      }
-      return { action: "move", dx: best.dx, dy: best.dy, foodEaten: 0 };
-    }
-    default:
-      return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
-  }
-}
+  me.reflex.reset();
+  if (energy < 0.35) me.reflex.adjust('foodAttraction', 0.4);
+  if (energy < 0.2) me.reflex.adjust('restThreshold', 0.15);
+  if (danger > 0) me.reflex.adjust('dangerAvoidance', 0.3);
 
-// src/sim/consciousness.ts
-var TOOL_DEFINITIONS = [
+  for (var i = 0; i < me.events.length; i++) {
+    var e = me.events[i];
+    if (e.type === 'reproduced') return { wake: true, reason: 'reproduced' };
+    if (e.type === 'new_terrain') return { wake: true, reason: 'new_terrain' };
+  }
+  if (energy < 0.25) return { wake: true, reason: 'crisis' };
+
+  var lastWake = me.memory.get('last_wake_tick') || 0;
+  if (world.tick - lastWake >= me.genome.wakeInterval) {
+    return { wake: true, reason: 'periodic' };
+  }
+
+  return { wake: false };
+}`;
+var DEFAULT_MEMORY = "{}";
+var DEFAULT_TOOLS = JSON.stringify([
   {
-    name: "set_memory",
-    description: "Write a value to your persistent memory. Memory survives between wake-ups and is inherited by offspring. Use this to remember important observations, strategies, or warnings.",
-    input_schema: {
-      type: "object",
-      properties: {
-        key: { type: "string", description: 'Memory key (e.g. "strategy", "danger_zones", "food_direction")' },
-        value: { type: "string", description: "Value to store" }
-      },
-      required: ["key", "value"]
-    }
-  },
-  {
-    name: "adjust_reflex_weight",
-    description: "Modify one of your body's reflex weights. These control automatic behavior: foodAttraction (how strongly you seek food), dangerAvoidance (how strongly you flee hazards), curiosity (tendency to explore), restThreshold (energy level below which you rest), sociality (attraction to other creatures). Values are clamped to 0-2.",
+    name: "adjust_reflex",
+    description: "Adjust a reflex weight that influences your body's instinctive behavior each tick. Weights: foodAttraction, dangerAvoidance, curiosity, restThreshold, sociality. Positive delta increases, negative decreases.",
     input_schema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "Reflex weight name",
           enum: ["foodAttraction", "dangerAvoidance", "curiosity", "restThreshold", "sociality"]
         },
         delta: {
           type: "number",
-          description: "Amount to add to current value (positive = increase, negative = decrease)"
+          description: "Amount to add to current weight adjustment"
         }
       },
       required: ["name", "delta"]
+    },
+    execute: "me.reflex.adjust(args.name, args.delta)"
+  }
+], null, 2);
+function defaultEmbodiment() {
+  return {
+    identity: DEFAULT_IDENTITY,
+    sensors: DEFAULT_SENSORS,
+    on_tick: DEFAULT_ON_TICK,
+    memory: DEFAULT_MEMORY,
+    tools: DEFAULT_TOOLS
+  };
+}
+function computeEmbodimentSize(e) {
+  return e.identity.length + e.sensors.length + e.on_tick.length + e.memory.length + e.tools.length;
+}
+function ageScalar(age) {
+  return Math.min(1, 0.3 + 0.7 * (age / 100));
+}
+function extractFunctionBody(code) {
+  const match = code.match(/^function\s+\w+\s*\([^)]*\)\s*\{([\s\S]*)\}\s*$/);
+  return match ? match[1] : code;
+}
+function compileFunction(code) {
+  if (!code || code.length > 5e3) return null;
+  if (/while\s*\(\s*true\s*\)/.test(code) || /for\s*\(\s*;\s*;\s*\)/.test(code)) {
+    console.warn("[EMBODIMENT] Rejected infinite loop in code");
+    return null;
+  }
+  try {
+    const body = extractFunctionBody(code);
+    return new Function("me", "world", "args", body);
+  } catch (e) {
+    console.error("[EMBODIMENT] Compilation error:", e);
+    return null;
+  }
+}
+function checkBudget(creature, section, newContent) {
+  const current = computeEmbodimentSize(creature.embodiment);
+  const oldLen = creature.embodiment[section].length;
+  const newTotal = current - oldLen + newContent.length;
+  const maxAllowed = Math.max(
+    creature.inheritedEmbodimentSize,
+    creature.genome.maxEmbodimentSize * ageScalar(creature.age)
+  );
+  return newTotal <= maxAllowed;
+}
+function buildMeApi(creature, world, allCreatures, tick, worldApi) {
+  let memoryCache;
+  try {
+    memoryCache = JSON.parse(creature.embodiment.memory || "{}");
+  } catch {
+    memoryCache = {};
+  }
+  const me = {};
+  function makeSectionApi(name, runnable) {
+    const api = {
+      read: () => creature.embodiment[name],
+      write: (str) => {
+        if (!checkBudget(creature, name, str)) return false;
+        creature.embodiment[name] = str;
+        return true;
+      }
+    };
+    if (runnable) {
+      api.run = () => {
+        const fn = compileFunction(creature.embodiment[name]);
+        if (fn) {
+          try {
+            fn(me, worldApi);
+          } catch (e) {
+            console.error(`[EMBODIMENT] ${name} error for #${creature.id}:`, e);
+          }
+        }
+      };
     }
-  },
+    return api;
+  }
+  me.identity = makeSectionApi("identity", false);
+  me.sensors = makeSectionApi("sensors", true);
+  me.on_tick = makeSectionApi("on_tick", false);
+  me.tools = makeSectionApi("tools", false);
+  me.memory = {
+    get: (key) => memoryCache[key],
+    set: (key, val) => {
+      memoryCache[key] = val;
+    },
+    read: () => ({ ...memoryCache }),
+    write: (str) => {
+      if (!checkBudget(creature, "memory", str)) return false;
+      creature.embodiment.memory = str;
+      try {
+        memoryCache = JSON.parse(str);
+      } catch {
+        memoryCache = {};
+      }
+      return true;
+    }
+  };
+  const adj = creature.reflexAdjustments;
+  const base = creature.genome.reflexWeights;
+  const reflexNames = ["foodAttraction", "dangerAvoidance", "curiosity", "restThreshold", "sociality"];
+  me.reflex = {
+    adjust: (name, delta) => {
+      if (reflexNames.includes(name)) {
+        adj[name] += delta;
+      }
+    },
+    set: (name, value) => {
+      if (reflexNames.includes(name)) {
+        adj[name] = value;
+      }
+    },
+    reset: (name) => {
+      if (name && reflexNames.includes(name)) {
+        adj[name] = 0;
+      } else if (!name) {
+        for (const n of reflexNames) adj[n] = 0;
+      }
+    },
+    get: (name) => {
+      if (!reflexNames.includes(name)) return null;
+      const k = name;
+      return { base: base[k], adjustment: adj[k], effective: base[k] + adj[k] };
+    }
+  };
+  Object.defineProperties(me, {
+    energy: { get: () => creature.energy, enumerable: true },
+    maxEnergy: { get: () => creature.maxEnergy, enumerable: true },
+    position: { get: () => ({ x: creature.x, y: creature.y }), enumerable: true },
+    age: { get: () => creature.age, enumerable: true },
+    genome: { get: () => Object.freeze({ ...creature.genome, reflexWeights: Object.freeze({ ...creature.genome.reflexWeights }) }), enumerable: true },
+    events: { get: () => creature.events, enumerable: true },
+    embodimentSize: { get: () => computeEmbodimentSize(creature.embodiment), enumerable: true },
+    maxEmbodimentSize: {
+      get: () => Math.max(
+        creature.inheritedEmbodimentSize,
+        creature.genome.maxEmbodimentSize * ageScalar(creature.age)
+      ),
+      enumerable: true
+    }
+  });
+  if (!worldApi) worldApi = buildWorldApi(creature, world, allCreatures, tick);
+  me.__syncMemory = () => {
+    creature.embodiment.memory = JSON.stringify(memoryCache);
+  };
+  return me;
+}
+function buildWorldApi(creature, world, allCreatures, tick) {
+  return {
+    nearby: () => {
+      const range = Math.round(creature.genome.senseRange);
+      const result = [];
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+          const nx = creature.x + dx;
+          const ny = creature.y + dy;
+          if (!world.inBounds(nx, ny)) continue;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist > range || dist === 0) continue;
+          const cell = world.cellAt(nx, ny);
+          const entry = {
+            x: nx,
+            y: ny,
+            terrain: cell.terrain,
+            elevation: cell.elevation,
+            food: cell.food,
+            danger: cell.danger
+          };
+          const other = allCreatures.find(
+            (c) => c !== creature && c.x === nx && c.y === ny && c.alive !== false
+          );
+          if (other) {
+            entry.creature = { id: other.id, energy: other.energy };
+          }
+          result.push(entry);
+        }
+      }
+      return result;
+    },
+    currentCell: () => {
+      const cell = world.cellAt(creature.x, creature.y);
+      return {
+        terrain: cell.terrain,
+        elevation: cell.elevation,
+        food: cell.food,
+        danger: cell.danger
+      };
+    },
+    tick,
+    bounds: { width: world.width, height: world.height }
+  };
+}
+function runOnTick(creature, world, allCreatures, tick) {
+  const fn = compileFunction(creature.embodiment.on_tick);
+  if (!fn) {
+    return { wake: false };
+  }
+  const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+  const meApi = buildMeApi(creature, world, allCreatures, tick, worldApi);
+  try {
+    const result = fn(meApi, worldApi);
+    meApi.__syncMemory();
+    if (result && typeof result === "object" && result.wake) {
+      return { wake: true, reason: result.reason || "unknown" };
+    }
+    return { wake: false };
+  } catch (e) {
+    console.error(`[ONTICK] Creature #${creature.id} error:`, e);
+    return { wake: false };
+  }
+}
+
+// src/sim/consciousness.ts
+var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your embodiment is shown below in XML sections \u2014 it IS you. You can edit any section to improve your survival.
+
+Your body runs on reflexes between wake-ups. Your on_tick code runs every tick, adjusting reflexes and deciding when to wake you. Your sensors code processes perception data. Your tools section defines custom tools you can create for yourself.
+
+Wake-ups are expensive (15% energy). Make each one count. Be concise.`;
+var EDIT_TOOLS = [
   {
-    name: "add_rule",
-    description: `Create a behavioral rule: an if/then that modifies your reflex scores every tick. Rules run continuously between wake-ups, giving your reflexes conditional logic. Max ${MAX_RULES} rules. Rules are inherited by offspring. Example: "If energy below 30%, boost resting."`,
+    name: "edit_identity",
+    description: "Replace your <identity> section \u2014 your self-narrative, goals, and strategy notes.",
     input_schema: {
       type: "object",
       properties: {
-        condition: {
-          type: "object",
-          description: "When this is true, the effect applies",
-          properties: {
-            type: {
-              type: "string",
-              description: "Condition type",
-              enum: ["energy_below", "energy_above", "danger_nearby", "danger_here", "food_nearby", "food_here", "creatures_nearby_above", "creatures_nearby_below", "on_terrain"]
-            },
-            threshold: {
-              type: "number",
-              description: "For energy conditions: 0-1 ratio. For creature count: integer."
-            },
-            terrain: {
-              type: "string",
-              description: "For on_terrain: grass, forest, sand, or rock"
-            }
-          },
-          required: ["type"]
-        },
-        effect: {
-          type: "object",
-          description: "Score modifier applied when condition is true",
-          properties: {
-            target: {
-              type: "string",
-              description: "What behavior to modify",
-              enum: ["eat", "rest", "flee_danger", "seek_food", "explore", "seek_company"]
-            },
-            modifier: {
-              type: "number",
-              description: "Score adjustment (-2 to +2). Positive = boost, negative = suppress."
-            }
-          },
-          required: ["target", "modifier"]
-        }
+        content: { type: "string", description: "New identity text" }
       },
-      required: ["condition", "effect"]
+      required: ["content"]
     }
   },
   {
-    name: "remove_rule",
-    description: "Remove one of your behavioral rules by its ID. Use this to prune rules that are not helping your survival.",
+    name: "edit_sensors",
+    description: "Replace your <sensors> section \u2014 a JS function(me, world) that processes perception and writes to memory.",
     input_schema: {
       type: "object",
       properties: {
-        rule_id: {
-          type: "string",
-          description: "The ID of the rule to remove (from your rules list)"
-        }
+        content: { type: "string", description: "New sensors function code" }
       },
-      required: ["rule_id"]
+      required: ["content"]
+    }
+  },
+  {
+    name: "edit_on_tick",
+    description: "Replace your <on_tick> section \u2014 a JS function(me, world) that runs every tick. Call me.sensors.run(), adjust reflexes via me.reflex.*, and return {wake:true, reason} to wake consciousness.",
+    input_schema: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "New onTick function code" }
+      },
+      required: ["content"]
+    }
+  },
+  {
+    name: "edit_memory",
+    description: "Replace your <memory> section \u2014 a JSON object of key-value working state. Not inherited by offspring.",
+    input_schema: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "New memory JSON string" }
+      },
+      required: ["content"]
+    }
+  },
+  {
+    name: "edit_tools",
+    description: "Replace your <tools> section \u2014 a JSON array of custom tool definitions. Each tool has name, description, input_schema, and execute (a JS expression using me, world, args).",
+    input_schema: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "New tools JSON string" }
+      },
+      required: ["content"]
     }
   }
 ];
-var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your body runs on reflexes \u2014 automatic behavior every tick. You are expensive and intermittent. You cannot act directly in the world. You can only:
-1. Write to memory (persists between wake-ups, but NOT inherited by offspring)
-2. Adjust reflex weights (change automatic behavior priorities \u2014 inherited via genome)
-3. Add/remove behavioral rules \u2014 if/then modifiers that tweak your reflex scores every tick
-
-Rules are your most powerful tool. They run continuously between wake-ups, giving your reflexes conditional logic. Example: "if energy below 0.3, boost resting" or "if danger nearby, boost fleeing". Max ${MAX_RULES} rules. Rules ARE inherited by offspring (with slight mutations).
-
-Your body will continue running on reflexes after you go back to sleep. Make your wake-up count. Be concise.`;
+var EDIT_TOOL_MAP = {
+  edit_identity: "identity",
+  edit_sensors: "sensors",
+  edit_on_tick: "on_tick",
+  edit_memory: "memory",
+  edit_tools: "tools"
+};
 function buildUserMessage(creature, world, allCreatures, reason) {
-  const cell = world.cellAt(creature.x, creature.y);
-  const perceived = perceive(creature, world, allCreatures);
-  const foodCells = perceived.filter((p) => p.cell.food > 0);
-  const dangerCells = perceived.filter((p) => p.cell.danger > 0);
-  const range = Math.round(creature.genome.senseRange);
-  const nearbyCreatures = allCreatures.filter(
-    (c) => c.id !== creature.id && c.alive && Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
-  );
-  const terrainCounts = {};
-  for (const p of perceived) {
-    terrainCounts[p.cell.terrain] = (terrainCounts[p.cell.terrain] || 0) + 1;
-  }
+  const e = creature.embodiment;
   let msg = `WAKE REASON: ${reason}
 
 `;
-  msg += `== YOUR STATE ==
+  msg += `<identity>
+${e.identity}
+</identity>
+
 `;
-  msg += `Position: (${creature.x}, ${creature.y}) on ${cell.terrain}
+  msg += `<sensors>
+${e.sensors}
+</sensors>
+
+`;
+  msg += `<on_tick>
+${e.on_tick}
+</on_tick>
+
+`;
+  msg += `<memory>
+${e.memory}
+</memory>
+
+`;
+  msg += `<tools>
+${e.tools}
+</tools>
+
+`;
+  msg += `== STATE ==
+`;
+  msg += `Position: (${creature.x}, ${creature.y})
 `;
   msg += `Energy: ${Math.round(creature.energy)}/${Math.round(creature.maxEnergy)} (${Math.round(creature.energyRatio * 100)}%)
 `;
-  msg += `Age: ${creature.age} ticks | Generation: ${creature.generation}
+  msg += `Age: ${creature.age} ticks | Gen: ${creature.generation}
 `;
   msg += `Ticks since last meal: ${creature.ticksSinceAte}
 `;
-  msg += `Current cell: food=${cell.food}, danger=${cell.danger}
+  const totalSize = computeEmbodimentSize(e);
+  const maxSize = Math.round(Math.max(
+    creature.inheritedEmbodimentSize,
+    creature.genome.maxEmbodimentSize * ageScalar(creature.age)
+  ));
+  msg += `Embodiment: ${totalSize}/${maxSize} chars
 
 `;
-  msg += `== REFLEXES (current weights) ==
+  const g = creature.genome;
+  msg += `== GENOME (immutable body) ==
 `;
-  const w = creature.genome.reflexWeights;
-  msg += `foodAttraction: ${w.foodAttraction.toFixed(2)}
+  msg += `speed=${g.speed.toFixed(2)} sense=${Math.round(g.senseRange)} size=${g.size.toFixed(2)} metabolism=${g.metabolism.toFixed(2)} diet=${g.diet.toFixed(2)} wakeInterval=${g.wakeInterval}
 `;
-  msg += `dangerAvoidance: ${w.dangerAvoidance.toFixed(2)}
+  msg += `Base reflexes: food=${g.reflexWeights.foodAttraction.toFixed(2)} danger=${g.reflexWeights.dangerAvoidance.toFixed(2)} curiosity=${g.reflexWeights.curiosity.toFixed(2)} rest=${g.reflexWeights.restThreshold.toFixed(2)} social=${g.reflexWeights.sociality.toFixed(2)}
 `;
-  msg += `curiosity: ${w.curiosity.toFixed(2)}
-`;
-  msg += `restThreshold: ${w.restThreshold.toFixed(2)}
-`;
-  msg += `sociality: ${w.sociality.toFixed(2)}
+  const adj = creature.reflexAdjustments;
+  msg += `Current adjustments: food=${adj.foodAttraction.toFixed(2)} danger=${adj.dangerAvoidance.toFixed(2)} curiosity=${adj.curiosity.toFixed(2)} rest=${adj.restThreshold.toFixed(2)} social=${adj.sociality.toFixed(2)}
 
 `;
-  msg += `== NEARBY (sense range ${range}) ==
-`;
-  msg += `Terrain: ${Object.entries(terrainCounts).map(([t, n]) => `${t}:${n}`).join(", ")}
-`;
-  msg += `Food sources: ${foodCells.length} cells (total value: ${foodCells.reduce((s, f) => s + f.cell.food, 0)})
-`;
-  msg += `Danger zones: ${dangerCells.length} cells
-`;
-  msg += `Other creatures nearby: ${nearbyCreatures.length}
-
-`;
-  const memEntries = Object.entries(creature.mem).filter(([k]) => k !== "lastDx" && k !== "lastDy");
-  if (memEntries.length > 0) {
-    msg += `== MEMORY ==
-`;
-    for (const [k, v] of memEntries) {
-      msg += `${k}: ${JSON.stringify(v)}
-`;
-    }
-    msg += "\n";
-  } else {
-    msg += `== MEMORY ==
-(empty \u2014 this may be your first wake-up)
-
-`;
-  }
-  if (creature.rules.length > 0) {
-    msg += `== BEHAVIORAL RULES (${creature.rules.length}/${MAX_RULES}) ==
-`;
-    for (const rule of creature.rules) {
-      msg += formatRule(rule) + "\n";
-    }
-    msg += "\n";
-  } else {
-    msg += `== BEHAVIORAL RULES (0/${MAX_RULES}) ==
-(none \u2014 use add_rule to create if/then rules that run every tick)
-
-`;
-  }
   if (creature.recentEvents.length > 0) {
     msg += `== RECENT EVENTS ==
 `;
@@ -585,68 +412,51 @@ function buildUserMessage(creature, world, allCreatures, reason) {
     }
     msg += "\n";
   }
-  if (reason === "death") {
-    msg += `== DEATH ==
-You are dying. This is your final wake-up. Your memory will be inherited by offspring (if any). Reflect on what went wrong and leave wisdom for future generations.
-`;
-  }
   return msg;
 }
-function executeTool(toolUse, creature, world, allCreatures) {
-  switch (toolUse.name) {
-    case "set_memory": {
-      const { key, value } = toolUse.input;
-      if (key === "lastDx" || key === "lastDy") {
-        return "Error: cannot overwrite internal movement keys";
-      }
-      const memKeys = Object.keys(creature.mem).filter((k) => k !== "lastDx" && k !== "lastDy");
-      if (memKeys.length >= 20 && !(key in creature.mem)) {
-        return "Error: memory full (max 20 entries)";
-      }
-      const truncated = String(value).slice(0, 200);
-      creature.mem[key] = truncated;
-      return `Stored "${key}" = "${truncated}"`;
+function executeTool(toolUse, creature, world, allCreatures, tick) {
+  const section = EDIT_TOOL_MAP[toolUse.name];
+  if (section) {
+    const content = toolUse.input.content;
+    if (typeof content !== "string") {
+      return `Error: content must be a string`;
     }
-    case "adjust_reflex_weight": {
-      const { name, delta } = toolUse.input;
-      const validNames = [
-        "foodAttraction",
-        "dangerAvoidance",
-        "curiosity",
-        "restThreshold",
-        "sociality"
-      ];
-      if (!validNames.includes(name)) {
-        return `Error: unknown reflex weight "${name}"`;
-      }
-      const key = name;
-      const old = creature.genome.reflexWeights[key];
-      const clamped = Math.max(0, Math.min(2, old + delta));
-      creature.genome.reflexWeights[key] = clamped;
-      return `${name}: ${old.toFixed(2)} -> ${clamped.toFixed(2)}`;
+    const oldSize = creature.embodiment[section].length;
+    const newSize = content.length;
+    const totalSize = computeEmbodimentSize(creature.embodiment) - oldSize + newSize;
+    const maxAllowed = Math.max(
+      creature.inheritedEmbodimentSize,
+      creature.genome.maxEmbodimentSize * ageScalar(creature.age)
+    );
+    if (totalSize > maxAllowed && newSize > oldSize) {
+      return `Error: embodiment budget exceeded (${totalSize}/${Math.round(maxAllowed)} chars)`;
     }
-    case "add_rule": {
-      if (creature.rules.length >= MAX_RULES) {
-        return `Error: rule limit reached (max ${MAX_RULES}). Remove a rule first.`;
-      }
-      const result = validateRule(toolUse.input);
-      if (result.error) {
-        return `Error: ${result.error}`;
-      }
-      creature.rules.push(result.rule);
-      return `Added ${formatRule(result.rule)}`;
-    }
-    case "remove_rule": {
-      const { rule_id } = toolUse.input;
-      const idx = creature.rules.findIndex((r) => r.id === rule_id);
-      if (idx === -1) {
-        return `Error: no rule with id "${rule_id}"`;
-      }
-      const removed = creature.rules.splice(idx, 1)[0];
-      return `Removed ${formatRule(removed)}`;
-    }
-    default:
+    creature.embodiment[section] = content;
+    console.log(`[EMBODIMENT] #${creature.id} edited ${section}: ${oldSize} \u2192 ${newSize} chars`);
+    return `Updated ${section} (${oldSize} \u2192 ${newSize} chars)`;
+  }
+  return executeCustomTool(toolUse, creature, world, allCreatures, tick);
+}
+function executeCustomTool(toolUse, creature, world, allCreatures, tick) {
+  try {
+    const tools = JSON.parse(creature.embodiment.tools);
+    const toolDef = tools.find((t) => t.name === toolUse.name);
+    if (!toolDef) {
       return `Error: unknown tool "${toolUse.name}"`;
+    }
+    const fn = compileFunction(`return ${toolDef.execute};`);
+    if (!fn) {
+      return `Error: failed to compile tool "${toolUse.name}"`;
+    }
+    const meApi = buildMeApi(creature, world, allCreatures, tick);
+    const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+    const result = fn(meApi, worldApi, toolUse.input);
+    meApi.__syncMemory();
+    console.log(`[TOOLS] #${creature.id} ran custom tool "${toolUse.name}":`, toolUse.input);
+    return result != null ? String(result) : "OK";
+  } catch (e) {
+    console.error(`[TOOLS] Error executing "${toolUse.name}" for #${creature.id}:`, e);
+    return `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
 }
 var ConsciousnessManager = class {
@@ -681,21 +491,14 @@ var ConsciousnessManager = class {
       this.queue = [];
     }
   }
-  /** Called from engine.step() — synchronous, queues the async work */
+  /** Called from engine — synchronous, queues the async work */
   tryWake(creature, world, allCreatures, tick, reason) {
     if (!this.config.enabled) return;
     const userMessage = buildUserMessage(creature, world, allCreatures, reason);
-    if (reason !== "death") {
-      const cost = creature.maxEnergy * this.config.energyCostRatio;
-      if (creature.energy <= cost) return;
-      creature.energy -= cost;
-    }
+    const cost = creature.maxEnergy * this.config.energyCostRatio;
+    if (creature.energy <= cost) return;
+    creature.energy -= cost;
     creature.thinking = true;
-    creature.lastWakeTick = tick;
-    if (reason === "new_terrain") {
-      const cell = world.cellAt(creature.x, creature.y);
-      creature.terrainsSeen.add(cell.terrain);
-    }
     if (this.queue.length >= this.config.maxQueueSize) {
       const dropped = this.queue.shift();
       dropped.creature.thinking = false;
@@ -719,10 +522,16 @@ var ConsciousnessManager = class {
       const result = await this.callAPI(req);
       const toolResults = [];
       for (const tu of result.toolUses) {
-        const toolResult = executeTool(tu, req.creature, req.world, req.allCreatures);
+        const toolResult = executeTool(tu, req.creature, req.world, req.allCreatures, req.tick);
         toolResults.push(`${tu.name}: ${toolResult}`);
       }
       req.creature.thinking = false;
+      try {
+        const mem = JSON.parse(req.creature.embodiment.memory || "{}");
+        mem.last_wake_tick = req.tick;
+        req.creature.embodiment.memory = JSON.stringify(mem);
+      } catch {
+      }
       this.emit({
         type: "creature:woke",
         id: req.creature.id,
@@ -755,11 +564,21 @@ var ConsciousnessManager = class {
     }
   }
   async callAPI(req) {
+    let customToolDefs = [];
+    try {
+      const parsed = JSON.parse(req.creature.embodiment.tools);
+      customToolDefs = parsed.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.input_schema
+      }));
+    } catch {
+    }
     const body = {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 512,
       system: SYSTEM_PROMPT,
-      tools: TOOL_DEFINITIONS,
+      tools: [...EDIT_TOOLS, ...customToolDefs],
       tool_choice: { type: "auto" },
       messages: [{ role: "user", content: req.userMessage }]
     };
@@ -771,7 +590,9 @@ var ConsciousnessManager = class {
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || err.message || `API error ${response.status}`);
+      throw new Error(
+        err.error || err.message || `API error ${response.status}`
+      );
     }
     const data = await response.json();
     const thoughts = data.content.filter((b) => b.type === "text").map((b) => b.text).join(" ");
@@ -784,10 +605,10 @@ var ConsciousnessManager = class {
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
-function clamp2(v, min, max) {
+function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
-function gaussian2(mean, stddev) {
+function gaussian(mean, stddev) {
   const u1 = Math.random();
   const u2 = Math.random();
   return mean + stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
@@ -801,6 +622,7 @@ function randomGenome() {
     diet: rand(0, 0.3),
     // mostly herbivore to start
     wakeInterval: Math.round(rand(30, 200)),
+    maxEmbodimentSize: Math.round(rand(1500, 4e3)),
     reflexWeights: randomReflexWeights()
   };
 }
@@ -824,6 +646,7 @@ function mutateGenome(parent) {
     metabolism: mutateGene(parent.metabolism, 0.5, 1.5),
     diet: mutateGene(parent.diet, 0, 1),
     wakeInterval: Math.round(mutateGene(parent.wakeInterval, 30, 200)),
+    maxEmbodimentSize: Math.round(mutateGene(parent.maxEmbodimentSize, 500, 8e3)),
     reflexWeights: mutateReflexWeights(parent.reflexWeights)
   };
 }
@@ -831,7 +654,7 @@ function mutateGene(value, min, max) {
   if (Math.random() > MUTATION_RATE) return value;
   const range = max - min;
   const strength = Math.random() < LARGE_MUTATION_CHANCE ? MUTATION_STRENGTH * 5 : MUTATION_STRENGTH;
-  return clamp2(gaussian2(value, range * strength), min, max);
+  return clamp(gaussian(value, range * strength), min, max);
 }
 function mutateReflexWeights(w) {
   return {
@@ -856,10 +679,26 @@ var Creature = class _Creature {
   genome;
   parentId;
   alive = true;
-  /** Persistent memory dict (like exp 10's mem) */
-  mem = {};
-  /** Behavioral rules created by consciousness (max 5) */
-  rules = [];
+  // ── Embodiment ──────────────────────────────────────────
+  /** The 5 editable sections that constitute the creature's mind */
+  embodiment;
+  /** Size of embodiment at birth (inherited content exempt from budget) */
+  inheritedEmbodimentSize = 0;
+  // ── Reflex adjustments ─────────────────────────────────
+  /** Additive deltas on genome base weights, set by onTick/consciousness */
+  reflexAdjustments = {
+    foodAttraction: 0,
+    dangerAvoidance: 0,
+    curiosity: 0,
+    restThreshold: 0,
+    sociality: 0
+  };
+  // ── Internal state ─────────────────────────────────────
+  /** Last move direction (for anti-oscillation in reflex) */
+  lastDx = 0;
+  lastDy = 0;
+  /** Structured events from engine, read by onTick each tick */
+  events = [];
   /** Ticks since last ate — for hunger urgency */
   ticksSinceAte = 0;
   /** Movement accumulator for fractional speed */
@@ -867,12 +706,6 @@ var Creature = class _Creature {
   // ── Consciousness tracking ─────────────────────────────
   /** True while an API call is in-flight */
   thinking = false;
-  /** Tick when consciousness last fired (staggered by id) */
-  lastWakeTick;
-  /** Set after reproduction, consumed by wake check */
-  justReproduced = false;
-  /** Terrain types this creature has visited */
-  terrainsSeen = /* @__PURE__ */ new Set();
   /** Recent events for consciousness context (capped buffer) */
   recentEvents = [];
   static MAX_RECENT_EVENTS = 15;
@@ -885,7 +718,8 @@ var Creature = class _Creature {
     this.generation = generation ?? 0;
     this.maxEnergy = 50 + this.genome.size * 30;
     this.energy = this.maxEnergy * 0.6;
-    this.lastWakeTick = -(this.id % Math.round(this.genome.wakeInterval));
+    this.embodiment = defaultEmbodiment();
+    this.inheritedEmbodimentSize = computeEmbodimentSize(this.embodiment);
   }
   /** Record an event for consciousness context (capped circular buffer) */
   recordEvent(event) {
@@ -937,15 +771,152 @@ var Creature = class _Creature {
       genome: this.genome,
       parentId: this.parentId,
       thinking: this.thinking || void 0,
-      rules: this.rules,
-      mem: Object.fromEntries(
-        Object.entries(this.mem).filter(([k]) => k !== "lastDx" && k !== "lastDy")
-      ),
+      embodiment: { ...this.embodiment },
+      reflexAdjustments: { ...this.reflexAdjustments },
       recentEvents: [...this.recentEvents],
       ticksSinceAte: this.ticksSinceAte
     };
   }
 };
+
+// src/sim/reflex.ts
+var DIRS = [
+  { dx: 0, dy: -1 },
+  // N
+  { dx: 1, dy: 0 },
+  // E
+  { dx: 0, dy: 1 },
+  // S
+  { dx: -1, dy: 0 }
+  // W
+];
+function perceive(creature, world, allCreatures) {
+  const range = Math.round(creature.genome.senseRange);
+  const perceived = [];
+  for (let dy = -range; dy <= range; dy++) {
+    for (let dx = -range; dx <= range; dx++) {
+      const nx = creature.x + dx;
+      const ny = creature.y + dy;
+      if (!world.inBounds(nx, ny)) continue;
+      const dist = Math.abs(dx) + Math.abs(dy);
+      if (dist > range || dist === 0) continue;
+      perceived.push({ x: nx, y: ny, cell: world.cellAt(nx, ny), dist });
+    }
+  }
+  return perceived;
+}
+function scoreActions(creature, world, allCreatures, perceived) {
+  const base = creature.genome.reflexWeights;
+  const adj = creature.reflexAdjustments;
+  const w = {
+    foodAttraction: base.foodAttraction + adj.foodAttraction,
+    dangerAvoidance: base.dangerAvoidance + adj.dangerAvoidance,
+    curiosity: base.curiosity + adj.curiosity,
+    restThreshold: base.restThreshold + adj.restThreshold,
+    sociality: base.sociality + adj.sociality
+  };
+  const scores = [];
+  const dangerCells = perceived.filter((p) => p.cell.danger > 0);
+  const foodCells = perceived.filter((p) => p.cell.food > 0);
+  const currentCell = world.cellAt(creature.x, creature.y);
+  const stayPenalty = currentCell.danger > 0 ? -w.dangerAvoidance * currentCell.danger * 3 : 0;
+  if (currentCell.food > 0) {
+    const hunger = 1 - creature.energyRatio;
+    scores.push({
+      action: "eat",
+      dx: 0,
+      dy: 0,
+      score: w.foodAttraction * (0.5 + hunger) * currentCell.food + stayPenalty
+    });
+  }
+  if (creature.energyRatio < w.restThreshold) {
+    scores.push({
+      action: "rest",
+      dx: 0,
+      dy: 0,
+      score: (w.restThreshold - creature.energyRatio) * 2 + stayPenalty
+    });
+  }
+  for (const dir of DIRS) {
+    const nx = creature.x + dir.dx;
+    const ny = creature.y + dir.dy;
+    if (!world.isWalkable(nx, ny)) continue;
+    let moveScore = 0;
+    const targetCell = world.cellAt(nx, ny);
+    if (targetCell.danger > 0) {
+      moveScore -= w.dangerAvoidance * targetCell.danger * 2;
+    }
+    for (const dc of dangerCells) {
+      const currentDist = Math.abs(dc.x - creature.x) + Math.abs(dc.y - creature.y);
+      const newDist = Math.abs(dc.x - nx) + Math.abs(dc.y - ny);
+      if (newDist < currentDist) {
+        moveScore -= w.dangerAvoidance * dc.cell.danger / dc.dist;
+      } else if (newDist > currentDist) {
+        moveScore += w.dangerAvoidance * 0.3 / dc.dist;
+      }
+    }
+    for (const fc of foodCells) {
+      const currentDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
+      const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
+      if (newDist < currentDist) {
+        moveScore += w.foodAttraction * fc.cell.food / fc.dist;
+      }
+    }
+    moveScore += w.curiosity * 0.3;
+    if (creature.lastDx !== 0 && dir.dx === -creature.lastDx && dir.dy === -creature.lastDy) {
+      moveScore -= 0.2;
+    }
+    const dirCreatures = allCreatures.filter(
+      (c) => c.id !== creature.id && c.alive && Math.abs(c.x - nx) + Math.abs(c.y - ny) <= 3
+    );
+    if (dirCreatures.length > 0) {
+      moveScore += w.sociality * dirCreatures.length * 0.2;
+    }
+    scores.push({ action: "move", dx: dir.dx, dy: dir.dy, score: moveScore });
+  }
+  for (const s of scores) {
+    s.score += Math.random() * 0.1;
+  }
+  return scores.sort((a, b) => b.score - a.score);
+}
+function reflexTick(creature, world, allCreatures) {
+  creature.moveAccumulator += creature.genome.speed;
+  if (creature.moveAccumulator < 1) {
+    return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
+  }
+  creature.moveAccumulator -= 1;
+  const perceived = perceive(creature, world, allCreatures);
+  const actions = scoreActions(creature, world, allCreatures, perceived);
+  if (actions.length === 0) {
+    return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
+  }
+  const best = actions[0];
+  switch (best.action) {
+    case "eat": {
+      const eaten = world.consumeFood(creature.x, creature.y);
+      creature.feed(eaten);
+      return { action: "eat", dx: 0, dy: 0, foodEaten: eaten };
+    }
+    case "rest": {
+      creature.energy = Math.min(creature.maxEnergy, creature.energy + 0.5);
+      return { action: "rest", dx: 0, dy: 0, foodEaten: 0 };
+    }
+    case "move": {
+      creature.lastDx = best.dx;
+      creature.lastDy = best.dy;
+      creature.x += best.dx;
+      creature.y += best.dy;
+      creature.energy -= creature.moveCost;
+      if (creature.energy <= 0) {
+        creature.energy = 0;
+        creature.alive = false;
+      }
+      return { action: "move", dx: best.dx, dy: best.dy, foodEaten: 0 };
+    }
+    default:
+      return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
+  }
+}
 
 // src/sim/world.ts
 function makeNoise2D(seed) {
@@ -1130,7 +1101,7 @@ var Engine = class {
       attempts++;
     } while ((!this.world.isWalkable(x, y) || this.world.cellAt(x, y).danger > 0) && attempts < 200);
     const creature = new Creature(x, y);
-    creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
+    this.lastTerrain.set(creature.id, this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
     this.emit({ type: "creature:spawned", creature: creature.toState(), tick: this.tick });
@@ -1142,11 +1113,13 @@ var Engine = class {
     if (genome) {
       Object.assign(creature.genome, genome);
     }
-    creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
+    this.lastTerrain.set(creature.id, this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
     this.emit({ type: "creature:spawned", creature: creature.toState(), tick: this.tick });
   }
+  /** Track last terrain for each creature to detect new_terrain events */
+  lastTerrain = /* @__PURE__ */ new Map();
   step() {
     this.tick++;
     if (this.tick % this.config.foodSpawnInterval === 0) {
@@ -1170,9 +1143,12 @@ var Engine = class {
         }
         continue;
       }
+      const onTickResult = runOnTick(creature, this.world, alive, this.tick);
       const result = reflexTick(creature, this.world, alive);
+      creature.events = [];
       if (result.action === "eat" && result.foodEaten > 0) {
         creature.recordEvent(`Ate food (value ${result.foodEaten}) at (${creature.x},${creature.y})`);
+        creature.events.push({ type: "ate", value: result.foodEaten });
         this.emit({
           type: "creature:ate",
           id: creature.id,
@@ -1184,14 +1160,18 @@ var Engine = class {
       }
       if (result.action === "move") {
         const cell = this.world.cellAt(creature.x, creature.y);
-        if (!creature.terrainsSeen.has(cell.terrain)) {
-          creature.recordEvent(`Entered ${cell.terrain} for the first time`);
+        const prevTerrain = this.lastTerrain.get(creature.id);
+        if (prevTerrain !== void 0 && cell.terrain !== prevTerrain) {
+          creature.events.push({ type: "new_terrain", terrain: cell.terrain });
+          creature.recordEvent(`Entered ${cell.terrain}`);
         }
+        this.lastTerrain.set(creature.id, cell.terrain);
       }
       if (creature.alive) {
         const cell = this.world.cellAt(creature.x, creature.y);
         if (cell.danger > 0) {
           creature.energy -= cell.danger;
+          creature.events.push({ type: "hazard_damage", amount: cell.danger });
           creature.recordEvent(`Took ${cell.danger.toFixed(1)} hazard damage at (${creature.x},${creature.y})`);
           if (creature.energy <= 0) {
             creature.energy = 0;
@@ -1199,11 +1179,8 @@ var Engine = class {
           }
         }
       }
-      if (creature.alive) {
-        const wakeReason = this.checkWake(creature);
-        if (wakeReason) {
-          this.consciousness.tryWake(creature, this.world, alive, this.tick, wakeReason);
-        }
+      if (creature.alive && onTickResult.wake) {
+        this.consciousness.tryWake(creature, this.world, alive, this.tick, onTickResult.reason || "unknown");
       }
     }
     const canReproduce = this.creatures.filter((c) => c.alive && c.canReproduce());
@@ -1239,15 +1216,6 @@ var Engine = class {
     if (cause === "starvation") this.deathsByStarvation++;
     if (cause === "hazard") this.deathsByHazard++;
     creature.recordEvent(`Died from ${cause} at (${creature.x},${creature.y}) energy=${Math.round(creature.energy)}`);
-    if (!creature.thinking) {
-      this.consciousness.tryWake(
-        creature,
-        this.world,
-        this.creatures.filter((c) => c.alive),
-        this.tick,
-        "death"
-      );
-    }
     this.emit({ type: "creature:died", id: creature.id, cause, tick: this.tick });
   }
   reproduce(parent) {
@@ -1270,35 +1238,23 @@ var Engine = class {
       parent.payReproductionCost();
       const childGenome = mutateGenome(parent.genome);
       const child = new Creature(nx, ny, childGenome, parent.id, parent.generation + 1);
-      child.rules = mutateRules(parent.rules);
-      child.terrainsSeen.add(this.world.cellAt(nx, ny).terrain);
+      child.embodiment = {
+        identity: parent.embodiment.identity,
+        sensors: parent.embodiment.sensors,
+        on_tick: parent.embodiment.on_tick,
+        memory: "{}",
+        tools: parent.embodiment.tools
+      };
+      child.inheritedEmbodimentSize = computeEmbodimentSize(child.embodiment);
+      this.lastTerrain.set(child.id, this.world.cellAt(nx, ny).terrain);
       this.creatures.push(child);
       this.totalBirths++;
-      parent.justReproduced = true;
+      parent.events.push({ type: "reproduced", childId: child.id });
       parent.recordEvent(`Reproduced \u2014 offspring #${child.id}`);
       this.emit({ type: "creature:spawned", creature: child.toState(), tick: this.tick });
       this.emit({ type: "creature:reproduced", parentId: parent.id, childId: child.id, tick: this.tick });
       return;
     }
-  }
-  checkWake(creature) {
-    if (!this.consciousness.enabled) return null;
-    if (creature.thinking) return null;
-    if (creature.energyRatio < 0.25 && this.tick - creature.lastWakeTick > 20) {
-      return "crisis";
-    }
-    if (creature.justReproduced) {
-      creature.justReproduced = false;
-      return "reproduced";
-    }
-    const cell = this.world.cellAt(creature.x, creature.y);
-    if (!creature.terrainsSeen.has(cell.terrain)) {
-      return "new_terrain";
-    }
-    if (this.tick - creature.lastWakeTick >= creature.genome.wakeInterval) {
-      return "periodic";
-    }
-    return null;
   }
   getStats() {
     const alive = this.creatures.filter((c) => c.alive);

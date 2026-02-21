@@ -195,7 +195,7 @@ var Inspector = class {
       ${this.renderVitals(c, dead)}
       ${this.renderGenome(c)}
       ${this.renderReflexes(c)}
-      ${this.renderRules(c)}
+      ${this.renderEmbodiment(c)}
       ${this.renderMemory(c)}
       ${this.renderTimeline(timeline)}
     `;
@@ -249,7 +249,8 @@ var Inspector = class {
       { name: "size", val: g.size, min: 0.5, max: 2 },
       { name: "metabolism", val: g.metabolism, min: 0.5, max: 1.5 },
       { name: "diet", val: g.diet, min: 0, max: 1 },
-      { name: "wakeInterval", val: g.wakeInterval, min: 30, max: 200 }
+      { name: "wakeInterval", val: g.wakeInterval, min: 30, max: 200 },
+      { name: "embSize", val: g.maxEmbodimentSize, min: 500, max: 8e3 }
     ];
     const rows = traits.map((t) => {
       const pct = Math.round((t.val - t.min) / (t.max - t.min) * 100);
@@ -257,41 +258,61 @@ var Inspector = class {
         <div class="insp-trait">
           <span class="insp-trait-name">${t.name}</span>
           <div class="insp-trait-bar"><div class="insp-trait-fill" style="width:${pct}%"></div></div>
-          <span class="insp-trait-val">${t.val.toFixed(2)}</span>
+          <span class="insp-trait-val">${Number.isInteger(t.val) ? t.val : t.val.toFixed(2)}</span>
         </div>`;
     }).join("");
     return `<div class="insp-section"><div class="insp-section-title">Genome</div>${rows}</div>`;
   }
   renderReflexes(c) {
-    const w = c.genome.reflexWeights;
+    const base = c.genome.reflexWeights;
+    const adj = c.reflexAdjustments;
     const reflexes = [
-      { name: "foodAttraction", val: w.foodAttraction },
-      { name: "dangerAvoidance", val: w.dangerAvoidance },
-      { name: "curiosity", val: w.curiosity },
-      { name: "restThreshold", val: w.restThreshold },
-      { name: "sociality", val: w.sociality }
+      { name: "foodAttraction", b: base.foodAttraction, a: adj.foodAttraction },
+      { name: "dangerAvoidance", b: base.dangerAvoidance, a: adj.dangerAvoidance },
+      { name: "curiosity", b: base.curiosity, a: adj.curiosity },
+      { name: "restThreshold", b: base.restThreshold, a: adj.restThreshold },
+      { name: "sociality", b: base.sociality, a: adj.sociality }
     ];
     const rows = reflexes.map((r) => {
-      const pct = Math.round(r.val / 2 * 100);
+      const eff = r.b + r.a;
+      const pct = Math.round(Math.max(0, Math.min(1, eff / 2)) * 100);
+      const adjStr = r.a !== 0 ? ` <span class="reflex-adj">${r.a >= 0 ? "+" : ""}${r.a.toFixed(2)}</span>` : "";
       return `
         <div class="insp-trait">
           <span class="insp-trait-name">${r.name}</span>
           <div class="insp-trait-bar"><div class="insp-trait-fill reflex" style="width:${pct}%"></div></div>
-          <span class="insp-trait-val">${r.val.toFixed(2)}</span>
+          <span class="insp-trait-val">${eff.toFixed(2)}${adjStr}</span>
         </div>`;
     }).join("");
-    return `<div class="insp-section"><div class="insp-section-title">Reflexes</div>${rows}</div>`;
+    return `<div class="insp-section"><div class="insp-section-title">Reflexes (base + adj)</div>${rows}</div>`;
   }
-  renderRules(c) {
-    const rules = c.rules;
-    if (rules.length === 0) {
-      return `<div class="insp-section"><div class="insp-section-title">Rules (0/5)</div><div class="insp-muted">No rules</div></div>`;
-    }
-    const rows = rules.map((r) => `<div class="insp-rule">${formatRuleHTML(r)}</div>`).join("");
-    return `<div class="insp-section"><div class="insp-section-title">Rules (${rules.length}/5)</div>${rows}</div>`;
+  renderEmbodiment(c) {
+    const e = c.embodiment;
+    const sections = [
+      { name: "identity", content: e.identity, type: "text" },
+      { name: "sensors", content: e.sensors, type: "code" },
+      { name: "on_tick", content: e.on_tick, type: "code" },
+      { name: "tools", content: e.tools, type: "json" }
+    ];
+    const totalSize = e.identity.length + e.sensors.length + e.on_tick.length + e.memory.length + e.tools.length;
+    const rows = sections.map((s) => {
+      const preview = s.content.length > 80 ? s.content.slice(0, 80) + "..." : s.content;
+      return `
+        <div class="insp-emb-section">
+          <span class="emb-name">${s.name}</span> <span class="emb-size">(${s.content.length})</span>
+          <div class="emb-preview">${esc(preview)}</div>
+        </div>`;
+    }).join("");
+    return `<div class="insp-section"><div class="insp-section-title">Embodiment (${totalSize} chars)</div>${rows}</div>`;
   }
   renderMemory(c) {
-    const entries = Object.entries(c.mem);
+    let entries;
+    try {
+      const mem = JSON.parse(c.embodiment.memory || "{}");
+      entries = Object.entries(mem);
+    } catch {
+      entries = [];
+    }
     if (entries.length === 0) {
       return `<div class="insp-section"><div class="insp-section-title">Memory</div><div class="insp-muted">Empty</div></div>`;
     }
@@ -352,14 +373,6 @@ var Inspector = class {
 };
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function formatRuleHTML(r) {
-  const c = r.condition;
-  let condStr = c.type;
-  if (c.threshold != null) condStr += `(${c.threshold})`;
-  if (c.terrain) condStr += `(${c.terrain})`;
-  const sign = r.effect.modifier >= 0 ? "+" : "";
-  return `<span class="rule-cond">IF</span> ${esc(condStr)} <span class="rule-then">THEN</span> ${esc(r.effect.target)} ${sign}${r.effect.modifier.toFixed(1)}`;
 }
 
 // src/visualizer/renderer.ts
@@ -665,7 +678,31 @@ window.__debug = {
     return history;
   },
   select: selectCreature,
-  renderer
+  renderer,
+  dumpEmbodiment(id) {
+    const c = lastCreatures.find((c2) => c2.id === id);
+    if (!c) {
+      console.log("Creature not found");
+      return;
+    }
+    console.log(`
+=== Embodiment for Creature #${id} ===`);
+    console.log(`<identity>
+${c.embodiment.identity}
+</identity>`);
+    console.log(`<sensors>
+${c.embodiment.sensors}
+</sensors>`);
+    console.log(`<on_tick>
+${c.embodiment.on_tick}
+</on_tick>`);
+    console.log(`<memory>
+${c.embodiment.memory}
+</memory>`);
+    console.log(`<tools>
+${c.embodiment.tools}
+</tools>`);
+  }
 };
 send({ type: "start" });
 //# sourceMappingURL=main.js.map

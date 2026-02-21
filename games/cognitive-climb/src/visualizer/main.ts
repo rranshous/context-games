@@ -140,6 +140,16 @@ worker.onerror = (e) => {
   get history() { return history; },
   select: selectCreature,
   renderer,
+  dumpEmbodiment(id: number) {
+    const c = lastCreatures.find(c => c.id === id);
+    if (!c) { console.log('Creature not found'); return; }
+    console.log(`\n=== Embodiment for Creature #${id} ===`);
+    console.log(`<identity>\n${c.embodiment.identity}\n</identity>`);
+    console.log(`<sensors>\n${c.embodiment.sensors}\n</sensors>`);
+    console.log(`<on_tick>\n${c.embodiment.on_tick}\n</on_tick>`);
+    console.log(`<memory>\n${c.embodiment.memory}\n</memory>`);
+    console.log(`<tools>\n${c.embodiment.tools}\n</tools>`);
+  },
 };
 
 // Start the simulation

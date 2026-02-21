@@ -1,6 +1,6 @@
-import type { GenomeState, CreatureState } from '../interface/state.js';
-import type { Rule } from './rules.js';
+import type { GenomeState, CreatureState, ReflexWeights } from '../interface/state.js';
 import { randomGenome } from './genome.js';
+import { defaultEmbodiment, computeEmbodimentSize } from './embodiment.js';
 
 let nextId = 1;
 
@@ -16,11 +16,28 @@ export class Creature {
   parentId: number | null;
   alive: boolean = true;
 
-  /** Persistent memory dict (like exp 10's mem) */
-  mem: Record<string, unknown> = {};
+  // ── Embodiment ──────────────────────────────────────────
+  /** The 5 editable sections that constitute the creature's mind */
+  embodiment: EmbodimentState;
+  /** Size of embodiment at birth (inherited content exempt from budget) */
+  inheritedEmbodimentSize: number = 0;
 
-  /** Behavioral rules created by consciousness (max 5) */
-  rules: Rule[] = [];
+  // ── Reflex adjustments ─────────────────────────────────
+  /** Additive deltas on genome base weights, set by onTick/consciousness */
+  reflexAdjustments: ReflexWeights = {
+    foodAttraction: 0,
+    dangerAvoidance: 0,
+    curiosity: 0,
+    restThreshold: 0,
+    sociality: 0,
+  };
+
+  // ── Internal state ─────────────────────────────────────
+  /** Last move direction (for anti-oscillation in reflex) */
+  lastDx: number = 0;
+  lastDy: number = 0;
+  /** Structured events from engine, read by onTick each tick */
+  events: Array<{ type: string; [key: string]: unknown }> = [];
 
   /** Ticks since last ate — for hunger urgency */
   ticksSinceAte: number = 0;
@@ -31,12 +48,6 @@ export class Creature {
   // ── Consciousness tracking ─────────────────────────────
   /** True while an API call is in-flight */
   thinking: boolean = false;
-  /** Tick when consciousness last fired (staggered by id) */
-  lastWakeTick: number;
-  /** Set after reproduction, consumed by wake check */
-  justReproduced: boolean = false;
-  /** Terrain types this creature has visited */
-  terrainsSeen: Set<string> = new Set();
   /** Recent events for consciousness context (capped buffer) */
   recentEvents: string[] = [];
 
@@ -60,8 +71,9 @@ export class Creature {
     this.maxEnergy = 50 + this.genome.size * 30;
     this.energy = this.maxEnergy * 0.6; // start at 60%
 
-    // Stagger periodic wake-ups so creatures don't all wake on the same tick
-    this.lastWakeTick = -(this.id % Math.round(this.genome.wakeInterval));
+    // Default embodiment — mark inherited size so budget doesn't block edits
+    this.embodiment = defaultEmbodiment();
+    this.inheritedEmbodimentSize = computeEmbodimentSize(this.embodiment);
   }
 
   /** Record an event for consciousness context (capped circular buffer) */
@@ -123,10 +135,8 @@ export class Creature {
       genome: this.genome,
       parentId: this.parentId,
       thinking: this.thinking || undefined,
-      rules: this.rules,
-      mem: Object.fromEntries(
-        Object.entries(this.mem).filter(([k]) => k !== 'lastDx' && k !== 'lastDy')
-      ),
+      embodiment: { ...this.embodiment },
+      reflexAdjustments: { ...this.reflexAdjustments },
       recentEvents: [...this.recentEvents],
       ticksSinceAte: this.ticksSinceAte,
     };

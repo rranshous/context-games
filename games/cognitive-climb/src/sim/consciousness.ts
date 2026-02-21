@@ -1,13 +1,12 @@
 import type { SimEvent } from '../interface/events.js';
-import type { ReflexWeights } from '../interface/state.js';
 import type { Creature } from './creature.js';
-import { validateRule, formatRule, MAX_RULES } from './rules.js';
 import type { World } from './world.js';
-import { perceive } from './reflex.js';
+import {
+  buildMeApi, buildWorldApi, compileFunction,
+  computeEmbodimentSize, ageScalar,
+} from './embodiment.js';
 
 // ── Types ────────────────────────────────────────────────
-
-export type WakeReason = 'crisis' | 'reproduced' | 'new_terrain' | 'periodic' | 'death';
 
 interface ToolUseBlock {
   type: 'tool_use';
@@ -27,123 +26,96 @@ interface WakeRequest {
   creature: Creature;
   world: World;
   allCreatures: Creature[];
-  reason: WakeReason;
+  reason: string;
   userMessage: string;
   tick: number;
 }
 
 interface ConsciousnessConfig {
-  energyCostRatio: number;  // fraction of maxEnergy per wake-up
+  energyCostRatio: number;
   maxQueueSize: number;
   enabled: boolean;
 }
 
-// ── Tool definitions (Anthropic format) ──────────────────
+// ── System prompt ────────────────────────────────────────
 
-const TOOL_DEFINITIONS = [
+const SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your embodiment is shown below in XML sections — it IS you. You can edit any section to improve your survival.
+
+Your body runs on reflexes between wake-ups. Your on_tick code runs every tick, adjusting reflexes and deciding when to wake you. Your sensors code processes perception data. Your tools section defines custom tools you can create for yourself.
+
+Wake-ups are expensive (15% energy). Make each one count. Be concise.`;
+
+// ── Hardcoded edit tools (always available) ──────────────
+
+const EDIT_TOOLS = [
   {
-    name: 'set_memory',
-    description: 'Write a value to your persistent memory. Memory survives between wake-ups and is inherited by offspring. Use this to remember important observations, strategies, or warnings.',
+    name: 'edit_identity',
+    description: 'Replace your <identity> section — your self-narrative, goals, and strategy notes.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        key: { type: 'string', description: 'Memory key (e.g. "strategy", "danger_zones", "food_direction")' },
-        value: { type: 'string', description: 'Value to store' },
+        content: { type: 'string', description: 'New identity text' },
       },
-      required: ['key', 'value'],
+      required: ['content'],
     },
   },
   {
-    name: 'adjust_reflex_weight',
-    description: "Modify one of your body's reflex weights. These control automatic behavior: foodAttraction (how strongly you seek food), dangerAvoidance (how strongly you flee hazards), curiosity (tendency to explore), restThreshold (energy level below which you rest), sociality (attraction to other creatures). Values are clamped to 0-2.",
+    name: 'edit_sensors',
+    description: 'Replace your <sensors> section — a JS function(me, world) that processes perception and writes to memory.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        name: {
-          type: 'string',
-          description: 'Reflex weight name',
-          enum: ['foodAttraction', 'dangerAvoidance', 'curiosity', 'restThreshold', 'sociality'],
-        },
-        delta: {
-          type: 'number',
-          description: 'Amount to add to current value (positive = increase, negative = decrease)',
-        },
+        content: { type: 'string', description: 'New sensors function code' },
       },
-      required: ['name', 'delta'],
+      required: ['content'],
     },
   },
   {
-    name: 'add_rule',
-    description: `Create a behavioral rule: an if/then that modifies your reflex scores every tick. Rules run continuously between wake-ups, giving your reflexes conditional logic. Max ${MAX_RULES} rules. Rules are inherited by offspring. Example: "If energy below 30%, boost resting."`,
+    name: 'edit_on_tick',
+    description: 'Replace your <on_tick> section — a JS function(me, world) that runs every tick. Call me.sensors.run(), adjust reflexes via me.reflex.*, and return {wake:true, reason} to wake consciousness.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        condition: {
-          type: 'object',
-          description: 'When this is true, the effect applies',
-          properties: {
-            type: {
-              type: 'string',
-              description: 'Condition type',
-              enum: ['energy_below', 'energy_above', 'danger_nearby', 'danger_here', 'food_nearby', 'food_here', 'creatures_nearby_above', 'creatures_nearby_below', 'on_terrain'],
-            },
-            threshold: {
-              type: 'number',
-              description: 'For energy conditions: 0-1 ratio. For creature count: integer.',
-            },
-            terrain: {
-              type: 'string',
-              description: 'For on_terrain: grass, forest, sand, or rock',
-            },
-          },
-          required: ['type'],
-        },
-        effect: {
-          type: 'object',
-          description: 'Score modifier applied when condition is true',
-          properties: {
-            target: {
-              type: 'string',
-              description: 'What behavior to modify',
-              enum: ['eat', 'rest', 'flee_danger', 'seek_food', 'explore', 'seek_company'],
-            },
-            modifier: {
-              type: 'number',
-              description: 'Score adjustment (-2 to +2). Positive = boost, negative = suppress.',
-            },
-          },
-          required: ['target', 'modifier'],
-        },
+        content: { type: 'string', description: 'New onTick function code' },
       },
-      required: ['condition', 'effect'],
+      required: ['content'],
     },
   },
   {
-    name: 'remove_rule',
-    description: 'Remove one of your behavioral rules by its ID. Use this to prune rules that are not helping your survival.',
+    name: 'edit_memory',
+    description: 'Replace your <memory> section — a JSON object of key-value working state. Not inherited by offspring.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        rule_id: {
-          type: 'string',
-          description: 'The ID of the rule to remove (from your rules list)',
-        },
+        content: { type: 'string', description: 'New memory JSON string' },
       },
-      required: ['rule_id'],
+      required: ['content'],
+    },
+  },
+  {
+    name: 'edit_tools',
+    description: 'Replace your <tools> section — a JSON array of custom tool definitions. Each tool has name, description, input_schema, and execute (a JS expression using me, world, args).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        content: { type: 'string', description: 'New tools JSON string' },
+      },
+      required: ['content'],
     },
   },
 ];
 
-// ── System prompt ────────────────────────────────────────
+// ── Section name mapping ─────────────────────────────────
 
-const SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your body runs on reflexes — automatic behavior every tick. You are expensive and intermittent. You cannot act directly in the world. You can only:
-1. Write to memory (persists between wake-ups, but NOT inherited by offspring)
-2. Adjust reflex weights (change automatic behavior priorities — inherited via genome)
-3. Add/remove behavioral rules — if/then modifiers that tweak your reflex scores every tick
+type EmbodimentSection = 'identity' | 'sensors' | 'on_tick' | 'memory' | 'tools';
 
-Rules are your most powerful tool. They run continuously between wake-ups, giving your reflexes conditional logic. Example: "if energy below 0.3, boost resting" or "if danger nearby, boost fleeing". Max ${MAX_RULES} rules. Rules ARE inherited by offspring (with slight mutations).
-
-Your body will continue running on reflexes after you go back to sleep. Make your wake-up count. Be concise.`;
+const EDIT_TOOL_MAP: Record<string, EmbodimentSection> = {
+  edit_identity: 'identity',
+  edit_sensors: 'sensors',
+  edit_on_tick: 'on_tick',
+  edit_memory: 'memory',
+  edit_tools: 'tools',
+};
 
 // ── Message building ─────────────────────────────────────
 
@@ -151,70 +123,38 @@ function buildUserMessage(
   creature: Creature,
   world: World,
   allCreatures: Creature[],
-  reason: WakeReason,
+  reason: string,
 ): string {
-  const cell = world.cellAt(creature.x, creature.y);
-  const perceived = perceive(creature, world, allCreatures);
-
-  const foodCells = perceived.filter(p => p.cell.food > 0);
-  const dangerCells = perceived.filter(p => p.cell.danger > 0);
-  const range = Math.round(creature.genome.senseRange);
-  const nearbyCreatures = allCreatures.filter(c =>
-    c.id !== creature.id && c.alive &&
-    Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
-  );
-
-  // Terrain summary
-  const terrainCounts: Record<string, number> = {};
-  for (const p of perceived) {
-    terrainCounts[p.cell.terrain] = (terrainCounts[p.cell.terrain] || 0) + 1;
-  }
-
+  const e = creature.embodiment;
   let msg = `WAKE REASON: ${reason}\n\n`;
 
-  msg += `== YOUR STATE ==\n`;
-  msg += `Position: (${creature.x}, ${creature.y}) on ${cell.terrain}\n`;
+  // Embodiment sections in XML tags
+  msg += `<identity>\n${e.identity}\n</identity>\n\n`;
+  msg += `<sensors>\n${e.sensors}\n</sensors>\n\n`;
+  msg += `<on_tick>\n${e.on_tick}\n</on_tick>\n\n`;
+  msg += `<memory>\n${e.memory}\n</memory>\n\n`;
+  msg += `<tools>\n${e.tools}\n</tools>\n\n`;
+
+  // Current state
+  msg += `== STATE ==\n`;
+  msg += `Position: (${creature.x}, ${creature.y})\n`;
   msg += `Energy: ${Math.round(creature.energy)}/${Math.round(creature.maxEnergy)} (${Math.round(creature.energyRatio * 100)}%)\n`;
-  msg += `Age: ${creature.age} ticks | Generation: ${creature.generation}\n`;
+  msg += `Age: ${creature.age} ticks | Gen: ${creature.generation}\n`;
   msg += `Ticks since last meal: ${creature.ticksSinceAte}\n`;
-  msg += `Current cell: food=${cell.food}, danger=${cell.danger}\n\n`;
+  const totalSize = computeEmbodimentSize(e);
+  const maxSize = Math.round(Math.max(
+    creature.inheritedEmbodimentSize,
+    creature.genome.maxEmbodimentSize * ageScalar(creature.age),
+  ));
+  msg += `Embodiment: ${totalSize}/${maxSize} chars\n\n`;
 
-  msg += `== REFLEXES (current weights) ==\n`;
-  const w = creature.genome.reflexWeights;
-  msg += `foodAttraction: ${w.foodAttraction.toFixed(2)}\n`;
-  msg += `dangerAvoidance: ${w.dangerAvoidance.toFixed(2)}\n`;
-  msg += `curiosity: ${w.curiosity.toFixed(2)}\n`;
-  msg += `restThreshold: ${w.restThreshold.toFixed(2)}\n`;
-  msg += `sociality: ${w.sociality.toFixed(2)}\n\n`;
-
-  msg += `== NEARBY (sense range ${range}) ==\n`;
-  msg += `Terrain: ${Object.entries(terrainCounts).map(([t, n]) => `${t}:${n}`).join(', ')}\n`;
-  msg += `Food sources: ${foodCells.length} cells (total value: ${foodCells.reduce((s, f) => s + f.cell.food, 0)})\n`;
-  msg += `Danger zones: ${dangerCells.length} cells\n`;
-  msg += `Other creatures nearby: ${nearbyCreatures.length}\n\n`;
-
-  // Memory
-  const memEntries = Object.entries(creature.mem).filter(([k]) => k !== 'lastDx' && k !== 'lastDy');
-  if (memEntries.length > 0) {
-    msg += `== MEMORY ==\n`;
-    for (const [k, v] of memEntries) {
-      msg += `${k}: ${JSON.stringify(v)}\n`;
-    }
-    msg += '\n';
-  } else {
-    msg += `== MEMORY ==\n(empty — this may be your first wake-up)\n\n`;
-  }
-
-  // Rules
-  if (creature.rules.length > 0) {
-    msg += `== BEHAVIORAL RULES (${creature.rules.length}/${MAX_RULES}) ==\n`;
-    for (const rule of creature.rules) {
-      msg += formatRule(rule) + '\n';
-    }
-    msg += '\n';
-  } else {
-    msg += `== BEHAVIORAL RULES (0/${MAX_RULES}) ==\n(none — use add_rule to create if/then rules that run every tick)\n\n`;
-  }
+  // Genome (immutable body)
+  const g = creature.genome;
+  msg += `== GENOME (immutable body) ==\n`;
+  msg += `speed=${g.speed.toFixed(2)} sense=${Math.round(g.senseRange)} size=${g.size.toFixed(2)} metabolism=${g.metabolism.toFixed(2)} diet=${g.diet.toFixed(2)} wakeInterval=${g.wakeInterval}\n`;
+  msg += `Base reflexes: food=${g.reflexWeights.foodAttraction.toFixed(2)} danger=${g.reflexWeights.dangerAvoidance.toFixed(2)} curiosity=${g.reflexWeights.curiosity.toFixed(2)} rest=${g.reflexWeights.restThreshold.toFixed(2)} social=${g.reflexWeights.sociality.toFixed(2)}\n`;
+  const adj = creature.reflexAdjustments;
+  msg += `Current adjustments: food=${adj.foodAttraction.toFixed(2)} danger=${adj.dangerAvoidance.toFixed(2)} curiosity=${adj.curiosity.toFixed(2)} rest=${adj.restThreshold.toFixed(2)} social=${adj.sociality.toFixed(2)}\n\n`;
 
   // Recent events
   if (creature.recentEvents.length > 0) {
@@ -223,11 +163,6 @@ function buildUserMessage(
       msg += `- ${event}\n`;
     }
     msg += '\n';
-  }
-
-  // Death context
-  if (reason === 'death') {
-    msg += `== DEATH ==\nYou are dying. This is your final wake-up. Your memory will be inherited by offspring (if any). Reflect on what went wrong and leave wisdom for future generations.\n`;
   }
 
   return msg;
@@ -240,61 +175,70 @@ function executeTool(
   creature: Creature,
   world: World,
   allCreatures: Creature[],
+  tick: number,
 ): string {
-  switch (toolUse.name) {
-    case 'set_memory': {
-      const { key, value } = toolUse.input as { key: string; value: string };
-      if (key === 'lastDx' || key === 'lastDy') {
-        return 'Error: cannot overwrite internal movement keys';
-      }
-      const memKeys = Object.keys(creature.mem).filter(k => k !== 'lastDx' && k !== 'lastDy');
-      if (memKeys.length >= 20 && !(key in creature.mem)) {
-        return 'Error: memory full (max 20 entries)';
-      }
-      const truncated = String(value).slice(0, 200);
-      creature.mem[key] = truncated;
-      return `Stored "${key}" = "${truncated}"`;
+  // Check hardcoded edit tools
+  const section = EDIT_TOOL_MAP[toolUse.name];
+  if (section) {
+    const content = (toolUse.input as { content: string }).content;
+    if (typeof content !== 'string') {
+      return `Error: content must be a string`;
+    }
+    const oldSize = creature.embodiment[section].length;
+    const newSize = content.length;
+    const totalSize = computeEmbodimentSize(creature.embodiment) - oldSize + newSize;
+    const maxAllowed = Math.max(
+      creature.inheritedEmbodimentSize,
+      creature.genome.maxEmbodimentSize * ageScalar(creature.age),
+    );
+
+    if (totalSize > maxAllowed && newSize > oldSize) {
+      return `Error: embodiment budget exceeded (${totalSize}/${Math.round(maxAllowed)} chars)`;
     }
 
-    case 'adjust_reflex_weight': {
-      const { name, delta } = toolUse.input as { name: string; delta: number };
-      const validNames: (keyof ReflexWeights)[] = [
-        'foodAttraction', 'dangerAvoidance', 'curiosity', 'restThreshold', 'sociality',
-      ];
-      if (!validNames.includes(name as keyof ReflexWeights)) {
-        return `Error: unknown reflex weight "${name}"`;
-      }
-      const key = name as keyof ReflexWeights;
-      const old = creature.genome.reflexWeights[key];
-      const clamped = Math.max(0, Math.min(2, old + delta));
-      creature.genome.reflexWeights[key] = clamped;
-      return `${name}: ${old.toFixed(2)} -> ${clamped.toFixed(2)}`;
-    }
+    creature.embodiment[section] = content;
+    console.log(`[EMBODIMENT] #${creature.id} edited ${section}: ${oldSize} → ${newSize} chars`);
+    return `Updated ${section} (${oldSize} → ${newSize} chars)`;
+  }
 
-    case 'add_rule': {
-      if (creature.rules.length >= MAX_RULES) {
-        return `Error: rule limit reached (max ${MAX_RULES}). Remove a rule first.`;
-      }
-      const result = validateRule(toolUse.input);
-      if (result.error) {
-        return `Error: ${result.error}`;
-      }
-      creature.rules.push(result.rule);
-      return `Added ${formatRule(result.rule)}`;
-    }
+  // Check custom tools from <tools> section
+  return executeCustomTool(toolUse, creature, world, allCreatures, tick);
+}
 
-    case 'remove_rule': {
-      const { rule_id } = toolUse.input as { rule_id: string };
-      const idx = creature.rules.findIndex(r => r.id === rule_id);
-      if (idx === -1) {
-        return `Error: no rule with id "${rule_id}"`;
-      }
-      const removed = creature.rules.splice(idx, 1)[0];
-      return `Removed ${formatRule(removed)}`;
-    }
-
-    default:
+function executeCustomTool(
+  toolUse: ToolUseBlock,
+  creature: Creature,
+  world: World,
+  allCreatures: Creature[],
+  tick: number,
+): string {
+  try {
+    const tools = JSON.parse(creature.embodiment.tools) as Array<{
+      name: string; execute: string;
+    }>;
+    const toolDef = tools.find(t => t.name === toolUse.name);
+    if (!toolDef) {
       return `Error: unknown tool "${toolUse.name}"`;
+    }
+
+    // Custom tool execute is a simple expression, not a function wrapper
+    const fn = compileFunction(`return ${toolDef.execute};`);
+    if (!fn) {
+      return `Error: failed to compile tool "${toolUse.name}"`;
+    }
+
+    const meApi = buildMeApi(creature, world, allCreatures, tick);
+    const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+    const result = fn(meApi, worldApi, toolUse.input);
+
+    // Sync memory changes back
+    (meApi as any).__syncMemory();
+
+    console.log(`[TOOLS] #${creature.id} ran custom tool "${toolUse.name}":`, toolUse.input);
+    return result != null ? String(result) : 'OK';
+  } catch (e) {
+    console.error(`[TOOLS] Error executing "${toolUse.name}" for #${creature.id}:`, e);
+    return `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
 }
 
@@ -333,7 +277,6 @@ export class ConsciousnessManager {
   setEnabled(enabled: boolean): void {
     this.config.enabled = enabled;
     if (!enabled) {
-      // Clear queue and unfreeze any thinking creatures
       for (const req of this.queue) {
         req.creature.thinking = false;
       }
@@ -341,34 +284,25 @@ export class ConsciousnessManager {
     }
   }
 
-  /** Called from engine.step() — synchronous, queues the async work */
+  /** Called from engine — synchronous, queues the async work */
   tryWake(
     creature: Creature,
     world: World,
     allCreatures: Creature[],
     tick: number,
-    reason: WakeReason,
+    reason: string,
   ): void {
     if (!this.config.enabled) return;
 
     // Build message now (snapshot of current state)
     const userMessage = buildUserMessage(creature, world, allCreatures, reason);
 
-    // Charge energy (free on death)
-    if (reason !== 'death') {
-      const cost = creature.maxEnergy * this.config.energyCostRatio;
-      if (creature.energy <= cost) return; // can't afford
-      creature.energy -= cost;
-    }
+    // Charge energy
+    const cost = creature.maxEnergy * this.config.energyCostRatio;
+    if (creature.energy <= cost) return;
+    creature.energy -= cost;
 
     creature.thinking = true;
-    creature.lastWakeTick = tick;
-
-    // Record terrain if that's the trigger
-    if (reason === 'new_terrain') {
-      const cell = world.cellAt(creature.x, creature.y);
-      creature.terrainsSeen.add(cell.terrain);
-    }
 
     // Drop oldest if queue is full
     if (this.queue.length >= this.config.maxQueueSize) {
@@ -379,7 +313,6 @@ export class ConsciousnessManager {
 
     this.queue.push({ creature, world, allCreatures, reason, userMessage, tick });
 
-    // Start processing if not already
     if (!this.processing) {
       this.processNext();
     }
@@ -403,11 +336,18 @@ export class ConsciousnessManager {
       // Execute tool calls
       const toolResults: string[] = [];
       for (const tu of result.toolUses) {
-        const toolResult = executeTool(tu, req.creature, req.world, req.allCreatures);
+        const toolResult = executeTool(tu, req.creature, req.world, req.allCreatures, req.tick);
         toolResults.push(`${tu.name}: ${toolResult}`);
       }
 
       req.creature.thinking = false;
+
+      // Update last_wake_tick in memory so default onTick periodic wake works
+      try {
+        const mem = JSON.parse(req.creature.embodiment.memory || '{}');
+        mem.last_wake_tick = req.tick;
+        req.creature.embodiment.memory = JSON.stringify(mem);
+      } catch { /* ignore parse errors */ }
 
       this.emit({
         type: 'creature:woke',
@@ -438,9 +378,7 @@ export class ConsciousnessManager {
 
     this.resumeSim();
 
-    // Process next in queue (after resume, so sim ticks between calls)
     if (this.queue.length > 0) {
-      // Use setTimeout(0) to let at least one tick happen between consciousness calls
       setTimeout(() => this.processNext(), 0);
     } else {
       this.processing = false;
@@ -448,11 +386,24 @@ export class ConsciousnessManager {
   }
 
   private async callAPI(req: WakeRequest): Promise<{ thoughts: string; toolUses: ToolUseBlock[] }> {
+    // Parse custom tools from embodiment
+    let customToolDefs: Array<{ name: string; description: string; input_schema: unknown }> = [];
+    try {
+      const parsed = JSON.parse(req.creature.embodiment.tools) as Array<{
+        name: string; description: string; input_schema: unknown;
+      }>;
+      customToolDefs = parsed.map(t => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.input_schema,
+      }));
+    } catch { /* ignore parse errors */ }
+
     const body = {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 512,
       system: SYSTEM_PROMPT,
-      tools: TOOL_DEFINITIONS,
+      tools: [...EDIT_TOOLS, ...customToolDefs],
       tool_choice: { type: 'auto' },
       messages: [{ role: 'user', content: req.userMessage }],
     };
@@ -466,7 +417,11 @@ export class ConsciousnessManager {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error((err as Record<string, string>).error || (err as Record<string, string>).message || `API error ${response.status}`);
+      throw new Error(
+        (err as Record<string, string>).error ||
+        (err as Record<string, string>).message ||
+        `API error ${response.status}`,
+      );
     }
 
     const data = await response.json() as { content: ContentBlock[] };
