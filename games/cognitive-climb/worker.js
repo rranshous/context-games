@@ -426,15 +426,6 @@ var TOOL_DEFINITIONS = [
     }
   },
   {
-    name: "inspect_surroundings",
-    description: "Get a detailed view of all cells you can currently perceive, including terrain type, food value, and danger level for each cell within your sense range.",
-    input_schema: {
-      type: "object",
-      properties: {},
-      required: []
-    }
-  },
-  {
     name: "add_rule",
     description: `Create a behavioral rule: an if/then that modifies your reflex scores every tick. Rules run continuously between wake-ups, giving your reflexes conditional logic. Max ${MAX_RULES} rules. Rules are inherited by offspring. Example: "If energy below 30%, boost resting."`,
     input_schema: {
@@ -496,12 +487,11 @@ var TOOL_DEFINITIONS = [
   }
 ];
 var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your body runs on reflexes \u2014 automatic behavior every tick. You are expensive and intermittent. You cannot act directly in the world. You can only:
-1. Write to memory (persists between wake-ups, inherited by offspring)
-2. Adjust reflex weights (change automatic behavior priorities)
-3. Inspect your surroundings in detail
-4. Add/remove behavioral rules \u2014 if/then modifiers that tweak your reflex scores every tick
+1. Write to memory (persists between wake-ups, but NOT inherited by offspring)
+2. Adjust reflex weights (change automatic behavior priorities \u2014 inherited via genome)
+3. Add/remove behavioral rules \u2014 if/then modifiers that tweak your reflex scores every tick
 
-Rules are your most powerful tool. They run continuously between wake-ups, giving your reflexes conditional logic. Example: "if energy below 0.3, boost resting" or "if danger nearby, boost fleeing". Max ${MAX_RULES} rules. Rules are inherited by offspring.
+Rules are your most powerful tool. They run continuously between wake-ups, giving your reflexes conditional logic. Example: "if energy below 0.3, boost resting" or "if danger nearby, boost fleeing". Max ${MAX_RULES} rules. Rules ARE inherited by offspring (with slight mutations).
 
 Your body will continue running on reflexes after you go back to sleep. Make your wake-up count. Be concise.`;
 function buildUserMessage(creature, world, allCreatures, reason) {
@@ -634,30 +624,6 @@ function executeTool(toolUse, creature, world, allCreatures) {
       const clamped = Math.max(0, Math.min(2, old + delta));
       creature.genome.reflexWeights[key] = clamped;
       return `${name}: ${old.toFixed(2)} -> ${clamped.toFixed(2)}`;
-    }
-    case "inspect_surroundings": {
-      const range = Math.round(creature.genome.senseRange);
-      const lines = [];
-      for (let dy = -range; dy <= range; dy++) {
-        for (let dx = -range; dx <= range; dx++) {
-          const nx = creature.x + dx;
-          const ny = creature.y + dy;
-          if (!world.inBounds(nx, ny)) continue;
-          const dist = Math.abs(dx) + Math.abs(dy);
-          if (dist > range || dist === 0) continue;
-          const cell = world.cellAt(nx, ny);
-          if (cell.food > 0 || cell.danger > 0) {
-            lines.push(`(${nx},${ny}) d=${dist}: ${cell.terrain} food=${cell.food} danger=${cell.danger.toFixed(1)}`);
-          }
-        }
-      }
-      const nearby = allCreatures.filter(
-        (c) => c.id !== creature.id && c.alive && Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
-      );
-      for (const c of nearby) {
-        lines.push(`Creature #${c.id} at (${c.x},${c.y}) energy=${Math.round(c.energy)} gen=${c.generation}`);
-      }
-      return lines.length > 0 ? lines.join("\n") : "Nothing notable in range.";
     }
     case "add_rule": {
       if (creature.rules.length >= MAX_RULES) {
