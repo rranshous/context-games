@@ -1,3 +1,211 @@
+// src/sim/rules.ts
+var MAX_RULES = 5;
+var CONDITION_TYPES = [
+  "energy_below",
+  "energy_above",
+  "danger_nearby",
+  "danger_here",
+  "food_nearby",
+  "food_here",
+  "creatures_nearby_above",
+  "creatures_nearby_below",
+  "on_terrain"
+];
+var EFFECT_TARGETS = [
+  "eat",
+  "rest",
+  "flee_danger",
+  "seek_food",
+  "explore",
+  "seek_company"
+];
+var TERRAINS = ["grass", "forest", "sand", "rock"];
+var RULE_DROP_RATE = 0.1;
+var RULE_MUTATE_RATE = 0.15;
+var RULE_GAIN_RATE = 0.05;
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+function gaussian(mean, stddev) {
+  const u1 = Math.random();
+  const u2 = Math.random();
+  return mean + stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+var ruleIdCounter = 0;
+function generateRuleId() {
+  return `r${++ruleIdCounter}`;
+}
+function evaluateCondition(cond, ctx) {
+  switch (cond.type) {
+    case "energy_below":
+      return ctx.energyRatio < (cond.threshold ?? 0.5);
+    case "energy_above":
+      return ctx.energyRatio > (cond.threshold ?? 0.5);
+    case "danger_nearby":
+      return ctx.nearbyDangerCount > 0;
+    case "danger_here":
+      return ctx.currentDanger > 0;
+    case "food_nearby":
+      return ctx.nearbyFoodCount > 0;
+    case "food_here":
+      return ctx.currentFood > 0;
+    case "creatures_nearby_above":
+      return ctx.nearbyCreatureCount > (cond.threshold ?? 3);
+    case "creatures_nearby_below":
+      return ctx.nearbyCreatureCount < (cond.threshold ?? 1);
+    case "on_terrain":
+      return ctx.currentTerrain === cond.terrain;
+    default:
+      return false;
+  }
+}
+function computeRuleModifiers(rules, ctx) {
+  const mods = {
+    eatBonus: 0,
+    restBonus: 0,
+    fleeDangerBonus: 0,
+    seekFoodBonus: 0,
+    exploreBonus: 0,
+    seekCompanyBonus: 0
+  };
+  for (const rule of rules) {
+    if (!evaluateCondition(rule.condition, ctx)) continue;
+    switch (rule.effect.target) {
+      case "eat":
+        mods.eatBonus += rule.effect.modifier;
+        break;
+      case "rest":
+        mods.restBonus += rule.effect.modifier;
+        break;
+      case "flee_danger":
+        mods.fleeDangerBonus += rule.effect.modifier;
+        break;
+      case "seek_food":
+        mods.seekFoodBonus += rule.effect.modifier;
+        break;
+      case "explore":
+        mods.exploreBonus += rule.effect.modifier;
+        break;
+      case "seek_company":
+        mods.seekCompanyBonus += rule.effect.modifier;
+        break;
+    }
+  }
+  return mods;
+}
+function mutateRules(parentRules) {
+  const rules = [];
+  for (const rule of parentRules) {
+    if (Math.random() < RULE_DROP_RATE) continue;
+    const mutated = {
+      id: rule.id,
+      condition: { ...rule.condition },
+      effect: { ...rule.effect }
+    };
+    if (mutated.condition.threshold !== void 0 && Math.random() < RULE_MUTATE_RATE) {
+      const isEnergy = mutated.condition.type === "energy_below" || mutated.condition.type === "energy_above";
+      const min = isEnergy ? 0.05 : 0;
+      const max = isEnergy ? 0.95 : 10;
+      const range = max - min;
+      mutated.condition.threshold = clamp(
+        gaussian(mutated.condition.threshold, range * 0.1),
+        min,
+        max
+      );
+    }
+    if (Math.random() < RULE_MUTATE_RATE) {
+      mutated.effect.modifier = clamp(
+        gaussian(mutated.effect.modifier, 0.4),
+        -2,
+        2
+      );
+    }
+    rules.push(mutated);
+  }
+  if (rules.length < MAX_RULES && Math.random() < RULE_GAIN_RATE) {
+    rules.push(randomRule());
+  }
+  return rules;
+}
+function randomRule() {
+  const condType = CONDITION_TYPES[Math.floor(Math.random() * CONDITION_TYPES.length)];
+  const condition = { type: condType };
+  if (condType === "energy_below" || condType === "energy_above") {
+    condition.threshold = 0.1 + Math.random() * 0.8;
+  } else if (condType === "creatures_nearby_above" || condType === "creatures_nearby_below") {
+    condition.threshold = Math.floor(Math.random() * 5) + 1;
+  } else if (condType === "on_terrain") {
+    condition.terrain = TERRAINS[Math.floor(Math.random() * TERRAINS.length)];
+  }
+  return {
+    id: generateRuleId(),
+    condition,
+    effect: {
+      target: EFFECT_TARGETS[Math.floor(Math.random() * EFFECT_TARGETS.length)],
+      modifier: Math.random() * 4 - 2
+      // -2 to +2
+    }
+  };
+}
+function validateRule(input) {
+  let condInput = input.condition;
+  let effectInput = input.effect;
+  if (!condInput && input.condition_type) {
+    condInput = { type: input.condition_type, threshold: input.threshold, terrain: input.terrain };
+  }
+  if (!effectInput && (input.target || input.action)) {
+    effectInput = { target: input.target || input.action, modifier: input.modifier };
+  }
+  if (!condInput || !effectInput) {
+    return { error: "Rule must have condition and effect" };
+  }
+  const condType = condInput.type;
+  if (!CONDITION_TYPES.includes(condType)) {
+    return { error: `Unknown condition type: ${condType}. Valid: ${CONDITION_TYPES.join(", ")}` };
+  }
+  const effectTarget = effectInput.target || effectInput.action || effectInput.type;
+  if (!EFFECT_TARGETS.includes(effectTarget)) {
+    return { error: `Unknown effect target: ${effectTarget}. Valid: ${EFFECT_TARGETS.join(", ")}` };
+  }
+  const modifier = Number(effectInput.modifier ?? effectInput.amount ?? effectInput.value);
+  if (isNaN(modifier)) {
+    return { error: "Effect modifier must be a number" };
+  }
+  const condition = { type: condType };
+  if (condType === "energy_below" || condType === "energy_above") {
+    const threshold = Number(condInput.threshold);
+    if (isNaN(threshold)) return { error: `${condType} requires a numeric threshold (0-1)` };
+    condition.threshold = clamp(threshold, 0.01, 0.99);
+  } else if (condType === "creatures_nearby_above" || condType === "creatures_nearby_below") {
+    const threshold = Number(condInput.threshold);
+    if (isNaN(threshold)) return { error: `${condType} requires a numeric threshold` };
+    condition.threshold = clamp(Math.round(threshold), 0, 20);
+  } else if (condType === "on_terrain") {
+    const terrain = String(condInput.terrain || "");
+    if (!TERRAINS.includes(terrain)) {
+      return { error: `Unknown terrain: ${terrain}. Valid: ${TERRAINS.join(", ")}` };
+    }
+    condition.terrain = terrain;
+  }
+  return {
+    rule: {
+      id: generateRuleId(),
+      condition,
+      effect: {
+        target: effectTarget,
+        modifier: clamp(modifier, -2, 2)
+      }
+    }
+  };
+}
+function formatRule(rule) {
+  const c = rule.condition;
+  const condStr = c.threshold !== void 0 ? `${c.type}(${c.type.startsWith("energy_") ? c.threshold.toFixed(2) : c.threshold})` : c.terrain ? `${c.type}(${c.terrain})` : c.type;
+  const e = rule.effect;
+  const sign = e.modifier > 0 ? "+" : "";
+  return `[${rule.id}] IF ${condStr} THEN ${e.target} ${sign}${e.modifier.toFixed(1)}`;
+}
+
 // src/sim/reflex.ts
 var DIRS = [
   { dx: 0, dy: -1 },
@@ -27,6 +235,12 @@ function perceive(creature, world, allCreatures) {
 function scoreActions(creature, world, allCreatures, perceived) {
   const w = creature.genome.reflexWeights;
   const scores = [];
+  const dangerCells = perceived.filter((p) => p.cell.danger > 0);
+  const foodCells = perceived.filter((p) => p.cell.food > 0);
+  const range = Math.round(creature.genome.senseRange);
+  const nearbyCreatures = allCreatures.filter(
+    (c) => c.id !== creature.id && c.alive && Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
+  );
   const currentCell = world.cellAt(creature.x, creature.y);
   const stayPenalty = currentCell.danger > 0 ? -w.dangerAvoidance * currentCell.danger * 3 : 0;
   if (currentCell.food > 0) {
@@ -55,7 +269,6 @@ function scoreActions(creature, world, allCreatures, perceived) {
     if (targetCell.danger > 0) {
       moveScore -= w.dangerAvoidance * targetCell.danger * 2;
     }
-    const dangerCells = perceived.filter((p) => p.cell.danger > 0);
     for (const dc of dangerCells) {
       const currentDist = Math.abs(dc.x - creature.x) + Math.abs(dc.y - creature.y);
       const newDist = Math.abs(dc.x - nx) + Math.abs(dc.y - ny);
@@ -65,7 +278,6 @@ function scoreActions(creature, world, allCreatures, perceived) {
         moveScore += w.dangerAvoidance * 0.3 / dc.dist;
       }
     }
-    const foodCells = perceived.filter((p) => p.cell.food > 0);
     for (const fc of foodCells) {
       const currentDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
       const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
@@ -79,16 +291,65 @@ function scoreActions(creature, world, allCreatures, perceived) {
     if (lastDx !== void 0 && dir.dx === -lastDx && dir.dy === -lastDy) {
       moveScore -= 0.2;
     }
-    const nearbyCreatures = allCreatures.filter(
+    const dirCreatures = allCreatures.filter(
       (c) => c.id !== creature.id && c.alive && Math.abs(c.x - nx) + Math.abs(c.y - ny) <= 3
     );
-    if (nearbyCreatures.length > 0) {
-      moveScore += w.sociality * nearbyCreatures.length * 0.2;
+    if (dirCreatures.length > 0) {
+      moveScore += w.sociality * dirCreatures.length * 0.2;
     }
     scores.push({ action: "move", dx: dir.dx, dy: dir.dy, score: moveScore });
   }
   for (const s of scores) {
     s.score += Math.random() * 0.1;
+  }
+  if (creature.rules.length > 0) {
+    const ruleCtx = {
+      energyRatio: creature.energyRatio,
+      currentDanger: currentCell.danger,
+      nearbyDangerCount: dangerCells.length,
+      currentFood: currentCell.food,
+      nearbyFoodCount: foodCells.length,
+      nearbyCreatureCount: nearbyCreatures.length,
+      currentTerrain: currentCell.terrain
+    };
+    const mods = computeRuleModifiers(creature.rules, ruleCtx);
+    for (const s of scores) {
+      if (s.action === "eat") {
+        s.score += mods.eatBonus;
+      } else if (s.action === "rest") {
+        s.score += mods.restBonus;
+      } else if (s.action === "move") {
+        const nx = creature.x + s.dx;
+        const ny = creature.y + s.dy;
+        if (mods.fleeDangerBonus !== 0) {
+          const targetCell = world.cellAt(nx, ny);
+          if (targetCell.danger > 0) {
+            s.score -= mods.fleeDangerBonus * targetCell.danger;
+          } else if (currentCell.danger > 0) {
+            s.score += mods.fleeDangerBonus * 0.5;
+          }
+        }
+        if (mods.seekFoodBonus !== 0) {
+          let foodPull = 0;
+          for (const fc of foodCells) {
+            const curDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
+            const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
+            if (newDist < curDist) foodPull += fc.cell.food / fc.dist;
+          }
+          s.score += mods.seekFoodBonus * foodPull;
+        }
+        s.score += mods.exploreBonus * 0.3;
+        if (mods.seekCompanyBonus !== 0) {
+          let socialPull = 0;
+          for (const c of nearbyCreatures) {
+            const curDist = Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y);
+            const newDist = Math.abs(c.x - nx) + Math.abs(c.y - ny);
+            if (newDist < curDist) socialPull++;
+          }
+          s.score += mods.seekCompanyBonus * socialPull * 0.3;
+        }
+      }
+    }
   }
   return scores.sort((a, b) => b.score - a.score);
 }
@@ -172,12 +433,75 @@ var TOOL_DEFINITIONS = [
       properties: {},
       required: []
     }
+  },
+  {
+    name: "add_rule",
+    description: `Create a behavioral rule: an if/then that modifies your reflex scores every tick. Rules run continuously between wake-ups, giving your reflexes conditional logic. Max ${MAX_RULES} rules. Rules are inherited by offspring. Example: "If energy below 30%, boost resting."`,
+    input_schema: {
+      type: "object",
+      properties: {
+        condition: {
+          type: "object",
+          description: "When this is true, the effect applies",
+          properties: {
+            type: {
+              type: "string",
+              description: "Condition type",
+              enum: ["energy_below", "energy_above", "danger_nearby", "danger_here", "food_nearby", "food_here", "creatures_nearby_above", "creatures_nearby_below", "on_terrain"]
+            },
+            threshold: {
+              type: "number",
+              description: "For energy conditions: 0-1 ratio. For creature count: integer."
+            },
+            terrain: {
+              type: "string",
+              description: "For on_terrain: grass, forest, sand, or rock"
+            }
+          },
+          required: ["type"]
+        },
+        effect: {
+          type: "object",
+          description: "Score modifier applied when condition is true",
+          properties: {
+            target: {
+              type: "string",
+              description: "What behavior to modify",
+              enum: ["eat", "rest", "flee_danger", "seek_food", "explore", "seek_company"]
+            },
+            modifier: {
+              type: "number",
+              description: "Score adjustment (-2 to +2). Positive = boost, negative = suppress."
+            }
+          },
+          required: ["target", "modifier"]
+        }
+      },
+      required: ["condition", "effect"]
+    }
+  },
+  {
+    name: "remove_rule",
+    description: "Remove one of your behavioral rules by its ID. Use this to prune rules that are not helping your survival.",
+    input_schema: {
+      type: "object",
+      properties: {
+        rule_id: {
+          type: "string",
+          description: "The ID of the rule to remove (from your rules list)"
+        }
+      },
+      required: ["rule_id"]
+    }
   }
 ];
 var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your body runs on reflexes \u2014 automatic behavior every tick. You are expensive and intermittent. You cannot act directly in the world. You can only:
 1. Write to memory (persists between wake-ups, inherited by offspring)
 2. Adjust reflex weights (change automatic behavior priorities)
 3. Inspect your surroundings in detail
+4. Add/remove behavioral rules \u2014 if/then modifiers that tweak your reflex scores every tick
+
+Rules are your most powerful tool. They run continuously between wake-ups, giving your reflexes conditional logic. Example: "if energy below 0.3, boost resting" or "if danger nearby, boost fleeing". Max ${MAX_RULES} rules. Rules are inherited by offspring.
 
 Your body will continue running on reflexes after you go back to sleep. Make your wake-up count. Be concise.`;
 function buildUserMessage(creature, world, allCreatures, reason) {
@@ -246,6 +570,19 @@ function buildUserMessage(creature, world, allCreatures, reason) {
   } else {
     msg += `== MEMORY ==
 (empty \u2014 this may be your first wake-up)
+
+`;
+  }
+  if (creature.rules.length > 0) {
+    msg += `== BEHAVIORAL RULES (${creature.rules.length}/${MAX_RULES}) ==
+`;
+    for (const rule of creature.rules) {
+      msg += formatRule(rule) + "\n";
+    }
+    msg += "\n";
+  } else {
+    msg += `== BEHAVIORAL RULES (0/${MAX_RULES}) ==
+(none \u2014 use add_rule to create if/then rules that run every tick)
 
 `;
   }
@@ -321,6 +658,26 @@ function executeTool(toolUse, creature, world, allCreatures) {
         lines.push(`Creature #${c.id} at (${c.x},${c.y}) energy=${Math.round(c.energy)} gen=${c.generation}`);
       }
       return lines.length > 0 ? lines.join("\n") : "Nothing notable in range.";
+    }
+    case "add_rule": {
+      if (creature.rules.length >= MAX_RULES) {
+        return `Error: rule limit reached (max ${MAX_RULES}). Remove a rule first.`;
+      }
+      const result = validateRule(toolUse.input);
+      if (result.error) {
+        return `Error: ${result.error}`;
+      }
+      creature.rules.push(result.rule);
+      return `Added ${formatRule(result.rule)}`;
+    }
+    case "remove_rule": {
+      const { rule_id } = toolUse.input;
+      const idx = creature.rules.findIndex((r) => r.id === rule_id);
+      if (idx === -1) {
+        return `Error: no rule with id "${rule_id}"`;
+      }
+      const removed = creature.rules.splice(idx, 1)[0];
+      return `Removed ${formatRule(removed)}`;
     }
     default:
       return `Error: unknown tool "${toolUse.name}"`;
@@ -460,10 +817,10 @@ var ConsciousnessManager = class {
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
-function clamp(v, min, max) {
+function clamp2(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
-function gaussian(mean, stddev) {
+function gaussian2(mean, stddev) {
   const u1 = Math.random();
   const u2 = Math.random();
   return mean + stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
@@ -507,7 +864,7 @@ function mutateGene(value, min, max) {
   if (Math.random() > MUTATION_RATE) return value;
   const range = max - min;
   const strength = Math.random() < LARGE_MUTATION_CHANCE ? MUTATION_STRENGTH * 5 : MUTATION_STRENGTH;
-  return clamp(gaussian(value, range * strength), min, max);
+  return clamp2(gaussian2(value, range * strength), min, max);
 }
 function mutateReflexWeights(w) {
   return {
@@ -534,6 +891,8 @@ var Creature = class _Creature {
   alive = true;
   /** Persistent memory dict (like exp 10's mem) */
   mem = {};
+  /** Behavioral rules created by consciousness (max 5) */
+  rules = [];
   /** Ticks since last ate — for hunger urgency */
   ticksSinceAte = 0;
   /** Movement accumulator for fractional speed */
@@ -610,7 +969,8 @@ var Creature = class _Creature {
       generation: this.generation,
       genome: this.genome,
       parentId: this.parentId,
-      thinking: this.thinking || void 0
+      thinking: this.thinking || void 0,
+      rules: this.rules.length > 0 ? this.rules : void 0
     };
   }
 };
@@ -937,6 +1297,7 @@ var Engine = class {
       parent.payReproductionCost();
       const childGenome = mutateGenome(parent.genome);
       const child = new Creature(nx, ny, childGenome, parent.id, parent.generation + 1);
+      child.rules = mutateRules(parent.rules);
       child.terrainsSeen.add(this.world.cellAt(nx, ny).terrain);
       this.creatures.push(child);
       this.totalBirths++;

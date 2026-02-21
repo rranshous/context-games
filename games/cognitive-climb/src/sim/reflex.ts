@@ -1,5 +1,6 @@
 import type { CellState } from '../interface/state.js';
 import type { Creature } from './creature.js';
+import { computeRuleModifiers, type RuleContext } from './rules.js';
 import type { World } from './world.js';
 
 // ── Direction helpers ────────────────────────────────────
@@ -18,7 +19,7 @@ export interface PerceivedCell {
   dist: number;
 }
 
-interface ActionScore {
+export interface ActionScore {
   action: 'move' | 'eat' | 'rest';
   dx: number;
   dy: number;
@@ -54,6 +55,15 @@ function scoreActions(
 ): ActionScore[] {
   const w = creature.genome.reflexWeights;
   const scores: ActionScore[] = [];
+
+  // Precompute perception filters (used by both base scoring and rules)
+  const dangerCells = perceived.filter(p => p.cell.danger > 0);
+  const foodCells = perceived.filter(p => p.cell.food > 0);
+  const range = Math.round(creature.genome.senseRange);
+  const nearbyCreatures = allCreatures.filter(c =>
+    c.id !== creature.id && c.alive &&
+    Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
+  );
 
   // Penalty for staying in a dangerous cell
   const currentCell = world.cellAt(creature.x, creature.y);
@@ -96,21 +106,17 @@ function scoreActions(
     }
 
     // Also repelled by nearby danger (flee gradient)
-    const dangerCells = perceived.filter(p => p.cell.danger > 0);
     for (const dc of dangerCells) {
       const currentDist = Math.abs(dc.x - creature.x) + Math.abs(dc.y - creature.y);
       const newDist = Math.abs(dc.x - nx) + Math.abs(dc.y - ny);
       if (newDist < currentDist) {
-        // Moving closer to danger — penalize
         moveScore -= w.dangerAvoidance * dc.cell.danger / dc.dist;
       } else if (newDist > currentDist) {
-        // Moving away from danger — reward
         moveScore += w.dangerAvoidance * 0.3 / dc.dist;
       }
     }
 
     // Attraction to nearby food
-    const foodCells = perceived.filter(p => p.cell.food > 0);
     for (const fc of foodCells) {
       const currentDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
       const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
@@ -130,12 +136,12 @@ function scoreActions(
     }
 
     // Sociality: attraction/repulsion to other creatures
-    const nearbyCreatures = allCreatures.filter(c =>
+    const dirCreatures = allCreatures.filter(c =>
       c.id !== creature.id && c.alive &&
       Math.abs(c.x - nx) + Math.abs(c.y - ny) <= 3
     );
-    if (nearbyCreatures.length > 0) {
-      moveScore += w.sociality * nearbyCreatures.length * 0.2;
+    if (dirCreatures.length > 0) {
+      moveScore += w.sociality * dirCreatures.length * 0.2;
     }
 
     scores.push({ action: 'move', dx: dir.dx, dy: dir.dy, score: moveScore });
@@ -144,6 +150,66 @@ function scoreActions(
   // Random noise to break ties and add unpredictability
   for (const s of scores) {
     s.score += Math.random() * 0.1;
+  }
+
+  // ── Rule modifiers (M4) ─────────────────────────────────
+  if (creature.rules.length > 0) {
+    const ruleCtx: RuleContext = {
+      energyRatio: creature.energyRatio,
+      currentDanger: currentCell.danger,
+      nearbyDangerCount: dangerCells.length,
+      currentFood: currentCell.food,
+      nearbyFoodCount: foodCells.length,
+      nearbyCreatureCount: nearbyCreatures.length,
+      currentTerrain: currentCell.terrain,
+    };
+    const mods = computeRuleModifiers(creature.rules, ruleCtx);
+
+    for (const s of scores) {
+      if (s.action === 'eat') {
+        s.score += mods.eatBonus;
+      } else if (s.action === 'rest') {
+        s.score += mods.restBonus;
+      } else if (s.action === 'move') {
+        const nx = creature.x + s.dx;
+        const ny = creature.y + s.dy;
+
+        // flee_danger: penalize moving toward danger, reward leaving
+        if (mods.fleeDangerBonus !== 0) {
+          const targetCell = world.cellAt(nx, ny);
+          if (targetCell.danger > 0) {
+            s.score -= mods.fleeDangerBonus * targetCell.danger;
+          } else if (currentCell.danger > 0) {
+            s.score += mods.fleeDangerBonus * 0.5;
+          }
+        }
+
+        // seek_food: boost moves that get closer to food
+        if (mods.seekFoodBonus !== 0) {
+          let foodPull = 0;
+          for (const fc of foodCells) {
+            const curDist = Math.abs(fc.x - creature.x) + Math.abs(fc.y - creature.y);
+            const newDist = Math.abs(fc.x - nx) + Math.abs(fc.y - ny);
+            if (newDist < curDist) foodPull += fc.cell.food / fc.dist;
+          }
+          s.score += mods.seekFoodBonus * foodPull;
+        }
+
+        // explore: flat boost to all moves
+        s.score += mods.exploreBonus * 0.3;
+
+        // seek_company: boost moves toward other creatures
+        if (mods.seekCompanyBonus !== 0) {
+          let socialPull = 0;
+          for (const c of nearbyCreatures) {
+            const curDist = Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y);
+            const newDist = Math.abs(c.x - nx) + Math.abs(c.y - ny);
+            if (newDist < curDist) socialPull++;
+          }
+          s.score += mods.seekCompanyBonus * socialPull * 0.3;
+        }
+      }
+    }
   }
 
   return scores.sort((a, b) => b.score - a.score);

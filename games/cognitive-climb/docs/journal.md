@@ -19,7 +19,8 @@
 - `src/sim/world.ts` — World class: grid, terrain gen (value noise + fbm), food spawning, hazard generation
 - `src/sim/creature.ts` — Creature class: genome, body, energy, position, mem dict, moveAccumulator, consciousness fields (thinking, lastWakeTick, terrainsSeen, recentEvents, justReproduced)
 - `src/sim/genome.ts` — Genome type + wakeInterval, randomGenome(), mutateGenome() (gaussian + rare large jumps)
-- `src/sim/reflex.ts` — reflexTick(): perceive → score → act. Exported perceive() + PerceivedCell for consciousness reuse. Scores: eat (hunger×food+stayPenalty), rest (threshold+stayPenalty), move (food attraction, danger avoidance, curiosity, anti-oscillation, sociality)
+- `src/sim/rules.ts` — Rule type, RuleContext, evaluateCondition(), computeRuleModifiers(), mutateRules(), validateRule(), formatRule(). 9 conditions × 6 effects, max 5 rules/creature
+- `src/sim/reflex.ts` — reflexTick(): perceive → score → applyRuleModifiers → act. Exported perceive() + PerceivedCell + ActionScore. Rule modifiers applied after base scoring, before sort
 - `src/sim/worker.ts` — Web Worker entry: onmessage for commands, postMessage for events, setInterval tick loop, passes pause/resume callbacks to Engine
 - `src/interface/events.ts` — SimEvent discriminated union (state, stats, creature:spawned/died/ate/reproduced/woke, log)
 - `src/interface/state.ts` — CellState (terrain, elevation, food, danger), GenomeState (incl. wakeInterval), ReflexWeights, CreatureState (incl. thinking), WorldState, SimStats
@@ -54,12 +55,14 @@
   - Energy cost for waking (10-20% of max), free death wake-ups
   - Console logging of consciousness decisions
   - This milestone establishes the inference loop pattern and context window structure
-- **M4** (future): light rule-setting — consciousness gets richer tools
-  - `add_rule(condition, action)` — creature can create simple if/then behavioral rules
-  - `remove_rule(id)` — prune rules that aren't helping
-  - Rules run during reflex tick as score modifiers (not replacing reflex, augmenting it)
-  - Rules persist in mem, inherited (with mutation) by offspring
-  - Budget constraint: max N rules, rule complexity limit (physics!)
+- **M4** (complete): light rule-setting — consciousness gets richer tools
+  - `add_rule(condition, effect)` and `remove_rule(id)` consciousness tools
+  - 9 condition types × 6 effect targets, modifier range -2 to +2
+  - Rules run during reflex tick as score modifiers (augmenting, not replacing)
+  - Rules stored in `creature.rules[]` (separate from mem), max 5 per creature
+  - Inherited by offspring with mutation: 10% drop, 15% threshold/modifier noise, 5% spontaneous gain
+  - Directional effects: flee_danger/seek_food/seek_company are per-direction, not flat
+  - New file: `src/sim/rules.ts` — types, evaluation, mutation, validation, formatting
 - **M5** (future): full embodiment — code as body
   - Consciousness can edit the reflex function itself (like context-embodiment exp 10)
   - `edit_reflex(new_code)` — rewrite scoring logic as a JS function
@@ -163,3 +166,52 @@ Added consciousness system: creatures wake up intermittently and make haiku call
 - No memory inheritance yet — offspring start with empty mem dict
 - Consciousness can be expensive at scale (50+ creatures all waking creates queue pressure)
 - No visual indicator of what the creature decided (just log text)
+
+## Session: 2026-02-21 — M4 Light Rule-Setting
+
+Added behavioral rule system: creatures create if/then rules via consciousness that modify reflex scores every tick.
+
+**Architecture:**
+- New file `src/sim/rules.ts` — all rule logic, zero coupling to Creature/World
+- Rules stored in `creature.rules[]` (separate from mem) — need structured evaluation every tick
+- 9 condition types: energy_below/above, danger_nearby/here, food_nearby/here, creatures_nearby_above/below, on_terrain
+- 6 effect targets: eat, rest, flee_danger, seek_food, explore, seek_company
+- Modifier range: -2 to +2 (additive to reflex scores)
+- Budget: max 5 rules per creature (physics constraint)
+
+**Reflex integration:**
+- Rule modifiers applied after all base scores computed, before sort
+- Hoisted dangerCells/foodCells/nearbyCreatures outside per-direction loop (perf + reuse)
+- Directional effects: flee_danger penalizes moves toward danger, rewards leaving; seek_food boosts moves toward food cells; seek_company boosts moves toward creatures
+- Flat effects: eat/rest get direct bonus, explore adds to all move scores
+
+**Consciousness changes:**
+- 2 new tools: `add_rule(condition, effect)` and `remove_rule(rule_id)`
+- Updated system prompt highlights rules as "most powerful tool"
+- Context message shows current rules section with IDs and human-readable format
+- Robust validation handles haiku formatting mistakes (fallback for flat structures, action/target aliases)
+
+**Inheritance:**
+- Rules copied from parent to child during reproduction
+- Mutation: 10% drop per rule, 15% threshold/modifier gaussian noise, 5% spontaneous random rule gain
+- Separate from genome mutation — rules are Lamarckian (learned, not genetic)
+
+**Design decisions:**
+- Rules in `creature.rules[]` not `creature.mem` — need structured eval every tick, distinct mutation
+- Effects are score modifiers, not action overrides — preserves reflex as foundation, rules tune it
+- Closed-set conditions (enum, not arbitrary predicates) — keeps evaluation cheap, prevents nonsense
+- No energy cost for rule evaluation — rules are "body physics" like reflexes, cost was paid when consciousness created them
+
+**Observations from first run:**
+- Creatures create 3-4 rules on their first wake-up — immediate strategic behavior
+- Common patterns: `energy_below(0.3) → rest +1.5`, `danger_nearby → flee_danger +1.5`, `food_nearby → seek_food +0.8`, `energy_above(0.75) → explore +0.6`
+- Haiku occasionally formats tool input wrong (undefined target) — robust validation catches and reports error
+- After validation fix, all subsequent add_rule calls succeed
+- Creature #2 added `energy_below(0.65) → eat +0.5` — interesting emergent threshold choice
+
+**Known limitations (M4):**
+- `inspect_surroundings` still single-turn (useless) — multi-turn consciousness is future work
+- No visual indicator of how many rules a creature has
+- No `remove_rule` usage observed yet — creatures don't prune rules (may need more generations)
+- Memory still not inherited — only rules and genome pass to offspring
+- Rule inheritance is Lamarckian but conditions/effects are fixed vocabulary — M5 will open this to code

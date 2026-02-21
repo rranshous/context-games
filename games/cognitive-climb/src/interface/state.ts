@@ -29,6 +29,14 @@ export interface ReflexWeights {
   sociality: number;         // attraction/repulsion to other creatures
 }
 
+// ── Rules ────────────────────────────────────────────────
+
+export interface RuleState {
+  id: string;
+  condition: { type: string; threshold?: number; terrain?: string };
+  effect: { target: string; modifier: number };
+}
+
 // ── Creature ─────────────────────────────────────────────
 
 export interface CreatureState {
@@ -42,6 +50,7 @@ export interface CreatureState {
   genome: GenomeState;
   parentId: number | null;
   thinking?: boolean;    // true while consciousness API call in-flight
+  rules?: RuleState[];   // behavioral rules (omitted if empty)
 }
 
 // ── World snapshot ───────────────────────────────────────

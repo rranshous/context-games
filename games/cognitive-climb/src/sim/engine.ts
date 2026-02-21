@@ -4,6 +4,7 @@ import { ConsciousnessManager, type WakeReason } from './consciousness.js';
 import { Creature } from './creature.js';
 import { mutateGenome } from './genome.js';
 import { reflexTick } from './reflex.js';
+import { mutateRules } from './rules.js';
 import { World, type WorldConfig } from './world.js';
 
 function round2(v: number): number { return Math.round(v * 100) / 100; }
@@ -239,6 +240,7 @@ export class Engine {
       parent.payReproductionCost();
       const childGenome = mutateGenome(parent.genome);
       const child = new Creature(nx, ny, childGenome, parent.id, parent.generation + 1);
+      child.rules = mutateRules(parent.rules);
       child.terrainsSeen.add(this.world.cellAt(nx, ny).terrain);
       this.creatures.push(child);
       this.totalBirths++;

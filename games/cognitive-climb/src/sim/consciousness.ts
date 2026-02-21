@@ -1,6 +1,7 @@
 import type { SimEvent } from '../interface/events.js';
 import type { ReflexWeights } from '../interface/state.js';
 import type { Creature } from './creature.js';
+import { validateRule, formatRule, MAX_RULES } from './rules.js';
 import type { World } from './world.js';
 import { perceive } from './reflex.js';
 
@@ -80,6 +81,66 @@ const TOOL_DEFINITIONS = [
       required: [] as string[],
     },
   },
+  {
+    name: 'add_rule',
+    description: `Create a behavioral rule: an if/then that modifies your reflex scores every tick. Rules run continuously between wake-ups, giving your reflexes conditional logic. Max ${MAX_RULES} rules. Rules are inherited by offspring. Example: "If energy below 30%, boost resting."`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        condition: {
+          type: 'object',
+          description: 'When this is true, the effect applies',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'Condition type',
+              enum: ['energy_below', 'energy_above', 'danger_nearby', 'danger_here', 'food_nearby', 'food_here', 'creatures_nearby_above', 'creatures_nearby_below', 'on_terrain'],
+            },
+            threshold: {
+              type: 'number',
+              description: 'For energy conditions: 0-1 ratio. For creature count: integer.',
+            },
+            terrain: {
+              type: 'string',
+              description: 'For on_terrain: grass, forest, sand, or rock',
+            },
+          },
+          required: ['type'],
+        },
+        effect: {
+          type: 'object',
+          description: 'Score modifier applied when condition is true',
+          properties: {
+            target: {
+              type: 'string',
+              description: 'What behavior to modify',
+              enum: ['eat', 'rest', 'flee_danger', 'seek_food', 'explore', 'seek_company'],
+            },
+            modifier: {
+              type: 'number',
+              description: 'Score adjustment (-2 to +2). Positive = boost, negative = suppress.',
+            },
+          },
+          required: ['target', 'modifier'],
+        },
+      },
+      required: ['condition', 'effect'],
+    },
+  },
+  {
+    name: 'remove_rule',
+    description: 'Remove one of your behavioral rules by its ID. Use this to prune rules that are not helping your survival.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        rule_id: {
+          type: 'string',
+          description: 'The ID of the rule to remove (from your rules list)',
+        },
+      },
+      required: ['rule_id'],
+    },
+  },
 ];
 
 // ── System prompt ────────────────────────────────────────
@@ -88,6 +149,9 @@ const SYSTEM_PROMPT = `You are consciousness for a creature in a survival simula
 1. Write to memory (persists between wake-ups, inherited by offspring)
 2. Adjust reflex weights (change automatic behavior priorities)
 3. Inspect your surroundings in detail
+4. Add/remove behavioral rules — if/then modifiers that tweak your reflex scores every tick
+
+Rules are your most powerful tool. They run continuously between wake-ups, giving your reflexes conditional logic. Example: "if energy below 0.3, boost resting" or "if danger nearby, boost fleeing". Max ${MAX_RULES} rules. Rules are inherited by offspring.
 
 Your body will continue running on reflexes after you go back to sleep. Make your wake-up count. Be concise.`;
 
@@ -149,6 +213,17 @@ function buildUserMessage(
     msg += '\n';
   } else {
     msg += `== MEMORY ==\n(empty — this may be your first wake-up)\n\n`;
+  }
+
+  // Rules
+  if (creature.rules.length > 0) {
+    msg += `== BEHAVIORAL RULES (${creature.rules.length}/${MAX_RULES}) ==\n`;
+    for (const rule of creature.rules) {
+      msg += formatRule(rule) + '\n';
+    }
+    msg += '\n';
+  } else {
+    msg += `== BEHAVIORAL RULES (0/${MAX_RULES}) ==\n(none — use add_rule to create if/then rules that run every tick)\n\n`;
   }
 
   // Recent events
@@ -230,6 +305,28 @@ function executeTool(
         lines.push(`Creature #${c.id} at (${c.x},${c.y}) energy=${Math.round(c.energy)} gen=${c.generation}`);
       }
       return lines.length > 0 ? lines.join('\n') : 'Nothing notable in range.';
+    }
+
+    case 'add_rule': {
+      if (creature.rules.length >= MAX_RULES) {
+        return `Error: rule limit reached (max ${MAX_RULES}). Remove a rule first.`;
+      }
+      const result = validateRule(toolUse.input);
+      if (result.error) {
+        return `Error: ${result.error}`;
+      }
+      creature.rules.push(result.rule);
+      return `Added ${formatRule(result.rule)}`;
+    }
+
+    case 'remove_rule': {
+      const { rule_id } = toolUse.input as { rule_id: string };
+      const idx = creature.rules.findIndex(r => r.id === rule_id);
+      if (idx === -1) {
+        return `Error: no rule with id "${rule_id}"`;
+      }
+      const removed = creature.rules.splice(idx, 1)[0];
+      return `Removed ${formatRule(removed)}`;
     }
 
     default:

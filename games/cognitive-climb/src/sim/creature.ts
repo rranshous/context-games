@@ -1,4 +1,5 @@
 import type { GenomeState, CreatureState } from '../interface/state.js';
+import type { Rule } from './rules.js';
 import { randomGenome } from './genome.js';
 
 let nextId = 1;
@@ -17,6 +18,9 @@ export class Creature {
 
   /** Persistent memory dict (like exp 10's mem) */
   mem: Record<string, unknown> = {};
+
+  /** Behavioral rules created by consciousness (max 5) */
+  rules: Rule[] = [];
 
   /** Ticks since last ate — for hunger urgency */
   ticksSinceAte: number = 0;
@@ -119,6 +123,7 @@ export class Creature {
       genome: this.genome,
       parentId: this.parentId,
       thinking: this.thinking || undefined,
+      rules: this.rules.length > 0 ? this.rules : undefined,
     };
   }
 }
