@@ -41,6 +41,16 @@ var Controls = class {
       this.send({ type: "setSpeed", ticksPerSecond: this.speed });
     };
     this.container.appendChild(speedSlider);
+    const brainBtn = document.createElement("button");
+    brainBtn.textContent = "Brain: ON";
+    brainBtn.style.cssText = btnStyle();
+    let consciousnessEnabled = true;
+    brainBtn.onclick = () => {
+      consciousnessEnabled = !consciousnessEnabled;
+      this.send({ type: "toggleConsciousness", enabled: consciousnessEnabled });
+      brainBtn.textContent = consciousnessEnabled ? "Brain: ON" : "Brain: OFF";
+    };
+    this.container.appendChild(brainBtn);
     const logEl = document.createElement("span");
     logEl.id = "sim-log";
     logEl.style.cssText = "margin-left: auto; color: #888; font-size: 11px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;";
@@ -176,6 +186,14 @@ var Renderer = class {
     const cx = ox + c.x * s + s / 2;
     const cy = oy + c.y * s + s / 2;
     const radius = Math.max(2, s * 0.35 * (0.5 + c.genome.size * 0.35));
+    if (c.thinking) {
+      const pulsePhase = Date.now() % 1e3 / 1e3;
+      const pulseAlpha = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.2;
+      ctx.fillStyle = `rgba(100, 180, 255, ${pulseAlpha})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
     const r = Math.floor(c.genome.diet * 220 + 30);
     const g = Math.floor((1 - c.genome.diet) * 180 + 40);
     const b = 60;
@@ -232,6 +250,13 @@ worker.onmessage = (e) => {
     case "creature:died":
       break;
     case "creature:spawned":
+      break;
+    case "creature:woke":
+      console.log(`[CONSCIOUSNESS] Creature #${event.id} (${event.reason}): ${event.thoughts}`);
+      if (event.toolsUsed.length > 0) {
+        console.log(`[CONSCIOUSNESS] Tools:`, event.toolsUsed);
+      }
+      controls.showLog(`[BRAIN] #${event.id}: ${event.thoughts.slice(0, 60)}`);
       break;
     case "log":
       controls.showLog(event.message);

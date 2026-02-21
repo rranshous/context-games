@@ -24,6 +24,20 @@ export class Creature {
   /** Movement accumulator for fractional speed */
   moveAccumulator: number = 0;
 
+  // ── Consciousness tracking ─────────────────────────────
+  /** True while an API call is in-flight */
+  thinking: boolean = false;
+  /** Tick when consciousness last fired (staggered by id) */
+  lastWakeTick: number;
+  /** Set after reproduction, consumed by wake check */
+  justReproduced: boolean = false;
+  /** Terrain types this creature has visited */
+  terrainsSeen: Set<string> = new Set();
+  /** Recent events for consciousness context (capped buffer) */
+  recentEvents: string[] = [];
+
+  private static MAX_RECENT_EVENTS = 15;
+
   constructor(
     x: number,
     y: number,
@@ -41,6 +55,17 @@ export class Creature {
     // max energy scales with size
     this.maxEnergy = 50 + this.genome.size * 30;
     this.energy = this.maxEnergy * 0.6; // start at 60%
+
+    // Stagger periodic wake-ups so creatures don't all wake on the same tick
+    this.lastWakeTick = -(this.id % Math.round(this.genome.wakeInterval));
+  }
+
+  /** Record an event for consciousness context (capped circular buffer) */
+  recordEvent(event: string): void {
+    this.recentEvents.push(event);
+    if (this.recentEvents.length > Creature.MAX_RECENT_EVENTS) {
+      this.recentEvents.shift();
+    }
   }
 
   /** Energy cost per tick from just existing */
@@ -93,6 +118,7 @@ export class Creature {
       generation: this.generation,
       genome: this.genome,
       parentId: this.parentId,
+      thinking: this.thinking || undefined,
     };
   }
 }

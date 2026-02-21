@@ -40,6 +40,14 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
       // Could add birth animations later
       break;
 
+    case 'creature:woke':
+      console.log(`[CONSCIOUSNESS] Creature #${event.id} (${event.reason}): ${event.thoughts}`);
+      if (event.toolsUsed.length > 0) {
+        console.log(`[CONSCIOUSNESS] Tools:`, event.toolsUsed);
+      }
+      controls.showLog(`[BRAIN] #${event.id}: ${event.thoughts.slice(0, 60)}`);
+      break;
+
     case 'log':
       controls.showLog(event.message);
       console.log(`[SIM] ${event.message}`);

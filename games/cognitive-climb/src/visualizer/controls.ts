@@ -52,6 +52,18 @@ export class Controls {
     };
     this.container.appendChild(speedSlider);
 
+    // Consciousness toggle
+    const brainBtn = document.createElement('button');
+    brainBtn.textContent = 'Brain: ON';
+    brainBtn.style.cssText = btnStyle();
+    let consciousnessEnabled = true;
+    brainBtn.onclick = () => {
+      consciousnessEnabled = !consciousnessEnabled;
+      this.send({ type: 'toggleConsciousness', enabled: consciousnessEnabled });
+      brainBtn.textContent = consciousnessEnabled ? 'Brain: ON' : 'Brain: OFF';
+    };
+    this.container.appendChild(brainBtn);
+
     // Log area
     const logEl = document.createElement('span');
     logEl.id = 'sim-log';

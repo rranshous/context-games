@@ -26,6 +26,7 @@ export function randomGenome(): GenomeState {
     size: rand(0.5, 2),
     metabolism: rand(0.5, 1.5),
     diet: rand(0, 0.3),  // mostly herbivore to start
+    wakeInterval: Math.round(rand(30, 200)),
     reflexWeights: randomReflexWeights(),
   };
 }
@@ -53,6 +54,7 @@ export function mutateGenome(parent: GenomeState): GenomeState {
     size: mutateGene(parent.size, 0.5, 2),
     metabolism: mutateGene(parent.metabolism, 0.5, 1.5),
     diet: mutateGene(parent.diet, 0, 1),
+    wakeInterval: Math.round(mutateGene(parent.wakeInterval, 30, 200)),
     reflexWeights: mutateReflexWeights(parent.reflexWeights),
   };
 }

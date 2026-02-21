@@ -11,7 +11,7 @@ const DIRS = [
   { dx: -1, dy: 0 }, // W
 ] as const;
 
-interface PerceivedCell {
+export interface PerceivedCell {
   x: number;
   y: number;
   cell: CellState;
@@ -27,7 +27,7 @@ interface ActionScore {
 
 // ── Perception ───────────────────────────────────────────
 
-function perceive(creature: Creature, world: World, allCreatures: Creature[]): PerceivedCell[] {
+export function perceive(creature: Creature, world: World, allCreatures: Creature[]): PerceivedCell[] {
   const range = Math.round(creature.genome.senseRange);
   const perceived: PerceivedCell[] = [];
 

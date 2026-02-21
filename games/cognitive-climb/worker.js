@@ -1,139 +1,3 @@
-// src/sim/genome.ts
-function rand(min, max) {
-  return min + Math.random() * (max - min);
-}
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-function gaussian(mean, stddev) {
-  const u1 = Math.random();
-  const u2 = Math.random();
-  return mean + stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-}
-function randomGenome() {
-  return {
-    speed: rand(0.5, 2),
-    senseRange: rand(2, 8),
-    size: rand(0.5, 2),
-    metabolism: rand(0.5, 1.5),
-    diet: rand(0, 0.3),
-    // mostly herbivore to start
-    reflexWeights: randomReflexWeights()
-  };
-}
-function randomReflexWeights() {
-  return {
-    foodAttraction: rand(0.3, 1),
-    dangerAvoidance: rand(0.3, 1),
-    curiosity: rand(0.1, 0.7),
-    restThreshold: rand(0.15, 0.4),
-    sociality: rand(-0.3, 0.3)
-  };
-}
-var MUTATION_RATE = 0.15;
-var MUTATION_STRENGTH = 0.1;
-var LARGE_MUTATION_CHANCE = 0.05;
-function mutateGenome(parent) {
-  return {
-    speed: mutateGene(parent.speed, 0.5, 2),
-    senseRange: mutateGene(parent.senseRange, 2, 8),
-    size: mutateGene(parent.size, 0.5, 2),
-    metabolism: mutateGene(parent.metabolism, 0.5, 1.5),
-    diet: mutateGene(parent.diet, 0, 1),
-    reflexWeights: mutateReflexWeights(parent.reflexWeights)
-  };
-}
-function mutateGene(value, min, max) {
-  if (Math.random() > MUTATION_RATE) return value;
-  const range = max - min;
-  const strength = Math.random() < LARGE_MUTATION_CHANCE ? MUTATION_STRENGTH * 5 : MUTATION_STRENGTH;
-  return clamp(gaussian(value, range * strength), min, max);
-}
-function mutateReflexWeights(w) {
-  return {
-    foodAttraction: mutateGene(w.foodAttraction, 0, 1),
-    dangerAvoidance: mutateGene(w.dangerAvoidance, 0, 1),
-    curiosity: mutateGene(w.curiosity, 0, 1),
-    restThreshold: mutateGene(w.restThreshold, 0.05, 0.6),
-    sociality: mutateGene(w.sociality, -1, 1)
-  };
-}
-
-// src/sim/creature.ts
-var nextId = 1;
-var Creature = class {
-  id;
-  x;
-  y;
-  energy;
-  maxEnergy;
-  age = 0;
-  generation;
-  genome;
-  parentId;
-  alive = true;
-  /** Persistent memory dict (like exp 10's mem) */
-  mem = {};
-  /** Ticks since last ate — for hunger urgency */
-  ticksSinceAte = 0;
-  /** Movement accumulator for fractional speed */
-  moveAccumulator = 0;
-  constructor(x, y, genome, parentId, generation) {
-    this.id = nextId++;
-    this.x = x;
-    this.y = y;
-    this.genome = genome ?? randomGenome();
-    this.parentId = parentId ?? null;
-    this.generation = generation ?? 0;
-    this.maxEnergy = 50 + this.genome.size * 30;
-    this.energy = this.maxEnergy * 0.6;
-  }
-  /** Energy cost per tick from just existing */
-  get baseBurnRate() {
-    return 0.3 * this.genome.size * (0.5 + this.genome.speed * 0.5) / this.genome.metabolism;
-  }
-  get moveCost() {
-    return 0.5 * this.genome.size / this.genome.metabolism;
-  }
-  get energyRatio() {
-    return this.energy / this.maxEnergy;
-  }
-  burnBaseEnergy() {
-    this.energy -= this.baseBurnRate;
-    this.age++;
-    this.ticksSinceAte++;
-    if (this.energy <= 0) {
-      this.energy = 0;
-      this.alive = false;
-    }
-  }
-  feed(foodValue) {
-    const gained = foodValue * 5 * this.genome.metabolism;
-    this.energy = Math.min(this.maxEnergy, this.energy + gained);
-    this.ticksSinceAte = 0;
-    return gained;
-  }
-  canReproduce() {
-    return this.energy > this.maxEnergy * 0.7 && this.age > 30;
-  }
-  payReproductionCost() {
-    this.energy *= 0.4;
-  }
-  toState() {
-    return {
-      id: this.id,
-      x: this.x,
-      y: this.y,
-      energy: Math.round(this.energy * 10) / 10,
-      maxEnergy: Math.round(this.maxEnergy * 10) / 10,
-      age: this.age,
-      generation: this.generation,
-      genome: this.genome,
-      parentId: this.parentId
-    };
-  }
-};
-
 // src/sim/reflex.ts
 var DIRS = [
   { dx: 0, dy: -1 },
@@ -266,6 +130,490 @@ function reflexTick(creature, world, allCreatures) {
       return { action: "idle", dx: 0, dy: 0, foodEaten: 0 };
   }
 }
+
+// src/sim/consciousness.ts
+var TOOL_DEFINITIONS = [
+  {
+    name: "set_memory",
+    description: "Write a value to your persistent memory. Memory survives between wake-ups and is inherited by offspring. Use this to remember important observations, strategies, or warnings.",
+    input_schema: {
+      type: "object",
+      properties: {
+        key: { type: "string", description: 'Memory key (e.g. "strategy", "danger_zones", "food_direction")' },
+        value: { type: "string", description: "Value to store" }
+      },
+      required: ["key", "value"]
+    }
+  },
+  {
+    name: "adjust_reflex_weight",
+    description: "Modify one of your body's reflex weights. These control automatic behavior: foodAttraction (how strongly you seek food), dangerAvoidance (how strongly you flee hazards), curiosity (tendency to explore), restThreshold (energy level below which you rest), sociality (attraction to other creatures). Values are clamped to 0-2.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Reflex weight name",
+          enum: ["foodAttraction", "dangerAvoidance", "curiosity", "restThreshold", "sociality"]
+        },
+        delta: {
+          type: "number",
+          description: "Amount to add to current value (positive = increase, negative = decrease)"
+        }
+      },
+      required: ["name", "delta"]
+    }
+  },
+  {
+    name: "inspect_surroundings",
+    description: "Get a detailed view of all cells you can currently perceive, including terrain type, food value, and danger level for each cell within your sense range.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+];
+var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your body runs on reflexes \u2014 automatic behavior every tick. You are expensive and intermittent. You cannot act directly in the world. You can only:
+1. Write to memory (persists between wake-ups, inherited by offspring)
+2. Adjust reflex weights (change automatic behavior priorities)
+3. Inspect your surroundings in detail
+
+Your body will continue running on reflexes after you go back to sleep. Make your wake-up count. Be concise.`;
+function buildUserMessage(creature, world, allCreatures, reason) {
+  const cell = world.cellAt(creature.x, creature.y);
+  const perceived = perceive(creature, world, allCreatures);
+  const foodCells = perceived.filter((p) => p.cell.food > 0);
+  const dangerCells = perceived.filter((p) => p.cell.danger > 0);
+  const range = Math.round(creature.genome.senseRange);
+  const nearbyCreatures = allCreatures.filter(
+    (c) => c.id !== creature.id && c.alive && Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
+  );
+  const terrainCounts = {};
+  for (const p of perceived) {
+    terrainCounts[p.cell.terrain] = (terrainCounts[p.cell.terrain] || 0) + 1;
+  }
+  let msg = `WAKE REASON: ${reason}
+
+`;
+  msg += `== YOUR STATE ==
+`;
+  msg += `Position: (${creature.x}, ${creature.y}) on ${cell.terrain}
+`;
+  msg += `Energy: ${Math.round(creature.energy)}/${Math.round(creature.maxEnergy)} (${Math.round(creature.energyRatio * 100)}%)
+`;
+  msg += `Age: ${creature.age} ticks | Generation: ${creature.generation}
+`;
+  msg += `Ticks since last meal: ${creature.ticksSinceAte}
+`;
+  msg += `Current cell: food=${cell.food}, danger=${cell.danger}
+
+`;
+  msg += `== REFLEXES (current weights) ==
+`;
+  const w = creature.genome.reflexWeights;
+  msg += `foodAttraction: ${w.foodAttraction.toFixed(2)}
+`;
+  msg += `dangerAvoidance: ${w.dangerAvoidance.toFixed(2)}
+`;
+  msg += `curiosity: ${w.curiosity.toFixed(2)}
+`;
+  msg += `restThreshold: ${w.restThreshold.toFixed(2)}
+`;
+  msg += `sociality: ${w.sociality.toFixed(2)}
+
+`;
+  msg += `== NEARBY (sense range ${range}) ==
+`;
+  msg += `Terrain: ${Object.entries(terrainCounts).map(([t, n]) => `${t}:${n}`).join(", ")}
+`;
+  msg += `Food sources: ${foodCells.length} cells (total value: ${foodCells.reduce((s, f) => s + f.cell.food, 0)})
+`;
+  msg += `Danger zones: ${dangerCells.length} cells
+`;
+  msg += `Other creatures nearby: ${nearbyCreatures.length}
+
+`;
+  const memEntries = Object.entries(creature.mem).filter(([k]) => k !== "lastDx" && k !== "lastDy");
+  if (memEntries.length > 0) {
+    msg += `== MEMORY ==
+`;
+    for (const [k, v] of memEntries) {
+      msg += `${k}: ${JSON.stringify(v)}
+`;
+    }
+    msg += "\n";
+  } else {
+    msg += `== MEMORY ==
+(empty \u2014 this may be your first wake-up)
+
+`;
+  }
+  if (creature.recentEvents.length > 0) {
+    msg += `== RECENT EVENTS ==
+`;
+    for (const event of creature.recentEvents) {
+      msg += `- ${event}
+`;
+    }
+    msg += "\n";
+  }
+  if (reason === "death") {
+    msg += `== DEATH ==
+You are dying. This is your final wake-up. Your memory will be inherited by offspring (if any). Reflect on what went wrong and leave wisdom for future generations.
+`;
+  }
+  return msg;
+}
+function executeTool(toolUse, creature, world, allCreatures) {
+  switch (toolUse.name) {
+    case "set_memory": {
+      const { key, value } = toolUse.input;
+      if (key === "lastDx" || key === "lastDy") {
+        return "Error: cannot overwrite internal movement keys";
+      }
+      const memKeys = Object.keys(creature.mem).filter((k) => k !== "lastDx" && k !== "lastDy");
+      if (memKeys.length >= 20 && !(key in creature.mem)) {
+        return "Error: memory full (max 20 entries)";
+      }
+      const truncated = String(value).slice(0, 200);
+      creature.mem[key] = truncated;
+      return `Stored "${key}" = "${truncated}"`;
+    }
+    case "adjust_reflex_weight": {
+      const { name, delta } = toolUse.input;
+      const validNames = [
+        "foodAttraction",
+        "dangerAvoidance",
+        "curiosity",
+        "restThreshold",
+        "sociality"
+      ];
+      if (!validNames.includes(name)) {
+        return `Error: unknown reflex weight "${name}"`;
+      }
+      const key = name;
+      const old = creature.genome.reflexWeights[key];
+      const clamped = Math.max(0, Math.min(2, old + delta));
+      creature.genome.reflexWeights[key] = clamped;
+      return `${name}: ${old.toFixed(2)} -> ${clamped.toFixed(2)}`;
+    }
+    case "inspect_surroundings": {
+      const range = Math.round(creature.genome.senseRange);
+      const lines = [];
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+          const nx = creature.x + dx;
+          const ny = creature.y + dy;
+          if (!world.inBounds(nx, ny)) continue;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist > range || dist === 0) continue;
+          const cell = world.cellAt(nx, ny);
+          if (cell.food > 0 || cell.danger > 0) {
+            lines.push(`(${nx},${ny}) d=${dist}: ${cell.terrain} food=${cell.food} danger=${cell.danger.toFixed(1)}`);
+          }
+        }
+      }
+      const nearby = allCreatures.filter(
+        (c) => c.id !== creature.id && c.alive && Math.abs(c.x - creature.x) + Math.abs(c.y - creature.y) <= range
+      );
+      for (const c of nearby) {
+        lines.push(`Creature #${c.id} at (${c.x},${c.y}) energy=${Math.round(c.energy)} gen=${c.generation}`);
+      }
+      return lines.length > 0 ? lines.join("\n") : "Nothing notable in range.";
+    }
+    default:
+      return `Error: unknown tool "${toolUse.name}"`;
+  }
+}
+var ConsciousnessManager = class {
+  config;
+  queue = [];
+  processing = false;
+  emit;
+  pauseSim;
+  resumeSim;
+  totalCalls = 0;
+  totalErrors = 0;
+  constructor(emit2, pauseSim, resumeSim, config) {
+    this.emit = emit2;
+    this.pauseSim = pauseSim;
+    this.resumeSim = resumeSim;
+    this.config = {
+      energyCostRatio: 0.15,
+      maxQueueSize: 10,
+      enabled: true,
+      ...config
+    };
+  }
+  get enabled() {
+    return this.config.enabled;
+  }
+  setEnabled(enabled) {
+    this.config.enabled = enabled;
+    if (!enabled) {
+      for (const req of this.queue) {
+        req.creature.thinking = false;
+      }
+      this.queue = [];
+    }
+  }
+  /** Called from engine.step() — synchronous, queues the async work */
+  tryWake(creature, world, allCreatures, tick, reason) {
+    if (!this.config.enabled) return;
+    const userMessage = buildUserMessage(creature, world, allCreatures, reason);
+    if (reason !== "death") {
+      const cost = creature.maxEnergy * this.config.energyCostRatio;
+      if (creature.energy <= cost) return;
+      creature.energy -= cost;
+    }
+    creature.thinking = true;
+    creature.lastWakeTick = tick;
+    if (reason === "new_terrain") {
+      const cell = world.cellAt(creature.x, creature.y);
+      creature.terrainsSeen.add(cell.terrain);
+    }
+    if (this.queue.length >= this.config.maxQueueSize) {
+      const dropped = this.queue.shift();
+      dropped.creature.thinking = false;
+      console.log(`[CONSCIOUSNESS] Queue full, dropped wake for creature #${dropped.creature.id}`);
+    }
+    this.queue.push({ creature, world, allCreatures, reason, userMessage, tick });
+    if (!this.processing) {
+      this.processNext();
+    }
+  }
+  async processNext() {
+    if (this.queue.length === 0) {
+      this.processing = false;
+      return;
+    }
+    this.processing = true;
+    const req = this.queue.shift();
+    this.pauseSim();
+    try {
+      this.totalCalls++;
+      const result = await this.callAPI(req);
+      const toolResults = [];
+      for (const tu of result.toolUses) {
+        const toolResult = executeTool(tu, req.creature, req.world, req.allCreatures);
+        toolResults.push(`${tu.name}: ${toolResult}`);
+      }
+      req.creature.thinking = false;
+      this.emit({
+        type: "creature:woke",
+        id: req.creature.id,
+        reason: req.reason,
+        thoughts: result.thoughts,
+        toolsUsed: toolResults
+      });
+      const thoughtPreview = result.thoughts.slice(0, 80) + (result.thoughts.length > 80 ? "..." : "");
+      this.emit({
+        type: "log",
+        message: `[BRAIN] #${req.creature.id} woke (${req.reason}): ${thoughtPreview}`
+      });
+      console.log(`[CONSCIOUSNESS] Creature #${req.creature.id} (${req.reason}):`, {
+        thoughts: result.thoughts,
+        tools: toolResults
+      });
+    } catch (error) {
+      this.totalErrors++;
+      req.creature.thinking = false;
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[CONSCIOUSNESS] Error for creature #${req.creature.id}:`, msg);
+      this.emit({ type: "log", message: `[BRAIN] #${req.creature.id} error: ${msg}` });
+    }
+    this.resumeSim();
+    if (this.queue.length > 0) {
+      setTimeout(() => this.processNext(), 0);
+    } else {
+      this.processing = false;
+    }
+  }
+  async callAPI(req) {
+    const body = {
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 512,
+      system: SYSTEM_PROMPT,
+      tools: TOOL_DEFINITIONS,
+      tool_choice: { type: "auto" },
+      messages: [{ role: "user", content: req.userMessage }]
+    };
+    const response = await fetch("/api/inference/anthropic/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `API error ${response.status}`);
+    }
+    const data = await response.json();
+    const thoughts = data.content.filter((b) => b.type === "text").map((b) => b.text).join(" ");
+    const toolUses = data.content.filter((b) => b.type === "tool_use");
+    return { thoughts, toolUses };
+  }
+};
+
+// src/sim/genome.ts
+function rand(min, max) {
+  return min + Math.random() * (max - min);
+}
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+function gaussian(mean, stddev) {
+  const u1 = Math.random();
+  const u2 = Math.random();
+  return mean + stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function randomGenome() {
+  return {
+    speed: rand(0.5, 2),
+    senseRange: rand(2, 8),
+    size: rand(0.5, 2),
+    metabolism: rand(0.5, 1.5),
+    diet: rand(0, 0.3),
+    // mostly herbivore to start
+    wakeInterval: Math.round(rand(30, 200)),
+    reflexWeights: randomReflexWeights()
+  };
+}
+function randomReflexWeights() {
+  return {
+    foodAttraction: rand(0.3, 1),
+    dangerAvoidance: rand(0.3, 1),
+    curiosity: rand(0.1, 0.7),
+    restThreshold: rand(0.15, 0.4),
+    sociality: rand(-0.3, 0.3)
+  };
+}
+var MUTATION_RATE = 0.15;
+var MUTATION_STRENGTH = 0.1;
+var LARGE_MUTATION_CHANCE = 0.05;
+function mutateGenome(parent) {
+  return {
+    speed: mutateGene(parent.speed, 0.5, 2),
+    senseRange: mutateGene(parent.senseRange, 2, 8),
+    size: mutateGene(parent.size, 0.5, 2),
+    metabolism: mutateGene(parent.metabolism, 0.5, 1.5),
+    diet: mutateGene(parent.diet, 0, 1),
+    wakeInterval: Math.round(mutateGene(parent.wakeInterval, 30, 200)),
+    reflexWeights: mutateReflexWeights(parent.reflexWeights)
+  };
+}
+function mutateGene(value, min, max) {
+  if (Math.random() > MUTATION_RATE) return value;
+  const range = max - min;
+  const strength = Math.random() < LARGE_MUTATION_CHANCE ? MUTATION_STRENGTH * 5 : MUTATION_STRENGTH;
+  return clamp(gaussian(value, range * strength), min, max);
+}
+function mutateReflexWeights(w) {
+  return {
+    foodAttraction: mutateGene(w.foodAttraction, 0, 1),
+    dangerAvoidance: mutateGene(w.dangerAvoidance, 0, 1),
+    curiosity: mutateGene(w.curiosity, 0, 1),
+    restThreshold: mutateGene(w.restThreshold, 0.05, 0.6),
+    sociality: mutateGene(w.sociality, -1, 1)
+  };
+}
+
+// src/sim/creature.ts
+var nextId = 1;
+var Creature = class _Creature {
+  id;
+  x;
+  y;
+  energy;
+  maxEnergy;
+  age = 0;
+  generation;
+  genome;
+  parentId;
+  alive = true;
+  /** Persistent memory dict (like exp 10's mem) */
+  mem = {};
+  /** Ticks since last ate — for hunger urgency */
+  ticksSinceAte = 0;
+  /** Movement accumulator for fractional speed */
+  moveAccumulator = 0;
+  // ── Consciousness tracking ─────────────────────────────
+  /** True while an API call is in-flight */
+  thinking = false;
+  /** Tick when consciousness last fired (staggered by id) */
+  lastWakeTick;
+  /** Set after reproduction, consumed by wake check */
+  justReproduced = false;
+  /** Terrain types this creature has visited */
+  terrainsSeen = /* @__PURE__ */ new Set();
+  /** Recent events for consciousness context (capped buffer) */
+  recentEvents = [];
+  static MAX_RECENT_EVENTS = 15;
+  constructor(x, y, genome, parentId, generation) {
+    this.id = nextId++;
+    this.x = x;
+    this.y = y;
+    this.genome = genome ?? randomGenome();
+    this.parentId = parentId ?? null;
+    this.generation = generation ?? 0;
+    this.maxEnergy = 50 + this.genome.size * 30;
+    this.energy = this.maxEnergy * 0.6;
+    this.lastWakeTick = -(this.id % Math.round(this.genome.wakeInterval));
+  }
+  /** Record an event for consciousness context (capped circular buffer) */
+  recordEvent(event) {
+    this.recentEvents.push(event);
+    if (this.recentEvents.length > _Creature.MAX_RECENT_EVENTS) {
+      this.recentEvents.shift();
+    }
+  }
+  /** Energy cost per tick from just existing */
+  get baseBurnRate() {
+    return 0.3 * this.genome.size * (0.5 + this.genome.speed * 0.5) / this.genome.metabolism;
+  }
+  get moveCost() {
+    return 0.5 * this.genome.size / this.genome.metabolism;
+  }
+  get energyRatio() {
+    return this.energy / this.maxEnergy;
+  }
+  burnBaseEnergy() {
+    this.energy -= this.baseBurnRate;
+    this.age++;
+    this.ticksSinceAte++;
+    if (this.energy <= 0) {
+      this.energy = 0;
+      this.alive = false;
+    }
+  }
+  feed(foodValue) {
+    const gained = foodValue * 5 * this.genome.metabolism;
+    this.energy = Math.min(this.maxEnergy, this.energy + gained);
+    this.ticksSinceAte = 0;
+    return gained;
+  }
+  canReproduce() {
+    return this.energy > this.maxEnergy * 0.7 && this.age > 30;
+  }
+  payReproductionCost() {
+    this.energy *= 0.4;
+  }
+  toState() {
+    return {
+      id: this.id,
+      x: this.x,
+      y: this.y,
+      energy: Math.round(this.energy * 10) / 10,
+      maxEnergy: Math.round(this.maxEnergy * 10) / 10,
+      age: this.age,
+      generation: this.generation,
+      genome: this.genome,
+      parentId: this.parentId,
+      thinking: this.thinking || void 0
+    };
+  }
+};
 
 // src/sim/world.ts
 function makeNoise2D(seed) {
@@ -421,6 +769,7 @@ var DEFAULT_ENGINE_CONFIG = {
 var Engine = class {
   world;
   creatures = [];
+  consciousness;
   tick = 0;
   totalBirths = 0;
   totalDeaths = 0;
@@ -428,10 +777,11 @@ var Engine = class {
   deathsByHazard = 0;
   emit;
   config;
-  constructor(emit2, config = {}) {
+  constructor(emit2, pauseSim, resumeSim, config = {}) {
     this.emit = emit2;
     this.config = { ...DEFAULT_ENGINE_CONFIG, ...config };
     this.world = new World(this.config.world);
+    this.consciousness = new ConsciousnessManager(emit2, pauseSim, resumeSim);
     this.spawnInitialCreatures();
   }
   spawnInitialCreatures() {
@@ -448,6 +798,7 @@ var Engine = class {
       attempts++;
     } while ((!this.world.isWalkable(x, y) || this.world.cellAt(x, y).danger > 0) && attempts < 200);
     const creature = new Creature(x, y);
+    creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
     this.emit({ type: "creature:spawned", creature: creature.toState() });
@@ -459,6 +810,7 @@ var Engine = class {
     if (genome) {
       Object.assign(creature.genome, genome);
     }
+    creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
     this.emit({ type: "creature:spawned", creature: creature.toState() });
@@ -475,8 +827,20 @@ var Engine = class {
         this.handleDeath(creature, "starvation");
         continue;
       }
+      if (creature.thinking) {
+        const cell = this.world.cellAt(creature.x, creature.y);
+        if (cell.danger > 0) {
+          creature.energy -= cell.danger;
+          if (creature.energy <= 0) {
+            creature.energy = 0;
+            this.handleDeath(creature, "hazard");
+          }
+        }
+        continue;
+      }
       const result = reflexTick(creature, this.world, alive);
       if (result.action === "eat" && result.foodEaten > 0) {
+        creature.recordEvent(`Ate food (value ${result.foodEaten}) at (${creature.x},${creature.y})`);
         this.emit({
           type: "creature:ate",
           id: creature.id,
@@ -485,14 +849,27 @@ var Engine = class {
           y: creature.y
         });
       }
+      if (result.action === "move") {
+        const cell = this.world.cellAt(creature.x, creature.y);
+        if (!creature.terrainsSeen.has(cell.terrain)) {
+          creature.recordEvent(`Entered ${cell.terrain} for the first time`);
+        }
+      }
       if (creature.alive) {
         const cell = this.world.cellAt(creature.x, creature.y);
         if (cell.danger > 0) {
           creature.energy -= cell.danger;
+          creature.recordEvent(`Took ${cell.danger.toFixed(1)} hazard damage at (${creature.x},${creature.y})`);
           if (creature.energy <= 0) {
             creature.energy = 0;
             this.handleDeath(creature, "hazard");
           }
+        }
+      }
+      if (creature.alive) {
+        const wakeReason = this.checkWake(creature);
+        if (wakeReason) {
+          this.consciousness.tryWake(creature, this.world, alive, this.tick, wakeReason);
         }
       }
     }
@@ -528,6 +905,16 @@ var Engine = class {
     this.totalDeaths++;
     if (cause === "starvation") this.deathsByStarvation++;
     if (cause === "hazard") this.deathsByHazard++;
+    creature.recordEvent(`Died from ${cause} at (${creature.x},${creature.y}) energy=${Math.round(creature.energy)}`);
+    if (!creature.thinking) {
+      this.consciousness.tryWake(
+        creature,
+        this.world,
+        this.creatures.filter((c) => c.alive),
+        this.tick,
+        "death"
+      );
+    }
     this.emit({ type: "creature:died", id: creature.id, cause, tick: this.tick });
   }
   reproduce(parent) {
@@ -550,12 +937,34 @@ var Engine = class {
       parent.payReproductionCost();
       const childGenome = mutateGenome(parent.genome);
       const child = new Creature(nx, ny, childGenome, parent.id, parent.generation + 1);
+      child.terrainsSeen.add(this.world.cellAt(nx, ny).terrain);
       this.creatures.push(child);
       this.totalBirths++;
+      parent.justReproduced = true;
+      parent.recordEvent(`Reproduced \u2014 offspring #${child.id}`);
       this.emit({ type: "creature:spawned", creature: child.toState() });
       this.emit({ type: "creature:reproduced", parentId: parent.id, childId: child.id });
       return;
     }
+  }
+  checkWake(creature) {
+    if (!this.consciousness.enabled) return null;
+    if (creature.thinking) return null;
+    if (creature.energyRatio < 0.25 && this.tick - creature.lastWakeTick > 20) {
+      return "crisis";
+    }
+    if (creature.justReproduced) {
+      creature.justReproduced = false;
+      return "reproduced";
+    }
+    const cell = this.world.cellAt(creature.x, creature.y);
+    if (!creature.terrainsSeen.has(cell.terrain)) {
+      return "new_terrain";
+    }
+    if (this.tick - creature.lastWakeTick >= creature.genome.wakeInterval) {
+      return "periodic";
+    }
+    return null;
   }
   getStats() {
     const alive = this.creatures.filter((c) => c.alive);
@@ -614,7 +1023,7 @@ self.onmessage = (e) => {
   const cmd = e.data;
   switch (cmd.type) {
     case "start": {
-      engine = new Engine(emit);
+      engine = new Engine(emit, stopTickLoop, startTickLoop);
       emit({ type: "state", state: engine.getWorldState() });
       emit({ type: "log", message: `Simulation started \u2014 ${engine.creatures.filter((c) => c.alive).length} creatures` });
       startTickLoop();
@@ -654,6 +1063,13 @@ self.onmessage = (e) => {
       break;
     }
     case "modifyTerrain": {
+      break;
+    }
+    case "toggleConsciousness": {
+      if (engine) {
+        engine.consciousness.setEnabled(cmd.enabled);
+        emit({ type: "log", message: `Consciousness ${cmd.enabled ? "enabled" : "disabled"}` });
+      }
       break;
     }
   }

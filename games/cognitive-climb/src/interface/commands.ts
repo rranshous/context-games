@@ -10,4 +10,5 @@ export type SimCommand =
   | { type: 'getState' }
   | { type: 'spawnFood'; x: number; y: number; value: number }
   | { type: 'spawnCreature'; x: number; y: number; genome?: Partial<GenomeState> }
-  | { type: 'modifyTerrain'; x: number; y: number; terrain: string };
+  | { type: 'modifyTerrain'; x: number; y: number; terrain: string }
+  | { type: 'toggleConsciousness'; enabled: boolean };

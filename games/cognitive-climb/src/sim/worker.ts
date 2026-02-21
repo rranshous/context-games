@@ -33,7 +33,7 @@ self.onmessage = (e: MessageEvent<SimCommand>) => {
 
   switch (cmd.type) {
     case 'start': {
-      engine = new Engine(emit);
+      engine = new Engine(emit, stopTickLoop, startTickLoop);
       // Send initial full state
       emit({ type: 'state', state: engine.getWorldState() });
       emit({ type: 'log', message: `Simulation started — ${engine.creatures.filter(c => c.alive).length} creatures` });
@@ -82,6 +82,14 @@ self.onmessage = (e: MessageEvent<SimCommand>) => {
 
     case 'modifyTerrain': {
       // TODO: implement terrain modification
+      break;
+    }
+
+    case 'toggleConsciousness': {
+      if (engine) {
+        engine.consciousness.setEnabled(cmd.enabled);
+        emit({ type: 'log', message: `Consciousness ${cmd.enabled ? 'enabled' : 'disabled'}` });
+      }
       break;
     }
   }

@@ -154,6 +154,16 @@ export class Renderer {
     const cy = oy + c.y * s + s / 2;
     const radius = Math.max(2, (s * 0.35) * (0.5 + c.genome.size * 0.35));
 
+    // Thinking glow — blue pulsing aura
+    if (c.thinking) {
+      const pulsePhase = (Date.now() % 1000) / 1000;
+      const pulseAlpha = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.2;
+      ctx.fillStyle = `rgba(100, 180, 255, ${pulseAlpha})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Color based on diet: green = herbivore, red = carnivore
     const r = Math.floor(c.genome.diet * 220 + 30);
     const g = Math.floor((1 - c.genome.diet) * 180 + 40);

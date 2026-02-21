@@ -4,7 +4,7 @@
 
 - **Sim in Web Worker**, visualizer on main thread, postMessage interface
 - **Sim core**: World (64x64 grid, value noise terrain), Creature (genome, reflex, energy), Engine (tick loop)
-- **Genome traits**: speed, senseRange, size, metabolism, diet, reflexWeights (foodAttraction, dangerAvoidance, curiosity, restThreshold, sociality)
+- **Genome traits**: speed, senseRange, size, metabolism, diet, wakeInterval, reflexWeights (foodAttraction, dangerAvoidance, curiosity, restThreshold, sociality)
 - **Reflex system**: perceive → score → act (move/eat/rest), runs every tick. Danger avoidance penalizes moving toward/staying in hazard cells.
 - **Evolution**: asexual reproduction at 70% energy + age>30, genome mutation (gaussian noise + rare large jumps), 60% energy cost
 - **Hazards**: `CellState.danger` field, generated via noise near rock/edges, creatures take damage per tick in hazard cells
@@ -14,36 +14,38 @@
 
 ## Key Files
 
-- `src/sim/engine.ts` — tick loop, creature lifecycle, reproduction, death tracking (starvation/hazard counts)
+- `src/sim/consciousness.ts` — ConsciousnessManager: wake triggers, message building, API calls, tool execution, queue, pause/resume
+- `src/sim/engine.ts` — tick loop, creature lifecycle, reproduction, death tracking, consciousness integration (checkWake)
 - `src/sim/world.ts` — World class: grid, terrain gen (value noise + fbm), food spawning, hazard generation
-- `src/sim/creature.ts` — Creature class: genome, body, energy, position, mem dict, moveAccumulator
-- `src/sim/genome.ts` — Genome type, randomGenome(), mutateGenome() (gaussian + rare large jumps)
-- `src/sim/reflex.ts` — reflexTick(): perceive → score → act. Scores: eat (hunger×food+stayPenalty), rest (threshold+stayPenalty), move (food attraction, danger avoidance, curiosity, anti-oscillation, sociality)
-- `src/sim/worker.ts` — Web Worker entry: onmessage for commands, postMessage for events, setInterval tick loop
-- `src/interface/events.ts` — SimEvent discriminated union (state, stats, creature:spawned/died/ate/reproduced, log)
-- `src/interface/state.ts` — CellState (terrain, elevation, food, danger), GenomeState, ReflexWeights, CreatureState, WorldState, SimStats (with avgTraits, deathsByStarvation/Hazard)
-- `src/interface/commands.ts` — SimCommand union (start, pause, resume, setSpeed, getState, spawnFood, spawnCreature, modifyTerrain)
-- `src/visualizer/renderer.ts` — Canvas 2D: terrain colors, red hazard overlay, food dots, creature circles (color=diet, size=genome.size, brightness=energy), energy ring, two-line stats
-- `src/visualizer/controls.ts` — pause/resume button, speed slider (1-60 t/s), log display
-- `src/visualizer/main.ts` — creates Worker('worker.js'), wires events to renderer/controls, sends 'start'
+- `src/sim/creature.ts` — Creature class: genome, body, energy, position, mem dict, moveAccumulator, consciousness fields (thinking, lastWakeTick, terrainsSeen, recentEvents, justReproduced)
+- `src/sim/genome.ts` — Genome type + wakeInterval, randomGenome(), mutateGenome() (gaussian + rare large jumps)
+- `src/sim/reflex.ts` — reflexTick(): perceive → score → act. Exported perceive() + PerceivedCell for consciousness reuse. Scores: eat (hunger×food+stayPenalty), rest (threshold+stayPenalty), move (food attraction, danger avoidance, curiosity, anti-oscillation, sociality)
+- `src/sim/worker.ts` — Web Worker entry: onmessage for commands, postMessage for events, setInterval tick loop, passes pause/resume callbacks to Engine
+- `src/interface/events.ts` — SimEvent discriminated union (state, stats, creature:spawned/died/ate/reproduced/woke, log)
+- `src/interface/state.ts` — CellState (terrain, elevation, food, danger), GenomeState (incl. wakeInterval), ReflexWeights, CreatureState (incl. thinking), WorldState, SimStats
+- `src/interface/commands.ts` — SimCommand union (start, pause, resume, setSpeed, getState, spawnFood, spawnCreature, modifyTerrain, toggleConsciousness)
+- `src/visualizer/renderer.ts` — Canvas 2D: terrain colors, red hazard overlay, food dots, creature circles (color=diet, size=genome.size, brightness=energy), energy ring, blue thinking glow, two-line stats
+- `src/visualizer/controls.ts` — pause/resume button, speed slider (1-60 t/s), Brain ON/OFF toggle, log display
+- `src/visualizer/main.ts` — creates Worker('worker.js'), wires events to renderer/controls, handles creature:woke logging, sends 'start'
 
 ## Key Constants & Tuning
 
 - World: 64×64, foodSpawnRate 0.002/cell/tick, maxFoodPerCell 5, foodSpawnInterval every 5 ticks
 - Initial creatures: 12, population floor: 3 (respawn to 5)
-- Genome ranges: speed 0.5-2, senseRange 2-8, size 0.5-2, metabolism 0.5-1.5, diet 0-1 (start 0-0.3)
+- Genome ranges: speed 0.5-2, senseRange 2-8, size 0.5-2, metabolism 0.5-1.5, diet 0-1 (start 0-0.3), wakeInterval 30-200
 - Energy: maxEnergy = 50 + size×30, start at 60%, baseBurn = 0.3 × size × (0.5+speed×0.5) / metabolism
 - Food: gives 5 × value × metabolism energy. Eat max 3 per action.
 - Move cost: 0.5 × size / metabolism
 - Mutation: 15% per gene, stddev 10% of range, 5% chance of 5× large jump
 - State snapshots every 30 ticks, stats every 10 ticks
 - Hazards: noise threshold 0.78, +0.15 near edge (<4 cells), +0.2 on rock terrain
+- Consciousness: 15% maxEnergy per wake, max queue 10, crisis threshold 25% energy (20-tick cooldown), model claude-haiku-4-5-20251001, max_tokens 512
 
 ## Milestones (revised 2026-02-20)
 
 - **M1** (complete): sim foundation + minimal visualizer
 - **M2** (complete): evolution+death — hazards, danger avoidance, trait tracking, death breakdown
-- **M3** (next): LLM consciousness — introduce inference loop + minimal tool use
+- **M3** (complete): LLM consciousness — inference loop, tool use, sim pause, genome-controlled wake interval
   - `shouldWake()` triggers on novel situations (near death, post-reproduction, periodic)
   - Haiku calls via vanilla platform `/api/inference/anthropic/messages` from worker
   - Anthropic-style tool use: model gets tool definitions, responds with tool_use blocks
@@ -115,42 +117,49 @@ Added hazard zones, danger avoidance, and evolution tracking.
 - Population stabilized around 50-60 creatures
 - Starvation is the primary death cause (6/6 deaths) — food competition drives selection
 
-## M3 Design Notes (for next session)
+## Session: 2026-02-20 — M3 LLM Consciousness
 
-The key insight from context-embodiment: consciousness should interact via **Anthropic tool_use** format. The worker makes a `fetch()` to `/api/inference/anthropic/messages` with:
-- A system message describing the creature's situation
-- The creature's current state (position, energy, nearby cells, mem dict)
-- Tool definitions for `set_memory`, `adjust_reflex_weight`, `inspect_surroundings`
-- The model responds with `tool_use` content blocks
-- We execute the tool calls and return `tool_result` blocks (multi-turn if needed, but probably single-turn for M3)
+Added consciousness system: creatures wake up intermittently and make haiku calls via the vanilla platform inference proxy.
 
-**Context window structure** (what the model sees each wake-up):
-```
-System: You are a creature in a survival simulation. You have a body that runs
-on reflexes (automatic behavior every tick). You are consciousness — expensive,
-intermittent. You cannot act directly. You can only modify your reflexes and
-memory. Your body will continue running after you go back to sleep.
+**Architecture:**
+- New file `src/sim/consciousness.ts` — ConsciousnessManager class: queue, pause/resume, API calls, tool execution
+- Sim pauses globally during consciousness calls (clearInterval/setInterval). One creature thinks at a time; others queue.
+- `wakeInterval` genome trait (30-200 ticks) controls periodic wake frequency — evolvable tradeoff
+- Energy cost: 15% of maxEnergy per wake-up (free on death)
+- Single-turn tool use: model gets one shot to produce text + tool_use blocks
 
-[Current state: position, energy, age, generation, nearby terrain/food/danger/creatures]
-[Memory: contents of mem dict]
-[Recent events: last N ticks of what happened — ate, moved, took damage, etc.]
-[Death context (if death wake-up): what killed you, where, energy at death]
+**Wake triggers** (checked in engine after reflex tick):
+- Crisis: energy < 25% (20-tick cooldown)
+- Reproduced: one-tick flag after reproduction
+- New terrain: first time entering a terrain type (tracked via creature.terrainsSeen Set)
+- Periodic: genome.wakeInterval ticks since last wake
+- Death: free wake-up for final reflection
 
-Tools: set_memory, adjust_reflex_weight, inspect_surroundings
-```
+**Tools:**
+- `set_memory(key, value)` — write to creature.mem (max 20 entries, 200 chars each, protects internal lastDx/lastDy)
+- `adjust_reflex_weight(name, delta)` — modify reflexWeights live, clamped 0-2
+- `inspect_surroundings()` — detailed perception data (single-turn so result only logged; groundwork for M4 multi-turn)
 
-**Wake triggers** (`shouldWake()` in engine):
-- Energy drops below 25% (crisis)
-- Just reproduced (strategic moment)
-- Entered a new terrain type for the first time
-- Every N ticks (periodic check-in, N = 50-100)
-- On death (free, no energy cost)
+**Context window:** system prompt + user message with: wake reason, creature state (position/energy/age/generation), current reflex weights, nearby summary (terrain/food/danger/creatures), memory dict, recent events buffer (15 max), death context if dying.
 
-**Implementation approach:**
-1. Add `consciousness.ts` — builds the prompt, makes the fetch, processes tool_use response
-2. Add `shouldWake()` logic in creature or engine
-3. Wire into engine.step(): after reflex tick, check shouldWake(), if true call consciousness
-4. Log all consciousness interactions to console for debugging
-5. Handle async: consciousness calls are async, sim should pause that creature (or the whole sim?) during the call
+**Visualizer:** blue pulsing glow on thinking creatures, Brain ON/OFF toggle, console logging with [CONSCIOUSNESS] tag.
 
-**Open question:** Should the sim pause during consciousness calls? In context-embodiment, the sim paused. With multiple creatures potentially waking, we might want per-creature pause (creature skips ticks while thinking) rather than global pause.
+**Design decisions:**
+- Global sim pause (not per-creature) — ensures consciousness decisions are always relevant, avoids stale context at high sim speeds
+- Message snapshot at wake time — queued calls see the state that triggered them, not the state when they fire
+- Queue max 10, oldest dropped if full
+- Stagger periodic wakes via `lastWakeTick = -(id % wakeInterval)` so creatures don't all wake simultaneously
+
+**Observations from first run:**
+- All 5 wake reasons fire correctly: new_terrain, crisis, reproduced, death, periodic
+- Creatures use tools contextually: writing terrain notes to memory, adjusting reflexes during crises
+- Death reflections work: "I died from starvation..." with memory writes for future generations
+- Heavy consciousness usage early on (many new_terrain triggers), settles down as creatures explore
+- Sim at tick 30 is only ~15 seconds real time due to consciousness pauses — expected, not a problem
+- Creature #4 wrote `set_memory("reproduction_strategy", ...)` after reproducing — emergent strategic behavior
+
+**Known limitations (M3):**
+- `inspect_surroundings` is useless in single-turn (result not sent back to model). Kept for M4 multi-turn.
+- No memory inheritance yet — offspring start with empty mem dict
+- Consciousness can be expensive at scale (50+ creatures all waking creates queue pressure)
+- No visual indicator of what the creature decided (just log text)

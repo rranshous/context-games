@@ -17,6 +17,7 @@ export interface GenomeState {
   size: number;         // 0.5 – 2, affects energy burn and interactions
   metabolism: number;   // energy efficiency multiplier (0.5 – 1.5)
   diet: number;         // 0 = herbivore, 1 = carnivore
+  wakeInterval: number; // ticks between periodic consciousness wake-ups (30 – 200)
   reflexWeights: ReflexWeights;
 }
 
@@ -40,6 +41,7 @@ export interface CreatureState {
   generation: number;
   genome: GenomeState;
   parentId: number | null;
+  thinking?: boolean;    // true while consciousness API call in-flight
 }
 
 // ── World snapshot ───────────────────────────────────────
