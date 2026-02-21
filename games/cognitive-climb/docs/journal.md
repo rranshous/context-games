@@ -360,3 +360,57 @@ Other observations from the run:
 - Consciousness cost spiral: crisis wakes drain 15% energy, often triggering another crisis → death spiral. Less conscious creatures (high wakeInterval) survived longer.
 - Population crashed to 2 at tick ~110, triggering respawn reinforcements
 - Offspring #13 (parent #1) and #14 (parent #6) inherited modified identity — Lamarckian inheritance confirmed working
+
+## Session: 2026-02-21 — M6 Extended Simulation Test (~470 ticks)
+
+Ran the M6 embodiment build for an extended observation session via Playwright browser automation. Speed maxed at 60 t/s, but effective rate was ~1-2 ticks/second due to brain inference calls (Haiku) being the bottleneck.
+
+**Overall stats at tick 470:**
+- Born: 35 total | Died: 26 (100% starvation, zero predation/hazard deaths)
+- Population never stabilized — oscillating boom-bust cycle
+- Population hit "critical" threshold (≤2 alive) at least 4 times, triggering Gen 0 reinforcement spawns
+- Max generation reached: Gen 2
+
+**Population dynamics — three phases:**
+1. **Tick 0-60**: 12 founders spawn, 5 reproduce quickly (Gen 1 appears). Energy drops fast across all founders.
+2. **Tick 60-160**: Massive founder die-off. 8 of 12 Gen 0 founders dead by tick 100. Gen 1 offspring briefly take over. First Gen 2 creature (#18, grandchild of #6 via #16).
+3. **Tick 160+**: Repeated boom-bust — population crashes to 2, reinforcements spawn, new wave burns through energy and dies. Cycle repeats every ~80-120 ticks.
+
+**The Legend of Creature #13 (Gen 1, child of #1):**
+- Survived to age **449+** — oldest creature by a massive margin
+- Hadn't eaten in **366 ticks** at last check — survived nearly the entire sim on residual energy
+- Brain last fired at **tick 129** — ran on pure reflexes for 340+ ticks with zero consciousness
+- Energy hovered at 7-8 out of 81 max — just above the death threshold
+- Genome: speed 2.0, size 1.02, metabolism 0.94, diet 0.08 (nearly pure herbivore)
+- Key insight: **the least conscious creature outlived all the others**
+
+**Successful lineage — the "slow, small, efficient" phenotype:**
+- #11 (Gen 0, founder) → #15 (Gen 1, spd 0.70, sz 0.66) → #19 (Gen 2, spd 0.61, sz 0.66)
+- This was the only lineage that produced multi-generational survivors
+- #15 developed the richest memory: terrain exploration tracking, reproduction events, crisis/recovery phases, exploration_phase flag
+- Natural selection pushed speed even lower each generation (0.70 → 0.61)
+- Genome: low metabolism (0.88), small size (0.66), moderate sense (2.6), balanced diet (0.25)
+- High innate foodAttraction (0.82) and dangerAvoidance (0.99), antisocial (-0.18)
+
+**Evolutionary trends — what worked:**
+- Low metabolism (< 1.0) — critical for survival
+- Small size (< 1.0) — lower energy burn
+- Moderate speed (0.6-0.7 for foraging) or very high speed (2.0 for #13's "sprint and coast")
+- Nearly pure herbivore diet (0.05-0.08)
+
+**What didn't work:**
+- Large size (1.5+) — burns too much energy, even with good sensing
+- High metabolism (1.3+) — effectively a death sentence
+- High senseRange alone — #14 (sns 6.4), #34 (sns 8.0) both died quickly. Vision without efficiency is useless.
+
+**Consciousness behaviors observed:**
+- **Crisis management**: All creatures boost foodAttraction (+0.4) and restThreshold (+0.15) during energy crises
+- **Terrain tracking**: Creatures log terrain transitions in memory (e.g., `sand_to_forest`), mark terrains as explored
+- **Reproduction awareness**: Parents note offspring IDs, adjust post-reproduction strategy
+- **Memory richness varies**: #15 developed exploration phases, crisis modes, reproduction history. #13 kept minimal memory (just sensor data).
+- **Self-modification attempt**: Creature #24 tried to use `edit_on_tick` to modify its own code — failed (error), but demonstrated the Lamarckian ambition. No creature successfully self-modified code in this run.
+
+**Key takeaway — the consciousness cost paradox:**
+The simulation reveals a fundamental tension: **waking up costs 15% maxEnergy**, and crisis wakes often trigger more crises, creating a death spiral. Creature #13 accidentally discovered the optimal M6 strategy: wake up early, set good reflexes, then **never wake up again**. The most "conscious" creatures (frequent crisis wakes, rich memory, active reflex tuning) died faster, while the unconscious zombie outlived them all.
+
+This suggests the current wake cost (15%) may be too high relative to the benefit of consciousness, or that creatures need to evolve lower wakeInterval / smarter wake conditions via onTick edits to avoid the crisis spiral. The fact that no creature successfully edited its own onTick code means the Lamarckian evolution pathway isn't firing yet — this is the key bottleneck for deeper emergent behavior.
