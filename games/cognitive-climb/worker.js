@@ -728,7 +728,8 @@ var ConsciousnessManager = class {
         id: req.creature.id,
         reason: req.reason,
         thoughts: result.thoughts,
-        toolsUsed: toolResults
+        toolsUsed: toolResults,
+        tick: req.tick
       });
       const thoughtPreview = result.thoughts.slice(0, 80) + (result.thoughts.length > 80 ? "..." : "");
       this.emit({
@@ -936,7 +937,12 @@ var Creature = class _Creature {
       genome: this.genome,
       parentId: this.parentId,
       thinking: this.thinking || void 0,
-      rules: this.rules.length > 0 ? this.rules : void 0
+      rules: this.rules,
+      mem: Object.fromEntries(
+        Object.entries(this.mem).filter(([k]) => k !== "lastDx" && k !== "lastDy")
+      ),
+      recentEvents: [...this.recentEvents],
+      ticksSinceAte: this.ticksSinceAte
     };
   }
 };
@@ -1127,7 +1133,7 @@ var Engine = class {
     creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
-    this.emit({ type: "creature:spawned", creature: creature.toState() });
+    this.emit({ type: "creature:spawned", creature: creature.toState(), tick: this.tick });
     return creature;
   }
   spawnCreatureAt(x, y, genome) {
@@ -1139,7 +1145,7 @@ var Engine = class {
     creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
-    this.emit({ type: "creature:spawned", creature: creature.toState() });
+    this.emit({ type: "creature:spawned", creature: creature.toState(), tick: this.tick });
   }
   step() {
     this.tick++;
@@ -1172,7 +1178,8 @@ var Engine = class {
           id: creature.id,
           foodValue: result.foodEaten,
           x: creature.x,
-          y: creature.y
+          y: creature.y,
+          tick: this.tick
         });
       }
       if (result.action === "move") {
@@ -1269,8 +1276,8 @@ var Engine = class {
       this.totalBirths++;
       parent.justReproduced = true;
       parent.recordEvent(`Reproduced \u2014 offspring #${child.id}`);
-      this.emit({ type: "creature:spawned", creature: child.toState() });
-      this.emit({ type: "creature:reproduced", parentId: parent.id, childId: child.id });
+      this.emit({ type: "creature:spawned", creature: child.toState(), tick: this.tick });
+      this.emit({ type: "creature:reproduced", parentId: parent.id, childId: child.id, tick: this.tick });
       return;
     }
   }

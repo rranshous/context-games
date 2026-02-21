@@ -123,7 +123,12 @@ export class Creature {
       genome: this.genome,
       parentId: this.parentId,
       thinking: this.thinking || undefined,
-      rules: this.rules.length > 0 ? this.rules : undefined,
+      rules: this.rules,
+      mem: Object.fromEntries(
+        Object.entries(this.mem).filter(([k]) => k !== 'lastDx' && k !== 'lastDy')
+      ),
+      recentEvents: [...this.recentEvents],
+      ticksSinceAte: this.ticksSinceAte,
     };
   }
 }

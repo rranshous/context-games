@@ -415,6 +415,7 @@ export class ConsciousnessManager {
         reason: req.reason,
         thoughts: result.thoughts,
         toolsUsed: toolResults,
+        tick: req.tick,
       });
 
       const thoughtPreview = result.thoughts.slice(0, 80) + (result.thoughts.length > 80 ? '...' : '');

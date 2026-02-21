@@ -6,19 +6,103 @@
   <title>Cognitive Climb</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0d1a; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0d1a; font-family: monospace; }
     #controls { width: 100%; height: 44px; }
+    #main-area { display: flex; width: 100%; height: calc(100% - 44px); }
     #canvas {
-      width: 100%;
-      height: calc(100% - 44px);
+      flex: 1;
       display: block;
       background: #0d0d1a;
+      min-width: 0;
     }
+
+    /* ── Inspector panel ────────────────────────────── */
+    #inspector {
+      width: 300px;
+      height: 100%;
+      background: #12122a;
+      border-left: 1px solid #2a2a4e;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      flex-shrink: 0;
+      color: #ccc;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .insp-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 10px 4px; background: #1a1a3a;
+    }
+    .insp-title { font-size: 14px; font-weight: bold; color: #eee; }
+    .insp-dead-badge { color: #f44; font-size: 10px; margin-left: 6px; }
+    .insp-close {
+      background: none; border: none; color: #888; font-size: 18px;
+      cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .insp-close:hover { color: #fff; }
+    .insp-subheader { padding: 2px 10px 8px; color: #999; font-size: 11px; background: #1a1a3a; }
+    .insp-link { color: #6af; cursor: pointer; text-decoration: underline; }
+    .insp-link:hover { color: #8cf; }
+
+    .insp-section { padding: 6px 10px; border-top: 1px solid #222244; }
+    .insp-section-title { color: #8888cc; font-size: 11px; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .insp-muted { color: #666; font-style: italic; }
+    .insp-row { color: #aaa; }
+
+    /* Energy bar */
+    .insp-energy-bar {
+      position: relative; height: 16px; background: #1e1e3e;
+      border-radius: 3px; overflow: hidden; margin-bottom: 4px;
+    }
+    .insp-energy-fill { height: 100%; transition: width 0.3s; }
+    .insp-energy-text {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #eee; font-size: 10px; text-shadow: 0 0 3px #000;
+    }
+
+    /* Trait bars */
+    .insp-trait { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+    .insp-trait-name { width: 90px; color: #999; font-size: 11px; text-align: right; flex-shrink: 0; }
+    .insp-trait-bar { flex: 1; height: 6px; background: #1e1e3e; border-radius: 2px; overflow: hidden; }
+    .insp-trait-fill { height: 100%; background: #5577aa; border-radius: 2px; }
+    .insp-trait-fill.reflex { background: #7755aa; }
+    .insp-trait-val { width: 36px; color: #bbb; font-size: 11px; }
+
+    /* Rules */
+    .insp-rule { padding: 2px 0; font-size: 11px; }
+    .rule-cond { color: #cc8844; }
+    .rule-then { color: #44cc88; }
+
+    /* Memory */
+    .insp-mem { padding: 1px 0; font-size: 11px; word-break: break-word; }
+    .insp-mem-key { color: #aaa; }
+    .insp-mem-val { color: #8ab; }
+
+    /* Timeline */
+    .insp-timeline { flex: 1; overflow-y: auto; }
+    .tl-entry { padding: 4px 0; border-bottom: 1px solid #1a1a30; font-size: 11px; }
+    .tl-tick { color: #666; margin-right: 4px; }
+    .tl-brain { color: #6af; font-weight: bold; }
+    .tl-thoughts {
+      color: #9ab; font-style: italic; margin: 2px 0 2px 12px;
+      white-space: pre-wrap; word-break: break-word; font-size: 10px;
+      max-height: 80px; overflow-y: auto;
+    }
+    .tl-tool { color: #7c7; margin-left: 12px; font-size: 10px; }
+    .tl-born { color: #aad; }
+    .tl-ate { color: #ac8; }
+    .tl-reproduced { color: #da6; }
+    .tl-died { color: #f66; }
   </style>
 </head>
 <body>
   <div id="controls"></div>
-  <canvas id="canvas"></canvas>
+  <div id="main-area">
+    <canvas id="canvas"></canvas>
+    <div id="inspector"></div>
+  </div>
   <script type="module" src="main.js"></script>
 </body>
 </html>

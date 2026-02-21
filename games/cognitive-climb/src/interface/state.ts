@@ -50,7 +50,10 @@ export interface CreatureState {
   genome: GenomeState;
   parentId: number | null;
   thinking?: boolean;    // true while consciousness API call in-flight
-  rules?: RuleState[];   // behavioral rules (omitted if empty)
+  rules: RuleState[];    // behavioral rules (always included)
+  mem: Record<string, unknown>;  // persistent memory dict
+  recentEvents: string[];        // recent event buffer
+  ticksSinceAte: number;         // ticks since last meal
 }
 
 // ── World snapshot ───────────────────────────────────────

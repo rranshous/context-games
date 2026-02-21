@@ -215,3 +215,61 @@ Added behavioral rule system: creatures create if/then rules via consciousness t
 - No `remove_rule` usage observed yet — creatures don't prune rules (may need more generations)
 - Memory still not inherited — only rules and genome pass to offspring
 - Rule inheritance is Lamarckian but conditions/effects are fixed vocabulary — M5 will open this to code
+
+
+## Session: 2026-02-21 — M5 Creature Inspector & Story Timeline
+
+Swapped M5/M6 order: visualizer polish before full embodiment, so we have debugging tools for the complex code-as-body milestone.
+
+**New files:**
+- `src/visualizer/history.ts` — CreatureHistoryStore: accumulates per-creature timeline from worker events
+- `src/visualizer/inspector.ts` — Inspector panel: right sidebar showing creature story
+
+**Changes:**
+- `src/interface/state.ts` — CreatureState expanded: `mem`, `recentEvents`, `ticksSinceAte`, `rules` always included (was optional)
+- `src/interface/events.ts` — All creature events now carry `tick` field (was only on `creature:died`)
+- `src/sim/creature.ts` — `toState()` includes mem (filtered lastDx/lastDy), recentEvents, ticksSinceAte, rules always
+- `src/sim/engine.ts` — All emit calls include `tick: this.tick`
+- `src/sim/consciousness.ts` — `creature:woke` event includes `tick: req.tick`
+- `src/visualizer/renderer.ts` — Click-to-select (handleClick, selectCreature), yellow pulsing selection ring, `onSelectCreature` callback
+- `src/visualizer/main.ts` — Wires history store + inspector + renderer selection, `window.__debug` API for testing
+- `src/index.html` — Flex layout (#main-area), inspector panel container, full CSS for inspector/timeline
+
+**Inspector panel features:**
+- Header: creature ID, generation, age, parent (clickable link)
+- Energy bar: color-coded (green/orange/red), percentage
+- Genome: 6 traits with proportional bars and values
+- Reflexes: 5 weights with purple bars (0-2 range)
+- Rules: IF/THEN formatted with color-coded keywords
+- Memory: key-value pairs
+- Timeline: chronological story (newest first), color-coded by type:
+  - Blue "Brain" entries: full thoughts + tool actions
+  - Green "Ate" entries
+  - Gold "Reproduced" entries with clickable child ID
+  - Red "Died" entries
+  - Born entries with clickable parent ID
+
+**Design decisions:**
+- Inspector is pure DOM (not canvas) — scrollable, selectable text, clickable links
+- History store lives on main thread, accumulates from worker events — no new worker commands needed
+- Dead creature histories retained (story doesn't end at death)
+- Max 200 timeline entries per creature to bound memory
+- Canvas resizes dynamically when inspector opens/closes
+- `window.__debug` exposes creatures, history, select(), renderer for console debugging
+
+**Observations:**
+- Creatures establish 3-4 rules on first wake-up, then refine on crisis/periodic wakes
+- Timeline clearly shows the consciousness decision-making process
+- Tool actions in timeline make it easy to trace how rules/memory/reflexes changed and why
+- State snapshots every 30 ticks means inspector data can lag slightly between updates
+
+## Milestones (revised 2026-02-21)
+
+- **M1** (complete): sim foundation + minimal visualizer
+- **M2** (complete): evolution+death — hazards, danger avoidance, trait tracking
+- **M3** (complete): LLM consciousness — inference loop, tool use, sim pause
+- **M4** (complete): light rule-setting — consciousness gets add_rule/remove_rule
+- **M5** (complete): creature inspector — click-to-select, inspector panel, story timeline
+- **M6** (future): full embodiment — code as body (creatures edit reflex/perception/wake code)
+- **M7** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
+- **M8** (future): sim depth — seasons, speciation, food chains, save/load

@@ -69,6 +69,299 @@ function btnStyle() {
   `;
 }
 
+// src/visualizer/history.ts
+var MAX_ENTRIES_PER_CREATURE = 200;
+var CreatureHistoryStore = class {
+  timelines = /* @__PURE__ */ new Map();
+  /** Process a sim event and append to the relevant creature timeline */
+  handleEvent(event) {
+    switch (event.type) {
+      case "creature:spawned":
+        this.append(event.creature.id, {
+          type: "born",
+          tick: event.tick,
+          generation: event.creature.generation,
+          parentId: event.creature.parentId
+        });
+        break;
+      case "creature:ate":
+        this.append(event.id, {
+          type: "ate",
+          tick: event.tick,
+          foodValue: event.foodValue,
+          x: event.x,
+          y: event.y
+        });
+        break;
+      case "creature:woke":
+        this.append(event.id, {
+          type: "woke",
+          tick: event.tick,
+          reason: event.reason,
+          thoughts: event.thoughts,
+          toolsUsed: event.toolsUsed
+        });
+        break;
+      case "creature:reproduced":
+        this.append(event.parentId, {
+          type: "reproduced",
+          tick: event.tick,
+          childId: event.childId
+        });
+        break;
+      case "creature:died":
+        this.append(event.id, {
+          type: "died",
+          tick: event.tick,
+          cause: event.cause
+        });
+        break;
+    }
+  }
+  /** Get the full timeline for a creature (oldest first) */
+  getTimeline(id) {
+    return this.timelines.get(id) ?? [];
+  }
+  /** Get the most recent consciousness wake-up for a creature */
+  getLastWake(id) {
+    const timeline = this.timelines.get(id);
+    if (!timeline) return null;
+    for (let i = timeline.length - 1; i >= 0; i--) {
+      if (timeline[i].type === "woke") return timeline[i];
+    }
+    return null;
+  }
+  /** Check if a creature has died */
+  isDead(id) {
+    const timeline = this.timelines.get(id);
+    if (!timeline || timeline.length === 0) return false;
+    return timeline[timeline.length - 1].type === "died";
+  }
+  append(creatureId, entry) {
+    let timeline = this.timelines.get(creatureId);
+    if (!timeline) {
+      timeline = [];
+      this.timelines.set(creatureId, timeline);
+    }
+    timeline.push(entry);
+    if (timeline.length > MAX_ENTRIES_PER_CREATURE) {
+      timeline.splice(0, timeline.length - MAX_ENTRIES_PER_CREATURE);
+    }
+  }
+};
+
+// src/visualizer/inspector.ts
+var Inspector = class {
+  el;
+  onNavigate = null;
+  visible = false;
+  constructor(container) {
+    this.el = container;
+    this.el.innerHTML = "";
+    this.hide();
+  }
+  /** Set callback for when user clicks a creature ID link */
+  setOnNavigate(fn) {
+    this.onNavigate = fn;
+  }
+  show() {
+    this.visible = true;
+    this.el.style.display = "flex";
+  }
+  hide() {
+    this.visible = false;
+    this.el.style.display = "none";
+    this.el.innerHTML = "";
+  }
+  /** Update the panel with fresh creature state + timeline */
+  update(creature, timeline, dead) {
+    if (!creature && !dead) {
+      this.hide();
+      return;
+    }
+    if (!this.visible) this.show();
+    if (!creature && dead) {
+      this.el.innerHTML = this.renderDeadPlaceholder(timeline);
+      this.bindLinks();
+      return;
+    }
+    if (!creature) return;
+    this.el.innerHTML = this.render(creature, timeline, dead);
+    this.bindLinks();
+  }
+  render(c, timeline, dead) {
+    return `
+      ${this.renderHeader(c, dead)}
+      ${this.renderVitals(c, dead)}
+      ${this.renderGenome(c)}
+      ${this.renderReflexes(c)}
+      ${this.renderRules(c)}
+      ${this.renderMemory(c)}
+      ${this.renderTimeline(timeline)}
+    `;
+  }
+  renderDeadPlaceholder(timeline) {
+    const bornEntry = timeline.find((e) => e.type === "born");
+    const diedEntry = timeline.find((e) => e.type === "died");
+    return `
+      <div class="insp-header">
+        <span class="insp-title">Creature (dead)</span>
+        <button class="insp-close" title="Close">&times;</button>
+      </div>
+      <div class="insp-section">
+        <div class="insp-muted">This creature is no longer alive.</div>
+        ${bornEntry ? `<div class="insp-muted">Lived: tick ${bornEntry.tick} - ${diedEntry ? `tick ${diedEntry.tick}` : "?"}</div>` : ""}
+      </div>
+      ${this.renderTimeline(timeline)}
+    `;
+  }
+  renderHeader(c, dead) {
+    const status = dead ? ' <span class="insp-dead-badge">DEAD</span>' : "";
+    const parentLink = c.parentId != null ? `<a class="insp-link" data-creature-id="${c.parentId}">#${c.parentId}</a>` : "none";
+    return `
+      <div class="insp-header">
+        <span class="insp-title">Creature #${c.id}${status}</span>
+        <button class="insp-close" title="Close">&times;</button>
+      </div>
+      <div class="insp-subheader">
+        Gen ${c.generation} &bull; Age ${c.age} &bull; Parent: ${parentLink}
+      </div>
+    `;
+  }
+  renderVitals(c, dead) {
+    const pct = dead ? 0 : Math.round(c.energy / c.maxEnergy * 100);
+    const barColor = pct > 30 ? "#4caf50" : pct > 10 ? "#ff9800" : "#f44336";
+    return `
+      <div class="insp-section">
+        <div class="insp-energy-bar">
+          <div class="insp-energy-fill" style="width:${pct}%;background:${barColor}"></div>
+          <span class="insp-energy-text">${dead ? "Dead" : `${c.energy} / ${c.maxEnergy} (${pct}%)`}</span>
+        </div>
+        <div class="insp-row">Pos: (${c.x}, ${c.y}) &bull; Hungry: ${c.ticksSinceAte} ticks</div>
+      </div>
+    `;
+  }
+  renderGenome(c) {
+    const g = c.genome;
+    const traits = [
+      { name: "speed", val: g.speed, min: 0.5, max: 2 },
+      { name: "sense", val: g.senseRange, min: 2, max: 8 },
+      { name: "size", val: g.size, min: 0.5, max: 2 },
+      { name: "metabolism", val: g.metabolism, min: 0.5, max: 1.5 },
+      { name: "diet", val: g.diet, min: 0, max: 1 },
+      { name: "wakeInterval", val: g.wakeInterval, min: 30, max: 200 }
+    ];
+    const rows = traits.map((t) => {
+      const pct = Math.round((t.val - t.min) / (t.max - t.min) * 100);
+      return `
+        <div class="insp-trait">
+          <span class="insp-trait-name">${t.name}</span>
+          <div class="insp-trait-bar"><div class="insp-trait-fill" style="width:${pct}%"></div></div>
+          <span class="insp-trait-val">${t.val.toFixed(2)}</span>
+        </div>`;
+    }).join("");
+    return `<div class="insp-section"><div class="insp-section-title">Genome</div>${rows}</div>`;
+  }
+  renderReflexes(c) {
+    const w = c.genome.reflexWeights;
+    const reflexes = [
+      { name: "foodAttraction", val: w.foodAttraction },
+      { name: "dangerAvoidance", val: w.dangerAvoidance },
+      { name: "curiosity", val: w.curiosity },
+      { name: "restThreshold", val: w.restThreshold },
+      { name: "sociality", val: w.sociality }
+    ];
+    const rows = reflexes.map((r) => {
+      const pct = Math.round(r.val / 2 * 100);
+      return `
+        <div class="insp-trait">
+          <span class="insp-trait-name">${r.name}</span>
+          <div class="insp-trait-bar"><div class="insp-trait-fill reflex" style="width:${pct}%"></div></div>
+          <span class="insp-trait-val">${r.val.toFixed(2)}</span>
+        </div>`;
+    }).join("");
+    return `<div class="insp-section"><div class="insp-section-title">Reflexes</div>${rows}</div>`;
+  }
+  renderRules(c) {
+    const rules = c.rules;
+    if (rules.length === 0) {
+      return `<div class="insp-section"><div class="insp-section-title">Rules (0/5)</div><div class="insp-muted">No rules</div></div>`;
+    }
+    const rows = rules.map((r) => `<div class="insp-rule">${formatRuleHTML(r)}</div>`).join("");
+    return `<div class="insp-section"><div class="insp-section-title">Rules (${rules.length}/5)</div>${rows}</div>`;
+  }
+  renderMemory(c) {
+    const entries = Object.entries(c.mem);
+    if (entries.length === 0) {
+      return `<div class="insp-section"><div class="insp-section-title">Memory</div><div class="insp-muted">Empty</div></div>`;
+    }
+    const rows = entries.map(
+      ([k, v]) => `<div class="insp-mem"><span class="insp-mem-key">${esc(k)}</span>: <span class="insp-mem-val">${esc(String(v))}</span></div>`
+    ).join("");
+    return `<div class="insp-section"><div class="insp-section-title">Memory (${entries.length})</div>${rows}</div>`;
+  }
+  renderTimeline(timeline) {
+    if (timeline.length === 0) {
+      return `<div class="insp-section insp-timeline"><div class="insp-section-title">Timeline</div><div class="insp-muted">No events yet</div></div>`;
+    }
+    const reversed = [...timeline].reverse();
+    const rows = reversed.map((e) => this.renderTimelineEntry(e)).join("");
+    return `<div class="insp-section insp-timeline"><div class="insp-section-title">Timeline (${timeline.length})</div>${rows}</div>`;
+  }
+  renderTimelineEntry(e) {
+    switch (e.type) {
+      case "born": {
+        const parentLink = e.parentId != null ? `from <a class="insp-link" data-creature-id="${e.parentId}">#${e.parentId}</a>` : "spawned";
+        return `<div class="tl-entry tl-born"><span class="tl-tick">t${e.tick}</span> Born (gen ${e.generation}) ${parentLink}</div>`;
+      }
+      case "ate":
+        return `<div class="tl-entry tl-ate"><span class="tl-tick">t${e.tick}</span> Ate (${e.foodValue.toFixed(1)}) at (${e.x},${e.y})</div>`;
+      case "woke": {
+        const tools = e.toolsUsed.length > 0 ? e.toolsUsed.map((t) => `<div class="tl-tool">&rarr; ${esc(t)}</div>`).join("") : "";
+        return `
+          <div class="tl-entry tl-woke">
+            <span class="tl-tick">t${e.tick}</span> <span class="tl-brain">Brain</span> (${esc(e.reason)})
+            <div class="tl-thoughts">${esc(e.thoughts)}</div>
+            ${tools}
+          </div>`;
+      }
+      case "reproduced":
+        return `<div class="tl-entry tl-reproduced"><span class="tl-tick">t${e.tick}</span> Reproduced &rarr; <a class="insp-link" data-creature-id="${e.childId}">#${e.childId}</a></div>`;
+      case "died":
+        return `<div class="tl-entry tl-died"><span class="tl-tick">t${e.tick}</span> Died (${esc(e.cause)})</div>`;
+    }
+  }
+  bindLinks() {
+    const closeBtn = this.el.querySelector(".insp-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        this.hide();
+        this.onNavigate?.(-1);
+      });
+    }
+    for (const link of this.el.querySelectorAll(".insp-link")) {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = Number(link.dataset.creatureId);
+        if (!isNaN(id) && id >= 0) {
+          this.onNavigate?.(id);
+        }
+      });
+    }
+  }
+};
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function formatRuleHTML(r) {
+  const c = r.condition;
+  let condStr = c.type;
+  if (c.threshold != null) condStr += `(${c.threshold})`;
+  if (c.terrain) condStr += `(${c.terrain})`;
+  const sign = r.effect.modifier >= 0 ? "+" : "";
+  return `<span class="rule-cond">IF</span> ${esc(condStr)} <span class="rule-then">THEN</span> ${esc(r.effect.target)} ${sign}${r.effect.modifier.toFixed(1)}`;
+}
+
 // src/visualizer/renderer.ts
 var TERRAIN_COLORS = {
   grass: "#4a7c3f",
@@ -85,11 +378,16 @@ var Renderer = class {
   stats = null;
   cellSize = 10;
   animFrame = 0;
+  /** Currently selected creature ID (null = none) */
+  selectedCreatureId = null;
+  /** Callback fired when selection changes */
+  onSelectCreature = null;
   constructor(canvas2) {
     this.canvas = canvas2;
     this.ctx = canvas2.getContext("2d");
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    this.canvas.addEventListener("click", (e) => this.handleClick(e));
     this.startRenderLoop();
   }
   resize() {
@@ -207,6 +505,15 @@ var Renderer = class {
     ctx.beginPath();
     ctx.arc(cx, cy, radius + 1, 0, Math.PI * 2 * (c.energy / c.maxEnergy));
     ctx.stroke();
+    if (c.id === this.selectedCreatureId) {
+      const pulsePhase = Date.now() % 1500 / 1500;
+      const pulseAlpha = 0.5 + Math.sin(pulsePhase * Math.PI * 2) * 0.3;
+      ctx.strokeStyle = `rgba(255, 220, 80, ${pulseAlpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
   drawStats(ctx, width, y) {
     if (!this.stats) return;
@@ -224,6 +531,38 @@ var Renderer = class {
       ctx.fillText(`Traits \u2014 spd: ${t.speed}  sns: ${t.senseRange}  sz: ${t.size}  met: ${t.metabolism}  diet: ${t.diet}`, 10, y + 28);
     }
   }
+  handleClick(e) {
+    if (!this.state) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const s = this.cellSize;
+    const offsetX = Math.floor((rect.width - s * this.state.width) / 2);
+    const offsetY = 10;
+    let bestId = null;
+    let bestDist = Infinity;
+    for (const c of this.state.creatures) {
+      const cx = offsetX + c.x * s + s / 2;
+      const cy = offsetY + c.y * s + s / 2;
+      const radius = Math.max(2, s * 0.35 * (0.5 + c.genome.size * 0.35));
+      const dist = Math.hypot(px - cx, py - cy);
+      if (dist < radius + 6 && dist < bestDist) {
+        bestDist = dist;
+        bestId = c.id;
+      }
+    }
+    if (bestId === this.selectedCreatureId) {
+      bestId = null;
+    }
+    this.selectedCreatureId = bestId;
+    this.onSelectCreature?.(bestId);
+  }
+  /** Programmatically select a creature (e.g. from inspector link) */
+  selectCreature(id) {
+    this.selectedCreatureId = id;
+    this.onSelectCreature?.(id);
+  }
   destroy() {
     cancelAnimationFrame(this.animFrame);
   }
@@ -232,22 +571,71 @@ var Renderer = class {
 // src/visualizer/main.ts
 var canvas = document.getElementById("canvas");
 var controlsEl = document.getElementById("controls");
+var inspectorEl = document.getElementById("inspector");
 var renderer = new Renderer(canvas);
+var history = new CreatureHistoryStore();
+var inspector = new Inspector(inspectorEl);
 var worker = new Worker("worker.js", { type: "module" });
 function send(cmd) {
   worker.postMessage(cmd);
 }
 var controls = new Controls(controlsEl, send);
+var selectedId = null;
+var lastCreatures = [];
+function selectCreature(id) {
+  selectedId = id;
+  renderer.selectedCreatureId = id;
+  updateInspector();
+}
+function updateInspector() {
+  if (selectedId == null) {
+    inspector.hide();
+    triggerResize();
+    return;
+  }
+  const creature = lastCreatures.find((c) => c.id === selectedId) ?? null;
+  const timeline = history.getTimeline(selectedId);
+  const dead = history.isDead(selectedId);
+  if (!creature && !dead) {
+    selectedId = null;
+    renderer.selectedCreatureId = null;
+    inspector.hide();
+    triggerResize();
+    return;
+  }
+  inspector.update(creature, timeline, dead);
+  triggerResize();
+}
+function triggerResize() {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+  });
+}
+renderer.onSelectCreature = (id) => {
+  selectCreature(id);
+};
+inspector.setOnNavigate((id) => {
+  if (id < 0) {
+    selectCreature(null);
+  } else {
+    selectCreature(id);
+    renderer.selectedCreatureId = id;
+  }
+});
 worker.onmessage = (e) => {
   const event = e.data;
+  history.handleEvent(event);
   switch (event.type) {
     case "state":
       renderer.updateState(event.state);
+      lastCreatures = event.state.creatures;
+      if (selectedId != null) updateInspector();
       break;
     case "stats":
       renderer.updateStats(event.stats);
       break;
     case "creature:died":
+      if (event.id === selectedId) updateInspector();
       break;
     case "creature:spawned":
       break;
@@ -257,6 +645,7 @@ worker.onmessage = (e) => {
         console.log(`[CONSCIOUSNESS] Tools:`, event.toolsUsed);
       }
       controls.showLog(`[BRAIN] #${event.id}: ${event.thoughts.slice(0, 60)}`);
+      if (event.id === selectedId) updateInspector();
       break;
     case "log":
       controls.showLog(event.message);
@@ -267,6 +656,16 @@ worker.onmessage = (e) => {
 worker.onerror = (e) => {
   console.error("Worker error:", e);
   controls.showLog(`Error: ${e.message}`);
+};
+window.__debug = {
+  get creatures() {
+    return lastCreatures;
+  },
+  get history() {
+    return history;
+  },
+  select: selectCreature,
+  renderer
 };
 send({ type: "start" });
 //# sourceMappingURL=main.js.map

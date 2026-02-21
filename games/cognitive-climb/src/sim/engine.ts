@@ -67,7 +67,7 @@ export class Engine {
     creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
-    this.emit({ type: 'creature:spawned', creature: creature.toState() });
+    this.emit({ type: 'creature:spawned', creature: creature.toState(), tick: this.tick });
     return creature;
   }
 
@@ -80,7 +80,7 @@ export class Engine {
     creature.terrainsSeen.add(this.world.cellAt(x, y).terrain);
     this.creatures.push(creature);
     this.totalBirths++;
-    this.emit({ type: 'creature:spawned', creature: creature.toState() });
+    this.emit({ type: 'creature:spawned', creature: creature.toState(), tick: this.tick });
   }
 
   step(): void {
@@ -126,6 +126,7 @@ export class Engine {
           foodValue: result.foodEaten,
           x: creature.x,
           y: creature.y,
+          tick: this.tick,
         });
       }
 
@@ -248,8 +249,8 @@ export class Engine {
       parent.justReproduced = true;
       parent.recordEvent(`Reproduced — offspring #${child.id}`);
 
-      this.emit({ type: 'creature:spawned', creature: child.toState() });
-      this.emit({ type: 'creature:reproduced', parentId: parent.id, childId: child.id });
+      this.emit({ type: 'creature:spawned', creature: child.toState(), tick: this.tick });
+      this.emit({ type: 'creature:reproduced', parentId: parent.id, childId: child.id, tick: this.tick });
       return; // one offspring per tick
     }
   }

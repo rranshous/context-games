@@ -22,11 +22,18 @@ export class Renderer {
   private cellSize: number = 10;
   private animFrame: number = 0;
 
+  /** Currently selected creature ID (null = none) */
+  selectedCreatureId: number | null = null;
+
+  /** Callback fired when selection changes */
+  onSelectCreature: ((id: number | null) => void) | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    this.canvas.addEventListener('click', (e) => this.handleClick(e));
     this.startRenderLoop();
   }
 
@@ -183,6 +190,17 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(cx, cy, radius + 1, 0, Math.PI * 2 * (c.energy / c.maxEnergy));
     ctx.stroke();
+
+    // Selection highlight
+    if (c.id === this.selectedCreatureId) {
+      const pulsePhase = (Date.now() % 1500) / 1500;
+      const pulseAlpha = 0.5 + Math.sin(pulsePhase * Math.PI * 2) * 0.3;
+      ctx.strokeStyle = `rgba(255, 220, 80, ${pulseAlpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   private drawStats(ctx: CanvasRenderingContext2D, width: number, y: number): void {
@@ -209,6 +227,49 @@ export class Renderer {
       ctx.fillStyle = '#999';
       ctx.fillText(`Traits — spd: ${t.speed}  sns: ${t.senseRange}  sz: ${t.size}  met: ${t.metabolism}  diet: ${t.diet}`, 10, y + 28);
     }
+  }
+
+  private handleClick(e: MouseEvent): void {
+    if (!this.state) return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const px = (e.clientX - rect.left);
+    const py = (e.clientY - rect.top);
+
+    const s = this.cellSize;
+    const offsetX = Math.floor((rect.width - s * this.state.width) / 2);
+    const offsetY = 10;
+
+    // Find closest creature within click radius
+    let bestId: number | null = null;
+    let bestDist = Infinity;
+
+    for (const c of this.state.creatures) {
+      const cx = offsetX + c.x * s + s / 2;
+      const cy = offsetY + c.y * s + s / 2;
+      const radius = Math.max(2, (s * 0.35) * (0.5 + c.genome.size * 0.35));
+      const dist = Math.hypot(px - cx, py - cy);
+      // Click within radius + generous padding
+      if (dist < radius + 6 && dist < bestDist) {
+        bestDist = dist;
+        bestId = c.id;
+      }
+    }
+
+    // Toggle: clicking same creature deselects
+    if (bestId === this.selectedCreatureId) {
+      bestId = null;
+    }
+
+    this.selectedCreatureId = bestId;
+    this.onSelectCreature?.(bestId);
+  }
+
+  /** Programmatically select a creature (e.g. from inspector link) */
+  selectCreature(id: number | null): void {
+    this.selectedCreatureId = id;
+    this.onSelectCreature?.(id);
   }
 
   destroy(): void {
