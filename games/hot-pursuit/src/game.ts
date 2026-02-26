@@ -1,4 +1,5 @@
 // ── Game State Manager: Chase Lifecycle ──
+// Phase 2: Police are now driven by somas (signal handlers + chassis API).
 
 import {
   GameConfig, DEFAULT_CONFIG, GamePhase, ChaseOutcome,
@@ -6,7 +7,10 @@ import {
 } from './types';
 import { TileMap } from './map';
 import { Player, InputHandler } from './player';
-import { createPolice, updatePolice, distanceToPlayer } from './police';
+import { Soma } from './soma';
+import { createPoliceFromSoma, updateSomaPolice, distanceToPlayer } from './soma-police';
+import { loadSomas, saveSomas, recordChaseInSoma } from './persistence';
+import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
 
@@ -17,6 +21,7 @@ export class Game {
   private map: TileMap;
   private player: Player;
   private police: PoliceEntity[] = [];
+  private somas: Soma[] = [];
   private input: InputHandler;
   private renderer: Renderer;
   private recorder: ReplayRecorder;
@@ -25,6 +30,7 @@ export class Game {
   private chaseStartTime: number = 0;
   private elapsedTime: number = 0;
   private replays: ChaseReplay[] = [];
+  private updateInProgress: boolean = false;
 
   // Fixed timestep
   private readonly TICK_RATE = 60;
@@ -41,17 +47,30 @@ export class Game {
     this.renderer = new Renderer(canvas, this.config);
     this.recorder = new ReplayRecorder(this.runNumber);
 
+    // Load somas from localStorage (or create defaults)
+    const policeCount = this.map.policeSpawns.length;
+    this.somas = loadSomas(policeCount);
+
     // Initialize player at spawn
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
     this.player = new Player(spawnWorld, this.config);
 
     console.log(JSON.stringify({
       _hp: 'init',
+      phase: 2,
+      somasDriven: true,
       mapSize: { cols: this.map.cols, rows: this.map.rows },
       tileSize: this.config.tileSize,
       extractionPoints: this.map.extractionPoints,
       playerSpawn: this.map.playerSpawn,
       policeSpawns: this.map.policeSpawns,
+      somas: this.somas.map(s => ({
+        id: s.id,
+        name: s.name,
+        nature: s.nature.slice(0, 80) + '...',
+        tools: s.tools.map(t => t.name),
+        chaseCount: s.chaseHistory.length,
+      })),
       config: {
         playerSpeed: this.config.playerSpeed,
         policeSpeed: this.config.policeBaseSpeed,
@@ -80,9 +99,9 @@ export class Game {
     this.player.pos = { ...spawnWorld };
     this.player.facing = { x: 0, y: -1 };
 
-    // Create police
-    this.police = this.map.policeSpawns.map((spawn, i) =>
-      createPolice(i, spawn, this.map, this.config)
+    // Create police entities from somas
+    this.police = this.somas.map((soma, i) =>
+      createPoliceFromSoma(soma, this.map.policeSpawns[i], this.map, this.config)
     );
 
     // New recorder
@@ -95,7 +114,13 @@ export class Game {
       _hp: 'chase_start',
       run: this.runNumber,
       policeCount: this.police.length,
-      police: this.police.map(p => ({ id: p.id, name: p.name, pos: p.pos })),
+      police: this.police.map((p, i) => ({
+        id: p.id,
+        name: p.name,
+        pos: p.pos,
+        handlerSize: this.somas[i].signalHandlers.length,
+        tools: this.somas[i].tools.map(t => t.name),
+      })),
     }));
   }
 
@@ -134,15 +159,28 @@ export class Game {
   }
 
   private updateChase(dt: number): void {
+    // Guard against re-entrant updates (handlers are async)
+    if (this.updateInProgress) return;
+    this.updateInProgress = true;
+
     this.tickCount++;
     this.elapsedTime = (performance.now() - this.chaseStartTime) / 1000;
 
     // Update player
     const action = this.player.update(dt, this.input.state, this.map);
 
-    // Update police
-    for (const p of this.police) {
-      updatePolice(p, this.player.pos, this.map, this.config, dt);
+    // Update police via soma signal handlers (fire and forget — handlers are fast)
+    for (let i = 0; i < this.police.length; i++) {
+      updateSomaPolice(
+        this.police[i],
+        this.somas[i],
+        this.player.pos,
+        this.map,
+        this.config,
+        this.police,
+        dt,
+        this.tickCount,
+      );
     }
 
     // Record tick
@@ -153,6 +191,8 @@ export class Game {
     if (outcome) {
       this.endChase(outcome);
     }
+
+    this.updateInProgress = false;
   }
 
   private checkOutcome(): ChaseOutcome | null {
@@ -183,6 +223,21 @@ export class Game {
     const replay = this.recorder.finish(outcome, 'city-grid-v1');
     this.replays.push(replay);
 
+    // Record chase in each soma's history
+    for (let i = 0; i < this.somas.length; i++) {
+      const p = this.police[i];
+      recordChaseInSoma(this.somas[i], {
+        runId: this.runNumber,
+        outcome,
+        durationSeconds: this.elapsedTime,
+        spotted: p.canSeePlayer || (p.lastKnownPlayerPos !== null),
+        captured: outcome === 'captured' && distanceToPlayer(p, this.player.pos) < CAPTURE_DISTANCE,
+      });
+    }
+
+    // Persist somas after each chase
+    saveSomas(this.somas);
+
     const escaped = outcome === 'escaped' || outcome === 'timeout';
     this.renderer.showGameOver(outcome, escaped);
 
@@ -192,6 +247,11 @@ export class Game {
       outcome,
       durationSeconds: Math.round(this.elapsedTime * 10) / 10,
       stats: replay.stats,
+      somaState: this.somas.map(s => ({
+        id: s.id,
+        chaseCount: s.chaseHistory.length,
+        memory: s.memory.slice(0, 100),
+      })),
     }));
 
     // Log full replay for analysis
