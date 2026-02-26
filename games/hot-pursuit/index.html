@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hot Pursuit</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #33ff33;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+    }
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+      border: 2px solid #1a3a1a;
+    }
+    #hud {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      padding: 4px 8px;
+    }
+    #hud .status { color: #33ff33; }
+    #hud .timer { color: #ffaa33; }
+    #game-over-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      font-size: 24px;
+    }
+    #game-over-overlay.visible { display: flex; }
+    #game-over-overlay .result { font-size: 32px; font-weight: bold; }
+    #game-over-overlay .escaped { color: #33ff33; }
+    #game-over-overlay .captured { color: #ff3333; }
+    #game-over-overlay .prompt {
+      font-size: 16px;
+      color: #888;
+      animation: blink 1.2s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="hud">
+      <span class="status" id="hud-status">RUN: 1</span>
+      <span class="timer" id="hud-timer">TIME: 0</span>
+    </div>
+    <canvas id="game-canvas"></canvas>
+    <div id="game-over-overlay">
+      <div class="result" id="result-text"></div>
+      <div class="prompt">PRESS SPACE TO CONTINUE</div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

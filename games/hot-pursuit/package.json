@@ -1,0 +1,19 @@
+{
+  "name": "hot-pursuit",
+  "version": "0.1.0",
+  "description": "Top-down chase game with evolving AI police actants",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && mkdir -p ../../platforms/vanilla/games/hot-pursuit && cp -r dist/* ../../platforms/vanilla/games/hot-pursuit/"
+  },
+  "keywords": ["game", "ai", "actant", "chase"],
+  "author": "Robby Ranshous",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}
