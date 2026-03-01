@@ -9,7 +9,7 @@ import { TileType, TilePosition, Position, WALKABLE_TILES, GameConfig, DEFAULT_C
 
 const CITY_LAYOUT: number[][] = [
   // Row 0-4: North district
-  [1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,3,0,0,1,1,1],
+  [1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,1,1,1],
   [1,1,1,1,1,1,1,0,4,0,1,1,1,1,1,1,0,4,0,1,1,1,1,1,1,1,0,4,0,1,1,1,1,1,0,4,0,1,1,1],
   [1,1,1,1,1,1,1,0,4,0,1,1,1,1,1,1,0,4,0,1,1,2,1,1,1,1,0,4,0,1,1,1,1,1,0,4,0,1,1,1],
   [1,1,1,1,1,1,1,0,4,0,1,1,1,1,1,1,0,4,0,1,1,2,1,1,1,1,0,4,0,1,1,1,1,1,0,4,0,1,1,1],
@@ -41,7 +41,7 @@ const CITY_LAYOUT: number[][] = [
   // Row 25-29: South edge
   [1,1,0,4,0,1,1,1,0,4,0,1,1,1,1,0,4,0,1,1,1,1,1,0,4,0,1,1,0,4,0,1,1,1,1,0,4,0,1,1],
   [1,1,0,4,0,1,1,1,0,4,0,1,1,1,1,0,4,0,1,1,1,1,1,0,4,0,1,1,0,4,0,1,1,1,1,0,4,0,1,1],
-  [3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
   [1,1,0,4,0,1,1,1,0,4,0,1,1,1,1,0,4,0,1,1,1,1,1,0,4,0,1,1,0,4,0,1,1,1,1,0,4,0,1,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
@@ -194,6 +194,51 @@ export class TileMap {
     }
 
     return []; // no path found
+  }
+
+  /** Randomize extraction point locations along map edges */
+  randomizeExtractionPoints(count: number = 3): void {
+    // Clear old extraction tiles
+    for (const ep of this.extractionPoints) {
+      this.tiles[ep.row][ep.col] = TileType.ROAD;
+    }
+    this.extractionPoints.length = 0;
+
+    // Collect candidate road tiles on the map border (first/last 2 rows and cols)
+    const candidates: TilePosition[] = [];
+    const edgeDepth = 2;
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (this.tiles[r][c] !== TileType.ROAD) continue;
+        const onEdge = r < edgeDepth || r >= this.rows - edgeDepth ||
+                       c < edgeDepth || c >= this.cols - edgeDepth;
+        if (onEdge) candidates.push({ col: c, row: r });
+      }
+    }
+
+    // Pick `count` points that are well-spaced apart
+    const minDist = 15; // minimum tile distance between extraction points
+    const picked: TilePosition[] = [];
+    // Shuffle candidates
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    for (const c of candidates) {
+      if (picked.length >= count) break;
+      // Check distance from all already-picked points
+      const tooClose = picked.some(p =>
+        Math.abs(p.col - c.col) + Math.abs(p.row - c.row) < minDist
+      );
+      if (!tooClose) picked.push(c);
+    }
+
+    // Apply to tile grid
+    for (const p of picked) {
+      this.tiles[p.row][p.col] = TileType.EXTRACTION;
+      this.extractionPoints.push(p);
+    }
   }
 
   /** Get neighbors for patrol / search pattern */

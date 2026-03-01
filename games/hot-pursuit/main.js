@@ -22,7 +22,7 @@ var DEFAULT_CONFIG = {
 // src/map.ts
 var CITY_LAYOUT = [
   // Row 0-4: North district
-  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 3, 0, 0, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 2, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 2, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1],
@@ -54,7 +54,7 @@ var CITY_LAYOUT = [
   // Row 25-29: South edge
   [1, 1, 0, 4, 0, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 0, 4, 0, 1, 1, 1, 1, 0, 4, 0, 1, 1],
   [1, 1, 0, 4, 0, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 0, 4, 0, 1, 1, 1, 1, 0, 4, 0, 1, 1],
-  [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [1, 1, 0, 4, 0, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 0, 4, 0, 1, 1, 1, 1, 1, 0, 4, 0, 1, 1, 0, 4, 0, 1, 1, 1, 1, 0, 4, 0, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
@@ -184,6 +184,39 @@ var TileMap = class {
       }
     }
     return [];
+  }
+  /** Randomize extraction point locations along map edges */
+  randomizeExtractionPoints(count = 3) {
+    for (const ep of this.extractionPoints) {
+      this.tiles[ep.row][ep.col] = 0 /* ROAD */;
+    }
+    this.extractionPoints.length = 0;
+    const candidates = [];
+    const edgeDepth = 2;
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (this.tiles[r][c] !== 0 /* ROAD */) continue;
+        const onEdge = r < edgeDepth || r >= this.rows - edgeDepth || c < edgeDepth || c >= this.cols - edgeDepth;
+        if (onEdge) candidates.push({ col: c, row: r });
+      }
+    }
+    const minDist = 15;
+    const picked = [];
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    for (const c of candidates) {
+      if (picked.length >= count) break;
+      const tooClose = picked.some(
+        (p) => Math.abs(p.col - c.col) + Math.abs(p.row - c.row) < minDist
+      );
+      if (!tooClose) picked.push(c);
+    }
+    for (const p of picked) {
+      this.tiles[p.row][p.col] = 3 /* EXTRACTION */;
+      this.extractionPoints.push(p);
+    }
   }
   /** Get neighbors for patrol / search pattern */
   getWalkableNeighbors(tile) {
@@ -1546,7 +1579,7 @@ function renderMarkdown(md) {
 }
 
 // src/chase-map-renderer.ts
-var SCALE = 4;
+var SCALE = 8;
 var TILE_COLORS = {
   [0 /* ROAD */]: "#2a2a2a",
   [1 /* BUILDING */]: "#1a1a2e",
@@ -1563,7 +1596,7 @@ var STATE_COLORS = {
 function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, keyMoments, tileSize) {
   const mapW = cols * SCALE;
   const mapH = rows * SCALE;
-  const legendH = 36;
+  const legendH = 48;
   const canvas2 = document.createElement("canvas");
   canvas2.width = mapW;
   canvas2.height = mapH + legendH;
@@ -1579,7 +1612,7 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
     y: pos.y / tileSize * SCALE
   });
   if (playerWaypoints.length > 0) {
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.globalAlpha = 1;
     for (let i = 1; i < playerWaypoints.length; i++) {
       const prev = toCanvas(playerWaypoints[i - 1].pos);
@@ -1594,12 +1627,12 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
       const p = toCanvas(wp.pos);
       ctx.fillStyle = "#33ff33";
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
   if (officerWaypoints.length > 0) {
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.globalAlpha = 1;
     for (let i = 1; i < officerWaypoints.length; i++) {
       const prev = toCanvas(officerWaypoints[i - 1].pos);
@@ -1614,7 +1647,7 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
       const p = toCanvas(wp.pos);
       ctx.fillStyle = STATE_COLORS[wp.state] ?? "#888";
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -1636,50 +1669,50 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
   if (playerWaypoints.length > 0) {
     const ps = toCanvas(playerWaypoints[0].pos);
     ctx.fillStyle = "#33ff33";
-    ctx.fillRect(ps.x - 2, ps.y - 2, 4, 4);
+    ctx.fillRect(ps.x - 3, ps.y - 3, 6, 6);
   }
   if (officerWaypoints.length > 0) {
     const os = toCanvas(officerWaypoints[0].pos);
     ctx.fillStyle = STATE_COLORS[officerWaypoints[0].state] ?? "#888";
-    ctx.fillRect(os.x - 2, os.y - 2, 4, 4);
+    ctx.fillRect(os.x - 3, os.y - 3, 6, 6);
   }
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (tiles[r][c] === 3 /* EXTRACTION */) {
         ctx.strokeStyle = "#33ff33";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(c * SCALE, r * SCALE, SCALE, SCALE);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(c * SCALE + 1, r * SCALE + 1, SCALE - 2, SCALE - 2);
       }
     }
   }
-  const ly = mapH + 2;
+  const ly = mapH + 4;
   ctx.fillStyle = "#000";
   ctx.fillRect(0, mapH, mapW, legendH);
-  ctx.font = "7px monospace";
+  ctx.font = "10px monospace";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   const items = [
-    { color: "#1a1a2e", label: "Building (impassable, blocks LOS)" },
-    { color: "#2a2a2a", label: "Road (passable)" },
-    { color: "#1e1e1e", label: "Alley (passable)" },
-    { color: "#33ff33", label: "Suspect" },
+    { color: "#1a1a2e", label: "Building (blocks LOS)" },
+    { color: "#2a2a2a", label: "Road" },
+    { color: "#1e1e1e", label: "Alley" },
+    { color: "#33ff33", label: "Suspect path" },
+    { color: "#aa99ff", label: "Patrol" },
     { color: "#ff4444", label: "Pursuing" },
-    { color: "#ffcc33", label: "Searching" },
-    { color: "#aa99ff", label: "Patrol" }
+    { color: "#ffcc33", label: "Searching" }
   ];
-  let lx = 3;
+  let lx = 4;
   for (const item of items) {
     ctx.fillStyle = item.color;
-    ctx.fillRect(lx, ly + 2, 6, 6);
+    ctx.fillRect(lx, ly + 2, 8, 8);
     ctx.strokeStyle = "#555";
     ctx.lineWidth = 0.5;
-    ctx.strokeRect(lx, ly + 2, 6, 6);
+    ctx.strokeRect(lx, ly + 2, 8, 8);
     ctx.fillStyle = "#999";
-    ctx.fillText(item.label, lx + 8, ly + 1);
-    lx += ctx.measureText(item.label).width + 14;
-    if (lx > mapW - 40) {
-      lx = 3;
-      ctx.translate(0, 12);
+    ctx.fillText(item.label, lx + 11, ly + 1);
+    lx += ctx.measureText(item.label).width + 18;
+    if (lx > mapW - 60) {
+      lx = 4;
+      ctx.translate(0, 16);
     }
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -2378,6 +2411,7 @@ var Game = class {
     this.chaseStartTime = performance.now();
     this.elapsedTime = 0;
     this.tickCount = 0;
+    this.map.randomizeExtractionPoints();
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
     this.player.pos = { ...spawnWorld };
     this.player.facing = { x: 0, y: -1 };

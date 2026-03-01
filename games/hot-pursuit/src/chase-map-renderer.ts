@@ -5,7 +5,7 @@
 import { TileType, Position } from './types';
 import { ReplaySummary } from './replay-summarizer';
 
-const SCALE = 4; // pixels per tile
+const SCALE = 8; // pixels per tile
 
 const TILE_COLORS: Record<TileType, string> = {
   [TileType.ROAD]: '#2a2a2a',
@@ -37,7 +37,7 @@ export function renderChaseMap(
 ): string {
   const mapW = cols * SCALE;
   const mapH = rows * SCALE;
-  const legendH = 36; // space for legend below map
+  const legendH = 48; // space for legend below map
   const canvas = document.createElement('canvas');
   canvas.width = mapW;
   canvas.height = mapH + legendH;
@@ -59,9 +59,8 @@ export function renderChaseMap(
 
   // 2. Draw player path (green) + dots at each waypoint
   if (playerWaypoints.length > 0) {
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.globalAlpha = 1;
-    // Lines between waypoints
     for (let i = 1; i < playerWaypoints.length; i++) {
       const prev = toCanvas(playerWaypoints[i - 1].pos);
       const curr = toCanvas(playerWaypoints[i].pos);
@@ -71,21 +70,19 @@ export function renderChaseMap(
       ctx.lineTo(curr.x, curr.y);
       ctx.stroke();
     }
-    // Dots at each waypoint
     for (const wp of playerWaypoints) {
       const p = toCanvas(wp.pos);
       ctx.fillStyle = '#33ff33';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
   // 3. Draw officer path (colored by state) + dots at each waypoint
   if (officerWaypoints.length > 0) {
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.globalAlpha = 1;
-    // Lines between waypoints
     for (let i = 1; i < officerWaypoints.length; i++) {
       const prev = toCanvas(officerWaypoints[i - 1].pos);
       const curr = toCanvas(officerWaypoints[i].pos);
@@ -95,12 +92,11 @@ export function renderChaseMap(
       ctx.lineTo(curr.x, curr.y);
       ctx.stroke();
     }
-    // Dots at each waypoint
     for (const wp of officerWaypoints) {
       const p = toCanvas(wp.pos);
       ctx.fillStyle = STATE_COLORS[wp.state] ?? '#888';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -127,12 +123,12 @@ export function renderChaseMap(
   if (playerWaypoints.length > 0) {
     const ps = toCanvas(playerWaypoints[0].pos);
     ctx.fillStyle = '#33ff33';
-    ctx.fillRect(ps.x - 2, ps.y - 2, 4, 4);
+    ctx.fillRect(ps.x - 3, ps.y - 3, 6, 6);
   }
   if (officerWaypoints.length > 0) {
     const os = toCanvas(officerWaypoints[0].pos);
     ctx.fillStyle = STATE_COLORS[officerWaypoints[0].state] ?? '#888';
-    ctx.fillRect(os.x - 2, os.y - 2, 4, 4);
+    ctx.fillRect(os.x - 3, os.y - 3, 6, 6);
   }
 
   // 6. Mark extraction points
@@ -140,44 +136,44 @@ export function renderChaseMap(
     for (let c = 0; c < cols; c++) {
       if (tiles[r][c] === TileType.EXTRACTION) {
         ctx.strokeStyle = '#33ff33';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(c * SCALE, r * SCALE, SCALE, SCALE);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(c * SCALE + 1, r * SCALE + 1, SCALE - 2, SCALE - 2);
       }
     }
   }
 
   // 7. Draw legend below map
-  const ly = mapH + 2;
+  const ly = mapH + 4;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, mapH, mapW, legendH);
-  ctx.font = '7px monospace';
+  ctx.font = '10px monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
   const items: Array<{ color: string; label: string }> = [
-    { color: '#1a1a2e', label: 'Building (impassable, blocks LOS)' },
-    { color: '#2a2a2a', label: 'Road (passable)' },
-    { color: '#1e1e1e', label: 'Alley (passable)' },
-    { color: '#33ff33', label: 'Suspect' },
+    { color: '#1a1a2e', label: 'Building (blocks LOS)' },
+    { color: '#2a2a2a', label: 'Road' },
+    { color: '#1e1e1e', label: 'Alley' },
+    { color: '#33ff33', label: 'Suspect path' },
+    { color: '#aa99ff', label: 'Patrol' },
     { color: '#ff4444', label: 'Pursuing' },
     { color: '#ffcc33', label: 'Searching' },
-    { color: '#aa99ff', label: 'Patrol' },
   ];
 
-  let lx = 3;
+  let lx = 4;
   for (const item of items) {
     ctx.fillStyle = item.color;
-    ctx.fillRect(lx, ly + 2, 6, 6);
+    ctx.fillRect(lx, ly + 2, 8, 8);
     ctx.strokeStyle = '#555';
     ctx.lineWidth = 0.5;
-    ctx.strokeRect(lx, ly + 2, 6, 6);
+    ctx.strokeRect(lx, ly + 2, 8, 8);
     ctx.fillStyle = '#999';
-    ctx.fillText(item.label, lx + 8, ly + 1);
-    lx += ctx.measureText(item.label).width + 14;
+    ctx.fillText(item.label, lx + 11, ly + 1);
+    lx += ctx.measureText(item.label).width + 18;
     // Wrap to second row if needed
-    if (lx > mapW - 40) {
-      lx = 3;
-      ctx.translate(0, 12);
+    if (lx > mapW - 60) {
+      lx = 4;
+      ctx.translate(0, 16);
     }
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
