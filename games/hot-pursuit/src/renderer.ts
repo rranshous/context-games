@@ -2,7 +2,7 @@
 
 import { Position, TileType, GameConfig, DEFAULT_CONFIG, PoliceEntity } from './types';
 import { TileMap } from './map';
-import { StrategyBoardData } from './reflection';
+import { TurnUpdate } from './reflection';
 import { Soma } from './soma';
 
 // Color palette — early GTA / retro feel
@@ -324,7 +324,7 @@ export class Renderer {
     if (overlay) overlay.classList.remove('visible');
   }
 
-  // ── Reflection UI ──
+  // ── Reflection UI (unified live view) ──
 
   showReflection(_status: string, somas: Soma[]): void {
     const overlay = document.getElementById('reflection-overlay');
@@ -334,32 +334,39 @@ export class Renderer {
     const content = document.getElementById('reflection-content');
     if (content) {
       const cards = somas.map(s => `
-        <div id="reflect-card-${s.id}" class="reflection-map-card">
-          <div class="reflection-map-header">
-            <span class="reflection-map-label">${escapeHtml(s.name)}</span>
-            <span id="reflect-status-${s.id}" class="reflection-map-status active">⟳ waiting</span>
+        <div id="reflect-card-${s.id}" class="reflection-card">
+          <div class="reflection-card-header">
+            <span class="reflection-card-label">${escapeHtml(s.name)}</span>
+            <span id="reflect-status-${s.id}" class="reflection-card-status active">thinking...</span>
           </div>
-          <div id="reflect-map-${s.id}"></div>
+          <div id="reflect-map-${s.id}" class="reflection-card-map"></div>
+          <div id="reflect-content-${s.id}" class="reflection-card-content"></div>
         </div>
       `).join('');
 
       content.innerHTML = `
-        <div class="reflection-map-grid">${cards}</div>
+        <div class="reflection-title">DEBRIEF</div>
+        <div class="reflection-card-grid">${cards}</div>
+        <div id="reflection-done-prompt" class="reflection-prompt" style="display:none;">PRESS SPACE TO BEGIN NEXT CHASE</div>
       `;
     }
   }
 
   updateReflectionProgress(actantId: string, status: string, _somas: Soma[], chaseMapBase64?: string): void {
-    // Update status indicator
     const statusEl = document.getElementById(`reflect-status-${actantId}`);
     if (statusEl) {
-      const statusIcon = status === 'reflecting' ? '⟳' : status === 'complete' ? '✓' : '✗';
-      const statusClass = status === 'reflecting' ? 'active' : status === 'complete' ? 'done' : 'error';
-      statusEl.className = `reflection-map-status ${statusClass}`;
-      statusEl.textContent = `${statusIcon} ${status}`;
+      if (status === 'reflecting') {
+        statusEl.className = 'reflection-card-status active';
+        statusEl.textContent = 'thinking...';
+      } else if (status === 'complete') {
+        statusEl.className = 'reflection-card-status done';
+        statusEl.textContent = 'done';
+      } else {
+        statusEl.className = 'reflection-card-status error';
+        statusEl.textContent = 'failed';
+      }
     }
 
-    // Update card border
     const card = document.getElementById(`reflect-card-${actantId}`);
     if (card) {
       card.classList.remove('done', 'error');
@@ -367,68 +374,63 @@ export class Renderer {
       if (status === 'failed') card.classList.add('error');
     }
 
-    // Show this officer's chase map image
     if (chaseMapBase64) {
       const mapEl = document.getElementById(`reflect-map-${actantId}`);
       if (mapEl) {
-        mapEl.innerHTML = `<img src="data:image/png;base64,${chaseMapBase64}" alt="Chase map for ${actantId}">`;
+        mapEl.innerHTML = `<img src="data:image/png;base64,${chaseMapBase64}" alt="Chase map">`;
       }
     }
   }
 
-  showStrategyBoard(data: StrategyBoardData): void {
-    const content = document.getElementById('reflection-content');
-    if (!content) return;
+  appendTurnContent(update: TurnUpdate): void {
+    const contentEl = document.getElementById(`reflect-content-${update.actantId}`);
+    if (!contentEl) return;
 
-    const officerCards = data.officers.map(o => {
-      // Build changes summary
-      const changes: string[] = [];
-      if (o.handlersUpdated) changes.push('Updated signal handlers');
-      if (o.memoryUpdated) changes.push('Updated memory');
-      if (o.toolsAdopted.length > 0) changes.push(`Adopted tools: ${o.toolsAdopted.join(', ')}`);
+    // Append reasoning text
+    if (update.newText.trim()) {
+      const textDiv = document.createElement('div');
+      textDiv.className = 'reflection-text-chunk';
+      textDiv.innerHTML = renderMarkdown(update.newText);
+      contentEl.appendChild(textDiv);
+    }
 
-      const changesHtml = changes.length > 0
-        ? changes.map(c => `<div class="strategy-change">${c}</div>`).join('')
-        : `<div class="strategy-no-update">No changes made</div>`;
+    // Append tool call badges
+    for (const tc of update.toolCalls) {
+      const badge = document.createElement('div');
+      badge.className = `reflection-tool-badge ${toolBadgeClass(tc.name)} ${tc.result.success ? '' : 'failed'}`;
 
-      // Handler code preview (if updated)
-      const handlerHtml = o.handlersUpdated && o.handlerCodePreview
-        ? `<details class="strategy-details">
-            <summary>Signal handler code</summary>
-            <pre class="strategy-code">${escapeHtml(o.handlerCodePreview)}</pre>
-          </details>`
-        : '';
+      const label = toolBadgeLabel(tc.name, tc.input, tc.result);
+      badge.innerHTML = label;
 
-      // Memory preview (if updated)
-      const memoryHtml = o.memoryUpdated && o.memoryPreview
-        ? `<details class="strategy-details">
-            <summary>Memory</summary>
-            <div class="strategy-memory">${escapeHtml(o.memoryPreview)}</div>
-          </details>`
-        : '';
+      // Collapsible detail for handlers and memory
+      if (tc.result.success) {
+        if (tc.name === 'update_signal_handlers' && tc.input.handlers_code) {
+          const details = document.createElement('details');
+          details.className = 'reflection-tool-details';
+          details.innerHTML = `<summary>view code</summary><pre class="strategy-code">${escapeHtml(tc.input.handlers_code as string)}</pre>`;
+          badge.appendChild(details);
+        } else if (tc.name === 'update_memory' && tc.input.memory_content) {
+          const details = document.createElement('details');
+          details.className = 'reflection-tool-details';
+          details.innerHTML = `<summary>view memory</summary><div class="strategy-memory">${escapeHtml(tc.input.memory_content as string)}</div>`;
+          badge.appendChild(details);
+        }
+      }
 
-      return `
-        <div class="strategy-officer">
-          <div class="strategy-name">${escapeHtml(o.name)}</div>
-          <div class="strategy-nature">${escapeHtml(o.nature)}</div>
-          <div class="strategy-changes">${changesHtml}</div>
-          ${o.reasoning
-            ? `<div class="strategy-reasoning">${renderMarkdown(o.reasoning)}</div>`
-            : ''
-          }
-          ${handlerHtml}
-          ${memoryHtml}
-          <div class="strategy-tools">Tools: ${o.toolCount}</div>
-        </div>
-      `;
-    }).join('');
+      contentEl.appendChild(badge);
+    }
 
-    content.innerHTML = `
-      <div class="reflection-title">STRATEGY BOARD</div>
-      <div class="reflection-subtitle">Run #${data.runId} — ${data.outcome.toUpperCase()}</div>
-      <div class="strategy-officers">${officerCards}</div>
-      <div class="reflection-prompt">PRESS SPACE TO BEGIN NEXT CHASE</div>
-    `;
+    // Auto-scroll to bottom
+    const overlay = document.getElementById('reflection-overlay');
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  }
+
+  showReflectionComplete(): void {
+    const prompt = document.getElementById('reflection-done-prompt');
+    if (prompt) prompt.style.display = '';
+    // Scroll to show the prompt
+    const overlay = document.getElementById('reflection-overlay');
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
   }
 
   showReflectionError(error: string): void {
@@ -437,7 +439,7 @@ export class Renderer {
 
     content.innerHTML = `
       <div class="reflection-title">DEBRIEF FAILED</div>
-      <div class="reflection-error">${error.slice(0, 200)}</div>
+      <div class="reflection-error">${escapeHtml(error.slice(0, 200))}</div>
       <div class="reflection-subtitle">Officers will use their current tactics.</div>
       <div class="reflection-prompt">PRESS SPACE TO CONTINUE</div>
     `;
@@ -457,6 +459,47 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function toolBadgeClass(name: string): string {
+  switch (name) {
+    case 'update_signal_handlers': return 'badge-handlers';
+    case 'update_memory': return 'badge-memory';
+    case 'adopt_tools': return 'badge-tools';
+    case 'discover_tools': return 'badge-discover';
+    case 'query_replay': return 'badge-replay';
+    default: return '';
+  }
+}
+
+function toolBadgeLabel(
+  name: string,
+  input: Record<string, unknown>,
+  result: { success: boolean; data?: unknown; error?: string },
+): string {
+  if (!result.success) {
+    return `<span class="badge-icon">&#x2717;</span> ${escapeHtml(name)}: ${escapeHtml(result.error || 'failed')}`;
+  }
+  switch (name) {
+    case 'update_signal_handlers':
+      return `<span class="badge-icon">&#x2714;</span> Updated signal handlers`;
+    case 'update_memory':
+      return `<span class="badge-icon">&#x2714;</span> Updated memory`;
+    case 'adopt_tools': {
+      const data = result.data as { adopted?: string[] } | undefined;
+      const adopted = data?.adopted ?? [];
+      return `<span class="badge-icon">&#x2714;</span> Adopted: ${adopted.map(t => escapeHtml(t)).join(', ')}`;
+    }
+    case 'discover_tools':
+      return `<span class="badge-icon">&#x1F50D;</span> Discovered available tools`;
+    case 'query_replay': {
+      const start = input.start_tick ?? '?';
+      const end = input.end_tick ?? '?';
+      return `<span class="badge-icon">&#x1F50D;</span> Reviewed ticks ${start}-${end}`;
+    }
+    default:
+      return escapeHtml(name);
+  }
 }
 
 /** Lightweight markdown → HTML for Claude's typical output subset. */

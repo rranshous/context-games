@@ -978,6 +978,12 @@ function recordChaseInSoma(soma, entry) {
     totalChases: soma.chaseHistory.length
   }));
 }
+function resetSomas() {
+  localStorage.removeItem(STORAGE_KEY);
+  console.log(JSON.stringify({
+    _hp: "somas_reset"
+  }));
+}
 
 // src/replay.ts
 var ReplayRecorder = class {
@@ -1370,7 +1376,7 @@ var Renderer = class {
     const overlay = document.getElementById("game-over-overlay");
     if (overlay) overlay.classList.remove("visible");
   }
-  // ── Reflection UI ──
+  // ── Reflection UI (unified live view) ──
   showReflection(_status, somas) {
     const overlay = document.getElementById("reflection-overlay");
     if (!overlay) return;
@@ -1378,26 +1384,35 @@ var Renderer = class {
     const content = document.getElementById("reflection-content");
     if (content) {
       const cards = somas.map((s) => `
-        <div id="reflect-card-${s.id}" class="reflection-map-card">
-          <div class="reflection-map-header">
-            <span class="reflection-map-label">${escapeHtml(s.name)}</span>
-            <span id="reflect-status-${s.id}" class="reflection-map-status active">\u27F3 waiting</span>
+        <div id="reflect-card-${s.id}" class="reflection-card">
+          <div class="reflection-card-header">
+            <span class="reflection-card-label">${escapeHtml(s.name)}</span>
+            <span id="reflect-status-${s.id}" class="reflection-card-status active">thinking...</span>
           </div>
-          <div id="reflect-map-${s.id}"></div>
+          <div id="reflect-map-${s.id}" class="reflection-card-map"></div>
+          <div id="reflect-content-${s.id}" class="reflection-card-content"></div>
         </div>
       `).join("");
       content.innerHTML = `
-        <div class="reflection-map-grid">${cards}</div>
+        <div class="reflection-title">DEBRIEF</div>
+        <div class="reflection-card-grid">${cards}</div>
+        <div id="reflection-done-prompt" class="reflection-prompt" style="display:none;">PRESS SPACE TO BEGIN NEXT CHASE</div>
       `;
     }
   }
   updateReflectionProgress(actantId, status, _somas, chaseMapBase64) {
     const statusEl = document.getElementById(`reflect-status-${actantId}`);
     if (statusEl) {
-      const statusIcon = status === "reflecting" ? "\u27F3" : status === "complete" ? "\u2713" : "\u2717";
-      const statusClass = status === "reflecting" ? "active" : status === "complete" ? "done" : "error";
-      statusEl.className = `reflection-map-status ${statusClass}`;
-      statusEl.textContent = `${statusIcon} ${status}`;
+      if (status === "reflecting") {
+        statusEl.className = "reflection-card-status active";
+        statusEl.textContent = "thinking...";
+      } else if (status === "complete") {
+        statusEl.className = "reflection-card-status done";
+        statusEl.textContent = "done";
+      } else {
+        statusEl.className = "reflection-card-status error";
+        statusEl.textContent = "failed";
+      }
     }
     const card = document.getElementById(`reflect-card-${actantId}`);
     if (card) {
@@ -1408,52 +1423,54 @@ var Renderer = class {
     if (chaseMapBase64) {
       const mapEl = document.getElementById(`reflect-map-${actantId}`);
       if (mapEl) {
-        mapEl.innerHTML = `<img src="data:image/png;base64,${chaseMapBase64}" alt="Chase map for ${actantId}">`;
+        mapEl.innerHTML = `<img src="data:image/png;base64,${chaseMapBase64}" alt="Chase map">`;
       }
     }
   }
-  showStrategyBoard(data) {
-    const content = document.getElementById("reflection-content");
-    if (!content) return;
-    const officerCards = data.officers.map((o) => {
-      const changes = [];
-      if (o.handlersUpdated) changes.push("Updated signal handlers");
-      if (o.memoryUpdated) changes.push("Updated memory");
-      if (o.toolsAdopted.length > 0) changes.push(`Adopted tools: ${o.toolsAdopted.join(", ")}`);
-      const changesHtml = changes.length > 0 ? changes.map((c) => `<div class="strategy-change">${c}</div>`).join("") : `<div class="strategy-no-update">No changes made</div>`;
-      const handlerHtml = o.handlersUpdated && o.handlerCodePreview ? `<details class="strategy-details">
-            <summary>Signal handler code</summary>
-            <pre class="strategy-code">${escapeHtml(o.handlerCodePreview)}</pre>
-          </details>` : "";
-      const memoryHtml = o.memoryUpdated && o.memoryPreview ? `<details class="strategy-details">
-            <summary>Memory</summary>
-            <div class="strategy-memory">${escapeHtml(o.memoryPreview)}</div>
-          </details>` : "";
-      return `
-        <div class="strategy-officer">
-          <div class="strategy-name">${escapeHtml(o.name)}</div>
-          <div class="strategy-nature">${escapeHtml(o.nature)}</div>
-          <div class="strategy-changes">${changesHtml}</div>
-          ${o.reasoning ? `<div class="strategy-reasoning">${renderMarkdown(o.reasoning)}</div>` : ""}
-          ${handlerHtml}
-          ${memoryHtml}
-          <div class="strategy-tools">Tools: ${o.toolCount}</div>
-        </div>
-      `;
-    }).join("");
-    content.innerHTML = `
-      <div class="reflection-title">STRATEGY BOARD</div>
-      <div class="reflection-subtitle">Run #${data.runId} \u2014 ${data.outcome.toUpperCase()}</div>
-      <div class="strategy-officers">${officerCards}</div>
-      <div class="reflection-prompt">PRESS SPACE TO BEGIN NEXT CHASE</div>
-    `;
+  appendTurnContent(update) {
+    const contentEl = document.getElementById(`reflect-content-${update.actantId}`);
+    if (!contentEl) return;
+    if (update.newText.trim()) {
+      const textDiv = document.createElement("div");
+      textDiv.className = "reflection-text-chunk";
+      textDiv.innerHTML = renderMarkdown(update.newText);
+      contentEl.appendChild(textDiv);
+    }
+    for (const tc of update.toolCalls) {
+      const badge = document.createElement("div");
+      badge.className = `reflection-tool-badge ${toolBadgeClass(tc.name)} ${tc.result.success ? "" : "failed"}`;
+      const label = toolBadgeLabel(tc.name, tc.input, tc.result);
+      badge.innerHTML = label;
+      if (tc.result.success) {
+        if (tc.name === "update_signal_handlers" && tc.input.handlers_code) {
+          const details = document.createElement("details");
+          details.className = "reflection-tool-details";
+          details.innerHTML = `<summary>view code</summary><pre class="strategy-code">${escapeHtml(tc.input.handlers_code)}</pre>`;
+          badge.appendChild(details);
+        } else if (tc.name === "update_memory" && tc.input.memory_content) {
+          const details = document.createElement("details");
+          details.className = "reflection-tool-details";
+          details.innerHTML = `<summary>view memory</summary><div class="strategy-memory">${escapeHtml(tc.input.memory_content)}</div>`;
+          badge.appendChild(details);
+        }
+      }
+      contentEl.appendChild(badge);
+    }
+    const overlay = document.getElementById("reflection-overlay");
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  }
+  showReflectionComplete() {
+    const prompt = document.getElementById("reflection-done-prompt");
+    if (prompt) prompt.style.display = "";
+    const overlay = document.getElementById("reflection-overlay");
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
   }
   showReflectionError(error) {
     const content = document.getElementById("reflection-content");
     if (!content) return;
     content.innerHTML = `
       <div class="reflection-title">DEBRIEF FAILED</div>
-      <div class="reflection-error">${error.slice(0, 200)}</div>
+      <div class="reflection-error">${escapeHtml(error.slice(0, 200))}</div>
       <div class="reflection-subtitle">Officers will use their current tactics.</div>
       <div class="reflection-prompt">PRESS SPACE TO CONTINUE</div>
     `;
@@ -1465,6 +1482,47 @@ var Renderer = class {
 };
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function toolBadgeClass(name) {
+  switch (name) {
+    case "update_signal_handlers":
+      return "badge-handlers";
+    case "update_memory":
+      return "badge-memory";
+    case "adopt_tools":
+      return "badge-tools";
+    case "discover_tools":
+      return "badge-discover";
+    case "query_replay":
+      return "badge-replay";
+    default:
+      return "";
+  }
+}
+function toolBadgeLabel(name, input, result) {
+  if (!result.success) {
+    return `<span class="badge-icon">&#x2717;</span> ${escapeHtml(name)}: ${escapeHtml(result.error || "failed")}`;
+  }
+  switch (name) {
+    case "update_signal_handlers":
+      return `<span class="badge-icon">&#x2714;</span> Updated signal handlers`;
+    case "update_memory":
+      return `<span class="badge-icon">&#x2714;</span> Updated memory`;
+    case "adopt_tools": {
+      const data = result.data;
+      const adopted = data?.adopted ?? [];
+      return `<span class="badge-icon">&#x2714;</span> Adopted: ${adopted.map((t) => escapeHtml(t)).join(", ")}`;
+    }
+    case "discover_tools":
+      return `<span class="badge-icon">&#x1F50D;</span> Discovered available tools`;
+    case "query_replay": {
+      const start = input.start_tick ?? "?";
+      const end = input.end_tick ?? "?";
+      return `<span class="badge-icon">&#x1F50D;</span> Reviewed ticks ${start}-${end}`;
+    }
+    default:
+      return escapeHtml(name);
+  }
 }
 function renderMarkdown(md) {
   const escaped = escapeHtml(md);
@@ -1890,7 +1948,7 @@ Now do the following, in order:
 
 DO NOT just describe what you would change. CALL THE TOOLS. Your written analysis means nothing if you don't call update_signal_handlers.`;
 }
-async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = "claude-sonnet-4-20250514") {
+async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = "claude-sonnet-4-20250514", onTurnUpdate) {
   const result = {
     actantId: soma.id,
     success: false,
@@ -1937,9 +1995,12 @@ async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = 
       totalOutput += response.usage.output_tokens;
       const toolResults = [];
       let hasToolUse = false;
+      let turnText = "";
+      const turnToolCalls = [];
       for (const block of response.content) {
         if (block.type === "text" && block.text) {
           result.reasoning += block.text + "\n";
+          turnText += block.text + "\n";
         }
         if (block.type === "tool_use" && block.name && block.input) {
           hasToolUse = true;
@@ -1955,7 +2016,20 @@ async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = 
             tool_use_id: block.id,
             content: JSON.stringify(toolResult)
           });
+          turnToolCalls.push({
+            name: block.name,
+            input: block.input,
+            result: toolResult
+          });
         }
+      }
+      if (onTurnUpdate) {
+        onTurnUpdate({
+          actantId: soma.id,
+          turnNum: turns,
+          newText: turnText,
+          toolCalls: turnToolCalls
+        });
       }
       if (!hasToolUse || response.stop_reason === "end_turn") {
         break;
@@ -2165,7 +2239,7 @@ async function callAnthropicAPI(endpoint, body) {
     return null;
   }
 }
-async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress) {
+async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate) {
   const promises = somas.map(async (soma) => {
     const summary = summarizeReplayForActant(replay, soma);
     const chaseMapBase64 = renderChaseMap(
@@ -2178,31 +2252,11 @@ async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onP
       mapInfo.tileSize
     );
     if (onProgress) onProgress(soma.id, "reflecting", chaseMapBase64);
-    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model);
+    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model, onTurnUpdate);
     if (onProgress) onProgress(soma.id, result.success ? "complete" : "failed");
     return result;
   });
-  const results = await Promise.all(promises);
-  const strategyBoard = buildStrategyBoardData(somas, results, replay);
-  return { results, strategyBoard };
-}
-function buildStrategyBoardData(somas, results, replay) {
-  return {
-    runId: replay.runId,
-    outcome: replay.outcome,
-    officers: somas.map((soma, i) => ({
-      id: soma.id,
-      name: soma.name,
-      nature: soma.nature,
-      handlersUpdated: results[i]?.handlersUpdated ?? false,
-      memoryUpdated: results[i]?.memoryUpdated ?? false,
-      toolsAdopted: results[i]?.toolsAdopted ?? [],
-      reasoning: results[i]?.reasoning ?? "",
-      memoryPreview: soma.memory,
-      handlerCodePreview: soma.signalHandlers,
-      toolCount: soma.tools.length
-    }))
-  };
+  return Promise.all(promises);
 }
 
 // src/game.ts
@@ -2242,6 +2296,15 @@ var Game = class {
     this.somas = loadSomas(policeCount);
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
     this.player = new Player(spawnWorld, this.config);
+    const resetBtn = document.getElementById("reset-btn");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (confirm("Reset all officers to defaults? This clears all learned behavior.")) {
+          resetSomas();
+          location.reload();
+        }
+      });
+    }
     console.log(JSON.stringify({
       _hp: "init",
       phase: 2,
@@ -2421,7 +2484,7 @@ var Game = class {
       somaCount: this.somas.length
     }));
     try {
-      const { results, strategyBoard } = await reflectAllActants(
+      const results = await reflectAllActants(
         this.somas,
         this.lastReplay,
         API_ENDPOINT,
@@ -2435,6 +2498,9 @@ var Game = class {
         // use default model
         (actantId, status, chaseMapBase64) => {
           this.renderer.updateReflectionProgress(actantId, status, this.somas, chaseMapBase64);
+        },
+        (update) => {
+          this.renderer.appendTurnContent(update);
         }
       );
       saveSomas(this.somas);
@@ -2451,7 +2517,7 @@ var Game = class {
           tokens: r.tokenUsage
         }))
       }));
-      this.renderer.showStrategyBoard(strategyBoard);
+      this.renderer.showReflectionComplete();
       await this.waitForSpace();
     } catch (err) {
       console.log(JSON.stringify({

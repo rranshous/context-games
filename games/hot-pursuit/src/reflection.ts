@@ -219,6 +219,17 @@ export interface ReflectionResult {
   tokenUsage?: { input: number; output: number };
 }
 
+export interface TurnUpdate {
+  actantId: string;
+  turnNum: number;
+  newText: string;
+  toolCalls: Array<{
+    name: string;
+    input: Record<string, unknown>;
+    result: { success: boolean; data?: unknown; error?: string };
+  }>;
+}
+
 interface AnthropicMessage {
   role: 'user' | 'assistant';
   content: string | AnthropicContentBlock[];
@@ -259,6 +270,7 @@ export async function reflectActant(
   apiEndpoint: string,
   chaseMapBase64: string,
   model: string = 'claude-sonnet-4-20250514',
+  onTurnUpdate?: (update: TurnUpdate) => void,
 ): Promise<ReflectionResult> {
   const result: ReflectionResult = {
     actantId: soma.id,
@@ -314,13 +326,16 @@ export async function reflectActant(
       totalInput += response.usage.input_tokens;
       totalOutput += response.usage.output_tokens;
 
-      // Process the response
+      // Process the response — collect per-turn data for live UI
       const toolResults: AnthropicContentBlock[] = [];
       let hasToolUse = false;
+      let turnText = '';
+      const turnToolCalls: TurnUpdate['toolCalls'] = [];
 
       for (const block of response.content) {
         if (block.type === 'text' && block.text) {
           result.reasoning += block.text + '\n';
+          turnText += block.text + '\n';
         }
 
         if (block.type === 'tool_use' && block.name && block.input) {
@@ -337,7 +352,22 @@ export async function reflectActant(
             tool_use_id: block.id,
             content: JSON.stringify(toolResult),
           });
+          turnToolCalls.push({
+            name: block.name,
+            input: block.input,
+            result: toolResult,
+          });
         }
+      }
+
+      // Fire per-turn callback for live UI
+      if (onTurnUpdate) {
+        onTurnUpdate({
+          actantId: soma.id,
+          turnNum: turns,
+          newText: turnText,
+          toolCalls: turnToolCalls,
+        });
       }
 
       // If no tool use, we're done
@@ -620,7 +650,7 @@ async function callAnthropicAPI(
 
 /**
  * Run reflection for all actants in parallel.
- * Returns results and a combined strategy board narrative.
+ * Fires onTurnUpdate after each API turn for live UI updates.
  */
 export async function reflectAllActants(
   somas: Soma[],
@@ -629,10 +659,8 @@ export async function reflectAllActants(
   mapInfo: MapInfo,
   model?: string,
   onProgress?: (actantId: string, status: string, chaseMapBase64?: string) => void,
-): Promise<{
-  results: ReflectionResult[];
-  strategyBoard: StrategyBoardData;
-}> {
+  onTurnUpdate?: (update: TurnUpdate) => void,
+): Promise<ReflectionResult[]> {
   const promises = somas.map(async (soma) => {
     // Generate this officer's chase map before reflecting
     const summary = summarizeReplayForActant(replay, soma);
@@ -644,59 +672,12 @@ export async function reflectAllActants(
 
     if (onProgress) onProgress(soma.id, 'reflecting', chaseMapBase64);
 
-    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model);
+    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model, onTurnUpdate);
 
     if (onProgress) onProgress(soma.id, result.success ? 'complete' : 'failed');
 
     return result;
   });
 
-  const results = await Promise.all(promises);
-
-  // Build strategy board from results
-  const strategyBoard = buildStrategyBoardData(somas, results, replay);
-
-  return { results, strategyBoard };
-}
-
-// ── Strategy Board ──
-
-export interface StrategyBoardData {
-  runId: number;
-  outcome: string;
-  officers: Array<{
-    id: string;
-    name: string;
-    nature: string;
-    handlersUpdated: boolean;
-    memoryUpdated: boolean;
-    toolsAdopted: string[];
-    reasoning: string;
-    memoryPreview: string;
-    handlerCodePreview: string;
-    toolCount: number;
-  }>;
-}
-
-function buildStrategyBoardData(
-  somas: Soma[],
-  results: ReflectionResult[],
-  replay: ChaseReplay,
-): StrategyBoardData {
-  return {
-    runId: replay.runId,
-    outcome: replay.outcome,
-    officers: somas.map((soma, i) => ({
-      id: soma.id,
-      name: soma.name,
-      nature: soma.nature,
-      handlersUpdated: results[i]?.handlersUpdated ?? false,
-      memoryUpdated: results[i]?.memoryUpdated ?? false,
-      toolsAdopted: results[i]?.toolsAdopted ?? [],
-      reasoning: results[i]?.reasoning ?? '',
-      memoryPreview: soma.memory,
-      handlerCodePreview: soma.signalHandlers,
-      toolCount: soma.tools.length,
-    })),
-  };
+  return Promise.all(promises);
 }

@@ -61,14 +61,30 @@
       50% { opacity: 0.3; }
     }
 
-    /* ── Reflection Overlay ── */
+    /* ── Reset Button ── */
+    #reset-btn {
+      position: absolute;
+      top: -28px;
+      right: 0;
+      background: transparent;
+      border: 1px solid #333;
+      color: #666;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #reset-btn:hover { color: #ff3333; border-color: #ff3333; }
+
+    /* ── Reflection Overlay (unified live view) ── */
     #reflection-overlay {
       display: none;
       position: absolute;
       inset: 0;
       background: rgba(0, 0, 0, 0.92);
       overflow-y: auto;
-      padding: 24px;
+      padding: 16px;
     }
     #reflection-overlay.visible { display: block; }
     #reflection-content {
@@ -77,11 +93,11 @@
       margin: 0 auto;
     }
     .reflection-title {
-      font-size: 28px;
+      font-size: 22px;
       font-weight: bold;
       color: #ffaa33;
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
     .reflection-subtitle {
       font-size: 14px;
@@ -89,146 +105,132 @@
       text-align: center;
       margin-bottom: 20px;
     }
-    .reflection-officer {
-      display: flex;
-      justify-content: space-between;
-      padding: 6px 12px;
-      margin: 4px 0;
-      background: #111;
-      border-left: 3px solid #333;
-    }
-    .officer-name { color: #aaa; }
-    .officer-status.active { color: #ffaa33; }
-    .officer-status.done { color: #33ff33; }
-    .officer-status.error { color: #ff3333; }
-    .strategy-officers {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin: 16px 0;
-    }
-    .strategy-officer {
-      background: #111;
-      border: 1px solid #222;
-      padding: 16px;
-      border-left: 3px solid #ffaa33;
-    }
-    .strategy-name {
-      color: #ffaa33;
-      font-weight: bold;
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-    .strategy-nature {
-      color: #666;
-      font-size: 12px;
-      font-style: italic;
-      margin-bottom: 10px;
-    }
-    .strategy-changes { margin-bottom: 10px; }
-    .strategy-change { color: #33ff33; font-size: 13px; padding: 2px 0; }
-    .strategy-no-update { color: #555; font-size: 13px; }
-    .strategy-reasoning {
-      color: #ccc;
-      font-size: 13px;
-      line-height: 1.5;
-      margin-top: 8px;
-      padding: 8px 12px;
-      background: #0a0a0a;
-      border-left: 2px solid #333;
-    }
-    .strategy-reasoning h2 { color: #ffaa33; font-size: 16px; margin: 12px 0 6px; }
-    .strategy-reasoning h3 { color: #ffaa33; font-size: 14px; margin: 10px 0 4px; }
-    .strategy-reasoning h4 { color: #ddd; font-size: 13px; margin: 8px 0 4px; }
-    .strategy-reasoning strong { color: #fff; }
-    .strategy-reasoning em { color: #aaa; }
-    .strategy-reasoning ul { padding-left: 16px; margin: 4px 0; }
-    .strategy-reasoning li { margin: 2px 0; }
-    .strategy-reasoning code {
-      background: #1a1a2e;
-      padding: 1px 4px;
-      font-size: 12px;
-      color: #88aaff;
-    }
-    .strategy-reasoning p { margin: 6px 0; }
-    .strategy-code {
-      background: #0d0d1a;
-      color: #88aaff;
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      padding: 10px;
-      overflow-x: auto;
-      white-space: pre;
-      margin: 6px 0;
-      border: 1px solid #222;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .strategy-memory {
-      color: #aaa;
-      font-size: 12px;
-      padding: 8px;
-      background: #0d0d0d;
-      white-space: pre-wrap;
-      border: 1px solid #222;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .reflection-map-grid {
+
+    /* ── Unified officer cards ── */
+    .reflection-card-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin: 12px 0;
+      gap: 10px;
+      margin: 8px 0;
     }
-    .reflection-map-card {
+    .reflection-card {
       background: #111;
       border: 1px solid #222;
+      border-left: 3px solid #ffaa33;
       padding: 8px;
-      text-align: center;
     }
-    .reflection-map-card.done { border-color: #33ff33; }
-    .reflection-map-card.error { border-color: #ff3333; }
-    .reflection-map-card img {
+    .reflection-card.done { border-color: #33ff33; border-left-color: #33ff33; }
+    .reflection-card.error { border-color: #ff3333; border-left-color: #ff3333; }
+    .reflection-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .reflection-card-label {
+      color: #ffaa33;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .reflection-card-status {
+      font-size: 11px;
+    }
+    .reflection-card-status.active { color: #ffaa33; }
+    .reflection-card-status.done { color: #33ff33; }
+    .reflection-card-status.error { color: #ff3333; }
+    .reflection-card-map {}
+    .reflection-card-map img {
       image-rendering: pixelated;
       width: 100%;
-      max-height: 260px;
+      max-height: 200px;
       object-fit: contain;
       border: 1px solid #333;
       display: block;
     }
-    .reflection-map-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
+    .reflection-card-content {
+      margin-top: 6px;
+      max-height: 300px;
+      overflow-y: auto;
     }
-    .reflection-map-label {
-      color: #aaa;
+
+    /* ── Text chunks from AI reasoning ── */
+    .reflection-text-chunk {
+      color: #bbb;
       font-size: 12px;
-      font-weight: bold;
+      line-height: 1.4;
+      padding: 4px 0;
+      border-bottom: 1px solid #1a1a1a;
     }
-    .reflection-map-status {
+    .reflection-text-chunk h2 { color: #ffaa33; font-size: 14px; margin: 6px 0 4px; }
+    .reflection-text-chunk h3 { color: #ffaa33; font-size: 13px; margin: 6px 0 3px; }
+    .reflection-text-chunk h4 { color: #ddd; font-size: 12px; margin: 4px 0 2px; }
+    .reflection-text-chunk strong { color: #fff; }
+    .reflection-text-chunk em { color: #999; }
+    .reflection-text-chunk ul { padding-left: 14px; margin: 2px 0; }
+    .reflection-text-chunk li { margin: 1px 0; }
+    .reflection-text-chunk code {
+      background: #1a1a2e;
+      padding: 1px 3px;
       font-size: 11px;
+      color: #88aaff;
     }
-    .reflection-map-status.active { color: #ffaa33; }
-    .reflection-map-status.done { color: #33ff33; }
-    .reflection-map-status.error { color: #ff3333; }
-    .strategy-details {
-      margin-top: 8px;
+    .reflection-text-chunk p { margin: 3px 0; }
+
+    /* ── Tool call badges ── */
+    .reflection-tool-badge {
+      font-size: 11px;
+      padding: 4px 8px;
+      margin: 4px 0;
+      border-left: 3px solid #555;
+      background: #0d0d0d;
     }
-    .strategy-details summary {
-      color: #888;
-      font-size: 12px;
+    .reflection-tool-badge .badge-icon { margin-right: 4px; }
+    .reflection-tool-badge.badge-handlers { border-left-color: #33ff33; color: #33ff33; }
+    .reflection-tool-badge.badge-memory { border-left-color: #5599ff; color: #5599ff; }
+    .reflection-tool-badge.badge-tools { border-left-color: #ffaa33; color: #ffaa33; }
+    .reflection-tool-badge.badge-discover { border-left-color: #888; color: #888; }
+    .reflection-tool-badge.badge-replay { border-left-color: #888; color: #888; }
+    .reflection-tool-badge.failed { border-left-color: #ff3333; color: #ff3333; }
+
+    /* ── Collapsible details (shared for code/memory) ── */
+    .reflection-tool-details { margin-top: 4px; }
+    .reflection-tool-details summary {
+      color: #666;
+      font-size: 10px;
       cursor: pointer;
       user-select: none;
     }
-    .strategy-details summary:hover { color: #aaa; }
-    .strategy-tools { color: #555; font-size: 11px; margin-top: 8px; }
+    .reflection-tool-details summary:hover { color: #888; }
+    .strategy-code {
+      background: #0d0d1a;
+      color: #88aaff;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      padding: 6px;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 4px 0;
+      border: 1px solid #222;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .strategy-memory {
+      color: #aaa;
+      font-size: 11px;
+      padding: 6px;
+      background: #0d0d0d;
+      white-space: pre-wrap;
+      border: 1px solid #222;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
     .reflection-prompt {
       text-align: center;
       font-size: 16px;
       color: #888;
-      margin-top: 20px;
+      margin-top: 16px;
+      padding-bottom: 8px;
       animation: blink 1.2s infinite;
     }
     .reflection-error {
@@ -248,6 +250,7 @@
       <span class="status" id="hud-status">RUN: 1</span>
       <span class="timer" id="hud-timer">TIME: 0</span>
     </div>
+    <button id="reset-btn">RESET</button>
     <canvas id="game-canvas"></canvas>
     <div id="game-over-overlay">
       <div class="result" id="result-text"></div>

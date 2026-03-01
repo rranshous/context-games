@@ -170,7 +170,53 @@ Added vision support to the reflection system. Each officer now receives a rende
 - Minor remaining issue: slight scroll still needed on reflection screen, likely padding — not urgent
 
 ### What's Next
-- Remaining scroll on reflection screen could be fixed by reducing overlay padding (24px → smaller)
+- Chase map legend — officers don't understand buildings block LOS (see session below)
 - Phase 4: Communication experiments — debrief sharing, live radio primitives, broadcast dispatch to ally_signal handlers (currently broadcast is a logged no-op in chassis.ts)
 - Tool discovery pacing — currently all 7 discoverable tools available from first reflection, design doc suggests gradual reveal
 - Observe officer evolution across multiple runs — are they actually improving?
+
+## 2026-03-01 — Session 3: Live Reflection UI + Reset Button
+
+### Unified Live Reflection View
+Replaced the two-phase reflection UI (waiting grid → strategy board hard cut) with a single unified view where officer cards progressively fill with content as each API turn completes.
+
+**How it works:**
+- `TurnUpdate` interface added to `reflection.ts` — carries per-turn text + tool call results
+- `reflectActant()` now accepts `onTurnUpdate` callback, fired after each API response
+- Each officer card starts with chase map + "thinking..." status
+- As turns complete (~3-5s each), reasoning text and tool call badges append to the card
+- Tool badges are color-coded: green (handlers), blue (memory), orange (tools adopted), gray (discover/replay)
+- Collapsible `<details>` for handler code and memory previews
+- When all officers finish, "PRESS SPACE TO BEGIN NEXT CHASE" fades in at bottom
+- No more hard cut — the debrief IS the strategy board in its final state
+
+**Removed:**
+- `showStrategyBoard()` method and `StrategyBoardData` interface — no longer needed
+- `buildStrategyBoardData()` function
+- Old strategy board CSS (`.strategy-officers`, `.strategy-officer`, etc.)
+
+### Reset Button
+- Small "RESET" button in the HUD bar (top-right, next to timer)
+- Confirm dialog → `resetSomas()` → `location.reload()`
+- Unobtrusive: transparent background, gray text, red on hover
+
+### Observation: Officers Don't Understand LOS
+After playing several runs, the officers are confused about why they lose the suspect. They write search patterns that assume they can "look harder" near the player's last position, but they don't understand that **buildings block line of sight**. The chase map image doesn't have a legend explaining what the tiles mean.
+
+**Fix needed**: Add a legend to the chase map (or to the reflection prompt) explaining:
+- Dark squares = buildings (block LOS)
+- Gray = roads/alleys (passable, LOS clear)
+- Green squares = extraction points
+- Officer paths are colored by state (purple=patrol, red=pursuing, orange=searching)
+- Player path is green
+
+This should help officers reason about WHY they lost the suspect (cut behind a building) instead of just WHERE.
+
+### Future Idea: Player Powers
+In a larger progression system, the player could unlock abilities like invisibility, speed bursts, or decoys. The officers would have to figure out what's happening — "the suspect just vanished" — and adapt their handlers. This creates a natural difficulty curve where the player gets powers but the officers get smarter. Not pursuing now, but it's a compelling direction for the game's evolution loop.
+
+### What's Next
+- Chase map legend for LOS understanding
+- Phase 4: Communication experiments
+- Tool discovery pacing
+- Observe officer evolution across multiple runs

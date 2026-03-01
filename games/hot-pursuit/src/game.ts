@@ -9,11 +9,11 @@ import { TileMap } from './map';
 import { Player, InputHandler } from './player';
 import { Soma } from './soma';
 import { createPoliceFromSoma, updateSomaPolice, distanceToPlayer } from './soma-police';
-import { loadSomas, saveSomas, recordChaseInSoma } from './persistence';
+import { loadSomas, saveSomas, recordChaseInSoma, resetSomas } from './persistence';
 import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
-import { reflectAllActants, ReflectionResult, StrategyBoardData } from './reflection';
+import { reflectAllActants } from './reflection';
 
 // API endpoint for reflection inference (vanilla platform proxy)
 const API_ENDPOINT = '/api/inference/anthropic/messages';
@@ -60,6 +60,17 @@ export class Game {
     // Initialize player at spawn
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
     this.player = new Player(spawnWorld, this.config);
+
+    // Wire up reset button
+    const resetBtn = document.getElementById('reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (confirm('Reset all officers to defaults? This clears all learned behavior.')) {
+          resetSomas();
+          location.reload();
+        }
+      });
+    }
 
     console.log(JSON.stringify({
       _hp: 'init',
@@ -296,7 +307,7 @@ export class Game {
     }));
 
     try {
-      const { results, strategyBoard } = await reflectAllActants(
+      const results = await reflectAllActants(
         this.somas,
         this.lastReplay,
         API_ENDPOINT,
@@ -309,6 +320,9 @@ export class Game {
         undefined, // use default model
         (actantId, status, chaseMapBase64) => {
           this.renderer.updateReflectionProgress(actantId, status, this.somas, chaseMapBase64);
+        },
+        (update) => {
+          this.renderer.appendTurnContent(update);
         },
       );
 
@@ -329,8 +343,8 @@ export class Game {
         })),
       }));
 
-      // Show strategy board
-      this.renderer.showStrategyBoard(strategyBoard);
+      // Show "press space" prompt — the cards already have all the content
+      this.renderer.showReflectionComplete();
 
       // Wait for player to press space to continue
       await this.waitForSpace();
