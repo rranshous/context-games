@@ -171,7 +171,7 @@ ${summary.keyMoments.map((m, i) =>
   ).join('\n')}
 </chase_replay>
 
-The attached image is a bird's-eye view of the chase. Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments listed above. Green squares = extraction points.
+The attached image is a bird's-eye view of the chase with a legend at the bottom. Dark blue/purple rectangles are BUILDINGS — they block line of sight completely. You can only see the suspect when there is a clear line between you and them with no buildings in the way. When you "lose" the suspect, it is almost always because they moved behind a building, not because they outran you. Gray areas are roads and alleys (open, clear LOS). Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
 
 ${isFirstChase
     ? `This was your first chase. Your default handlers are basic — move toward on sight, go to last known on lost, random patrol otherwise. There's a LOT of room to improve.`

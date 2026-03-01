@@ -1561,11 +1561,12 @@ var STATE_COLORS = {
   searching: "#ffcc33"
 };
 function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, keyMoments, tileSize) {
-  const w = cols * SCALE;
-  const h = rows * SCALE;
+  const mapW = cols * SCALE;
+  const mapH = rows * SCALE;
+  const legendH = 36;
   const canvas2 = document.createElement("canvas");
-  canvas2.width = w;
-  canvas2.height = h;
+  canvas2.width = mapW;
+  canvas2.height = mapH + legendH;
   const ctx = canvas2.getContext("2d");
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -1651,6 +1652,36 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
       }
     }
   }
+  const ly = mapH + 2;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, mapH, mapW, legendH);
+  ctx.font = "7px monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  const items = [
+    { color: "#1a1a2e", label: "Building (blocks LOS)" },
+    { color: "#2a2a2a", label: "Road" },
+    { color: "#33ff33", label: "Player path" },
+    { color: "#ff4444", label: "Pursuing" },
+    { color: "#ffcc33", label: "Searching" },
+    { color: "#aa99ff", label: "Patrol" }
+  ];
+  let lx = 3;
+  for (const item of items) {
+    ctx.fillStyle = item.color;
+    ctx.fillRect(lx, ly + 2, 6, 6);
+    ctx.strokeStyle = "#555";
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(lx, ly + 2, 6, 6);
+    ctx.fillStyle = "#999";
+    ctx.fillText(item.label, lx + 8, ly + 1);
+    lx += ctx.measureText(item.label).width + 14;
+    if (lx > mapW - 40) {
+      lx = 3;
+      ctx.translate(0, 12);
+    }
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   return canvas2.toDataURL("image/png").split(",")[1];
 }
 
@@ -1919,7 +1950,7 @@ ${summary.keyMoments.map(
   ).join("\n")}
 </chase_replay>
 
-The attached image is a bird's-eye view of the chase. Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments listed above. Green squares = extraction points.
+The attached image is a bird's-eye view of the chase with a legend at the bottom. Dark blue/purple rectangles are BUILDINGS \u2014 they block line of sight completely. You can only see the suspect when there is a clear line between you and them with no buildings in the way. When you "lose" the suspect, it is almost always because they moved behind a building, not because they outran you. Gray areas are roads and alleys (open, clear LOS). Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
 
 ${isFirstChase ? `This was your first chase. Your default handlers are basic \u2014 move toward on sight, go to last known on lost, random patrol otherwise. There's a LOT of room to improve.` : `You've now completed ${chaseCount} chases. Review what changed since last time and whether your modifications helped.`}
 

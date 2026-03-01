@@ -35,11 +35,12 @@ export function renderChaseMap(
   keyMoments: ReplaySummary['keyMoments'],
   tileSize: number,
 ): string {
-  const w = cols * SCALE;
-  const h = rows * SCALE;
+  const mapW = cols * SCALE;
+  const mapH = rows * SCALE;
+  const legendH = 36; // space for legend below map
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = mapW;
+  canvas.height = mapH + legendH;
   const ctx = canvas.getContext('2d')!;
 
   // 1. Draw tile grid
@@ -144,6 +145,41 @@ export function renderChaseMap(
       }
     }
   }
+
+  // 7. Draw legend below map
+  const ly = mapH + 2;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, mapH, mapW, legendH);
+  ctx.font = '7px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  const items: Array<{ color: string; label: string }> = [
+    { color: '#1a1a2e', label: 'Building (blocks LOS)' },
+    { color: '#2a2a2a', label: 'Road' },
+    { color: '#33ff33', label: 'Player path' },
+    { color: '#ff4444', label: 'Pursuing' },
+    { color: '#ffcc33', label: 'Searching' },
+    { color: '#aa99ff', label: 'Patrol' },
+  ];
+
+  let lx = 3;
+  for (const item of items) {
+    ctx.fillStyle = item.color;
+    ctx.fillRect(lx, ly + 2, 6, 6);
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(lx, ly + 2, 6, 6);
+    ctx.fillStyle = '#999';
+    ctx.fillText(item.label, lx + 8, ly + 1);
+    lx += ctx.measureText(item.label).width + 14;
+    // Wrap to second row if needed
+    if (lx > mapW - 40) {
+      lx = 3;
+      ctx.translate(0, 12);
+    }
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
 
   return canvas.toDataURL('image/png').split(',')[1];
 }
