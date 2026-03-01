@@ -568,6 +568,15 @@ var ObserverPanel = class {
       this.thinkingEl.style.display = active ? "block" : "none";
     }
   }
+  showError(message) {
+    if (!this.reportsEl) return;
+    if (this.reports.length > 0) return;
+    this.reportsEl.innerHTML = "";
+    const el = document.createElement("div");
+    el.style.cssText = "padding: 12px 10px; color: #f66; font-size: 11px;";
+    el.textContent = message;
+    this.reportsEl.appendChild(el);
+  }
   addReport(tick, report) {
     this.reports.unshift({ tick, report, expanded: false });
     if (this.reports.length > 1) this.reports[1].expanded = false;
@@ -952,7 +961,6 @@ observerPanel.setOnSelectCreature((id) => {
   selectCreature(id);
 });
 var observerEnabled = false;
-var simPaused = false;
 var lastObserverCallMs = 0;
 var observerInFlight = false;
 var lastMaxGeneration = 0;
@@ -969,7 +977,6 @@ function pushObserverEvent(msg) {
 }
 function maybeFireObserver(currentTick) {
   if (!observerEnabled || !observerPanel.isVisible) return;
-  if (simPaused) return;
   if (observerInFlight) return;
   const now = Date.now();
   if (now - lastObserverCallMs < MIN_INTERVAL_MS) return;
@@ -998,6 +1005,8 @@ async function fireObserver(currentTick) {
   if (report) {
     console.log("[OBSERVER] Report:", report.headline, "\u2014", report.mood);
     observerPanel.addReport(currentTick, report);
+  } else {
+    observerPanel.showError("Observer API call failed \u2014 are you logged in at localhost:3000?");
   }
   observerEventBuffer.length = 0;
   recentlyEditedIds.length = 0;
@@ -1049,8 +1058,6 @@ worker.onmessage = (e) => {
     case "log": {
       controls.showLog(event.message);
       console.log(`[SIM] ${event.message}`);
-      if (event.message === "Paused") simPaused = true;
-      else if (event.message === "Resumed") simPaused = false;
       const editMatch = event.message.match(/\[EMBODIMENT\] #(\d+) edited (on_tick|sensors|identity|memory|tools)/);
       if (editMatch) {
         const creatureId = parseInt(editMatch[1], 10);

@@ -259,6 +259,17 @@ export class ObserverPanel {
     }
   }
 
+  showError(message: string): void {
+    if (!this.reportsEl) return;
+    // Only show if no reports yet (don't overwrite existing reports)
+    if (this.reports.length > 0) return;
+    this.reportsEl.innerHTML = '';
+    const el = document.createElement('div');
+    el.style.cssText = 'padding: 12px 10px; color: #f66; font-size: 11px;';
+    el.textContent = message;
+    this.reportsEl.appendChild(el);
+  }
+
   addReport(tick: number, report: ObserverReport): void {
     this.reports.unshift({ tick, report, expanded: false });
     // Expand the latest report automatically

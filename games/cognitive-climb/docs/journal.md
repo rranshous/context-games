@@ -739,3 +739,25 @@ Observer correctly tracks narrative arc across reports, references specific crea
 - **M7** (future): multi-turn consciousness — tool results feed back to model
 - **M8** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
 - **M9** (future): sim depth — seasons, speciation, food chains, save/load
+
+## Session: 2026-03-01 — Observer Bugfixes
+
+Two bugs found and fixed in the observer system:
+
+### Bug 1: `simPaused` flag desync with consciousness system
+
+**Symptom:** Observer never populates when user clicks Pause button at any point during the session, even after resuming. Works fine if only the Observer button is clicked.
+
+**Root cause:** The consciousness system and the user Pause button both call `stopTickLoop()`/`startTickLoop()` in the worker, but only the Pause button sends `'Paused'`/`'Resumed'` log events. If the user clicks Pause during a consciousness brain call (tick loop already stopped), `simPaused` gets set to `true` in main.ts. When consciousness finishes, it calls `startTickLoop()` directly (no log event), so `simPaused` stays `true` forever. The observer's `maybeFireObserver()` exits early at the `simPaused` check.
+
+**Fix:** Removed `simPaused` flag entirely. It was redundant — when the sim is truly paused, no stats events arrive, so `maybeFireObserver` is never called anyway. The check only existed to cause the desync bug.
+
+### Bug 2: Silent observer API failures
+
+**Symptom:** Observer panel shows "Waiting for first observation..." indefinitely when API calls fail (e.g., 401 auth error). No user-visible feedback — errors only in browser console.
+
+**Fix:** Added `ObserverPanel.showError(message)` method. When `callObserverAPI()` returns null, the panel now shows a red error message: "Observer API call failed — are you logged in at localhost:3000?"
+
+### Visualization discussion (not yet implemented)
+
+User interested in a **streamgraph/ThemeRiver** visualization showing behavioral evolution over time — flowing ribbons where each ribbon = an on_tick code variant, width = population count, branching when creatures self-modify and reproduce. Would need a history recorder to sample population state periodically. Discussion paused for next session — key design question: live vs post-hoc vs both.

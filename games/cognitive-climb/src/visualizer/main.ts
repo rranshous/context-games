@@ -120,7 +120,6 @@ observerPanel.setOnSelectCreature((id) => {
 // ── Observer state ──────────────────────────────────────
 
 let observerEnabled = false;
-let simPaused = false;
 let lastObserverCallMs = 0;
 let observerInFlight = false;
 let lastMaxGeneration = 0;
@@ -139,7 +138,6 @@ function pushObserverEvent(msg: string): void {
 
 function maybeFireObserver(currentTick: number): void {
   if (!observerEnabled || !observerPanel.isVisible) return;
-  if (simPaused) return;
   if (observerInFlight) return;
   const now = Date.now();
   if (now - lastObserverCallMs < MIN_INTERVAL_MS) return;
@@ -178,6 +176,8 @@ async function fireObserver(currentTick: number): Promise<void> {
   if (report) {
     console.log('[OBSERVER] Report:', report.headline, '—', report.mood);
     observerPanel.addReport(currentTick, report);
+  } else {
+    observerPanel.showError('Observer API call failed — are you logged in at localhost:3000?');
   }
 
   // Clear buffers after report
@@ -251,10 +251,6 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
     case 'log': {
       controls.showLog(event.message);
       console.log(`[SIM] ${event.message}`);
-
-      // Track pause state
-      if (event.message === 'Paused') simPaused = true;
-      else if (event.message === 'Resumed') simPaused = false;
 
       // Observer: track embodiment edits
       const editMatch = event.message.match(/\[EMBODIMENT\] #(\d+) edited (on_tick|sensors|identity|memory|tools)/);
