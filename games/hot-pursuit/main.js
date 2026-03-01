@@ -15,8 +15,8 @@ var DEFAULT_CONFIG = {
   losRange: 8,
   losAngle: 60,
   survivalTime: 90,
-  viewportWidth: 960,
-  viewportHeight: 640
+  viewportWidth: 480,
+  viewportHeight: 320
 };
 
 // src/map.ts

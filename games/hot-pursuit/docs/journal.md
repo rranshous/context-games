@@ -222,3 +222,29 @@ Added a legend row below the chase map image with color swatches: Building (impa
 - Phase 4: Communication experiments
 - Tool discovery pacing
 - Observe officer evolution across multiple runs — especially whether LOS understanding improves tactics
+
+## 2026-03-01 — Session 4: Fairness + Visual Improvements
+
+### Randomized Extraction Points
+Extraction points were hardcoded at fixed map positions — player could memorize them and beeline every time. Now randomized each chase:
+- Removed hardcoded `3` tiles from `CITY_LAYOUT` (replaced with road)
+- `TileMap.randomizeExtractionPoints()` picks 3 road tiles along map edges (within 2 tiles of border)
+- Minimum 15-tile Manhattan distance between points for good spread
+- Called at the start of every `startChase()`
+
+### Constrained Player Viewport
+Player could see ~40×27 tiles (nearly the whole 40×30 map) — extraction points were trivially visible. Halved the internal render resolution from 960×640 to 480×320 (showing ~20×13 tiles). Canvas CSS-scaled 2× to maintain display size. Player now sees roughly half the map width and under half the height — must explore to find exits.
+
+### Chase Map Fidelity Improvements
+- Scale doubled: 4px/tile → 8px/tile (320×240 image, up from 160×120)
+- Legend font 7px → 10px, swatches 6×6 → 8×8, legend height 36 → 48px
+- Fixed: "Patrol" legend entry was clipped off canvas (4th row exceeded `legendH`)
+- Shortened labels: "Building (blocks LOS)", "Road", "Alley" instead of verbose versions
+- Reordered: officer states grouped together (Patrol, Pursuing, Searching)
+- Path line widths and waypoint dot radii scaled proportionally
+
+### What's Next
+- Phase 4: Communication experiments
+- Tool discovery pacing
+- Observe officer evolution across multiple runs
+- Consider hiding extraction points from minimap for additional challenge
