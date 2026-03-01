@@ -155,9 +155,10 @@ export function renderChaseMap(
   ctx.textBaseline = 'top';
 
   const items: Array<{ color: string; label: string }> = [
-    { color: '#1a1a2e', label: 'Building (blocks LOS)' },
-    { color: '#2a2a2a', label: 'Road' },
-    { color: '#33ff33', label: 'Player path' },
+    { color: '#1a1a2e', label: 'Building (impassable, blocks LOS)' },
+    { color: '#2a2a2a', label: 'Road (passable)' },
+    { color: '#1e1e1e', label: 'Alley (passable)' },
+    { color: '#33ff33', label: 'Suspect' },
     { color: '#ff4444', label: 'Pursuing' },
     { color: '#ffcc33', label: 'Searching' },
     { color: '#aa99ff', label: 'Patrol' },

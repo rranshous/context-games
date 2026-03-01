@@ -215,8 +215,10 @@ This should help officers reason about WHY they lost the suspect (cut behind a b
 ### Future Idea: Player Powers
 In a larger progression system, the player could unlock abilities like invisibility, speed bursts, or decoys. The officers would have to figure out what's happening — "the suspect just vanished" — and adapt their handlers. This creates a natural difficulty curve where the player gets powers but the officers get smarter. Not pursuing now, but it's a compelling direction for the game's evolution loop.
 
+### Chase Map Legend + LOS Explanation
+Added a legend row below the chase map image with color swatches: Building (impassable, blocks LOS), Road (passable), Alley (passable), Suspect path, Pursuing, Searching, Patrol. Updated the reflection prompt to explicitly explain that buildings are impassable and block LOS, roads/alleys are passable and clear, and losing the suspect is almost always because they broke LOS behind a building.
+
 ### What's Next
-- Chase map legend for LOS understanding
 - Phase 4: Communication experiments
 - Tool discovery pacing
-- Observe officer evolution across multiple runs
+- Observe officer evolution across multiple runs — especially whether LOS understanding improves tactics

@@ -1659,9 +1659,10 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   const items = [
-    { color: "#1a1a2e", label: "Building (blocks LOS)" },
-    { color: "#2a2a2a", label: "Road" },
-    { color: "#33ff33", label: "Player path" },
+    { color: "#1a1a2e", label: "Building (impassable, blocks LOS)" },
+    { color: "#2a2a2a", label: "Road (passable)" },
+    { color: "#1e1e1e", label: "Alley (passable)" },
+    { color: "#33ff33", label: "Suspect" },
     { color: "#ff4444", label: "Pursuing" },
     { color: "#ffcc33", label: "Searching" },
     { color: "#aa99ff", label: "Patrol" }
@@ -1950,7 +1951,12 @@ ${summary.keyMoments.map(
   ).join("\n")}
 </chase_replay>
 
-The attached image is a bird's-eye view of the chase with a legend at the bottom. Dark blue/purple rectangles are BUILDINGS \u2014 they block line of sight completely. You can only see the suspect when there is a clear line between you and them with no buildings in the way. When you "lose" the suspect, it is almost always because they moved behind a building, not because they outran you. Gray areas are roads and alleys (open, clear LOS). Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
+The attached image is a bird's-eye view of the chase with a legend at the bottom. IMPORTANT map rules:
+- Dark blue/purple rectangles = BUILDINGS. They are impassable (you cannot walk through them) and they block line of sight completely.
+- Dark gray = roads, darker gray = alleys. Both are passable and do NOT block LOS.
+- You can only see the suspect when there is a clear line between you and them with no buildings in the way.
+- When you "lose" the suspect, it is almost always because they moved behind a building, breaking your line of sight \u2014 not because they outran you.
+- Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
 
 ${isFirstChase ? `This was your first chase. Your default handlers are basic \u2014 move toward on sight, go to last known on lost, random patrol otherwise. There's a LOT of room to improve.` : `You've now completed ${chaseCount} chases. Review what changed since last time and whether your modifications helped.`}
 
