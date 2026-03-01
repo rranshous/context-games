@@ -78,7 +78,8 @@ function buildSummaryContext(
 
   // Current state
   lines.push('CURRENT STATE');
-  lines.push(`Alive: ${latest.alive} | Born: ${latest.totalBirths} | Died: ${latest.totalDeaths} | Max Gen: ${latest.maxGeneration}`);
+  const seasonLabel = latest.season ? latest.season.charAt(0).toUpperCase() + latest.season.slice(1) : 'Unknown';
+  lines.push(`Season: ${seasonLabel} | Alive: ${latest.alive} | Born: ${latest.totalBirths} | Died: ${latest.totalDeaths} | Max Gen: ${latest.maxGeneration}`);
   lines.push(`Avg energy: ${Math.round(latest.avgEnergy)}% | Variants: ${latest.variantCount} (dominant: ${latest.dominantVariantPct}%)`);
   if (latest.avgTraits) {
     const t = latest.avgTraits;
@@ -90,9 +91,10 @@ function buildSummaryContext(
   const sampled = history.getSampledHistory(50);
   if (sampled.length > 1) {
     lines.push('POPULATION OVER TIME (sampled)');
-    lines.push('Tick | Alive | Born | Died | AvgEnergy | MaxGen | Variants');
+    lines.push('Tick | Season | Alive | Born | Died | AvgEnergy | MaxGen | Variants');
     for (const s of sampled) {
-      lines.push(`${s.tick} | ${s.alive} | ${s.totalBirths} | ${s.totalDeaths} | ${Math.round(s.avgEnergy)}% | ${s.maxGeneration} | ${s.variantCount} (${s.dominantVariantPct}%)`);
+      const sn = s.season ? s.season.charAt(0).toUpperCase() + s.season.slice(1) : '?';
+      lines.push(`${s.tick} | ${sn} | ${s.alive} | ${s.totalBirths} | ${s.totalDeaths} | ${Math.round(s.avgEnergy)}% | ${s.maxGeneration} | ${s.variantCount} (${s.dominantVariantPct}%)`);
     }
     lines.push('');
   }

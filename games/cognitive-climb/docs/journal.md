@@ -43,6 +43,7 @@
 - Consciousness: frequency-based wake cost (max 15% × e^(-ticksSince/40)), max queue 10, model claude-haiku-4-5-20251001, max_tokens 1024
 - Reproduction: threshold 55% energy + age>30, cost 40% of current energy
 - Rest: +1.5 energy/tick
+- Seasons: 200 ticks each (spring 1.5×, summer 2.0×, autumn 0.8×, winter 0.3× food spawn rate)
 
 ## Milestones (revised 2026-02-20)
 
@@ -815,6 +816,60 @@ The deeper issue: one pressure = one optimal strategy = convergence. To get inte
 ### Recommendation for next session
 
 Start with **seasonal food cycles** — highest impact for the complexity, creates temporal pressure that current creatures have no answer for, and pairs naturally with the Path A tuning (need stable populations before adding new pressures).
+
+## Session: 2026-03-01 — Seasonal Food Cycles (Path B, Phase 1)
+
+Added seasonal food cycles — the first multi-dimensional pressure on the sim. Food availability now oscillates through spring → summer → autumn → winter, creating temporal pressure that rewards adaptive behavior.
+
+### Design
+
+**Season as pure function of tick** — no mutable state:
+- 4 seasons, 200 ticks each = 800 tick cycle
+- `computeSeason(tick)` in engine.ts, `seasonFromTick(tick)` in consciousness.ts (inline, avoids circular import)
+- Food spawn rate multiplied by seasonal factor:
+
+| Season | Multiplier | Effective rate | Food items/round |
+|--------|-----------|---------------|-----------------|
+| Spring | 1.5× | 0.009 | ~18 |
+| Summer | 2.0× | 0.012 | ~24 |
+| Autumn | 0.8× | 0.0048 | ~10 |
+| Winter | 0.3× | 0.0018 | ~4 |
+
+Winter food rate (0.0018) is comparable to the old pre-Path-A rate (0.002). Summer is 6× winter. This creates meaningful seasonal pressure without making winter instantly fatal for established populations.
+
+### Files changed (9 files)
+
+| File | Change |
+|------|--------|
+| `src/interface/state.ts` | Added `season: string` to `SimStats` interface |
+| `src/sim/engine.ts` | `computeSeason()` helper, seasonal food multiplier in `step()`, season in `getStats()` |
+| `src/sim/world.ts` | `spawnFood(rateMultiplier)` — accepts seasonal rate modifier |
+| `src/sim/embodiment.ts` | `world.season` exposed in `buildWorldApi()`, default sensors write `me.memory.set('season', world.season)` |
+| `src/sim/consciousness.ts` | Season shown in wake-up STATE section with cycle explanation, `seasonFromTick()` inline helper |
+| `src/visualizer/renderer.ts` | Season label in stats bar, subtle terrain color tint per season |
+| `src/visualizer/observer.ts` | Season in GLOBAL STATS line of observer context |
+| `src/visualizer/summary.ts` | Season in current state + population history table |
+| `src/visualizer/stats-history.ts` | `season` field in `StatsSnapshot` |
+
+### Key design decisions
+
+1. **Default sensors include season** — creatures perceive seasons from the start via `me.memory.set('season', world.season)`. This gives them raw data; using it strategically is the evolutionary challenge.
+
+2. **Default onTick NOT updated** — creatures must discover how to use season info through consciousness and self-modification. This is the whole point — seasonal adaptation should emerge, not be given.
+
+3. **Consciousness wake-up message includes season** — when a creature's AI brain fires, it sees `Season: winter (seasons cycle: spring→summer→autumn→winter, 200 ticks each)`. This gives the brain enough context to reason about seasonal strategy.
+
+4. **Visual feedback** — subtle terrain tint (green spring, warm summer, orange autumn, cool blue winter) + season label in the stats bar. Player sees the season change.
+
+5. **Season in observer/summary** — the AI narrator can comment on seasonal dynamics and correlate population trends with seasons.
+
+### Expected emergent behaviors
+
+- **Winter die-offs** — populations thin during winter, boom during summer
+- **Energy hoarding** — creatures learn to conserve energy before winter
+- **Seasonal onTick rewrites** — creatures modify their code to check `me.memory.get('season')` and adjust strategy (e.g., aggressive food attraction in winter, rest more in summer when food is abundant)
+- **Consciousness timing** — creatures might learn to wake less in winter (save energy) and more in summer (optimize for abundance)
+- **Evolutionary pressure on metabolism** — high metabolism creatures thrive in summer but die in winter; selection pressure oscillates
 
 ## Session: 2026-03-01 — Observer Bugfixes
 

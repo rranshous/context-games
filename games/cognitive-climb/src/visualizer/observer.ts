@@ -33,7 +33,8 @@ export function buildObserverContext(
 
   // ── Global stats
   lines.push('GLOBAL STATS');
-  lines.push(`Alive: ${stats.creatureCount} | Born: ${stats.totalBirths} | Died: ${stats.totalDeaths} (starvation: ${stats.deathsByStarvation}, hazard: ${stats.deathsByHazard})`);
+  const seasonLabel = stats.season ? stats.season.charAt(0).toUpperCase() + stats.season.slice(1) : 'Unknown';
+  lines.push(`Season: ${seasonLabel} | Alive: ${stats.creatureCount} | Born: ${stats.totalBirths} | Died: ${stats.totalDeaths} (starvation: ${stats.deathsByStarvation}, hazard: ${stats.deathsByHazard})`);
   const avgEnergyPct = creatures.length > 0
     ? Math.round(creatures.reduce((s, c) => s + c.energy / c.maxEnergy, 0) / creatures.length * 100)
     : 0;

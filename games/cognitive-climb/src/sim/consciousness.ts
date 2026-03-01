@@ -6,6 +6,12 @@ import {
   computeEmbodimentSize, ageScalar,
 } from './embodiment.js';
 
+// ── Season (inline to avoid circular import with engine) ──
+const SEASON_NAMES = ['spring', 'summer', 'autumn', 'winter'];
+function seasonFromTick(tick: number): string {
+  return SEASON_NAMES[Math.floor((tick % 800) / 200)];
+}
+
 // ── Types ────────────────────────────────────────────────
 
 interface ToolUseBlock {
@@ -124,6 +130,7 @@ function buildUserMessage(
   allCreatures: Creature[],
   reason: string,
   wakeCost: number,
+  tick: number,
 ): string {
   const e = creature.embodiment;
   const costPct = (wakeCost / creature.maxEnergy * 100).toFixed(1);
@@ -143,6 +150,7 @@ function buildUserMessage(
   msg += `Energy: ${Math.round(creature.energy)}/${Math.round(creature.maxEnergy)} (${Math.round(creature.energyRatio * 100)}%)\n`;
   msg += `Age: ${creature.age} ticks | Gen: ${creature.generation}\n`;
   msg += `Ticks since last meal: ${creature.ticksSinceAte}\n`;
+  msg += `Season: ${seasonFromTick(tick)} (seasons cycle: spring→summer→autumn→winter, 200 ticks each)\n`;
   const totalSize = computeEmbodimentSize(e);
   const maxSize = Math.round(Math.max(
     creature.inheritedEmbodimentSize,
@@ -253,8 +261,9 @@ function executeCustomTool(
       return `Error: failed to compile tool "${toolUse.name}"`;
     }
 
-    const meApi = buildMeApi(creature, world, allCreatures, tick);
-    const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+    const s = seasonFromTick(tick);
+    const worldApi = buildWorldApi(creature, world, allCreatures, tick, s);
+    const meApi = buildMeApi(creature, world, allCreatures, tick, worldApi, s);
     const result = fn(meApi, worldApi, toolUse.input);
 
     // Sync memory changes back
@@ -335,7 +344,7 @@ export class ConsciousnessManager {
     creature.energy -= cost;
 
     // Build message now (snapshot of current state, after energy deducted)
-    const userMessage = buildUserMessage(creature, world, allCreatures, reason, cost);
+    const userMessage = buildUserMessage(creature, world, allCreatures, reason, cost, tick);
 
     creature.thinking = true;
 

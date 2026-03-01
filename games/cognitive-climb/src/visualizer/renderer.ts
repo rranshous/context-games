@@ -12,6 +12,13 @@ const TERRAIN_COLORS: Record<TerrainType, string> = {
 
 const FOOD_COLOR = '#e8d44d';
 
+const SEASON_TINTS: Record<string, string> = {
+  spring: 'rgba(100, 200, 100, 0.05)',
+  summer: 'rgba(255, 220, 100, 0.06)',
+  autumn: 'rgba(200, 130, 50, 0.07)',
+  winter: 'rgba(150, 180, 255, 0.08)',
+};
+
 // ── Renderer ─────────────────────────────────────────────
 
 export class Renderer {
@@ -123,6 +130,15 @@ export class Renderer {
       }
     }
 
+    // Seasonal tint overlay
+    if (this.stats?.season) {
+      const tint = SEASON_TINTS[this.stats.season];
+      if (tint) {
+        ctx.fillStyle = tint;
+        ctx.fillRect(offsetX, offsetY, s * this.state.width, s * this.state.height);
+      }
+    }
+
     // Draw grid lines (only if cells are big enough)
     if (s >= 6) {
       ctx.strokeStyle = 'rgba(0,0,0,0.1)';
@@ -219,7 +235,8 @@ export class Renderer {
     const deaths = s.deathsByStarvation !== undefined
       ? `Died: ${s.totalDeaths} (${s.deathsByStarvation}☠ ${s.deathsByHazard}⚡)`
       : `Died: ${s.totalDeaths}`;
-    ctx.fillText(`Tick: ${s.tick}  |  Alive: ${s.creatureCount}  |  Born: ${s.totalBirths}  |  ${deaths}  |  Energy: ${s.avgEnergy}  |  Gen: ${s.maxGeneration}`, 10, y + 12);
+    const seasonLabel = s.season ? s.season.charAt(0).toUpperCase() + s.season.slice(1) : '';
+    ctx.fillText(`Tick: ${s.tick}  |  ${seasonLabel}  |  Alive: ${s.creatureCount}  |  Born: ${s.totalBirths}  |  ${deaths}  |  Energy: ${s.avgEnergy}  |  Gen: ${s.maxGeneration}`, 10, y + 12);
 
     // Line 2: trait averages (evolution tracking)
     if (s.avgTraits) {

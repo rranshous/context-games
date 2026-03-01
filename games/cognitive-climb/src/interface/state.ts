@@ -88,4 +88,5 @@ export interface SimStats {
   } | null;
   deathsByStarvation: number;
   deathsByHazard: number;
+  season: string;
 }

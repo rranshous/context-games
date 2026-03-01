@@ -382,7 +382,8 @@ function buildObserverContext(creatures, cells, stats, eventBuffer, recentlyEdit
   lines.push(`=== SIMULATION SNAPSHOT (Tick ${tick}) ===
 `);
   lines.push("GLOBAL STATS");
-  lines.push(`Alive: ${stats.creatureCount} | Born: ${stats.totalBirths} | Died: ${stats.totalDeaths} (starvation: ${stats.deathsByStarvation}, hazard: ${stats.deathsByHazard})`);
+  const seasonLabel = stats.season ? stats.season.charAt(0).toUpperCase() + stats.season.slice(1) : "Unknown";
+  lines.push(`Season: ${seasonLabel} | Alive: ${stats.creatureCount} | Born: ${stats.totalBirths} | Died: ${stats.totalDeaths} (starvation: ${stats.deathsByStarvation}, hazard: ${stats.deathsByHazard})`);
   const avgEnergyPct = creatures.length > 0 ? Math.round(creatures.reduce((s, c) => s + c.energy / c.maxEnergy, 0) / creatures.length * 100) : 0;
   lines.push(`Avg energy: ${avgEnergyPct}% of max | Max generation: ${stats.maxGeneration}`);
   if (stats.avgTraits) {
@@ -755,6 +756,12 @@ var TERRAIN_COLORS = {
   sand: "#c4a954"
 };
 var FOOD_COLOR = "#e8d44d";
+var SEASON_TINTS = {
+  spring: "rgba(100, 200, 100, 0.05)",
+  summer: "rgba(255, 220, 100, 0.06)",
+  autumn: "rgba(200, 130, 50, 0.07)",
+  winter: "rgba(150, 180, 255, 0.08)"
+};
 var Renderer = class {
   canvas;
   ctx;
@@ -843,6 +850,13 @@ var Renderer = class {
         }
       }
     }
+    if (this.stats?.season) {
+      const tint = SEASON_TINTS[this.stats.season];
+      if (tint) {
+        ctx.fillStyle = tint;
+        ctx.fillRect(offsetX, offsetY, s * this.state.width, s * this.state.height);
+      }
+    }
     if (s >= 6) {
       ctx.strokeStyle = "rgba(0,0,0,0.1)";
       ctx.lineWidth = 0.5;
@@ -908,7 +922,8 @@ var Renderer = class {
     const s = this.stats;
     ctx.fillStyle = "#ddd";
     const deaths = s.deathsByStarvation !== void 0 ? `Died: ${s.totalDeaths} (${s.deathsByStarvation}\u2620 ${s.deathsByHazard}\u26A1)` : `Died: ${s.totalDeaths}`;
-    ctx.fillText(`Tick: ${s.tick}  |  Alive: ${s.creatureCount}  |  Born: ${s.totalBirths}  |  ${deaths}  |  Energy: ${s.avgEnergy}  |  Gen: ${s.maxGeneration}`, 10, y + 12);
+    const seasonLabel = s.season ? s.season.charAt(0).toUpperCase() + s.season.slice(1) : "";
+    ctx.fillText(`Tick: ${s.tick}  |  ${seasonLabel}  |  Alive: ${s.creatureCount}  |  Born: ${s.totalBirths}  |  ${deaths}  |  Energy: ${s.avgEnergy}  |  Gen: ${s.maxGeneration}`, 10, y + 12);
     if (s.avgTraits) {
       const t = s.avgTraits;
       ctx.fillStyle = "#999";
@@ -976,7 +991,8 @@ var StatsHistoryStore = class {
       maxGeneration: stats.maxGeneration,
       avgTraits: stats.avgTraits ? { ...stats.avgTraits } : null,
       variantCount: variantMap.size,
-      dominantVariantPct: creatures.length > 0 ? Math.round(dominantCount / creatures.length * 100) : 0
+      dominantVariantPct: creatures.length > 0 ? Math.round(dominantCount / creatures.length * 100) : 0,
+      season: stats.season ?? "spring"
     });
     if (this.snapshots.length > MAX_SNAPSHOTS) {
       this.snapshots.shift();
@@ -1059,7 +1075,8 @@ function buildSummaryContext(history2, creatures) {
   lines.push(`=== FULL SIMULATION SUMMARY (Tick ${latest.tick}) ===
 `);
   lines.push("CURRENT STATE");
-  lines.push(`Alive: ${latest.alive} | Born: ${latest.totalBirths} | Died: ${latest.totalDeaths} | Max Gen: ${latest.maxGeneration}`);
+  const seasonLabel = latest.season ? latest.season.charAt(0).toUpperCase() + latest.season.slice(1) : "Unknown";
+  lines.push(`Season: ${seasonLabel} | Alive: ${latest.alive} | Born: ${latest.totalBirths} | Died: ${latest.totalDeaths} | Max Gen: ${latest.maxGeneration}`);
   lines.push(`Avg energy: ${Math.round(latest.avgEnergy)}% | Variants: ${latest.variantCount} (dominant: ${latest.dominantVariantPct}%)`);
   if (latest.avgTraits) {
     const t = latest.avgTraits;
@@ -1069,9 +1086,10 @@ function buildSummaryContext(history2, creatures) {
   const sampled = history2.getSampledHistory(50);
   if (sampled.length > 1) {
     lines.push("POPULATION OVER TIME (sampled)");
-    lines.push("Tick | Alive | Born | Died | AvgEnergy | MaxGen | Variants");
+    lines.push("Tick | Season | Alive | Born | Died | AvgEnergy | MaxGen | Variants");
     for (const s of sampled) {
-      lines.push(`${s.tick} | ${s.alive} | ${s.totalBirths} | ${s.totalDeaths} | ${Math.round(s.avgEnergy)}% | ${s.maxGeneration} | ${s.variantCount} (${s.dominantVariantPct}%)`);
+      const sn = s.season ? s.season.charAt(0).toUpperCase() + s.season.slice(1) : "?";
+      lines.push(`${s.tick} | ${sn} | ${s.alive} | ${s.totalBirths} | ${s.totalDeaths} | ${Math.round(s.avgEnergy)}% | ${s.maxGeneration} | ${s.variantCount} (${s.dominantVariantPct}%)`);
     }
     lines.push("");
   }

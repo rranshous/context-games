@@ -153,15 +153,16 @@ export class World {
     return this.cellAt(x, y).terrain !== 'water';
   }
 
-  /** Spawn food on eligible cells. Returns new food positions. */
-  spawnFood(): Array<{ x: number; y: number; value: number }> {
+  /** Spawn food on eligible cells. Rate modulated by seasonal multiplier. */
+  spawnFood(rateMultiplier: number = 1): Array<{ x: number; y: number; value: number }> {
     const spawned: Array<{ x: number; y: number; value: number }> = [];
+    const rate = this.config.foodSpawnRate * rateMultiplier;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const cell = this.cellAt(x, y);
         if ((cell.terrain === 'grass' || cell.terrain === 'forest') &&
             cell.food < this.config.maxFoodPerCell &&
-            Math.random() < this.config.foodSpawnRate) {
+            Math.random() < rate) {
           const value = cell.terrain === 'forest' ? 2 : 1;
           cell.food += value;
           spawned.push({ x, y, value });

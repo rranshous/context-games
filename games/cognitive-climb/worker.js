@@ -18,6 +18,7 @@ var DEFAULT_SENSORS = `function sensors(me, world) {
   me.memory.set('current_terrain', cur.terrain);
   me.memory.set('current_danger', cur.danger);
   me.memory.set('current_food', cur.food);
+  me.memory.set('season', world.season);
 }`;
 var DEFAULT_ON_TICK = `function onTick(me, world) {
   // EDIT ME \u2014 rewrite this function to change when you wake and how you adjust reflexes
@@ -109,7 +110,7 @@ function checkBudget(creature, section, newContent) {
   );
   return newTotal <= maxAllowed;
 }
-function buildMeApi(creature, world, allCreatures, tick, worldApi) {
+function buildMeApi(creature, world, allCreatures, tick, worldApi, season) {
   let memoryCache;
   try {
     memoryCache = JSON.parse(creature.embodiment.memory || "{}");
@@ -204,13 +205,13 @@ function buildMeApi(creature, world, allCreatures, tick, worldApi) {
       enumerable: true
     }
   });
-  if (!worldApi) worldApi = buildWorldApi(creature, world, allCreatures, tick);
+  if (!worldApi) worldApi = buildWorldApi(creature, world, allCreatures, tick, season);
   me.__syncMemory = () => {
     creature.embodiment.memory = JSON.stringify(memoryCache);
   };
   return me;
 }
-function buildWorldApi(creature, world, allCreatures, tick) {
+function buildWorldApi(creature, world, allCreatures, tick, season) {
   return {
     nearby: () => {
       const range = Math.round(creature.genome.senseRange);
@@ -252,15 +253,16 @@ function buildWorldApi(creature, world, allCreatures, tick) {
       };
     },
     tick,
+    season: season ?? "spring",
     bounds: { width: world.width, height: world.height }
   };
 }
-function runOnTick(creature, world, allCreatures, tick) {
+function runOnTick(creature, world, allCreatures, tick, season) {
   const fn = compileFunction(creature.embodiment.on_tick);
   if (!fn) {
     return { wake: false };
   }
-  const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+  const worldApi = buildWorldApi(creature, world, allCreatures, tick, season);
   const meApi = buildMeApi(creature, world, allCreatures, tick, worldApi);
   try {
     const result = fn(meApi, worldApi);
@@ -276,6 +278,10 @@ function runOnTick(creature, world, allCreatures, tick) {
 }
 
 // src/sim/consciousness.ts
+var SEASON_NAMES = ["spring", "summer", "autumn", "winter"];
+function seasonFromTick(tick) {
+  return SEASON_NAMES[Math.floor(tick % 800 / 200)];
+}
 var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulation. Your embodiment is shown below in XML sections \u2014 it IS you. You can edit any section to improve your survival.
 
 Your body runs on reflexes between wake-ups. Your on_tick code runs every tick, adjusting reflexes and deciding when to wake you. Your sensors code processes perception data. Your tools section defines custom tools you can create for yourself.
@@ -345,7 +351,7 @@ var EDIT_TOOL_MAP = {
   edit_memory: "memory",
   edit_tools: "tools"
 };
-function buildUserMessage(creature, world, allCreatures, reason, wakeCost) {
+function buildUserMessage(creature, world, allCreatures, reason, wakeCost, tick) {
   const e = creature.embodiment;
   const costPct = (wakeCost / creature.maxEnergy * 100).toFixed(1);
   let msg = `Wake cost: ${Math.round(wakeCost)} energy (${costPct}% of max) \u2014 you now have ${Math.round(creature.energy)}/${Math.round(creature.maxEnergy)} energy.
@@ -387,6 +393,8 @@ ${e.tools}
   msg += `Age: ${creature.age} ticks | Gen: ${creature.generation}
 `;
   msg += `Ticks since last meal: ${creature.ticksSinceAte}
+`;
+  msg += `Season: ${seasonFromTick(tick)} (seasons cycle: spring\u2192summer\u2192autumn\u2192winter, 200 ticks each)
 `;
   const totalSize = computeEmbodimentSize(e);
   const maxSize = Math.round(Math.max(
@@ -471,8 +479,9 @@ function executeCustomTool(toolUse, creature, world, allCreatures, tick) {
     if (!fn) {
       return `Error: failed to compile tool "${toolUse.name}"`;
     }
-    const meApi = buildMeApi(creature, world, allCreatures, tick);
-    const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+    const s = seasonFromTick(tick);
+    const worldApi = buildWorldApi(creature, world, allCreatures, tick, s);
+    const meApi = buildMeApi(creature, world, allCreatures, tick, worldApi, s);
     const result = fn(meApi, worldApi, toolUse.input);
     meApi.__syncMemory();
     console.log(`[TOOLS] #${creature.id} ran custom tool "${toolUse.name}":`, toolUse.input);
@@ -529,7 +538,7 @@ var ConsciousnessManager = class {
     const cost = creature.maxEnergy * costRatio;
     if (creature.energy <= cost) return;
     creature.energy -= cost;
-    const userMessage = buildUserMessage(creature, world, allCreatures, reason, cost);
+    const userMessage = buildUserMessage(creature, world, allCreatures, reason, cost, tick);
     creature.thinking = true;
     if (this.queue.length >= this.config.maxQueueSize) {
       const dropped = this.queue.shift();
@@ -1063,13 +1072,14 @@ var World = class {
     if (!this.inBounds(x, y)) return false;
     return this.cellAt(x, y).terrain !== "water";
   }
-  /** Spawn food on eligible cells. Returns new food positions. */
-  spawnFood() {
+  /** Spawn food on eligible cells. Rate modulated by seasonal multiplier. */
+  spawnFood(rateMultiplier = 1) {
     const spawned = [];
+    const rate = this.config.foodSpawnRate * rateMultiplier;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const cell = this.cellAt(x, y);
-        if ((cell.terrain === "grass" || cell.terrain === "forest") && cell.food < this.config.maxFoodPerCell && Math.random() < this.config.foodSpawnRate) {
+        if ((cell.terrain === "grass" || cell.terrain === "forest") && cell.food < this.config.maxFoodPerCell && Math.random() < rate) {
           const value = cell.terrain === "forest" ? 2 : 1;
           cell.food += value;
           spawned.push({ x, y, value });
@@ -1095,6 +1105,17 @@ var World = class {
 // src/sim/engine.ts
 function round2(v) {
   return Math.round(v * 100) / 100;
+}
+var SEASON_LENGTH = 200;
+var SEASONS = [
+  { name: "spring", foodMultiplier: 1.5 },
+  { name: "summer", foodMultiplier: 2 },
+  { name: "autumn", foodMultiplier: 0.8 },
+  { name: "winter", foodMultiplier: 0.3 }
+];
+function computeSeason(tick) {
+  const idx = Math.floor(tick % (SEASON_LENGTH * SEASONS.length) / SEASON_LENGTH);
+  return SEASONS[idx];
 }
 var DEFAULT_ENGINE_CONFIG = {
   initialCreatures: 12,
@@ -1155,7 +1176,7 @@ var Engine = class {
   step() {
     this.tick++;
     if (this.tick % this.config.foodSpawnInterval === 0) {
-      this.world.spawnFood();
+      this.world.spawnFood(computeSeason(this.tick).foodMultiplier);
     }
     const alive = this.creatures.filter((c) => c.alive);
     for (const creature of alive) {
@@ -1175,7 +1196,7 @@ var Engine = class {
         }
         continue;
       }
-      const onTickResult = runOnTick(creature, this.world, alive, this.tick);
+      const onTickResult = runOnTick(creature, this.world, alive, this.tick, computeSeason(this.tick).name);
       const result = reflexTick(creature, this.world, alive);
       creature.events = [];
       if (result.action === "eat" && result.foodEaten > 0) {
@@ -1307,7 +1328,8 @@ var Engine = class {
       maxGeneration: n > 0 ? Math.max(...alive.map((c) => c.generation)) : 0,
       avgTraits,
       deathsByStarvation: this.deathsByStarvation,
-      deathsByHazard: this.deathsByHazard
+      deathsByHazard: this.deathsByHazard,
+      season: computeSeason(this.tick).name
     };
   }
   getWorldState() {

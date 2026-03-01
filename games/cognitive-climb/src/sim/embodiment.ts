@@ -22,6 +22,7 @@ export const DEFAULT_SENSORS = `function sensors(me, world) {
   me.memory.set('current_terrain', cur.terrain);
   me.memory.set('current_danger', cur.danger);
   me.memory.set('current_food', cur.food);
+  me.memory.set('season', world.season);
 }`;
 
 export const DEFAULT_ON_TICK = `function onTick(me, world) {
@@ -163,6 +164,7 @@ export function buildMeApi(
   allCreatures: CreatureLike[],
   tick: number,
   worldApi?: ReturnType<typeof buildWorldApi>,
+  season?: string,
 ) {
   // Parse memory once; mutations go here, synced back after execution
   let memoryCache: Record<string, unknown>;
@@ -263,7 +265,7 @@ export function buildMeApi(
   });
 
   // ── world API (built here if not provided, since me.sensors.run() needs it) ──
-  if (!worldApi) worldApi = buildWorldApi(creature, world, allCreatures, tick);
+  if (!worldApi) worldApi = buildWorldApi(creature, world, allCreatures, tick, season);
 
   // Expose a syncMemory function so the caller can flush after execution
   (me as any).__syncMemory = () => {
@@ -280,6 +282,7 @@ export function buildWorldApi(
   world: WorldLike,
   allCreatures: CreatureLike[],
   tick: number,
+  season?: string,
 ) {
   return {
     nearby: () => {
@@ -332,6 +335,8 @@ export function buildWorldApi(
 
     tick,
 
+    season: season ?? 'spring',
+
     bounds: { width: world.width, height: world.height },
   };
 }
@@ -343,13 +348,14 @@ export function runOnTick(
   world: WorldLike,
   allCreatures: CreatureLike[],
   tick: number,
+  season?: string,
 ): { wake: boolean; reason?: string } {
   const fn = compileFunction(creature.embodiment.on_tick);
   if (!fn) {
     return { wake: false };
   }
 
-  const worldApi = buildWorldApi(creature, world, allCreatures, tick);
+  const worldApi = buildWorldApi(creature, world, allCreatures, tick, season);
   const meApi = buildMeApi(creature, world, allCreatures, tick, worldApi);
 
   try {

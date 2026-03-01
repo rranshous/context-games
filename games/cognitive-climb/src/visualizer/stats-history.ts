@@ -12,6 +12,7 @@ export interface StatsSnapshot {
   avgTraits: { speed: number; senseRange: number; size: number; metabolism: number; diet: number } | null;
   variantCount: number;
   dominantVariantPct: number;
+  season: string;
 }
 
 export interface Milestone {
@@ -49,6 +50,7 @@ export class StatsHistoryStore {
       avgTraits: stats.avgTraits ? { ...stats.avgTraits } : null,
       variantCount: variantMap.size,
       dominantVariantPct: creatures.length > 0 ? Math.round(dominantCount / creatures.length * 100) : 0,
+      season: stats.season ?? 'spring',
     });
 
     if (this.snapshots.length > MAX_SNAPSHOTS) {

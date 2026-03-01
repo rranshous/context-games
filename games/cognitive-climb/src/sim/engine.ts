@@ -9,6 +9,21 @@ import { World, type WorldConfig } from './world.js';
 
 function round2(v: number): number { return Math.round(v * 100) / 100; }
 
+// ── Seasons ──────────────────────────────────────────────
+
+const SEASON_LENGTH = 200; // ticks per season
+const SEASONS = [
+  { name: 'spring',  foodMultiplier: 1.5 },
+  { name: 'summer',  foodMultiplier: 2.0 },
+  { name: 'autumn',  foodMultiplier: 0.8 },
+  { name: 'winter',  foodMultiplier: 0.3 },
+] as const;
+
+export function computeSeason(tick: number): { name: string; foodMultiplier: number } {
+  const idx = Math.floor((tick % (SEASON_LENGTH * SEASONS.length)) / SEASON_LENGTH);
+  return SEASONS[idx];
+}
+
 export interface EngineConfig {
   initialCreatures: number;
   foodSpawnInterval: number;  // ticks between food spawn rounds
@@ -89,9 +104,9 @@ export class Engine {
   step(): void {
     this.tick++;
 
-    // 1. Spawn food periodically
+    // 1. Spawn food periodically (rate modulated by season)
     if (this.tick % this.config.foodSpawnInterval === 0) {
-      this.world.spawnFood();
+      this.world.spawnFood(computeSeason(this.tick).foodMultiplier);
     }
 
     // 2. Process each living creature
@@ -118,7 +133,7 @@ export class Engine {
       }
 
       // Run embodiment onTick (creature-authored JS)
-      const onTickResult = runOnTick(creature, this.world, alive, this.tick);
+      const onTickResult = runOnTick(creature, this.world, alive, this.tick, computeSeason(this.tick).name);
 
       // Reflex action (uses genome base + adjustments set by onTick)
       const result = reflexTick(creature, this.world, alive);
@@ -294,6 +309,7 @@ export class Engine {
       avgTraits,
       deathsByStarvation: this.deathsByStarvation,
       deathsByHazard: this.deathsByHazard,
+      season: computeSeason(this.tick).name,
     };
   }
 
