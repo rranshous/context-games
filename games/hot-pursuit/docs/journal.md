@@ -243,8 +243,13 @@ Player could see ~40×27 tiles (nearly the whole 40×30 map) — extraction poin
 - Reordered: officer states grouped together (Patrol, Pursuing, Searching)
 - Path line widths and waypoint dot radii scaled proportionally
 
+### Minimap Removed
+Minimap showed the full map including extraction points and police positions — completely undermined the constrained viewport. Removed the `drawMinimap()` call from the render loop. Method left in code as dead code in case a fog-of-war minimap is wanted later.
+
+### Player Feedback
+Confirmed: the combination of randomized exits + constrained viewport + no minimap makes chases noticeably more engaging. Player can no longer autopilot to memorized exits.
+
 ### What's Next
 - Phase 4: Communication experiments
 - Tool discovery pacing
 - Observe officer evolution across multiple runs
-- Consider hiding extraction points from minimap for additional challenge
