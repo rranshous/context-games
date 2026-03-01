@@ -2017,6 +2017,13 @@ The attached image is a bird's-eye view of the chase with a legend at the bottom
 - When you "lose" the suspect, it is almost always because they moved behind a building, breaking your line of sight \u2014 not because they outran you.
 - Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
 
+YOUR SENSING LIMITS \u2014 this is critical:
+- You have a FORWARD CONE of vision: 8 tiles range, 60\xB0 half-angle from your facing direction. You CANNOT see behind you or to your sides.
+- Your facing direction is determined by your movement. Use me.getFacing() to check it.
+- You are SLOWER than the suspect (${DEFAULT_CONFIG.policeBaseSpeed} vs ${DEFAULT_CONFIG.playerSpeed} px/s). You cannot simply chase them down \u2014 you must predict, cut off, or trap.
+- Extraction points are randomized each chase and placed on the map edges. The suspect wins by reaching one.
+- You cannot expand or improve your sensing range. Work within these limits by choosing patrol routes and facing directions strategically.
+
 ${isFirstChase ? `This was your first chase. Your default handlers are basic \u2014 move toward on sight, go to last known on lost, random patrol otherwise. There's a LOT of room to improve.` : `You've now completed ${chaseCount} chases. Review what changed since last time and whether your modifications helped.`}
 
 Now do the following, in order:

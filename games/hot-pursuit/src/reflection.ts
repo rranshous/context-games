@@ -6,7 +6,7 @@
 // Don't say "update your tactical handlers." Say "call update_signal_handlers
 // right now and rewrite your on_player_spotted case."
 
-import { ChaseReplay, TileType } from './types';
+import { ChaseReplay, TileType, DEFAULT_CONFIG } from './types';
 import { Soma, DISCOVERABLE_TOOLS } from './soma';
 import { renderChaseMap } from './chase-map-renderer';
 import { summarizeReplayForActant, queryReplayRange, ReplaySummary } from './replay-summarizer';
@@ -177,6 +177,13 @@ The attached image is a bird's-eye view of the chase with a legend at the bottom
 - You can only see the suspect when there is a clear line between you and them with no buildings in the way.
 - When you "lose" the suspect, it is almost always because they moved behind a building, breaking your line of sight — not because they outran you.
 - Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
+
+YOUR SENSING LIMITS — this is critical:
+- You have a FORWARD CONE of vision: 8 tiles range, 60° half-angle from your facing direction. You CANNOT see behind you or to your sides.
+- Your facing direction is determined by your movement. Use me.getFacing() to check it.
+- You are SLOWER than the suspect (${DEFAULT_CONFIG.policeBaseSpeed} vs ${DEFAULT_CONFIG.playerSpeed} px/s). You cannot simply chase them down — you must predict, cut off, or trap.
+- Extraction points are randomized each chase and placed on the map edges. The suspect wins by reaching one.
+- You cannot expand or improve your sensing range. Work within these limits by choosing patrol routes and facing directions strategically.
 
 ${isFirstChase
     ? `This was your first chase. Your default handlers are basic — move toward on sight, go to last known on lost, random patrol otherwise. There's a LOT of room to improve.`

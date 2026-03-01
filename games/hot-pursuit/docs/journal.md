@@ -255,7 +255,22 @@ Police were always at the same 4 corners — predictable. Now `TileMap.randomize
 - Minimum 8-tile distance between officers (spread out)
 - Called in `startChase()` before police entity creation
 
+### Sensing Constraints in Reflection Prompt
+Officers were fantasizing about "expanding their scanning range" — they had no idea their vision is a narrow 8-tile, 60° forward cone. Added explicit sensing limits section to the reflection prompt:
+- 8-tile range, 60° half-angle cone (forward only)
+- Slower than the suspect (95 vs 120 px/s) — can't just chase, must predict/trap
+- Extraction points are randomized on edges each chase
+- Sensing range is fixed — cannot be improved, must work within it
+- Tells them about `me.getFacing()` so they can reason about facing direction
+
+### Known Issue: Choppiness from Unbounded Handlers
+Game can get choppy — likely caused by officer signal handlers growing unconstrained. Currently handlers run with a 50ms timeout but there's no limit on handler code size or complexity. Officers can write arbitrarily complex logic that runs every tick for all 4 officers. Consider:
+- Max handler code length (chars) enforced at `update_signal_handlers` time
+- Tick budget per officer (skip handler execution if frame budget exceeded)
+- Profiling which handlers are slow
+
 ### What's Next
 - Phase 4: Communication experiments
 - Tool discovery pacing
 - Observe officer evolution across multiple runs
+- Handler performance limits (see choppiness issue above)
