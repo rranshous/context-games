@@ -1,5 +1,5 @@
 // ── Game State Manager: Chase Lifecycle ──
-// Phase 2: Police are now driven by somas (signal handlers + chassis API).
+// Phase 3: Police reflect via Claude API after each chase, updating their somas.
 
 import {
   GameConfig, DEFAULT_CONFIG, GamePhase, ChaseOutcome,
@@ -13,6 +13,10 @@ import { loadSomas, saveSomas, recordChaseInSoma } from './persistence';
 import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
+import { reflectAllActants, ReflectionResult, StrategyBoardData } from './reflection';
+
+// API endpoint for reflection inference (vanilla platform proxy)
+const API_ENDPOINT = '/api/inference/anthropic/messages';
 
 const CAPTURE_DISTANCE = 18; // pixels — close enough to catch
 
@@ -31,6 +35,8 @@ export class Game {
   private elapsedTime: number = 0;
   private replays: ChaseReplay[] = [];
   private updateInProgress: boolean = false;
+  private lastReplay: ChaseReplay | null = null;
+  private reflectionInProgress: boolean = false;
 
   // Fixed timestep
   private readonly TICK_RATE = 60;
@@ -222,6 +228,7 @@ export class Game {
 
     const replay = this.recorder.finish(outcome, 'city-grid-v1');
     this.replays.push(replay);
+    this.lastReplay = replay;
 
     // Record chase in each soma's history
     for (let i = 0; i < this.somas.length; i++) {
@@ -263,10 +270,94 @@ export class Game {
 
   private updatePostgame(): void {
     if (this.input.state.space) {
-      // Start next chase
-      this.runNumber++;
       this.input.state.space = false; // consume the input
-      this.startChase();
+      // Start reflection phase
+      this.startReflection();
     }
+  }
+
+  private async startReflection(): Promise<void> {
+    if (this.reflectionInProgress || !this.lastReplay) {
+      // Skip reflection if no replay or already reflecting — go straight to next chase
+      this.runNumber++;
+      this.startChase();
+      return;
+    }
+
+    this.phase = 'reflecting';
+    this.reflectionInProgress = true;
+    this.renderer.hideGameOver();
+    this.renderer.showReflection('starting');
+
+    console.log(JSON.stringify({
+      _hp: 'reflection_phase_start',
+      run: this.runNumber,
+      somaCount: this.somas.length,
+    }));
+
+    try {
+      const { results, strategyBoard } = await reflectAllActants(
+        this.somas,
+        this.lastReplay,
+        API_ENDPOINT,
+        undefined, // use default model
+        (actantId, status) => {
+          this.renderer.updateReflectionProgress(actantId, status, this.somas);
+        },
+      );
+
+      // Persist updated somas
+      saveSomas(this.somas);
+      clearHandlerCache();
+
+      console.log(JSON.stringify({
+        _hp: 'reflection_phase_complete',
+        run: this.runNumber,
+        results: results.map(r => ({
+          actantId: r.actantId,
+          success: r.success,
+          handlersUpdated: r.handlersUpdated,
+          memoryUpdated: r.memoryUpdated,
+          toolsAdopted: r.toolsAdopted,
+          tokens: r.tokenUsage,
+        })),
+      }));
+
+      // Show strategy board
+      this.renderer.showStrategyBoard(strategyBoard);
+
+      // Wait for player to press space to continue
+      await this.waitForSpace();
+
+    } catch (err) {
+      console.log(JSON.stringify({
+        _hp: 'reflection_phase_error',
+        run: this.runNumber,
+        error: String(err),
+      }));
+      // Show error but let the player continue
+      this.renderer.showReflectionError(String(err));
+      await this.waitForSpace();
+    }
+
+    this.reflectionInProgress = false;
+    this.renderer.hideReflection();
+    this.runNumber++;
+    this.startChase();
+  }
+
+  private waitForSpace(): Promise<void> {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (this.input.state.space) {
+          this.input.state.space = false;
+          resolve();
+        } else {
+          requestAnimationFrame(check);
+        }
+      };
+      // Small delay so we don't immediately consume a held space key
+      setTimeout(check, 300);
+    });
   }
 }

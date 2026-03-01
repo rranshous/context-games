@@ -2,6 +2,8 @@
 
 import { Position, TileType, GameConfig, DEFAULT_CONFIG, PoliceEntity } from './types';
 import { TileMap } from './map';
+import { StrategyBoardData } from './reflection';
+import { Soma } from './soma';
 
 // Color palette — early GTA / retro feel
 const COLORS = {
@@ -311,11 +313,96 @@ export class Renderer {
       resultText.textContent = escaped ? '>> ESCAPED <<' : '>> CAPTURED <<';
       resultText.className = `result ${escaped ? 'escaped' : 'captured'}`;
       overlay.classList.add('visible');
+      // Update prompt to mention reflection
+      const prompt = overlay.querySelector('.prompt');
+      if (prompt) prompt.textContent = 'PRESS SPACE FOR DEBRIEF';
     }
   }
 
   hideGameOver(): void {
     const overlay = document.getElementById('game-over-overlay');
+    if (overlay) overlay.classList.remove('visible');
+  }
+
+  // ── Reflection UI ──
+
+  showReflection(_status: string): void {
+    const overlay = document.getElementById('reflection-overlay');
+    if (!overlay) return;
+    overlay.classList.add('visible');
+
+    const content = document.getElementById('reflection-content');
+    if (content) {
+      content.innerHTML = `
+        <div class="reflection-title">ONE WEEK LATER...</div>
+        <div class="reflection-subtitle">The officers review the chase footage.</div>
+        <div id="reflection-progress"></div>
+      `;
+    }
+  }
+
+  updateReflectionProgress(actantId: string, status: string, somas: Soma[]): void {
+    const container = document.getElementById('reflection-progress');
+    if (!container) return;
+
+    const soma = somas.find(s => s.id === actantId);
+    const name = soma?.name ?? actantId;
+
+    let row = document.getElementById(`reflect-${actantId}`);
+    if (!row) {
+      row = document.createElement('div');
+      row.id = `reflect-${actantId}`;
+      row.className = 'reflection-officer';
+      container.appendChild(row);
+    }
+
+    const statusIcon = status === 'reflecting' ? '⟳' : status === 'complete' ? '✓' : '✗';
+    const statusClass = status === 'reflecting' ? 'active' : status === 'complete' ? 'done' : 'error';
+    row.innerHTML = `<span class="officer-name">${name}</span> <span class="officer-status ${statusClass}">${statusIcon} ${status}</span>`;
+  }
+
+  showStrategyBoard(data: StrategyBoardData): void {
+    const content = document.getElementById('reflection-content');
+    if (!content) return;
+
+    const officerCards = data.officers.map(o => `
+      <div class="strategy-officer">
+        <div class="strategy-name">${o.name}</div>
+        <div class="strategy-nature">${o.nature.slice(0, 120)}...</div>
+        ${o.handlersUpdated
+          ? `<div class="strategy-update">⚡ Updated tactics</div>`
+          : `<div class="strategy-no-update">— No changes</div>`
+        }
+        ${o.reasoning
+          ? `<div class="strategy-reasoning">"${o.reasoning.slice(0, 200)}${o.reasoning.length > 200 ? '...' : ''}"</div>`
+          : ''
+        }
+        <div class="strategy-tools">Tools: ${o.toolCount}</div>
+      </div>
+    `).join('');
+
+    content.innerHTML = `
+      <div class="reflection-title">STRATEGY BOARD</div>
+      <div class="reflection-subtitle">Run #${data.runId} — ${data.outcome.toUpperCase()}</div>
+      <div class="strategy-officers">${officerCards}</div>
+      <div class="reflection-prompt">PRESS SPACE TO BEGIN NEXT CHASE</div>
+    `;
+  }
+
+  showReflectionError(error: string): void {
+    const content = document.getElementById('reflection-content');
+    if (!content) return;
+
+    content.innerHTML = `
+      <div class="reflection-title">DEBRIEF FAILED</div>
+      <div class="reflection-error">${error.slice(0, 200)}</div>
+      <div class="reflection-subtitle">Officers will use their current tactics.</div>
+      <div class="reflection-prompt">PRESS SPACE TO CONTINUE</div>
+    `;
+  }
+
+  hideReflection(): void {
+    const overlay = document.getElementById('reflection-overlay');
     if (overlay) overlay.classList.remove('visible');
   }
 }

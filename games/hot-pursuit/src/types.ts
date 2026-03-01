@@ -116,7 +116,7 @@ export interface ChaseReplay {
   };
 }
 
-export type GamePhase = 'pregame' | 'chase' | 'postgame';
+export type GamePhase = 'pregame' | 'chase' | 'postgame' | 'reflecting';
 
 export interface InputState {
   up: boolean;
