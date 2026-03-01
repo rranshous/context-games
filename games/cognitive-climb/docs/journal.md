@@ -761,3 +761,33 @@ Two bugs found and fixed in the observer system:
 ### Visualization discussion (not yet implemented)
 
 User interested in a **streamgraph/ThemeRiver** visualization showing behavioral evolution over time — flowing ribbons where each ribbon = an on_tick code variant, width = population count, branching when creatures self-modify and reproduce. Would need a history recorder to sample population state periodically. Discussion paused for next session — key design question: live vs post-hoc vs both.
+
+## Session: 2026-03-01 — Observer Scratchpad & Naturalist Identity
+
+Observer reports felt disconnected — each one was a fresh take on the world with no memory of what it noticed before. The only continuity was `previousHeadline` (a single sentence). Added a persistent scratchpad and gave the observer a naturalist persona.
+
+### Observer scratchpad
+
+**Problem:** Observer had no memory between calls. Each report was stateless — couldn't track predictions, follow specific creatures across time, or notice trends.
+
+**Solution:** Added a `scratchpad` field to the structured output schema. The observer writes private notes each call, and the full scratchpad is injected back into the next call's context as `YOUR SCRATCHPAD (from your last call — update this)`. Replaces the old `previousHeadline` mechanism.
+
+**Changes:**
+- `observer.ts`: New `scratchpad` field in `ObserverReport` type and JSON schema. `buildObserverContext()` takes `previousScratchpad` instead of `previousHeadline`. `ObserverPanel` stores scratchpad via `getLastScratchpad()`, renders a collapsible scratchpad section between the panel header and reports list.
+- `main.ts`: Passes `observerPanel.getLastScratchpad()` to `buildObserverContext()`.
+
+**UI:** Collapsible "Scratchpad" section at top of observer panel. Shows `(empty)` before first report. Click to expand/collapse. Dark background (`#13132a`) to distinguish from reports.
+
+### Naturalist identity
+
+Gave the observer a field naturalist persona in the system prompt: "keen eye, quick pen, genuine fascination." Directs it to notice small things, name creatures by ID, confirm past predictions.
+
+**Key prompt changes:**
+- Narratives: "2-4 sentences, brief, vivid, specific" (was "2-3 paragraphs") — field notes, not essays
+- Scratchpad: "Your field notebook, be thorough — this is your memory" — encouraged to track creatures, record predictions with numbers, flag questions for next time
+- max_tokens: 800 → 1200 — budget shift toward the scratchpad
+
+### Files changed
+
+- `src/visualizer/observer.ts` — scratchpad in types/schema/context/panel, naturalist system prompt, max_tokens 1200
+- `src/visualizer/main.ts` — `getLastScratchpad()` wiring

@@ -7,6 +7,7 @@ export interface ObserverReport {
   narrative: string;
   mood: 'thriving' | 'struggling' | 'crisis' | 'evolving' | 'stable';
   watch_for: string;
+  scratchpad: string;
 }
 
 interface ReportEntry {
@@ -23,7 +24,7 @@ export function buildObserverContext(
   stats: SimStats,
   eventBuffer: string[],
   recentlyEditedIds: number[],
-  previousHeadline: string | null,
+  previousScratchpad: string | null,
 ): string {
   const lines: string[] = [];
   const tick = stats.tick;
@@ -149,10 +150,13 @@ export function buildObserverContext(
   }
   lines.push('');
 
-  // ── Previous headline
-  if (previousHeadline) {
-    lines.push('PREVIOUS OBSERVER HEADLINE');
-    lines.push(`"${previousHeadline}"`);
+  // ── Scratchpad (from your previous call)
+  if (previousScratchpad) {
+    lines.push('YOUR SCRATCHPAD (from your last call — update this)');
+    lines.push(previousScratchpad);
+  } else {
+    lines.push('YOUR SCRATCHPAD');
+    lines.push('(empty — this is your first observation, start taking notes)');
   }
 
   return lines.join('\n');
@@ -165,17 +169,27 @@ const OBSERVER_SCHEMA = {
   schema: {
     type: 'object',
     properties: {
-      headline: { type: 'string', description: 'One sentence, under 90 chars' },
-      narrative: { type: 'string', description: '2-3 paragraphs, plain text, use #N to reference creatures' },
+      headline: { type: 'string', description: 'Punchy field note headline, under 80 chars' },
+      narrative: { type: 'string', description: '2-4 sentences. Brief, vivid, specific. Use #N for creature IDs.' },
       mood: { type: 'string', enum: ['thriving', 'struggling', 'crisis', 'evolving', 'stable'] },
-      watch_for: { type: 'string', description: '1-2 sentences: what to look for next' },
+      watch_for: { type: 'string', description: 'One sentence: what to check next' },
+      scratchpad: { type: 'string', description: 'Your field notebook. Persists between calls. Track creatures, predictions, trends, hypotheses. Be thorough — this is your memory.' },
     },
-    required: ['headline', 'narrative', 'mood', 'watch_for'],
+    required: ['headline', 'narrative', 'mood', 'watch_for', 'scratchpad'],
     additionalProperties: false,
   },
 };
 
-const OBSERVER_SYSTEM = 'You are observing a creature evolution simulation. Report on what\'s happening in the sim right now. Be specific about creature IDs and tick numbers. Notice trends across time. Describe what strategies the code encodes. Be concise.';
+const OBSERVER_SYSTEM = `You are a naturalist observing digital creatures in the field. You have a keen eye, a quick pen, and genuine fascination for what these creatures do. You notice the small things — a lone creature thriving where others failed, a new behavioral variant spreading, a prediction confirmed.
+
+Your outputs:
+- "headline" + "narrative": Your PUBLIC field report. Keep it SHORT and vivid — a few sentences, not essays. Name creatures by #ID. Note tick numbers. Describe what code strategies actually do, not just that they exist. If your scratchpad had a prediction, say whether it came true.
+- "scratchpad": Your PRIVATE field notebook, carried to your next call. This is your real workspace — be thorough here. Track:
+  - Creatures you're watching and why (#14: oldest, modified on_tick at tick 200)
+  - Predictions with specifics ("Expect 1667-char variant to dominate by tick 500")
+  - Trend data with numbers (avg energy, variant spread %, generation counts)
+  - Questions to answer next time ("Is #22's offspring inheriting the crisis-wake code?")
+  Drop stale notes. Update numbers. This is how you remember.`;
 
 export async function callObserverAPI(context: string): Promise<ObserverReport | null> {
   try {
@@ -185,7 +199,7 @@ export async function callObserverAPI(context: string): Promise<ObserverReport |
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
+        max_tokens: 1200,
         system: OBSERVER_SYSTEM,
         messages: [{ role: 'user', content: context }],
         output_config: { format: OBSERVER_SCHEMA },
@@ -229,6 +243,8 @@ export class ObserverPanel {
   private onSelectCreature: ((id: number) => void) | null = null;
   private thinkingEl: HTMLElement | null = null;
   private reportsEl: HTMLElement | null = null;
+  private scratchpadEl: HTMLElement | null = null;
+  private scratchpadExpanded = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -277,11 +293,12 @@ export class ObserverPanel {
     this.reports[0].expanded = true;
     // Cap at 20 reports
     if (this.reports.length > 20) this.reports.length = 20;
+    this.renderScratchpad();
     this.renderReports();
   }
 
-  getLastHeadline(): string | null {
-    return this.reports.length > 0 ? this.reports[0].report.headline : null;
+  getLastScratchpad(): string | null {
+    return this.reports.length > 0 ? this.reports[0].report.scratchpad : null;
   }
 
   render(): void {
@@ -292,6 +309,12 @@ export class ObserverPanel {
     header.style.cssText = 'padding: 8px 10px 6px; background: #1a1a3a; border-bottom: 1px solid #2a2a4e; font-size: 14px; font-weight: bold; color: #eee;';
     header.textContent = 'Observer';
     this.container.appendChild(header);
+
+    // Scratchpad section
+    this.scratchpadEl = document.createElement('div');
+    this.scratchpadEl.style.cssText = 'border-bottom: 1px solid #2a2a4e;';
+    this.container.appendChild(this.scratchpadEl);
+    this.renderScratchpad();
 
     // Thinking indicator
     this.thinkingEl = document.createElement('div');
@@ -313,6 +336,45 @@ export class ObserverPanel {
     this.container.appendChild(this.reportsEl);
 
     this.renderReports();
+  }
+
+  private renderScratchpad(): void {
+    if (!this.scratchpadEl) return;
+    const pad = this.getLastScratchpad();
+    this.scratchpadEl.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding: 5px 10px; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;';
+    header.onclick = () => {
+      this.scratchpadExpanded = !this.scratchpadExpanded;
+      this.renderScratchpad();
+    };
+
+    const icon = document.createElement('span');
+    icon.style.cssText = 'font-size: 10px; color: #6af;';
+    icon.textContent = this.scratchpadExpanded ? '▼' : '▶';
+    header.appendChild(icon);
+
+    const label = document.createElement('span');
+    label.style.cssText = 'font-size: 11px; color: #998; font-weight: bold;';
+    label.textContent = 'Scratchpad';
+    header.appendChild(label);
+
+    if (!pad) {
+      const empty = document.createElement('span');
+      empty.style.cssText = 'font-size: 10px; color: #555; font-style: italic;';
+      empty.textContent = '(empty)';
+      header.appendChild(empty);
+    }
+
+    this.scratchpadEl.appendChild(header);
+
+    if (this.scratchpadExpanded && pad) {
+      const body = document.createElement('div');
+      body.style.cssText = 'padding: 4px 10px 8px; font-size: 10px; color: #aab; line-height: 1.5; white-space: pre-wrap; word-break: break-word; background: #13132a;';
+      body.textContent = pad;
+      this.scratchpadEl.appendChild(body);
+    }
   }
 
   private renderReports(): void {

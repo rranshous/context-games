@@ -163,7 +163,7 @@ async function fireObserver(currentTick: number): Promise<void> {
     lastStats ?? { tick: currentTick, creatureCount: 0, totalBirths: 0, totalDeaths: 0, avgEnergy: 0, maxGeneration: 0, avgTraits: null, deathsByStarvation: 0, deathsByHazard: 0 },
     observerEventBuffer,
     recentlyEditedIds,
-    observerPanel.getLastHeadline(),
+    observerPanel.getLastScratchpad(),
   );
 
   console.log('[OBSERVER] Firing at tick', currentTick, '— context length:', context.length);
