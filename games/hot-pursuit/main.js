@@ -1338,7 +1338,6 @@ var Renderer = class {
       const fx = playerPos.x + (playerPos.x !== 0 ? 0 : 0);
       ctx.fillRect(sx - 1, sy - 1, 2, 2);
     }
-    this.drawMinimap(map, playerPos, police, camX, camY);
     this.updateHUD(runNumber, elapsedTime);
   }
   drawLosCone(pos, facing, camX, camY) {

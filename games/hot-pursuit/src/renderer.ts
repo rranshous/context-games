@@ -222,9 +222,6 @@ export class Renderer {
       ctx.fillRect(sx - 1, sy - 1, 2, 2);
     }
 
-    // Draw minimap
-    this.drawMinimap(map, playerPos, police, camX, camY);
-
     // HUD updates
     this.updateHUD(runNumber, elapsedTime);
   }
