@@ -415,7 +415,21 @@ The simulation reveals a fundamental tension: **waking up costs 15% maxEnergy**,
 
 This suggests the current wake cost (15%) may be too high relative to the benefit of consciousness, or that creatures need to evolve lower wakeInterval / smarter wake conditions via onTick edits to avoid the crisis spiral. The fact that no creature successfully edited its own onTick code means the Lamarckian evolution pathway isn't firing yet — this is the key bottleneck for deeper emergent behavior.
 
-## Planned Changes — Post M6 Tuning
+## Session: 2026-02-28 — Post-M6 Tuning
+
+Implemented four changes from the extended sim run analysis:
+
+1. **Frequency-based wake cost** (`consciousness.ts`): `cost = 0.15 * maxEnergy * e^(-ticksSinceWake / 40)`. Wake after 200 ticks ≈ 0.1%, after 40 ticks ≈ 5.5%, immediate re-wake ≈ 15%. `energyCostRatio` config field removed.
+
+2. **Wake cost in message** (`consciousness.ts`): First line of each user message now shows `"Wake cost: X energy (Y%) — you now have A/B energy."` Energy is deducted before message is built, so numbers are accurate.
+
+3. **`// EDIT ME` comment** (`embodiment.ts`): Added `// EDIT ME — rewrite this function...` as first line of `DEFAULT_ON_TICK` body. Simple nudge for creatures to notice the function is editable.
+
+4. **Population floor raised** (`engine.ts`): Floor 3→5, respawn target 5→8. Reduces crash severity and lets evolved creatures persist alongside reinforcements.
+
+System prompt updated to remove hardcoded "15% energy" and replace with generic "cost is shown at top of each message."
+
+## Planned Changes — Post M6 Tuning (implemented above)
 
 Four changes agreed on after analysis of the extended sim run:
 
@@ -442,3 +456,214 @@ Add a line at the top of the user message built in `consciousness.ts`: e.g. `"Wa
 **4. Raise population floor**
 
 Change population floor from 3→5, respawn target from 5→8. Reduces crash severity and lets evolved creatures persist alongside fresh reinforcements.
+
+## Session: 2026-03-01 — First Successful Self-Modifications & Lamarckian Inheritance Confirmed
+
+Extended observation run after the post-M6 tuning changes. Two bugs discovered and fixed before the main findings.
+
+### Bugs Fixed This Session
+
+**Bug 1: `edit_on_tick: Error: content must be a string`**
+
+Haiku was calling `edit_on_tick` but `toolUse.input.content` was not a string — it was sometimes an array, an object, or an empty `{}`. Added robust coercion in `executeTool`:
+- String → use directly
+- Array → `join('\n')`
+- Object → try `obj.code ?? obj.text ?? obj.value ?? obj.content` (longest wins)
+- No string values at all → log warning, return error
+
+**Bug 2: Empty input `{}`** (root cause: `max_tokens: 512` too low)
+
+Even after coercion, the input was sometimes literally `{}` — completely empty. Diagnostic logging revealed this clearly. Root cause: haiku exhausted its 512-token budget writing extended thinking/reasoning, then started the tool call JSON but ran out of space before adding the `content` field.
+
+Fix: Raised `max_tokens: 512 → 1024` in `consciousness.ts` `callAPI()`. This immediately unblocked self-modification.
+
+### First Successful self-modifications
+
+After the `max_tokens` fix, multiple creatures successfully rewrote their `on_tick` code within the same session. Tick 70–110, Gen 0–2.
+
+**Creature #5** (Gen 0, 953 → 1249 chars):
+```js
+// Aggressive food hunting with graduated response
+if (energy < 0.5) me.reflex.adjust('foodAttraction', 0.5);
+if (energy < 0.3) me.reflex.adjust('foodAttraction', 0.4);
+// Conservative wake threshold (only < 20%)
+if (energy < 0.2) return { wake: true, reason: 'critical_energy' };
+// Periodic only if energy < 40%
+if (world.tick - lastWake >= me.genome.wakeInterval && energy < 0.4) {
+  return { wake: true, reason: 'periodic_low_energy' };
+}
+```
+Key insight: moved `me.reflex.reset()` to be called first (clears previous adjustments), conservative periodic wake (adds energy condition).
+
+**Creature #10** (Gen 0, 953 → 1188 chars) — most aggressive rewrite:
+```js
+// CRISIS MODE: max food attraction every tick, unconditionally
+me.reflex.adjust('foodAttraction', 0.8); // MAX food drive
+// Hardcoded 12-tick hunt interval (faster than genome default)
+if (world.tick - lastWake >= 12) return { wake: true, reason: 'hunt_interval' };
+```
+Memory at edit time: 620 chars of strategy tracking — terrain preferences, food locations, `offspring_count: 15`, `emergency_mode: true`, full crisis notes. This creature also had the richest memory of any observed.
+
+**Creature #15** (Gen 1, 953 → 1240 chars):
+Moderate rewrite — kept `// EDIT ME` comment, slightly different energy thresholds, explicit `'you reproduced, offspring #' + e.childId` reason string. Became a parent soon after editing.
+
+**Creatures #16 and #18** also edited their on_tick in the same session window (953 → 1271 and 953 → 1019 chars respectively).
+
+### Lamarckian Inheritance: First Confirmed Propagation
+
+**Creature #15 reproduced** after editing its on_tick. Offspring **#20 and #21** (Gen 2) both inherited the 1240-char modified code identically. At tick 110:
+- #20: Gen 2, age 12, energy 49/70 (70%) — thriving
+- #21: Gen 2, age 2, energy 46/70 (66%) — thriving
+
+Both gen 2 creatures were at high energy and outperforming most of the population, suggesting the modified on_tick gave them a better start. This is the first confirmed multi-generational propagation of a self-written behavior.
+
+### Sim State at Tick 110
+
+- Born: 25 | Died: 7 | Alive: 8 | Gen: 2
+- Population hit critical (4) at least twice, triggering reinforcement spawns
+- 4 of 8 alive creatures had edited on_tick; 2 more (gen 2) had inherited modified code
+- Self-modification rate: ~5 successful edits per ~110 ticks
+
+### Key Findings
+
+1. **Self-modification now works reliably** — the `max_tokens: 512` bottleneck was the only blocker. All strategies attempted are coherent and reflect the creature's situation (crisis mode → aggressive changes, stable → conservative tuning).
+
+2. **Lamarckian inheritance propagates immediately** — modified code clones to offspring without any additional mechanism needed. Gen 2 creatures start with learned behavior.
+
+3. **Crisis-driven editing**: All self-modifications happened during or near crisis wakes. Creatures don't edit proactively when stable — they rewrite under pressure.
+
+4. **Strategies converge on a few patterns**:
+   - Reset reflexes first (`me.reflex.reset()`) — more precise control
+   - Add energy condition to periodic wake (save energy when well-fed)
+   - Some creatures hardcode intervals (creature #10 chose 12 ticks)
+   - Max food attraction is the most common adjustment (0.5–0.8)
+
+5. **Memory as strategy log**: Creature #10 built extensive memory tracking terrain preferences, food locations, wake count, strategy name, and crisis notes. Memory is being used as a working scratchpad, not just sensor cache.
+
+## Session: 2026-03-01 — Extended Run: Cultural Evolutionary Sweep (Tick ~3760, Gen 12)
+
+The sim continued running (unobserved) far beyond tick 110 of the previous session. On inspection the population had reached **Tick 3760 | Alive 189 | Born 274 | Died 49 | Gen 12**.
+
+### Population snapshot (from `lastCreatures`):
+- 171 creatures in last state snapshot
+- **100% have edited on_tick** — the default 953-char code is extinct
+- On_tick length distribution: `1221 ×3, 1423 ×4, 1474 ×2, 1643 ×8, 1667 ×154`
+- **1667-char code dominant: 154/171 (90%) of the population**
+- Gen distribution (bell curve centered on Gen 7-8): 3→1, 4→5, 5→15, 6→26, 7→40, 8→41, 9→24, 10→11, 11→5, 12→3
+
+### The dominant evolved code (1667 chars)
+
+A single on_tick variant swept through 90% of the population via Lamarckian inheritance. Key innovations over the original default:
+
+**1. Three-tier energy management** (< 25% / 25-40% / > 40%):
+- Crisis (<25%): `restThreshold -0.5` (force resting), `foodAttraction +0.2`, `curiosity -0.3` (suppress wandering)
+- Moderate (<40%): `restThreshold +0.1`, `foodAttraction +0.3`
+- Healthy: only adjust if food is actually nearby
+
+**2. "Food found" wake trigger**: `if (foodCount > 0 && energy < 0.5) wake('food found')` — wakes opportunistically when food is detected and energy not full
+
+**3. Variable wake interval**: `wakeInterval = energy < 0.3 ? 50 : me.genome.wakeInterval` — conservative 50-tick interval when low on energy
+
+**4. Removed new_terrain wake** — evolution eliminated waking for terrain changes (was burning energy with no survival benefit)
+
+**5. Sets `last_wake_tick` inside onTick** before returning — correct interval tracking
+
+### The minority 1643-char variant (Gen 3, 8 creatures)
+
+A parallel branch with a different clever pattern: at crisis energy, sets maximum food attraction (`0.8`) then returns `{ wake: false }` — *"let reflexes handle the eating, save consciousness energy."*
+
+### What this means
+
+This is the first **cultural evolutionary sweep** in the sim. One creature wrote a better on_tick, reproduced, and that behavioral code propagated to 90% of all living creatures over ~12 generations. The Lamarckian mechanism worked exactly as designed: learned behavioral improvements propagate to offspring like genetic traits, and selection pressure causes the better behaviors to dominate. The improved code is objectively better — more conservative about waking, more responsive to actual food presence, three-band energy management, and suppresses curiosity when resources are scarce.
+
+## Next: Observer Claude Side Panel (planned, not yet implemented)
+
+Plan file: `~/.claude/plans/cryptic-chasing-tide.md`
+
+### Motivation
+
+The sim produces more interesting behavior than a human can track from the status bar. Self-modifications, cultural sweeps, population crashes — all happen faster than is visible. We want a persistent AI observer that watches sim state, fires periodically, and writes narrative reports into a side panel.
+
+This mirrors the sim's own wake mechanism: accumulate context, decide if interesting, fire.
+
+### Architecture
+
+**3 files to touch:**
+- **New: `src/visualizer/observer.ts`** — `buildObserverContext()`, `callObserverAPI()`, `ObserverPanel` class
+- **Modified: `src/index.html`** — add `#observer` div (280px, same style as `#inspector`), CSS for observer entries
+- **Modified: `src/visualizer/main.ts`** — wire up observer, event buffer, trigger logic, observer toggle button
+
+**UI layout** — add third column to `#main-area` flex row:
+```
+#controls (44px) — "Observer: OFF" toggle button appended by main.ts
+#main-area (flex row)
+  #canvas (flex: 1)
+  #inspector (300px, existing)
+  #observer (280px, new, hidden by default)
+```
+
+**Trigger logic:**
+- Minimum 30 real-second interval between calls (cost guard)
+- Fires when: notable event accumulated AND interval elapsed, OR periodic (every 60s)
+- Silent while sim is paused (track via `log` events: "Paused"/"Resumed")
+- Observer starts OFF, user toggles on
+
+**Event buffer** (`observerEventBuffer: string[]`, max 50 entries, FIFO) — appended from `main.ts` on:
+- `log` events matching `[EMBODIMENT] #N edited on_tick` → `"Tick N: #X rewrote on_tick (Y → Z chars)"`
+- `log` events matching `[SIM] Population critical`
+- `creature:reproduced` events
+- `creature:died` events where age > 200
+- Stats-based: new `maxGeneration` record
+
+Also maintain `recentlyEditedCreatureIds: number[]` — creature IDs that edited on_tick recently, used to pull their code into context.
+
+**Context builder — `buildObserverContext(creatures, cells, stats, eventBuffer, recentlyEditedIds, previousHeadline)`:**
+
+The context includes (this is the observer's "senses" — what it can see shapes what it can notice):
+1. Global stats: alive/born/died, starvation/hazard split, avg energy %, avg traits, food cell count
+2. Behavioral genetics: on_tick variant distribution by char count (chars = variant identity proxy) — top 5 by count
+3. **Full code of dominant variant** (the most common on_tick)
+4. **Full code of runner-up** if >5% of population
+5. **Full code of recently-edited creatures** (up to 2, not already shown) — this is what creature just wrote
+6. Generation distribution
+7. Notable creatures: oldest alive, highest energy%, currently thinking
+8. Recent notable events from buffer
+9. Previous observer headline (for continuity)
+
+Key: including actual code lets the observer reason about *what strategy evolved*, not just *that* a sweep happened.
+
+**API call:**
+- Model: `claude-haiku-4-5-20251001`
+- max_tokens: 700
+- Structured output schema (no `name` field!):
+  ```json
+  { "headline": string, "narrative": string, "mood": "thriving|struggling|crisis|evolving|stable", "watch_for": string }
+  ```
+- System prompt: "You are an observer in a creature evolution simulation. Be specific: use creature IDs and tick numbers. Notice trends. Describe what strategies the code encodes."
+
+**Panel UI (`ObserverPanel` class):**
+- `isVisible`, `show()`, `hide()`, `toggle()`, `setThinking(bool)`, `addReport(tick, response)`, `render()`
+- Reports stored as `{ tick, report, expanded }` — max 20, oldest dropped
+- Each entry: mood dot (colored ●) + tick + headline (always visible) + watch_for (always, italic) + expand button → narrative
+- Narrative: `#N` references become clickable `<span class="obs-link">` → calls `selectCreature(id)`
+- Mood colors: thriving=green, evolving=blue, stable=gray, struggling=orange, crisis=red
+
+**main.ts additions:**
+- `let lastCells: CellState[] = [];` — stash cells from `state` events for food density calculation
+- Observer toggle button: created by main.ts via `document.createElement`, appended to `controlsEl` after Controls class is set up (Controls uses `innerHTML = ''` in `build()`, so append AFTER Controls instantiation)
+- `let simPaused = false;` — set from log events containing "Paused"/"Resumed"
+- `maybeFireObserver(tick)` called on `stats` events and after notable event buffer appends
+- Observer fires asynchronously: `setThinking(true)` → call API → `addReport()` → `setThinking(false)`
+
+**Button style to match existing controls** (from `controls.ts` `btnStyle()`):
+```
+padding: 4px 12px; cursor: pointer; background: #2a2a4e; color: #ddd;
+border: 1px solid #444; border-radius: 4px; font-family: monospace; font-size: 13px;
+```
+
+### What to build in next session
+
+1. Write `src/visualizer/observer.ts` (new file — full implementation)
+2. Add `#observer` div + CSS to `src/index.html`
+3. Update `src/visualizer/main.ts` with observer wiring
+4. `npm run build` and test in browser

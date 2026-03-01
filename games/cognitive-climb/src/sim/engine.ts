@@ -189,8 +189,8 @@ export class Engine {
 
     // 5. Minimum population: respawn if nearly extinct
     const livingCount = this.creatures.filter(c => c.alive).length;
-    if (livingCount < 3) {
-      for (let i = livingCount; i < 5; i++) {
+    if (livingCount < 5) {
+      for (let i = livingCount; i < 8; i++) {
         this.spawnCreatureRandom();
       }
       this.emit({ type: 'log', message: `Population critical (${livingCount}) — spawned reinforcements` });

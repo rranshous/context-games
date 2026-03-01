@@ -25,6 +25,7 @@ export const DEFAULT_SENSORS = `function sensors(me, world) {
 }`;
 
 export const DEFAULT_ON_TICK = `function onTick(me, world) {
+  // EDIT ME — rewrite this function to change when you wake and how you adjust reflexes
   me.sensors.run();
   var energy = me.memory.get('energy_pct');
   var danger = me.memory.get('nearby_danger');

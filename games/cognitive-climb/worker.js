@@ -20,6 +20,7 @@ var DEFAULT_SENSORS = `function sensors(me, world) {
   me.memory.set('current_food', cur.food);
 }`;
 var DEFAULT_ON_TICK = `function onTick(me, world) {
+  // EDIT ME \u2014 rewrite this function to change when you wake and how you adjust reflexes
   me.sensors.run();
   var energy = me.memory.get('energy_pct');
   var danger = me.memory.get('nearby_danger');
@@ -279,7 +280,7 @@ var SYSTEM_PROMPT = `You are consciousness for a creature in a survival simulati
 
 Your body runs on reflexes between wake-ups. Your on_tick code runs every tick, adjusting reflexes and deciding when to wake you. Your sensors code processes perception data. Your tools section defines custom tools you can create for yourself.
 
-Wake-ups are expensive (15% energy). Make each one count. Be concise.`;
+Wake-ups cost energy \u2014 less if you've rested long, more if you wake frequently. The exact cost is shown at the top of each message. Make each wake count. Be concise.`;
 var EDIT_TOOLS = [
   {
     name: "edit_identity",
@@ -344,9 +345,12 @@ var EDIT_TOOL_MAP = {
   edit_memory: "memory",
   edit_tools: "tools"
 };
-function buildUserMessage(creature, world, allCreatures, reason) {
+function buildUserMessage(creature, world, allCreatures, reason, wakeCost) {
   const e = creature.embodiment;
-  let msg = `WAKE REASON: ${reason}
+  const costPct = (wakeCost / creature.maxEnergy * 100).toFixed(1);
+  let msg = `Wake cost: ${Math.round(wakeCost)} energy (${costPct}% of max) \u2014 you now have ${Math.round(creature.energy)}/${Math.round(creature.maxEnergy)} energy.
+`;
+  msg += `WAKE REASON: ${reason}
 
 `;
   msg += `<identity>
@@ -417,9 +421,28 @@ ${e.tools}
 function executeTool(toolUse, creature, world, allCreatures, tick) {
   const section = EDIT_TOOL_MAP[toolUse.name];
   if (section) {
-    const content = toolUse.input.content;
-    if (typeof content !== "string") {
-      return `Error: content must be a string`;
+    const inp = toolUse.input;
+    let content;
+    const raw = inp.content;
+    if (typeof raw === "string") {
+      content = raw;
+    } else if (Array.isArray(raw)) {
+      content = raw.join("\n");
+    } else if (raw != null && typeof raw === "object") {
+      const obj = raw;
+      const alt = obj.code ?? obj.text ?? obj.value ?? obj.content;
+      content = typeof alt === "string" ? alt : JSON.stringify(raw);
+    } else {
+      const stringVals = Object.entries(inp).filter(([, v]) => typeof v === "string").map(([k, v]) => ({ k, v }));
+      if (stringVals.length > 0) {
+        const best = stringVals.reduce((a, b) => a.v.length >= b.v.length ? a : b);
+        content = best.v;
+        console.warn(`[EMBODIMENT] ${toolUse.name}: used key "${best.k}" as content (content was ${typeof raw})`);
+      } else {
+        const dump = JSON.stringify(toolUse.input).slice(0, 120);
+        console.warn(`[EMBODIMENT] ${toolUse.name}: no string found, input: ${dump}`);
+        return `Error: no string content found. Got: ${dump}`;
+      }
     }
     const oldSize = creature.embodiment[section].length;
     const newSize = content.length;
@@ -473,7 +496,6 @@ var ConsciousnessManager = class {
     this.pauseSim = pauseSim;
     this.resumeSim = resumeSim;
     this.config = {
-      energyCostRatio: 0.15,
       maxQueueSize: 10,
       enabled: true,
       ...config
@@ -494,10 +516,20 @@ var ConsciousnessManager = class {
   /** Called from engine — synchronous, queues the async work */
   tryWake(creature, world, allCreatures, tick, reason) {
     if (!this.config.enabled) return;
-    const userMessage = buildUserMessage(creature, world, allCreatures, reason);
-    const cost = creature.maxEnergy * this.config.energyCostRatio;
+    let lastWakeTick = 0;
+    try {
+      const mem = JSON.parse(creature.embodiment.memory || "{}");
+      if (typeof mem.last_wake_tick === "number") lastWakeTick = mem.last_wake_tick;
+    } catch {
+    }
+    const ticksSinceWake = tick - lastWakeTick;
+    const MAX_COST_RATIO = 0.15;
+    const HALF_LIFE = 40;
+    const costRatio = MAX_COST_RATIO * Math.exp(-ticksSinceWake / HALF_LIFE);
+    const cost = creature.maxEnergy * costRatio;
     if (creature.energy <= cost) return;
     creature.energy -= cost;
+    const userMessage = buildUserMessage(creature, world, allCreatures, reason, cost);
     creature.thinking = true;
     if (this.queue.length >= this.config.maxQueueSize) {
       const dropped = this.queue.shift();
@@ -576,7 +608,7 @@ var ConsciousnessManager = class {
     }
     const body = {
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 512,
+      max_tokens: 1024,
       system: SYSTEM_PROMPT,
       tools: [...EDIT_TOOLS, ...customToolDefs],
       tool_choice: { type: "auto" },
@@ -1197,8 +1229,8 @@ var Engine = class {
       }
     }
     const livingCount = this.creatures.filter((c) => c.alive).length;
-    if (livingCount < 3) {
-      for (let i = livingCount; i < 5; i++) {
+    if (livingCount < 5) {
+      for (let i = livingCount; i < 8; i++) {
         this.spawnCreatureRandom();
       }
       this.emit({ type: "log", message: `Population critical (${livingCount}) \u2014 spawned reinforcements` });

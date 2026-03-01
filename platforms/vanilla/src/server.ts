@@ -343,9 +343,10 @@ async function startServer() {
   // Create default admin user if none exists
   const admin = await getUserByUsername('admin');
   if (!admin) {
-    await createUser('admin', 'admin123', true);
-    console.log('📝 Created default admin user (username: admin, password: admin123)');
-    console.log('⚠️  Please change the password after first login!');
+    const defaultPass = require('crypto').randomBytes(16).toString('base64url');
+    await createUser('admin', defaultPass, true);
+    console.log(`📝 Created default admin user (username: admin, password: ${defaultPass})`);
+    console.log('⚠️  Save this password — it will not be shown again!');
   }
   
   await ensureDirectories();
