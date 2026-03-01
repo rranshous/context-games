@@ -87,7 +87,7 @@ export class Creature {
   /** Energy cost per tick from just existing */
   get baseBurnRate(): number {
     // bigger + faster = more expensive
-    return 0.3 * this.genome.size * (0.5 + this.genome.speed * 0.5) / this.genome.metabolism;
+    return 0.2 * this.genome.size * (0.5 + this.genome.speed * 0.5) / this.genome.metabolism;
   }
 
   get moveCost(): number {
@@ -116,11 +116,11 @@ export class Creature {
   }
 
   canReproduce(): boolean {
-    return this.energy > this.maxEnergy * 0.7 && this.age > 30;
+    return this.energy > this.maxEnergy * 0.55 && this.age > 30;
   }
 
   payReproductionCost(): void {
-    this.energy *= 0.4; // reproduction costs 60% of current energy
+    this.energy *= 0.6; // reproduction costs 40% of current energy
   }
 
   toState(): CreatureState {

@@ -762,7 +762,7 @@ var Creature = class _Creature {
   }
   /** Energy cost per tick from just existing */
   get baseBurnRate() {
-    return 0.3 * this.genome.size * (0.5 + this.genome.speed * 0.5) / this.genome.metabolism;
+    return 0.2 * this.genome.size * (0.5 + this.genome.speed * 0.5) / this.genome.metabolism;
   }
   get moveCost() {
     return 0.5 * this.genome.size / this.genome.metabolism;
@@ -786,10 +786,10 @@ var Creature = class _Creature {
     return gained;
   }
   canReproduce() {
-    return this.energy > this.maxEnergy * 0.7 && this.age > 30;
+    return this.energy > this.maxEnergy * 0.55 && this.age > 30;
   }
   payReproductionCost() {
-    this.energy *= 0.4;
+    this.energy *= 0.6;
   }
   toState() {
     return {
@@ -930,7 +930,7 @@ function reflexTick(creature, world, allCreatures) {
       return { action: "eat", dx: 0, dy: 0, foodEaten: eaten };
     }
     case "rest": {
-      creature.energy = Math.min(creature.maxEnergy, creature.energy + 0.5);
+      creature.energy = Math.min(creature.maxEnergy, creature.energy + 1.5);
       return { action: "rest", dx: 0, dy: 0, foodEaten: 0 };
     }
     case "move": {
@@ -1000,7 +1000,7 @@ function classifyTerrain(elevation, moisture) {
 var DEFAULT_CONFIG = {
   width: 64,
   height: 64,
-  foodSpawnRate: 2e-3,
+  foodSpawnRate: 6e-3,
   maxFoodPerCell: 5
 };
 var World = class {

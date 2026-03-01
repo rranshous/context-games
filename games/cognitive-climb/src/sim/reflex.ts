@@ -195,7 +195,7 @@ export function reflexTick(
 
     case 'rest': {
       // Resting recovers a tiny bit of energy
-      creature.energy = Math.min(creature.maxEnergy, creature.energy + 0.5);
+      creature.energy = Math.min(creature.maxEnergy, creature.energy + 1.5);
       return { action: 'rest', dx: 0, dy: 0, foodEaten: 0 };
     }
 

@@ -71,7 +71,7 @@ export interface WorldConfig {
 const DEFAULT_CONFIG: WorldConfig = {
   width: 64,
   height: 64,
-  foodSpawnRate: 0.002,
+  foodSpawnRate: 0.006,
   maxFoodPerCell: 5,
 };
 

@@ -31,16 +31,18 @@
 
 ## Key Constants & Tuning
 
-- World: 64×64, foodSpawnRate 0.002/cell/tick, maxFoodPerCell 5, foodSpawnInterval every 5 ticks
-- Initial creatures: 12, population floor: 3 (respawn to 5)
+- World: 64×64, foodSpawnRate 0.006/cell/tick, maxFoodPerCell 5, foodSpawnInterval every 5 ticks
+- Initial creatures: 12, population floor: 5 (respawn to 8)
 - Genome ranges: speed 0.5-2, senseRange 2-8, size 0.5-2, metabolism 0.5-1.5, diet 0-1 (start 0-0.3), wakeInterval 30-200
-- Energy: maxEnergy = 50 + size×30, start at 60%, baseBurn = 0.3 × size × (0.5+speed×0.5) / metabolism
+- Energy: maxEnergy = 50 + size×30, start at 60%, baseBurn = 0.2 × size × (0.5+speed×0.5) / metabolism
 - Food: gives 5 × value × metabolism energy. Eat max 3 per action.
 - Move cost: 0.5 × size / metabolism
 - Mutation: 15% per gene, stddev 10% of range, 5% chance of 5× large jump
 - State snapshots every 30 ticks, stats every 10 ticks
 - Hazards: noise threshold 0.78, +0.15 near edge (<4 cells), +0.2 on rock terrain
-- Consciousness: 15% maxEnergy per wake, max queue 10, crisis threshold 25% energy (20-tick cooldown), model claude-haiku-4-5-20251001, max_tokens 512
+- Consciousness: frequency-based wake cost (max 15% × e^(-ticksSince/40)), max queue 10, model claude-haiku-4-5-20251001, max_tokens 1024
+- Reproduction: threshold 55% energy + age>30, cost 40% of current energy
+- Rest: +1.5 energy/tick
 
 ## Milestones (revised 2026-02-20)
 
@@ -739,6 +741,80 @@ Observer correctly tracks narrative arc across reports, references specific crea
 - **M7** (future): multi-turn consciousness — tool results feed back to model
 - **M8** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
 - **M9** (future): sim depth — seasons, speciation, food chains, save/load
+
+## Session: 2026-03-01 — Survival Tuning (Path A) & Future Roadmap (Path B)
+
+### Problem: The Starvation Simulator
+
+After many extended runs, a clear pattern emerged: populations crash repeatedly, interesting self-modifications are rare and fragile, and **zero creatures have ever died from hazards** — danger avoidance reflexes trivially handle them. The entire sim is a one-dimensional optimization problem: find food before energy runs out. This produces one optimal strategy (small, slow, unconscious) and everything converges to it.
+
+**Why populations crash — the math:**
+- Food supply: ~4 food items spawn every 5 ticks for 12+ creatures (0.002 rate × ~2000 eligible cells)
+- Median creature burns ~0.42 energy/tick base + ~0.63 per move = ~1.05/tick when active
+- One food unit gives 5 energy → need ~1 food every 5 ticks to break even
+- But only ~0.33 food/creature/tick available → chronic deficit
+- Reproduction requires 70% energy (hard to reach), then costs 60% → parent drops to ~28%, immediate crisis
+- Rest recovery (+0.5/tick) barely offsets base burn (0.42/tick) → resting is nearly useless
+- Consciousness costs energy to wake up, the one scarce resource → being smarter = dying faster
+
+### Path A: Survival Tuning (implemented this session)
+
+Loosen the numbers so populations stabilize long enough for evolution to run. Changes:
+
+| Parameter | Before | After | File | Effect |
+|-----------|--------|-------|------|--------|
+| `foodSpawnRate` | 0.002 | 0.006 | world.ts | 3× more food — ~12 items per spawn round instead of ~4 |
+| Base burn multiplier | 0.3 | 0.2 | creature.ts | Existing costs ~33% cheaper (median burn: 0.42 → 0.28/tick) |
+| Reproduction threshold | 70% | 55% | creature.ts | Easier to qualify for reproduction |
+| Reproduction cost | 60% | 40% | creature.ts | Parent keeps 60% energy (drops to ~33% instead of ~28%) |
+| Rest recovery | +0.5/tick | +1.5/tick | reflex.ts | Resting becomes a real survival strategy (net gain +1.22/tick for median creature, was +0.08) |
+
+**Post-tuning math for a median creature** (size=1.25, speed=1.25, metabolism=1.0, maxEnergy=87.5):
+- Base burn: 0.28/tick (down from 0.42)
+- Food available: ~1 food/creature every ~5 ticks → ~1 energy/tick surplus when foraging
+- Rest: net gain +1.22/tick (was +0.08) → resting is now a viable energy recovery strategy
+- Reproduction: threshold at 55% (~48 energy), cost keeps 60% → post-reproduction at ~33%, not crisis
+- Wake cost at 40+ tick intervals: ~5% of max → affordable for strategic thinkers
+
+Expected result: stable populations of 30-60 where evolution has time to work, more reproduction cycles, and consciousness becomes a viable strategy instead of a trap.
+
+### Path B: Multi-Dimensional World (future sessions)
+
+The deeper issue: one pressure = one optimal strategy = convergence. To get interesting diversity, creatures need different trade-offs where multiple strategies can coexist. Ideas ranked by implementation effort and impact:
+
+**1. Seasonal food cycles** (high impact, moderate effort)
+- Food spawn rate oscillates: summer (2× base) → autumn (1× base) → winter (0.3× base) → spring (1.5× base)
+- Cycle length: ~500-1000 ticks
+- Creates pressure for: energy hoarding, anticipation (encoding season-awareness in onTick), migration
+- Breaks the "always low metabolism" meta — creatures need to eat aggressively in summer and conserve in winter
+- Implementation: add `season` state to World, modulate foodSpawnRate by season, add season to creature senses
+
+**2. Food clusters / oases** (medium impact, low effort)
+- Instead of uniform sparse spawning, concentrate food in "oasis" zones with high spawn rates
+- Creates pressure for: territorial behavior, exploration, migration between depleted oases
+- Implementation: add a food density noise layer, multiply foodSpawnRate by density
+
+**3. Predation** (high impact, high effort)
+- Carnivore diet actually working — creatures can hunt and eat other creatures
+- Creates arms race: speed for escape vs. ambush, herding, warning behaviors
+- Would give hazard-like pressure that's actually dynamic and interesting (unlike static hazard zones)
+- Implementation: new "hunt" action in reflex, energy gain from kills, diet trait becomes meaningful
+
+**4. Environmental events** (medium impact, low effort)
+- Random food blooms (localized 5× spawn for 50 ticks)
+- Droughts (0.3× food in a region for 100 ticks)
+- Hazard zone shifts (danger zones move/appear/disappear)
+- Rewards adaptability over static optimization
+
+**5. Biome specialization** (medium impact, medium effort)
+- Different terrain types offer different food values and spawn rates
+- Forest: rare but high-value food. Grassland: common but low-value. Sand: very rare but huge value
+- Diet trait controls efficiency per biome (herbivore thrives in forest, omnivore in sand)
+- Creates niche differentiation — multiple viable strategies coexist
+
+### Recommendation for next session
+
+Start with **seasonal food cycles** — highest impact for the complexity, creates temporal pressure that current creatures have no answer for, and pairs naturally with the Path A tuning (need stable populations before adding new pressures).
 
 ## Session: 2026-03-01 — Observer Bugfixes
 
