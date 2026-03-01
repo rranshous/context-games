@@ -7,8 +7,8 @@
 // right now and rewrite your on_player_spotted case."
 
 import { ChaseReplay, TileType, DEFAULT_CONFIG } from './types';
-import { Soma, DISCOVERABLE_TOOLS } from './soma';
-import { renderChaseMap } from './chase-map-renderer';
+import { Soma } from './soma';
+import { renderChaseMap, AllyPath } from './chase-map-renderer';
 import { summarizeReplayForActant, queryReplayRange, ReplaySummary } from './replay-summarizer';
 import { clearHandlerCache } from './handler-executor';
 
@@ -45,33 +45,6 @@ const SCAFFOLD_TOOLS = [
         },
       },
       required: ['memory_content'],
-    },
-  },
-  {
-    name: 'discover_tools',
-    description: 'See what capabilities are available to you that you haven\'t adopted yet. New tools expand what you can do during chases.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {},
-    },
-  },
-  {
-    name: 'adopt_tools',
-    description: 'Add new capabilities to your toolkit for future chases. Only adopt tools you have a specific plan to use.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        tool_names: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Names of tools to adopt from the discoverable list.',
-        },
-        reasoning: {
-          type: 'string',
-          description: 'Why you need these tools for your evolving tactics.',
-        },
-      },
-      required: ['tool_names', 'reasoning'],
     },
   },
   {
@@ -177,6 +150,7 @@ The attached image is a bird's-eye view of the chase with a legend at the bottom
 - You can only see the suspect when there is a clear line between you and them with no buildings in the way.
 - When you "lose" the suspect, it is almost always because they moved behind a building, breaking your line of sight — not because they outran you.
 - Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
+- Cyan/teal lines = your allies' paths (labeled with their names at start positions). Use these to spot coverage gaps — areas where nobody was watching.
 
 YOUR SENSING LIMITS — this is critical:
 - You have a FORWARD CONE of vision: 8 tiles range, 60° half-angle from your facing direction. You CANNOT see behind you or to your sides.
@@ -212,8 +186,6 @@ Now do the following, in order:
    ].join(', ')}
 
 3. **Call update_memory**: Record what you learned. Focus on patterns — "the suspect tends to..." not raw tick data.
-
-4. **Optionally call discover_tools** if you feel limited by your current capabilities, then **adopt_tools** for tools that match your evolving approach.
 
 DO NOT just describe what you would change. CALL THE TOOLS. Your written analysis means nothing if you don't call update_signal_handlers.`;
 }
@@ -499,64 +471,6 @@ function processToolCall(
       };
     }
 
-    case 'discover_tools': {
-      const currentToolNames = new Set(soma.tools.map(t => t.name));
-      const available = DISCOVERABLE_TOOLS.filter(t => !currentToolNames.has(t.name));
-
-      console.log(JSON.stringify({
-        _hp: 'tools_discovered',
-        actantId: soma.id,
-        available: available.map(t => t.name),
-      }));
-
-      return {
-        success: true,
-        data: {
-          available_tools: available.map(t => ({
-            name: t.name,
-            description: t.description,
-          })),
-        },
-      };
-    }
-
-    case 'adopt_tools': {
-      const toolNames = input.tool_names as string[];
-      const reasoning = input.reasoning as string;
-
-      if (!toolNames || !Array.isArray(toolNames)) {
-        return { success: false, error: 'tool_names array is required' };
-      }
-
-      const adopted: string[] = [];
-      const currentToolNames = new Set(soma.tools.map(t => t.name));
-
-      for (const name of toolNames) {
-        if (currentToolNames.has(name)) continue;
-        const tool = DISCOVERABLE_TOOLS.find(t => t.name === name);
-        if (tool) {
-          soma.tools.push(tool);
-          adopted.push(name);
-          currentToolNames.add(name);
-        }
-      }
-
-      result.toolsAdopted.push(...adopted);
-
-      console.log(JSON.stringify({
-        _hp: 'tools_adopted',
-        actantId: soma.id,
-        adopted,
-        reasoning,
-        totalTools: soma.tools.length,
-      }));
-
-      return {
-        success: true,
-        data: { adopted, message: `Adopted ${adopted.length} new tool(s). Use them in your signal handlers.` },
-      };
-    }
-
     case 'query_replay': {
       const startTick = input.start_tick as number;
       const endTick = input.end_tick as number;
@@ -676,10 +590,24 @@ export async function reflectAllActants(
   const promises = somas.map(async (soma) => {
     // Generate this officer's chase map before reflecting
     const summary = summarizeReplayForActant(replay, soma);
+
+    // Build ally paths — other officers' simplified paths
+    const allyPaths: AllyPath[] = somas
+      .filter(s => s.id !== soma.id)
+      .map(allySoma => {
+        const rawPath = replay.actantPaths[allySoma.id] || [];
+        return {
+          name: allySoma.name,
+          waypoints: rawPath
+            .filter((_, i) => i % 10 === 0)
+            .map(p => ({ tick: p.tick, pos: p.pos, state: p.state })),
+        };
+      });
+
     const chaseMapBase64 = renderChaseMap(
       mapInfo.tiles, mapInfo.cols, mapInfo.rows,
       summary.playerWaypoints, summary.officerWaypoints,
-      summary.keyMoments, mapInfo.tileSize,
+      summary.keyMoments, mapInfo.tileSize, allyPaths,
     );
 
     if (onProgress) onProgress(soma.id, 'reflecting', chaseMapBase64);

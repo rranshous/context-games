@@ -22,7 +22,7 @@ export interface Soma {
   nature: string;  // poetic analogy, not personality adjectives
   responsibility: string;
 
-  // Tools the actant has adopted (starts minimal, grows via discover_tools)
+  // Tools available during chases
   tools: ActantTool[];
 
   // Signal handlers — the code that runs during chases
@@ -107,8 +107,8 @@ const OFFICER_TEMPLATES: Array<{
   },
 ];
 
-/** Default tools — start minimal per implementation guide */
-const DEFAULT_TOOLS: ActantTool[] = [
+/** All tools available to officers from the start */
+const ALL_TOOLS: ActantTool[] = [
   {
     name: 'move_toward',
     description: 'Move toward a position. The most basic pursuit — go where they are.',
@@ -131,31 +131,6 @@ const DEFAULT_TOOLS: ActantTool[] = [
       required: ['target'],
     },
   },
-];
-
-export function createDefaultSoma(index: number): Soma {
-  const template = OFFICER_TEMPLATES[index % OFFICER_TEMPLATES.length];
-  return {
-    id: `officer-${index}`,
-    name: template.name,
-    badgeNumber: `HPD-${String(index + 1).padStart(3, '0')}`,
-    nature: template.nature,
-    responsibility: 'Capture the fugitive. Learn from every chase. Become harder to escape.',
-    tools: [...DEFAULT_TOOLS],
-    signalHandlers: DEFAULT_HANDLER,
-    memory: `Officer ${template.name} has not yet pursued anyone. No chase history.`,
-    memoryMaintainer: '',
-    chaseHistory: [],
-    playerModel: {
-      preferredRoutes: [],
-      behavioralPatterns: [],
-      exploitationIdeas: [],
-    },
-  };
-}
-
-/** Discoverable tools — not given at start, unlocked during reflection (Phase 3) */
-export const DISCOVERABLE_TOOLS: ActantTool[] = [
   {
     name: 'move_to_intercept',
     description: 'Move to where the suspect is going, not where they are.',
@@ -225,3 +200,24 @@ export const DISCOVERABLE_TOOLS: ActantTool[] = [
     },
   },
 ];
+
+export function createDefaultSoma(index: number): Soma {
+  const template = OFFICER_TEMPLATES[index % OFFICER_TEMPLATES.length];
+  return {
+    id: `officer-${index}`,
+    name: template.name,
+    badgeNumber: `HPD-${String(index + 1).padStart(3, '0')}`,
+    nature: template.nature,
+    responsibility: 'Capture the fugitive. Learn from every chase. Become harder to escape.',
+    tools: [...ALL_TOOLS],
+    signalHandlers: DEFAULT_HANDLER,
+    memory: `Officer ${template.name} has not yet pursued anyone. No chase history.`,
+    memoryMaintainer: '',
+    chaseHistory: [],
+    playerModel: {
+      preferredRoutes: [],
+      behavioralPatterns: [],
+      exploitationIdeas: [],
+    },
+  };
+}

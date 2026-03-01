@@ -462,8 +462,6 @@ function toolBadgeClass(name: string): string {
   switch (name) {
     case 'update_signal_handlers': return 'badge-handlers';
     case 'update_memory': return 'badge-memory';
-    case 'adopt_tools': return 'badge-tools';
-    case 'discover_tools': return 'badge-discover';
     case 'query_replay': return 'badge-replay';
     default: return '';
   }
@@ -482,13 +480,6 @@ function toolBadgeLabel(
       return `<span class="badge-icon">&#x2714;</span> Updated signal handlers`;
     case 'update_memory':
       return `<span class="badge-icon">&#x2714;</span> Updated memory`;
-    case 'adopt_tools': {
-      const data = result.data as { adopted?: string[] } | undefined;
-      const adopted = data?.adopted ?? [];
-      return `<span class="badge-icon">&#x2714;</span> Adopted: ${adopted.map(t => escapeHtml(t)).join(', ')}`;
-    }
-    case 'discover_tools':
-      return `<span class="badge-icon">&#x1F50D;</span> Discovered available tools`;
     case 'query_replay': {
       const start = input.start_tick ?? '?';
       const end = input.end_tick ?? '?';

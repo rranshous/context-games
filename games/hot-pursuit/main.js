@@ -860,7 +860,7 @@ var OFFICER_TEMPLATES = [
     nature: "Reeves patrols the grid the way a hawk circles a field \u2014 patient, reading the terrain, waiting for the moment the prey commits to a direction. She doesn't chase. She arrives."
   }
 ];
-var DEFAULT_TOOLS = [
+var ALL_TOOLS = [
   {
     name: "move_toward",
     description: "Move toward a position. The most basic pursuit \u2014 go where they are.",
@@ -882,29 +882,7 @@ var DEFAULT_TOOLS = [
       },
       required: ["target"]
     }
-  }
-];
-function createDefaultSoma(index) {
-  const template = OFFICER_TEMPLATES[index % OFFICER_TEMPLATES.length];
-  return {
-    id: `officer-${index}`,
-    name: template.name,
-    badgeNumber: `HPD-${String(index + 1).padStart(3, "0")}`,
-    nature: template.nature,
-    responsibility: "Capture the fugitive. Learn from every chase. Become harder to escape.",
-    tools: [...DEFAULT_TOOLS],
-    signalHandlers: DEFAULT_HANDLER,
-    memory: `Officer ${template.name} has not yet pursued anyone. No chase history.`,
-    memoryMaintainer: "",
-    chaseHistory: [],
-    playerModel: {
-      preferredRoutes: [],
-      behavioralPatterns: [],
-      exploitationIdeas: []
-    }
-  };
-}
-var DISCOVERABLE_TOOLS = [
+  },
   {
     name: "move_to_intercept",
     description: "Move to where the suspect is going, not where they are.",
@@ -974,6 +952,26 @@ var DISCOVERABLE_TOOLS = [
     }
   }
 ];
+function createDefaultSoma(index) {
+  const template = OFFICER_TEMPLATES[index % OFFICER_TEMPLATES.length];
+  return {
+    id: `officer-${index}`,
+    name: template.name,
+    badgeNumber: `HPD-${String(index + 1).padStart(3, "0")}`,
+    nature: template.nature,
+    responsibility: "Capture the fugitive. Learn from every chase. Become harder to escape.",
+    tools: [...ALL_TOOLS],
+    signalHandlers: DEFAULT_HANDLER,
+    memory: `Officer ${template.name} has not yet pursued anyone. No chase history.`,
+    memoryMaintainer: "",
+    chaseHistory: [],
+    playerModel: {
+      preferredRoutes: [],
+      behavioralPatterns: [],
+      exploitationIdeas: []
+    }
+  };
+}
 
 // src/persistence.ts
 var STORAGE_KEY = "hot-pursuit-somas";
@@ -1548,10 +1546,6 @@ function toolBadgeClass(name) {
       return "badge-handlers";
     case "update_memory":
       return "badge-memory";
-    case "adopt_tools":
-      return "badge-tools";
-    case "discover_tools":
-      return "badge-discover";
     case "query_replay":
       return "badge-replay";
     default:
@@ -1567,13 +1561,6 @@ function toolBadgeLabel(name, input, result) {
       return `<span class="badge-icon">&#x2714;</span> Updated signal handlers`;
     case "update_memory":
       return `<span class="badge-icon">&#x2714;</span> Updated memory`;
-    case "adopt_tools": {
-      const data = result.data;
-      const adopted = data?.adopted ?? [];
-      return `<span class="badge-icon">&#x2714;</span> Adopted: ${adopted.map((t) => escapeHtml(t)).join(", ")}`;
-    }
-    case "discover_tools":
-      return `<span class="badge-icon">&#x1F50D;</span> Discovered available tools`;
     case "query_replay": {
       const start = input.start_tick ?? "?";
       const end = input.end_tick ?? "?";
@@ -1606,6 +1593,7 @@ function renderMarkdown(md) {
 
 // src/chase-map-renderer.ts
 var SCALE = 8;
+var ALLY_COLOR = "#55aacc";
 var TILE_COLORS = {
   [0 /* ROAD */]: "#2a2a2a",
   [1 /* BUILDING */]: "#1a1a2e",
@@ -1619,7 +1607,29 @@ var STATE_COLORS = {
   pursuing: "#ff4444",
   searching: "#ffcc33"
 };
-function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, keyMoments, tileSize) {
+function drawArrow(ctx, x, y, angle, size, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size, -size * 0.7);
+  ctx.lineTo(-size * 0.3, 0);
+  ctx.lineTo(-size, size * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function waypointAngle(points, i) {
+  if (points.length < 2) return 0;
+  const prev = i > 0 ? points[i - 1] : points[i];
+  const next = i < points.length - 1 ? points[i + 1] : points[i];
+  const ref = i > 0 ? points[i] : next;
+  const from = i > 0 ? prev : points[i];
+  return Math.atan2(ref.y - from.y, ref.x - from.x);
+}
+function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, keyMoments, tileSize, allyPaths) {
   const mapW = cols * SCALE;
   const mapH = rows * SCALE;
   const legendH = 48;
@@ -1649,13 +1659,45 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
       ctx.lineTo(curr.x, curr.y);
       ctx.stroke();
     }
-    for (const wp of playerWaypoints) {
-      const p = toCanvas(wp.pos);
-      ctx.fillStyle = "#33ff33";
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-      ctx.fill();
+    const playerCanvasPoints = playerWaypoints.map((wp) => toCanvas(wp.pos));
+    for (let i = 0; i < playerCanvasPoints.length; i++) {
+      const p = playerCanvasPoints[i];
+      const angle = waypointAngle(playerCanvasPoints, i);
+      drawArrow(ctx, p.x, p.y, angle, 5, "#33ff33");
     }
+  }
+  if (allyPaths) {
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6;
+    for (const ally of allyPaths) {
+      if (ally.waypoints.length === 0) continue;
+      for (let i = 1; i < ally.waypoints.length; i++) {
+        const prev = toCanvas(ally.waypoints[i - 1].pos);
+        const curr = toCanvas(ally.waypoints[i].pos);
+        ctx.strokeStyle = ALLY_COLOR;
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(curr.x, curr.y);
+        ctx.stroke();
+      }
+      const allyCanvasPoints = ally.waypoints.map((wp) => toCanvas(wp.pos));
+      for (let i = 0; i < allyCanvasPoints.length; i++) {
+        const p = allyCanvasPoints[i];
+        const angle = waypointAngle(allyCanvasPoints, i);
+        drawArrow(ctx, p.x, p.y, angle, 4, ALLY_COLOR);
+      }
+      const start = toCanvas(ally.waypoints[0].pos);
+      ctx.fillStyle = ALLY_COLOR;
+      ctx.fillRect(start.x - 2.5, start.y - 2.5, 5, 5);
+      ctx.globalAlpha = 1;
+      ctx.font = `${Math.max(SCALE - 1, 6)}px monospace`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.fillStyle = "#fff";
+      ctx.fillText(ally.name, start.x + 4, start.y - 1);
+      ctx.globalAlpha = 0.6;
+    }
+    ctx.globalAlpha = 1;
   }
   if (officerWaypoints.length > 0) {
     ctx.lineWidth = 3;
@@ -1669,12 +1711,12 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
       ctx.lineTo(curr.x, curr.y);
       ctx.stroke();
     }
-    for (const wp of officerWaypoints) {
-      const p = toCanvas(wp.pos);
-      ctx.fillStyle = STATE_COLORS[wp.state] ?? "#888";
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-      ctx.fill();
+    const officerCanvasPoints = officerWaypoints.map((wp) => toCanvas(wp.pos));
+    for (let i = 0; i < officerCanvasPoints.length; i++) {
+      const p = officerCanvasPoints[i];
+      const color = STATE_COLORS[officerWaypoints[i].state] ?? "#888";
+      const angle = waypointAngle(officerCanvasPoints, i);
+      drawArrow(ctx, p.x, p.y, angle, 5, color);
     }
   }
   ctx.font = `${Math.max(SCALE, 6)}px monospace`;
@@ -1722,6 +1764,7 @@ function renderChaseMap(tiles, cols, rows, playerWaypoints, officerWaypoints, ke
     { color: "#2a2a2a", label: "Road" },
     { color: "#1e1e1e", label: "Alley" },
     { color: "#33ff33", label: "Suspect path" },
+    { color: ALLY_COLOR, label: "Ally paths" },
     { color: "#aa99ff", label: "Patrol" },
     { color: "#ff4444", label: "Pursuing" },
     { color: "#ffcc33", label: "Searching" }
@@ -1895,33 +1938,6 @@ var SCAFFOLD_TOOLS = [
     }
   },
   {
-    name: "discover_tools",
-    description: "See what capabilities are available to you that you haven't adopted yet. New tools expand what you can do during chases.",
-    input_schema: {
-      type: "object",
-      properties: {}
-    }
-  },
-  {
-    name: "adopt_tools",
-    description: "Add new capabilities to your toolkit for future chases. Only adopt tools you have a specific plan to use.",
-    input_schema: {
-      type: "object",
-      properties: {
-        tool_names: {
-          type: "array",
-          items: { type: "string" },
-          description: "Names of tools to adopt from the discoverable list."
-        },
-        reasoning: {
-          type: "string",
-          description: "Why you need these tools for your evolving tactics."
-        }
-      },
-      required: ["tool_names", "reasoning"]
-    }
-  },
-  {
     name: "query_replay",
     description: "Look more closely at a specific moment in the chase. What happened between those ticks?",
     input_schema: {
@@ -2016,6 +2032,7 @@ The attached image is a bird's-eye view of the chase with a legend at the bottom
 - You can only see the suspect when there is a clear line between you and them with no buildings in the way.
 - When you "lose" the suspect, it is almost always because they moved behind a building, breaking your line of sight \u2014 not because they outran you.
 - Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments. Green squares = extraction points.
+- Cyan/teal lines = your allies' paths (labeled with their names at start positions). Use these to spot coverage gaps \u2014 areas where nobody was watching.
 
 YOUR SENSING LIMITS \u2014 this is critical:
 - You have a FORWARD CONE of vision: 8 tiles range, 60\xB0 half-angle from your facing direction. You CANNOT see behind you or to your sides.
@@ -2046,8 +2063,6 @@ Now do the following, in order:
   ].join(", ")}
 
 3. **Call update_memory**: Record what you learned. Focus on patterns \u2014 "the suspect tends to..." not raw tick data.
-
-4. **Optionally call discover_tools** if you feel limited by your current capabilities, then **adopt_tools** for tools that match your evolving approach.
 
 DO NOT just describe what you would change. CALL THE TOOLS. Your written analysis means nothing if you don't call update_signal_handlers.`;
 }
@@ -2222,54 +2237,6 @@ function processToolCall(toolName, input, soma, replay, result) {
         data: { message: "Memory updated." }
       };
     }
-    case "discover_tools": {
-      const currentToolNames = new Set(soma.tools.map((t) => t.name));
-      const available = DISCOVERABLE_TOOLS.filter((t) => !currentToolNames.has(t.name));
-      console.log(JSON.stringify({
-        _hp: "tools_discovered",
-        actantId: soma.id,
-        available: available.map((t) => t.name)
-      }));
-      return {
-        success: true,
-        data: {
-          available_tools: available.map((t) => ({
-            name: t.name,
-            description: t.description
-          }))
-        }
-      };
-    }
-    case "adopt_tools": {
-      const toolNames = input.tool_names;
-      const reasoning = input.reasoning;
-      if (!toolNames || !Array.isArray(toolNames)) {
-        return { success: false, error: "tool_names array is required" };
-      }
-      const adopted = [];
-      const currentToolNames = new Set(soma.tools.map((t) => t.name));
-      for (const name of toolNames) {
-        if (currentToolNames.has(name)) continue;
-        const tool = DISCOVERABLE_TOOLS.find((t) => t.name === name);
-        if (tool) {
-          soma.tools.push(tool);
-          adopted.push(name);
-          currentToolNames.add(name);
-        }
-      }
-      result.toolsAdopted.push(...adopted);
-      console.log(JSON.stringify({
-        _hp: "tools_adopted",
-        actantId: soma.id,
-        adopted,
-        reasoning,
-        totalTools: soma.tools.length
-      }));
-      return {
-        success: true,
-        data: { adopted, message: `Adopted ${adopted.length} new tool(s). Use them in your signal handlers.` }
-      };
-    }
     case "query_replay": {
       const startTick = input.start_tick;
       const endTick = input.end_tick;
@@ -2345,6 +2312,13 @@ async function callAnthropicAPI(endpoint, body) {
 async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate) {
   const promises = somas.map(async (soma) => {
     const summary = summarizeReplayForActant(replay, soma);
+    const allyPaths = somas.filter((s) => s.id !== soma.id).map((allySoma) => {
+      const rawPath = replay.actantPaths[allySoma.id] || [];
+      return {
+        name: allySoma.name,
+        waypoints: rawPath.filter((_, i) => i % 10 === 0).map((p) => ({ tick: p.tick, pos: p.pos, state: p.state }))
+      };
+    });
     const chaseMapBase64 = renderChaseMap(
       mapInfo.tiles,
       mapInfo.cols,
@@ -2352,7 +2326,8 @@ async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onP
       summary.playerWaypoints,
       summary.officerWaypoints,
       summary.keyMoments,
-      mapInfo.tileSize
+      mapInfo.tileSize,
+      allyPaths
     );
     if (onProgress) onProgress(soma.id, "reflecting", chaseMapBase64);
     const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model, onTurnUpdate);

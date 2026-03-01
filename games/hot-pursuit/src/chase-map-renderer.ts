@@ -5,7 +5,13 @@
 import { TileType, Position } from './types';
 import { ReplaySummary } from './replay-summarizer';
 
+export interface AllyPath {
+  name: string;
+  waypoints: Array<{ tick: number; pos: Position; state: string }>;
+}
+
 const SCALE = 8; // pixels per tile
+const ALLY_COLOR = '#55aacc'; // muted cyan for all ally paths
 
 const TILE_COLORS: Record<TileType, string> = {
   [TileType.ROAD]: '#2a2a2a',
@@ -22,6 +28,38 @@ const STATE_COLORS: Record<string, string> = {
   searching: '#ffcc33',
 };
 
+/** Draw a small filled arrowhead pointing in the direction of travel. */
+function drawArrow(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  angle: number,
+  size: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size, -size * 0.7);
+  ctx.lineTo(-size * 0.3, 0);
+  ctx.lineTo(-size, size * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Get travel angle at waypoint i (radians). Uses next point for first, prev for last. */
+function waypointAngle(points: Array<{ x: number; y: number }>, i: number): number {
+  if (points.length < 2) return 0;
+  const prev = i > 0 ? points[i - 1] : points[i];
+  const next = i < points.length - 1 ? points[i + 1] : points[i];
+  const ref = i > 0 ? points[i] : next; // use current→next for first, prev→current for rest
+  const from = i > 0 ? prev : points[i];
+  return Math.atan2(ref.y - from.y, ref.x - from.x);
+}
+
 /**
  * Render a bird's-eye chase map as a base64 PNG.
  * Returns raw base64 (no data: prefix).
@@ -34,6 +72,7 @@ export function renderChaseMap(
   officerWaypoints: ReplaySummary['officerWaypoints'],
   keyMoments: ReplaySummary['keyMoments'],
   tileSize: number,
+  allyPaths?: AllyPath[],
 ): string {
   const mapW = cols * SCALE;
   const mapH = rows * SCALE;
@@ -70,13 +109,50 @@ export function renderChaseMap(
       ctx.lineTo(curr.x, curr.y);
       ctx.stroke();
     }
-    for (const wp of playerWaypoints) {
-      const p = toCanvas(wp.pos);
-      ctx.fillStyle = '#33ff33';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-      ctx.fill();
+    const playerCanvasPoints = playerWaypoints.map(wp => toCanvas(wp.pos));
+    for (let i = 0; i < playerCanvasPoints.length; i++) {
+      const p = playerCanvasPoints[i];
+      const angle = waypointAngle(playerCanvasPoints, i);
+      drawArrow(ctx, p.x, p.y, angle, 5, '#33ff33');
     }
+  }
+
+  // 2b. Draw ally paths (muted cyan, thinner) + name labels at start
+  if (allyPaths) {
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6;
+    for (const ally of allyPaths) {
+      if (ally.waypoints.length === 0) continue;
+      // Path line
+      for (let i = 1; i < ally.waypoints.length; i++) {
+        const prev = toCanvas(ally.waypoints[i - 1].pos);
+        const curr = toCanvas(ally.waypoints[i].pos);
+        ctx.strokeStyle = ALLY_COLOR;
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(curr.x, curr.y);
+        ctx.stroke();
+      }
+      // Waypoint arrows
+      const allyCanvasPoints = ally.waypoints.map(wp => toCanvas(wp.pos));
+      for (let i = 0; i < allyCanvasPoints.length; i++) {
+        const p = allyCanvasPoints[i];
+        const angle = waypointAngle(allyCanvasPoints, i);
+        drawArrow(ctx, p.x, p.y, angle, 4, ALLY_COLOR);
+      }
+      // Name label at start position
+      const start = toCanvas(ally.waypoints[0].pos);
+      ctx.fillStyle = ALLY_COLOR;
+      ctx.fillRect(start.x - 2.5, start.y - 2.5, 5, 5);
+      ctx.globalAlpha = 1;
+      ctx.font = `${Math.max(SCALE - 1, 6)}px monospace`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(ally.name, start.x + 4, start.y - 1);
+      ctx.globalAlpha = 0.6;
+    }
+    ctx.globalAlpha = 1;
   }
 
   // 3. Draw officer path (colored by state) + dots at each waypoint
@@ -92,12 +168,12 @@ export function renderChaseMap(
       ctx.lineTo(curr.x, curr.y);
       ctx.stroke();
     }
-    for (const wp of officerWaypoints) {
-      const p = toCanvas(wp.pos);
-      ctx.fillStyle = STATE_COLORS[wp.state] ?? '#888';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-      ctx.fill();
+    const officerCanvasPoints = officerWaypoints.map(wp => toCanvas(wp.pos));
+    for (let i = 0; i < officerCanvasPoints.length; i++) {
+      const p = officerCanvasPoints[i];
+      const color = STATE_COLORS[officerWaypoints[i].state] ?? '#888';
+      const angle = waypointAngle(officerCanvasPoints, i);
+      drawArrow(ctx, p.x, p.y, angle, 5, color);
     }
   }
 
@@ -155,6 +231,7 @@ export function renderChaseMap(
     { color: '#2a2a2a', label: 'Road' },
     { color: '#1e1e1e', label: 'Alley' },
     { color: '#33ff33', label: 'Suspect path' },
+    { color: ALLY_COLOR, label: 'Ally paths' },
     { color: '#aa99ff', label: 'Patrol' },
     { color: '#ff4444', label: 'Pursuing' },
     { color: '#ffcc33', label: 'Searching' },

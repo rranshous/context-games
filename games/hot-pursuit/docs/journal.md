@@ -274,3 +274,51 @@ Game can get choppy — likely caused by officer signal handlers growing unconst
 - Tool discovery pacing
 - Observe officer evolution across multiple runs
 - Handler performance limits (see choppiness issue above)
+
+## 2026-03-01 — Session 5: Ally Paths, Directional Arrows, Tool Simplification
+
+### Ally Paths on Chase Map
+Each officer's chase map now shows where their teammates were during the chase. Previously officers only saw their own path + the suspect's path — no team awareness.
+
+- All ally paths drawn in muted cyan (`#55aacc`), thinner lines (2px), 60% opacity
+- Each ally's start position labeled with their name in white
+- Drawn underneath the reflecting officer's own path (layering: tiles → player → allies → officer → markers)
+- New "Ally paths" legend entry
+- Reflection prompt updated to explain ally paths and suggest spotting coverage gaps
+- Ally waypoints extracted from `replay.actantPaths` in `reflectAllActants()`, simplified every 10th tick
+
+### Directional Arrows on Paths
+Replaced waypoint dots with directional arrowheads (chevron shape) to show travel direction. Previously paths with doublebacks were ambiguous.
+
+- `drawArrow()` helper draws a filled chevron rotated to match travel direction
+- `waypointAngle()` computes direction from prev→current waypoint (next→current for first point)
+- Size: 5px for player/officer, 4px for allies
+- Applied to all three path types (player, officer, ally)
+
+### Removed Tool Discovery/Adoption
+Tool pacing (discover_tools + adopt_tools) removed entirely. All 9 tools now available from the start:
+- `move_toward`, `check_line_of_sight`, `move_to_intercept`, `hold_position`, `map_query`, `escape_routes_from`, `ally_positions`, `distance_to`, `broadcast`
+- Removed `discover_tools` and `adopt_tools` scaffold tools from reflection
+- Removed `DISCOVERABLE_TOOLS` export from soma.ts — merged into single `ALL_TOOLS` array
+- Reflection prompt step 4 (discover/adopt) removed
+- Renderer badge code for adopt/discover cleaned up
+
+### Data Efficiency Review
+Confirmed that officer reflection prompts are efficient — they receive:
+1. Stats (outcome, duration, state breakdown)
+2. Key moments (numbered list)
+3. Chase map image (320×240 PNG with paths, arrows, allies, legend)
+4. Map/sensing explanation text
+
+Raw waypoint data stays in the console replay log (debug only), never sent to the AI. The `query_replay` tool can pull specific tick ranges on-demand.
+
+### Future Idea: Police Chief Multiplayer
+A second player could act as police chief during debriefing — giving direction and comments to officers between chases. Officers would receive the chief's input as additional context during reflection. Creates an asymmetric multiplayer experience: fugitive vs. chief, with AI officers as the chief's team.
+
+### What's Next
+- **Phase 4: Communication** — the main remaining feature phase
+  - Config A: None (current) → B: Observation sharing → C: Tactic sharing → D: Live radio
+  - `broadcast()` already exists as a no-op in chassis.ts, needs wiring
+  - `ally_signal` handler case exists in default handlers (currently no-op)
+- Handler performance limits (choppiness from unbounded handler complexity)
+- Observe officer evolution across multiple runs
