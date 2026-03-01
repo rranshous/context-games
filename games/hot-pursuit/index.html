@@ -67,13 +67,10 @@
       position: absolute;
       inset: 0;
       background: rgba(0, 0, 0, 0.92);
-      justify-content: center;
-      align-items: flex-start;
-      flex-direction: column;
       overflow-y: auto;
       padding: 24px;
     }
-    #reflection-overlay.visible { display: flex; }
+    #reflection-overlay.visible { display: block; }
     #reflection-content {
       max-width: 900px;
       width: 100%;
@@ -194,7 +191,8 @@
     .reflection-map-card img {
       image-rendering: pixelated;
       width: 100%;
-      aspect-ratio: 4/3;
+      max-height: 260px;
+      object-fit: contain;
       border: 1px solid #333;
       display: block;
     }

@@ -144,4 +144,33 @@ Added vision support to the reflection system. Each officer now receives a rende
 ### Current State
 - All features working: chase map image sent to AI, displayed per-officer during reflection, full debrief with markdown rendering and soma change details
 - esbuild watch running for dev iteration
-- Next steps: observe how officers respond to visual context, tune map scale/detail if needed
+
+## 2026-03-01 — Session 2: Parallel Reflection + UI Polish
+
+### Parallel Reflection
+- All 4 officers now reflect simultaneously via `Promise.all` instead of serial loop
+- Cuts reflection wait time to ~1/4 (limited by slowest officer, not sum of all)
+- `reflectAllActants()` in `reflection.ts` uses `somas.map(async ...)` + `Promise.all`
+
+### 2×2 Chase Map Grid
+- During reflection, all 4 officer chase maps display simultaneously in a 2×2 CSS grid
+- Each card shows: officer name, status indicator (⟳ waiting → ⟳ reflecting → ✓ complete / ✗ failed), their chase map image
+- Card border turns green on completion — nice visual feedback
+- Replaced the old single-map-that-rotates approach
+
+### Chase Map Renderer Changes
+- Player path now uses same bold style as officer path: 2.5px lineWidth, full opacity, waypoint dots (was thinner 1.5px at 0.7 alpha)
+- Officer path unchanged: per-segment state coloring (purple=patrol, red=pursuing, orange=searching) + waypoint dots
+
+### Viewport + Layout
+- Viewport bumped from 640×480 to 960×640 for more room
+- Reflection overlay switched from `display: flex; justify-content: center` to `display: block` — fixed classic flexbox overflow bug where first officer card was cut off (content above scroll origin)
+- Map images: `width: 100%; max-height: 260px; object-fit: contain` — scales up from native 160×120 while fitting viewport
+- Removed "ONE WEEK LATER..." header from reflection screen to reclaim vertical space
+- Minor remaining issue: slight scroll still needed on reflection screen, likely padding — not urgent
+
+### What's Next
+- Remaining scroll on reflection screen could be fixed by reducing overlay padding (24px → smaller)
+- Phase 4: Communication experiments — debrief sharing, live radio primitives, broadcast dispatch to ally_signal handlers (currently broadcast is a logged no-op in chassis.ts)
+- Tool discovery pacing — currently all 7 discoverable tools available from first reflection, design doc suggests gradual reveal
+- Observe officer evolution across multiple runs — are they actually improving?

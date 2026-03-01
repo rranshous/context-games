@@ -344,8 +344,6 @@ export class Renderer {
       `).join('');
 
       content.innerHTML = `
-        <div class="reflection-title">ONE WEEK LATER...</div>
-        <div class="reflection-subtitle">The officers review the chase footage.</div>
         <div class="reflection-map-grid">${cards}</div>
       `;
     }
