@@ -287,7 +287,7 @@ export class Game {
     this.phase = 'reflecting';
     this.reflectionInProgress = true;
     this.renderer.hideGameOver();
-    this.renderer.showReflection('starting');
+    this.renderer.showReflection('starting', this.somas);
 
     console.log(JSON.stringify({
       _hp: 'reflection_phase_start',
@@ -300,9 +300,15 @@ export class Game {
         this.somas,
         this.lastReplay,
         API_ENDPOINT,
+        {
+          tiles: this.map.tiles,
+          cols: this.map.cols,
+          rows: this.map.rows,
+          tileSize: this.map.tileSize,
+        },
         undefined, // use default model
-        (actantId, status) => {
-          this.renderer.updateReflectionProgress(actantId, status, this.somas);
+        (actantId, status, chaseMapBase64) => {
+          this.renderer.updateReflectionProgress(actantId, status, this.somas, chaseMapBase64);
         },
       );
 

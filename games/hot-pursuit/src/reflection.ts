@@ -6,8 +6,9 @@
 // Don't say "update your tactical handlers." Say "call update_signal_handlers
 // right now and rewrite your on_player_spotted case."
 
-import { ChaseReplay } from './types';
+import { ChaseReplay, TileType } from './types';
 import { Soma, DISCOVERABLE_TOOLS } from './soma';
+import { renderChaseMap } from './chase-map-renderer';
 import { summarizeReplayForActant, queryReplayRange, ReplaySummary } from './replay-summarizer';
 import { clearHandlerCache } from './handler-executor';
 
@@ -164,15 +165,13 @@ Overall stats:
 - Closest any officer got: ${Math.round(summary.closestApproach)}px
 - Suspect traveled ${summary.playerDistanceTraveled}px total
 
-Key moments:
-${summary.keyMoments.map(m =>
-    `  [tick ${m.tick}, ${Math.round(m.time)}s] ${m.description}${
-      m.positions?.player ? ` (suspect at ${Math.round(m.positions.player.x)},${Math.round(m.positions.player.y)})` : ''
-    }${
-      m.positions?.officer ? ` (you at ${Math.round(m.positions.officer.x)},${Math.round(m.positions.officer.y)})` : ''
-    }`
+Key moments (numbered markers on the attached chase map):
+${summary.keyMoments.map((m, i) =>
+    `  ${i + 1}. [${Math.round(m.time)}s] ${m.description}`
   ).join('\n')}
 </chase_replay>
+
+The attached image is a bird's-eye view of the chase. Green line = suspect path. Your path is colored by state (purple=patrol, red=pursuing, orange=searching). Numbered circles mark key moments listed above. Green squares = extraction points.
 
 ${isFirstChase
     ? `This was your first chase. Your default handlers are basic — move toward on sight, go to last known on lost, random patrol otherwise. There's a LOT of room to improve.`
@@ -226,13 +225,14 @@ interface AnthropicMessage {
 }
 
 interface AnthropicContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result';
+  type: 'text' | 'tool_use' | 'tool_result' | 'image';
   text?: string;
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
   tool_use_id?: string;
   content?: string;
+  source?: { type: 'base64'; media_type: 'image/png'; data: string };
 }
 
 interface AnthropicResponse {
@@ -246,10 +246,18 @@ interface AnthropicResponse {
  * Run reflection for a single actant.
  * Makes API calls, processes tool use, updates the soma in place.
  */
+export interface MapInfo {
+  tiles: TileType[][];
+  cols: number;
+  rows: number;
+  tileSize: number;
+}
+
 export async function reflectActant(
   soma: Soma,
   replay: ChaseReplay,
   apiEndpoint: string,
+  chaseMapBase64: string,
   model: string = 'claude-sonnet-4-20250514',
 ): Promise<ReflectionResult> {
   const result: ReflectionResult = {
@@ -274,9 +282,12 @@ export async function reflectActant(
       summaryKeyMoments: summary.keyMoments.length,
     }));
 
-    // Initial inference call
+    // Initial inference call — multimodal (image + text)
     let messages: AnthropicMessage[] = [
-      { role: 'user', content: userPrompt },
+      { role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: chaseMapBase64 } },
+        { type: 'text', text: userPrompt },
+      ] },
     ];
 
     let totalInput = 0;
@@ -608,29 +619,39 @@ async function callAnthropicAPI(
 // ── Batch Reflection ──
 
 /**
- * Run reflection for all actants sequentially.
+ * Run reflection for all actants in parallel.
  * Returns results and a combined strategy board narrative.
  */
 export async function reflectAllActants(
   somas: Soma[],
   replay: ChaseReplay,
   apiEndpoint: string,
+  mapInfo: MapInfo,
   model?: string,
-  onProgress?: (actantId: string, status: string) => void,
+  onProgress?: (actantId: string, status: string, chaseMapBase64?: string) => void,
 ): Promise<{
   results: ReflectionResult[];
   strategyBoard: StrategyBoardData;
 }> {
-  const results: ReflectionResult[] = [];
+  const promises = somas.map(async (soma) => {
+    // Generate this officer's chase map before reflecting
+    const summary = summarizeReplayForActant(replay, soma);
+    const chaseMapBase64 = renderChaseMap(
+      mapInfo.tiles, mapInfo.cols, mapInfo.rows,
+      summary.playerWaypoints, summary.officerWaypoints,
+      summary.keyMoments, mapInfo.tileSize,
+    );
 
-  for (const soma of somas) {
-    if (onProgress) onProgress(soma.id, 'reflecting');
+    if (onProgress) onProgress(soma.id, 'reflecting', chaseMapBase64);
 
-    const result = await reflectActant(soma, replay, apiEndpoint, model);
-    results.push(result);
+    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model);
 
     if (onProgress) onProgress(soma.id, result.success ? 'complete' : 'failed');
-  }
+
+    return result;
+  });
+
+  const results = await Promise.all(promises);
 
   // Build strategy board from results
   const strategyBoard = buildStrategyBoardData(somas, results, replay);
@@ -648,8 +669,11 @@ export interface StrategyBoardData {
     name: string;
     nature: string;
     handlersUpdated: boolean;
+    memoryUpdated: boolean;
+    toolsAdopted: string[];
     reasoning: string;
     memoryPreview: string;
+    handlerCodePreview: string;
     toolCount: number;
   }>;
 }
@@ -667,8 +691,11 @@ function buildStrategyBoardData(
       name: soma.name,
       nature: soma.nature,
       handlersUpdated: results[i]?.handlersUpdated ?? false,
-      reasoning: results[i]?.reasoning?.slice(0, 300) ?? '',
-      memoryPreview: soma.memory.slice(0, 200),
+      memoryUpdated: results[i]?.memoryUpdated ?? false,
+      toolsAdopted: results[i]?.toolsAdopted ?? [],
+      reasoning: results[i]?.reasoning ?? '',
+      memoryPreview: soma.memory,
+      handlerCodePreview: soma.signalHandlers,
       toolCount: soma.tools.length,
     })),
   };

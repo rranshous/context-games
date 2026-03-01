@@ -326,60 +326,104 @@ export class Renderer {
 
   // ── Reflection UI ──
 
-  showReflection(_status: string): void {
+  showReflection(_status: string, somas: Soma[]): void {
     const overlay = document.getElementById('reflection-overlay');
     if (!overlay) return;
     overlay.classList.add('visible');
 
     const content = document.getElementById('reflection-content');
     if (content) {
+      const cards = somas.map(s => `
+        <div id="reflect-card-${s.id}" class="reflection-map-card">
+          <div class="reflection-map-header">
+            <span class="reflection-map-label">${escapeHtml(s.name)}</span>
+            <span id="reflect-status-${s.id}" class="reflection-map-status active">⟳ waiting</span>
+          </div>
+          <div id="reflect-map-${s.id}"></div>
+        </div>
+      `).join('');
+
       content.innerHTML = `
         <div class="reflection-title">ONE WEEK LATER...</div>
         <div class="reflection-subtitle">The officers review the chase footage.</div>
-        <div id="reflection-progress"></div>
+        <div class="reflection-map-grid">${cards}</div>
       `;
     }
   }
 
-  updateReflectionProgress(actantId: string, status: string, somas: Soma[]): void {
-    const container = document.getElementById('reflection-progress');
-    if (!container) return;
-
-    const soma = somas.find(s => s.id === actantId);
-    const name = soma?.name ?? actantId;
-
-    let row = document.getElementById(`reflect-${actantId}`);
-    if (!row) {
-      row = document.createElement('div');
-      row.id = `reflect-${actantId}`;
-      row.className = 'reflection-officer';
-      container.appendChild(row);
+  updateReflectionProgress(actantId: string, status: string, _somas: Soma[], chaseMapBase64?: string): void {
+    // Update status indicator
+    const statusEl = document.getElementById(`reflect-status-${actantId}`);
+    if (statusEl) {
+      const statusIcon = status === 'reflecting' ? '⟳' : status === 'complete' ? '✓' : '✗';
+      const statusClass = status === 'reflecting' ? 'active' : status === 'complete' ? 'done' : 'error';
+      statusEl.className = `reflection-map-status ${statusClass}`;
+      statusEl.textContent = `${statusIcon} ${status}`;
     }
 
-    const statusIcon = status === 'reflecting' ? '⟳' : status === 'complete' ? '✓' : '✗';
-    const statusClass = status === 'reflecting' ? 'active' : status === 'complete' ? 'done' : 'error';
-    row.innerHTML = `<span class="officer-name">${name}</span> <span class="officer-status ${statusClass}">${statusIcon} ${status}</span>`;
+    // Update card border
+    const card = document.getElementById(`reflect-card-${actantId}`);
+    if (card) {
+      card.classList.remove('done', 'error');
+      if (status === 'complete') card.classList.add('done');
+      if (status === 'failed') card.classList.add('error');
+    }
+
+    // Show this officer's chase map image
+    if (chaseMapBase64) {
+      const mapEl = document.getElementById(`reflect-map-${actantId}`);
+      if (mapEl) {
+        mapEl.innerHTML = `<img src="data:image/png;base64,${chaseMapBase64}" alt="Chase map for ${actantId}">`;
+      }
+    }
   }
 
   showStrategyBoard(data: StrategyBoardData): void {
     const content = document.getElementById('reflection-content');
     if (!content) return;
 
-    const officerCards = data.officers.map(o => `
-      <div class="strategy-officer">
-        <div class="strategy-name">${o.name}</div>
-        <div class="strategy-nature">${o.nature.slice(0, 120)}...</div>
-        ${o.handlersUpdated
-          ? `<div class="strategy-update">⚡ Updated tactics</div>`
-          : `<div class="strategy-no-update">— No changes</div>`
-        }
-        ${o.reasoning
-          ? `<div class="strategy-reasoning">"${o.reasoning.slice(0, 200)}${o.reasoning.length > 200 ? '...' : ''}"</div>`
-          : ''
-        }
-        <div class="strategy-tools">Tools: ${o.toolCount}</div>
-      </div>
-    `).join('');
+    const officerCards = data.officers.map(o => {
+      // Build changes summary
+      const changes: string[] = [];
+      if (o.handlersUpdated) changes.push('Updated signal handlers');
+      if (o.memoryUpdated) changes.push('Updated memory');
+      if (o.toolsAdopted.length > 0) changes.push(`Adopted tools: ${o.toolsAdopted.join(', ')}`);
+
+      const changesHtml = changes.length > 0
+        ? changes.map(c => `<div class="strategy-change">${c}</div>`).join('')
+        : `<div class="strategy-no-update">No changes made</div>`;
+
+      // Handler code preview (if updated)
+      const handlerHtml = o.handlersUpdated && o.handlerCodePreview
+        ? `<details class="strategy-details">
+            <summary>Signal handler code</summary>
+            <pre class="strategy-code">${escapeHtml(o.handlerCodePreview)}</pre>
+          </details>`
+        : '';
+
+      // Memory preview (if updated)
+      const memoryHtml = o.memoryUpdated && o.memoryPreview
+        ? `<details class="strategy-details">
+            <summary>Memory</summary>
+            <div class="strategy-memory">${escapeHtml(o.memoryPreview)}</div>
+          </details>`
+        : '';
+
+      return `
+        <div class="strategy-officer">
+          <div class="strategy-name">${escapeHtml(o.name)}</div>
+          <div class="strategy-nature">${escapeHtml(o.nature)}</div>
+          <div class="strategy-changes">${changesHtml}</div>
+          ${o.reasoning
+            ? `<div class="strategy-reasoning">${renderMarkdown(o.reasoning)}</div>`
+            : ''
+          }
+          ${handlerHtml}
+          ${memoryHtml}
+          <div class="strategy-tools">Tools: ${o.toolCount}</div>
+        </div>
+      `;
+    }).join('');
 
     content.innerHTML = `
       <div class="reflection-title">STRATEGY BOARD</div>
@@ -405,4 +449,53 @@ export class Renderer {
     const overlay = document.getElementById('reflection-overlay');
     if (overlay) overlay.classList.remove('visible');
   }
+}
+
+// ── Markdown / HTML helpers ──
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Lightweight markdown → HTML for Claude's typical output subset. */
+function renderMarkdown(md: string): string {
+  const escaped = escapeHtml(md);
+
+  // Code blocks (``` ... ```)
+  let html = escaped.replace(/```(\w*)\n([\s\S]*?)```/g,
+    (_m, _lang, code) => `<pre class="strategy-code">${code.trim()}</pre>`);
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Headers (### → h4, ## → h3, # → h2)
+  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, (block) => `<ul>${block}</ul>`);
+
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+  // Paragraphs (double newline)
+  html = html.replace(/\n\n+/g, '</p><p>');
+  html = `<p>${html}</p>`;
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+
+  return html;
 }

@@ -1,9 +1,15 @@
 # Hot Pursuit — Development Journal
 
+## Dev Setup
+- **Build**: `cd games/hot-pursuit && npm run build` (esbuild, single bundle)
+- **Watch**: `cd games/hot-pursuit && npm run watch` (rebuilds on save, refresh browser)
+- **Game URL**: `http://localhost:3000/dev/hot-pursuit/index.html` (vanilla platform)
+- Vanilla platform handles API proxy at `/api/inference/anthropic/messages`
+
 ## 2026-02-26 — Phase 1 Kickoff
 
 ### Decisions Made
-- **Stack**: Vite + TypeScript, consistent with other games in the workspace
+- **Stack**: esbuild + TypeScript (switched from Vite — see 2026-03-01 entry)
 - **Hosting**: Vanilla platform (dev mode at `/dev/hot-pursuit/`). `.env` configured with Anthropic API key for future Phase 3 reflection
 - **Movement model**: Smooth sub-tile movement (not tile-snapping). Player feels nimble. Map is tile-based for collision/pathfinding but entities move in continuous space
 - **Input**: WASD + arrow keys (no mouse — laptop play)
@@ -93,3 +99,49 @@ Police are now driven by somas instead of hardcoded logic. The same chase behavi
 - Soma validation after reflection
 - Memory maintainer execution
 - Strategy board interstitial UI
+
+## 2026-03-01 — Build Tooling + Vision Reflection
+
+### Switched from Vite to esbuild
+Vite's dev server couldn't be served through the vanilla platform's static `/dev/` route (browser can't load `.ts` directly). Replaced with esbuild to match cognitive-climb's pattern:
+- `esbuild.config.mjs`: single entry `src/main.ts` → `main.js` in game root
+- `npm run watch` for dev iteration (rebuild on save, manual browser refresh)
+- Deleted `vite.config.ts` — vanilla platform handles the API proxy now
+- The Vite Anthropic proxy plugin was only needed when running Vite's own dev server; vanilla's `/api/inference/anthropic/messages` route does the same thing
+
+### Bird's-Eye Chase Map for Reflection
+Added vision support to the reflection system. Each officer now receives a rendered bird's-eye map image alongside their text prompt.
+
+**New file: `src/chase-map-renderer.ts`**
+- Off-screen canvas at 4px/tile (160×120px)
+- Tile grid with game color palette
+- Player path (green polyline) + officer path (colored by state: purple=patrol, red=pursuing, orange=searching)
+- Numbered markers for key moments
+- Sent as base64 PNG in an `image` content block
+
+**Reflection prompt trimmed**: removed verbose per-moment coordinates (the image shows spatial context now). Kept stats, timing, and state breakdowns as text.
+
+**Per-officer map shown during reflection UI**: while each officer is reflecting, their specific chase map (their path + player path) is displayed on screen — doubles as a debugging view.
+
+### Improved Strategy Board / Debrief UI
+- **Full reasoning**: removed all `.slice()` truncation — officer responses render in full
+- **Markdown rendering**: lightweight regex-based converter handles headers, bold, italic, lists, code blocks
+- **Soma changes section**: each officer card now shows what they actually changed:
+  - Signal handlers updated (with collapsible code preview)
+  - Memory updated (with collapsible preview)
+  - Tools adopted (listed by name)
+- **Wider layout**: `max-width` increased from 560px to 900px for readability
+- `StrategyBoardData` extended with `memoryUpdated`, `toolsAdopted`, `handlerCodePreview` fields
+
+### Debugging & Polish Notes
+- Officer paths on chase map were always rendering correctly — initial confusion was just looking at wrong area of the tiny 160×120 image
+- Brightened state colors for visibility: patrol `#aa99ff`, pursuing `#ff4444`, searching `#ffcc33`
+- Added waypoint dots (1.5px radius circles) at each officer waypoint so path is visible even when segments are short
+- Full opacity + 2.5px line width for officer paths
+- Added build tag to bottom-right corner of screen (`b.XXXXXX` timestamp) for verifying builds are fresh
+- Debug log `_hp: 'chase_map_render'` left in chase-map-renderer.ts — can remove when no longer needed
+
+### Current State
+- All features working: chase map image sent to AI, displayed per-officer during reflection, full debrief with markdown rendering and soma change details
+- esbuild watch running for dev iteration
+- Next steps: observe how officers respond to visual context, tune map scale/detail if needed
