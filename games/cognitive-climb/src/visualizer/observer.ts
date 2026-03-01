@@ -241,7 +241,9 @@ export class ObserverPanel {
   private container: HTMLElement;
   private reports: ReportEntry[] = [];
   private onSelectCreature: ((id: number) => void) | null = null;
+  private onRequestReport: (() => void) | null = null;
   private thinkingEl: HTMLElement | null = null;
+  private reportBtn: HTMLButtonElement | null = null;
   private reportsEl: HTMLElement | null = null;
   private scratchpadEl: HTMLElement | null = null;
   private scratchpadExpanded = false;
@@ -252,6 +254,10 @@ export class ObserverPanel {
 
   setOnSelectCreature(cb: (id: number) => void): void {
     this.onSelectCreature = cb;
+  }
+
+  setOnRequestReport(cb: () => void): void {
+    this.onRequestReport = cb;
   }
 
   show(): void {
@@ -272,6 +278,11 @@ export class ObserverPanel {
   setThinking(active: boolean): void {
     if (this.thinkingEl) {
       this.thinkingEl.style.display = active ? 'block' : 'none';
+    }
+    if (this.reportBtn) {
+      this.reportBtn.disabled = active;
+      this.reportBtn.textContent = active ? 'Observing...' : 'New Report';
+      this.reportBtn.style.opacity = active ? '0.5' : '1';
     }
   }
 
@@ -304,10 +315,21 @@ export class ObserverPanel {
   render(): void {
     this.container.innerHTML = '';
 
-    // Header
+    // Header with report button
     const header = document.createElement('div');
-    header.style.cssText = 'padding: 8px 10px 6px; background: #1a1a3a; border-bottom: 1px solid #2a2a4e; font-size: 14px; font-weight: bold; color: #eee;';
-    header.textContent = 'Observer';
+    header.style.cssText = 'padding: 8px 10px 6px; background: #1a1a3a; border-bottom: 1px solid #2a2a4e; display: flex; align-items: center; justify-content: space-between;';
+    const title = document.createElement('span');
+    title.style.cssText = 'font-size: 14px; font-weight: bold; color: #eee;';
+    title.textContent = 'Observer';
+    header.appendChild(title);
+
+    this.reportBtn = document.createElement('button');
+    this.reportBtn.textContent = 'New Report';
+    this.reportBtn.style.cssText = 'padding: 2px 10px; cursor: pointer; background: #2a2a4e; color: #6af; border: 1px solid #444; border-radius: 3px; font-family: monospace; font-size: 11px;';
+    this.reportBtn.onclick = () => {
+      if (this.onRequestReport) this.onRequestReport();
+    };
+    header.appendChild(this.reportBtn);
     this.container.appendChild(header);
 
     // Scratchpad section

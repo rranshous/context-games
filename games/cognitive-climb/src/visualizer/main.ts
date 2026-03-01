@@ -6,6 +6,8 @@ import { CreatureHistoryStore } from './history.js';
 import { Inspector } from './inspector.js';
 import { ObserverPanel, buildObserverContext, callObserverAPI } from './observer.js';
 import { Renderer } from './renderer.js';
+import { StatsHistoryStore } from './stats-history.js';
+import { SummaryModal } from './summary.js';
 
 // ── Main entry point ─────────────────────────────────────
 
@@ -18,6 +20,8 @@ const renderer = new Renderer(canvas);
 const history = new CreatureHistoryStore();
 const inspector = new Inspector(inspectorEl);
 const observerPanel = new ObserverPanel(observerEl);
+const statsHistory = new StatsHistoryStore();
+const summaryModal = new SummaryModal();
 
 // Create worker
 const worker = new Worker('worker.js', { type: 'module' });
@@ -28,29 +32,32 @@ function send(cmd: SimCommand): void {
 
 const controls = new Controls(controlsEl, send);
 
-// ── Observer toggle button ──────────────────────────────
+// ── Control bar buttons ─────────────────────────────────
 // Appended AFTER Controls constructor (which clears innerHTML)
 
+const ctrlBtnStyle = 'padding: 4px 12px; cursor: pointer; background: #2a2a4e; color: #ddd; border: 1px solid #444; border-radius: 4px; font-family: monospace; font-size: 13px;';
+const logSpan = controlsEl.querySelector('#sim-log');
+
+// Observer toggle
 const observerBtn = document.createElement('button');
-observerBtn.textContent = 'Observer: OFF';
-observerBtn.style.cssText = `
-  padding: 4px 12px; cursor: pointer;
-  background: #2a2a4e; color: #ddd; border: 1px solid #444;
-  border-radius: 4px; font-family: monospace; font-size: 13px;
-`;
+observerBtn.textContent = 'Observer';
+observerBtn.style.cssText = ctrlBtnStyle;
 observerBtn.onclick = () => {
   observerPanel.toggle();
-  observerEnabled = observerPanel.isVisible;
-  observerBtn.textContent = observerEnabled ? 'Observer: ON' : 'Observer: OFF';
   triggerResize();
 };
-// Insert before the log span (last child)
-const logSpan = controlsEl.querySelector('#sim-log');
-if (logSpan) {
-  controlsEl.insertBefore(observerBtn, logSpan);
-} else {
-  controlsEl.appendChild(observerBtn);
-}
+if (logSpan) controlsEl.insertBefore(observerBtn, logSpan);
+else controlsEl.appendChild(observerBtn);
+
+// Summary button
+const summaryBtn = document.createElement('button');
+summaryBtn.textContent = 'Summary';
+summaryBtn.style.cssText = ctrlBtnStyle;
+summaryBtn.onclick = () => {
+  summaryModal.open(statsHistory, lastCreatures);
+};
+if (logSpan) controlsEl.insertBefore(summaryBtn, logSpan);
+else controlsEl.appendChild(summaryBtn);
 
 // ── Selection state ──────────────────────────────────────
 
@@ -117,42 +124,26 @@ observerPanel.setOnSelectCreature((id) => {
   selectCreature(id);
 });
 
-// ── Observer state ──────────────────────────────────────
+// ── Observer state (button-based, no auto-fire) ─────────
 
-let observerEnabled = false;
-let lastObserverCallMs = 0;
 let observerInFlight = false;
 let lastMaxGeneration = 0;
 const observerEventBuffer: string[] = [];
 const recentlyEditedIds: number[] = [];
 const MAX_EVENT_BUFFER = 50;
-const MIN_INTERVAL_MS = 30_000;
-const PERIODIC_INTERVAL_MS = 60_000;
 
-function pushObserverEvent(msg: string): void {
+function pushEvent(msg: string): void {
   observerEventBuffer.push(msg);
-  if (observerEventBuffer.length > MAX_EVENT_BUFFER) {
-    observerEventBuffer.shift();
-  }
+  if (observerEventBuffer.length > MAX_EVENT_BUFFER) observerEventBuffer.shift();
+  // Also record as milestone for summary
+  const tick = lastStats?.tick ?? 0;
+  statsHistory.addMilestone(tick, msg);
 }
 
-function maybeFireObserver(currentTick: number): void {
-  if (!observerEnabled || !observerPanel.isVisible) return;
-  if (observerInFlight) return;
-  const now = Date.now();
-  if (now - lastObserverCallMs < MIN_INTERVAL_MS) return;
-
-  // Fire if: notable events exist, OR periodic interval elapsed
-  const hasNotable = observerEventBuffer.length > 0;
-  const periodic = now - lastObserverCallMs >= PERIODIC_INTERVAL_MS;
-  if (!hasNotable && !periodic) return;
-
-  lastObserverCallMs = now;
-  fireObserver(currentTick);
-}
-
-async function fireObserver(currentTick: number): Promise<void> {
+async function fireObserver(): Promise<void> {
+  const currentTick = lastStats?.tick ?? 0;
   if (lastCreatures.length === 0 && !lastStats) return;
+  if (observerInFlight) return;
 
   observerInFlight = true;
   observerPanel.setThinking(true);
@@ -185,6 +176,9 @@ async function fireObserver(currentTick: number): Promise<void> {
   recentlyEditedIds.length = 0;
 }
 
+// Wire observer "New Report" button
+observerPanel.setOnRequestReport(() => fireObserver());
+
 // ── Handle events from sim worker ────────────────────────
 
 worker.onmessage = (e: MessageEvent<SimEvent>) => {
@@ -205,13 +199,13 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
     case 'stats':
       renderer.updateStats(event.stats);
       lastStats = event.stats;
+      // Record stats history for summary
+      statsHistory.record(event.stats, lastCreatures);
       // Track new generation records
       if (event.stats.maxGeneration > lastMaxGeneration) {
-        pushObserverEvent(`Tick ${event.stats.tick}: New generation record: Gen ${event.stats.maxGeneration}!`);
+        pushEvent(`New generation record: Gen ${event.stats.maxGeneration}!`);
         lastMaxGeneration = event.stats.maxGeneration;
       }
-      // Check observer trigger on stats events (frequent, good cadence)
-      maybeFireObserver(event.stats.tick);
       break;
 
     case 'creature:died':
@@ -225,7 +219,7 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
           // Approximate — check if first event was born long ago
           const bornEntry = deathInfo.find(e => e.type === 'born');
           if (bornEntry && event.tick - bornEntry.tick > 200) {
-            pushObserverEvent(`Tick ${event.tick}: #${event.id} died (long-lived creature)`);
+            pushEvent(`Tick ${event.tick}: #${event.id} died (long-lived creature)`);
           }
         }
       }
@@ -235,7 +229,7 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
       break;
 
     case 'creature:reproduced':
-      pushObserverEvent(`Tick ${event.tick}: #${event.parentId} reproduced → offspring #${event.childId}`);
+      pushEvent(`Tick ${event.tick}: #${event.parentId} reproduced → offspring #${event.childId}`);
       break;
 
     case 'creature:woke':
@@ -257,7 +251,7 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
       if (editMatch) {
         const creatureId = parseInt(editMatch[1], 10);
         const tick = lastStats?.tick ?? '?';
-        pushObserverEvent(`Tick ${tick}: #${creatureId} edited ${editMatch[2]}`);
+        pushEvent(`Tick ${tick}: #${creatureId} edited ${editMatch[2]}`);
         if (editMatch[2] === 'on_tick' && !recentlyEditedIds.includes(creatureId)) {
           recentlyEditedIds.push(creatureId);
           if (recentlyEditedIds.length > 10) recentlyEditedIds.shift();
@@ -267,7 +261,7 @@ worker.onmessage = (e: MessageEvent<SimEvent>) => {
       // Observer: population critical
       if (event.message.includes('Population critical')) {
         const tick = lastStats?.tick ?? '?';
-        pushObserverEvent(`Tick ${tick}: Population crashed to critical — spawned reinforcements`);
+        pushEvent(`Tick ${tick}: Population crashed to critical — spawned reinforcements`);
       }
       break;
     }
@@ -284,9 +278,11 @@ worker.onerror = (e) => {
 (window as any).__debug = {
   get creatures() { return lastCreatures; },
   get history() { return history; },
+  get statsHistory() { return statsHistory; },
   select: selectCreature,
   renderer,
   observer: observerPanel,
+  summary: summaryModal,
   dumpEmbodiment(id: number) {
     const c = lastCreatures.find(c => c.id === id);
     if (!c) { console.log('Creature not found'); return; }

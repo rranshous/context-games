@@ -791,3 +791,51 @@ Gave the observer a field naturalist persona in the system prompt: "keen eye, qu
 
 - `src/visualizer/observer.ts` — scratchpad in types/schema/context/panel, naturalist system prompt, max_tokens 1200
 - `src/visualizer/main.ts` — `getLastScratchpad()` wiring
+
+## Session: 2026-03-01 — Observer On-Demand + Summary View
+
+Two changes: (1) observer becomes button-triggered instead of auto-firing on a timer, and (2) a new summary modal with visual charts and AI narrative for catching up after being AFK.
+
+### Observer → button-based
+
+**Problem:** Observer auto-fired every 30-60s on a timer. Good for live-watching but useless if you step away — reports pile up about nothing. Also burned API calls when nobody's reading.
+
+**Solution:** Removed all auto-fire logic (`maybeFireObserver`, `MIN_INTERVAL_MS`, `PERIODIC_INTERVAL_MS`). Observer panel now has a "New Report" button in the header. Click it → fires observer API call. Event buffer still accumulates between clicks. Scratchpad continuity preserved.
+
+**Changes:**
+- `observer.ts`: Added `setOnRequestReport(cb)` callback, "New Report" button in panel header, button disables + shows "Observing..." during API flight
+- `main.ts`: Removed `maybeFireObserver()` and timer constants. Wired `observerPanel.setOnRequestReport(() => fireObserver())`. Observer toggle button simplified (no ON/OFF state tracking — just shows/hides panel)
+
+### Stats history recorder
+
+**New file: `src/visualizer/stats-history.ts`**
+
+`StatsHistoryStore` class that accumulates sim stats over time for the summary view:
+- Records a `StatsSnapshot` on every `stats` event (every 10 ticks): tick, alive, totalBirths, totalDeaths, avgEnergy, maxGeneration, avgTraits, variantCount, dominantVariantPct
+- Ring buffer: max 3000 entries (= 30,000 ticks)
+- `getSampledHistory(maxPoints)` — evenly-sampled subset for charts/AI context
+- `milestones: { tick, text }[]` — notable events recorded alongside the observer event buffer via unified `pushEvent()` in main.ts
+
+### Summary modal
+
+**New file: `src/visualizer/summary.ts`**
+
+`SummaryModal` class — full-screen dark overlay triggered by "Summary" button in controls bar:
+1. **Key stats line**: tick, alive, born, died, max generation
+2. **3 canvas sparklines**: population over time (green), avg energy % (blue), max generation (orange). Area fill + line, DPI-aware, label + current value overlay.
+3. **Milestones list**: scrollable, most recent first, tick-prefixed
+4. **AI narrative**: haiku call with compressed history (50 sampled data points + all milestones + current variant distribution + dominant code). Naturalist field journal persona. 3-6 sentences covering the full arc.
+
+**Context builder** (`buildSummaryContext`): sampled stats trajectory table, milestones, current variant distribution with dominant code, notable creatures.
+
+**Changes to existing files:**
+- `main.ts`: Added `StatsHistoryStore` + `SummaryModal` instantiation, "Summary" button in controls, `statsHistory.record()` on stats events, unified `pushEvent()` that feeds both observer buffer and milestone store
+- `index.html`: Summary modal overlay + content CSS
+
+### Files changed
+
+- `src/visualizer/stats-history.ts` — **New**: StatsHistoryStore + milestones
+- `src/visualizer/summary.ts` — **New**: SummaryModal + sparklines + AI summary
+- `src/visualizer/observer.ts` — "New Report" button, `setOnRequestReport`
+- `src/visualizer/main.ts` — removed auto-fire, wired stats recorder + summary + observer button
+- `src/index.html` — summary modal CSS

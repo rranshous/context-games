@@ -555,7 +555,9 @@ var ObserverPanel = class {
   container;
   reports = [];
   onSelectCreature = null;
+  onRequestReport = null;
   thinkingEl = null;
+  reportBtn = null;
   reportsEl = null;
   scratchpadEl = null;
   scratchpadExpanded = false;
@@ -564,6 +566,9 @@ var ObserverPanel = class {
   }
   setOnSelectCreature(cb) {
     this.onSelectCreature = cb;
+  }
+  setOnRequestReport(cb) {
+    this.onRequestReport = cb;
   }
   show() {
     this.isVisible = true;
@@ -581,6 +586,11 @@ var ObserverPanel = class {
   setThinking(active) {
     if (this.thinkingEl) {
       this.thinkingEl.style.display = active ? "block" : "none";
+    }
+    if (this.reportBtn) {
+      this.reportBtn.disabled = active;
+      this.reportBtn.textContent = active ? "Observing..." : "New Report";
+      this.reportBtn.style.opacity = active ? "0.5" : "1";
     }
   }
   showError(message) {
@@ -606,8 +616,18 @@ var ObserverPanel = class {
   render() {
     this.container.innerHTML = "";
     const header = document.createElement("div");
-    header.style.cssText = "padding: 8px 10px 6px; background: #1a1a3a; border-bottom: 1px solid #2a2a4e; font-size: 14px; font-weight: bold; color: #eee;";
-    header.textContent = "Observer";
+    header.style.cssText = "padding: 8px 10px 6px; background: #1a1a3a; border-bottom: 1px solid #2a2a4e; display: flex; align-items: center; justify-content: space-between;";
+    const title = document.createElement("span");
+    title.style.cssText = "font-size: 14px; font-weight: bold; color: #eee;";
+    title.textContent = "Observer";
+    header.appendChild(title);
+    this.reportBtn = document.createElement("button");
+    this.reportBtn.textContent = "New Report";
+    this.reportBtn.style.cssText = "padding: 2px 10px; cursor: pointer; background: #2a2a4e; color: #6af; border: 1px solid #444; border-radius: 3px; font-family: monospace; font-size: 11px;";
+    this.reportBtn.onclick = () => {
+      if (this.onRequestReport) this.onRequestReport();
+    };
+    header.appendChild(this.reportBtn);
     this.container.appendChild(header);
     this.scratchpadEl = document.createElement("div");
     this.scratchpadEl.style.cssText = "border-bottom: 1px solid #2a2a4e;";
@@ -932,6 +952,339 @@ var Renderer = class {
   }
 };
 
+// src/visualizer/stats-history.ts
+var MAX_SNAPSHOTS = 3e3;
+var StatsHistoryStore = class {
+  snapshots = [];
+  milestones = [];
+  record(stats, creatures) {
+    const variantMap = /* @__PURE__ */ new Map();
+    for (const c of creatures) {
+      const len = c.embodiment.on_tick.length;
+      variantMap.set(len, (variantMap.get(len) ?? 0) + 1);
+    }
+    let dominantCount = 0;
+    for (const count of variantMap.values()) {
+      if (count > dominantCount) dominantCount = count;
+    }
+    this.snapshots.push({
+      tick: stats.tick,
+      alive: stats.creatureCount,
+      totalBirths: stats.totalBirths,
+      totalDeaths: stats.totalDeaths,
+      avgEnergy: stats.avgEnergy,
+      maxGeneration: stats.maxGeneration,
+      avgTraits: stats.avgTraits ? { ...stats.avgTraits } : null,
+      variantCount: variantMap.size,
+      dominantVariantPct: creatures.length > 0 ? Math.round(dominantCount / creatures.length * 100) : 0
+    });
+    if (this.snapshots.length > MAX_SNAPSHOTS) {
+      this.snapshots.shift();
+    }
+  }
+  addMilestone(tick, text) {
+    this.milestones.push({ tick, text });
+  }
+  getHistory() {
+    return this.snapshots;
+  }
+  /** Return evenly-sampled subset of snapshots for charts/AI context */
+  getSampledHistory(maxPoints) {
+    if (this.snapshots.length <= maxPoints) return [...this.snapshots];
+    const step = (this.snapshots.length - 1) / (maxPoints - 1);
+    const result = [];
+    for (let i = 0; i < maxPoints; i++) {
+      result.push(this.snapshots[Math.round(i * step)]);
+    }
+    return result;
+  }
+  getLatest() {
+    return this.snapshots.length > 0 ? this.snapshots[this.snapshots.length - 1] : null;
+  }
+  size() {
+    return this.snapshots.length;
+  }
+};
+
+// src/visualizer/summary.ts
+function drawSparkline(canvas2, data, color, label) {
+  const ctx = canvas2.getContext("2d");
+  if (!ctx || data.length < 2) return;
+  const w = canvas2.width;
+  const h = canvas2.height;
+  const dpr = window.devicePixelRatio || 1;
+  canvas2.width = w * dpr;
+  canvas2.height = h * dpr;
+  canvas2.style.width = w + "px";
+  canvas2.style.height = h + "px";
+  ctx.scale(dpr, dpr);
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const stepX = w / (data.length - 1);
+  const toY = (v) => h - 4 - (v - min) / range * (h - 8);
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  for (let i = 0; i < data.length; i++) {
+    ctx.lineTo(i * stepX, toY(data[i]));
+  }
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fillStyle = color + "20";
+  ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = i * stepX;
+    const y = toY(data[i]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const current = data[data.length - 1];
+  const displayVal = current % 1 === 0 ? String(current) : current.toFixed(1);
+  ctx.fillStyle = "#ddd";
+  ctx.font = "10px monospace";
+  ctx.textAlign = "right";
+  ctx.fillText(displayVal, w - 4, 12);
+  ctx.fillStyle = "#888";
+  ctx.textAlign = "left";
+  ctx.fillText(label, 4, 12);
+}
+function buildSummaryContext(history2, creatures) {
+  const lines = [];
+  const latest = history2.getLatest();
+  if (!latest) return "No simulation data yet.";
+  lines.push(`=== FULL SIMULATION SUMMARY (Tick ${latest.tick}) ===
+`);
+  lines.push("CURRENT STATE");
+  lines.push(`Alive: ${latest.alive} | Born: ${latest.totalBirths} | Died: ${latest.totalDeaths} | Max Gen: ${latest.maxGeneration}`);
+  lines.push(`Avg energy: ${Math.round(latest.avgEnergy)}% | Variants: ${latest.variantCount} (dominant: ${latest.dominantVariantPct}%)`);
+  if (latest.avgTraits) {
+    const t = latest.avgTraits;
+    lines.push(`Traits: spd=${t.speed.toFixed(2)}, sns=${t.senseRange.toFixed(1)}, sz=${t.size.toFixed(2)}, met=${t.metabolism.toFixed(2)}, diet=${t.diet.toFixed(2)}`);
+  }
+  lines.push("");
+  const sampled = history2.getSampledHistory(50);
+  if (sampled.length > 1) {
+    lines.push("POPULATION OVER TIME (sampled)");
+    lines.push("Tick | Alive | Born | Died | AvgEnergy | MaxGen | Variants");
+    for (const s of sampled) {
+      lines.push(`${s.tick} | ${s.alive} | ${s.totalBirths} | ${s.totalDeaths} | ${Math.round(s.avgEnergy)}% | ${s.maxGeneration} | ${s.variantCount} (${s.dominantVariantPct}%)`);
+    }
+    lines.push("");
+  }
+  const milestones = history2.milestones;
+  if (milestones.length > 0) {
+    lines.push("KEY MILESTONES");
+    for (const m of milestones.slice(-30)) {
+      lines.push(`  Tick ${m.tick}: ${m.text}`);
+    }
+    lines.push("");
+  }
+  if (creatures.length > 0) {
+    lines.push("BEHAVIORAL VARIANTS (current)");
+    const variantMap = /* @__PURE__ */ new Map();
+    for (const c of creatures) {
+      const len = c.embodiment.on_tick.length;
+      const existing = variantMap.get(len);
+      if (existing) existing.count++;
+      else variantMap.set(len, { count: 1, sample: c.embodiment.on_tick });
+    }
+    const variants = [...variantMap.entries()].sort((a, b) => b[1].count - a[1].count);
+    for (const [len, { count }] of variants.slice(0, 3)) {
+      const pct = Math.round(count / creatures.length * 100);
+      lines.push(`  ${len} chars: ${count} creatures (${pct}%)`);
+    }
+    if (variants.length > 0) {
+      lines.push(`
+DOMINANT CODE (${variants[0][0]} chars):`);
+      lines.push("```js");
+      lines.push(variants[0][1].sample);
+      lines.push("```");
+    }
+    lines.push("");
+  }
+  if (creatures.length > 0) {
+    const oldest = creatures.reduce((a, b) => a.age > b.age ? a : b);
+    const healthiest = creatures.reduce((a, b) => a.energy / a.maxEnergy > b.energy / b.maxEnergy ? a : b);
+    lines.push("NOTABLE CREATURES");
+    lines.push(`Oldest: #${oldest.id} (Gen ${oldest.generation}, age ${oldest.age})`);
+    lines.push(`Healthiest: #${healthiest.id} (Gen ${healthiest.generation}, ${Math.round(healthiest.energy / healthiest.maxEnergy * 100)}%)`);
+  }
+  return lines.join("\n");
+}
+var SUMMARY_SCHEMA = {
+  type: "json_schema",
+  schema: {
+    type: "object",
+    properties: {
+      summary: { type: "string", description: "A naturalist field journal entry summarizing the full simulation run. 3-6 sentences. Cover the arc: how it started, key turning points, where it stands now. Reference creature IDs and tick numbers." }
+    },
+    required: ["summary"],
+    additionalProperties: false
+  }
+};
+var SUMMARY_SYSTEM = `You are a naturalist writing a field journal entry after observing a digital creature simulation. Summarize the ENTIRE run from start to present \u2014 the arc, not just the current moment. What were the key turning points? What survived and why? What behavioral strategies evolved? Be vivid but concise \u2014 this is a journal entry, not a paper.`;
+async function callSummaryAPI(context) {
+  try {
+    const resp = await fetch("/api/inference/anthropic/messages", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 600,
+        system: SUMMARY_SYSTEM,
+        messages: [{ role: "user", content: context }],
+        output_config: { format: SUMMARY_SCHEMA }
+      })
+    });
+    if (!resp.ok) {
+      console.error("[SUMMARY] API error:", resp.status, await resp.text());
+      return null;
+    }
+    const data = await resp.json();
+    for (const block of data.content ?? []) {
+      if (block.type === "text") {
+        const parsed = JSON.parse(block.text);
+        return parsed.summary;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error("[SUMMARY] Call failed:", err);
+    return null;
+  }
+}
+var SummaryModal = class {
+  overlay;
+  content;
+  isOpen = false;
+  constructor() {
+    this.overlay = document.createElement("div");
+    this.overlay.className = "summary-overlay";
+    this.overlay.style.display = "none";
+    this.overlay.onclick = (e) => {
+      if (e.target === this.overlay) this.close();
+    };
+    this.content = document.createElement("div");
+    this.content.className = "summary-content";
+    this.overlay.appendChild(this.content);
+    document.body.appendChild(this.overlay);
+  }
+  async open(statsHistory2, creatures) {
+    if (this.isOpen) return;
+    this.isOpen = true;
+    this.overlay.style.display = "flex";
+    this.renderContent(statsHistory2, creatures);
+    const context = buildSummaryContext(statsHistory2, creatures);
+    console.log("[SUMMARY] Context length:", context.length);
+    const narrativeEl = this.content.querySelector(".summary-narrative");
+    if (narrativeEl) {
+      narrativeEl.textContent = "Generating summary...";
+      narrativeEl.style.color = "#6af";
+    }
+    const summary = await callSummaryAPI(context);
+    if (narrativeEl) {
+      if (summary) {
+        narrativeEl.textContent = summary;
+        narrativeEl.style.color = "#ccd";
+      } else {
+        narrativeEl.textContent = "Failed to generate summary \u2014 are you logged in at localhost:3000?";
+        narrativeEl.style.color = "#f66";
+      }
+    }
+  }
+  close() {
+    this.isOpen = false;
+    this.overlay.style.display = "none";
+  }
+  renderContent(statsHistory2, creatures) {
+    const history2 = statsHistory2.getHistory();
+    const latest = statsHistory2.getLatest();
+    this.content.innerHTML = "";
+    const header = document.createElement("div");
+    header.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;";
+    const title = document.createElement("h2");
+    title.style.cssText = "margin: 0; color: #eee; font-size: 18px; font-family: monospace;";
+    title.textContent = "Simulation Summary";
+    header.appendChild(title);
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "\xD7";
+    closeBtn.style.cssText = "background: none; border: none; color: #888; font-size: 24px; cursor: pointer; padding: 0 4px; line-height: 1;";
+    closeBtn.onclick = () => this.close();
+    header.appendChild(closeBtn);
+    this.content.appendChild(header);
+    if (!latest || history2.length < 2) {
+      const msg = document.createElement("div");
+      msg.style.cssText = "color: #666; font-style: italic;";
+      msg.textContent = "Not enough data yet. Let the simulation run for a while.";
+      this.content.appendChild(msg);
+      return;
+    }
+    const statsLine = document.createElement("div");
+    statsLine.style.cssText = "color: #aab; font-size: 12px; margin-bottom: 16px; padding: 8px 12px; background: #1a1a3a; border-radius: 4px;";
+    statsLine.textContent = `Tick ${latest.tick}  \xB7  ${latest.alive} alive  \xB7  ${latest.totalBirths} born  \xB7  ${latest.totalDeaths} died  \xB7  Gen ${latest.maxGeneration}`;
+    this.content.appendChild(statsLine);
+    const chartsRow = document.createElement("div");
+    chartsRow.style.cssText = "display: flex; gap: 12px; margin-bottom: 16px;";
+    const popCanvas = this.createChart(chartsRow, "Population");
+    drawSparkline(popCanvas, history2.map((s) => s.alive), "#4c4", "Population");
+    const energyCanvas = this.createChart(chartsRow, "Avg Energy");
+    drawSparkline(energyCanvas, history2.map((s) => s.avgEnergy), "#6af", "Avg Energy %");
+    const genCanvas = this.createChart(chartsRow, "Max Generation");
+    drawSparkline(genCanvas, history2.map((s) => s.maxGeneration), "#da6", "Max Gen");
+    this.content.appendChild(chartsRow);
+    const milestones = statsHistory2.milestones;
+    if (milestones.length > 0) {
+      const msSection = document.createElement("div");
+      msSection.style.cssText = "margin-bottom: 16px;";
+      const msTitle = document.createElement("div");
+      msTitle.style.cssText = "color: #8888cc; font-size: 11px; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;";
+      msTitle.textContent = "Milestones";
+      msSection.appendChild(msTitle);
+      const msList = document.createElement("div");
+      msList.style.cssText = "max-height: 150px; overflow-y: auto; font-size: 11px; line-height: 1.6;";
+      for (const m of [...milestones].reverse().slice(0, 30)) {
+        const row = document.createElement("div");
+        row.style.cssText = "color: #aab;";
+        const tickSpan = document.createElement("span");
+        tickSpan.style.cssText = "color: #666; margin-right: 6px;";
+        tickSpan.textContent = `t${m.tick}`;
+        row.appendChild(tickSpan);
+        row.appendChild(document.createTextNode(m.text));
+        msList.appendChild(row);
+      }
+      msSection.appendChild(msList);
+      this.content.appendChild(msSection);
+    }
+    const narSection = document.createElement("div");
+    const narTitle = document.createElement("div");
+    narTitle.style.cssText = "color: #8888cc; font-size: 11px; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;";
+    narTitle.textContent = "Field Notes";
+    narSection.appendChild(narTitle);
+    const narrativeEl = document.createElement("div");
+    narrativeEl.className = "summary-narrative";
+    narrativeEl.style.cssText = "font-size: 12px; line-height: 1.6; color: #6af; white-space: pre-wrap; word-break: break-word;";
+    narrativeEl.textContent = "Generating summary...";
+    narSection.appendChild(narrativeEl);
+    this.content.appendChild(narSection);
+  }
+  createChart(parent, label) {
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "flex: 1; min-width: 0;";
+    const canvas2 = document.createElement("canvas");
+    canvas2.width = 200;
+    canvas2.height = 50;
+    canvas2.style.cssText = "width: 100%; height: 50px; border-radius: 3px; background: #1a1a3a;";
+    wrapper.appendChild(canvas2);
+    parent.appendChild(wrapper);
+    return canvas2;
+  }
+};
+
 // src/visualizer/main.ts
 var canvas = document.getElementById("canvas");
 var controlsEl = document.getElementById("controls");
@@ -941,30 +1294,32 @@ var renderer = new Renderer(canvas);
 var history = new CreatureHistoryStore();
 var inspector = new Inspector(inspectorEl);
 var observerPanel = new ObserverPanel(observerEl);
+var statsHistory = new StatsHistoryStore();
+var summaryModal = new SummaryModal();
 var worker = new Worker("worker.js", { type: "module" });
 function send(cmd) {
   worker.postMessage(cmd);
 }
 var controls = new Controls(controlsEl, send);
+var ctrlBtnStyle = "padding: 4px 12px; cursor: pointer; background: #2a2a4e; color: #ddd; border: 1px solid #444; border-radius: 4px; font-family: monospace; font-size: 13px;";
+var logSpan = controlsEl.querySelector("#sim-log");
 var observerBtn = document.createElement("button");
-observerBtn.textContent = "Observer: OFF";
-observerBtn.style.cssText = `
-  padding: 4px 12px; cursor: pointer;
-  background: #2a2a4e; color: #ddd; border: 1px solid #444;
-  border-radius: 4px; font-family: monospace; font-size: 13px;
-`;
+observerBtn.textContent = "Observer";
+observerBtn.style.cssText = ctrlBtnStyle;
 observerBtn.onclick = () => {
   observerPanel.toggle();
-  observerEnabled = observerPanel.isVisible;
-  observerBtn.textContent = observerEnabled ? "Observer: ON" : "Observer: OFF";
   triggerResize();
 };
-var logSpan = controlsEl.querySelector("#sim-log");
-if (logSpan) {
-  controlsEl.insertBefore(observerBtn, logSpan);
-} else {
-  controlsEl.appendChild(observerBtn);
-}
+if (logSpan) controlsEl.insertBefore(observerBtn, logSpan);
+else controlsEl.appendChild(observerBtn);
+var summaryBtn = document.createElement("button");
+summaryBtn.textContent = "Summary";
+summaryBtn.style.cssText = ctrlBtnStyle;
+summaryBtn.onclick = () => {
+  summaryModal.open(statsHistory, lastCreatures);
+};
+if (logSpan) controlsEl.insertBefore(summaryBtn, logSpan);
+else controlsEl.appendChild(summaryBtn);
 var selectedId = null;
 var lastCreatures = [];
 var lastCells = [];
@@ -1012,34 +1367,21 @@ inspector.setOnNavigate((id) => {
 observerPanel.setOnSelectCreature((id) => {
   selectCreature(id);
 });
-var observerEnabled = false;
-var lastObserverCallMs = 0;
 var observerInFlight = false;
 var lastMaxGeneration = 0;
 var observerEventBuffer = [];
 var recentlyEditedIds = [];
 var MAX_EVENT_BUFFER = 50;
-var MIN_INTERVAL_MS = 3e4;
-var PERIODIC_INTERVAL_MS = 6e4;
-function pushObserverEvent(msg) {
+function pushEvent(msg) {
   observerEventBuffer.push(msg);
-  if (observerEventBuffer.length > MAX_EVENT_BUFFER) {
-    observerEventBuffer.shift();
-  }
+  if (observerEventBuffer.length > MAX_EVENT_BUFFER) observerEventBuffer.shift();
+  const tick = lastStats?.tick ?? 0;
+  statsHistory.addMilestone(tick, msg);
 }
-function maybeFireObserver(currentTick) {
-  if (!observerEnabled || !observerPanel.isVisible) return;
-  if (observerInFlight) return;
-  const now = Date.now();
-  if (now - lastObserverCallMs < MIN_INTERVAL_MS) return;
-  const hasNotable = observerEventBuffer.length > 0;
-  const periodic = now - lastObserverCallMs >= PERIODIC_INTERVAL_MS;
-  if (!hasNotable && !periodic) return;
-  lastObserverCallMs = now;
-  fireObserver(currentTick);
-}
-async function fireObserver(currentTick) {
+async function fireObserver() {
+  const currentTick = lastStats?.tick ?? 0;
   if (lastCreatures.length === 0 && !lastStats) return;
+  if (observerInFlight) return;
   observerInFlight = true;
   observerPanel.setThinking(true);
   const context = buildObserverContext(
@@ -1063,6 +1405,7 @@ async function fireObserver(currentTick) {
   observerEventBuffer.length = 0;
   recentlyEditedIds.length = 0;
 }
+observerPanel.setOnRequestReport(() => fireObserver());
 worker.onmessage = (e) => {
   const event = e.data;
   history.handleEvent(event);
@@ -1076,11 +1419,11 @@ worker.onmessage = (e) => {
     case "stats":
       renderer.updateStats(event.stats);
       lastStats = event.stats;
+      statsHistory.record(event.stats, lastCreatures);
       if (event.stats.maxGeneration > lastMaxGeneration) {
-        pushObserverEvent(`Tick ${event.stats.tick}: New generation record: Gen ${event.stats.maxGeneration}!`);
+        pushEvent(`New generation record: Gen ${event.stats.maxGeneration}!`);
         lastMaxGeneration = event.stats.maxGeneration;
       }
-      maybeFireObserver(event.stats.tick);
       break;
     case "creature:died":
       if (event.id === selectedId) updateInspector();
@@ -1089,7 +1432,7 @@ worker.onmessage = (e) => {
         if (deathInfo && deathInfo.length > 0) {
           const bornEntry = deathInfo.find((e2) => e2.type === "born");
           if (bornEntry && event.tick - bornEntry.tick > 200) {
-            pushObserverEvent(`Tick ${event.tick}: #${event.id} died (long-lived creature)`);
+            pushEvent(`Tick ${event.tick}: #${event.id} died (long-lived creature)`);
           }
         }
       }
@@ -1097,7 +1440,7 @@ worker.onmessage = (e) => {
     case "creature:spawned":
       break;
     case "creature:reproduced":
-      pushObserverEvent(`Tick ${event.tick}: #${event.parentId} reproduced \u2192 offspring #${event.childId}`);
+      pushEvent(`Tick ${event.tick}: #${event.parentId} reproduced \u2192 offspring #${event.childId}`);
       break;
     case "creature:woke":
       console.log(`[CONSCIOUSNESS] Creature #${event.id} (${event.reason}): ${event.thoughts}`);
@@ -1114,7 +1457,7 @@ worker.onmessage = (e) => {
       if (editMatch) {
         const creatureId = parseInt(editMatch[1], 10);
         const tick = lastStats?.tick ?? "?";
-        pushObserverEvent(`Tick ${tick}: #${creatureId} edited ${editMatch[2]}`);
+        pushEvent(`Tick ${tick}: #${creatureId} edited ${editMatch[2]}`);
         if (editMatch[2] === "on_tick" && !recentlyEditedIds.includes(creatureId)) {
           recentlyEditedIds.push(creatureId);
           if (recentlyEditedIds.length > 10) recentlyEditedIds.shift();
@@ -1122,7 +1465,7 @@ worker.onmessage = (e) => {
       }
       if (event.message.includes("Population critical")) {
         const tick = lastStats?.tick ?? "?";
-        pushObserverEvent(`Tick ${tick}: Population crashed to critical \u2014 spawned reinforcements`);
+        pushEvent(`Tick ${tick}: Population crashed to critical \u2014 spawned reinforcements`);
       }
       break;
     }
@@ -1139,9 +1482,13 @@ window.__debug = {
   get history() {
     return history;
   },
+  get statsHistory() {
+    return statsHistory;
+  },
   select: selectCreature,
   renderer,
   observer: observerPanel,
+  summary: summaryModal,
   dumpEmbodiment(id) {
     const c = lastCreatures.find((c2) => c2.id === id);
     if (!c) {
