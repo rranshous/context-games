@@ -490,8 +490,15 @@ function processToolCall(
 
 // ── Handler Validation ──
 
+const MAX_HANDLER_CODE_LENGTH = 50000; // chars — very permissive for now, tighten later if needed
+
 function validateHandlerCode(code: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
+
+  // Code length limit
+  if (code.length > MAX_HANDLER_CODE_LENGTH) {
+    errors.push(`Handler code is ${code.length} chars, max is ${MAX_HANDLER_CODE_LENGTH}. Write more concise code.`);
+  }
 
   // Must contain onSignal function
   if (!code.includes('onSignal')) {

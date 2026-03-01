@@ -15,8 +15,8 @@ var DEFAULT_CONFIG = {
   losRange: 8,
   losAngle: 60,
   survivalTime: 90,
-  viewportWidth: 480,
-  viewportHeight: 320
+  viewportWidth: 320,
+  viewportHeight: 240
 };
 
 // src/map.ts
@@ -605,6 +605,7 @@ function clearHandlerCache() {
 }
 
 // src/soma-police.ts
+var busyOfficers = /* @__PURE__ */ new Set();
 function createPoliceFromSoma(soma, spawn, map, config = DEFAULT_CONFIG) {
   const worldPos = map.tileToWorld(spawn);
   const patrolPoints = generatePatrolPoints(spawn, map, 6);
@@ -649,6 +650,10 @@ function generatePatrolPoints(center, map, count) {
   return points;
 }
 async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice, dt, tick) {
+  if (busyOfficers.has(entity.id)) {
+    moveAlongPath(entity, map, dt);
+    return;
+  }
   const handler = compileHandler(soma);
   if (!handler) {
     return;
@@ -662,86 +667,87 @@ async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice,
     config.losRange,
     config.losAngle
   );
-  let actions = [];
-  if (entity.canSeePlayer && !prevCanSee) {
-    entity.state = "pursuing";
-    entity.lastKnownPlayerPos = { ...playerPos };
-    const signalActions = await executeSignal(
-      handler,
-      "player_spotted",
-      {
-        player_position: { ...playerPos },
-        own_position: { ...entity.pos },
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
-      },
-      entity,
-      soma,
-      map,
-      config,
-      allPolice
-    );
-    actions = signalActions;
-  } else if (!entity.canSeePlayer && prevCanSee) {
-    entity.state = "searching";
-    const signalActions = await executeSignal(
-      handler,
-      "player_lost",
-      {
-        last_known_position: entity.lastKnownPlayerPos ? { ...entity.lastKnownPlayerPos } : { ...playerPos },
-        own_position: { ...entity.pos },
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
-      },
-      entity,
-      soma,
-      map,
-      config,
-      allPolice
-    );
-    actions = signalActions;
-  } else if (entity.canSeePlayer) {
-    entity.lastKnownPlayerPos = { ...playerPos };
-    const signalActions = await executeSignal(
-      handler,
-      "player_spotted",
-      {
-        player_position: { ...playerPos },
-        own_position: { ...entity.pos },
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
-      },
-      entity,
-      soma,
-      map,
-      config,
-      allPolice
-    );
-    actions = signalActions;
-  } else {
-    if (entity.state === "searching" && entity.lastKnownPlayerPos) {
-      const dx = entity.pos.x - entity.lastKnownPlayerPos.x;
-      const dy = entity.pos.y - entity.lastKnownPlayerPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < map.tileSize) {
-        entity.state = "patrol";
-        entity.lastKnownPlayerPos = null;
+  busyOfficers.add(entity.id);
+  try {
+    let actions = [];
+    if (entity.canSeePlayer && !prevCanSee) {
+      entity.state = "pursuing";
+      entity.lastKnownPlayerPos = { ...playerPos };
+      actions = await executeSignal(
+        handler,
+        "player_spotted",
+        {
+          player_position: { ...playerPos },
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
+        },
+        entity,
+        soma,
+        map,
+        config,
+        allPolice
+      );
+    } else if (!entity.canSeePlayer && prevCanSee) {
+      entity.state = "searching";
+      actions = await executeSignal(
+        handler,
+        "player_lost",
+        {
+          last_known_position: entity.lastKnownPlayerPos ? { ...entity.lastKnownPlayerPos } : { ...playerPos },
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
+        },
+        entity,
+        soma,
+        map,
+        config,
+        allPolice
+      );
+    } else if (entity.canSeePlayer) {
+      entity.lastKnownPlayerPos = { ...playerPos };
+      actions = await executeSignal(
+        handler,
+        "player_spotted",
+        {
+          player_position: { ...playerPos },
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
+        },
+        entity,
+        soma,
+        map,
+        config,
+        allPolice
+      );
+    } else {
+      if (entity.state === "searching" && entity.lastKnownPlayerPos) {
+        const dx = entity.pos.x - entity.lastKnownPlayerPos.x;
+        const dy = entity.pos.y - entity.lastKnownPlayerPos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < map.tileSize) {
+          entity.state = "patrol";
+          entity.lastKnownPlayerPos = null;
+        }
       }
+      actions = await executeSignal(
+        handler,
+        "tick",
+        {
+          own_position: { ...entity.pos },
+          state: entity.state,
+          tick,
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
+        },
+        entity,
+        soma,
+        map,
+        config,
+        allPolice
+      );
     }
-    const signalActions = await executeSignal(
-      handler,
-      "tick",
-      {
-        own_position: { ...entity.pos },
-        state: entity.state,
-        tick,
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
-      },
-      entity,
-      soma,
-      map,
-      config,
-      allPolice
-    );
-    actions = signalActions;
+    applyActions(entity, actions, map, config, dt, playerPos);
+  } finally {
+    busyOfficers.delete(entity.id);
   }
-  applyActions(entity, actions, map, config, dt, playerPos);
 }
 function applyActions(entity, actions, map, config, dt, playerPos) {
   const action = actions[0];
@@ -2250,8 +2256,12 @@ function processToolCall(toolName, input, soma, replay, result) {
       return { success: false, error: `Unknown reflection tool: ${toolName}` };
   }
 }
+var MAX_HANDLER_CODE_LENGTH = 5e4;
 function validateHandlerCode(code) {
   const errors = [];
+  if (code.length > MAX_HANDLER_CODE_LENGTH) {
+    errors.push(`Handler code is ${code.length} chars, max is ${MAX_HANDLER_CODE_LENGTH}. Write more concise code.`);
+  }
   if (!code.includes("onSignal")) {
     errors.push("Must contain an onSignal function");
   }

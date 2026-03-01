@@ -49,8 +49,8 @@ export const DEFAULT_CONFIG: GameConfig = {
   losRange: 8,
   losAngle: 60,
   survivalTime: 90,
-  viewportWidth: 480,
-  viewportHeight: 320,
+  viewportWidth: 320,
+  viewportHeight: 240,
 };
 
 export interface Entity {

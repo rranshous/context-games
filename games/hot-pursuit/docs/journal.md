@@ -322,3 +322,32 @@ A second player could act as police chief during debriefing — giving direction
   - `ally_signal` handler case exists in default handlers (currently no-op)
 - Handler performance limits (choppiness from unbounded handler complexity)
 - Observe officer evolution across multiple runs
+
+## 2026-03-01 — Session 6: Viewport Zoom + Handler Pileup Fix
+
+### Tighter Viewport
+Player could still see too much of the map (~20×13 tiles) making it easy to spot and avoid cops. Reduced internal render resolution from 480×320 to 320×240 (showing ~13×10 tiles). CSS scale bumped from 2× to 3× (960×720 display). Aspect ratio changed from 3:2 to 4:3.
+
+- `DEFAULT_CONFIG.viewportWidth`: 480 → 320
+- `DEFAULT_CONFIG.viewportHeight`: 320 → 240
+- CSS canvas: `960px × 640px` → `960px × 720px`
+
+Player now sees roughly one third of the map. Cops appear with less warning, extraction points require more exploration.
+
+### Handler Pileup Prevention
+Identified root cause of choppiness: `updateSomaPolice()` is async but called without `await` in the game loop. If a handler takes longer than one tick (~16.7ms), the next tick fires a new handler on top of the still-running one. `Promise.race` with the 50ms timeout doesn't cancel the losing promise — slow handlers just pile up indefinitely.
+
+**Fix**: Per-officer busy flag via `busyOfficers` Set in `soma-police.ts`. Before executing a handler, check if the officer is already mid-execution. If busy, skip handler dispatch and just continue moving along the current path (`moveAlongPath`). Flag cleared in a `finally` block after handler completes.
+
+This is a soft degradation — officers with complex handlers react a bit slower (miss some signals) but the game stays smooth. No handlers pile up.
+
+### Handler Code Length Limit (Infrastructure Only)
+Added `MAX_HANDLER_CODE_LENGTH` validation in `reflection.ts` `validateHandlerCode()`. Currently set to 50,000 chars (effectively uncapped) — infrastructure is in place to tighten later when we observe how large handlers actually grow. The validation rejects with a clear error message telling the AI to write more concise code.
+
+### What's Next
+- **Phase 4: Communication** — the main remaining feature phase
+  - Config A: None (current) → B: Observation sharing → C: Tactic sharing → D: Live radio
+  - `broadcast()` already exists as a no-op in chassis.ts, needs wiring
+  - `ally_signal` handler case exists in default handlers (currently no-op)
+- Tighten handler code length limit once we observe growth patterns
+- Observe officer evolution across multiple runs

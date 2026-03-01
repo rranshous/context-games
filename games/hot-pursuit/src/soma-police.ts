@@ -10,6 +10,12 @@ import { Soma } from './soma';
 import { PendingAction } from './chassis';
 import { compileHandler, executeSignal } from './handler-executor';
 
+// Track which officers are currently executing a handler.
+// Prevents pileup when handlers are slow — if the previous tick's handler
+// is still running, the officer continues their current movement instead
+// of firing a new handler on top of the old one.
+const busyOfficers = new Set<string>();
+
 /**
  * Create a police entity from a soma.
  * The entity is the physical body; the soma is the mind.
@@ -83,6 +89,12 @@ export async function updateSomaPolice(
   dt: number,
   tick: number,
 ): Promise<void> {
+  // If this officer's previous handler is still running, just continue current movement
+  if (busyOfficers.has(entity.id)) {
+    moveAlongPath(entity, map, dt);
+    return;
+  }
+
   // Compile handler (cached after first call)
   const handler = compileHandler(soma);
   if (!handler) {
@@ -97,76 +109,79 @@ export async function updateSomaPolice(
     config.losRange, config.losAngle,
   );
 
-  // Determine which signal(s) to fire
-  let actions: PendingAction[] = [];
+  // Mark busy before async handler execution
+  busyOfficers.add(entity.id);
 
-  if (entity.canSeePlayer && !prevCanSee) {
-    // Just spotted the player
-    entity.state = 'pursuing';
-    entity.lastKnownPlayerPos = { ...playerPos };
-    const signalActions = await executeSignal(
-      handler, 'player_spotted',
-      {
-        player_position: { ...playerPos },
-        own_position: { ...entity.pos },
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
-      },
-      entity, soma, map, config, allPolice,
-    );
-    actions = signalActions;
-  } else if (!entity.canSeePlayer && prevCanSee) {
-    // Just lost the player
-    entity.state = 'searching';
-    const signalActions = await executeSignal(
-      handler, 'player_lost',
-      {
-        last_known_position: entity.lastKnownPlayerPos ? { ...entity.lastKnownPlayerPos } : { ...playerPos },
-        own_position: { ...entity.pos },
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
-      },
-      entity, soma, map, config, allPolice,
-    );
-    actions = signalActions;
-  } else if (entity.canSeePlayer) {
-    // Still have eyes on — re-fire player_spotted to allow pursuit updates
-    entity.lastKnownPlayerPos = { ...playerPos };
-    const signalActions = await executeSignal(
-      handler, 'player_spotted',
-      {
-        player_position: { ...playerPos },
-        own_position: { ...entity.pos },
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
-      },
-      entity, soma, map, config, allPolice,
-    );
-    actions = signalActions;
-  } else {
-    // No player visible — fire tick signal
-    // Check if we've reached search target
-    if (entity.state === 'searching' && entity.lastKnownPlayerPos) {
-      const dx = entity.pos.x - entity.lastKnownPlayerPos.x;
-      const dy = entity.pos.y - entity.lastKnownPlayerPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < map.tileSize) {
-        entity.state = 'patrol';
-        entity.lastKnownPlayerPos = null;
+  try {
+    // Determine which signal(s) to fire
+    let actions: PendingAction[] = [];
+
+    if (entity.canSeePlayer && !prevCanSee) {
+      // Just spotted the player
+      entity.state = 'pursuing';
+      entity.lastKnownPlayerPos = { ...playerPos };
+      actions = await executeSignal(
+        handler, 'player_spotted',
+        {
+          player_position: { ...playerPos },
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+        },
+        entity, soma, map, config, allPolice,
+      );
+    } else if (!entity.canSeePlayer && prevCanSee) {
+      // Just lost the player
+      entity.state = 'searching';
+      actions = await executeSignal(
+        handler, 'player_lost',
+        {
+          last_known_position: entity.lastKnownPlayerPos ? { ...entity.lastKnownPlayerPos } : { ...playerPos },
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+        },
+        entity, soma, map, config, allPolice,
+      );
+    } else if (entity.canSeePlayer) {
+      // Still have eyes on — re-fire player_spotted to allow pursuit updates
+      entity.lastKnownPlayerPos = { ...playerPos };
+      actions = await executeSignal(
+        handler, 'player_spotted',
+        {
+          player_position: { ...playerPos },
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+        },
+        entity, soma, map, config, allPolice,
+      );
+    } else {
+      // No player visible — fire tick signal
+      // Check if we've reached search target
+      if (entity.state === 'searching' && entity.lastKnownPlayerPos) {
+        const dx = entity.pos.x - entity.lastKnownPlayerPos.x;
+        const dy = entity.pos.y - entity.lastKnownPlayerPos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < map.tileSize) {
+          entity.state = 'patrol';
+          entity.lastKnownPlayerPos = null;
+        }
       }
+
+      actions = await executeSignal(
+        handler, 'tick',
+        {
+          own_position: { ...entity.pos },
+          state: entity.state,
+          tick,
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+        },
+        entity, soma, map, config, allPolice,
+      );
     }
 
-    const signalActions = await executeSignal(
-      handler, 'tick',
-      {
-        own_position: { ...entity.pos },
-        state: entity.state,
-        tick,
-        map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
-      },
-      entity, soma, map, config, allPolice,
-    );
-    actions = signalActions;
+    // Apply the queued actions
+    applyActions(entity, actions, map, config, dt, playerPos);
+  } finally {
+    busyOfficers.delete(entity.id);
   }
-
-  // Apply the queued actions
-  applyActions(entity, actions, map, config, dt, playerPos);
 }
 
 /**
