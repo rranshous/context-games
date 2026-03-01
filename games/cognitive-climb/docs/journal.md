@@ -414,3 +414,31 @@ Ran the M6 embodiment build for an extended observation session via Playwright b
 The simulation reveals a fundamental tension: **waking up costs 15% maxEnergy**, and crisis wakes often trigger more crises, creating a death spiral. Creature #13 accidentally discovered the optimal M6 strategy: wake up early, set good reflexes, then **never wake up again**. The most "conscious" creatures (frequent crisis wakes, rich memory, active reflex tuning) died faster, while the unconscious zombie outlived them all.
 
 This suggests the current wake cost (15%) may be too high relative to the benefit of consciousness, or that creatures need to evolve lower wakeInterval / smarter wake conditions via onTick edits to avoid the crisis spiral. The fact that no creature successfully edited its own onTick code means the Lamarckian evolution pathway isn't firing yet — this is the key bottleneck for deeper emergent behavior.
+
+## Planned Changes — Post M6 Tuning
+
+Four changes agreed on after analysis of the extended sim run:
+
+**1. Frequency-based wake cost (replaces flat 15%)**
+
+Cost = `maxCost × e^(-ticksSinceLastWake / halfLife)` with `maxCost=0.15`, `halfLife=40`.
+
+- Wake after 200 ticks: ~0.1% (nearly free)
+- Wake after 100 ticks: ~1.5%
+- Wake after 40 ticks: ~5.5%
+- Wake after 10 ticks: ~11%
+- Immediate re-wake: 15%
+
+This inverts the selection pressure: strategic infrequent waking becomes cheap, crisis spirals (repeated rapid wakes) stay expensive. `ticksSinceLastWake = tick - lastWakeTick` already exists. No new state needed.
+
+**2. `// EDIT ME` comment in default onTick**
+
+Add a comment to the default on_tick code in `embodiment.ts` prompting creatures to notice they can customize it. Simple nudge toward self-modification.
+
+**3. Wake cost shown in consciousness message**
+
+Add a line at the top of the user message built in `consciousness.ts`: e.g. `"Wake cost: 8.2 energy (10.2% of max) — you now have 47.3 / 81 energy."` No new tools or memory writes — creature sees it in context and can reason about it. With frequency-based cost this becomes interesting information (low cost = you rested well, high cost = you've been waking a lot).
+
+**4. Raise population floor**
+
+Change population floor from 3→5, respawn target from 5→8. Reduces crash severity and lets evolved creatures persist alongside fresh reinforcements.
