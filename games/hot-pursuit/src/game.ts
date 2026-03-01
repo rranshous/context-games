@@ -111,8 +111,9 @@ export class Game {
     this.elapsedTime = 0;
     this.tickCount = 0;
 
-    // Randomize extraction points each chase
+    // Randomize positions each chase
     this.map.randomizeExtractionPoints();
+    this.map.randomizePoliceSpawns();
 
     // Reset player to spawn
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);

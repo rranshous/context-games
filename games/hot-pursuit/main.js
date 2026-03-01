@@ -185,6 +185,33 @@ var TileMap = class {
     }
     return [];
   }
+  /** Randomize police spawn positions on road tiles away from player */
+  randomizePoliceSpawns(count = 4) {
+    this.policeSpawns.length = 0;
+    const minDistFromPlayer = 12;
+    const minDistBetween = 8;
+    const ps = this.playerSpawn;
+    const candidates = [];
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        const tile = this.tiles[r][c];
+        if (tile !== 0 /* ROAD */ && tile !== 4 /* SIDEWALK */) continue;
+        const dist = Math.abs(c - ps.col) + Math.abs(r - ps.row);
+        if (dist >= minDistFromPlayer) candidates.push({ col: c, row: r });
+      }
+    }
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    for (const c of candidates) {
+      if (this.policeSpawns.length >= count) break;
+      const tooClose = this.policeSpawns.some(
+        (p) => Math.abs(p.col - c.col) + Math.abs(p.row - c.row) < minDistBetween
+      );
+      if (!tooClose) this.policeSpawns.push(c);
+    }
+  }
   /** Randomize extraction point locations along map edges */
   randomizeExtractionPoints(count = 3) {
     for (const ep of this.extractionPoints) {
@@ -2411,6 +2438,7 @@ var Game = class {
     this.elapsedTime = 0;
     this.tickCount = 0;
     this.map.randomizeExtractionPoints();
+    this.map.randomizePoliceSpawns();
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
     this.player.pos = { ...spawnWorld };
     this.player.facing = { x: 0, y: -1 };

@@ -249,6 +249,12 @@ Minimap showed the full map including extraction points and police positions —
 ### Player Feedback
 Confirmed: the combination of randomized exits + constrained viewport + no minimap makes chases noticeably more engaging. Player can no longer autopilot to memorized exits.
 
+### Randomized Police Spawns
+Police were always at the same 4 corners — predictable. Now `TileMap.randomizePoliceSpawns()` picks 4 road/sidewalk tiles each chase:
+- Minimum 12-tile Manhattan distance from player spawn (center)
+- Minimum 8-tile distance between officers (spread out)
+- Called in `startChase()` before police entity creation
+
 ### What's Next
 - Phase 4: Communication experiments
 - Tool discovery pacing

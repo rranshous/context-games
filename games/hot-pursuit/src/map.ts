@@ -196,6 +196,40 @@ export class TileMap {
     return []; // no path found
   }
 
+  /** Randomize police spawn positions on road tiles away from player */
+  randomizePoliceSpawns(count: number = 4): void {
+    this.policeSpawns.length = 0;
+
+    // Collect walkable road/sidewalk tiles far enough from player spawn
+    const minDistFromPlayer = 12;
+    const minDistBetween = 8;
+    const ps = this.playerSpawn;
+    const candidates: TilePosition[] = [];
+
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        const tile = this.tiles[r][c];
+        if (tile !== TileType.ROAD && tile !== TileType.SIDEWALK) continue;
+        const dist = Math.abs(c - ps.col) + Math.abs(r - ps.row);
+        if (dist >= minDistFromPlayer) candidates.push({ col: c, row: r });
+      }
+    }
+
+    // Shuffle
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    for (const c of candidates) {
+      if (this.policeSpawns.length >= count) break;
+      const tooClose = this.policeSpawns.some(p =>
+        Math.abs(p.col - c.col) + Math.abs(p.row - c.row) < minDistBetween
+      );
+      if (!tooClose) this.policeSpawns.push(c);
+    }
+  }
+
   /** Randomize extraction point locations along map edges */
   randomizeExtractionPoints(count: number = 3): void {
     // Clear old extraction tiles
