@@ -375,6 +375,296 @@ function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// src/visualizer/observer.ts
+function buildObserverContext(creatures, cells, stats, eventBuffer, recentlyEditedIds2, previousHeadline) {
+  const lines = [];
+  const tick = stats.tick;
+  lines.push(`=== SIMULATION SNAPSHOT (Tick ${tick}) ===
+`);
+  lines.push("GLOBAL STATS");
+  lines.push(`Alive: ${stats.creatureCount} | Born: ${stats.totalBirths} | Died: ${stats.totalDeaths} (starvation: ${stats.deathsByStarvation}, hazard: ${stats.deathsByHazard})`);
+  const avgEnergyPct = creatures.length > 0 ? Math.round(creatures.reduce((s, c) => s + c.energy / c.maxEnergy, 0) / creatures.length * 100) : 0;
+  lines.push(`Avg energy: ${avgEnergyPct}% of max | Max generation: ${stats.maxGeneration}`);
+  if (stats.avgTraits) {
+    const t = stats.avgTraits;
+    lines.push(`Traits: spd=${t.speed.toFixed(2)}, sns=${t.senseRange.toFixed(1)}, sz=${t.size.toFixed(2)}, met=${t.metabolism.toFixed(2)}, diet=${t.diet.toFixed(2)}`);
+  }
+  const foodCells = cells.filter((c) => c.food > 0).length;
+  lines.push(`Food available: ${foodCells} cells with food (out of ${cells.length} total)
+`);
+  lines.push("BEHAVIORAL GENETICS");
+  const variantMap = /* @__PURE__ */ new Map();
+  for (const c of creatures) {
+    const len = c.embodiment.on_tick.length;
+    const existing = variantMap.get(len);
+    if (existing) {
+      existing.count++;
+    } else {
+      variantMap.set(len, { count: 1, sample: c.embodiment.on_tick });
+    }
+  }
+  const variants = [...variantMap.entries()].sort((a, b) => b[1].count - a[1].count);
+  const defaultLen = 953;
+  lines.push("Variant distribution (by char count \u2014 creatures sharing length share inherited code):");
+  for (const [len, { count }] of variants.slice(0, 5)) {
+    const pct = creatures.length > 0 ? Math.round(count / creatures.length * 100) : 0;
+    const marker = len <= defaultLen + 20 ? " \u2190 default" : "";
+    lines.push(`  ${len} chars: ${count} creatures (${pct}%)${marker}`);
+  }
+  const defaultCount = variants.find(([len]) => len <= defaultLen + 20)?.[1].count ?? 0;
+  if (defaultCount === 0) {
+    lines.push("  (default code is extinct \u2014 all creatures have self-modified or inherited modified code)");
+  }
+  lines.push("");
+  let codeBlocksShown = 0;
+  if (variants.length > 0) {
+    const [domLen, { count: domCount, sample: domCode }] = variants[0];
+    const domPct = creatures.length > 0 ? Math.round(domCount / creatures.length * 100) : 0;
+    lines.push(`DOMINANT VARIANT CODE (${domLen} chars, ${domCount} creatures, ${domPct}%):`);
+    lines.push("```js");
+    lines.push(domCode);
+    lines.push("```\n");
+    codeBlocksShown++;
+    if (variants.length > 1) {
+      const [ruLen, { count: ruCount, sample: ruCode }] = variants[1];
+      const ruPct = creatures.length > 0 ? Math.round(ruCount / creatures.length * 100) : 0;
+      if (ruPct > 5) {
+        lines.push(`RUNNER-UP VARIANT CODE (${ruLen} chars, ${ruCount} creatures, ${ruPct}%):`);
+        lines.push("```js");
+        lines.push(ruCode);
+        lines.push("```\n");
+        codeBlocksShown++;
+      }
+    }
+  }
+  const shownLengths = new Set(variants.slice(0, codeBlocksShown).map(([len]) => len));
+  const recentEdited = recentlyEditedIds2.map((id) => creatures.find((c) => c.id === id)).filter((c) => c != null && !shownLengths.has(c.embodiment.on_tick.length)).slice(0, 2);
+  if (recentEdited.length > 0) {
+    lines.push("RECENTLY EDITED CREATURES:");
+    for (const c of recentEdited) {
+      lines.push(`#${c.id} (Gen ${c.generation}, age ${c.age}) just edited on_tick \u2014 current code:`);
+      lines.push("```js");
+      lines.push(c.embodiment.on_tick);
+      lines.push("```");
+    }
+    lines.push("");
+  }
+  const genMap = /* @__PURE__ */ new Map();
+  for (const c of creatures) {
+    genMap.set(c.generation, (genMap.get(c.generation) ?? 0) + 1);
+  }
+  const gens = [...genMap.entries()].sort((a, b) => a[0] - b[0]);
+  lines.push("GENERATION DISTRIBUTION");
+  lines.push(gens.map(([g, n]) => `Gen ${g}: ${n}`).join(" | "));
+  lines.push("");
+  lines.push("NOTABLE CREATURES");
+  if (creatures.length > 0) {
+    const oldest = creatures.reduce((a, b) => a.age > b.age ? a : b);
+    const healthiest = creatures.reduce((a, b) => a.energy / a.maxEnergy > b.energy / b.maxEnergy ? a : b);
+    const thinking = creatures.filter((c) => c.thinking);
+    lines.push(`Oldest alive: #${oldest.id} (Gen ${oldest.generation}, age ${oldest.age}, energy ${Math.round(oldest.energy)}/${Math.round(oldest.maxEnergy)} = ${Math.round(oldest.energy / oldest.maxEnergy * 100)}%)`);
+    lines.push(`Highest energy: #${healthiest.id} (Gen ${healthiest.generation}, ${Math.round(healthiest.energy)}/${Math.round(healthiest.maxEnergy)} = ${Math.round(healthiest.energy / healthiest.maxEnergy * 100)}%, age ${healthiest.age})`);
+    lines.push(`Currently thinking: ${thinking.length > 0 ? thinking.map((c) => "#" + c.id).join(", ") : "none"}`);
+  } else {
+    lines.push("No creatures alive");
+  }
+  lines.push("");
+  lines.push("RECENT NOTABLE EVENTS");
+  if (eventBuffer.length > 0) {
+    for (const ev of eventBuffer.slice(-20)) {
+      lines.push("  " + ev);
+    }
+  } else {
+    lines.push("  (no notable events since last report)");
+  }
+  lines.push("");
+  if (previousHeadline) {
+    lines.push("PREVIOUS OBSERVER HEADLINE");
+    lines.push(`"${previousHeadline}"`);
+  }
+  return lines.join("\n");
+}
+var OBSERVER_SCHEMA = {
+  type: "json_schema",
+  schema: {
+    type: "object",
+    properties: {
+      headline: { type: "string", description: "One sentence, under 90 chars" },
+      narrative: { type: "string", description: "2-3 paragraphs, plain text, use #N to reference creatures" },
+      mood: { type: "string", enum: ["thriving", "struggling", "crisis", "evolving", "stable"] },
+      watch_for: { type: "string", description: "1-2 sentences: what to look for next" }
+    },
+    required: ["headline", "narrative", "mood", "watch_for"],
+    additionalProperties: false
+  }
+};
+var OBSERVER_SYSTEM = "You are observing a creature evolution simulation. Report on what's happening in the sim right now. Be specific about creature IDs and tick numbers. Notice trends across time. Describe what strategies the code encodes. Be concise.";
+async function callObserverAPI(context) {
+  try {
+    const resp = await fetch("/api/inference/anthropic/messages", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 600,
+        system: OBSERVER_SYSTEM,
+        messages: [{ role: "user", content: context }],
+        output_config: { format: OBSERVER_SCHEMA }
+      })
+    });
+    if (!resp.ok) {
+      console.error("[OBSERVER] API error:", resp.status, await resp.text());
+      return null;
+    }
+    const data = await resp.json();
+    for (const block of data.content ?? []) {
+      if (block.type === "text") {
+        return JSON.parse(block.text);
+      }
+    }
+    console.error("[OBSERVER] No text block in response");
+    return null;
+  } catch (err) {
+    console.error("[OBSERVER] Call failed:", err);
+    return null;
+  }
+}
+var MOOD_COLORS = {
+  thriving: "#4c4",
+  evolving: "#6af",
+  stable: "#888",
+  struggling: "#da6",
+  crisis: "#f44"
+};
+var ObserverPanel = class {
+  isVisible = false;
+  container;
+  reports = [];
+  onSelectCreature = null;
+  thinkingEl = null;
+  reportsEl = null;
+  constructor(container) {
+    this.container = container;
+  }
+  setOnSelectCreature(cb) {
+    this.onSelectCreature = cb;
+  }
+  show() {
+    this.isVisible = true;
+    this.container.style.display = "flex";
+    this.render();
+  }
+  hide() {
+    this.isVisible = false;
+    this.container.style.display = "none";
+  }
+  toggle() {
+    if (this.isVisible) this.hide();
+    else this.show();
+  }
+  setThinking(active) {
+    if (this.thinkingEl) {
+      this.thinkingEl.style.display = active ? "block" : "none";
+    }
+  }
+  addReport(tick, report) {
+    this.reports.unshift({ tick, report, expanded: false });
+    if (this.reports.length > 1) this.reports[1].expanded = false;
+    this.reports[0].expanded = true;
+    if (this.reports.length > 20) this.reports.length = 20;
+    this.renderReports();
+  }
+  getLastHeadline() {
+    return this.reports.length > 0 ? this.reports[0].report.headline : null;
+  }
+  render() {
+    this.container.innerHTML = "";
+    const header = document.createElement("div");
+    header.style.cssText = "padding: 8px 10px 6px; background: #1a1a3a; border-bottom: 1px solid #2a2a4e; font-size: 14px; font-weight: bold; color: #eee;";
+    header.textContent = "Observer";
+    this.container.appendChild(header);
+    this.thinkingEl = document.createElement("div");
+    this.thinkingEl.style.cssText = "padding: 6px 10px; color: #6af; font-size: 11px; display: none;";
+    this.thinkingEl.textContent = "\u25CF Observing...";
+    this.container.appendChild(this.thinkingEl);
+    this.reportsEl = document.createElement("div");
+    this.reportsEl.style.cssText = "flex: 1; overflow-y: auto;";
+    this.reportsEl.addEventListener("click", (e) => {
+      const target = e.target.closest(".obs-link");
+      if (target && this.onSelectCreature) {
+        const id = parseInt(target.dataset.id ?? "", 10);
+        if (!isNaN(id)) this.onSelectCreature(id);
+      }
+    });
+    this.container.appendChild(this.reportsEl);
+    this.renderReports();
+  }
+  renderReports() {
+    if (!this.reportsEl) return;
+    this.reportsEl.innerHTML = "";
+    if (this.reports.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "padding: 12px 10px; color: #666; font-size: 11px; font-style: italic;";
+      empty.textContent = "Waiting for first observation...";
+      this.reportsEl.appendChild(empty);
+      return;
+    }
+    for (const entry of this.reports) {
+      const el = this.renderEntry(entry);
+      this.reportsEl.appendChild(el);
+    }
+  }
+  renderEntry(entry) {
+    const { tick, report, expanded } = entry;
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "padding: 8px 10px; border-bottom: 1px solid #222244;";
+    const headerLine = document.createElement("div");
+    headerLine.style.cssText = "display: flex; align-items: center; gap: 6px; font-size: 11px; color: #999; margin-bottom: 3px;";
+    const dot = document.createElement("span");
+    dot.textContent = "\u25CF";
+    dot.style.color = MOOD_COLORS[report.mood] ?? "#888";
+    headerLine.appendChild(dot);
+    const tickSpan = document.createElement("span");
+    tickSpan.textContent = `Tick ${tick}`;
+    headerLine.appendChild(tickSpan);
+    const moodSpan = document.createElement("span");
+    moodSpan.textContent = `\u2014 ${report.mood}`;
+    moodSpan.style.color = MOOD_COLORS[report.mood] ?? "#888";
+    headerLine.appendChild(moodSpan);
+    wrapper.appendChild(headerLine);
+    const headlineEl = document.createElement("div");
+    headlineEl.style.cssText = "font-size: 12px; color: #ddd; margin-bottom: 4px; font-weight: bold;";
+    headlineEl.textContent = report.headline;
+    wrapper.appendChild(headlineEl);
+    const toggleBtn = document.createElement("span");
+    toggleBtn.style.cssText = "color: #6af; cursor: pointer; font-size: 10px; user-select: none;";
+    toggleBtn.textContent = expanded ? "\u25BC collapse" : "\u25B6 expand";
+    toggleBtn.onclick = () => {
+      entry.expanded = !entry.expanded;
+      this.renderReports();
+    };
+    wrapper.appendChild(toggleBtn);
+    if (expanded) {
+      const narrativeEl = document.createElement("div");
+      narrativeEl.style.cssText = "font-size: 11px; color: #aab; margin: 6px 0; line-height: 1.5; white-space: pre-wrap; word-break: break-word;";
+      narrativeEl.innerHTML = this.linkifyCreatureIds(report.narrative);
+      wrapper.appendChild(narrativeEl);
+    }
+    const watchEl = document.createElement("div");
+    watchEl.style.cssText = "font-size: 10px; color: #998; font-style: italic; margin-top: 4px;";
+    watchEl.textContent = "\u{1F441} " + report.watch_for;
+    wrapper.appendChild(watchEl);
+    return wrapper;
+  }
+  linkifyCreatureIds(text) {
+    return text.replace(/#(\d+)/g, (match, idStr) => {
+      const id = parseInt(idStr, 10);
+      return `<span class="obs-link" data-id="${id}" style="color: #6af; cursor: pointer; text-decoration: underline;">${match}</span>`;
+    });
+  }
+};
+
 // src/visualizer/renderer.ts
 var TERRAIN_COLORS = {
   grass: "#4a7c3f",
@@ -585,16 +875,39 @@ var Renderer = class {
 var canvas = document.getElementById("canvas");
 var controlsEl = document.getElementById("controls");
 var inspectorEl = document.getElementById("inspector");
+var observerEl = document.getElementById("observer");
 var renderer = new Renderer(canvas);
 var history = new CreatureHistoryStore();
 var inspector = new Inspector(inspectorEl);
+var observerPanel = new ObserverPanel(observerEl);
 var worker = new Worker("worker.js", { type: "module" });
 function send(cmd) {
   worker.postMessage(cmd);
 }
 var controls = new Controls(controlsEl, send);
+var observerBtn = document.createElement("button");
+observerBtn.textContent = "Observer: OFF";
+observerBtn.style.cssText = `
+  padding: 4px 12px; cursor: pointer;
+  background: #2a2a4e; color: #ddd; border: 1px solid #444;
+  border-radius: 4px; font-family: monospace; font-size: 13px;
+`;
+observerBtn.onclick = () => {
+  observerPanel.toggle();
+  observerEnabled = observerPanel.isVisible;
+  observerBtn.textContent = observerEnabled ? "Observer: ON" : "Observer: OFF";
+  triggerResize();
+};
+var logSpan = controlsEl.querySelector("#sim-log");
+if (logSpan) {
+  controlsEl.insertBefore(observerBtn, logSpan);
+} else {
+  controlsEl.appendChild(observerBtn);
+}
 var selectedId = null;
 var lastCreatures = [];
+var lastCells = [];
+var lastStats = null;
 function selectCreature(id) {
   selectedId = id;
   renderer.selectedCreatureId = id;
@@ -635,6 +948,60 @@ inspector.setOnNavigate((id) => {
     renderer.selectedCreatureId = id;
   }
 });
+observerPanel.setOnSelectCreature((id) => {
+  selectCreature(id);
+});
+var observerEnabled = false;
+var simPaused = false;
+var lastObserverCallMs = 0;
+var observerInFlight = false;
+var lastMaxGeneration = 0;
+var observerEventBuffer = [];
+var recentlyEditedIds = [];
+var MAX_EVENT_BUFFER = 50;
+var MIN_INTERVAL_MS = 3e4;
+var PERIODIC_INTERVAL_MS = 6e4;
+function pushObserverEvent(msg) {
+  observerEventBuffer.push(msg);
+  if (observerEventBuffer.length > MAX_EVENT_BUFFER) {
+    observerEventBuffer.shift();
+  }
+}
+function maybeFireObserver(currentTick) {
+  if (!observerEnabled || !observerPanel.isVisible) return;
+  if (simPaused) return;
+  if (observerInFlight) return;
+  const now = Date.now();
+  if (now - lastObserverCallMs < MIN_INTERVAL_MS) return;
+  const hasNotable = observerEventBuffer.length > 0;
+  const periodic = now - lastObserverCallMs >= PERIODIC_INTERVAL_MS;
+  if (!hasNotable && !periodic) return;
+  lastObserverCallMs = now;
+  fireObserver(currentTick);
+}
+async function fireObserver(currentTick) {
+  if (lastCreatures.length === 0 && !lastStats) return;
+  observerInFlight = true;
+  observerPanel.setThinking(true);
+  const context = buildObserverContext(
+    lastCreatures,
+    lastCells,
+    lastStats ?? { tick: currentTick, creatureCount: 0, totalBirths: 0, totalDeaths: 0, avgEnergy: 0, maxGeneration: 0, avgTraits: null, deathsByStarvation: 0, deathsByHazard: 0 },
+    observerEventBuffer,
+    recentlyEditedIds,
+    observerPanel.getLastHeadline()
+  );
+  console.log("[OBSERVER] Firing at tick", currentTick, "\u2014 context length:", context.length);
+  const report = await callObserverAPI(context);
+  observerInFlight = false;
+  observerPanel.setThinking(false);
+  if (report) {
+    console.log("[OBSERVER] Report:", report.headline, "\u2014", report.mood);
+    observerPanel.addReport(currentTick, report);
+  }
+  observerEventBuffer.length = 0;
+  recentlyEditedIds.length = 0;
+}
 worker.onmessage = (e) => {
   const event = e.data;
   history.handleEvent(event);
@@ -642,15 +1009,34 @@ worker.onmessage = (e) => {
     case "state":
       renderer.updateState(event.state);
       lastCreatures = event.state.creatures;
+      lastCells = event.state.cells;
       if (selectedId != null) updateInspector();
       break;
     case "stats":
       renderer.updateStats(event.stats);
+      lastStats = event.stats;
+      if (event.stats.maxGeneration > lastMaxGeneration) {
+        pushObserverEvent(`Tick ${event.stats.tick}: New generation record: Gen ${event.stats.maxGeneration}!`);
+        lastMaxGeneration = event.stats.maxGeneration;
+      }
+      maybeFireObserver(event.stats.tick);
       break;
     case "creature:died":
       if (event.id === selectedId) updateInspector();
+      if (event.tick > 0) {
+        const deathInfo = history.getTimeline(event.id);
+        if (deathInfo && deathInfo.length > 0) {
+          const bornEntry = deathInfo.find((e2) => e2.type === "born");
+          if (bornEntry && event.tick - bornEntry.tick > 200) {
+            pushObserverEvent(`Tick ${event.tick}: #${event.id} died (long-lived creature)`);
+          }
+        }
+      }
       break;
     case "creature:spawned":
+      break;
+    case "creature:reproduced":
+      pushObserverEvent(`Tick ${event.tick}: #${event.parentId} reproduced \u2192 offspring #${event.childId}`);
       break;
     case "creature:woke":
       console.log(`[CONSCIOUSNESS] Creature #${event.id} (${event.reason}): ${event.thoughts}`);
@@ -660,10 +1046,27 @@ worker.onmessage = (e) => {
       controls.showLog(`[BRAIN] #${event.id}: ${event.thoughts.slice(0, 60)}`);
       if (event.id === selectedId) updateInspector();
       break;
-    case "log":
+    case "log": {
       controls.showLog(event.message);
       console.log(`[SIM] ${event.message}`);
+      if (event.message === "Paused") simPaused = true;
+      else if (event.message === "Resumed") simPaused = false;
+      const editMatch = event.message.match(/\[EMBODIMENT\] #(\d+) edited (on_tick|sensors|identity|memory|tools)/);
+      if (editMatch) {
+        const creatureId = parseInt(editMatch[1], 10);
+        const tick = lastStats?.tick ?? "?";
+        pushObserverEvent(`Tick ${tick}: #${creatureId} edited ${editMatch[2]}`);
+        if (editMatch[2] === "on_tick" && !recentlyEditedIds.includes(creatureId)) {
+          recentlyEditedIds.push(creatureId);
+          if (recentlyEditedIds.length > 10) recentlyEditedIds.shift();
+        }
+      }
+      if (event.message.includes("Population critical")) {
+        const tick = lastStats?.tick ?? "?";
+        pushObserverEvent(`Tick ${tick}: Population crashed to critical \u2014 spawned reinforcements`);
+      }
       break;
+    }
   }
 };
 worker.onerror = (e) => {
@@ -679,6 +1082,7 @@ window.__debug = {
   },
   select: selectCreature,
   renderer,
+  observer: observerPanel,
   dumpEmbodiment(id) {
     const c = lastCreatures.find((c2) => c2.id === id);
     if (!c) {

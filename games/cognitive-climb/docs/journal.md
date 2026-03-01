@@ -661,9 +661,81 @@ padding: 4px 12px; cursor: pointer; background: #2a2a4e; color: #ddd;
 border: 1px solid #444; border-radius: 4px; font-family: monospace; font-size: 13px;
 ```
 
-### What to build in next session
+## Session: 2026-03-01 — Observer Claude Side Panel (complete)
 
-1. Write `src/visualizer/observer.ts` (new file — full implementation)
-2. Add `#observer` div + CSS to `src/index.html`
-3. Update `src/visualizer/main.ts` with observer wiring
-4. `npm run build` and test in browser
+Built the Observer Claude side panel: a persistent AI narrator that watches sim state and writes periodic reports into a right-side panel.
+
+### Files changed
+
+- **New: `src/visualizer/observer.ts`** — `buildObserverContext()`, `callObserverAPI()`, `ObserverPanel` class
+- **Modified: `src/index.html`** — added `#observer` div (280px, same style as inspector) + CSS for `.obs-link` hover
+- **Modified: `src/visualizer/main.ts`** — observer toggle button, event buffer, trigger logic, pause-awareness
+
+### Architecture
+
+**Context builder** (`buildObserverContext`) assembles a rich sim snapshot for the observer's "senses":
+- Global stats: alive/born/died, avg energy %, traits, food cell count
+- Behavioral genetics: on_tick variant distribution by char count (top 5), with full code of dominant + runner-up variants
+- Recently-edited creatures' full on_tick code (up to 2)
+- Generation distribution, notable creatures (oldest, healthiest, currently thinking)
+- Recent notable events from buffer
+- Previous observer headline for narrative continuity
+
+**Event buffer** (`observerEventBuffer`, max 50 FIFO) — populated from:
+- `log` events: embodiment edits (`[EMBODIMENT] #N edited on_tick`), population critical
+- `creature:reproduced` events
+- `stats` events: new generation records
+- Tick numbers pulled from `lastStats.tick` (log events don't carry tick)
+
+**Trigger logic:**
+- 30s real-time minimum between calls (cost guard)
+- Fires when: notable events exist AND interval elapsed, OR 60s periodic
+- Silent while sim paused (tracked from log events "Paused"/"Resumed")
+- `observerInFlight` flag prevents concurrent calls
+
+**API call:**
+- Model: `claude-haiku-4-5-20251001`, max_tokens: 600
+- Structured output: `{ headline, narrative, mood, watch_for }` with `additionalProperties: false`
+- System prompt: concise observer role, emphasis on creature IDs, tick numbers, code strategy analysis
+
+**Panel UI (`ObserverPanel` class):**
+- Reports: mood-colored dot (thriving=green, evolving=blue, stable=gray, struggling=orange, crisis=red) + tick + headline (always visible) + expand/collapse toggle + narrative (expanded) + watch_for (always, italic)
+- Latest report auto-expanded, older collapsed
+- Max 20 reports in memory
+- Creature ID links: `#N` in narrative → `<span class="obs-link" data-id="N">` with event delegation on container (survives re-renders)
+- "Observing..." spinner during API calls
+- Observer toggle button in controls bar, appended after Controls constructor (which clears innerHTML)
+
+### Bug fixed during implementation
+
+**Schema validation error**: Anthropic API requires `additionalProperties: false` on all object types in structured output JSON schemas. Without it, returns 400 error. Added to observer schema and documented in memory notes.
+
+### Test results (~90 ticks, 4 observer reports)
+
+| Tick | Mood | Key observation |
+|------|------|----------------|
+| 10 | stable | All 12 Gen 0 creatures identical, 953-char default code, 60% avg energy |
+| 40 | stable | Population crashed to 6, reinforcement mechanism triggered, still genetic monoclone |
+| 60 | stable | 7 creatures stable, observer notes "no variant competition", moderate food scarcity |
+| 90 | stable | Still uniform, #12 (age 60) oldest, #16 thriving at 67% — observer watches for mutations |
+
+Observer correctly tracks narrative arc across reports, references specific creature IDs, describes the actual behavioral strategy encoded in the on_tick code, and notes the absence of self-modification or genetic drift.
+
+### Key files (updated)
+
+- `src/visualizer/observer.ts` — ObserverPanel, buildObserverContext(), callObserverAPI()
+- `src/visualizer/main.ts` — observer wiring, event buffer, trigger logic, toggle button
+- `src/index.html` — #observer panel div + CSS
+
+### Milestones (revised 2026-03-01)
+
+- **M1** (complete): sim foundation + minimal visualizer
+- **M2** (complete): evolution+death — hazards, danger avoidance, trait tracking
+- **M3** (complete): LLM consciousness — inference loop, tool use, sim pause
+- **M4** (complete): light rule-setting — consciousness gets add_rule/remove_rule
+- **M5** (complete): creature inspector — click-to-select, inspector panel, story timeline
+- **M6** (complete): full embodiment — embodiment IS the inference call, 5 editable sections
+- **Observer** (complete): AI narrator side panel — periodic reports on sim dynamics
+- **M7** (future): multi-turn consciousness — tool results feed back to model
+- **M8** (future): visualizer depth — population graphs, evolution timeline, god-mode panel
+- **M9** (future): sim depth — seasons, speciation, food chains, save/load

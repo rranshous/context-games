@@ -99,6 +99,23 @@
     .tl-ate { color: #ac8; }
     .tl-reproduced { color: #da6; }
     .tl-died { color: #f66; }
+
+    /* ── Observer panel ─────────────────────────────────── */
+    #observer {
+      width: 280px;
+      height: 100%;
+      background: #12122a;
+      border-left: 1px solid #2a2a4e;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      flex-shrink: 0;
+      color: #ccc;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .obs-link { color: #6af; cursor: pointer; text-decoration: underline; }
+    .obs-link:hover { color: #8cf; }
   </style>
 </head>
 <body>
@@ -106,6 +123,7 @@
   <div id="main-area">
     <canvas id="canvas"></canvas>
     <div id="inspector"></div>
+    <div id="observer"></div>
   </div>
   <script type="module" src="main.js"></script>
 </body>
