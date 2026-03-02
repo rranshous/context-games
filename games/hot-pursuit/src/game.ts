@@ -13,7 +13,7 @@ import { loadSomas, saveSomas, recordChaseInSoma, resetSomas } from './persisten
 import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
-import { reflectAllActants } from './reflection';
+import { reflectAllActants, summarizeHandlerBehavior } from './reflection';
 
 // API endpoint for reflection inference (vanilla platform proxy)
 const API_ENDPOINT = '/api/inference/anthropic/messages';
@@ -41,6 +41,9 @@ export class Game {
   // Live radio — broadcasts queued during tick N, dispatched on tick N+1
   private pendingBroadcasts: RadioMessage[] = [];
   private currentRadio: RadioMessage[] = [];
+
+  // Handler behavior summaries for soma panel
+  private handlerSummaries: Map<string, string> = new Map();
 
   // Fixed timestep
   private readonly TICK_RATE = 60;
@@ -103,10 +106,26 @@ export class Game {
   }
 
   start(): void {
+    // Render initial soma panel (summaries will fill in async)
+    this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
+    this.generateHandlerSummaries();
+
     this.startChase();
     this.running = true;
     this.lastFrameTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
+  }
+
+  /** Generate AI summaries of handler behavior for the soma panel. */
+  private async generateHandlerSummaries(): Promise<void> {
+    const promises = this.somas.map(async (soma) => {
+      const summary = await summarizeHandlerBehavior(soma, API_ENDPOINT);
+      if (summary) {
+        this.handlerSummaries.set(soma.id, summary);
+        this.renderer.updateSomaPanelSummary(soma.id, summary);
+      }
+    });
+    await Promise.all(promises);
   }
 
   private startChase(): void {
@@ -362,6 +381,11 @@ export class Game {
       // Persist updated somas
       saveSomas(this.somas);
       clearHandlerCache();
+
+      // Refresh soma panel with updated somas + regenerate behavior summaries
+      this.handlerSummaries.clear();
+      this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
+      this.generateHandlerSummaries(); // fire-and-forget, panel updates incrementally
 
       console.log(JSON.stringify({
         _hp: 'reflection_phase_complete',

@@ -1595,6 +1595,48 @@ var Renderer = class {
     const overlay = document.getElementById("reflection-overlay");
     if (overlay) overlay.classList.remove("visible");
   }
+  // ── Soma Inspector Panel ──
+  updateSomaPanel(somas, handlerSummaries) {
+    const panel = document.getElementById("soma-panel");
+    if (!panel) return;
+    const cards = somas.map((s) => {
+      const summary = handlerSummaries.get(s.id);
+      const memoryPreview = s.memory.length > 300 ? s.memory.slice(0, 300) + "..." : s.memory;
+      const handlerLines = s.signalHandlers.trim().split("\n").length;
+      return `<div class="soma-card" id="soma-card-${s.id}">
+        <div class="soma-card-header">
+          <span class="soma-card-name">${escapeHtml(s.name)}</span>
+          <span class="soma-card-badge">${escapeHtml(s.badgeNumber)}</span>
+        </div>
+        <div class="soma-card-nature">${escapeHtml(s.nature.length > 120 ? s.nature.slice(0, 120) + "..." : s.nature)}</div>
+        <div class="soma-card-section">
+          <div class="soma-card-section-label">Behavior</div>
+          ${summary ? `<div class="soma-card-behavior">${renderMarkdown(summary)}</div>` : `<div class="soma-card-generating">generating summary...</div>`}
+        </div>
+        <div class="soma-card-section">
+          <div class="soma-card-section-label">Memory</div>
+          <div class="soma-card-memory">${escapeHtml(memoryPreview)}</div>
+        </div>
+        <details>
+          <summary>handler code (${handlerLines} lines)</summary>
+          <div class="soma-card-code">${escapeHtml(s.signalHandlers.trim())}</div>
+        </details>
+      </div>`;
+    }).join("");
+    panel.innerHTML = `<div class="soma-panel-title">Officers</div>${cards}`;
+  }
+  /** Update just the behavior summary for a single officer (no full re-render). */
+  updateSomaPanelSummary(actantId, summary) {
+    const card = document.getElementById(`soma-card-${actantId}`);
+    if (!card) return;
+    const behaviorEl = card.querySelector(".soma-card-behavior, .soma-card-generating");
+    if (behaviorEl) {
+      const div = document.createElement("div");
+      div.className = "soma-card-behavior";
+      div.innerHTML = renderMarkdown(summary);
+      behaviorEl.replaceWith(div);
+    }
+  }
 };
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -2289,6 +2331,29 @@ ${debriefResult.reasoning.slice(0, 2e3)}`
   }
   return "";
 }
+async function summarizeHandlerBehavior(soma, apiEndpoint) {
+  try {
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: "claude-haiku-4-5-20251001",
+      system: 'You summarize JavaScript signal handler code for a police chase game. Output a short bullet list (one dash-prefixed line per signal type) describing what the code does in plain English. Be specific about tactics (e.g. "moves to intercept point ahead of suspect" not "responds to sighting"). Skip signal types that are trivial/empty. No preamble, just the bullets.',
+      messages: [{
+        role: "user",
+        content: `Summarize this officer's chase behavior in plain English:
+
+\`\`\`javascript
+${soma.signalHandlers}
+\`\`\``
+      }],
+      max_tokens: 384
+    });
+    if (response?.content?.[0]?.type === "text") {
+      return response.content[0].text || "";
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: "handler_summary_error", actantId: soma.id, error: String(err) }));
+  }
+  return "";
+}
 function processToolCall(toolName, input, soma, replay, result) {
   switch (toolName) {
     case "update_signal_handlers": {
@@ -2622,6 +2687,8 @@ var Game = class {
   // Live radio — broadcasts queued during tick N, dispatched on tick N+1
   pendingBroadcasts = [];
   currentRadio = [];
+  // Handler behavior summaries for soma panel
+  handlerSummaries = /* @__PURE__ */ new Map();
   // Fixed timestep
   TICK_RATE = 60;
   TICK_DT = 1 / 60;
@@ -2674,10 +2741,23 @@ var Game = class {
     }));
   }
   start() {
+    this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
+    this.generateHandlerSummaries();
     this.startChase();
     this.running = true;
     this.lastFrameTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
+  }
+  /** Generate AI summaries of handler behavior for the soma panel. */
+  async generateHandlerSummaries() {
+    const promises = this.somas.map(async (soma) => {
+      const summary = await summarizeHandlerBehavior(soma, API_ENDPOINT);
+      if (summary) {
+        this.handlerSummaries.set(soma.id, summary);
+        this.renderer.updateSomaPanelSummary(soma.id, summary);
+      }
+    });
+    await Promise.all(promises);
   }
   startChase() {
     this.phase = "chase";
@@ -2867,6 +2947,9 @@ var Game = class {
       );
       saveSomas(this.somas);
       clearHandlerCache();
+      this.handlerSummaries.clear();
+      this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
+      this.generateHandlerSummaries();
       console.log(JSON.stringify({
         _hp: "reflection_phase_complete",
         run: this.runNumber,

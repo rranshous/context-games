@@ -480,6 +480,37 @@ async function summarizeDebriefSharing(
   return '';
 }
 
+// ── Handler Behavior Summary ──
+
+/**
+ * Haiku call to produce a plain-English summary of what an officer's
+ * signal handler code does for each signal type.
+ * Returns a short bullet list the player can scan without reading JS.
+ */
+export async function summarizeHandlerBehavior(
+  soma: Soma,
+  apiEndpoint: string,
+): Promise<string> {
+  try {
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: 'claude-haiku-4-5-20251001',
+      system: 'You summarize JavaScript signal handler code for a police chase game. Output a short bullet list (one dash-prefixed line per signal type) describing what the code does in plain English. Be specific about tactics (e.g. "moves to intercept point ahead of suspect" not "responds to sighting"). Skip signal types that are trivial/empty. No preamble, just the bullets.',
+      messages: [{
+        role: 'user',
+        content: `Summarize this officer's chase behavior in plain English:\n\n\`\`\`javascript\n${soma.signalHandlers}\n\`\`\``,
+      }],
+      max_tokens: 384,
+    });
+
+    if (response?.content?.[0]?.type === 'text') {
+      return response.content[0].text || '';
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: 'handler_summary_error', actantId: soma.id, error: String(err) }));
+  }
+  return '';
+}
+
 // ── Tool Call Processing ──
 
 function processToolCall(

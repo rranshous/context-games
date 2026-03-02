@@ -491,3 +491,40 @@ Replaced static "Updated tactics after reviewing ally intel" text on reflection 
 - Tighten handler code length limit once growth patterns observed
 - Consider handler execution profiling if choppiness returns
 - Potential: "police chief" mode where a second player directs officers during debrief
+
+## 2026-03-02 — Session 8: Soma Inspector Panel
+
+### Soma Inspector Side Panel
+Added a persistent side panel to the right of the game canvas showing all 4 officers' somas at a glance. No toggle needed — it's always visible alongside the game.
+
+**What each officer card shows:**
+1. Name + badge number
+2. Nature excerpt (italic, truncated to 120 chars)
+3. **Behavior** — AI-generated plain-English summary of what their signal handler code does (haiku call per officer)
+4. **Memory** — the officer's self-maintained memory, shown in a scrollable box
+5. **Handler code** — collapsible `<details>`, shows line count on the toggle label
+
+**How summaries work:**
+- `summarizeHandlerBehavior()` in `reflection.ts` — haiku call that reads the handler JS and outputs a bullet list describing behavior per signal type (e.g., "moves to intercept point ahead of suspect" not just "responds to sighting")
+- Summaries fire at startup (for initial/loaded somas) and again after each reflection completes
+- Panel renders immediately with "generating summary..." placeholders, then `updateSomaPanelSummary()` patches each card as its haiku call returns
+- All 4 summary calls run in parallel
+
+**Layout:**
+- `#game-wrapper` flex container holds `#game-container` + `#soma-panel` side by side
+- Panel: 340px wide, 720px tall (matches canvas CSS height), scrollable
+- `margin-top: 28px` aligns panel top with canvas (below HUD bar)
+- Dark background `#0d0d0d` with subtle borders, consistent with existing UI palette
+
+**Files changed:**
+- `index.html`: `#game-wrapper` flex layout, `#soma-panel` HTML element, all `.soma-card-*` CSS classes
+- `reflection.ts`: `summarizeHandlerBehavior()` export
+- `renderer.ts`: `updateSomaPanel()` (full re-render) + `updateSomaPanelSummary()` (incremental single-card patch)
+- `game.ts`: `handlerSummaries` Map, `generateHandlerSummaries()` method, wired into `start()` and post-reflection flow
+
+### What's Next
+- Play multiple chases and observe officer evolution in the soma panel
+- Watch how handler code grows and behavior summaries change across reflections
+- Tighten handler code length limit once growth patterns observed
+- Consider handler execution profiling if choppiness returns
+- Potential: "police chief" mode where a second player directs officers during debrief

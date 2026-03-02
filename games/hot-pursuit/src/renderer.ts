@@ -457,6 +457,57 @@ export class Renderer {
     const overlay = document.getElementById('reflection-overlay');
     if (overlay) overlay.classList.remove('visible');
   }
+
+  // ── Soma Inspector Panel ──
+
+  updateSomaPanel(somas: Soma[], handlerSummaries: Map<string, string>): void {
+    const panel = document.getElementById('soma-panel');
+    if (!panel) return;
+
+    const cards = somas.map(s => {
+      const summary = handlerSummaries.get(s.id);
+      const memoryPreview = s.memory.length > 300 ? s.memory.slice(0, 300) + '...' : s.memory;
+      const handlerLines = s.signalHandlers.trim().split('\n').length;
+
+      return `<div class="soma-card" id="soma-card-${s.id}">
+        <div class="soma-card-header">
+          <span class="soma-card-name">${escapeHtml(s.name)}</span>
+          <span class="soma-card-badge">${escapeHtml(s.badgeNumber)}</span>
+        </div>
+        <div class="soma-card-nature">${escapeHtml(s.nature.length > 120 ? s.nature.slice(0, 120) + '...' : s.nature)}</div>
+        <div class="soma-card-section">
+          <div class="soma-card-section-label">Behavior</div>
+          ${summary
+            ? `<div class="soma-card-behavior">${renderMarkdown(summary)}</div>`
+            : `<div class="soma-card-generating">generating summary...</div>`
+          }
+        </div>
+        <div class="soma-card-section">
+          <div class="soma-card-section-label">Memory</div>
+          <div class="soma-card-memory">${escapeHtml(memoryPreview)}</div>
+        </div>
+        <details>
+          <summary>handler code (${handlerLines} lines)</summary>
+          <div class="soma-card-code">${escapeHtml(s.signalHandlers.trim())}</div>
+        </details>
+      </div>`;
+    }).join('');
+
+    panel.innerHTML = `<div class="soma-panel-title">Officers</div>${cards}`;
+  }
+
+  /** Update just the behavior summary for a single officer (no full re-render). */
+  updateSomaPanelSummary(actantId: string, summary: string): void {
+    const card = document.getElementById(`soma-card-${actantId}`);
+    if (!card) return;
+    const behaviorEl = card.querySelector('.soma-card-behavior, .soma-card-generating');
+    if (behaviorEl) {
+      const div = document.createElement('div');
+      div.className = 'soma-card-behavior';
+      div.innerHTML = renderMarkdown(summary);
+      behaviorEl.replaceWith(div);
+    }
+  }
 }
 
 // ── Markdown / HTML helpers ──
