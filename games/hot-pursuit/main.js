@@ -1493,12 +1493,6 @@ var Renderer = class {
   appendTurnContent(update) {
     const contentEl = document.getElementById(`reflect-content-${update.actantId}`);
     if (!contentEl) return;
-    if (update.newText.trim()) {
-      const textDiv = document.createElement("div");
-      textDiv.className = "reflection-text-chunk";
-      textDiv.innerHTML = renderMarkdown(update.newText);
-      contentEl.appendChild(textDiv);
-    }
     for (const tc of update.toolCalls) {
       const badge = document.createElement("div");
       badge.className = `reflection-tool-badge ${toolBadgeClass(tc.name)} ${tc.result.success ? "" : "failed"}`;
@@ -1518,6 +1512,22 @@ var Renderer = class {
         }
       }
       contentEl.appendChild(badge);
+    }
+    const overlay = document.getElementById("reflection-overlay");
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  }
+  setReflectionSummary(actantId, summary, fullReasoning) {
+    const contentEl = document.getElementById(`reflect-content-${actantId}`);
+    if (!contentEl) return;
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "reflection-summary";
+    summaryDiv.innerHTML = renderMarkdown(summary);
+    contentEl.insertBefore(summaryDiv, contentEl.firstChild);
+    if (fullReasoning.trim()) {
+      const details = document.createElement("details");
+      details.className = "reflection-full-reasoning";
+      details.innerHTML = `<summary>full reasoning</summary><div class="reflection-reasoning-content">${renderMarkdown(fullReasoning)}</div>`;
+      contentEl.appendChild(details);
     }
     const overlay = document.getElementById("reflection-overlay");
     if (overlay) overlay.scrollTop = overlay.scrollHeight;
@@ -1816,6 +1826,12 @@ function summarizeReplayForActant(replay, soma) {
     stateBreakdown[snap.state] = (stateBreakdown[snap.state] || 0) + dt;
     prevTick = snap.tick;
   }
+  let officerDistance = 0;
+  for (let i = 1; i < actantPath.length; i++) {
+    const dx = actantPath[i].pos.x - actantPath[i - 1].pos.x;
+    const dy = actantPath[i].pos.y - actantPath[i - 1].pos.y;
+    officerDistance += Math.sqrt(dx * dx + dy * dy);
+  }
   const spottedPlayer = actantEvents.some((e) => e.type === "player_spotted");
   const madeCapture = replay.outcome === "captured" && actantEvents.some((e) => e.type === "near_capture");
   const keyMoments = replay.events.filter((e) => !e.actantId || e.actantId === actantId).filter((e) => e.type !== "chase_start").map((e) => ({
@@ -1856,6 +1872,7 @@ function summarizeReplayForActant(replay, soma) {
       spottedPlayer,
       madeCapture,
       closestDistance: Math.round(closestDist),
+      distanceTraveled: Math.round(officerDistance),
       stateBreakdown: Object.fromEntries(
         Object.entries(stateBreakdown).map(([k, v]) => [k, Math.round(v * 10) / 10])
       )
@@ -2019,6 +2036,7 @@ Your performance:
 - ${summary.officerSummary.spottedPlayer ? "You spotted the suspect" : "You never saw the suspect"}
 - ${summary.officerSummary.madeCapture ? "YOU made the capture" : "You did not make the capture"}
 - Closest you got: ${summary.officerSummary.closestDistance}px
+- Distance you traveled: ${summary.officerSummary.distanceTraveled}px (suspect traveled ${summary.playerDistanceTraveled}px)${summary.officerSummary.distanceTraveled < 200 ? "\n- **WARNING: You barely moved this chase! Your handler is probably NOT producing movement commands for all signal types. Check every case in your switch statement \u2014 if a case doesn't call me.callTool() with a movement action, you stand still.**" : ""}
 - Time breakdown: ${Object.entries(summary.officerSummary.stateBreakdown).map(([k, v]) => `${k}: ${v}s`).join(", ")}
 
 Overall stats:
@@ -2190,6 +2208,35 @@ async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = 
   }
   return result;
 }
+async function summarizeReflection(soma, reasoning, result, apiEndpoint) {
+  try {
+    const changes = [
+      result.handlersUpdated ? "Updated their chase behavior code" : null,
+      result.memoryUpdated ? "Updated their memory" : null
+    ].filter(Boolean).join(". ");
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: "claude-haiku-4-5-20251001",
+      system: "Write concise tactical debrief summaries for police officers in a chase game. No preamble, just bullet points starting with a dash. 2-3 bullets max. Be specific about tactics, not vague.",
+      messages: [{
+        role: "user",
+        content: `Summarize this officer's reflection in 2-3 short bullet points. What did they learn? What did they change?
+
+Officer: ${soma.name}
+Changes: ${changes || "None"}
+
+Reflection:
+${reasoning.slice(0, 3e3)}`
+      }],
+      max_tokens: 256
+    });
+    if (response?.content?.[0]?.type === "text") {
+      return response.content[0].text || "";
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: "summary_error", actantId: soma.id, error: String(err) }));
+  }
+  return "";
+}
 function processToolCall(toolName, input, soma, replay, result) {
   switch (toolName) {
     case "update_signal_handlers": {
@@ -2319,7 +2366,7 @@ async function callAnthropicAPI(endpoint, body) {
     return null;
   }
 }
-async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate) {
+async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate, onSummary) {
   const promises = somas.map(async (soma) => {
     const summary = summarizeReplayForActant(replay, soma);
     const allyPaths = somas.filter((s) => s.id !== soma.id).map((allySoma) => {
@@ -2342,6 +2389,10 @@ async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onP
     if (onProgress) onProgress(soma.id, "reflecting", chaseMapBase64);
     const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model, onTurnUpdate);
     if (onProgress) onProgress(soma.id, result.success ? "complete" : "failed");
+    if (result.success && onSummary) {
+      const debrief = await summarizeReflection(soma, result.reasoning, result, apiEndpoint);
+      onSummary(soma.id, debrief, result.reasoning);
+    }
     return result;
   });
   return Promise.all(promises);
@@ -2591,6 +2642,9 @@ var Game = class {
         },
         (update) => {
           this.renderer.appendTurnContent(update);
+        },
+        (actantId, summary, fullReasoning) => {
+          this.renderer.setReflectionSummary(actantId, summary, fullReasoning);
         }
       );
       saveSomas(this.somas);

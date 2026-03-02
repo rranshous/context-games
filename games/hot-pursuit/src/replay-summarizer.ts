@@ -25,6 +25,7 @@ export interface ReplaySummary {
     spottedPlayer: boolean;
     madeCapture: boolean;
     closestDistance: number;
+    distanceTraveled: number;  // pixels — how far this officer actually moved
     stateBreakdown: Record<string, number>; // seconds in each state
   };
 
@@ -87,6 +88,14 @@ export function summarizeReplayForActant(
     prevTick = snap.tick;
   }
 
+  // Officer distance traveled
+  let officerDistance = 0;
+  for (let i = 1; i < actantPath.length; i++) {
+    const dx = actantPath[i].pos.x - actantPath[i - 1].pos.x;
+    const dy = actantPath[i].pos.y - actantPath[i - 1].pos.y;
+    officerDistance += Math.sqrt(dx * dx + dy * dy);
+  }
+
   // Did this officer spot the player?
   const spottedPlayer = actantEvents.some(e => e.type === 'player_spotted');
   const madeCapture = replay.outcome === 'captured' &&
@@ -146,6 +155,7 @@ export function summarizeReplayForActant(
       spottedPlayer,
       madeCapture,
       closestDistance: Math.round(closestDist),
+      distanceTraveled: Math.round(officerDistance),
       stateBreakdown: Object.fromEntries(
         Object.entries(stateBreakdown).map(([k, v]) => [k, Math.round(v * 10) / 10])
       ),

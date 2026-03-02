@@ -155,28 +155,50 @@
       overflow-y: auto;
     }
 
-    /* ── Text chunks from AI reasoning ── */
-    .reflection-text-chunk {
-      color: #bbb;
+    /* ── Haiku summary (replaces verbose reasoning) ── */
+    .reflection-summary {
+      color: #ccc;
       font-size: 12px;
-      line-height: 1.4;
-      padding: 4px 0;
-      border-bottom: 1px solid #1a1a1a;
+      line-height: 1.5;
+      padding: 6px 0;
+      border-bottom: 1px solid #222;
     }
-    .reflection-text-chunk h2 { color: #ffaa33; font-size: 14px; margin: 6px 0 4px; }
-    .reflection-text-chunk h3 { color: #ffaa33; font-size: 13px; margin: 6px 0 3px; }
-    .reflection-text-chunk h4 { color: #ddd; font-size: 12px; margin: 4px 0 2px; }
-    .reflection-text-chunk strong { color: #fff; }
-    .reflection-text-chunk em { color: #999; }
-    .reflection-text-chunk ul { padding-left: 14px; margin: 2px 0; }
-    .reflection-text-chunk li { margin: 1px 0; }
-    .reflection-text-chunk code {
+    .reflection-summary p { margin: 2px 0; }
+    .reflection-summary li { margin: 1px 0; }
+    .reflection-summary ul { padding-left: 14px; margin: 2px 0; }
+    .reflection-summary strong { color: #fff; }
+
+    /* ── Collapsible full reasoning ── */
+    .reflection-full-reasoning { margin-top: 6px; }
+    .reflection-full-reasoning summary {
+      color: #555;
+      font-size: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .reflection-full-reasoning summary:hover { color: #888; }
+    .reflection-reasoning-content {
+      color: #777;
+      font-size: 11px;
+      line-height: 1.3;
+      padding: 6px;
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 4px;
+    }
+    .reflection-reasoning-content p { margin: 3px 0; }
+    .reflection-reasoning-content strong { color: #aaa; }
+    .reflection-reasoning-content em { color: #888; }
+    .reflection-reasoning-content ul { padding-left: 14px; margin: 2px 0; }
+    .reflection-reasoning-content li { margin: 1px 0; }
+    .reflection-reasoning-content code {
       background: #1a1a2e;
       padding: 1px 3px;
-      font-size: 11px;
+      font-size: 10px;
       color: #88aaff;
     }
-    .reflection-text-chunk p { margin: 3px 0; }
 
     /* ── Tool call badges ── */
     .reflection-tool-badge {

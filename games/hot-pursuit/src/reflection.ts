@@ -131,6 +131,7 @@ Your performance:
 - ${summary.officerSummary.spottedPlayer ? 'You spotted the suspect' : 'You never saw the suspect'}
 - ${summary.officerSummary.madeCapture ? 'YOU made the capture' : 'You did not make the capture'}
 - Closest you got: ${summary.officerSummary.closestDistance}px
+- Distance you traveled: ${summary.officerSummary.distanceTraveled}px (suspect traveled ${summary.playerDistanceTraveled}px)${summary.officerSummary.distanceTraveled < 200 ? '\n- **WARNING: You barely moved this chase! Your handler is probably NOT producing movement commands for all signal types. Check every case in your switch statement — if a case doesn\'t call me.callTool() with a movement action, you stand still.**' : ''}
 - Time breakdown: ${Object.entries(summary.officerSummary.stateBreakdown).map(([k, v]) => `${k}: ${v}s`).join(', ')}
 
 Overall stats:
@@ -399,6 +400,43 @@ export async function reflectActant(
   return result;
 }
 
+// ── Post-Reflection Summary ──
+
+/**
+ * Quick haiku call to produce a concise debrief summary for the player.
+ * Replaces verbose multi-turn reasoning with 2-3 punchy bullet points.
+ */
+async function summarizeReflection(
+  soma: Soma,
+  reasoning: string,
+  result: ReflectionResult,
+  apiEndpoint: string,
+): Promise<string> {
+  try {
+    const changes = [
+      result.handlersUpdated ? 'Updated their chase behavior code' : null,
+      result.memoryUpdated ? 'Updated their memory' : null,
+    ].filter(Boolean).join('. ');
+
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: 'claude-haiku-4-5-20251001',
+      system: 'Write concise tactical debrief summaries for police officers in a chase game. No preamble, just bullet points starting with a dash. 2-3 bullets max. Be specific about tactics, not vague.',
+      messages: [{
+        role: 'user',
+        content: `Summarize this officer's reflection in 2-3 short bullet points. What did they learn? What did they change?\n\nOfficer: ${soma.name}\nChanges: ${changes || 'None'}\n\nReflection:\n${reasoning.slice(0, 3000)}`,
+      }],
+      max_tokens: 256,
+    });
+
+    if (response?.content?.[0]?.type === 'text') {
+      return response.content[0].text || '';
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: 'summary_error', actantId: soma.id, error: String(err) }));
+  }
+  return '';
+}
+
 // ── Tool Call Processing ──
 
 function processToolCall(
@@ -547,7 +585,7 @@ async function callAnthropicAPI(
     model: string;
     system: string;
     messages: AnthropicMessage[];
-    tools: typeof SCAFFOLD_TOOLS;
+    tools?: typeof SCAFFOLD_TOOLS;
     max_tokens: number;
   },
 ): Promise<AnthropicResponse | null> {
@@ -593,6 +631,7 @@ export async function reflectAllActants(
   model?: string,
   onProgress?: (actantId: string, status: string, chaseMapBase64?: string) => void,
   onTurnUpdate?: (update: TurnUpdate) => void,
+  onSummary?: (actantId: string, summary: string, fullReasoning: string) => void,
 ): Promise<ReflectionResult[]> {
   const promises = somas.map(async (soma) => {
     // Generate this officer's chase map before reflecting
@@ -622,6 +661,12 @@ export async function reflectAllActants(
     const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model, onTurnUpdate);
 
     if (onProgress) onProgress(soma.id, result.success ? 'complete' : 'failed');
+
+    // Generate concise summary for player-facing debrief card
+    if (result.success && onSummary) {
+      const debrief = await summarizeReflection(soma, result.reasoning, result, apiEndpoint);
+      onSummary(soma.id, debrief, result.reasoning);
+    }
 
     return result;
   });

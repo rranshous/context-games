@@ -383,13 +383,8 @@ export class Renderer {
     const contentEl = document.getElementById(`reflect-content-${update.actantId}`);
     if (!contentEl) return;
 
-    // Append reasoning text
-    if (update.newText.trim()) {
-      const textDiv = document.createElement('div');
-      textDiv.className = 'reflection-text-chunk';
-      textDiv.innerHTML = renderMarkdown(update.newText);
-      contentEl.appendChild(textDiv);
-    }
+    // Skip verbose reasoning text — haiku summary replaces it after reflection completes.
+    // Tool badges are the useful live signal.
 
     // Append tool call badges
     for (const tc of update.toolCalls) {
@@ -418,6 +413,29 @@ export class Renderer {
     }
 
     // Auto-scroll to bottom
+    const overlay = document.getElementById('reflection-overlay');
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  }
+
+  setReflectionSummary(actantId: string, summary: string, fullReasoning: string): void {
+    const contentEl = document.getElementById(`reflect-content-${actantId}`);
+    if (!contentEl) return;
+
+    // Insert summary at top of card (before tool badges)
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'reflection-summary';
+    summaryDiv.innerHTML = renderMarkdown(summary);
+    contentEl.insertBefore(summaryDiv, contentEl.firstChild);
+
+    // Add collapsible full reasoning at bottom
+    if (fullReasoning.trim()) {
+      const details = document.createElement('details');
+      details.className = 'reflection-full-reasoning';
+      details.innerHTML = `<summary>full reasoning</summary><div class="reflection-reasoning-content">${renderMarkdown(fullReasoning)}</div>`;
+      contentEl.appendChild(details);
+    }
+
+    // Scroll
     const overlay = document.getElementById('reflection-overlay');
     if (overlay) overlay.scrollTop = overlay.scrollHeight;
   }

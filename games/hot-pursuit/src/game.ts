@@ -328,6 +328,9 @@ export class Game {
         (update) => {
           this.renderer.appendTurnContent(update);
         },
+        (actantId, summary, fullReasoning) => {
+          this.renderer.setReflectionSummary(actantId, summary, fullReasoning);
+        },
       );
 
       // Persist updated somas

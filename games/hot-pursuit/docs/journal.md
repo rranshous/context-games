@@ -344,10 +344,32 @@ This is a soft degradation — officers with complex handlers react a bit slower
 ### Handler Code Length Limit (Infrastructure Only)
 Added `MAX_HANDLER_CODE_LENGTH` validation in `reflection.ts` `validateHandlerCode()`. Currently set to 50,000 chars (effectively uncapped) — infrastructure is in place to tighten later when we observe how large handlers actually grow. The validation rejects with a clear error message telling the AI to write more concise code.
 
+### Haiku Debrief Summaries
+The reflection cards were dominated by verbose multi-turn reasoning text that wasn't useful to watch. Replaced with a haiku summarization pass:
+
+- **During reflection**: cards now show only tool badges (handlers updated, memory updated, replay queries) as they come in. Verbose reasoning text is suppressed.
+- **After reflection completes**: quick haiku call per officer summarizes their full reasoning into 2-3 punchy bullet points.
+- **Card layout**: summary at top, tool badges in middle, collapsible "full reasoning" at bottom for anyone who wants the detail.
+
+New function: `summarizeReflection()` in `reflection.ts`. Uses `claude-haiku-4-5-20251001`, 256 max tokens. Fires via `onSummary` callback from `reflectAllActants` → `renderer.setReflectionSummary()`.
+
+Made `tools` parameter optional in `callAnthropicAPI()` — summary call doesn't need scaffold tools.
+
+### Stationary Officer Fix
+Officers were staying in one spot but claiming they had patrol routes. Root cause: the reflection prompt gave no data about how far the officer actually moved, so they had no way to realize their handlers weren't producing movement commands.
+
+**Fix**:
+- Added `distanceTraveled` to `officerSummary` in `replay-summarizer.ts` — cumulative pixel distance from path waypoints.
+- Reflection prompt now shows officer distance vs suspect distance.
+- **If officer traveled < 200px**: bold warning in prompt that their handler is probably not producing movement for all signal types, telling them to check every switch case.
+
+### Future Idea: Soma-Owned Map Rendering
+What if the chase map rendering logic (or something similar) lived in the soma so officers could modify it? They could annotate the map, add their own markers, or change what they focus on. Creates another axis of self-modification alongside handler code and memory. Not pursuing now but an interesting direction for deeper embodiment.
+
 ### What's Next
 - **Phase 4: Communication** — the main remaining feature phase
   - Config A: None (current) → B: Observation sharing → C: Tactic sharing → D: Live radio
   - `broadcast()` already exists as a no-op in chassis.ts, needs wiring
   - `ally_signal` handler case exists in default handlers (currently no-op)
 - Tighten handler code length limit once we observe growth patterns
-- Observe officer evolution across multiple runs
+- Observe officer evolution across multiple runs — especially whether distance warning helps stationary officers
