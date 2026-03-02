@@ -494,12 +494,12 @@ export async function summarizeHandlerBehavior(
   try {
     const response = await callAnthropicAPI(apiEndpoint, {
       model: 'claude-haiku-4-5-20251001',
-      system: 'You summarize JavaScript signal handler code for a police chase game. Output a short bullet list (one dash-prefixed line per signal type) describing what the code does in plain English. Be specific about tactics (e.g. "moves to intercept point ahead of suspect" not "responds to sighting"). Skip signal types that are trivial/empty. No preamble, just the bullets.',
+      system: 'You summarize JavaScript signal handler code for a police chase game. Output a short bullet list (one dash-prefixed line per signal type) describing what the code does in plain English. Be specific about tactics (e.g. "moves to intercept point ahead of suspect" not "responds to sighting"). Pay special attention to radio communication — how the officer uses broadcast() to share intel, and how they respond to ally_signal messages (e.g. moving toward reported positions, relaying sightings, coordinating pincer moves). Skip signal types that are trivial/empty. No preamble, just the bullets.',
       messages: [{
         role: 'user',
-        content: `Summarize this officer's chase behavior in plain English:\n\n\`\`\`javascript\n${soma.signalHandlers}\n\`\`\``,
+        content: `Summarize this officer's chase behavior in plain English. Pay attention to how they use radio (broadcast/ally_signal) to coordinate with teammates.\n\nSignal handlers:\n\`\`\`javascript\n${soma.signalHandlers}\n\`\`\`${soma.memory ? `\n\nOfficer memory:\n${soma.memory.slice(0, 500)}` : ''}`,
       }],
-      max_tokens: 384,
+      max_tokens: 512,
     });
 
     if (response?.content?.[0]?.type === 'text') {

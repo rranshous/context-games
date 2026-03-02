@@ -540,5 +540,9 @@ The debrief overlay title was a static "DEBRIEF" during both reflection phases. 
 
 Title element given `id="reflection-phase-title"` for dynamic updates. Phase transition detected in `updateReflectionProgress()` when status changes to `'sharing'`.
 
+### Soma Inspector: Radio-Aware Behavior Summaries
+The `summarizeHandlerBehavior()` haiku call now explicitly asks about radio usage — how officers broadcast intel and respond to `ally_signal` messages. Also includes officer memory (truncated to 500 chars) as context, since radio strategy often lives there. Max tokens bumped 384 → 512 to give room for the extra detail.
+
 ### Files Changed
 - `renderer.ts`: added id to title element, initial text "REVIEWING TAPE", updates to "SHARING NOTES" on sharing status
+- `reflection.ts`: `summarizeHandlerBehavior()` system prompt + user message updated for radio awareness, includes soma.memory, max_tokens 384→512
