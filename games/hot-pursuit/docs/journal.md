@@ -585,3 +585,25 @@ Added a "wave changes" button alongside the squad overview button. Summarizes wh
 - Reflection model upgraded from `claude-sonnet-4-20250514` to `claude-sonnet-4-6` (same cost, newer)
 - Squad overview `max_tokens` bumped 768 → 1536 (was getting cut off)
 - Wave changes prompt rewritten: was breaking down per-officer (redundant with individual inspect). Now synthesizes cross-squad themes — tactical shifts, ideas spreading between officers, new discoveries, coordination changes. Reads like a squad changelog.
+
+### What's Next — Difficulty Scaling + Visual Overhaul
+
+**Core problem**: Even as officers improve significantly, the player can still win most chases because the map is small (~30×25) and there are only 4 cops. The map geometry makes extraction points too reachable — smart play beats smart AI at this scale.
+
+**Difficulty scaling ideas** (need to decide on approach):
+- **Promotion / new city**: After N successful escapes, the player "moves up" to a larger city with more officers. Frames difficulty as narrative progression. Question: do the existing officers carry over (with their evolved somas), or do you face fresh cops in the new precinct? Carrying them over rewards the AI's learning; fresh cops create a reset but with harder geometry.
+- **Expanding the current map**: Grow the grid and add officers incrementally. Simpler technically but less narratively satisfying. Would the existing somas still make sense on a different layout?
+- **Officer count scaling**: Even on the current map, 5-6 officers would be significantly harder. Could add rookies (fresh somas) alongside veterans.
+- **Map variety**: Multiple map layouts (downtown grid, highway, suburbs) with different tactical challenges. Officers would need to adapt to new geometry.
+
+**Visual overhaul — early GTA driving game**:
+- Replace abstract squares with actual car sprites (player getaway car, police cruisers)
+- Top-down driving feel: acceleration, turning, momentum (not instant WASD movement)
+- Road markings, building textures, sidewalks
+- Potentially changes the whole movement model from walk-speed to vehicle-speed, which affects chase dynamics, LOS distances, map scale, and officer sensing ranges
+- This is a big shift — probably its own phase. The AI/soma system stays the same but everything around it changes.
+
+**Open questions**:
+- Do we scale difficulty first (keep current visuals) or overhaul visuals first (keep current difficulty)?
+- If we go driving model, does the map need to be much larger to feel right at car speeds?
+- How do we handle the transition for existing somas when the map changes?
