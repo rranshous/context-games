@@ -274,8 +274,116 @@ Runtime inspection revealed **0 dens and 0 crevices** on the current map (seed 4
 - Squid glow pulse amplitude 0.6 → 0.2 — was too dramatic, squid went visibly dark in open water. Now a subtle breathing effect (2.3–2.7 range).
 
 ### Next
+1. **Self-modifying predator instincts** — paralleling hot-pursuit's soma/reflection architecture
+2. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
+3. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
+4. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
+5. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
+6. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
+
+## Session 5 — Self-Modifying Predator Instincts (2026-03-02)
+
+### Motivation
+Session 4's shark had a hardcoded 3-state FSM (PATROL→CHASE→SEARCH). In hot-pursuit, police officers have editable JS code strings that Claude rewrites after each chase. This session brings the same self-modifying spirit to glint's predators, adapted for continuous underwater gameplay.
+
+**Key divergences from hot-pursuit:**
+- **Async reflection** — no game pause; predators reflect in background while patrolling after a failed hunt
+- **Failure-driven** — only failed hunts trigger reflection (you learn from losing prey, not catching it)
+- **Biological framing** — "instincts" and "stimuli" instead of "signal handlers" and "signals"
+- **Free-form states** — predators can invent states beyond patrol/chase/search (e.g. `ambush`, `check_kelp`, `spiral_search`)
+- **Text-only** — no bird's-eye replay image; text hunt summaries are enough for haiku
+- **Memory writes during execution** — predators can jot spatial notes mid-hunt
+
+### M1: Instinct Architecture (3 new files, 3 modified)
+
+**`src/soma.ts`** — The predator mind
+- `PredatorSoma` interface: id, species, nature (poetic identity), instinctCode (JS string), memory, huntHistory, lastReflectionTime, reflectionPending
+- `createDefaultSharkSoma(id)` factory with default instinct code that reproduces the old PATROL/CHASE/SEARCH FSM
+
+**`src/instinct-api.ts`** — The `me` object passed to instinct code
+- Movement: `pursue()`, `patrol_to()`, `patrol_random()`, `hold()`
+- Sensing: `check_los()`, `nearby_tiles(type)`, `distance_to()`
+- State: `getState()`, `setState()`, `getLastKnown()`, `setLastKnown()`, `getTimeSinceLost()`, `getPosition()`
+- Memory: `memory.read()`, `memory.write()`
+- `PendingAction` queue — first action per tick wins
+
+**`src/instinct-executor.ts`** — Compile + execute
+- `compileInstinct(soma)` — AsyncFunction constructor, cached by soma.id + code comparison
+- `executeStimulus(instinct, type, data, api)` — Promise.race with 50ms timeout
+- `clearInstinctCache()` — called after reflection updates code
+
+**`src/predator.ts`** — Restructured
+- Renamed `Soma` → `PhysicalState` (runtime working memory)
+- Added `dispatchStimulus()` — determines stimulus type (prey_detected > prey_lost > tick), creates API, compiles + executes instinct, applies actions
+- Busy guard: `Set<string>` for async safety in rAF loop
+- Synchronous fast-path for default (non-async) instinct code
+
+**`src/shark.ts`** — Simplified
+- Deleted `updateSharkSoma()` entirely
+- Accepts optional `PredatorSoma` for loading saved/evolved somas
+- String state comparisons with default fallthrough for custom states
+
+### M2: Hunt Tracking
+
+**`src/hunt-tracker.ts`** — Episode recorder
+- `HuntTracker` class: startHunt/recordEvent/endHunt/isHunting/getCompletedHunts
+- Event types: detected, pursuing (0.5s throttle), lost_los, prey_concealed, prey_revealed
+- `buildTextSummary()` produces human-readable hunt replays for Claude
+- `HuntSummary` includes outcome, duration, closest distance, concealment info
+
+**`src/main.ts`** — Hunt integration
+- Hunts start on first detection, record events on state transitions
+- End as 'catch' on capture, 'lost' when predator returns to patrol
+- Track `prevConcealed` and `prevState` per predator for transition detection
+
+### M3: Reflection System
+
+**`src/reflection.ts`** — Async predator learning via Claude
+- 3 scaffold tools: `update_instinct`, `update_memory`, `recall_hunt`
+- `buildSystemPrompt(soma)` — species identity, current instincts, memory, hunt history, reef knowledge, movement API reference
+- `buildReflectionPrompt(huntSummary, huntCount)` — hunt replay, coaching on what to try
+- `validateInstinctCode(code)` — forbidden patterns (eval, Function, import, fetch, window, document), signature check, syntax check, 10k char limit
+- `reflectPredator()` — max 3 turns, haiku model, 2048 max tokens
+- `shouldReflect()` — 60s cooldown (skip on first reflection), 2s min hunt duration
+
+**`src/persistence.ts`** — Save/load to localStorage
+- Keyed by map seed: `glint-predators-42`
+- Load on startup, save after each reflection
+
+**`src/main.ts`** — Reflection wiring
+- `triggerReflection()` — records hunt history, fires reflectPredator async, saves on completion
+- Load saved somas on startup, pass to createShark()
+- Debug: `window.__glint` expanded with triggerReflection, readSensors, invulnTimer, resetSomas, saveSomas
+
+### Bugs Found & Fixed
+- **Cooldown blocking first reflection**: `shouldReflect()` had `gameTime - lastReflectionTime(0) < 60` which blocked all reflections in the first 60 seconds. Fixed: skip cooldown when `lastReflectionTime === 0` (never reflected).
+- **Dynamic import in animation loop**: early version used `await import('./map.js')` in the hunt tracking section — created async dynamic import every frame. Fixed with static import.
+
+### E2E Verification
+- Manually created a 4s failed hunt, triggered reflection, waited for haiku response
+- **Result**: shark-0's instinct code grew from 675 → 1553 chars
+  - New behavior: after losing prey, checks `nearby_tiles('kelp')`, `nearby_tiles('den')`, `nearby_tiles('crevice')`, patrols to nearest hiding spot
+  - Extended search time from 5s to 6s
+- Memory updated: "Kelp around (3.0, 3.0) is a hiding spot..."
+- Persistence confirmed: evolved instincts survive page reload
+
+### File Summary
+| File | Status |
+|------|--------|
+| `src/soma.ts` | NEW |
+| `src/instinct-api.ts` | NEW |
+| `src/instinct-executor.ts` | NEW |
+| `src/hunt-tracker.ts` | NEW |
+| `src/reflection.ts` | NEW |
+| `src/persistence.ts` | NEW |
+| `src/predator.ts` | MODIFIED |
+| `src/shark.ts` | MODIFIED |
+| `src/main.ts` | MODIFIED |
+
+### Next
 1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
 2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
 3. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
 4. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
 5. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
+6. **Inspector panel** — like hot-pursuit's soma inspector, show predator instinct code and memory live

@@ -1,12 +1,8 @@
 // Shark — first predator type
-// Soma: patrol → chase → search state machine
-// Chassis: big, fast, can't fit crevices
+// Model + chassis + animate. Behavior comes from instinct code in PredatorSoma.
 import * as THREE from 'three';
-import {
-  Predator, PredatorState, Chassis, Soma, SensorData,
-  moveToward, pickRandomOpenTile,
-} from './predator.js';
-import { ReefMap } from './map.js';
+import { Predator, Chassis, PhysicalState } from './predator.js';
+import { PredatorSoma, createDefaultSharkSoma } from './soma.js';
 
 // --- Chassis config ---
 
@@ -21,84 +17,13 @@ function sharkChassis(): Chassis {
   };
 }
 
-// --- Seeded RNG for shark behavior ---
-
-function mulberry32(seed: number) {
-  return () => {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-const sharkRng = mulberry32(54321);
-
-// --- Soma behavior ---
-
-const SEARCH_DURATION = 5;
-
-function updateSharkSoma(
-  pred: Predator, sensors: SensorData, dt: number,
-  map: ReefMap, tileSize: number
-) {
-  const soma = pred.soma;
-
-  switch (soma.state) {
-    case PredatorState.PATROL:
-      if (sensors.squidDetected) {
-        soma.state = PredatorState.CHASE;
-        soma.lastSeenPos = { ...sensors.squidWorldPos };
-        break;
-      }
-      if (!soma.waypoint) {
-        // Pick a waypoint far enough away for a real patrol leg
-        for (let i = 0; i < 10; i++) {
-          const wp = pickRandomOpenTile(map, tileSize, sharkRng);
-          const dx = wp.x - pred.group.position.x;
-          const dz = wp.z - pred.group.position.z;
-          if (dx * dx + dz * dz > 100) { soma.waypoint = wp; break; }
-        }
-        if (!soma.waypoint) soma.waypoint = pickRandomOpenTile(map, tileSize, sharkRng);
-      }
-      moveToward(pred, soma.waypoint.x, soma.waypoint.z, dt, map, tileSize);
-      break;
-
-    case PredatorState.CHASE:
-      if (sensors.squidDetected) {
-        soma.lastSeenPos = { ...sensors.squidWorldPos };
-        moveToward(pred, sensors.squidWorldPos.x, sensors.squidWorldPos.z, dt, map, tileSize);
-      } else {
-        soma.state = PredatorState.SEARCH;
-        soma.searchTimer = SEARCH_DURATION;
-      }
-      break;
-
-    case PredatorState.SEARCH:
-      if (sensors.squidDetected) {
-        soma.state = PredatorState.CHASE;
-        soma.lastSeenPos = { ...sensors.squidWorldPos };
-        break;
-      }
-      soma.searchTimer -= dt;
-      if (soma.searchTimer <= 0) {
-        soma.state = PredatorState.PATROL;
-        soma.waypoint = null;
-        break;
-      }
-      if (soma.lastSeenPos) {
-        moveToward(pred, soma.lastSeenPos.x, soma.lastSeenPos.z, dt, map, tileSize);
-      }
-      break;
-  }
-}
-
 // --- Model ---
 
 export function createShark(
   id: string,
   spawnX: number, spawnZ: number,
-  gradientMap: THREE.DataTexture
+  gradientMap: THREE.DataTexture,
+  existingSoma?: PredatorSoma,
 ): Predator {
   const group = new THREE.Group();
 
@@ -161,15 +86,17 @@ export function createShark(
   group.add(threatLight);
 
   group.position.set(spawnX, 1, spawnZ);
-  group.rotation.y = sharkRng() * Math.PI * 2;
+  group.rotation.y = Math.random() * Math.PI * 2;
 
-  const soma: Soma = {
-    state: PredatorState.PATROL,
+  const physical: PhysicalState = {
+    state: 'patrol',
     waypoint: null,
     lastSeenPos: null,
-    searchTimer: 0,
+    lostTime: 0,
     stuckTimer: 0,
   };
+
+  const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);
 
   // Animation uses closures over mesh refs (no fragile child indexing)
   function animate(pred: Predator, t: number) {
@@ -177,22 +104,22 @@ export function createShark(
     body.rotation.y = Math.sin(t * 3 + pred.group.position.x) * 0.08;
 
     // Tail wag — faster when chasing
-    const tailSpeed = pred.soma.state === PredatorState.CHASE ? 8 : 2.5;
+    const tailSpeed = pred.physical.state === 'chase' ? 8 : 2.5;
     tail.rotation.y = Math.sin(t * tailSpeed) * 0.3;
 
     // Threat light
-    switch (pred.soma.state) {
-      case PredatorState.PATROL:
-        pred.threatLight.intensity = 0.3 + Math.sin(t) * 0.15;
-        pred.threatLight.color.setHex(0xff6600);
-        break;
-      case PredatorState.CHASE:
+    switch (pred.physical.state) {
+      case 'chase':
         pred.threatLight.intensity = 1.5 + Math.sin(t * 4) * 0.5;
         pred.threatLight.color.setHex(0xff2200);
         break;
-      case PredatorState.SEARCH:
+      case 'search':
         pred.threatLight.intensity = 0.8 + Math.sin(t * 2) * 0.3;
         pred.threatLight.color.setHex(0xff4400);
+        break;
+      default: // patrol + any custom states
+        pred.threatLight.intensity = 0.3 + Math.sin(t) * 0.15;
+        pred.threatLight.color.setHex(0xff6600);
         break;
     }
 
@@ -201,7 +128,7 @@ export function createShark(
   }
 
   return {
-    id, type: 'shark', group, chassis: sharkChassis(), soma,
-    threatLight, updateSoma: updateSharkSoma, animate,
+    id, type: 'shark', group, chassis: sharkChassis(),
+    physical, predatorSoma, threatLight, animate,
   };
 }
