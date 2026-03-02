@@ -1,0 +1,17 @@
+{
+  "name": "glint",
+  "version": "0.1.0",
+  "description": "Baby squid survival in a bioluminescent coral reef — dark-rider style Three.js",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch"
+  },
+  "keywords": ["game", "three.js", "underwater", "squid"],
+  "author": "Robby Ranshous",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.9.3"
+  }
+}
