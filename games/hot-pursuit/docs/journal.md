@@ -607,3 +607,11 @@ Added a "wave changes" button alongside the squad overview button. Summarizes wh
 - Do we scale difficulty first (keep current visuals) or overhaul visuals first (keep current difficulty)?
 - If we go driving model, does the map need to be much larger to feel right at car speeds?
 - How do we handle the transition for existing somas when the map changes?
+
+### Session 9 Summary
+1. **Dynamic debrief titles**: "REVIEWING TAPE" → "SHARING NOTES" as phases progress
+2. **Radio-aware inspector summaries**: behavior summaries now highlight broadcast/ally_signal coordination, include officer memory
+3. **Squad overview button**: full-team tactical assessment (haiku, on-demand)
+4. **Wave changes button**: cross-squad changelog — tactical shifts, idea spreading, new discoveries (haiku, on-demand)
+5. **Reflection model**: upgraded to `claude-sonnet-4-6`
+6. All summary buttons appear in debrief header after reflection completes, results show in soma side panel
