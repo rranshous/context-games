@@ -737,7 +737,8 @@ var TILE_NAMES = {
   kelp: 3 /* KELP */,
   den: 4 /* DEN */
 };
-function createInstinctAPI(pred, map2, tileSize, actions) {
+var MAX_JOURNAL_LENGTH = 5e3;
+function createTickAPI(pred, map2, tileSize, actions) {
   const px = () => pred.group.position.x;
   const pz = () => pred.group.position.z;
   return {
@@ -785,62 +786,73 @@ function createInstinctAPI(pred, map2, tileSize, actions) {
       const ddx = target.x - px(), ddz = target.z - pz();
       return Math.sqrt(ddx * ddx + ddz * ddz);
     },
-    getLastKnown: () => pred.physical.lastSeenPos ? { x: pred.physical.lastSeenPos.x, z: pred.physical.lastSeenPos.z } : null,
-    setLastKnown: (pos) => {
-      pred.physical.lastSeenPos = pos ? { x: pos.x, z: pos.z } : null;
-    },
-    getTimeSinceLost: () => pred.physical.lostTime,
     getPosition: () => ({ x: px(), z: pz() }),
     memory: {
       read: () => pred.predatorSoma.memory,
       write: (s) => {
         pred.predatorSoma.memory = s;
       }
+    },
+    hunt_journal: {
+      read: () => pred.predatorSoma.hunt_journal,
+      write: (s) => {
+        if (s.length > MAX_JOURNAL_LENGTH) {
+          const trimPoint = s.indexOf("\n", s.length - MAX_JOURNAL_LENGTH);
+          s = trimPoint > 0 ? s.slice(trimPoint + 1) : s.slice(s.length - MAX_JOURNAL_LENGTH);
+        }
+        pred.predatorSoma.hunt_journal = s;
+      }
+    },
+    on_tick: {
+      read: () => pred.predatorSoma.on_tick
+    },
+    identity: {
+      read: () => pred.predatorSoma.identity
     }
   };
 }
 
 // src/instinct-executor.ts
-var INSTINCT_TIMEOUT_MS = 50;
-var instinctCache = /* @__PURE__ */ new Map();
+var TICK_TIMEOUT_MS = 50;
+var tickCache = /* @__PURE__ */ new Map();
 function compileInstinct(soma) {
-  const cached = instinctCache.get(soma.id);
-  if (cached && cached.code === soma.instinctCode) {
-    return cached.instinct;
+  const cached = tickCache.get(soma.id);
+  if (cached && cached.code === soma.on_tick) {
+    return cached.compiled;
   }
   try {
     const wrappedCode = `
-      ${soma.instinctCode}
-      return onStimulus(type, data, me);
+      ${soma.on_tick}
+      return on_tick(me, world);
     `;
     const AsyncFunction = Object.getPrototypeOf(async function() {
     }).constructor;
-    const fn = new AsyncFunction("type", "data", "me", wrappedCode);
-    const instinct = { predatorId: soma.id, fn };
-    instinctCache.set(soma.id, { code: soma.instinctCode, instinct });
-    return instinct;
+    const fn = new AsyncFunction("me", "world", wrappedCode);
+    const compiled = { predatorId: soma.id, fn };
+    tickCache.set(soma.id, { code: soma.on_tick, compiled });
+    return compiled;
   } catch (err) {
-    console.log(`[GLINT] Instinct compile error for ${soma.id}: ${err}`);
+    console.log(`[GLINT] on_tick compile error for ${soma.id}: ${err}`);
     return null;
   }
 }
-async function executeStimulus(instinct, stimulusType, stimulusData, api) {
+async function executeTick(compiled, api, world) {
   try {
     const result = await Promise.race([
-      instinct.fn(stimulusType, stimulusData, api),
+      compiled.fn(api, world),
       new Promise(
-        (resolve) => setTimeout(() => resolve("timeout"), INSTINCT_TIMEOUT_MS)
+        (resolve) => setTimeout(() => resolve("timeout"), TICK_TIMEOUT_MS)
       )
     ]);
     if (result === "timeout") {
-      console.log(`[GLINT] Instinct timeout for ${instinct.predatorId} on ${stimulusType}`);
+      console.log(`[GLINT] on_tick timeout for ${compiled.predatorId}`);
     }
   } catch (err) {
-    console.log(`[GLINT] Instinct runtime error for ${instinct.predatorId}: ${err}`);
+    console.log(`[GLINT] on_tick runtime error for ${compiled.predatorId}: ${err}`);
   }
 }
 function clearInstinctCache() {
-  instinctCache.clear();
+  tickCache.clear();
 }
 
 // src/predator.ts
@@ -937,51 +949,32 @@ function checkCatch(pred, squid2) {
   return Math.sqrt(dx * dx + dz * dz) < pred.chassis.collisionRadius + 0.3;
 }
 var busyPredators = /* @__PURE__ */ new Set();
-function dispatchStimulus(pred, sensors, dt, map2, tileSize, rng) {
+function runTick(pred, sensors, dt, t, map2, tileSize, rng) {
   if (busyPredators.has(pred.id)) {
     if (pred.physical.waypoint) {
-      const useChase = pred.physical.wasPursuing;
+      const useChase = pred.physical.lastActionType === "pursue";
       moveToward(pred, pred.physical.waypoint.x, pred.physical.waypoint.z, dt, map2, tileSize, useChase);
     }
     return;
   }
-  const instinct = compileInstinct(pred.predatorSoma);
-  if (!instinct) {
+  const compiled = compileInstinct(pred.predatorSoma);
+  if (!compiled) {
     if (pred.physical.waypoint) {
       moveToward(pred, pred.physical.waypoint.x, pred.physical.waypoint.z, dt, map2, tileSize, false);
     }
     return;
   }
-  const wasTracking = pred.physical.wasPursuing;
-  let stimulusType;
-  let stimulusData;
-  if (sensors.squidDetected) {
-    stimulusType = "prey_detected";
-    stimulusData = {
-      prey_position: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
-      prey_distance: sensors.squidDist,
-      own_position: { x: pred.group.position.x, z: pred.group.position.z }
-    };
-    pred.physical.lostTime = 0;
-  } else if (wasTracking) {
-    stimulusType = "prey_lost";
-    stimulusData = {
-      last_known_position: pred.physical.lastSeenPos ? { x: pred.physical.lastSeenPos.x, z: pred.physical.lastSeenPos.z } : void 0,
-      own_position: { x: pred.group.position.x, z: pred.group.position.z }
-    };
-    pred.physical.lostTime = 0;
-  } else {
-    stimulusType = "tick";
-    pred.physical.lostTime += dt;
-    stimulusData = {
-      own_position: { x: pred.group.position.x, z: pred.group.position.z },
-      time_since_lost: pred.physical.lostTime
-    };
-  }
+  const worldData = {
+    squidDetected: sensors.squidDetected,
+    squidPos: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
+    squidDist: sensors.squidDist,
+    dt,
+    t
+  };
   const actions = [];
-  const api = createInstinctAPI(pred, map2, tileSize, actions);
+  const api = createTickAPI(pred, map2, tileSize, actions);
   busyPredators.add(pred.id);
-  executeStimulus(instinct, stimulusType, stimulusData, api).then(() => {
+  executeTick(compiled, api, worldData).then(() => {
     busyPredators.delete(pred.id);
     if (actions.length > 0) {
       applyAction(pred, actions[0], dt, map2, tileSize, rng);
@@ -991,7 +984,13 @@ function dispatchStimulus(pred, sensors, dt, map2, tileSize, rng) {
     busyPredators.delete(pred.id);
     applyAction(pred, actions[0], dt, map2, tileSize, rng);
   }
-  pred.physical.wasPursuing = actions.length > 0 && actions[0].type === "pursue";
+  const actionType = actions.length > 0 ? actions[0].type : pred.physical.lastActionType;
+  if (actionType === "pursue") {
+    pred.physical.timeSinceLastPursue = 0;
+  } else {
+    pred.physical.timeSinceLastPursue += dt;
+  }
+  pred.physical.lastActionType = actionType;
 }
 function applyAction(pred, action, dt, map2, tileSize, rng) {
   switch (action.type) {
@@ -1031,35 +1030,73 @@ function applyAction(pred, action, dt, map2, tileSize, rng) {
 import * as THREE3 from "three";
 
 // src/soma.ts
-var DEFAULT_SHARK_INSTINCT = `
-async function onStimulus(type, data, me) {
-  switch (type) {
-    case 'prey_detected':
-      me.setLastKnown(data.prey_position);
-      me.pursue(data.prey_position);
-      break;
-    case 'prey_lost':
-      me.patrol_to(data.last_known_position);
-      break;
-    case 'tick':
-      if (data.time_since_lost < 5.0) {
-        const lk = me.getLastKnown();
-        if (lk) me.patrol_to(lk);
-      } else {
-        me.patrol_random();
-      }
-      break;
+var DEFAULT_SHARK_ON_TICK = `
+async function on_tick(me, world) {
+  const mem = me.memory.read();
+
+  // Parse working state from memory (string matching, no JSON)
+  const wasPursuing = mem.includes('pursuing:yes');
+  const ltm = mem.match(/lost:([\\d.]+)/);
+  const lostTime = ltm ? +ltm[1] : 999;
+  const lkm = mem.match(/lastknown:([-.\\d]+),([-.\\d]+)/);
+  const lastKnown = lkm ? { x: +lkm[1], z: +lkm[2] } : null;
+
+  // Preserve any notes (lines not matching state keys)
+  const notes = mem.replace(/^(pursuing|lost|lastknown):.*$/gm, '').trim();
+
+  let nowPursuing = false;
+  let nowLostTime = lostTime;
+  let nowLastKnown = lastKnown;
+
+  if (world.squidDetected) {
+    // --- PREY DETECTED ---
+    if (!wasPursuing) {
+      const j = me.hunt_journal.read();
+      me.hunt_journal.write(j +
+        '\\n[t=' + world.t.toFixed(0) + 's] Detected prey at (' +
+        world.squidPos.x.toFixed(1) + ', ' + world.squidPos.z.toFixed(1) +
+        '), dist ' + world.squidDist.toFixed(1));
+    }
+    nowLastKnown = { x: world.squidPos.x, z: world.squidPos.z };
+    nowLostTime = 0;
+    nowPursuing = true;
+    me.pursue(world.squidPos);
+  } else if (wasPursuing) {
+    // --- PREY LOST ---
+    const j = me.hunt_journal.read();
+    me.hunt_journal.write(j +
+      '\\n[t=' + world.t.toFixed(0) + 's] Lost prey');
+    nowLostTime = 0;
+    nowPursuing = false;
+    if (nowLastKnown) me.patrol_to(nowLastKnown);
+  } else {
+    // --- TICK ---
+    nowLostTime = lostTime + world.dt;
+    if (nowLostTime < 5.0 && nowLastKnown) {
+      me.patrol_to(nowLastKnown);
+    } else {
+      me.patrol_random();
+    }
   }
+
+  // Write state back to memory
+  me.memory.write(
+    (nowPursuing ? 'pursuing:yes' : 'pursuing:no') + '\\n' +
+    'lost:' + nowLostTime.toFixed(1) + '\\n' +
+    (nowLastKnown ? 'lastknown:' + nowLastKnown.x.toFixed(1) + ',' + nowLastKnown.z.toFixed(1) : 'lastknown:none') +
+    (notes ? '\\n' + notes : ''));
 }
 `.trim();
+var DEFAULT_SHARK_IDENTITY = "The reef shark hunts by sight and speed \u2014 a torpedo with teeth, closing distance before prey can reach cover.";
+var DEFAULT_SHARK_MEMORY = "pursuing:no\nlost:999\nlastknown:none\nNo hunts yet. Patrol the reef, chase what moves.";
 function createDefaultSharkSoma(id) {
   return {
     id,
     species: "shark",
-    nature: "The reef shark hunts by sight and speed \u2014 a torpedo with teeth, closing distance before prey can reach cover.",
-    instinctCode: DEFAULT_SHARK_INSTINCT,
-    memory: "No hunts yet. Patrol the reef, chase what moves.",
-    huntHistory: [],
+    identity: DEFAULT_SHARK_IDENTITY,
+    on_tick: DEFAULT_SHARK_ON_TICK,
+    memory: DEFAULT_SHARK_MEMORY,
+    hunt_journal: "",
     lastReflectionTime: 0,
     reflectionPending: false
   };
@@ -1128,15 +1165,14 @@ function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {
   group.rotation.y = Math.random() * Math.PI * 2;
   const physical = {
     waypoint: null,
-    lastSeenPos: null,
-    lostTime: 0,
     stuckTimer: 0,
-    wasPursuing: false
+    lastActionType: "patrol_random",
+    timeSinceLastPursue: 999
   };
   const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);
   function animate2(pred, t) {
-    const pursuing = pred.physical.wasPursuing;
-    const searching = !pursuing && pred.physical.lastSeenPos !== null && pred.physical.lostTime < 8;
+    const pursuing = pred.physical.lastActionType === "pursue";
+    const searching = !pursuing && pred.physical.timeSinceLastPursue < 8;
     body.rotation.y = Math.sin(t * 3 + pred.group.position.x) * 0.08;
     const tailSpeed = pursuing ? 8 : 2.5;
     tail.rotation.y = Math.sin(t * tailSpeed) * 0.3;
@@ -1164,177 +1200,90 @@ function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {
   };
 }
 
-// src/hunt-tracker.ts
-var HuntTracker = class {
-  activeHunts = /* @__PURE__ */ new Map();
-  nextHuntId = 1;
-  completed = [];
-  startHunt(predatorId, gameTime) {
-    if (this.activeHunts.has(predatorId)) return;
-    const hunt = {
-      huntId: this.nextHuntId++,
-      predatorId,
-      startTime: gameTime,
-      events: [],
-      closestDistance: Infinity,
-      preyConcealed: false,
-      concealmentTile: null
-    };
-    this.activeHunts.set(predatorId, hunt);
-    console.log(`[GLINT] Hunt #${hunt.huntId} started for ${predatorId}`);
-  }
-  recordEvent(predatorId, event, gameTime) {
-    const hunt = this.activeHunts.get(predatorId);
-    if (!hunt) return;
-    const elapsed = gameTime - hunt.startTime;
-    if (event.type === "pursuing") {
-      const last = hunt.events[hunt.events.length - 1];
-      if (last?.type === "pursuing" && elapsed - last.time < 0.5) return;
-    }
-    if (event.distance !== void 0 && event.distance < hunt.closestDistance) {
-      hunt.closestDistance = event.distance;
-    }
-    if (event.type === "prey_concealed") {
-      hunt.preyConcealed = true;
-      if (event.note) {
-        const match = event.note.match(/entered (\w+)/);
-        if (match) hunt.concealmentTile = match[1];
-      }
-    }
-    hunt.events.push({ ...event, time: elapsed });
-  }
-  endHunt(predatorId, outcome, gameTime) {
-    const hunt = this.activeHunts.get(predatorId);
-    if (!hunt) return null;
-    this.activeHunts.delete(predatorId);
-    const duration = gameTime - hunt.startTime;
-    const textSummary = this.buildTextSummary(hunt, outcome, duration);
-    const summary = {
-      huntId: hunt.huntId,
-      predatorId: hunt.predatorId,
-      outcome,
-      durationSeconds: duration,
-      closestDistance: hunt.closestDistance === Infinity ? 0 : hunt.closestDistance,
-      preyConcealed: hunt.preyConcealed,
-      concealmentTile: hunt.concealmentTile,
-      events: hunt.events,
-      textSummary
-    };
-    this.completed.push(summary);
-    console.log(`[GLINT] Hunt #${hunt.huntId} ended: ${outcome} (${duration.toFixed(1)}s)`);
-    return summary;
-  }
-  isHunting(predatorId) {
-    return this.activeHunts.has(predatorId);
-  }
-  getCompletedHunts(predatorId) {
-    return this.completed.filter((h) => h.predatorId === predatorId);
-  }
-  getAllCompleted() {
-    return this.completed;
-  }
-  buildTextSummary(hunt, outcome, duration) {
-    const lines = [];
-    lines.push(`Hunt #${hunt.huntId} (${outcome}, ${duration.toFixed(1)}s):`);
-    for (const ev of hunt.events) {
-      switch (ev.type) {
-        case "detected":
-          lines.push(`- Detected prey at (${ev.preyPos.x.toFixed(1)}, ${ev.preyPos.z.toFixed(1)}), distance ${ev.distance.toFixed(1)}`);
-          break;
-        case "pursuing":
-          lines.push(`- Pursuing at t+${ev.time.toFixed(1)}s, distance ${ev.distance.toFixed(1)}`);
-          break;
-        case "lost_los":
-          lines.push(`- Lost line of sight at (${ev.predPos.x.toFixed(1)}, ${ev.predPos.z.toFixed(1)})`);
-          break;
-        case "prey_concealed":
-          lines.push(`- ${ev.note || "Prey concealed"}`);
-          break;
-        case "prey_revealed":
-          lines.push(`- Prey revealed at (${ev.preyPos.x.toFixed(1)}, ${ev.preyPos.z.toFixed(1)})`);
-          break;
-        default:
-          if (ev.note) lines.push(`- ${ev.note}`);
-          break;
-      }
-    }
-    lines.push(`- Duration: ${duration.toFixed(1)}s, closest approach: ${hunt.closestDistance === Infinity ? "N/A" : hunt.closestDistance.toFixed(1) + "u"}`);
-    return lines.join("\n");
-  }
-};
-
 // src/reflection.ts
 var SCAFFOLD_TOOLS = [
   {
-    name: "update_instinct",
-    description: "Rewrite your hunting instincts. This is the code that runs when you detect prey, lose it, or patrol between hunts. Write the complete onStimulus(type, data, me) function.",
+    name: "edit_on_tick",
+    description: "Rewrite your per-frame behavior code. This is the code that runs every tick \u2014 it reads sensors, tracks state, records events to your hunt journal, and issues movement commands. Write the complete async function on_tick(me, world) { ... } body.",
     input_schema: {
       type: "object",
       properties: {
-        instinct_code: {
+        code: {
           type: "string",
-          description: "The complete async function onStimulus(type, data, me) { ... } function body."
+          description: "The complete async function on_tick(me, world) { ... } function."
         },
         reasoning: {
           type: "string",
           description: "What you changed and why."
         }
       },
-      required: ["instinct_code", "reasoning"]
+      required: ["code", "reasoning"]
     }
   },
   {
-    name: "update_memory",
-    description: "Update what you remember about this reef and its prey. Your memory persists across hunts. Keep it focused on spatial patterns and prey behavior.",
+    name: "edit_memory",
+    description: "Update what you remember about this reef and its prey. Your memory persists across hunts and reflections.",
     input_schema: {
       type: "object",
       properties: {
-        memory_content: {
+        content: {
           type: "string",
           description: "Your updated memory. Replaces current memory entirely."
         }
       },
-      required: ["memory_content"]
+      required: ["content"]
     }
   },
   {
-    name: "recall_hunt",
-    description: "Review the details of a specific past hunt.",
+    name: "edit_identity",
+    description: "Rewrite your identity \u2014 who you are, your hunting philosophy. This shapes how you think about yourself during reflection.",
     input_schema: {
       type: "object",
       properties: {
-        hunt_id: {
-          type: "number",
-          description: "The hunt number to recall."
+        content: {
+          type: "string",
+          description: "Your updated identity text."
         }
       },
-      required: ["hunt_id"]
+      required: ["content"]
+    }
+  },
+  {
+    name: "edit_hunt_journal",
+    description: "Curate your hunt journal. Summarize old entries, trim noise, keep what matters. Your on_tick code appends to this during hunts; you can clean it up during reflection.",
+    input_schema: {
+      type: "object",
+      properties: {
+        content: {
+          type: "string",
+          description: "Your updated hunt journal. Replaces current journal entirely."
+        }
+      },
+      required: ["content"]
     }
   }
 ];
 function buildSystemPrompt(soma) {
   return `You are a ${soma.species} in a coral reef. You hunt a small bioluminescent squid.
 
-<nature>
-${soma.nature}
-</nature>
+<identity>
+${soma.identity}
+</identity>
 
-<current_instincts>
-This is the code that controls your hunting behavior. When you detect prey, lose it, or patrol, this code runs.
+<on_tick>
+This is your per-frame behavior code. It runs every tick with on_tick(me, world).
 \`\`\`javascript
-${soma.instinctCode}
+${soma.on_tick}
 \`\`\`
-</current_instincts>
+</on_tick>
 
 <memory>
 ${soma.memory}
 </memory>
 
-<hunt_record>
-${soma.huntHistory.length === 0 ? "No previous hunts." : soma.huntHistory.map(
-    (h) => `Hunt #${h.huntId}: ${h.outcome} (${h.durationSeconds.toFixed(1)}s) closest: ${h.closestDistance.toFixed(1)}u${h.preyConcealed ? ` \u2014 prey hid in ${h.concealmentTile}` : ""}`
-  ).join("\n")}
-</hunt_record>
+<hunt_journal>
+${soma.hunt_journal || "No hunt entries yet."}
+</hunt_journal>
 
 <reef_knowledge>
 The reef is a maze of coral walls, open water channels, kelp forests, narrow crevices, and dens.
@@ -1346,71 +1295,70 @@ The reef is a maze of coral walls, open water channels, kelp forests, narrow cre
 - You must catch the squid in open water or while it's moving through kelp.
 </reef_knowledge>
 
-<sensing>
-Your sensors detect prey within 16 world units if line of sight is clear AND prey is not concealed.
+<sensors>
+Your on_tick(me, world) receives:
+- world.squidDetected \u2014 boolean, true if you can see the prey right now
+- world.squidPos \u2014 {x, z} prey position (only meaningful when detected)
+- world.squidDist \u2014 distance to prey
+- world.dt \u2014 seconds since last frame
+- world.t \u2014 total elapsed game time
+
+The me object provides:
+Movement commands (call one per tick \u2014 first one wins):
+- me.pursue(target) \u2014 chase speed, beeline toward {x, z}
+- me.patrol_to(target) \u2014 patrol speed, move toward {x, z}
+- me.patrol_random() \u2014 pick a random open tile and go there
+- me.hold() \u2014 stay still
+
+Sensing:
 - me.check_los(pos) \u2014 checks if you can see a position (walls block)
 - me.nearby_tiles(type) \u2014 returns nearby tiles of a given type ('kelp', 'den', 'crevice', 'open') within sensor range, sorted by distance. Each has {x, z, dist}.
 - me.distance_to(pos) \u2014 returns distance to a position
-</sensing>
-
-<movement>
-Available in onStimulus(type, data, me):
-- me.pursue(target) \u2014 chase speed, beeline toward target position {x, z}
-- me.patrol_to(target) \u2014 patrol speed, move toward specific position {x, z}
-- me.patrol_random() \u2014 pick a random open tile and patrol toward it (picks a new waypoint only if current one is null)
-- me.hold() \u2014 stay still
-- me.getLastKnown() / me.setLastKnown(pos) \u2014 last known prey position {x, z}
-- me.getTimeSinceLost() \u2014 seconds since prey was last detected
 - me.getPosition() \u2014 your current position {x, z}
-- me.memory.read() / me.memory.write(s) \u2014 read/write your persistent memory string
-</movement>
 
-<stimuli>
-Your onStimulus function receives one of three stimulus types:
-- 'prey_detected' \u2014 you can see the prey right now. data.prey_position = {x, z}, data.prey_distance = number
-- 'prey_lost' \u2014 you were pursuing (called me.pursue() last frame) but can no longer see the prey. data.last_known_position = {x, z}
-- 'tick' \u2014 nothing detected and you weren't pursuing. data.time_since_lost = seconds since last detection
-Only one stimulus fires per frame, in priority order: prey_detected > prey_lost > tick.
-Note: 'prey_lost' only fires if you called me.pursue() on the previous frame. If you were patrolling and the prey disappears, you just get 'tick'.
-</stimuli>
+Sections:
+- me.memory.read() / me.memory.write(s) \u2014 your persistent memory. Use this for EVERYTHING: working state (pursuing? lost time? last known position?) AND long-term notes. Write it every tick. Parse with string matching.
+- me.hunt_journal.read() / me.hunt_journal.write(s) \u2014 your hunt log
+- me.on_tick.read() \u2014 read your own code (read-only at runtime)
+- me.identity.read() \u2014 read your identity (read-only at runtime)
+</sensors>
 
-IMPORTANT: You MUST call update_instinct to change your behavior. Thinking about improvements without calling the tool changes nothing. Your instinct code is what actually runs during hunts.`;
+IMPORTANT: You MUST call edit_on_tick to change your behavior. Thinking about improvements without calling the tool changes nothing. Your on_tick code is what actually runs during hunts.`;
 }
-function buildReflectionPrompt(summary, huntCount) {
-  return `A hunt just failed. The prey escaped.
+function buildReflectionPrompt(soma) {
+  return `Time to reflect on your recent hunting experience.
 
-<hunt_replay>
-${summary.textSummary}
-</hunt_replay>
+Review your hunt journal above. It contains observations your on_tick code recorded during recent hunts.
 
-${huntCount <= 1 ? "This was your first failed hunt. Your default instincts are basic \u2014 chase on sight, go to last-known on loss, random patrol otherwise. Think about what you could do differently when the prey hides or breaks line of sight." : `You have completed ${huntCount} hunts total. Review whether your previous changes helped. If your hunt duration or closest approach is improving, keep refining. If not, try a different approach.`}
-
-Reflect on this hunt:
+Reflect:
 
 1. **What happened?** Why did the prey escape? Did it hide? Where? Could you have predicted it?
 
-2. **Call update_instinct**: Rewrite your onStimulus function with specific improvements. Ideas:
+2. **Call edit_on_tick**: Rewrite your on_tick function with specific improvements. Ideas:
    - After losing prey, check nearby hiding tiles (me.nearby_tiles('kelp'), me.nearby_tiles('den')) instead of just going to last-known position
    - Use memory to track where prey hides repeatedly
-   - Patrol routes that pass near known hiding spots instead of random waypoints
-   - Search patterns (check nearby tiles systematically) instead of standing at last-known
+   - Write more detailed hunt journal entries from your on_tick code so you can learn from them later
+   - Add systematic search patterns instead of random patrol
    - Predict which direction the prey fled based on your approach angle
+   - Use me.memory for frame-to-frame tracking (was I pursuing? how long since lost? last known position?) \u2014 parse with string matching, write every tick
 
-3. **Call update_memory**: Record spatial knowledge \u2014 where are the good hiding spots? Where does prey tend to go?
+3. **Call edit_memory**: Record spatial knowledge \u2014 where are the good hiding spots? Where does prey tend to go?
+
+4. **Call edit_hunt_journal**: Curate your journal \u2014 summarize old entries, keep what matters, trim what doesn't. An overly long journal wastes your attention.
 
 DO NOT just describe improvements. CALL THE TOOLS.`;
 }
-var MAX_INSTINCT_LENGTH = 1e4;
-function validateInstinctCode(code) {
+var MAX_ON_TICK_LENGTH = 1e4;
+function validateOnTickCode(code) {
   const errors = [];
-  if (code.length > MAX_INSTINCT_LENGTH) {
-    errors.push(`Instinct code is ${code.length} chars, max is ${MAX_INSTINCT_LENGTH}`);
+  if (code.length > MAX_ON_TICK_LENGTH) {
+    errors.push(`on_tick code is ${code.length} chars, max is ${MAX_ON_TICK_LENGTH}`);
   }
-  if (!code.includes("onStimulus")) {
-    errors.push("Must contain an onStimulus function");
+  if (!code.includes("on_tick")) {
+    errors.push("Must contain an on_tick function");
   }
-  if (!code.match(/(?:async\s+)?function\s+onStimulus\s*\(\s*type\s*,\s*data\s*,\s*me\s*\)/)) {
-    errors.push("onStimulus must accept (type, data, me) parameters");
+  if (!code.match(/(?:async\s+)?function\s+on_tick\s*\(\s*me\s*,\s*world\s*\)/)) {
+    errors.push("on_tick must accept (me, world) parameters");
   }
   const forbidden = [
     { pattern: /\beval\s*\(/, msg: "eval() not allowed" },
@@ -1426,49 +1374,58 @@ function validateInstinctCode(code) {
   try {
     const AsyncFunction = Object.getPrototypeOf(async function() {
     }).constructor;
-    new AsyncFunction("type", "data", "me", `${code}
-return onStimulus(type, data, me);`);
+    new AsyncFunction("me", "world", `${code}
+return on_tick(me, world);`);
   } catch (err) {
     errors.push(`Syntax error: ${String(err)}`);
   }
   return { valid: errors.length === 0, errors };
 }
-function processToolCall(toolName, input, soma, allHunts, result) {
+function processToolCall(toolName, input, soma, result) {
   switch (toolName) {
-    case "update_instinct": {
-      const code = input.instinct_code;
+    case "edit_on_tick": {
+      const code = input.code;
       const reasoning = input.reasoning;
-      if (!code) return { success: false, error: "instinct_code is required" };
-      const validation = validateInstinctCode(code);
+      if (!code) return { success: false, error: "code is required" };
+      const validation = validateOnTickCode(code);
       if (!validation.valid) {
-        console.log(`[GLINT] Instinct validation failed for ${soma.id}: ${validation.errors.join(", ")}`);
+        console.log(`[GLINT] on_tick validation failed for ${soma.id}: ${validation.errors.join(", ")}`);
         return {
           success: false,
           error: `Validation failed: ${validation.errors.join(", ")}. Fix and try again.`
         };
       }
-      soma.instinctCode = code;
-      result.instinctUpdated = true;
-      console.log(`[GLINT] Instinct updated for ${soma.id}: ${reasoning} (${code.length} chars)`);
+      soma.on_tick = code;
+      result.onTickUpdated = true;
+      console.log(`[GLINT] on_tick updated for ${soma.id}: ${reasoning} (${code.length} chars)`);
       return {
         success: true,
-        data: { message: "Instincts updated. They will execute on the next hunt." }
+        data: { message: "on_tick updated. It will execute on the next frame." }
       };
     }
-    case "update_memory": {
-      const content = input.memory_content;
-      if (!content) return { success: false, error: "memory_content is required" };
+    case "edit_memory": {
+      const content = input.content;
+      if (!content) return { success: false, error: "content is required" };
       soma.memory = content;
       result.memoryUpdated = true;
       console.log(`[GLINT] Memory updated for ${soma.id}: ${content.slice(0, 100)}`);
       return { success: true, data: { message: "Memory updated." } };
     }
-    case "recall_hunt": {
-      const huntId = input.hunt_id;
-      if (huntId === void 0) return { success: false, error: "hunt_id is required" };
-      const hunt = allHunts.find((h) => h.huntId === huntId);
-      if (!hunt) return { success: false, error: `Hunt #${huntId} not found.` };
-      return { success: true, data: { summary: hunt.textSummary } };
+    case "edit_identity": {
+      const content = input.content;
+      if (!content) return { success: false, error: "content is required" };
+      soma.identity = content;
+      result.identityUpdated = true;
+      console.log(`[GLINT] Identity updated for ${soma.id}: ${content.slice(0, 100)}`);
+      return { success: true, data: { message: "Identity updated." } };
+    }
+    case "edit_hunt_journal": {
+      const content = input.content;
+      if (content === void 0) return { success: false, error: "content is required" };
+      soma.hunt_journal = content;
+      result.journalUpdated = true;
+      console.log(`[GLINT] Hunt journal updated for ${soma.id}: ${content.length} chars`);
+      return { success: true, data: { message: "Hunt journal updated." } };
     }
     default:
       return { success: false, error: `Unknown tool: ${toolName}` };
@@ -1493,25 +1450,27 @@ async function callAPI(endpoint, body) {
   }
 }
 var REFLECTION_MAX_TURNS = 3;
-async function reflectPredator(soma, huntSummary, allHunts, apiEndpoint) {
+async function reflectPredator(soma, gameTime, apiEndpoint2) {
   soma.reflectionPending = true;
   const result = {
     predatorId: soma.id,
     success: false,
-    instinctUpdated: false,
+    onTickUpdated: false,
     memoryUpdated: false,
+    identityUpdated: false,
+    journalUpdated: false,
     reasoning: ""
   };
   try {
     const systemPrompt = buildSystemPrompt(soma);
-    const userPrompt = buildReflectionPrompt(huntSummary, soma.huntHistory.length);
+    const userPrompt = buildReflectionPrompt(soma);
     let messages = [
       { role: "user", content: userPrompt }
     ];
     let turns = 0;
     while (turns < REFLECTION_MAX_TURNS) {
       turns++;
-      const response = await callAPI(apiEndpoint, {
+      const response = await callAPI(apiEndpoint2, {
         model: "claude-haiku-4-5-20251001",
         system: systemPrompt,
         messages,
@@ -1530,7 +1489,7 @@ async function reflectPredator(soma, huntSummary, allHunts, apiEndpoint) {
         }
         if (block.type === "tool_use" && block.name && block.input) {
           hasToolUse = true;
-          const toolResult = processToolCall(block.name, block.input, soma, allHunts, result);
+          const toolResult = processToolCall(block.name, block.input, soma, result);
           toolResults.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -1557,11 +1516,10 @@ async function reflectPredator(soma, huntSummary, allHunts, apiEndpoint) {
   return result;
 }
 var REFLECTION_COOLDOWN = 60;
-var MIN_HUNT_DURATION = 2;
-function shouldReflect(soma, summary, gameTime) {
+function shouldReflect(soma, gameTime) {
   if (soma.reflectionPending) return false;
   if (soma.lastReflectionTime > 0 && gameTime - soma.lastReflectionTime < REFLECTION_COOLDOWN) return false;
-  if (summary.durationSeconds < MIN_HUNT_DURATION) return false;
+  if (!soma.hunt_journal || soma.hunt_journal.trim().length < 20) return false;
   return true;
 }
 
@@ -1597,6 +1555,141 @@ function resetPredatorSomas(mapSeed) {
   console.log(`[GLINT] Reset predator somas for seed ${mapSeed}`);
 }
 
+// src/inspector.ts
+var contentEl = null;
+var refreshBtn = null;
+var predatorsRef = [];
+var apiEndpoint = "";
+function initInspector(predators2, endpoint) {
+  predatorsRef = predators2;
+  apiEndpoint = endpoint;
+  contentEl = document.getElementById("inspector-content");
+  refreshBtn = document.getElementById("refresh-btn");
+  refreshBtn?.addEventListener("click", () => {
+    refreshInspector();
+  });
+}
+async function refreshInspector() {
+  if (!contentEl || !refreshBtn) return;
+  refreshBtn.disabled = true;
+  contentEl.innerHTML = '<div class="inspector-loading">Scanning shark somas...</div>';
+  const cards = [];
+  const results = await Promise.allSettled(
+    predatorsRef.map((pred) => briefShark(pred))
+  );
+  for (let i = 0; i < predatorsRef.length; i++) {
+    const pred = predatorsRef[i];
+    const result = results[i];
+    const summary = result.status === "fulfilled" ? result.value : '<span class="unchanged">Briefing failed</span>';
+    cards.push(renderCard(pred.id, summary));
+  }
+  contentEl.innerHTML = cards.join("");
+  refreshBtn.disabled = false;
+}
+function renderCard(sharkId, summary) {
+  return `<div class="shark-card">
+    <div class="shark-card-header">${escapeHtml(sharkId)}</div>
+    <div class="shark-card-body">${summary}</div>
+  </div>`;
+}
+async function briefShark(pred) {
+  const soma = pred.predatorSoma;
+  const onTickChanged = soma.on_tick !== DEFAULT_SHARK_ON_TICK;
+  const identityChanged = soma.identity !== DEFAULT_SHARK_IDENTITY;
+  const memoryChanged = soma.memory !== DEFAULT_SHARK_MEMORY;
+  const hasJournal = soma.hunt_journal.trim().length > 0;
+  if (!onTickChanged && !identityChanged && !memoryChanged && !hasJournal) {
+    return '<span class="unchanged">Factory defaults \u2014 no reflections yet.</span>';
+  }
+  const prompt = buildBriefingPrompt(soma.id, soma.identity, soma.on_tick, soma.memory, soma.hunt_journal, identityChanged, onTickChanged, memoryChanged);
+  try {
+    const resp = await fetch(apiEndpoint, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        system: "You are a marine biologist observing AI-controlled reef sharks in a simulation. Summarize behavioral evolution concisely. Use present tense. No markdown.",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 512
+      })
+    });
+    if (!resp.ok) return '<span class="unchanged">API error: ' + resp.status + "</span>";
+    const data = await resp.json();
+    const text = data.content?.[0]?.text;
+    if (!text) return '<span class="unchanged">Empty response</span>';
+    return escapeHtml(text);
+  } catch (err) {
+    return '<span class="unchanged">Fetch error: ' + escapeHtml(String(err)) + "</span>";
+  }
+}
+function buildBriefingPrompt(id, identity, onTick, memory, journal, identityChanged, onTickChanged, memoryChanged) {
+  let prompt = `Shark "${id}" soma briefing.
+
+`;
+  if (identityChanged) {
+    prompt += `<identity_default>
+${DEFAULT_SHARK_IDENTITY}
+</identity_default>
+
+`;
+    prompt += `<identity_current>
+${identity}
+</identity_current>
+
+`;
+  } else {
+    prompt += `Identity: unchanged from default.
+
+`;
+  }
+  if (onTickChanged) {
+    prompt += `<on_tick_default>
+${DEFAULT_SHARK_ON_TICK}
+</on_tick_default>
+
+`;
+    prompt += `<on_tick_current>
+${onTick}
+</on_tick_current>
+
+`;
+  } else {
+    prompt += `on_tick: unchanged from default.
+
+`;
+  }
+  if (memoryChanged) {
+    prompt += `<memory_default>
+${DEFAULT_SHARK_MEMORY}
+</memory_default>
+
+`;
+    prompt += `<memory_current>
+${memory}
+</memory_current>
+
+`;
+  } else {
+    prompt += `Memory: unchanged from default.
+
+`;
+  }
+  if (journal.trim().length > 0) {
+    const trimmed = journal.length > 2e3 ? "..." + journal.slice(-2e3) : journal;
+    prompt += `<hunt_journal>
+${trimmed}
+</hunt_journal>
+
+`;
+  }
+  prompt += `In 3-5 sentences, describe what this shark has learned compared to its factory defaults. Focus on: new hunting strategies in its on_tick code, spatial knowledge in memory, and any identity shifts. Be specific about behavioral changes (e.g. "now checks kelp after losing prey" not "improved hunting").`;
+  return prompt;
+}
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // src/main.ts
 var RENDER_W = 320;
 var RENDER_H = 240;
@@ -1620,7 +1713,8 @@ renderer.domElement.style.height = `${RENDER_H * PIXEL_SCALE}px`;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE4.BasicShadowMap;
 renderer.setClearColor(133136);
-document.body.appendChild(renderer.domElement);
+var gameContainer = document.getElementById("game-container");
+(gameContainer || document.body).appendChild(renderer.domElement);
 var scene = new THREE4.Scene();
 scene.fog = new THREE4.FogExp2(397856, 0.018);
 var aspect = RENDER_W / RENDER_H;
@@ -1755,36 +1849,20 @@ function spawnSharks(count) {
   }
 }
 spawnSharks(3);
-var huntTracker = new HuntTracker();
-var prevConcealed = /* @__PURE__ */ new Map();
-var HUNT_GIVEUP_TIME = 10;
+initInspector(predators, "/api/inference/anthropic/messages");
 var API_ENDPOINT = "/api/inference/anthropic/messages";
-function triggerReflection(pred, summary) {
+function triggerReflection(pred) {
   const soma = pred.predatorSoma;
   const gameTime = clock.getElapsedTime();
-  if (!shouldReflect(soma, summary, gameTime)) return;
-  soma.huntHistory.push({
-    huntId: summary.huntId,
-    outcome: summary.outcome,
-    durationSeconds: summary.durationSeconds,
-    closestDistance: summary.closestDistance,
-    preyConcealed: summary.preyConcealed,
-    concealmentTile: summary.concealmentTile
-  });
-  if (soma.huntHistory.length > 10) soma.huntHistory.shift();
-  console.log(`[GLINT] Reflection started for ${pred.id} (hunt #${summary.huntId})`);
+  if (!shouldReflect(soma, gameTime)) return;
   soma.lastReflectionTime = gameTime;
-  reflectPredator(
-    soma,
-    summary,
-    huntTracker.getCompletedHunts(pred.id),
-    API_ENDPOINT
-  ).then((result) => {
-    console.log(`[GLINT] Reflection complete for ${pred.id}: instinct=${result.instinctUpdated}, memory=${result.memoryUpdated}`);
+  console.log(`[GLINT] Reflection started for ${pred.id}`);
+  reflectPredator(soma, gameTime, API_ENDPOINT).then((result) => {
+    console.log(`[GLINT] Reflection complete for ${pred.id}: onTick=${result.onTickUpdated}, memory=${result.memoryUpdated}, identity=${result.identityUpdated}, journal=${result.journalUpdated}`);
     if (result.reasoning) {
       console.log(`[GLINT] Reasoning: ${result.reasoning.slice(0, 200)}`);
     }
-    if (result.instinctUpdated) {
+    if (result.onTickUpdated) {
       clearInstinctCache();
     }
     savePredatorSomas(predators, MAP_SEED);
@@ -1803,7 +1881,6 @@ window.__glint = {
   MAP_H,
   predators,
   clearInstinctCache,
-  huntTracker,
   readSensors,
   triggerReflection,
   get invulnTimer() {
@@ -1824,79 +1901,17 @@ function animate() {
   if (invulnTimer > 0) invulnTimer -= dt;
   for (const pred of predators) {
     const sensors = invulnTimer > 0 ? { squidDetected: false, squidWorldPos: { x: 0, z: 0 }, squidDist: 999 } : readSensors(pred, squid, map, TILE_SIZE);
-    const wasPursuingBefore = pred.physical.wasPursuing;
-    const wasConcealed = prevConcealed.get(pred.id) ?? false;
-    dispatchStimulus(pred, sensors, dt, map, TILE_SIZE, sharkRng);
+    runTick(pred, sensors, dt, t, map, TILE_SIZE, sharkRng);
     pred.animate(pred, t);
-    if (sensors.squidDetected && !huntTracker.isHunting(pred.id)) {
-      huntTracker.startHunt(pred.id, t);
-      huntTracker.recordEvent(pred.id, {
-        type: "detected",
-        predPos: { x: pred.group.position.x, z: pred.group.position.z },
-        preyPos: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
-        distance: sensors.squidDist
-      }, t);
-    }
-    if (huntTracker.isHunting(pred.id)) {
-      if (sensors.squidDetected) {
-        huntTracker.recordEvent(pred.id, {
-          type: "pursuing",
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-          preyPos: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
-          distance: sensors.squidDist
-        }, t);
-      }
-      if (wasPursuingBefore && !pred.physical.wasPursuing) {
-        huntTracker.recordEvent(pred.id, {
-          type: "lost_los",
-          predPos: { x: pred.group.position.x, z: pred.group.position.z }
-        }, t);
-      }
-      if (squid.concealed && !wasConcealed) {
-        const { tx, tz } = worldToTile(
-          squid.group.position.x,
-          squid.group.position.z,
-          TILE_SIZE,
-          MAP_W,
-          MAP_H
-        );
-        const tile = getTile(map, tx, tz);
-        const tileName = tile === 3 /* KELP */ ? "kelp" : tile === 2 /* CREVICE */ ? "crevice" : tile === 4 /* DEN */ ? "den" : "unknown";
-        huntTracker.recordEvent(pred.id, {
-          type: "prey_concealed",
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-          preyPos: { x: squid.group.position.x, z: squid.group.position.z },
-          note: `Prey entered ${tileName} at (${squid.group.position.x.toFixed(1)}, ${squid.group.position.z.toFixed(1)})`
-        }, t);
-      }
-      if (!squid.concealed && wasConcealed) {
-        huntTracker.recordEvent(pred.id, {
-          type: "prey_revealed",
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-          preyPos: { x: squid.group.position.x, z: squid.group.position.z }
-        }, t);
-      }
-      if (!sensors.squidDetected && pred.physical.lostTime > HUNT_GIVEUP_TIME) {
-        const summary = huntTracker.endHunt(pred.id, "lost", t);
-        if (summary) triggerReflection(pred, summary);
-      }
-    }
-    prevConcealed.set(pred.id, squid.concealed);
+    triggerReflection(pred);
     if (invulnTimer <= 0 && checkCatch(pred, squid)) {
-      if (huntTracker.isHunting(pred.id)) {
-        huntTracker.endHunt(pred.id, "catch", t);
-      }
       console.log(`[GLINT] Caught by ${pred.id}!`);
       squid.group.position.set(spawn.wx, 1, spawn.wz);
       invulnTimer = 2;
       for (const p of predators) {
-        if (p.id !== pred.id && huntTracker.isHunting(p.id)) {
-          const lostSummary = huntTracker.endHunt(p.id, "lost", t);
-          if (lostSummary) triggerReflection(p, lostSummary);
-        }
         p.physical.waypoint = null;
-        p.physical.lastSeenPos = null;
-        p.physical.wasPursuing = false;
+        p.physical.lastActionType = "patrol_random";
+        p.physical.timeSinceLastPursue = 999;
       }
       break;
     }

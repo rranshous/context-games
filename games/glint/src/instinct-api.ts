@@ -1,21 +1,20 @@
-// InstinctAPI — the `me` object passed to predator instinct code.
-// Provides movement primitives, sensing, state management, and memory.
-// Parallels hot-pursuit's ChassisAPI but with biological framing.
+// TickAPI — the `me` object passed to on_tick code.
+// Provides movement primitives, sensing, and section access.
 
 import { ReefMap, Tile, getTile, worldToTile, tileToWorld } from './map.js';
 import { Predator, hasLineOfSight } from './predator.js';
 
-// --- Stimulus data passed to onStimulus ---
+// --- World data passed to on_tick ---
 
-export interface StimulusData {
-  prey_position?: { x: number; z: number };
-  prey_distance?: number;
-  last_known_position?: { x: number; z: number };
-  own_position?: { x: number; z: number };
-  time_since_lost?: number;
+export interface WorldData {
+  squidDetected: boolean;
+  squidPos: { x: number; z: number };
+  squidDist: number;
+  dt: number;
+  t: number;  // elapsed game time
 }
 
-// --- Pending actions queued by instinct code ---
+// --- Pending actions queued by on_tick code ---
 
 export interface PendingAction {
   type: 'pursue' | 'patrol_to' | 'patrol_random' | 'hold';
@@ -24,7 +23,7 @@ export interface PendingAction {
 
 // --- The me object ---
 
-export interface InstinctAPI {
+export interface TickAPI {
   // Movement commands (queue a PendingAction — first one wins per tick)
   pursue: (target: { x: number; z: number }) => void;
   patrol_to: (target: { x: number; z: number }) => void;
@@ -35,18 +34,13 @@ export interface InstinctAPI {
   check_los: (target: { x: number; z: number }) => boolean;
   nearby_tiles: (tileType: string) => Array<{ x: number; z: number; dist: number }>;
   distance_to: (target: { x: number; z: number }) => number;
-
-  // State
-  getLastKnown: () => { x: number; z: number } | null;
-  setLastKnown: (pos: { x: number; z: number } | null) => void;
-  getTimeSinceLost: () => number;
   getPosition: () => { x: number; z: number };
 
-  // Memory
-  memory: {
-    read: () => string;
-    write: (s: string) => void;
-  };
+  // Section access
+  memory: { read: () => string; write: (s: string) => void };
+  hunt_journal: { read: () => string; write: (s: string) => void };
+  on_tick: { read: () => string };
+  identity: { read: () => string };
 }
 
 // --- Tile name lookup ---
@@ -59,14 +53,16 @@ const TILE_NAMES: Record<string, Tile> = {
   den: Tile.DEN,
 };
 
+const MAX_JOURNAL_LENGTH = 5000;
+
 // --- Factory ---
 
-export function createInstinctAPI(
+export function createTickAPI(
   pred: Predator,
   map: ReefMap,
   tileSize: number,
   actions: PendingAction[],
-): InstinctAPI {
+): TickAPI {
   const px = () => pred.group.position.x;
   const pz = () => pred.group.position.z;
 
@@ -122,18 +118,31 @@ export function createInstinctAPI(
       return Math.sqrt(ddx * ddx + ddz * ddz);
     },
 
-    getLastKnown: () => pred.physical.lastSeenPos
-      ? { x: pred.physical.lastSeenPos.x, z: pred.physical.lastSeenPos.z }
-      : null,
-    setLastKnown: (pos) => {
-      pred.physical.lastSeenPos = pos ? { x: pos.x, z: pos.z } : null;
-    },
-    getTimeSinceLost: () => pred.physical.lostTime,
     getPosition: () => ({ x: px(), z: pz() }),
 
     memory: {
       read: () => pred.predatorSoma.memory,
       write: (s: string) => { pred.predatorSoma.memory = s; },
+    },
+
+    hunt_journal: {
+      read: () => pred.predatorSoma.hunt_journal,
+      write: (s: string) => {
+        // Cap journal length — truncate from front if over limit
+        if (s.length > MAX_JOURNAL_LENGTH) {
+          const trimPoint = s.indexOf('\n', s.length - MAX_JOURNAL_LENGTH);
+          s = trimPoint > 0 ? s.slice(trimPoint + 1) : s.slice(s.length - MAX_JOURNAL_LENGTH);
+        }
+        pred.predatorSoma.hunt_journal = s;
+      },
+    },
+
+    on_tick: {
+      read: () => pred.predatorSoma.on_tick,
+    },
+
+    identity: {
+      read: () => pred.predatorSoma.identity,
     },
   };
 }

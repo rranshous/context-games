@@ -18,9 +18,100 @@
       image-rendering: pixelated;
       image-rendering: crisp-edges;
     }
+    #game-wrapper {
+      display: flex;
+      align-items: flex-start;
+    }
+    #inspector-panel {
+      width: 320px;
+      height: 720px;
+      overflow-y: auto;
+      background: #0a0e18;
+      border: 1px solid #1a2a3a;
+      border-left: none;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #8ab4d8;
+      scrollbar-width: thin;
+      scrollbar-color: #1a2a3a #0a0e18;
+    }
+    .inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #1a2a3a;
+      position: sticky;
+      top: 0;
+      background: #0a0e18;
+      z-index: 1;
+    }
+    .inspector-title {
+      color: #ff8844;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    #refresh-btn {
+      background: #1a2a3a;
+      color: #ff8844;
+      border: 1px solid #2a3a4a;
+      padding: 4px 10px;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+    }
+    #refresh-btn:hover { background: #2a3a4a; }
+    #refresh-btn:disabled { opacity: 0.4; cursor: default; }
+    #inspector-content {
+      padding: 8px;
+    }
+    .shark-card {
+      background: #0d1220;
+      border: 1px solid #1a2a3a;
+      margin-bottom: 8px;
+      padding: 10px;
+    }
+    .shark-card-header {
+      color: #ff8844;
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .shark-card-body {
+      color: #8ab4d8;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .shark-card-body .unchanged {
+      color: #4a6a8a;
+      font-style: italic;
+    }
+    .inspector-loading {
+      color: #4a6a8a;
+      padding: 20px 12px;
+      text-align: center;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
+<div id="game-wrapper">
+  <div id="game-container"></div>
+  <div id="inspector-panel">
+    <div class="inspector-header">
+      <span class="inspector-title">Shark Intel</span>
+      <button id="refresh-btn">REFRESH</button>
+    </div>
+    <div id="inspector-content">
+      <div class="inspector-loading">Click REFRESH to scan shark somas</div>
+    </div>
+  </div>
+</div>
 <script type="importmap">
 {
   "imports": {

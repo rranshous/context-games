@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { generateReef, Tile, getTile, tileToWorld, worldToTile } from './map.js';
 import { buildReef } from './reef.js';
 import { createSquid, updateSquid } from './squid.js';
-import { Predator, readSensors, checkCatch, dispatchStimulus } from './predator.js';
+import { Predator, readSensors, checkCatch, runTick } from './predator.js';
 import { createShark } from './shark.js';
 import { clearInstinctCache } from './instinct-executor.js';
-import { HuntTracker, HuntSummary } from './hunt-tracker.js';
 import { reflectPredator, shouldReflect } from './reflection.js';
 import { savePredatorSomas, loadPredatorSomas, resetPredatorSomas } from './persistence.js';
+import { initInspector } from './inspector.js';
 
 // --- Config ---
 const RENDER_W = 320;
@@ -36,7 +36,8 @@ renderer.domElement.style.height = `${RENDER_H * PIXEL_SCALE}px`;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.BasicShadowMap;
 renderer.setClearColor(0x020810);
-document.body.appendChild(renderer.domElement);
+const gameContainer = document.getElementById('game-container');
+(gameContainer || document.body).appendChild(renderer.domElement);
 
 // --- Scene ---
 const scene = new THREE.Scene();
@@ -176,46 +177,28 @@ function spawnSharks(count: number) {
 }
 spawnSharks(3);
 
-// --- Hunt tracking ---
-const huntTracker = new HuntTracker();
-const prevConcealed = new Map<string, boolean>();
-const HUNT_GIVEUP_TIME = 10; // seconds without detection before hunt ends
+// Init inspector panel
+initInspector(predators, '/api/inference/anthropic/messages');
 
 // API endpoint for reflection
 const API_ENDPOINT = '/api/inference/anthropic/messages';
 
-// Trigger reflection after a failed hunt
-function triggerReflection(pred: Predator, summary: HuntSummary) {
+// Trigger reflection for a predator
+function triggerReflection(pred: Predator) {
   const soma = pred.predatorSoma;
   const gameTime = clock.getElapsedTime();
 
-  if (!shouldReflect(soma, summary, gameTime)) return;
+  if (!shouldReflect(soma, gameTime)) return;
 
-  // Record hunt in soma history (cap at 10)
-  soma.huntHistory.push({
-    huntId: summary.huntId,
-    outcome: summary.outcome,
-    durationSeconds: summary.durationSeconds,
-    closestDistance: summary.closestDistance,
-    preyConcealed: summary.preyConcealed,
-    concealmentTile: summary.concealmentTile,
-  });
-  if (soma.huntHistory.length > 10) soma.huntHistory.shift();
-
-  console.log(`[GLINT] Reflection started for ${pred.id} (hunt #${summary.huntId})`);
   soma.lastReflectionTime = gameTime;
+  console.log(`[GLINT] Reflection started for ${pred.id}`);
 
-  reflectPredator(
-    soma,
-    summary,
-    huntTracker.getCompletedHunts(pred.id),
-    API_ENDPOINT,
-  ).then(result => {
-    console.log(`[GLINT] Reflection complete for ${pred.id}: instinct=${result.instinctUpdated}, memory=${result.memoryUpdated}`);
+  reflectPredator(soma, gameTime, API_ENDPOINT).then(result => {
+    console.log(`[GLINT] Reflection complete for ${pred.id}: onTick=${result.onTickUpdated}, memory=${result.memoryUpdated}, identity=${result.identityUpdated}, journal=${result.journalUpdated}`);
     if (result.reasoning) {
       console.log(`[GLINT] Reasoning: ${result.reasoning.slice(0, 200)}`);
     }
-    if (result.instinctUpdated) {
+    if (result.onTickUpdated) {
       clearInstinctCache();
     }
     savePredatorSomas(predators, MAP_SEED);
@@ -228,7 +211,7 @@ function triggerReflection(pred: Predator, summary: HuntSummary) {
 // Debug access
 (window as any).__glint = {
   map, squid, tileToWorld, worldToTile, TILE_SIZE, MAP_W, MAP_H, predators,
-  clearInstinctCache, huntTracker, readSensors, triggerReflection,
+  clearInstinctCache, readSensors, triggerReflection,
   get invulnTimer() { return invulnTimer; },
   set invulnTimer(v: number) { invulnTimer = v; },
   resetSomas: () => resetPredatorSomas(MAP_SEED),
@@ -249,97 +232,27 @@ function animate() {
   // Update predators
   if (invulnTimer > 0) invulnTimer -= dt;
   for (const pred of predators) {
-    // During invulnerability, squid is "invisible" — forces chasers into SEARCH→PATROL
+    // During invulnerability, squid is "invisible" — forces predators to lose track
     const sensors = invulnTimer > 0
       ? { squidDetected: false, squidWorldPos: { x: 0, z: 0 }, squidDist: 999 }
       : readSensors(pred, squid, map, TILE_SIZE);
 
-    const wasPursuingBefore = pred.physical.wasPursuing;
-    const wasConcealed = prevConcealed.get(pred.id) ?? false;
-
-    dispatchStimulus(pred, sensors, dt, map, TILE_SIZE, sharkRng);
+    runTick(pred, sensors, dt, t, map, TILE_SIZE, sharkRng);
     pred.animate(pred, t);
 
-    // --- Hunt tracking ---
-    // Start hunt when predator first detects prey
-    if (sensors.squidDetected && !huntTracker.isHunting(pred.id)) {
-      huntTracker.startHunt(pred.id, t);
-      huntTracker.recordEvent(pred.id, {
-        type: 'detected',
-        predPos: { x: pred.group.position.x, z: pred.group.position.z },
-        preyPos: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
-        distance: sensors.squidDist,
-      }, t);
-    }
-
-    if (huntTracker.isHunting(pred.id)) {
-      // Record pursuing events (throttled inside tracker)
-      if (sensors.squidDetected) {
-        huntTracker.recordEvent(pred.id, {
-          type: 'pursuing',
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-          preyPos: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
-          distance: sensors.squidDist,
-        }, t);
-      }
-
-      // Lost LOS — was pursuing last frame but not this frame
-      if (wasPursuingBefore && !pred.physical.wasPursuing) {
-        huntTracker.recordEvent(pred.id, {
-          type: 'lost_los',
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-        }, t);
-      }
-
-      // Concealment transitions
-      if (squid.concealed && !wasConcealed) {
-        const { tx, tz } = worldToTile(
-          squid.group.position.x, squid.group.position.z, TILE_SIZE, MAP_W, MAP_H
-        );
-        const tile = getTile(map, tx, tz);
-        const tileName = tile === Tile.KELP ? 'kelp' : tile === Tile.CREVICE ? 'crevice' : tile === Tile.DEN ? 'den' : 'unknown';
-        huntTracker.recordEvent(pred.id, {
-          type: 'prey_concealed',
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-          preyPos: { x: squid.group.position.x, z: squid.group.position.z },
-          note: `Prey entered ${tileName} at (${squid.group.position.x.toFixed(1)}, ${squid.group.position.z.toFixed(1)})`,
-        }, t);
-      }
-      if (!squid.concealed && wasConcealed) {
-        huntTracker.recordEvent(pred.id, {
-          type: 'prey_revealed',
-          predPos: { x: pred.group.position.x, z: pred.group.position.z },
-          preyPos: { x: squid.group.position.x, z: squid.group.position.z },
-        }, t);
-      }
-
-      // End hunt: predator gave up (no detection for HUNT_GIVEUP_TIME)
-      if (!sensors.squidDetected && pred.physical.lostTime > HUNT_GIVEUP_TIME) {
-        const summary = huntTracker.endHunt(pred.id, 'lost', t);
-        if (summary) triggerReflection(pred, summary);
-      }
-    }
-
-    prevConcealed.set(pred.id, squid.concealed);
+    // Check reflection eligibility (cheap — runs every frame)
+    triggerReflection(pred);
 
     // Catch — respawn squid at spawn (with invulnerability)
     if (invulnTimer <= 0 && checkCatch(pred, squid)) {
-      // End hunt as catch for this predator
-      if (huntTracker.isHunting(pred.id)) {
-        huntTracker.endHunt(pred.id, 'catch', t);
-      }
       console.log(`[GLINT] Caught by ${pred.id}!`);
       squid.group.position.set(spawn.wx, 1, spawn.wz);
       invulnTimer = 2.0; // 2 seconds immunity
-      // Reset all predators + end any active hunts
+      // Reset all predators — clear physical state
       for (const p of predators) {
-        if (p.id !== pred.id && huntTracker.isHunting(p.id)) {
-          const lostSummary = huntTracker.endHunt(p.id, 'lost', t);
-          if (lostSummary) triggerReflection(p, lostSummary);
-        }
         p.physical.waypoint = null;
-        p.physical.lastSeenPos = null;
-        p.physical.wasPursuing = false;
+        p.physical.lastActionType = 'patrol_random';
+        p.physical.timeSinceLastPursue = 999;
       }
       break;
     }

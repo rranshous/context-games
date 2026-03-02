@@ -435,10 +435,137 @@ Everything else: "Was I pursuing last frame? Yes, and now I can't see prey — l
 - Reflection scaffold tools → one per editable section instead of `update_instinct`/`update_memory`
 
 ### Next
-1. **Implement soma embodiment** — restructure PredatorSoma into named sections, build section API, move dispatch logic into default on_tick
+1. ~~**Implement soma embodiment**~~ — done (session 6)
 2. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
 3. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
 4. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
 5. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
 6. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
 7. **Inspector panel** — like hot-pursuit's soma inspector, show predator instinct code and memory live
+
+## Session 6 — Soma Embodiment (2026-03-02)
+
+### Motivation
+Session 5 built self-modifying predator instincts, but the engine still owned too much: stimulus classification (`prey_detected`/`prey_lost`/`tick`), state tracking (`wasPursuing`, `lostTime`, `lastSeenPos`), and hunt event recording (HuntTracker). This session moves all of that into the soma's `on_tick` code so the predator owns its entire perception-action pipeline. The inference call IS the creature's body.
+
+### What Changed
+
+**PredatorSoma → named sections** (soma.ts)
+- Old: `{ id, species, nature, instinctCode, memory, huntHistory[], ... }`
+- New: `{ id, species, identity, on_tick, memory, hunt_journal, ... }`
+- `identity` (was `nature`) — who I am, hunting philosophy
+- `on_tick` (was `instinctCode`) — THE code, runs every frame with `(me, world)`
+- `hunt_journal` (replaces `huntHistory[]`) — text log written by on_tick code, curated by reflection
+- `HuntHistoryEntry` interface deleted
+
+**Default on_tick merges engine + instinct** (soma.ts)
+- Old: engine classifies stimulus type → calls `onStimulus(type, data, me)`
+- New: `on_tick(me, world)` receives raw sensor data and does everything itself
+- All working state lives in `me.memory` via string matching (no JSON, no hidden `me.state`)
+- Includes minimal journal writes: logs detections and prey losses for bootstrapping reflection
+
+**TickAPI replaces InstinctAPI** (instinct-api.ts)
+- Deleted: `StimulusData`, `getLastKnown()`, `setLastKnown()`, `getTimeSinceLost()`
+- Added: `WorldData` interface (`{ squidDetected, squidPos, squidDist, dt, t }`)
+- Added: `me.hunt_journal.read()/write()`, `me.on_tick.read()`, `me.identity.read()`
+- Journal write capped at 5000 chars (truncates from front)
+- No hidden `me.state` — all working state goes through `me.memory` with string matching
+
+**Engine simplified** (predator.ts)
+- `dispatchStimulus()` → `runTick()`: no stimulus classification, no state tracking. Just: compile on_tick, build WorldData from raw sensors, create TickAPI, execute, apply action.
+- `PhysicalState` shrunk: `{ waypoint, stuckTimer, lastActionType, timeSinceLastPursue }`
+- Removed: `lastSeenPos`, `lostTime`, `wasPursuing` — managed by soma code via `me.memory`
+- Animation hints derived from actions (`lastActionType`, `timeSinceLastPursue`), not soma internals
+
+**Shark animation updated** (shark.ts)
+- Old: `pursuing = pred.physical.wasPursuing`, `searching = ... && pred.physical.lostTime < 8`
+- New: `pursuing = pred.physical.lastActionType === 'pursue'`, `searching = ... && pred.physical.timeSinceLastPursue < 8`
+
+**Per-section reflection tools** (reflection.ts)
+- Old: 3 tools (`update_instinct`, `update_memory`, `recall_hunt`)
+- New: 4 tools (`edit_on_tick`, `edit_memory`, `edit_identity`, `edit_hunt_journal`)
+- System prompt assembles all soma sections as XML tags
+- `shouldReflect(soma, gameTime)` — no HuntSummary param; checks journal has content (>20 chars)
+- `reflectPredator(soma, gameTime, endpoint)` — simplified signature
+- Validation checks for `on_tick(me, world)` function signature
+
+**HuntTracker deleted** (hunt-tracker.ts removed)
+- All hunt tracking code removed from main.ts
+- Journaling is now the on_tick code's responsibility
+
+**Game loop simplified** (main.ts)
+- Removed: HuntTracker, prevConcealed map, HUNT_GIVEUP_TIME, all hunt recording code
+- Reflection trigger: every frame via `shouldReflect()` (timer-based, not event-driven)
+- Catch reset: clears PhysicalState + runtime state for all predators
+
+**Persistence simplified** (persistence.ts)
+- No legacy migration — old localStorage is nuked manually
+- Clean save/load of new PredatorSoma format
+
+### E2E Verification
+- Clean build, no TS errors
+- Sharks patrol, chase, search, return to patrol — behavior identical to pre-refactor
+- Animation: red glow (pursuing), orange (searching), dim (patrolling) — driven by action hints
+- Catch + respawn + invulnerability working
+- shark-2 reflected: `edit_on_tick` grew code from 1482 → 3213 chars, `edit_memory` recorded reef knowledge, `edit_hunt_journal` curated entries
+- All 4 reflection tools exercised and working
+- Persistence saves new format, migration path tested
+
+### File Summary
+| File | Action |
+|------|--------|
+| `src/soma.ts` | REWRITTEN |
+| `src/instinct-api.ts` | REWRITTEN |
+| `src/instinct-executor.ts` | MODIFIED |
+| `src/predator.ts` | MODIFIED |
+| `src/shark.ts` | MODIFIED |
+| `src/reflection.ts` | REWRITTEN |
+| `src/hunt-tracker.ts` | DELETED |
+| `src/main.ts` | MODIFIED |
+| `src/persistence.ts` | MODIFIED |
+
+### Next
+1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
+2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
+3. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
+4. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
+5. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
+6. ~~**Inspector panel**~~ — done (session 7)
+
+## Session 7 — Shark Intel Panel (2026-03-02)
+
+### Motivation
+After 6 sessions of self-modifying predator instincts, there was no way to see what the sharks had learned without reading raw code in the browser console. Needed a human-friendly view of soma evolution.
+
+### What Changed
+
+**Inspector Panel** (index.html, inspector.ts — new file)
+- Right-side panel (320px) alongside the game canvas, dark theme matching the game aesthetic
+- Persistent panel with sticky "Shark Intel" header and REFRESH button
+- On click: fires parallel haiku calls for all 3 sharks, comparing current soma to factory defaults
+- Sharks still on defaults get an instant "Factory defaults — no reflections yet" (no API call)
+- Changed sharks get a 3-5 sentence plain-English briefing of behavioral evolution
+- Prompt includes current vs default `identity`, `on_tick`, `memory`, plus recent `hunt_journal` (last 2000 chars)
+- System prompt frames haiku as a marine biologist observing simulated sharks
+
+**Default Constants** (soma.ts)
+- Extracted `DEFAULT_SHARK_IDENTITY` and `DEFAULT_SHARK_MEMORY` as named exports for comparison
+
+**Layout** (index.html, main.ts)
+- Canvas now appended to `#game-container` inside a `#game-wrapper` flex row
+- Panel sits to the right of the canvas, seamless border
+
+### File Summary
+| File | Action |
+|------|--------|
+| `index.html` | MODIFIED — flex wrapper, panel HTML/CSS |
+| `src/inspector.ts` | NEW — panel logic + haiku briefing |
+| `src/soma.ts` | MODIFIED — export default constants |
+| `src/main.ts` | MODIFIED — canvas in container, init inspector |
+
+### Next
+1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
+2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
+3. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
+4. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
+5. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden

@@ -1,12 +1,12 @@
-// Predator architecture — shared types, sensors, movement, stimulus dispatch.
+// Predator architecture — shared types, sensors, movement, tick dispatch.
 // Each predator type (shark, eel, etc.) provides its own model + chassis + animate.
-// Behavior comes from the PredatorSoma's instinct code, compiled and executed each tick.
+// Behavior comes from the PredatorSoma's on_tick code, compiled and executed each tick.
 import * as THREE from 'three';
 import { ReefMap, Tile, getTile, isPassable, worldToTile, tileToWorld } from './map.js';
 import { Squid } from './squid.js';
 import { PredatorSoma } from './soma.js';
-import { PendingAction, StimulusData, createInstinctAPI } from './instinct-api.js';
-import { compileInstinct, executeStimulus } from './instinct-executor.js';
+import { PendingAction, WorldData, createTickAPI } from './instinct-api.js';
+import { compileInstinct, executeTick } from './instinct-executor.js';
 
 // --- Types ---
 
@@ -20,13 +20,13 @@ export interface Chassis {
   isSmall: boolean;       // can fit through crevices?
 }
 
-/** PhysicalState — runtime working memory (waypoint, timers, tracking) */
+/** PhysicalState — minimal runtime state (navigation + animation hints) */
 export interface PhysicalState {
   waypoint: { x: number; z: number } | null;
-  lastSeenPos: { x: number; z: number } | null;
-  lostTime: number;           // seconds since prey was last seen
   stuckTimer: number;
-  wasPursuing: boolean;       // did the instinct call me.pursue() last frame?
+  // Animation hints — derived from actions, not from soma internals
+  lastActionType: string;         // 'pursue' | 'patrol_to' | 'patrol_random' | 'hold'
+  timeSinceLastPursue: number;    // seconds since last pursue action
 }
 
 /** What the chassis's sensors report each tick */
@@ -36,7 +36,7 @@ export interface SensorData {
   squidDist: number;
 }
 
-/** A predator instance. Behavior via instinct code in predatorSoma. */
+/** A predator instance. Behavior via on_tick code in predatorSoma. */
 export interface Predator {
   id: string;
   type: string;
@@ -172,35 +172,36 @@ export function checkCatch(pred: Predator, squid: Squid): boolean {
   return Math.sqrt(dx * dx + dz * dz) < pred.chassis.collisionRadius + 0.3;
 }
 
-// --- Stimulus dispatch ---
+// --- Tick dispatch ---
 
-// Busy guard: predators currently executing instinct code (async safety in rAF)
+// Busy guard: predators currently executing on_tick code (async safety in rAF)
 const busyPredators = new Set<string>();
 
 /**
- * Determine stimulus type from sensor data, compile + execute instinct code,
- * apply the resulting action. This replaces the old pred.updateSoma() call.
+ * Compile + execute the soma's on_tick code, apply the resulting action.
+ * The engine just pipes raw sensor data — all behavior logic lives in the soma.
  */
-export function dispatchStimulus(
+export function runTick(
   pred: Predator,
   sensors: SensorData,
   dt: number,
+  t: number,
   map: ReefMap,
   tileSize: number,
   rng: () => number,
 ): void {
-  // Skip if previous frame's instinct is still running
+  // Skip if previous frame's on_tick is still running
   if (busyPredators.has(pred.id)) {
     // Continue current movement if we have a waypoint
     if (pred.physical.waypoint) {
-      const useChase = pred.physical.wasPursuing;
+      const useChase = pred.physical.lastActionType === 'pursue';
       moveToward(pred, pred.physical.waypoint.x, pred.physical.waypoint.z, dt, map, tileSize, useChase);
     }
     return;
   }
 
-  const instinct = compileInstinct(pred.predatorSoma);
-  if (!instinct) {
+  const compiled = compileInstinct(pred.predatorSoma);
+  if (!compiled) {
     // Compilation failed — continue current movement as fallback
     if (pred.physical.waypoint) {
       moveToward(pred, pred.physical.waypoint.x, pred.physical.waypoint.z, dt, map, tileSize, false);
@@ -208,45 +209,20 @@ export function dispatchStimulus(
     return;
   }
 
-  // Determine stimulus type (priority: prey_detected > prey_lost > tick)
-  // prey_lost fires when the predator was pursuing last frame but can't see prey now
-  const wasTracking = pred.physical.wasPursuing;
-  let stimulusType: string;
-  let stimulusData: StimulusData;
+  // Build world data (raw sensors + timing)
+  const worldData: WorldData = {
+    squidDetected: sensors.squidDetected,
+    squidPos: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
+    squidDist: sensors.squidDist,
+    dt,
+    t,
+  };
 
-  if (sensors.squidDetected) {
-    stimulusType = 'prey_detected';
-    stimulusData = {
-      prey_position: { x: sensors.squidWorldPos.x, z: sensors.squidWorldPos.z },
-      prey_distance: sensors.squidDist,
-      own_position: { x: pred.group.position.x, z: pred.group.position.z },
-    };
-    pred.physical.lostTime = 0;
-  } else if (wasTracking) {
-    stimulusType = 'prey_lost';
-    stimulusData = {
-      last_known_position: pred.physical.lastSeenPos
-        ? { x: pred.physical.lastSeenPos.x, z: pred.physical.lastSeenPos.z }
-        : undefined,
-      own_position: { x: pred.group.position.x, z: pred.group.position.z },
-    };
-    // lostTime starts counting from here
-    pred.physical.lostTime = 0;
-  } else {
-    stimulusType = 'tick';
-    pred.physical.lostTime += dt;
-    stimulusData = {
-      own_position: { x: pred.group.position.x, z: pred.group.position.z },
-      time_since_lost: pred.physical.lostTime,
-    };
-  }
-
-  // Create API + execute
   const actions: PendingAction[] = [];
-  const api = createInstinctAPI(pred, map, tileSize, actions);
+  const api = createTickAPI(pred, map, tileSize, actions);
 
   busyPredators.add(pred.id);
-  executeStimulus(instinct, stimulusType, stimulusData, api).then(() => {
+  executeTick(compiled, api, worldData).then(() => {
     busyPredators.delete(pred.id);
     // Apply first queued action
     if (actions.length > 0) {
@@ -255,14 +231,20 @@ export function dispatchStimulus(
   });
 
   // Also apply synchronously for this frame if actions were queued synchronously
-  // (default instinct code is sync despite async wrapper, so actions are ready immediately)
+  // (default on_tick code is sync despite async wrapper, so actions are ready immediately)
   if (actions.length > 0) {
     busyPredators.delete(pred.id);
     applyAction(pred, actions[0], dt, map, tileSize, rng);
   }
 
-  // Track whether this frame's action was a pursue (for next frame's prey_lost check)
-  pred.physical.wasPursuing = actions.length > 0 && actions[0].type === 'pursue';
+  // Animation hints — derived from actions, not soma state
+  const actionType = actions.length > 0 ? actions[0].type : pred.physical.lastActionType;
+  if (actionType === 'pursue') {
+    pred.physical.timeSinceLastPursue = 0;
+  } else {
+    pred.physical.timeSinceLastPursue += dt;
+  }
+  pred.physical.lastActionType = actionType;
 }
 
 /** Map a PendingAction to movement primitives */

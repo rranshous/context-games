@@ -90,10 +90,9 @@ export function createShark(
 
   const physical: PhysicalState = {
     waypoint: null,
-    lastSeenPos: null,
-    lostTime: 0,
     stuckTimer: 0,
-    wasPursuing: false,
+    lastActionType: 'patrol_random',
+    timeSinceLastPursue: 999,
   };
 
   const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);
@@ -101,8 +100,8 @@ export function createShark(
   // Animation uses closures over mesh refs (no fragile child indexing)
   // Visual state derived from physical signals, not string labels.
   function animate(pred: Predator, t: number) {
-    const pursuing = pred.physical.wasPursuing;
-    const searching = !pursuing && pred.physical.lastSeenPos !== null && pred.physical.lostTime < 8;
+    const pursuing = pred.physical.lastActionType === 'pursue';
+    const searching = !pursuing && pred.physical.timeSinceLastPursue < 8;
 
     // Body sway
     body.rotation.y = Math.sin(t * 3 + pred.group.position.x) * 0.08;
