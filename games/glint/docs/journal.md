@@ -394,10 +394,51 @@ Decoupled the engine from magic state strings. The `prey_lost` stimulus was gate
 - Reflection system prompt updated — no more setState/getState docs
 - Default instinct simplified: no state management, just `data.time_since_lost` for search timeout
 
+### Design: Soma as Embodiment
+
+Discussion about restructuring the predator soma to follow the cognitive-climb embodiment pattern: **the inference call IS the creature's body**. Every section of the soma is visible in the system prompt, and (most) sections are editable via named tools during reflection.
+
+#### Core principle
+The soma IS the predator's experienced self. Everything that goes into the inference call should be a named section of the soma. The engine provides a chassis (sensors, movement primitives, tile queries) and calls `on_tick` every frame. Everything else — stimulus classification, hunt journaling, behavioral response, state tracking — lives in soma code sections that the predator wrote (or inherited as defaults and then evolved).
+
+#### Soma sections
+
+**Editable sections** (reflection tools + runtime `me.<section>.read()`/`.write()`):
+- `identity` — species, nature, hunting philosophy
+- `on_tick` — per-frame code: reads sensors, tracks state, records events to journal, issues movement commands. This is the single code section the chassis compiles and calls. All current `dispatchStimulus()` logic (stimulus classification, `wasPursuing` tracking, `lostTime` management) moves here. The predator owns its own perception pipeline, not just its reactions.
+- `memory` — persistent notes, spatial knowledge, prey behavior patterns
+- `hunt_journal` — text log of hunt events, built up by `on_tick` code (code-driven, not template-driven), curated/summarized by reflection
+
+**Read-only sections** (visible in system prompt, no edit tool):
+- `reef_knowledge` — tile types, concealment rules, game physics
+- `senses` — API reference for chassis primitives (`me.pursue()`, `me.nearby_tiles()`, etc.)
+
+#### Key design decisions
+- **on_tick is the only code section for now.** No separate `on_stimulus` — all behavior lives in `on_tick`. If we want evaluable sub-sections later (e.g. `me.on_stimulus.eval(type, data)`), we can add that, but start simple.
+- **Section API at runtime:** `me.<section>.read()` and `me.<section>.write()` available inside `on_tick`. The predator can update memory mid-hunt, append to hunt_journal, even read its own code.
+- **Code-driven collection:** The hunt journal is built by `on_tick` code, not by the game engine. The predator decides what events to log and how to format them. Reflection can curate/rewrite the journal.
+- **State tracking moves into the soma.** `wasPursuing`, `lostTime`, `lastSeenPos` — these become state the soma manages itself via memory or variables, not engine-level `PhysicalState` fields. The predator can invent new tracking variables without engine changes.
+- **Read-only for game mechanics.** `reef_knowledge` and `senses` describe reality — editing them doesn't change physics. Keep them immutable. The `memory` section exists for the predator to keep higher-level notes derived from these.
+- **Reflection tools are named per section.** `edit_on_tick`, `edit_memory`, `edit_identity`, `edit_hunt_journal`. Named tools help the model use them consistently.
+
+#### What the engine does (chassis)
+Each frame: read raw sensors → compile soma's `on_tick` → call `on_tick(me, world)` where `world` has `{ squidDetected, squidPos, squidDist, dt, t }` → collect resulting movement action. That's it.
+
+#### What the soma does (on_tick code)
+Everything else: "Was I pursuing last frame? Yes, and now I can't see prey — log 'lost_los' to my hunt_journal, update lastSeenPos in memory, switch to searching nearby kelp." The predator owns its entire perception-action pipeline.
+
+#### What shifts from current code
+- `dispatchStimulus()` in predator.ts → becomes default `on_tick` code in the soma
+- `PhysicalState` fields (`wasPursuing`, `lostTime`, `lastSeenPos`) → managed by soma code via `me.memory`
+- Hunt tracking in main.ts → moves into soma's `on_tick` (journal writes)
+- `buildSystemPrompt()` in reflection.ts → assembles all soma sections as XML tags
+- Reflection scaffold tools → one per editable section instead of `update_instinct`/`update_memory`
+
 ### Next
-1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
-2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
-3. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
-4. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
-5. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
-6. **Inspector panel** — like hot-pursuit's soma inspector, show predator instinct code and memory live
+1. **Implement soma embodiment** — restructure PredatorSoma into named sections, build section API, move dispatch logic into default on_tick
+2. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
+3. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
+4. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
+5. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
+6. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
+7. **Inspector panel** — like hot-pursuit's soma inspector, show predator instinct code and memory live
