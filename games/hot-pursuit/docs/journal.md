@@ -584,3 +584,4 @@ Added a "wave changes" button alongside the squad overview button. Summarizes wh
 ### Tuning
 - Reflection model upgraded from `claude-sonnet-4-20250514` to `claude-sonnet-4-6` (same cost, newer)
 - Squad overview `max_tokens` bumped 768 → 1536 (was getting cut off)
+- Wave changes prompt rewritten: was breaking down per-officer (redundant with individual inspect). Now synthesizes cross-squad themes — tactical shifts, ideas spreading between officers, new discoveries, coordination changes. Reads like a squad changelog.
