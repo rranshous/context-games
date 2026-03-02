@@ -1976,6 +1976,40 @@ var foodRng = /* @__PURE__ */ (() => {
 var morsels = spawnMorsels(scene, map, TILE_SIZE, 25, foodRng);
 var energyFill = document.getElementById("energy-fill");
 var hudLabel = document.getElementById("hud-label");
+function pickRespawnDen(rng) {
+  const dens = map.dens;
+  if (dens.length === 0) {
+    return tileToWorld(map.playerSpawn.x, map.playerSpawn.z, TILE_SIZE, MAP_W, MAP_H);
+  }
+  const safeDens = dens.filter((den) => {
+    for (const pred of predators) {
+      const { tx, tz } = worldToTile(pred.group.position.x, pred.group.position.z, TILE_SIZE, MAP_W, MAP_H);
+      const dtx = den.x - tx, dtz = den.z - tz;
+      if (dtx * dtx + dtz * dtz < 225) return false;
+    }
+    return true;
+  });
+  if (safeDens.length > 0) {
+    const den = safeDens[Math.floor(rng() * safeDens.length)];
+    return tileToWorld(den.x, den.z, TILE_SIZE, MAP_W, MAP_H);
+  }
+  let bestDen = dens[0];
+  let bestMinDist = -1;
+  for (const den of dens) {
+    let minDist = Infinity;
+    for (const pred of predators) {
+      const { tx, tz } = worldToTile(pred.group.position.x, pred.group.position.z, TILE_SIZE, MAP_W, MAP_H);
+      const dtx = den.x - tx, dtz = den.z - tz;
+      const dist = dtx * dtx + dtz * dtz;
+      if (dist < minDist) minDist = dist;
+    }
+    if (minDist > bestMinDist) {
+      bestMinDist = minDist;
+      bestDen = den;
+    }
+  }
+  return tileToWorld(bestDen.x, bestDen.z, TILE_SIZE, MAP_W, MAP_H);
+}
 var API_ENDPOINT = "/api/inference/anthropic/messages";
 function triggerReflection(pred) {
   const soma = pred.predatorSoma;
@@ -2037,8 +2071,9 @@ function animate() {
     pred.animate(pred, t);
     triggerReflection(pred);
     if (invulnTimer <= 0 && checkCatch(pred, squid)) {
-      console.log(`[GLINT] Caught by ${pred.id}!`);
-      squid.group.position.set(spawn.wx, 1, spawn.wz);
+      const respawn = pickRespawnDen(sharkRng);
+      console.log(`[GLINT] Caught by ${pred.id}! Respawning at (${respawn.wx.toFixed(1)}, ${respawn.wz.toFixed(1)})`);
+      squid.group.position.set(respawn.wx, 1, respawn.wz);
       invulnTimer = 2;
       resetEnergy();
       for (const p of predators) {

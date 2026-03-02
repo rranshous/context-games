@@ -192,6 +192,47 @@ const morsels = spawnMorsels(scene, map, TILE_SIZE, 25, foodRng);
 const energyFill = document.getElementById('energy-fill')!;
 const hudLabel = document.getElementById('hud-label')!;
 
+// Pick a random den far from all predators for respawn
+function pickRespawnDen(rng: () => number): { wx: number; wz: number } {
+  const dens = map.dens;
+  if (dens.length === 0) {
+    return tileToWorld(map.playerSpawn.x, map.playerSpawn.z, TILE_SIZE, MAP_W, MAP_H);
+  }
+
+  // Filter dens >15 tiles from all sharks
+  const safeDens = dens.filter(den => {
+    for (const pred of predators) {
+      const { tx, tz } = worldToTile(pred.group.position.x, pred.group.position.z, TILE_SIZE, MAP_W, MAP_H);
+      const dtx = den.x - tx, dtz = den.z - tz;
+      if (dtx * dtx + dtz * dtz < 225) return false;
+    }
+    return true;
+  });
+
+  if (safeDens.length > 0) {
+    const den = safeDens[Math.floor(rng() * safeDens.length)];
+    return tileToWorld(den.x, den.z, TILE_SIZE, MAP_W, MAP_H);
+  }
+
+  // Fallback: farthest den from nearest shark
+  let bestDen = dens[0];
+  let bestMinDist = -1;
+  for (const den of dens) {
+    let minDist = Infinity;
+    for (const pred of predators) {
+      const { tx, tz } = worldToTile(pred.group.position.x, pred.group.position.z, TILE_SIZE, MAP_W, MAP_H);
+      const dtx = den.x - tx, dtz = den.z - tz;
+      const dist = dtx * dtx + dtz * dtz;
+      if (dist < minDist) minDist = dist;
+    }
+    if (minDist > bestMinDist) {
+      bestMinDist = minDist;
+      bestDen = den;
+    }
+  }
+  return tileToWorld(bestDen.x, bestDen.z, TILE_SIZE, MAP_W, MAP_H);
+}
+
 // API endpoint for reflection
 const API_ENDPOINT = '/api/inference/anthropic/messages';
 
@@ -260,10 +301,11 @@ function animate() {
     // Check reflection eligibility (cheap — runs every frame)
     triggerReflection(pred);
 
-    // Catch — respawn squid at spawn (with invulnerability)
+    // Catch — respawn squid at random den (with invulnerability)
     if (invulnTimer <= 0 && checkCatch(pred, squid)) {
-      console.log(`[GLINT] Caught by ${pred.id}!`);
-      squid.group.position.set(spawn.wx, 1, spawn.wz);
+      const respawn = pickRespawnDen(sharkRng);
+      console.log(`[GLINT] Caught by ${pred.id}! Respawning at (${respawn.wx.toFixed(1)}, ${respawn.wz.toFixed(1)})`);
+      squid.group.position.set(respawn.wx, 1, respawn.wz);
       invulnTimer = 2.0; // 2 seconds immunity
       resetEnergy();
       // Reset all predators — clear physical state
