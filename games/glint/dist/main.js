@@ -785,10 +785,6 @@ function createInstinctAPI(pred, map2, tileSize, actions) {
       const ddx = target.x - px(), ddz = target.z - pz();
       return Math.sqrt(ddx * ddx + ddz * ddz);
     },
-    getState: () => pred.physical.state,
-    setState: (s) => {
-      pred.physical.state = s;
-    },
     getLastKnown: () => pred.physical.lastSeenPos ? { x: pred.physical.lastSeenPos.x, z: pred.physical.lastSeenPos.z } : null,
     setLastKnown: (pos) => {
       pred.physical.lastSeenPos = pos ? { x: pos.x, z: pos.z } : null;
@@ -886,7 +882,7 @@ function moveToward(pred, targetX, targetZ, dt, map2, tileSize, useChaseSpeed) {
   const dz = targetZ - pred.group.position.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
   if (dist < 0.5) {
-    if (pred.physical.state === "patrol") pred.physical.waypoint = null;
+    pred.physical.waypoint = null;
     return;
   }
   const targetAngle = Math.atan2(dx, dz);
@@ -944,7 +940,7 @@ var busyPredators = /* @__PURE__ */ new Set();
 function dispatchStimulus(pred, sensors, dt, map2, tileSize, rng) {
   if (busyPredators.has(pred.id)) {
     if (pred.physical.waypoint) {
-      const useChase = pred.physical.state === "chase";
+      const useChase = pred.physical.wasPursuing;
       moveToward(pred, pred.physical.waypoint.x, pred.physical.waypoint.z, dt, map2, tileSize, useChase);
     }
     return;
@@ -979,7 +975,6 @@ function dispatchStimulus(pred, sensors, dt, map2, tileSize, rng) {
     pred.physical.lostTime += dt;
     stimulusData = {
       own_position: { x: pred.group.position.x, z: pred.group.position.z },
-      current_state: pred.physical.state,
       time_since_lost: pred.physical.lostTime
     };
   }
@@ -1039,31 +1034,21 @@ import * as THREE3 from "three";
 var DEFAULT_SHARK_INSTINCT = `
 async function onStimulus(type, data, me) {
   switch (type) {
-    case 'prey_detected': {
-      me.setState('chase');
+    case 'prey_detected':
       me.setLastKnown(data.prey_position);
       me.pursue(data.prey_position);
       break;
-    }
-    case 'prey_lost': {
-      me.setState('search');
+    case 'prey_lost':
       me.patrol_to(data.last_known_position);
       break;
-    }
-    case 'tick': {
-      const state = me.getState();
-      if (state === 'search') {
-        if (me.getTimeSinceLost() > 5.0) {
-          me.setState('patrol');
-        } else {
-          const lk = me.getLastKnown();
-          if (lk) me.patrol_to(lk);
-        }
+    case 'tick':
+      if (data.time_since_lost < 5.0) {
+        const lk = me.getLastKnown();
+        if (lk) me.patrol_to(lk);
       } else {
         me.patrol_random();
       }
       break;
-    }
   }
 }
 `.trim();
@@ -1142,7 +1127,6 @@ function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {
   group.position.set(spawnX, 1, spawnZ);
   group.rotation.y = Math.random() * Math.PI * 2;
   const physical = {
-    state: "patrol",
     waypoint: null,
     lastSeenPos: null,
     lostTime: 0,
@@ -1151,22 +1135,20 @@ function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {
   };
   const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);
   function animate2(pred, t) {
+    const pursuing = pred.physical.wasPursuing;
+    const searching = !pursuing && pred.physical.lastSeenPos !== null && pred.physical.lostTime < 8;
     body.rotation.y = Math.sin(t * 3 + pred.group.position.x) * 0.08;
-    const tailSpeed = pred.physical.state === "chase" ? 8 : 2.5;
+    const tailSpeed = pursuing ? 8 : 2.5;
     tail.rotation.y = Math.sin(t * tailSpeed) * 0.3;
-    switch (pred.physical.state) {
-      case "chase":
-        pred.threatLight.intensity = 1.5 + Math.sin(t * 4) * 0.5;
-        pred.threatLight.color.setHex(16720384);
-        break;
-      case "search":
-        pred.threatLight.intensity = 0.8 + Math.sin(t * 2) * 0.3;
-        pred.threatLight.color.setHex(16729088);
-        break;
-      default:
-        pred.threatLight.intensity = 0.3 + Math.sin(t) * 0.15;
-        pred.threatLight.color.setHex(16737792);
-        break;
+    if (pursuing) {
+      pred.threatLight.intensity = 1.5 + Math.sin(t * 4) * 0.5;
+      pred.threatLight.color.setHex(16720384);
+    } else if (searching) {
+      pred.threatLight.intensity = 0.8 + Math.sin(t * 2) * 0.3;
+      pred.threatLight.color.setHex(16729088);
+    } else {
+      pred.threatLight.intensity = 0.3 + Math.sin(t) * 0.15;
+      pred.threatLight.color.setHex(16737792);
     }
     pred.group.position.y = 1 + Math.sin(t * 0.8 + pred.group.position.x * 0.5) * 0.1;
   }
@@ -1377,7 +1359,6 @@ Available in onStimulus(type, data, me):
 - me.patrol_to(target) \u2014 patrol speed, move toward specific position {x, z}
 - me.patrol_random() \u2014 pick a random open tile and patrol toward it (picks a new waypoint only if current one is null)
 - me.hold() \u2014 stay still
-- me.getState() / me.setState(s) \u2014 your behavioral state (string, you define the states)
 - me.getLastKnown() / me.setLastKnown(pos) \u2014 last known prey position {x, z}
 - me.getTimeSinceLost() \u2014 seconds since prey was last detected
 - me.getPosition() \u2014 your current position {x, z}
@@ -1388,7 +1369,7 @@ Available in onStimulus(type, data, me):
 Your onStimulus function receives one of three stimulus types:
 - 'prey_detected' \u2014 you can see the prey right now. data.prey_position = {x, z}, data.prey_distance = number
 - 'prey_lost' \u2014 you were pursuing (called me.pursue() last frame) but can no longer see the prey. data.last_known_position = {x, z}
-- 'tick' \u2014 nothing detected and you weren't pursuing. data.current_state = your state string, data.time_since_lost = seconds since last detection
+- 'tick' \u2014 nothing detected and you weren't pursuing. data.time_since_lost = seconds since last detection
 Only one stimulus fires per frame, in priority order: prey_detected > prey_lost > tick.
 Note: 'prey_lost' only fires if you called me.pursue() on the previous frame. If you were patrolling and the prey disappears, you just get 'tick'.
 </stimuli>
@@ -1776,7 +1757,7 @@ function spawnSharks(count) {
 spawnSharks(3);
 var huntTracker = new HuntTracker();
 var prevConcealed = /* @__PURE__ */ new Map();
-var prevState = /* @__PURE__ */ new Map();
+var HUNT_GIVEUP_TIME = 10;
 var API_ENDPOINT = "/api/inference/anthropic/messages";
 function triggerReflection(pred, summary) {
   const soma = pred.predatorSoma;
@@ -1843,7 +1824,7 @@ function animate() {
   if (invulnTimer > 0) invulnTimer -= dt;
   for (const pred of predators) {
     const sensors = invulnTimer > 0 ? { squidDetected: false, squidWorldPos: { x: 0, z: 0 }, squidDist: 999 } : readSensors(pred, squid, map, TILE_SIZE);
-    const wasState = prevState.get(pred.id) ?? "patrol";
+    const wasPursuingBefore = pred.physical.wasPursuing;
     const wasConcealed = prevConcealed.get(pred.id) ?? false;
     dispatchStimulus(pred, sensors, dt, map, TILE_SIZE, sharkRng);
     pred.animate(pred, t);
@@ -1865,7 +1846,7 @@ function animate() {
           distance: sensors.squidDist
         }, t);
       }
-      if (wasState === "chase" && pred.physical.state === "search") {
+      if (wasPursuingBefore && !pred.physical.wasPursuing) {
         huntTracker.recordEvent(pred.id, {
           type: "lost_los",
           predPos: { x: pred.group.position.x, z: pred.group.position.z }
@@ -1895,12 +1876,11 @@ function animate() {
           preyPos: { x: squid.group.position.x, z: squid.group.position.z }
         }, t);
       }
-      if (pred.physical.state === "patrol" && wasState !== "patrol") {
+      if (!sensors.squidDetected && pred.physical.lostTime > HUNT_GIVEUP_TIME) {
         const summary = huntTracker.endHunt(pred.id, "lost", t);
         if (summary) triggerReflection(pred, summary);
       }
     }
-    prevState.set(pred.id, pred.physical.state);
     prevConcealed.set(pred.id, squid.concealed);
     if (invulnTimer <= 0 && checkCatch(pred, squid)) {
       if (huntTracker.isHunting(pred.id)) {
@@ -1914,10 +1894,9 @@ function animate() {
           const lostSummary = huntTracker.endHunt(p.id, "lost", t);
           if (lostSummary) triggerReflection(p, lostSummary);
         }
-        p.physical.state = "patrol";
         p.physical.waypoint = null;
         p.physical.lastSeenPos = null;
-        prevState.set(p.id, "patrol");
+        p.physical.wasPursuing = false;
       }
       break;
     }

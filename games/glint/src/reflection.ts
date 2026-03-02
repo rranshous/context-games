@@ -109,7 +109,6 @@ Available in onStimulus(type, data, me):
 - me.patrol_to(target) — patrol speed, move toward specific position {x, z}
 - me.patrol_random() — pick a random open tile and patrol toward it (picks a new waypoint only if current one is null)
 - me.hold() — stay still
-- me.getState() / me.setState(s) — your behavioral state (string, you define the states)
 - me.getLastKnown() / me.setLastKnown(pos) — last known prey position {x, z}
 - me.getTimeSinceLost() — seconds since prey was last detected
 - me.getPosition() — your current position {x, z}
@@ -120,7 +119,7 @@ Available in onStimulus(type, data, me):
 Your onStimulus function receives one of three stimulus types:
 - 'prey_detected' — you can see the prey right now. data.prey_position = {x, z}, data.prey_distance = number
 - 'prey_lost' — you were pursuing (called me.pursue() last frame) but can no longer see the prey. data.last_known_position = {x, z}
-- 'tick' — nothing detected and you weren't pursuing. data.current_state = your state string, data.time_since_lost = seconds since last detection
+- 'tick' — nothing detected and you weren't pursuing. data.time_since_lost = seconds since last detection
 Only one stimulus fires per frame, in priority order: prey_detected > prey_lost > tick.
 Note: 'prey_lost' only fires if you called me.pursue() on the previous frame. If you were patrolling and the prey disappears, you just get 'tick'.
 </stimuli>

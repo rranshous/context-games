@@ -20,9 +20,8 @@ export interface Chassis {
   isSmall: boolean;       // can fit through crevices?
 }
 
-/** PhysicalState — runtime working memory (state, waypoint, timers) */
+/** PhysicalState — runtime working memory (waypoint, timers, tracking) */
 export interface PhysicalState {
-  state: string;              // free-form: 'patrol', 'chase', 'search', or custom
   waypoint: { x: number; z: number } | null;
   lastSeenPos: { x: number; z: number } | null;
   lostTime: number;           // seconds since prey was last seen
@@ -100,7 +99,7 @@ export function moveToward(
   const dz = targetZ - pred.group.position.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
   if (dist < 0.5) {
-    if (pred.physical.state === 'patrol') pred.physical.waypoint = null;
+    pred.physical.waypoint = null;
     return;
   }
 
@@ -194,7 +193,7 @@ export function dispatchStimulus(
   if (busyPredators.has(pred.id)) {
     // Continue current movement if we have a waypoint
     if (pred.physical.waypoint) {
-      const useChase = pred.physical.state === 'chase';
+      const useChase = pred.physical.wasPursuing;
       moveToward(pred, pred.physical.waypoint.x, pred.physical.waypoint.z, dt, map, tileSize, useChase);
     }
     return;
@@ -238,7 +237,6 @@ export function dispatchStimulus(
     pred.physical.lostTime += dt;
     stimulusData = {
       own_position: { x: pred.group.position.x, z: pred.group.position.z },
-      current_state: pred.physical.state,
       time_since_lost: pred.physical.lostTime,
     };
   }

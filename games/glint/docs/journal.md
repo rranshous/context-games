@@ -303,7 +303,7 @@ Session 4's shark had a hardcoded 3-state FSM (PATROL→CHASE→SEARCH). In hot-
 **`src/instinct-api.ts`** — The `me` object passed to instinct code
 - Movement: `pursue()`, `patrol_to()`, `patrol_random()`, `hold()`
 - Sensing: `check_los()`, `nearby_tiles(type)`, `distance_to()`
-- State: `getState()`, `setState()`, `getLastKnown()`, `setLastKnown()`, `getTimeSinceLost()`, `getPosition()`
+- State: `getLastKnown()`, `setLastKnown()`, `getTimeSinceLost()`, `getPosition()`
 - Memory: `memory.read()`, `memory.write()`
 - `PendingAction` queue — first action per tick wins
 
@@ -379,6 +379,20 @@ Session 4's shark had a hardcoded 3-state FSM (PATROL→CHASE→SEARCH). In hot-
 | `src/predator.ts` | MODIFIED |
 | `src/shark.ts` | MODIFIED |
 | `src/main.ts` | MODIFIED |
+
+### Post-commit: Removed setState/getState
+
+Decoupled the engine from magic state strings. The `prey_lost` stimulus was gated on `state === 'chase'` — a fragile coupling where the instinct code had to call `me.setState('chase')` for the engine to fire `prey_lost` next frame. Replaced with `wasPursuing` boolean: the engine tracks whether the instinct called `me.pursue()` last frame, which is what actually matters.
+
+**Changes:**
+- `PhysicalState.state` removed entirely, replaced with `wasPursuing: boolean`
+- `getState()`/`setState()` removed from InstinctAPI
+- `current_state` removed from StimulusData
+- Animation reads physical signals (`wasPursuing`, `lostTime`, `lastSeenPos`) instead of string labels
+- Hunt-end detection changed from state transition to `lostTime > 10s` timeout
+- `lost_los` hunt event triggers when `wasPursuing` flips false (was pursuing, now isn't)
+- Reflection system prompt updated — no more setState/getState docs
+- Default instinct simplified: no state management, just `data.time_since_lost` for search timeout
 
 ### Next
 1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds

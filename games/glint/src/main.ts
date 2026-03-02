@@ -179,7 +179,7 @@ spawnSharks(3);
 // --- Hunt tracking ---
 const huntTracker = new HuntTracker();
 const prevConcealed = new Map<string, boolean>();
-const prevState = new Map<string, string>();
+const HUNT_GIVEUP_TIME = 10; // seconds without detection before hunt ends
 
 // API endpoint for reflection
 const API_ENDPOINT = '/api/inference/anthropic/messages';
@@ -254,7 +254,7 @@ function animate() {
       ? { squidDetected: false, squidWorldPos: { x: 0, z: 0 }, squidDist: 999 }
       : readSensors(pred, squid, map, TILE_SIZE);
 
-    const wasState = prevState.get(pred.id) ?? 'patrol';
+    const wasPursuingBefore = pred.physical.wasPursuing;
     const wasConcealed = prevConcealed.get(pred.id) ?? false;
 
     dispatchStimulus(pred, sensors, dt, map, TILE_SIZE, sharkRng);
@@ -283,8 +283,8 @@ function animate() {
         }, t);
       }
 
-      // Lost LOS transition
-      if (wasState === 'chase' && pred.physical.state === 'search') {
+      // Lost LOS — was pursuing last frame but not this frame
+      if (wasPursuingBefore && !pred.physical.wasPursuing) {
         huntTracker.recordEvent(pred.id, {
           type: 'lost_los',
           predPos: { x: pred.group.position.x, z: pred.group.position.z },
@@ -313,14 +313,13 @@ function animate() {
         }, t);
       }
 
-      // End hunt: predator gave up (returned to patrol)
-      if (pred.physical.state === 'patrol' && wasState !== 'patrol') {
+      // End hunt: predator gave up (no detection for HUNT_GIVEUP_TIME)
+      if (!sensors.squidDetected && pred.physical.lostTime > HUNT_GIVEUP_TIME) {
         const summary = huntTracker.endHunt(pred.id, 'lost', t);
         if (summary) triggerReflection(pred, summary);
       }
     }
 
-    prevState.set(pred.id, pred.physical.state);
     prevConcealed.set(pred.id, squid.concealed);
 
     // Catch — respawn squid at spawn (with invulnerability)
@@ -332,16 +331,15 @@ function animate() {
       console.log(`[GLINT] Caught by ${pred.id}!`);
       squid.group.position.set(spawn.wx, 1, spawn.wz);
       invulnTimer = 2.0; // 2 seconds immunity
-      // Reset all predators to patrol + end any active hunts
+      // Reset all predators + end any active hunts
       for (const p of predators) {
         if (p.id !== pred.id && huntTracker.isHunting(p.id)) {
           const lostSummary = huntTracker.endHunt(p.id, 'lost', t);
           if (lostSummary) triggerReflection(p, lostSummary);
         }
-        p.physical.state = 'patrol';
         p.physical.waypoint = null;
         p.physical.lastSeenPos = null;
-        prevState.set(p.id, 'patrol');
+        p.physical.wasPursuing = false;
       }
       break;
     }

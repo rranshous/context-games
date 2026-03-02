@@ -12,7 +12,6 @@ export interface StimulusData {
   prey_distance?: number;
   last_known_position?: { x: number; z: number };
   own_position?: { x: number; z: number };
-  current_state?: string;
   time_since_lost?: number;
 }
 
@@ -38,8 +37,6 @@ export interface InstinctAPI {
   distance_to: (target: { x: number; z: number }) => number;
 
   // State
-  getState: () => string;
-  setState: (s: string) => void;
   getLastKnown: () => { x: number; z: number } | null;
   setLastKnown: (pos: { x: number; z: number } | null) => void;
   getTimeSinceLost: () => number;
@@ -125,8 +122,6 @@ export function createInstinctAPI(
       return Math.sqrt(ddx * ddx + ddz * ddz);
     },
 
-    getState: () => pred.physical.state,
-    setState: (s: string) => { pred.physical.state = s; },
     getLastKnown: () => pred.physical.lastSeenPos
       ? { x: pred.physical.lastSeenPos.x, z: pred.physical.lastSeenPos.z }
       : null,

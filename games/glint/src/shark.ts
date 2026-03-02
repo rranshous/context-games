@@ -89,7 +89,6 @@ export function createShark(
   group.rotation.y = Math.random() * Math.PI * 2;
 
   const physical: PhysicalState = {
-    state: 'patrol',
     waypoint: null,
     lastSeenPos: null,
     lostTime: 0,
@@ -100,28 +99,28 @@ export function createShark(
   const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);
 
   // Animation uses closures over mesh refs (no fragile child indexing)
+  // Visual state derived from physical signals, not string labels.
   function animate(pred: Predator, t: number) {
+    const pursuing = pred.physical.wasPursuing;
+    const searching = !pursuing && pred.physical.lastSeenPos !== null && pred.physical.lostTime < 8;
+
     // Body sway
     body.rotation.y = Math.sin(t * 3 + pred.group.position.x) * 0.08;
 
-    // Tail wag — faster when chasing
-    const tailSpeed = pred.physical.state === 'chase' ? 8 : 2.5;
+    // Tail wag — faster when pursuing
+    const tailSpeed = pursuing ? 8 : 2.5;
     tail.rotation.y = Math.sin(t * tailSpeed) * 0.3;
 
-    // Threat light
-    switch (pred.physical.state) {
-      case 'chase':
-        pred.threatLight.intensity = 1.5 + Math.sin(t * 4) * 0.5;
-        pred.threatLight.color.setHex(0xff2200);
-        break;
-      case 'search':
-        pred.threatLight.intensity = 0.8 + Math.sin(t * 2) * 0.3;
-        pred.threatLight.color.setHex(0xff4400);
-        break;
-      default: // patrol + any custom states
-        pred.threatLight.intensity = 0.3 + Math.sin(t) * 0.15;
-        pred.threatLight.color.setHex(0xff6600);
-        break;
+    // Threat light — driven by action, not labels
+    if (pursuing) {
+      pred.threatLight.intensity = 1.5 + Math.sin(t * 4) * 0.5;
+      pred.threatLight.color.setHex(0xff2200);
+    } else if (searching) {
+      pred.threatLight.intensity = 0.8 + Math.sin(t * 2) * 0.3;
+      pred.threatLight.color.setHex(0xff4400);
+    } else {
+      pred.threatLight.intensity = 0.3 + Math.sin(t) * 0.15;
+      pred.threatLight.color.setHex(0xff6600);
     }
 
     // Gentle bob

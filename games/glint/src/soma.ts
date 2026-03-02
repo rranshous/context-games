@@ -24,36 +24,25 @@ export interface PredatorSoma {
 }
 
 // --- Default shark instinct ---
-// Reproduces the current PATROL/CHASE/SEARCH FSM exactly.
 
 const DEFAULT_SHARK_INSTINCT = `
 async function onStimulus(type, data, me) {
   switch (type) {
-    case 'prey_detected': {
-      me.setState('chase');
+    case 'prey_detected':
       me.setLastKnown(data.prey_position);
       me.pursue(data.prey_position);
       break;
-    }
-    case 'prey_lost': {
-      me.setState('search');
+    case 'prey_lost':
       me.patrol_to(data.last_known_position);
       break;
-    }
-    case 'tick': {
-      const state = me.getState();
-      if (state === 'search') {
-        if (me.getTimeSinceLost() > 5.0) {
-          me.setState('patrol');
-        } else {
-          const lk = me.getLastKnown();
-          if (lk) me.patrol_to(lk);
-        }
+    case 'tick':
+      if (data.time_since_lost < 5.0) {
+        const lk = me.getLastKnown();
+        if (lk) me.patrol_to(lk);
       } else {
         me.patrol_random();
       }
       break;
-    }
   }
 }
 `.trim();
