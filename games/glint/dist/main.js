@@ -1,5 +1,5 @@
 // src/main.ts
-import * as THREE4 from "three";
+import * as THREE5 from "three";
 
 // src/map.ts
 function idx(x, z, w) {
@@ -639,8 +639,22 @@ function readGamepad() {
 var isoRight = new THREE2.Vector3(1, 0, -1).normalize();
 var isoUp = new THREE2.Vector3(-1, 0, -1).normalize();
 var MOVE_SPEED = 6;
-var SPRINT_MULT = 1.6;
+var SPRINT_MULT = 2;
+var DEPLETED_MULT = 0.6;
 var COLLISION_RADIUS = 0.3;
+var DRAIN_IDLE = 1;
+var DRAIN_MOVE = 2;
+var DRAIN_SPRINT = 5;
+var energy = 100;
+function getEnergy() {
+  return energy;
+}
+function addEnergy(amount) {
+  energy = Math.max(0, Math.min(100, energy + amount));
+}
+function resetEnergy() {
+  energy = 100;
+}
 var NORMAL_MANTLE = new THREE2.Color(4508927);
 var NORMAL_BODY = new THREE2.Color(3390446);
 var CONCEALED_MANTLE = new THREE2.Color(1122867);
@@ -674,7 +688,12 @@ function updateSquid(squid2, dt, t, map2, tileSize) {
       }
     }
   }
-  const speed = MOVE_SPEED * (sprinting ? SPRINT_MULT : 1);
+  if (energy <= 0) sprinting = false;
+  const moving = len > 0;
+  const drainRate = sprinting ? DRAIN_SPRINT : moving ? DRAIN_MOVE : DRAIN_IDLE;
+  energy = Math.max(0, energy - drainRate * dt);
+  const baseMult = energy > 0 ? 1 : DEPLETED_MULT;
+  const speed = MOVE_SPEED * baseMult * (sprinting ? SPRINT_MULT : 1);
   const moveDir = new THREE2.Vector3().addScaledVector(isoRight, dx).addScaledVector(isoUp, -dz);
   const newX = squid2.group.position.x + moveDir.x * speed * dt;
   const newZ = squid2.group.position.z + moveDir.z * speed * dt;
@@ -727,6 +746,100 @@ function canMoveTo(wx, wz, map2, tileSize) {
     if (!isPassable(map2, tx, tz, true)) return false;
   }
   return true;
+}
+
+// src/food.ts
+import * as THREE3 from "three";
+var COLLECT_RADIUS = 1;
+var RESPAWN_TIME = 10;
+var MORSEL_Y = 0.15;
+var BOB_AMP = 0.08;
+var BOB_FREQ = 2;
+function pickValidTile(map2, rng) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const tx = Math.floor(rng() * map2.width);
+    const tz = Math.floor(rng() * map2.height);
+    const tile = getTile(map2, tx, tz);
+    if (tile === 0 /* OPEN */ || tile === 3 /* KELP */) return { tx, tz };
+  }
+  return { tx: Math.floor(map2.width / 2), tz: Math.floor(map2.height / 2) };
+}
+function createMorselMesh() {
+  const group = new THREE3.Group();
+  const geo = new THREE3.SphereGeometry(0.12, 6, 4);
+  const mat = new THREE3.MeshStandardMaterial({
+    color: 16763972,
+    emissive: 11206468,
+    emissiveIntensity: 1.2,
+    transparent: true,
+    opacity: 0.9
+  });
+  const orb = new THREE3.Mesh(geo, mat);
+  group.add(orb);
+  const haloGeo = new THREE3.SphereGeometry(0.2, 6, 4);
+  const haloMat = new THREE3.MeshStandardMaterial({
+    color: 16772744,
+    emissive: 16763972,
+    emissiveIntensity: 0.6,
+    transparent: true,
+    opacity: 0.25
+  });
+  const halo = new THREE3.Mesh(haloGeo, haloMat);
+  group.add(halo);
+  const light = new THREE3.PointLight(16763972, 1, 5);
+  group.add(light);
+  return { group, light };
+}
+function spawnMorsels(scene2, map2, tileSize, count, rng) {
+  const morsels2 = [];
+  for (let i = 0; i < count; i++) {
+    const { tx, tz } = pickValidTile(map2, rng);
+    const { wx, wz } = tileToWorld(tx, tz, tileSize, map2.width, map2.height);
+    const { group, light } = createMorselMesh();
+    group.position.set(wx, MORSEL_Y, wz);
+    scene2.add(group);
+    morsels2.push({
+      group,
+      light,
+      tileX: tx,
+      tileZ: tz,
+      alive: true,
+      respawnTimer: 0,
+      phase: rng() * Math.PI * 2
+    });
+  }
+  return morsels2;
+}
+function updateMorsels(morsels2, squid2, dt, t, scene2, map2, tileSize, rng) {
+  let energyGained = 0;
+  const sx = squid2.group.position.x;
+  const sz = squid2.group.position.z;
+  for (const m of morsels2) {
+    if (m.alive) {
+      m.group.position.y = MORSEL_Y + Math.sin(t * BOB_FREQ + m.phase) * BOB_AMP;
+      m.light.intensity = 0.8 + Math.sin(t * 3 + m.phase) * 0.4;
+      const dx = sx - m.group.position.x;
+      const dz = sz - m.group.position.z;
+      if (dx * dx + dz * dz < COLLECT_RADIUS * COLLECT_RADIUS) {
+        m.alive = false;
+        m.group.visible = false;
+        m.respawnTimer = RESPAWN_TIME;
+        energyGained += 20;
+      }
+    } else {
+      m.respawnTimer -= dt;
+      if (m.respawnTimer <= 0) {
+        const { tx, tz } = pickValidTile(map2, rng);
+        const { wx, wz } = tileToWorld(tx, tz, tileSize, map2.width, map2.height);
+        m.tileX = tx;
+        m.tileZ = tz;
+        m.group.position.set(wx, MORSEL_Y, wz);
+        m.group.visible = true;
+        m.alive = true;
+      }
+    }
+  }
+  return energyGained;
 }
 
 // src/instinct-api.ts
@@ -1027,7 +1140,7 @@ function applyAction(pred, action, dt, map2, tileSize, rng) {
 }
 
 // src/shark.ts
-import * as THREE3 from "three";
+import * as THREE4 from "three";
 
 // src/soma.ts
 var DEFAULT_SHARK_ON_TICK = `
@@ -1114,51 +1227,51 @@ function sharkChassis() {
   };
 }
 function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {
-  const group = new THREE3.Group();
-  const bodyGeo = new THREE3.SphereGeometry(0.5, 8, 6);
-  const bodyMat = new THREE3.MeshToonMaterial({ color: 2767434, gradientMap: gradientMap2 });
-  const body = new THREE3.Mesh(bodyGeo, bodyMat);
+  const group = new THREE4.Group();
+  const bodyGeo = new THREE4.SphereGeometry(0.5, 8, 6);
+  const bodyMat = new THREE4.MeshToonMaterial({ color: 2767434, gradientMap: gradientMap2 });
+  const body = new THREE4.Mesh(bodyGeo, bodyMat);
   body.scale.set(0.6, 0.5, 1.4);
   body.castShadow = true;
   group.add(body);
-  const snoutGeo = new THREE3.ConeGeometry(0.22, 0.5, 6);
-  const snoutMat = new THREE3.MeshToonMaterial({ color: 3359829, gradientMap: gradientMap2 });
-  const snout = new THREE3.Mesh(snoutGeo, snoutMat);
+  const snoutGeo = new THREE4.ConeGeometry(0.22, 0.5, 6);
+  const snoutMat = new THREE4.MeshToonMaterial({ color: 3359829, gradientMap: gradientMap2 });
+  const snout = new THREE4.Mesh(snoutGeo, snoutMat);
   snout.rotation.x = -Math.PI / 2;
   snout.position.z = 0.8;
   group.add(snout);
-  const dorsalGeo = new THREE3.ConeGeometry(0.1, 0.45, 4);
-  const dorsalMat = new THREE3.MeshToonMaterial({ color: 1714741, gradientMap: gradientMap2 });
-  const dorsal = new THREE3.Mesh(dorsalGeo, dorsalMat);
+  const dorsalGeo = new THREE4.ConeGeometry(0.1, 0.45, 4);
+  const dorsalMat = new THREE4.MeshToonMaterial({ color: 1714741, gradientMap: gradientMap2 });
+  const dorsal = new THREE4.Mesh(dorsalGeo, dorsalMat);
   dorsal.position.set(0, 0.35, -0.1);
   group.add(dorsal);
-  const tailGeo = new THREE3.ConeGeometry(0.18, 0.4, 4);
-  const tailMat = new THREE3.MeshToonMaterial({ color: 2438469, gradientMap: gradientMap2 });
-  const tail = new THREE3.Mesh(tailGeo, tailMat);
+  const tailGeo = new THREE4.ConeGeometry(0.18, 0.4, 4);
+  const tailMat = new THREE4.MeshToonMaterial({ color: 2438469, gradientMap: gradientMap2 });
+  const tail = new THREE4.Mesh(tailGeo, tailMat);
   tail.position.set(0, 0.1, -0.9);
   tail.rotation.x = Math.PI / 6;
   group.add(tail);
   for (let side = -1; side <= 1; side += 2) {
-    const finGeo = new THREE3.ConeGeometry(0.08, 0.25, 3);
-    const finMat = new THREE3.MeshToonMaterial({ color: 2438469, gradientMap: gradientMap2 });
-    const fin = new THREE3.Mesh(finGeo, finMat);
+    const finGeo = new THREE4.ConeGeometry(0.08, 0.25, 3);
+    const finMat = new THREE4.MeshToonMaterial({ color: 2438469, gradientMap: gradientMap2 });
+    const fin = new THREE4.Mesh(finGeo, finMat);
     fin.position.set(side * 0.28, -0.12, 0.2);
     fin.rotation.z = side * 1.2;
     fin.rotation.x = -0.3;
     group.add(fin);
   }
   for (let side = -1; side <= 1; side += 2) {
-    const eyeGeo = new THREE3.SphereGeometry(0.055, 5, 4);
-    const eyeMat = new THREE3.MeshStandardMaterial({
+    const eyeGeo = new THREE4.SphereGeometry(0.055, 5, 4);
+    const eyeMat = new THREE4.MeshStandardMaterial({
       color: 16729088,
       emissive: 16729088,
       emissiveIntensity: 1.5
     });
-    const eye = new THREE3.Mesh(eyeGeo, eyeMat);
+    const eye = new THREE4.Mesh(eyeGeo, eyeMat);
     eye.position.set(side * 0.18, 0.08, 0.55);
     group.add(eye);
   }
-  const threatLight = new THREE3.PointLight(16729088, 0.5, 10);
+  const threatLight = new THREE4.PointLight(16729088, 0.5, 10);
   threatLight.position.set(0, 0, 0.3);
   group.add(threatLight);
   group.position.set(spawnX, 1, spawnZ);
@@ -1699,27 +1812,27 @@ var MAP_W = 50;
 var MAP_H = 50;
 function makeToonGradient() {
   const data = new Uint8Array([60, 120, 220]);
-  const tex = new THREE4.DataTexture(data, 3, 1, THREE4.RedFormat);
-  tex.minFilter = THREE4.NearestFilter;
-  tex.magFilter = THREE4.NearestFilter;
+  const tex = new THREE5.DataTexture(data, 3, 1, THREE5.RedFormat);
+  tex.minFilter = THREE5.NearestFilter;
+  tex.magFilter = THREE5.NearestFilter;
   tex.needsUpdate = true;
   return tex;
 }
 var gradientMap = makeToonGradient();
-var renderer = new THREE4.WebGLRenderer({ antialias: false });
+var renderer = new THREE5.WebGLRenderer({ antialias: false });
 renderer.setSize(RENDER_W, RENDER_H);
 renderer.domElement.style.width = `${RENDER_W * PIXEL_SCALE}px`;
 renderer.domElement.style.height = `${RENDER_H * PIXEL_SCALE}px`;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE4.BasicShadowMap;
+renderer.shadowMap.type = THREE5.BasicShadowMap;
 renderer.setClearColor(133136);
 var gameContainer = document.getElementById("game-container");
 (gameContainer || document.body).appendChild(renderer.domElement);
-var scene = new THREE4.Scene();
-scene.fog = new THREE4.FogExp2(397856, 0.018);
+var scene = new THREE5.Scene();
+scene.fog = new THREE5.FogExp2(397856, 0.018);
 var aspect = RENDER_W / RENDER_H;
 var viewSize = 16;
-var camera = new THREE4.OrthographicCamera(
+var camera = new THREE5.OrthographicCamera(
   -viewSize * aspect / 2,
   viewSize * aspect / 2,
   viewSize / 2,
@@ -1729,11 +1842,11 @@ var camera = new THREE4.OrthographicCamera(
 );
 camera.position.set(20, 20, 20);
 camera.lookAt(0, 0, 0);
-var ambient = new THREE4.AmbientLight(1716304, 0.8);
+var ambient = new THREE5.AmbientLight(1716304, 0.8);
 scene.add(ambient);
-var hemi = new THREE4.HemisphereLight(3368618, 662058, 0.6);
+var hemi = new THREE5.HemisphereLight(3368618, 662058, 0.6);
 scene.add(hemi);
-var sun = new THREE4.DirectionalLight(4491468, 1);
+var sun = new THREE5.DirectionalLight(4491468, 1);
 sun.position.set(5, 15, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(512, 512);
@@ -1747,7 +1860,7 @@ scene.add(sun);
 var map = generateReef(MAP_W, MAP_H, 42);
 var reef = buildReef(scene, map, TILE_SIZE, gradientMap);
 var PARTICLE_COUNT = 300;
-var particleGeo = new THREE4.BufferGeometry();
+var particleGeo = new THREE5.BufferGeometry();
 var particlePositions = new Float32Array(PARTICLE_COUNT * 3);
 var particleSpeeds = new Float32Array(PARTICLE_COUNT);
 var pRand = /* @__PURE__ */ (() => {
@@ -1766,34 +1879,34 @@ for (let i = 0; i < PARTICLE_COUNT; i++) {
   particlePositions[i * 3 + 2] = (pRand() - 0.5) * MAP_H * TILE_SIZE;
   particleSpeeds[i] = 0.1 + pRand() * 0.3;
 }
-particleGeo.setAttribute("position", new THREE4.BufferAttribute(particlePositions, 3));
-var particleMat = new THREE4.PointsMaterial({
+particleGeo.setAttribute("position", new THREE5.BufferAttribute(particlePositions, 3));
+var particleMat = new THREE5.PointsMaterial({
   color: 8965358,
   size: 0.08,
   transparent: true,
   opacity: 0.6
 });
-scene.add(new THREE4.Points(particleGeo, particleMat));
+scene.add(new THREE5.Points(particleGeo, particleMat));
 var jellies = [];
 for (let i = 0; i < 8; i++) {
-  const color = new THREE4.Color().setHSL(0.45 + pRand() * 0.25, 0.8, 0.5);
-  const geo = new THREE4.SphereGeometry(0.15, 6, 4);
-  const mat = new THREE4.MeshStandardMaterial({
+  const color = new THREE5.Color().setHSL(0.45 + pRand() * 0.25, 0.8, 0.5);
+  const geo = new THREE5.SphereGeometry(0.15, 6, 4);
+  const mat = new THREE5.MeshStandardMaterial({
     color,
     emissive: color,
     emissiveIntensity: 0.8,
     transparent: true,
     opacity: 0.7
   });
-  const mesh = new THREE4.Mesh(geo, mat);
-  const pos = new THREE4.Vector3(
+  const mesh = new THREE5.Mesh(geo, mat);
+  const pos = new THREE5.Vector3(
     (pRand() - 0.5) * MAP_W * TILE_SIZE * 0.6,
     1 + pRand() * 3,
     (pRand() - 0.5) * MAP_H * TILE_SIZE * 0.6
   );
   mesh.position.copy(pos);
   scene.add(mesh);
-  const light = new THREE4.PointLight(color, 0.8, 10);
+  const light = new THREE5.PointLight(color, 0.8, 10);
   light.position.copy(pos);
   scene.add(light);
   jellies.push({ mesh, light, basePos: pos.clone(), phase: pRand() * Math.PI * 2 });
@@ -1850,6 +1963,19 @@ function spawnSharks(count) {
 }
 spawnSharks(3);
 initInspector(predators, "/api/inference/anthropic/messages");
+var foodRng = /* @__PURE__ */ (() => {
+  let s = 31337;
+  return () => {
+    s |= 0;
+    s = s + 1831565813 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+})();
+var morsels = spawnMorsels(scene, map, TILE_SIZE, 25, foodRng);
+var energyFill = document.getElementById("energy-fill");
+var hudLabel = document.getElementById("hud-label");
 var API_ENDPOINT = "/api/inference/anthropic/messages";
 function triggerReflection(pred) {
   const soma = pred.predatorSoma;
@@ -1880,6 +2006,7 @@ window.__glint = {
   MAP_W,
   MAP_H,
   predators,
+  morsels,
   clearInstinctCache,
   readSensors,
   triggerReflection,
@@ -1889,15 +2016,20 @@ window.__glint = {
   set invulnTimer(v) {
     invulnTimer = v;
   },
+  getEnergy,
+  addEnergy,
+  resetEnergy,
   resetSomas: () => resetPredatorSomas(MAP_SEED),
   saveSomas: () => savePredatorSomas(predators, MAP_SEED)
 };
-var clock = new THREE4.Clock();
+var clock = new THREE5.Clock();
 function animate() {
   requestAnimationFrame(animate);
   const dt = clock.getDelta();
   const t = clock.getElapsedTime();
   updateSquid(squid, dt, t, map, TILE_SIZE);
+  const gained = updateMorsels(morsels, squid, dt, t, scene, map, TILE_SIZE, foodRng);
+  if (gained > 0) addEnergy(gained);
   if (invulnTimer > 0) invulnTimer -= dt;
   for (const pred of predators) {
     const sensors = invulnTimer > 0 ? { squidDetected: false, squidWorldPos: { x: 0, z: 0 }, squidDist: 999 } : readSensors(pred, squid, map, TILE_SIZE);
@@ -1908,6 +2040,7 @@ function animate() {
       console.log(`[GLINT] Caught by ${pred.id}!`);
       squid.group.position.set(spawn.wx, 1, spawn.wz);
       invulnTimer = 2;
+      resetEnergy();
       for (const p of predators) {
         p.physical.waypoint = null;
         p.physical.lastActionType = "patrol_random";
@@ -1958,6 +2091,21 @@ function animate() {
     }
   }
   particleGeo.attributes.position.needsUpdate = true;
+  const e = getEnergy();
+  const pct = e / 100;
+  energyFill.style.width = `${pct * 100}%`;
+  if (pct > 0.5) {
+    const t2 = (pct - 0.5) * 2;
+    const r = Math.round(255 * (1 - t2));
+    const g = Math.round(200 + 55 * t2);
+    energyFill.style.backgroundColor = `rgb(${r},${g},68)`;
+  } else {
+    const t2 = pct * 2;
+    const g = Math.round(200 * t2);
+    energyFill.style.backgroundColor = `rgb(255,${g},${Math.round(34 * t2)})`;
+  }
+  hudLabel.style.color = energyFill.style.backgroundColor;
+  hudLabel.style.textShadow = `0 0 6px ${energyFill.style.backgroundColor}88`;
   renderer.render(scene, camera);
 }
 animate();

@@ -564,8 +564,111 @@ After 6 sessions of self-modifying predator instincts, there was no way to see w
 | `src/main.ts` | MODIFIED — canvas in container, init inspector |
 
 ### Next
-1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
-2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
-3. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
-4. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
-5. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
+→ Session 8 (food & energy)
+
+---
+
+## Session 8 — Food & Energy Mechanic (2026-03-02)
+
+### Motivation
+Core loop was hide-flee-hide with nothing pulling the player *out* of safety. Added food/energy to create foraging pressure — you must leave hiding spots to eat, and sprinting burns energy fast.
+
+### Design
+- **Energy**: 0–100, starts at 100
+  - Idle drain: 1/s (100s to empty standing still)
+  - Moving drain: 2/s (50s)
+  - Sprint drain: 5/s (20s)
+  - At 0: sprint disabled, base speed drops to 60% (3.6 — barely outpaces patrol sharks at 3.5)
+  - Resets to 100 on catch/respawn
+- **Morsels**: 25 glowing gold-green orbs on OPEN/KELP tiles
+  - Collect within 1.0 world unit, restores +20 energy (capped at 100)
+  - Respawn at random valid tile after 10 seconds
+  - Visual: sphere (0.12 radius) + halo + PointLight, bob + pulse animation
+- **HUD**: HTML overlay, energy bar at bottom-center of canvas
+  - TimeToPlay-Flat font for "ENERGY" label
+  - Bar color shifts cyan → yellow → red as energy drops
+  - Label glow color matches bar
+
+### Built
+- **`src/food.ts`** (NEW): `Morsel` type, `spawnMorsels()`, `updateMorsels()` (animation, collection, respawn)
+- **`src/squid.ts`**: module-level energy state with `getEnergy()`, `addEnergy()`, `resetEnergy()`. Drain computed per-frame based on idle/move/sprint. Sprint blocked at 0. Speed formula: `MOVE_SPEED * (energy > 0 ? 1 : 0.6) * (sprinting ? SPRINT_MULT : 1)`
+- **`index.html`**: `@font-face` for TimeToPlay-Flat (woff2), HUD overlay markup + CSS
+- **`src/main.ts`**: food RNG (seed 31337), morsel spawning, collection in game loop, HUD bar update (width + color gradient), energy reset on catch, morsels + energy functions on `__glint` debug
+
+### Key Decisions
+- Energy is module-level state in squid.ts, not on the Squid interface (keeps interface visual-only)
+- Depleted speed (3.6) barely outpaces patrolling sharks (3.5) and can't escape pursuing ones (5.5) — creates real tension
+- Morsels use their own seeded RNG (31337) separate from map/shark RNGs
+- HUD is HTML overlay (not Three.js) — lets us use the custom font cleanly
+
+### File Summary
+| File | Action |
+|------|--------|
+| `index.html` | MODIFIED — font-face, HUD markup/CSS, game-container position:relative |
+| `src/food.ts` | NEW — morsel system (spawn, animate, collect, respawn) |
+| `src/squid.ts` | MODIFIED — energy state, drain rates, speed modulation |
+| `src/main.ts` | MODIFIED — food imports, morsel spawning, HUD update, energy reset on catch |
+
+### Known Issues
+- **Crevices are invisible**: `placeCreviceDetail()` in reef.ts only places a 50% chance tiny dark rock at y=-0.5. The mechanic works (squid fits through, sharks blocked) but there's zero visual distinction from open tiles. Player has no way to know where crevices are. Needs distinct visual treatment — narrow gap between rocks, glowing crack lines, or at minimum a different floor color.
+
+### Next — Planned for Session 9
+
+#### A. Random Respawn (`main.ts`)
+Fixed spawn = sharks camp it. On catch, pick a random den tile (from `map.dens`, 18 entries) that's >15 tiles from all sharks. Use for initial spawn too. Fallback: farthest den from nearest shark.
+
+#### B. Atmospheric Energy Visual (`squid.ts`, remove HUD from `index.html` + `main.ts`)
+Replace HTML energy bar with squid's own bioluminescence. Energy modulates:
+- Glow intensity: 2.5 (full) → 0.4 (empty)
+- Glow range: 12 (full) → 4 (empty)
+- Mantle color: 0x44ccff (vibrant) → 0x1a3344 (dull teal)
+- Body color: 0x33bbee → 0x152a33
+- Eye emissive: 1.0 → 0.15
+- Tentacle sway: normal → halved
+- Pulse amplitude: 0.2 → 0.05 (faint flicker)
+All via lerp using `energyPct`. Concealment still overrides when hiding. Remove `#hud`, `#energy-bar`, `#energy-fill`, `#hud-label` from HTML and HUD update block (main.ts lines 319-336).
+
+#### C. Creep Concealment (`squid.ts`)
+Track smoothed speed, allow concealment below threshold:
+```
+let smoothedSpeed = 0;
+const CREEP_THRESHOLD = 1.8; // ~30% of base speed 6
+const SMOOTH_RATE = 3;
+// after movement:
+smoothedSpeed += (actualSpeed - smoothedSpeed) * Math.min(1, SMOOTH_RATE * dt);
+squid.concealed = onHidingTile && smoothedSpeed < CREEP_THRESHOLD;
+```
+Enter kelp at speed → not concealed. Slow down → ~0.5s decay → concealment. Creep slowly → stay concealed.
+
+#### D. Crevice Visuals (`reef.ts`)
+Make crevices visually distinct — narrow gap between rocks, glowing crack lines, or different floor color.
+
+#### E. Inspector Panel: Deep-Link Soma Viewer
+The shark intel summaries reference behavior ("detailed spatial analysis", "checks kelp after losing prey") but you can't see the actual soma code/memory behind it. Upgrade the inspector to support drilling into an actant's soma from the summary.
+
+**Soma sections reminder**: each shark has 4 named sections:
+- `identity` — who I am, hunting philosophy
+- `on_tick` — THE code that runs every frame (this is where behavioral changes live)
+- `memory` — persistent notes, spatial knowledge, working state
+- `hunt_journal` — hunt event log written by on_tick code (capped 5000 chars, curated by reflection)
+
+**Design idea**: When the haiku summary references a behavior, it should hyperlink to the relevant section of that shark's soma. For example:
+- "Hunt journal entries now include detailed spatial analysis" → links to the `hunt_journal` section
+- "Now checks kelp tiles after losing prey" → links to the relevant lines in `on_tick` code
+- "Remembers hideout locations" → links to `memory` section
+
+**Implementation sketch**:
+- Summary view = current cards with briefing text (but with clickable links)
+- Clicking a link navigates to that shark's full soma view (all 4 sections displayed, target section scrolled into view / highlighted)
+- Back button returns to summary view
+- Could ask haiku to output structured references alongside the summary (e.g. `[section:on_tick, reason:"kelp check logic"]`)
+- Or simpler: each shark card gets an "INSPECT" button that shows the full soma, summary links are just anchors to sections
+
+**Key question for next session**: should the haiku model generate the links (structured output with section refs), or should we just add per-section expand/collapse to each shark card with the summary as header?
+
+#### F. Other
+1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS
+2. **Visual feedback on catch** — screen flash, freeze frame
+3. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
+4. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
+5. **Sprint mult is now 2.0** (was 1.6) — sprint speed = 12, well above shark chase 5.5

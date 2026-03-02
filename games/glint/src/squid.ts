@@ -113,8 +113,20 @@ function readGamepad(): { x: number; z: number } {
 const isoRight = new THREE.Vector3(1, 0, -1).normalize();
 const isoUp = new THREE.Vector3(-1, 0, -1).normalize();
 const MOVE_SPEED = 6;
-const SPRINT_MULT = 1.6;
+const SPRINT_MULT = 2.0;
+const DEPLETED_MULT = 0.6;
 const COLLISION_RADIUS = 0.3;
+
+// Energy drain rates (per second)
+const DRAIN_IDLE = 1;
+const DRAIN_MOVE = 2;
+const DRAIN_SPRINT = 5;
+
+// Energy state — module-level, not on Squid (keeps interface visual-only)
+let energy = 100;
+export function getEnergy(): number { return energy; }
+export function addEnergy(amount: number) { energy = Math.max(0, Math.min(100, energy + amount)); }
+export function resetEnergy() { energy = 100; }
 
 // Concealment colors
 const NORMAL_MANTLE = new THREE.Color(0x44ccff);
@@ -145,7 +157,7 @@ export function updateSquid(
   const len = Math.sqrt(dx * dx + dz * dz);
   if (len > 0) { dx /= len; dz /= len; }
 
-  // Sprint: Shift key or gamepad right trigger
+  // Sprint: Shift key or gamepad right trigger (blocked at zero energy)
   let sprinting = keys['shift'];
   if (!sprinting) {
     const gamepads = navigator.getGamepads();
@@ -153,7 +165,16 @@ export function updateSquid(
       if (gp2 && gp2.buttons[7]?.pressed) { sprinting = true; break; }
     }
   }
-  const speed = MOVE_SPEED * (sprinting ? SPRINT_MULT : 1);
+  if (energy <= 0) sprinting = false;
+
+  // Energy drain
+  const moving = len > 0;
+  const drainRate = sprinting ? DRAIN_SPRINT : moving ? DRAIN_MOVE : DRAIN_IDLE;
+  energy = Math.max(0, energy - drainRate * dt);
+
+  // Speed: depleted = 60% base, sprint = 1.6× (only when energy > 0)
+  const baseMult = energy > 0 ? 1 : DEPLETED_MULT;
+  const speed = MOVE_SPEED * baseMult * (sprinting ? SPRINT_MULT : 1);
 
   const moveDir = new THREE.Vector3()
     .addScaledVector(isoRight, dx)

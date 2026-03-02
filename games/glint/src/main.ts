@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { generateReef, Tile, getTile, tileToWorld, worldToTile } from './map.js';
 import { buildReef } from './reef.js';
-import { createSquid, updateSquid } from './squid.js';
+import { createSquid, updateSquid, getEnergy, addEnergy, resetEnergy } from './squid.js';
+import { spawnMorsels, updateMorsels } from './food.js';
 import { Predator, readSensors, checkCatch, runTick } from './predator.js';
 import { createShark } from './shark.js';
 import { clearInstinctCache } from './instinct-executor.js';
@@ -180,6 +181,17 @@ spawnSharks(3);
 // Init inspector panel
 initInspector(predators, '/api/inference/anthropic/messages');
 
+// --- Food morsels ---
+const foodRng = (() => {
+  let s = 31337;
+  return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+})();
+const morsels = spawnMorsels(scene, map, TILE_SIZE, 25, foodRng);
+
+// --- HUD energy bar ---
+const energyFill = document.getElementById('energy-fill')!;
+const hudLabel = document.getElementById('hud-label')!;
+
 // API endpoint for reflection
 const API_ENDPOINT = '/api/inference/anthropic/messages';
 
@@ -210,10 +222,11 @@ function triggerReflection(pred: Predator) {
 
 // Debug access
 (window as any).__glint = {
-  map, squid, tileToWorld, worldToTile, TILE_SIZE, MAP_W, MAP_H, predators,
+  map, squid, tileToWorld, worldToTile, TILE_SIZE, MAP_W, MAP_H, predators, morsels,
   clearInstinctCache, readSensors, triggerReflection,
   get invulnTimer() { return invulnTimer; },
   set invulnTimer(v: number) { invulnTimer = v; },
+  getEnergy, addEnergy, resetEnergy,
   resetSomas: () => resetPredatorSomas(MAP_SEED),
   saveSomas: () => savePredatorSomas(predators, MAP_SEED),
 };
@@ -228,6 +241,10 @@ function animate() {
 
   // Update squid (input, movement, collision, animation)
   updateSquid(squid, dt, t, map, TILE_SIZE);
+
+  // Update food morsels + collect
+  const gained = updateMorsels(morsels, squid, dt, t, scene, map, TILE_SIZE, foodRng);
+  if (gained > 0) addEnergy(gained);
 
   // Update predators
   if (invulnTimer > 0) invulnTimer -= dt;
@@ -248,6 +265,7 @@ function animate() {
       console.log(`[GLINT] Caught by ${pred.id}!`);
       squid.group.position.set(spawn.wx, 1, spawn.wz);
       invulnTimer = 2.0; // 2 seconds immunity
+      resetEnergy();
       // Reset all predators — clear physical state
       for (const p of predators) {
         p.physical.waypoint = null;
@@ -315,6 +333,25 @@ function animate() {
     }
   }
   particleGeo.attributes.position.needsUpdate = true;
+
+  // HUD: energy bar
+  const e = getEnergy();
+  const pct = e / 100;
+  energyFill.style.width = `${pct * 100}%`;
+  // Color: cyan (100%) → yellow (50%) → red (0%)
+  if (pct > 0.5) {
+    const t2 = (pct - 0.5) * 2; // 1→0
+    const r = Math.round(255 * (1 - t2));
+    const g = Math.round(200 + 55 * t2);
+    energyFill.style.backgroundColor = `rgb(${r},${g},68)`;
+  } else {
+    const t2 = pct * 2; // 0→1
+    const g = Math.round(200 * t2);
+    energyFill.style.backgroundColor = `rgb(255,${g},${Math.round(34 * t2)})`;
+  }
+  // Label glow matches bar
+  hudLabel.style.color = energyFill.style.backgroundColor;
+  hudLabel.style.textShadow = `0 0 6px ${energyFill.style.backgroundColor}88`;
 
   renderer.render(scene, camera);
 }
