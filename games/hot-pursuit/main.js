@@ -2520,7 +2520,7 @@ ${debriefReasoning}` : ""}`;
     }).join("\n\n");
     const response = await callAnthropicAPI(apiEndpoint, {
       model: "claude-haiku-4-5-20251001",
-      system: "You are summarizing what changed across a squad of AI police officers after their latest chase and debrief. Focus on: what each officer learned, what tactics were adapted or adopted, how the team evolved. Be specific \u2014 reference officers by name. Highlight the most significant changes. Use markdown with short sections. No preamble.",
+      system: "You are summarizing what changed across a squad of AI police officers after their latest chase and debrief. DO NOT break down by individual officer \u2014 the reader can check each officer separately. Instead, synthesize cross-squad themes: tactical shifts the group made together, ideas that spread from one officer to others, new strategies or discoveries that emerged, changes in coordination or radio usage, and any interesting patterns in how they adapted. Think of it as a changelog for the squad as a whole. Use markdown with short thematic sections. No preamble.",
       messages: [{
         role: "user",
         content: `Summarize what changed across the squad after this wave.
