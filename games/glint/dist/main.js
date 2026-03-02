@@ -587,13 +587,13 @@ function createSquid(gradientMap2) {
   });
   const pupilGeo = new THREE2.SphereGeometry(0.06, 6, 4);
   const pupilMat = new THREE2.MeshStandardMaterial({ color: 1118515 });
-  const eyeL = new THREE2.Mesh(eyeWhiteGeo, eyeWhiteMat);
+  const eyeL = new THREE2.Mesh(eyeWhiteGeo, eyeWhiteMat.clone());
   eyeL.position.set(-0.22, 0.1, 0.18);
   group.add(eyeL);
   const pupilL = new THREE2.Mesh(pupilGeo, pupilMat);
   pupilL.position.set(-0.28, 0.1, 0.22);
   group.add(pupilL);
-  const eyeR = new THREE2.Mesh(eyeWhiteGeo, eyeWhiteMat);
+  const eyeR = new THREE2.Mesh(eyeWhiteGeo, eyeWhiteMat.clone());
   eyeR.position.set(0.22, 0.1, 0.18);
   group.add(eyeR);
   const pupilR = new THREE2.Mesh(pupilGeo, pupilMat);
@@ -614,7 +614,7 @@ function createSquid(gradientMap2) {
   const glow = new THREE2.PointLight(4508927, 2.5, 12);
   group.add(glow);
   group.position.set(0, 1, 0);
-  return { group, glow, tentacles, finL, finR, mantle, body, concealed: false };
+  return { group, glow, tentacles, finL, finR, mantle, body, eyes: [eyeL, eyeR], concealed: false };
 }
 var keys = {};
 window.addEventListener("keydown", (e) => {
@@ -655,13 +655,25 @@ function addEnergy(amount) {
 function resetEnergy() {
   energy = 100;
 }
-var NORMAL_MANTLE = new THREE2.Color(4508927);
-var NORMAL_BODY = new THREE2.Color(3390446);
 var CONCEALED_MANTLE = new THREE2.Color(1122867);
 var CONCEALED_BODY = new THREE2.Color(662056);
-var NORMAL_GLOW_INTENSITY = 2.5;
 var CONCEALED_GLOW_INTENSITY = 0.3;
 var CONCEALMENT_SPEED = 4;
+var FULL_MANTLE = new THREE2.Color(4508927);
+var DEPLETED_MANTLE = new THREE2.Color(1717060);
+var FULL_BODY = new THREE2.Color(3390446);
+var DEPLETED_BODY = new THREE2.Color(1387059);
+var FULL_GLOW_INTENSITY = 2.5;
+var DEPLETED_GLOW_INTENSITY = 0.4;
+var FULL_GLOW_RANGE = 12;
+var DEPLETED_GLOW_RANGE = 4;
+var FULL_EYE_EMISSIVE = 1;
+var DEPLETED_EYE_EMISSIVE = 0.15;
+var FULL_PULSE_AMP = 0.2;
+var DEPLETED_PULSE_AMP = 0.05;
+var _energyMantle = new THREE2.Color();
+var _energyBody = new THREE2.Color();
+var _glowBase = FULL_GLOW_INTENSITY;
 function updateSquid(squid2, dt, t, map2, tileSize) {
   let dx = 0, dz = 0;
   if (keys["w"] || keys["arrowup"]) dz -= 1;
@@ -711,28 +723,41 @@ function updateSquid(squid2, dt, t, map2, tileSize) {
   squid2.group.position.y = 1 + Math.sin(t * 1.5) * 0.15;
   squid2.finL.rotation.z = 0.8 + Math.sin(t * 4) * 0.2;
   squid2.finR.rotation.z = -0.8 - Math.sin(t * 4) * 0.2;
+  const energyPct = energy / 100;
+  const tentacleMult = 0.5 + 0.5 * energyPct;
   for (let i = 0; i < squid2.tentacles.length; i++) {
     const phase = i / squid2.tentacles.length * Math.PI * 2;
     const swaySpeed = len > 0 ? 6 : 1.5;
-    const swayAmp = len > 0 ? 0.15 : 0.25;
+    const swayAmp = (len > 0 ? 0.15 : 0.25) * tentacleMult;
     squid2.tentacles[i].rotation.x = 0.4 + Math.sin(t * swaySpeed + phase) * swayAmp;
-    squid2.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15;
+    squid2.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15 * tentacleMult;
   }
   const { tx, tz } = worldToTile(squid2.group.position.x, squid2.group.position.z, tileSize, map2.width, map2.height);
   const currentTile = getTile(map2, tx, tz);
   const onHidingTile = currentTile === 4 /* DEN */ || currentTile === 2 /* CREVICE */ || currentTile === 3 /* KELP */;
   squid2.concealed = onHidingTile && len === 0;
+  _energyMantle.copy(DEPLETED_MANTLE).lerp(FULL_MANTLE, energyPct);
+  _energyBody.copy(DEPLETED_BODY).lerp(FULL_BODY, energyPct);
+  const energyGlow = DEPLETED_GLOW_INTENSITY + (FULL_GLOW_INTENSITY - DEPLETED_GLOW_INTENSITY) * energyPct;
+  const energyRange = DEPLETED_GLOW_RANGE + (FULL_GLOW_RANGE - DEPLETED_GLOW_RANGE) * energyPct;
+  const energyEyeEmissive = DEPLETED_EYE_EMISSIVE + (FULL_EYE_EMISSIVE - DEPLETED_EYE_EMISSIVE) * energyPct;
+  const energyPulseAmp = DEPLETED_PULSE_AMP + (FULL_PULSE_AMP - DEPLETED_PULSE_AMP) * energyPct;
+  const targetMantle = squid2.concealed ? CONCEALED_MANTLE : _energyMantle;
+  const targetBody = squid2.concealed ? CONCEALED_BODY : _energyBody;
+  const targetGlow = squid2.concealed ? CONCEALED_GLOW_INTENSITY : energyGlow;
   const lerpT = 1 - Math.exp(-CONCEALMENT_SPEED * dt);
-  const targetMantle = squid2.concealed ? CONCEALED_MANTLE : NORMAL_MANTLE;
-  const targetBody = squid2.concealed ? CONCEALED_BODY : NORMAL_BODY;
-  const targetGlow = squid2.concealed ? CONCEALED_GLOW_INTENSITY : NORMAL_GLOW_INTENSITY;
   const mantleMat = squid2.mantle.material;
   mantleMat.color.lerp(targetMantle, lerpT);
   const bodyMat = squid2.body.material;
   bodyMat.color.lerp(targetBody, lerpT);
-  const baseGlow = squid2.glow.intensity + (targetGlow - squid2.glow.intensity) * lerpT;
-  const pulseAmp = squid2.concealed ? 0.08 : 0.2;
-  squid2.glow.intensity = baseGlow + Math.sin(t * 2) * pulseAmp;
+  _glowBase += (targetGlow - _glowBase) * lerpT;
+  const pulseAmp = squid2.concealed ? 0.08 : energyPulseAmp;
+  squid2.glow.intensity = Math.max(0, _glowBase + Math.sin(t * 2) * pulseAmp);
+  squid2.glow.distance = squid2.glow.distance + (energyRange - squid2.glow.distance) * lerpT;
+  for (const eye of squid2.eyes) {
+    const eyeMat = eye.material;
+    eyeMat.emissiveIntensity += (energyEyeEmissive - eyeMat.emissiveIntensity) * lerpT;
+  }
 }
 function canMoveTo(wx, wz, map2, tileSize) {
   const offsets = [
@@ -1974,8 +1999,6 @@ var foodRng = /* @__PURE__ */ (() => {
   };
 })();
 var morsels = spawnMorsels(scene, map, TILE_SIZE, 25, foodRng);
-var energyFill = document.getElementById("energy-fill");
-var hudLabel = document.getElementById("hud-label");
 function pickRespawnDen(rng) {
   const dens = map.dens;
   if (dens.length === 0) {
@@ -2126,21 +2149,6 @@ function animate() {
     }
   }
   particleGeo.attributes.position.needsUpdate = true;
-  const e = getEnergy();
-  const pct = e / 100;
-  energyFill.style.width = `${pct * 100}%`;
-  if (pct > 0.5) {
-    const t2 = (pct - 0.5) * 2;
-    const r = Math.round(255 * (1 - t2));
-    const g = Math.round(200 + 55 * t2);
-    energyFill.style.backgroundColor = `rgb(${r},${g},68)`;
-  } else {
-    const t2 = pct * 2;
-    const g = Math.round(200 * t2);
-    energyFill.style.backgroundColor = `rgb(255,${g},${Math.round(34 * t2)})`;
-  }
-  hudLabel.style.color = energyFill.style.backgroundColor;
-  hudLabel.style.textShadow = `0 0 6px ${energyFill.style.backgroundColor}88`;
   renderer.render(scene, camera);
 }
 animate();

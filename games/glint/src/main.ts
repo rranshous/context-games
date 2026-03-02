@@ -188,9 +188,6 @@ const foodRng = (() => {
 })();
 const morsels = spawnMorsels(scene, map, TILE_SIZE, 25, foodRng);
 
-// --- HUD energy bar ---
-const energyFill = document.getElementById('energy-fill')!;
-const hudLabel = document.getElementById('hud-label')!;
 
 // Pick a random den far from all predators for respawn
 function pickRespawnDen(rng: () => number): { wx: number; wz: number } {
@@ -375,25 +372,6 @@ function animate() {
     }
   }
   particleGeo.attributes.position.needsUpdate = true;
-
-  // HUD: energy bar
-  const e = getEnergy();
-  const pct = e / 100;
-  energyFill.style.width = `${pct * 100}%`;
-  // Color: cyan (100%) → yellow (50%) → red (0%)
-  if (pct > 0.5) {
-    const t2 = (pct - 0.5) * 2; // 1→0
-    const r = Math.round(255 * (1 - t2));
-    const g = Math.round(200 + 55 * t2);
-    energyFill.style.backgroundColor = `rgb(${r},${g},68)`;
-  } else {
-    const t2 = pct * 2; // 0→1
-    const g = Math.round(200 * t2);
-    energyFill.style.backgroundColor = `rgb(255,${g},${Math.round(34 * t2)})`;
-  }
-  // Label glow matches bar
-  hudLabel.style.color = energyFill.style.backgroundColor;
-  hudLabel.style.textShadow = `0 0 6px ${energyFill.style.backgroundColor}88`;
 
   renderer.render(scene, camera);
 }

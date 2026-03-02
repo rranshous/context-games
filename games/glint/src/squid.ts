@@ -10,6 +10,7 @@ export interface Squid {
   finR: THREE.Mesh;
   mantle: THREE.Mesh;
   body: THREE.Mesh;
+  eyes: THREE.Mesh[];
   concealed: boolean;
 }
 
@@ -54,14 +55,14 @@ export function createSquid(gradientMap: THREE.DataTexture): Squid {
   const pupilGeo = new THREE.SphereGeometry(0.06, 6, 4);
   const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111133 });
 
-  const eyeL = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+  const eyeL = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat.clone());
   eyeL.position.set(-0.22, 0.1, 0.18);
   group.add(eyeL);
   const pupilL = new THREE.Mesh(pupilGeo, pupilMat);
   pupilL.position.set(-0.28, 0.1, 0.22);
   group.add(pupilL);
 
-  const eyeR = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+  const eyeR = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat.clone());
   eyeR.position.set(0.22, 0.1, 0.18);
   group.add(eyeR);
   const pupilR = new THREE.Mesh(pupilGeo, pupilMat);
@@ -88,7 +89,7 @@ export function createSquid(gradientMap: THREE.DataTexture): Squid {
 
   group.position.set(0, 1, 0);
 
-  return { group, glow, tentacles, finL, finR, mantle, body, concealed: false };
+  return { group, glow, tentacles, finL, finR, mantle, body, eyes: [eyeL, eyeR], concealed: false };
 }
 
 // Input state
@@ -129,13 +130,29 @@ export function addEnergy(amount: number) { energy = Math.max(0, Math.min(100, e
 export function resetEnergy() { energy = 100; }
 
 // Concealment colors
-const NORMAL_MANTLE = new THREE.Color(0x44ccff);
-const NORMAL_BODY = new THREE.Color(0x33bbee);
 const CONCEALED_MANTLE = new THREE.Color(0x112233);
 const CONCEALED_BODY = new THREE.Color(0x0a1a28);
-const NORMAL_GLOW_INTENSITY = 2.5;
 const CONCEALED_GLOW_INTENSITY = 0.3;
 const CONCEALMENT_SPEED = 4; // lerp speed (per second)
+
+// Energy-driven appearance (full → depleted)
+const FULL_MANTLE = new THREE.Color(0x44ccff);
+const DEPLETED_MANTLE = new THREE.Color(0x1a3344);
+const FULL_BODY = new THREE.Color(0x33bbee);
+const DEPLETED_BODY = new THREE.Color(0x152a33);
+const FULL_GLOW_INTENSITY = 2.5;
+const DEPLETED_GLOW_INTENSITY = 0.4;
+const FULL_GLOW_RANGE = 12;
+const DEPLETED_GLOW_RANGE = 4;
+const FULL_EYE_EMISSIVE = 1.0;
+const DEPLETED_EYE_EMISSIVE = 0.15;
+const FULL_PULSE_AMP = 0.2;
+const DEPLETED_PULSE_AMP = 0.05;
+// Helper for lerping between energy-driven values
+const _energyMantle = new THREE.Color();
+const _energyBody = new THREE.Color();
+// Tracked glow base (separate from displayed intensity to avoid pulse feedback)
+let _glowBase = FULL_GLOW_INTENSITY;
 
 export function updateSquid(
   squid: Squid,
@@ -209,13 +226,17 @@ export function updateSquid(
   squid.finL.rotation.z = 0.8 + Math.sin(t * 4) * 0.2;
   squid.finR.rotation.z = -0.8 - Math.sin(t * 4) * 0.2;
 
-  // Tentacle animation
+  // Energy percentage (used by tentacles + bioluminescence below)
+  const energyPct = energy / 100;
+
+  // Tentacle animation (dampened when energy low)
+  const tentacleMult = 0.5 + 0.5 * energyPct; // 1.0 at full → 0.5 at empty
   for (let i = 0; i < squid.tentacles.length; i++) {
     const phase = (i / squid.tentacles.length) * Math.PI * 2;
     const swaySpeed = len > 0 ? 6 : 1.5;
-    const swayAmp = len > 0 ? 0.15 : 0.25;
+    const swayAmp = (len > 0 ? 0.15 : 0.25) * tentacleMult;
     squid.tentacles[i].rotation.x = 0.4 + Math.sin(t * swaySpeed + phase) * swayAmp;
-    squid.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15;
+    squid.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15 * tentacleMult;
   }
 
   // --- Concealment ---
@@ -225,20 +246,38 @@ export function updateSquid(
   // Only conceal when still (not moving)
   squid.concealed = onHidingTile && len === 0;
 
+  // --- Energy-driven bioluminescence ---
+  // Compute energy-modulated "normal" appearance
+  _energyMantle.copy(DEPLETED_MANTLE).lerp(FULL_MANTLE, energyPct);
+  _energyBody.copy(DEPLETED_BODY).lerp(FULL_BODY, energyPct);
+  const energyGlow = DEPLETED_GLOW_INTENSITY + (FULL_GLOW_INTENSITY - DEPLETED_GLOW_INTENSITY) * energyPct;
+  const energyRange = DEPLETED_GLOW_RANGE + (FULL_GLOW_RANGE - DEPLETED_GLOW_RANGE) * energyPct;
+  const energyEyeEmissive = DEPLETED_EYE_EMISSIVE + (FULL_EYE_EMISSIVE - DEPLETED_EYE_EMISSIVE) * energyPct;
+  const energyPulseAmp = DEPLETED_PULSE_AMP + (FULL_PULSE_AMP - DEPLETED_PULSE_AMP) * energyPct;
+
+  // Concealment overrides energy appearance when hiding
+  const targetMantle = squid.concealed ? CONCEALED_MANTLE : _energyMantle;
+  const targetBody = squid.concealed ? CONCEALED_BODY : _energyBody;
+  const targetGlow = squid.concealed ? CONCEALED_GLOW_INTENSITY : energyGlow;
+
   const lerpT = 1 - Math.exp(-CONCEALMENT_SPEED * dt);
-  const targetMantle = squid.concealed ? CONCEALED_MANTLE : NORMAL_MANTLE;
-  const targetBody = squid.concealed ? CONCEALED_BODY : NORMAL_BODY;
-  const targetGlow = squid.concealed ? CONCEALED_GLOW_INTENSITY : NORMAL_GLOW_INTENSITY;
 
   const mantleMat = squid.mantle.material as THREE.MeshToonMaterial;
   mantleMat.color.lerp(targetMantle, lerpT);
   const bodyMat = squid.body.material as THREE.MeshToonMaterial;
   bodyMat.color.lerp(targetBody, lerpT);
 
-  // Glow pulse (suppressed when concealed)
-  const baseGlow = squid.glow.intensity + (targetGlow - squid.glow.intensity) * lerpT;
-  const pulseAmp = squid.concealed ? 0.08 : 0.2;
-  squid.glow.intensity = baseGlow + Math.sin(t * 2) * pulseAmp;
+  // Glow: intensity + range (tracked base avoids pulse feedback into lerp)
+  _glowBase += (targetGlow - _glowBase) * lerpT;
+  const pulseAmp = squid.concealed ? 0.08 : energyPulseAmp;
+  squid.glow.intensity = Math.max(0, _glowBase + Math.sin(t * 2) * pulseAmp);
+  squid.glow.distance = squid.glow.distance + (energyRange - squid.glow.distance) * lerpT;
+
+  // Eye emissive intensity
+  for (const eye of squid.eyes) {
+    const eyeMat = eye.material as THREE.MeshStandardMaterial;
+    eyeMat.emissiveIntensity += (energyEyeEmissive - eyeMat.emissiveIntensity) * lerpT;
+  }
 }
 
 function canMoveTo(wx: number, wz: number, map: ReefMap, tileSize: number): boolean {
