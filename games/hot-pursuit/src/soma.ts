@@ -13,14 +13,8 @@ export interface ActantTool {
   inputSchema: Record<string, unknown>;
 }
 
-/** Current soma version — bump to force reset when format changes */
-export const SOMA_VERSION = 2;
-
 /** The complete soma — serializable to JSON */
 export interface Soma {
-  // Schema version — mismatched somas are reset to defaults
-  version: number;
-
   // Identity
   id: string;
   name: string;
@@ -115,6 +109,22 @@ const OFFICER_TEMPLATES: Array<{
   {
     name: 'Reeves',
     nature: 'Reeves patrols the grid the way a hawk circles a field — patient, reading the terrain, waiting for the moment the prey commits to a direction. She doesn\'t chase. She arrives.',
+  },
+  {
+    name: 'Mori',
+    nature: 'Mori reads a chase the way a river reads a valley — always finding the path of least resistance, always flowing toward the lowest point where things collect.',
+  },
+  {
+    name: 'Briggs',
+    nature: 'Briggs works a grid like a combine works a field — systematic, relentless, covering every row until there\'s nowhere left to hide.',
+  },
+  {
+    name: 'Jain',
+    nature: 'Jain doesn\'t watch the suspect. Jain watches the exits. The chase is already decided — it\'s just a question of which door closes last.',
+  },
+  {
+    name: 'Kowalski',
+    nature: 'Kowalski moves through alleys the way a wolf moves through brush — low, quiet, always on the scent, appearing where you forgot to look.',
   },
 ];
 
@@ -215,7 +225,6 @@ const ALL_TOOLS: ActantTool[] = [
 export function createDefaultSoma(index: number): Soma {
   const template = OFFICER_TEMPLATES[index % OFFICER_TEMPLATES.length];
   return {
-    version: SOMA_VERSION,
     id: `officer-${index}`,
     name: template.name,
     badgeNumber: `HPD-${String(index + 1).padStart(3, '0')}`,

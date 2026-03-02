@@ -125,6 +125,32 @@ export interface RadioMessage {
   tick: number;
 }
 
+// ── Precinct Progression ──
+
+export interface PrecinctConfig {
+  level: number;
+  name: string;
+  escapesRequired: number;
+  officerCount: number;
+  extractionCount: number;
+  policeSpeed: number;
+  losRange: number;
+  survivalTime: number;
+}
+
+export const PRECINCT_CONFIGS: PrecinctConfig[] = [
+  { level: 1, name: 'Patrol',   escapesRequired: 0,  officerCount: 4, extractionCount: 3, policeSpeed: 95,  losRange: 8,  survivalTime: 90 },
+  { level: 2, name: 'Alert',    escapesRequired: 3,  officerCount: 5, extractionCount: 3, policeSpeed: 100, losRange: 8,  survivalTime: 80 },
+  { level: 3, name: 'Pursuit',  escapesRequired: 7,  officerCount: 6, extractionCount: 2, policeSpeed: 105, losRange: 9,  survivalTime: 70 },
+  { level: 4, name: 'Manhunt',  escapesRequired: 12, officerCount: 7, extractionCount: 2, policeSpeed: 108, losRange: 10, survivalTime: 60 },
+  { level: 5, name: 'Lockdown', escapesRequired: 18, officerCount: 8, extractionCount: 2, policeSpeed: 112, losRange: 10, survivalTime: 55 },
+];
+
+export interface PlayerProgress {
+  totalEscapes: number;
+  currentPrecinct: number; // 1-indexed level
+}
+
 export type GamePhase = 'pregame' | 'chase' | 'postgame' | 'reflecting';
 
 export interface InputState {
