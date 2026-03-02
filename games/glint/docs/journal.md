@@ -96,7 +96,15 @@ Baby squid survival in a bioluminescent coral reef. Dark but upbeat — a coming
 - Particles now spread across full map area
 - Seeded RNG everywhere — same seed = same map = deterministic
 
-### Next
-- Playtest collision and map feel
-- Add first predator (shark)
-- Consider minimap (50×50 is big, easy to get lost)
+### Playtest Feedback (end of session 1)
+- **Squid too slow** — base speed needs a bump, plus add a sprint button (Shift / gamepad trigger)
+- **Walls too thick in places** — some coral walls are very dense; could thin them or reduce wall fill %
+- **Open areas too boring** — large open chambers are just blank sea floor. Need visual interest: scattered small coral, sea stars, shells, sand ripples, maybe small fish. The open water should feel alive, not empty.
+- **Large open areas are ok in principle** — just need decoration
+
+### Next Session TODO
+1. **Speed**: bump base MOVE_SPEED from 4→6, add sprint (Shift/RT) at ~1.6× multiplier
+2. **Open area decoration**: scatter small props in OPEN tiles — tiny coral bits, sea stars, shells, sand ripples. Low density but breaks up the blank floor.
+3. **Wall thickness**: consider lowering wall fill from 42%→38% or adding an extra smoothing pass
+4. **First predator** (shark patrol) — the real game loop
+5. **Consider minimap** — 50×50 is big, easy to get lost
