@@ -13,8 +13,14 @@ export interface ActantTool {
   inputSchema: Record<string, unknown>;
 }
 
+/** Current soma version — bump to force reset when format changes */
+export const SOMA_VERSION = 2;
+
 /** The complete soma — serializable to JSON */
 export interface Soma {
+  // Schema version — mismatched somas are reset to defaults
+  version: number;
+
   // Identity
   id: string;
   name: string;
@@ -209,6 +215,7 @@ const ALL_TOOLS: ActantTool[] = [
 export function createDefaultSoma(index: number): Soma {
   const template = OFFICER_TEMPLATES[index % OFFICER_TEMPLATES.length];
   return {
+    version: SOMA_VERSION,
     id: `officer-${index}`,
     name: template.name,
     badgeNumber: `HPD-${String(index + 1).padStart(3, '0')}`,

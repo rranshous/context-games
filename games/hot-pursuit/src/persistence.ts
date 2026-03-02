@@ -2,7 +2,7 @@
 // Save/load actant somas to localStorage. In Phase 3, somas will be
 // modified by the reflection loop and persisted between sessions.
 
-import { Soma, createDefaultSoma, ChaseHistoryEntry } from './soma';
+import { Soma, createDefaultSoma, ChaseHistoryEntry, SOMA_VERSION } from './soma';
 
 const STORAGE_KEY = 'hot-pursuit-somas';
 
@@ -24,27 +24,39 @@ export function saveSomas(somas: Soma[]): void {
   }
 }
 
-/** Load somas from localStorage. Returns defaults if none found. */
+/** Load somas from localStorage. Returns defaults if none found or version mismatch. */
 export function loadSomas(count: number): Soma[] {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
       const parsed = JSON.parse(data) as Soma[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        console.log(JSON.stringify({
-          _hp: 'somas_loaded',
-          count: parsed.length,
-          ids: parsed.map(s => s.id),
-          chaseHistoryLengths: parsed.map(s => ({
-            id: s.id,
-            chases: s.chaseHistory.length,
-          })),
-        }));
-        // If we need more officers than we have saved, create extras
-        while (parsed.length < count) {
-          parsed.push(createDefaultSoma(parsed.length));
+        // Version check — if any soma has a mismatched version, reset all
+        const versionMismatch = parsed.some(s => (s.version || 0) !== SOMA_VERSION);
+        if (versionMismatch) {
+          console.log(JSON.stringify({
+            _hp: 'somas_version_mismatch',
+            expected: SOMA_VERSION,
+            found: parsed.map(s => ({ id: s.id, version: s.version || 0 })),
+          }));
+          localStorage.removeItem(STORAGE_KEY);
+          // Fall through to create defaults
+        } else {
+          console.log(JSON.stringify({
+            _hp: 'somas_loaded',
+            count: parsed.length,
+            ids: parsed.map(s => s.id),
+            chaseHistoryLengths: parsed.map(s => ({
+              id: s.id,
+              chases: s.chaseHistory.length,
+            })),
+          }));
+          // If we need more officers than we have saved, create extras
+          while (parsed.length < count) {
+            parsed.push(createDefaultSoma(parsed.length));
+          }
+          return parsed.slice(0, count);
         }
-        return parsed.slice(0, count);
       }
     }
   } catch (err) {
