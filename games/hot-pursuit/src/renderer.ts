@@ -1,6 +1,6 @@
 // ── Canvas Renderer: Retro Top-Down ──
 
-import { Position, TileType, GameConfig, DEFAULT_CONFIG, PoliceEntity } from './types';
+import { Position, TileType, GameConfig, DEFAULT_CONFIG, PoliceEntity, PrecinctConfig, PlayerProgress } from './types';
 import { TileMap } from './map';
 import { TurnUpdate } from './reflection';
 import { Soma } from './soma';
@@ -621,6 +621,26 @@ export class Renderer {
     if (!el) return;
     el.className = 'soma-card-behavior';
     el.innerHTML = renderMarkdown(summary);
+  }
+
+  // ── Precinct HUD ──
+
+  /** Update precinct info in the HUD bar. */
+  updatePrecinctHUD(precinct: PrecinctConfig, progress: PlayerProgress): void {
+    const el = document.getElementById('hud-precinct');
+    if (el) el.textContent = `${precinct.name.toUpperCase()} (${progress.totalEscapes} escapes)`;
+  }
+
+  /** Show brief promotion interstitial. Auto-hides after 3 seconds. */
+  showPromotion(precinct: PrecinctConfig): void {
+    const overlay = document.getElementById('promotion-overlay');
+    if (!overlay) return;
+    const nameEl = overlay.querySelector('.promotion-name');
+    if (nameEl) nameEl.textContent = precinct.name.toUpperCase();
+    const detailEl = overlay.querySelector('.promotion-detail');
+    if (detailEl) detailEl.textContent = `${precinct.officerCount} officers deployed`;
+    overlay.classList.add('visible');
+    setTimeout(() => overlay.classList.remove('visible'), 3500);
   }
 
   /** Remove card content from panel, preserving header with reset button. */

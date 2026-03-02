@@ -43,6 +43,7 @@
       padding: 4px 8px;
     }
     #hud .status { color: #33ff33; }
+    #hud .precinct { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
     #hud .timer { color: #ffaa33; }
     #game-over-overlay {
       display: none;
@@ -67,6 +68,30 @@
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
+    }
+
+    /* ── Promotion Overlay ── */
+    #promotion-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 50;
+      animation: promotionFade 3.5s ease-in-out forwards;
+    }
+    #promotion-overlay.visible { display: flex; }
+    .promotion-label { font-size: 12px; color: #ff3333; text-transform: uppercase; letter-spacing: 3px; }
+    .promotion-name { font-size: 36px; font-weight: bold; color: #ff3333; text-shadow: 0 0 20px #ff333366; }
+    .promotion-detail { font-size: 14px; color: #888; }
+    @keyframes promotionFade {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      75% { opacity: 1; }
+      100% { opacity: 0; }
     }
 
     /* ── Reset Button ── */
@@ -427,12 +452,18 @@
     <div id="game-container">
       <div id="hud">
         <span class="status" id="hud-status">RUN: 1</span>
+        <span class="precinct" id="hud-precinct">PATROL</span>
         <span class="timer" id="hud-timer">TIME: 0</span>
       </div>
       <canvas id="game-canvas"></canvas>
       <div id="game-over-overlay">
         <div class="result" id="result-text"></div>
         <div class="prompt">PRESS SPACE FOR DEBRIEF</div>
+      </div>
+      <div id="promotion-overlay">
+        <div class="promotion-label">PRECINCT ALERT ELEVATED</div>
+        <div class="promotion-name"></div>
+        <div class="promotion-detail"></div>
       </div>
       <div id="reflection-overlay">
         <div id="reflection-content"></div>

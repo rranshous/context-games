@@ -4,12 +4,13 @@
 import {
   GameConfig, DEFAULT_CONFIG, GamePhase, ChaseOutcome,
   ChaseReplay, PoliceEntity, TileType, RadioMessage,
+  PrecinctConfig, PRECINCT_CONFIGS, PlayerProgress,
 } from './types';
 import { TileMap } from './map';
 import { Player, InputHandler } from './player';
 import { Soma } from './soma';
 import { createPoliceFromSoma, updateSomaPolice, distanceToPlayer } from './soma-police';
-import { loadSomas, saveSomas, recordChaseInSoma, resetSomas } from './persistence';
+import { loadSomas, saveSomas, recordChaseInSoma, resetSomas, loadProgress, saveProgress } from './persistence';
 import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
@@ -38,6 +39,10 @@ export class Game {
   private lastReplay: ChaseReplay | null = null;
   private reflectionInProgress: boolean = false;
 
+  // Precinct progression
+  private progress: PlayerProgress;
+  private precinct: PrecinctConfig;
+
   // Live radio — broadcasts queued during tick N, dispatched on tick N+1
   private pendingBroadcasts: RadioMessage[] = [];
   private currentRadio: RadioMessage[] = [];
@@ -57,9 +62,14 @@ export class Game {
     this.renderer = new Renderer(canvas, this.config);
     this.recorder = new ReplayRecorder(this.runNumber);
 
+    // Load progress and apply precinct config
+    this.progress = loadProgress();
+    this.precinct = this.getPrecinctForEscapes(this.progress.totalEscapes);
+    this.progress.currentPrecinct = this.precinct.level;
+    this.applyPrecinctConfig();
+
     // Load somas from localStorage (or create defaults)
-    const policeCount = this.map.policeSpawns.length;
-    this.somas = loadSomas(policeCount);
+    this.somas = loadSomas(this.precinct.officerCount);
 
     // Initialize player at spawn
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
@@ -69,7 +79,7 @@ export class Game {
     const resetBtn = document.getElementById('reset-btn');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        if (confirm('Reset all officers to defaults? This clears all learned behavior.')) {
+        if (confirm('Reset all officers and progress? This clears all learned behavior.')) {
           resetSomas();
           location.reload();
         }
@@ -78,13 +88,12 @@ export class Game {
 
     console.log(JSON.stringify({
       _hp: 'init',
-      phase: 2,
-      somasDriven: true,
+      precinct: this.precinct.name,
+      precinctLevel: this.precinct.level,
+      totalEscapes: this.progress.totalEscapes,
+      officerCount: this.precinct.officerCount,
       mapSize: { cols: this.map.cols, rows: this.map.rows },
       tileSize: this.config.tileSize,
-      extractionPoints: this.map.extractionPoints,
-      playerSpawn: this.map.playerSpawn,
-      policeSpawns: this.map.policeSpawns,
       somas: this.somas.map(s => ({
         id: s.id,
         name: s.name,
@@ -100,6 +109,22 @@ export class Game {
         survivalTime: this.config.survivalTime,
       },
     }));
+  }
+
+  /** Look up which precinct level corresponds to a given escape count. */
+  private getPrecinctForEscapes(escapes: number): PrecinctConfig {
+    let best = PRECINCT_CONFIGS[0];
+    for (const p of PRECINCT_CONFIGS) {
+      if (escapes >= p.escapesRequired) best = p;
+    }
+    return best;
+  }
+
+  /** Apply precinct config to game config. */
+  private applyPrecinctConfig(): void {
+    this.config.policeBaseSpeed = this.precinct.policeSpeed;
+    this.config.losRange = this.precinct.losRange;
+    this.config.survivalTime = this.precinct.survivalTime;
   }
 
   start(): void {
@@ -119,9 +144,9 @@ export class Game {
     this.pendingBroadcasts = [];
     this.currentRadio = [];
 
-    // Randomize positions each chase
-    this.map.randomizeExtractionPoints();
-    this.map.randomizePoliceSpawns();
+    // Randomize positions each chase (using precinct counts)
+    this.map.randomizeExtractionPoints(this.precinct.extractionCount);
+    this.map.randomizePoliceSpawns(this.precinct.officerCount);
 
     // Reset player to spawn
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
@@ -142,6 +167,8 @@ export class Game {
     console.log(JSON.stringify({
       _hp: 'chase_start',
       run: this.runNumber,
+      precinct: this.precinct.name,
+      precinctLevel: this.precinct.level,
       policeCount: this.police.length,
       police: this.police.map((p, i) => ({
         id: p.id,
@@ -284,12 +311,31 @@ export class Game {
     saveSomas(this.somas);
 
     const escaped = outcome === 'escaped' || outcome === 'timeout';
+
+    // Track escapes and check for promotion
+    if (escaped) {
+      this.progress.totalEscapes++;
+      const newPrecinct = this.getPrecinctForEscapes(this.progress.totalEscapes);
+      if (newPrecinct.level > this.precinct.level) {
+        this.precinct = newPrecinct;
+        this.progress.currentPrecinct = newPrecinct.level;
+        this.applyPrecinctConfig();
+        // Load additional officers for the new precinct
+        this.somas = loadSomas(this.precinct.officerCount);
+        this.renderer.showPromotion(this.precinct);
+      }
+      saveProgress(this.progress);
+    }
+
     this.renderer.showGameOver(outcome, escaped);
+    this.renderer.updatePrecinctHUD(this.precinct, this.progress);
 
     console.log(JSON.stringify({
       _hp: 'chase_end',
       run: this.runNumber,
       outcome,
+      precinct: this.precinct.name,
+      totalEscapes: this.progress.totalEscapes,
       durationSeconds: Math.round(this.elapsedTime * 10) / 10,
       stats: replay.stats,
       somaState: this.somas.map(s => ({
