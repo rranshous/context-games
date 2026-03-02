@@ -3,7 +3,7 @@
 
 import {
   GameConfig, DEFAULT_CONFIG, GamePhase, ChaseOutcome,
-  ChaseReplay, PoliceEntity, TileType,
+  ChaseReplay, PoliceEntity, TileType, RadioMessage,
 } from './types';
 import { TileMap } from './map';
 import { Player, InputHandler } from './player';
@@ -37,6 +37,10 @@ export class Game {
   private updateInProgress: boolean = false;
   private lastReplay: ChaseReplay | null = null;
   private reflectionInProgress: boolean = false;
+
+  // Live radio — broadcasts queued during tick N, dispatched on tick N+1
+  private pendingBroadcasts: RadioMessage[] = [];
+  private currentRadio: RadioMessage[] = [];
 
   // Fixed timestep
   private readonly TICK_RATE = 60;
@@ -110,6 +114,10 @@ export class Game {
     this.chaseStartTime = performance.now();
     this.elapsedTime = 0;
     this.tickCount = 0;
+
+    // Clear radio buffers
+    this.pendingBroadcasts = [];
+    this.currentRadio = [];
 
     // Randomize positions each chase
     this.map.randomizeExtractionPoints();
@@ -187,11 +195,24 @@ export class Game {
     this.tickCount++;
     this.elapsedTime = (performance.now() - this.chaseStartTime) / 1000;
 
+    // Swap radio buffers — broadcasts from previous tick become current
+    this.currentRadio = this.pendingBroadcasts;
+    this.pendingBroadcasts = [];
+
+    // Broadcast callback — officers push messages here during handler execution
+    const onBroadcast = (msg: RadioMessage) => {
+      msg.tick = this.tickCount;
+      this.pendingBroadcasts.push(msg);
+    };
+
     // Update player
     const action = this.player.update(dt, this.input.state, this.map);
 
     // Update police via soma signal handlers (fire and forget — handlers are fast)
     for (let i = 0; i < this.police.length; i++) {
+      // Filter radio: only messages NOT from this officer
+      const radio = this.currentRadio.filter(m => m.from !== this.police[i].id);
+
       updateSomaPolice(
         this.police[i],
         this.somas[i],
@@ -201,6 +222,8 @@ export class Game {
         this.police,
         dt,
         this.tickCount,
+        radio.length > 0 ? radio : undefined,
+        onBroadcast,
       );
     }
 

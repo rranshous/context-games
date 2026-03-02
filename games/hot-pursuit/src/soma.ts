@@ -70,6 +70,8 @@ async function onSignal(type, data, me) {
     case 'player_spotted': {
       // Chase: move directly toward player
       me.callTool('move_toward', { target: data.player_position });
+      // Radio allies with sighting
+      me.callTool('broadcast', { signalType: 'player_spotted', data: { position: data.player_position } });
       break;
     }
     case 'player_lost': {
@@ -78,7 +80,10 @@ async function onSignal(type, data, me) {
       break;
     }
     case 'ally_signal': {
-      // No-op for now
+      // Respond to ally radio — if they spotted the suspect, move toward reported position
+      if (data.signal_type === 'player_spotted' && data.signal_data && data.signal_data.position) {
+        me.callTool('move_toward', { target: data.signal_data.position });
+      }
       break;
     }
   }

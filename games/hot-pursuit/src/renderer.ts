@@ -355,6 +355,9 @@ export class Renderer {
       if (status === 'reflecting') {
         statusEl.className = 'reflection-card-status active';
         statusEl.textContent = 'thinking...';
+      } else if (status === 'sharing') {
+        statusEl.className = 'reflection-card-status active';
+        statusEl.textContent = 'sharing intel...';
       } else if (status === 'complete') {
         statusEl.className = 'reflection-card-status done';
         statusEl.textContent = 'done';

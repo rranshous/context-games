@@ -173,18 +173,28 @@ Now do the following, in order:
     ? 'Your current handlers are naive — at minimum, add smarter search behavior when you lose the suspect instead of just walking to their last position.'
     : 'Build on your previous changes. Don\'t regress — keep what worked, fix what didn\'t.'}
 
-   Your handler receives these signals:
-   - 'tick': {own_position, state, tick, map_state} — fires every game tick
-   - 'player_spotted': {player_position, own_position, map_state} — you can see the suspect
+   Your handler receives these signals (priority order — only one fires per tick):
+   - 'player_spotted': {player_position, own_position, map_state} — you can see the suspect (highest priority)
    - 'player_lost': {last_known_position, own_position, map_state} — just lost visual
-   - 'ally_signal': {ally_id, signal_type, signal_data} — radio from another officer
+   - 'ally_signal': {ally_id, signal_type, signal_data, own_position, map_state} — radio from another officer (fires instead of tick when radio arrives)
+   - 'tick': {own_position, state, tick, map_state} — fires every game tick when nothing else is happening
 
    Available me.callTool() actions: ${[
      'move_toward({target})',
      'check_line_of_sight({target})',
      'patrol_next()',
      'hold_position()',
+     'broadcast({signalType, data})',
+     'ally_positions()',
+     'distance_to({target})',
    ].join(', ')}
+
+   RADIO COMMUNICATION:
+   - You can call me.callTool('broadcast', {signalType: 'player_spotted', data: {position: {x, y}}}) during ANY signal handler to radio all allies.
+   - Your allies receive your broadcast as an 'ally_signal' with {ally_id, signal_type, signal_data}.
+   - Broadcasts are delivered on the NEXT tick (one-tick radio delay). Direct observation always takes priority — if an ally already sees the suspect, they won't process your radio.
+   - Use radio to coordinate: share sightings, call for backup at chokepoints, warn allies about suspect direction.
+   - Your 'ally_signal' handler case decides how you respond to radio. MAKE SURE it produces a movement action — if it doesn't call me.callTool() with a move, you'll stand still that tick.
 
 3. **Call update_memory**: Record what you learned. Focus on patterns — "the suspect tends to..." not raw tick data.
 
@@ -617,10 +627,164 @@ async function callAnthropicAPI(
   }
 }
 
+// ── Debrief Sharing ──
+
+/**
+ * Build the shared intel context for a single officer from all allies' reflections.
+ */
+function buildDebriefContext(soma: Soma, allSomas: Soma[], results: ReflectionResult[]): string {
+  const allyIntel: string[] = [];
+
+  for (const allySoma of allSomas) {
+    if (allySoma.id === soma.id) continue;
+    const allyResult = results.find(r => r.actantId === allySoma.id);
+    if (!allyResult || !allyResult.success) continue;
+
+    const handlerPreview = allySoma.signalHandlers.length > 800
+      ? allySoma.signalHandlers.slice(0, 800) + '\n// ... (truncated)'
+      : allySoma.signalHandlers;
+
+    allyIntel.push(`<ally name="${allySoma.name}">
+Observations:
+${allyResult.reasoning.slice(0, 1500)}
+
+Their current handler code:
+\`\`\`javascript
+${handlerPreview}
+\`\`\`
+
+Their memory:
+${allySoma.memory.slice(0, 500)}
+</ally>`);
+  }
+
+  return allyIntel.join('\n\n');
+}
+
+/**
+ * Run a second mini-reflection pass for debrief sharing.
+ * Each officer receives allies' observations + handler code and can update their own.
+ */
+async function runDebriefSharing(
+  soma: Soma,
+  allSomas: Soma[],
+  results: ReflectionResult[],
+  apiEndpoint: string,
+  model: string = 'claude-sonnet-4-20250514',
+): Promise<{ handlersUpdated: boolean; memoryUpdated: boolean }> {
+  const allyContext = buildDebriefContext(soma, allSomas, results);
+  if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false };
+
+  const systemPrompt = `You are Officer ${soma.name}, badge ${soma.badgeNumber}, reviewing shared intelligence from your allies.
+
+<identity>
+${soma.nature}
+</identity>
+
+<your_current_handlers>
+\`\`\`javascript
+${soma.signalHandlers}
+\`\`\`
+</your_current_handlers>
+
+<your_memory>
+${soma.memory}
+</your_memory>
+
+You have tools to update your signal handlers and memory. Only use them if you see something genuinely useful in your allies' intel — don't change things just to change them.`;
+
+  const userPrompt = `Your allies shared their observations and tactics after the chase:
+
+${allyContext}
+
+Review their intel. If any ally discovered a useful tactic or pattern you haven't considered:
+1. **Call update_signal_handlers** to incorporate it (keep your own working tactics, merge in what's useful)
+2. **Call update_memory** to note what you learned from allies
+
+If their intel doesn't add anything new for you, that's fine — don't change things that are already working. But pay attention to:
+- Ally handler patterns that could improve your ally_signal response
+- Coordination ideas (radio protocols, zone assignments)
+- Patterns about the suspect you missed`;
+
+  // Only need handlers + memory tools for debrief pass
+  const debriefTools = SCAFFOLD_TOOLS.filter(t => t.name !== 'query_replay');
+
+  const result = { handlersUpdated: false, memoryUpdated: false };
+
+  try {
+    let messages: AnthropicMessage[] = [{ role: 'user', content: userPrompt }];
+    let turns = 0;
+    const maxTurns = 2;
+
+    while (turns < maxTurns) {
+      turns++;
+      const response = await callAnthropicAPI(apiEndpoint, {
+        model,
+        system: systemPrompt,
+        messages,
+        tools: debriefTools,
+        max_tokens: 2048,
+      });
+
+      if (!response) break;
+
+      const toolResults: AnthropicContentBlock[] = [];
+      let hasToolUse = false;
+
+      // Dummy ReflectionResult for processToolCall
+      const dummyResult: ReflectionResult = {
+        actantId: soma.id, success: true,
+        handlersUpdated: false, memoryUpdated: false,
+        toolsAdopted: [], reasoning: '',
+      };
+
+      for (const block of response.content) {
+        if (block.type === 'tool_use' && block.name && block.input) {
+          hasToolUse = true;
+          const toolResult = processToolCall(block.name, block.input, soma, null as any, dummyResult);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(toolResult),
+          });
+          if (block.name === 'update_signal_handlers' && toolResult.success) result.handlersUpdated = true;
+          if (block.name === 'update_memory' && toolResult.success) result.memoryUpdated = true;
+        }
+      }
+
+      if (!hasToolUse || response.stop_reason === 'end_turn') break;
+
+      messages = [
+        ...messages,
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: toolResults },
+      ];
+    }
+
+    console.log(JSON.stringify({
+      _hp: 'debrief_share_complete',
+      actantId: soma.id,
+      name: soma.name,
+      handlersUpdated: result.handlersUpdated,
+      memoryUpdated: result.memoryUpdated,
+    }));
+
+  } catch (err) {
+    console.log(JSON.stringify({
+      _hp: 'debrief_share_error',
+      actantId: soma.id,
+      error: String(err),
+    }));
+  }
+
+  if (result.handlersUpdated) clearHandlerCache();
+  return result;
+}
+
 // ── Batch Reflection ──
 
 /**
- * Run reflection for all actants in parallel.
+ * Run reflection for all actants in parallel, then debrief sharing.
  * Fires onTurnUpdate after each API turn for live UI updates.
  */
 export async function reflectAllActants(
@@ -633,6 +797,7 @@ export async function reflectAllActants(
   onTurnUpdate?: (update: TurnUpdate) => void,
   onSummary?: (actantId: string, summary: string, fullReasoning: string) => void,
 ): Promise<ReflectionResult[]> {
+  // Phase 1: Individual reflection (parallel)
   const promises = somas.map(async (soma) => {
     // Generate this officer's chase map before reflecting
     const summary = summarizeReplayForActant(replay, soma);
@@ -671,5 +836,42 @@ export async function reflectAllActants(
     return result;
   });
 
-  return Promise.all(promises);
+  const results = await Promise.all(promises);
+
+  // Phase 2: Debrief sharing — officers exchange observations and tactics
+  console.log(JSON.stringify({ _hp: 'debrief_share_start', officerCount: somas.length }));
+
+  if (onProgress) {
+    for (const soma of somas) onProgress(soma.id, 'sharing');
+  }
+
+  const debriefPromises = somas.map(soma =>
+    runDebriefSharing(soma, somas, results, apiEndpoint, model)
+  );
+  const debriefResults = await Promise.all(debriefPromises);
+
+  // Update summaries if debrief changed anything
+  for (let i = 0; i < somas.length; i++) {
+    const dr = debriefResults[i];
+    if ((dr.handlersUpdated || dr.memoryUpdated) && onSummary) {
+      const changes = [
+        dr.handlersUpdated ? 'Updated tactics after reviewing ally intel' : null,
+        dr.memoryUpdated ? 'Updated memory with ally observations' : null,
+      ].filter(Boolean).join('. ');
+      // Append debrief note to existing summary
+      onSummary(somas[i].id, `\n- ${changes}`, '');
+    }
+    if (onProgress) onProgress(somas[i].id, 'complete');
+  }
+
+  console.log(JSON.stringify({
+    _hp: 'debrief_share_all_complete',
+    updates: debriefResults.map((dr, i) => ({
+      officer: somas[i].name,
+      handlersUpdated: dr.handlersUpdated,
+      memoryUpdated: dr.memoryUpdated,
+    })),
+  }));
+
+  return results;
 }

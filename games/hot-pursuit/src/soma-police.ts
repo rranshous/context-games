@@ -3,7 +3,7 @@
 // The game engine dispatches signals, handlers queue actions via me.callTool(),
 // and the engine applies those actions to the entity.
 
-import { PoliceEntity, Position, TilePosition, GameConfig, DEFAULT_CONFIG } from './types';
+import { PoliceEntity, Position, TilePosition, GameConfig, DEFAULT_CONFIG, RadioMessage } from './types';
 import { TileMap } from './map';
 import { canSee } from './los';
 import { Soma } from './soma';
@@ -88,6 +88,8 @@ export async function updateSomaPolice(
   allPolice: PoliceEntity[],
   dt: number,
   tick: number,
+  radioMessages?: RadioMessage[],
+  onBroadcast?: (msg: RadioMessage) => void,
 ): Promise<void> {
   // If this officer's previous handler is still running, just continue current movement
   if (busyOfficers.has(entity.id)) {
@@ -113,11 +115,11 @@ export async function updateSomaPolice(
   busyOfficers.add(entity.id);
 
   try {
-    // Determine which signal(s) to fire
+    // Signal priority: direct observation > radio > tick
     let actions: PendingAction[] = [];
 
     if (entity.canSeePlayer && !prevCanSee) {
-      // Just spotted the player
+      // Just spotted the player — top priority
       entity.state = 'pursuing';
       entity.lastKnownPlayerPos = { ...playerPos };
       actions = await executeSignal(
@@ -127,10 +129,10 @@ export async function updateSomaPolice(
           own_position: { ...entity.pos },
           map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
         },
-        entity, soma, map, config, allPolice,
+        entity, soma, map, config, allPolice, onBroadcast,
       );
     } else if (!entity.canSeePlayer && prevCanSee) {
-      // Just lost the player
+      // Just lost the player — top priority
       entity.state = 'searching';
       actions = await executeSignal(
         handler, 'player_lost',
@@ -139,10 +141,10 @@ export async function updateSomaPolice(
           own_position: { ...entity.pos },
           map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
         },
-        entity, soma, map, config, allPolice,
+        entity, soma, map, config, allPolice, onBroadcast,
       );
     } else if (entity.canSeePlayer) {
-      // Still have eyes on — re-fire player_spotted to allow pursuit updates
+      // Still have eyes on — re-fire player_spotted
       entity.lastKnownPlayerPos = { ...playerPos };
       actions = await executeSignal(
         handler, 'player_spotted',
@@ -151,10 +153,33 @@ export async function updateSomaPolice(
           own_position: { ...entity.pos },
           map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
         },
-        entity, soma, map, config, allPolice,
+        entity, soma, map, config, allPolice, onBroadcast,
       );
+    } else if (radioMessages && radioMessages.length > 0) {
+      // No direct observation but have radio — dispatch ally_signal
+      // Use the most recent message (if multiple, latest wins)
+      const msg = radioMessages[radioMessages.length - 1];
+      actions = await executeSignal(
+        handler, 'ally_signal',
+        {
+          ally_id: msg.from,
+          signal_type: msg.signalType,
+          signal_data: msg.data,
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+        },
+        entity, soma, map, config, allPolice, onBroadcast,
+      );
+      console.log(JSON.stringify({
+        _hp: 'radio_dispatch',
+        to: entity.id,
+        toName: entity.name,
+        from: msg.from,
+        signalType: msg.signalType,
+        messageCount: radioMessages.length,
+      }));
     } else {
-      // No player visible — fire tick signal
+      // No player visible, no radio — fire tick signal
       // Check if we've reached search target
       if (entity.state === 'searching' && entity.lastKnownPlayerPos) {
         const dx = entity.pos.x - entity.lastKnownPlayerPos.x;
@@ -173,7 +198,7 @@ export async function updateSomaPolice(
           tick,
           map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
         },
-        entity, soma, map, config, allPolice,
+        entity, soma, map, config, allPolice, onBroadcast,
       );
     }
 

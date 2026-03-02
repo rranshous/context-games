@@ -396,3 +396,81 @@ After testing, removed tool call badges from debrief cards entirely. Cards now s
   - `ally_signal` handler case exists in default handlers (currently no-op)
 - Tighten handler code length limit once we observe growth patterns
 - Observe officer evolution across multiple runs — especially whether distance warning helps stationary officers
+
+## 2026-03-02 — Session 7: Phase 4 Communication
+
+### Live Radio Dispatch
+Wired the `broadcast()` tool from no-op to full dispatch. When an officer calls `me.callTool('broadcast', {signalType, data})` during a chase, the message is queued and delivered to all other officers on the next tick as an `ally_signal`.
+
+**Architecture:**
+- `RadioMessage` interface added to `types.ts`: `{ from, fromName, signalType, data, tick }`
+- `game.ts` maintains a double-buffered queue: `pendingBroadcasts` (current tick's output) and `currentRadio` (previous tick's output, now being consumed)
+- `onBroadcast` callback threaded through `createChaseChassisAPI()` → `executeSignal()` → `updateSomaPolice()`
+- Each officer receives only messages from OTHER officers (self-messages filtered out)
+- One-tick delay prevents infinite broadcast loops (natural radio latency)
+
+**Signal Priority Chain** — only one signal fires per tick per officer:
+1. `player_spotted` / `player_lost` (direct observation — always takes priority)
+2. `ally_signal` (radio intel — fires instead of tick when radio arrives)
+3. `tick` (idle patrol — lowest priority)
+
+This means an officer who receives radio intel while patrolling will respond to the radio (their `ally_signal` case runs), not just continue patrolling. But if they're already tracking the suspect directly, they ignore radio (direct observation trumps secondhand intel).
+
+### Default Handler Upgrade
+- `player_spotted` case now broadcasts sighting: `me.callTool('broadcast', {signalType: 'player_spotted', data: {position: data.player_position}})`
+- `ally_signal` case upgraded from no-op to: if ally reports `player_spotted`, move toward reported position
+- Officers coordinate from the first chase — no reflection needed to learn basic radio
+
+### Reflection Prompt Updates
+- Handler signal documentation now shows priority order
+- Added radio communication section explaining:
+  - How to use `broadcast()` in any signal handler
+  - How `ally_signal` delivers ally broadcasts
+  - One-tick radio delay
+  - Coordination strategies (share sightings, chokepoint calls, directional warnings)
+  - Reminder that ally_signal case MUST produce movement or officer stands still
+- Added `broadcast()`, `ally_positions()`, `distance_to()` to the available actions list
+
+### Debrief Sharing Pipeline
+After individual reflection completes, a second mini-reflection pass runs:
+1. Each officer receives all allies' observations, handler code, and memory
+2. They can call `update_signal_handlers` and `update_memory` to absorb useful tactics
+3. Max 2 turns per officer (vs 5 for individual reflection)
+4. All 4 officers share in parallel
+5. UI shows "sharing intel..." status during debrief pass
+
+**New functions in `reflection.ts`:**
+- `buildDebriefContext()`: assembles ally observations (reasoning, handler code preview, memory)
+- `runDebriefSharing()`: runs the second reflection pass per officer
+- Handler code previews truncated to 800 chars, reasoning to 1500 chars, memory to 500 chars
+
+### Renderer Updates
+- Added `'sharing'` status to `updateReflectionProgress()` — shows "sharing intel..." on cards
+
+### Future Ideas
+- **Player vision cone**: Currently the player sees everything in their viewport (full rectangular area), while officers have a narrow 8-tile 60° forward cone. Would a player vision cone be more fair? Probably less fun as a game, but could be a "hard mode" toggle.
+- **Radio noise/jamming**: Officers could learn to flood radio with false sightings, or the game could add radio jamming as a player power.
+
+### Session 7 Summary
+1. **Live radio**: `broadcast()` → `ally_signal` dispatch with one-tick delay
+2. **Signal priority**: observation > radio > tick
+3. **Default broadcast**: officers radio sightings from first chase
+4. **Default ally response**: move toward ally-reported position
+5. **Debrief sharing**: second reflection pass with ally intel exchange
+6. **Reflection prompt**: radio docs, priority order, coordination guidance
+
+### Architecture Notes for Next Session
+- `types.ts`: `RadioMessage` interface
+- `chassis.ts`: `onBroadcast` callback in `createChaseChassisAPI()`, broadcast case pushes to queue
+- `handler-executor.ts`: `onBroadcast` param threaded through `executeSignal()`
+- `soma-police.ts`: `radioMessages` + `onBroadcast` params in `updateSomaPolice()`, ally_signal in priority chain
+- `game.ts`: double-buffered `pendingBroadcasts`/`currentRadio` arrays, `onBroadcast` closure, per-officer radio filtering
+- `reflection.ts`: `buildDebriefContext()`, `runDebriefSharing()`, debrief pass after individual reflection
+- `renderer.ts`: `'sharing'` status case
+
+### What's Next
+- Play multiple chases and observe radio + debrief sharing in action
+- Watch how officers evolve their ally_signal handlers across reflections
+- Tighten handler code length limit once growth patterns observed
+- Consider handler execution profiling if choppiness returns
+- Potential: "police chief" mode where a second player directs officers during debrief

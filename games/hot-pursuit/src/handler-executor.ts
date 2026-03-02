@@ -2,7 +2,7 @@
 // Extracts signal handler code from soma, compiles it via AsyncFunction,
 // executes it with the chassis API, and enforces safety constraints.
 
-import { PoliceEntity, GameConfig } from './types';
+import { PoliceEntity, GameConfig, RadioMessage } from './types';
 import { TileMap } from './map';
 import { Soma } from './soma';
 import { ChassisAPI, SignalData, PendingAction, createChaseChassisAPI } from './chassis';
@@ -71,9 +71,10 @@ export async function executeSignal(
   map: TileMap,
   config: GameConfig,
   allPolice: PoliceEntity[],
+  onBroadcast?: (msg: RadioMessage) => void,
 ): Promise<PendingAction[]> {
   const pendingActions: PendingAction[] = [];
-  const api = createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActions);
+  const api = createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActions, onBroadcast);
 
   try {
     // Race the handler against a timeout

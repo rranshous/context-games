@@ -411,7 +411,7 @@ var ALLOWED_TOOLS = /* @__PURE__ */ new Set([
   "_engine_move_direction",
   "_engine_los"
 ]);
-function createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActions) {
+function createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActions, onBroadcast) {
   return {
     callTool: (name, args) => {
       if (!ALLOWED_TOOLS.has(name) && !name.startsWith("_engine_")) {
@@ -431,7 +431,7 @@ function createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActi
           return { success: false, error: `Tool not adopted: ${name}` };
         }
       }
-      return executeToolCall(name, args || {}, entity, map, config, allPolice, pendingActions);
+      return executeToolCall(name, args || {}, entity, soma, map, config, allPolice, pendingActions, onBroadcast);
     },
     getState: () => entity.state,
     getPosition: () => ({ ...entity.pos }),
@@ -453,7 +453,7 @@ function createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActi
     }
   };
 }
-function executeToolCall(name, args, entity, map, config, allPolice, pendingActions) {
+function executeToolCall(name, args, entity, soma, map, config, allPolice, pendingActions, onBroadcast) {
   switch (name) {
     case "move_toward": {
       const target = args.target;
@@ -529,13 +529,25 @@ function executeToolCall(name, args, entity, map, config, allPolice, pendingActi
       return { success: true, data: { distance: Math.sqrt(dx * dx + dy * dy) } };
     }
     case "broadcast": {
+      const msg = {
+        from: entity.id,
+        fromName: soma.name,
+        signalType: args.signalType,
+        data: args.data || {},
+        tick: 0
+        // filled by game loop
+      };
       console.log(JSON.stringify({
         _hp: "broadcast",
         from: entity.id,
-        signalType: args.signalType,
-        data: args.data
+        fromName: soma.name,
+        signalType: msg.signalType,
+        data: msg.data
       }));
-      return { success: true, data: { sent: true, note: "Radio not yet active" } };
+      if (onBroadcast) {
+        onBroadcast(msg);
+      }
+      return { success: true, data: { sent: true, recipients: allPolice.length - 1 } };
     }
     default:
       return { success: false, error: `Unknown tool: ${name}` };
@@ -571,9 +583,9 @@ function compileHandler(soma) {
     return null;
   }
 }
-async function executeSignal(handler, signalType, signalData, entity, soma, map, config, allPolice) {
+async function executeSignal(handler, signalType, signalData, entity, soma, map, config, allPolice, onBroadcast) {
   const pendingActions = [];
-  const api = createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActions);
+  const api = createChaseChassisAPI(entity, soma, map, config, allPolice, pendingActions, onBroadcast);
   try {
     const result = await Promise.race([
       handler.fn(signalType, signalData, api),
@@ -649,7 +661,7 @@ function generatePatrolPoints(center, map, count) {
   }
   return points;
 }
-async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice, dt, tick) {
+async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice, dt, tick, radioMessages, onBroadcast) {
   if (busyOfficers.has(entity.id)) {
     moveAlongPath(entity, map, dt);
     return;
@@ -685,7 +697,8 @@ async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice,
         soma,
         map,
         config,
-        allPolice
+        allPolice,
+        onBroadcast
       );
     } else if (!entity.canSeePlayer && prevCanSee) {
       entity.state = "searching";
@@ -701,7 +714,8 @@ async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice,
         soma,
         map,
         config,
-        allPolice
+        allPolice,
+        onBroadcast
       );
     } else if (entity.canSeePlayer) {
       entity.lastKnownPlayerPos = { ...playerPos };
@@ -717,8 +731,36 @@ async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice,
         soma,
         map,
         config,
-        allPolice
+        allPolice,
+        onBroadcast
       );
+    } else if (radioMessages && radioMessages.length > 0) {
+      const msg = radioMessages[radioMessages.length - 1];
+      actions = await executeSignal(
+        handler,
+        "ally_signal",
+        {
+          ally_id: msg.from,
+          signal_type: msg.signalType,
+          signal_data: msg.data,
+          own_position: { ...entity.pos },
+          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize }
+        },
+        entity,
+        soma,
+        map,
+        config,
+        allPolice,
+        onBroadcast
+      );
+      console.log(JSON.stringify({
+        _hp: "radio_dispatch",
+        to: entity.id,
+        toName: entity.name,
+        from: msg.from,
+        signalType: msg.signalType,
+        messageCount: radioMessages.length
+      }));
     } else {
       if (entity.state === "searching" && entity.lastKnownPlayerPos) {
         const dx = entity.pos.x - entity.lastKnownPlayerPos.x;
@@ -741,7 +783,8 @@ async function updateSomaPolice(entity, soma, playerPos, map, config, allPolice,
         soma,
         map,
         config,
-        allPolice
+        allPolice,
+        onBroadcast
       );
     }
     applyActions(entity, actions, map, config, dt, playerPos);
@@ -834,6 +877,8 @@ async function onSignal(type, data, me) {
     case 'player_spotted': {
       // Chase: move directly toward player
       me.callTool('move_toward', { target: data.player_position });
+      // Radio allies with sighting
+      me.callTool('broadcast', { signalType: 'player_spotted', data: { position: data.player_position } });
       break;
     }
     case 'player_lost': {
@@ -842,7 +887,10 @@ async function onSignal(type, data, me) {
       break;
     }
     case 'ally_signal': {
-      // No-op for now
+      // Respond to ally radio \u2014 if they spotted the suspect, move toward reported position
+      if (data.signal_type === 'player_spotted' && data.signal_data && data.signal_data.position) {
+        me.callTool('move_toward', { target: data.signal_data.position });
+      }
       break;
     }
   }
@@ -1469,6 +1517,9 @@ var Renderer = class {
       if (status === "reflecting") {
         statusEl.className = "reflection-card-status active";
         statusEl.textContent = "thinking...";
+      } else if (status === "sharing") {
+        statusEl.className = "reflection-card-status active";
+        statusEl.textContent = "sharing intel...";
       } else if (status === "complete") {
         statusEl.className = "reflection-card-status done";
         statusEl.textContent = "done";
@@ -2019,18 +2070,28 @@ Now do the following, in order:
 
 2. **Call update_signal_handlers**: Rewrite your onSignal function RIGHT NOW with specific improvements based on what you learned. ${isFirstChase ? "Your current handlers are naive \u2014 at minimum, add smarter search behavior when you lose the suspect instead of just walking to their last position." : "Build on your previous changes. Don't regress \u2014 keep what worked, fix what didn't."}
 
-   Your handler receives these signals:
-   - 'tick': {own_position, state, tick, map_state} \u2014 fires every game tick
-   - 'player_spotted': {player_position, own_position, map_state} \u2014 you can see the suspect
+   Your handler receives these signals (priority order \u2014 only one fires per tick):
+   - 'player_spotted': {player_position, own_position, map_state} \u2014 you can see the suspect (highest priority)
    - 'player_lost': {last_known_position, own_position, map_state} \u2014 just lost visual
-   - 'ally_signal': {ally_id, signal_type, signal_data} \u2014 radio from another officer
+   - 'ally_signal': {ally_id, signal_type, signal_data, own_position, map_state} \u2014 radio from another officer (fires instead of tick when radio arrives)
+   - 'tick': {own_position, state, tick, map_state} \u2014 fires every game tick when nothing else is happening
 
    Available me.callTool() actions: ${[
     "move_toward({target})",
     "check_line_of_sight({target})",
     "patrol_next()",
-    "hold_position()"
+    "hold_position()",
+    "broadcast({signalType, data})",
+    "ally_positions()",
+    "distance_to({target})"
   ].join(", ")}
+
+   RADIO COMMUNICATION:
+   - You can call me.callTool('broadcast', {signalType: 'player_spotted', data: {position: {x, y}}}) during ANY signal handler to radio all allies.
+   - Your allies receive your broadcast as an 'ally_signal' with {ally_id, signal_type, signal_data}.
+   - Broadcasts are delivered on the NEXT tick (one-tick radio delay). Direct observation always takes priority \u2014 if an ally already sees the suspect, they won't process your radio.
+   - Use radio to coordinate: share sightings, call for backup at chokepoints, warn allies about suspect direction.
+   - Your 'ally_signal' handler case decides how you respond to radio. MAKE SURE it produces a movement action \u2014 if it doesn't call me.callTool() with a move, you'll stand still that tick.
 
 3. **Call update_memory**: Record what you learned. Focus on patterns \u2014 "the suspect tends to..." not raw tick data.
 
@@ -2312,6 +2373,123 @@ async function callAnthropicAPI(endpoint, body) {
     return null;
   }
 }
+function buildDebriefContext(soma, allSomas, results) {
+  const allyIntel = [];
+  for (const allySoma of allSomas) {
+    if (allySoma.id === soma.id) continue;
+    const allyResult = results.find((r) => r.actantId === allySoma.id);
+    if (!allyResult || !allyResult.success) continue;
+    const handlerPreview = allySoma.signalHandlers.length > 800 ? allySoma.signalHandlers.slice(0, 800) + "\n// ... (truncated)" : allySoma.signalHandlers;
+    allyIntel.push(`<ally name="${allySoma.name}">
+Observations:
+${allyResult.reasoning.slice(0, 1500)}
+
+Their current handler code:
+\`\`\`javascript
+${handlerPreview}
+\`\`\`
+
+Their memory:
+${allySoma.memory.slice(0, 500)}
+</ally>`);
+  }
+  return allyIntel.join("\n\n");
+}
+async function runDebriefSharing(soma, allSomas, results, apiEndpoint, model = "claude-sonnet-4-20250514") {
+  const allyContext = buildDebriefContext(soma, allSomas, results);
+  if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false };
+  const systemPrompt = `You are Officer ${soma.name}, badge ${soma.badgeNumber}, reviewing shared intelligence from your allies.
+
+<identity>
+${soma.nature}
+</identity>
+
+<your_current_handlers>
+\`\`\`javascript
+${soma.signalHandlers}
+\`\`\`
+</your_current_handlers>
+
+<your_memory>
+${soma.memory}
+</your_memory>
+
+You have tools to update your signal handlers and memory. Only use them if you see something genuinely useful in your allies' intel \u2014 don't change things just to change them.`;
+  const userPrompt = `Your allies shared their observations and tactics after the chase:
+
+${allyContext}
+
+Review their intel. If any ally discovered a useful tactic or pattern you haven't considered:
+1. **Call update_signal_handlers** to incorporate it (keep your own working tactics, merge in what's useful)
+2. **Call update_memory** to note what you learned from allies
+
+If their intel doesn't add anything new for you, that's fine \u2014 don't change things that are already working. But pay attention to:
+- Ally handler patterns that could improve your ally_signal response
+- Coordination ideas (radio protocols, zone assignments)
+- Patterns about the suspect you missed`;
+  const debriefTools = SCAFFOLD_TOOLS.filter((t) => t.name !== "query_replay");
+  const result = { handlersUpdated: false, memoryUpdated: false };
+  try {
+    let messages = [{ role: "user", content: userPrompt }];
+    let turns = 0;
+    const maxTurns = 2;
+    while (turns < maxTurns) {
+      turns++;
+      const response = await callAnthropicAPI(apiEndpoint, {
+        model,
+        system: systemPrompt,
+        messages,
+        tools: debriefTools,
+        max_tokens: 2048
+      });
+      if (!response) break;
+      const toolResults = [];
+      let hasToolUse = false;
+      const dummyResult = {
+        actantId: soma.id,
+        success: true,
+        handlersUpdated: false,
+        memoryUpdated: false,
+        toolsAdopted: [],
+        reasoning: ""
+      };
+      for (const block of response.content) {
+        if (block.type === "tool_use" && block.name && block.input) {
+          hasToolUse = true;
+          const toolResult = processToolCall(block.name, block.input, soma, null, dummyResult);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(toolResult)
+          });
+          if (block.name === "update_signal_handlers" && toolResult.success) result.handlersUpdated = true;
+          if (block.name === "update_memory" && toolResult.success) result.memoryUpdated = true;
+        }
+      }
+      if (!hasToolUse || response.stop_reason === "end_turn") break;
+      messages = [
+        ...messages,
+        { role: "assistant", content: response.content },
+        { role: "user", content: toolResults }
+      ];
+    }
+    console.log(JSON.stringify({
+      _hp: "debrief_share_complete",
+      actantId: soma.id,
+      name: soma.name,
+      handlersUpdated: result.handlersUpdated,
+      memoryUpdated: result.memoryUpdated
+    }));
+  } catch (err) {
+    console.log(JSON.stringify({
+      _hp: "debrief_share_error",
+      actantId: soma.id,
+      error: String(err)
+    }));
+  }
+  if (result.handlersUpdated) clearHandlerCache();
+  return result;
+}
 async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate, onSummary) {
   const promises = somas.map(async (soma) => {
     const summary = summarizeReplayForActant(replay, soma);
@@ -2341,7 +2519,36 @@ async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onP
     }
     return result;
   });
-  return Promise.all(promises);
+  const results = await Promise.all(promises);
+  console.log(JSON.stringify({ _hp: "debrief_share_start", officerCount: somas.length }));
+  if (onProgress) {
+    for (const soma of somas) onProgress(soma.id, "sharing");
+  }
+  const debriefPromises = somas.map(
+    (soma) => runDebriefSharing(soma, somas, results, apiEndpoint, model)
+  );
+  const debriefResults = await Promise.all(debriefPromises);
+  for (let i = 0; i < somas.length; i++) {
+    const dr = debriefResults[i];
+    if ((dr.handlersUpdated || dr.memoryUpdated) && onSummary) {
+      const changes = [
+        dr.handlersUpdated ? "Updated tactics after reviewing ally intel" : null,
+        dr.memoryUpdated ? "Updated memory with ally observations" : null
+      ].filter(Boolean).join(". ");
+      onSummary(somas[i].id, `
+- ${changes}`, "");
+    }
+    if (onProgress) onProgress(somas[i].id, "complete");
+  }
+  console.log(JSON.stringify({
+    _hp: "debrief_share_all_complete",
+    updates: debriefResults.map((dr, i) => ({
+      officer: somas[i].name,
+      handlersUpdated: dr.handlersUpdated,
+      memoryUpdated: dr.memoryUpdated
+    }))
+  }));
+  return results;
 }
 
 // src/game.ts
@@ -2364,6 +2571,9 @@ var Game = class {
   updateInProgress = false;
   lastReplay = null;
   reflectionInProgress = false;
+  // Live radio — broadcasts queued during tick N, dispatched on tick N+1
+  pendingBroadcasts = [];
+  currentRadio = [];
   // Fixed timestep
   TICK_RATE = 60;
   TICK_DT = 1 / 60;
@@ -2426,6 +2636,8 @@ var Game = class {
     this.chaseStartTime = performance.now();
     this.elapsedTime = 0;
     this.tickCount = 0;
+    this.pendingBroadcasts = [];
+    this.currentRadio = [];
     this.map.randomizeExtractionPoints();
     this.map.randomizePoliceSpawns();
     const spawnWorld = this.map.tileToWorld(this.map.playerSpawn);
@@ -2479,8 +2691,15 @@ var Game = class {
     this.updateInProgress = true;
     this.tickCount++;
     this.elapsedTime = (performance.now() - this.chaseStartTime) / 1e3;
+    this.currentRadio = this.pendingBroadcasts;
+    this.pendingBroadcasts = [];
+    const onBroadcast = (msg) => {
+      msg.tick = this.tickCount;
+      this.pendingBroadcasts.push(msg);
+    };
     const action = this.player.update(dt, this.input.state, this.map);
     for (let i = 0; i < this.police.length; i++) {
+      const radio = this.currentRadio.filter((m) => m.from !== this.police[i].id);
       updateSomaPolice(
         this.police[i],
         this.somas[i],
@@ -2489,7 +2708,9 @@ var Game = class {
         this.config,
         this.police,
         dt,
-        this.tickCount
+        this.tickCount,
+        radio.length > 0 ? radio : void 0,
+        onBroadcast
       );
     }
     this.recorder.recordTick(this.player.pos, action, this.police);

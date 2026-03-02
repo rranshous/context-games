@@ -3,7 +3,7 @@
 // During chase mode, thinkAbout() is disabled. During reflection (Phase 3),
 // the full API including cognition tools will be available.
 
-import { Position, TilePosition, PoliceEntity, GameConfig } from './types';
+import { Position, TilePosition, PoliceEntity, GameConfig, RadioMessage } from './types';
 import { TileMap } from './map';
 import { canSee } from './los';
 import { Soma } from './soma';
@@ -78,6 +78,7 @@ export function createChaseChassisAPI(
   config: GameConfig,
   allPolice: PoliceEntity[],
   pendingActions: PendingAction[],
+  onBroadcast?: (msg: RadioMessage) => void,
 ): ChassisAPI {
   return {
     callTool: (name: string, args?: Record<string, unknown>): ToolResult => {
@@ -103,7 +104,7 @@ export function createChaseChassisAPI(
       }
 
       // Dispatch to engine primitives
-      return executeToolCall(name, args || {}, entity, map, config, allPolice, pendingActions);
+      return executeToolCall(name, args || {}, entity, soma, map, config, allPolice, pendingActions, onBroadcast);
     },
 
     getState: () => entity.state,
@@ -143,10 +144,12 @@ function executeToolCall(
   name: string,
   args: Record<string, unknown>,
   entity: PoliceEntity,
+  soma: Soma,
   map: TileMap,
   config: GameConfig,
   allPolice: PoliceEntity[],
   pendingActions: PendingAction[],
+  onBroadcast?: (msg: RadioMessage) => void,
 ): ToolResult {
   switch (name) {
     case 'move_toward': {
@@ -230,14 +233,24 @@ function executeToolCall(
     }
 
     case 'broadcast': {
-      // Phase 4 — logged but not dispatched to other actants yet
+      const msg: RadioMessage = {
+        from: entity.id,
+        fromName: soma.name,
+        signalType: args.signalType as string,
+        data: (args.data as Record<string, unknown>) || {},
+        tick: 0, // filled by game loop
+      };
       console.log(JSON.stringify({
         _hp: 'broadcast',
         from: entity.id,
-        signalType: args.signalType,
-        data: args.data,
+        fromName: soma.name,
+        signalType: msg.signalType,
+        data: msg.data,
       }));
-      return { success: true, data: { sent: true, note: 'Radio not yet active' } };
+      if (onBroadcast) {
+        onBroadcast(msg);
+      }
+      return { success: true, data: { sent: true, recipients: allPolice.length - 1 } };
     }
 
     default:

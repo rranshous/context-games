@@ -116,6 +116,15 @@ export interface ChaseReplay {
   };
 }
 
+/** A radio broadcast queued during a chase tick */
+export interface RadioMessage {
+  from: string;
+  fromName: string;
+  signalType: string;
+  data: Record<string, unknown>;
+  tick: number;
+}
+
 export type GamePhase = 'pregame' | 'chase' | 'postgame' | 'reflecting';
 
 export interface InputState {
