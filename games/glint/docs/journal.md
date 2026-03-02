@@ -68,3 +68,35 @@ Baby squid survival in a bioluminescent coral reef. Dark but upbeat — a coming
 - Continue iterating visuals based on playtesting feel
 - Add first predator (shark patrol)
 - Wire up chase detection + evasion loop
+
+## Session 1c — Procedural Map + Collision (2026-03-02)
+
+### What Changed
+- **Modular architecture**: split monolithic main.ts into 4 files:
+  - `src/map.ts` — grid generation, tile types, collision helpers
+  - `src/reef.ts` — renders grid tiles as Three.js coral meshes
+  - `src/squid.ts` — player model, input, movement with collision
+  - `src/main.ts` — wiring, camera, animation loop
+- **Procedural map** (50×50 tiles, cellular automata):
+  1. Random noise (42% wall fill)
+  2. 5 iterations of smoothing (5+ neighbors → wall)
+  3. Flood fill from center, fill disconnected pockets
+  4. Identify crevices (1-tile passages with walls on opposite sides)
+  5. Place kelp groves (circular clusters in open areas)
+  6. Place dens (dead-end tiles with 3+ cardinal walls, warm glow)
+- **5 tile types**: OPEN, WALL, CREVICE (squid fits, big predators won't), KELP (partial cover), DEN (safe zone with warm light)
+- **Collision**: per-axis checks against 4 corners of collision box (radius 0.3). Slide along walls. `isPassable(map, x, z, isSmall)` — crevices only passable when `isSmall=true`.
+- **Coordinate system**: `worldToTile()` / `tileToWorld()` convert between world coords and grid coords. Tile (0,0) is top-left, world (0,0) is center of map.
+- **TILE_SIZE = 2** world units per tile. Map spans -50 to +50 world units.
+
+### Architecture Notes
+- `ReefMap` = `{ width, height, tiles[], playerSpawn, dens[] }`
+- `buildReef()` returns `ReefScene` with `swayItems`, `kelpMeshes`, `anemones`, `denLights` for animation
+- Shadow light follows player (so shadows work as you move through the large map)
+- Particles now spread across full map area
+- Seeded RNG everywhere — same seed = same map = deterministic
+
+### Next
+- Playtest collision and map feel
+- Add first predator (shark)
+- Consider minimap (50×50 is big, easy to get lost)
