@@ -270,6 +270,9 @@ Runtime inspection revealed **0 dens and 0 crevices** on the current map (seed 4
 - `updateSoma` and `animate` are closures that capture mesh refs — no fragile child indexing
 - Concealment is sensor-level: `readSensors()` checks `squid.concealed` — predator chassis simply can't detect a concealed squid. No game rules needed.
 
+### Visual Tuning
+- Squid glow pulse amplitude 0.6 → 0.2 — was too dramatic, squid went visibly dark in open water. Now a subtle breathing effect (2.3–2.7 range).
+
 ### Next
 1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
 2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
