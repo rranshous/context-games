@@ -1697,6 +1697,46 @@ var Renderer = class {
     el.className = "soma-card-behavior";
     el.innerHTML = renderMarkdown(summary);
   }
+  /** Add "wave changes" button next to the debrief title. */
+  addWaveChangesButton(onWaveChanges) {
+    const title = document.getElementById("reflection-phase-title");
+    if (!title) return;
+    const btn = document.createElement("button");
+    btn.className = "inspect-btn";
+    btn.style.marginLeft = "8px";
+    btn.style.fontSize = "10px";
+    btn.textContent = "wave changes";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".inspect-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      onWaveChanges();
+    });
+    title.appendChild(btn);
+  }
+  /** Show wave changes panel in the soma side panel. */
+  showWaveChanges() {
+    const panel = document.getElementById("soma-panel");
+    if (!panel) return;
+    this.clearSomaPanel();
+    const wrapper = document.createElement("div");
+    wrapper.className = "soma-card";
+    wrapper.innerHTML = `
+      <div class="soma-card-header">
+        <span class="soma-card-name">Wave Changes</span>
+      </div>
+      <div class="soma-card-section">
+        <div id="wave-changes-content" class="soma-card-generating">generating summary...</div>
+      </div>`;
+    panel.appendChild(wrapper);
+  }
+  /** Patch in the wave changes summary after the haiku call returns. */
+  updateWaveChanges(summary) {
+    const el = document.getElementById("wave-changes-content");
+    if (!el) return;
+    el.className = "soma-card-behavior";
+    el.innerHTML = renderMarkdown(summary);
+  }
   /** Remove card content from panel, preserving header with reset button. */
   clearSomaPanel() {
     const panel = document.getElementById("soma-panel");
@@ -2456,6 +2496,47 @@ ${officerBlocks}`
   }
   return "";
 }
+async function summarizeWaveChanges(somas, results, debriefResults, apiEndpoint) {
+  try {
+    const officerBlocks = somas.map((s, i) => {
+      const r = results[i];
+      const dr = debriefResults[i];
+      const changes = [
+        r?.handlersUpdated ? "Updated handlers" : null,
+        r?.memoryUpdated ? "Updated memory" : null,
+        dr?.handlersUpdated ? "Adopted ally tactics" : null,
+        dr?.memoryUpdated ? "Noted ally intel" : null
+      ].filter(Boolean).join(", ") || "No changes";
+      const reasoning = (r?.reasoning || "").slice(0, 1e3);
+      const debriefReasoning = (dr?.reasoning || "").slice(0, 600);
+      return `### ${s.name}
+Changes: ${changes}
+
+Reflection reasoning:
+${reasoning}${debriefReasoning ? `
+
+Debrief reasoning:
+${debriefReasoning}` : ""}`;
+    }).join("\n\n");
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: "claude-haiku-4-5-20251001",
+      system: "You are summarizing what changed across a squad of AI police officers after their latest chase and debrief. Focus on: what each officer learned, what tactics were adapted or adopted, how the team evolved. Be specific \u2014 reference officers by name. Highlight the most significant changes. Use markdown with short sections. No preamble.",
+      messages: [{
+        role: "user",
+        content: `Summarize what changed across the squad after this wave.
+
+${officerBlocks}`
+      }],
+      max_tokens: 1536
+    });
+    if (response?.content?.[0]?.type === "text") {
+      return response.content[0].text || "";
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: "wave_changes_error", error: String(err) }));
+  }
+  return "";
+}
 function processToolCall(toolName, input, soma, replay, result) {
   switch (toolName) {
     case "update_signal_handlers": {
@@ -2609,7 +2690,7 @@ ${allySoma.memory.slice(0, 500)}
 }
 async function runDebriefSharing(soma, allSomas, results, apiEndpoint, model = "claude-sonnet-4-6") {
   const allyContext = buildDebriefContext(soma, allSomas, results);
-  if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false };
+  if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false, reasoning: "" };
   const systemPrompt = `You are Officer ${soma.name}, badge ${soma.badgeNumber}, reviewing shared intelligence from your allies.
 
 <identity>
@@ -2763,7 +2844,7 @@ async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onP
       memoryUpdated: dr.memoryUpdated
     }))
   }));
-  return results;
+  return { results, debriefResults };
 }
 
 // src/game.ts
@@ -3007,7 +3088,7 @@ var Game = class {
       somaCount: this.somas.length
     }));
     try {
-      const results = await reflectAllActants(
+      const { results, debriefResults } = await reflectAllActants(
         this.somas,
         this.lastReplay,
         API_ENDPOINT,
@@ -3057,6 +3138,12 @@ var Game = class {
         this.renderer.showSquadOverview();
         summarizeSquadOverview(this.somas, API_ENDPOINT).then((summary) => {
           if (summary) this.renderer.updateSquadOverview(summary);
+        });
+      });
+      this.renderer.addWaveChangesButton(() => {
+        this.renderer.showWaveChanges();
+        summarizeWaveChanges(this.somas, results, debriefResults, API_ENDPOINT).then((summary) => {
+          if (summary) this.renderer.updateWaveChanges(summary);
         });
       });
       await this.waitForSpace();

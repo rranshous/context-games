@@ -568,6 +568,19 @@ Added a "squad overview" button that appears next to the debrief title after ref
 - `renderer.ts`: added `addOverviewButton()`, `showSquadOverview()`, `updateSquadOverview()`, debrief phase titles
 - `game.ts`: import + wiring for squad overview button
 
+### Wave Changes Button
+Added a "wave changes" button alongside the squad overview button. Summarizes what changed across the squad after the latest reflection — what each officer learned, adapted, or adopted from allies. Focuses on the delta, not the current state.
+
+**New function: `summarizeWaveChanges()`** in `reflection.ts`:
+- Takes both individual `ReflectionResult[]` and debrief results
+- Per officer: change flags, individual reasoning (1000 chars), debrief reasoning (600 chars)
+- No handler code — reasoning text is the source of truth for what changed
+- 1536 max tokens
+
+**Return type change**: `reflectAllActants()` now returns `{ results, debriefResults }` instead of just `results`. The debrief result type also now includes `reasoning` (was already tracked internally, just not in the type signature).
+
+**Renderer**: `addWaveChangesButton()`, `showWaveChanges()`, `updateWaveChanges()` — same pattern as squad overview.
+
 ### Tuning
 - Reflection model upgraded from `claude-sonnet-4-20250514` to `claude-sonnet-4-6` (same cost, newer)
 - Squad overview `max_tokens` bumped 768 → 1536 (was getting cut off)

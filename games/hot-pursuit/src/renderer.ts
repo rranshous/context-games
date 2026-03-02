@@ -578,6 +578,51 @@ export class Renderer {
     el.innerHTML = renderMarkdown(summary);
   }
 
+  /** Add "wave changes" button next to the debrief title. */
+  addWaveChangesButton(onWaveChanges: () => void): void {
+    const title = document.getElementById('reflection-phase-title');
+    if (!title) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'inspect-btn';
+    btn.style.marginLeft = '8px';
+    btn.style.fontSize = '10px';
+    btn.textContent = 'wave changes';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.inspect-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      onWaveChanges();
+    });
+    title.appendChild(btn);
+  }
+
+  /** Show wave changes panel in the soma side panel. */
+  showWaveChanges(): void {
+    const panel = document.getElementById('soma-panel');
+    if (!panel) return;
+    this.clearSomaPanel();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'soma-card';
+    wrapper.innerHTML = `
+      <div class="soma-card-header">
+        <span class="soma-card-name">Wave Changes</span>
+      </div>
+      <div class="soma-card-section">
+        <div id="wave-changes-content" class="soma-card-generating">generating summary...</div>
+      </div>`;
+    panel.appendChild(wrapper);
+  }
+
+  /** Patch in the wave changes summary after the haiku call returns. */
+  updateWaveChanges(summary: string): void {
+    const el = document.getElementById('wave-changes-content');
+    if (!el) return;
+    el.className = 'soma-card-behavior';
+    el.innerHTML = renderMarkdown(summary);
+  }
+
   /** Remove card content from panel, preserving header with reset button. */
   clearSomaPanel(): void {
     const panel = document.getElementById('soma-panel');

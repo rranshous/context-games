@@ -544,6 +544,52 @@ export async function summarizeSquadOverview(
   return '';
 }
 
+/**
+ * Haiku call to summarize what changed across the squad after the latest wave —
+ * what each officer learned, adapted, or adopted from allies.
+ */
+export async function summarizeWaveChanges(
+  somas: Soma[],
+  results: ReflectionResult[],
+  debriefResults: { handlersUpdated: boolean; memoryUpdated: boolean; reasoning: string }[],
+  apiEndpoint: string,
+): Promise<string> {
+  try {
+    const officerBlocks = somas.map((s, i) => {
+      const r = results[i];
+      const dr = debriefResults[i];
+      const changes = [
+        r?.handlersUpdated ? 'Updated handlers' : null,
+        r?.memoryUpdated ? 'Updated memory' : null,
+        dr?.handlersUpdated ? 'Adopted ally tactics' : null,
+        dr?.memoryUpdated ? 'Noted ally intel' : null,
+      ].filter(Boolean).join(', ') || 'No changes';
+
+      const reasoning = (r?.reasoning || '').slice(0, 1000);
+      const debriefReasoning = (dr?.reasoning || '').slice(0, 600);
+
+      return `### ${s.name}\nChanges: ${changes}\n\nReflection reasoning:\n${reasoning}${debriefReasoning ? `\n\nDebrief reasoning:\n${debriefReasoning}` : ''}`;
+    }).join('\n\n');
+
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: 'claude-haiku-4-5-20251001',
+      system: 'You are summarizing what changed across a squad of AI police officers after their latest chase and debrief. Focus on: what each officer learned, what tactics were adapted or adopted, how the team evolved. Be specific — reference officers by name. Highlight the most significant changes. Use markdown with short sections. No preamble.',
+      messages: [{
+        role: 'user',
+        content: `Summarize what changed across the squad after this wave.\n\n${officerBlocks}`,
+      }],
+      max_tokens: 1536,
+    });
+
+    if (response?.content?.[0]?.type === 'text') {
+      return response.content[0].text || '';
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: 'wave_changes_error', error: String(err) }));
+  }
+  return '';
+}
+
 // ── Tool Call Processing ──
 
 function processToolCall(
@@ -768,9 +814,9 @@ async function runDebriefSharing(
   results: ReflectionResult[],
   apiEndpoint: string,
   model: string = 'claude-sonnet-4-6',
-): Promise<{ handlersUpdated: boolean; memoryUpdated: boolean }> {
+): Promise<{ handlersUpdated: boolean; memoryUpdated: boolean; reasoning: string }> {
   const allyContext = buildDebriefContext(soma, allSomas, results);
-  if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false };
+  if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false, reasoning: '' };
 
   const systemPrompt = `You are Officer ${soma.name}, badge ${soma.badgeNumber}, reviewing shared intelligence from your allies.
 
@@ -897,7 +943,7 @@ export async function reflectAllActants(
   onTurnUpdate?: (update: TurnUpdate) => void,
   onSummary?: (actantId: string, summary: string, fullReasoning: string) => void,
   onDebriefSummary?: (actantId: string, summary: string, fullReasoning: string) => void,
-): Promise<ReflectionResult[]> {
+): Promise<{ results: ReflectionResult[]; debriefResults: { handlersUpdated: boolean; memoryUpdated: boolean; reasoning: string }[] }> {
   // Phase 1: Individual reflection (parallel)
   const promises = somas.map(async (soma) => {
     // Generate this officer's chase map before reflecting
@@ -974,5 +1020,5 @@ export async function reflectAllActants(
     })),
   }));
 
-  return results;
+  return { results, debriefResults };
 }

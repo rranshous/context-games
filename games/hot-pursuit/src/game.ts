@@ -13,7 +13,7 @@ import { loadSomas, saveSomas, recordChaseInSoma, resetSomas } from './persisten
 import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
-import { reflectAllActants, summarizeHandlerBehavior, summarizeSquadOverview } from './reflection';
+import { reflectAllActants, summarizeHandlerBehavior, summarizeSquadOverview, summarizeWaveChanges } from './reflection';
 
 // API endpoint for reflection inference (vanilla platform proxy)
 const API_ENDPOINT = '/api/inference/anthropic/messages';
@@ -334,7 +334,7 @@ export class Game {
     }));
 
     try {
-      const results = await reflectAllActants(
+      const { results, debriefResults } = await reflectAllActants(
         this.somas,
         this.lastReplay,
         API_ENDPOINT,
@@ -389,6 +389,12 @@ export class Game {
         this.renderer.showSquadOverview();
         summarizeSquadOverview(this.somas, API_ENDPOINT).then(summary => {
           if (summary) this.renderer.updateSquadOverview(summary);
+        });
+      });
+      this.renderer.addWaveChangesButton(() => {
+        this.renderer.showWaveChanges();
+        summarizeWaveChanges(this.somas, results, debriefResults, API_ENDPOINT).then(summary => {
+          if (summary) this.renderer.updateWaveChanges(summary);
         });
       });
 
