@@ -468,6 +468,23 @@ After individual reflection completes, a second mini-reflection pass runs:
 - `reflection.ts`: `buildDebriefContext()`, `runDebriefSharing()`, debrief pass after individual reflection
 - `renderer.ts`: `'sharing'` status case
 
+### Debrief Card Summaries (follow-up)
+Replaced static "Updated tactics after reviewing ally intel" text on reflection cards with proper haiku-summarized bullet points from each officer's debrief reasoning.
+
+**Changes:**
+- `runDebriefSharing()` now captures reasoning text from the debrief API response (was discarding it)
+- New `summarizeDebriefSharing()` function: haiku call producing 1-2 bullet points focused on what was adopted from allies
+- New `setDebriefSummary()` renderer method: appends debrief summary AFTER existing individual summary, visually distinct
+  - Blue-tinted text (`#99ccff`), "from allies:" label in small caps, separated by top border
+  - Collapsible "debrief reasoning" section at bottom
+- New `onDebriefSummary` callback in `reflectAllActants()` signature, routed to `renderer.setDebriefSummary()` in game.ts
+- CSS: `.reflection-debrief-summary` and `.debrief-label` classes in `index.html`
+
+**Card layout is now:**
+1. Individual summary (white/gray) — what they learned from their own analysis
+2. Debrief summary (blue, "from allies:") — what they picked up from ally intel
+3. Collapsible full reasoning sections for both passes
+
 ### What's Next
 - Play multiple chases and observe radio + debrief sharing in action
 - Watch how officers evolve their ally_signal handlers across reflections
