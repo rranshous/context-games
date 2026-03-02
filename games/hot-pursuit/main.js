@@ -1490,31 +1490,7 @@ var Renderer = class {
       }
     }
   }
-  appendTurnContent(update) {
-    const contentEl = document.getElementById(`reflect-content-${update.actantId}`);
-    if (!contentEl) return;
-    for (const tc of update.toolCalls) {
-      const badge = document.createElement("div");
-      badge.className = `reflection-tool-badge ${toolBadgeClass(tc.name)} ${tc.result.success ? "" : "failed"}`;
-      const label = toolBadgeLabel(tc.name, tc.input, tc.result);
-      badge.innerHTML = label;
-      if (tc.result.success) {
-        if (tc.name === "update_signal_handlers" && tc.input.handlers_code) {
-          const details = document.createElement("details");
-          details.className = "reflection-tool-details";
-          details.innerHTML = `<summary>view code</summary><pre class="strategy-code">${escapeHtml(tc.input.handlers_code)}</pre>`;
-          badge.appendChild(details);
-        } else if (tc.name === "update_memory" && tc.input.memory_content) {
-          const details = document.createElement("details");
-          details.className = "reflection-tool-details";
-          details.innerHTML = `<summary>view memory</summary><div class="strategy-memory">${escapeHtml(tc.input.memory_content)}</div>`;
-          badge.appendChild(details);
-        }
-      }
-      contentEl.appendChild(badge);
-    }
-    const overlay = document.getElementById("reflection-overlay");
-    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  appendTurnContent(_update) {
   }
   setReflectionSummary(actantId, summary, fullReasoning) {
     const contentEl = document.getElementById(`reflect-content-${actantId}`);
@@ -1555,36 +1531,6 @@ var Renderer = class {
 };
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function toolBadgeClass(name) {
-  switch (name) {
-    case "update_signal_handlers":
-      return "badge-handlers";
-    case "update_memory":
-      return "badge-memory";
-    case "query_replay":
-      return "badge-replay";
-    default:
-      return "";
-  }
-}
-function toolBadgeLabel(name, input, result) {
-  if (!result.success) {
-    return `<span class="badge-icon">&#x2717;</span> ${escapeHtml(name)}: ${escapeHtml(result.error || "failed")}`;
-  }
-  switch (name) {
-    case "update_signal_handlers":
-      return `<span class="badge-icon">&#x2714;</span> Updated signal handlers`;
-    case "update_memory":
-      return `<span class="badge-icon">&#x2714;</span> Updated memory`;
-    case "query_replay": {
-      const start = input.start_tick ?? "?";
-      const end = input.end_tick ?? "?";
-      return `<span class="badge-icon">&#x1F50D;</span> Reviewed ticks ${start}-${end}`;
-    }
-    default:
-      return escapeHtml(name);
-  }
 }
 function renderMarkdown(md) {
   const escaped = escapeHtml(md);

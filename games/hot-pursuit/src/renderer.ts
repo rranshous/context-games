@@ -379,42 +379,10 @@ export class Renderer {
     }
   }
 
-  appendTurnContent(update: TurnUpdate): void {
-    const contentEl = document.getElementById(`reflect-content-${update.actantId}`);
-    if (!contentEl) return;
-
-    // Skip verbose reasoning text — haiku summary replaces it after reflection completes.
-    // Tool badges are the useful live signal.
-
-    // Append tool call badges
-    for (const tc of update.toolCalls) {
-      const badge = document.createElement('div');
-      badge.className = `reflection-tool-badge ${toolBadgeClass(tc.name)} ${tc.result.success ? '' : 'failed'}`;
-
-      const label = toolBadgeLabel(tc.name, tc.input, tc.result);
-      badge.innerHTML = label;
-
-      // Collapsible detail for handlers and memory
-      if (tc.result.success) {
-        if (tc.name === 'update_signal_handlers' && tc.input.handlers_code) {
-          const details = document.createElement('details');
-          details.className = 'reflection-tool-details';
-          details.innerHTML = `<summary>view code</summary><pre class="strategy-code">${escapeHtml(tc.input.handlers_code as string)}</pre>`;
-          badge.appendChild(details);
-        } else if (tc.name === 'update_memory' && tc.input.memory_content) {
-          const details = document.createElement('details');
-          details.className = 'reflection-tool-details';
-          details.innerHTML = `<summary>view memory</summary><div class="strategy-memory">${escapeHtml(tc.input.memory_content as string)}</div>`;
-          badge.appendChild(details);
-        }
-      }
-
-      contentEl.appendChild(badge);
-    }
-
-    // Auto-scroll to bottom
-    const overlay = document.getElementById('reflection-overlay');
-    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  appendTurnContent(_update: TurnUpdate): void {
+    // No-op — haiku summary replaces all live content after reflection completes.
+    // Tool badges and reasoning text are both suppressed; summary is the only
+    // player-facing output (set via setReflectionSummary).
   }
 
   setReflectionSummary(actantId: string, summary: string, fullReasoning: string): void {
