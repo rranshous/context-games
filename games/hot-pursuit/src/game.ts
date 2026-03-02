@@ -390,6 +390,7 @@ export class Game {
           rows: this.map.rows,
           tileSize: this.map.tileSize,
         },
+        this.config,
         undefined, // use default model
         (actantId, status, chaseMapBase64) => {
           this.renderer.updateReflectionProgress(actantId, status, this.somas, chaseMapBase64);

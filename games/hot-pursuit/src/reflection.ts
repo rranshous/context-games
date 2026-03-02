@@ -6,7 +6,7 @@
 // Don't say "update your tactical handlers." Say "call update_signal_handlers
 // right now and rewrite your on_player_spotted case."
 
-import { ChaseReplay, TileType, DEFAULT_CONFIG } from './types';
+import { ChaseReplay, TileType, DEFAULT_CONFIG, GameConfig } from './types';
 import { Soma } from './soma';
 import { renderChaseMap, AllyPath } from './chase-map-renderer';
 import { summarizeReplayForActant, queryReplayRange, ReplaySummary } from './replay-summarizer';
@@ -118,8 +118,9 @@ ${soma.tools.filter(t => t.name !== 'move_toward' && t.name !== 'check_line_of_s
 When writing signal handlers, use me.callTool(name, args) for actions, me.getState() for your current state, and me.getPosition() for your position.`;
 }
 
-function buildReflectionPrompt(summary: ReplaySummary, chaseCount: number): string {
+function buildReflectionPrompt(summary: ReplaySummary, chaseCount: number, config: GameConfig): string {
   const isFirstChase = chaseCount <= 1;
+  const lowMovementThreshold = 8; // tiles — ~200px / 24px per tile
 
   return `The chase is over. You're back at the precinct, replaying the night in your head.
 
@@ -130,20 +131,27 @@ Duration: ${summary.durationSeconds}s (${summary.durationTicks} ticks)
 Your performance:
 - ${summary.officerSummary.spottedPlayer ? 'You spotted the suspect' : 'You never saw the suspect'}
 - ${summary.officerSummary.madeCapture ? 'YOU made the capture' : 'You did not make the capture'}
-- Closest you got: ${summary.officerSummary.closestDistance}px
-- Distance you traveled: ${summary.officerSummary.distanceTraveled}px (suspect traveled ${summary.playerDistanceTraveled}px)${summary.officerSummary.distanceTraveled < 200 ? '\n- **WARNING: You barely moved this chase! Your handler is probably NOT producing movement commands for all signal types. Check every case in your switch statement — if a case doesn\'t call me.callTool() with a movement action, you stand still.**' : ''}
+- Closest you got: ${summary.officerSummary.closestDistance} tiles
+- Distance you traveled: ${summary.officerSummary.distanceTraveled} tiles (suspect traveled ${summary.playerDistanceTraveled} tiles)${summary.officerSummary.distanceTraveled < lowMovementThreshold ? '\n- **WARNING: You barely moved this chase! Your handler is probably NOT producing movement commands for all signal types. Check every case in your switch statement — if a case doesn\'t call me.callTool() with a movement action, you stand still.**' : ''}
 - Time breakdown: ${Object.entries(summary.officerSummary.stateBreakdown).map(([k, v]) => `${k}: ${v}s`).join(', ')}
 
 Overall stats:
 - Suspect was spotted ${summary.timesSpotted} time(s), lost ${summary.timesLost} time(s)
-- Closest any officer got: ${Math.round(summary.closestApproach)}px
-- Suspect traveled ${summary.playerDistanceTraveled}px total
+- Closest any officer got: ${summary.closestApproach} tiles
+- Suspect traveled ${summary.playerDistanceTraveled} tiles total
 
 Key moments (numbered markers on the attached chase map):
 ${summary.keyMoments.map((m, i) =>
     `  ${i + 1}. [${Math.round(m.time)}s] ${m.description}`
   ).join('\n')}
 </chase_replay>
+
+COORDINATE SYSTEM:
+- All positions use tile-center coordinates: {x: 0, y: 0} is the map center.
+- Units are tiles (not pixels). The map extends from {x: -${Math.round(config.mapCols / 2)}, y: -${Math.round(config.mapRows / 2)}} to {x: ${Math.round(config.mapCols / 2)}, y: ${Math.round(config.mapRows / 2)}}.
+- Your LOS range is ${config.losRange} tiles. "12 tiles away" means ~1.5× your vision range.
+- me.getPosition() returns your tile-center position. All tool targets use tile-center coords.
+- data.map_state gives {halfWidth, halfHeight} — the map half-extents in tiles.
 
 The attached image is a bird's-eye view of the chase with a legend at the bottom. IMPORTANT map rules:
 - Dark blue/purple rectangles = BUILDINGS. They are impassable (you cannot walk through them) and they block line of sight completely.
@@ -154,9 +162,9 @@ The attached image is a bird's-eye view of the chase with a legend at the bottom
 - Cyan/teal lines = your allies' paths (labeled with their names at start positions). Use these to spot coverage gaps — areas where nobody was watching.
 
 YOUR SENSING LIMITS — this is critical:
-- You have a FORWARD CONE of vision: 8 tiles range, 60° half-angle from your facing direction. You CANNOT see behind you or to your sides.
+- You have a FORWARD CONE of vision: ${config.losRange} tiles range, 60° half-angle from your facing direction. You CANNOT see behind you or to your sides.
 - Your facing direction is determined by your movement. Use me.getFacing() to check it.
-- You are SLOWER than the suspect (${DEFAULT_CONFIG.policeBaseSpeed} vs ${DEFAULT_CONFIG.playerSpeed} px/s). You cannot simply chase them down — you must predict, cut off, or trap.
+- You are SLOWER than the suspect. You cannot simply chase them down — you must predict, cut off, or trap.
 - Extraction points are randomized each chase and placed on the map edges. The suspect wins by reaching one.
 - You cannot expand or improve your sensing range. Work within these limits by choosing patrol routes and facing directions strategically.
 
@@ -178,6 +186,9 @@ Now do the following, in order:
    - 'player_lost': {last_known_position, own_position, map_state} — just lost visual
    - 'ally_signal': {ally_id, signal_type, signal_data, own_position, map_state} — radio from another officer (fires instead of tick when radio arrives)
    - 'tick': {own_position, state, tick, map_state} — fires every game tick when nothing else is happening
+
+   All positions in signal data and tool results are in tile-center coords (center-origin, tile units).
+   data.map_state = {halfWidth, halfHeight} — map half-extents in tiles.
 
    Available me.callTool() actions: ${[
      'move_toward({target})',
@@ -264,6 +275,7 @@ export async function reflectActant(
   replay: ChaseReplay,
   apiEndpoint: string,
   chaseMapBase64: string,
+  config: GameConfig = DEFAULT_CONFIG,
   model: string = 'claude-sonnet-4-6',
   onTurnUpdate?: (update: TurnUpdate) => void,
 ): Promise<ReflectionResult> {
@@ -279,7 +291,7 @@ export async function reflectActant(
   try {
     const summary = summarizeReplayForActant(replay, soma);
     const systemPrompt = buildSystemPrompt(soma);
-    const userPrompt = buildReflectionPrompt(summary, soma.chaseHistory.length);
+    const userPrompt = buildReflectionPrompt(summary, soma.chaseHistory.length, config);
 
     console.log(JSON.stringify({
       _hp: 'reflection_start',
@@ -938,6 +950,7 @@ export async function reflectAllActants(
   replay: ChaseReplay,
   apiEndpoint: string,
   mapInfo: MapInfo,
+  config: GameConfig = DEFAULT_CONFIG,
   model?: string,
   onProgress?: (actantId: string, status: string, chaseMapBase64?: string) => void,
   onTurnUpdate?: (update: TurnUpdate) => void,
@@ -970,7 +983,7 @@ export async function reflectAllActants(
 
     if (onProgress) onProgress(soma.id, 'reflecting', chaseMapBase64);
 
-    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model, onTurnUpdate);
+    const result = await reflectActant(soma, replay, apiEndpoint, chaseMapBase64, config, model, onTurnUpdate);
 
     if (onProgress) onProgress(soma.id, result.success ? 'complete' : 'failed');
 
