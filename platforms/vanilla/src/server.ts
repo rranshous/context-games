@@ -25,7 +25,7 @@ app.use(cors({
   origin: true,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '200kb' }));
 
 // Session middleware (BEFORE passport)
 const SQLiteStore = require('connect-sqlite3')(session);
