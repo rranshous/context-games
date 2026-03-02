@@ -216,7 +216,7 @@ export function updateSquid(
 
   // Glow pulse (suppressed when concealed)
   const baseGlow = squid.glow.intensity + (targetGlow - squid.glow.intensity) * lerpT;
-  const pulseAmp = squid.concealed ? 0.08 : 0.6;
+  const pulseAmp = squid.concealed ? 0.08 : 0.2;
   squid.glow.intensity = baseGlow + Math.sin(t * 2) * pulseAmp;
 }
 
