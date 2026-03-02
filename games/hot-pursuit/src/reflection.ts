@@ -532,7 +532,7 @@ export async function summarizeSquadOverview(
         role: 'user',
         content: `Give an overall squad assessment for these 4 officers.\n\n${officerBlocks}`,
       }],
-      max_tokens: 768,
+      max_tokens: 1536,
     });
 
     if (response?.content?.[0]?.type === 'text') {

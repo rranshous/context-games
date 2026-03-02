@@ -2446,7 +2446,7 @@ ${s.signalHandlers.slice(0, 1500)}
 
 ${officerBlocks}`
       }],
-      max_tokens: 768
+      max_tokens: 1536
     });
     if (response?.content?.[0]?.type === "text") {
       return response.content[0].text || "";
