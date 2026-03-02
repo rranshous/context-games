@@ -1,6 +1,6 @@
 // Player squid — model, input, movement with collision
 import * as THREE from 'three';
-import { ReefMap, isPassable, worldToTile } from './map.js';
+import { ReefMap, Tile, getTile, isPassable, worldToTile } from './map.js';
 
 export interface Squid {
   group: THREE.Group;
@@ -8,6 +8,9 @@ export interface Squid {
   tentacles: THREE.Mesh[];
   finL: THREE.Mesh;
   finR: THREE.Mesh;
+  mantle: THREE.Mesh;
+  body: THREE.Mesh;
+  concealed: boolean;
 }
 
 export function createSquid(gradientMap: THREE.DataTexture): Squid {
@@ -85,7 +88,7 @@ export function createSquid(gradientMap: THREE.DataTexture): Squid {
 
   group.position.set(0, 1, 0);
 
-  return { group, glow, tentacles, finL, finR };
+  return { group, glow, tentacles, finL, finR, mantle, body, concealed: false };
 }
 
 // Input state
@@ -112,6 +115,15 @@ const isoUp = new THREE.Vector3(-1, 0, -1).normalize();
 const MOVE_SPEED = 6;
 const SPRINT_MULT = 1.6;
 const COLLISION_RADIUS = 0.3;
+
+// Concealment colors
+const NORMAL_MANTLE = new THREE.Color(0x44ccff);
+const NORMAL_BODY = new THREE.Color(0x33bbee);
+const CONCEALED_MANTLE = new THREE.Color(0x112233);
+const CONCEALED_BODY = new THREE.Color(0x0a1a28);
+const NORMAL_GLOW_INTENSITY = 2.5;
+const CONCEALED_GLOW_INTENSITY = 0.3;
+const CONCEALMENT_SPEED = 4; // lerp speed (per second)
 
 export function updateSquid(
   squid: Squid,
@@ -185,8 +197,27 @@ export function updateSquid(
     squid.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15;
   }
 
-  // Glow pulse
-  squid.glow.intensity = 2.0 + Math.sin(t * 2) * 0.6;
+  // --- Concealment ---
+  const { tx, tz } = worldToTile(squid.group.position.x, squid.group.position.z, tileSize, map.width, map.height);
+  const currentTile = getTile(map, tx, tz);
+  const onHidingTile = currentTile === Tile.DEN || currentTile === Tile.CREVICE || currentTile === Tile.KELP;
+  // Only conceal when still (not moving)
+  squid.concealed = onHidingTile && len === 0;
+
+  const lerpT = 1 - Math.exp(-CONCEALMENT_SPEED * dt);
+  const targetMantle = squid.concealed ? CONCEALED_MANTLE : NORMAL_MANTLE;
+  const targetBody = squid.concealed ? CONCEALED_BODY : NORMAL_BODY;
+  const targetGlow = squid.concealed ? CONCEALED_GLOW_INTENSITY : NORMAL_GLOW_INTENSITY;
+
+  const mantleMat = squid.mantle.material as THREE.MeshToonMaterial;
+  mantleMat.color.lerp(targetMantle, lerpT);
+  const bodyMat = squid.body.material as THREE.MeshToonMaterial;
+  bodyMat.color.lerp(targetBody, lerpT);
+
+  // Glow pulse (suppressed when concealed)
+  const baseGlow = squid.glow.intensity + (targetGlow - squid.glow.intensity) * lerpT;
+  const pulseAmp = squid.concealed ? 0.08 : 0.6;
+  squid.glow.intensity = baseGlow + Math.sin(t * 2) * pulseAmp;
 }
 
 function canMoveTo(wx: number, wz: number, map: ReefMap, tileSize: number): boolean {
