@@ -2222,7 +2222,7 @@ Now do the following, in order:
 
 DO NOT just describe what you would change. CALL THE TOOLS. Your written analysis means nothing if you don't call update_signal_handlers.`;
 }
-async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = "claude-sonnet-4-20250514", onTurnUpdate) {
+async function reflectActant(soma, replay, apiEndpoint, chaseMapBase64, model = "claude-sonnet-4-6", onTurnUpdate) {
   const result = {
     actantId: soma.id,
     success: false,
@@ -2607,7 +2607,7 @@ ${allySoma.memory.slice(0, 500)}
   }
   return allyIntel.join("\n\n");
 }
-async function runDebriefSharing(soma, allSomas, results, apiEndpoint, model = "claude-sonnet-4-20250514") {
+async function runDebriefSharing(soma, allSomas, results, apiEndpoint, model = "claude-sonnet-4-6") {
   const allyContext = buildDebriefContext(soma, allSomas, results);
   if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false };
   const systemPrompt = `You are Officer ${soma.name}, badge ${soma.badgeNumber}, reviewing shared intelligence from your allies.

@@ -264,7 +264,7 @@ export async function reflectActant(
   replay: ChaseReplay,
   apiEndpoint: string,
   chaseMapBase64: string,
-  model: string = 'claude-sonnet-4-20250514',
+  model: string = 'claude-sonnet-4-6',
   onTurnUpdate?: (update: TurnUpdate) => void,
 ): Promise<ReflectionResult> {
   const result: ReflectionResult = {
@@ -767,7 +767,7 @@ async function runDebriefSharing(
   allSomas: Soma[],
   results: ReflectionResult[],
   apiEndpoint: string,
-  model: string = 'claude-sonnet-4-20250514',
+  model: string = 'claude-sonnet-4-6',
 ): Promise<{ handlersUpdated: boolean; memoryUpdated: boolean }> {
   const allyContext = buildDebriefContext(soma, allSomas, results);
   if (!allyContext.trim()) return { handlersUpdated: false, memoryUpdated: false };
