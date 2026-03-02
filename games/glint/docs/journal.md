@@ -176,8 +176,47 @@ Runtime inspection revealed **0 dens and 0 crevices** on the current map (seed 4
 - Also relax crevice detection (2+ cardinal wall neighbors instead of strict opposite-sides rule)
 
 ### Next Session TODO
-1. **Alcove carving in map gen** — the critical blocker. No hiding spots = no game.
-2. **Relax crevice detection** — more tiles qualify as crevices
+1. ~~**Alcove carving in map gen**~~ — done (session 3)
+2. ~~**Relax crevice detection**~~ — done (session 3)
 3. **Concealment state** — squid dims/recolors when in hiding tile
-4. **Den visuals** — scale up the current arch + anemone (currently tiny, never seen one in-game since none generate)
+4. ~~**Den visuals**~~ — done (session 3)
 5. **First predator** — after hiding works, add a shark patrol to test the loop
+
+## Session 3 — Hiding Spots (2026-03-02)
+
+### What Changed
+
+**Alcove Carving** (map.ts, new step 4)
+- Cellular automata never produced dead-ends or 1-wide passages — zero dens, zero crevices
+- New algorithm walks all wall tiles bordering open space, looks inward (away from open) for a second wall tile
+- If the inner tile has 3+ cardinal wall neighbors, it's a valid alcove candidate
+- Candidates shuffled, then picked with ≥7 Manhattan distance spacing + ≥4 from spawn
+- Entrance wall → OPEN, inner wall → DEN
+- Result: **18 dens** spread across the full map (x: 1–46, z: 6–48)
+- Two dens accessible only through crevices — extra cozy
+
+**Relaxed Crevice Detection** (map.ts, step 5)
+- Old rule: walls on strict opposite sides (N+S or E+W) and no walls on the other axis — never triggered
+- New rule: any OPEN tile with 2+ cardinal wall neighbors becomes CREVICE
+- Result: **129 crevices** (was 0) — corners, L-bends, and narrow passages all qualify
+
+**Den Visuals Scaled Up** (reef.ts)
+- Arch: 0.4 → 0.8 radius torus, thicker tube (0.25)
+- Added flanking rocks (dodecahedrons) on each side of entrance
+- Anemone: 6–10 tendrils (was 4–7), bigger with tilt variation
+- Warm glow: intensity 1.5 → 2.0, range 5 → 7 — visible from a distance
+- Everything in a Group so it moves/renders as one unit
+
+**Tile Count Comparison** (seed 42)
+| Tile | Session 2 | Session 3 |
+|------|-----------|-----------|
+| OPEN | 1592 | 1461 |
+| WALL | 835 | 799 |
+| CREVICE | 0 | 129 |
+| KELP | 73 | 93 |
+| DEN | 0 | 18 |
+
+### Next
+1. **Concealment state** — squid dims glow + shifts color when on DEN/CREVICE/KELP tile
+2. **First predator** (shark patrol) — test the hide-flee-hide loop
+3. **Wall thickness** — still on the backlog, may not need it now that crevices exist

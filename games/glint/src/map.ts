@@ -143,22 +143,77 @@ export function generateReef(width: number, height: number, seed: number = 42): 
     }
   }
 
-  // Step 4: identify crevices — open tiles with walls on opposite sides (narrow passages)
+  // Step 4: carve alcoves into wall edges → dens
+  // Walk wall tiles bordering open space, carve 2-deep pockets, mark inner tile as DEN
+  const dirs = [[0, -1], [0, 1], [1, 0], [-1, 0]] as const;
+  interface AlcoveCandidate { ex: number; ez: number; dx: number; dz: number; ix: number; iz: number }
+  const alcoveCandidates: AlcoveCandidate[] = [];
+
+  for (let z = 2; z < height - 2; z++) {
+    for (let x = 2; x < width - 2; x++) {
+      if (tiles[idx(x, z, width)] !== Tile.WALL) continue;
+      for (const [dx, dz] of dirs) {
+        const ox = x + dx, oz = z + dz; // open-side neighbor
+        if (ox < 1 || ox >= width - 1 || oz < 1 || oz >= height - 1) continue;
+        if (tiles[idx(ox, oz, width)] !== Tile.OPEN) continue;
+        // Inward direction (deeper into wall mass)
+        const ix = x - dx, iz = z - dz;
+        if (ix < 1 || ix >= width - 1 || iz < 1 || iz >= height - 1) continue;
+        if (tiles[idx(ix, iz, width)] !== Tile.WALL) continue;
+        // Check the den tile is well-enclosed: count its cardinal wall neighbors (excluding entrance direction)
+        let wallCount = 0;
+        for (const [ndx, ndz] of dirs) {
+          const nx = ix + ndx, nz = iz + ndz;
+          if (nx < 0 || nx >= width || nz < 0 || nz >= height) { wallCount++; continue; }
+          if (tiles[idx(nx, nz, width)] === Tile.WALL) wallCount++;
+        }
+        // Den tile should have 3+ wall neighbors (the 4th side is the entrance we'll carve)
+        if (wallCount >= 3) {
+          alcoveCandidates.push({ ex: x, ez: z, dx, dz, ix, iz });
+        }
+      }
+    }
+  }
+
+  // Shuffle and pick ~18 alcoves, spaced apart
+  for (let i = alcoveCandidates.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [alcoveCandidates[i], alcoveCandidates[j]] = [alcoveCandidates[j], alcoveCandidates[i]];
+  }
+
+  const dens: { x: number; z: number }[] = [];
+  const targetDens = 18;
+  const minDenDist = 7;
+  for (const c of alcoveCandidates) {
+    if (dens.length >= targetDens) break;
+    // Skip if too close to another den
+    const tooClose = dens.some(d => Math.abs(d.x - c.ix) + Math.abs(d.z - c.iz) < minDenDist);
+    if (tooClose) continue;
+    // Skip if too close to spawn
+    if (Math.abs(c.ix - spawnX) + Math.abs(c.iz - spawnZ) < 4) continue;
+    // Carve: entrance becomes OPEN, inner tile becomes DEN
+    tiles[idx(c.ex, c.ez, width)] = Tile.OPEN;
+    tiles[idx(c.ix, c.iz, width)] = Tile.DEN;
+    dens.push({ x: c.ix, z: c.iz });
+  }
+
+  // Step 5: identify crevices — open tiles with 2+ cardinal wall neighbors
   for (let z = 1; z < height - 1; z++) {
     for (let x = 1; x < width - 1; x++) {
       if (tiles[idx(x, z, width)] !== Tile.OPEN) continue;
-      const wallN = tiles[idx(x, z - 1, width)] === Tile.WALL;
-      const wallS = tiles[idx(x, z + 1, width)] === Tile.WALL;
-      const wallE = tiles[idx(x + 1, z, width)] === Tile.WALL;
-      const wallW = tiles[idx(x - 1, z, width)] === Tile.WALL;
-      // Narrow horizontal passage (walls above and below) or vertical (walls left and right)
-      if ((wallN && wallS && !wallE && !wallW) || (wallE && wallW && !wallN && !wallS)) {
+      let cardinalWalls = 0;
+      for (const [dx, dz] of dirs) {
+        const nx = x + dx, nz = z + dz;
+        if (nx < 0 || nx >= width || nz < 0 || nz >= height) { cardinalWalls++; continue; }
+        if (tiles[idx(nx, nz, width)] === Tile.WALL) cardinalWalls++;
+      }
+      if (cardinalWalls >= 2) {
         tiles[idx(x, z, width)] = Tile.CREVICE;
       }
     }
   }
 
-  // Step 5: place kelp groves — clusters in open areas away from walls
+  // Step 7: place kelp groves — clusters in open areas away from walls
   const kelpSeeds = 6 + Math.floor(rand() * 4);
   for (let k = 0; k < kelpSeeds; k++) {
     const kx = 3 + Math.floor(rand() * (width - 6));
@@ -176,34 +231,6 @@ export function generateReef(width: number, height: number, seed: number = 42): 
           }
         }
       }
-    }
-  }
-
-  // Step 6: place dens — in dead-end-like areas (open tiles with 3 wall neighbors in cardinal dirs)
-  const dens: { x: number; z: number }[] = [];
-  const denCandidates: { x: number; z: number; score: number }[] = [];
-  for (let z = 2; z < height - 2; z++) {
-    for (let x = 2; x < width - 2; x++) {
-      if (tiles[idx(x, z, width)] !== Tile.OPEN) continue;
-      const cardinalWalls =
-        (tiles[idx(x, z - 1, width)] === Tile.WALL ? 1 : 0) +
-        (tiles[idx(x, z + 1, width)] === Tile.WALL ? 1 : 0) +
-        (tiles[idx(x + 1, z, width)] === Tile.WALL ? 1 : 0) +
-        (tiles[idx(x - 1, z, width)] === Tile.WALL ? 1 : 0);
-      if (cardinalWalls >= 3) {
-        const distFromSpawn = Math.abs(x - spawnX) + Math.abs(z - spawnZ);
-        denCandidates.push({ x, z, score: distFromSpawn });
-      }
-    }
-  }
-  // Pick 4-6 dens, spread across the map
-  denCandidates.sort((a, b) => b.score - a.score);
-  const denCount = Math.min(denCandidates.length, 4 + Math.floor(rand() * 3));
-  for (let i = 0; i < denCount; i++) {
-    const d = denCandidates[Math.floor(i * denCandidates.length / denCount)];
-    if (d) {
-      tiles[idx(d.x, d.z, width)] = Tile.DEN;
-      dens.push({ x: d.x, z: d.z });
     }
   }
 

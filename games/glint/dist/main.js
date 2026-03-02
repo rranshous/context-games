@@ -101,14 +101,62 @@ function generateReef(width, height, seed = 42) {
       tiles[i] = 1 /* WALL */;
     }
   }
+  const dirs = [[0, -1], [0, 1], [1, 0], [-1, 0]];
+  const alcoveCandidates = [];
+  for (let z = 2; z < height - 2; z++) {
+    for (let x = 2; x < width - 2; x++) {
+      if (tiles[idx(x, z, width)] !== 1 /* WALL */) continue;
+      for (const [dx, dz] of dirs) {
+        const ox = x + dx, oz = z + dz;
+        if (ox < 1 || ox >= width - 1 || oz < 1 || oz >= height - 1) continue;
+        if (tiles[idx(ox, oz, width)] !== 0 /* OPEN */) continue;
+        const ix = x - dx, iz = z - dz;
+        if (ix < 1 || ix >= width - 1 || iz < 1 || iz >= height - 1) continue;
+        if (tiles[idx(ix, iz, width)] !== 1 /* WALL */) continue;
+        let wallCount = 0;
+        for (const [ndx, ndz] of dirs) {
+          const nx = ix + ndx, nz = iz + ndz;
+          if (nx < 0 || nx >= width || nz < 0 || nz >= height) {
+            wallCount++;
+            continue;
+          }
+          if (tiles[idx(nx, nz, width)] === 1 /* WALL */) wallCount++;
+        }
+        if (wallCount >= 3) {
+          alcoveCandidates.push({ ex: x, ez: z, dx, dz, ix, iz });
+        }
+      }
+    }
+  }
+  for (let i = alcoveCandidates.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [alcoveCandidates[i], alcoveCandidates[j]] = [alcoveCandidates[j], alcoveCandidates[i]];
+  }
+  const dens = [];
+  const targetDens = 18;
+  const minDenDist = 7;
+  for (const c of alcoveCandidates) {
+    if (dens.length >= targetDens) break;
+    const tooClose = dens.some((d) => Math.abs(d.x - c.ix) + Math.abs(d.z - c.iz) < minDenDist);
+    if (tooClose) continue;
+    if (Math.abs(c.ix - spawnX) + Math.abs(c.iz - spawnZ) < 4) continue;
+    tiles[idx(c.ex, c.ez, width)] = 0 /* OPEN */;
+    tiles[idx(c.ix, c.iz, width)] = 4 /* DEN */;
+    dens.push({ x: c.ix, z: c.iz });
+  }
   for (let z = 1; z < height - 1; z++) {
     for (let x = 1; x < width - 1; x++) {
       if (tiles[idx(x, z, width)] !== 0 /* OPEN */) continue;
-      const wallN = tiles[idx(x, z - 1, width)] === 1 /* WALL */;
-      const wallS = tiles[idx(x, z + 1, width)] === 1 /* WALL */;
-      const wallE = tiles[idx(x + 1, z, width)] === 1 /* WALL */;
-      const wallW = tiles[idx(x - 1, z, width)] === 1 /* WALL */;
-      if (wallN && wallS && !wallE && !wallW || wallE && wallW && !wallN && !wallS) {
+      let cardinalWalls = 0;
+      for (const [dx, dz] of dirs) {
+        const nx = x + dx, nz = z + dz;
+        if (nx < 0 || nx >= width || nz < 0 || nz >= height) {
+          cardinalWalls++;
+          continue;
+        }
+        if (tiles[idx(nx, nz, width)] === 1 /* WALL */) cardinalWalls++;
+      }
+      if (cardinalWalls >= 2) {
         tiles[idx(x, z, width)] = 2 /* CREVICE */;
       }
     }
@@ -129,27 +177,6 @@ function generateReef(width, height, seed = 42) {
           }
         }
       }
-    }
-  }
-  const dens = [];
-  const denCandidates = [];
-  for (let z = 2; z < height - 2; z++) {
-    for (let x = 2; x < width - 2; x++) {
-      if (tiles[idx(x, z, width)] !== 0 /* OPEN */) continue;
-      const cardinalWalls = (tiles[idx(x, z - 1, width)] === 1 /* WALL */ ? 1 : 0) + (tiles[idx(x, z + 1, width)] === 1 /* WALL */ ? 1 : 0) + (tiles[idx(x + 1, z, width)] === 1 /* WALL */ ? 1 : 0) + (tiles[idx(x - 1, z, width)] === 1 /* WALL */ ? 1 : 0);
-      if (cardinalWalls >= 3) {
-        const distFromSpawn = Math.abs(x - spawnX) + Math.abs(z - spawnZ);
-        denCandidates.push({ x, z, score: distFromSpawn });
-      }
-    }
-  }
-  denCandidates.sort((a, b) => b.score - a.score);
-  const denCount = Math.min(denCandidates.length, 4 + Math.floor(rand() * 3));
-  for (let i = 0; i < denCount; i++) {
-    const d = denCandidates[Math.floor(i * denCandidates.length / denCount)];
-    if (d) {
-      tiles[idx(d.x, d.z, width)] = 4 /* DEN */;
-      dens.push({ x: d.x, z: d.z });
     }
   }
   return {
@@ -412,41 +439,51 @@ function buildReef(scene2, map2, tileSize, gradientMap2) {
     }
   }
   function placeDen(x, z) {
-    const archGeo = new THREE.TorusGeometry(0.4, 0.15, 6, 8, Math.PI);
-    const archMat = new THREE.MeshToonMaterial({
-      color: new THREE.Color().setHSL(0.55, 0.1, 0.2),
-      gradientMap: gradientMap2
-    });
+    const group = new THREE.Group();
+    const archGeo = new THREE.TorusGeometry(0.8, 0.25, 6, 10, Math.PI);
+    const archColor = new THREE.Color().setHSL(0.55, 0.12, 0.18);
+    const archMat = new THREE.MeshToonMaterial({ color: archColor, gradientMap: gradientMap2 });
     const arch = new THREE.Mesh(archGeo, archMat);
-    arch.position.set(x, -0.1, z);
+    arch.position.y = 0.3;
     arch.rotation.x = Math.PI / 2;
     arch.castShadow = true;
-    scene2.add(arch);
-    const light = new THREE.PointLight(16755268, 1.5, 5);
-    light.position.set(x, 0.2, z);
-    scene2.add(light);
+    group.add(arch);
+    for (let side = -1; side <= 1; side += 2) {
+      const s = 0.35 + rand() * 0.2;
+      const geo = new THREE.DodecahedronGeometry(s);
+      const mat = new THREE.MeshToonMaterial({ color: archColor.clone().offsetHSL(0, 0, -0.03), gradientMap: gradientMap2 });
+      const rock = new THREE.Mesh(geo, mat);
+      rock.position.set(side * 0.7, s * 0.3, 0.1 * side);
+      rock.rotation.set(rand() * Math.PI, rand() * Math.PI, 0);
+      rock.castShadow = true;
+      group.add(rock);
+    }
+    const light = new THREE.PointLight(16755268, 2, 7);
+    light.position.set(0, 0.3, 0);
+    group.add(light);
     result.denLights.push(light);
-    const anemGroup = new THREE.Group();
-    const anemColor = new THREE.Color().setHSL(0.08, 0.6, 0.4);
+    const anemColor = new THREE.Color().setHSL(0.08, 0.65, 0.42);
     const tendrils = [];
-    const tendrilCount = 4 + Math.floor(rand() * 3);
+    const tendrilCount = 6 + Math.floor(rand() * 4);
     for (let i = 0; i < tendrilCount; i++) {
-      const th = 0.3 + rand() * 0.5;
-      const tGeo = new THREE.CylinderGeometry(0.015, 0.03, th, 4);
+      const th = 0.4 + rand() * 0.6;
+      const tGeo = new THREE.CylinderGeometry(0.02, 0.05, th, 4);
       const tMat = new THREE.MeshStandardMaterial({
         color: anemColor,
         emissive: anemColor.clone().offsetHSL(0, 0.2, 0.15),
-        emissiveIntensity: 0.5
+        emissiveIntensity: 0.6
       });
       const tendril = new THREE.Mesh(tGeo, tMat);
       const angle = i / tendrilCount * Math.PI * 2;
-      tendril.position.set(Math.cos(angle) * 0.15, th / 2, Math.sin(angle) * 0.15);
-      anemGroup.add(tendril);
+      const spread = 0.25 + rand() * 0.15;
+      tendril.position.set(Math.cos(angle) * spread, th / 2, Math.sin(angle) * spread);
+      tendril.rotation.set((rand() - 0.5) * 0.3, 0, (rand() - 0.5) * 0.3);
+      group.add(tendril);
       tendrils.push(tendril);
     }
-    anemGroup.position.set(x + 0.3, -0.5, z + 0.2);
-    scene2.add(anemGroup);
     result.anemones.push({ tendrils });
+    group.position.set(x, -0.5, z);
+    scene2.add(group);
   }
   function placeOpenDecor(x, z) {
     const type = rand();

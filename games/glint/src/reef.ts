@@ -280,46 +280,61 @@ export function buildReef(
   }
 
   function placeDen(x: number, z: number) {
-    // Warm glowing safe zone — arched rock with interior light
-    const archGeo = new THREE.TorusGeometry(0.4, 0.15, 6, 8, Math.PI);
-    const archMat = new THREE.MeshToonMaterial({
-      color: new THREE.Color().setHSL(0.55, 0.1, 0.2),
-      gradientMap,
-    });
+    // Warm glowing safe zone — rocky overhang shelter with interior light
+    const group = new THREE.Group();
+
+    // Main arch — scaled up so it reads as a shelter
+    const archGeo = new THREE.TorusGeometry(0.8, 0.25, 6, 10, Math.PI);
+    const archColor = new THREE.Color().setHSL(0.55, 0.12, 0.18);
+    const archMat = new THREE.MeshToonMaterial({ color: archColor, gradientMap });
     const arch = new THREE.Mesh(archGeo, archMat);
-    arch.position.set(x, -0.1, z);
+    arch.position.y = 0.3;
     arch.rotation.x = Math.PI / 2;
     arch.castShadow = true;
-    scene.add(arch);
+    group.add(arch);
 
-    // Warm interior glow
-    const light = new THREE.PointLight(0xffaa44, 1.5, 5);
-    light.position.set(x, 0.2, z);
-    scene.add(light);
+    // Side rocks framing the entrance
+    for (let side = -1; side <= 1; side += 2) {
+      const s = 0.35 + rand() * 0.2;
+      const geo = new THREE.DodecahedronGeometry(s);
+      const mat = new THREE.MeshToonMaterial({ color: archColor.clone().offsetHSL(0, 0, -0.03), gradientMap });
+      const rock = new THREE.Mesh(geo, mat);
+      rock.position.set(side * 0.7, s * 0.3, 0.1 * side);
+      rock.rotation.set(rand() * Math.PI, rand() * Math.PI, 0);
+      rock.castShadow = true;
+      group.add(rock);
+    }
+
+    // Warm interior glow — slightly stronger, visible from a distance
+    const light = new THREE.PointLight(0xffaa44, 2.0, 7);
+    light.position.set(0, 0.3, 0);
+    group.add(light);
     result.denLights.push(light);
 
-    // Small anemone cluster near den
-    const anemGroup = new THREE.Group();
-    const anemColor = new THREE.Color().setHSL(0.08, 0.6, 0.4);
+    // Anemone cluster inside the den — bigger tendrils
+    const anemColor = new THREE.Color().setHSL(0.08, 0.65, 0.42);
     const tendrils: THREE.Mesh[] = [];
-    const tendrilCount = 4 + Math.floor(rand() * 3);
+    const tendrilCount = 6 + Math.floor(rand() * 4);
     for (let i = 0; i < tendrilCount; i++) {
-      const th = 0.3 + rand() * 0.5;
-      const tGeo = new THREE.CylinderGeometry(0.015, 0.03, th, 4);
+      const th = 0.4 + rand() * 0.6;
+      const tGeo = new THREE.CylinderGeometry(0.02, 0.05, th, 4);
       const tMat = new THREE.MeshStandardMaterial({
         color: anemColor,
         emissive: anemColor.clone().offsetHSL(0, 0.2, 0.15),
-        emissiveIntensity: 0.5,
+        emissiveIntensity: 0.6,
       });
       const tendril = new THREE.Mesh(tGeo, tMat);
       const angle = (i / tendrilCount) * Math.PI * 2;
-      tendril.position.set(Math.cos(angle) * 0.15, th / 2, Math.sin(angle) * 0.15);
-      anemGroup.add(tendril);
+      const spread = 0.25 + rand() * 0.15;
+      tendril.position.set(Math.cos(angle) * spread, th / 2, Math.sin(angle) * spread);
+      tendril.rotation.set((rand() - 0.5) * 0.3, 0, (rand() - 0.5) * 0.3);
+      group.add(tendril);
       tendrils.push(tendril);
     }
-    anemGroup.position.set(x + 0.3, -0.5, z + 0.2);
-    scene.add(anemGroup);
     result.anemones.push({ tendrils });
+
+    group.position.set(x, -0.5, z);
+    scene.add(group);
   }
 
   function placeOpenDecor(x: number, z: number) {
