@@ -366,6 +366,29 @@ Officers were staying in one spot but claiming they had patrol routes. Root caus
 ### Future Idea: Soma-Owned Map Rendering
 What if the chase map rendering logic (or something similar) lived in the soma so officers could modify it? They could annotate the map, add their own markers, or change what they focus on. Creates another axis of self-modification alongside handler code and memory. Not pursuing now but an interesting direction for deeper embodiment.
 
+### Debrief Cards: Summary Only
+After testing, removed tool call badges from debrief cards entirely. Cards now show:
+1. Chase map image
+2. Haiku summary (2-3 bullet points)
+3. Collapsible "full reasoning" at bottom
+
+`appendTurnContent()` is now a no-op — all live content suppressed. Only `setReflectionSummary()` adds content after each officer finishes.
+
+### Session 6 Summary of All Changes
+1. **Viewport**: 480×320 → 320×240 internal (3x CSS to 960×720). ~13×10 tiles visible.
+2. **Handler pileup**: `busyOfficers` Set prevents async handler stacking.
+3. **Code length limit**: `MAX_HANDLER_CODE_LENGTH = 50000` in `validateHandlerCode()` (infrastructure, effectively uncapped).
+4. **Haiku summaries**: Post-reflection haiku call per officer → 2-3 bullet summary on card.
+5. **Distance tracking**: `officerSummary.distanceTraveled` in replay-summarizer. Warning if <200px.
+6. **UI cleanup**: No tool badges, no reasoning text shown live. Summary-only cards.
+
+### Architecture Notes for Next Session
+- `reflection.ts`: `callAnthropicAPI()` now has optional `tools` param. `summarizeReflection()` uses haiku.
+- `renderer.ts`: `appendTurnContent()` is a no-op. `setReflectionSummary()` is the only content method.
+- `soma-police.ts`: `busyOfficers` Set wraps `updateSomaPolice()` in try/finally.
+- `replay-summarizer.ts`: `officerSummary` has `distanceTraveled` field.
+- CSS in `index.html`: `.reflection-summary`, `.reflection-full-reasoning`, `.reflection-reasoning-content` classes added. Old `.reflection-text-chunk` styles removed.
+
 ### What's Next
 - **Phase 4: Communication** — the main remaining feature phase
   - Config A: None (current) → B: Observation sharing → C: Tactic sharing → D: Live radio
