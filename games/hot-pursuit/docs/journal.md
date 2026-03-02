@@ -530,3 +530,15 @@ Added a side panel to the right of the game canvas for inspecting individual off
 - Tighten handler code length limit once growth patterns observed
 - Consider handler execution profiling if choppiness returns
 - Potential: "police chief" mode where a second player directs officers during debrief
+
+## 2026-03-01 — Session 9: Debrief Phase Titles
+
+### Dynamic Debrief Header
+The debrief overlay title was a static "DEBRIEF" during both reflection phases. Now it updates to reflect what's actually happening:
+- **"DEBRIEF — REVIEWING TAPE"** during Phase 1 (individual reflection — officers analyzing their own chase replay)
+- **"DEBRIEF — SHARING NOTES"** during Phase 2 (debrief sharing — officers exchanging intel with allies)
+
+Title element given `id="reflection-phase-title"` for dynamic updates. Phase transition detected in `updateReflectionProgress()` when status changes to `'sharing'`.
+
+### Files Changed
+- `renderer.ts`: added id to title element, initial text "REVIEWING TAPE", updates to "SHARING NOTES" on sharing status

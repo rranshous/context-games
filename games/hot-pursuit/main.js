@@ -1505,7 +1505,7 @@ var Renderer = class {
         </div>
       `).join("");
       content.innerHTML = `
-        <div class="reflection-title">DEBRIEF</div>
+        <div id="reflection-phase-title" class="reflection-title">DEBRIEF \u2014 REVIEWING TAPE</div>
         <div class="reflection-card-grid">${cards}</div>
         <div id="reflection-done-prompt" class="reflection-prompt" style="display:none;">PRESS SPACE TO BEGIN NEXT CHASE</div>
       `;
@@ -1520,6 +1520,8 @@ var Renderer = class {
       } else if (status === "sharing") {
         statusEl.className = "reflection-card-status active";
         statusEl.textContent = "sharing intel...";
+        const titleEl = document.getElementById("reflection-phase-title");
+        if (titleEl) titleEl.textContent = "DEBRIEF \u2014 SHARING NOTES";
       } else if (status === "complete") {
         statusEl.className = "reflection-card-status done";
         statusEl.textContent = "done";
@@ -1585,7 +1587,7 @@ var Renderer = class {
     const content = document.getElementById("reflection-content");
     if (!content) return;
     content.innerHTML = `
-      <div class="reflection-title">DEBRIEF FAILED</div>
+      <div id="reflection-phase-title" class="reflection-title">DEBRIEF FAILED</div>
       <div class="reflection-error">${escapeHtml(error.slice(0, 200))}</div>
       <div class="reflection-subtitle">Officers will use their current tactics.</div>
       <div class="reflection-prompt">PRESS SPACE TO CONTINUE</div>
