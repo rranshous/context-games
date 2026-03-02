@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import { generateReef, tileToWorld } from './map.js';
+import { generateReef, Tile, getTile, tileToWorld } from './map.js';
 import { buildReef } from './reef.js';
 import { createSquid, updateSquid } from './squid.js';
+import { Predator, readSensors, checkCatch } from './predator.js';
+import { createShark } from './shark.js';
 
 // --- Config ---
 const RENDER_W = 320;
@@ -123,8 +125,37 @@ const spawn = tileToWorld(map.playerSpawn.x, map.playerSpawn.z, TILE_SIZE, MAP_W
 squid.group.position.set(spawn.wx, 1, spawn.wz);
 scene.add(squid.group);
 
+// --- Predators ---
+const predators: Predator[] = [];
+
+// Spawn sharks in open tiles far from player
+function spawnSharks(count: number) {
+  const spawnRng = (() => {
+    let s = 98765;
+    return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  })();
+
+  for (let n = 0; n < count; n++) {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const tx = Math.floor(spawnRng() * MAP_W);
+      const tz = Math.floor(spawnRng() * MAP_H);
+      const tile = getTile(map, tx, tz);
+      if (tile !== Tile.OPEN) continue;
+      // Must be far from player spawn
+      const dx = tx - map.playerSpawn.x, dz = tz - map.playerSpawn.z;
+      if (dx * dx + dz * dz < 225) continue; // at least 15 tiles away
+      const { wx, wz } = tileToWorld(tx, tz, TILE_SIZE, MAP_W, MAP_H);
+      const shark = createShark(`shark-${n}`, wx, wz, gradientMap);
+      scene.add(shark.group);
+      predators.push(shark);
+      break;
+    }
+  }
+}
+spawnSharks(3);
+
 // Debug access
-(window as any).__glint = { map, squid, tileToWorld, TILE_SIZE, MAP_W, MAP_H };
+(window as any).__glint = { map, squid, tileToWorld, TILE_SIZE, MAP_W, MAP_H, predators };
 
 // --- Game loop ---
 const clock = new THREE.Clock();
@@ -136,6 +167,25 @@ function animate() {
 
   // Update squid (input, movement, collision, animation)
   updateSquid(squid, dt, t, map, TILE_SIZE);
+
+  // Update predators
+  for (const pred of predators) {
+    const sensors = readSensors(pred, squid, map, TILE_SIZE);
+    pred.updateSoma(pred, sensors, dt, map, TILE_SIZE);
+    pred.animate(pred, t);
+
+    // Catch — respawn squid at spawn
+    if (checkCatch(pred, squid)) {
+      squid.group.position.set(spawn.wx, 1, spawn.wz);
+      // Reset all predators to patrol
+      for (const p of predators) {
+        p.soma.state = 0; // PATROL
+        p.soma.waypoint = null;
+        p.soma.lastSeenPos = null;
+      }
+      break;
+    }
+  }
 
   // Camera follow
   camera.position.set(squid.group.position.x + 20, 20, squid.group.position.z + 20);
