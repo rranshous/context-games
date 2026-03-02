@@ -127,6 +127,7 @@ scene.add(squid.group);
 
 // --- Predators ---
 const predators: Predator[] = [];
+let invulnTimer = 0; // seconds of catch immunity after respawn
 
 // Spawn sharks in open tiles far from player
 function spawnSharks(count: number) {
@@ -141,13 +142,17 @@ function spawnSharks(count: number) {
       const tz = Math.floor(spawnRng() * MAP_H);
       const tile = getTile(map, tx, tz);
       if (tile !== Tile.OPEN) continue;
-      // Must be far from player spawn
-      const dx = tx - map.playerSpawn.x, dz = tz - map.playerSpawn.z;
-      if (dx * dx + dz * dz < 225) continue; // at least 15 tiles away
+      // Must be far from player spawn (tile distance)
+      const dtx = tx - map.playerSpawn.x, dtz = tz - map.playerSpawn.z;
+      if (dtx * dtx + dtz * dtz < 225) continue; // at least 15 tiles away
       const { wx, wz } = tileToWorld(tx, tz, TILE_SIZE, MAP_W, MAP_H);
+      // Double-check world distance from spawn point
+      const wdx = wx - spawn.wx, wdz = wz - spawn.wz;
+      if (wdx * wdx + wdz * wdz < 400) continue; // at least 20 world units
       const shark = createShark(`shark-${n}`, wx, wz, gradientMap);
       scene.add(shark.group);
       predators.push(shark);
+      console.log(`[GLINT] Spawned ${shark.id} at tile (${tx},${tz}) world (${wx.toFixed(1)},${wz.toFixed(1)})`);
       break;
     }
   }
@@ -169,14 +174,20 @@ function animate() {
   updateSquid(squid, dt, t, map, TILE_SIZE);
 
   // Update predators
+  if (invulnTimer > 0) invulnTimer -= dt;
   for (const pred of predators) {
-    const sensors = readSensors(pred, squid, map, TILE_SIZE);
+    // During invulnerability, squid is "invisible" — forces chasers into SEARCH→PATROL
+    const sensors = invulnTimer > 0
+      ? { squidDetected: false, squidWorldPos: { x: 0, z: 0 }, squidDist: 999 }
+      : readSensors(pred, squid, map, TILE_SIZE);
     pred.updateSoma(pred, sensors, dt, map, TILE_SIZE);
     pred.animate(pred, t);
 
-    // Catch — respawn squid at spawn
-    if (checkCatch(pred, squid)) {
+    // Catch — respawn squid at spawn (with invulnerability)
+    if (invulnTimer <= 0 && checkCatch(pred, squid)) {
+      console.log(`[GLINT] Caught by ${pred.id}!`);
       squid.group.position.set(spawn.wx, 1, spawn.wz);
+      invulnTimer = 2.0; // 2 seconds immunity
       // Reset all predators to patrol
       for (const p of predators) {
         p.soma.state = 0; // PATROL
