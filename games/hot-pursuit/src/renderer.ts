@@ -487,38 +487,40 @@ export class Renderer {
     const panel = document.getElementById('soma-panel');
     if (!panel) return;
 
-    const handlerLines = soma.signalHandlers.trim().split('\n').length;
+    // Remove previous card content (preserve header with reset button)
+    this.clearSomaPanel();
 
-    panel.innerHTML = `
-      <div class="soma-panel-title">${escapeHtml(soma.name)}</div>
-      <div class="soma-card">
-        <div class="soma-card-header">
-          <span class="soma-card-name">${escapeHtml(soma.name)}</span>
-          <span class="soma-card-badge">${escapeHtml(soma.badgeNumber)}</span>
-        </div>
-        <div class="soma-card-nature">${escapeHtml(soma.nature)}</div>
-        <div class="soma-card-section">
-          <div class="soma-card-section-label">Behavior</div>
-          <div id="soma-inspector-behavior" class="soma-card-generating">generating summary...</div>
-        </div>
-        <div class="soma-card-section">
-          <div class="soma-card-section-label">Memory</div>
-          <div class="soma-card-memory">${escapeHtml(soma.memory)}</div>
-        </div>
-        <div class="soma-card-section">
-          <div class="soma-card-section-label">Chase History</div>
-          <div class="soma-card-memory">${soma.chaseHistory.length === 0
-            ? 'No chases yet.'
-            : soma.chaseHistory.map(h =>
-                `Run ${h.runId}: ${h.outcome} (${Math.round(h.durationSeconds)}s)${h.captured ? ' - CAPTURED' : ''}${h.spotted ? ' - spotted' : ''}`
-              ).join('\n')
-          }</div>
-        </div>
-        <details open>
-          <summary>handler code (${handlerLines} lines)</summary>
-          <div class="soma-card-code">${escapeHtml(soma.signalHandlers.trim())}</div>
-        </details>
-      </div>`;
+    const handlerLines = soma.signalHandlers.trim().split('\n').length;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'soma-card';
+    wrapper.innerHTML = `
+      <div class="soma-card-header">
+        <span class="soma-card-name">${escapeHtml(soma.name)}</span>
+        <span class="soma-card-badge">${escapeHtml(soma.badgeNumber)}</span>
+      </div>
+      <div class="soma-card-nature">${escapeHtml(soma.nature)}</div>
+      <div class="soma-card-section">
+        <div class="soma-card-section-label">Behavior</div>
+        <div id="soma-inspector-behavior" class="soma-card-generating">generating summary...</div>
+      </div>
+      <div class="soma-card-section">
+        <div class="soma-card-section-label">Memory</div>
+        <div class="soma-card-memory">${escapeHtml(soma.memory)}</div>
+      </div>
+      <div class="soma-card-section">
+        <div class="soma-card-section-label">Chase History</div>
+        <div class="soma-card-memory">${soma.chaseHistory.length === 0
+          ? 'No chases yet.'
+          : soma.chaseHistory.map(h =>
+              `Run ${h.runId}: ${h.outcome} (${Math.round(h.durationSeconds)}s)${h.captured ? ' - CAPTURED' : ''}${h.spotted ? ' - spotted' : ''}`
+            ).join('\n')
+        }</div>
+      </div>
+      <details open>
+        <summary>handler code (${handlerLines} lines)</summary>
+        <div class="soma-card-code">${escapeHtml(soma.signalHandlers.trim())}</div>
+      </details>`;
+    panel.appendChild(wrapper);
   }
 
   /** Patch in the behavior summary after the haiku call returns. */
@@ -529,10 +531,13 @@ export class Renderer {
     el.innerHTML = renderMarkdown(summary);
   }
 
-  /** Reset the panel to empty. */
+  /** Remove card content from panel, preserving header with reset button. */
   clearSomaPanel(): void {
     const panel = document.getElementById('soma-panel');
-    if (panel) panel.innerHTML = '<div class="soma-panel-title">Officers</div>';
+    if (!panel) return;
+    // Remove all children except the header
+    const toRemove = Array.from(panel.children).filter(el => !el.classList.contains('soma-panel-header'));
+    for (const el of toRemove) el.remove();
   }
 }
 

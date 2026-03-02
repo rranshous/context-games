@@ -71,9 +71,6 @@
 
     /* ── Reset Button ── */
     #reset-btn {
-      position: absolute;
-      top: -28px;
-      right: 0;
       background: transparent;
       border: 1px solid #333;
       color: #666;
@@ -81,7 +78,6 @@
       font-size: 10px;
       padding: 2px 6px;
       cursor: pointer;
-      z-index: 10;
     }
     #reset-btn:hover { color: #ff3333; border-color: #ff3333; }
 
@@ -317,14 +313,19 @@
       scrollbar-width: thin;
       scrollbar-color: #333 #0d0d0d;
     }
+    .soma-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid #1a1a1a;
+    }
     .soma-panel-title {
       font-size: 11px;
       font-weight: bold;
       color: #555;
       text-transform: uppercase;
       letter-spacing: 2px;
-      padding: 10px 12px 6px;
-      border-bottom: 1px solid #1a1a1a;
     }
     .soma-card {
       border-bottom: 1px solid #1a1a1a;
@@ -428,7 +429,6 @@
         <span class="status" id="hud-status">RUN: 1</span>
         <span class="timer" id="hud-timer">TIME: 0</span>
       </div>
-      <button id="reset-btn">RESET</button>
       <canvas id="game-canvas"></canvas>
       <div id="game-over-overlay">
         <div class="result" id="result-text"></div>
@@ -439,7 +439,10 @@
       </div>
     </div>
     <div id="soma-panel">
-      <div class="soma-panel-title">Officers</div>
+      <div class="soma-panel-header">
+        <div class="soma-panel-title">Officers</div>
+        <button id="reset-btn">RESET</button>
+      </div>
     </div>
   </div>
   <div id="build-tag" style="position:fixed;bottom:4px;right:6px;font:10px monospace;color:#ffaa33;background:#000;padding:1px 4px;z-index:9999"></div>
