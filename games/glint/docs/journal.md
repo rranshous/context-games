@@ -217,6 +217,62 @@ Runtime inspection revealed **0 dens and 0 crevices** on the current map (seed 4
 | DEN | 0 | 18 |
 
 ### Next
-1. **Concealment state** — squid dims glow + shifts color when on DEN/CREVICE/KELP tile
-2. **First predator** (shark patrol) — test the hide-flee-hide loop
+1. ~~**Concealment state**~~ — done (session 4)
+2. ~~**First predator**~~ — done (session 4)
 3. **Wall thickness** — still on the backlog, may not need it now that crevices exist
+
+## Session 4 — Concealment + First Predator (2026-03-02)
+
+### What Changed
+
+**Concealment State** (squid.ts)
+- When stationary on DEN, CREVICE, or KELP tiles, squid enters concealed state
+- Visual: mantle/body lerp to dark blue-black (0x112233/0x0a1a28), glow drops from 2.5 → 0.3
+- Smooth transitions via exponential lerp at 4/s — fades in gently, snaps out when moving
+- `squid.concealed` boolean exposed for sensor queries
+- Moving breaks concealment instantly (any input = visible again)
+
+**Predator Architecture** (predator.ts — new file)
+- **Soma/Chassis separation** — following hot-pursuit pattern:
+  - **Chassis**: physical scaffold (speed, turn rate, collision radius, sensor range, isSmall)
+  - **Soma**: experienced state (patrol/chase/search, waypoints, last-seen, timers)
+- Each predator type provides its own `updateSoma` and `animate` hooks via closures
+- Shared infrastructure: Bresenham tile-based LOS, sensor reads, steering + collision, waypoint picking
+- Clean interfaces for adding future predator types (eel, barracuda, etc.)
+
+**Shark Predator** (shark.ts — new file)
+- First predator type: torpedo body, dorsal/tail/pectoral fins, red-orange threat eyes + glow
+- Chassis: speed 3.5, chase 5.5, turn 2.0 rad/s, collision 0.5, sensor range 16, isSmall=false
+- Soma state machine: PATROL → CHASE → SEARCH → PATROL
+  - PATROL: random waypoints >10 world units apart, base speed
+  - CHASE: beeline to squid, chase speed, update target per frame
+  - SEARCH: lost LOS → investigate last-known position for 5 seconds
+- Can't fit through crevices (isSmall=false) — squid's escape route
+- Threat glow pulses with state: calm orange (patrol), angry red (chase), alert orange (search)
+- Tail wag speed doubles during chase
+- 3 sharks spawned per map, >15 tiles and >20 world units from player spawn
+
+**Catch Mechanic** (main.ts)
+- Distance check: shark collision radius (0.5) + squid radius (0.3) = 0.8 threshold
+- On catch: squid respawns at spawn point, all predators reset to PATROL
+- **Invulnerability**: 2 seconds after catch, squid can't be caught again
+- **Sensor suppression**: during invuln, all predators receive blank sensor data — squid "invisible"
+  - Forces chasers into SEARCH → PATROL, naturally scattering them instead of camping spawn
+
+### Bugs Found & Fixed
+- **Catch-every-frame**: without invulnerability, shark touching squid at spawn triggered catch 60×/sec, resetting all predator state each frame so nothing could move → added invuln timer
+- **Spawn camping**: after catch, shark stayed near spawn and re-caught immediately → sensor suppression during invuln forces scatter
+- **Shark near spawn**: RNG happened to produce a spawn that passed tile-distance check but was close in world coords → added world-distance validation (>20 units)
+
+### Architecture Notes
+- `predator.ts` is type-agnostic — adding a new predator type means creating a new file (like shark.ts) with: model builder, chassis config, soma behavior, animate function
+- Sensor data struct (`SensorData`) is the interface between chassis sensors and soma decisions
+- `updateSoma` and `animate` are closures that capture mesh refs — no fragile child indexing
+- Concealment is sensor-level: `readSensors()` checks `squid.concealed` — predator chassis simply can't detect a concealed squid. No game rules needed.
+
+### Next
+1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS for a few seconds
+2. **Visual feedback on catch** — screen flash, maybe a brief freeze frame
+3. **HUD** — minimal: lives or health, maybe a danger indicator when sharks are near
+4. **Predator variety** — eel (fast, fits crevices, short attention) or anglerfish (slow, lure, wide detection)
+5. **Sound design** — ambient ocean, heartbeat when chased, relief sigh when hidden
