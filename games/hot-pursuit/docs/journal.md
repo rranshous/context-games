@@ -567,3 +567,7 @@ Added a "squad overview" button that appears next to the debrief title after ref
 - `reflection.ts`: added `summarizeSquadOverview()`, updated `summarizeHandlerBehavior()` (radio + memory)
 - `renderer.ts`: added `addOverviewButton()`, `showSquadOverview()`, `updateSquadOverview()`, debrief phase titles
 - `game.ts`: import + wiring for squad overview button
+
+### Tuning
+- Reflection model upgraded from `claude-sonnet-4-20250514` to `claude-sonnet-4-6` (same cost, newer)
+- Squad overview `max_tokens` bumped 768 → 1536 (was getting cut off)
