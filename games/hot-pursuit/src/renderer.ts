@@ -411,6 +411,28 @@ export class Renderer {
     if (overlay) overlay.scrollTop = overlay.scrollHeight;
   }
 
+  setDebriefSummary(actantId: string, summary: string, fullReasoning: string): void {
+    const contentEl = document.getElementById(`reflect-content-${actantId}`);
+    if (!contentEl) return;
+
+    // Append debrief summary after existing content, visually distinct
+    const debriefDiv = document.createElement('div');
+    debriefDiv.className = 'reflection-debrief-summary';
+    debriefDiv.innerHTML = `<div class="debrief-label">from allies:</div>${renderMarkdown(summary)}`;
+    contentEl.appendChild(debriefDiv);
+
+    // Add collapsible debrief reasoning
+    if (fullReasoning.trim()) {
+      const details = document.createElement('details');
+      details.className = 'reflection-full-reasoning';
+      details.innerHTML = `<summary>debrief reasoning</summary><div class="reflection-reasoning-content">${renderMarkdown(fullReasoning)}</div>`;
+      contentEl.appendChild(details);
+    }
+
+    const overlay = document.getElementById('reflection-overlay');
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  }
+
   showReflectionComplete(): void {
     const prompt = document.getElementById('reflection-done-prompt');
     if (prompt) prompt.style.display = '';

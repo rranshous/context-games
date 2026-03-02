@@ -354,6 +354,9 @@ export class Game {
         (actantId, summary, fullReasoning) => {
           this.renderer.setReflectionSummary(actantId, summary, fullReasoning);
         },
+        (actantId, summary, fullReasoning) => {
+          this.renderer.setDebriefSummary(actantId, summary, fullReasoning);
+        },
       );
 
       // Persist updated somas

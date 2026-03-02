@@ -447,6 +447,39 @@ async function summarizeReflection(
   return '';
 }
 
+/**
+ * Quick haiku call to summarize what an officer learned from the debrief sharing pass.
+ */
+async function summarizeDebriefSharing(
+  soma: Soma,
+  debriefResult: { handlersUpdated: boolean; memoryUpdated: boolean; reasoning: string },
+  apiEndpoint: string,
+): Promise<string> {
+  try {
+    const changes = [
+      debriefResult.handlersUpdated ? 'Updated their handler code based on ally intel' : null,
+      debriefResult.memoryUpdated ? 'Updated their memory with ally observations' : null,
+    ].filter(Boolean).join('. ');
+
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: 'claude-haiku-4-5-20251001',
+      system: 'Write concise summaries of what a police officer learned from reviewing ally intelligence after a chase. No preamble, just bullet points starting with a dash. 1-2 bullets max. Focus on what they adopted from allies.',
+      messages: [{
+        role: 'user',
+        content: `Summarize what this officer learned from their allies in 1-2 short bullet points.\n\nOfficer: ${soma.name}\nChanges: ${changes || 'No changes made'}\n\nTheir reasoning:\n${debriefResult.reasoning.slice(0, 2000)}`,
+      }],
+      max_tokens: 192,
+    });
+
+    if (response?.content?.[0]?.type === 'text') {
+      return response.content[0].text || '';
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: 'debrief_summary_error', actantId: soma.id, error: String(err) }));
+  }
+  return '';
+}
+
 // ── Tool Call Processing ──
 
 function processToolCall(
@@ -709,7 +742,7 @@ If their intel doesn't add anything new for you, that's fine — don't change th
   // Only need handlers + memory tools for debrief pass
   const debriefTools = SCAFFOLD_TOOLS.filter(t => t.name !== 'query_replay');
 
-  const result = { handlersUpdated: false, memoryUpdated: false };
+  const result = { handlersUpdated: false, memoryUpdated: false, reasoning: '' };
 
   try {
     let messages: AnthropicMessage[] = [{ role: 'user', content: userPrompt }];
@@ -739,6 +772,9 @@ If their intel doesn't add anything new for you, that's fine — don't change th
       };
 
       for (const block of response.content) {
+        if (block.type === 'text' && block.text) {
+          result.reasoning += block.text + '\n';
+        }
         if (block.type === 'tool_use' && block.name && block.input) {
           hasToolUse = true;
           const toolResult = processToolCall(block.name, block.input, soma, null as any, dummyResult);
@@ -796,6 +832,7 @@ export async function reflectAllActants(
   onProgress?: (actantId: string, status: string, chaseMapBase64?: string) => void,
   onTurnUpdate?: (update: TurnUpdate) => void,
   onSummary?: (actantId: string, summary: string, fullReasoning: string) => void,
+  onDebriefSummary?: (actantId: string, summary: string, fullReasoning: string) => void,
 ): Promise<ReflectionResult[]> {
   // Phase 1: Individual reflection (parallel)
   const promises = somas.map(async (soma) => {
@@ -850,19 +887,19 @@ export async function reflectAllActants(
   );
   const debriefResults = await Promise.all(debriefPromises);
 
-  // Update summaries if debrief changed anything
-  for (let i = 0; i < somas.length; i++) {
+  // Summarize debrief results in parallel
+  const summaryPromises = somas.map(async (soma, i) => {
     const dr = debriefResults[i];
-    if ((dr.handlersUpdated || dr.memoryUpdated) && onSummary) {
-      const changes = [
-        dr.handlersUpdated ? 'Updated tactics after reviewing ally intel' : null,
-        dr.memoryUpdated ? 'Updated memory with ally observations' : null,
-      ].filter(Boolean).join('. ');
-      // Append debrief note to existing summary
-      onSummary(somas[i].id, `\n- ${changes}`, '');
+    const callback = onDebriefSummary || onSummary;
+    if ((dr.handlersUpdated || dr.memoryUpdated) && dr.reasoning.trim() && callback) {
+      const summary = await summarizeDebriefSharing(soma, dr, apiEndpoint);
+      if (summary) {
+        callback(soma.id, summary, dr.reasoning);
+      }
     }
-    if (onProgress) onProgress(somas[i].id, 'complete');
-  }
+    if (onProgress) onProgress(soma.id, 'complete');
+  });
+  await Promise.all(summaryPromises);
 
   console.log(JSON.stringify({
     _hp: 'debrief_share_all_complete',

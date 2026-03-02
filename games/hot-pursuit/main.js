@@ -1559,6 +1559,22 @@ var Renderer = class {
     const overlay = document.getElementById("reflection-overlay");
     if (overlay) overlay.scrollTop = overlay.scrollHeight;
   }
+  setDebriefSummary(actantId, summary, fullReasoning) {
+    const contentEl = document.getElementById(`reflect-content-${actantId}`);
+    if (!contentEl) return;
+    const debriefDiv = document.createElement("div");
+    debriefDiv.className = "reflection-debrief-summary";
+    debriefDiv.innerHTML = `<div class="debrief-label">from allies:</div>${renderMarkdown(summary)}`;
+    contentEl.appendChild(debriefDiv);
+    if (fullReasoning.trim()) {
+      const details = document.createElement("details");
+      details.className = "reflection-full-reasoning";
+      details.innerHTML = `<summary>debrief reasoning</summary><div class="reflection-reasoning-content">${renderMarkdown(fullReasoning)}</div>`;
+      contentEl.appendChild(details);
+    }
+    const overlay = document.getElementById("reflection-overlay");
+    if (overlay) overlay.scrollTop = overlay.scrollHeight;
+  }
   showReflectionComplete() {
     const prompt = document.getElementById("reflection-done-prompt");
     if (prompt) prompt.style.display = "";
@@ -2244,6 +2260,35 @@ ${reasoning.slice(0, 3e3)}`
   }
   return "";
 }
+async function summarizeDebriefSharing(soma, debriefResult, apiEndpoint) {
+  try {
+    const changes = [
+      debriefResult.handlersUpdated ? "Updated their handler code based on ally intel" : null,
+      debriefResult.memoryUpdated ? "Updated their memory with ally observations" : null
+    ].filter(Boolean).join(". ");
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: "claude-haiku-4-5-20251001",
+      system: "Write concise summaries of what a police officer learned from reviewing ally intelligence after a chase. No preamble, just bullet points starting with a dash. 1-2 bullets max. Focus on what they adopted from allies.",
+      messages: [{
+        role: "user",
+        content: `Summarize what this officer learned from their allies in 1-2 short bullet points.
+
+Officer: ${soma.name}
+Changes: ${changes || "No changes made"}
+
+Their reasoning:
+${debriefResult.reasoning.slice(0, 2e3)}`
+      }],
+      max_tokens: 192
+    });
+    if (response?.content?.[0]?.type === "text") {
+      return response.content[0].text || "";
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: "debrief_summary_error", actantId: soma.id, error: String(err) }));
+  }
+  return "";
+}
 function processToolCall(toolName, input, soma, replay, result) {
   switch (toolName) {
     case "update_signal_handlers": {
@@ -2428,7 +2473,7 @@ If their intel doesn't add anything new for you, that's fine \u2014 don't change
 - Coordination ideas (radio protocols, zone assignments)
 - Patterns about the suspect you missed`;
   const debriefTools = SCAFFOLD_TOOLS.filter((t) => t.name !== "query_replay");
-  const result = { handlersUpdated: false, memoryUpdated: false };
+  const result = { handlersUpdated: false, memoryUpdated: false, reasoning: "" };
   try {
     let messages = [{ role: "user", content: userPrompt }];
     let turns = 0;
@@ -2454,6 +2499,9 @@ If their intel doesn't add anything new for you, that's fine \u2014 don't change
         reasoning: ""
       };
       for (const block of response.content) {
+        if (block.type === "text" && block.text) {
+          result.reasoning += block.text + "\n";
+        }
         if (block.type === "tool_use" && block.name && block.input) {
           hasToolUse = true;
           const toolResult = processToolCall(block.name, block.input, soma, null, dummyResult);
@@ -2490,7 +2538,7 @@ If their intel doesn't add anything new for you, that's fine \u2014 don't change
   if (result.handlersUpdated) clearHandlerCache();
   return result;
 }
-async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate, onSummary) {
+async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onProgress, onTurnUpdate, onSummary, onDebriefSummary) {
   const promises = somas.map(async (soma) => {
     const summary = summarizeReplayForActant(replay, soma);
     const allyPaths = somas.filter((s) => s.id !== soma.id).map((allySoma) => {
@@ -2528,18 +2576,18 @@ async function reflectAllActants(somas, replay, apiEndpoint, mapInfo, model, onP
     (soma) => runDebriefSharing(soma, somas, results, apiEndpoint, model)
   );
   const debriefResults = await Promise.all(debriefPromises);
-  for (let i = 0; i < somas.length; i++) {
+  const summaryPromises = somas.map(async (soma, i) => {
     const dr = debriefResults[i];
-    if ((dr.handlersUpdated || dr.memoryUpdated) && onSummary) {
-      const changes = [
-        dr.handlersUpdated ? "Updated tactics after reviewing ally intel" : null,
-        dr.memoryUpdated ? "Updated memory with ally observations" : null
-      ].filter(Boolean).join(". ");
-      onSummary(somas[i].id, `
-- ${changes}`, "");
+    const callback = onDebriefSummary || onSummary;
+    if ((dr.handlersUpdated || dr.memoryUpdated) && dr.reasoning.trim() && callback) {
+      const summary = await summarizeDebriefSharing(soma, dr, apiEndpoint);
+      if (summary) {
+        callback(soma.id, summary, dr.reasoning);
+      }
     }
-    if (onProgress) onProgress(somas[i].id, "complete");
-  }
+    if (onProgress) onProgress(soma.id, "complete");
+  });
+  await Promise.all(summaryPromises);
   console.log(JSON.stringify({
     _hp: "debrief_share_all_complete",
     updates: debriefResults.map((dr, i) => ({
@@ -2812,6 +2860,9 @@ var Game = class {
         },
         (actantId, summary, fullReasoning) => {
           this.renderer.setReflectionSummary(actantId, summary, fullReasoning);
+        },
+        (actantId, summary, fullReasoning) => {
+          this.renderer.setDebriefSummary(actantId, summary, fullReasoning);
         }
       );
       saveSomas(this.somas);
