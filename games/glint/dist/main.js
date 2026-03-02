@@ -79,73 +79,139 @@ for (let i = 0; i < 40; i++) {
 var coralPalette = [
   { h: 0.55, s: 0.5, l: 0.35 },
   // blue-purple
-  { h: 0.65, s: 0.5, l: 0.3 },
-  // indigo
-  { h: 0.85, s: 0.5, l: 0.35 },
+  { h: 0.85, s: 0.55, l: 0.4 },
   // pink-magenta
-  { h: 0.95, s: 0.5, l: 0.3 },
+  { h: 0.95, s: 0.55, l: 0.35 },
   // coral-red
-  { h: 0.08, s: 0.6, l: 0.35 },
+  { h: 0.08, s: 0.6, l: 0.4 },
   // orange
-  { h: 0.75, s: 0.4, l: 0.35 }
+  { h: 0.75, s: 0.45, l: 0.38 },
   // purple
+  { h: 0.12, s: 0.5, l: 0.42 }
+  // golden-yellow
 ];
 function pickCoralColor() {
   const p = coralPalette[Math.floor(rand() * coralPalette.length)];
   return new THREE.Color().setHSL(p.h + (rand() - 0.5) * 0.05, p.s, p.l);
 }
-function makeColumnCoral(x, z) {
+var swayItems = [];
+function makeBranchingCoral(x, z) {
   const group = new THREE.Group();
   const baseColor = pickCoralColor();
-  const h = 1.2 + rand() * 2.5;
-  const geo = new THREE.CylinderGeometry(0.25 + rand() * 0.35, 0.35 + rand() * 0.3, h, 6);
-  const mat = new THREE.MeshToonMaterial({ color: baseColor, gradientMap });
-  const col = new THREE.Mesh(geo, mat);
-  col.position.y = h / 2;
-  col.castShadow = true;
-  col.receiveShadow = true;
-  group.add(col);
-  const branches = 1 + Math.floor(rand() * 3);
-  for (let i = 0; i < branches; i++) {
-    const bh = 0.4 + rand() * 1;
-    const bGeo = new THREE.CylinderGeometry(0.1, 0.2, bh, 5);
-    const bMat = new THREE.MeshToonMaterial({
-      color: baseColor.clone().offsetHSL(0.05, 0, 0.08),
-      gradientMap
-    });
+  const tipColor = baseColor.clone().offsetHSL(0.03, 0.1, 0.15);
+  const trunkH = 0.8 + rand() * 1;
+  const trunkGeo = new THREE.CylinderGeometry(0.08, 0.18, trunkH, 5);
+  const trunkMat = new THREE.MeshToonMaterial({ color: baseColor, gradientMap });
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = trunkH / 2;
+  trunk.castShadow = true;
+  group.add(trunk);
+  const branchCount = 3 + Math.floor(rand() * 4);
+  for (let i = 0; i < branchCount; i++) {
+    const bh = 0.5 + rand() * 1.2;
+    const bGeo = new THREE.CylinderGeometry(0.03, 0.08, bh, 4);
+    const bMat = new THREE.MeshToonMaterial({ color: baseColor.clone().offsetHSL(0.02, 0, 0.05), gradientMap });
     const branch = new THREE.Mesh(bGeo, bMat);
-    branch.position.set((rand() - 0.5) * 0.7, h * 0.4 + rand() * h * 0.4, (rand() - 0.5) * 0.7);
-    branch.rotation.z = (rand() - 0.5) * 0.7;
+    const angle = i / branchCount * Math.PI * 2 + rand() * 0.5;
+    const tilt = 0.3 + rand() * 0.5;
+    branch.position.set(
+      Math.cos(angle) * 0.15,
+      trunkH * (0.5 + rand() * 0.4),
+      Math.sin(angle) * 0.15
+    );
+    branch.rotation.set(Math.cos(angle) * tilt, 0, Math.sin(angle) * tilt);
     branch.castShadow = true;
     group.add(branch);
+    const tipGeo = new THREE.SphereGeometry(0.05 + rand() * 0.04, 5, 4);
+    const tipMat = new THREE.MeshStandardMaterial({
+      color: tipColor,
+      emissive: tipColor,
+      emissiveIntensity: 0.5
+    });
+    const tip = new THREE.Mesh(tipGeo, tipMat);
+    tip.position.set(
+      branch.position.x + Math.cos(angle) * tilt * bh * 0.5,
+      branch.position.y + bh * 0.8,
+      branch.position.z + Math.sin(angle) * tilt * bh * 0.5
+    );
+    group.add(tip);
   }
   group.position.set(x, -0.5, z);
+  scene.add(group);
+  swayItems.push({ obj: group, phase: rand() * Math.PI * 2, amplitude: 0.04 + rand() * 0.03 });
   return group;
 }
 function makeBrainCoral(x, z) {
   const color = pickCoralColor();
-  const s = 0.5 + rand() * 0.8;
-  const geo = new THREE.IcosahedronGeometry(s, 0);
+  const s = 0.5 + rand() * 0.7;
+  const geo = new THREE.IcosahedronGeometry(s, 1);
   const mat = new THREE.MeshToonMaterial({ color, gradientMap });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(x, -0.5 + s * 0.5, z);
+  mesh.position.set(x, -0.5 + s * 0.35, z);
   mesh.rotation.set(rand() * Math.PI, rand() * Math.PI, 0);
-  mesh.scale.y = 0.6;
+  mesh.scale.y = 0.5;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  scene.add(mesh);
   return mesh;
 }
-function makeFanCoral(x, z) {
-  const color = pickCoralColor();
-  const w = 0.8 + rand() * 1.2;
-  const h = 1 + rand() * 1.5;
-  const geo = new THREE.PlaneGeometry(w, h);
-  const mat = new THREE.MeshToonMaterial({ color, gradientMap, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(x, -0.5 + h / 2, z);
-  mesh.rotation.y = rand() * Math.PI;
-  mesh.castShadow = true;
-  return mesh;
+function makeTubeCoral(x, z) {
+  const group = new THREE.Group();
+  const baseColor = pickCoralColor();
+  const tipColor = baseColor.clone().offsetHSL(0.05, 0.1, 0.2);
+  const tubeCount = 4 + Math.floor(rand() * 5);
+  for (let i = 0; i < tubeCount; i++) {
+    const h = 0.5 + rand() * 1.5;
+    const r = 0.04 + rand() * 0.04;
+    const geo = new THREE.CylinderGeometry(r, r * 1.2, h, 5);
+    const mat = new THREE.MeshToonMaterial({ color: baseColor, gradientMap });
+    const tube = new THREE.Mesh(geo, mat);
+    const spread = 0.25;
+    tube.position.set((rand() - 0.5) * spread, h / 2, (rand() - 0.5) * spread);
+    tube.castShadow = true;
+    group.add(tube);
+    const rimGeo = new THREE.TorusGeometry(r, r * 0.4, 4, 6);
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: tipColor,
+      emissive: tipColor,
+      emissiveIntensity: 0.6
+    });
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.position.set(tube.position.x, h, tube.position.z);
+    rim.rotation.x = Math.PI / 2;
+    group.add(rim);
+  }
+  group.position.set(x, -0.5, z);
+  scene.add(group);
+  swayItems.push({ obj: group, phase: rand() * Math.PI * 2, amplitude: 0.03 + rand() * 0.02 });
+  return group;
+}
+function makeShelfCoral(x, z) {
+  const group = new THREE.Group();
+  const baseColor = pickCoralColor();
+  const layers = 2 + Math.floor(rand() * 3);
+  for (let i = 0; i < layers; i++) {
+    const r = 0.4 + rand() * 0.6 - i * 0.1;
+    const geo = new THREE.CylinderGeometry(r, r * 0.9, 0.08, 8);
+    const mat = new THREE.MeshToonMaterial({
+      color: baseColor.clone().offsetHSL(i * 0.02, 0, i * 0.03),
+      gradientMap
+    });
+    const disc = new THREE.Mesh(geo, mat);
+    disc.position.y = 0.3 + i * 0.4;
+    disc.rotation.set((rand() - 0.5) * 0.2, rand() * Math.PI, (rand() - 0.5) * 0.2);
+    disc.castShadow = true;
+    disc.receiveShadow = true;
+    group.add(disc);
+  }
+  const stemGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.3 + layers * 0.4, 5);
+  const stemMat = new THREE.MeshToonMaterial({ color: baseColor.clone().offsetHSL(0, -0.1, -0.1), gradientMap });
+  const stem = new THREE.Mesh(stemGeo, stemMat);
+  stem.position.y = (0.3 + layers * 0.4) / 2;
+  group.add(stem);
+  group.position.set(x, -0.5, z);
+  scene.add(group);
+  return group;
 }
 var anemones = [];
 function makeAnemone(x, z) {
@@ -157,7 +223,7 @@ function makeAnemone(x, z) {
   const base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = 0.15;
   group.add(base);
-  const count = 5 + Math.floor(rand() * 4);
+  const count = 6 + Math.floor(rand() * 5);
   for (let i = 0; i < count; i++) {
     const th = 0.5 + rand() * 0.8;
     const tGeo = new THREE.CylinderGeometry(0.02, 0.04, th, 4);
@@ -186,9 +252,10 @@ function placeWall(x1, z1, x2, z2, density) {
     const x = x1 + (x2 - x1) * t + (rand() - 0.5) * 1.5;
     const z = z1 + (z2 - z1) * t + (rand() - 0.5) * 1.5;
     const type = rand();
-    if (type < 0.5) scene.add(makeColumnCoral(x, z));
-    else if (type < 0.75) scene.add(makeBrainCoral(x, z));
-    else scene.add(makeFanCoral(x, z));
+    if (type < 0.35) makeBranchingCoral(x, z);
+    else if (type < 0.55) makeBrainCoral(x, z);
+    else if (type < 0.75) makeTubeCoral(x, z);
+    else makeShelfCoral(x, z);
   }
 }
 placeWall(-15, -15, 15, -15, 1.5);
@@ -199,13 +266,14 @@ placeWall(-10, -5, 5, -5, 1.2);
 placeWall(0, 0, 0, 10, 1);
 placeWall(-8, 5, -3, 8, 0.8);
 placeWall(5, -10, 8, 0, 0.8);
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < 12; i++) {
   const x = (rand() - 0.5) * 24;
   const z = (rand() - 0.5) * 24;
   const type = rand();
-  if (type < 0.4) scene.add(makeColumnCoral(x, z));
-  else if (type < 0.7) scene.add(makeBrainCoral(x, z));
-  else scene.add(makeFanCoral(x, z));
+  if (type < 0.3) makeBranchingCoral(x, z);
+  else if (type < 0.5) makeBrainCoral(x, z);
+  else if (type < 0.7) makeTubeCoral(x, z);
+  else makeShelfCoral(x, z);
 }
 makeAnemone(-5, -8);
 makeAnemone(-6, -7);
@@ -215,11 +283,11 @@ makeAnemone(-3, 3);
 makeAnemone(3, -2);
 makeAnemone(-10, 10);
 makeAnemone(10, -10);
-for (let i = 0; i < 15; i++) {
-  const s = 0.3 + rand() * 0.8;
+for (let i = 0; i < 12; i++) {
+  const s = 0.3 + rand() * 0.7;
   const geo = new THREE.DodecahedronGeometry(s);
   const mat = new THREE.MeshToonMaterial({
-    color: new THREE.Color().setHSL(0.58, 0.15, 0.18),
+    color: new THREE.Color().setHSL(0.55, 0.08, 0.15),
     gradientMap
   });
   const rock = new THREE.Mesh(geo, mat);
@@ -289,46 +357,60 @@ for (let i = 0; i < 6; i++) {
   jellies.push({ mesh, light, basePos: pos.clone(), phase: rand() * Math.PI * 2 });
 }
 var squidGroup = new THREE.Group();
-var mantleGeo = new THREE.SphereGeometry(0.3, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+var mantleGeo = new THREE.SphereGeometry(0.35, 8, 8);
 var mantleMat = new THREE.MeshToonMaterial({ color: 4508927, gradientMap });
-var mantle = new THREE.Mesh(mantleGeo, mantleMat);
-mantle.position.y = 0.1;
-mantle.castShadow = true;
-squidGroup.add(mantle);
-var bodyGeo = new THREE.SphereGeometry(0.3, 8, 6);
+var mantleMesh = new THREE.Mesh(mantleGeo, mantleMat);
+mantleMesh.scale.set(0.8, 1.1, 1);
+mantleMesh.position.y = 0.2;
+mantleMesh.castShadow = true;
+squidGroup.add(mantleMesh);
+var finGeo = new THREE.ConeGeometry(0.12, 0.2, 4);
+var finMat = new THREE.MeshToonMaterial({ color: 5627391, gradientMap });
+var finL = new THREE.Mesh(finGeo, finMat);
+finL.position.set(-0.28, 0.25, 0);
+finL.rotation.z = 0.8;
+squidGroup.add(finL);
+var finR = new THREE.Mesh(finGeo, finMat);
+finR.position.set(0.28, 0.25, 0);
+finR.rotation.z = -0.8;
+squidGroup.add(finR);
+var bodyGeo = new THREE.CylinderGeometry(0.22, 0.15, 0.2, 8);
 var bodyMat = new THREE.MeshToonMaterial({ color: 3390446, gradientMap });
 var body = new THREE.Mesh(bodyGeo, bodyMat);
-body.scale.set(1, 0.7, 1.2);
-body.castShadow = true;
+body.position.y = -0.12;
 squidGroup.add(body);
-var eyeGeo = new THREE.SphereGeometry(0.1, 8, 6);
-var eyeMat = new THREE.MeshStandardMaterial({
+var eyeWhiteGeo = new THREE.SphereGeometry(0.12, 8, 6);
+var eyeWhiteMat = new THREE.MeshStandardMaterial({
   color: 16777215,
   emissive: 8969727,
   emissiveIntensity: 1
 });
-var pupilGeo = new THREE.SphereGeometry(0.05, 6, 4);
+var pupilGeo = new THREE.SphereGeometry(0.06, 6, 4);
 var pupilMat = new THREE.MeshStandardMaterial({ color: 1118515 });
-var eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-eyeL.position.set(-0.18, 0.08, 0.28);
+var eyeL = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+eyeL.position.set(-0.22, 0.1, 0.18);
 squidGroup.add(eyeL);
 var pupilL = new THREE.Mesh(pupilGeo, pupilMat);
-pupilL.position.set(-0.18, 0.08, 0.34);
+pupilL.position.set(-0.28, 0.1, 0.22);
 squidGroup.add(pupilL);
-var eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-eyeR.position.set(0.18, 0.08, 0.28);
+var eyeR = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+eyeR.position.set(0.22, 0.1, 0.18);
 squidGroup.add(eyeR);
 var pupilR = new THREE.Mesh(pupilGeo, pupilMat);
-pupilR.position.set(0.18, 0.08, 0.34);
+pupilR.position.set(0.28, 0.1, 0.22);
 squidGroup.add(pupilR);
 var tentacles = [];
-for (let i = 0; i < 6; i++) {
-  const tLen = 0.4 + rand() * 0.2;
-  const tGeo = new THREE.CylinderGeometry(0.02, 0.04, tLen, 4);
+for (let i = 0; i < 8; i++) {
+  const tLen = 0.35 + rand() * 0.2;
+  const tGeo = new THREE.CylinderGeometry(0.015, 0.035, tLen, 4);
   const tMat = new THREE.MeshToonMaterial({ color: 3386077, gradientMap });
   const tentacle = new THREE.Mesh(tGeo, tMat);
-  const angle = (i - 2.5) / 5 * 0.8;
-  tentacle.position.set(Math.sin(angle) * 0.15, -0.15, -0.25);
+  const angle = i / 8 * Math.PI * 2;
+  tentacle.position.set(
+    Math.cos(angle) * 0.1,
+    -0.25,
+    Math.sin(angle) * 0.1
+  );
   tentacle.rotation.x = 0.3;
   squidGroup.add(tentacle);
   tentacles.push(tentacle);
@@ -388,36 +470,48 @@ function animate() {
     lastMoveDir.copy(moveDir);
   }
   squidGroup.position.y = 1 + Math.sin(t * 1.5) * 0.15;
+  finL.rotation.z = 0.8 + Math.sin(t * 4) * 0.2;
+  finR.rotation.z = -0.8 - Math.sin(t * 4) * 0.2;
   for (let i = 0; i < tentacles.length; i++) {
     const phase = i / tentacles.length * Math.PI * 2;
-    const trailAngle = len > 0 ? 0.4 + Math.sin(t * 6 + phase) * 0.15 : 0.2 + Math.sin(t * 1.5 + phase) * 0.2;
-    tentacles[i].rotation.x = trailAngle;
-    tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.1;
+    const angle = i / 8 * Math.PI * 2;
+    const swaySpeed = len > 0 ? 6 : 1.5;
+    const swayAmp = len > 0 ? 0.15 : 0.25;
+    tentacles[i].rotation.x = 0.4 + Math.sin(t * swaySpeed + phase) * swayAmp;
+    tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15;
+    tentacles[i].position.x = Math.cos(angle) * 0.1;
+    tentacles[i].position.z = Math.sin(angle) * 0.1;
   }
   squidGlow.intensity = 2 + Math.sin(t * 2) * 0.6;
   camera.position.set(squidGroup.position.x + 20, 20, squidGroup.position.z + 20);
   camera.lookAt(squidGroup.position);
   for (const kelp of kelpGroup) {
-    kelp.rotation.x = Math.sin(t * 0.8 + kelp.position.x) * 0.12;
-    kelp.rotation.z = Math.cos(t * 0.6 + kelp.position.z) * 0.08;
+    kelp.rotation.x = Math.sin(t * 0.6 + kelp.position.x * 0.3) * 0.15;
+    kelp.rotation.z = Math.cos(t * 0.4 + kelp.position.z * 0.3) * 0.1;
+  }
+  for (const item of swayItems) {
+    item.obj.rotation.x = Math.sin(t * 0.7 + item.phase) * item.amplitude;
+    item.obj.rotation.z = Math.cos(t * 0.5 + item.phase * 1.3) * item.amplitude * 0.7;
   }
   for (const a of anemones) {
     for (let i = 0; i < a.tendrils.length; i++) {
       const phase = i / a.tendrils.length * Math.PI * 2;
-      a.tendrils[i].rotation.x = Math.sin(t * 1.2 + phase) * 0.3;
-      a.tendrils[i].rotation.z = Math.cos(t * 0.9 + phase) * 0.2;
+      a.tendrils[i].rotation.x = Math.sin(t * 1 + phase) * 0.35;
+      a.tendrils[i].rotation.z = Math.cos(t * 0.7 + phase) * 0.25;
     }
   }
   for (const j of jellies) {
     j.mesh.position.y = j.basePos.y + Math.sin(t * 0.4 + j.phase) * 0.5;
-    j.mesh.position.x = j.basePos.x + Math.sin(t * 0.2 + j.phase * 2) * 0.3;
+    j.mesh.position.x = j.basePos.x + Math.sin(t * 0.15 + j.phase * 2) * 1;
+    j.mesh.position.z = j.basePos.z + Math.cos(t * 0.12 + j.phase) * 0.5;
     j.light.position.copy(j.mesh.position);
     j.light.intensity = 0.5 + Math.sin(t * 1.5 + j.phase) * 0.3;
   }
   const posArr = particleGeo.attributes.position.array;
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     posArr[i * 3 + 1] += particleSpeeds[i] * dt * 0.3;
-    posArr[i * 3] += Math.sin(t * 0.5 + i) * dt * 0.05;
+    posArr[i * 3] += Math.sin(t * 0.5 + i) * dt * 0.08;
+    posArr[i * 3 + 2] += Math.cos(t * 0.3 + i * 0.7) * dt * 0.05;
     if (posArr[i * 3 + 1] > 7) {
       posArr[i * 3 + 1] = -0.5;
       posArr[i * 3] = squidGroup.position.x + (rand() - 0.5) * 30;

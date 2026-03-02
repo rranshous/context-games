@@ -43,3 +43,28 @@ Baby squid survival in a bioluminescent coral reef. Dark but upbeat — a coming
 - Visual check — does the scene look/feel right?
 - Add predator(s) — start with a simple shark patrol
 - Wire up chase detection + evasion loop
+
+## Session 1b — Visual Polish (2026-03-02)
+
+### Feedback & Fixes
+- **Squid looked like a fish** → rebuilt: bulbous dome mantle, lateral eyes with pupils, side fins that flutter, 8 tentacles in a ring splaying outward. Reads as squid now.
+- **Flat plane "fan coral"** → removed. Replaced with tube coral (cylinder clusters with glowing torus rims) and shelf coral (stacked tilted discs on a stem). No more mystery squares.
+- **Coral looked like rocks** → 4 coral types now: branching (trunk + forking arms with glowing tips), brain (squashed icosahedron), tube (thin cylinders with glowing rims), shelf (stacked plates). Warm color palette: pinks, oranges, yellows alongside blues/purples.
+- **Nothing moved passively** → added current sway: branching coral and tube coral gently sway (tracked in `swayItems[]`), kelp has bigger arcs, jellyfish drift in wider patterns, particles drift laterally too. Rocks stay still (they're rigid).
+- **No collision yet** — intentional. Visual pass first.
+
+### Architecture Notes
+- Seeded RNG (`mulberry32(42)`) for deterministic reef layout across reloads
+- `swayItems[]` array tracks all coral groups that should animate in the current
+- Reef structure: `placeWall()` for boundary/interior walls, manual placement for anemone clusters and kelp groves
+- All coral types return their group/mesh; wall placement dispatches randomly between types
+
+### Dev Workflow
+- `npm run watch` in background for continuous rebuild
+- Commit aggressively for continuity across context windows
+- Update this journal each commit
+
+### Next
+- Continue iterating visuals based on playtesting feel
+- Add first predator (shark patrol)
+- Wire up chase detection + evasion loop
