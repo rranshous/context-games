@@ -7,6 +7,7 @@ import { Position, TilePosition, PoliceEntity, GameConfig, RadioMessage } from '
 import { TileMap } from './map';
 import { canSee } from './los';
 import { Soma } from './soma';
+import { toTileCenter, fromTileCenter } from './coords';
 
 /** Result from a tool call */
 export interface ToolResult {
@@ -19,7 +20,7 @@ export interface ToolResult {
 export interface SignalData {
   // tick signal
   own_position?: Position;
-  map_state?: { cols: number; rows: number; tileSize: number };
+  map_state?: { halfWidth: number; halfHeight: number };
   state?: string;
   tick?: number;
 
@@ -108,7 +109,7 @@ export function createChaseChassisAPI(
     },
 
     getState: () => entity.state,
-    getPosition: () => ({ ...entity.pos }),
+    getPosition: () => toTileCenter(entity.pos, map),
     getFacing: () => ({ ...entity.facing }),
 
     memory: {
@@ -153,20 +154,25 @@ function executeToolCall(
 ): ToolResult {
   switch (name) {
     case 'move_toward': {
-      const target = args.target as Position | undefined;
-      if (!target) return { success: false, error: 'target required' };
-      pendingActions.push({ type: 'move_toward', target });
+      const targetTC = args.target as Position | undefined;
+      if (!targetTC) return { success: false, error: 'target required' };
+      // Convert tile-center → pixels for engine
+      pendingActions.push({ type: 'move_toward', target: fromTileCenter(targetTC, map) });
       return { success: true, data: { queued: true } };
     }
 
     case 'move_to_intercept': {
-      const target = args.target as Position | undefined;
-      const velocity = args.targetVelocity as Position | undefined;
-      if (!target) return { success: false, error: 'target required' };
+      const targetTC = args.target as Position | undefined;
+      const velocityTC = args.targetVelocity as Position | undefined;
+      if (!targetTC) return { success: false, error: 'target required' };
+      // Convert tile-center → pixels for engine
       pendingActions.push({
         type: 'move_to_intercept',
-        target,
-        targetVelocity: velocity || { x: 0, y: 0 },
+        target: fromTileCenter(targetTC, map),
+        // Velocity is in tiles/sec from handler perspective — convert to px/sec
+        targetVelocity: velocityTC
+          ? { x: velocityTC.x * map.tileSize, y: velocityTC.y * map.tileSize }
+          : { x: 0, y: 0 },
       });
       return { success: true, data: { queued: true } };
     }
@@ -182,17 +188,20 @@ function executeToolCall(
     }
 
     case 'check_line_of_sight': {
-      const target = args.target as Position | undefined;
-      if (!target) return { success: false, error: 'target required' };
+      const targetTC = args.target as Position | undefined;
+      if (!targetTC) return { success: false, error: 'target required' };
+      // Convert tile-center → pixels for LOS check
+      const targetPx = fromTileCenter(targetTC, map);
       const visible = canSee(
-        map, entity.pos, entity.facing, target,
+        map, entity.pos, entity.facing, targetPx,
         config.losRange, config.losAngle,
       );
       return { success: true, data: { visible } };
     }
 
     case 'map_query': {
-      const pos = args.position as Position || entity.pos;
+      const posTC = args.position as Position | undefined;
+      const pos = posTC ? fromTileCenter(posTC, map) : entity.pos;
       const radius = (args.radius as number) || 3;
       const tile = map.worldToTile(pos);
       const terrain: Array<{ col: number; row: number; walkable: boolean }> = [];
@@ -207,29 +216,34 @@ function executeToolCall(
     }
 
     case 'escape_routes_from': {
-      const pos = args.position as Position || entity.pos;
+      const posTC = args.position as Position | undefined;
+      const pos = posTC ? fromTileCenter(posTC, map) : entity.pos;
       const tile = map.worldToTile(pos);
       const neighbors = map.getWalkableNeighbors(tile);
+      // Return route positions in tile-center coords
       const routes = neighbors.map(n => ({
-        position: map.tileToWorld(n),
+        position: toTileCenter(map.tileToWorld(n), map),
         tile: n,
       }));
       return { success: true, data: { routes } };
     }
 
     case 'ally_positions': {
+      // Return ally positions in tile-center coords
       const allies = allPolice
         .filter(p => p.id !== entity.id)
-        .map(p => ({ id: p.id, position: { ...p.pos }, state: p.state }));
+        .map(p => ({ id: p.id, position: toTileCenter(p.pos, map), state: p.state }));
       return { success: true, data: { allies } };
     }
 
     case 'distance_to': {
-      const target = args.target as Position | undefined;
-      if (!target) return { success: false, error: 'target required' };
-      const dx = target.x - entity.pos.x;
-      const dy = target.y - entity.pos.y;
-      return { success: true, data: { distance: Math.sqrt(dx * dx + dy * dy) } };
+      const targetTC = args.target as Position | undefined;
+      if (!targetTC) return { success: false, error: 'target required' };
+      // Convert to pixels, compute distance, return in tile units
+      const targetPx = fromTileCenter(targetTC, map);
+      const dx = targetPx.x - entity.pos.x;
+      const dy = targetPx.y - entity.pos.y;
+      return { success: true, data: { distance: Math.sqrt(dx * dx + dy * dy) / map.tileSize } };
     }
 
     case 'broadcast': {

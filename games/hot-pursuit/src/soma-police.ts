@@ -9,6 +9,7 @@ import { canSee } from './los';
 import { Soma } from './soma';
 import { PendingAction } from './chassis';
 import { compileHandler, executeSignal } from './handler-executor';
+import { toTileCenter } from './coords';
 
 // Track which officers are currently executing a handler.
 // Prevents pileup when handlers are slow — if the previous tick's handler
@@ -118,6 +119,10 @@ export async function updateSomaPolice(
     // Signal priority: direct observation > radio > tick
     let actions: PendingAction[] = [];
 
+    // Tile-center conversions — handlers see tile-center coords, not pixels
+    const ownTC = toTileCenter(entity.pos, map);
+    const mapState = { halfWidth: map.cols / 2, halfHeight: map.rows / 2 };
+
     if (entity.canSeePlayer && !prevCanSee) {
       // Just spotted the player — top priority
       entity.state = 'pursuing';
@@ -125,21 +130,22 @@ export async function updateSomaPolice(
       actions = await executeSignal(
         handler, 'player_spotted',
         {
-          player_position: { ...playerPos },
-          own_position: { ...entity.pos },
-          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+          player_position: toTileCenter(playerPos, map),
+          own_position: ownTC,
+          map_state: mapState,
         },
         entity, soma, map, config, allPolice, onBroadcast,
       );
     } else if (!entity.canSeePlayer && prevCanSee) {
       // Just lost the player — top priority
       entity.state = 'searching';
+      const lastKnown = entity.lastKnownPlayerPos || playerPos;
       actions = await executeSignal(
         handler, 'player_lost',
         {
-          last_known_position: entity.lastKnownPlayerPos ? { ...entity.lastKnownPlayerPos } : { ...playerPos },
-          own_position: { ...entity.pos },
-          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+          last_known_position: toTileCenter(lastKnown, map),
+          own_position: ownTC,
+          map_state: mapState,
         },
         entity, soma, map, config, allPolice, onBroadcast,
       );
@@ -149,15 +155,16 @@ export async function updateSomaPolice(
       actions = await executeSignal(
         handler, 'player_spotted',
         {
-          player_position: { ...playerPos },
-          own_position: { ...entity.pos },
-          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+          player_position: toTileCenter(playerPos, map),
+          own_position: ownTC,
+          map_state: mapState,
         },
         entity, soma, map, config, allPolice, onBroadcast,
       );
     } else if (radioMessages && radioMessages.length > 0) {
       // No direct observation but have radio — dispatch ally_signal
       // Use the most recent message (if multiple, latest wins)
+      // Radio data is already in tile-center (handlers put tile-center into broadcasts)
       const msg = radioMessages[radioMessages.length - 1];
       actions = await executeSignal(
         handler, 'ally_signal',
@@ -165,8 +172,8 @@ export async function updateSomaPolice(
           ally_id: msg.from,
           signal_type: msg.signalType,
           signal_data: msg.data,
-          own_position: { ...entity.pos },
-          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+          own_position: ownTC,
+          map_state: mapState,
         },
         entity, soma, map, config, allPolice, onBroadcast,
       );
@@ -193,10 +200,10 @@ export async function updateSomaPolice(
       actions = await executeSignal(
         handler, 'tick',
         {
-          own_position: { ...entity.pos },
+          own_position: ownTC,
           state: entity.state,
           tick,
-          map_state: { cols: map.cols, rows: map.rows, tileSize: config.tileSize },
+          map_state: mapState,
         },
         entity, soma, map, config, allPolice, onBroadcast,
       );
