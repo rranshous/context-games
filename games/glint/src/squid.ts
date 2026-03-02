@@ -109,7 +109,8 @@ function readGamepad(): { x: number; z: number } {
 
 const isoRight = new THREE.Vector3(1, 0, -1).normalize();
 const isoUp = new THREE.Vector3(-1, 0, -1).normalize();
-const MOVE_SPEED = 4;
+const MOVE_SPEED = 6;
+const SPRINT_MULT = 1.6;
 const COLLISION_RADIUS = 0.3;
 
 export function updateSquid(
@@ -132,13 +133,23 @@ export function updateSquid(
   const len = Math.sqrt(dx * dx + dz * dz);
   if (len > 0) { dx /= len; dz /= len; }
 
+  // Sprint: Shift key or gamepad right trigger
+  let sprinting = keys['shift'];
+  if (!sprinting) {
+    const gamepads = navigator.getGamepads();
+    for (const gp2 of gamepads) {
+      if (gp2 && gp2.buttons[7]?.pressed) { sprinting = true; break; }
+    }
+  }
+  const speed = MOVE_SPEED * (sprinting ? SPRINT_MULT : 1);
+
   const moveDir = new THREE.Vector3()
     .addScaledVector(isoRight, dx)
     .addScaledVector(isoUp, -dz);
 
   // --- Movement with collision ---
-  const newX = squid.group.position.x + moveDir.x * MOVE_SPEED * dt;
-  const newZ = squid.group.position.z + moveDir.z * MOVE_SPEED * dt;
+  const newX = squid.group.position.x + moveDir.x * speed * dt;
+  const newZ = squid.group.position.z + moveDir.z * speed * dt;
 
   // Check collision per axis (slide along walls)
   const curX = squid.group.position.x;

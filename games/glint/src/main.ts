@@ -123,6 +123,9 @@ const spawn = tileToWorld(map.playerSpawn.x, map.playerSpawn.z, TILE_SIZE, MAP_W
 squid.group.position.set(spawn.wx, 1, spawn.wz);
 scene.add(squid.group);
 
+// Debug access
+(window as any).__glint = { map, squid, tileToWorld, TILE_SIZE, MAP_W, MAP_H };
+
 // --- Game loop ---
 const clock = new THREE.Clock();
 
