@@ -511,6 +511,39 @@ export async function summarizeHandlerBehavior(
   return '';
 }
 
+/**
+ * Haiku call to produce an overall squad tactical assessment —
+ * how the team coordinates, gaps in coverage, emergent strategies.
+ */
+export async function summarizeSquadOverview(
+  somas: Soma[],
+  apiEndpoint: string,
+): Promise<string> {
+  try {
+    const officerBlocks = somas.map(s => {
+      const memSnip = s.memory ? `\nMemory: ${s.memory.slice(0, 300)}` : '';
+      return `### ${s.name} (${s.badgeNumber})\nNature: ${s.nature}\nChases: ${s.chaseHistory.length}${memSnip}\n\`\`\`javascript\n${s.signalHandlers.slice(0, 1500)}\n\`\`\``;
+    }).join('\n\n');
+
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: 'claude-haiku-4-5-20251001',
+      system: 'You are analyzing the full squad of AI police officers in a chase game. Give an overall tactical assessment: how they work as a team, how they use radio to coordinate, any coverage gaps or redundancies, and emergent strategies. Be specific — reference officers by name. Use markdown with short sections. No preamble.',
+      messages: [{
+        role: 'user',
+        content: `Give an overall squad assessment for these 4 officers.\n\n${officerBlocks}`,
+      }],
+      max_tokens: 768,
+    });
+
+    if (response?.content?.[0]?.type === 'text') {
+      return response.content[0].text || '';
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: 'squad_overview_error', error: String(err) }));
+  }
+  return '';
+}
+
 // ── Tool Call Processing ──
 
 function processToolCall(

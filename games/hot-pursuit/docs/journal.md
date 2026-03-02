@@ -546,3 +546,24 @@ The `summarizeHandlerBehavior()` haiku call now explicitly asks about radio usag
 ### Files Changed
 - `renderer.ts`: added id to title element, initial text "REVIEWING TAPE", updates to "SHARING NOTES" on sharing status
 - `reflection.ts`: `summarizeHandlerBehavior()` system prompt + user message updated for radio awareness, includes soma.memory, max_tokens 384→512
+
+### Squad Overview Button
+Added a "squad overview" button that appears next to the debrief title after reflection completes. Clicking it fires a single haiku call that inspects all 4 somas and produces an overall tactical assessment — team coordination, radio usage, coverage gaps, emergent strategies. Result displayed in the soma side panel.
+
+**New function: `summarizeSquadOverview()`** in `reflection.ts`:
+- Sends all 4 officers' natures, memory snippets (300 chars), and handler code (1500 chars) to haiku
+- System prompt asks for team-level analysis: coordination, radio patterns, gaps, emergent strategies
+- References officers by name for specificity
+- 768 max tokens
+
+**Renderer additions:**
+- `addOverviewButton(onOverview)`: places button inline with the debrief title, same `.inspect-btn` style
+- `showSquadOverview()`: shows "generating overview..." in soma panel
+- `updateSquadOverview(summary)`: patches in the markdown-rendered result
+
+**Wired in `game.ts`** right after per-officer inspect buttons. Clicking deselects any active officer inspect button (shared `.inspect-btn.active` class).
+
+### Files Changed
+- `reflection.ts`: added `summarizeSquadOverview()`, updated `summarizeHandlerBehavior()` (radio + memory)
+- `renderer.ts`: added `addOverviewButton()`, `showSquadOverview()`, `updateSquadOverview()`, debrief phase titles
+- `game.ts`: import + wiring for squad overview button

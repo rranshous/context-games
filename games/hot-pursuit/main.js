@@ -1657,6 +1657,46 @@ var Renderer = class {
     el.className = "soma-card-behavior";
     el.innerHTML = renderMarkdown(summary);
   }
+  /** Add "squad overview" button next to the debrief title. */
+  addOverviewButton(onOverview) {
+    const title = document.getElementById("reflection-phase-title");
+    if (!title || title.querySelector(".inspect-btn")) return;
+    const btn = document.createElement("button");
+    btn.className = "inspect-btn";
+    btn.style.marginLeft = "12px";
+    btn.style.fontSize = "10px";
+    btn.textContent = "squad overview";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".inspect-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      onOverview();
+    });
+    title.appendChild(btn);
+  }
+  /** Show squad overview text in the soma side panel. */
+  showSquadOverview() {
+    const panel = document.getElementById("soma-panel");
+    if (!panel) return;
+    this.clearSomaPanel();
+    const wrapper = document.createElement("div");
+    wrapper.className = "soma-card";
+    wrapper.innerHTML = `
+      <div class="soma-card-header">
+        <span class="soma-card-name">Squad Overview</span>
+      </div>
+      <div class="soma-card-section">
+        <div id="squad-overview-content" class="soma-card-generating">generating overview...</div>
+      </div>`;
+    panel.appendChild(wrapper);
+  }
+  /** Patch in the squad overview after the haiku call returns. */
+  updateSquadOverview(summary) {
+    const el = document.getElementById("squad-overview-content");
+    if (!el) return;
+    el.className = "soma-card-behavior";
+    el.innerHTML = renderMarkdown(summary);
+  }
   /** Remove card content from panel, preserving header with reset button. */
   clearSomaPanel() {
     const panel = document.getElementById("soma-panel");
@@ -2385,6 +2425,37 @@ ${soma.memory.slice(0, 500)}` : ""}`
   }
   return "";
 }
+async function summarizeSquadOverview(somas, apiEndpoint) {
+  try {
+    const officerBlocks = somas.map((s) => {
+      const memSnip = s.memory ? `
+Memory: ${s.memory.slice(0, 300)}` : "";
+      return `### ${s.name} (${s.badgeNumber})
+Nature: ${s.nature}
+Chases: ${s.chaseHistory.length}${memSnip}
+\`\`\`javascript
+${s.signalHandlers.slice(0, 1500)}
+\`\`\``;
+    }).join("\n\n");
+    const response = await callAnthropicAPI(apiEndpoint, {
+      model: "claude-haiku-4-5-20251001",
+      system: "You are analyzing the full squad of AI police officers in a chase game. Give an overall tactical assessment: how they work as a team, how they use radio to coordinate, any coverage gaps or redundancies, and emergent strategies. Be specific \u2014 reference officers by name. Use markdown with short sections. No preamble.",
+      messages: [{
+        role: "user",
+        content: `Give an overall squad assessment for these 4 officers.
+
+${officerBlocks}`
+      }],
+      max_tokens: 768
+    });
+    if (response?.content?.[0]?.type === "text") {
+      return response.content[0].text || "";
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ _hp: "squad_overview_error", error: String(err) }));
+  }
+  return "";
+}
 function processToolCall(toolName, input, soma, replay, result) {
   switch (toolName) {
     case "update_signal_handlers": {
@@ -2980,6 +3051,12 @@ var Game = class {
         this.renderer.showSomaInspector(soma);
         summarizeHandlerBehavior(soma, API_ENDPOINT).then((summary) => {
           if (summary) this.renderer.updateSomaInspectorSummary(summary);
+        });
+      });
+      this.renderer.addOverviewButton(() => {
+        this.renderer.showSquadOverview();
+        summarizeSquadOverview(this.somas, API_ENDPOINT).then((summary) => {
+          if (summary) this.renderer.updateSquadOverview(summary);
         });
       });
       await this.waitForSpace();

@@ -13,7 +13,7 @@ import { loadSomas, saveSomas, recordChaseInSoma, resetSomas } from './persisten
 import { clearHandlerCache } from './handler-executor';
 import { ReplayRecorder } from './replay';
 import { Renderer } from './renderer';
-import { reflectAllActants, summarizeHandlerBehavior } from './reflection';
+import { reflectAllActants, summarizeHandlerBehavior, summarizeSquadOverview } from './reflection';
 
 // API endpoint for reflection inference (vanilla platform proxy)
 const API_ENDPOINT = '/api/inference/anthropic/messages';
@@ -383,6 +383,12 @@ export class Game {
         // Fire-and-forget haiku summary
         summarizeHandlerBehavior(soma, API_ENDPOINT).then(summary => {
           if (summary) this.renderer.updateSomaInspectorSummary(summary);
+        });
+      });
+      this.renderer.addOverviewButton(() => {
+        this.renderer.showSquadOverview();
+        summarizeSquadOverview(this.somas, API_ENDPOINT).then(summary => {
+          if (summary) this.renderer.updateSquadOverview(summary);
         });
       });
 
