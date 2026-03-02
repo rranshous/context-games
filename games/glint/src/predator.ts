@@ -27,6 +27,7 @@ export interface PhysicalState {
   lastSeenPos: { x: number; z: number } | null;
   lostTime: number;           // seconds since prey was last seen
   stuckTimer: number;
+  wasPursuing: boolean;       // did the instinct call me.pursue() last frame?
 }
 
 /** What the chassis's sensors report each tick */
@@ -209,7 +210,8 @@ export function dispatchStimulus(
   }
 
   // Determine stimulus type (priority: prey_detected > prey_lost > tick)
-  const wasTracking = pred.physical.state === 'chase';
+  // prey_lost fires when the predator was pursuing last frame but can't see prey now
+  const wasTracking = pred.physical.wasPursuing;
   let stimulusType: string;
   let stimulusData: StimulusData;
 
@@ -260,6 +262,9 @@ export function dispatchStimulus(
     busyPredators.delete(pred.id);
     applyAction(pred, actions[0], dt, map, tileSize, rng);
   }
+
+  // Track whether this frame's action was a pursue (for next frame's prey_lost check)
+  pred.physical.wasPursuing = actions.length > 0 && actions[0].type === 'pursue';
 }
 
 /** Map a PendingAction to movement primitives */

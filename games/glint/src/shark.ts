@@ -94,6 +94,7 @@ export function createShark(
     lastSeenPos: null,
     lostTime: 0,
     stuckTimer: 0,
+    wasPursuing: false,
   };
 
   const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);

@@ -956,7 +956,7 @@ function dispatchStimulus(pred, sensors, dt, map2, tileSize, rng) {
     }
     return;
   }
-  const wasTracking = pred.physical.state === "chase";
+  const wasTracking = pred.physical.wasPursuing;
   let stimulusType;
   let stimulusData;
   if (sensors.squidDetected) {
@@ -996,6 +996,7 @@ function dispatchStimulus(pred, sensors, dt, map2, tileSize, rng) {
     busyPredators.delete(pred.id);
     applyAction(pred, actions[0], dt, map2, tileSize, rng);
   }
+  pred.physical.wasPursuing = actions.length > 0 && actions[0].type === "pursue";
 }
 function applyAction(pred, action, dt, map2, tileSize, rng) {
   switch (action.type) {
@@ -1145,7 +1146,8 @@ function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {
     waypoint: null,
     lastSeenPos: null,
     lostTime: 0,
-    stuckTimer: 0
+    stuckTimer: 0,
+    wasPursuing: false
   };
   const predatorSoma = existingSoma ?? createDefaultSharkSoma(id);
   function animate2(pred, t) {
@@ -1385,9 +1387,10 @@ Available in onStimulus(type, data, me):
 <stimuli>
 Your onStimulus function receives one of three stimulus types:
 - 'prey_detected' \u2014 you can see the prey right now. data.prey_position = {x, z}, data.prey_distance = number
-- 'prey_lost' \u2014 you just lost sight of the prey. data.last_known_position = {x, z}
-- 'tick' \u2014 nothing detected. data.current_state = your state string, data.time_since_lost = seconds since last detection
+- 'prey_lost' \u2014 you were pursuing (called me.pursue() last frame) but can no longer see the prey. data.last_known_position = {x, z}
+- 'tick' \u2014 nothing detected and you weren't pursuing. data.current_state = your state string, data.time_since_lost = seconds since last detection
 Only one stimulus fires per frame, in priority order: prey_detected > prey_lost > tick.
+Note: 'prey_lost' only fires if you called me.pursue() on the previous frame. If you were patrolling and the prey disappears, you just get 'tick'.
 </stimuli>
 
 IMPORTANT: You MUST call update_instinct to change your behavior. Thinking about improvements without calling the tool changes nothing. Your instinct code is what actually runs during hunts.`;
