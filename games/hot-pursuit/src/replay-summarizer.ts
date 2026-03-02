@@ -3,7 +3,7 @@
 // The implementation guide warns: full tick-by-tick is too much context.
 // We provide stats, key moments, simplified paths, and a query mechanism.
 
-import { ChaseReplay, Position, ChaseEvent } from './types';
+import { ChaseReplay, Position, ChaseEvent, DEFAULT_CONFIG } from './types';
 import { Soma } from './soma';
 
 export interface ReplaySummary {
@@ -140,22 +140,25 @@ export function summarizeReplayForActant(
     return { tick, allies };
   });
 
+  // Convert distances from pixels to tile units for the reflection prompt
+  const ts = DEFAULT_CONFIG.tileSize;
+
   return {
     runId: replay.runId,
     outcome: replay.outcome,
     durationSeconds: Math.round(replay.durationSeconds * 10) / 10,
     durationTicks: replay.durationTicks,
-    closestApproach: replay.stats.closestApproach,
+    closestApproach: Math.round(replay.stats.closestApproach / ts * 10) / 10,
     timesSpotted: replay.stats.timesSpotted,
     timesLost: replay.stats.timesLost,
-    playerDistanceTraveled: Math.round(replay.stats.distanceTraveled),
+    playerDistanceTraveled: Math.round(replay.stats.distanceTraveled / ts),
     officerSummary: {
       id: actantId,
       name: soma.name,
       spottedPlayer,
       madeCapture,
-      closestDistance: Math.round(closestDist),
-      distanceTraveled: Math.round(officerDistance),
+      closestDistance: Math.round(closestDist / ts * 10) / 10,
+      distanceTraveled: Math.round(officerDistance / ts),
       stateBreakdown: Object.fromEntries(
         Object.entries(stateBreakdown).map(([k, v]) => [k, Math.round(v * 10) / 10])
       ),
@@ -189,8 +192,8 @@ function describeEvent(event: ChaseEvent, selfId: string): string {
       return `${who} lost visual contact with the suspect`;
     case 'near_capture':
       return `${who} nearly caught the suspect (distance: ${
-        Math.round((event.data.distance as number) || 0)
-      }px)`;
+        Math.round(((event.data.distance as number) || 0) / DEFAULT_CONFIG.tileSize * 10) / 10
+      } tiles)`;
     case 'chase_end':
       return `Chase ended: ${event.data.outcome}`;
     default:
