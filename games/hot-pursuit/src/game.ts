@@ -42,9 +42,6 @@ export class Game {
   private pendingBroadcasts: RadioMessage[] = [];
   private currentRadio: RadioMessage[] = [];
 
-  // Handler behavior summaries for soma panel
-  private handlerSummaries: Map<string, string> = new Map();
-
   // Fixed timestep
   private readonly TICK_RATE = 60;
   private readonly TICK_DT = 1 / 60;
@@ -106,26 +103,10 @@ export class Game {
   }
 
   start(): void {
-    // Render initial soma panel (summaries will fill in async)
-    this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
-    this.generateHandlerSummaries();
-
     this.startChase();
     this.running = true;
     this.lastFrameTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
-  }
-
-  /** Generate AI summaries of handler behavior for the soma panel. */
-  private async generateHandlerSummaries(): Promise<void> {
-    const promises = this.somas.map(async (soma) => {
-      const summary = await summarizeHandlerBehavior(soma, API_ENDPOINT);
-      if (summary) {
-        this.handlerSummaries.set(soma.id, summary);
-        this.renderer.updateSomaPanelSummary(soma.id, summary);
-      }
-    });
-    await Promise.all(promises);
   }
 
   private startChase(): void {
@@ -382,11 +363,6 @@ export class Game {
       saveSomas(this.somas);
       clearHandlerCache();
 
-      // Refresh soma panel with updated somas + regenerate behavior summaries
-      this.handlerSummaries.clear();
-      this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
-      this.generateHandlerSummaries(); // fire-and-forget, panel updates incrementally
-
       console.log(JSON.stringify({
         _hp: 'reflection_phase_complete',
         run: this.runNumber,
@@ -400,8 +376,15 @@ export class Game {
         })),
       }));
 
-      // Show "press space" prompt — the cards already have all the content
+      // Show "press space" prompt + inspect buttons
       this.renderer.showReflectionComplete();
+      this.renderer.addInspectButtons(this.somas, (soma) => {
+        this.renderer.showSomaInspector(soma);
+        // Fire-and-forget haiku summary
+        summarizeHandlerBehavior(soma, API_ENDPOINT).then(summary => {
+          if (summary) this.renderer.updateSomaInspectorSummary(summary);
+        });
+      });
 
       // Wait for player to press space to continue
       await this.waitForSpace();
@@ -419,6 +402,7 @@ export class Game {
 
     this.reflectionInProgress = false;
     this.renderer.hideReflection();
+    this.renderer.clearSomaPanel();
     this.runNumber++;
     this.startChase();
   }

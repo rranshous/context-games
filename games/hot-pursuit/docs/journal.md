@@ -495,35 +495,37 @@ Replaced static "Updated tactics after reviewing ally intel" text on reflection 
 ## 2026-03-02 — Session 8: Soma Inspector Panel
 
 ### Soma Inspector Side Panel
-Added a persistent side panel to the right of the game canvas showing all 4 officers' somas at a glance. No toggle needed — it's always visible alongside the game.
+Added a side panel to the right of the game canvas for inspecting individual officer somas. Panel starts empty — no API calls at startup. After reflection completes, each debrief card gets an "inspect" button. Click it to view that officer's full soma in the side panel.
 
-**What each officer card shows:**
-1. Name + badge number
-2. Nature excerpt (italic, truncated to 120 chars)
-3. **Behavior** — AI-generated plain-English summary of what their signal handler code does (haiku call per officer)
-4. **Memory** — the officer's self-maintained memory, shown in a scrollable box
-5. **Handler code** — collapsible `<details>`, shows line count on the toggle label
+**Interaction flow:**
+1. Chase runs → debrief overlay shows officer cards
+2. After reflection + debrief sharing finishes, "inspect" button appears on each card header
+3. Click "inspect" → side panel populates with that officer's soma
+4. Haiku summary fires on-demand (only for the officer you're looking at)
+5. Press SPACE → panel clears, next chase starts
 
-**How summaries work:**
-- `summarizeHandlerBehavior()` in `reflection.ts` — haiku call that reads the handler JS and outputs a bullet list describing behavior per signal type (e.g., "moves to intercept point ahead of suspect" not just "responds to sighting")
-- Summaries fire at startup (for initial/loaded somas) and again after each reflection completes
-- Panel renders immediately with "generating summary..." placeholders, then `updateSomaPanelSummary()` patches each card as its haiku call returns
-- All 4 summary calls run in parallel
+**What the inspector shows (single officer):**
+1. Name + badge + full nature text (not truncated — room for one officer)
+2. **Behavior** — AI-generated plain-English summary (haiku call, fires on click)
+3. **Memory** — full officer memory, scrollable (150px max-height)
+4. **Chase History** — structured run-by-run results
+5. **Handler code** — open by default (`<details open>`), 300px max-height
 
-**Layout:**
-- `#game-wrapper` flex container holds `#game-container` + `#soma-panel` side by side
-- Panel: 340px wide, 720px tall (matches canvas CSS height), scrollable
-- `margin-top: 28px` aligns panel top with canvas (below HUD bar)
-- Dark background `#0d0d0d` with subtle borders, consistent with existing UI palette
+**Key design decisions:**
+- One officer at a time, not all 4 — less clutter, more detail
+- Summaries on-demand only — no startup API calls, no background generation
+- Inspector button only appears after reflection is done (not during)
+- Panel clears on next chase start (`clearSomaPanel()`)
+- Active inspect button highlighted amber to show which officer is selected
 
 **Files changed:**
-- `index.html`: `#game-wrapper` flex layout, `#soma-panel` HTML element, all `.soma-card-*` CSS classes
-- `reflection.ts`: `summarizeHandlerBehavior()` export
-- `renderer.ts`: `updateSomaPanel()` (full re-render) + `updateSomaPanelSummary()` (incremental single-card patch)
-- `game.ts`: `handlerSummaries` Map, `generateHandlerSummaries()` method, wired into `start()` and post-reflection flow
+- `index.html`: `.inspect-btn` CSS, increased `.soma-card-memory` max-height to 150px, `.soma-card-code` max-height to 300px
+- `reflection.ts`: `summarizeHandlerBehavior()` (unchanged from initial version)
+- `renderer.ts`: replaced `updateSomaPanel()`/`updateSomaPanelSummary()` with `addInspectButtons()`, `showSomaInspector()`, `updateSomaInspectorSummary()`, `clearSomaPanel()`
+- `game.ts`: removed `handlerSummaries` Map + `generateHandlerSummaries()`, wired inspect click handler after reflection completes
 
 ### What's Next
-- Play multiple chases and observe officer evolution in the soma panel
+- Play multiple chases and observe officer evolution via the inspector
 - Watch how handler code grows and behavior summaries change across reflections
 - Tighten handler code length limit once growth patterns observed
 - Consider handler execution profiling if choppiness returns

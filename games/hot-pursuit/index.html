@@ -146,6 +146,18 @@
     .reflection-card-status.active { color: #ffaa33; }
     .reflection-card-status.done { color: #33ff33; }
     .reflection-card-status.error { color: #ff3333; }
+    .inspect-btn {
+      background: transparent;
+      border: 1px solid #444;
+      color: #888;
+      font-family: 'Courier New', monospace;
+      font-size: 9px;
+      padding: 1px 6px;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+    .inspect-btn:hover { color: #ffaa33; border-color: #ffaa33; }
+    .inspect-btn.active { color: #ffaa33; border-color: #ffaa33; }
     .reflection-card-map {}
     .reflection-card-map img {
       image-rendering: pixelated;
@@ -372,7 +384,7 @@
       color: #88aacc;
       font-size: 10px;
       line-height: 1.3;
-      max-height: 80px;
+      max-height: 150px;
       overflow-y: auto;
       white-space: pre-wrap;
       padding: 4px 6px;
@@ -398,7 +410,7 @@
       padding: 4px 6px;
       white-space: pre;
       overflow-x: auto;
-      max-height: 200px;
+      max-height: 300px;
       overflow-y: auto;
       margin-top: 4px;
     }

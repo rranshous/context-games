@@ -1596,46 +1596,68 @@ var Renderer = class {
     if (overlay) overlay.classList.remove("visible");
   }
   // ── Soma Inspector Panel ──
-  updateSomaPanel(somas, handlerSummaries) {
+  /** Add "inspect" buttons to each debrief card. Called after reflection completes. */
+  addInspectButtons(somas, onInspect) {
+    for (const soma of somas) {
+      const header = document.getElementById(`reflect-card-${soma.id}`)?.querySelector(".reflection-card-header");
+      if (!header) continue;
+      if (header.querySelector(".inspect-btn")) continue;
+      const btn = document.createElement("button");
+      btn.className = "inspect-btn";
+      btn.textContent = "inspect";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.querySelectorAll(".inspect-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        onInspect(soma);
+      });
+      header.appendChild(btn);
+    }
+  }
+  /** Show a single officer's soma in the side panel. */
+  showSomaInspector(soma) {
     const panel = document.getElementById("soma-panel");
     if (!panel) return;
-    const cards = somas.map((s) => {
-      const summary = handlerSummaries.get(s.id);
-      const memoryPreview = s.memory.length > 300 ? s.memory.slice(0, 300) + "..." : s.memory;
-      const handlerLines = s.signalHandlers.trim().split("\n").length;
-      return `<div class="soma-card" id="soma-card-${s.id}">
+    const handlerLines = soma.signalHandlers.trim().split("\n").length;
+    panel.innerHTML = `
+      <div class="soma-panel-title">${escapeHtml(soma.name)}</div>
+      <div class="soma-card">
         <div class="soma-card-header">
-          <span class="soma-card-name">${escapeHtml(s.name)}</span>
-          <span class="soma-card-badge">${escapeHtml(s.badgeNumber)}</span>
+          <span class="soma-card-name">${escapeHtml(soma.name)}</span>
+          <span class="soma-card-badge">${escapeHtml(soma.badgeNumber)}</span>
         </div>
-        <div class="soma-card-nature">${escapeHtml(s.nature.length > 120 ? s.nature.slice(0, 120) + "..." : s.nature)}</div>
+        <div class="soma-card-nature">${escapeHtml(soma.nature)}</div>
         <div class="soma-card-section">
           <div class="soma-card-section-label">Behavior</div>
-          ${summary ? `<div class="soma-card-behavior">${renderMarkdown(summary)}</div>` : `<div class="soma-card-generating">generating summary...</div>`}
+          <div id="soma-inspector-behavior" class="soma-card-generating">generating summary...</div>
         </div>
         <div class="soma-card-section">
           <div class="soma-card-section-label">Memory</div>
-          <div class="soma-card-memory">${escapeHtml(memoryPreview)}</div>
+          <div class="soma-card-memory">${escapeHtml(soma.memory)}</div>
         </div>
-        <details>
+        <div class="soma-card-section">
+          <div class="soma-card-section-label">Chase History</div>
+          <div class="soma-card-memory">${soma.chaseHistory.length === 0 ? "No chases yet." : soma.chaseHistory.map(
+      (h) => `Run ${h.runId}: ${h.outcome} (${Math.round(h.durationSeconds)}s)${h.captured ? " - CAPTURED" : ""}${h.spotted ? " - spotted" : ""}`
+    ).join("\n")}</div>
+        </div>
+        <details open>
           <summary>handler code (${handlerLines} lines)</summary>
-          <div class="soma-card-code">${escapeHtml(s.signalHandlers.trim())}</div>
+          <div class="soma-card-code">${escapeHtml(soma.signalHandlers.trim())}</div>
         </details>
       </div>`;
-    }).join("");
-    panel.innerHTML = `<div class="soma-panel-title">Officers</div>${cards}`;
   }
-  /** Update just the behavior summary for a single officer (no full re-render). */
-  updateSomaPanelSummary(actantId, summary) {
-    const card = document.getElementById(`soma-card-${actantId}`);
-    if (!card) return;
-    const behaviorEl = card.querySelector(".soma-card-behavior, .soma-card-generating");
-    if (behaviorEl) {
-      const div = document.createElement("div");
-      div.className = "soma-card-behavior";
-      div.innerHTML = renderMarkdown(summary);
-      behaviorEl.replaceWith(div);
-    }
+  /** Patch in the behavior summary after the haiku call returns. */
+  updateSomaInspectorSummary(summary) {
+    const el = document.getElementById("soma-inspector-behavior");
+    if (!el) return;
+    el.className = "soma-card-behavior";
+    el.innerHTML = renderMarkdown(summary);
+  }
+  /** Reset the panel to empty. */
+  clearSomaPanel() {
+    const panel = document.getElementById("soma-panel");
+    if (panel) panel.innerHTML = '<div class="soma-panel-title">Officers</div>';
   }
 };
 function escapeHtml(text) {
@@ -2687,8 +2709,6 @@ var Game = class {
   // Live radio — broadcasts queued during tick N, dispatched on tick N+1
   pendingBroadcasts = [];
   currentRadio = [];
-  // Handler behavior summaries for soma panel
-  handlerSummaries = /* @__PURE__ */ new Map();
   // Fixed timestep
   TICK_RATE = 60;
   TICK_DT = 1 / 60;
@@ -2741,23 +2761,10 @@ var Game = class {
     }));
   }
   start() {
-    this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
-    this.generateHandlerSummaries();
     this.startChase();
     this.running = true;
     this.lastFrameTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
-  }
-  /** Generate AI summaries of handler behavior for the soma panel. */
-  async generateHandlerSummaries() {
-    const promises = this.somas.map(async (soma) => {
-      const summary = await summarizeHandlerBehavior(soma, API_ENDPOINT);
-      if (summary) {
-        this.handlerSummaries.set(soma.id, summary);
-        this.renderer.updateSomaPanelSummary(soma.id, summary);
-      }
-    });
-    await Promise.all(promises);
   }
   startChase() {
     this.phase = "chase";
@@ -2947,9 +2954,6 @@ var Game = class {
       );
       saveSomas(this.somas);
       clearHandlerCache();
-      this.handlerSummaries.clear();
-      this.renderer.updateSomaPanel(this.somas, this.handlerSummaries);
-      this.generateHandlerSummaries();
       console.log(JSON.stringify({
         _hp: "reflection_phase_complete",
         run: this.runNumber,
@@ -2963,6 +2967,12 @@ var Game = class {
         }))
       }));
       this.renderer.showReflectionComplete();
+      this.renderer.addInspectButtons(this.somas, (soma) => {
+        this.renderer.showSomaInspector(soma);
+        summarizeHandlerBehavior(soma, API_ENDPOINT).then((summary) => {
+          if (summary) this.renderer.updateSomaInspectorSummary(summary);
+        });
+      });
       await this.waitForSpace();
     } catch (err) {
       console.log(JSON.stringify({
@@ -2975,6 +2985,7 @@ var Game = class {
     }
     this.reflectionInProgress = false;
     this.renderer.hideReflection();
+    this.renderer.clearSomaPanel();
     this.runNumber++;
     this.startChase();
   }
