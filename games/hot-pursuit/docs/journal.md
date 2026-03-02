@@ -615,3 +615,132 @@ Added a "wave changes" button alongside the squad overview button. Summarizes wh
 4. **Wave changes button**: cross-squad changelog — tactical shifts, idea spreading, new discoveries (haiku, on-demand)
 5. **Reflection model**: upgraded to `claude-sonnet-4-6`
 6. All summary buttons appear in debrief header after reflection completes, results show in soma side panel
+
+## Session 10 Plan: Difficulty Scaling + Coordinate Normalization
+
+Plan file: `~/.claude/plans/scalable-yawning-garden.md`
+
+### The Problem
+Officers learn tactics against a fixed 40×30 map with 4 cops. Even as they get smarter, the small map is easily beatable. Difficulty needs to scale. But officers "think" in raw pixel coordinates (0 → 960 on x-axis), which bakes map-specific positions into their handlers, memory, and broadcasts. If the map changes, their learned spatial knowledge breaks.
+
+### Part 1: Coordinate Normalization
+
+**System: Tile-based, center-origin.**
+- `{x: 0, y: 0}` = map center
+- Units = tiles (not pixels)
+- On 40×30 map: ranges from `{x: -20, y: -15}` to `{x: 20, y: 15}`
+- Distances map directly to game mechanics (LOS = 8 tiles, not 192px)
+
+**Why this approach:**
+- Tiles are the natural game unit (LOS, buildings, patrol all tile-based)
+- Center origin means learned positions near center are portable across maps
+- Officers can reason: "suspect was 12 tiles away" (relatable to their 8-tile LOS)
+- Relative positions between entities work across any map
+
+**Conversion boundary** — all conversions happen at the edge between engine (pixels) and handler world (tile-center):
+- `soma-police.ts`: convert signal data positions (own_position, player_position, last_known_position) to tile-center before passing to handlers
+- `chassis.ts`: convert tool args IN (move_toward target, etc.) from tile-center back to pixels; convert tool results OUT (ally_positions, escape_routes, distance_to) to tile-center
+- `map_state` changes from `{cols, rows, tileSize}` to `{halfWidth, halfHeight}` (half-extents in tiles)
+- Broadcast data flows naturally — handlers receive tile-center, put it in broadcasts, allies receive tile-center
+- `distance_to()` returns tile units instead of pixels
+
+**Soma reset required**: existing handlers/memory contain pixel coordinates. Add `soma.version = 2` for future migrations.
+
+New file: `src/coords.ts` — `toTileCenter()`, `fromTileCenter()`, `distInTiles()`
+
+### Part 2: Precinct Progression System
+
+Track total escapes. After thresholds, player gets "promoted" to harder precinct. One-way — no demotion. Existing officers keep evolved somas; new officers join as rookies.
+
+| Precinct | Escapes | Officers | Extractions | Police Speed | LOS | Timer |
+|----------|---------|----------|-------------|-------------|-----|-------|
+| 1 (Patrol) | 0 | 4 | 3 | 95 | 8 | 90s |
+| 2 (Alert) | 3 | 5 | 3 | 100 | 8 | 80s |
+| 3 (Pursuit) | 7 | 6 | 2 | 105 | 9 | 70s |
+| 4 (Manhunt) | 12 | 7 | 2 | 108 | 10 | 60s |
+| 5 (Lockdown) | 18 | 8 | 2 | 112 | 10 | 55s |
+
+Player speed stays at 120. Gap narrows but player always has the edge.
+
+**4 new officer templates** (expanding from 4 to 8):
+- **Mori** — "reads a chase the way a river reads a valley — always finding the path of least resistance, always flowing toward the lowest point where things collect."
+- **Briggs** — "works a grid like a combine works a field — systematic, relentless, covering every row until there's nowhere left to hide."
+- **Jain** — "doesn't watch the suspect. Jain watches the exits. The chase is already decided — it's just a question of which door closes last."
+- **Kowalski** — "moves through alleys the way a wolf moves through brush — low, quiet, always on the scent, appearing where you forgot to look."
+
+**Persistence**: `hot-pursuit-progress` in localStorage — totalEscapes, currentPrecinct.
+
+### Implementation Order
+1. Coordinate conversion layer (`coords.ts`, wire into `soma-police.ts` + `chassis.ts`)
+2. Soma versioning + auto-reset on version mismatch
+3. Precinct config system (`types.ts` definitions, `persistence.ts` progress, `game.ts` application)
+4. New officer templates in `soma.ts`
+5. Promotion flow (check threshold after escape, interstitial, new officers spawn)
+6. Update reflection prompts (explain tile-center coords, tile-unit distances)
+7. HUD + visual feedback (precinct name, escape count, promotion overlay)
+
+### Files Touched
+- **New**: `src/coords.ts`
+- **Modified**: `types.ts`, `soma.ts`, `soma-police.ts`, `chassis.ts`, `game.ts`, `persistence.ts`, `reflection.ts`, `replay-summarizer.ts`, `renderer.ts`, `index.html`
+
+## 2026-03-01 — Session 10: Tile-Center Coords + Precinct Progression
+
+### What Was Built
+Implemented the full Session 10 plan: coordinate normalization and precinct progression system.
+
+### Part 1: Tile-Center Coordinate System
+
+**New file: `src/coords.ts`** — `toTileCenter()`, `fromTileCenter()`, `distInTiles()`
+
+All positions that handlers see are now in tile-center coords:
+- `{x: 0, y: 0}` = map center, units = tiles
+- On the 40×30 map: ranges from `{x: -20, y: -15}` to `{x: 20, y: 15}`
+- Conversion boundary is clean: `soma-police.ts` converts signal data OUT, `chassis.ts` converts tool args IN and results OUT
+- `map_state` is now `{halfWidth, halfHeight}` (not `{cols, rows, tileSize}`)
+- `distance_to()` returns tile units
+- Broadcast data flows naturally (handlers put tile-center into broadcasts, allies receive tile-center)
+- All distances in replay summaries converted to tiles
+
+**Decision: No soma versioning.** User preference — just clear localStorage manually when format changes. Keeps the code simpler.
+
+### Part 2: Precinct Progression
+
+5 precinct levels with scaling difficulty:
+
+| Precinct | Escapes | Officers | Extractions | Speed | LOS | Timer |
+|----------|---------|----------|-------------|-------|-----|-------|
+| Patrol | 0 | 4 | 3 | 95 | 8 | 90s |
+| Alert | 3 | 5 | 3 | 100 | 8 | 80s |
+| Pursuit | 7 | 6 | 2 | 105 | 9 | 70s |
+| Manhunt | 12 | 7 | 2 | 108 | 10 | 60s |
+| Lockdown | 18 | 8 | 2 | 112 | 10 | 55s |
+
+**New types**: `PrecinctConfig`, `PRECINCT_CONFIGS`, `PlayerProgress` in `types.ts`
+
+**4 new officer templates** (Mori, Briggs, Jain, Kowalski) — expanding roster from 4 to 8. Each has a nature analogy. New officers join as rookies when the precinct promotes; existing officers keep their evolved somas.
+
+**Progress persistence**: `hot-pursuit-progress` key in localStorage stores `{totalEscapes, currentPrecinct}`. Reset button clears both progress and somas.
+
+**Promotion flow in `game.ts`**:
+- After each escape, increment totalEscapes, check if threshold crossed
+- If promoted: apply new precinct config (speed, LOS, timer), load additional somas, show promotion overlay
+- `startChase()` uses `precinct.officerCount` and `precinct.extractionCount`
+
+**HUD**: precinct name + escape count shown between run number and timer.
+
+**Promotion overlay**: "PRECINCT ALERT ELEVATED" with precinct name, officer count, 3.5s fade animation.
+
+### Reflection Prompt Updates
+- Explains tile-center coordinate system (center-origin, tile units, map bounds)
+- All distances in tile units (closest approach, distance traveled, etc.)
+- LOS range pulled from dynamic config (not hardcoded 8)
+- Signal data documentation updated: `map_state = {halfWidth, halfHeight}`
+- Config threaded through `reflectActant()` → `reflectAllActants()`
+
+### What's Next
+- Clear localStorage and playtest the full precinct progression
+- Watch how officers handle the new coordinate system in their first reflection
+- Check that promotion triggers correctly at escape thresholds
+- Verify new officers (Mori, Briggs, Jain, Kowalski) spawn with correct defaults
+- Consider: larger maps at higher precincts? Current map may feel crowded with 7-8 officers
+- GTA-style visual overhaul still on the table for a future session
