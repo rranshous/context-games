@@ -737,10 +737,16 @@ All positions that handlers see are now in tile-center coords:
 - Signal data documentation updated: `map_state = {halfWidth, halfHeight}`
 - Config threaded through `reflectActant()` → `reflectAllActants()`
 
+### Testing Status ⚠️
+Difficulty progression was only lightly tested — played a few waves before running out of tokens. Basic flow works but there may be bugs lurking in:
+- Promotion threshold triggers
+- New officer spawning at higher precincts
+- Coordinate system interactions with more officers on the map
+- Edge cases around progress persistence across sessions
+
 ### What's Next
-- Clear localStorage and playtest the full precinct progression
+- More thorough playtesting of precinct progression (especially promotion boundaries)
 - Watch how officers handle the new coordinate system in their first reflection
-- Check that promotion triggers correctly at escape thresholds
 - Verify new officers (Mori, Briggs, Jain, Kowalski) spawn with correct defaults
 - Consider: larger maps at higher precincts? Current map may feel crowded with 7-8 officers
 - GTA-style visual overhaul still on the table for a future session
