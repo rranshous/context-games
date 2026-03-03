@@ -32,13 +32,16 @@ async function on_tick(me, world) {
   const lostTime = ltm ? +ltm[1] : 999;
   const lkm = mem.match(/lastknown:([-.\\d]+),([-.\\d]+)/);
   const lastKnown = lkm ? { x: +lkm[1], z: +lkm[2] } : null;
+  const llm = mem.match(/lastlog:([\\d.]+)/);
+  const lastLog = llm ? +llm[1] : 0;
 
   // Preserve any notes (lines not matching state keys)
-  const notes = mem.replace(/^(pursuing|lost|lastknown):.*$/gm, '').trim();
+  const notes = mem.replace(/^(pursuing|lost|lastknown|lastlog):.*$/gm, '').trim();
 
   let nowPursuing = false;
   let nowLostTime = lostTime;
   let nowLastKnown = lastKnown;
+  let nowLastLog = lastLog;
 
   if (world.squidDetected) {
     // --- PREY DETECTED ---
@@ -48,6 +51,7 @@ async function on_tick(me, world) {
         '\\n[t=' + world.t.toFixed(0) + 's] Detected prey at (' +
         world.squidPos.x.toFixed(1) + ', ' + world.squidPos.z.toFixed(1) +
         '), dist ' + world.squidDist.toFixed(1));
+      nowLastLog = world.t;
     }
     nowLastKnown = { x: world.squidPos.x, z: world.squidPos.z };
     nowLostTime = 0;
@@ -60,6 +64,7 @@ async function on_tick(me, world) {
       '\\n[t=' + world.t.toFixed(0) + 's] Lost prey');
     nowLostTime = 0;
     nowPursuing = false;
+    nowLastLog = world.t;
     if (nowLastKnown) me.patrol_to(nowLastKnown);
   } else {
     // --- TICK ---
@@ -69,13 +74,26 @@ async function on_tick(me, world) {
     } else {
       me.patrol_random();
     }
+
+    // Idle journal: log patrol status every ~30s so reflection has material
+    if (world.t - lastLog >= 30) {
+      const pos = me.getPosition();
+      const nearby = me.nearby_tiles('kelp');
+      const j = me.hunt_journal.read();
+      me.hunt_journal.write(j +
+        '\\n[t=' + world.t.toFixed(0) + 's] Patrolling at (' +
+        pos.x.toFixed(1) + ', ' + pos.z.toFixed(1) +
+        '), no prey sighted. ' + nearby.length + ' kelp nearby.');
+      nowLastLog = world.t;
+    }
   }
 
   // Write state back to memory
   me.memory.write(
     (nowPursuing ? 'pursuing:yes' : 'pursuing:no') + '\\n' +
     'lost:' + nowLostTime.toFixed(1) + '\\n' +
-    (nowLastKnown ? 'lastknown:' + nowLastKnown.x.toFixed(1) + ',' + nowLastKnown.z.toFixed(1) : 'lastknown:none') +
+    (nowLastKnown ? 'lastknown:' + nowLastKnown.x.toFixed(1) + ',' + nowLastKnown.z.toFixed(1) : 'lastknown:none') + '\\n' +
+    'lastlog:' + nowLastLog.toFixed(1) +
     (notes ? '\\n' + notes : ''));
 }
 `.trim();
@@ -83,7 +101,7 @@ async function on_tick(me, world) {
 export { DEFAULT_SHARK_ON_TICK };
 
 export const DEFAULT_SHARK_IDENTITY = 'The reef shark hunts by sight and speed — a torpedo with teeth, closing distance before prey can reach cover.';
-export const DEFAULT_SHARK_MEMORY = 'pursuing:no\nlost:999\nlastknown:none\nNo hunts yet. Patrol the reef, chase what moves.';
+export const DEFAULT_SHARK_MEMORY = 'pursuing:no\nlost:999\nlastknown:none\nlastlog:0\nNo hunts yet. Patrol the reef, chase what moves.';
 
 export function createDefaultSharkSoma(id: string): PredatorSoma {
   return {
