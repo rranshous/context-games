@@ -90,6 +90,9 @@
       margin-bottom: 6px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     .shark-card-body {
       color: #8ab4d8;
@@ -105,6 +108,78 @@
       padding: 20px 12px;
       text-align: center;
       font-style: italic;
+    }
+    .shark-card { cursor: pointer; transition: border-color 0.15s; }
+    .shark-card:hover { border-color: #ff8844; }
+    .shark-card-badge {
+      font-size: 10px;
+      color: #44ddaa;
+      border: 1px solid #2a5a4a;
+      padding: 1px 5px;
+      letter-spacing: 0.3px;
+    }
+    /* Detail view */
+    .soma-section {
+      background: #0d1220;
+      border: 1px solid #1a2a3a;
+      margin-bottom: 8px;
+    }
+    .soma-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 10px;
+      border-bottom: 1px solid #1a2a3a;
+      background: #0f1628;
+    }
+    .soma-section-label {
+      color: #ff8844;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .soma-changed {
+      font-size: 9px;
+      color: #44ddaa;
+      border: 1px solid #2a5a4a;
+      padding: 1px 5px;
+    }
+    .soma-default {
+      font-size: 9px;
+      color: #4a6a8a;
+      border: 1px solid #1a2a3a;
+      padding: 1px 5px;
+    }
+    .soma-content {
+      padding: 8px 10px;
+      color: #8ab4d8;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
+    .soma-code {
+      color: #a8d8a8;
+      background: #080c14;
+      font-size: 10px;
+      line-height: 1.4;
+      tab-size: 2;
+    }
+    .soma-link {
+      color: #44ddaa;
+      cursor: pointer;
+      border-bottom: 1px dotted #44ddaa;
+    }
+    .soma-link:hover { color: #66ffcc; }
+    .soma-section-highlight {
+      animation: section-flash 1.5s ease-out;
+    }
+    @keyframes section-flash {
+      0% { border-color: #44ddaa; box-shadow: 0 0 8px #44ddaa44; }
+      100% { border-color: #1a2a3a; box-shadow: none; }
     }
   </style>
 </head>

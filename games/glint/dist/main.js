@@ -1703,16 +1703,112 @@ function resetPredatorSomas(mapSeed) {
 // src/inspector.ts
 var contentEl = null;
 var refreshBtn = null;
+var headerTitleEl = null;
 var predatorsRef = [];
 var apiEndpoint = "";
+var currentView = "overview";
+var detailSharkId = null;
 function initInspector(predators2, endpoint) {
   predatorsRef = predators2;
   apiEndpoint = endpoint;
   contentEl = document.getElementById("inspector-content");
   refreshBtn = document.getElementById("refresh-btn");
+  headerTitleEl = document.querySelector(".inspector-title");
   refreshBtn?.addEventListener("click", () => {
-    refreshInspector();
+    if (currentView === "detail") {
+      showOverview();
+    } else {
+      refreshInspector();
+    }
   });
+  contentEl?.addEventListener("click", (e) => {
+    const target = e.target;
+    const link = target.closest(".soma-link");
+    if (link) {
+      const card2 = link.closest("[data-shark-id]");
+      const section = link.dataset.section;
+      if (card2?.dataset.sharkId && section) {
+        showDetail(card2.dataset.sharkId, section);
+      }
+      return;
+    }
+    const card = target.closest("[data-shark-id]");
+    if (card && !target.closest(".soma-section")) {
+      const sharkId = card.dataset.sharkId;
+      if (sharkId) showDetail(sharkId);
+    }
+  });
+}
+function showOverview() {
+  currentView = "overview";
+  detailSharkId = null;
+  if (headerTitleEl) headerTitleEl.textContent = "Shark Intel";
+  if (refreshBtn) {
+    refreshBtn.textContent = "REFRESH";
+    refreshBtn.disabled = false;
+  }
+  refreshInspector();
+}
+function showDetail(sharkId, scrollToSection) {
+  const pred = predatorsRef.find((p) => p.id === sharkId);
+  if (!pred || !contentEl) return;
+  currentView = "detail";
+  detailSharkId = sharkId;
+  if (headerTitleEl) headerTitleEl.textContent = sharkId;
+  if (refreshBtn) refreshBtn.textContent = "\u2190 BACK";
+  const soma = pred.predatorSoma;
+  contentEl.innerHTML = renderDetail(soma);
+  if (scrollToSection) {
+    const el = document.getElementById("soma-" + scrollToSection);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("soma-section-highlight");
+      setTimeout(() => el.classList.remove("soma-section-highlight"), 1500);
+    }
+  }
+}
+function renderDetail(soma) {
+  const sections = [
+    {
+      key: "identity",
+      label: "Identity",
+      content: soma.identity,
+      isCode: false,
+      changed: soma.identity !== DEFAULT_SHARK_IDENTITY
+    },
+    {
+      key: "on_tick",
+      label: "on_tick",
+      content: soma.on_tick,
+      isCode: true,
+      changed: soma.on_tick !== DEFAULT_SHARK_ON_TICK
+    },
+    {
+      key: "memory",
+      label: "Memory",
+      content: soma.memory,
+      isCode: false,
+      changed: soma.memory !== DEFAULT_SHARK_MEMORY
+    },
+    {
+      key: "hunt_journal",
+      label: "Hunt Journal",
+      content: soma.hunt_journal || "(empty)",
+      isCode: false,
+      changed: soma.hunt_journal.trim().length > 0
+    }
+  ];
+  return sections.map((s) => {
+    const changedBadge = s.changed ? '<span class="soma-changed">evolved</span>' : '<span class="soma-default">default</span>';
+    const contentClass = s.isCode ? "soma-content soma-code" : "soma-content";
+    return `<div class="soma-section" id="soma-${s.key}">
+      <div class="soma-section-header">
+        <span class="soma-section-label">${escapeHtml(s.label)}</span>
+        ${changedBadge}
+      </div>
+      <div class="${contentClass}">${escapeHtml(s.content)}</div>
+    </div>`;
+  }).join("");
 }
 async function refreshInspector() {
   if (!contentEl || !refreshBtn) return;
@@ -1732,10 +1828,24 @@ async function refreshInspector() {
   refreshBtn.disabled = false;
 }
 function renderCard(sharkId, summary) {
-  return `<div class="shark-card">
-    <div class="shark-card-header">${escapeHtml(sharkId)}</div>
+  const pred = predatorsRef.find((p) => p.id === sharkId);
+  const changedCount = pred ? countChanges(pred.predatorSoma) : 0;
+  const badge = changedCount > 0 ? `<span class="shark-card-badge">${changedCount} evolved</span>` : "";
+  return `<div class="shark-card" data-shark-id="${escapeHtml(sharkId)}">
+    <div class="shark-card-header">
+      <span>${escapeHtml(sharkId)}</span>
+      ${badge}
+    </div>
     <div class="shark-card-body">${summary}</div>
   </div>`;
+}
+function countChanges(soma) {
+  let n = 0;
+  if (soma.identity !== DEFAULT_SHARK_IDENTITY) n++;
+  if (soma.on_tick !== DEFAULT_SHARK_ON_TICK) n++;
+  if (soma.memory !== DEFAULT_SHARK_MEMORY) n++;
+  if (soma.hunt_journal.trim().length > 0) n++;
+  return n;
 }
 async function briefShark(pred) {
   const soma = pred.predatorSoma;
@@ -1754,7 +1864,7 @@ async function briefShark(pred) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        system: "You are a marine biologist observing AI-controlled reef sharks in a simulation. Summarize behavioral evolution concisely. Use present tense. No markdown.",
+        system: "You are a marine biologist observing AI-controlled reef sharks in a simulation. Summarize behavioral evolution concisely. Use present tense. No markdown. When referencing a soma section, wrap the section name in double brackets: [[on_tick]], [[memory]], [[identity]], or [[hunt_journal]]. Always use these markers when mentioning a section.",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 512
       })
@@ -1763,7 +1873,7 @@ async function briefShark(pred) {
     const data = await resp.json();
     const text = data.content?.[0]?.text;
     if (!text) return '<span class="unchanged">Empty response</span>';
-    return escapeHtml(text);
+    return linkifySections(escapeHtml(text));
   } catch (err) {
     return '<span class="unchanged">Fetch error: ' + escapeHtml(String(err)) + "</span>";
   }
@@ -1828,8 +1938,14 @@ ${trimmed}
 
 `;
   }
-  prompt += `In 3-5 sentences, describe what this shark has learned compared to its factory defaults. Focus on: new hunting strategies in its on_tick code, spatial knowledge in memory, and any identity shifts. Be specific about behavioral changes (e.g. "now checks kelp after losing prey" not "improved hunting").`;
+  prompt += `In 3-5 sentences, describe what this shark has learned compared to its factory defaults. Focus on: new hunting strategies in its [[on_tick]] code, spatial knowledge in [[memory]], and any [[identity]] shifts. Reference the [[hunt_journal]] if it reveals patterns. Be specific about behavioral changes (e.g. "now checks kelp after losing prey" not "improved hunting"). Always wrap section names in double brackets.`;
   return prompt;
+}
+function linkifySections(html) {
+  return html.replace(
+    /\[\[(on_tick|memory|identity|hunt_journal)\]\]/g,
+    (_, section) => `<span class="soma-link" data-section="${section}">${section}</span>`
+  );
 }
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
