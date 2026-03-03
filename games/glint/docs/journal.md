@@ -655,9 +655,53 @@ Core loop was hide-flee-hide with nothing pulling the player *out* of safety. Ad
 | `src/main.ts` | MODIFIED — random respawn, removed HUD update code |
 
 ### Next
+→ Session 10 (inspector deep-link + balance tuning)
+
+---
+
+## Session 10 — Inspector Deep-Link + Balance Tuning (2026-03-02)
+
+### What Changed
+
+**Inspector Deep-Link** (inspector.ts, index.html)
+- Shark cards in overview now clickable → drills into detail view showing all 4 soma sections (identity, on_tick, memory, hunt_journal)
+- Each section has evolved/default badge and proper formatting (green code block for on_tick, scrollable content areas)
+- AI briefings now contain clickable `[[section]]` links (green, dotted underline) that jump directly to the referenced section in the detail view
+- Clicking a deep-link: drills into shark → scrolls to section → 1.5s green highlight flash animation
+- ← BACK button returns to overview with fresh scan
+- Overview cards show "N evolved" badge (count of sections differing from defaults)
+- Haiku system prompt instructs `[[on_tick]]`, `[[memory]]`, `[[identity]]`, `[[hunt_journal]]` markers; `linkifySections()` post-processes into clickable spans
+- Event delegation handles both deep-links (soma-link spans) and card clicks (data-shark-id)
+
+**Forgiving Concealment** (squid.ts)
+- `CREEP_THRESHOLD` 1.8 → 3.5 (~58% of base speed) — can move at half speed and stay hidden in kelp/crevices/dens
+- **Grace period**: 0.3s instant concealment when first entering any hiding tile. Diving into kelp at full sprint hides you immediately while you slow down.
+- `_hideGraceTimer` resets on each hiding tile entry (tracked via `_wasOnHidingTile`). Ticks down per frame.
+- Concealment formula: `onHidingTile && (_hideGraceTimer > 0 || _smoothedSpeed < CREEP_THRESHOLD)`
+
+**Shark Sensor Range Halved** (shark.ts)
+- `sensorRange` 16 → 8 world units (4 tiles instead of 8)
+- Sharks were detecting from off-screen. Now you usually see the shark before it sees you.
+- Chase speed (5.5) still outpaces base squid (6 at full energy, 3.6 depleted), so once spotted the threat is real — but you get fair warning.
+
+### Playtesting Notes
+- All 3 sharks independently evolved from blind chase-and-patrol into spatially-aware ambush hunters
+- shark-0: systematic hide-checker, searches kelp/dens/crevices after prey loss, 10s search window, tracks hunt/kill counts
+- shark-1: predictive ambush, camps at (1.0, 1.0) prey hotspot, treats quick prey-loss as confirmation of hiding
+- shark-2: multi-stage search state machine, visits up to 6 hiding spots in distance order
+- 7+ hunts, 0 kills across all sharks — concealment is effective, but reduced sensor range may shift the balance further
+
+### File Summary
+| File | Action |
+|------|--------|
+| `index.html` | MODIFIED — detail view CSS, soma-link/highlight styles |
+| `src/inspector.ts` | MODIFIED — detail view, deep-link click handling, linkifySections, briefing prompt |
+| `src/squid.ts` | MODIFIED — creep threshold, grace period |
+| `src/shark.ts` | MODIFIED — sensorRange 16→8 |
+
+### Next
 1. **Crevice visuals** — make crevices visually distinct (currently invisible)
-2. **Inspector deep-link** — drill into soma sections from shark intel summary
-3. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
-4. **Visual feedback on catch** — screen flash, freeze frame
-5. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
-6. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
+2. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
+3. **Visual feedback on catch** — screen flash, freeze frame
+4. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
+5. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
