@@ -612,63 +612,52 @@ Core loop was hide-flee-hide with nothing pulling the player *out* of safety. Ad
 ### Known Issues
 - **Crevices are invisible**: `placeCreviceDetail()` in reef.ts only places a 50% chance tiny dark rock at y=-0.5. The mechanic works (squid fits through, sharks blocked) but there's zero visual distinction from open tiles. Player has no way to know where crevices are. Needs distinct visual treatment — narrow gap between rocks, glowing crack lines, or at minimum a different floor color.
 
-### Next — Planned for Session 9
+## Session 9 — Random Respawn, Atmospheric Energy, Creep Concealment (2026-03-02)
 
-#### A. Random Respawn (`main.ts`)
-Fixed spawn = sharks camp it. On catch, pick a random den tile (from `map.dens`, 18 entries) that's >15 tiles from all sharks. Use for initial spawn too. Fallback: farthest den from nearest shark.
+### What Changed
 
-#### B. Atmospheric Energy Visual (`squid.ts`, remove HUD from `index.html` + `main.ts`)
-Replace HTML energy bar with squid's own bioluminescence. Energy modulates:
-- Glow intensity: 2.5 (full) → 0.4 (empty)
-- Glow range: 12 (full) → 4 (empty)
-- Mantle color: 0x44ccff (vibrant) → 0x1a3344 (dull teal)
-- Body color: 0x33bbee → 0x152a33
-- Eye emissive: 1.0 → 0.15
-- Tentacle sway: normal → halved
-- Pulse amplitude: 0.2 → 0.05 (faint flicker)
-All via lerp using `energyPct`. Concealment still overrides when hiding. Remove `#hud`, `#energy-bar`, `#energy-fill`, `#hud-label` from HTML and HUD update block (main.ts lines 319-336).
+**Random Den Respawn** (main.ts)
+- On catch, `pickRespawnDen(rng)` selects a random den >15 tiles from all sharks
+- Fallback: farthest den from nearest shark (when all dens are close to predators)
+- Empty dens list falls back to `map.playerSpawn`
+- Eliminates spawn camping — sharks scatter during invulnerability, player appears at a fresh location
 
-#### C. Creep Concealment (`squid.ts`)
-Track smoothed speed, allow concealment below threshold:
-```
-let smoothedSpeed = 0;
-const CREEP_THRESHOLD = 1.8; // ~30% of base speed 6
-const SMOOTH_RATE = 3;
-// after movement:
-smoothedSpeed += (actualSpeed - smoothedSpeed) * Math.min(1, SMOOTH_RATE * dt);
-squid.concealed = onHidingTile && smoothedSpeed < CREEP_THRESHOLD;
-```
-Enter kelp at speed → not concealed. Slow down → ~0.5s decay → concealment. Creep slowly → stay concealed.
+**Atmospheric Energy Visual** (squid.ts, index.html)
+- Removed HTML HUD entirely (#hud, #energy-bar, #energy-fill, #hud-label + CSS)
+- Energy now modulates the squid's own bioluminescence:
+  - Glow intensity: 2.5 (full) → 0.4 (depleted)
+  - Glow range: 12 → 4
+  - Mantle color: 0x44ccff → 0x1a3344 (dull teal)
+  - Body color: 0x33bbee → 0x152a33
+  - Eye emissive: 1.0 → 0.15
+  - Tentacle sway: full → halved
+  - Pulse amplitude: 0.2 → 0.05
+- Concealment still overrides when hiding (dimmer than depleted)
+- `_glowBase` tracked separately from displayed intensity — prevents pulse oscillation feeding back into the lerp and causing slow convergence or negative values
+- `Squid.eyes[]` added to interface for eye emissive modulation (each eye gets its own material clone)
 
-#### D. Crevice Visuals (`reef.ts`)
-Make crevices visually distinct — narrow gap between rocks, glowing crack lines, or different floor color.
+**Creep Concealment** (squid.ts)
+- `_smoothedSpeed`: exponential smoothing of actual speed (from position delta, not input magnitude)
+- `CREEP_THRESHOLD = 1.8` (~30% of base speed 6), `SMOOTH_RATE = 3`
+- Concealment: `onHidingTile && _smoothedSpeed < CREEP_THRESHOLD`
+- Enter kelp at speed → not concealed. Slow down → ~0.13s to cross threshold → concealment
+- Emergent: wall-sliding in crevices keeps actual speed low, so crevice movement stays concealed
 
-#### E. Inspector Panel: Deep-Link Soma Viewer
-The shark intel summaries reference behavior ("detailed spatial analysis", "checks kelp after losing prey") but you can't see the actual soma code/memory behind it. Upgrade the inspector to support drilling into an actant's soma from the summary.
+### Bugs Found & Fixed
+- **Glow pulse feedback**: original code lerped `squid.glow.intensity` which included the previous frame's `sin(t)*pulseAmp`. This fed oscillation noise back into the lerp base, causing slow convergence and negative values. Fixed with separate `_glowBase` tracker.
+- **Glow clamp**: `Math.max(0, ...)` on final intensity prevents negative values from pulse trough at low energy
 
-**Soma sections reminder**: each shark has 4 named sections:
-- `identity` — who I am, hunting philosophy
-- `on_tick` — THE code that runs every frame (this is where behavioral changes live)
-- `memory` — persistent notes, spatial knowledge, working state
-- `hunt_journal` — hunt event log written by on_tick code (capped 5000 chars, curated by reflection)
+### File Summary
+| File | Action |
+|------|--------|
+| `index.html` | MODIFIED — removed HUD HTML/CSS |
+| `src/squid.ts` | MODIFIED — energy visuals, creep concealment, eyes array |
+| `src/main.ts` | MODIFIED — random respawn, removed HUD update code |
 
-**Design idea**: When the haiku summary references a behavior, it should hyperlink to the relevant section of that shark's soma. For example:
-- "Hunt journal entries now include detailed spatial analysis" → links to the `hunt_journal` section
-- "Now checks kelp tiles after losing prey" → links to the relevant lines in `on_tick` code
-- "Remembers hideout locations" → links to `memory` section
-
-**Implementation sketch**:
-- Summary view = current cards with briefing text (but with clickable links)
-- Clicking a link navigates to that shark's full soma view (all 4 sections displayed, target section scrolled into view / highlighted)
-- Back button returns to summary view
-- Could ask haiku to output structured references alongside the summary (e.g. `[section:on_tick, reason:"kelp check logic"]`)
-- Or simpler: each shark card gets an "INSPECT" button that shows the full soma, summary links are just anchors to sections
-
-**Key question for next session**: should the haiku model generate the links (structured output with section refs), or should we just add per-section expand/collapse to each shark card with the summary as header?
-
-#### F. Other
-1. **Ink cloud** — escape ability (Space/A button), brief smoke screen that blocks LOS
-2. **Visual feedback on catch** — screen flash, freeze frame
-3. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
-4. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
-5. **Sprint mult is now 2.0** (was 1.6) — sprint speed = 12, well above shark chase 5.5
+### Next
+1. **Crevice visuals** — make crevices visually distinct (currently invisible)
+2. **Inspector deep-link** — drill into soma sections from shark intel summary
+3. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
+4. **Visual feedback on catch** — screen flash, freeze frame
+5. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
+6. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
