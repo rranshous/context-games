@@ -675,8 +675,11 @@ var _energyMantle = new THREE2.Color();
 var _energyBody = new THREE2.Color();
 var _glowBase = FULL_GLOW_INTENSITY;
 var _smoothedSpeed = 0;
-var CREEP_THRESHOLD = 1.8;
+var CREEP_THRESHOLD = 3.5;
 var SMOOTH_RATE = 3;
+var HIDE_GRACE_DURATION = 0.3;
+var _hideGraceTimer = 0;
+var _wasOnHidingTile = false;
 function updateSquid(squid2, dt, t, map2, tileSize) {
   let dx = 0, dz = 0;
   if (keys["w"] || keys["arrowup"]) dz -= 1;
@@ -742,7 +745,12 @@ function updateSquid(squid2, dt, t, map2, tileSize) {
   const { tx, tz } = worldToTile(squid2.group.position.x, squid2.group.position.z, tileSize, map2.width, map2.height);
   const currentTile = getTile(map2, tx, tz);
   const onHidingTile = currentTile === 4 /* DEN */ || currentTile === 2 /* CREVICE */ || currentTile === 3 /* KELP */;
-  squid2.concealed = onHidingTile && _smoothedSpeed < CREEP_THRESHOLD;
+  if (onHidingTile && !_wasOnHidingTile) {
+    _hideGraceTimer = HIDE_GRACE_DURATION;
+  }
+  _wasOnHidingTile = onHidingTile;
+  _hideGraceTimer = Math.max(0, _hideGraceTimer - dt);
+  squid2.concealed = onHidingTile && (_hideGraceTimer > 0 || _smoothedSpeed < CREEP_THRESHOLD);
   _energyMantle.copy(DEPLETED_MANTLE).lerp(FULL_MANTLE, energyPct);
   _energyBody.copy(DEPLETED_BODY).lerp(FULL_BODY, energyPct);
   const energyGlow = DEPLETED_GLOW_INTENSITY + (FULL_GLOW_INTENSITY - DEPLETED_GLOW_INTENSITY) * energyPct;

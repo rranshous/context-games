@@ -155,8 +155,12 @@ const _energyBody = new THREE.Color();
 let _glowBase = FULL_GLOW_INTENSITY;
 // Creep concealment — smoothed speed for gradual conceal/reveal
 let _smoothedSpeed = 0;
-const CREEP_THRESHOLD = 1.8; // ~30% of base speed 6
+const CREEP_THRESHOLD = 3.5; // ~58% of base speed 6 — can move at half speed and stay hidden
 const SMOOTH_RATE = 3;
+// Grace period — instant concealment when entering a hiding tile
+const HIDE_GRACE_DURATION = 0.3; // seconds
+let _hideGraceTimer = 0;
+let _wasOnHidingTile = false;
 
 export function updateSquid(
   squid: Squid,
@@ -253,8 +257,14 @@ export function updateSquid(
   const { tx, tz } = worldToTile(squid.group.position.x, squid.group.position.z, tileSize, map.width, map.height);
   const currentTile = getTile(map, tx, tz);
   const onHidingTile = currentTile === Tile.DEN || currentTile === Tile.CREVICE || currentTile === Tile.KELP;
-  // Conceal when on hiding tile and moving slowly (or still)
-  squid.concealed = onHidingTile && _smoothedSpeed < CREEP_THRESHOLD;
+  // Grace period: instant concealment when first entering a hiding tile
+  if (onHidingTile && !_wasOnHidingTile) {
+    _hideGraceTimer = HIDE_GRACE_DURATION;
+  }
+  _wasOnHidingTile = onHidingTile;
+  _hideGraceTimer = Math.max(0, _hideGraceTimer - dt);
+  // Conceal when on hiding tile and (grace active OR moving slowly)
+  squid.concealed = onHidingTile && (_hideGraceTimer > 0 || _smoothedSpeed < CREEP_THRESHOLD);
 
   // --- Energy-driven bioluminescence ---
   // Compute energy-modulated "normal" appearance
