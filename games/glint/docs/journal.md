@@ -691,6 +691,14 @@ Core loop was hide-flee-hide with nothing pulling the player *out* of safety. Ad
 - shark-2: multi-stage search state machine, visits up to 6 hiding spots in distance order
 - 7+ hunts, 0 kills across all sharks — concealment is effective, but reduced sensor range may shift the balance further
 
+**Idle Patrol Journaling** (soma.ts)
+- Default on_tick now writes patrol status every ~30s when no prey detected
+- Entry format: `[t=60s] Patrolling at (12.3, -5.1), no prey sighted. 2 kelp nearby.`
+- `lastlog` timestamp tracked in memory (parsed/written alongside pursuing/lost/lastknown)
+- Ensures reflection has material even for sharks that never encounter prey
+- Especially important after halving sensor range — sharks may patrol for minutes without detection
+- Nearby kelp count included so reflection can assess patrol quality (near cover = smart, open water = wasteful)
+
 ### File Summary
 | File | Action |
 |------|--------|
@@ -698,10 +706,26 @@ Core loop was hide-flee-hide with nothing pulling the player *out* of safety. Ad
 | `src/inspector.ts` | MODIFIED — detail view, deep-link click handling, linkifySections, briefing prompt |
 | `src/squid.ts` | MODIFIED — creep threshold, grace period |
 | `src/shark.ts` | MODIFIED — sensorRange 16→8 |
+| `src/soma.ts` | MODIFIED — idle journal entries, lastlog tracking, default memory update |
+
+### Design Discussion: Glow-Based Detection
+
+Agreed to replace binary concealment with **glow-proportional detection range**:
+- `effectiveRange = sensorRange × (_glowBase / FULL_GLOW_INTENSITY)`
+- Full energy (glow 2.5): full 8-unit range
+- Half energy (glow ~1.45): ~4.6 range
+- Depleted (glow 0.4): ~1.3 range — nearly invisible
+- Concealed in kelp (glow 0.3): ~0.96 range — effectively invisible
+- **The visual IS the mechanic** — what you see is what the sharks see
+- Removes binary `squid.concealed` check in `readSensors()`, replaces with continuous glow-scaled range
+- Need to expose `_glowBase` from squid.ts (or add `getVisibility()` function)
+- Grace period + creep threshold still control glow (which controls detection), so those mechanics compose naturally
+- Energy management becomes core strategy: bright = visible from far, dim = stealthy
 
 ### Next
-1. **Crevice visuals** — make crevices visually distinct (currently invisible)
-2. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
-3. **Visual feedback on catch** — screen flash, freeze frame
-4. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
-5. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
+1. **Glow-based detection** — replace binary concealment with glow-proportional sensor range (designed above)
+2. **Crevice visuals** — make crevices visually distinct (currently invisible)
+3. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
+4. **Visual feedback on catch** — screen flash, freeze frame
+5. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
+6. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
