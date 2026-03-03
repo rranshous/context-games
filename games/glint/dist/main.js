@@ -1262,7 +1262,7 @@ function sharkChassis() {
     chaseSpeed: 5.5,
     turnSpeed: 2,
     collisionRadius: 0.5,
-    sensorRange: 16,
+    sensorRange: 8,
     isSmall: false
   };
 }
