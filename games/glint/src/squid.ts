@@ -153,6 +153,10 @@ const _energyMantle = new THREE.Color();
 const _energyBody = new THREE.Color();
 // Tracked glow base (separate from displayed intensity to avoid pulse feedback)
 let _glowBase = FULL_GLOW_INTENSITY;
+// Creep concealment — smoothed speed for gradual conceal/reveal
+let _smoothedSpeed = 0;
+const CREEP_THRESHOLD = 1.8; // ~30% of base speed 6
+const SMOOTH_RATE = 3;
 
 export function updateSquid(
   squid: Squid,
@@ -239,12 +243,18 @@ export function updateSquid(
     squid.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15 * tentacleMult;
   }
 
-  // --- Concealment ---
+  // --- Concealment (creep-aware) ---
+  // Compute actual speed from position delta (accounts for wall slides)
+  const movedX = squid.group.position.x - curX;
+  const movedZ = squid.group.position.z - curZ;
+  const actualSpeed = dt > 0 ? Math.sqrt(movedX * movedX + movedZ * movedZ) / dt : 0;
+  _smoothedSpeed += (actualSpeed - _smoothedSpeed) * Math.min(1, SMOOTH_RATE * dt);
+
   const { tx, tz } = worldToTile(squid.group.position.x, squid.group.position.z, tileSize, map.width, map.height);
   const currentTile = getTile(map, tx, tz);
   const onHidingTile = currentTile === Tile.DEN || currentTile === Tile.CREVICE || currentTile === Tile.KELP;
-  // Only conceal when still (not moving)
-  squid.concealed = onHidingTile && len === 0;
+  // Conceal when on hiding tile and moving slowly (or still)
+  squid.concealed = onHidingTile && _smoothedSpeed < CREEP_THRESHOLD;
 
   // --- Energy-driven bioluminescence ---
   // Compute energy-modulated "normal" appearance

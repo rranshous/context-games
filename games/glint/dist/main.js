@@ -674,6 +674,9 @@ var DEPLETED_PULSE_AMP = 0.05;
 var _energyMantle = new THREE2.Color();
 var _energyBody = new THREE2.Color();
 var _glowBase = FULL_GLOW_INTENSITY;
+var _smoothedSpeed = 0;
+var CREEP_THRESHOLD = 1.8;
+var SMOOTH_RATE = 3;
 function updateSquid(squid2, dt, t, map2, tileSize) {
   let dx = 0, dz = 0;
   if (keys["w"] || keys["arrowup"]) dz -= 1;
@@ -732,10 +735,14 @@ function updateSquid(squid2, dt, t, map2, tileSize) {
     squid2.tentacles[i].rotation.x = 0.4 + Math.sin(t * swaySpeed + phase) * swayAmp;
     squid2.tentacles[i].rotation.z = Math.sin(t * 2 + phase) * 0.15 * tentacleMult;
   }
+  const movedX = squid2.group.position.x - curX;
+  const movedZ = squid2.group.position.z - curZ;
+  const actualSpeed = dt > 0 ? Math.sqrt(movedX * movedX + movedZ * movedZ) / dt : 0;
+  _smoothedSpeed += (actualSpeed - _smoothedSpeed) * Math.min(1, SMOOTH_RATE * dt);
   const { tx, tz } = worldToTile(squid2.group.position.x, squid2.group.position.z, tileSize, map2.width, map2.height);
   const currentTile = getTile(map2, tx, tz);
   const onHidingTile = currentTile === 4 /* DEN */ || currentTile === 2 /* CREVICE */ || currentTile === 3 /* KELP */;
-  squid2.concealed = onHidingTile && len === 0;
+  squid2.concealed = onHidingTile && _smoothedSpeed < CREEP_THRESHOLD;
   _energyMantle.copy(DEPLETED_MANTLE).lerp(FULL_MANTLE, energyPct);
   _energyBody.copy(DEPLETED_BODY).lerp(FULL_BODY, energyPct);
   const energyGlow = DEPLETED_GLOW_INTENSITY + (FULL_GLOW_INTENSITY - DEPLETED_GLOW_INTENSITY) * energyPct;
