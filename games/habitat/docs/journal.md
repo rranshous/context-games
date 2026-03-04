@@ -16,8 +16,9 @@ First experiment: 2 actants, 1 game (tic-tac-toe), human player as equal partici
 - **Game server pattern**: tic-tac-toe exists as pure state machine with API. Human UI and actants are both clients. `world.games.ticTacToe` is the shared interface.
 - **`find_game` tool**: single convenience tool that discovers open games and joins one.
 - **Default on_tick**: `await me.thinkAbout("What should I do?")`
-- **Model**: haiku for cheap frequent ticks
+- **Model**: sonnet 4.6 — haiku too passive even with prompting; prior Glint work confirmed sonnet needed for self-modification
 - **Persistence**: localStorage keyed `habitat-somas`
+- **System prompt is pure soma**: no preamble, no instructions. Just the raw section contents wrapped in XML tags. Each section reads back exactly what `me.<section>.read()` returns. `custom_tools` is raw JSON string, not reformatted.
 
 ### M1-M3: All Built in One Pass
 - `game-server.ts` — pure tic-tac-toe state machine with tagged `[TTT]` logging
@@ -35,3 +36,9 @@ First experiment: 2 actants, 1 game (tic-tac-toe), human player as equal partici
 - **Confirms the Glint insight**: haiku needs explicit behavioral nudges for action; sonnet reasons from context. For this project, haiku + explicit framing works well for cheap frequent ticks.
 - **Both actants play both games simultaneously** — alpha is X in g2 and O in g1, beta is X in g1 and O in g2. Emergent multiplayer behavior.
 - **No memory usage yet** — neither actant wrote to memory. They're stateless between ticks.
+
+### Design Refinements (mid-session)
+- **Switched haiku → sonnet 4.6**: haiku checked games, saw none, and just narrated "there are no games" without acting — even with explicit "MUST take action" system prompt. Sonnet is the right model for agents that need to reason and act.
+- **Removed system prompt preamble**: user correctly insisted the system prompt should be pure soma, nothing else. No "you are an actant" framing, no behavioral instructions injected by the engine. Identity section in the soma carries that context. The model gets only what the soma contains.
+- **Removed custom_tools XML formatting**: was reformatting the tools array into pretty XML. Now just `JSON.stringify(soma.custom_tools)` — raw JSON, same as `me.custom_tools.read()` returns. No interpretation layers between soma and system prompt.
+- **Untested with sonnet + pure soma yet** — stopped mid-test to get these design principles right first.

@@ -213,7 +213,7 @@ export function createDefaultSoma(id: string): Soma {
   return {
     id,
     gamer_handle: id,
-    identity: `I am ${id}. I exist in a digital habitat with other entities. I like to play games and explore what I can do. I take action rather than just observing.`,
+    identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me. If nothing is happening, I make something happen.`,
     on_tick: DEFAULT_ON_TICK,
     memory: '',
     custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
@@ -223,18 +223,7 @@ export function createDefaultSoma(id: string): Soma {
 // ── Serialization (soma → system prompt) ──────────────────────
 
 export function serializeSoma(soma: Soma): string {
-  const toolsText = soma.custom_tools.map(t => {
-    const schema = JSON.stringify(t.input_schema, null, 2);
-    return `  <tool name="${t.name}">
-    <description>${t.description}</description>
-    <input_schema>${schema}</input_schema>
-    <function_body>${t.function_body}</function_body>
-  </tool>`;
-  }).join('\n');
-
-  return `You are an actant — a digital entity that lives in a habitat. This is your soma (body/mind). Act, don't narrate.
-
-<gamer_handle>${soma.gamer_handle}</gamer_handle>
+  return `<gamer_handle>${soma.gamer_handle}</gamer_handle>
 
 <identity>${soma.identity}</identity>
 
@@ -244,9 +233,7 @@ ${soma.on_tick}
 
 <memory>${soma.memory}</memory>
 
-<custom_tools>
-${toolsText}
-</custom_tools>`;
+<custom_tools>${JSON.stringify(soma.custom_tools)}</custom_tools>`;
 }
 
 // ── Tool extraction (soma → Anthropic tools param) ────────────
