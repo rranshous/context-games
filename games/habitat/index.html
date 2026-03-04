@@ -20,13 +20,47 @@
       height: 100vh;
     }
 
-    /* Left panel — games */
-    #games-panel {
+    /* Left panel — games + chat */
+    #left-panel {
       width: 320px;
       min-width: 280px;
-      padding: 20px;
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
       border-right: 1px solid #1e2a3a;
+    }
+    #games-section {
+      padding: 20px;
+      border-bottom: 1px solid #1e2a3a;
+      overflow-y: auto;
+      flex-shrink: 0;
+      max-height: 50%;
+    }
+    #chat-section {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    /* Center — canvas */
+    #center-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      border-right: 1px solid #1e2a3a;
+    }
+    #shared-canvas {
+      border: 1px solid #1e2a3a;
+      image-rendering: pixelated;
+    }
+    .canvas-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5a7a9a;
+      margin-bottom: 8px;
     }
 
     /* Soma panels — one per actant */
@@ -138,6 +172,35 @@
     .cell.o { color: #d06060; }
     .cell.disabled { cursor: default; opacity: 0.6; }
 
+    /* Chat */
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 8px;
+      min-height: 0;
+    }
+    .chat-msg {
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 2px 0;
+    }
+    .chat-time { color: #3a4a5a; }
+    .chat-handle { color: #8ab8d8; font-weight: bold; }
+    .chat-empty { color: #3a4a5a; font-style: italic; font-size: 11px; }
+    .chat-input-row {
+      display: flex;
+      gap: 6px;
+    }
+    .chat-input-row input {
+      flex: 1;
+      background: #141c2b;
+      border: 1px solid #1e2a3a;
+      color: #c8d0e0;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+
     /* Soma panel header */
     .soma-header {
       display: flex;
@@ -211,15 +274,29 @@
 </head>
 <body>
   <div id="app">
-    <div id="games-panel">
-      <h2>Games</h2>
-      <div class="handle-input">
-        <label>Handle:</label>
-        <input type="text" id="player-handle" value="Player" />
-        <button id="create-game-btn">Create Game</button>
+    <div id="left-panel">
+      <div id="games-section">
+        <h2>Games</h2>
+        <div class="handle-input">
+          <label>Handle:</label>
+          <input type="text" id="player-handle" value="Player" />
+          <button id="create-game-btn">Create Game</button>
+        </div>
+        <div id="game-list" class="game-list"></div>
+        <div id="board-area"></div>
       </div>
-      <div id="game-list" class="game-list"></div>
-      <div id="board-area"></div>
+      <div id="chat-section">
+        <h2>Chat</h2>
+        <div id="chat-messages"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Say something..." />
+          <button id="chat-send-btn">Send</button>
+        </div>
+      </div>
+    </div>
+    <div id="center-panel">
+      <div class="canvas-label">Shared Canvas</div>
+      <canvas id="shared-canvas"></canvas>
     </div>
     <div id="alpha-panel" class="soma-panel"></div>
     <div id="beta-panel" class="soma-panel"></div>

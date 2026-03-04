@@ -1,6 +1,8 @@
 // main.ts — Bootstrap, wire everything together
 
 import { TicTacToeServer } from './game-server';
+import { ChatServer } from './chat-server';
+import { CanvasServer } from './canvas-server';
 import { createDefaultSoma } from './soma';
 import { buildWorld } from './world';
 import { Actant } from './actant';
@@ -28,7 +30,9 @@ function loadSomas(): Array<import('./soma').Soma> | null {
 // ── Bootstrap ───────────────────────────────────────────────
 
 const tttServer = new TicTacToeServer();
-const world = buildWorld(tttServer);
+const chatServer = new ChatServer();
+const canvasServer = new CanvasServer();
+const world = buildWorld(tttServer, chatServer, canvasServer);
 
 // Load or create somas
 const saved = loadSomas();

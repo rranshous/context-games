@@ -1,6 +1,8 @@
 // world.ts — Shared world object. Both human UI and actants get the same instance.
 
 import { TicTacToeServer, type Game } from './game-server';
+import { ChatServer, type ChatMessage } from './chat-server';
+import { CanvasServer } from './canvas-server';
 
 export interface World {
   games: {
@@ -12,9 +14,25 @@ export interface World {
       listGames(): Game[];
     };
   };
+  social: {
+    chat: {
+      post(handle: string, text: string): ChatMessage;
+      read(count?: number): ChatMessage[];
+      all(): ChatMessage[];
+    };
+  };
+  art: {
+    sharedCanvas: {
+      read(): string;
+      readGrid(): string[][];
+      legend(): string;
+      paint(x: number, y: number, art: string): { painted: number };
+      clear(): void;
+    };
+  };
 }
 
-export function buildWorld(tttServer: TicTacToeServer): World {
+export function buildWorld(tttServer: TicTacToeServer, chatServer: ChatServer, canvasServer: CanvasServer): World {
   return {
     games: {
       ticTacToe: {
@@ -23,6 +41,22 @@ export function buildWorld(tttServer: TicTacToeServer): World {
         makeMove: (gameId, handle, pos) => tttServer.makeMove(gameId, handle, pos),
         getGame: (gameId) => tttServer.getGame(gameId),
         listGames: () => tttServer.listGames(),
+      },
+    },
+    social: {
+      chat: {
+        post: (handle, text) => chatServer.post(handle, text),
+        read: (count) => chatServer.read(count),
+        all: () => chatServer.all(),
+      },
+    },
+    art: {
+      sharedCanvas: {
+        read: () => canvasServer.read(),
+        readGrid: () => canvasServer.readGrid(),
+        legend: () => canvasServer.legend(),
+        paint: (x, y, art) => canvasServer.paint(x, y, art),
+        clear: () => canvasServer.clear(),
       },
     },
   };

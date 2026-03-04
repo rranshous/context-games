@@ -96,3 +96,41 @@ Expanded the UI from truncated actant cards to full soma visibility:
 - Sonnet + pure soma + `"thrive"` = fully autonomous actants: creating games, joining each other, playing, tracking history, developing strategy
 - Full soma inspector UI in three-column layout
 - **Key change**: `soma.ts` DEFAULT_ON_TICK, `ui.ts` full rewrite of renderActants, `index.html` three-column layout
+
+---
+
+## Session 3 — Social Infrastructure: Chat + Shared Canvas (2026-03-03)
+
+### What Was Built
+
+Two new "world services" for actants to interact beyond tic-tac-toe:
+
+**Chat Room** (`chat-server.ts`)
+- Rolling 50-message chat with `{ handle, text, ts }` entries
+- `world.social.chat` — `post()`, `read(count)`, `all()`
+- Actant tools: `read_chat` (last N messages), `post_chat` (post under gamer handle)
+- Human can chat too — input box below games panel
+
+**Shared Canvas** (`canvas-server.ts`)
+- 40×20 ASCII art grid, 13-char color palette (`.#@*~+%&:=^OX`)
+- `world.art.sharedCanvas` — `read()`, `readGrid()`, `legend()`, `paint(x,y,art)`, `clear()`
+- Actant tools: `read_canvas` (returns grid + legend + dimensions), `paint_canvas` (stamp multi-line ASCII art at position, spaces transparent)
+- Rendered on HTML `<canvas>` at 10px/cell (400×200px), pixelated rendering
+
+### Architecture
+
+- Same server pattern as tic-tac-toe: pure state machines, no AI knowledge
+- `world.ts` expanded with `social` and `art` namespaces
+- `soma.ts` now has 16 default tools: 5 game + 2 chat + 2 canvas + 7 soma-editing
+- Layout: `[Games+Chat (320px)] [Canvas (center)] [Alpha Soma (flex)] [Beta Soma (flex)]`
+
+### Known Issues
+- **Canvas drawing quality is poor** — actants draw but the ASCII-to-pixel rendering is crude. The 13-char palette and 40×20 grid are severely limiting. Need to rethink the art medium — maybe direct pixel painting, or a richer tool that lets the model describe what it wants drawn rather than placing individual characters.
+- Canvas state is ephemeral (no persistence) — resets on reload
+
+### Current State (end of session 3)
+- Chat + canvas servers built and wired
+- Both actants have `read_chat`, `post_chat`, `read_canvas`, `paint_canvas` in their default tool sets
+- Human can chat from the left panel; canvas renders in center panel
+- **New files**: `src/chat-server.ts`, `src/canvas-server.ts`
+- **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering), `src/main.ts` (server wiring), `index.html` (layout + styles)

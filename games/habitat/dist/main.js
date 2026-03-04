@@ -82,6 +82,115 @@ var TicTacToeServer = class {
   }
 };
 
+// src/chat-server.ts
+var MAX_MESSAGES = 50;
+var ChatServer = class {
+  messages = [];
+  post(handle, text) {
+    const msg = { handle, text, ts: Date.now() };
+    this.messages.push(msg);
+    if (this.messages.length > MAX_MESSAGES) {
+      this.messages.splice(0, this.messages.length - MAX_MESSAGES);
+    }
+    console.log(`[CHAT] ${handle}: ${text.substring(0, 100)}`);
+    return msg;
+  }
+  read(count = 5) {
+    return this.messages.slice(-count);
+  }
+  all() {
+    return [...this.messages];
+  }
+};
+
+// src/canvas-server.ts
+var CANVAS_WIDTH = 40;
+var CANVAS_HEIGHT = 20;
+var EMPTY_CHAR = ".";
+var COLOR_LEGEND = {
+  ".": "#1a1a2e",
+  // dark background
+  " ": "#000000",
+  // void/black
+  "#": "#e0e0e0",
+  // white
+  "@": "#4488cc",
+  // blue
+  "*": "#ddcc44",
+  // yellow
+  "~": "#44ccbb",
+  // cyan
+  "+": "#44bb66",
+  // green
+  "%": "#cc4444",
+  // red
+  "&": "#bb44cc",
+  // magenta
+  ":": "#cc8833",
+  // orange
+  "=": "#7a6644",
+  // brown
+  "^": "#88aacc",
+  // light blue
+  "O": "#ffffff",
+  // bright white
+  "X": "#222222"
+  // near black
+};
+var CanvasServer = class {
+  grid;
+  constructor() {
+    this.grid = [];
+    for (let y = 0; y < CANVAS_HEIGHT; y++) {
+      this.grid.push(Array(CANVAS_WIDTH).fill(EMPTY_CHAR));
+    }
+  }
+  /** Read the full canvas as a multi-line string. */
+  read() {
+    return this.grid.map((row) => row.join("")).join("\n");
+  }
+  /** Read as a 2D array (for rendering). */
+  readGrid() {
+    return this.grid.map((row) => [...row]);
+  }
+  /** Get the color legend as a description string. */
+  legend() {
+    return Object.entries(COLOR_LEGEND).map(([ch, color]) => `${ch === " " ? "(space)" : ch} = ${color}`).join("\n");
+  }
+  /**
+   * Paint a multi-line ASCII art block at position (x, y).
+   * Space characters are transparent (don't overwrite).
+   * Lines are clipped to canvas bounds.
+   */
+  paint(x, y, art) {
+    const lines = art.split("\n");
+    let painted = 0;
+    for (let dy = 0; dy < lines.length; dy++) {
+      const gy = y + dy;
+      if (gy < 0 || gy >= CANVAS_HEIGHT) continue;
+      for (let dx = 0; dx < lines[dy].length; dx++) {
+        const gx = x + dx;
+        if (gx < 0 || gx >= CANVAS_WIDTH) continue;
+        const ch = lines[dy][dx];
+        if (ch === " ") continue;
+        this.grid[gy][gx] = ch;
+        painted++;
+      }
+    }
+    console.log(`[CANVAS] paint at (${x},${y}): ${painted} chars`);
+    return { painted };
+  }
+  /** Clear the canvas to empty. */
+  clear() {
+    for (let y = 0; y < CANVAS_HEIGHT; y++) {
+      for (let x = 0; x < CANVAS_WIDTH; x++) {
+        this.grid[y][x] = EMPTY_CHAR;
+      }
+    }
+    console.log("[CANVAS] cleared");
+  }
+};
+
 // src/soma.ts
 var DEFAULT_GAME_TOOLS = [
   {
@@ -145,6 +254,60 @@ var DEFAULT_GAME_TOOLS = [
       additionalProperties: false
     },
     function_body: `function(input, me, world) { return world.games.ticTacToe.getGame(input.game_id); }`
+  }
+];
+var DEFAULT_CHAT_TOOLS = [
+  {
+    name: "read_chat",
+    description: "Read recent chat messages. Returns the last N messages (default 5).",
+    input_schema: {
+      type: "object",
+      properties: {
+        count: { type: "number", description: "Number of recent messages to read (default 5, max 50)" }
+      },
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { return world.social.chat.read(input.count || 5); }`
+  },
+  {
+    name: "post_chat",
+    description: "Post a message to the shared chat room under your gamer handle.",
+    input_schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", description: "The message to post" }
+      },
+      required: ["message"],
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { return world.social.chat.post(me.gamer_handle.read(), input.message); }`
+  }
+];
+var DEFAULT_CANVAS_TOOLS = [
+  {
+    name: "read_canvas",
+    description: "Read the shared 40\xD720 ASCII art canvas. Returns the full canvas and color legend. Each character maps to a color: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black. Space is transparent when painting.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { return { canvas: world.art.sharedCanvas.read(), legend: world.art.sharedCanvas.legend(), width: 40, height: 20 }; }`
+  },
+  {
+    name: "paint_canvas",
+    description: "Paint ASCII art onto the shared 40\xD720 canvas at position (x, y). The art is a multi-line string \u2014 each character is placed on the canvas, spaces are transparent (skip). Use the color legend chars to draw: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black.",
+    input_schema: {
+      type: "object",
+      properties: {
+        x: { type: "number", description: "Left column (0-39)" },
+        y: { type: "number", description: "Top row (0-19)" },
+        art: { type: "string", description: "Multi-line ASCII art string. Each char maps to a color. Spaces are transparent." }
+      },
+      required: ["x", "y", "art"],
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { return world.art.sharedCanvas.paint(input.x, input.y, input.art); }`
   }
 ];
 var DEFAULT_SOMA_TOOLS = [
@@ -276,7 +439,7 @@ function createDefaultSoma(id) {
     identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me. If nothing is happening, I make something happen.`,
     on_tick: DEFAULT_ON_TICK,
     memory: "",
-    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_SOMA_TOOLS].map((t) => ({ ...t }))
+    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_SOMA_TOOLS].map((t) => ({ ...t }))
   };
 }
 function serializeSoma(soma) {
@@ -301,7 +464,7 @@ function extractToolSchemas(soma) {
 }
 
 // src/world.ts
-function buildWorld(tttServer2) {
+function buildWorld(tttServer2, chatServer2, canvasServer2) {
   return {
     games: {
       ticTacToe: {
@@ -310,6 +473,22 @@ function buildWorld(tttServer2) {
         makeMove: (gameId, handle, pos) => tttServer2.makeMove(gameId, handle, pos),
         getGame: (gameId) => tttServer2.getGame(gameId),
         listGames: () => tttServer2.listGames()
+      }
+    },
+    social: {
+      chat: {
+        post: (handle, text) => chatServer2.post(handle, text),
+        read: (count) => chatServer2.read(count),
+        all: () => chatServer2.all()
+      }
+    },
+    art: {
+      sharedCanvas: {
+        read: () => canvasServer2.read(),
+        readGrid: () => canvasServer2.readGrid(),
+        legend: () => canvasServer2.legend(),
+        paint: (x, y, art) => canvasServer2.paint(x, y, art),
+        clear: () => canvasServer2.clear()
       }
     }
   };
@@ -537,6 +716,7 @@ var Actant = class {
 };
 
 // src/ui.ts
+var CELL_SIZE = 10;
 var HabitatUI = class {
   world;
   actants;
@@ -544,18 +724,28 @@ var HabitatUI = class {
   renderTimer = null;
   gameListEl;
   boardAreaEl;
+  chatEl;
+  canvasEl;
+  canvasCtx;
   panelEls;
   handleInput;
+  chatInput;
   constructor(world2, actants2) {
     this.world = world2;
     this.actants = actants2;
     this.gameListEl = document.getElementById("game-list");
     this.boardAreaEl = document.getElementById("board-area");
+    this.chatEl = document.getElementById("chat-messages");
+    this.canvasEl = document.getElementById("shared-canvas");
+    this.canvasEl.width = CANVAS_WIDTH * CELL_SIZE;
+    this.canvasEl.height = CANVAS_HEIGHT * CELL_SIZE;
+    this.canvasCtx = this.canvasEl.getContext("2d");
     this.panelEls = [
       document.getElementById("alpha-panel"),
       document.getElementById("beta-panel")
     ];
     this.handleInput = document.getElementById("player-handle");
+    this.chatInput = document.getElementById("chat-input");
     document.getElementById("create-game-btn").addEventListener("click", () => {
       const handle = this.getHandle();
       if (!handle) return;
@@ -567,6 +757,18 @@ var HabitatUI = class {
         console.error("[UI] Create game error:", err);
       }
     });
+    document.getElementById("chat-send-btn").addEventListener("click", () => this.sendChat());
+    this.chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.sendChat();
+    });
+  }
+  sendChat() {
+    const text = this.chatInput.value.trim();
+    if (!text) return;
+    const handle = this.getHandle();
+    this.world.social.chat.post(handle, text);
+    this.chatInput.value = "";
+    this.render();
   }
   getHandle() {
     return this.handleInput.value.trim() || "Player";
@@ -575,6 +777,8 @@ var HabitatUI = class {
   render() {
     this.renderGameList();
     this.renderBoard();
+    this.renderChat();
+    this.renderCanvas();
     this.renderActants();
   }
   renderGameList() {
@@ -658,6 +862,29 @@ var HabitatUI = class {
       });
     }
   }
+  renderChat() {
+    const messages = this.world.social.chat.all();
+    if (messages.length === 0) {
+      this.chatEl.innerHTML = '<div class="chat-empty">No messages yet.</div>';
+      return;
+    }
+    this.chatEl.innerHTML = messages.map((m) => {
+      const time = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `<div class="chat-msg"><span class="chat-time">${time}</span> <span class="chat-handle">${escapeHtml(m.handle)}</span>: ${escapeHtml(m.text)}</div>`;
+    }).join("");
+    this.chatEl.scrollTop = this.chatEl.scrollHeight;
+  }
+  renderCanvas() {
+    const grid = this.world.art.sharedCanvas.readGrid();
+    const ctx = this.canvasCtx;
+    for (let y = 0; y < CANVAS_HEIGHT; y++) {
+      for (let x = 0; x < CANVAS_WIDTH; x++) {
+        const ch = grid[y][x];
+        ctx.fillStyle = COLOR_LEGEND[ch] || COLOR_LEGEND["."];
+        ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      }
+    }
+  }
   renderActants() {
     this.actants.forEach((a, i) => {
       const el = this.panelEls[i];
@@ -725,7 +952,9 @@ function loadSomas() {
   }
 }
 var tttServer = new TicTacToeServer();
-var world = buildWorld(tttServer);
+var chatServer = new ChatServer();
+var canvasServer = new CanvasServer();
+var world = buildWorld(tttServer, chatServer, canvasServer);
 var saved = loadSomas();
 var alphaSoma = saved?.[0] ?? createDefaultSoma("alpha");
 var betaSoma = saved?.[1] ?? createDefaultSoma("beta");

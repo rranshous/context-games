@@ -1,7 +1,10 @@
-// ui.ts — DOM rendering (game list, board, actant cards). No framework.
+// ui.ts — DOM rendering (game list, board, chat, canvas, actant cards). No framework.
 
 import { type World } from './world';
 import { type Actant } from './actant';
+import { COLOR_LEGEND, CANVAS_WIDTH, CANVAS_HEIGHT } from './canvas-server';
+
+const CELL_SIZE = 10; // pixels per canvas cell
 
 export class HabitatUI {
   private world: World;
@@ -11,8 +14,12 @@ export class HabitatUI {
 
   private gameListEl: HTMLElement;
   private boardAreaEl: HTMLElement;
+  private chatEl: HTMLElement;
+  private canvasEl: HTMLCanvasElement;
+  private canvasCtx: CanvasRenderingContext2D;
   private panelEls: HTMLElement[];
   private handleInput: HTMLInputElement;
+  private chatInput: HTMLInputElement;
 
   constructor(world: World, actants: Actant[]) {
     this.world = world;
@@ -20,11 +27,17 @@ export class HabitatUI {
 
     this.gameListEl = document.getElementById('game-list')!;
     this.boardAreaEl = document.getElementById('board-area')!;
+    this.chatEl = document.getElementById('chat-messages')!;
+    this.canvasEl = document.getElementById('shared-canvas') as HTMLCanvasElement;
+    this.canvasEl.width = CANVAS_WIDTH * CELL_SIZE;
+    this.canvasEl.height = CANVAS_HEIGHT * CELL_SIZE;
+    this.canvasCtx = this.canvasEl.getContext('2d')!;
     this.panelEls = [
       document.getElementById('alpha-panel')!,
       document.getElementById('beta-panel')!,
     ];
     this.handleInput = document.getElementById('player-handle') as HTMLInputElement;
+    this.chatInput = document.getElementById('chat-input') as HTMLInputElement;
 
     // Wire create button
     document.getElementById('create-game-btn')!.addEventListener('click', () => {
@@ -38,6 +51,21 @@ export class HabitatUI {
         console.error('[UI] Create game error:', err);
       }
     });
+
+    // Wire chat send
+    document.getElementById('chat-send-btn')!.addEventListener('click', () => this.sendChat());
+    this.chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.sendChat();
+    });
+  }
+
+  private sendChat(): void {
+    const text = this.chatInput.value.trim();
+    if (!text) return;
+    const handle = this.getHandle();
+    this.world.social.chat.post(handle, text);
+    this.chatInput.value = '';
+    this.render();
   }
 
   private getHandle(): string {
@@ -49,6 +77,8 @@ export class HabitatUI {
   render(): void {
     this.renderGameList();
     this.renderBoard();
+    this.renderChat();
+    this.renderCanvas();
     this.renderActants();
   }
 
@@ -156,6 +186,32 @@ export class HabitatUI {
           }
         });
       });
+    }
+  }
+
+  private renderChat(): void {
+    const messages = this.world.social.chat.all();
+    if (messages.length === 0) {
+      this.chatEl.innerHTML = '<div class="chat-empty">No messages yet.</div>';
+      return;
+    }
+    this.chatEl.innerHTML = messages.map(m => {
+      const time = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `<div class="chat-msg"><span class="chat-time">${time}</span> <span class="chat-handle">${escapeHtml(m.handle)}</span>: ${escapeHtml(m.text)}</div>`;
+    }).join('');
+    // Auto-scroll to bottom
+    this.chatEl.scrollTop = this.chatEl.scrollHeight;
+  }
+
+  private renderCanvas(): void {
+    const grid = this.world.art.sharedCanvas.readGrid();
+    const ctx = this.canvasCtx;
+    for (let y = 0; y < CANVAS_HEIGHT; y++) {
+      for (let x = 0; x < CANVAS_WIDTH; x++) {
+        const ch = grid[y][x];
+        ctx.fillStyle = COLOR_LEGEND[ch] || COLOR_LEGEND['.'];
+        ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+      }
     }
   }
 

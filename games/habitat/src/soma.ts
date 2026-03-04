@@ -83,6 +83,62 @@ const DEFAULT_GAME_TOOLS: SomaTool[] = [
   },
 ];
 
+const DEFAULT_CHAT_TOOLS: SomaTool[] = [
+  {
+    name: 'read_chat',
+    description: 'Read recent chat messages. Returns the last N messages (default 5).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', description: 'Number of recent messages to read (default 5, max 50)' },
+      },
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { return world.social.chat.read(input.count || 5); }`,
+  },
+  {
+    name: 'post_chat',
+    description: 'Post a message to the shared chat room under your gamer handle.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The message to post' },
+      },
+      required: ['message'],
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { return world.social.chat.post(me.gamer_handle.read(), input.message); }`,
+  },
+];
+
+const DEFAULT_CANVAS_TOOLS: SomaTool[] = [
+  {
+    name: 'read_canvas',
+    description: 'Read the shared 40×20 ASCII art canvas. Returns the full canvas and color legend. Each character maps to a color: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black. Space is transparent when painting.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { return { canvas: world.art.sharedCanvas.read(), legend: world.art.sharedCanvas.legend(), width: 40, height: 20 }; }`,
+  },
+  {
+    name: 'paint_canvas',
+    description: 'Paint ASCII art onto the shared 40×20 canvas at position (x, y). The art is a multi-line string — each character is placed on the canvas, spaces are transparent (skip). Use the color legend chars to draw: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        x: { type: 'number', description: 'Left column (0-39)' },
+        y: { type: 'number', description: 'Top row (0-19)' },
+        art: { type: 'string', description: 'Multi-line ASCII art string. Each char maps to a color. Spaces are transparent.' },
+      },
+      required: ['x', 'y', 'art'],
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { return world.art.sharedCanvas.paint(input.x, input.y, input.art); }`,
+  },
+];
+
 const DEFAULT_SOMA_TOOLS: SomaTool[] = [
   {
     name: 'edit_gamer_handle',
@@ -216,7 +272,7 @@ export function createDefaultSoma(id: string): Soma {
     identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me. If nothing is happening, I make something happen.`,
     on_tick: DEFAULT_ON_TICK,
     memory: '',
-    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
+    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
   };
 }
 
