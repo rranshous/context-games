@@ -783,6 +783,10 @@ Binary concealment was a hard on/off switch — `squid.concealed` gated sensor d
 | `src/soma.ts` | MODIFIED — self-tracking (prevx/prevz/traveldist) in default on_tick + default memory |
 | `src/instinct-api.ts` | unchanged |
 | `src/reflection.ts` | unchanged |
+| `src/persistence.ts` | MODIFIED — reset `lastReflectionTime`/`reflectionPending` on load |
+
+### Bugs Found & Fixed
+- **Reflection blocked after page refresh**: `clock.getElapsedTime()` resets to 0 on load, but `lastReflectionTime` was persisted from previous session (e.g. 300s). Cooldown check `gameTime - lastReflectionTime < 60` → `0 - 300 = -300 < 60` → always blocked. Fix: reset `lastReflectionTime` to 0 and `reflectionPending` to false in `loadPredatorSomas()`. Cooldowns are session-relative.
 
 ### Next
 1. **Crevice visuals** — make crevices visually distinct (currently invisible)

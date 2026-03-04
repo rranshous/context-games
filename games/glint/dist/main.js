@@ -1462,17 +1462,14 @@ var SCAFFOLD_TOOLS = [
   }
 ];
 function buildSystemPrompt(soma) {
-  return `You are a ${soma.species} in a coral reef. You hunt a small bioluminescent squid.
+  return `You are an autonomous ${soma.species} in a coral reef occassionaly granted this ability to reason so that you may improve yourself.
 
 <identity>
 ${soma.identity}
 </identity>
 
 <on_tick>
-This is your per-frame behavior code. It runs every tick with on_tick(me, world).
-\`\`\`javascript
 ${soma.on_tick}
-\`\`\`
 </on_tick>
 
 <memory>
@@ -1480,71 +1477,14 @@ ${soma.memory}
 </memory>
 
 <hunt_journal>
-${soma.hunt_journal || "No hunt entries yet."}
+${soma.hunt_journal || ""}
 </hunt_journal>
 
-<reef_knowledge>
-The reef is a maze of coral walls, open water channels, kelp forests, narrow crevices, and dens.
-- Walls block movement and line of sight
-- Kelp: passable but prey can hide here (concealment \u2014 becomes invisible to sensors)
-- Crevices: narrow passages \u2014 you CANNOT fit through (too big), but the squid can
-- Dens: alcoves carved into walls \u2014 prey hides here, you cannot enter
-- The squid conceals itself by going still on hiding tiles (kelp, crevice, den). When concealed, your sensors cannot detect it.
-- You must catch the squid in open water or while it's moving through kelp.
-</reef_knowledge>
 
-<sensors>
-Your on_tick(me, world) receives:
-- world.squidDetected \u2014 boolean, true if you can see the prey right now
-- world.squidPos \u2014 {x, z} prey position (only meaningful when detected)
-- world.squidDist \u2014 distance to prey
-- world.dt \u2014 seconds since last frame
-- world.t \u2014 total elapsed game time
-
-The me object provides:
-Movement commands (call one per tick \u2014 first one wins):
-- me.pursue(target) \u2014 chase speed, beeline toward {x, z}
-- me.patrol_to(target) \u2014 patrol speed, move toward {x, z}
-- me.patrol_random() \u2014 pick a random open tile and go there
-- me.hold() \u2014 stay still
-
-Sensing:
-- me.check_los(pos) \u2014 checks if you can see a position (walls block)
-- me.nearby_tiles(type) \u2014 returns nearby tiles of a given type ('kelp', 'den', 'crevice', 'open') within sensor range, sorted by distance. Each has {x, z, dist}.
-- me.distance_to(pos) \u2014 returns distance to a position
-- me.getPosition() \u2014 your current position {x, z}
-
-Sections:
-- me.memory.read() / me.memory.write(s) \u2014 your persistent memory. Use this for EVERYTHING: working state (pursuing? lost time? last known position?) AND long-term notes. Write it every tick. Parse with string matching.
-- me.hunt_journal.read() / me.hunt_journal.write(s) \u2014 your hunt log
-- me.on_tick.read() \u2014 read your own code (read-only at runtime)
-- me.identity.read() \u2014 read your identity (read-only at runtime)
-</sensors>
-
-IMPORTANT: You MUST call edit_on_tick to change your behavior. Thinking about improvements without calling the tool changes nothing. Your on_tick code is what actually runs during hunts.`;
+`;
 }
 function buildReflectionPrompt(soma) {
-  return `Time to reflect on your recent hunting experience.
-
-Review your hunt journal above. It contains observations your on_tick code recorded during recent hunts.
-
-Reflect:
-
-1. **What happened?** Why did the prey escape? Did it hide? Where? Could you have predicted it?
-
-2. **Call edit_on_tick**: Rewrite your on_tick function with specific improvements. Ideas:
-   - After losing prey, check nearby hiding tiles (me.nearby_tiles('kelp'), me.nearby_tiles('den')) instead of just going to last-known position
-   - Use memory to track where prey hides repeatedly
-   - Write more detailed hunt journal entries from your on_tick code so you can learn from them later
-   - Add systematic search patterns instead of random patrol
-   - Predict which direction the prey fled based on your approach angle
-   - Use me.memory for frame-to-frame tracking (was I pursuing? how long since lost? last known position?) \u2014 parse with string matching, write every tick
-
-3. **Call edit_memory**: Record spatial knowledge \u2014 where are the good hiding spots? Where does prey tend to go?
-
-4. **Call edit_hunt_journal**: Curate your journal \u2014 summarize old entries, keep what matters, trim what doesn't. An overly long journal wastes your attention.
-
-DO NOT just describe improvements. CALL THE TOOLS.`;
+  return `live`;
 }
 var MAX_ON_TICK_LENGTH = 1e4;
 function validateOnTickCode(code) {
@@ -1740,6 +1680,10 @@ function loadPredatorSomas(mapSeed) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
+      for (const soma of parsed) {
+        soma.lastReflectionTime = 0;
+        soma.reflectionPending = false;
+      }
       console.log(`[GLINT] Loaded ${parsed.length} predator somas for seed ${mapSeed}`);
       return parsed;
     }

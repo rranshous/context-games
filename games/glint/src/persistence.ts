@@ -24,6 +24,11 @@ export function loadPredatorSomas(mapSeed: number): PredatorSoma[] | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PredatorSoma[];
     if (Array.isArray(parsed) && parsed.length > 0) {
+      // Reset session-relative timers — gameTime starts at 0 on each page load
+      for (const soma of parsed) {
+        soma.lastReflectionTime = 0;
+        soma.reflectionPending = false;
+      }
       console.log(`[GLINT] Loaded ${parsed.length} predator somas for seed ${mapSeed}`);
       return parsed;
     }
