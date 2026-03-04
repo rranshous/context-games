@@ -13,7 +13,7 @@ var WIN_LINES = [
   // diags
 ];
 var nextId = 1;
-var TicTacToeServer = class {
+var TicTacToeServer = class _TicTacToeServer {
   games = /* @__PURE__ */ new Map();
   createGame(playerHandle) {
     const id = `g${nextId++}`;
@@ -72,6 +72,18 @@ var TicTacToeServer = class {
   listGames() {
     return Array.from(this.games.values()).map((g) => structuredClone(g));
   }
+  toJSON() {
+    return Array.from(this.games.values());
+  }
+  static fromJSON(data) {
+    const server = new _TicTacToeServer();
+    for (const g of data) {
+      server.games.set(g.id, g);
+      const num = parseInt(g.id.slice(1));
+      if (num >= nextId) nextId = num + 1;
+    }
+    return server;
+  }
   checkWinner(game) {
     for (const [a, b, c] of WIN_LINES) {
       if (game.board[a] && game.board[a] === game.board[b] && game.board[b] === game.board[c]) {
@@ -84,7 +96,7 @@ var TicTacToeServer = class {
 
 // src/chat-server.ts
 var MAX_MESSAGES = 50;
-var ChatServer = class {
+var ChatServer = class _ChatServer {
   messages = [];
   post(handle, text) {
     const msg = { handle, text, ts: Date.now() };
@@ -101,13 +113,21 @@ var ChatServer = class {
   all() {
     return [...this.messages];
   }
+  toJSON() {
+    return [...this.messages];
+  }
+  static fromJSON(data) {
+    const server = new _ChatServer();
+    server.messages = data;
+    return server;
+  }
 };
 
 // src/canvas-server.ts
 var CANVAS_WIDTH = 40;
 var CANVAS_HEIGHT = 20;
 var BLANK = Array(CANVAS_HEIGHT).fill(".".repeat(CANVAS_WIDTH)).join("\n");
-var CanvasServer = class {
+var CanvasServer = class _CanvasServer {
   content = BLANK;
   /** Read the full canvas as a multi-line string. */
   read() {
@@ -128,6 +148,14 @@ var CanvasServer = class {
   clear() {
     this.content = BLANK;
     console.log("[CANVAS] cleared");
+  }
+  toJSON() {
+    return this.content;
+  }
+  static fromJSON(data) {
+    const server = new _CanvasServer();
+    server.content = data;
+    return server;
   }
 };
 
@@ -655,6 +683,7 @@ var Actant = class {
 var HabitatUI = class {
   world;
   actants;
+  onWorldChange;
   selectedGameId = null;
   renderTimer = null;
   gameListEl;
@@ -664,9 +693,11 @@ var HabitatUI = class {
   panelEls;
   handleInput;
   chatInput;
-  constructor(world2, actants2) {
+  constructor(world2, actants2, onWorldChange = () => {
+  }) {
     this.world = world2;
     this.actants = actants2;
+    this.onWorldChange = onWorldChange;
     this.gameListEl = document.getElementById("game-list");
     this.boardAreaEl = document.getElementById("board-area");
     this.chatEl = document.getElementById("chat-messages");
@@ -683,6 +714,7 @@ var HabitatUI = class {
       try {
         const game = this.world.games.ticTacToe.createGame(handle);
         this.selectedGameId = game.id;
+        this.onWorldChange();
         this.render();
       } catch (err) {
         console.error("[UI] Create game error:", err);
@@ -699,6 +731,7 @@ var HabitatUI = class {
     const handle = this.getHandle();
     this.world.social.chat.post(handle, text);
     this.chatInput.value = "";
+    this.onWorldChange();
     this.render();
   }
   getHandle() {
@@ -737,6 +770,7 @@ var HabitatUI = class {
         if (game.status === "waiting" && game.players.X !== this.getHandle()) {
           try {
             this.world.games.ticTacToe.joinGame(gameId, this.getHandle());
+            this.onWorldChange();
           } catch (err) {
             console.error("[UI] Join game error:", err);
           }
@@ -785,6 +819,7 @@ var HabitatUI = class {
           const pos = parseInt(el.dataset.pos, 10);
           try {
             this.world.games.ticTacToe.makeMove(game.id, handle, pos);
+            this.onWorldChange();
             this.render();
           } catch (err) {
             console.error("[UI] Move error:", err);
@@ -860,23 +895,53 @@ function somaSection(label, content, isCode = false) {
 }
 
 // src/main.ts
-var STORAGE_KEY = "habitat-somas";
+var SOMAS_KEY = "habitat-somas";
+var GAMES_KEY = "habitat-games";
+var CHAT_KEY = "habitat-chat";
+var CANVAS_KEY = "habitat-canvas";
+var ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY];
 function saveSomas(actants2) {
-  const data = actants2.map((a) => a.soma);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(SOMAS_KEY, JSON.stringify(actants2.map((a) => a.soma)));
 }
 function loadSomas() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(SOMAS_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
     return null;
   }
 }
-var tttServer = new TicTacToeServer();
-var chatServer = new ChatServer();
-var canvasServer = new CanvasServer();
+function saveWorld() {
+  localStorage.setItem(GAMES_KEY, JSON.stringify(tttServer.toJSON()));
+  localStorage.setItem(CHAT_KEY, JSON.stringify(chatServer.toJSON()));
+  localStorage.setItem(CANVAS_KEY, JSON.stringify(canvasServer.toJSON()));
+}
+function saveAll() {
+  saveSomas(actants);
+  saveWorld();
+}
+var tttServer;
+var chatServer;
+var canvasServer;
+try {
+  const gamesRaw = localStorage.getItem(GAMES_KEY);
+  tttServer = gamesRaw ? TicTacToeServer.fromJSON(JSON.parse(gamesRaw)) : new TicTacToeServer();
+} catch {
+  tttServer = new TicTacToeServer();
+}
+try {
+  const chatRaw = localStorage.getItem(CHAT_KEY);
+  chatServer = chatRaw ? ChatServer.fromJSON(JSON.parse(chatRaw)) : new ChatServer();
+} catch {
+  chatServer = new ChatServer();
+}
+try {
+  const canvasRaw = localStorage.getItem(CANVAS_KEY);
+  canvasServer = canvasRaw ? CanvasServer.fromJSON(JSON.parse(canvasRaw)) : new CanvasServer();
+} catch {
+  canvasServer = new CanvasServer();
+}
 var world = buildWorld(tttServer, chatServer, canvasServer);
 var saved = loadSomas();
 var alphaSoma = saved?.[0] ?? createDefaultSoma("alpha");
@@ -888,13 +953,13 @@ var origAlphaTick = alpha.tick.bind(alpha);
 var origBetaTick = beta.tick.bind(beta);
 alpha.tick = async function() {
   await origAlphaTick();
-  saveSomas(actants);
+  saveAll();
 };
 beta.tick = async function() {
   await origBetaTick();
-  saveSomas(actants);
+  saveAll();
 };
-var ui = new HabitatUI(world, actants);
+var ui = new HabitatUI(world, actants, saveWorld);
 alpha.startTicking();
 beta.startTicking();
 ui.startRendering();
@@ -902,15 +967,22 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   alpha.stopTicking();
   beta.stopTicking();
   ui.stopRendering();
-  localStorage.removeItem(STORAGE_KEY);
+  ALL_KEYS.forEach((k) => localStorage.removeItem(k));
   location.reload();
 });
-console.log("[HABITAT] Initialized \u2014 2 actants, tic-tac-toe server ready");
-window.__habitat = { world, alpha, beta, ui, saveSomas: () => saveSomas(actants), resetSomas: () => {
-  alpha.stopTicking();
-  beta.stopTicking();
-  ui.stopRendering();
-  localStorage.removeItem(STORAGE_KEY);
-  location.reload();
-} };
+console.log("[HABITAT] Initialized \u2014 2 actants, world state restored");
+window.__habitat = {
+  world,
+  alpha,
+  beta,
+  ui,
+  saveAll,
+  resetAll: () => {
+    alpha.stopTicking();
+    beta.stopTicking();
+    ui.stopRendering();
+    ALL_KEYS.forEach((k) => localStorage.removeItem(k));
+    location.reload();
+  }
+};
 //# sourceMappingURL=main.js.map

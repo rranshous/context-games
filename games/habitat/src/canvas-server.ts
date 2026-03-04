@@ -30,4 +30,14 @@ export class CanvasServer {
     this.content = BLANK;
     console.log('[CANVAS] cleared');
   }
+
+  toJSON(): string {
+    return this.content;
+  }
+
+  static fromJSON(data: string): CanvasServer {
+    const server = new CanvasServer();
+    server.content = data;
+    return server;
+  }
 }

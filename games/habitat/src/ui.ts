@@ -6,6 +6,7 @@ import { type Actant } from './actant';
 export class HabitatUI {
   private world: World;
   private actants: Actant[];
+  private onWorldChange: () => void;
   private selectedGameId: string | null = null;
   private renderTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -17,9 +18,10 @@ export class HabitatUI {
   private handleInput: HTMLInputElement;
   private chatInput: HTMLInputElement;
 
-  constructor(world: World, actants: Actant[]) {
+  constructor(world: World, actants: Actant[], onWorldChange: () => void = () => {}) {
     this.world = world;
     this.actants = actants;
+    this.onWorldChange = onWorldChange;
 
     this.gameListEl = document.getElementById('game-list')!;
     this.boardAreaEl = document.getElementById('board-area')!;
@@ -39,6 +41,7 @@ export class HabitatUI {
       try {
         const game = this.world.games.ticTacToe.createGame(handle);
         this.selectedGameId = game.id;
+        this.onWorldChange();
         this.render();
       } catch (err) {
         console.error('[UI] Create game error:', err);
@@ -58,6 +61,7 @@ export class HabitatUI {
     const handle = this.getHandle();
     this.world.social.chat.post(handle, text);
     this.chatInput.value = '';
+    this.onWorldChange();
     this.render();
   }
 
@@ -113,6 +117,7 @@ export class HabitatUI {
         if (game.status === 'waiting' && game.players.X !== this.getHandle()) {
           try {
             this.world.games.ticTacToe.joinGame(gameId, this.getHandle());
+            this.onWorldChange();
           } catch (err) {
             console.error('[UI] Join game error:', err);
           }
@@ -173,6 +178,7 @@ export class HabitatUI {
           const pos = parseInt((el as HTMLElement).dataset.pos!, 10);
           try {
             this.world.games.ticTacToe.makeMove(game.id, handle, pos);
+            this.onWorldChange();
             this.render();
           } catch (err) {
             console.error('[UI] Move error:', err);

@@ -90,6 +90,20 @@ export class TicTacToeServer {
     return Array.from(this.games.values()).map(g => structuredClone(g));
   }
 
+  toJSON(): Game[] {
+    return Array.from(this.games.values());
+  }
+
+  static fromJSON(data: Game[]): TicTacToeServer {
+    const server = new TicTacToeServer();
+    for (const g of data) {
+      server.games.set(g.id, g);
+      const num = parseInt(g.id.slice(1));
+      if (num >= nextId) nextId = num + 1;
+    }
+    return server;
+  }
+
   private checkWinner(game: Game): string | null {
     for (const [a, b, c] of WIN_LINES) {
       if (game.board[a] && game.board[a] === game.board[b] && game.board[b] === game.board[c]) {

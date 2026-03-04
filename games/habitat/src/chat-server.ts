@@ -28,4 +28,14 @@ export class ChatServer {
   all(): ChatMessage[] {
     return [...this.messages];
   }
+
+  toJSON(): ChatMessage[] {
+    return [...this.messages];
+  }
+
+  static fromJSON(data: ChatMessage[]): ChatServer {
+    const server = new ChatServer();
+    (server as any).messages = data;
+    return server;
+  }
 }

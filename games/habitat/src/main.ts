@@ -10,28 +10,57 @@ import { HabitatUI } from './ui';
 
 // ── Persistence ─────────────────────────────────────────────
 
-const STORAGE_KEY = 'habitat-somas';
+const SOMAS_KEY = 'habitat-somas';
+const GAMES_KEY = 'habitat-games';
+const CHAT_KEY = 'habitat-chat';
+const CANVAS_KEY = 'habitat-canvas';
+const ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY];
 
 function saveSomas(actants: Actant[]): void {
-  const data = actants.map(a => a.soma);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(SOMAS_KEY, JSON.stringify(actants.map(a => a.soma)));
 }
 
 function loadSomas(): Array<import('./soma').Soma> | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(SOMAS_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  } catch { return null; }
+}
+
+function saveWorld(): void {
+  localStorage.setItem(GAMES_KEY, JSON.stringify(tttServer.toJSON()));
+  localStorage.setItem(CHAT_KEY, JSON.stringify(chatServer.toJSON()));
+  localStorage.setItem(CANVAS_KEY, JSON.stringify(canvasServer.toJSON()));
+}
+
+function saveAll(): void {
+  saveSomas(actants);
+  saveWorld();
 }
 
 // ── Bootstrap ───────────────────────────────────────────────
 
-const tttServer = new TicTacToeServer();
-const chatServer = new ChatServer();
-const canvasServer = new CanvasServer();
+// Load or create servers
+let tttServer: TicTacToeServer;
+let chatServer: ChatServer;
+let canvasServer: CanvasServer;
+
+try {
+  const gamesRaw = localStorage.getItem(GAMES_KEY);
+  tttServer = gamesRaw ? TicTacToeServer.fromJSON(JSON.parse(gamesRaw)) : new TicTacToeServer();
+} catch { tttServer = new TicTacToeServer(); }
+
+try {
+  const chatRaw = localStorage.getItem(CHAT_KEY);
+  chatServer = chatRaw ? ChatServer.fromJSON(JSON.parse(chatRaw)) : new ChatServer();
+} catch { chatServer = new ChatServer(); }
+
+try {
+  const canvasRaw = localStorage.getItem(CANVAS_KEY);
+  canvasServer = canvasRaw ? CanvasServer.fromJSON(JSON.parse(canvasRaw)) : new CanvasServer();
+} catch { canvasServer = new CanvasServer(); }
+
 const world = buildWorld(tttServer, chatServer, canvasServer);
 
 // Load or create somas
@@ -48,31 +77,35 @@ const origAlphaTick = alpha.tick.bind(alpha);
 const origBetaTick = beta.tick.bind(beta);
 alpha.tick = async function () {
   await origAlphaTick();
-  saveSomas(actants);
+  saveAll();
 };
 beta.tick = async function () {
   await origBetaTick();
-  saveSomas(actants);
+  saveAll();
 };
 
-// UI
-const ui = new HabitatUI(world, actants);
+// UI — pass saveWorld so human actions persist too
+const ui = new HabitatUI(world, actants, saveWorld);
 
 // Start
 alpha.startTicking();
 beta.startTicking();
 ui.startRendering();
 
-// Reset button — stop everything, clear storage, reload
+// Reset button — stop everything, clear all storage, reload
 document.getElementById('reset-btn')!.addEventListener('click', () => {
   alpha.stopTicking();
   beta.stopTicking();
   ui.stopRendering();
-  localStorage.removeItem(STORAGE_KEY);
+  ALL_KEYS.forEach(k => localStorage.removeItem(k));
   location.reload();
 });
 
-console.log('[HABITAT] Initialized — 2 actants, tic-tac-toe server ready');
+console.log('[HABITAT] Initialized — 2 actants, world state restored');
 
 // Expose for console access
-(window as any).__habitat = { world, alpha, beta, ui, saveSomas: () => saveSomas(actants), resetSomas: () => { alpha.stopTicking(); beta.stopTicking(); ui.stopRendering(); localStorage.removeItem(STORAGE_KEY); location.reload(); } };
+(window as any).__habitat = {
+  world, alpha, beta, ui,
+  saveAll,
+  resetAll: () => { alpha.stopTicking(); beta.stopTicking(); ui.stopRendering(); ALL_KEYS.forEach(k => localStorage.removeItem(k)); location.reload(); },
+};

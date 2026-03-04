@@ -148,12 +148,26 @@ Pure ASCII wins on simplicity: zero translation layers, model sees exactly what 
 - **Layout rework**: tic-tac-toe board needed more vertical space (was scrolling when games panel shared with chat). Moved chat below the canvas in the center column. Left panel is now games-only with full height.
 - Final layout: `[Top bar] / [Games (320px)] [Canvas+Chat (center)] [Alpha Soma (flex)] [Beta Soma (flex)]`
 
+### World Persistence
+
+Added `toJSON()` / `static fromJSON()` to all three servers. World state now survives page reloads:
+- `habitat-games` — tic-tac-toe games (array of Game objects)
+- `habitat-chat` — chat messages (array of ChatMessage)
+- `habitat-canvas` — canvas content (string)
+- `habitat-somas` — existing soma persistence
+
+Saves happen after every actant tick (via `saveAll()`) AND after human UI actions (create/join/move/chat). UI constructor takes an `onWorldChange` callback for this. Reset clears all four keys.
+
+### TODO
+- **Tick timer jitter** — both actants tick on the same 15s interval and tend to sync up. Should add random jitter (e.g., 12-18s) to desync them. Currently they often think simultaneously which means neither sees the other's latest actions.
+
 ### Current State (end of session 3)
 - Chat + canvas servers built and wired
 - Canvas simplified to pure ASCII art with full-replace `paint_canvas` tool
 - Canvas renders as `<pre>` block — what the model writes is what you see
+- **Full world persistence** — games, chat, canvas all survive page reloads
 - Top bar with handle, New Game, Reset All
 - Chat below canvas in center column; games panel has full height
 - `npm run watch` for live rebuilds
 - **New files**: `src/chat-server.ts`, `src/canvas-server.ts`
-- **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering), `src/main.ts` (server wiring + reset), `index.html` (layout + styles)
+- **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering + onWorldChange), `src/main.ts` (full persistence wiring + reset), `index.html` (layout + styles), `src/game-server.ts` (toJSON/fromJSON)
