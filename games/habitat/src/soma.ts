@@ -262,7 +262,7 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
 // ── Default soma factory ──────────────────────────────────────
 
 const DEFAULT_ON_TICK = `async function(me, world) {
-  // gather world context before thinking
+  // gather world context
   const handle = me.gamer_handle.read();
   const games = world.games.ticTacToe.listGames();
   const chat = world.social.chat.read(5);
@@ -273,13 +273,18 @@ const DEFAULT_ON_TICK = `async function(me, world) {
     g.players.X === handle || g.players.O === handle
   );
 
-  // build enriched prompt
-  let prompt = "thrive";
-  if (myGames.length) prompt += "\\n\\nmy games: " + JSON.stringify(myGames);
-  if (chat.length) prompt += "\\n\\nrecent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n");
-  if (canvas.trim()) prompt += "\\n\\ncanvas has content";
+  // build world snapshot for auto-memory (below the ---)
+  let snapshot = "";
+  if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\\n";
+  if (chat.length) snapshot += "recent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n") + "\\n";
+  if (canvas.trim()) snapshot += "canvas has content\\n";
 
-  const response = await me.thinkAbout(prompt);
+  // write snapshot to auto-memory section (everything after ---)
+  const mem = me.memory.read();
+  const above = mem.split("---")[0].trimEnd();
+  me.memory.write(above + (above ? "\\n" : "") + "---\\n" + snapshot);
+
+  const response = await me.thinkAbout("thrive");
 }`;
 
 export function createDefaultSoma(id: string): Soma {

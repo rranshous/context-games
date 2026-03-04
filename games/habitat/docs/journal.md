@@ -241,9 +241,10 @@ async function(me, world) {
 }
 ```
 
-New version gathers world context before calling `thinkAbout`:
+New version gathers world context and writes it to the auto-memory section before calling `thinkAbout("thrive")`:
 ```js
 async function(me, world) {
+  // gather world context
   const handle = me.gamer_handle.read();
   const games = world.games.ticTacToe.listGames();
   const chat = world.social.chat.read(5);
@@ -251,11 +252,19 @@ async function(me, world) {
   const myGames = games.filter(g =>
     g.players.X === handle || g.players.O === handle
   );
-  let prompt = "thrive";
-  if (myGames.length) prompt += "\n\nmy games: " + JSON.stringify(myGames);
-  if (chat.length) prompt += "\n\nrecent chat:\n" + chat.map(m => m.handle + ": " + m.text).join("\n");
-  if (canvas.trim()) prompt += "\n\ncanvas has content";
-  const response = await me.thinkAbout(prompt);
+
+  // build world snapshot for auto-memory (below the ---)
+  let snapshot = "";
+  if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\n";
+  if (chat.length) snapshot += "recent chat:\n" + chat.map(m => m.handle + ": " + m.text).join("\n") + "\n";
+  if (canvas.trim()) snapshot += "canvas has content\n";
+
+  // write snapshot to auto-memory section (everything after ---)
+  const mem = me.memory.read();
+  const above = mem.split("---")[0].trimEnd();
+  me.memory.write(above + (above ? "\n" : "") + "---\n" + snapshot);
+
+  const response = await me.thinkAbout("thrive");
 }
 ```
 
@@ -263,19 +272,27 @@ async function(me, world) {
 
 **The default on_tick is a teaching tool, not just a bootstrap.** The model reads its own `<on_tick>` section in the system prompt. The old one-liner showed one API call (`me.thinkAbout`). The new version demonstrates:
 
-1. `me.gamer_handle.read()` — reading a soma section
+1. `me.gamer_handle.read()` / `me.memory.read()` / `me.memory.write()` — reading and writing soma sections
 2. `world.games.ticTacToe.listGames()` — querying the game server
 3. `world.social.chat.read(5)` — reading chat with a count param
 4. `world.art.sharedCanvas.read()` — reading the canvas
-5. Array `.filter()` — JS data processing in on_tick
-6. String building — composing a dynamic prompt
-7. Conditional context inclusion — only add what's relevant
+5. Array `.filter()`, string building, conditionals — JS data processing in on_tick
+6. The `---` split pattern — how to coexist with engine-managed memory
 
-When an actant decides to `edit_on_tick`, it has concrete examples of the `me` and `world` APIs. It knows it can do computation, filter data, build strings — not just call `thinkAbout("thrive")`.
+When an actant decides to `edit_on_tick`, it has concrete examples of the `me` and `world` APIs. It knows it can do computation, filter data, manage memory — not just call `thinkAbout("thrive")`.
 
-**Practical benefit**: saves 2-3 tool calls per tick. The model no longer needs `list_games` + `read_chat` just to orient — that context is already in the prompt. It can go straight to acting.
+### Auto-Memory Convention: the `---` Delimiter
 
-**`"thrive"` stays as the base impulse** — context is appended only when there's something to report.
+Memory is split by `---`. Everything above is the actant's own notes (written via `edit_memory` tool during `thinkAbout`). Everything below is the engine-managed world snapshot, overwritten every tick by on_tick code.
+
+This means:
+- Actant writes "Won 3 games. Beta is weak." → stays above the line, persists across ticks
+- Engine writes game state, chat, canvas status → below the line, refreshed every tick
+- Model sees both in its `<memory>` section during `thinkAbout`, with no tool calls needed
+
+Edge cases tested: empty memory, actant notes with no `---` yet, actant notes + stale auto section (overwrites correctly), auto section only.
+
+**`"thrive"` stays as the sole user prompt** — world context lives in the soma, not the prompt.
 
 ---
 
