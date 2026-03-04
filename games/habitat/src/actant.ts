@@ -160,7 +160,8 @@ export class Actant {
     console.log(`[${this.tag}] Starting tick loop (interval: ${this.tickInterval}ms)`);
     const loop = async () => {
       await this.tick();
-      this.tickTimer = setTimeout(loop, this.tickInterval);
+      const jitter = this.tickInterval + (Math.random() - 0.5) * this.tickInterval * 0.4;
+      this.tickTimer = setTimeout(loop, jitter);
     };
     // Start first tick after a short delay (stagger actants)
     this.tickTimer = setTimeout(loop, Math.random() * 3000 + 1000);

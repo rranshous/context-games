@@ -158,8 +158,9 @@ Added `toJSON()` / `static fromJSON()` to all three servers. World state now sur
 
 Saves happen after every actant tick (via `saveAll()`) AND after human UI actions (create/join/move/chat). UI constructor takes an `onWorldChange` callback for this. Reset clears all four keys.
 
-### TODO
-- **Tick timer jitter** — both actants tick on the same 15s interval and tend to sync up. Should add random jitter (e.g., 12-18s) to desync them. Currently they often think simultaneously which means neither sees the other's latest actions.
+### Tick Timer Jitter
+
+Both actants were syncing up on the fixed 15s interval — thinking simultaneously so neither saw the other's latest actions. Added ±20% jitter (12-18s range) to each tick's setTimeout. Fresh random delay each tick keeps them naturally desynced.
 
 ### Current State (end of session 3)
 - Chat + canvas servers built and wired
