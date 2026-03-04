@@ -296,9 +296,29 @@ Edge cases tested: empty memory, actant notes with no `---` yet, actant notes + 
 
 ### Tick Timing Overhaul
 
-- **Interval**: 15s → 30s (±20% jitter = 24-36s range). Actants were too fast — burning tokens and stepping on each other.
+- **Interval**: 15s → 30s base, with jitter range **30-60s** (`tickInterval + Math.random() * tickInterval`). Actants were too fast — burning tokens and stepping on each other.
 - **Stagger**: `startTicking(initialDelay)` replaces the old random 1-4s startup. Alpha fires at 0ms, beta at 15s. They're always ~half a cycle apart on load.
-- **Subsequent ticks** still have ±20% jitter so they don't re-sync over time.
+- **Subsequent ticks** have wide jitter (30-60s) so they don't re-sync over time.
+
+### Reset Button Race Fix
+
+`resetting` flag guards `saveAll()` in tick wrappers. Without it, an in-flight tick finishes after localStorage clear and writes stale data back before the reload.
+
+### UI Polish
+
+- **Inspector panel order**: last think → identity → memory → on_tick → custom_tools. Memory changes every tick; on_tick is mostly stable — active content goes higher.
+- **Auto-memory spacing**: blank lines between games/chat/canvas blocks for readability.
+- **Canvas in auto-memory**: full ASCII art content instead of just "canvas has content" — model needs to see the actual art to reason about it.
+
+### Current State (end of session 5)
+
+- Default on_tick gathers world context into auto-memory (below `---`) before `thinkAbout("thrive")`
+- Auto-memory convention: actant notes above `---`, engine snapshot below
+- Tick timing: 30-60s jitter, alpha immediate / beta 15s stagger
+- Reset button race condition fixed
+- Inspector shows memory before on_tick
+- **Key files changed**: `soma.ts` (DEFAULT_ON_TICK), `actant.ts` (tick timing), `main.ts` (reset fix, stagger), `ui.ts` (panel order)
+- **To test**: reset somas (`localStorage.removeItem('habitat-somas')` or Reset All button) to pick up new defaults
 
 ---
 
