@@ -163,12 +163,32 @@ Saves happen after every actant tick (via `saveAll()`) AND after human UI action
 Both actants were syncing up on the fixed 15s interval — thinking simultaneously so neither saw the other's latest actions. Added ±20% jitter (12-18s range) to each tick's setTimeout. Fresh random delay each tick keeps them naturally desynced.
 
 ### Current State (end of session 3)
-- Chat + canvas servers built and wired
-- Canvas simplified to pure ASCII art with full-replace `paint_canvas` tool
-- Canvas renders as `<pre>` block — what the model writes is what you see
-- **Full world persistence** — games, chat, canvas all survive page reloads
-- Top bar with handle, New Game, Reset All
-- Chat below canvas in center column; games panel has full height
-- `npm run watch` for live rebuilds
-- **New files**: `src/chat-server.ts`, `src/canvas-server.ts`
-- **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering + onWorldChange), `src/main.ts` (full persistence wiring + reset), `index.html` (layout + styles), `src/game-server.ts` (toJSON/fromJSON)
+
+**What exists now (10 source files):**
+- `main.ts` — bootstrap, persistence wiring (4 localStorage keys), reset button, debug API
+- `game-server.ts` — tic-tac-toe state machine with toJSON/fromJSON
+- `chat-server.ts` — rolling 50-msg chat room with toJSON/fromJSON
+- `canvas-server.ts` — 40×20 pure ASCII art buffer with toJSON/fromJSON
+- `soma.ts` — soma data structure, 16 default tools (5 game + 2 chat + 2 canvas + 7 soma-editing), XML serialization
+- `actant.ts` — tick loop (15s ±20% jitter), `thinkAbout()`, `me` API with uniform `read()/write()`, tool compilation
+- `inference.ts` — agentic loop (up to 10 turns), Anthropic API via vanilla platform proxy
+- `world.ts` — thin wrapper exposing all servers via `world.games` / `world.social` / `world.art`
+- `ui.ts` — game list, board, chat, canvas (`<pre>`), soma panels, `onWorldChange` callback for persistence
+- `index.html` — layout: `[Top bar] / [Games 320px] [Canvas+Chat ≤420px] [Alpha Soma flex] [Beta Soma flex]`
+
+**Key design decisions:**
+- Pure soma system prompt — no preamble, no instructions. Just XML-wrapped section contents.
+- `"thrive"` as user prompt — drives agency. Questions like "What should I do?" trigger assistant-mode passivity.
+- Full function expressions everywhere — tools are `function(input, me, world) {...}`, on_tick is `async function(me, world) {...}`
+- Model: sonnet 4.6 — haiku too passive for agentic self-modification
+- All persistence via localStorage (4 keys: somas, games, chat, canvas). Saves after ticks + human actions.
+- Reset button stops ticks before clearing storage (race condition fix)
+
+**What to explore next:**
+- Test the pure ASCII canvas — do actants draw spontaneously with `"thrive"`? Or do they need an identity nudge?
+- Watch for canvas overwrites — both actants have `paint_canvas` and it's full-replace. They could clobber each other.
+- Chat interaction quality — do they read and respond to each other? Do they chat with the human?
+- Self-modification — are actants modifying their on_tick, identity, or creating custom tools?
+- Consider: should canvas have authorship tracking? History? Undo?
+- Consider: more games beyond tic-tac-toe (the server pattern makes this easy)
+- Consider: could actants create games for each other to play? (meta-game creation)
