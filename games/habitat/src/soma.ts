@@ -275,8 +275,8 @@ const DEFAULT_ON_TICK = `async function(me, world) {
 
   // build world snapshot for auto-memory (below the ---)
   let snapshot = "";
-  if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\\n";
-  if (chat.length) snapshot += "recent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n") + "\\n";
+  if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\\n\\n";
+  if (chat.length) snapshot += "recent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n") + "\\n\\n";
   if (canvas.trim()) snapshot += "canvas:\\n" + canvas + "\\n";
 
   // write snapshot to auto-memory section (everything after ---)
