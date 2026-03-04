@@ -27,7 +27,7 @@ const DEFAULT_GAME_TOOLS: SomaTool[] = [
       properties: {},
       additionalProperties: false,
     },
-    function_body: `return world.games.ticTacToe.listGames();`,
+    function_body: `function(input, me, world) { return world.games.ticTacToe.listGames(); }`,
   },
   {
     name: 'create_game',
@@ -37,7 +37,7 @@ const DEFAULT_GAME_TOOLS: SomaTool[] = [
       properties: {},
       additionalProperties: false,
     },
-    function_body: `return world.games.ticTacToe.createGame(me.gamer_handle.read());`,
+    function_body: `function(input, me, world) { return world.games.ticTacToe.createGame(me.gamer_handle.read()); }`,
   },
   {
     name: 'find_game',
@@ -47,12 +47,12 @@ const DEFAULT_GAME_TOOLS: SomaTool[] = [
       properties: {},
       additionalProperties: false,
     },
-    function_body: `
-      const games = world.games.ticTacToe.listGames();
-      const open = games.find(g => g.status === 'waiting' && g.players.X !== me.gamer_handle.read());
-      if (!open) return null;
-      return world.games.ticTacToe.joinGame(open.id, me.gamer_handle.read());
-    `,
+    function_body: `function(input, me, world) {
+  const games = world.games.ticTacToe.listGames();
+  const open = games.find(g => g.status === 'waiting' && g.players.X !== me.gamer_handle.read());
+  if (!open) return null;
+  return world.games.ticTacToe.joinGame(open.id, me.gamer_handle.read());
+}`,
   },
   {
     name: 'make_move',
@@ -66,7 +66,7 @@ const DEFAULT_GAME_TOOLS: SomaTool[] = [
       required: ['game_id', 'position'],
       additionalProperties: false,
     },
-    function_body: `return world.games.ticTacToe.makeMove(input.game_id, me.gamer_handle.read(), input.position);`,
+    function_body: `function(input, me, world) { return world.games.ticTacToe.makeMove(input.game_id, me.gamer_handle.read(), input.position); }`,
   },
   {
     name: 'get_game_state',
@@ -79,7 +79,7 @@ const DEFAULT_GAME_TOOLS: SomaTool[] = [
       required: ['game_id'],
       additionalProperties: false,
     },
-    function_body: `return world.games.ticTacToe.getGame(input.game_id);`,
+    function_body: `function(input, me, world) { return world.games.ticTacToe.getGame(input.game_id); }`,
   },
 ];
 
@@ -95,7 +95,7 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
       required: ['handle'],
       additionalProperties: false,
     },
-    function_body: `me.gamer_handle.write(input.handle); return { success: true };`,
+    function_body: `function(input, me, world) { me.gamer_handle.write(input.handle); return { success: true }; }`,
   },
   {
     name: 'edit_identity',
@@ -108,20 +108,20 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
       required: ['content'],
       additionalProperties: false,
     },
-    function_body: `me.identity.write(input.content); return { success: true };`,
+    function_body: `function(input, me, world) { me.identity.write(input.content); return { success: true }; }`,
   },
   {
     name: 'edit_on_tick',
-    description: 'Rewrite your on_tick code. This code runs every tick with (me, world) as arguments. It typically calls me.thinkAbout() to trigger your thinking.',
+    description: 'Rewrite your on_tick code. This is a full async function(me, world) expression that runs every tick.',
     input_schema: {
       type: 'object',
       properties: {
-        code: { type: 'string', description: 'New on_tick JavaScript code' },
+        code: { type: 'string', description: 'New on_tick function expression, e.g. async function(me, world) { ... }' },
       },
       required: ['code'],
       additionalProperties: false,
     },
-    function_body: `me.on_tick.write(input.code); return { success: true };`,
+    function_body: `function(input, me, world) { me.on_tick.write(input.code); return { success: true }; }`,
   },
   {
     name: 'edit_memory',
@@ -134,29 +134,29 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
       required: ['content'],
       additionalProperties: false,
     },
-    function_body: `me.memory.write(input.content); return { success: true };`,
+    function_body: `function(input, me, world) { me.memory.write(input.content); return { success: true }; }`,
   },
   {
     name: 'add_custom_tool',
-    description: 'Add a new custom tool to your toolkit. The function_body receives (input, me, world).',
+    description: 'Add a new custom tool to your toolkit. function_body should be a function(input, me, world) expression.',
     input_schema: {
       type: 'object',
       properties: {
         name: { type: 'string', description: 'Tool name (snake_case)' },
         description: { type: 'string', description: 'What the tool does' },
         input_schema: { type: 'string', description: 'JSON string of the Anthropic tool input_schema' },
-        function_body: { type: 'string', description: 'JavaScript function body. Receives (input, me, world).' },
+        function_body: { type: 'string', description: 'A function(input, me, world) expression as a string.' },
       },
       required: ['name', 'description', 'input_schema', 'function_body'],
       additionalProperties: false,
     },
-    function_body: `
-      const tools = JSON.parse(me.custom_tools.read());
-      const schema = JSON.parse(input.input_schema);
-      tools.push({ name: input.name, description: input.description, input_schema: schema, function_body: input.function_body });
-      me.custom_tools.write(JSON.stringify(tools));
-      return { success: true, message: "Tool '" + input.name + "' added." };
-    `,
+    function_body: `function(input, me, world) {
+  const tools = JSON.parse(me.custom_tools.read());
+  const schema = JSON.parse(input.input_schema);
+  tools.push({ name: input.name, description: input.description, input_schema: schema, function_body: input.function_body });
+  me.custom_tools.write(JSON.stringify(tools));
+  return { success: true, message: "Tool '" + input.name + "' added." };
+}`,
   },
   {
     name: 'edit_custom_tool',
@@ -172,16 +172,16 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
       required: ['name'],
       additionalProperties: false,
     },
-    function_body: `
-      const tools = JSON.parse(me.custom_tools.read());
-      const tool = tools.find(t => t.name === input.name);
-      if (!tool) return { success: false, error: "Tool '" + input.name + "' not found." };
-      if (input.new_description) tool.description = input.new_description;
-      if (input.new_input_schema) tool.input_schema = JSON.parse(input.new_input_schema);
-      if (input.new_function_body) tool.function_body = input.new_function_body;
-      me.custom_tools.write(JSON.stringify(tools));
-      return { success: true, message: "Tool '" + input.name + "' updated." };
-    `,
+    function_body: `function(input, me, world) {
+  const tools = JSON.parse(me.custom_tools.read());
+  const tool = tools.find(t => t.name === input.name);
+  if (!tool) return { success: false, error: "Tool '" + input.name + "' not found." };
+  if (input.new_description) tool.description = input.new_description;
+  if (input.new_input_schema) tool.input_schema = JSON.parse(input.new_input_schema);
+  if (input.new_function_body) tool.function_body = input.new_function_body;
+  me.custom_tools.write(JSON.stringify(tools));
+  return { success: true, message: "Tool '" + input.name + "' updated." };
+}`,
   },
   {
     name: 'remove_custom_tool',
@@ -194,20 +194,20 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
       required: ['name'],
       additionalProperties: false,
     },
-    function_body: `
-      const tools = JSON.parse(me.custom_tools.read());
-      const idx = tools.findIndex(t => t.name === input.name);
-      if (idx === -1) return { success: false, error: "Tool '" + input.name + "' not found." };
-      tools.splice(idx, 1);
-      me.custom_tools.write(JSON.stringify(tools));
-      return { success: true, message: "Tool '" + input.name + "' removed." };
-    `,
+    function_body: `function(input, me, world) {
+  const tools = JSON.parse(me.custom_tools.read());
+  const idx = tools.findIndex(t => t.name === input.name);
+  if (idx === -1) return { success: false, error: "Tool '" + input.name + "' not found." };
+  tools.splice(idx, 1);
+  me.custom_tools.write(JSON.stringify(tools));
+  return { success: true, message: "Tool '" + input.name + "' removed." };
+}`,
   },
 ];
 
 // ── Default soma factory ──────────────────────────────────────
 
-const DEFAULT_ON_TICK = `await me.thinkAbout("What should I do?");`;
+const DEFAULT_ON_TICK = `async function(me, world) { await me.thinkAbout("What should I do?"); }`;
 
 export function createDefaultSoma(id: string): Soma {
   return {

@@ -4,8 +4,6 @@ import { type Soma, serializeSoma, extractToolSchemas } from './soma';
 import { type World } from './world';
 import { agenticLoop } from './inference';
 
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-
 export type ActantStatus = 'idle' | 'thinking';
 
 export interface MeSectionAPI {
@@ -96,7 +94,7 @@ export class Actant {
 
   private compileTool(functionBody: string): ((input: Record<string, unknown>, me: MeAPI, world: World) => unknown) | null {
     try {
-      return new Function('input', 'me', 'world', functionBody) as
+      return new Function('return ' + functionBody)() as
         (input: Record<string, unknown>, me: MeAPI, world: World) => unknown;
     } catch (err) {
       console.error(`[${this.tag}] Tool compilation error:`, err);
@@ -146,7 +144,7 @@ export class Actant {
 
     try {
       const me = this.buildMeAPI();
-      const fn = new AsyncFunction('me', 'world', this.soma.on_tick);
+      const fn = new Function('return ' + this.soma.on_tick)();
       await fn(me, this.world);
     } catch (err) {
       console.error(`[${this.tag}] Tick #${this.tickCount} error:`, err);
