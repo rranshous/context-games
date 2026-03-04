@@ -17,39 +17,57 @@
 
     #app {
       display: flex;
+      flex-direction: column;
       height: 100vh;
     }
 
-    /* Left panel — games + chat */
+    /* Top bar */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border-bottom: 1px solid #1e2a3a;
+      background: #0d1220;
+      flex-shrink: 0;
+    }
+    #top-bar .title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #5a7a9a;
+      margin-right: auto;
+    }
+
+    #main-area {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Left panel — games */
     #left-panel {
       width: 320px;
       min-width: 280px;
-      display: flex;
-      flex-direction: column;
+      padding: 20px;
+      overflow-y: auto;
       border-right: 1px solid #1e2a3a;
     }
-    #games-section {
-      padding: 20px;
-      border-bottom: 1px solid #1e2a3a;
-      overflow-y: auto;
-      flex-shrink: 0;
-      max-height: 50%;
+
+    /* Center — canvas + chat */
+    #center-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      border-right: 1px solid #1e2a3a;
+      min-height: 0;
     }
     #chat-section {
-      padding: 16px;
       flex: 1;
       display: flex;
       flex-direction: column;
       min-height: 0;
-    }
-
-    /* Center — canvas */
-    #center-panel {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px;
-      border-right: 1px solid #1e2a3a;
+      margin-top: 16px;
     }
     #shared-canvas {
       border: 1px solid #1e2a3a;
@@ -86,28 +104,6 @@
       letter-spacing: 2px;
       color: #5a7a9a;
       margin-bottom: 16px;
-    }
-
-    /* Player handle input */
-    .handle-input {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .handle-input label {
-      color: #5a7a9a;
-      font-size: 11px;
-      text-transform: uppercase;
-    }
-    .handle-input input {
-      background: #141c2b;
-      border: 1px solid #1e2a3a;
-      color: #c8d0e0;
-      font-family: inherit;
-      font-size: 14px;
-      padding: 4px 8px;
-      width: 120px;
     }
 
     /* Buttons */
@@ -281,33 +277,34 @@
 </head>
 <body>
   <div id="app">
-    <div id="left-panel">
-      <div id="games-section">
+    <div id="top-bar">
+      <span class="title">Habitat</span>
+      <label style="color:#5a7a9a;font-size:11px;text-transform:uppercase;">Handle:</label>
+      <input type="text" id="player-handle" value="Player" style="background:#141c2b;border:1px solid #1e2a3a;color:#c8d0e0;font-family:inherit;font-size:12px;padding:4px 8px;width:100px;" />
+      <button id="create-game-btn">New Game</button>
+      <button id="reset-btn" title="Reset somas, games, and all state">Reset All</button>
+    </div>
+    <div id="main-area">
+      <div id="left-panel">
         <h2>Games</h2>
-        <div class="handle-input">
-          <label>Handle:</label>
-          <input type="text" id="player-handle" value="Player" />
-          <button id="create-game-btn">Create Game</button>
-          <button id="reset-btn" title="Reset somas, games, and all state">Reset</button>
-        </div>
         <div id="game-list" class="game-list"></div>
         <div id="board-area"></div>
       </div>
-      <div id="chat-section">
-        <h2>Chat</h2>
-        <div id="chat-messages"></div>
-        <div class="chat-input-row">
-          <input type="text" id="chat-input" placeholder="Say something..." />
-          <button id="chat-send-btn">Send</button>
+      <div id="center-panel">
+        <div class="canvas-label">Shared Canvas</div>
+        <pre id="shared-canvas"></pre>
+        <div id="chat-section">
+          <h2>Chat</h2>
+          <div id="chat-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Say something..." />
+            <button id="chat-send-btn">Send</button>
+          </div>
         </div>
       </div>
+      <div id="alpha-panel" class="soma-panel"></div>
+      <div id="beta-panel" class="soma-panel"></div>
     </div>
-    <div id="center-panel">
-      <div class="canvas-label">Shared Canvas</div>
-      <pre id="shared-canvas"></pre>
-    </div>
-    <div id="alpha-panel" class="soma-panel"></div>
-    <div id="beta-panel" class="soma-panel"></div>
   </div>
   <script type="module" src="dist/main.js"></script>
 </body>

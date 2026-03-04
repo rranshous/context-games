@@ -141,15 +141,19 @@ Considered alternatives:
 
 Pure ASCII wins on simplicity: zero translation layers, model sees exactly what it drew, one tool to read, one to write.
 
-### UI: Reset Button
+### UI Iterations
 
-Added a Reset button in the handle input row. Stops both actants, clears localStorage, reloads page. Properly sequences stop → clear → reload to avoid the race condition where a tick saves stale somas after clear.
+- **Top bar**: moved handle input, New Game, and Reset All buttons into a horizontal bar across the top. Frees the left panel from admin clutter.
+- **Reset button**: stops both actants, clears localStorage, reloads. Properly sequences stop → clear → reload to avoid the race condition where a tick saves stale somas after clear.
+- **Layout rework**: tic-tac-toe board needed more vertical space (was scrolling when games panel shared with chat). Moved chat below the canvas in the center column. Left panel is now games-only with full height.
+- Final layout: `[Top bar] / [Games (320px)] [Canvas+Chat (center)] [Alpha Soma (flex)] [Beta Soma (flex)]`
 
 ### Current State (end of session 3)
 - Chat + canvas servers built and wired
 - Canvas simplified to pure ASCII art with full-replace `paint_canvas` tool
 - Canvas renders as `<pre>` block — what the model writes is what you see
-- Reset button in UI for full state wipe
+- Top bar with handle, New Game, Reset All
+- Chat below canvas in center column; games panel has full height
 - `npm run watch` for live rebuilds
 - **New files**: `src/chat-server.ts`, `src/canvas-server.ts`
 - **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering), `src/main.ts` (server wiring + reset), `index.html` (layout + styles)
