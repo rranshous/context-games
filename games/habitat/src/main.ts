@@ -77,11 +77,11 @@ const origAlphaTick = alpha.tick.bind(alpha);
 const origBetaTick = beta.tick.bind(beta);
 alpha.tick = async function () {
   await origAlphaTick();
-  saveAll();
+  if (!resetting) saveAll();
 };
 beta.tick = async function () {
   await origBetaTick();
-  saveAll();
+  if (!resetting) saveAll();
 };
 
 // UI — pass saveWorld so human actions persist too
@@ -93,7 +93,9 @@ beta.startTicking(15000);
 ui.startRendering();
 
 // Reset button — stop everything, clear all storage, reload
+let resetting = false;
 document.getElementById('reset-btn')!.addEventListener('click', () => {
+  resetting = true;
   alpha.stopTicking();
   beta.stopTicking();
   ui.stopRendering();
@@ -107,5 +109,5 @@ console.log('[HABITAT] Initialized — 2 actants, world state restored');
 (window as any).__habitat = {
   world, alpha, beta, ui,
   saveAll,
-  resetAll: () => { alpha.stopTicking(); beta.stopTicking(); ui.stopRendering(); ALL_KEYS.forEach(k => localStorage.removeItem(k)); location.reload(); },
+  resetAll: () => { resetting = true; alpha.stopTicking(); beta.stopTicking(); ui.stopRendering(); ALL_KEYS.forEach(k => localStorage.removeItem(k)); location.reload(); },
 };
