@@ -42,3 +42,11 @@ First experiment: 2 actants, 1 game (tic-tac-toe), human player as equal partici
 - **Removed system prompt preamble**: user correctly insisted the system prompt should be pure soma, nothing else. No "you are an actant" framing, no behavioral instructions injected by the engine. Identity section in the soma carries that context. The model gets only what the soma contains.
 - **Removed custom_tools XML formatting**: was reformatting the tools array into pretty XML. Now just `JSON.stringify(soma.custom_tools)` — raw JSON, same as `me.custom_tools.read()` returns. No interpretation layers between soma and system prompt.
 - **Untested with sonnet + pure soma yet** — stopped mid-test to get these design principles right first.
+- **Full function expressions**: all tool `function_body` values are now `function(input, me, world) { ... }` and `on_tick` is `async function(me, world) { ... }`. Model sees exact parameter signatures in its soma. Compiled via `new Function('return ' + code)()`. No `AsyncFunction` constructor needed.
+
+### Current State (end of session 1)
+- All code written and building clean. Sonnet 4.6, pure soma system prompt, full function signatures.
+- **Not yet verified**: sonnet + pure soma behavior. Haiku test showed actants creating/joining/playing games successfully (with heavy system prompt nudging). Need to confirm sonnet acts from identity alone.
+- **Key files**: `src/main.ts`, `src/game-server.ts`, `src/soma.ts`, `src/actant.ts`, `src/inference.ts`, `src/world.ts`, `src/ui.ts`
+- **To test**: `localStorage.removeItem('habitat-somas')` then reload to get fresh default somas. Open `http://localhost:3000/dev/habitat/index.html`.
+- **Debug**: `window.__habitat` exposes `{ world, alpha, beta, ui, resetSomas() }`
