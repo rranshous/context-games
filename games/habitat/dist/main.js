@@ -268,7 +268,7 @@ var DEFAULT_SOMA_TOOLS = [
 }`
   }
 ];
-var DEFAULT_ON_TICK = `async function(me, world) { await me.thinkAbout("What should I do?"); }`;
+var DEFAULT_ON_TICK = `async function(me, world) { await me.thinkAbout("thrive"); }`;
 function createDefaultSoma(id) {
   return {
     id,
@@ -544,14 +544,17 @@ var HabitatUI = class {
   renderTimer = null;
   gameListEl;
   boardAreaEl;
-  actantCardsEl;
+  panelEls;
   handleInput;
   constructor(world2, actants2) {
     this.world = world2;
     this.actants = actants2;
     this.gameListEl = document.getElementById("game-list");
     this.boardAreaEl = document.getElementById("board-area");
-    this.actantCardsEl = document.getElementById("actant-cards");
+    this.panelEls = [
+      document.getElementById("alpha-panel"),
+      document.getElementById("beta-panel")
+    ];
     this.handleInput = document.getElementById("player-handle");
     document.getElementById("create-game-btn").addEventListener("click", () => {
       const handle = this.getHandle();
@@ -656,29 +659,30 @@ var HabitatUI = class {
     }
   }
   renderActants() {
-    this.actantCardsEl.innerHTML = this.actants.map((a) => {
+    this.actants.forEach((a, i) => {
+      const el = this.panelEls[i];
+      if (!el) return;
       const statusCls = a.status === "thinking" ? "thinking" : "idle";
-      const memory = a.soma.memory || "(empty)";
-      const memoryPreview = memory.length > 120 ? memory.substring(0, 120) + "..." : memory;
-      return `<div class="actant-card">
-        <div class="actant-header">
-          <span class="actant-name">${a.soma.gamer_handle}</span>
-          <span class="actant-status ${statusCls}">${a.status} \xB7 tick #${a.tickCount}</span>
+      const toolsHtml = a.soma.custom_tools.map(
+        (t) => `<div class="soma-tool-item">
+          <div class="soma-tool-name">${escapeHtml(t.name)}</div>
+          <div class="soma-tool-desc">${escapeHtml(t.description)}</div>
+        </div>`
+      ).join("");
+      el.innerHTML = `
+        <div class="soma-header">
+          <span class="soma-handle">${escapeHtml(a.soma.gamer_handle)}</span>
+          <span class="soma-status ${statusCls}">${a.status} \xB7 tick #${a.tickCount}</span>
         </div>
-        <div class="actant-section">
-          <div class="actant-section-label">Identity</div>
-          <div class="actant-section-content">${escapeHtml(a.soma.identity)}</div>
-        </div>
-        <div class="actant-section">
-          <div class="actant-section-label">Memory</div>
-          <div class="actant-section-content">${escapeHtml(memoryPreview)}</div>
-        </div>
-        <div class="actant-section">
-          <div class="actant-section-label">Last think</div>
-          <div class="actant-section-content">${escapeHtml(a.lastThinkPrompt || "(none)")}</div>
-        </div>
-      </div>`;
-    }).join("");
+        ${somaSection("last think", a.lastThinkPrompt || "(none)")}
+        ${somaSection("identity", a.soma.identity)}
+        ${somaSection("on_tick", a.soma.on_tick, true)}
+        ${somaSection("memory", a.soma.memory)}
+        <div class="soma-section">
+          <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
+          ${toolsHtml}
+        </div>`;
+    });
   }
   // ── Render loop ───────────────────────────────────────────
   startRendering(interval = 500) {
@@ -694,6 +698,15 @@ var HabitatUI = class {
 };
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function somaSection(label, content, isCode = false) {
+  const empty = !content || content === "(none)";
+  const cls = isCode ? "soma-section-content code" : empty ? "soma-section-content empty" : "soma-section-content";
+  const display = empty ? "(empty)" : escapeHtml(content);
+  return `<div class="soma-section">
+    <div class="soma-section-label">${label}</div>
+    <div class="${cls}">${display}</div>
+  </div>`;
 }
 
 // src/main.ts

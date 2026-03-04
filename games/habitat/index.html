@@ -22,19 +22,22 @@
 
     /* Left panel — games */
     #games-panel {
-      flex: 1;
+      width: 320px;
+      min-width: 280px;
       padding: 20px;
       overflow-y: auto;
       border-right: 1px solid #1e2a3a;
     }
 
-    /* Right panel — actants */
-    #actants-panel {
-      width: 320px;
-      padding: 20px;
+    /* Soma panels — one per actant */
+    .soma-panel {
+      flex: 1;
+      padding: 16px;
       overflow-y: auto;
+      border-right: 1px solid #1e2a3a;
       background: #0d1220;
     }
+    .soma-panel:last-child { border-right: none; }
 
     h2 {
       font-size: 13px;
@@ -135,47 +138,72 @@
     .cell.o { color: #d06060; }
     .cell.disabled { cursor: default; opacity: 0.6; }
 
-    /* Actant cards */
-    .actant-card {
-      background: #111824;
-      border: 1px solid #1a2535;
-      padding: 14px;
-      margin-bottom: 12px;
-    }
-    .actant-header {
+    /* Soma panel header */
+    .soma-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #1e2a3a;
     }
-    .actant-name {
-      font-size: 14px;
+    .soma-handle {
+      font-size: 16px;
       font-weight: bold;
       color: #8ab8d8;
     }
-    .actant-status {
+    .soma-status {
       font-size: 11px;
       text-transform: uppercase;
-      padding: 2px 6px;
+      padding: 2px 8px;
     }
-    .actant-status.idle { color: #5a7a9a; }
-    .actant-status.thinking { color: #d4a040; }
-    .actant-section {
-      font-size: 11px;
-      color: #4a6070;
-      margin-top: 8px;
+    .soma-status.idle { color: #5a7a9a; }
+    .soma-status.thinking { color: #d4a040; }
+
+    /* Soma sections */
+    .soma-section {
+      margin-bottom: 12px;
     }
-    .actant-section-label {
+    .soma-section-label {
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 1px;
-      margin-bottom: 2px;
+      color: #5a7a9a;
+      margin-bottom: 4px;
     }
-    .actant-section-content {
-      color: #7a8a98;
+    .soma-section-content {
+      color: #8a9aaa;
+      font-size: 12px;
       white-space: pre-wrap;
-      word-break: break-all;
-      max-height: 60px;
-      overflow: hidden;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+    .soma-section-content.code {
+      background: #0a0e17;
+      border: 1px solid #1a2535;
+      padding: 8px;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .soma-section-content.empty {
+      color: #3a4a5a;
+      font-style: italic;
+    }
+    .soma-tool-item {
+      background: #0a0e17;
+      border: 1px solid #1a2535;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+    }
+    .soma-tool-name {
+      color: #8ab8d8;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .soma-tool-desc {
+      color: #5a7a9a;
+      font-size: 10px;
+      margin-top: 2px;
     }
 
     .no-games { color: #3a4a5a; font-style: italic; font-size: 12px; }
@@ -193,10 +221,8 @@
       <div id="game-list" class="game-list"></div>
       <div id="board-area"></div>
     </div>
-    <div id="actants-panel">
-      <h2>Actants</h2>
-      <div id="actant-cards"></div>
-    </div>
+    <div id="alpha-panel" class="soma-panel"></div>
+    <div id="beta-panel" class="soma-panel"></div>
   </div>
   <script type="module" src="dist/main.js"></script>
 </body>

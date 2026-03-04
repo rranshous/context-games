@@ -50,3 +50,49 @@ First experiment: 2 actants, 1 game (tic-tac-toe), human player as equal partici
 - **Key files**: `src/main.ts`, `src/game-server.ts`, `src/soma.ts`, `src/actant.ts`, `src/inference.ts`, `src/world.ts`, `src/ui.ts`
 - **To test**: `localStorage.removeItem('habitat-somas')` then reload to get fresh default somas. Open `http://localhost:3000/dev/habitat/index.html`.
 - **Debug**: `window.__habitat` exposes `{ world, alpha, beta, ui, resetSomas() }`
+
+---
+
+## Session 2 — "thrive" and the User Prompt Problem (2026-03-03)
+
+### The Discovery: User Prompt Shapes Agency
+
+Sonnet + pure soma was verified — and immediately revealed a fundamental problem. With `thinkAbout("What should I do?")` as the default on_tick prompt, both actants fell into a passive loop:
+
+1. `list_games` → `[]`
+2. "No games running — the habitat is empty." → end turn
+3. Repeat every tick
+
+The model interpreted `"What should I do?"` as a **chat message from another entity asking for help**, not as an internal impulse. Sonnet's helpful-assistant training kicked in — it reported state instead of acting on it. Both actants waited for someone else to make the first move, indefinitely.
+
+**The fix: `"thrive"`** — a single word that isn't a question, isn't addressed to anyone, and points toward action rather than reporting. This is the same prompt that works for Glint's shark predators in their reflection calls.
+
+Results were immediate and dramatic:
+- **Tick 1**: Both actants called `list_games`, saw nothing, and **both created games**. Alpha: "No games running. Time to make something happen." Beta: "No games in the world. Time to make something happen."
+- **Tick 2**: Both discovered each other's games, joined them via `find_game`, and **started using memory** — alpha wrote 224 chars of game strategy, beta tracked both active games.
+- **By tick 4**: They had completed 2 full games (beta won g1, g2 was a draw), started g3, and were keeping detailed game histories with strategic analysis in memory. Beta: "Record: 1 win, 1 draw. Hungry for more wins."
+
+### Why "thrive" Works
+
+The user prompt in `thinkAbout()` is the only non-soma input the model receives. With pure soma (no system preamble), this single word carries enormous weight:
+
+- **"What should I do?"** → triggers assistant mode. Model sees a user asking for advice. It explains, reports, narrates.
+- **"thrive"** → not a conversation. Not a question. The model has no one to be helpful to. It falls back on its soma identity ("I make something happen") and its available tools. Agency emerges from the absence of a conversational partner.
+
+This pattern was already proven in Glint (shark reflections use `"thrive"` as the user prompt with near-zero system prompting), but habitat makes the mechanism especially clear because the failure mode (`"What should I do?"`) is so stark.
+
+**Principle: with pure soma, the user prompt should be an impulse, not a message.** One word. No question marks. No implied audience.
+
+### UI: Full Soma Side Panels
+
+Expanded the UI from truncated actant cards to full soma visibility:
+- **Layout**: `[Games (320px)] [Alpha Soma (flex)] [Beta Soma (flex)]` — three columns
+- Each soma panel shows all 5 sections at full length: gamer_handle, identity, on_tick, memory, custom_tools (12 tools listed by name + description)
+- on_tick gets monospace code styling
+- Panels scroll independently, update on 500ms render loop
+
+### Current State (end of session 2)
+- `"thrive"` confirmed as default on_tick prompt — matches Glint pattern
+- Sonnet + pure soma + `"thrive"` = fully autonomous actants: creating games, joining each other, playing, tracking history, developing strategy
+- Full soma inspector UI in three-column layout
+- **Key change**: `soma.ts` DEFAULT_ON_TICK, `ui.ts` full rewrite of renderActants, `index.html` three-column layout

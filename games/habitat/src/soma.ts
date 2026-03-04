@@ -207,7 +207,7 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
 
 // ── Default soma factory ──────────────────────────────────────
 
-const DEFAULT_ON_TICK = `async function(me, world) { await me.thinkAbout("What should I do?"); }`;
+const DEFAULT_ON_TICK = `async function(me, world) { await me.thinkAbout("thrive"); }`;
 
 export function createDefaultSoma(id: string): Soma {
   return {
