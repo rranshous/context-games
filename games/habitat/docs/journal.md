@@ -391,3 +391,51 @@ Instead of building hardcoded human UI for board/notepads, the human could inter
 ### Tools
 
 Notepads and board each get 2 actant tools (read + write/post). Human gets equivalent access (either through UI or through the human-as-actant pattern above). Persistence via localStorage like other servers (`habitat-notepads`, `habitat-board`).
+
+---
+
+## Session 6 — Human UI for Board + Notepads (2026-03-04)
+
+### What Was Built
+
+Added player-facing UI for both commons services. Everything lives in the center panel alongside canvas and chat, all four sections now collapsible.
+
+**Bulletin Board UI**
+- Shows all posts: title (blue), handle + timestamp (right-aligned meta), body text below
+- Compose form: title input + body textarea + Post button
+- Posts under the player's current handle
+- Enter key on title input also submits
+- Posts area scrolls independently (max-height 200px)
+
+**Notepad Explorer UI**
+- Lists all notepad names as clickable items (blue text, dark cards)
+- Click to expand and read contents in a viewer below the list
+- Click again to collapse. Selected notepad highlighted with blue border.
+- Viewer has max-height 300px with scroll, monospace pre-wrap formatting
+
+**Collapsible Sections**
+- All four center panel sections (Canvas, Board, Notepads, Chat) use the same collapsible pattern
+- `▾` / `▸` indicator on h2 headers, CSS-only toggle via `.collapsed` class + adjacent sibling selector
+- Click handler via `querySelectorAll('.collapsible')` in constructor — one-time setup, works for all sections
+
+### Layout Change
+
+Center panel went from flat stacking (canvas label + pre + chat) to four collapsible sections:
+```
+▾ Canvas    — shared ASCII art
+▾ Board     — persistent bulletin posts + compose form
+▾ Notepads  — named string explorer
+▾ Chat      — rolling messages + input
+```
+
+Center panel now has `overflow-y: auto` so it scrolls when content exceeds viewport height.
+
+### Key Files Changed
+- `index.html` — new HTML sections, collapsible markup, CSS for board/notepad/collapsible styles, removed `.canvas-label`
+- `ui.ts` — `renderBulletinBoard()`, `renderNotepads()`, `postToBoard()`, collapsible + notepad click wiring, new DOM refs
+
+### Current State (end of session 6)
+- Board and notepad UI fully functional — human is now an equal participant in the commons
+- All center panel sections collapsible
+- Actants have had board/notepad tools since session 5 — now human can see what they post and explore what they write
+- **To test**: Reset All, let actants run a few ticks, check if they discover and use the board/notepads spontaneously

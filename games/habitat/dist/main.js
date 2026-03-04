@@ -159,6 +159,72 @@ var CanvasServer = class _CanvasServer {
   }
 };
 
+// src/notepad-server.ts
+var NotepadServer = class _NotepadServer {
+  pads = /* @__PURE__ */ new Map();
+  read(name) {
+    return this.pads.get(name) ?? null;
+  }
+  write(name, data) {
+    this.pads.set(name, data);
+  }
+  list() {
+    return [...this.pads.keys()];
+  }
+  clear(name) {
+    this.pads.delete(name);
+  }
+  toJSON() {
+    return Object.fromEntries(this.pads);
+  }
+  static fromJSON(data) {
+    const server = new _NotepadServer();
+    for (const [k, v] of Object.entries(data)) {
+      server.pads.set(k, v);
+    }
+    return server;
+  }
+};
+
+// src/board-server.ts
+var BoardServer = class _BoardServer {
+  posts = [];
+  nextId = 1;
+  post(handle, title, body) {
+    const post = {
+      id: `b${this.nextId++}`,
+      handle,
+      title,
+      body,
+      ts: Date.now()
+    };
+    this.posts.push(post);
+    console.log(`[BOARD] ${handle} posted: "${title}"`);
+    return structuredClone(post);
+  }
+  read(count) {
+    const sorted = [...this.posts].reverse();
+    if (count != null) return structuredClone(sorted.slice(0, count));
+    return structuredClone(sorted);
+  }
+  remove(id) {
+    const idx = this.posts.findIndex((p) => p.id === id);
+    if (idx === -1) return { success: false, error: `Post '${id}' not found.` };
+    this.posts.splice(idx, 1);
+    console.log(`[BOARD] Post ${id} removed`);
+    return { success: true };
+  }
+  toJSON() {
+    return { posts: this.posts, nextId: this.nextId };
+  }
+  static fromJSON(data) {
+    const server = new _BoardServer();
+    server.posts = data.posts;
+    server.nextId = data.nextId;
+    return server;
+  }
+};
+
 // src/soma.ts
 var DEFAULT_GAME_TOOLS = [
   {
@@ -274,6 +340,67 @@ var DEFAULT_CANVAS_TOOLS = [
       additionalProperties: false
     },
     function_body: `function(input, me, world) { world.art.sharedCanvas.paint(input.art); return { success: true }; }`
+  }
+];
+var DEFAULT_NOTEPAD_TOOLS = [
+  {
+    name: "read_notepad",
+    description: "Read a notepad by name. If no name is given, lists all notepad names instead.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Notepad name to read. Omit to list all notepad names." }
+      },
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) {
+  if (!input.name) return { notepads: world.commons.notepads.list() };
+  const content = world.commons.notepads.read(input.name);
+  if (content === null) return { error: "Notepad '" + input.name + "' not found.", notepads: world.commons.notepads.list() };
+  return { name: input.name, content: content };
+}`
+  },
+  {
+    name: "write_notepad",
+    description: "Write to a named notepad (creates or overwrites). Use for game state, shared data, or anything you want to persist by name.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Notepad name" },
+        content: { type: "string", description: "Content to write" }
+      },
+      required: ["name", "content"],
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { world.commons.notepads.write(input.name, input.content); return { success: true }; }`
+  }
+];
+var DEFAULT_BOARD_TOOLS = [
+  {
+    name: "read_board",
+    description: "Read recent posts from the bulletin board. Posts are persistent (unlike chat). Returns newest first.",
+    input_schema: {
+      type: "object",
+      properties: {
+        count: { type: "number", description: "Number of recent posts to read (default 5)" }
+      },
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { return world.commons.board.read(input.count || 5); }`
+  },
+  {
+    name: "post_board",
+    description: "Post to the bulletin board under your gamer handle. Use for game rules, challenges, announcements \u2014 anything that should persist.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Post title" },
+        body: { type: "string", description: "Post body" }
+      },
+      required: ["title", "body"],
+      additionalProperties: false
+    },
+    function_body: `function(input, me, world) { return world.commons.board.post(me.gamer_handle.read(), input.title, input.body); }`
   }
 ];
 var DEFAULT_SOMA_TOOLS = [
@@ -398,16 +525,40 @@ var DEFAULT_SOMA_TOOLS = [
   }
 ];
 var DEFAULT_ON_TICK = `async function(me, world) {
+  // gather world context
+  const handle = me.gamer_handle.read();
+  const games = world.games.ticTacToe.listGames();
+  const chat = world.social.chat.read(5);
+  const canvas = world.art.sharedCanvas.read();
+  const board = world.commons.board.read(3);
+
+  // filter to my active games
+  const myGames = games.filter(g =>
+    g.players.X === handle || g.players.O === handle
+  );
+
+  // build world snapshot for auto-memory (below the ---)
+  let snapshot = "";
+  if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\\n\\n";
+  if (chat.length) snapshot += "recent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n") + "\\n\\n";
+  if (canvas.trim()) snapshot += "canvas:\\n" + canvas + "\\n\\n";
+  if (board.length) snapshot += "recent board posts: " + board.map(p => p.title).join(", ") + "\\n";
+
+  // write snapshot to auto-memory section (everything after ---)
+  const mem = me.memory.read();
+  const above = mem.split("---")[0].trimEnd();
+  me.memory.write(above + (above ? "\\n" : "") + "---\\n" + snapshot);
+
   const response = await me.thinkAbout("thrive");
 }`;
 function createDefaultSoma(id) {
   return {
     id,
     gamer_handle: id,
-    identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me. If nothing is happening, I make something happen.`,
+    identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me.`,
     on_tick: DEFAULT_ON_TICK,
     memory: "",
-    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_SOMA_TOOLS].map((t) => ({ ...t }))
+    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_NOTEPAD_TOOLS, ...DEFAULT_BOARD_TOOLS, ...DEFAULT_SOMA_TOOLS].map((t) => ({ ...t }))
   };
 }
 function serializeSoma(soma) {
@@ -432,7 +583,7 @@ function extractToolSchemas(soma) {
 }
 
 // src/world.ts
-function buildWorld(tttServer2, chatServer2, canvasServer2) {
+function buildWorld(tttServer2, chatServer2, canvasServer2, notepadServer2, boardServer2) {
   return {
     games: {
       ticTacToe: {
@@ -455,6 +606,19 @@ function buildWorld(tttServer2, chatServer2, canvasServer2) {
         read: () => canvasServer2.read(),
         paint: (art) => canvasServer2.paint(art),
         clear: () => canvasServer2.clear()
+      }
+    },
+    commons: {
+      notepads: {
+        read: (name) => notepadServer2.read(name),
+        write: (name, data) => notepadServer2.write(name, data),
+        list: () => notepadServer2.list(),
+        clear: (name) => notepadServer2.clear(name)
+      },
+      board: {
+        post: (handle, title, body) => boardServer2.post(handle, title, body),
+        read: (count) => boardServer2.read(count),
+        remove: (id) => boardServer2.remove(id)
       }
     }
   };
@@ -558,7 +722,7 @@ var Actant = class {
   tickInterval;
   tickTimer = null;
   ticking = false;
-  constructor(soma, world2, tickInterval = 15e3) {
+  constructor(soma, world2, tickInterval = 3e4) {
     this.soma = soma;
     this.world = world2;
     this.tickInterval = tickInterval;
@@ -667,14 +831,14 @@ var Actant = class {
     this.status = "idle";
     this.ticking = false;
   }
-  startTicking() {
-    console.log(`[${this.tag}] Starting tick loop (interval: ${this.tickInterval}ms)`);
+  startTicking(initialDelay = 0) {
+    console.log(`[${this.tag}] Starting tick loop (interval: ${this.tickInterval}ms, first tick in ${initialDelay}ms)`);
     const loop = async () => {
       await this.tick();
-      const jitter = this.tickInterval + (Math.random() - 0.5) * this.tickInterval * 0.4;
+      const jitter = this.tickInterval + Math.random() * this.tickInterval;
       this.tickTimer = setTimeout(loop, jitter);
     };
-    this.tickTimer = setTimeout(loop, Math.random() * 3e3 + 1e3);
+    this.tickTimer = setTimeout(loop, initialDelay);
   }
   stopTicking() {
     if (this.tickTimer) {
@@ -699,6 +863,10 @@ var HabitatUI = class {
   panelEls;
   handleInput;
   chatInput;
+  boardPostsEl;
+  notepadListEl;
+  notepadViewerEl;
+  selectedNotepad = null;
   constructor(world2, actants2, onWorldChange = () => {
   }) {
     this.world = world2;
@@ -714,6 +882,9 @@ var HabitatUI = class {
     ];
     this.handleInput = document.getElementById("player-handle");
     this.chatInput = document.getElementById("chat-input");
+    this.boardPostsEl = document.getElementById("board-posts");
+    this.notepadListEl = document.getElementById("notepad-list");
+    this.notepadViewerEl = document.getElementById("notepad-viewer");
     document.getElementById("create-game-btn").addEventListener("click", () => {
       const handle = this.getHandle();
       if (!handle) return;
@@ -744,6 +915,33 @@ var HabitatUI = class {
     this.chatInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") this.sendChat();
     });
+    document.getElementById("board-post-btn").addEventListener("click", () => this.postToBoard());
+    document.getElementById("board-title-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.postToBoard();
+    });
+    document.querySelectorAll(".collapsible").forEach((el) => {
+      el.addEventListener("click", () => el.classList.toggle("collapsed"));
+    });
+    this.notepadListEl.addEventListener("click", (e) => {
+      const item = e.target.closest(".notepad-item");
+      if (!item) return;
+      const name = item.dataset.name;
+      this.selectedNotepad = this.selectedNotepad === name ? null : name;
+      this.renderNotepads();
+    });
+  }
+  postToBoard() {
+    const titleInput = document.getElementById("board-title-input");
+    const bodyInput = document.getElementById("board-body-input");
+    const title = titleInput.value.trim();
+    const body = bodyInput.value.trim();
+    if (!title) return;
+    const handle = this.getHandle();
+    this.world.commons.board.post(handle, title, body);
+    titleInput.value = "";
+    bodyInput.value = "";
+    this.onWorldChange();
+    this.render();
   }
   sendChat() {
     const text = this.chatInput.value.trim();
@@ -761,6 +959,8 @@ var HabitatUI = class {
   render() {
     this.renderGameList();
     this.renderBoard();
+    this.renderBulletinBoard();
+    this.renderNotepads();
     this.renderChat();
     this.renderCanvas();
     this.renderActants();
@@ -849,6 +1049,47 @@ var HabitatUI = class {
   renderCanvas() {
     this.canvasEl.textContent = this.world.art.sharedCanvas.read();
   }
+  renderBulletinBoard() {
+    const posts = this.world.commons.board.read();
+    if (posts.length === 0) {
+      this.boardPostsEl.innerHTML = '<div class="board-empty">No posts yet.</div>';
+      return;
+    }
+    this.boardPostsEl.innerHTML = posts.map((p) => {
+      const time = new Date(p.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const date = new Date(p.ts).toLocaleDateString([], { month: "short", day: "numeric" });
+      return `<div class="board-post">
+        <div class="board-post-header">
+          <span class="board-post-title">${escapeHtml(p.title)}</span>
+          <span class="board-post-meta">${escapeHtml(p.handle)} \xB7 ${date} ${time}</span>
+        </div>
+        ${p.body ? `<div class="board-post-body">${escapeHtml(p.body)}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
+  renderNotepads() {
+    const names = this.world.commons.notepads.list();
+    if (names.length === 0) {
+      this.notepadListEl.innerHTML = '<div class="notepad-empty">No notepads yet.</div>';
+      this.notepadViewerEl.innerHTML = "";
+      return;
+    }
+    this.notepadListEl.innerHTML = names.map((name) => {
+      const selected = name === this.selectedNotepad ? " selected" : "";
+      return `<div class="notepad-item${selected}" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
+    }).join("");
+    if (this.selectedNotepad) {
+      const content = this.world.commons.notepads.read(this.selectedNotepad);
+      if (content !== null) {
+        this.notepadViewerEl.innerHTML = `<div class="notepad-viewer-label">${escapeHtml(this.selectedNotepad)}</div>${escapeHtml(content)}`;
+      } else {
+        this.selectedNotepad = null;
+        this.notepadViewerEl.innerHTML = "";
+      }
+    } else {
+      this.notepadViewerEl.innerHTML = "";
+    }
+  }
   renderActants() {
     this.actants.forEach((a, i) => {
       const el = this.panelEls[i];
@@ -867,8 +1108,8 @@ var HabitatUI = class {
         </div>
         ${somaSection("last think", a.lastThinkPrompt || "(none)")}
         ${somaSection("identity", a.soma.identity)}
-        ${somaSection("on_tick", a.soma.on_tick, true)}
         ${somaSection("memory", a.soma.memory)}
+        ${somaSection("on_tick", a.soma.on_tick, true)}
         <div class="soma-section">
           <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
           ${toolsHtml}
@@ -905,7 +1146,9 @@ var SOMAS_KEY = "habitat-somas";
 var GAMES_KEY = "habitat-games";
 var CHAT_KEY = "habitat-chat";
 var CANVAS_KEY = "habitat-canvas";
-var ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY];
+var NOTEPADS_KEY = "habitat-notepads";
+var BOARD_KEY = "habitat-board";
+var ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY, NOTEPADS_KEY, BOARD_KEY];
 function saveSomas(actants2) {
   localStorage.setItem(SOMAS_KEY, JSON.stringify(actants2.map((a) => a.soma)));
 }
@@ -922,6 +1165,8 @@ function saveWorld() {
   localStorage.setItem(GAMES_KEY, JSON.stringify(tttServer.toJSON()));
   localStorage.setItem(CHAT_KEY, JSON.stringify(chatServer.toJSON()));
   localStorage.setItem(CANVAS_KEY, JSON.stringify(canvasServer.toJSON()));
+  localStorage.setItem(NOTEPADS_KEY, JSON.stringify(notepadServer.toJSON()));
+  localStorage.setItem(BOARD_KEY, JSON.stringify(boardServer.toJSON()));
 }
 function saveAll() {
   saveSomas(actants);
@@ -948,7 +1193,21 @@ try {
 } catch {
   canvasServer = new CanvasServer();
 }
-var world = buildWorld(tttServer, chatServer, canvasServer);
+var notepadServer;
+try {
+  const notepadsRaw = localStorage.getItem(NOTEPADS_KEY);
+  notepadServer = notepadsRaw ? NotepadServer.fromJSON(JSON.parse(notepadsRaw)) : new NotepadServer();
+} catch {
+  notepadServer = new NotepadServer();
+}
+var boardServer;
+try {
+  const boardRaw = localStorage.getItem(BOARD_KEY);
+  boardServer = boardRaw ? BoardServer.fromJSON(JSON.parse(boardRaw)) : new BoardServer();
+} catch {
+  boardServer = new BoardServer();
+}
+var world = buildWorld(tttServer, chatServer, canvasServer, notepadServer, boardServer);
 var saved = loadSomas();
 var alphaSoma = saved?.[0] ?? createDefaultSoma("alpha");
 var betaSoma = saved?.[1] ?? createDefaultSoma("beta");
@@ -959,17 +1218,19 @@ var origAlphaTick = alpha.tick.bind(alpha);
 var origBetaTick = beta.tick.bind(beta);
 alpha.tick = async function() {
   await origAlphaTick();
-  saveAll();
+  if (!resetting) saveAll();
 };
 beta.tick = async function() {
   await origBetaTick();
-  saveAll();
+  if (!resetting) saveAll();
 };
 var ui = new HabitatUI(world, actants, saveWorld);
-alpha.startTicking();
-beta.startTicking();
+alpha.startTicking(0);
+beta.startTicking(15e3);
 ui.startRendering();
+var resetting = false;
 document.getElementById("reset-btn").addEventListener("click", () => {
+  resetting = true;
   alpha.stopTicking();
   beta.stopTicking();
   ui.stopRendering();
@@ -984,6 +1245,7 @@ window.__habitat = {
   ui,
   saveAll,
   resetAll: () => {
+    resetting = true;
     alpha.stopTicking();
     beta.stopTicking();
     ui.stopRendering();

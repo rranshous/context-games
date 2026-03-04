@@ -62,6 +62,7 @@
       border-right: 1px solid #1e2a3a;
       min-height: 0;
       max-width: 420px;
+      overflow-y: auto;
     }
     #chat-section {
       flex: 1;
@@ -81,12 +82,8 @@
       white-space: pre;
       margin: 0;
     }
-    .canvas-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #5a7a9a;
-      margin-bottom: 8px;
+    #canvas-section {
+      margin-bottom: 0;
     }
 
     /* Soma panels — one per actant */
@@ -274,6 +271,127 @@
     }
 
     .no-games { color: #3a4a5a; font-style: italic; font-size: 12px; }
+
+    /* Collapsible sections */
+    .collapsible {
+      cursor: pointer;
+      user-select: none;
+    }
+    .collapsible::before {
+      content: '▾ ';
+      font-size: 10px;
+    }
+    .collapsible.collapsed::before {
+      content: '▸ ';
+    }
+    .collapsible.collapsed + .collapsible-body {
+      display: none;
+    }
+
+    /* Board section */
+    #board-section {
+      margin-top: 16px;
+    }
+    #board-posts {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+    }
+    .board-post {
+      background: #111824;
+      border: 1px solid #1a2535;
+      padding: 8px 10px;
+      margin-bottom: 4px;
+    }
+    .board-post-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .board-post-title {
+      color: #8ab8d8;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .board-post-meta {
+      font-size: 10px;
+      color: #3a4a5a;
+    }
+    .board-post-body {
+      font-size: 11px;
+      color: #8a9aaa;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.4;
+    }
+    .board-compose {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .board-compose input, .board-compose textarea {
+      background: #141c2b;
+      border: 1px solid #1e2a3a;
+      color: #c8d0e0;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 4px 8px;
+      resize: none;
+    }
+    .board-empty {
+      color: #3a4a5a;
+      font-style: italic;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+
+    /* Notepad section */
+    #notepad-section {
+      margin-top: 16px;
+    }
+    #notepad-list {
+      margin-bottom: 8px;
+    }
+    .notepad-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      margin-bottom: 2px;
+      background: #111824;
+      border: 1px solid #1a2535;
+      cursor: pointer;
+      font-size: 12px;
+      color: #8ab8d8;
+      transition: background 0.15s;
+    }
+    .notepad-item:hover { background: #182030; }
+    .notepad-item.selected { border-color: #3a6a8a; }
+    .notepad-viewer {
+      background: #0a0e17;
+      border: 1px solid #1a2535;
+      padding: 8px;
+      font-size: 11px;
+      color: #8a9aaa;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.4;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .notepad-viewer:empty { display: none; }
+    .notepad-viewer-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5a7a9a;
+      margin-bottom: 4px;
+    }
+    .notepad-empty {
+      color: #3a4a5a;
+      font-style: italic;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -292,14 +410,41 @@
         <div id="board-area"></div>
       </div>
       <div id="center-panel">
-        <div class="canvas-label">Shared Canvas</div>
-        <pre id="shared-canvas"></pre>
+        <div id="canvas-section">
+          <h2 class="collapsible" data-target="canvas-body">Canvas</h2>
+          <div id="canvas-body" class="collapsible-body">
+            <pre id="shared-canvas"></pre>
+          </div>
+        </div>
+
+        <div id="board-section">
+          <h2 class="collapsible" data-target="board-body">Board</h2>
+          <div id="board-body" class="collapsible-body">
+            <div id="board-posts"></div>
+            <div class="board-compose">
+              <input type="text" id="board-title-input" placeholder="Title..." />
+              <textarea id="board-body-input" placeholder="Write a post..." rows="2"></textarea>
+              <button id="board-post-btn">Post</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="notepad-section">
+          <h2 class="collapsible" data-target="notepad-body">Notepads</h2>
+          <div id="notepad-body" class="collapsible-body">
+            <div id="notepad-list"></div>
+            <div id="notepad-viewer" class="notepad-viewer"></div>
+          </div>
+        </div>
+
         <div id="chat-section">
-          <h2>Chat</h2>
-          <div id="chat-messages"></div>
-          <div class="chat-input-row">
-            <input type="text" id="chat-input" placeholder="Say something..." />
-            <button id="chat-send-btn">Send</button>
+          <h2 class="collapsible" data-target="chat-body">Chat</h2>
+          <div id="chat-body" class="collapsible-body">
+            <div id="chat-messages"></div>
+            <div class="chat-input-row">
+              <input type="text" id="chat-input" placeholder="Say something..." />
+              <button id="chat-send-btn">Send</button>
+            </div>
           </div>
         </div>
       </div>

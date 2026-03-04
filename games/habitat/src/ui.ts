@@ -17,6 +17,10 @@ export class HabitatUI {
   private panelEls: HTMLElement[];
   private handleInput: HTMLInputElement;
   private chatInput: HTMLInputElement;
+  private boardPostsEl: HTMLElement;
+  private notepadListEl: HTMLElement;
+  private notepadViewerEl: HTMLElement;
+  private selectedNotepad: string | null = null;
 
   constructor(world: World, actants: Actant[], onWorldChange: () => void = () => {}) {
     this.world = world;
@@ -33,6 +37,9 @@ export class HabitatUI {
     ];
     this.handleInput = document.getElementById('player-handle') as HTMLInputElement;
     this.chatInput = document.getElementById('chat-input') as HTMLInputElement;
+    this.boardPostsEl = document.getElementById('board-posts')!;
+    this.notepadListEl = document.getElementById('notepad-list')!;
+    this.notepadViewerEl = document.getElementById('notepad-viewer')!;
 
     // Wire create button
     document.getElementById('create-game-btn')!.addEventListener('click', () => {
@@ -69,6 +76,40 @@ export class HabitatUI {
     this.chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.sendChat();
     });
+
+    // Wire board post
+    document.getElementById('board-post-btn')!.addEventListener('click', () => this.postToBoard());
+    (document.getElementById('board-title-input') as HTMLInputElement).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.postToBoard();
+    });
+
+    // Collapsible sections
+    document.querySelectorAll('.collapsible').forEach(el => {
+      el.addEventListener('click', () => el.classList.toggle('collapsed'));
+    });
+
+    // Notepad list — event delegation
+    this.notepadListEl.addEventListener('click', (e) => {
+      const item = (e.target as HTMLElement).closest('.notepad-item') as HTMLElement | null;
+      if (!item) return;
+      const name = item.dataset.name!;
+      this.selectedNotepad = this.selectedNotepad === name ? null : name;
+      this.renderNotepads();
+    });
+  }
+
+  private postToBoard(): void {
+    const titleInput = document.getElementById('board-title-input') as HTMLInputElement;
+    const bodyInput = document.getElementById('board-body-input') as HTMLTextAreaElement;
+    const title = titleInput.value.trim();
+    const body = bodyInput.value.trim();
+    if (!title) return;
+    const handle = this.getHandle();
+    this.world.commons.board.post(handle, title, body);
+    titleInput.value = '';
+    bodyInput.value = '';
+    this.onWorldChange();
+    this.render();
   }
 
   private sendChat(): void {
@@ -90,6 +131,8 @@ export class HabitatUI {
   render(): void {
     this.renderGameList();
     this.renderBoard();
+    this.renderBulletinBoard();
+    this.renderNotepads();
     this.renderChat();
     this.renderCanvas();
     this.renderActants();
@@ -207,6 +250,51 @@ export class HabitatUI {
 
   private renderCanvas(): void {
     this.canvasEl.textContent = this.world.art.sharedCanvas.read();
+  }
+
+  private renderBulletinBoard(): void {
+    const posts = this.world.commons.board.read();
+    if (posts.length === 0) {
+      this.boardPostsEl.innerHTML = '<div class="board-empty">No posts yet.</div>';
+      return;
+    }
+    this.boardPostsEl.innerHTML = posts.map(p => {
+      const time = new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const date = new Date(p.ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return `<div class="board-post">
+        <div class="board-post-header">
+          <span class="board-post-title">${escapeHtml(p.title)}</span>
+          <span class="board-post-meta">${escapeHtml(p.handle)} · ${date} ${time}</span>
+        </div>
+        ${p.body ? `<div class="board-post-body">${escapeHtml(p.body)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  private renderNotepads(): void {
+    const names = this.world.commons.notepads.list();
+    if (names.length === 0) {
+      this.notepadListEl.innerHTML = '<div class="notepad-empty">No notepads yet.</div>';
+      this.notepadViewerEl.innerHTML = '';
+      return;
+    }
+    this.notepadListEl.innerHTML = names.map(name => {
+      const selected = name === this.selectedNotepad ? ' selected' : '';
+      return `<div class="notepad-item${selected}" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
+    }).join('');
+
+    if (this.selectedNotepad) {
+      const content = this.world.commons.notepads.read(this.selectedNotepad);
+      if (content !== null) {
+        this.notepadViewerEl.innerHTML =
+          `<div class="notepad-viewer-label">${escapeHtml(this.selectedNotepad)}</div>${escapeHtml(content)}`;
+      } else {
+        this.selectedNotepad = null;
+        this.notepadViewerEl.innerHTML = '';
+      }
+    } else {
+      this.notepadViewerEl.innerHTML = '';
+    }
   }
 
   private renderActants(): void {
