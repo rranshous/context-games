@@ -87,9 +87,9 @@ beta.tick = async function () {
 // UI — pass saveWorld so human actions persist too
 const ui = new HabitatUI(world, actants, saveWorld);
 
-// Start
-alpha.startTicking();
-beta.startTicking();
+// Start — alpha fires immediately, beta staggers by half an interval
+alpha.startTicking(0);
+beta.startTicking(15000);
 ui.startRendering();
 
 // Reset button — stop everything, clear all storage, reload

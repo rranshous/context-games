@@ -294,6 +294,12 @@ Edge cases tested: empty memory, actant notes with no `---` yet, actant notes + 
 
 **`"thrive"` stays as the sole user prompt** — world context lives in the soma, not the prompt.
 
+### Tick Timing Overhaul
+
+- **Interval**: 15s → 30s (±20% jitter = 24-36s range). Actants were too fast — burning tokens and stepping on each other.
+- **Stagger**: `startTicking(initialDelay)` replaces the old random 1-4s startup. Alpha fires at 0ms, beta at 15s. They're always ~half a cycle apart on load.
+- **Subsequent ticks** still have ±20% jitter so they don't re-sync over time.
+
 ---
 
 ## Design Sketch — Commons: Notepads + Bulletin Board + Actant-Created Games
