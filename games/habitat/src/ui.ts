@@ -2,9 +2,6 @@
 
 import { type World } from './world';
 import { type Actant } from './actant';
-import { COLOR_LEGEND, CANVAS_WIDTH, CANVAS_HEIGHT } from './canvas-server';
-
-const CELL_SIZE = 10; // pixels per canvas cell
 
 export class HabitatUI {
   private world: World;
@@ -15,8 +12,7 @@ export class HabitatUI {
   private gameListEl: HTMLElement;
   private boardAreaEl: HTMLElement;
   private chatEl: HTMLElement;
-  private canvasEl: HTMLCanvasElement;
-  private canvasCtx: CanvasRenderingContext2D;
+  private canvasEl: HTMLElement;
   private panelEls: HTMLElement[];
   private handleInput: HTMLInputElement;
   private chatInput: HTMLInputElement;
@@ -28,10 +24,7 @@ export class HabitatUI {
     this.gameListEl = document.getElementById('game-list')!;
     this.boardAreaEl = document.getElementById('board-area')!;
     this.chatEl = document.getElementById('chat-messages')!;
-    this.canvasEl = document.getElementById('shared-canvas') as HTMLCanvasElement;
-    this.canvasEl.width = CANVAS_WIDTH * CELL_SIZE;
-    this.canvasEl.height = CANVAS_HEIGHT * CELL_SIZE;
-    this.canvasCtx = this.canvasEl.getContext('2d')!;
+    this.canvasEl = document.getElementById('shared-canvas')!;
     this.panelEls = [
       document.getElementById('alpha-panel')!,
       document.getElementById('beta-panel')!,
@@ -204,15 +197,7 @@ export class HabitatUI {
   }
 
   private renderCanvas(): void {
-    const grid = this.world.art.sharedCanvas.readGrid();
-    const ctx = this.canvasCtx;
-    for (let y = 0; y < CANVAS_HEIGHT; y++) {
-      for (let x = 0; x < CANVAS_WIDTH; x++) {
-        const ch = grid[y][x];
-        ctx.fillStyle = COLOR_LEGEND[ch] || COLOR_LEGEND['.'];
-        ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-      }
-    }
+    this.canvasEl.textContent = this.world.art.sharedCanvas.read();
   }
 
   private renderActants(): void {

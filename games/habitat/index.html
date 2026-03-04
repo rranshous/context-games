@@ -53,7 +53,14 @@
     }
     #shared-canvas {
       border: 1px solid #1e2a3a;
-      image-rendering: pixelated;
+      background: #0a0e17;
+      padding: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.2;
+      color: #8a9aaa;
+      white-space: pre;
+      margin: 0;
     }
     .canvas-label {
       font-size: 10px;
@@ -281,6 +288,7 @@
           <label>Handle:</label>
           <input type="text" id="player-handle" value="Player" />
           <button id="create-game-btn">Create Game</button>
+          <button id="reset-btn" title="Reset somas, games, and all state">Reset</button>
         </div>
         <div id="game-list" class="game-list"></div>
         <div id="board-area"></div>
@@ -296,7 +304,7 @@
     </div>
     <div id="center-panel">
       <div class="canvas-label">Shared Canvas</div>
-      <canvas id="shared-canvas"></canvas>
+      <pre id="shared-canvas"></pre>
     </div>
     <div id="alpha-panel" class="soma-panel"></div>
     <div id="beta-panel" class="soma-panel"></div>

@@ -63,7 +63,16 @@ alpha.startTicking();
 beta.startTicking();
 ui.startRendering();
 
+// Reset button — stop everything, clear storage, reload
+document.getElementById('reset-btn')!.addEventListener('click', () => {
+  alpha.stopTicking();
+  beta.stopTicking();
+  ui.stopRendering();
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+});
+
 console.log('[HABITAT] Initialized — 2 actants, tic-tac-toe server ready');
 
 // Expose for console access
-(window as any).__habitat = { world, alpha, beta, ui, saveSomas: () => saveSomas(actants), resetSomas: () => { localStorage.removeItem(STORAGE_KEY); location.reload(); } };
+(window as any).__habitat = { world, alpha, beta, ui, saveSomas: () => saveSomas(actants), resetSomas: () => { alpha.stopTicking(); beta.stopTicking(); ui.stopRendering(); localStorage.removeItem(STORAGE_KEY); location.reload(); } };

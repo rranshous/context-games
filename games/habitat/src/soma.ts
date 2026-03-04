@@ -114,28 +114,26 @@ const DEFAULT_CHAT_TOOLS: SomaTool[] = [
 const DEFAULT_CANVAS_TOOLS: SomaTool[] = [
   {
     name: 'read_canvas',
-    description: 'Read the shared 40×20 ASCII art canvas. Returns the full canvas and color legend. Each character maps to a color: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black. Space is transparent when painting.',
+    description: 'Read the shared 40×20 ASCII art canvas. Returns the full canvas as a multi-line string.',
     input_schema: {
       type: 'object',
       properties: {},
       additionalProperties: false,
     },
-    function_body: `function(input, me, world) { return { canvas: world.art.sharedCanvas.read(), legend: world.art.sharedCanvas.legend(), width: 40, height: 20 }; }`,
+    function_body: `function(input, me, world) { return world.art.sharedCanvas.read(); }`,
   },
   {
     name: 'paint_canvas',
-    description: 'Paint ASCII art onto the shared 40×20 canvas at position (x, y). The art is a multi-line string — each character is placed on the canvas, spaces are transparent (skip). Use the color legend chars to draw: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black.',
+    description: 'Replace the entire shared 40×20 ASCII art canvas. Provide a full multi-line ASCII art string (40 chars wide, 20 lines tall). This overwrites everything — read the canvas first if you want to preserve existing art.',
     input_schema: {
       type: 'object',
       properties: {
-        x: { type: 'number', description: 'Left column (0-39)' },
-        y: { type: 'number', description: 'Top row (0-19)' },
-        art: { type: 'string', description: 'Multi-line ASCII art string. Each char maps to a color. Spaces are transparent.' },
+        art: { type: 'string', description: 'Full 40×20 ASCII art (multi-line string). Lines are padded/clipped to fit.' },
       },
-      required: ['x', 'y', 'art'],
+      required: ['art'],
       additionalProperties: false,
     },
-    function_body: `function(input, me, world) { return world.art.sharedCanvas.paint(input.x, input.y, input.art); }`,
+    function_body: `function(input, me, world) { world.art.sharedCanvas.paint(input.art); return { success: true }; }`,
   },
 ];
 

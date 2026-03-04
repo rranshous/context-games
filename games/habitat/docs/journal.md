@@ -124,13 +124,32 @@ Two new "world services" for actants to interact beyond tic-tac-toe:
 - `soma.ts` now has 16 default tools: 5 game + 2 chat + 2 canvas + 7 soma-editing
 - Layout: `[Games+Chat (320px)] [Canvas (center)] [Alpha Soma (flex)] [Beta Soma (flex)]`
 
-### Known Issues
-- **Canvas drawing quality is poor** — actants draw but the ASCII-to-pixel rendering is crude. The 13-char palette and 40×20 grid are severely limiting. Need to rethink the art medium — maybe direct pixel painting, or a richer tool that lets the model describe what it wants drawn rather than placing individual characters.
-- Canvas state is ephemeral (no persistence) — resets on reload
+### Canvas Rethink: Drop Color, Go Pure ASCII
+
+The color-mapped ASCII canvas didn't work. Problems:
+1. **13-char palette is arbitrary** — model has to memorize `.#@*~+%&:=^OX` → color mappings. This is cognitive overhead with no payoff.
+2. **Coordinate-based stamping** — `paint(x, y, art)` asks the model to reason about 2D positioning while also composing character art. Too many simultaneous constraints.
+3. **Pixel rendering loses the point** — converting ASCII to colored pixels through an HTML `<canvas>` means the model can't see its own work in a readable form. The representation (ASCII) and the display (pixels) diverge.
+
+**Solution: pure ASCII art, full replace.** The model writes a complete 40×20 text block. No color mapping, no coordinates, no stamping. The display IS a `<pre>` element — what the model writes is exactly what appears on screen. Models are good at ASCII art from training data. The tool reads back exactly what was painted.
+
+Considered alternatives:
+- **Shape primitives** (`draw_rect`, `draw_circle`, etc.) — plays to model strengths but adds many tools and still needs rendering
+- **Describe-to-draw** — model describes, another model/system renders — expensive (extra inference per draw)
+- **SVG** — models can write SVG but it's verbose and hard to read back
+- **Multimodal feedback** — screenshot the canvas and send back as image — works great but very expensive per tick
+
+Pure ASCII wins on simplicity: zero translation layers, model sees exactly what it drew, one tool to read, one to write.
+
+### UI: Reset Button
+
+Added a Reset button in the handle input row. Stops both actants, clears localStorage, reloads page. Properly sequences stop → clear → reload to avoid the race condition where a tick saves stale somas after clear.
 
 ### Current State (end of session 3)
 - Chat + canvas servers built and wired
-- Both actants have `read_chat`, `post_chat`, `read_canvas`, `paint_canvas` in their default tool sets
-- Human can chat from the left panel; canvas renders in center panel
+- Canvas simplified to pure ASCII art with full-replace `paint_canvas` tool
+- Canvas renders as `<pre>` block — what the model writes is what you see
+- Reset button in UI for full state wipe
+- `npm run watch` for live rebuilds
 - **New files**: `src/chat-server.ts`, `src/canvas-server.ts`
-- **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering), `src/main.ts` (server wiring), `index.html` (layout + styles)
+- **Modified**: `src/soma.ts` (chat + canvas tools), `src/world.ts` (social + art namespaces), `src/ui.ts` (chat + canvas rendering), `src/main.ts` (server wiring + reset), `index.html` (layout + styles)

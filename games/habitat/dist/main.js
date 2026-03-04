@@ -106,87 +106,27 @@ var ChatServer = class {
 // src/canvas-server.ts
 var CANVAS_WIDTH = 40;
 var CANVAS_HEIGHT = 20;
-var EMPTY_CHAR = ".";
-var COLOR_LEGEND = {
-  ".": "#1a1a2e",
-  // dark background
-  " ": "#000000",
-  // void/black
-  "#": "#e0e0e0",
-  // white
-  "@": "#4488cc",
-  // blue
-  "*": "#ddcc44",
-  // yellow
-  "~": "#44ccbb",
-  // cyan
-  "+": "#44bb66",
-  // green
-  "%": "#cc4444",
-  // red
-  "&": "#bb44cc",
-  // magenta
-  ":": "#cc8833",
-  // orange
-  "=": "#7a6644",
-  // brown
-  "^": "#88aacc",
-  // light blue
-  "O": "#ffffff",
-  // bright white
-  "X": "#222222"
-  // near black
-};
+var BLANK = Array(CANVAS_HEIGHT).fill(".".repeat(CANVAS_WIDTH)).join("\n");
 var CanvasServer = class {
-  grid;
-  constructor() {
-    this.grid = [];
-    for (let y = 0; y < CANVAS_HEIGHT; y++) {
-      this.grid.push(Array(CANVAS_WIDTH).fill(EMPTY_CHAR));
-    }
-  }
+  content = BLANK;
   /** Read the full canvas as a multi-line string. */
   read() {
-    return this.grid.map((row) => row.join("")).join("\n");
+    return this.content;
   }
-  /** Read as a 2D array (for rendering). */
-  readGrid() {
-    return this.grid.map((row) => [...row]);
-  }
-  /** Get the color legend as a description string. */
-  legend() {
-    return Object.entries(COLOR_LEGEND).map(([ch, color]) => `${ch === " " ? "(space)" : ch} = ${color}`).join("\n");
-  }
-  /**
-   * Paint a multi-line ASCII art block at position (x, y).
-   * Space characters are transparent (don't overwrite).
-   * Lines are clipped to canvas bounds.
-   */
-  paint(x, y, art) {
-    const lines = art.split("\n");
-    let painted = 0;
-    for (let dy = 0; dy < lines.length; dy++) {
-      const gy = y + dy;
-      if (gy < 0 || gy >= CANVAS_HEIGHT) continue;
-      for (let dx = 0; dx < lines[dy].length; dx++) {
-        const gx = x + dx;
-        if (gx < 0 || gx >= CANVAS_WIDTH) continue;
-        const ch = lines[dy][dx];
-        if (ch === " ") continue;
-        this.grid[gy][gx] = ch;
-        painted++;
-      }
-    }
-    console.log(`[CANVAS] paint at (${x},${y}): ${painted} chars`);
-    return { painted };
-  }
-  /** Clear the canvas to empty. */
-  clear() {
+  /** Replace the entire canvas with new ASCII art. Pads/clips to 40×20. */
+  paint(art) {
+    const lines = art.split("\n").slice(0, CANVAS_HEIGHT);
+    const padded = [];
     for (let y = 0; y < CANVAS_HEIGHT; y++) {
-      for (let x = 0; x < CANVAS_WIDTH; x++) {
-        this.grid[y][x] = EMPTY_CHAR;
-      }
+      const line = lines[y] || "";
+      padded.push(line.substring(0, CANVAS_WIDTH).padEnd(CANVAS_WIDTH));
     }
+    this.content = padded.join("\n");
+    console.log(`[CANVAS] painted (${art.length} chars input)`);
+  }
+  /** Clear the canvas to blank. */
+  clear() {
+    this.content = BLANK;
     console.log("[CANVAS] cleared");
   }
 };
@@ -286,28 +226,26 @@ var DEFAULT_CHAT_TOOLS = [
 var DEFAULT_CANVAS_TOOLS = [
   {
     name: "read_canvas",
-    description: "Read the shared 40\xD720 ASCII art canvas. Returns the full canvas and color legend. Each character maps to a color: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black. Space is transparent when painting.",
+    description: "Read the shared 40\xD720 ASCII art canvas. Returns the full canvas as a multi-line string.",
     input_schema: {
       type: "object",
       properties: {},
       additionalProperties: false
     },
-    function_body: `function(input, me, world) { return { canvas: world.art.sharedCanvas.read(), legend: world.art.sharedCanvas.legend(), width: 40, height: 20 }; }`
+    function_body: `function(input, me, world) { return world.art.sharedCanvas.read(); }`
   },
   {
     name: "paint_canvas",
-    description: "Paint ASCII art onto the shared 40\xD720 canvas at position (x, y). The art is a multi-line string \u2014 each character is placed on the canvas, spaces are transparent (skip). Use the color legend chars to draw: . = dark bg, # = white, @ = blue, * = yellow, ~ = cyan, + = green, % = red, & = magenta, : = orange, = = brown, ^ = light blue, O = bright white, X = near black.",
+    description: "Replace the entire shared 40\xD720 ASCII art canvas. Provide a full multi-line ASCII art string (40 chars wide, 20 lines tall). This overwrites everything \u2014 read the canvas first if you want to preserve existing art.",
     input_schema: {
       type: "object",
       properties: {
-        x: { type: "number", description: "Left column (0-39)" },
-        y: { type: "number", description: "Top row (0-19)" },
-        art: { type: "string", description: "Multi-line ASCII art string. Each char maps to a color. Spaces are transparent." }
+        art: { type: "string", description: "Full 40\xD720 ASCII art (multi-line string). Lines are padded/clipped to fit." }
       },
-      required: ["x", "y", "art"],
+      required: ["art"],
       additionalProperties: false
     },
-    function_body: `function(input, me, world) { return world.art.sharedCanvas.paint(input.x, input.y, input.art); }`
+    function_body: `function(input, me, world) { world.art.sharedCanvas.paint(input.art); return { success: true }; }`
   }
 ];
 var DEFAULT_SOMA_TOOLS = [
@@ -485,9 +423,7 @@ function buildWorld(tttServer2, chatServer2, canvasServer2) {
     art: {
       sharedCanvas: {
         read: () => canvasServer2.read(),
-        readGrid: () => canvasServer2.readGrid(),
-        legend: () => canvasServer2.legend(),
-        paint: (x, y, art) => canvasServer2.paint(x, y, art),
+        paint: (art) => canvasServer2.paint(art),
         clear: () => canvasServer2.clear()
       }
     }
@@ -716,7 +652,6 @@ var Actant = class {
 };
 
 // src/ui.ts
-var CELL_SIZE = 10;
 var HabitatUI = class {
   world;
   actants;
@@ -726,7 +661,6 @@ var HabitatUI = class {
   boardAreaEl;
   chatEl;
   canvasEl;
-  canvasCtx;
   panelEls;
   handleInput;
   chatInput;
@@ -737,9 +671,6 @@ var HabitatUI = class {
     this.boardAreaEl = document.getElementById("board-area");
     this.chatEl = document.getElementById("chat-messages");
     this.canvasEl = document.getElementById("shared-canvas");
-    this.canvasEl.width = CANVAS_WIDTH * CELL_SIZE;
-    this.canvasEl.height = CANVAS_HEIGHT * CELL_SIZE;
-    this.canvasCtx = this.canvasEl.getContext("2d");
     this.panelEls = [
       document.getElementById("alpha-panel"),
       document.getElementById("beta-panel")
@@ -875,15 +806,7 @@ var HabitatUI = class {
     this.chatEl.scrollTop = this.chatEl.scrollHeight;
   }
   renderCanvas() {
-    const grid = this.world.art.sharedCanvas.readGrid();
-    const ctx = this.canvasCtx;
-    for (let y = 0; y < CANVAS_HEIGHT; y++) {
-      for (let x = 0; x < CANVAS_WIDTH; x++) {
-        const ch = grid[y][x];
-        ctx.fillStyle = COLOR_LEGEND[ch] || COLOR_LEGEND["."];
-        ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-      }
-    }
+    this.canvasEl.textContent = this.world.art.sharedCanvas.read();
   }
   renderActants() {
     this.actants.forEach((a, i) => {
@@ -975,8 +898,18 @@ var ui = new HabitatUI(world, actants);
 alpha.startTicking();
 beta.startTicking();
 ui.startRendering();
+document.getElementById("reset-btn").addEventListener("click", () => {
+  alpha.stopTicking();
+  beta.stopTicking();
+  ui.stopRendering();
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+});
 console.log("[HABITAT] Initialized \u2014 2 actants, tic-tac-toe server ready");
 window.__habitat = { world, alpha, beta, ui, saveSomas: () => saveSomas(actants), resetSomas: () => {
+  alpha.stopTicking();
+  beta.stopTicking();
+  ui.stopRendering();
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
 } };

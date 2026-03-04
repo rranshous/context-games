@@ -24,9 +24,7 @@ export interface World {
   art: {
     sharedCanvas: {
       read(): string;
-      readGrid(): string[][];
-      legend(): string;
-      paint(x: number, y: number, art: string): { painted: number };
+      paint(art: string): void;
       clear(): void;
     };
   };
@@ -53,9 +51,7 @@ export function buildWorld(tttServer: TicTacToeServer, chatServer: ChatServer, c
     art: {
       sharedCanvas: {
         read: () => canvasServer.read(),
-        readGrid: () => canvasServer.readGrid(),
-        legend: () => canvasServer.legend(),
-        paint: (x, y, art) => canvasServer.paint(x, y, art),
+        paint: (art) => canvasServer.paint(art),
         clear: () => canvasServer.clear(),
       },
     },
