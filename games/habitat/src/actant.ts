@@ -12,7 +12,7 @@ export interface MeSectionAPI {
 }
 
 export interface MeAPI {
-  thinkAbout(prompt: string): Promise<void>;
+  thinkAbout(prompt: string): Promise<string>;
   gamer_handle: MeSectionAPI;
   identity: MeSectionAPI;
   on_tick: MeSectionAPI;
@@ -104,7 +104,7 @@ export class Actant {
 
   // ── thinkAbout ────────────────────────────────────────────
 
-  private async thinkAbout(prompt: string): Promise<void> {
+  private async thinkAbout(prompt: string): Promise<string> {
     this.lastThinkPrompt = prompt;
     console.log(`[${this.tag}] thinkAbout("${prompt.substring(0, 80)}${prompt.length > 80 ? '...' : ''}")`);
 
@@ -128,7 +128,7 @@ export class Actant {
       return fn(input, me, world);
     };
 
-    await agenticLoop(tag, system, prompt, tools, executeTool);
+    return agenticLoop(tag, system, prompt, tools, executeTool);
   }
 
   // ── Tick loop ─────────────────────────────────────────────

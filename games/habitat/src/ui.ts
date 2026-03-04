@@ -48,6 +48,22 @@ export class HabitatUI {
       }
     });
 
+    // Board click — event delegation so clicks survive innerHTML re-renders
+    this.boardAreaEl.addEventListener('click', (e) => {
+      const cell = (e.target as HTMLElement).closest('.cell:not(.disabled)') as HTMLElement | null;
+      if (!cell) return;
+      const pos = parseInt(cell.dataset.pos!, 10);
+      const handle = this.getHandle();
+      if (!this.selectedGameId) return;
+      try {
+        this.world.games.ticTacToe.makeMove(this.selectedGameId, handle, pos);
+        this.onWorldChange();
+        this.render();
+      } catch (err) {
+        console.error('[UI] Move error:', err);
+      }
+    });
+
     // Wire chat send
     document.getElementById('chat-send-btn')!.addEventListener('click', () => this.sendChat());
     this.chatInput.addEventListener('keydown', (e) => {
@@ -171,21 +187,8 @@ export class HabitatUI {
         <div class="board">${cells}</div>
       </div>`;
 
-    // Click to make move
-    if (isMyTurn) {
-      this.boardAreaEl.querySelectorAll('.cell:not(.disabled)').forEach(el => {
-        el.addEventListener('click', () => {
-          const pos = parseInt((el as HTMLElement).dataset.pos!, 10);
-          try {
-            this.world.games.ticTacToe.makeMove(game.id, handle, pos);
-            this.onWorldChange();
-            this.render();
-          } catch (err) {
-            console.error('[UI] Move error:', err);
-          }
-        });
-      });
-    }
+    // Click handling is done via event delegation on boardAreaEl (see constructor).
+    // The .disabled class on cells prevents clicks from registering.
   }
 
   private renderChat(): void {

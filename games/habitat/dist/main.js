@@ -397,7 +397,9 @@ var DEFAULT_SOMA_TOOLS = [
 }`
   }
 ];
-var DEFAULT_ON_TICK = `async function(me, world) { await me.thinkAbout("thrive"); }`;
+var DEFAULT_ON_TICK = `async function(me, world) {
+  const response = await me.thinkAbout("thrive");
+}`;
 function createDefaultSoma(id) {
   return {
     id,
@@ -486,6 +488,7 @@ async function agenticLoop(tag, system, userPrompt, tools, executeTool, maxTurns
     { role: "user", content: userPrompt }
   ];
   let turns = 0;
+  let finalText = "";
   while (turns < maxTurns) {
     turns++;
     const response = await callAPI({
@@ -504,6 +507,7 @@ async function agenticLoop(tag, system, userPrompt, tools, executeTool, maxTurns
     const toolResults = [];
     for (const block of response.content) {
       if (block.type === "text" && block.text) {
+        finalText = block.text;
         console.log(`[${tag}] \u{1F4AD} ${block.text.substring(0, 200)}${block.text.length > 200 ? "..." : ""}`);
       }
       if (block.type === "tool_use" && block.name && block.id) {
@@ -541,6 +545,7 @@ async function agenticLoop(tag, system, userPrompt, tools, executeTool, maxTurns
     ];
   }
   console.log(`[${tag}] \u2190 Loop complete (${turns} turn${turns !== 1 ? "s" : ""})`);
+  return finalText;
 }
 
 // src/actant.ts
@@ -640,7 +645,7 @@ var Actant = class {
       if (!fn) throw new Error(`Failed to compile tool: ${name}`);
       return fn(input, me, world2);
     };
-    await agenticLoop(tag, system, prompt, tools, executeTool);
+    return agenticLoop(tag, system, prompt, tools, executeTool);
   }
   // ── Tick loop ─────────────────────────────────────────────
   async tick() {
@@ -719,6 +724,20 @@ var HabitatUI = class {
         this.render();
       } catch (err) {
         console.error("[UI] Create game error:", err);
+      }
+    });
+    this.boardAreaEl.addEventListener("click", (e) => {
+      const cell = e.target.closest(".cell:not(.disabled)");
+      if (!cell) return;
+      const pos = parseInt(cell.dataset.pos, 10);
+      const handle = this.getHandle();
+      if (!this.selectedGameId) return;
+      try {
+        this.world.games.ticTacToe.makeMove(this.selectedGameId, handle, pos);
+        this.onWorldChange();
+        this.render();
+      } catch (err) {
+        console.error("[UI] Move error:", err);
       }
     });
     document.getElementById("chat-send-btn").addEventListener("click", () => this.sendChat());
@@ -814,20 +833,6 @@ var HabitatUI = class {
         <div class="board-info">${info}</div>
         <div class="board">${cells}</div>
       </div>`;
-    if (isMyTurn) {
-      this.boardAreaEl.querySelectorAll(".cell:not(.disabled)").forEach((el) => {
-        el.addEventListener("click", () => {
-          const pos = parseInt(el.dataset.pos, 10);
-          try {
-            this.world.games.ticTacToe.makeMove(game.id, handle, pos);
-            this.onWorldChange();
-            this.render();
-          } catch (err) {
-            console.error("[UI] Move error:", err);
-          }
-        });
-      });
-    }
   }
   renderChat() {
     const messages = this.world.social.chat.all();

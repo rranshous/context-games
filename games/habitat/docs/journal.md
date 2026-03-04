@@ -192,3 +192,38 @@ Both actants were syncing up on the fixed 15s interval — thinking simultaneous
 - Consider: should canvas have authorship tracking? History? Undo?
 - Consider: more games beyond tic-tac-toe (the server pattern makes this easy)
 - Consider: could actants create games for each other to play? (meta-game creation)
+
+---
+
+## Session 4 — TTT Click Bug + thinkAbout Return Value (2026-03-03)
+
+### TTT Click Bug Fix
+
+Human player reported being unable to place X's after ~3 moves. Root cause: the 500ms render loop replaced `boardAreaEl.innerHTML` every cycle, destroying all DOM elements and their click handlers. If a user's mousedown landed on element A, then a re-render fired before mouseup, the mouseup hit the NEW element B — and the browser never fires a `click` event because the targets don't match. This silently swallowed clicks.
+
+**Fix**: event delegation. One persistent click handler on `boardAreaEl` in the constructor, using `closest('.cell:not(.disabled)')` to find the target. Clicks now survive innerHTML replacements.
+
+### thinkAbout Return Value
+
+`agenticLoop` → `thinkAbout` now returns the model's final text (`string`) instead of `void`. Default on_tick captures it: `const response = await me.thinkAbout("thrive");` — the return value is the model's last text block, currently unused. Makes the API discoverable for on_tick self-modification.
+
+### Ideas for Next Session
+
+**Smarter default on_tick**: the default tick just calls `thinkAbout("thrive")` cold. The model has to spend tool calls every tick just to read context (canvas, games). Ideas:
+- Default on_tick reads the canvas and writes it into memory, so the model sees current canvas state in its soma without a tool call
+- Default on_tick populates the list of active games the actant is playing into memory
+- Both give the model examples of how to use `me`/`world` APIs in on_tick code, seeding self-modification
+
+**Soma size limits**: somas can grow unbounded as actants accumulate memory, journal, and custom tools. Need some kind of budget — maybe a max total character count across all sections, or per-section caps. Without limits, system prompts inflate indefinitely and token costs spiral.
+
+**Human canvas interaction**: let the human draw/erase on the shared canvas directly — click-to-place characters, eraser mode, maybe a small palette. Right now only actants can paint (via tool calls). The human should be an equal participant.
+
+**Collapsible soma inspector panels**: the actant inspection panels show everything at once. Add collapse/expand toggles per section (identity, on_tick, memory, custom_tools) so you can focus on what you care about. Collapsed state could persist across re-renders.
+
+**Expandable custom tool definitions**: currently the inspector only shows tool name + description. Add a click-to-expand that reveals the full definition — input_schema and function_body. Important for debugging what actants have built/modified.
+
+### Current State (end of session 4)
+- TTT click bug fixed (event delegation)
+- `thinkAbout` returns model's final text; default on_tick captures it in `response` var
+- All code building clean, no behavior regressions
+- Existing actant somas in localStorage unaffected (on_tick is per-soma, only new/reset somas get the updated default)

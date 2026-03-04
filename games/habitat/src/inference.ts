@@ -49,7 +49,7 @@ export async function agenticLoop(
   tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>,
   executeTool: ToolExecutor,
   maxTurns: number = 10,
-): Promise<void> {
+): Promise<string> {
   console.log(`[${tag}] → API call (system: ${system.length} chars, tools: ${tools.length})`);
 
   let messages: Array<Record<string, unknown>> = [
@@ -57,6 +57,7 @@ export async function agenticLoop(
   ];
 
   let turns = 0;
+  let finalText = '';
 
   while (turns < maxTurns) {
     turns++;
@@ -81,6 +82,7 @@ export async function agenticLoop(
 
     for (const block of response.content) {
       if (block.type === 'text' && block.text) {
+        finalText = block.text;
         console.log(`[${tag}] 💭 ${block.text.substring(0, 200)}${block.text.length > 200 ? '...' : ''}`);
       }
       if (block.type === 'tool_use' && block.name && block.id) {
@@ -123,4 +125,5 @@ export async function agenticLoop(
   }
 
   console.log(`[${tag}] ← Loop complete (${turns} turn${turns !== 1 ? 's' : ''})`);
+  return finalText;
 }
