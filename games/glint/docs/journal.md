@@ -765,7 +765,9 @@ Binary concealment was a hard on/off switch — `squid.concealed` gated sensor d
 - Default shark on_tick now tracks its own movement via `me.memory`:
   - `prevx`/`prevz` — stored each tick, used next tick to compute frame distance
   - `traveldist` — rolling ~5s exponential decay of distance traveled
+  - `ticks` — frame counter since last reflection (resets when model rewrites memory)
 - Shark can self-diagnose stuck code: `traveldist:0.00` in memory during reflection = not moving
+- `ticks:3600` tells the model it ran blind for ~3600 frames (~60s at 60fps) between reasoning opportunities
 - Fully embodied — the engine doesn't compute telemetry. The soma owns its self-awareness.
 - Reflection can evolve better tracking or drop it if wasteful.
 

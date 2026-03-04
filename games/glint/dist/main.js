@@ -1207,6 +1207,8 @@ async function on_tick(me, world) {
   const lastKnown = lkm ? { x: +lkm[1], z: +lkm[2] } : null;
   const llm = mem.match(/lastlog:([\\d.]+)/);
   const lastLog = llm ? +llm[1] : 0;
+  const tkm = mem.match(/ticks:([\\d]+)/);
+  const ticks = tkm ? +tkm[1] + 1 : 1;
 
   // Self-tracking: position + travel distance (rolling ~5s decay)
   const pxm = mem.match(/prevx:([-.\\d]+)/);
@@ -1221,7 +1223,7 @@ async function on_tick(me, world) {
   const travelDist = oldDist * decay + frameDist;
 
   // Preserve any notes (lines not matching state keys)
-  const notes = mem.replace(/^(pursuing|lost|lastknown|lastlog|prevx|prevz|traveldist):.*$/gm, '').trim();
+  const notes = mem.replace(/^(pursuing|lost|lastknown|lastlog|prevx|prevz|traveldist|ticks):.*$/gm, '').trim();
 
   let nowPursuing = false;
   let nowLostTime = lostTime;
@@ -1280,12 +1282,13 @@ async function on_tick(me, world) {
     'lastlog:' + nowLastLog.toFixed(1) + '\\n' +
     'prevx:' + pos.x.toFixed(1) + '\\n' +
     'prevz:' + pos.z.toFixed(1) + '\\n' +
-    'traveldist:' + travelDist.toFixed(2) +
+    'traveldist:' + travelDist.toFixed(2) + '\\n' +
+    'ticks:' + ticks +
     (notes ? '\\n' + notes : ''));
 }
 `.trim();
 var DEFAULT_SHARK_IDENTITY = "The reef shark hunts by sight and speed \u2014 a torpedo with teeth, closing distance before prey can reach cover.";
-var DEFAULT_SHARK_MEMORY = "pursuing:no\nlost:999\nlastknown:none\nlastlog:0\nprevx:0\nprevz:0\ntraveldist:0\nNo hunts yet. Patrol the reef, chase what moves.";
+var DEFAULT_SHARK_MEMORY = "pursuing:no\nlost:999\nlastknown:none\nlastlog:0\nprevx:0\nprevz:0\ntraveldist:0\nticks:0\nNo hunts yet. Patrol the reef, chase what moves.";
 function createDefaultSharkSoma(id) {
   return {
     id,
