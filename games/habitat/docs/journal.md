@@ -257,7 +257,7 @@ async function(me, world) {
   let snapshot = "";
   if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\n";
   if (chat.length) snapshot += "recent chat:\n" + chat.map(m => m.handle + ": " + m.text).join("\n") + "\n";
-  if (canvas.trim()) snapshot += "canvas has content\n";
+  if (canvas.trim()) snapshot += "canvas:\n" + canvas + "\n";
 
   // write snapshot to auto-memory section (everything after ---)
   const mem = me.memory.read();
