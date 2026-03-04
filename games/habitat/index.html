@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Habitat</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0e17;
+      color: #c8d0e0;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Left panel — games */
+    #games-panel {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      border-right: 1px solid #1e2a3a;
+    }
+
+    /* Right panel — actants */
+    #actants-panel {
+      width: 320px;
+      padding: 20px;
+      overflow-y: auto;
+      background: #0d1220;
+    }
+
+    h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #5a7a9a;
+      margin-bottom: 16px;
+    }
+
+    /* Player handle input */
+    .handle-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .handle-input label {
+      color: #5a7a9a;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .handle-input input {
+      background: #141c2b;
+      border: 1px solid #1e2a3a;
+      color: #c8d0e0;
+      font-family: inherit;
+      font-size: 14px;
+      padding: 4px 8px;
+      width: 120px;
+    }
+
+    /* Buttons */
+    button {
+      background: #1a2535;
+      border: 1px solid #2a3a4a;
+      color: #8aa0b8;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #243040; color: #c8d0e0; }
+    button:disabled { opacity: 0.3; cursor: default; }
+
+    /* Game list */
+    .game-list { margin-bottom: 20px; }
+    .game-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      background: #111824;
+      border: 1px solid #1a2535;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .game-item:hover { background: #182030; }
+    .game-item.selected { border-color: #3a6a8a; }
+    .game-status { font-size: 11px; text-transform: uppercase; }
+    .game-status.waiting { color: #d4a040; }
+    .game-status.active { color: #40b060; }
+    .game-status.finished { color: #666; }
+
+    /* Tic-tac-toe board */
+    .board-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 20px;
+    }
+    .board-info {
+      font-size: 12px;
+      color: #5a7a9a;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      grid-template-rows: repeat(3, 80px);
+      gap: 4px;
+    }
+    .cell {
+      background: #141c2b;
+      border: 1px solid #1e2a3a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cell:hover { background: #1a2535; }
+    .cell.x { color: #60a0d0; }
+    .cell.o { color: #d06060; }
+    .cell.disabled { cursor: default; opacity: 0.6; }
+
+    /* Actant cards */
+    .actant-card {
+      background: #111824;
+      border: 1px solid #1a2535;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .actant-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .actant-name {
+      font-size: 14px;
+      font-weight: bold;
+      color: #8ab8d8;
+    }
+    .actant-status {
+      font-size: 11px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+    }
+    .actant-status.idle { color: #5a7a9a; }
+    .actant-status.thinking { color: #d4a040; }
+    .actant-section {
+      font-size: 11px;
+      color: #4a6070;
+      margin-top: 8px;
+    }
+    .actant-section-label {
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+    }
+    .actant-section-content {
+      color: #7a8a98;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 60px;
+      overflow: hidden;
+    }
+
+    .no-games { color: #3a4a5a; font-style: italic; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="games-panel">
+      <h2>Games</h2>
+      <div class="handle-input">
+        <label>Handle:</label>
+        <input type="text" id="player-handle" value="Player" />
+        <button id="create-game-btn">Create Game</button>
+      </div>
+      <div id="game-list" class="game-list"></div>
+      <div id="board-area"></div>
+    </div>
+    <div id="actants-panel">
+      <h2>Actants</h2>
+      <div id="actant-cards"></div>
+    </div>
+  </div>
+  <script type="module" src="dist/main.js"></script>
+</body>
+</html>
