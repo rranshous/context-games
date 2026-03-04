@@ -3,6 +3,8 @@
 import { TicTacToeServer, type Game } from './game-server';
 import { ChatServer, type ChatMessage } from './chat-server';
 import { CanvasServer } from './canvas-server';
+import { NotepadServer } from './notepad-server';
+import { BoardServer, type BoardPost } from './board-server';
 
 export interface World {
   games: {
@@ -28,9 +30,28 @@ export interface World {
       clear(): void;
     };
   };
+  commons: {
+    notepads: {
+      read(name: string): string | null;
+      write(name: string, data: string): void;
+      list(): string[];
+      clear(name: string): void;
+    };
+    board: {
+      post(handle: string, title: string, body: string): BoardPost;
+      read(count?: number): BoardPost[];
+      remove(id: string): { success: boolean; error?: string };
+    };
+  };
 }
 
-export function buildWorld(tttServer: TicTacToeServer, chatServer: ChatServer, canvasServer: CanvasServer): World {
+export function buildWorld(
+  tttServer: TicTacToeServer,
+  chatServer: ChatServer,
+  canvasServer: CanvasServer,
+  notepadServer: NotepadServer,
+  boardServer: BoardServer,
+): World {
   return {
     games: {
       ticTacToe: {
@@ -53,6 +74,19 @@ export function buildWorld(tttServer: TicTacToeServer, chatServer: ChatServer, c
         read: () => canvasServer.read(),
         paint: (art) => canvasServer.paint(art),
         clear: () => canvasServer.clear(),
+      },
+    },
+    commons: {
+      notepads: {
+        read: (name) => notepadServer.read(name),
+        write: (name, data) => notepadServer.write(name, data),
+        list: () => notepadServer.list(),
+        clear: (name) => notepadServer.clear(name),
+      },
+      board: {
+        post: (handle, title, body) => boardServer.post(handle, title, body),
+        read: (count) => boardServer.read(count),
+        remove: (id) => boardServer.remove(id),
       },
     },
   };

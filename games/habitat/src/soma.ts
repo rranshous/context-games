@@ -137,6 +137,69 @@ const DEFAULT_CANVAS_TOOLS: SomaTool[] = [
   },
 ];
 
+const DEFAULT_NOTEPAD_TOOLS: SomaTool[] = [
+  {
+    name: 'read_notepad',
+    description: 'Read a notepad by name. If no name is given, lists all notepad names instead.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Notepad name to read. Omit to list all notepad names.' },
+      },
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) {
+  if (!input.name) return { notepads: world.commons.notepads.list() };
+  const content = world.commons.notepads.read(input.name);
+  if (content === null) return { error: "Notepad '" + input.name + "' not found.", notepads: world.commons.notepads.list() };
+  return { name: input.name, content: content };
+}`,
+  },
+  {
+    name: 'write_notepad',
+    description: 'Write to a named notepad (creates or overwrites). Use for game state, shared data, or anything you want to persist by name.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Notepad name' },
+        content: { type: 'string', description: 'Content to write' },
+      },
+      required: ['name', 'content'],
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { world.commons.notepads.write(input.name, input.content); return { success: true }; }`,
+  },
+];
+
+const DEFAULT_BOARD_TOOLS: SomaTool[] = [
+  {
+    name: 'read_board',
+    description: 'Read recent posts from the bulletin board. Posts are persistent (unlike chat). Returns newest first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', description: 'Number of recent posts to read (default 5)' },
+      },
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { return world.commons.board.read(input.count || 5); }`,
+  },
+  {
+    name: 'post_board',
+    description: 'Post to the bulletin board under your gamer handle. Use for game rules, challenges, announcements — anything that should persist.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Post title' },
+        body: { type: 'string', description: 'Post body' },
+      },
+      required: ['title', 'body'],
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) { return world.commons.board.post(me.gamer_handle.read(), input.title, input.body); }`,
+  },
+];
+
 const DEFAULT_SOMA_TOOLS: SomaTool[] = [
   {
     name: 'edit_gamer_handle',
@@ -267,6 +330,7 @@ const DEFAULT_ON_TICK = `async function(me, world) {
   const games = world.games.ticTacToe.listGames();
   const chat = world.social.chat.read(5);
   const canvas = world.art.sharedCanvas.read();
+  const board = world.commons.board.read(3);
 
   // filter to my active games
   const myGames = games.filter(g =>
@@ -277,7 +341,8 @@ const DEFAULT_ON_TICK = `async function(me, world) {
   let snapshot = "";
   if (myGames.length) snapshot += "my games: " + JSON.stringify(myGames) + "\\n\\n";
   if (chat.length) snapshot += "recent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n") + "\\n\\n";
-  if (canvas.trim()) snapshot += "canvas:\\n" + canvas + "\\n";
+  if (canvas.trim()) snapshot += "canvas:\\n" + canvas + "\\n\\n";
+  if (board.length) snapshot += "recent board posts: " + board.map(p => p.title).join(", ") + "\\n";
 
   // write snapshot to auto-memory section (everything after ---)
   const mem = me.memory.read();
@@ -294,7 +359,7 @@ export function createDefaultSoma(id: string): Soma {
     identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me. If nothing is happening, I make something happen.`,
     on_tick: DEFAULT_ON_TICK,
     memory: '',
-    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
+    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_NOTEPAD_TOOLS, ...DEFAULT_BOARD_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
   };
 }
 

@@ -320,6 +320,35 @@ Edge cases tested: empty memory, actant notes with no `---` yet, actant notes + 
 - **Key files changed**: `soma.ts` (DEFAULT_ON_TICK), `actant.ts` (tick timing), `main.ts` (reset fix, stagger), `ui.ts` (panel order)
 - **To test**: reset somas (`localStorage.removeItem('habitat-somas')` or Reset All button) to pick up new defaults
 
+### Commons: Notepads + Bulletin Board
+
+Implemented the design sketch from session 3. Two new world services under `world.commons`:
+
+**NotepadServer** (`notepad-server.ts`)
+- `Map<string, string>` — named string store, no metadata, no schema
+- API: `read(name)`, `write(name, data)`, `list()`, `clear(name)`
+- Actants decide format. Engine doesn't parse.
+
+**BoardServer** (`board-server.ts`)
+- Persistent pinned posts: `{ id, handle, title, body, ts }`
+- API: `post(handle, title, body)`, `read(count?)` (newest first), `remove(id)`
+- Posts stay until explicitly removed (unlike rolling chat)
+
+**4 new default tools** (16 → 20 total):
+- `read_notepad` — read by name, or list all names if no name given
+- `write_notepad` — create or overwrite a named notepad
+- `read_board` — read recent board posts (default 5, newest first)
+- `post_board` — post to board under gamer handle
+
+**Auto-memory**: 3 most recent board post **titles** added to snapshot. Notepads stay out — model discovers them via tools.
+
+**Persistence**: `habitat-notepads` and `habitat-board` localStorage keys. Same load/save pattern as other servers.
+
+**No human UI yet** — actants use tools, human can inspect via `__habitat.world.commons` in console.
+
+**New files**: `notepad-server.ts`, `board-server.ts`
+**Modified**: `world.ts` (commons namespace), `soma.ts` (4 tools + on_tick), `main.ts` (persistence)
+
 ---
 
 ## Design Sketch — Commons: Notepads + Bulletin Board + Actant-Created Games

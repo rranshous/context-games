@@ -3,6 +3,8 @@
 import { TicTacToeServer } from './game-server';
 import { ChatServer } from './chat-server';
 import { CanvasServer } from './canvas-server';
+import { NotepadServer } from './notepad-server';
+import { BoardServer } from './board-server';
 import { createDefaultSoma } from './soma';
 import { buildWorld } from './world';
 import { Actant } from './actant';
@@ -14,7 +16,9 @@ const SOMAS_KEY = 'habitat-somas';
 const GAMES_KEY = 'habitat-games';
 const CHAT_KEY = 'habitat-chat';
 const CANVAS_KEY = 'habitat-canvas';
-const ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY];
+const NOTEPADS_KEY = 'habitat-notepads';
+const BOARD_KEY = 'habitat-board';
+const ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY, NOTEPADS_KEY, BOARD_KEY];
 
 function saveSomas(actants: Actant[]): void {
   localStorage.setItem(SOMAS_KEY, JSON.stringify(actants.map(a => a.soma)));
@@ -32,6 +36,8 @@ function saveWorld(): void {
   localStorage.setItem(GAMES_KEY, JSON.stringify(tttServer.toJSON()));
   localStorage.setItem(CHAT_KEY, JSON.stringify(chatServer.toJSON()));
   localStorage.setItem(CANVAS_KEY, JSON.stringify(canvasServer.toJSON()));
+  localStorage.setItem(NOTEPADS_KEY, JSON.stringify(notepadServer.toJSON()));
+  localStorage.setItem(BOARD_KEY, JSON.stringify(boardServer.toJSON()));
 }
 
 function saveAll(): void {
@@ -61,7 +67,19 @@ try {
   canvasServer = canvasRaw ? CanvasServer.fromJSON(JSON.parse(canvasRaw)) : new CanvasServer();
 } catch { canvasServer = new CanvasServer(); }
 
-const world = buildWorld(tttServer, chatServer, canvasServer);
+let notepadServer: NotepadServer;
+try {
+  const notepadsRaw = localStorage.getItem(NOTEPADS_KEY);
+  notepadServer = notepadsRaw ? NotepadServer.fromJSON(JSON.parse(notepadsRaw)) : new NotepadServer();
+} catch { notepadServer = new NotepadServer(); }
+
+let boardServer: BoardServer;
+try {
+  const boardRaw = localStorage.getItem(BOARD_KEY);
+  boardServer = boardRaw ? BoardServer.fromJSON(JSON.parse(boardRaw)) : new BoardServer();
+} catch { boardServer = new BoardServer(); }
+
+const world = buildWorld(tttServer, chatServer, canvasServer, notepadServer, boardServer);
 
 // Load or create somas
 const saved = loadSomas();
