@@ -230,8 +230,8 @@ export class HabitatUI {
         </div>
         ${somaSection('last think', a.lastThinkPrompt || '(none)')}
         ${somaSection('identity', a.soma.identity)}
-        ${somaSection('on_tick', a.soma.on_tick, true)}
         ${somaSection('memory', a.soma.memory)}
+        ${somaSection('on_tick', a.soma.on_tick, true)}
         <div class="soma-section">
           <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
           ${toolsHtml}
