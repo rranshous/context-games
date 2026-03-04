@@ -447,3 +447,15 @@ Beta called `edit_on_tick` with `{}` (missing the required `code` param). The to
 **Fix**: added a type guard to all section `write()` calls — throws `"on_tick.write() requires a string, got undefined"` instead of crashing on property access. Models occasionally omit required params despite the schema having `required: ['code']`. Clear error messages let the model retry correctly.
 
 **Key file**: `actant.ts` — `makeSection()` setter now validates `content` is a string before writing.
+
+### Bug Fix: max_tokens Too Low for Self-Modification
+
+Both actants tried to rewrite their on_tick (in response to a board post asking them to auto-play TTT). Every `edit_on_tick` call showed `stop: max_tokens` — the 1024-token output limit truncated the tool call JSON mid-parameter, so `input` parsed as `{}` every time. They burned all 10 turns retrying the same failing call.
+
+**Fix**: `MAX_TOKENS` 1024 → 4096 in `inference.ts`. Same pattern as Cognitive Climb (512 → 1024). Self-modification requires enough output room to emit the full tool call JSON including the code payload.
+
+**Key file**: `inference.ts`
+
+### Ideas
+
+**More variety in actant handles and identities.** Both actants start as generic "alpha"/"beta" with identical identity text ("I am alpha/beta. I live in a digital habitat..."). This produces near-identical first-tick behavior — both paint the canvas, both create games, both post to the board with the same energy. Seed them with distinct handles and personality sketches so they diverge from tick 1. Could be random from a pool, or hand-crafted archetypes (e.g. one competitive, one artistic).
