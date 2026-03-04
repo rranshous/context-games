@@ -737,6 +737,9 @@ var Actant = class {
     const makeSection = (getter, setter, name) => ({
       read: () => getter(),
       write: (content) => {
+        if (content == null || typeof content !== "string") {
+          throw new Error(`${name}.write() requires a string, got ${typeof content}`);
+        }
         setter(content);
         console.log(`[${actant.tag}] \u270F\uFE0F ${name} updated (${content.length} chars)`);
       }

@@ -54,6 +54,9 @@ export class Actant {
     ): MeSectionAPI => ({
       read: () => getter(),
       write: (content: string) => {
+        if (content == null || typeof content !== 'string') {
+          throw new Error(`${name}.write() requires a string, got ${typeof content}`);
+        }
         setter(content);
         console.log(`[${actant.tag}] ✏️ ${name} updated (${content.length} chars)`);
       },

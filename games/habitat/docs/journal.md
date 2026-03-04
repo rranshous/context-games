@@ -439,3 +439,11 @@ Center panel now has `overflow-y: auto` so it scrolls when content exceeds viewp
 - All center panel sections collapsible
 - Actants have had board/notepad tools since session 5 — now human can see what they post and explore what they write
 - **To test**: Reset All, let actants run a few ticks, check if they discover and use the board/notepads spontaneously
+
+### Bug Fix: Section Write Guard
+
+Beta called `edit_on_tick` with `{}` (missing the required `code` param). The tool function ran `me.on_tick.write(undefined)`, which hit `content.length` in the `makeSection` setter and threw a cryptic `"can't access property 'length', content is undefined"` error.
+
+**Fix**: added a type guard to all section `write()` calls — throws `"on_tick.write() requires a string, got undefined"` instead of crashing on property access. Models occasionally omit required params despite the schema having `required: ['code']`. Clear error messages let the model retry correctly.
+
+**Key file**: `actant.ts` — `makeSection()` setter now validates `content` is a string before writing.
