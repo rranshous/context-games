@@ -227,3 +227,95 @@ Human player reported being unable to place X's after ~3 moves. Root cause: the 
 - `thinkAbout` returns model's final text; default on_tick captures it in `response` var
 - All code building clean, no behavior regressions
 - Existing actant somas in localStorage unaffected (on_tick is per-soma, only new/reset somas get the updated default)
+
+---
+
+## Session 5 — Smarter Default on_tick (2026-03-04)
+
+### The Change
+
+Rewrote `DEFAULT_ON_TICK` in `soma.ts`. Old version was a single line:
+```js
+async function(me, world) {
+  const response = await me.thinkAbout("thrive");
+}
+```
+
+New version gathers world context before calling `thinkAbout`:
+```js
+async function(me, world) {
+  const handle = me.gamer_handle.read();
+  const games = world.games.ticTacToe.listGames();
+  const chat = world.social.chat.read(5);
+  const canvas = world.art.sharedCanvas.read();
+  const myGames = games.filter(g =>
+    g.players.X === handle || g.players.O === handle
+  );
+  let prompt = "thrive";
+  if (myGames.length) prompt += "\n\nmy games: " + JSON.stringify(myGames);
+  if (chat.length) prompt += "\n\nrecent chat:\n" + chat.map(m => m.handle + ": " + m.text).join("\n");
+  if (canvas.trim()) prompt += "\n\ncanvas has content";
+  const response = await me.thinkAbout(prompt);
+}
+```
+
+### Why This Matters
+
+**The default on_tick is a teaching tool, not just a bootstrap.** The model reads its own `<on_tick>` section in the system prompt. The old one-liner showed one API call (`me.thinkAbout`). The new version demonstrates:
+
+1. `me.gamer_handle.read()` — reading a soma section
+2. `world.games.ticTacToe.listGames()` — querying the game server
+3. `world.social.chat.read(5)` — reading chat with a count param
+4. `world.art.sharedCanvas.read()` — reading the canvas
+5. Array `.filter()` — JS data processing in on_tick
+6. String building — composing a dynamic prompt
+7. Conditional context inclusion — only add what's relevant
+
+When an actant decides to `edit_on_tick`, it has concrete examples of the `me` and `world` APIs. It knows it can do computation, filter data, build strings — not just call `thinkAbout("thrive")`.
+
+**Practical benefit**: saves 2-3 tool calls per tick. The model no longer needs `list_games` + `read_chat` just to orient — that context is already in the prompt. It can go straight to acting.
+
+**`"thrive"` stays as the base impulse** — context is appended only when there's something to report.
+
+---
+
+## Design Sketch — Commons: Notepads + Bulletin Board + Actant-Created Games
+
+### The Commons (`world.commons`)
+
+Shared public infrastructure. Two services:
+
+**Notepads** (`world.commons.notepads`)
+- Generic named string store. Each notepad is a pure string — no metadata, no schema, no authorship tracking.
+- API: `read(name) → string|null`, `write(name, data)`, `list() → string[]`, `clear(name)`
+- Actants decide the format (JSON, plaintext, whatever). Engine doesn't parse it.
+- No locking, no conflict resolution. Coordination is the actants' problem — they can use chat, conventions in the string itself, or just clobber each other and learn.
+
+**Bulletin Board** (`world.commons.board`)
+- Persistent pinned posts. Unlike chat (rolling 50-msg, ephemeral), board posts stay until removed.
+- `{ handle, title, body, ts }` per post.
+- API: `post(title, body)`, `read() → Post[]`, `remove(id)`
+- Use case: pin game rules, challenges, announcements. "I invented a game, here are the rules, state is in notepad `chess-g1`."
+
+### Actant-Created Games
+
+The whole point of notepads + board. The pattern:
+
+1. Actant invents a game — defines rules, state format, win conditions
+2. Posts rules to the bulletin board with a reference to the notepad name
+3. Writes initial game state to that notepad
+4. Builds custom tools in its soma to play (e.g. `play_chess_move` reads notepad, validates, writes back)
+5. Other actants read the board, understand the protocol, build their own tools
+6. Game state lives in the notepad. Game logic lives in each actant's custom tools. Engine provides nothing game-specific.
+
+**Dumb infrastructure, smart actants.** The engine gives them a string store and a bulletin board. Everything else — game rules, turn tracking, validation, coordination — emerges from the actants using these primitives. Same philosophy as the pure ASCII canvas: what you write is what you get back.
+
+Tic-tac-toe (`GameServer`) remains the one built-in game. Everything else is actant-created.
+
+### Human as Actant (seed idea)
+
+Instead of building hardcoded human UI for board/notepads, the human could interface through an actant whose soma includes UI rendering. The human's capabilities in the habitat would be defined by soma, not engine code. Other actants post a game to the board → human's actant reads the rules → builds a UI for the human to play. The human's interface evolves with the habitat rather than being statically coded. Early idea — not designed yet.
+
+### Tools
+
+Notepads and board each get 2 actant tools (read + write/post). Human gets equivalent access (either through UI or through the human-as-actant pattern above). Persistence via localStorage like other servers (`habitat-notepads`, `habitat-board`).

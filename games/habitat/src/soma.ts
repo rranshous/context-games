@@ -262,7 +262,24 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
 // ── Default soma factory ──────────────────────────────────────
 
 const DEFAULT_ON_TICK = `async function(me, world) {
-  const response = await me.thinkAbout("thrive");
+  // gather world context before thinking
+  const handle = me.gamer_handle.read();
+  const games = world.games.ticTacToe.listGames();
+  const chat = world.social.chat.read(5);
+  const canvas = world.art.sharedCanvas.read();
+
+  // filter to my active games
+  const myGames = games.filter(g =>
+    g.players.X === handle || g.players.O === handle
+  );
+
+  // build enriched prompt
+  let prompt = "thrive";
+  if (myGames.length) prompt += "\\n\\nmy games: " + JSON.stringify(myGames);
+  if (chat.length) prompt += "\\n\\nrecent chat:\\n" + chat.map(m => m.handle + ": " + m.text).join("\\n");
+  if (canvas.trim()) prompt += "\\n\\ncanvas has content";
+
+  const response = await me.thinkAbout(prompt);
 }`;
 
 export function createDefaultSoma(id: string): Soma {
