@@ -3,7 +3,7 @@
 // Behavior comes from the PredatorSoma's on_tick code, compiled and executed each tick.
 import * as THREE from 'three';
 import { ReefMap, Tile, getTile, isPassable, worldToTile, tileToWorld } from './map.js';
-import { Squid } from './squid.js';
+import { Squid, getGlowBase, FULL_GLOW_INTENSITY } from './squid.js';
 import { PredatorSoma } from './soma.js';
 import { PendingAction, WorldData, createTickAPI } from './instinct-api.js';
 import { compileInstinct, executeTick } from './instinct-executor.js';
@@ -18,6 +18,7 @@ export interface Chassis {
   collisionRadius: number;
   sensorRange: number;    // detection range (world units)
   isSmall: boolean;       // can fit through crevices?
+  sensorType?: string;    // 'visual' = glow-scaled range; default = binary concealment
 }
 
 /** PhysicalState — minimal runtime state (navigation + animation hints) */
@@ -79,10 +80,21 @@ export function readSensors(
   const dist = Math.sqrt((sx - px) ** 2 + (sz - pz) ** 2);
 
   let detected = false;
-  if (!squid.concealed && dist <= pred.chassis.sensorRange) {
-    const pt = worldToTile(px, pz, tileSize, map.width, map.height);
-    const st = worldToTile(sx, sz, tileSize, map.width, map.height);
-    detected = hasLineOfSight(map, pt.tx, pt.tz, st.tx, st.tz);
+  if (pred.chassis.sensorType === 'visual') {
+    // Glow-proportional range: the visual IS the mechanic
+    const effectiveRange = pred.chassis.sensorRange * (getGlowBase() / FULL_GLOW_INTENSITY);
+    if (dist <= effectiveRange) {
+      const pt = worldToTile(px, pz, tileSize, map.width, map.height);
+      const st = worldToTile(sx, sz, tileSize, map.width, map.height);
+      detected = hasLineOfSight(map, pt.tx, pt.tz, st.tx, st.tz);
+    }
+  } else {
+    // Default: binary concealment gate
+    if (!squid.concealed && dist <= pred.chassis.sensorRange) {
+      const pt = worldToTile(px, pz, tileSize, map.width, map.height);
+      const st = worldToTile(sx, sz, tileSize, map.width, map.height);
+      detected = hasLineOfSight(map, pt.tx, pt.tz, st.tx, st.tz);
+    }
   }
 
   return { squidDetected: detected, squidWorldPos: { x: sx, z: sz }, squidDist: dist };

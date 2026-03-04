@@ -14,6 +14,7 @@ function sharkChassis(): Chassis {
     collisionRadius: 0.5,
     sensorRange: 8,
     isSmall: false,
+    sensorType: 'visual',
   };
 }
 

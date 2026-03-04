@@ -128,6 +128,7 @@ let energy = 100;
 export function getEnergy(): number { return energy; }
 export function addEnergy(amount: number) { energy = Math.max(0, Math.min(100, energy + amount)); }
 export function resetEnergy() { energy = 100; }
+export function getGlowBase(): number { return _glowBase; }
 
 // Concealment colors
 const CONCEALED_MANTLE = new THREE.Color(0x112233);
@@ -140,7 +141,7 @@ const FULL_MANTLE = new THREE.Color(0x44ccff);
 const DEPLETED_MANTLE = new THREE.Color(0x1a3344);
 const FULL_BODY = new THREE.Color(0x33bbee);
 const DEPLETED_BODY = new THREE.Color(0x152a33);
-const FULL_GLOW_INTENSITY = 2.5;
+export const FULL_GLOW_INTENSITY = 2.5;
 const DEPLETED_GLOW_INTENSITY = 0.4;
 const FULL_GLOW_RANGE = 12;
 const DEPLETED_GLOW_RANGE = 4;

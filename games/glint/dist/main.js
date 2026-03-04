@@ -655,6 +655,9 @@ function addEnergy(amount) {
 function resetEnergy() {
   energy = 100;
 }
+function getGlowBase() {
+  return _glowBase;
+}
 var CONCEALED_MANTLE = new THREE2.Color(1122867);
 var CONCEALED_BODY = new THREE2.Color(662056);
 var CONCEALED_GLOW_INTENSITY = 0.3;
@@ -1035,10 +1038,19 @@ function readSensors(pred, squid2, map2, tileSize) {
   const px = pred.group.position.x, pz = pred.group.position.z;
   const dist = Math.sqrt((sx - px) ** 2 + (sz - pz) ** 2);
   let detected = false;
-  if (!squid2.concealed && dist <= pred.chassis.sensorRange) {
-    const pt = worldToTile(px, pz, tileSize, map2.width, map2.height);
-    const st = worldToTile(sx, sz, tileSize, map2.width, map2.height);
-    detected = hasLineOfSight(map2, pt.tx, pt.tz, st.tx, st.tz);
+  if (pred.chassis.sensorType === "visual") {
+    const effectiveRange = pred.chassis.sensorRange * (getGlowBase() / FULL_GLOW_INTENSITY);
+    if (dist <= effectiveRange) {
+      const pt = worldToTile(px, pz, tileSize, map2.width, map2.height);
+      const st = worldToTile(sx, sz, tileSize, map2.width, map2.height);
+      detected = hasLineOfSight(map2, pt.tx, pt.tz, st.tx, st.tz);
+    }
+  } else {
+    if (!squid2.concealed && dist <= pred.chassis.sensorRange) {
+      const pt = worldToTile(px, pz, tileSize, map2.width, map2.height);
+      const st = worldToTile(sx, sz, tileSize, map2.width, map2.height);
+      detected = hasLineOfSight(map2, pt.tx, pt.tz, st.tx, st.tz);
+    }
   }
   return { squidDetected: detected, squidWorldPos: { x: sx, z: sz }, squidDist: dist };
 }
@@ -1196,8 +1208,20 @@ async function on_tick(me, world) {
   const llm = mem.match(/lastlog:([\\d.]+)/);
   const lastLog = llm ? +llm[1] : 0;
 
+  // Self-tracking: position + travel distance (rolling ~5s decay)
+  const pxm = mem.match(/prevx:([-.\\d]+)/);
+  const pzm = mem.match(/prevz:([-.\\d]+)/);
+  const tdm = mem.match(/traveldist:([\\d.]+)/);
+  const pos = me.getPosition();
+  const prevX = pxm ? +pxm[1] : pos.x;
+  const prevZ = pzm ? +pzm[1] : pos.z;
+  const oldDist = tdm ? +tdm[1] : 0;
+  const frameDist = Math.sqrt((pos.x - prevX) ** 2 + (pos.z - prevZ) ** 2);
+  const decay = Math.exp(-world.dt / 5);
+  const travelDist = oldDist * decay + frameDist;
+
   // Preserve any notes (lines not matching state keys)
-  const notes = mem.replace(/^(pursuing|lost|lastknown|lastlog):.*$/gm, '').trim();
+  const notes = mem.replace(/^(pursuing|lost|lastknown|lastlog|prevx|prevz|traveldist):.*$/gm, '').trim();
 
   let nowPursuing = false;
   let nowLostTime = lostTime;
@@ -1238,7 +1262,6 @@ async function on_tick(me, world) {
 
     // Idle journal: log patrol status every ~30s so reflection has material
     if (world.t - lastLog >= 30) {
-      const pos = me.getPosition();
       const nearby = me.nearby_tiles('kelp');
       const j = me.hunt_journal.read();
       me.hunt_journal.write(j +
@@ -1254,12 +1277,15 @@ async function on_tick(me, world) {
     (nowPursuing ? 'pursuing:yes' : 'pursuing:no') + '\\n' +
     'lost:' + nowLostTime.toFixed(1) + '\\n' +
     (nowLastKnown ? 'lastknown:' + nowLastKnown.x.toFixed(1) + ',' + nowLastKnown.z.toFixed(1) : 'lastknown:none') + '\\n' +
-    'lastlog:' + nowLastLog.toFixed(1) +
+    'lastlog:' + nowLastLog.toFixed(1) + '\\n' +
+    'prevx:' + pos.x.toFixed(1) + '\\n' +
+    'prevz:' + pos.z.toFixed(1) + '\\n' +
+    'traveldist:' + travelDist.toFixed(2) +
     (notes ? '\\n' + notes : ''));
 }
 `.trim();
 var DEFAULT_SHARK_IDENTITY = "The reef shark hunts by sight and speed \u2014 a torpedo with teeth, closing distance before prey can reach cover.";
-var DEFAULT_SHARK_MEMORY = "pursuing:no\nlost:999\nlastknown:none\nlastlog:0\nNo hunts yet. Patrol the reef, chase what moves.";
+var DEFAULT_SHARK_MEMORY = "pursuing:no\nlost:999\nlastknown:none\nlastlog:0\nprevx:0\nprevz:0\ntraveldist:0\nNo hunts yet. Patrol the reef, chase what moves.";
 function createDefaultSharkSoma(id) {
   return {
     id,
@@ -1281,7 +1307,8 @@ function sharkChassis() {
     turnSpeed: 2,
     collisionRadius: 0.5,
     sensorRange: 8,
-    isSmall: false
+    isSmall: false,
+    sensorType: "visual"
   };
 }
 function createShark(id, spawnX, spawnZ, gradientMap2, existingSoma) {

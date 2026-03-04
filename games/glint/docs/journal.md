@@ -723,9 +723,70 @@ Agreed to replace binary concealment with **glow-proportional detection range**:
 - Energy management becomes core strategy: bright = visible from far, dim = stealthy
 
 ### Next
-1. **Glow-based detection** — replace binary concealment with glow-proportional sensor range (designed above)
+1. ~~**Glow-based detection**~~ — done (session 11)
 2. **Crevice visuals** — make crevices visually distinct (currently invisible)
 3. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
 4. **Visual feedback on catch** — screen flash, freeze frame
 5. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
 6. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
+
+---
+
+## Session 11 — Glow-Based Detection + Soma Self-Tracking (2026-03-03)
+
+### Motivation
+Binary concealment was a hard on/off switch — `squid.concealed` gated sensor detection regardless of how bright the squid actually was. The glow was purely cosmetic. This session makes the visual *be* the mechanic: sharks detect based on how bright the squid is, and the squid tracks its own movement in its soma.
+
+### What Changed
+
+**Glow-Proportional Sensor Range** (predator.ts, squid.ts, shark.ts)
+- `Chassis` gains optional `sensorType?: string` — sharks set `'visual'`
+- `readSensors()` branches on sensor type:
+  - `'visual'`: `effectiveRange = sensorRange × (glowBase / FULL_GLOW_INTENSITY)` — no binary concealment check
+  - Default: existing `!squid.concealed` binary gate (preserved for future predator types)
+- `squid.ts` exports `getGlowBase()` and `FULL_GLOW_INTENSITY` for the sensor calculation
+- `squid.concealed` stays — still drives the visual dimming (mantle/body color, glow target). Visual sensors just don't read it directly; the glow it produces IS the detection input.
+
+**Effective Range Table** (shark sensorRange = 8)
+
+| Squid State | _glowBase | Effective Range |
+|---|---|---|
+| Full energy, open water | 2.5 | 8.0 (full) |
+| Half energy | ~1.45 | ~4.6 |
+| Depleted (0 energy) | 0.4 | 1.28 |
+| Concealed in kelp/crevice | 0.3 | 0.96 |
+
+**Grace Period Composes Naturally**
+- Entering a hiding tile sets `squid.concealed = true` → visual code targets CONCEALED_GLOW (0.3) → `_glowBase` lerps down fast (CONCEALMENT_SPEED=4)
+- Brief vulnerability window while glow drops: the visual communicates it — you can SEE your squid still glowing as it enters kelp
+- No instant binary stealth — the fade IS the mechanic
+
+**Soma Self-Tracking** (soma.ts)
+- Default shark on_tick now tracks its own movement via `me.memory`:
+  - `prevx`/`prevz` — stored each tick, used next tick to compute frame distance
+  - `traveldist` — rolling ~5s exponential decay of distance traveled
+- Shark can self-diagnose stuck code: `traveldist:0.00` in memory during reflection = not moving
+- Fully embodied — the engine doesn't compute telemetry. The soma owns its self-awareness.
+- Reflection can evolve better tracking or drop it if wasteful.
+
+**Design Decision: Sensor Types Are Per-Chassis**
+- Glow-based detection only affects sharks (`sensorType: 'visual'`)
+- Future predators get their own sensor models: `'vibration'` (detect by movement?), `'chemical'` (short range, ignores glow?), etc.
+- Each type gets its own branch in `readSensors()` — no universal coupling
+
+### File Summary
+| File | Action |
+|------|--------|
+| `src/squid.ts` | MODIFIED — export `getGlowBase()`, `FULL_GLOW_INTENSITY` |
+| `src/predator.ts` | MODIFIED — `sensorType` on Chassis, glow-scaled detection in `readSensors()` |
+| `src/shark.ts` | MODIFIED — `sensorType: 'visual'` in chassis config |
+| `src/soma.ts` | MODIFIED — self-tracking (prevx/prevz/traveldist) in default on_tick + default memory |
+| `src/instinct-api.ts` | unchanged |
+| `src/reflection.ts` | unchanged |
+
+### Next
+1. **Crevice visuals** — make crevices visually distinct (currently invisible)
+2. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
+3. **Visual feedback on catch** — screen flash, freeze frame
+4. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
+5. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
