@@ -171,6 +171,42 @@ const DEFAULT_NOTEPAD_TOOLS: SomaTool[] = [
   },
 ];
 
+const DEFAULT_PANEL_TOOLS: SomaTool[] = [
+  {
+    name: 'validate_panel',
+    description: 'Validate a panel function stored in a notepad. Compiles and dry-runs it against a temporary DOM element with a real getWorld. Returns { valid: true, html } on success or { valid: false, phase, error } on failure. Phase is "compile", "type", or "runtime".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Notepad name containing the panel function' },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    function_body: `function(input, me, world) {
+  var source = world.commons.notepads.read(input.name);
+  if (source === null) return { valid: false, phase: "read", error: "Notepad '" + input.name + "' not found." };
+  var fn;
+  try {
+    fn = new Function('return ' + source)();
+  } catch (err) {
+    return { valid: false, phase: "compile", error: err.message };
+  }
+  if (typeof fn !== 'function') {
+    return { valid: false, phase: "type", error: "Content must be a function(el, getWorld) { ... }, got " + typeof fn };
+  }
+  var el = document.createElement('div');
+  var getWorld = function(cb) { return cb(world); };
+  try {
+    fn(el, getWorld);
+  } catch (err) {
+    return { valid: false, phase: "runtime", error: err.message };
+  }
+  return { valid: true, html: el.innerHTML.substring(0, 500) };
+}`,
+  },
+];
+
 const DEFAULT_BOARD_TOOLS: SomaTool[] = [
   {
     name: 'read_board',
@@ -378,7 +414,7 @@ export function createDefaultSoma(id: string): Soma {
     identity: profile?.identity ?? `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me.`,
     on_tick: DEFAULT_ON_TICK,
     memory: '',
-    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_NOTEPAD_TOOLS, ...DEFAULT_BOARD_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
+    custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_NOTEPAD_TOOLS, ...DEFAULT_PANEL_TOOLS, ...DEFAULT_BOARD_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),
   };
 }
 

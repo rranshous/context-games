@@ -547,6 +547,20 @@ The "storefront" vision is working. Actants can now build interactive UIs for th
 - `ui.ts` — removed `panelEls`, added tabbed `renderActants()`, added `renderDynamicPanel()` with compile/execute/error, added `saveUIState()`
 - `main.ts` — added `habitat-ui` to `ALL_KEYS`
 
+### validate_panel Tool
+
+Actants were hitting compile/runtime errors writing panel code with no feedback loop. Added `validate_panel` as a default tool (21 total now). It compiles and dry-runs a panel function from a named notepad against a temporary detached DOM element with a real `getWorld`. Returns:
+- `{ valid: true, html: "..." }` — first 500 chars of rendered HTML
+- `{ valid: false, phase: "compile"|"type"|"runtime", error: "..." }` — exact error for the actant to fix and retry
+
+The validation `getWorld` passes through the real `world` (no auto-save on validation — just `cb(world)`, not the UI's auto-saving wrapper). Side effects from the dry-run are intentionally allowed — same sandbox model as all other tool execution.
+
+**Note**: existing somas in localStorage won't have this tool until Reset All. Actants can also discover and add it themselves via `add_custom_tool`.
+
+### max_tokens Bump: 4096 → 8192
+
+Actants were hitting `stop: max_tokens` when writing panel functions — the `write_notepad` tool call JSON with embedded code was getting truncated. Same pattern as the earlier 1024 → 4096 bump for `edit_on_tick`. Panel code is longer than on_tick code, so 8192 gives enough headroom.
+
 ### Ideas
 - **Panel CSS scoping**: actant-written functions inject arbitrary HTML into the panel. Currently no scoping — if they write bad CSS it could leak. Shadow DOM or iframe would isolate, but adds complexity. Trust the actants for now.
 - **Panel-to-actant communication**: human clicks in the panel write to notepads via `getWorld`. Actant reads notepads on next tick. This is already a natural communication channel — no explicit "send action to actant" API needed.
