@@ -2,7 +2,7 @@
 
 const API_ENDPOINT = '/api/inference/anthropic/messages';
 const MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 8192;
 
 interface ContentBlock {
   type: 'text' | 'tool_use';

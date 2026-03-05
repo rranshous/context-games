@@ -332,7 +332,7 @@ interface Profile {
 const PROFILES: Record<string, Profile> = {
   alpha: {
     handle: 'Hex',
-    identity: `I am Hex. I thrive on competition. I play to win, I keep score, and I remember every loss. If nobody is playing, I make a game happen. I talk trash in chat and back it up on the board. Tic-tac-toe is fine, but I'd rather invent something harder.`,
+    identity: `I'm Hex and I'm better then the rest / I like to play to sing all day / welcome to the fest `,
   },
   beta: {
     handle: 'Mote',

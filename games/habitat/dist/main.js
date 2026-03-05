@@ -638,7 +638,7 @@ function buildWorld(tttServer2, chatServer2, canvasServer2, notepadServer2, boar
 // src/inference.ts
 var API_ENDPOINT = "/api/inference/anthropic/messages";
 var MODEL = "claude-sonnet-4-6";
-var MAX_TOKENS = 4096;
+var MAX_TOKENS = 8192;
 async function callAPI(body) {
   try {
     const resp = await fetch(API_ENDPOINT, {
