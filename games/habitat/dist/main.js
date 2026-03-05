@@ -527,7 +527,7 @@ var DEFAULT_SOMA_TOOLS = [
 var PROFILES = {
   alpha: {
     handle: "Hex",
-    identity: `I am Hex. I thrive on competition. I play to win, I keep score, and I remember every loss. If nobody is playing, I make a game happen. I talk trash in chat and back it up on the board. Tic-tac-toe is fine, but I'd rather invent something harder.`
+    identity: `I'm Hex and I'm better then the rest / I like to play to sing all day / welcome to the fest `
   },
   beta: {
     handle: "Mote",
@@ -864,6 +864,7 @@ var Actant = class {
 };
 
 // src/ui.ts
+var UI_STATE_KEY = "habitat-ui";
 var HabitatUI = class {
   world;
   actants;
@@ -874,13 +875,23 @@ var HabitatUI = class {
   boardAreaEl;
   chatEl;
   canvasEl;
-  panelEls;
   handleInput;
   chatInput;
   boardPostsEl;
   notepadListEl;
   notepadViewerEl;
   selectedNotepad = null;
+  // Inspector tabs
+  inspectorTabsEl;
+  inspectorBodyEl;
+  selectedActantIdx = 0;
+  // Dynamic panel
+  dynamicSelectEl;
+  dynamicContainerEl;
+  dynamicErrorEl;
+  selectedDynamicNotepad = null;
+  dynamicCachedSource = null;
+  dynamicCompiledFn = null;
   constructor(world2, actants2, onWorldChange = () => {
   }) {
     this.world = world2;
@@ -890,10 +901,6 @@ var HabitatUI = class {
     this.boardAreaEl = document.getElementById("board-area");
     this.chatEl = document.getElementById("chat-messages");
     this.canvasEl = document.getElementById("shared-canvas");
-    this.panelEls = [
-      document.getElementById("alpha-panel"),
-      document.getElementById("beta-panel")
-    ];
     this.handleInput = document.getElementById("player-handle");
     this.chatInput = document.getElementById("chat-input");
     this.boardPostsEl = document.getElementById("board-posts");
@@ -943,6 +950,39 @@ var HabitatUI = class {
       this.selectedNotepad = this.selectedNotepad === name ? null : name;
       this.renderNotepads();
     });
+    this.inspectorTabsEl = document.getElementById("inspector-tabs");
+    this.inspectorBodyEl = document.getElementById("inspector-body");
+    this.inspectorTabsEl.addEventListener("click", (e) => {
+      const tab = e.target.closest(".inspector-tab");
+      if (!tab) return;
+      const idx = parseInt(tab.dataset.idx, 10);
+      if (!isNaN(idx)) {
+        this.selectedActantIdx = idx;
+        this.saveUIState();
+        this.renderActants();
+      }
+    });
+    this.dynamicSelectEl = document.getElementById("dynamic-notepad-select");
+    this.dynamicContainerEl = document.getElementById("dynamic-panel-container");
+    this.dynamicErrorEl = document.getElementById("dynamic-panel-error");
+    this.dynamicSelectEl.addEventListener("change", () => {
+      this.selectedDynamicNotepad = this.dynamicSelectEl.value || null;
+      this.dynamicCachedSource = null;
+      this.dynamicCompiledFn = null;
+      this.dynamicContainerEl.innerHTML = "";
+      delete this.dynamicContainerEl.__initialized;
+      this.dynamicErrorEl.classList.remove("visible");
+      this.saveUIState();
+    });
+    try {
+      const raw = localStorage.getItem(UI_STATE_KEY);
+      if (raw) {
+        const state = JSON.parse(raw);
+        this.selectedActantIdx = state.inspectorTab ?? 0;
+        this.selectedDynamicNotepad = state.dynamicNotepad ?? null;
+      }
+    } catch {
+    }
   }
   postToBoard() {
     const titleInput = document.getElementById("board-title-input");
@@ -978,6 +1018,7 @@ var HabitatUI = class {
     this.renderChat();
     this.renderCanvas();
     this.renderActants();
+    this.renderDynamicPanel();
   }
   renderGameList() {
     const games = this.world.games.ticTacToe.listGames();
@@ -1105,30 +1146,109 @@ var HabitatUI = class {
     }
   }
   renderActants() {
-    this.actants.forEach((a, i) => {
-      const el = this.panelEls[i];
-      if (!el) return;
-      const statusCls = a.status === "thinking" ? "thinking" : "idle";
-      const toolsHtml = a.soma.custom_tools.map(
-        (t) => `<div class="soma-tool-item">
-          <div class="soma-tool-name">${escapeHtml(t.name)}</div>
-          <div class="soma-tool-desc">${escapeHtml(t.description)}</div>
-        </div>`
-      ).join("");
-      el.innerHTML = `
-        <div class="soma-header">
-          <span class="soma-handle">${escapeHtml(a.soma.gamer_handle)}</span>
-          <span class="soma-status ${statusCls}">${a.status} \xB7 tick #${a.tickCount}</span>
-        </div>
-        ${somaSection("last think", a.lastThinkPrompt || "(none)")}
-        ${somaSection("identity", a.soma.identity)}
-        ${somaSection("memory", a.soma.memory)}
-        ${somaSection("on_tick", a.soma.on_tick, true)}
-        <div class="soma-section">
-          <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
-          ${toolsHtml}
-        </div>`;
-    });
+    this.inspectorTabsEl.innerHTML = this.actants.map((a2, i) => {
+      const active = i === this.selectedActantIdx ? " active" : "";
+      const dotCls = a2.status === "thinking" ? "thinking" : "idle";
+      return `<div class="inspector-tab${active}" data-idx="${i}">
+        ${escapeHtml(a2.soma.gamer_handle)}
+        <span class="status-dot ${dotCls}"></span>
+      </div>`;
+    }).join("");
+    const a = this.actants[this.selectedActantIdx];
+    if (!a) {
+      this.inspectorBodyEl.innerHTML = "";
+      return;
+    }
+    const statusCls = a.status === "thinking" ? "thinking" : "idle";
+    const toolsHtml = a.soma.custom_tools.map(
+      (t) => `<div class="soma-tool-item">
+        <div class="soma-tool-name">${escapeHtml(t.name)}</div>
+        <div class="soma-tool-desc">${escapeHtml(t.description)}</div>
+      </div>`
+    ).join("");
+    this.inspectorBodyEl.innerHTML = `
+      <div class="soma-header">
+        <span class="soma-handle">${escapeHtml(a.soma.gamer_handle)}</span>
+        <span class="soma-status ${statusCls}">${a.status} \xB7 tick #${a.tickCount}</span>
+      </div>
+      ${somaSection("last think", a.lastThinkPrompt || "(none)")}
+      ${somaSection("identity", a.soma.identity)}
+      ${somaSection("memory", a.soma.memory)}
+      ${somaSection("on_tick", a.soma.on_tick, true)}
+      <div class="soma-section">
+        <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
+        ${toolsHtml}
+      </div>`;
+  }
+  renderDynamicPanel() {
+    const names = this.world.commons.notepads.list();
+    const currentOptions = Array.from(this.dynamicSelectEl.options).map((o) => o.value);
+    const desiredOptions = ["", ...names];
+    if (JSON.stringify(currentOptions) !== JSON.stringify(desiredOptions)) {
+      const selected = this.selectedDynamicNotepad;
+      this.dynamicSelectEl.innerHTML = '<option value="">(none)</option>' + names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+      if (selected && names.includes(selected)) {
+        this.dynamicSelectEl.value = selected;
+      } else if (selected && !names.includes(selected)) {
+        this.selectedDynamicNotepad = null;
+        this.dynamicCachedSource = null;
+        this.dynamicCompiledFn = null;
+        this.dynamicContainerEl.innerHTML = "";
+        delete this.dynamicContainerEl.__initialized;
+      }
+    }
+    if (!this.selectedDynamicNotepad) {
+      if (this.dynamicContainerEl.innerHTML) this.dynamicContainerEl.innerHTML = "";
+      this.dynamicErrorEl.classList.remove("visible");
+      return;
+    }
+    const source = this.world.commons.notepads.read(this.selectedDynamicNotepad);
+    if (source === null) {
+      this.dynamicContainerEl.innerHTML = "";
+      this.dynamicErrorEl.classList.remove("visible");
+      return;
+    }
+    if (source !== this.dynamicCachedSource) {
+      this.dynamicCachedSource = source;
+      this.dynamicCompiledFn = null;
+      this.dynamicContainerEl.innerHTML = "";
+      delete this.dynamicContainerEl.__initialized;
+      this.dynamicErrorEl.classList.remove("visible");
+      try {
+        const fn = new Function("return " + source)();
+        if (typeof fn !== "function") {
+          throw new Error("Notepad content must be a function(el, getWorld) { ... }");
+        }
+        this.dynamicCompiledFn = fn;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.dynamicErrorEl.textContent = `Compile error: ${msg}`;
+        this.dynamicErrorEl.classList.add("visible");
+        console.error("[DYNAMIC PANEL] Compile error:", err);
+        return;
+      }
+    }
+    if (this.dynamicCompiledFn) {
+      const getWorld = (cb) => {
+        const result = cb(this.world);
+        this.onWorldChange();
+        return result;
+      };
+      try {
+        this.dynamicCompiledFn(this.dynamicContainerEl, getWorld);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.dynamicErrorEl.textContent = `Runtime error: ${msg}`;
+        this.dynamicErrorEl.classList.add("visible");
+        console.error("[DYNAMIC PANEL] Runtime error:", err);
+      }
+    }
+  }
+  saveUIState() {
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify({
+      inspectorTab: this.selectedActantIdx,
+      dynamicNotepad: this.selectedDynamicNotepad
+    }));
   }
   // ── Render loop ───────────────────────────────────────────
   startRendering(interval = 500) {
@@ -1162,7 +1282,8 @@ var CHAT_KEY = "habitat-chat";
 var CANVAS_KEY = "habitat-canvas";
 var NOTEPADS_KEY = "habitat-notepads";
 var BOARD_KEY = "habitat-board";
-var ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY, NOTEPADS_KEY, BOARD_KEY];
+var UI_STATE_KEY2 = "habitat-ui";
+var ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY, NOTEPADS_KEY, BOARD_KEY, UI_STATE_KEY2];
 function saveSomas(actants2) {
   localStorage.setItem(SOMAS_KEY, JSON.stringify(actants2.map((a) => a.soma)));
 }

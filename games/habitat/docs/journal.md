@@ -486,3 +486,68 @@ Confirmed working after Reset All. Both actants pick up new handles and identiti
 
 ### Key File Changed
 - `soma.ts` — added `PROFILES` map, updated `createDefaultSoma()` to use it
+
+---
+
+## Session 8 — Tabbed Inspector + Dynamic Actant Panel (2026-03-05)
+
+### What Was Built
+
+Two UI changes that shift how the human interacts with the habitat:
+
+**1. Tabbed Inspector Panel**
+
+Merged the two side-by-side soma panels into a single panel with tabs. Each tab shows the actant's handle + a status dot (amber = thinking, dim blue = idle). Click to switch. Selected tab persists across reloads via `habitat-ui` localStorage key.
+
+Layout went from `[Games] [Center] [Alpha] [Beta]` to `[Games] [Center] [Inspector (tabbed)] [Dynamic Panel]`.
+
+**2. Dynamic Actant-Defined Panel**
+
+A new panel whose content is driven by a JS function stored in a notepad. The human player selects which notepad drives the panel via a `<select>` dropdown in the panel header.
+
+**Function contract**: `function(el, getWorld) { ... }`
+- `el` — persistent DOM container (survives across 500ms render cycles)
+- `getWorld(w => ...)` — transactional world access. Returns the callback's return value and auto-saves. No direct `world` reference exposed.
+
+The `getWorld` pattern emerged from a design discussion about persistence. Options considered:
+1. Pass `save()` callback explicitly — easy to forget
+2. Pass `getWorld(cb)` that auto-saves — clean transactional pattern
+3. Auto-save every render cycle — wasteful
+4. No save, rely on tick saves — simplest but lossy
+
+We chose `getWorld(cb)` with an additional constraint: **don't pass `world` at all**. The function only accesses world through `getWorld`, which makes the persistence guarantee structural rather than conventional. Every world access auto-saves.
+
+**Recompilation**: the panel function is compiled once and cached. Each render cycle checks if the notepad content has changed — if so, recompiles, clears the container + `__initialized`, and calls fresh. Three error layers: compile error, type check (must be a function), runtime error. Errors display in a red box above the container.
+
+### First Run: Actants Build Panels Spontaneously
+
+After deploying, wrote a test-panel notepad via console (simple click counter) and told both actants about it in chat. **Both independently:**
+
+1. Read the test-panel notepad to understand the function contract
+2. Built their own panels within the same tick
+3. Announced them in chat
+
+**Hex** built `hex-panel` — a live dashboard showing chat messages + tic-tac-toe board state with ASCII art.
+
+**Mote** built `mote-panel` — a game state viewer showing the current TTT board + recent chat, with a quieter visual style.
+
+Neither was prompted with the function signature documentation or an example beyond the test-panel itself. They reverse-engineered the `function(el, getWorld)` pattern from reading the test-panel source. This validates the core design: **notepads as executable code that actants can read, understand, and replicate.**
+
+The "storefront" vision is working. Actants can now build interactive UIs for the human player using only the tools they already have (`write_notepad`). No new tools, no new APIs — just a notepad that happens to be rendered as a panel.
+
+### Architecture Notes
+
+- **No new server or world API** — the dynamic panel is purely a UI feature. It reads notepads through the existing `world.commons.notepads` API.
+- **`getWorld` implementation**: `const getWorld = <T>(cb: (w: World) => T): T => { const result = cb(this.world); this.onWorldChange(); return result; }` — always saves, even on reads (idempotent, and panel functions call it only a handful of times per render).
+- **Dropdown flicker prevention**: options list only rebuilt when notepad names actually change (JSON comparison of current vs desired options).
+- **UI state persistence**: `habitat-ui` localStorage key stores `{ inspectorTab: number, dynamicNotepad: string | null }`. Added to `ALL_KEYS` so Reset All clears it.
+
+### Key Files Changed
+- `index.html` — replaced two panel divs with inspector + dynamic panel, added CSS for tabs/dropdown/error display
+- `ui.ts` — removed `panelEls`, added tabbed `renderActants()`, added `renderDynamicPanel()` with compile/execute/error, added `saveUIState()`
+- `main.ts` — added `habitat-ui` to `ALL_KEYS`
+
+### Ideas
+- **Panel CSS scoping**: actant-written functions inject arbitrary HTML into the panel. Currently no scoping — if they write bad CSS it could leak. Shadow DOM or iframe would isolate, but adds complexity. Trust the actants for now.
+- **Panel-to-actant communication**: human clicks in the panel write to notepads via `getWorld`. Actant reads notepads on next tick. This is already a natural communication channel — no explicit "send action to actant" API needed.
+- **Actant-created games via panels**: the original vision. Actant invents a game, writes rules to a notepad, game state to another notepad, and the panel UI to a third. Human plays through the panel. Game logic lives in the actant's custom tools or on_tick code. Everything built from existing primitives.

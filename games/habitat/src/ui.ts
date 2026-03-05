@@ -3,6 +3,13 @@
 import { type World } from './world';
 import { type Actant } from './actant';
 
+const UI_STATE_KEY = 'habitat-ui';
+
+interface UIState {
+  inspectorTab: number;
+  dynamicNotepad: string | null;
+}
+
 export class HabitatUI {
   private world: World;
   private actants: Actant[];
@@ -14,13 +21,25 @@ export class HabitatUI {
   private boardAreaEl: HTMLElement;
   private chatEl: HTMLElement;
   private canvasEl: HTMLElement;
-  private panelEls: HTMLElement[];
   private handleInput: HTMLInputElement;
   private chatInput: HTMLInputElement;
   private boardPostsEl: HTMLElement;
   private notepadListEl: HTMLElement;
   private notepadViewerEl: HTMLElement;
   private selectedNotepad: string | null = null;
+
+  // Inspector tabs
+  private inspectorTabsEl: HTMLElement;
+  private inspectorBodyEl: HTMLElement;
+  private selectedActantIdx: number = 0;
+
+  // Dynamic panel
+  private dynamicSelectEl: HTMLSelectElement;
+  private dynamicContainerEl: HTMLElement;
+  private dynamicErrorEl: HTMLElement;
+  private selectedDynamicNotepad: string | null = null;
+  private dynamicCachedSource: string | null = null;
+  private dynamicCompiledFn: ((el: HTMLElement, getWorld: <T>(cb: (w: World) => T) => T) => void) | null = null;
 
   constructor(world: World, actants: Actant[], onWorldChange: () => void = () => {}) {
     this.world = world;
@@ -31,10 +50,6 @@ export class HabitatUI {
     this.boardAreaEl = document.getElementById('board-area')!;
     this.chatEl = document.getElementById('chat-messages')!;
     this.canvasEl = document.getElementById('shared-canvas')!;
-    this.panelEls = [
-      document.getElementById('alpha-panel')!,
-      document.getElementById('beta-panel')!,
-    ];
     this.handleInput = document.getElementById('player-handle') as HTMLInputElement;
     this.chatInput = document.getElementById('chat-input') as HTMLInputElement;
     this.boardPostsEl = document.getElementById('board-posts')!;
@@ -96,6 +111,44 @@ export class HabitatUI {
       this.selectedNotepad = this.selectedNotepad === name ? null : name;
       this.renderNotepads();
     });
+
+    // Inspector tabs
+    this.inspectorTabsEl = document.getElementById('inspector-tabs')!;
+    this.inspectorBodyEl = document.getElementById('inspector-body')!;
+    this.inspectorTabsEl.addEventListener('click', (e) => {
+      const tab = (e.target as HTMLElement).closest('.inspector-tab') as HTMLElement | null;
+      if (!tab) return;
+      const idx = parseInt(tab.dataset.idx!, 10);
+      if (!isNaN(idx)) {
+        this.selectedActantIdx = idx;
+        this.saveUIState();
+        this.renderActants();
+      }
+    });
+
+    // Dynamic panel
+    this.dynamicSelectEl = document.getElementById('dynamic-notepad-select') as HTMLSelectElement;
+    this.dynamicContainerEl = document.getElementById('dynamic-panel-container')!;
+    this.dynamicErrorEl = document.getElementById('dynamic-panel-error')!;
+    this.dynamicSelectEl.addEventListener('change', () => {
+      this.selectedDynamicNotepad = this.dynamicSelectEl.value || null;
+      this.dynamicCachedSource = null;
+      this.dynamicCompiledFn = null;
+      this.dynamicContainerEl.innerHTML = '';
+      delete (this.dynamicContainerEl as any).__initialized;
+      this.dynamicErrorEl.classList.remove('visible');
+      this.saveUIState();
+    });
+
+    // Load persisted UI state
+    try {
+      const raw = localStorage.getItem(UI_STATE_KEY);
+      if (raw) {
+        const state: UIState = JSON.parse(raw);
+        this.selectedActantIdx = state.inspectorTab ?? 0;
+        this.selectedDynamicNotepad = state.dynamicNotepad ?? null;
+      }
+    } catch {}
   }
 
   private postToBoard(): void {
@@ -136,6 +189,7 @@ export class HabitatUI {
     this.renderChat();
     this.renderCanvas();
     this.renderActants();
+    this.renderDynamicPanel();
   }
 
   private renderGameList(): void {
@@ -298,33 +352,125 @@ export class HabitatUI {
   }
 
   private renderActants(): void {
-    this.actants.forEach((a, i) => {
-      const el = this.panelEls[i];
-      if (!el) return;
+    // Tabs
+    this.inspectorTabsEl.innerHTML = this.actants.map((a, i) => {
+      const active = i === this.selectedActantIdx ? ' active' : '';
+      const dotCls = a.status === 'thinking' ? 'thinking' : 'idle';
+      return `<div class="inspector-tab${active}" data-idx="${i}">
+        ${escapeHtml(a.soma.gamer_handle)}
+        <span class="status-dot ${dotCls}"></span>
+      </div>`;
+    }).join('');
 
-      const statusCls = a.status === 'thinking' ? 'thinking' : 'idle';
+    // Body — selected actant only
+    const a = this.actants[this.selectedActantIdx];
+    if (!a) { this.inspectorBodyEl.innerHTML = ''; return; }
 
-      const toolsHtml = a.soma.custom_tools.map(t =>
-        `<div class="soma-tool-item">
-          <div class="soma-tool-name">${escapeHtml(t.name)}</div>
-          <div class="soma-tool-desc">${escapeHtml(t.description)}</div>
-        </div>`
-      ).join('');
+    const statusCls = a.status === 'thinking' ? 'thinking' : 'idle';
 
-      el.innerHTML = `
-        <div class="soma-header">
-          <span class="soma-handle">${escapeHtml(a.soma.gamer_handle)}</span>
-          <span class="soma-status ${statusCls}">${a.status} · tick #${a.tickCount}</span>
-        </div>
-        ${somaSection('last think', a.lastThinkPrompt || '(none)')}
-        ${somaSection('identity', a.soma.identity)}
-        ${somaSection('memory', a.soma.memory)}
-        ${somaSection('on_tick', a.soma.on_tick, true)}
-        <div class="soma-section">
-          <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
-          ${toolsHtml}
-        </div>`;
-    });
+    const toolsHtml = a.soma.custom_tools.map(t =>
+      `<div class="soma-tool-item">
+        <div class="soma-tool-name">${escapeHtml(t.name)}</div>
+        <div class="soma-tool-desc">${escapeHtml(t.description)}</div>
+      </div>`
+    ).join('');
+
+    this.inspectorBodyEl.innerHTML = `
+      <div class="soma-header">
+        <span class="soma-handle">${escapeHtml(a.soma.gamer_handle)}</span>
+        <span class="soma-status ${statusCls}">${a.status} · tick #${a.tickCount}</span>
+      </div>
+      ${somaSection('last think', a.lastThinkPrompt || '(none)')}
+      ${somaSection('identity', a.soma.identity)}
+      ${somaSection('memory', a.soma.memory)}
+      ${somaSection('on_tick', a.soma.on_tick, true)}
+      <div class="soma-section">
+        <div class="soma-section-label">custom_tools (${a.soma.custom_tools.length})</div>
+        ${toolsHtml}
+      </div>`;
+  }
+
+  private renderDynamicPanel(): void {
+    // Update dropdown options from notepad list
+    const names = this.world.commons.notepads.list();
+    const currentOptions = Array.from(this.dynamicSelectEl.options).map(o => o.value);
+    const desiredOptions = ['', ...names];
+
+    if (JSON.stringify(currentOptions) !== JSON.stringify(desiredOptions)) {
+      const selected = this.selectedDynamicNotepad;
+      this.dynamicSelectEl.innerHTML =
+        '<option value="">(none)</option>' +
+        names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      if (selected && names.includes(selected)) {
+        this.dynamicSelectEl.value = selected;
+      } else if (selected && !names.includes(selected)) {
+        this.selectedDynamicNotepad = null;
+        this.dynamicCachedSource = null;
+        this.dynamicCompiledFn = null;
+        this.dynamicContainerEl.innerHTML = '';
+        delete (this.dynamicContainerEl as any).__initialized;
+      }
+    }
+
+    if (!this.selectedDynamicNotepad) {
+      if (this.dynamicContainerEl.innerHTML) this.dynamicContainerEl.innerHTML = '';
+      this.dynamicErrorEl.classList.remove('visible');
+      return;
+    }
+
+    const source = this.world.commons.notepads.read(this.selectedDynamicNotepad);
+    if (source === null) {
+      this.dynamicContainerEl.innerHTML = '';
+      this.dynamicErrorEl.classList.remove('visible');
+      return;
+    }
+
+    // Detect content change — recompile if source changed
+    if (source !== this.dynamicCachedSource) {
+      this.dynamicCachedSource = source;
+      this.dynamicCompiledFn = null;
+      this.dynamicContainerEl.innerHTML = '';
+      delete (this.dynamicContainerEl as any).__initialized;
+      this.dynamicErrorEl.classList.remove('visible');
+
+      try {
+        const fn = new Function('return ' + source)();
+        if (typeof fn !== 'function') {
+          throw new Error('Notepad content must be a function(el, getWorld) { ... }');
+        }
+        this.dynamicCompiledFn = fn;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.dynamicErrorEl.textContent = `Compile error: ${msg}`;
+        this.dynamicErrorEl.classList.add('visible');
+        console.error('[DYNAMIC PANEL] Compile error:', err);
+        return;
+      }
+    }
+
+    // Execute the panel function
+    if (this.dynamicCompiledFn) {
+      const getWorld = <T>(cb: (w: World) => T): T => {
+        const result = cb(this.world);
+        this.onWorldChange();
+        return result;
+      };
+      try {
+        this.dynamicCompiledFn(this.dynamicContainerEl, getWorld);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.dynamicErrorEl.textContent = `Runtime error: ${msg}`;
+        this.dynamicErrorEl.classList.add('visible');
+        console.error('[DYNAMIC PANEL] Runtime error:', err);
+      }
+    }
+  }
+
+  private saveUIState(): void {
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify({
+      inspectorTab: this.selectedActantIdx,
+      dynamicNotepad: this.selectedDynamicNotepad,
+    }));
   }
 
   // ── Render loop ───────────────────────────────────────────

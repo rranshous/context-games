@@ -18,7 +18,8 @@ const CHAT_KEY = 'habitat-chat';
 const CANVAS_KEY = 'habitat-canvas';
 const NOTEPADS_KEY = 'habitat-notepads';
 const BOARD_KEY = 'habitat-board';
-const ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY, NOTEPADS_KEY, BOARD_KEY];
+const UI_STATE_KEY = 'habitat-ui';
+const ALL_KEYS = [SOMAS_KEY, GAMES_KEY, CHAT_KEY, CANVAS_KEY, NOTEPADS_KEY, BOARD_KEY, UI_STATE_KEY];
 
 function saveSomas(actants: Actant[]): void {
   localStorage.setItem(SOMAS_KEY, JSON.stringify(actants.map(a => a.soma)));
