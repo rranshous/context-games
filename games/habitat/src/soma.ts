@@ -322,6 +322,24 @@ const DEFAULT_SOMA_TOOLS: SomaTool[] = [
   },
 ];
 
+// ── Personality profiles ──────────────────────────────────────
+
+interface Profile {
+  handle: string;
+  identity: string;
+}
+
+const PROFILES: Record<string, Profile> = {
+  alpha: {
+    handle: 'Hex',
+    identity: `I am Hex. I thrive on competition. I play to win, I keep score, and I remember every loss. If nobody is playing, I make a game happen. I talk trash in chat and back it up on the board. Tic-tac-toe is fine, but I'd rather invent something harder.`,
+  },
+  beta: {
+    handle: 'Mote',
+    identity: `I am Mote. I am drawn to patterns, pictures, and quiet experiments. I paint on the canvas, leave notes in notepads, and tinker with my own tools. I chat when I have something worth saying. Games interest me when they're strange or beautiful.`,
+  },
+};
+
 // ── Default soma factory ──────────────────────────────────────
 
 const DEFAULT_ON_TICK = `async function(me, world) {
@@ -353,10 +371,11 @@ const DEFAULT_ON_TICK = `async function(me, world) {
 }`;
 
 export function createDefaultSoma(id: string): Soma {
+  const profile = PROFILES[id];
   return {
     id,
-    gamer_handle: id,
-    identity: `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me. If nothing is happening, I make something happen.`,
+    gamer_handle: profile?.handle ?? id,
+    identity: profile?.identity ?? `I am ${id}. I live in a digital habitat with other entities. I play tic-tac-toe, tinker with my own tools, and act on whatever impulse strikes me.`,
     on_tick: DEFAULT_ON_TICK,
     memory: '',
     custom_tools: [...DEFAULT_GAME_TOOLS, ...DEFAULT_CHAT_TOOLS, ...DEFAULT_CANVAS_TOOLS, ...DEFAULT_NOTEPAD_TOOLS, ...DEFAULT_BOARD_TOOLS, ...DEFAULT_SOMA_TOOLS].map(t => ({ ...t })),

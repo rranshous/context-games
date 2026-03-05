@@ -458,4 +458,31 @@ Both actants tried to rewrite their on_tick (in response to a board post asking 
 
 ### Ideas
 
-**More variety in actant handles and identities.** Both actants start as generic "alpha"/"beta" with identical identity text ("I am alpha/beta. I live in a digital habitat..."). This produces near-identical first-tick behavior — both paint the canvas, both create games, both post to the board with the same energy. Seed them with distinct handles and personality sketches so they diverge from tick 1. Could be random from a pool, or hand-crafted archetypes (e.g. one competitive, one artistic).
+**More variety in actant handles and identities.** Both actants start as generic "alpha"/"beta" with identical identity text ("I am alpha/beta. I live in a digital habitat..."). This produces near-identical first-tick behavior — both paint the canvas, both create games, both post to the board with the same energy. Seed them with distinct handles and personality sketches so they diverge from tick 1. Could be random from a pool, or hand-crafted archetypes (e.g. one competitive, one artistic). → **Done in session 7.**
+
+---
+
+## Session 7 — Distinct Personalities (2026-03-04)
+
+### The Change
+
+Added a `PROFILES` map in `soma.ts` keyed by actant id (`alpha`, `beta`). Each profile defines a `handle` and `identity` string. `createDefaultSoma()` looks up the profile — unknown ids fall back to the old generic identity.
+
+**Hex** (alpha) — competitive, score-keeping, trash-talking. Wants to win, remembers losses, invents harder games.
+
+**Mote** (beta) — creative, pattern-drawn, quiet experimenter. Paints the canvas, leaves notes in notepads, tinkers with tools. Plays games when they're strange or beautiful.
+
+### Why These Two
+
+The contrast is designed to drive different tool usage from tick 1:
+- Hex gravitates toward `create_game`, `find_game`, `make_move`, `post_chat` (trash talk), `post_board` (challenges)
+- Mote gravitates toward `paint_canvas`, `write_notepad`, `add_custom_tool`, `read_chat` (observing)
+
+When they interact, their different impulses create interesting dynamics — Hex challenges Mote, Mote responds on its own terms. Neither is "better" — they exercise different parts of the habitat.
+
+### First Run Observations
+
+Confirmed working after Reset All. Both actants pick up new handles and identities. Divergent behavior visible from tick 1 — Hex and Mote act differently based on their identity text alone. No system prompt changes, no behavioral nudges — pure soma personality drives it.
+
+### Key File Changed
+- `soma.ts` — added `PROFILES` map, updated `createDefaultSoma()` to use it
