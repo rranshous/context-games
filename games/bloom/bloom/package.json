@@ -1,0 +1,19 @@
+{
+  "name": "bloom-chassis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch chassis/main.ts",
+    "tick": "ONCE=1 tsx chassis/main.ts",
+    "start": "tsx chassis/main.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
