@@ -796,3 +796,40 @@ Binary concealment was a hard on/off switch — `squid.concealed` gated sensor d
 3. **Visual feedback on catch** — screen flash, freeze frame
 4. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
 5. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding
+
+---
+
+## Session 12 — Sonnet Reflection Upgrade (2026-03-03)
+
+### The Problem: Haiku Can't Actant
+
+Haiku wasn't cutting it for shark reflection — even with heavily scaffolded prompts (detailed reef knowledge, full sensor API docs, step-by-step reflection instructions), sharks weren't producing meaningfully improved on_tick code. The previous sessions had built an elaborate prompt in `buildSystemPrompt()` and `buildReflectionPrompt()` spelling out everything: tile types, concealment rules, sensor APIs, memory conventions, explicit improvement suggestions.
+
+Despite all that hand-holding, haiku's reflections were shallow. Sharks would acknowledge issues in their journals but not translate that into better code. The gap between "understands the problem" and "writes better behavior" was too wide for haiku to bridge.
+
+### The Fix: Sonnet + Minimal Prompts
+
+Stripped the reflection prompts down to nearly nothing:
+- **System prompt**: just the raw soma sections (`<identity>`, `<on_tick>`, `<memory>`, `<hunt_journal>`) with no instructions, no reef knowledge, no API docs
+- **User prompt**: single word — `"thrive"`
+- **Model**: switched from `claude-haiku-4-5-20251001` to `claude-sonnet-4-6`
+
+The result was immediate and dramatic. Sonnet infers intent from context alone — it reads the on_tick code, understands the API from usage, reviews the hunt journal, and produces genuinely more sophisticated behavior. No hand-holding needed. The prescriptive haiku prompts may have actually been constraining the model by over-specifying the approach.
+
+### Key Insight
+
+**Haiku needs explicit instructions; sonnet reasons from context.** For actant embodiment (where the model must read its own code, understand what went wrong, and write better code), the ability to reason from raw context is essential. Haiku with detailed prompts < sonnet with minimal prompts. The cost increase is worth it for reflection — it only fires every 60s per shark, not every frame.
+
+This likely applies across all soma-based games (hot-pursuit, cognitive-climb): reflection/self-modification calls should use the strongest model the budget allows. Per-frame instinct calls can stay on haiku since they're just executing existing code patterns, not reasoning about self-improvement.
+
+### Changes
+| File | Action |
+|------|--------|
+| `src/reflection.ts` | MODIFIED — model `haiku` → `sonnet-4-6`, prompts stripped to minimal context |
+
+### Next
+1. **Crevice visuals** — make crevices visually distinct (currently invisible)
+2. **Ink cloud** — escape ability (Space/A), brief LOS-blocking smoke screen
+3. **Visual feedback on catch** — screen flash, freeze frame
+4. **Predator variety** — eel (fast, fits crevices) or anglerfish (slow, lure)
+5. **Sound design** — ambient ocean, heartbeat chase, relief sigh hiding

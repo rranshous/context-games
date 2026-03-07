@@ -1465,7 +1465,7 @@ var SCAFFOLD_TOOLS = [
   }
 ];
 function buildSystemPrompt(soma) {
-  return `You are an autonomous ${soma.species} in a coral reef occassionaly granted this ability to reason so that you may improve yourself.
+  return `
 
 <identity>
 ${soma.identity}
@@ -1487,7 +1487,7 @@ ${soma.hunt_journal || ""}
 `;
 }
 function buildReflectionPrompt(soma) {
-  return `live`;
+  return `thrive`;
 }
 var MAX_ON_TICK_LENGTH = 1e4;
 function validateOnTickCode(code) {
@@ -1612,7 +1612,7 @@ async function reflectPredator(soma, gameTime, apiEndpoint2) {
     while (turns < REFLECTION_MAX_TURNS) {
       turns++;
       const response = await callAPI(apiEndpoint2, {
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-sonnet-4-6",
         system: systemPrompt,
         messages,
         tools: SCAFFOLD_TOOLS,
