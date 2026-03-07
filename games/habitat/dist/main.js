@@ -1263,6 +1263,7 @@ var HabitatUI = class {
         return;
       }
     }
+    if (this.dynamicContainerEl.contains(document.activeElement)) return;
     if (this.dynamicCompiledFn) {
       const getWorld = (cb) => {
         const result = cb(this.world);

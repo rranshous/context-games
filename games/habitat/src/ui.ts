@@ -448,6 +448,9 @@ export class HabitatUI {
       }
     }
 
+    // Skip render when user is interacting with the panel (typing in inputs, etc.)
+    if (this.dynamicContainerEl.contains(document.activeElement)) return;
+
     // Execute the panel function
     if (this.dynamicCompiledFn) {
       const getWorld = <T>(cb: (w: World) => T): T => {
