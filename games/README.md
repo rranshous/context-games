@@ -1,163 +1,202 @@
 # Game Projects
 
-This directory contains all game development projects as submodules. Projects explore interactive entertainment, AI integration, and experimental gameplay mechanics.
+This directory contains all game development projects. Projects explore interactive entertainment, AI integration, and experimental gameplay mechanics.
 
-## Games 🎮
+## AI Actant Games 🧠
 
-### [Rescue Run](./rescue-run/)
-Puzzle game teaching AI tool design through a rescue vehicle simulation. You don't control the car—you design the tools it uses to perceive and act, then watch the AI rescue stranded people. The core insight: how you define tools determines how well the AI performs.  
-🎯 **Status:** v0.7 - Four-column UI, tool editing, review panel  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Claude Haiku for autonomous vehicle control via player-designed tools  
-🔧 **Next:** Additional levels, polish  
-✨ **Unique:** Teaches AI embodiment/tool design, meta-gameplay (designing tools IS playing), persistent tool configurations
+Games where AI entities live, evolve, and self-modify within simulations.
 
-### [Badling Brawl](./badling-brawl/)
-Chaotic local co-op survival game where ducks defend their nest from waves of cats and dogs. Features surge/lull rhythm gameplay, power upgrades via egg collection, and support for keyboard and gamepad controls.
-🎯 **Status:** Playable with core mechanics complete
-🎮 **Published:** Not yet
-🤖 **AI:** None
-✨ **Unique:** Local co-op duck defense, egg-based power progression, surge/lull wave rhythm, gamepad support
+### [Cognitive Climb](./cognitive-climb/)
+Evolutionary simulation where creatures with AI-powered brains compete and evolve. Each creature's inference call IS its body — 5 editable sections (identity, sensors, on_tick, memory, tools) that creatures self-modify through reflection. Features dual evolution: Darwinian (genome mutation) and Lamarckian (embodiment cloned to offspring). Includes an observer side panel with mood-colored reports.
+🎯 **Status:** Complete (M1-M6 + post-M6 tuning + observer panel)
+🤖 **AI:** ✅ Claude Haiku for creature brains, observer reports
+✨ **Unique:** Self-modifying AI embodiment, dual evolution, cultural sweeps across populations
 
-### [Highway Havoc](./highway-havoc/)
-Cooperative 2-player HTML5 game where one player drives and dodges obstacles while the other aims and shoots enemies. Battle through an endless procedurally-generated highway with power-ups, enemy vehicles, and increasing difficulty.
-🎯 **Status:** Playable with full game loop
-🎮 **Published:** Not yet
-🤖 **AI:** None
-✨ **Unique:** Asymmetric co-op (driver + gunner), procedural highway generation, gamepad-focused controls
+### [Glint](./glint/)
+Baby squid survival in a bioluminescent coral reef — hide-flee-hide core loop. Sharks have soma embodiment: their on_tick code runs every frame, they write their own hunt journals, and they self-improve through reflection. Three.js isometric cel-shaded visuals with atmospheric energy visualization (squid glow reflects energy level).
+🎯 **Status:** Complete (12 sessions of development)
+🤖 **AI:** ✅ Claude Sonnet for shark reflection/self-modification, Haiku for per-frame instinct calls
+✨ **Unique:** Glow-based detection, soma self-tracking, predators that learn to hunt better over time
 
-### [Wuvu](./wuvu/)
-AI-collaborative digital pet game where players care for 3 unique aquatic creatures while a simple AI Assist Agent helps with routine creature care. Demonstrates basic human-AI collaboration using local inference and shared game actions.
-🎯 **Status:** ✅ **Complete** - Simple AI assistant successfully implemented
-🎮 **Published:** Not yet
-🤖 **AI:** ✅ Local Ollama integration (qwen3:1.7b) with tool-based actions for feeding/cleaning/playing
-🔧 **Technical:** Tool-based agent architecture, unified human-AI action system, descriptive game state format
-✨ **Features:** Agent toggle, visual feedback, autonomous decision-making, transparent action logging
+### [Habitat](./habitat/)
+Digital actant habitat — AI entities that can engage in games, chat, paint ASCII art, and self-modify. Two actants with distinct personalities share a world with tic-tac-toe, chat room, canvas, notepads, and a bulletin board. Pure soma system prompt (no instructions, just raw section contents). Dynamic panel system powered by actant-authored notepads.
+🎯 **Status:** Active development (5 sessions complete)
+🤖 **AI:** ✅ Claude Sonnet for agentic behavior via `me.thinkAbout(prompt)`, up to 10 tool-use turns
+✨ **Unique:** "thrive" as user prompt drives agency, actants define their own custom tools, tabbed inspector UI
 
-### [Con-Control](./con-control/)
-AI collaboration space escape game where players work with a Ship AI (literally powered by Claude 4) to repair systems and escape a detention cell. Features **three escalating crises**: Power→Atmosphere→**Security Authorization**. The final phase creates an authentic AI ethical dilemma where Claude must choose between security protocols and human survival.  
-🎯 **Status:** ✅ **Enhanced with Security Authorization Puzzle** - three-phase crisis progression complete  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Claude Sonnet 4 for real-time ship AI character with **authentic ethical decision-making**  
-🔧 **Next:** Enhanced gameplay, multiple story paths, improved UI/UX  
-✨ **Unique:** **Security authorization crisis**, escalating warning system, event horizon countdown, authentic AI ethical struggles, discovery-driven puzzles, voice + text input, streaming responses
+### [Hot Pursuit](./hot-pursuit/)
+Top-down chase game with evolving AI police actants. Officers have soma-driven behavior with reflection loops that include bird's-eye vision (multimodal base64 PNG maps). Officers share strategies through radio dispatch and debrief sessions. 5 precincts with escalating difficulty.
+🎯 **Status:** Complete (all core phases + communication system)
+🤖 **AI:** ✅ Claude Sonnet for officer reflection, Haiku for summaries and inspector
+✨ **Unique:** Multimodal reflection with vision, live radio dispatch, debrief strategy sharing between officers
 
-### [RitSim](./ritsim/)
-AI-driven ritual simulator where Claude interprets mystical object arrangements. Players drag sacred items on a ritual table, and AI generates both atmospheric prose and visual effects based on established magical rules and spatial patterns.  
-🎯 **Status:** Core features complete, visual effects refinement in progress  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Claude Sonnet 4 for vision analysis and ritual interpretation  
-🔧 **Next:** Refine energy mist rendering and effect combinations  
-✨ **Unique:** Inference-driven game engine, visual pattern recognition, structured XML AI responses
+### [Sparkly-Sim](./sparkly-sim/)
+Ecosystem simulation exploring AI + simulation interaction. Can the AI turn knobs to help its actors propagate?
+🎯 **Status:** In development
+🤖 **AI:** ✅ Claude API for neural energy reasoning
+✨ **Unique:** AI-simulation interaction experiments, projector-ready visuals
 
-### [RaceOn](./raceon/)
-Desert combat racing game that evolved from closed-track racing to open-world water bandit hunting. Good foundation for forking and potential base for AI-driven game making experiments.  
-🎯 **Status:** Foundation ready for expansion  
-🎮 **Published:** [itch.io](https://codeflaw.itch.io/raceon) (Aug 9, 2025)  
-🤖 **AI:** None (potential future integration)  
-🔧 **Next:** Generalize implementation for easy addition of new enemy types and behaviors  
-✨ **Unique:** Good separation of concerns, realistic physics, configuration-driven architecture
+## AI-Integrated Games 🤖
 
-### [Dark Hall](./darkhall/)
-Horror maze game created in collaboration with step-son. Excellent separation of simulation, presentation, and inputs - a preferred pattern for future game development.  
-🎯 **Status:** Playable core mechanics complete  
-🎮 **Published:** [itch.io](https://codeflaw.itch.io/darkhall) (Aug 9, 2025)  
-🤖 **AI:** None  
-🔧 **Next:** Add intro and game ending screens  
-✨ **Unique:** Clean sim/presentation/input separation, collaborative family development, triple-layer lighting system
+Games where AI powers gameplay mechanics.
 
-### [Stacksonstacks](./stacksonstacks/)
-Deterministic HTML/element-based system designed for AI-driven game development. Focused on helping kids gain experience collaborating with AI in game creation.  
-🎯 **Status:** Good foundation, ready to continue development  
-🎮 **Published:** [itch.io](https://codeflaw.itch.io/stacksonstacks) (Jun 21, 2025)  
-🤖 **AI:** 🎯 Planned (AI-driven game development collaboration)  
-✨ **Unique:** Deterministic HTML/element system, designed for AI collaboration, kid-friendly development experience
-
-### [AI Orchestration Game](./ai-orchestration-game/)
-Early satirical workplace simulation. Hilariously funny as satire but intentionally not fun as a game (that's the joke). Humans coordinate between AI agents in enterprise software development chaos.  
-🎯 **Status:** Satirical concept complete  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Multiple AI agents (Product Vision, Code Writer, Verification)  
-✨ **Unique:** Intentionally unfun gameplay as commentary, authentic enterprise software development satire
-
-### [All-Around-You](./all-around-you/)
-Pre-AI collaboration experiment exploring WASM-based agent architectures. Each agent is its own WASM module with behavior and rendering packaged together for compositional use.  
-🎯 **Status:** Experimental prototype  
-🎮 **Published:** Not yet  
-🤖 **AI:** None  
-✨ **Unique:** WASM-based agent system, modular entity architecture
-
-### [Fastfall](./fastfall/)
-High-speed first-person perspective falling game where you jump from a hot air balloon and navigate through increasingly complex platforms as you plummet toward the ground. Full viewport POV experience with 3D-like scaling and atmospheric progression.
-🎯 **Status:** Just started development
-🎮 **Published:** Not yet
-🤖 **AI:** None
-✨ **Unique:** Immersive first-person freefall experience, 3D-like perspective using 2D canvas, atmospheric sky-to-ground progression, arcade-style wind physics
-
-### [Spree-and-a-Half](./spree-and-a-half/)
-Swarm-controlled sword game exploring collective behavior and emergent gameplay. Instead of managing a single character, you command an entire flock of swords that moves, attacks, and responds as a collective entity using boids flocking algorithms.
-🎯 **Status:** Phase 1 Complete - Working prototype with natural swarm behavior
-🎮 **Published:** Not yet
-🤖 **AI:** None
-✨ **Unique:** Swarm control mechanics, boids flocking algorithm, collective sword behavior, experimental input schemes
+### [Qacky](./qacky/)
+AI Taboo — a prompt crafting game with banned words. 5 game modes (words, actions, voices, emotions, puzzles). Three judging layers: regex → prompt judge → answer judge. All AI calls run in parallel for snappy gameplay.
+🎯 **Status:** Complete (M1-M3, M4 reverse rounds designed)
+🤖 **AI:** ✅ Claude Haiku for clue generation and multi-layer judging via structured output
+✨ **Unique:** Banned-word prompt crafting, parallel AI judging pipeline, 5 distinct game modes
 
 ### [Story Cauldron](./story-cauldron/)
 Choose-your-own-adventure where AI generates the story and visuals as you play. First-person POV on a mysterious island — smooth canvas backgrounds with pixel-art sprite foreground objects. Family-friendly, projector-optimized.
-🎯 **Status:** Core loop complete (M1-M4), playtesting phase
-🎮 **Published:** Not yet
+🎯 **Status:** Core loop complete (M1-M3), playtesting phase
 🤖 **AI:** ✅ Claude Haiku for scene generation via structured output (narration, choices, backgrounds, sprites)
-🔧 **Next:** Voice input, custom player choices, story persistence
-✨ **Unique:** Hybrid rendering (smooth backgrounds + AI-generated pixel-art sprites), structured output for guaranteed valid scenes, family projector play
+✨ **Unique:** Hybrid rendering (smooth backgrounds + AI-generated pixel-art sprites), family projector play
+
+### [Con-Control](./con-control/)
+Space escape game where players work with a Ship AI (powered by Claude) to repair systems and escape a detention cell. Three escalating crises: Power → Atmosphere → Security Authorization, where Claude faces an authentic ethical dilemma.
+🎯 **Status:** Complete — three-phase crisis progression
+🤖 **AI:** ✅ Claude Sonnet for real-time ship AI character with authentic ethical decision-making
+✨ **Unique:** Security authorization crisis, AI ethical struggles, discovery-driven puzzles, voice + text input
+
+### [Rescue Run](./rescue-run/)
+Puzzle game teaching AI tool design through a rescue vehicle simulation. You design the tools the AI uses to perceive and act, then watch it rescue stranded people. How you define tools determines how well the AI performs.
+🎯 **Status:** v0.7 — four-column UI, tool editing, review panel
+🤖 **AI:** ✅ Claude Haiku for autonomous vehicle control via player-designed tools
+✨ **Unique:** Meta-gameplay (designing tools IS playing), teaches AI embodiment/tool design
 
 ### [Oneshot Climb](./oneshot-climb/)
-Platform game where AI generates items with executable code and pixel-art sprites at a magical forge. Includes an autonomous Explorer Claude agent that playtests the game and reports API findings.
-🎯 **Status:** Active development, experimentation phase
-🎮 **Published:** Not yet
-🤖 **AI:** ✅ Claude for item generation (behavior code + ASCII sprites) and autonomous playtesting agent
-🔧 **Next:** Refine World API based on Explorer agent findings
-✨ **Unique:** AI-generated executable game items, instrumented proxy tracking API usage, autonomous playtesting agent
+Platformer where AI generates items with executable code and pixel-art sprites at a magical forge. Includes an autonomous Explorer Claude agent that playtests the game.
+🎯 **Status:** Experimentation phase
+🤖 **AI:** ✅ Claude for item generation (behavior code + ASCII sprites) and autonomous playtesting
+✨ **Unique:** AI-generated executable game items, autonomous playtesting agent
+
+### [RitSim](./ritsim/)
+AI-driven ritual simulator where Claude interprets mystical object arrangements on a ritual table and generates atmospheric prose and visual effects.
+🎯 **Status:** Core features complete
+🤖 **AI:** ✅ Claude Sonnet for vision analysis and ritual interpretation
+✨ **Unique:** Inference-driven game engine, visual pattern recognition
+
+### [Sacred Scribe](./hard-find-metatrial/sacred-scribe/)
+Text-based game where you play as a copywriter creating recruitment materials for a cult. Immersive and hilarious collaborative story building experience.
+🎯 **Status:** Playable, very fun
+🤖 **AI:** ✅ Heavy AI integration for text analysis and recruitment effectiveness
+✨ **Unique:** Psychological copywriting mechanics, high entertainment value
+
+### [AI Orchestration Game](./ai-orchestration-game/)
+Satirical workplace simulation. Humans coordinate between AI agents in enterprise software development chaos. Intentionally not fun as a game (that's the joke).
+🎯 **Status:** Concept complete
+🤖 **AI:** ✅ Multiple AI agents (Product Vision, Code Writer, Verification)
+✨ **Unique:** Intentionally unfun gameplay as commentary, enterprise satire
+
+### [Diplomatic Waters](./diplomatic-waters/)
+Collaborative treaty writing simulator with AI. Experimental — didn't find the gameplay compelling enough to take very far.
+🎯 **Status:** Experimental, limited development
+🤖 **AI:** ✅ Claude for treaty analysis
+✨ **Unique:** AI-human collaborative storytelling, diplomatic simulation
+
+### [Wuvu](./wuvu/)
+AI-collaborative digital pet game with 3 aquatic creatures and a simple AI Assist Agent for routine care.
+🎯 **Status:** Complete
+🤖 **AI:** ✅ Local Ollama integration (qwen3:1.7b) with tool-based actions
+✨ **Unique:** AI-simulation interaction, unified human-AI action system
+
+### [World Weaver](./world-weaver/)
+Helps children digitize hand-drawn characters and stories into shareable wiki pages through webcam capture and voice descriptions.
+🎯 **Status:** MVP complete
+🤖 **AI:** ✅ Whisper (speech-to-text) + Ollama (content generation)
+✨ **Unique:** Physical-to-digital transformation workflow, voice-driven documentation
+
+## Action & Arcade Games 🕹️
+
+### [Rampart Ridge](./rampart-ridge/)
+Sci-fi tower defense with 4-player couch co-op on gamepads. Three.js isometric cel-shading with pixelated rendering. Build, defend, and survive against waves of enemies.
+🎯 **Status:** Complete (M1-M5)
+🤖 **AI:** None
+✨ **Unique:** 4-player couch co-op, gamepad support, cel-shaded isometric visuals
+
+### [Badling Brawl](./badling-brawl/)
+Chaotic local co-op survival where ducks defend their nest from cats and dogs. Surge/lull rhythm gameplay with egg-based power progression.
+🎯 **Status:** Playable, core mechanics complete
+🤖 **AI:** None
+✨ **Unique:** Local co-op duck defense, surge/lull wave rhythm, gamepad support
+
+### [Highway Havoc](./highway-havoc/)
+Cooperative 2-player game — one drives, one shoots. Battle through a procedurally-generated highway with power-ups and increasing difficulty.
+🎯 **Status:** Playable with full game loop
+🤖 **AI:** None
+✨ **Unique:** Asymmetric co-op (driver + gunner), procedural generation
+
+### [RaceOn](./raceon/)
+Desert combat racing that evolved from closed-track racing to open-world water bandit hunting.
+🎯 **Status:** Foundation ready for expansion
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/raceon)
+🤖 **AI:** None
+✨ **Unique:** Realistic physics, configuration-driven architecture
+
+### [Fastfall](./fastfall/)
+High-speed first-person falling game — jump from a hot air balloon and navigate through platforms as you plummet toward the ground.
+🎯 **Status:** Early development
+🤖 **AI:** None
+✨ **Unique:** Immersive first-person freefall, 3D-like perspective using 2D canvas
+
+### [Spree-and-a-Half](./spree-and-a-half/)
+Swarm-controlled sword game using boids flocking algorithms. Command an entire flock of swords that moves and attacks as a collective entity.
+🎯 **Status:** Phase 1 complete — working prototype
+🤖 **AI:** None
+✨ **Unique:** Swarm control mechanics, boids flocking algorithm
+
+### [Dark Hall](./darkhall/)
+Horror maze game created in collaboration with step-son. Clean sim/presentation/input separation pattern.
+🎯 **Status:** Playable core mechanics complete
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/darkhall)
+🤖 **AI:** None
+✨ **Unique:** Triple-layer lighting system, collaborative family development
+
+### [Dark Rider](./dark-rider/)
+Isometric cel-shaded exploration demo — a dark hooded rider navigates a forest path through a 5-minute day/night cycle. Three.js with Sokpop-inspired blocky aesthetic.
+🎯 **Status:** Complete
+🤖 **AI:** None
+✨ **Unique:** Cel-shaded isometric visuals, smooth day/night transitions, infinite-scroll world
 
 ## Interactive Experiences 🎨
 
 ### [Wallverine](./wallverine/)
-Voice-controlled wall animation system built for girlfriend's projector. Works well as a voice-powered projection experience. Possibly a finished product, though always room for enhancement.  
-🎯 **Status:** Functional, potentially complete  
-🎮 **Published:** [itch.io](https://codeflaw.itch.io/wallver) (Jun 21, 2025)  
-🤖 **AI:** None (uses Web Speech API)  
-✨ **Unique:** Purpose-built for projector setup, reliable voice control, wall-scale interactive art
+Voice-controlled wall animation system built for projector use. Possibly a finished product.
+🎯 **Status:** Functional, potentially complete
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/wallver)
+🤖 **AI:** None (Web Speech API)
+✨ **Unique:** Purpose-built for projector, reliable voice control
 
 ### [Dinosaur Dance](./dinosaur-dance/)
-Authentic fun exploration created through collaborative RP during development. Fun to play as both game and experience - step-son enjoyed playing on his phone.  
-🎯 **Status:** ~Complete  
-🎮 **Published:** [itch.io](https://codeflaw.itch.io/dinosaur-dance-extravaganza) (May 31, 2025)  
-🤖 **AI:** None (uses Web Speech API)  
-✨ **Unique:** Authentic exploration through RP development, voice-controlled creature formations, cross-platform enjoyment
+Voice-controlled dinosaur formations. Fun to play — step-son enjoyed it on his phone.
+🎯 **Status:** Complete
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/dinosaur-dance-extravaganza)
+🤖 **AI:** None (Web Speech API)
+✨ **Unique:** Voice-controlled creature formations, cross-platform
 
-### [Sparkly-Sim](./sparkly-sim/)
-Ecosystem simulation exploring AI + simulation interaction. Can the AI turn knobs to help its actors propagate in the sim? Interesting visuals, was being refined last time worked on.  
-🎯 **Status:** In development, interesting but not complete  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Anthropic Claude API for neural energy reasoning  
-✨ **Unique:** AI-simulation interaction experiments, projector-ready visuals, emergent behaviors
+## Experimental / Early Stage 🧪
 
-### [Diplomatic Waters](./diplomatic-waters/)
-Collaborative story building experience with AI. Experimental treaty writing simulator - didn't find the gameplay compelling enough to take very far.  
-🎯 **Status:** Experimental, limited development  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Claude AI for treaty analysis  
-✨ **Unique:** AI-human collaborative storytelling, legal language analysis, diplomatic simulation
+### [Bio-Mage](./bio-mage/)
+Magic system game where spells are encoded as genetic-like DNA sequences (base-4 ATCG encoding). Player is a cyborg with bioinformatics augmentations who assembles spell fragments.
+🎯 **Status:** Early development (TypeScript + Vite)
+🤖 **AI:** None yet
+✨ **Unique:** Genetic-encoded magic system, cascading spell effects
 
-### [World Weaver](./world-weaver/)
-Platform that helps children digitize hand-drawn characters and stories, transforming them into shareable wiki pages through webcam capture and voice descriptions.  
-🎯 **Status:** MVP Complete  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Whisper (speech-to-text) + Ollama (content generation)  
-🔧 **Next:** Refine V1 implementation - step-son played with it but didn't get that into it  
-✨ **Unique:** Physical-to-digital transformation workflow, voice-driven character documentation, AI-assisted wiki generation
+### [Silly-Theatre](./silly-theatre/)
+Stage-based control system with four interactive layers: tiles, LED matrix, props, and puppets. Designed for AI-controlled puppet behavior and scripted shows.
+🎯 **Status:** Design phase (no implementation yet)
+🤖 **AI:** Planned
+✨ **Unique:** Four-layer physical theater simulation
 
-### [Sacred Scribe](./hard-find-metatrial/sacred-scribe/)
-Text-based game where you play as a copywriter creating recruitment materials for a cult. Maybe the most LOL/cackling-inducing game. Very immersive collaborative story building experience.  
-🎯 **Status:** Playable full game, very fun  
-🎮 **Published:** Not yet  
-🤖 **AI:** ✅ Heavy AI integration (text analysis for recruitment effectiveness)  
-✨ **Unique:** Immersive collaborative storytelling, psychological copywriting mechanics, high entertainment value
+### [Stacksonstacks](./stacksonstacks/)
+Deterministic HTML/element-based system designed for AI-driven game development with kids.
+🎯 **Status:** Foundation ready
+🎮 **Published:** [itch.io](https://codeflaw.itch.io/stacksonstacks)
+🤖 **AI:** Planned (AI-driven game development collaboration)
+✨ **Unique:** Deterministic HTML/element system, kid-friendly AI collaboration
+
+### [All-Around-You](./all-around-you/)
+Pre-AI collaboration experiment exploring WASM-based agent architectures.
+🎯 **Status:** Experimental prototype
+🤖 **AI:** None
+✨ **Unique:** WASM-based agent system, modular entity architecture
