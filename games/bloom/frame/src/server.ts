@@ -42,6 +42,7 @@ app.post('/api/chat', (req, res) => {
   if (!handle || !text) { res.status(400).json({ error: 'handle and text required' }); return; }
   const msg = chat.post(handle, text);
   save();
+  console.log(`[frame] chat ${handle}: "${text.slice(0, 80)}"`);
   res.json(msg);
 });
 
@@ -62,6 +63,7 @@ app.post('/api/artifacts', (req, res) => {
   if (!handle || !name || content === undefined) { res.status(400).json({ error: 'handle, name, content required' }); return; }
   const meta = artifacts.deliver(handle, name, content, type);
   save();
+  console.log(`[frame] artifact ${handle}: "${name}" (${type || 'text'}, ${typeof content === 'string' ? content.length : '?'} chars)`);
   res.json(meta);
 });
 
@@ -73,6 +75,24 @@ app.get('/api/artifacts/:id', (req, res) => {
   const artifact = artifacts.get(req.params.id);
   if (!artifact) { res.status(404).json({ error: 'not found' }); return; }
   res.json(artifact);
+});
+
+// --- Activity feed (chassis → browser) ---
+
+const activityLog: Array<{ type: string; detail: string; ts: number }> = [];
+const MAX_ACTIVITY = 200;
+
+app.post('/api/activity', (req, res) => {
+  const { type, detail } = req.body;
+  if (!type) { res.status(400).json({ error: 'type required' }); return; }
+  activityLog.push({ type, detail: detail || '', ts: Date.now() });
+  if (activityLog.length > MAX_ACTIVITY) activityLog.splice(0, activityLog.length - MAX_ACTIVITY);
+  res.json({ ok: true });
+});
+
+app.get('/api/activity', (req, res) => {
+  const after = parseInt(req.query.after as string) || 0;
+  res.json(activityLog.filter(e => e.ts > after));
 });
 
 // --- UI ---

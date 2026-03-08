@@ -34,11 +34,16 @@ export async function pollChatSignals(): Promise<Signal[]> {
       lastSeenChatId = msgs[msgs.length - 1].id;
     }
 
+    if (external.length > 0) {
+      console.log(`[memory] ${external.length} new chat signal(s): ${external.map(m => `${m.handle}: "${m.text.slice(0, 40)}"`).join(', ')}`);
+    }
+
     return external.map(m => ({
       type: 'chat' as const,
       data: { handle: m.handle, text: m.text, id: m.id, ts: m.ts },
     }));
-  } catch {
+  } catch (err) {
+    console.log(`[memory] chat poll failed: ${(err as Error).message}`);
     return [];
   }
 }
@@ -96,13 +101,19 @@ export async function buildThingsNoticed(signal: Signal): Promise<void> {
     parts.push(`current_stage: ${stageMatch[1]}`);
   }
 
-  writeSection('things_noticed.md', parts.join('\n'));
+  const content = parts.join('\n');
+  console.log(`[memory] things_noticed: ${parts.length} parts, ${content.length} chars`);
+  writeSection('things_noticed.md', content);
 }
 
 // --- history ---
 
 export function recordHistory(actions: ActionRecord[]): void {
-  if (actions.length === 0) return;
+  if (actions.length === 0) {
+    console.log('[memory] no actions to record');
+    return;
+  }
+  console.log(`[memory] recording ${actions.length} action(s) to history`);
 
   const current = readSection('history.md');
   const ts = new Date().toISOString().slice(0, 19);

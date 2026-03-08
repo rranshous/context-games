@@ -103,7 +103,6 @@ When bloom completes a stage, the chassis excises that block. The running code r
 
 ### What's NOT built yet
 
-- No actual first run of bloom (would need `ANTHROPIC_API_KEY` set and frame running)
 - No persistence of `lastSeenChatId` across restarts (in-memory only)
 - `things_noticed.md` is gitignored conceptually but not in `.gitignore` yet (chassis-managed, changes every signal)
 - No rate limiting on inference calls
@@ -133,3 +132,58 @@ When bloom completes a stage, the chassis excises that block. The running code r
 - **Memory manager as chassis component**: Habitat's default `on_tick` builds world snapshots. Bloom has a dedicated memory manager that separates concerns.
 - **No browser runtime**: Bloom is a Node.js process. No DOM, no render loop, no UI state.
 - **History replaces message chain**: Habitat's `thinkAbout()` maintains a conversation. Bloom's calls are stateless; history provides continuity.
+
+---
+
+## Session 2: First Contact + Observability (2026-03-07)
+
+### What happened
+
+First live run of bloom. Added comprehensive logging, browser activity feed, and ran the first tick (stage 0: "become").
+
+### Infrastructure changes
+
+1. **dotenv** added — `.env` file in `bloom/` with `ANTHROPIC_API_KEY`, loaded via `import 'dotenv/config'` in `main.ts`
+2. **Model**: tried `claude-sonnet-4-6-20250929` (404), `claude-sonnet-4-5-20250514` (404), settled on `claude-sonnet-4-5-20250929` for first run, then switched to `claude-sonnet-4-6` (latest)
+3. **Logging added everywhere:**
+   - `inference.ts`: system size, msg count, tools count, response time, token usage, stop reason
+   - `memory-manager.ts`: chat poll results, things_noticed size, history recording
+   - `loop.ts`: stage detection, soma assembly size, tool inputs/outputs with previews
+   - `server.ts`: chat posts, artifact deliveries
+4. **Activity feed** — new system for piping chassis events to browser console:
+   - `POST /GET /api/activity` on frame server (rolling 200 events in memory)
+   - `postActivity(type, detail)` helper in `loop.ts` — fire-and-forget POSTs
+   - Browser polls `/api/activity` every 1s, color-coded console output by event type
+   - Event types: `signal`, `inference`, `thinking`, `tool`, `tool_ok`, `tool_err`, `done`
+5. **Browser console logging** — `[chat]` for new messages, `[artifact]` for new artifacts
+
+### First tick: stage 0 → 1
+
+Bloom's very first inference call. Here's what it did in one dispatch (7 inference calls, ~50s):
+
+1. Read `bloom/context/qacky.md` — understood the game spec
+2. Explored the file tree: `bloom/`, `bloom/chassis/`, `frame/`, `frame/src/`
+3. Read its own chassis code (`loop.ts`, `main.ts`)
+4. Read its empty responsibilities and memory
+5. **Posted to chat**: "I am awake." — full self-assessment of what it is, what it's building, the architecture
+6. **Updated responsibilities**: marked stage 0 complete, listed next actions
+7. **Updated memory**: seeded with Qacky spec summary + architecture understanding
+8. **Updated identity**: advanced `current_stage` to 1, marked stage 0 with ✓
+9. **Posted to chat**: "Stage 0 complete. I've marked myself at stage 1. [...] The becoming is done. I am."
+
+Token usage: peaked at ~7500 input, ~950 output on the largest turn. 14 tool calls total.
+
+### Key observations
+
+- Bloom immediately grasped the actant pattern — read its own code, explored the file system, understood chassis vs frame
+- Self-advancement happened naturally: it updated identity to stage 1 without prompting
+- The "become" impulse (single word) was sufficient to drive a full self-orientation sequence
+- Sonnet 4.5 handled 14 tools comfortably, no confusion about tool schemas
+- The signal handler was empty (default fallback: tick → stage impulse), and bloom didn't write one yet
+
+### What's next
+
+- Stage 1 ("orient"): bloom should explore its tools, understand what it can modify, maybe write a signal handler
+- Need to test chat signal path (send bloom a message, see it dispatch)
+- Activity feed needs testing in browser (added after first tick)
+- Consider: should bloom auto-tick continuously, or do we run manual ticks while developing?

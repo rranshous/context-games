@@ -108,6 +108,7 @@
     const POLL_MS = 2000;
     let lastMsgCount = 0;
     let selectedArtifact = null;
+    const log = (tag, ...args) => console.log(`%c[${tag}]`, 'color: #6a9fb5; font-weight: bold', ...args);
 
     const messagesEl = document.getElementById('messages');
     const chatForm = document.getElementById('chat-form');
@@ -128,10 +129,14 @@
         const res = await fetch('/api/chat?count=200');
         const msgs = await res.json();
         if (msgs.length !== lastMsgCount) {
+          const newMsgs = msgs.slice(lastMsgCount);
+          for (const m of newMsgs) {
+            log('chat', `${m.handle}: ${m.text}`);
+          }
           renderMessages(msgs);
           lastMsgCount = msgs.length;
         }
-      } catch {}
+      } catch (err) { console.warn('[frame] chat poll error', err); }
     }
 
     function renderMessages(msgs) {
@@ -173,7 +178,13 @@
       } catch {}
     }
 
+    let lastArtCount = 0;
     function renderArtifacts(arts) {
+      if (arts.length !== lastArtCount) {
+        const newArts = arts.slice(lastArtCount);
+        for (const a of newArts) log('artifact', `${a.name} (${a.type})`);
+        lastArtCount = arts.length;
+      }
       if (!arts.length) {
         artifactListEl.innerHTML = '<div class="empty">none yet</div>';
         return;
@@ -206,11 +217,38 @@
       } catch {}
     });
 
+    // --- Activity feed (chassis events in console) ---
+
+    const ACTIVITY_STYLES = {
+      signal:    'color: #ebcb8b; font-weight: bold',
+      inference: 'color: #555; font-style: italic',
+      thinking:  'color: #888',
+      tool:      'color: #b48ead',
+      tool_ok:   'color: #a3be8c',
+      tool_err:  'color: #bf616a; font-weight: bold',
+      done:      'color: #6a9fb5; font-weight: bold',
+    };
+    let lastActivityTs = 0;
+
+    async function fetchActivity() {
+      try {
+        const res = await fetch(`/api/activity?after=${lastActivityTs}`);
+        const events = await res.json();
+        for (const e of events) {
+          const style = ACTIVITY_STYLES[e.type] || 'color: #666';
+          console.log(`%c[${e.type}]`, style, e.detail);
+          lastActivityTs = Math.max(lastActivityTs, e.ts);
+        }
+      } catch {}
+    }
+
     // --- Poll ---
     fetchMessages();
     fetchArtifacts();
+    fetchActivity();
     setInterval(fetchMessages, POLL_MS);
     setInterval(fetchArtifacts, POLL_MS * 3);
+    setInterval(fetchActivity, 1000);
   </script>
 </body>
 </html>

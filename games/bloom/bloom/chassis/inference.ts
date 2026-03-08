@@ -8,11 +8,20 @@ export async function callAnthropic(
   tools: Anthropic.Tool[],
 ): Promise<Anthropic.Message> {
   const params: Anthropic.MessageCreateParamsNonStreaming = {
-    model: 'claude-sonnet-4-6-20250929',
+    model: 'claude-sonnet-4-6',
     max_tokens: 8192,
     system,
     messages,
   };
   if (tools.length > 0) params.tools = tools;
-  return client.messages.create(params);
+
+  console.log(`[inference] calling sonnet (system: ${system.length} chars, msgs: ${messages.length}, tools: ${tools.length})`);
+  const t0 = Date.now();
+
+  const response = await client.messages.create(params);
+
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+  console.log(`[inference] ${response.stop_reason} in ${elapsed}s — ${response.usage.input_tokens} in / ${response.usage.output_tokens} out`);
+
+  return response;
 }

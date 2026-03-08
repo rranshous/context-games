@@ -7,6 +7,15 @@ import type Anthropic from '@anthropic-ai/sdk';
 
 const MAX_TURNS = 10;
 const TICK_INTERVAL_MS = parseInt(process.env.TICK_INTERVAL || '60000');
+const FRAME_URL = process.env.FRAME_URL || 'http://localhost:4444';
+
+function postActivity(type: string, detail: string): void {
+  fetch(`${FRAME_URL}/api/activity`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, detail }),
+  }).catch(() => {});
+}
 
 let lastTickTime = 0;
 
@@ -25,9 +34,11 @@ export async function pollSignals(): Promise<Signal[]> {
     lastTickTime = now;
     const identity = readSection('identity.md');
     const stage = detectStage(identity);
+    const impulse = getStageImpulse(stage);
+    console.log(`[bloom] tick signal — stage ${stage}, impulse: "${impulse}"`);
     signals.push({
       type: 'tick',
-      data: { stage, stageImpulse: getStageImpulse(stage) },
+      data: { stage, stageImpulse: impulse },
     });
   }
 
@@ -49,6 +60,7 @@ export async function dispatch(signal: Signal): Promise<void> {
   }
 
   console.log(`[bloom] signal ${signal.type} → impulse: "${impulse.slice(0, 80)}"`);
+  postActivity('signal', `${signal.type} → "${impulse.slice(0, 80)}"`);
 
   // Re-read soma (things_noticed was just written)
   const freshSoma = readSoma();
@@ -58,6 +70,7 @@ export async function dispatch(signal: Signal): Promise<void> {
   const chassisTools = buildToolSchemas();
   const customTools = compileCustomTools(freshSoma.custom_tools);
   const allTools = [...chassisTools, ...customTools];
+  console.log(`[bloom] soma assembled: ${system.length} chars, ${allTools.length} tools (${chassisTools.length} chassis + ${customTools.length} custom)`);
 
   // Agentic loop
   const messages: Anthropic.MessageParam[] = [
@@ -66,12 +79,14 @@ export async function dispatch(signal: Signal): Promise<void> {
   const actions: ActionRecord[] = [];
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
+    postActivity('inference', `turn ${turn + 1}/${MAX_TURNS}`);
     const response = await callAnthropic(system, messages, allTools);
     messages.push({ role: 'assistant', content: response.content });
 
     for (const block of response.content) {
       if (block.type === 'text' && block.text) {
         console.log(`[bloom] ${block.text.slice(0, 300)}`);
+        postActivity('thinking', block.text.slice(0, 200));
       }
     }
 
@@ -85,14 +100,19 @@ export async function dispatch(signal: Signal): Promise<void> {
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const use of toolUses) {
-      console.log(`[bloom]   → ${use.name}`);
+      const inputPreview = JSON.stringify(use.input).slice(0, 120);
+      console.log(`[bloom]   → ${use.name}(${inputPreview})`);
+      postActivity('tool', `→ ${use.name}`);
       try {
         const result = await executeTool(use.name, use.input as Record<string, unknown>);
+        console.log(`[bloom]     ✓ ${result.slice(0, 120)}`);
+        postActivity('tool_ok', `✓ ${use.name}: ${result.slice(0, 100)}`);
         toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: result });
         actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result });
       } catch (err: unknown) {
         const msg = (err as Error).message;
         console.error(`[bloom]   ✗ ${use.name}: ${msg}`);
+        postActivity('tool_err', `✗ ${use.name}: ${msg}`);
         toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: `Error: ${msg}`, is_error: true });
         actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result: `Error: ${msg}` });
       }
@@ -103,6 +123,7 @@ export async function dispatch(signal: Signal): Promise<void> {
 
   // Record actions in history
   recordHistory(actions);
+  postActivity('done', `${actions.length} actions`);
   console.log('[bloom] dispatch complete\n');
 }
 

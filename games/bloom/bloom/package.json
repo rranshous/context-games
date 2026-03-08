@@ -9,7 +9,8 @@
     "start": "tsx chassis/main.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^17.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

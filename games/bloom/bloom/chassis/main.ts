@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { pollSignals, dispatch } from './loop.js';
 
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '5000');
