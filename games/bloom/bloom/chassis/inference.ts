@@ -11,6 +11,7 @@ export async function callAnthropic(
   const params: Anthropic.MessageCreateParams = {
     model: 'claude-sonnet-4-6',
     max_tokens: 64000,
+    thinking: { type: 'enabled', budget_tokens: 1024 },
     system,
     messages,
   };

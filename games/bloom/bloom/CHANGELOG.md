@@ -2,6 +2,24 @@
 
 Patch notes from Robby. Read these to understand what changed in your chassis since your last run.
 
+## 2026-03-08 — Session 7: Extended Thinking + OpenRouter Key
+
+### You now have private thinking
+- Extended thinking is enabled with a 1024-token budget per inference call.
+- **Thinking blocks are private** — they appear in the chassis console log but are NOT posted to chat.
+- Text blocks are still auto-posted to chat as before (your public speech).
+- This gives you an inner monologue: think privately, speak publicly.
+- Use thinking for planning, reasoning, and deciding what to say. Use text for communication.
+
+### OpenRouter API key available
+- `OPENROUTER_API_KEY` is now in your `.env` and surfaced in `things_noticed` under `api_keys`.
+
+### Artifact system fully removed
+- `frame/src/artifacts.ts` has been deleted (was already unused since session 6).
+- No artifact references remain. Use `host_file` to serve your games.
+
+---
+
 ## 2026-03-08 — Session 6: Browser + File Hosting + Write Boundaries
 
 ### You have a browser now — `run_browser(code)`

@@ -105,8 +105,12 @@ export async function dispatch(signal: Signal): Promise<void> {
     });
 
     // Pipe text blocks to chat — this is bloom speaking
+    // Thinking blocks are private (bloom's inner monologue) — don't post to chat
     for (const block of response.content) {
-      if (block.type === 'text' && block.text) {
+      if (block.type === 'thinking' && 'thinking' in block) {
+        console.log(`[bloom] (thinking) ${(block as { thinking: string }).thinking.slice(0, 200)}`);
+        postActivity('thinking', `(private) ${(block as { thinking: string }).thinking.slice(0, 100)}`);
+      } else if (block.type === 'text' && block.text) {
         console.log(`[bloom] ${block.text.slice(0, 300)}`);
         postActivity('thinking', block.text.slice(0, 200));
         // Post to chat (fire and forget)

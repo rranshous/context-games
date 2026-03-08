@@ -118,6 +118,13 @@ export async function buildThingsNoticed(signal: Signal): Promise<void> {
     }
   } catch {}
 
+  // API keys available for browser testing
+  if (process.env.OPENROUTER_API_KEY) {
+    parts.push('');
+    parts.push('api_keys:');
+    parts.push(`  OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY}`);
+  }
+
   // Context budget: show soma section sizes so bloom knows what's using space
   const soma = readSoma();
   const sectionSizes: [string, number][] = [
