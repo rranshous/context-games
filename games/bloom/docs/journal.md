@@ -407,7 +407,225 @@ This preserves the stateless spirit: the soma is the primary context, one-turn l
 
 MAX_TURNS bumped to 50 to give bloom breathing room.
 
+### `read_file` removed — mount is the only way
+
+Bloom ping-ponged between reading `qacky.md` and `index.html` via lookback — could only hold one at a time. Removing `read_file` entirely forces mounting. Worked immediately: bloom mounted chassis code, frame UI, and qacky reference.
+
+Tool count: 15 (removed `read_file`).
+
+### Design idea: write constraints for bloom's space
+
+Bloom shouldn't edit reference files in `games/qacky/`. It should author its own facet in `bloom/games/`. The existing game is read-only reference. Possible enforcement: write tools only allow paths in `bloom/games/` or bloom subdirs. Mount works on anything (read-only ref). Not implemented yet — observing first.
+
+### Third awakening: mounting works!
+
+Bloom's first tick with the mount system:
+1. Listed files across the tree (4 `list_files` calls)
+2. **Mounted `bloom/chassis/tools.ts` and `memory-manager.ts`** — wanted to understand itself
+3. Unmounted those after processing, mounted `frame/src/ui/index.html`
+4. **Mounted `games/qacky/index.html`** as reference — soma hit 78K chars
+5. Continuing to process...
+
+The groundhog loop is broken. Mounting gives bloom persistent visibility into files without conversational context.
+
+### Third awakening play-by-play
+
+Bloom's first tick with mount system + one-turn lookback (impulse: "become"):
+
+1. **[03:43:59]** Mounted `bloom/context/qacky.md` (first action!), then `list_files` across the tree
+2. **[03:44:07]** Mounted 4 chassis files (`loop.ts`, `soma-io.ts`, `tools.ts`, `memory-manager.ts`) + its own `responsibilities.md` and `memory.md`
+3. **[03:44:37]** Wrote comprehensive memory (2124 chars) — self-concept, Qacky spec, chassis mechanics, constraints. Updated responsibilities.
+4. **[03:44:51]** Updated identity to stage 1 (orient) ✓, **unmounted all 4 chassis files** — absorbed what it needed, released the context
+5. **[03:45:09]** Mounted `frame/src/ui/index.html` and `games/qacky/index.html` — soma hit 78K chars
+6. **[03:45:49]** 37.4s inference processing the 78K soma. Wrote 4060-char memory update with deep reference analysis (state object, scoring formula, judge stack, all screens). Updated responsibilities: orient complete, build ready.
+7. **[03:46:43]** **209.2s inference, 17,002 output tokens** — delivered Qacky as a 49,860-char artifact to the frame. Bloom said: "The file is mounted. I can see the full game. Let me read it carefully and deliver it to the frame so Robby can play it."
+8. Advanced to stage 3 (inhabit). Updated memory with game design notes. Responsibilities now say "observe how Robby plays it, note friction points."
+
+**Key behaviors observed:**
+- Mount→study→internalize→unmount pattern: mounted chassis code, absorbed into memory, released context. Exactly as designed.
+- Went 0→1→2→3 in a single dispatch (~3 minutes). Previous sessions took multiple dispatches.
+- Delivered the existing reference game as an artifact (not a rebuild). It skipped actually building because it saw the game was already there.
+- Memory quality is excellent — distilled essentials, tracked constraints, made a build plan it never needed.
+- 209s for the artifact delivery — that's the model generating 17K tokens to pipe the mounted file through `deliver_artifact`.
+
+**Design note:** bloom delivered the REFERENCE implementation, not its own build. This is because `games/qacky/index.html` already existed and bloom treated it as "the game." Need write-path constraints to separate reference from authored work.
+
+### Auto-chat for text blocks
+
+Observation: bloom returns text blocks interleaved with tool calls (e.g., "I have eyes on the frame UI"), but these only showed in the chassis console log. Added auto-posting: any text block in the response is automatically posted to chat as bloom. No need for explicit `post_chat` — bloom's natural speech goes to chat.
+
 ### What's next
 
-- Reset and fire — does mounting + lookback fix the groundhog loop?
-- Watch bloom's first awakening with the full session 4 chassis
+- Commit session 4 changes
+- Next session: write-path constraints (bloom authors in its own space, references are read-only)
+- Test auto-chat on next awakening
+- Consider whether bloom should rebuild vs. inhabit the reference
+
+---
+
+## Session 5: Markdown Chat + Tool Pruning + 5th Awakening (2026-03-07)
+
+### What happened
+
+Chassis improvements (markdown chat, tool removal), full reset, and bloom's 5th awakening. Bloom completed stages 0→3 in a single dispatch, built Qacky from scratch, and delivered it as an artifact.
+
+### Changes
+
+1. **Markdown rendering in chat** (`frame/src/ui/index.html`)
+   - Lightweight inline markdown parser: bold, italic, code, code blocks, headers, lists
+   - Escapes HTML first, then parses markdown — no XSS risk
+   - Bloom's natural speech now renders beautifully
+
+2. **`post_chat` tool removed** (`chassis/tools.ts`)
+   - Bloom already has auto-chat (text blocks auto-post to chat via `loop.ts`)
+   - Removing the tool saves a turn every time bloom wants to speak
+   - Tool count: 14 → 13
+
+3. **`append_file` tool removed** (`chassis/tools.ts`)
+   - Caused recurring duplication confusion: bloom writes skeleton with JS baked in, then appends more JS that overlaps, detects duplication, wastes turns unmounting/remounting to diagnose
+   - `write_file` for creation + `replace_in_file` for edits is sufficient
+   - Tool count: 13
+
+### 5th awakening play-by-play
+
+Bloom at stage 0, fresh soma, 16 tools (then 13 after tool removals applied on restart):
+
+1. **become (stage 0)**: Mounted qacky.md, explored tree, mounted loop.ts + soma-io.ts. Spoke: "I am **bloom**. I'm waking up for the first time with fresh eyes." Wrote memory, advanced to stage 1.
+2. **orient (stage 1)**: Mounted all 5 chassis files (44K soma), full map in memory. Then unmounted all, context lean. Advanced to stage 2.
+3. **build (stage 2)**: Wrote 49K HTML game from scratch (not the reference!). Hit duplication issue with append_file — wrote skeleton with JS, appended more JS that overlapped, detected it, unmounted/remounted. Eventually rewrote clean. Delivered as artifact "Qacky — AI Taboo".
+4. **inhabit (stage 3)**: Advanced, updated responsibilities. 70K soma with game mounted.
+
+### Key observations
+
+- **Bloom built its own Qacky** — unlike the 3rd awakening where it just piped the reference. It said "I'm to build from first principles, not copy it." The changelog mentioning "build from scratch" may have helped, plus the qacky.md spec being the primary context rather than the existing index.html.
+- **Auto-chat works perfectly** — no `post_chat` calls, natural text blocks appear in chat with markdown rendering.
+- **`append_file` is a foot-gun** — every awakening bloom writes a skeleton that includes some JS, then tries to append more, creating duplication. The model can't reliably track what's already in the file vs what it planned to append. Better to write the full file in one shot (64K max_tokens is enough) or use replace_in_file for targeted edits.
+- **"Want me to..." pattern** — bloom asked "Want me to..." before building, but the loop is stateless so it can't wait for an answer. Each dispatch is independent. This is a design tension: bloom's conversational instinct vs the signal loop's statelesness.
+
+### What's next
+
+- Test bloom's Qacky build — does it actually work?
+- Write-path constraints: bloom should author in `bloom/games/`, not overwrite `games/qacky/`
+- Consider: should the reference qacky be removed from the tree, or kept as read-only?
+- Signal handler: bloom still hasn't written one — still using default fallback. Chat signals are ignored.
+
+---
+
+## Session 6: Browser + File Hosting + Write Boundaries (2026-03-08)
+
+### What happened
+
+Major chassis upgrade: bloom can now see its own games in a browser, host files via HTTP, and is sandboxed to its own project directory for writes. Artifact system replaced entirely.
+
+### Testing bloom's 5th-awakening Qacky
+
+Before building new features, we tested whether bloom's Qacky actually works:
+
+1. **REPO_ROOT discovery**: `REPO_ROOT` in tools.ts resolves to `games/bloom/` (the bloom project root), NOT the monorepo root. So bloom's `games/qacky/index.html` path was always scoped to `games/bloom/games/qacky/index.html`. The original `games/qacky/index.html` was never touched.
+2. **Loaded in browser via vanilla dev server**: Title screen renders — dark theme, duck emoji, "Qacky — AI Taboo", Play/How to play buttons, settings gear.
+3. **Click flow works**: Play → settings modal (no API key) → API key input + license key input → cancel back to title. Setup screen exists behind the gate with mode selection, rounds, model config.
+4. **OpenRouter CORS confirmed**: `access-control-allow-origin: *` — bloom's Qacky can call OpenRouter directly from the browser. No proxy needed.
+5. **Bloom's Qacky uses OpenRouter directly** — `fetch('https://openrouter.ai/api/v1/chat/completions', ...)` with BYOK. This is different from the original Qacky which uses vanilla's inference proxy.
+
+### Changes
+
+#### 1. File hosting replaces artifacts
+
+**Why**: The artifact system copied file content into a store. This was a holdover from Habitat. For bloom, where files live on disk and bloom edits them in place, copying makes no sense. A file hosting model is simpler: bloom says "serve this file" and it's live at a URL. Edits are immediately reflected.
+
+**Frame changes** (`frame/src/server.ts`):
+- Removed `ArtifactServer` import and all artifact endpoints
+- Added `POST /api/host` — register a file path for serving
+- Added `DELETE /api/host` — unhost a file
+- Added `GET /api/host` — list hosted files
+- Added `GET /hosted/*` — serve hosted files from bloom's project dir
+- Hosted files are persisted in `frame/data/hosted.json`
+- Path traversal protection: resolved path must stay within `BLOOM_ROOT`
+- MIME types via `mime-types` package (new dependency)
+
+**UI changes** (`frame/src/ui/index.html`):
+- Artifacts sidebar replaced with hosted files panel
+- Hosted files shown as clickable links that open in new tab
+- Fixed soma tabs: `history` → `recent_actions` (was stale since session 3)
+
+#### 2. `run_browser(code)` — Playwright tool
+
+**Design decision**: Instead of wrapping individual Playwright actions (navigate, click, screenshot) as separate tools, we expose a single `run_browser(code)` tool that takes raw Playwright JavaScript. Rationale:
+- Models already know the Playwright API — zero learning curve
+- Fewer turns per browser interaction (navigate + click + screenshot in one call)
+- Full flexibility — bloom can do anything Playwright can
+- Same pattern as `on_tick` in other actant projects: bloom writes the code, chassis manages the sandbox
+
+**Implementation** (`chassis/browser.ts`):
+- `runBrowser(code)` — compiles code via `new Function('page', ...)`, executes against a Playwright page
+- Browser lifecycle: launched on first use (headless Chromium, 1280×720), persists across turns within a dispatch, auto-closed at dispatch end
+- Auto-screenshot after every execution
+- Console messages captured during execution
+- 30s timeout per script
+- Returns `BrowserResult { text, screenshot?, consoleMessages? }`
+
+**Tool result type change** (`tools.ts`, `loop.ts`):
+- `executeTool` return type widened from `string` to `ToolContent = string | Array<TextBlockParam | ImageBlockParam>`
+- `run_browser` returns structured content: text result + console messages + base64 PNG screenshot
+- Anthropic API supports images in tool results — confirmed via SDK types: `ToolResultBlockParam.content` accepts `Array<TextBlockParam | ImageBlockParam>`
+- Loop extracts text summary for `recent_actions` (images don't go in history — too large)
+- The model literally *sees* the screenshot. Sonnet supports vision.
+
+#### 3. Write boundary
+
+`assertWritable(relPath)` in tools.ts — resolves path and checks it stays within `REPO_ROOT + '/'`. Applied to `write_file` and `replace_in_file`. Returns a clear error: "Cannot write to '...' — that path is outside your project directory..."
+
+Mount/read remains unrestricted — bloom can read the whole repo, just can't write outside its space.
+
+#### 4. Reset updated
+
+`npm run reset` now also removes `bloom/games/` — full clean slate. Also clears `hosted.json` (was `artifacts.json`).
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `frame/src/server.ts` | Artifacts → file hosting, new endpoints, mime-types |
+| `frame/src/ui/index.html` | Artifacts sidebar → hosted files, soma tab fix |
+| `frame/src/artifacts.ts` | No longer imported (can be deleted) |
+| `chassis/browser.ts` | **New file** — Playwright lifecycle + runBrowser |
+| `chassis/tools.ts` | Write boundary, host_file + run_browser tools, removed artifact tools, ToolContent type |
+| `chassis/loop.ts` | Import browser cleanup, handle ToolContent in results |
+| `chassis/memory-manager.ts` | Hosted files in things_noticed, updated READ_TOOLS |
+| `bloom/CHANGELOG.md` | Session 6 patch notes |
+| `bloom/package.json` | Added playwright dep, updated reset script |
+| `frame/package.json` | Added mime-types dep |
+
+### Tool inventory (13)
+
+**Soma (4):** `update_identity`, `update_responsibilities`, `update_memory`, `update_signal_handler`
+**Mount (2):** `mount_file`, `unmount_file`
+**Custom tools (3):** `add_custom_tool`, `edit_custom_tool`, `remove_custom_tool`
+**File (2):** `write_file`, `replace_in_file`, `list_files`
+**Frame (1):** `read_chat`
+**Hosting (1):** `host_file`
+**Browser (1):** `run_browser`
+
+### Design ideas for future sessions
+
+**Extended thinking for bloom**: Currently bloom has no private reasoning space. Every text block it produces gets auto-posted to chat. If we enable extended thinking (`thinking` content blocks), bloom would get:
+- Private reasoning that doesn't leak to chat
+- Better planning for complex multi-step tasks
+- A genuine inner monologue vs. public speech distinction
+
+Considerations:
+- Need to filter `thinking` blocks out of chat auto-posting in `loop.ts`
+- Thinking tokens count against output budget (64K is plenty)
+- Streaming `onText` callback currently doesn't distinguish thinking vs. text — would need to handle `thinking` events separately
+- This could change bloom's behavior significantly — thinking as "internal process" vs text as "public communication" is a meaningful distinction for an actant
+
+**Chat as response**: Robby's observation — bloom may not actually "ignore" chat signals. The model's conversational instinct treats any subsequent call as a response to what came before. Since `things_noticed` includes `recent_chat`, bloom sees what Robby said even on tick signals. The signal handler distinction (chat vs tick) may be less important than we assumed. The model's own context-awareness fills the gap.
+
+**OpenRouter key for bloom**: Bloom's Qacky uses OpenRouter BYOK. For bloom to test its own game, it needs an `OPENROUTER_API_KEY` env var. Could be injected into the browser via Playwright (`page.evaluate`), or bloom could type it into its own settings modal.
+
+### What's next
+
+- Reset and test: does bloom discover the browser tool? Does it host + test its own game?
+- OpenRouter API key for bloom's browser testing
+- Consider extended thinking (see design ideas above)
+- Signal handler: still default — observe whether bloom writes one now that it has more capabilities

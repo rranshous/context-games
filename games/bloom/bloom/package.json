@@ -7,11 +7,12 @@
     "dev": "tsx watch chassis/main.ts",
     "tick": "ONCE=1 tsx chassis/main.ts",
     "start": "tsx chassis/main.ts",
-    "reset": "cp soma-defaults/* soma/ && rm -f ../frame/data/chat.json ../frame/data/artifacts.json && echo 'bloom reset to defaults'"
+    "reset": "cp soma-defaults/* soma/ && rm -rf games/ && rm -f ../frame/data/*.json && echo 'bloom reset to defaults'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "dotenv": "^17.3.1"
+    "dotenv": "^17.3.1",
+    "playwright": "^1.58.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

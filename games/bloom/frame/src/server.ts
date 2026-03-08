@@ -1,13 +1,14 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { dirname, join, resolve } from 'path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { lookup } from 'mime-types';
 import { ChatServer } from './chat.js';
-import { ArtifactServer } from './artifacts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const DATA_DIR = join(__dirname, '..', 'data');
+const BLOOM_ROOT = join(__dirname, '..', '..', 'bloom');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -15,7 +16,9 @@ app.use(express.json({ limit: '10mb' }));
 // --- State ---
 
 let chat: ChatServer;
-let artifacts: ArtifactServer;
+
+// Hosted files: paths (relative to BLOOM_ROOT) that bloom has registered for serving
+let hostedFiles: string[] = [];
 
 function load(): void {
   mkdirSync(DATA_DIR, { recursive: true });
@@ -23,14 +26,14 @@ function load(): void {
     chat = ChatServer.fromJSON(JSON.parse(readFileSync(join(DATA_DIR, 'chat.json'), 'utf-8')));
   } catch { chat = new ChatServer(); }
   try {
-    artifacts = ArtifactServer.fromJSON(JSON.parse(readFileSync(join(DATA_DIR, 'artifacts.json'), 'utf-8')));
-  } catch { artifacts = new ArtifactServer(); }
+    hostedFiles = JSON.parse(readFileSync(join(DATA_DIR, 'hosted.json'), 'utf-8'));
+  } catch { hostedFiles = []; }
 }
 
 function save(): void {
   mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(join(DATA_DIR, 'chat.json'), JSON.stringify(chat.toJSON(), null, 2));
-  writeFileSync(join(DATA_DIR, 'artifacts.json'), JSON.stringify(artifacts.toJSON(), null, 2));
+  writeFileSync(join(DATA_DIR, 'hosted.json'), JSON.stringify(hostedFiles, null, 2));
 }
 
 load();
@@ -56,25 +59,53 @@ app.get('/api/chat', (req, res) => {
   res.json(chat.read(count));
 });
 
-// --- Artifacts API ---
+// --- File hosting API ---
 
-app.post('/api/artifacts', (req, res) => {
-  const { handle, name, content, type } = req.body;
-  if (!handle || !name || content === undefined) { res.status(400).json({ error: 'handle, name, content required' }); return; }
-  const meta = artifacts.deliver(handle, name, content, type);
+app.post('/api/host', (req, res) => {
+  const { path: relPath } = req.body;
+  if (!relPath) { res.status(400).json({ error: 'path required' }); return; }
+  const full = resolve(BLOOM_ROOT, relPath);
+  if (!full.startsWith(BLOOM_ROOT + '/')) {
+    res.status(403).json({ error: 'path must be within bloom project' });
+    return;
+  }
+  if (!existsSync(full)) { res.status(404).json({ error: `file not found: ${relPath}` }); return; }
+  if (!hostedFiles.includes(relPath)) {
+    hostedFiles.push(relPath);
+    save();
+  }
+  const port = parseInt(process.env.PORT || '4444');
+  const url = `http://localhost:${port}/hosted/${relPath}`;
+  console.log(`[frame] hosting: ${relPath} → ${url}`);
+  res.json({ url, path: relPath });
+});
+
+app.delete('/api/host', (req, res) => {
+  const { path: relPath } = req.body;
+  if (!relPath) { res.status(400).json({ error: 'path required' }); return; }
+  const idx = hostedFiles.indexOf(relPath);
+  if (idx === -1) { res.status(404).json({ error: 'not hosted' }); return; }
+  hostedFiles.splice(idx, 1);
   save();
-  console.log(`[frame] artifact ${handle}: "${name}" (${type || 'text'}, ${typeof content === 'string' ? content.length : '?'} chars)`);
-  res.json(meta);
+  console.log(`[frame] unhosted: ${relPath}`);
+  res.json({ ok: true });
 });
 
-app.get('/api/artifacts', (_req, res) => {
-  res.json(artifacts.list());
+app.get('/api/host', (_req, res) => {
+  res.json(hostedFiles);
 });
 
-app.get('/api/artifacts/:id', (req, res) => {
-  const artifact = artifacts.get(req.params.id);
-  if (!artifact) { res.status(404).json({ error: 'not found' }); return; }
-  res.json(artifact);
+app.get('/hosted/*', (req, res) => {
+  const relPath = req.path.replace('/hosted/', '');
+  if (!hostedFiles.includes(relPath)) { res.status(404).send('Not hosted'); return; }
+  const full = resolve(BLOOM_ROOT, relPath);
+  if (!full.startsWith(BLOOM_ROOT + '/') || !existsSync(full)) {
+    res.status(404).send('Not found');
+    return;
+  }
+  const mime = lookup(relPath) || 'application/octet-stream';
+  res.setHeader('Content-Type', mime);
+  res.send(readFileSync(full));
 });
 
 // --- Activity feed (chassis → browser) ---
@@ -98,7 +129,7 @@ app.get('/api/activity', (req, res) => {
 // --- Soma API (reads bloom's soma files directly) ---
 
 const SOMA_DIR = join(__dirname, '..', '..', 'bloom', 'soma');
-const SOMA_SECTIONS = ['identity.md', 'responsibilities.md', 'memory.md', 'things_noticed.md', 'signal_handler.js', 'history.md', 'custom_tools.json'];
+const SOMA_SECTIONS = ['identity.md', 'responsibilities.md', 'memory.md', 'things_noticed.md', 'signal_handler.js', 'recent_actions.md', 'custom_tools.json'];
 
 app.get('/api/soma', (_req, res) => {
   const soma: Record<string, string> = {};

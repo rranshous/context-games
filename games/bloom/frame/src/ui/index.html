@@ -33,7 +33,19 @@
     .msg .head { font-size: 11px; letter-spacing: 0.5px; margin-bottom: 2px; }
     .msg .head .handle { text-transform: uppercase; }
     .msg .head .ts { color: #333; margin-left: 8px; font-size: 10px; }
-    .msg .text { font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+    .msg .text { font-size: 13px; word-break: break-word; line-height: 1.6; }
+    .msg .text p { margin: 0 0 6px; }
+    .msg .text p:last-child { margin-bottom: 0; }
+    .msg .text code { background: #1a1a2e; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    .msg .text pre { background: #0e0e16; border: 1px solid #1a1a2e; padding: 8px 10px; border-radius: 4px; overflow-x: auto; margin: 6px 0; font-size: 12px; line-height: 1.4; }
+    .msg .text pre code { background: none; padding: 0; }
+    .msg .text strong { color: #e0e0e8; }
+    .msg .text em { color: #b0b0b8; }
+    .msg .text ul, .msg .text ol { margin: 4px 0 4px 18px; }
+    .msg .text li { margin-bottom: 2px; }
+    .msg .text h1, .msg .text h2, .msg .text h3 { color: #e0e0e8; font-size: 13px; margin: 8px 0 4px; }
+    .msg .text h1 { font-size: 15px; }
+    .msg .text h2 { font-size: 14px; }
     .msg.bloom .handle { color: #6a9fb5; }
     .msg.robby .handle { color: #a3be8c; }
     .msg.other .handle { color: #666; }
@@ -77,30 +89,20 @@
       background: #0e0e16; line-height: 1.6;
     }
 
-    /* Artifacts (collapsed into right panel) */
-    #artifacts {
+    /* Hosted files (collapsed into right panel) */
+    #hosted {
       border-top: 1px solid #1a1a2e; max-height: 180px; display: flex; flex-direction: column;
     }
-    #artifacts h3 {
+    #hosted h3 {
       font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
       color: #444; padding: 8px 14px; border-bottom: 1px solid #1a1a2e; font-weight: normal;
-      cursor: pointer;
     }
-    #artifact-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
-    .art-item {
-      padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-bottom: 1px;
+    #hosted-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+    .hosted-item {
+      padding: 6px 10px; border-radius: 4px; font-size: 12px; margin-bottom: 1px;
     }
-    .art-item:hover { background: #0e0e16; }
-    .art-item.active { background: #1a1a2e; }
-    .art-item .name { color: #b48ead; }
-    .art-item .meta { font-size: 9px; color: #333; margin-top: 1px; }
-
-    #artifact-view {
-      border-top: 1px solid #1a1a2e; max-height: 50%; overflow-y: auto;
-      padding: 10px 14px; font-size: 12px; white-space: pre-wrap; display: none;
-      color: #999; background: #08080d;
-    }
-    #artifact-view.visible { display: block; }
+    .hosted-item a { color: #b48ead; text-decoration: none; }
+    .hosted-item a:hover { text-decoration: underline; }
 
     .empty { padding: 12px; color: #222; font-size: 11px; }
 
@@ -127,10 +129,9 @@
         <div id="soma-tabs"></div>
         <div id="soma-content"><div class="empty">loading soma...</div></div>
       </div>
-      <aside id="artifacts">
-        <h3>artifacts</h3>
-        <div id="artifact-list"><div class="empty">none yet</div></div>
-        <div id="artifact-view"></div>
+      <aside id="hosted">
+        <h3>hosted files</h3>
+        <div id="hosted-list"><div class="empty">none yet</div></div>
       </aside>
     </div>
   </main>
@@ -139,14 +140,12 @@
     const HANDLE = 'robby';
     const POLL_MS = 2000;
     let lastMsgCount = 0;
-    let selectedArtifact = null;
     const log = (tag, ...args) => console.log(`%c[${tag}]`, 'color: #6a9fb5; font-weight: bold', ...args);
 
     const messagesEl = document.getElementById('messages');
     const chatForm = document.getElementById('chat-form');
     const chatInput = document.getElementById('chat-input');
-    const artifactListEl = document.getElementById('artifact-list');
-    const artifactViewEl = document.getElementById('artifact-view');
+    const hostedListEl = document.getElementById('hosted-list');
     const somaTabsEl = document.getElementById('soma-tabs');
     const somaContentEl = document.getElementById('soma-content');
 
@@ -154,6 +153,34 @@
       const d = document.createElement('div');
       d.textContent = s;
       return d.innerHTML;
+    }
+
+    function md(raw) {
+      let s = esc(raw);
+      // code blocks: ```...```
+      s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+        `<pre><code>${code.replace(/\n$/, '')}</code></pre>`);
+      // inline code
+      s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      // headers
+      s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      // bold + italic
+      s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      // unordered lists
+      s = s.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+      s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+      // paragraphs: split on double newlines, wrap non-block content
+      s = s.split(/\n{2,}/).map(block => {
+        block = block.trim();
+        if (!block) return '';
+        if (/^<(h[1-3]|ul|ol|pre|li)/.test(block)) return block;
+        return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+      }).join('\n');
+      return s;
     }
 
     // --- Chat ---
@@ -182,7 +209,7 @@
       messagesEl.innerHTML = msgs.map(m => {
         const cls = m.handle === 'bloom' ? 'bloom' : m.handle === HANDLE ? 'robby' : 'other';
         const time = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        return `<div class="msg ${cls}"><div class="head"><span class="handle">${esc(m.handle)}</span><span class="ts">${time}</span></div><div class="text">${esc(m.text)}</div></div>`;
+        return `<div class="msg ${cls}"><div class="head"><span class="handle">${esc(m.handle)}</span><span class="ts">${time}</span></div><div class="text">${md(m.text)}</div></div>`;
       }).join('');
       if (atBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -204,8 +231,8 @@
 
     // --- Soma viewer ---
 
-    const SOMA_SECTIONS = ['identity', 'responsibilities', 'memory', 'things_noticed', 'signal_handler', 'history', 'custom_tools'];
-    const SOMA_LABELS = { identity: 'id', responsibilities: 'resp', memory: 'mem', things_noticed: 'noticed', signal_handler: 'handler', history: 'hist', custom_tools: 'tools' };
+    const SOMA_SECTIONS = ['identity', 'responsibilities', 'memory', 'things_noticed', 'signal_handler', 'recent_actions', 'custom_tools'];
+    const SOMA_LABELS = { identity: 'id', responsibilities: 'resp', memory: 'mem', things_noticed: 'noticed', signal_handler: 'handler', recent_actions: 'actions', custom_tools: 'tools' };
     let currentSomaTab = 'identity';
     let somaCache = {};
     let prevSomaCache = {};
@@ -243,54 +270,27 @@
       } catch {}
     }
 
-    // --- Artifacts ---
+    // --- Hosted files ---
 
-    async function fetchArtifacts() {
+    let lastHostedCount = 0;
+    async function fetchHosted() {
       try {
-        const res = await fetch('/api/artifacts');
-        const arts = await res.json();
-        renderArtifacts(arts);
+        const res = await fetch('/api/host');
+        const files = await res.json();
+        if (files.length !== lastHostedCount) {
+          const newFiles = files.slice(lastHostedCount);
+          for (const f of newFiles) log('hosted', f);
+          lastHostedCount = files.length;
+        }
+        if (!files.length) {
+          hostedListEl.innerHTML = '<div class="empty">none yet</div>';
+          return;
+        }
+        hostedListEl.innerHTML = files.map(f =>
+          `<div class="hosted-item"><a href="/hosted/${esc(f)}" target="_blank">${esc(f)}</a></div>`
+        ).join('');
       } catch {}
     }
-
-    let lastArtCount = 0;
-    function renderArtifacts(arts) {
-      if (arts.length !== lastArtCount) {
-        const newArts = arts.slice(lastArtCount);
-        for (const a of newArts) log('artifact', `${a.name} (${a.type})`);
-        lastArtCount = arts.length;
-      }
-      if (!arts.length) {
-        artifactListEl.innerHTML = '<div class="empty">none yet</div>';
-        return;
-      }
-      artifactListEl.innerHTML = arts.map(a => {
-        const time = new Date(a.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const active = selectedArtifact === a.id ? 'active' : '';
-        return `<div class="art-item ${active}" data-id="${a.id}"><div class="name">${esc(a.name)}</div><div class="meta">${esc(a.type)} · ${time}</div></div>`;
-      }).join('');
-    }
-
-    artifactListEl.addEventListener('click', async (e) => {
-      const item = e.target.closest('.art-item');
-      if (!item) return;
-      const id = item.dataset.id;
-      if (selectedArtifact === id) {
-        selectedArtifact = null;
-        artifactViewEl.classList.remove('visible');
-        artifactViewEl.textContent = '';
-        fetchArtifacts();
-        return;
-      }
-      selectedArtifact = id;
-      try {
-        const res = await fetch(`/api/artifacts/${id}`);
-        const art = await res.json();
-        artifactViewEl.textContent = art.content;
-        artifactViewEl.classList.add('visible');
-        fetchArtifacts();
-      } catch {}
-    });
 
     // --- Activity feed (chassis events in console) ---
 
@@ -319,11 +319,11 @@
 
     // --- Poll ---
     fetchMessages();
-    fetchArtifacts();
+    fetchHosted();
     fetchActivity();
     fetchSoma();
     setInterval(fetchMessages, POLL_MS);
-    setInterval(fetchArtifacts, POLL_MS * 3);
+    setInterval(fetchHosted, POLL_MS * 3);
     setInterval(fetchActivity, 1000);
     setInterval(fetchSoma, 3000);
   </script>

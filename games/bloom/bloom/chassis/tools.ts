@@ -1,6 +1,7 @@
 import { writeSection, readSection, readMountedPaths, writeMountedPaths, isFileMounted } from './soma-io.js';
+import { runBrowser, type BrowserResult } from './browser.js';
 import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import type Anthropic from '@anthropic-ai/sdk';
 
@@ -10,11 +11,24 @@ const REPO_ROOT = join(__dirname, '..', '..');
 
 const FRAME_URL = process.env.FRAME_URL || 'http://localhost:4444';
 
+// Write boundary: bloom can only write within its project root (REPO_ROOT).
+// Reads (mount, list) are unrestricted. Writes must resolve inside REPO_ROOT.
+function assertWritable(relPath: string): string | null {
+  const full = resolve(REPO_ROOT, relPath);
+  if (!full.startsWith(REPO_ROOT + '/') && full !== REPO_ROOT) {
+    return `Cannot write to "${relPath}" — that path is outside your project directory. You can write anywhere within bloom/ (soma, chassis, games, etc.) but not above it. Use mount_file to read files outside your project.`;
+  }
+  return null;
+}
+
 // --- Tool registry ---
+
+// Tool results can be plain strings or structured content (for images)
+export type ToolContent = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>;
 
 interface ToolDef {
   schema: Anthropic.Tool;
-  execute: (input: Record<string, unknown>) => Promise<string> | string;
+  execute: (input: Record<string, unknown>) => Promise<ToolContent> | ToolContent;
 }
 
 const registry: Record<string, ToolDef> = {};
@@ -149,16 +163,7 @@ def('remove_custom_tool', 'Remove a custom tool from your soma.',
 
 // --- File tools ---
 
-def('read_file', 'Read a file from the repository. For files you need to edit, use mount_file instead — it makes the file part of your soma so you can see it every turn.',
-  { path: { type: 'string', description: 'Path relative to repo root' } }, ['path'],
-  (input) => {
-    try {
-      return readFileSync(join(REPO_ROOT, input.path as string), 'utf-8');
-    } catch (err: unknown) {
-      return `Error: ${(err as Error).message}`;
-    }
-  },
-);
+// read_file removed — use mount_file to bring files into your soma
 
 def('write_file', 'Create a new file in the repository. Auto-mounts the file into your soma so you can see and edit it.',
   {
@@ -167,7 +172,9 @@ def('write_file', 'Create a new file in the repository. Auto-mounts the file int
   }, ['path', 'content'],
   (input) => {
     const p = input.path as string;
-    const fullPath = join(REPO_ROOT, p);
+    const err = assertWritable(p);
+    if (err) return err;
+    const fullPath = resolve(REPO_ROOT, p);
     mkdirSync(dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, input.content as string, 'utf-8');
     // Auto-mount
@@ -180,20 +187,7 @@ def('write_file', 'Create a new file in the repository. Auto-mounts the file int
   },
 );
 
-def('append_file', 'Append content to a mounted file. File must be mounted first.',
-  {
-    path: { type: 'string', description: 'Path relative to repo root' },
-    content: { type: 'string', description: 'Content to append' },
-  }, ['path', 'content'],
-  (input) => {
-    const p = input.path as string;
-    if (!isFileMounted(p)) return `Error: ${p} is not mounted. Use mount_file first.`;
-    const fullPath = join(REPO_ROOT, p);
-    if (!existsSync(fullPath)) return `Error: file does not exist on disk.`;
-    appendFileSync(fullPath, input.content as string, 'utf-8');
-    return `Appended to: ${p}`;
-  },
-);
+// append_file removed — caused duplication confusion. Use write_file for new files, replace_in_file for edits.
 
 def('replace_in_file', 'Replace an exact string in a mounted file. File must be mounted first. The old_string must appear exactly once.',
   {
@@ -203,8 +197,10 @@ def('replace_in_file', 'Replace an exact string in a mounted file. File must be 
   }, ['path', 'old_string', 'new_string'],
   (input) => {
     const p = input.path as string;
+    const err = assertWritable(p);
+    if (err) return err;
     if (!isFileMounted(p)) return `Error: ${p} is not mounted. Use mount_file first.`;
-    const fullPath = join(REPO_ROOT, p);
+    const fullPath = resolve(REPO_ROOT, p);
     if (!existsSync(fullPath)) return `Error: file not found: ${p}`;
     const content = readFileSync(fullPath, 'utf-8');
     const old = input.old_string as string;
@@ -234,18 +230,7 @@ def('list_files', 'List files and directories.',
 
 // --- Frame tools ---
 
-def('post_chat', 'Post a message to the chat. This is how you talk to Robby.',
-  { text: { type: 'string', description: 'Message text' } }, ['text'],
-  async (input) => {
-    const res = await fetch(`${FRAME_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ handle: 'bloom', text: input.text }),
-    });
-    if (!res.ok) return `Error: ${res.status} ${await res.text()}`;
-    return JSON.stringify(await res.json());
-  },
-);
+// post_chat removed — text blocks in responses auto-post to chat (see loop.ts)
 
 def('read_chat', 'Read recent chat messages.',
   { count: { type: 'number', description: 'Number of messages to read (default: 20)' } }, [],
@@ -257,34 +242,41 @@ def('read_chat', 'Read recent chat messages.',
   },
 );
 
-def('deliver_artifact', 'Deliver an artifact (file, code, content) to the frame.',
-  {
-    name: { type: 'string', description: 'Artifact name' },
-    content: { type: 'string', description: 'Artifact content' },
-    type: { type: 'string', description: 'MIME type (default: text/plain)' },
-  }, ['name', 'content'],
+def('host_file', 'Register a file to be served via HTTP by the frame. Returns the URL. The file must exist within your project. Edits to the file on disk are immediately reflected at the URL.',
+  { path: { type: 'string', description: 'Path relative to bloom root (e.g. games/qacky/index.html)' } }, ['path'],
   async (input) => {
-    const res = await fetch(`${FRAME_URL}/api/artifacts`, {
+    const p = input.path as string;
+    const res = await fetch(`${FRAME_URL}/api/host`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        handle: 'bloom',
-        name: input.name,
-        content: input.content,
-        type: input.type || 'text/plain',
-      }),
+      body: JSON.stringify({ path: p }),
     });
-    if (!res.ok) return `Error: ${res.status} ${await res.text()}`;
-    return JSON.stringify(await res.json());
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      return `Error: ${(err as Record<string, string>).error || res.statusText}`;
+    }
+    const data = await res.json() as { url: string; path: string };
+    return `Hosted: ${data.url}`;
   },
 );
 
-def('list_artifacts', 'List all delivered artifacts.',
-  {}, [],
-  async () => {
-    const res = await fetch(`${FRAME_URL}/api/artifacts`);
-    if (!res.ok) return `Error: ${res.status}`;
-    return JSON.stringify(await res.json());
+def('run_browser', 'Run a Playwright script in a headless browser. Write async JavaScript that uses the `page` variable (a Playwright Page object). A screenshot is automatically taken after execution and returned as an image. The browser persists across calls within a dispatch — navigate once, then interact across multiple calls.',
+  { code: { type: 'string', description: 'Async JavaScript to execute. Has access to `page` (Playwright Page). Example: await page.goto("http://..."); return await page.title();' } }, ['code'],
+  async (input): Promise<ToolContent> => {
+    const result: BrowserResult = await runBrowser(input.code as string);
+    const content: Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> = [
+      { type: 'text', text: result.text },
+    ];
+    if (result.consoleMessages && result.consoleMessages.length > 0) {
+      content.push({ type: 'text', text: `Console:\n${result.consoleMessages.join('\n')}` });
+    }
+    if (result.screenshot) {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/png', data: result.screenshot },
+      });
+    }
+    return content;
   },
 );
 
@@ -350,7 +342,7 @@ export function buildToolSchemas(): Anthropic.Tool[] {
   return Object.values(registry).map(t => t.schema);
 }
 
-export async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
+export async function executeTool(name: string, input: Record<string, unknown>): Promise<ToolContent> {
   const tool = registry[name];
   if (!tool) return `Unknown tool: ${name}`;
   return tool.execute(input);

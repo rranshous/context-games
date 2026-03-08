@@ -1,7 +1,8 @@
 import { readSoma, assembleSomaPrompt, readSection } from './soma-io.js';
-import { buildToolSchemas, executeTool, compileCustomTools } from './tools.js';
+import { buildToolSchemas, executeTool, compileCustomTools, type ToolContent } from './tools.js';
 import { callAnthropic } from './inference.js';
 import { buildThingsNoticed, recordHistory, pollChatSignals } from './memory-manager.js';
+import { closeBrowser } from './browser.js';
 import type { Signal, ActionRecord } from './memory-manager.js';
 import type Anthropic from '@anthropic-ai/sdk';
 
@@ -103,10 +104,17 @@ export async function dispatch(signal: Signal): Promise<void> {
       }
     });
 
+    // Pipe text blocks to chat — this is bloom speaking
     for (const block of response.content) {
       if (block.type === 'text' && block.text) {
         console.log(`[bloom] ${block.text.slice(0, 300)}`);
         postActivity('thinking', block.text.slice(0, 200));
+        // Post to chat (fire and forget)
+        fetch(`${FRAME_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ handle: 'bloom', text: block.text }),
+        }).catch(() => {});
       }
     }
 
@@ -126,11 +134,15 @@ export async function dispatch(signal: Signal): Promise<void> {
       console.log(`[bloom]   → ${use.name}(${inputPreview})`);
       postActivity('tool', `→ ${use.name}`);
       try {
-        const result = await executeTool(use.name, use.input as Record<string, unknown>);
-        console.log(`[bloom]     ✓ ${result.slice(0, 120)}`);
-        postActivity('tool_ok', `✓ ${use.name}: ${result.slice(0, 100)}`);
+        const result: ToolContent = await executeTool(use.name, use.input as Record<string, unknown>);
+        // For history: extract text summary from structured content
+        const textSummary = typeof result === 'string'
+          ? result
+          : result.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlockParam).text).join('\n') || '(image result)';
+        console.log(`[bloom]     ✓ ${textSummary.slice(0, 120)}`);
+        postActivity('tool_ok', `✓ ${use.name}: ${textSummary.slice(0, 100)}`);
         toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: result });
-        actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result });
+        actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result: textSummary });
       } catch (err: unknown) {
         const msg = (err as Error).message;
         console.error(`[bloom]   ✗ ${use.name}: ${msg}`);
@@ -147,6 +159,9 @@ export async function dispatch(signal: Signal): Promise<void> {
     lastAssistantContent = response.content;
     lastToolResults = toolResults;
   }
+  // Close browser if it was opened during this dispatch
+  await closeBrowser();
+
   postActivity('done', 'dispatch complete');
   console.log('[bloom] dispatch complete\n');
 }

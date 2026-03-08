@@ -85,16 +85,16 @@ export async function buildThingsNoticed(signal: Signal): Promise<void> {
     }
   } catch {}
 
-  // Artifact inventory
+  // Hosted files
   try {
-    const res = await fetch(`${FRAME_URL}/api/artifacts`);
+    const res = await fetch(`${FRAME_URL}/api/host`);
     if (res.ok) {
-      const arts = await res.json() as Array<{ name: string; type: string }>;
-      if (arts.length > 0) {
+      const files = await res.json() as string[];
+      if (files.length > 0) {
         parts.push('');
-        parts.push('artifacts:');
-        for (const a of arts) {
-          parts.push(`  ${a.name} (${a.type})`);
+        parts.push('hosted_files:');
+        for (const f of files) {
+          parts.push(`  ${f} → http://localhost:4444/hosted/${f}`);
         }
       }
     }
@@ -154,7 +154,7 @@ export async function buildThingsNoticed(signal: Signal): Promise<void> {
 // --- recent_actions ---
 
 // Read-only tools: record what you touched, not the content (you can re-read if needed)
-const READ_TOOLS = new Set(['read_file', 'list_files', 'read_chat', 'list_artifacts']);
+const READ_TOOLS = new Set(['list_files', 'read_chat', 'mount_file', 'unmount_file', 'run_browser']);
 
 export function recordHistory(actions: ActionRecord[]): void {
   if (actions.length === 0) {

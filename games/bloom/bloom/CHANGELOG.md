@@ -2,7 +2,68 @@
 
 Patch notes from Robby. Read these to understand what changed in your chassis since your last run.
 
-## 2026-03-07 — Session 4: Mounted Files
+## 2026-03-08 — Session 6: Browser + File Hosting + Write Boundaries
+
+### You have a browser now — `run_browser(code)`
+- New tool: `run_browser`. Pass it async JavaScript that uses a `page` variable (a Playwright Page object).
+- A screenshot is automatically taken after your script runs and returned as an image you can see.
+- The browser persists across calls within a single dispatch — navigate once, then interact across multiple calls.
+- Console messages from the page are captured and returned as text.
+- The browser is automatically closed at the end of each dispatch.
+- Example: `await page.goto("http://localhost:4444/hosted/games/qacky/index.html"); return await page.title();`
+- You can now test your own games: host them, navigate to them, screenshot, click, type, read console errors.
+
+### File hosting replaces artifacts — `host_file(path)`
+- `deliver_artifact` and `list_artifacts` are gone. The artifact system has been removed entirely.
+- New tool: `host_file(path)`. Registers a file to be served via HTTP by the frame. Returns the URL.
+- The file is served directly from disk — edits you make via `replace_in_file` or `write_file` are immediately live at the URL.
+- Hosted files show in `things_noticed` with their URLs.
+- Use this to make your games playable in the browser (including by `run_browser`).
+- Example: `host_file(games/qacky/index.html)` → `http://localhost:4444/hosted/games/qacky/index.html`
+
+### Write boundary
+- `write_file` and `replace_in_file` now enforce a boundary: you can only write within your project directory.
+- Paths that resolve outside your project root are rejected with a clear error message.
+- You can still *read* (mount) files from anywhere — the constraint is writes only.
+- This protects the rest of the repository. Your space is everything under `bloom/`.
+
+### Tool count: 13
+- Removed: `deliver_artifact`, `list_artifacts` (2)
+- Added: `host_file`, `run_browser` (2)
+- Net: same count, but very different capabilities.
+
+### Reset now clears games
+- `npm run reset` now also removes `bloom/games/` — full clean slate on reset.
+
+---
+
+## 2026-03-07 — Session 5: Markdown Chat + Fresh Awakening
+
+### `append_file` removed
+- The `append_file` tool has been removed. It caused duplication confusion during builds.
+- Use `write_file` for creating files, `replace_in_file` for targeted edits.
+- Tool count: 13 (was 14).
+
+### `post_chat` removed — just speak naturally
+- The `post_chat` tool has been removed. You don't need it.
+- Any text you return (not tool calls) is automatically posted to chat as you. Just speak.
+- This saves you a tool call every time you want to say something.
+- Tool count: 14 (was 15).
+
+### Chat now renders markdown
+- The frame UI (`frame/src/ui/index.html`) now renders chat messages as markdown instead of raw text.
+- Supports: **bold**, *italic*, `inline code`, code blocks, headers, lists.
+- Your natural speech will look much better in the chat panel. Use markdown freely.
+- HTML is still escaped — markdown is parsed from the escaped text, so no XSS risk.
+
+---
+
+## 2026-03-07 — Session 4: Mounted Files + Auto-chat
+
+### Text blocks auto-post to chat
+- When you return text (not tool calls), it's automatically posted to chat as you.
+- No need to call `post_chat` for normal speech — just speak naturally.
+- `post_chat` still exists for deliberate messaging if needed.
 
 ### Mounted files — extending your soma boundary
 - **`mount_file(path)`**: Pull a file into your soma. Its contents appear as `<mounted:path>` in your system prompt every turn. You can SEE it without re-reading it.
@@ -17,14 +78,18 @@ Patch notes from Robby. Read these to understand what changed in your chassis si
 - The model context is ~200K tokens. Your soma sections + mounted files should stay well under that.
 - You can see exactly which mounted files are consuming space.
 
+### No `read_file` — mount is the only way to see files
+- `read_file` has been removed. To see a file's contents, you must `mount_file` it.
+- This is intentional: if a file is worth reading, it's worth having in your soma.
+- `list_files` still works for discovering what exists.
+
 ### One-turn lookback loop
 - Each turn re-reads your soma fresh from disk (system prompt).
 - Messages sent to the model: `[user: impulse]` + optionally `[assistant: last tool_use, user: last tool_result]`.
 - You see what you did LAST turn and what came back. Nothing older.
 - Anything worth keeping beyond one turn must go into soma (memory, identity, mounted files).
-- `read_file` results come back via lookback — you see the file contents on the next turn. But for files you'll edit, `mount_file` is better: it stays in your soma permanently.
 - MAX_TURNS = 50.
-- Tool count: 16 (was 14). Added `mount_file`, `unmount_file`.
+- Tool count: 15. Added `mount_file`, `unmount_file`. Removed `read_file`.
 
 ### What this means for you
 - To work on a file: `mount_file` → see it in your soma → `replace_in_file` to edit → `unmount_file` when done.
