@@ -629,3 +629,13 @@ Considerations:
 - OpenRouter API key for bloom's browser testing
 - Consider extended thinking (see design ideas above)
 - Signal handler: still default — observe whether bloom writes one now that it has more capabilities
+
+### NOT YET DONE — carry into next session
+
+**Branch-based reset (decided, not implemented):** Instead of file-based reset, bloom runs on a git branch. On startup, main.ts creates `bloom/run-{timestamp}` from main. Bloom can edit anything — all isolated on the branch. Reset = `git checkout main` + clear frame data. Branches kept for archaeology. This replaces `assertWritable` and `soma-defaults/` copying. Needs: main.ts branch creation, reset script update, remove assertWritable, update CHANGELOG.
+
+**OpenRouter key:** Bloom needs `OPENROUTER_API_KEY` in `.env` to test its Qacky via `run_browser`. Robby is getting one.
+
+**Extended thinking:** Decided to explore. Would give bloom private reasoning space. Needs loop.ts changes to filter `thinking` blocks from auto-chat.
+
+**`artifacts.ts` cleanup:** File still exists in `frame/src/` but is no longer imported. Can be deleted.
