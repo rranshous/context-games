@@ -5,9 +5,12 @@ import { buildThingsNoticed, recordHistory, pollChatSignals } from './memory-man
 import type { Signal, ActionRecord } from './memory-manager.js';
 import type Anthropic from '@anthropic-ai/sdk';
 
-const MAX_TURNS = 50;
+const MAX_TURNS = 15;
 const TICK_INTERVAL_MS = parseInt(process.env.TICK_INTERVAL || '60000');
 const FRAME_URL = process.env.FRAME_URL || 'http://localhost:4444';
+
+// Rough char-to-token ratio. Sonnet 4.6 context is 200K tokens ≈ 800K chars.
+const MAX_CONTEXT_CHARS = 800_000;
 
 function postActivity(type: string, detail: string): void {
   fetch(`${FRAME_URL}/api/activity`, {
@@ -62,21 +65,20 @@ export async function dispatch(signal: Signal): Promise<void> {
   console.log(`[bloom] signal ${signal.type} → impulse: "${impulse.slice(0, 80)}"`);
   postActivity('signal', `${signal.type} → "${impulse.slice(0, 80)}"`);
 
-  // Stateless loop: each call is soma + impulse, nothing else.
-  // Tool results go to history immediately. Soma re-assembled each turn.
+  // Stateless loop: each turn re-reads soma (mounted files, memory, etc. may have changed)
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    // Re-read soma each turn (history/memory may have been updated by tools)
     const freshSoma = readSoma();
     const system = assembleSomaPrompt(freshSoma);
     const chassisTools = buildToolSchemas();
     const customTools = compileCustomTools(freshSoma.custom_tools);
     const allTools = [...chassisTools, ...customTools];
 
+    const pct = ((system.length / MAX_CONTEXT_CHARS) * 100).toFixed(1);
     if (turn === 0) {
-      console.log(`[bloom] soma assembled: ${system.length} chars, ${allTools.length} tools (${chassisTools.length} chassis + ${customTools.length} custom)`);
+      console.log(`[bloom] soma assembled: ${system.length} chars (${pct}% of context), ${allTools.length} tools`);
     }
 
-    postActivity('inference', `turn ${turn + 1}/${MAX_TURNS}`);
+    postActivity('inference', `turn ${turn + 1}/${MAX_TURNS} — soma ${pct}%`);
     let streamChars = 0;
     const response = await callAnthropic(system, [{ role: 'user', content: impulse }], allTools, (text) => {
       streamChars += text.length;

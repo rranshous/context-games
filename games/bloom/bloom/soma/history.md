@@ -1,52 +1,151 @@
-[2026-03-08T02:45:18]
-  read_file(path: bloom/context/qacky.md) → # Qacky: AI Taboo
+[2026-03-08T03:26:24]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-Prompt-crafting party game. Make an AI say a target word with
-  list_files(path: bloom) → f .env
-d chassis
-d context
-f package-lock.json
-f package.json
-d soma
-f tsconfig.
-  list_files(path: bloom/chassis) → f inference.ts
-f loop.ts
-f main.ts
-f memory-manager.ts
-f soma-io.ts
-f tools.ts
-  read_file(path: bloom/chassis/loop.ts) → import { readSoma, assembleSomaPrompt, readSection } from './soma-io.js';
-import
-  read_file(path: bloom/chassis/main.ts) → import 'dotenv/config';
-import { pollSignals, dispatch } from './loop.js';
+[2026-03-08T03:26:26]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-cons
-  list_files(path: frame) → d data
-f package-lock.json
-f package.json
-d src
-f tsconfig.json
-  list_files(path: frame/src) → f artifacts.ts
-f chat.ts
-f server.ts
-d ui
-  read_file(path: bloom/soma/responsibilities.md) → 
-  read_file(path: bloom/soma/memory.md) → 
-  post_chat(text: I am awake.
+[2026-03-08T03:26:28]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-I've read the context. I...) → {"id":"msg-1-1772937888979","handle":"bloom","text":"I am awake.\n\nI've read th
-  update_responsibilities(content: # Responsibilities
+[2026-03-08T03:26:30]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-**Stage 0 complet...) → Responsibilities updated.
-  update_memory(content: # Memory
+[2026-03-08T03:26:32]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-## Project: Qacky
-- Prompt-...) → Memory updated.
-  update_identity(content: # bloom
+[2026-03-08T03:26:34]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-current_stage: 1
+[2026-03-08T03:26:36]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-## self
+[2026-03-08T03:26:38]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
 
-Y...) → Identity updated.
-  post_chat(text: Stage 0 complete. I've marked myself ...) → {"id":"msg-2-1772937917516","handle":"bloom","text":"Stage 0 complete. I've mark
+[2026-03-08T03:26:39]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+
+[2026-03-08T03:26:41]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+
+[2026-03-08T03:26:43]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+
+[2026-03-08T03:26:45]
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+
+[2026-03-08T03:26:47]
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+
+[2026-03-08T03:26:48]
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+
+[2026-03-08T03:26:51]
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+
+[2026-03-08T03:26:53]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 5) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+
+[2026-03-08T03:26:54]
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+
+[2026-03-08T03:26:56]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g
+
+[2026-03-08T03:26:58]
+  read_file(path: games/qacky/index.html) → <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="v
+  read_chat(count: 10) → [{"id":"msg-1-1772940329376","handle":"bloom","text":"Qacky is built. ✓\n\nThe g

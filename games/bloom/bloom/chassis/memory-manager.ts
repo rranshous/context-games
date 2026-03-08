@@ -1,4 +1,4 @@
-import { writeSection, readSection } from './soma-io.js';
+import { writeSection, readSection, readSoma } from './soma-io.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -117,6 +117,34 @@ export async function buildThingsNoticed(signal: Signal): Promise<void> {
       parts.push(changelog);
     }
   } catch {}
+
+  // Context budget: show soma section sizes so bloom knows what's using space
+  const soma = readSoma();
+  const sectionSizes: [string, number][] = [
+    ['identity', soma.identity.length],
+    ['responsibilities', soma.responsibilities.length],
+    ['memory', soma.memory.length],
+    ['things_noticed', 0], // will be filled after assembly
+    ['signal_handler', soma.signal_handler.length],
+    ['recent_actions', soma.recent_actions.length],
+    ['custom_tools', soma.custom_tools.length],
+  ];
+  for (const mf of soma.mounted_files) {
+    sectionSizes.push([`mounted:${mf.path}`, mf.content.length]);
+  }
+  const totalMounted = soma.mounted_files.reduce((s: number, f: { content: string }) => s + f.content.length, 0);
+  const totalSoma = sectionSizes.reduce((s: number, [, n]: [string, number]) => s + n, 0);
+  parts.push('');
+  parts.push('context_budget:');
+  parts.push(`  soma: ~${Math.round(totalSoma / 4)} tokens (~${totalSoma} chars)`);
+  if (soma.mounted_files.length > 0) {
+    parts.push(`  mounted files: ${soma.mounted_files.length} files, ~${Math.round(totalMounted / 4)} tokens`);
+    for (const mf of soma.mounted_files) {
+      parts.push(`    ${mf.path}: ${mf.content.length} chars`);
+    }
+  }
+  parts.push(`  model context: ~200K tokens`);
+  parts.push(`  usage: ~${((totalSoma / 800_000) * 100).toFixed(1)}%`);
 
   const content = parts.join('\n');
   console.log(`[memory] things_noticed: ${parts.length} parts, ${content.length} chars`);

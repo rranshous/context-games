@@ -1,4 +1,4 @@
-import { writeSection, readSection } from './soma-io.js';
+import { writeSection, readSection, readMountedPaths, writeMountedPaths, isFileMounted } from './soma-io.js';
 import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -63,6 +63,35 @@ def('update_signal_handler', 'Rewrite your signal handler function. Controls how
   (input) => { writeSection('signal_handler.js', input.content as string); return 'Signal handler updated.'; },
 );
 
+// --- Mount tools ---
+
+def('mount_file', 'Mount a file into your soma. The file contents become part of your system prompt every turn. You must mount a file before you can edit it. Use this to bring a file into your working awareness.',
+  { path: { type: 'string', description: 'Path relative to repo root' } }, ['path'],
+  (input) => {
+    const p = input.path as string;
+    const fullPath = join(REPO_ROOT, p);
+    if (!existsSync(fullPath)) return `Error: file not found: ${p}`;
+    const paths = readMountedPaths();
+    if (paths.includes(p)) return `Already mounted: ${p}`;
+    paths.push(p);
+    writeMountedPaths(paths);
+    return `Mounted: ${p} — it is now part of your soma.`;
+  },
+);
+
+def('unmount_file', 'Unmount a file from your soma. The file stays on disk but is no longer part of your system prompt. Use this when you are done working on a file.',
+  { path: { type: 'string', description: 'Path relative to repo root' } }, ['path'],
+  (input) => {
+    const p = input.path as string;
+    const paths = readMountedPaths();
+    const idx = paths.indexOf(p);
+    if (idx === -1) return `Error: ${p} is not mounted.`;
+    paths.splice(idx, 1);
+    writeMountedPaths(paths);
+    return `Unmounted: ${p} — removed from soma, file unchanged on disk.`;
+  },
+);
+
 // --- Custom tool management ---
 
 def('add_custom_tool', 'Add a new custom tool to your soma.',
@@ -120,7 +149,7 @@ def('remove_custom_tool', 'Remove a custom tool from your soma.',
 
 // --- File tools ---
 
-def('read_file', 'Read a file from the repository.',
+def('read_file', 'Read a file from the repository. For files you need to edit, use mount_file instead — it makes the file part of your soma so you can see it every turn.',
   { path: { type: 'string', description: 'Path relative to repo root' } }, ['path'],
   (input) => {
     try {
@@ -131,48 +160,59 @@ def('read_file', 'Read a file from the repository.',
   },
 );
 
-def('write_file', 'Write or create a file in the repository.',
+def('write_file', 'Create a new file in the repository. Auto-mounts the file into your soma so you can see and edit it.',
   {
     path: { type: 'string', description: 'Path relative to repo root' },
     content: { type: 'string', description: 'File content' },
   }, ['path', 'content'],
   (input) => {
-    const fullPath = join(REPO_ROOT, input.path as string);
+    const p = input.path as string;
+    const fullPath = join(REPO_ROOT, p);
     mkdirSync(dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, input.content as string, 'utf-8');
-    return `Written: ${input.path}`;
+    // Auto-mount
+    const paths = readMountedPaths();
+    if (!paths.includes(p)) {
+      paths.push(p);
+      writeMountedPaths(paths);
+    }
+    return `Written and mounted: ${p}`;
   },
 );
 
-def('append_file', 'Append content to an existing file. Use this to write large files in chunks.',
+def('append_file', 'Append content to a mounted file. File must be mounted first.',
   {
     path: { type: 'string', description: 'Path relative to repo root' },
     content: { type: 'string', description: 'Content to append' },
   }, ['path', 'content'],
   (input) => {
-    const fullPath = join(REPO_ROOT, input.path as string);
-    if (!existsSync(fullPath)) return `Error: file does not exist. Use write_file to create it first.`;
+    const p = input.path as string;
+    if (!isFileMounted(p)) return `Error: ${p} is not mounted. Use mount_file first.`;
+    const fullPath = join(REPO_ROOT, p);
+    if (!existsSync(fullPath)) return `Error: file does not exist on disk.`;
     appendFileSync(fullPath, input.content as string, 'utf-8');
-    return `Appended to: ${input.path}`;
+    return `Appended to: ${p}`;
   },
 );
 
-def('replace_in_file', 'Replace an exact string in a file. The old_string must appear exactly once in the file. Use this for targeted edits.',
+def('replace_in_file', 'Replace an exact string in a mounted file. File must be mounted first. The old_string must appear exactly once.',
   {
     path: { type: 'string', description: 'Path relative to repo root' },
     old_string: { type: 'string', description: 'Exact string to find (must be unique in the file)' },
     new_string: { type: 'string', description: 'Replacement string' },
   }, ['path', 'old_string', 'new_string'],
   (input) => {
-    const fullPath = join(REPO_ROOT, input.path as string);
-    if (!existsSync(fullPath)) return `Error: file not found: ${input.path}`;
+    const p = input.path as string;
+    if (!isFileMounted(p)) return `Error: ${p} is not mounted. Use mount_file first.`;
+    const fullPath = join(REPO_ROOT, p);
+    if (!existsSync(fullPath)) return `Error: file not found: ${p}`;
     const content = readFileSync(fullPath, 'utf-8');
     const old = input.old_string as string;
     const idx = content.indexOf(old);
-    if (idx === -1) return `Error: old_string not found in ${input.path}. Make sure it matches exactly (including whitespace).`;
+    if (idx === -1) return `Error: old_string not found in ${p}. Make sure it matches exactly (including whitespace).`;
     if (content.indexOf(old, idx + 1) !== -1) return `Error: old_string appears multiple times. Provide more surrounding context to make it unique.`;
     writeFileSync(fullPath, content.slice(0, idx) + (input.new_string as string) + content.slice(idx + old.length), 'utf-8');
-    return `Replaced in: ${input.path}`;
+    return `Replaced in: ${p}`;
   },
 );
 

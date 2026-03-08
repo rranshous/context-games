@@ -326,6 +326,75 @@ The hypothesis: bloom was stuck because `<history>` full of truncated `read_file
 
 ### What's next
 
-- Reset and test the improved `recent_actions` section — does bloom break out of the groundhog loop?
-- If it works: let bloom build Qacky under the stateless loop
-- The design question remains open: is soma-only context sufficient for complex multi-step tasks, or will we hit limits again?
+- ~~Reset and test the improved `recent_actions` section — does bloom break out of the groundhog loop?~~ **NO** — see session 4.
+
+---
+
+## Session 4: Mounted Files — Extending the Soma Boundary (2026-03-07)
+
+### The groundhog day diagnosis
+
+Session 3's `recent_actions` with `✓` marks did NOT fix the groundhog loop. Bloom entered stage 3 (inhabit), read `qacky/index.html` and `read_chat` on every single turn — 50+ identical reads in a row. The `✓` format was never even compiled (the TypeScript changes weren't rebuilt).
+
+But even with the `✓` format, the fundamental problem remains: in a stateless loop, bloom reads a file, learns from it, but that understanding evaporates on the next turn. It re-reads because from its perspective, it hasn't read the file yet. The `recent_actions` tells it "you read this file" but not *what was in it*.
+
+### Robby's insight: mount files into the soma
+
+Instead of reverting to accumulated messages (which violates soma-as-sole-context), extend the soma boundary to include files:
+
+> "What if we extend the soma so that instead of writing a file directly the model can use a tool to pull that file into its soma, work on it, and then remove it from its soma when it's done? When it's edited in the soma it IS edited on the disk. Like extending the soma boundary to include the file."
+
+This is the key move: a mounted file IS part of the soma. It appears in the system prompt every turn. Edits via `replace_in_file` modify the disk file, and the next turn's soma re-reads it. The model always sees the current state of what it's working on.
+
+### Implementation
+
+**New tools (16 total, was 14):**
+- `mount_file(path)` — pull a file into soma
+- `unmount_file(path)` — release it (file stays on disk)
+
+**Mount enforcement:**
+- `replace_in_file` and `append_file` **require** the file to be mounted — error if not
+- `write_file` **auto-mounts** the file on creation
+- `read_file` still works freely (for peeking without mounting)
+
+**Soma assembly:**
+- `soma-io.ts`: `readSoma()` reads `mounted_files.json`, loads each file from disk
+- `assembleSomaPrompt()` appends `<mounted:path>content</mounted:path>` sections
+- Files are re-read from disk every turn — edits are immediately visible
+
+**Context budget:**
+- `things_noticed` now includes `context_budget` section
+- Shows total soma size in chars + estimated tokens, mounted file breakdown
+- ~4 chars per token rough estimate, 200K token model context
+
+**Persistence:**
+- `soma/mounted_files.json` — JSON array of paths
+- `soma-defaults/mounted_files.json` — empty array `[]`
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `chassis/soma-io.ts` | `MountedFile` interface, `readMountedPaths()`/`writeMountedPaths()`/`isFileMounted()`, mounted file reading in `readSoma()`, mounted sections in `assembleSomaPrompt()` |
+| `chassis/tools.ts` | `mount_file`/`unmount_file` tools, mount enforcement on `replace_in_file`/`append_file`, auto-mount on `write_file` |
+| `chassis/loop.ts` | Back to stateless loop (each turn re-reads soma + impulse), context % logging, MAX_TURNS=15 |
+| `chassis/memory-manager.ts` | `context_budget` section in `things_noticed` |
+| `bloom/CHANGELOG.md` | Session 4 patch notes |
+| `soma/mounted_files.json` | New file, empty array |
+| `soma-defaults/mounted_files.json` | New default |
+
+### Design notes
+
+**Why this solves groundhog day:** The problem was never that bloom didn't know it had read a file — it was that it couldn't see the file's contents on subsequent turns. Mounting makes file contents part of the system prompt. Every turn, bloom sees the file. No need to re-read. No lost context.
+
+**The soma boundary is now elastic.** Core sections (identity, memory, etc.) are always present. Mounted files expand the boundary temporarily. Bloom controls what's mounted. This is analogous to "holding a book open" vs "remembering you read a book."
+
+**Context budget matters.** A 2000-line game file is ~50K chars (~12.5K tokens). With 200K context, bloom can comfortably mount a few files. The budget display in `things_noticed` gives bloom awareness of its own resource usage.
+
+**Stateless loop survives.** Each turn is still `soma + impulse`. But now "soma" includes mounted files that persist across turns. The model doesn't need conversational memory because its working state IS the system prompt.
+
+### What's next
+
+- Reset and fire — does mounting fix the groundhog loop?
+- Watch bloom's first inhabit tick with mounted files available
+- If bloom tries to `read_file` instead of `mount_file`, the changelog should guide it
