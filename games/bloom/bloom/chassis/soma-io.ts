@@ -12,7 +12,7 @@ export interface Soma {
   memory: string;
   things_noticed: string;
   signal_handler: string;
-  history: string;
+  recent_actions: string;
   custom_tools: string;
 }
 
@@ -23,7 +23,7 @@ export function readSoma(): Soma {
     memory: readSection('memory.md'),
     things_noticed: readSection('things_noticed.md'),
     signal_handler: readSection('signal_handler.js'),
-    history: readSection('history.md'),
+    recent_actions: readSection('recent_actions.md'),
     custom_tools: readSection('custom_tools.json'),
   };
 }
@@ -47,7 +47,7 @@ export function assembleSomaPrompt(soma: Soma): string {
     ['memory', soma.memory],
     ['things_noticed', soma.things_noticed],
     ['signal_handler', soma.signal_handler],
-    ['history', soma.history],
+    ['recent_actions', soma.recent_actions],
     ['custom_tools', soma.custom_tools],
   ];
   return sections

@@ -1,4 +1,11 @@
 import { writeSection, readSection } from './soma-io.js';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const CHANGELOG_PATH = join(__dirname, '..', 'CHANGELOG.md');
 
 const FRAME_URL = process.env.FRAME_URL || 'http://localhost:4444';
 const HISTORY_CAP = 5000;
@@ -101,49 +108,74 @@ export async function buildThingsNoticed(signal: Signal): Promise<void> {
     parts.push(`current_stage: ${stageMatch[1]}`);
   }
 
+  // Chassis changelog (patch notes from Robby)
+  try {
+    const changelog = readFileSync(CHANGELOG_PATH, 'utf-8').trim();
+    if (changelog) {
+      parts.push('');
+      parts.push('chassis_changelog:');
+      parts.push(changelog);
+    }
+  } catch {}
+
   const content = parts.join('\n');
   console.log(`[memory] things_noticed: ${parts.length} parts, ${content.length} chars`);
   writeSection('things_noticed.md', content);
 }
 
-// --- history ---
+// --- recent_actions ---
+
+// Read-only tools: record what you touched, not the content (you can re-read if needed)
+const READ_TOOLS = new Set(['read_file', 'list_files', 'read_chat', 'list_artifacts']);
 
 export function recordHistory(actions: ActionRecord[]): void {
   if (actions.length === 0) {
     console.log('[memory] no actions to record');
     return;
   }
-  console.log(`[memory] recording ${actions.length} action(s) to history`);
+  console.log(`[memory] recording ${actions.length} action(s) to recent_actions`);
 
-  const current = readSection('history.md');
-  const ts = new Date().toISOString().slice(0, 19);
+  const current = readSection('recent_actions.md');
+  const ts = new Date().toISOString().slice(11, 19);
 
-  const lines: string[] = [`[${ts}]`];
+  const lines: string[] = [];
   for (const a of actions) {
     const inputSummary = summarizeInput(a.input);
-    lines.push(`  ${a.tool}(${inputSummary}) → ${a.result.slice(0, 80)}`);
+    if (READ_TOOLS.has(a.tool)) {
+      // For reads: just record that you did it, with a status
+      const ok = !a.result.startsWith('Error');
+      lines.push(`[${ts}] ${a.tool}(${inputSummary}) ${ok ? '✓' : '✗ ' + a.result.slice(0, 60)}`);
+    } else {
+      // For writes/mutations: record what you did and the outcome
+      lines.push(`[${ts}] ${a.tool}(${inputSummary}) → ${a.result.slice(0, 100)}`);
+    }
   }
 
   const entry = lines.join('\n');
-  let updated = current.trim() ? current.trim() + '\n\n' + entry : entry;
+  let updated = current.trim() ? current.trim() + '\n' + entry : entry;
 
-  // Cap history
+  // Cap
   while (updated.length > HISTORY_CAP) {
-    const idx = updated.indexOf('\n\n');
+    const idx = updated.indexOf('\n');
     if (idx === -1) break;
-    updated = updated.slice(idx + 2);
+    updated = updated.slice(idx + 1);
   }
 
-  writeSection('history.md', updated);
+  writeSection('recent_actions.md', updated);
 }
 
 function summarizeInput(input: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const [k, v] of Object.entries(input)) {
-    const val = typeof v === 'string'
-      ? (v.length > 40 ? v.slice(0, 37) + '...' : v)
-      : JSON.stringify(v);
-    parts.push(`${k}: ${val}`);
+    if (k === 'content') {
+      // Don't dump file contents into history — just show length
+      parts.push(`content: [${(v as string).length} chars]`);
+    } else {
+      const val = typeof v === 'string'
+        ? (v.length > 60 ? v.slice(0, 57) + '...' : v)
+        : JSON.stringify(v);
+      parts.push(`${k}: ${val}`);
+    }
   }
   return parts.join(', ');
 }

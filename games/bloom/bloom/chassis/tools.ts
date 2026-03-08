@@ -1,5 +1,5 @@
 import { writeSection, readSection } from './soma-io.js';
-import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -141,6 +141,38 @@ def('write_file', 'Write or create a file in the repository.',
     mkdirSync(dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, input.content as string, 'utf-8');
     return `Written: ${input.path}`;
+  },
+);
+
+def('append_file', 'Append content to an existing file. Use this to write large files in chunks.',
+  {
+    path: { type: 'string', description: 'Path relative to repo root' },
+    content: { type: 'string', description: 'Content to append' },
+  }, ['path', 'content'],
+  (input) => {
+    const fullPath = join(REPO_ROOT, input.path as string);
+    if (!existsSync(fullPath)) return `Error: file does not exist. Use write_file to create it first.`;
+    appendFileSync(fullPath, input.content as string, 'utf-8');
+    return `Appended to: ${input.path}`;
+  },
+);
+
+def('replace_in_file', 'Replace an exact string in a file. The old_string must appear exactly once in the file. Use this for targeted edits.',
+  {
+    path: { type: 'string', description: 'Path relative to repo root' },
+    old_string: { type: 'string', description: 'Exact string to find (must be unique in the file)' },
+    new_string: { type: 'string', description: 'Replacement string' },
+  }, ['path', 'old_string', 'new_string'],
+  (input) => {
+    const fullPath = join(REPO_ROOT, input.path as string);
+    if (!existsSync(fullPath)) return `Error: file not found: ${input.path}`;
+    const content = readFileSync(fullPath, 'utf-8');
+    const old = input.old_string as string;
+    const idx = content.indexOf(old);
+    if (idx === -1) return `Error: old_string not found in ${input.path}. Make sure it matches exactly (including whitespace).`;
+    if (content.indexOf(old, idx + 1) !== -1) return `Error: old_string appears multiple times. Provide more surrounding context to make it unique.`;
+    writeFileSync(fullPath, content.slice(0, idx) + (input.new_string as string) + content.slice(idx + old.length), 'utf-8');
+    return `Replaced in: ${input.path}`;
   },
 );
 

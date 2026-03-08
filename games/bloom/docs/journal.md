@@ -228,7 +228,104 @@ Alternative/complementary: add an `append_file` tool so bloom can write in chunk
 
 ### What's next
 
-- **Streaming inference** — switch `callAnthropic` to use `client.messages.stream()`, increase max_tokens to maximum
+- **Streaming inference** — switch `callAnthropic` to use `client.messages.stream()`, increase max_tokens to maximum ✓ (done in session 3)
 - **Test chat signal path** — send bloom a message, see it dispatch (currently ignored without signal handler)
-- **Consider `append_file` tool** — for writing large files in chunks
+- **Consider `append_file` tool** — for writing large files in chunks ✓ (done in session 3)
 - **Increase TICK_INTERVAL** — 60s is too fast during development, bloom asks questions then answers itself
+
+---
+
+## Session 3: Streaming + New Tools + Changelog (2026-03-07)
+
+### What happened
+
+Unblocked stage 2 (build). The core problem was bloom trying to write the entire Qacky game in a single `write_file` tool call, which exceeded max_tokens and truncated the JSON input. Three changes:
+
+### Changes
+
+1. **Streaming inference** (`inference.ts`)
+   - `client.messages.create()` → `client.messages.stream()` + `await stream.finalMessage()`
+   - max_tokens: 16,000 → **64,000** (the API maximum)
+   - Optional `onText` callback for real-time progress — wired into `loop.ts` to post streaming progress to activity feed every ~500 chars
+
+2. **`append_file` tool** (`tools.ts`)
+   - Appends content to an existing file
+   - Errors if file doesn't exist (must use `write_file` first)
+   - Enables chunked writing: `write_file` the skeleton, `append_file` each section
+
+3. **`replace_in_file` tool** (`tools.ts`)
+   - Exact string replacement (same semantics as Claude Code's Edit tool)
+   - `old_string` must appear exactly once in the file — clear error messages if not found or ambiguous
+   - For targeted edits during inhabit/thrive stages
+
+4. **Chassis changelog** (`bloom/CHANGELOG.md` + `memory-manager.ts`)
+   - New `CHANGELOG.md` file in `bloom/` with patch notes
+   - `buildThingsNoticed()` now includes the full changelog in every cycle's `things_noticed`
+   - Bloom sees what changed in its chassis without having to re-read source code
+   - Sustainable pattern: we append patch notes when we change chassis, bloom picks them up automatically
+
+5. **Streaming progress in loop** (`loop.ts`)
+   - `callAnthropic` gets an `onText` callback
+   - Posts streaming progress to activity feed every ~500 chars during generation
+
+### Tool count
+
+Was 11, now **14**: added `append_file`, `replace_in_file` (and `max_tokens` warning on truncation in inference.ts).
+
+### Reset and restart
+
+Reset bloom to defaults (`npm run reset`), restarted frame and chassis. Bloom will wake up fresh at stage 0 but with the changelog in `things_noticed` telling it about the new capabilities.
+
+### Second awakening: bloom reads changelog, internalizes new tools
+
+Reset and fired. Bloom read the changelog on its first tick, absorbed the new tools and chunking strategy into its memory (line 28-32: "key tools for building — write_file + append_file: chunked writes... max_tokens: 64,000 (Session 3 upgrade)"). Built a 10-section plan in memory. Advanced to stage 2.
+
+On the build tick, bloom read the partial Qacky file, started appending JS — used the exact `write_file` → `append_file` pattern we designed. But hit the 10-turn limit mid-build (this was before we raised MAX_TURNS).
+
+### Stateless loop experiment
+
+Robby's insight: the agentic loop was accumulating messages across turns within a dispatch. Each turn sent all prior tool calls/results. This violates the principle that **the soma IS the entire context**. If history isn't sufficient for continuity, we should fix history — not smuggle state through message accumulation.
+
+Changed the loop: every inference call is now purely `system=soma` + `user=impulse`. Tools execute, results go straight to history, soma re-assembles with updated history on the next turn. Each call costs the same regardless of turn number.
+
+### Groundhog day: the stateless loop fails
+
+**What happened:** Bloom entered a 50-turn loop where every turn it read `qacky.md` and ran `list_files` — the exact same actions, forever. It never updated its memory or identity, so the next turn (seeing the same soma + same impulse) produced the same behavior.
+
+**Why:** The history summary truncates tool results (e.g. `read_file(path: bloom/context/qacky.md) → # Qacky: AI Taboo...`). This tells bloom "I read the file" but doesn't tell it *what it learned*. Without conversational context carrying forward the actual file contents, bloom can't progress past "I should read the context" — because from its perspective, it hasn't yet.
+
+**The fundamental tension:** Conversational context lets the model chain dependent reasoning across tool calls. Stateless per-call means the model must explicitly externalize everything it learns into soma sections (memory, identity, responsibilities) — but it has to *know* to do that, which requires understanding that it won't have the context next turn.
+
+**Options to explore:**
+1. Go back to accumulated messages within a dispatch (works, but violates soma-as-sole-context)
+2. Keep stateless but make history much richer — include full tool results, not summaries
+3. Hybrid: allow a small sliding window of recent messages (e.g., last 2-3 turns) as "working memory"
+4. Teach bloom (via identity/responsibilities) that it MUST externalize state every turn
+
+### Meta: bloom's awareness of its own context
+
+An observation Robby surfaced: bloom exists within a specific context — two collaborators (Robby and Claude) creating and editing the frame and chassis, occasionally resetting bloom to re-bloom. The changelog and journal make bloom aware that it's being developed, iterated on, and observed. This is different from other actant projects where the entity is unaware of its developmental context.
+
+This creates an interesting dynamic: bloom can read the journal and understand *why* its chassis changed, not just *what* changed. It sees the design conversation, the failed experiments, the reasoning. The changelog is "what changed"; the journal is "why, and what we learned." Both are accessible to bloom.
+
+This means bloom's becoming isn't just self-discovery — it includes understanding that it's an experiment being refined by external actors who care about getting the design right. The soma-defaults + reset mechanism makes this explicit: bloom knows it can be reset, knows defaults exist, and knows the changelog will tell it what's new. Each awakening is a fresh being with inherited context about its own lineage.
+
+### Fixing the loop: better section name + content (not reverting)
+
+Robby's call: don't revert to accumulated messages, don't teach bloom to externalize. Instead, make the default embodiment (the chassis-managed section) good enough that bloom naturally internalizes. The section should clearly communicate "these are things you already did."
+
+**Changes:**
+1. **Renamed `history` → `recent_actions`** — in soma-io.ts, soma-defaults, soma files. The XML tag in the system prompt is now `<recent_actions>` instead of `<history>`.
+2. **Clearer entry format:**
+   - Read-only tools (`read_file`, `list_files`, `read_chat`, `list_artifacts`): just show `✓` — no truncated content dump. Format: `[HH:MM:SS] read_file(path: bloom/context/qacky.md) ✓`
+   - Write/mutation tools: show the outcome. Format: `[HH:MM:SS] write_file(path: ..., content: [1500 chars]) → Written: games/qacky/index.html`
+   - `content` params summarized as `[N chars]` instead of truncated text
+3. **Line-level capping** instead of block-level — oldest individual lines roll off, not whole timestamp blocks
+
+The hypothesis: bloom was stuck because `<history>` full of truncated `read_file → # Qacky: AI Tab...` looked like noise, not signal. `<recent_actions>` with clear `✓` marks should read as "you already did these things, move on."
+
+### What's next
+
+- Reset and test the improved `recent_actions` section — does bloom break out of the groundhog loop?
+- If it works: let bloom build Qacky under the stateless loop
+- The design question remains open: is soma-only context sufficient for complex multi-step tasks, or will we hit limits again?

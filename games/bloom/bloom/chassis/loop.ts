@@ -5,7 +5,7 @@ import { buildThingsNoticed, recordHistory, pollChatSignals } from './memory-man
 import type { Signal, ActionRecord } from './memory-manager.js';
 import type Anthropic from '@anthropic-ai/sdk';
 
-const MAX_TURNS = 10;
+const MAX_TURNS = 50;
 const TICK_INTERVAL_MS = parseInt(process.env.TICK_INTERVAL || '60000');
 const FRAME_URL = process.env.FRAME_URL || 'http://localhost:4444';
 
@@ -62,26 +62,28 @@ export async function dispatch(signal: Signal): Promise<void> {
   console.log(`[bloom] signal ${signal.type} → impulse: "${impulse.slice(0, 80)}"`);
   postActivity('signal', `${signal.type} → "${impulse.slice(0, 80)}"`);
 
-  // Re-read soma (things_noticed was just written)
-  const freshSoma = readSoma();
-  const system = assembleSomaPrompt(freshSoma);
-
-  // Build tools: chassis + custom
-  const chassisTools = buildToolSchemas();
-  const customTools = compileCustomTools(freshSoma.custom_tools);
-  const allTools = [...chassisTools, ...customTools];
-  console.log(`[bloom] soma assembled: ${system.length} chars, ${allTools.length} tools (${chassisTools.length} chassis + ${customTools.length} custom)`);
-
-  // Agentic loop
-  const messages: Anthropic.MessageParam[] = [
-    { role: 'user', content: impulse },
-  ];
-  const actions: ActionRecord[] = [];
-
+  // Stateless loop: each call is soma + impulse, nothing else.
+  // Tool results go to history immediately. Soma re-assembled each turn.
   for (let turn = 0; turn < MAX_TURNS; turn++) {
+    // Re-read soma each turn (history/memory may have been updated by tools)
+    const freshSoma = readSoma();
+    const system = assembleSomaPrompt(freshSoma);
+    const chassisTools = buildToolSchemas();
+    const customTools = compileCustomTools(freshSoma.custom_tools);
+    const allTools = [...chassisTools, ...customTools];
+
+    if (turn === 0) {
+      console.log(`[bloom] soma assembled: ${system.length} chars, ${allTools.length} tools (${chassisTools.length} chassis + ${customTools.length} custom)`);
+    }
+
     postActivity('inference', `turn ${turn + 1}/${MAX_TURNS}`);
-    const response = await callAnthropic(system, messages, allTools);
-    messages.push({ role: 'assistant', content: response.content });
+    let streamChars = 0;
+    const response = await callAnthropic(system, [{ role: 'user', content: impulse }], allTools, (text) => {
+      streamChars += text.length;
+      if (streamChars % 500 < text.length) {
+        postActivity('thinking', `streaming... ${streamChars} chars`);
+      }
+    });
 
     for (const block of response.content) {
       if (block.type === 'text' && block.text) {
@@ -98,7 +100,8 @@ export async function dispatch(signal: Signal): Promise<void> {
       break;
     }
 
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    // Execute tools and record to history immediately
+    const actions: ActionRecord[] = [];
     for (const use of toolUses) {
       const inputPreview = JSON.stringify(use.input).slice(0, 120);
       console.log(`[bloom]   → ${use.name}(${inputPreview})`);
@@ -107,23 +110,19 @@ export async function dispatch(signal: Signal): Promise<void> {
         const result = await executeTool(use.name, use.input as Record<string, unknown>);
         console.log(`[bloom]     ✓ ${result.slice(0, 120)}`);
         postActivity('tool_ok', `✓ ${use.name}: ${result.slice(0, 100)}`);
-        toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: result });
         actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result });
       } catch (err: unknown) {
         const msg = (err as Error).message;
         console.error(`[bloom]   ✗ ${use.name}: ${msg}`);
         postActivity('tool_err', `✗ ${use.name}: ${msg}`);
-        toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: `Error: ${msg}`, is_error: true });
         actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result: `Error: ${msg}` });
       }
     }
 
-    messages.push({ role: 'user', content: toolResults });
+    // Record immediately — next turn's soma will include updated history
+    recordHistory(actions);
   }
-
-  // Record actions in history
-  recordHistory(actions);
-  postActivity('done', `${actions.length} actions`);
+  postActivity('done', 'dispatch complete');
   console.log('[bloom] dispatch complete\n');
 }
 
