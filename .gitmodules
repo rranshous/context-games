@@ -34,3 +34,6 @@
 [submodule "games/fastfall"]
 	path = games/fastfall
 	url = git@github.com:rranshous/fastfall.git
+[submodule "games/bloom"]
+	path = games/bloom
+	url = git@github.com:rranshous/bloom.git
