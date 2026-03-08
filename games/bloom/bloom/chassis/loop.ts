@@ -5,7 +5,7 @@ import { buildThingsNoticed, recordHistory, pollChatSignals } from './memory-man
 import type { Signal, ActionRecord } from './memory-manager.js';
 import type Anthropic from '@anthropic-ai/sdk';
 
-const MAX_TURNS = 15;
+const MAX_TURNS = 50;
 const TICK_INTERVAL_MS = parseInt(process.env.TICK_INTERVAL || '60000');
 const FRAME_URL = process.env.FRAME_URL || 'http://localhost:4444';
 
@@ -65,7 +65,14 @@ export async function dispatch(signal: Signal): Promise<void> {
   console.log(`[bloom] signal ${signal.type} → impulse: "${impulse.slice(0, 80)}"`);
   postActivity('signal', `${signal.type} → "${impulse.slice(0, 80)}"`);
 
-  // Stateless loop: each turn re-reads soma (mounted files, memory, etc. may have changed)
+  // Stateless loop with one-turn lookback:
+  // - Each turn re-reads soma (system prompt) fresh from disk
+  // - Messages = [user: impulse] + optional [assistant: last tool_use, user: last tool_result]
+  // - The model sees what it just did and what came back, but nothing older
+  // - Anything worth keeping must go into soma (memory, identity, mounted files)
+  let lastAssistantContent: Anthropic.ContentBlock[] | null = null;
+  let lastToolResults: Anthropic.ToolResultBlockParam[] | null = null;
+
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const freshSoma = readSoma();
     const system = assembleSomaPrompt(freshSoma);
@@ -78,9 +85,18 @@ export async function dispatch(signal: Signal): Promise<void> {
       console.log(`[bloom] soma assembled: ${system.length} chars (${pct}% of context), ${allTools.length} tools`);
     }
 
+    // Build messages: impulse + optional one-turn lookback
+    const messages: Anthropic.MessageParam[] = [
+      { role: 'user', content: impulse },
+    ];
+    if (lastAssistantContent && lastToolResults) {
+      messages.push({ role: 'assistant', content: lastAssistantContent });
+      messages.push({ role: 'user', content: lastToolResults });
+    }
+
     postActivity('inference', `turn ${turn + 1}/${MAX_TURNS} — soma ${pct}%`);
     let streamChars = 0;
-    const response = await callAnthropic(system, [{ role: 'user', content: impulse }], allTools, (text) => {
+    const response = await callAnthropic(system, messages, allTools, (text) => {
       streamChars += text.length;
       if (streamChars % 500 < text.length) {
         postActivity('thinking', `streaming... ${streamChars} chars`);
@@ -102,8 +118,9 @@ export async function dispatch(signal: Signal): Promise<void> {
       break;
     }
 
-    // Execute tools and record to history immediately
+    // Execute tools, record to history, build lookback for next turn
     const actions: ActionRecord[] = [];
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const use of toolUses) {
       const inputPreview = JSON.stringify(use.input).slice(0, 120);
       console.log(`[bloom]   → ${use.name}(${inputPreview})`);
@@ -112,17 +129,23 @@ export async function dispatch(signal: Signal): Promise<void> {
         const result = await executeTool(use.name, use.input as Record<string, unknown>);
         console.log(`[bloom]     ✓ ${result.slice(0, 120)}`);
         postActivity('tool_ok', `✓ ${use.name}: ${result.slice(0, 100)}`);
+        toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: result });
         actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result });
       } catch (err: unknown) {
         const msg = (err as Error).message;
         console.error(`[bloom]   ✗ ${use.name}: ${msg}`);
         postActivity('tool_err', `✗ ${use.name}: ${msg}`);
+        toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: `Error: ${msg}`, is_error: true });
         actions.push({ tool: use.name, input: use.input as Record<string, unknown>, result: `Error: ${msg}` });
       }
     }
 
-    // Record immediately — next turn's soma will include updated history
+    // Record to history immediately (soma re-read next turn)
     recordHistory(actions);
+
+    // Set lookback for next turn
+    lastAssistantContent = response.content;
+    lastToolResults = toolResults;
   }
   postActivity('done', 'dispatch complete');
   console.log('[bloom] dispatch complete\n');

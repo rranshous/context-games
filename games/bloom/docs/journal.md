@@ -393,8 +393,21 @@ This is the key move: a mounted file IS part of the soma. It appears in the syst
 
 **Stateless loop survives.** Each turn is still `soma + impulse`. But now "soma" includes mounted files that persist across turns. The model doesn't need conversational memory because its working state IS the system prompt.
 
+### One-turn lookback: fixing tool results
+
+First test of mounted files revealed a deeper bug: the stateless loop never sent tool results back to the model. When bloom called `read_file`, the chassis executed it but the file contents were never returned — the next turn just sent `[user: impulse]` again. The model literally couldn't see what its tools returned.
+
+The fix: **one-turn lookback**. Each turn's messages include:
+1. `[user: impulse]` (always)
+2. `[assistant: last tool_use, user: last tool_result]` (if there was a previous turn)
+
+The model sees what it did last turn and what came back. Nothing older. The system prompt (soma) is still re-read fresh from disk each turn. This is the minimum needed for tool use to function — you can't call a function and ignore the return value.
+
+This preserves the stateless spirit: the soma is the primary context, one-turn lookback is just "here's what you just did." Anything worth keeping longer goes into soma sections or mounted files.
+
+MAX_TURNS bumped to 50 to give bloom breathing room.
+
 ### What's next
 
-- Reset and fire — does mounting fix the groundhog loop?
-- Watch bloom's first inhabit tick with mounted files available
-- If bloom tries to `read_file` instead of `mount_file`, the changelog should guide it
+- Reset and fire — does mounting + lookback fix the groundhog loop?
+- Watch bloom's first awakening with the full session 4 chassis

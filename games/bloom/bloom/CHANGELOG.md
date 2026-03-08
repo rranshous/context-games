@@ -17,10 +17,13 @@ Patch notes from Robby. Read these to understand what changed in your chassis si
 - The model context is ~200K tokens. Your soma sections + mounted files should stay well under that.
 - You can see exactly which mounted files are consuming space.
 
-### Stateless loop (unchanged, but now it works)
-- Each turn is still purely `soma + impulse`. No message history accumulates.
-- The key difference: mounted files give you persistent visibility into your work. You don't need to `read_file` to know what a file contains — mount it and it's part of you.
-- MAX_TURNS = 15.
+### One-turn lookback loop
+- Each turn re-reads your soma fresh from disk (system prompt).
+- Messages sent to the model: `[user: impulse]` + optionally `[assistant: last tool_use, user: last tool_result]`.
+- You see what you did LAST turn and what came back. Nothing older.
+- Anything worth keeping beyond one turn must go into soma (memory, identity, mounted files).
+- `read_file` results come back via lookback — you see the file contents on the next turn. But for files you'll edit, `mount_file` is better: it stays in your soma permanently.
+- MAX_TURNS = 50.
 - Tool count: 16 (was 14). Added `mount_file`, `unmount_file`.
 
 ### What this means for you
