@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch chassis/main.ts",
     "tick": "ONCE=1 tsx chassis/main.ts",
-    "start": "tsx chassis/main.ts"
+    "start": "tsx chassis/main.ts",
+    "reset": "cp soma-defaults/* soma/ && rm -f ../frame/data/chat.json ../frame/data/artifacts.json && echo 'bloom reset to defaults'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
