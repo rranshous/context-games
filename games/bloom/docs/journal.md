@@ -634,8 +634,46 @@ Considerations:
 
 **Branch-based reset (decided, not implemented):** Instead of file-based reset, bloom runs on a git branch. On startup, main.ts creates `bloom/run-{timestamp}` from main. Bloom can edit anything — all isolated on the branch. Reset = `git checkout main` + clear frame data. Branches kept for archaeology. This replaces `assertWritable` and `soma-defaults/` copying. Needs: main.ts branch creation, reset script update, remove assertWritable, update CHANGELOG.
 
-**OpenRouter key:** Bloom needs `OPENROUTER_API_KEY` in `.env` to test its Qacky via `run_browser`. Robby is getting one.
+**~~OpenRouter key~~:** ✓ Done in session 7.
 
-**Extended thinking:** Decided to explore. Would give bloom private reasoning space. Needs loop.ts changes to filter `thinking` blocks from auto-chat.
+**~~Extended thinking~~:** ✓ Done in session 7.
 
-**`artifacts.ts` cleanup:** File still exists in `frame/src/` but is no longer imported. Can be deleted.
+**~~`artifacts.ts` cleanup~~:** ✓ Done in session 7.
+
+---
+
+## Session 7: Extended Thinking + OpenRouter Key + Cleanup (2026-03-08)
+
+### What happened
+
+Quick chassis upgrade session. Three changes, all straightforward.
+
+### Changes
+
+1. **Extended thinking** (`chassis/inference.ts`)
+   - `thinking: { type: 'enabled', budget_tokens: 1024 }` added to inference params
+   - `loop.ts`: thinking blocks logged to console + activity feed as `(private)`, NOT posted to chat
+   - Text blocks still auto-post to chat as before
+   - Bloom now has a private inner monologue vs public speech distinction
+
+2. **OpenRouter API key** (`chassis/memory-manager.ts`)
+   - `OPENROUTER_API_KEY` added to `.env`, loaded via dotenv
+   - Surfaced in `things_noticed` under `api_keys:` — bloom sees the key and can inject it into browser-tested games
+
+3. **`artifacts.ts` deleted** (`frame/src/artifacts.ts`)
+   - Was already unused since session 6 (artifact system replaced by file hosting)
+   - Dead code cleanup
+
+### Commit
+
+1. `cbe7897` — Extended thinking, OpenRouter key, artifact cleanup
+
+### Design note: reset is manual
+
+`npm run reset` is a manual command, not automatic on startup. Each `npm start` picks up wherever the soma was left. Reset explicitly for a fresh awakening. This is intentional — bloom's state persists across restarts, which is different from a full reset.
+
+### What's next
+
+- Fire up bloom and observe the 6th awakening with extended thinking + browser + hosting
+- Watch whether bloom discovers and uses the OpenRouter key for testing
+- Branch-based reset still deferred
