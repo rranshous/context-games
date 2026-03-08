@@ -8,17 +8,23 @@ const SOMA_DIR = join(__dirname, '..', 'soma');
 
 export interface Soma {
   identity: string;
+  responsibilities: string;
   memory: string;
-  signal_handlers: string;
+  things_noticed: string;
+  signal_handler: string;
   history: string;
+  custom_tools: string;
 }
 
 export function readSoma(): Soma {
   return {
     identity: readSection('identity.md'),
+    responsibilities: readSection('responsibilities.md'),
     memory: readSection('memory.md'),
-    signal_handlers: readSection('signal-handlers.ts'),
+    things_noticed: readSection('things_noticed.md'),
+    signal_handler: readSection('signal_handler.js'),
     history: readSection('history.md'),
+    custom_tools: readSection('custom_tools.json'),
   };
 }
 
@@ -35,10 +41,17 @@ export function writeSection(filename: string, content: string): void {
 }
 
 export function assembleSomaPrompt(soma: Soma): string {
-  const parts: string[] = [];
-  if (soma.identity) parts.push(`<identity>\n${soma.identity}\n</identity>`);
-  if (soma.memory) parts.push(`<memory>\n${soma.memory}\n</memory>`);
-  if (soma.signal_handlers) parts.push(`<signal_handlers>\n${soma.signal_handlers}\n</signal_handlers>`);
-  if (soma.history) parts.push(`<history>\n${soma.history}\n</history>`);
-  return parts.join('\n\n');
+  const sections: [string, string][] = [
+    ['identity', soma.identity],
+    ['responsibilities', soma.responsibilities],
+    ['memory', soma.memory],
+    ['things_noticed', soma.things_noticed],
+    ['signal_handler', soma.signal_handler],
+    ['history', soma.history],
+    ['custom_tools', soma.custom_tools],
+  ];
+  return sections
+    .filter(([, content]) => content.trim())
+    .map(([name, content]) => `<${name}>\n${content}\n</${name}>`)
+    .join('\n\n');
 }

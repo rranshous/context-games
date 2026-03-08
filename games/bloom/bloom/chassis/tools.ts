@@ -48,24 +48,73 @@ def('update_identity', 'Rewrite your identity section. This is who you are.',
   (input) => { writeSection('identity.md', input.content as string); return 'Identity updated.'; },
 );
 
-def('update_memory', 'Rewrite your working memory.',
+def('update_responsibilities', 'Rewrite your responsibilities section. This is what you are doing now.',
+  { content: { type: 'string', description: 'New responsibilities content' } }, ['content'],
+  (input) => { writeSection('responsibilities.md', input.content as string); return 'Responsibilities updated.'; },
+);
+
+def('update_memory', 'Rewrite your memory. Your persistent notes and state.',
   { content: { type: 'string', description: 'New memory content' } }, ['content'],
   (input) => { writeSection('memory.md', input.content as string); return 'Memory updated.'; },
 );
 
-def('update_signal_handlers', 'Rewrite your signal handler code.',
-  { content: { type: 'string', description: 'New signal handler code' } }, ['content'],
-  (input) => { writeSection('signal-handlers.ts', input.content as string); return 'Signal handlers updated.'; },
+def('update_signal_handler', 'Rewrite your signal handler function. Controls how you respond to signals.',
+  { content: { type: 'string', description: 'New signal handler code (a function that takes signal and returns impulse string or null)' } }, ['content'],
+  (input) => { writeSection('signal_handler.js', input.content as string); return 'Signal handler updated.'; },
 );
 
-def('append_history', 'Append a timestamped entry to your history.',
-  { entry: { type: 'string', description: 'History entry to append' } }, ['entry'],
+// --- Custom tool management ---
+
+def('add_custom_tool', 'Add a new custom tool to your soma.',
+  {
+    name: { type: 'string', description: 'Tool name' },
+    description: { type: 'string', description: 'Tool description' },
+    input_schema: { type: 'string', description: 'JSON string of the input schema object' },
+    function_body: { type: 'string', description: 'JS function body: function(input) { ... }' },
+  }, ['name', 'description', 'input_schema', 'function_body'],
   (input) => {
-    const current = readSection('history.md');
-    const ts = new Date().toISOString();
-    const updated = current + (current.trim() ? '\n\n' : '') + `## ${ts}\n${input.entry}`;
-    writeSection('history.md', updated);
-    return 'History entry appended.';
+    const tools = parseCustomTools();
+    const existing = tools.findIndex(t => t.name === input.name);
+    if (existing !== -1) return `Error: tool "${input.name}" already exists. Use edit_custom_tool.`;
+    tools.push({
+      name: input.name as string,
+      description: input.description as string,
+      input_schema: JSON.parse(input.input_schema as string),
+      function_body: input.function_body as string,
+    });
+    writeSection('custom_tools.json', JSON.stringify(tools, null, 2));
+    return `Custom tool "${input.name}" added.`;
+  },
+);
+
+def('edit_custom_tool', 'Edit an existing custom tool.',
+  {
+    name: { type: 'string', description: 'Tool name to edit' },
+    description: { type: 'string', description: 'New description (optional)' },
+    input_schema: { type: 'string', description: 'New JSON input schema (optional)' },
+    function_body: { type: 'string', description: 'New function body (optional)' },
+  }, ['name'],
+  (input) => {
+    const tools = parseCustomTools();
+    const idx = tools.findIndex(t => t.name === input.name);
+    if (idx === -1) return `Error: tool "${input.name}" not found.`;
+    if (input.description) tools[idx].description = input.description as string;
+    if (input.input_schema) tools[idx].input_schema = JSON.parse(input.input_schema as string);
+    if (input.function_body) tools[idx].function_body = input.function_body as string;
+    writeSection('custom_tools.json', JSON.stringify(tools, null, 2));
+    return `Custom tool "${input.name}" updated.`;
+  },
+);
+
+def('remove_custom_tool', 'Remove a custom tool from your soma.',
+  { name: { type: 'string', description: 'Tool name to remove' } }, ['name'],
+  (input) => {
+    const tools = parseCustomTools();
+    const idx = tools.findIndex(t => t.name === input.name);
+    if (idx === -1) return `Error: tool "${input.name}" not found.`;
+    tools.splice(idx, 1);
+    writeSection('custom_tools.json', JSON.stringify(tools, null, 2));
+    return `Custom tool "${input.name}" removed.`;
   },
 );
 
@@ -166,6 +215,62 @@ def('list_artifacts', 'List all delivered artifacts.',
     return JSON.stringify(await res.json());
   },
 );
+
+// --- Custom tool compilation ---
+
+interface CustomToolDef {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+  function_body: string;
+}
+
+function parseCustomTools(): CustomToolDef[] {
+  const raw = readSection('custom_tools.json');
+  if (!raw.trim()) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function compileCustomTools(customToolsJson: string): Anthropic.Tool[] {
+  if (!customToolsJson.trim()) return [];
+  let tools: CustomToolDef[];
+  try {
+    tools = JSON.parse(customToolsJson);
+  } catch {
+    return [];
+  }
+
+  const schemas: Anthropic.Tool[] = [];
+  for (const tool of tools) {
+    // Register in runtime registry so executeTool can find them
+    try {
+      const fn = new Function('return ' + tool.function_body)() as (input: Record<string, unknown>) => unknown;
+      registry[tool.name] = {
+        schema: {
+          name: tool.name,
+          description: tool.description,
+          input_schema: {
+            type: 'object' as const,
+            ...tool.input_schema,
+            additionalProperties: false,
+          },
+        },
+        execute: (input) => {
+          const result = fn(input);
+          return typeof result === 'string' ? result : JSON.stringify(result);
+        },
+      };
+      schemas.push(registry[tool.name].schema);
+    } catch (err: unknown) {
+      console.error(`[bloom] custom tool "${tool.name}" compile error: ${(err as Error).message}`);
+    }
+  }
+  return schemas;
+}
 
 // --- Export ---
 

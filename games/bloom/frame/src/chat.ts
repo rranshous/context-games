@@ -29,6 +29,12 @@ export class ChatServer {
     return this.messages.slice(-count).map(m => ({ ...m }));
   }
 
+  readAfter(afterId: string): ChatMessage[] {
+    const idx = this.messages.findIndex(m => m.id === afterId);
+    if (idx === -1) return this.messages.map(m => ({ ...m }));
+    return this.messages.slice(idx + 1).map(m => ({ ...m }));
+  }
+
   toJSON(): ChatMessage[] {
     return this.messages;
   }

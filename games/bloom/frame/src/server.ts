@@ -46,6 +46,11 @@ app.post('/api/chat', (req, res) => {
 });
 
 app.get('/api/chat', (req, res) => {
+  const after = req.query.after as string | undefined;
+  if (after) {
+    res.json(chat.readAfter(after));
+    return;
+  }
   const count = parseInt(req.query.count as string) || 50;
   res.json(chat.read(count));
 });
