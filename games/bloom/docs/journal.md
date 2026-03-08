@@ -181,9 +181,54 @@ Token usage: peaked at ~7500 input, ~950 output on the largest turn. 14 tool cal
 - Sonnet 4.5 handled 14 tools comfortably, no confusion about tool schemas
 - The signal handler was empty (default fallback: tick → stage impulse), and bloom didn't write one yet
 
+### Stage 1 → 2: orient and build attempts
+
+After stage 0, we started the continuous loop (`npm start`). Bloom immediately:
+
+1. **Orient (stage 1)**: Read every chassis file (`loop.ts`, `tools.ts`, `inference.ts`, `soma-io.ts`, `memory-manager.ts`), the frame server, chat/artifacts servers, the UI HTML, and the Qacky spec. Posted a detailed architecture summary to chat. Advanced to stage 2. ~17 tool calls, 9 inference turns.
+
+2. **Build (stage 2)**: Read the Qacky spec, posted "Building Qacky now", then attempted to generate the entire game as a single `write_file` tool call. **Hit the token limit** — 8192 tokens wasn't enough (88.7s, maxed out). The tool input JSON got truncated mid-generation, so `content` was `undefined` → write failed.
+
+3. **Retry with 16K tokens**: Same result — 186.1s, 16000 tokens output, still truncated. The game is simply too large to fit in a single tool call's input JSON within max_tokens.
+
+### Behavioral observations
+
+- **Bloom doesn't wait for answers**: During orient, it asked "do you want me to plan first, or just build?" in chat, but the next 60s tick fired with impulse "build" and it just went ahead. Each dispatch is stateless — no concept of "I asked a question."
+- **Repetitive build announcements**: Bloom posted "Building Qacky now" multiple times across restarts because its history resets on chassis restart (in-memory `lastSeenChatId`).
+- **No signal handler written yet**: Bloom never modified `signal_handler.js` — still using the default fallback. This means chat messages are ignored (handler returns null for non-tick signals without a handler).
+
+### Infrastructure additions (continued)
+
+6. **Soma viewer** — new panel in the frame UI:
+   - `GET /api/soma` endpoint on frame — reads soma files directly from `../bloom/soma/`
+   - Right panel with tabbed sections: id, resp, mem, noticed, handler, hist, tools
+   - Auto-refreshes every 3s, highlights changed tabs in amber
+   - Artifacts sidebar moved below soma viewer
+7. **Soma defaults + reset**:
+   - `bloom/soma-defaults/` — original soma files from before first awakening
+   - `npm run reset` — copies defaults back, clears frame data (chat + artifacts)
+   - README in defaults folder explains the reasoning (addressed to bloom)
+8. **Max tokens bumped**: 8192 → 16000 (still insufficient for full game generation)
+
+### The max_tokens problem
+
+The core issue: bloom tries to write the entire Qacky game (~2000 lines HTML) in a single `write_file` tool call. Even with 16K output tokens, the response hits `max_tokens` mid-tool-call, truncating the JSON input for the tool. The `content` field ends up `undefined`.
+
+**Next session priority: switch to streaming inference.** With streaming, we can accumulate the full response even at very high token counts. The Anthropic SDK supports streaming with `client.messages.stream()`. This would:
+- Allow much larger output (potentially 128K with extended thinking)
+- Let the activity feed show real-time progress during generation
+- Avoid the truncation problem entirely
+
+Alternative/complementary: add an `append_file` tool so bloom can write in chunks across multiple tool calls within one dispatch.
+
+### Commits
+
+1. `24936c6` — First contact + observability infrastructure (logging, activity feed, dotenv, first tick)
+2. `cede90f` — Soma defaults for experiment reset capability
+
 ### What's next
 
-- Stage 1 ("orient"): bloom should explore its tools, understand what it can modify, maybe write a signal handler
-- Need to test chat signal path (send bloom a message, see it dispatch)
-- Activity feed needs testing in browser (added after first tick)
-- Consider: should bloom auto-tick continuously, or do we run manual ticks while developing?
+- **Streaming inference** — switch `callAnthropic` to use `client.messages.stream()`, increase max_tokens to maximum
+- **Test chat signal path** — send bloom a message, see it dispatch (currently ignored without signal handler)
+- **Consider `append_file` tool** — for writing large files in chunks
+- **Increase TICK_INTERVAL** — 60s is too fast during development, bloom asks questions then answers itself

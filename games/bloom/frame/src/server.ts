@@ -95,6 +95,22 @@ app.get('/api/activity', (req, res) => {
   res.json(activityLog.filter(e => e.ts > after));
 });
 
+// --- Soma API (reads bloom's soma files directly) ---
+
+const SOMA_DIR = join(__dirname, '..', '..', 'bloom', 'soma');
+const SOMA_SECTIONS = ['identity.md', 'responsibilities.md', 'memory.md', 'things_noticed.md', 'signal_handler.js', 'history.md', 'custom_tools.json'];
+
+app.get('/api/soma', (_req, res) => {
+  const soma: Record<string, string> = {};
+  for (const file of SOMA_SECTIONS) {
+    const name = file.replace(/\.\w+$/, '');
+    try {
+      soma[name] = readFileSync(join(SOMA_DIR, file), 'utf-8');
+    } catch { soma[name] = ''; }
+  }
+  res.json(soma);
+});
+
 // --- UI ---
 
 app.use(express.static(join(__dirname, 'ui')));

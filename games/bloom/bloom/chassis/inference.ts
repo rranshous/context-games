@@ -9,7 +9,7 @@ export async function callAnthropic(
 ): Promise<Anthropic.Message> {
   const params: Anthropic.MessageCreateParamsNonStreaming = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
+    max_tokens: 16000,
     system,
     messages,
   };
