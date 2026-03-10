@@ -29,7 +29,8 @@ export interface Objective {
 export interface RunRecording {
   driverPath: Array<{ tick: number; pos: Position; speed: number; angle: number }>;
   pursuerPaths: Record<string, Array<{ tick: number; pos: Position }>>;
-  radioTranscript: Array<{ time: number; text: string }>; // timestamped speech
+  radioTranscript: Array<{ time: number; text: string }>; // timestamped boss speech
+  pursuerRadioLog: Array<{ time: number; from: string; type: string; data: string }>; // inter-pursuer radio
   events: Array<{ tick: number; type: string; description: string; pos?: Position }>;
   startTime: number;
   endTime: number;
@@ -52,4 +53,34 @@ export interface DriverSoma {
     distanceCovered: number;
     reachedObjective: boolean;
   }>;
+}
+
+// Pursuer soma — signal-driven, like hot-pursuit officers
+export interface PursuerSoma {
+  id: string;
+  name: string;
+  nature: string; // poetic analogy for their style
+  identity: string;
+  on_tick: string; // onSignal(type, data, me) function
+  memory: string;
+  chaseHistory: Array<{
+    runId: number;
+    outcome: string;
+    durationSeconds: number;
+    spotted: boolean;
+    captured: boolean;
+  }>;
+}
+
+// Pursuer signal types — priority order
+export type PursuerSignal = 'driver_spotted' | 'driver_lost' | 'ally_signal' | 'tick';
+
+// Pursuer state during a run
+export type PursuerMode = 'patrol' | 'pursuing' | 'searching';
+
+// Radio broadcast from a pursuer
+export interface PursuerBroadcast {
+  from: string;
+  signalType: string;
+  data: Record<string, unknown>;
 }

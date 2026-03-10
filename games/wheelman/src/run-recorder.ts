@@ -9,6 +9,7 @@ export class RunRecorder {
       driverPath: [],
       pursuerPaths: {},
       radioTranscript: [],
+      pursuerRadioLog: [],
       events: [],
       startTime: Date.now(),
       endTime: 0,
@@ -46,6 +47,11 @@ export class RunRecorder {
   recordRadio(text: string): void {
     const time = (Date.now() - this.recording.startTime) / 1000;
     this.recording.radioTranscript.push({ time, text });
+  }
+
+  recordPursuerRadio(from: string, signalType: string, data: string): void {
+    const time = (Date.now() - this.recording.startTime) / 1000;
+    this.recording.pursuerRadioLog.push({ time, from, type: signalType, data });
   }
 
   recordEvent(type: string, description: string, pos?: Position): void {

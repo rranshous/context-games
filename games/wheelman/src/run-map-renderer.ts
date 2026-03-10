@@ -1,17 +1,22 @@
 // ── Run Map Renderer ──
-// Renders a bird's-eye map of the driver's run for reflection input.
-// Shows path, terrain, objective, events on a scaled-down canvas.
+// Renders a bird's-eye composite map of the run.
+// Shows driver path (green), each pursuer path (distinct colors, labeled),
+// terrain, objective, and events on a scaled-down canvas.
 
 import { RunRecording, Position } from './types';
 import { DesertWorld } from './desert-world';
 
-/** Render a bird's-eye run map as base64 PNG (no data: prefix). */
+// Distinct colors for up to 4 pursuers
+const PURSUER_COLORS = ['#ff4444', '#ff8800', '#aa44ff', '#ff44aa'];
+
+/** Render a bird's-eye composite run map as base64 PNG (no data: prefix). */
 export function renderRunMap(
   recording: RunRecording,
   world: DesertWorld,
   objective: Position,
+  pursuerNames?: Record<string, string>, // id -> name for labels
 ): string {
-  // Find bounding box of path + objective + margin
+  // Find bounding box of all paths + objective + margin
   let minX = objective.x;
   let maxX = objective.x;
   let minY = objective.y;
@@ -22,6 +27,16 @@ export function renderRunMap(
     if (wp.pos.x > maxX) maxX = wp.pos.x;
     if (wp.pos.y < minY) minY = wp.pos.y;
     if (wp.pos.y > maxY) maxY = wp.pos.y;
+  }
+
+  // Include pursuer paths in bounding box
+  for (const id of Object.keys(recording.pursuerPaths)) {
+    for (const wp of recording.pursuerPaths[id]) {
+      if (wp.pos.x < minX) minX = wp.pos.x;
+      if (wp.pos.x > maxX) maxX = wp.pos.x;
+      if (wp.pos.y < minY) minY = wp.pos.y;
+      if (wp.pos.y > maxY) maxY = wp.pos.y;
+    }
   }
 
   // Add generous margin
@@ -56,24 +71,20 @@ export function renderRunMap(
   ctx.fillStyle = '#c2b280';
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  // 2. Sample terrain features from the world
-  // We'll query the world at grid points to draw terrain features
+  // 2. Sample terrain features
   const sampleStep = Math.max(8, Math.floor(1 / scale));
   for (let wy = minY; wy < maxY; wy += sampleStep) {
     for (let wx = minX; wx < maxX; wx += sampleStep) {
       const effect = world.getTerrainEffect(wx, wy);
       if (effect < 0.2) {
-        // Water
         const p = toCanvas({ x: wx, y: wy });
         ctx.fillStyle = '#4a90c4';
         ctx.fillRect(p.x, p.y, Math.max(2, sampleStep * scale), Math.max(2, sampleStep * scale));
       } else if (effect < 0.5) {
-        // Textured/rough sand
         const p = toCanvas({ x: wx, y: wy });
         ctx.fillStyle = '#a89060';
         ctx.fillRect(p.x, p.y, Math.max(2, sampleStep * scale), Math.max(2, sampleStep * scale));
       } else if (effect > 0.85 && effect < 0.95) {
-        // Road
         const p = toCanvas({ x: wx, y: wy });
         ctx.fillStyle = '#d4c498';
         ctx.fillRect(p.x, p.y, Math.max(2, sampleStep * scale), Math.max(2, sampleStep * scale));
@@ -81,7 +92,7 @@ export function renderRunMap(
     }
   }
 
-  // Check for obstacle collisions to draw rocks
+  // Rocks
   for (let wy = minY; wy < maxY; wy += sampleStep * 2) {
     for (let wx = minX; wx < maxX; wx += sampleStep * 2) {
       const obs = world.checkObstacleCollision(wx, wy, 1);
@@ -95,7 +106,52 @@ export function renderRunMap(
     }
   }
 
-  // 3. Driver's path as green line
+  // 3. Pursuer paths — draw BEFORE driver path so driver is on top
+  const pursuerIds = Object.keys(recording.pursuerPaths);
+  for (let pi = 0; pi < pursuerIds.length; pi++) {
+    const id = pursuerIds[pi];
+    const path = recording.pursuerPaths[id];
+    const color = PURSUER_COLORS[pi % PURSUER_COLORS.length];
+    const name = pursuerNames?.[id] || id;
+
+    if (path.length > 1) {
+      // Path line
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      const first = toCanvas(path[0].pos);
+      ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < path.length; i++) {
+        const p = toCanvas(path[i].pos);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Direction arrows
+      for (let i = 30; i < path.length; i += 30) {
+        const wp = path[i];
+        const prev = path[i - 1];
+        const p = toCanvas(wp.pos);
+        const angle = Math.atan2(wp.pos.y - prev.pos.y, wp.pos.x - prev.pos.x);
+        drawArrow(ctx, p.x, p.y, angle, 4, color);
+      }
+
+      // Name label at start position
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = color;
+      ctx.fillText(name, first.x, first.y - 8);
+
+      // Start dot
+      ctx.beginPath();
+      ctx.arc(first.x, first.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 4. Driver's path as green line (on top)
   if (recording.driverPath.length > 1) {
     ctx.strokeStyle = '#33ff33';
     ctx.lineWidth = 2;
@@ -108,7 +164,7 @@ export function renderRunMap(
     }
     ctx.stroke();
 
-    // Direction arrows every ~20 waypoints
+    // Direction arrows
     ctx.fillStyle = '#33ff33';
     for (let i = 20; i < recording.driverPath.length; i += 20) {
       const wp = recording.driverPath[i];
@@ -119,7 +175,7 @@ export function renderRunMap(
     }
   }
 
-  // 4. Start position: green circle
+  // 5. Start position: green circle
   if (recording.driverPath.length > 0) {
     const start = toCanvas(recording.driverPath[0].pos);
     ctx.fillStyle = '#33ff33';
@@ -131,7 +187,7 @@ export function renderRunMap(
     ctx.stroke();
   }
 
-  // 5. End position: red circle (caught/crashed/timeout) or gold star (delivered)
+  // 6. End position
   if (recording.driverPath.length > 0) {
     const endWp = recording.driverPath[recording.driverPath.length - 1];
     const end = toCanvas(endWp.pos);
@@ -148,7 +204,7 @@ export function renderRunMap(
     }
   }
 
-  // 6. Objective: gold diamond
+  // 7. Objective: gold diamond
   const objP = toCanvas(objective);
   ctx.save();
   ctx.translate(objP.x, objP.y);
@@ -160,7 +216,7 @@ export function renderRunMap(
   ctx.strokeRect(-6, -6, 12, 12);
   ctx.restore();
 
-  // 7. Key events: numbered white circles
+  // 8. Key events: numbered white circles
   ctx.font = '10px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -176,7 +232,7 @@ export function renderRunMap(
     ctx.fillText(String(i + 1), p.x, p.y);
   }
 
-  // 8. Legend at bottom
+  // 9. Legend at bottom
   const ly = canvasH + 6;
   ctx.fillStyle = '#1a1a2e';
   ctx.fillRect(0, canvasH, canvasW, legendH);
@@ -185,19 +241,27 @@ export function renderRunMap(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
-  const items = [
-    { color: '#33ff33', label: 'Driver path' },
-    { color: '#33ff33', label: 'Start', shape: 'circle' },
-    { color: recording.outcome === 'delivered' ? '#ffd700' : '#ff3333', label: 'End' },
-    { color: '#ffd700', label: 'Objective', shape: 'diamond' },
+  const legendItems: Array<{ color: string; label: string }> = [
+    { color: '#33ff33', label: 'Driver' },
+    { color: '#ffd700', label: 'Objective' },
+  ];
+
+  // Add pursuer legend items
+  for (let pi = 0; pi < pursuerIds.length; pi++) {
+    const id = pursuerIds[pi];
+    const color = PURSUER_COLORS[pi % PURSUER_COLORS.length];
+    const name = pursuerNames?.[id] || id;
+    legendItems.push({ color, label: name });
+  }
+
+  legendItems.push(
     { color: '#4a90c4', label: 'Water' },
     { color: '#5a5a5a', label: 'Rock' },
     { color: '#d4c498', label: 'Road' },
-    { color: '#ffffff', label: 'Event' },
-  ];
+  );
 
   let lx = 6;
-  for (const item of items) {
+  for (const item of legendItems) {
     ctx.fillStyle = item.color;
     ctx.fillRect(lx, ly, 8, 8);
     ctx.strokeStyle = '#555';
@@ -208,7 +272,6 @@ export function renderRunMap(
     lx += ctx.measureText(item.label).width + 20;
     if (lx > canvasW - 60) {
       lx = 6;
-      // Move to second row — shift text position down
     }
   }
 

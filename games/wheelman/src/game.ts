@@ -4,13 +4,17 @@
 import { DesertWorld } from './desert-world';
 import { Vehicle } from './vehicle';
 import { Camera } from './camera';
-import { DriverSoma, Objective, RunRecording } from './types';
+import { DriverSoma, Objective, RunRecording, PursuerBroadcast } from './types';
 import { createDefaultSoma, loadSoma, saveSoma, executeTick, clearCompileCache } from './soma';
 import { RunRecorder } from './run-recorder';
 import { SpeechInput } from './speech';
 import { reflectDriver, ReflectionResult, TurnUpdate } from './reflection';
 import { renderRunMap } from './run-map-renderer';
 import { CONFIG } from './config';
+import { Pursuer, clearPursuerCompileCache } from './pursuer';
+import { loadOrCreatePursuerSomas, savePursuerSomas } from './pursuer-soma';
+import { reflectAllPursuers, PursuerReflectionResult, PursuerReflectionUpdate } from './pursuer-reflection';
+import { PursuerSoma } from './types';
 
 type GameState = 'title' | 'running' | 'reflecting' | 'after_action';
 
@@ -21,6 +25,10 @@ const TEXT_DIM = '#887a5a';
 const TEXT_GREEN = '#33ff33';
 const TEXT_RED = '#ff4444';
 const TEXT_GOLD = '#ffd700';
+const TEXT_BLUE = '#6688cc';
+
+// Pursuer path colors (match map renderer)
+const PURSUER_COLORS = ['#ff4444', '#ff8800', '#aa44ff', '#ff44aa'];
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -38,6 +46,13 @@ export class Game {
   private lastTime: number = 0;
   private radioTranscript: string = '';
 
+  // Pursuers
+  private pursuerSomas: PursuerSoma[] = [];
+  private pursuers: Pursuer[] = [];
+  private pendingBroadcasts: PursuerBroadcast[] = [];
+  private currentRadio: PursuerBroadcast[] = [];
+  private pursuerRadioLog: string = ''; // accumulated for reflection
+
   // After-action state
   private lastRecording: RunRecording | null = null;
   private lastMapBase64: string = '';
@@ -45,6 +60,10 @@ export class Game {
   private reflectionResult: ReflectionResult | null = null;
   private reflectionText: string = '';
   private changeSummary: string = '';
+
+  // Pursuer reflection state
+  private pursuerReflectionResults: PursuerReflectionResult[] = [];
+  private pursuerReflectionPhase: string = '';
 
   // Input state
   private spaceQueued: boolean = false;
@@ -114,6 +133,20 @@ export class Game {
     return false;
   }
 
+  // ── Escalation ──
+
+  private getPursuerCount(): number {
+    let count = 0;
+    for (const tier of CONFIG.ESCALATION) {
+      if (this.runCount >= tier.minRun) {
+        count = tier.count;
+      }
+    }
+    return count;
+  }
+
+  // ── Update Loop ──
+
   private update(dt: number): void {
     switch (this.state) {
       case 'title': {
@@ -126,32 +159,96 @@ export class Game {
       case 'running': {
         this.runTimer += dt;
 
-        // Reset controls each frame
+        // Swap radio buffers (double-buffered, one-tick delay)
+        this.currentRadio = [...this.pendingBroadcasts];
+        this.pendingBroadcasts = [];
+
+        // Reset driver controls each frame
         this.vehicle.resetControls();
 
-        // Execute soma tick
+        // Build pursuer info for driver's world API
+        const pursuerInfo = this.pursuers.map(p => ({
+          position: { x: p.x, y: p.y },
+          speed: p.speed,
+          angle: p.angle,
+        }));
+
+        // Execute driver soma tick
         executeTick(
           this.soma,
           this.vehicle,
           this.world,
           this.radioTranscript,
           this.objective,
-          [], // no pursuers yet
+          pursuerInfo,
         );
 
-        // Physics
+        // Driver physics
         this.vehicle.update(dt, this.world);
 
         // Camera follow
         this.camera.update(this.vehicle.x, this.vehicle.y);
 
-        // Record position (every frame, recorder thins internally)
+        // Record driver position
         if (this.recorder) {
           this.recorder.recordDriverPosition(
             { x: this.vehicle.x, y: this.vehicle.y },
             this.vehicle.speed,
             this.vehicle.angle,
           );
+        }
+
+        // Update each pursuer
+        for (const pursuer of this.pursuers) {
+          // Filter radio: only messages NOT from this pursuer
+          const radio = this.currentRadio.filter(m => m.from !== pursuer.soma.id);
+
+          pursuer.update(
+            dt,
+            { x: this.vehicle.x, y: this.vehicle.y },
+            this.vehicle.speed,
+            this.vehicle.angle,
+            this.world,
+            radio,
+            this.runTimer,
+          );
+
+          // Collect outbound broadcasts
+          for (const bc of pursuer.pendingBroadcasts) {
+            this.pendingBroadcasts.push(bc);
+
+            // Log for reflection
+            const logLine = `[${this.runTimer.toFixed(1)}s] ${pursuer.soma.name}: ${bc.signalType}`;
+            this.pursuerRadioLog += logLine + '\n';
+
+            // Record in recorder
+            if (this.recorder) {
+              this.recorder.recordPursuerRadio(
+                pursuer.soma.name,
+                bc.signalType,
+                JSON.stringify(bc.data).slice(0, 200),
+              );
+            }
+          }
+
+          // Record pursuer position
+          if (this.recorder) {
+            this.recorder.recordPursuerPosition(pursuer.soma.id, { x: pursuer.x, y: pursuer.y });
+          }
+
+          // Check: caught?
+          const catchDist = pursuer.distanceToDriver(this.vehicle.x, this.vehicle.y);
+          if (catchDist < CONFIG.PURSUER.CATCH_DISTANCE) {
+            if (this.recorder) {
+              this.recorder.recordEvent(
+                'caught',
+                `Caught by ${pursuer.soma.name}!`,
+                { x: this.vehicle.x, y: this.vehicle.y },
+              );
+            }
+            this.endRun('caught');
+            return;
+          }
         }
 
         // Check: reached objective?
@@ -205,7 +302,11 @@ export class Game {
         this.world.render(ctx, this.camera);
         // Objective marker
         this.renderObjectiveMarker();
-        // Vehicle
+        // Pursuers
+        for (const pursuer of this.pursuers) {
+          pursuer.render(ctx, this.camera);
+        }
+        // Vehicle (on top)
         this.vehicle.render(ctx, this.camera);
         // HUD
         this.renderHUD();
@@ -235,11 +336,31 @@ export class Game {
     // Reset vehicle to center
     this.vehicle = new Vehicle(this.world.width / 2, this.world.height / 2);
 
+    // Spawn pursuers based on escalation
+    const pursuerCount = this.getPursuerCount();
+    this.pursuerSomas = loadOrCreatePursuerSomas(pursuerCount);
+    this.pursuers = [];
+    for (let i = 0; i < pursuerCount; i++) {
+      // Spawn pursuers spread around the map edges
+      const angle = (i / pursuerCount) * Math.PI * 2 + Math.random() * 0.5;
+      const spawnDist = 1500 + Math.random() * 1000;
+      const sx = this.world.width / 2 + Math.cos(angle) * spawnDist;
+      const sy = this.world.height / 2 + Math.sin(angle) * spawnDist;
+      const clampedX = Math.max(100, Math.min(this.world.width - 100, sx));
+      const clampedY = Math.max(100, Math.min(this.world.height - 100, sy));
+      this.pursuers.push(new Pursuer(this.pursuerSomas[i], clampedX, clampedY, this.world));
+    }
+
+    // Clear radio state
+    this.pendingBroadcasts = [];
+    this.currentRadio = [];
+    this.pursuerRadioLog = '';
+
     // Create new recorder
     this.recorder = new RunRecorder();
     this.recorder.recordEvent('run_start', `Run #${this.runCount} started`, { x: this.vehicle.x, y: this.vehicle.y });
 
-    // Clear radio
+    // Clear boss radio
     this.radioTranscript = '';
     this.soma.boss_radio = '';
     this.speech.clearTranscript();
@@ -263,15 +384,20 @@ export class Game {
     this.changeSummary = '';
     this.reflectionResult = null;
     this.lastMapImage = null;
+    this.pursuerReflectionResults = [];
+    this.pursuerReflectionPhase = '';
     this.state = 'running';
 
-    // Clear compile cache in case soma was updated
+    // Clear compile caches
     clearCompileCache();
+    clearPursuerCompileCache();
 
     console.log(JSON.stringify({
       _wm: 'run_start',
       runCount: this.runCount,
       objective: objPos,
+      pursuerCount: pursuerCount,
+      pursuerNames: this.pursuerSomas.map(s => s.name),
       vehiclePos: { x: this.vehicle.x, y: this.vehicle.y },
     }));
   }
@@ -293,7 +419,7 @@ export class Game {
     const recording = this.recorder.finish(outcome, objDist);
     this.lastRecording = recording;
 
-    // Add to run history
+    // Add to driver run history
     this.soma.runHistory.push({
       runId: this.runCount,
       outcome: recording.outcome,
@@ -302,9 +428,25 @@ export class Game {
       reachedObjective: outcome === 'delivered',
     });
 
-    // Generate run map
+    // Add to each pursuer's chase history
+    for (const pursuer of this.pursuers) {
+      const spotted = pursuer.mode === 'pursuing' || pursuer.mode === 'searching';
+      pursuer.soma.chaseHistory.push({
+        runId: this.runCount,
+        outcome: recording.outcome,
+        durationSeconds: recording.durationSeconds,
+        spotted,
+        captured: outcome === 'caught',
+      });
+    }
+
+    // Generate composite run map with pursuer names
     if (this.objective) {
-      this.lastMapBase64 = renderRunMap(recording, this.world, this.objective.position);
+      const pursuerNames: Record<string, string> = {};
+      for (const s of this.pursuerSomas) {
+        pursuerNames[s.id] = s.name;
+      }
+      this.lastMapBase64 = renderRunMap(recording, this.world, this.objective.position, pursuerNames);
 
       // Preload map image for rendering
       const img = new Image();
@@ -324,20 +466,21 @@ export class Game {
       duration: recording.durationSeconds,
       distance: recording.distanceCovered,
       objectiveDistance: objDist,
+      pursuers: this.pursuers.map(p => ({ name: p.soma.name, mode: p.mode })),
     }));
 
-    // Start reflection (async)
+    // Start reflections (async — driver + pursuers in parallel)
     this.doReflection(recording);
   }
 
   private async doReflection(recording: RunRecording): Promise<void> {
     try {
-      const result = await reflectDriver(
+      // Run driver reflection and pursuer reflections in parallel
+      const driverReflectionPromise = reflectDriver(
         this.soma,
         recording,
         this.lastMapBase64,
         (update: TurnUpdate) => {
-          // Streaming text update
           if (update.newText) {
             this.reflectionText += update.newText;
           }
@@ -348,11 +491,38 @@ export class Game {
         },
       );
 
-      this.reflectionResult = result;
-      this.changeSummary = result.changeSummary;
+      // Pursuer reflections (only if there are pursuers)
+      let pursuerReflectionPromise: Promise<PursuerReflectionResult[]> = Promise.resolve([]);
+      if (this.pursuerSomas.length > 0) {
+        pursuerReflectionPromise = reflectAllPursuers(
+          this.pursuerSomas,
+          recording,
+          this.pursuerRadioLog,
+          this.lastMapBase64,
+          (update: PursuerReflectionUpdate) => {
+            this.pursuerReflectionPhase = update.phase;
+            if (update.currentPursuer) {
+              this.pursuerReflectionPhase += `: ${update.currentPursuer}`;
+            }
+            this.pursuerReflectionResults = update.results;
+          },
+        );
+      }
 
-      // Save soma after reflection
+      const [driverResult, pursuerResults] = await Promise.all([
+        driverReflectionPromise,
+        pursuerReflectionPromise,
+      ]);
+
+      this.reflectionResult = driverResult;
+      this.changeSummary = driverResult.changeSummary;
+      this.pursuerReflectionResults = pursuerResults;
+
+      // Save all somas
       saveSoma(this.soma);
+      if (this.pursuerSomas.length > 0) {
+        savePursuerSomas(this.pursuerSomas);
+      }
 
     } catch (err) {
       this.reflectionText += `\n[REFLECTION ERROR: ${String(err)}]\n`;
@@ -371,7 +541,7 @@ export class Game {
     const W = CONFIG.CANVAS.WIDTH;
     const H = CONFIG.CANVAS.HEIGHT;
 
-    // Top bar: timer + run count
+    // Top bar: timer + run count + pursuer count
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, W, 32);
     ctx.font = '14px monospace';
@@ -387,9 +557,10 @@ export class Game {
     ctx.textAlign = 'center';
     ctx.fillText(`RUN #${this.runCount}`, W / 2, 16);
 
-    // Speed
+    // Speed + pursuer count
     ctx.textAlign = 'right';
-    ctx.fillText(`${Math.round(this.vehicle.speed)} px/s`, W - 10, 16);
+    const pursuerText = this.pursuers.length > 0 ? ` | ${this.pursuers.length} COPS` : '';
+    ctx.fillText(`${Math.round(this.vehicle.speed)} px/s${pursuerText}`, W - 10, 16);
 
     // Objective distance
     if (this.objective) {
@@ -399,6 +570,26 @@ export class Game {
       ctx.textAlign = 'center';
       ctx.fillStyle = dist < 200 ? TEXT_GREEN : TEXT_SAND;
       ctx.fillText(`OBJ: ${Math.round(dist)}px`, W / 2, 32 + 16);
+    }
+
+    // Pursuer proximity warnings
+    const closePursuers = this.pursuers
+      .map(p => ({ name: p.soma.name, dist: p.distanceToDriver(this.vehicle.x, this.vehicle.y), mode: p.mode }))
+      .filter(p => p.dist < CONFIG.PURSUER.SPOT_RANGE * 1.5)
+      .sort((a, b) => a.dist - b.dist);
+
+    if (closePursuers.length > 0) {
+      const warningY = 32 + 32;
+      ctx.fillStyle = 'rgba(200, 0, 0, 0.3)';
+      ctx.fillRect(0, warningY, W, 20 * closePursuers.length);
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'left';
+      for (let i = 0; i < closePursuers.length; i++) {
+        const p = closePursuers[i];
+        ctx.fillStyle = p.mode === 'pursuing' ? TEXT_RED : TEXT_GOLD;
+        const icon = p.mode === 'pursuing' ? '!!' : '?';
+        ctx.fillText(`${icon} ${p.name}: ${Math.round(p.dist)}px`, 10, warningY + 10 + i * 20);
+      }
     }
 
     // Bottom: radio transcript (last 3 lines)
@@ -427,11 +618,9 @@ export class Game {
     const ctx = this.ctx;
     const screen = this.camera.worldToScreen(this.objective.position.x, this.objective.position.y);
 
-    // Only draw if on-screen
     if (screen.x < -20 || screen.x > CONFIG.CANVAS.WIDTH + 20 ||
         screen.y < -20 || screen.y > CONFIG.CANVAS.HEIGHT + 20) return;
 
-    // Pulsing gold diamond
     const pulse = Math.sin(performance.now() / 300) * 3;
     const size = 10 + pulse;
 
@@ -447,7 +636,6 @@ export class Game {
     ctx.strokeRect(-size / 2, -size / 2, size, size);
     ctx.restore();
 
-    // Label
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = TEXT_GOLD;
@@ -462,21 +650,15 @@ export class Game {
 
     const screen = this.camera.worldToScreen(this.objective.position.x, this.objective.position.y);
 
-    // If objective is on-screen, no arrow needed
     const arrowMargin = 40;
     if (screen.x >= arrowMargin && screen.x <= W - arrowMargin &&
         screen.y >= arrowMargin && screen.y <= H - arrowMargin) return;
 
-    // Clamp to screen edge
     const cx = W / 2;
     const cy = H / 2;
     const angle = Math.atan2(screen.y - cy, screen.x - cx);
 
-    // Find edge intersection
     const edgeMargin = 30;
-    let edgeX: number, edgeY: number;
-
-    // Try horizontal edges
     const tX = Math.abs(angle) < Math.PI / 2
       ? (W - edgeMargin - cx) / Math.cos(angle)
       : (-W + edgeMargin + cx) / Math.cos(angle);
@@ -485,14 +667,12 @@ export class Game {
       : (-H + edgeMargin + cy) / Math.sin(angle);
 
     const t = Math.min(Math.abs(tX), Math.abs(tY));
-    edgeX = cx + Math.cos(angle) * t;
-    edgeY = cy + Math.sin(angle) * t;
+    let edgeX = cx + Math.cos(angle) * t;
+    let edgeY = cy + Math.sin(angle) * t;
 
-    // Clamp to screen
     edgeX = Math.max(edgeMargin, Math.min(W - edgeMargin, edgeX));
     edgeY = Math.max(edgeMargin, Math.min(H - edgeMargin, edgeY));
 
-    // Draw arrow
     ctx.save();
     ctx.translate(edgeX, edgeY);
     ctx.rotate(angle);
@@ -521,31 +701,34 @@ export class Game {
     ctx.fillStyle = BG_DARK;
     ctx.fillRect(0, 0, W, H);
 
-    // Title
     ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = TEXT_SAND;
-    ctx.fillText('DRIVER IS REFLECTING...', W / 2, 30);
+    ctx.fillText('REVIEWING THE RUN...', W / 2, 20);
 
-    // Spinning indicator
     const dots = '.'.repeat(Math.floor(performance.now() / 500) % 4);
-    ctx.font = '16px monospace';
-    ctx.fillStyle = TEXT_DIM;
-    ctx.fillText(`Reviewing the run${dots}`, W / 2, 65);
+    ctx.font = '14px monospace';
+    ctx.fillStyle = TEXT_GREEN;
+    ctx.fillText(`Driver reflecting${dots}`, W / 2, 55);
 
-    // Streaming reasoning text
+    // Pursuer reflection status
+    if (this.pursuerSomas.length > 0) {
+      ctx.fillStyle = TEXT_BLUE;
+      const phase = this.pursuerReflectionPhase || 'waiting';
+      ctx.fillText(`Pursuit division: ${phase}${dots}`, W / 2, 75);
+    }
+
+    // Streaming reasoning text (driver)
     if (this.reflectionText) {
       ctx.font = '11px monospace';
       ctx.textAlign = 'left';
       ctx.fillStyle = TEXT_DIM;
 
       const lines = this.wrapText(this.reflectionText, W - 80);
-      // Show last ~30 lines
-      const visibleLines = lines.slice(-30);
-      const startY = 100;
+      const visibleLines = lines.slice(-25);
+      const startY = 105;
       for (let i = 0; i < visibleLines.length; i++) {
-        // Highlight tool calls
         const line = visibleLines[i];
         if (line.includes('[TOOL:')) {
           ctx.fillStyle = TEXT_GREEN;
@@ -572,15 +755,13 @@ export class Game {
     const recording = this.lastRecording;
     if (!recording) return;
 
-    // Layout: map on left (~420px), text on right (~520px)
     const mapAreaW = 420;
     const textX = mapAreaW + 20;
     const textW = W - textX - 20;
 
-    // Apply scroll offset for text rendering
     const scroll = this.scrollY;
 
-    // --- Left side: Run map ---
+    // --- Left side: Composite run map ---
     if (this.lastMapImage) {
       const imgW = this.lastMapImage.naturalWidth;
       const imgH = this.lastMapImage.naturalHeight;
@@ -592,7 +773,6 @@ export class Game {
 
       ctx.drawImage(this.lastMapImage, drawX, drawY, drawW, drawH);
 
-      // Border
       ctx.strokeStyle = TEXT_DIM;
       ctx.lineWidth = 1;
       ctx.strokeRect(drawX, drawY, drawW, drawH);
@@ -603,7 +783,12 @@ export class Game {
       ctx.fillText('(Map loading...)', mapAreaW / 2, H / 2);
     }
 
-    // --- Right side: Text content ---
+    // --- Right side: Text content (scrollable) ---
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(textX - 5, 0, textW + 25, H - 40);
+    ctx.clip();
+
     let y = 20 - scroll;
 
     // Outcome banner
@@ -627,7 +812,7 @@ export class Game {
     ctx.fillText(`Duration: ${recording.durationSeconds.toFixed(1)}s`, textX, y); y += 18;
     ctx.fillText(`Distance: ${Math.round(recording.distanceCovered)}px`, textX, y); y += 18;
     ctx.fillText(`Objective dist: ${Math.round(recording.objectiveDistance)}px`, textX, y); y += 18;
-    ctx.fillText(`Run #${this.runCount}`, textX, y); y += 28;
+    ctx.fillText(`Run #${this.runCount} | ${this.pursuers.length} pursuers`, textX, y); y += 28;
 
     // Radio transcript
     ctx.font = 'bold 14px monospace';
@@ -659,36 +844,39 @@ export class Game {
     ctx.stroke();
     y += 12;
 
-    // Reflection reasoning
+    // Driver reflection
     ctx.font = 'bold 14px monospace';
     ctx.fillStyle = TEXT_SAND;
-    ctx.fillText('REFLECTION:', textX, y); y += 20;
+    ctx.fillText('DRIVER REFLECTION:', textX, y); y += 20;
 
-    if (this.reflectionText) {
-      ctx.font = '10px monospace';
-      const reasoningLines = this.wrapText(this.reflectionText, textW);
-      // Cap at 40 lines to keep it readable
-      const displayLines = reasoningLines.slice(0, 40);
-      for (const line of displayLines) {
-        if (line.includes('[TOOL:')) {
-          ctx.fillStyle = TEXT_GREEN;
-        } else {
-          ctx.fillStyle = TEXT_DIM;
-        }
-        ctx.fillText(line, textX, y);
-        y += 13;
-      }
-      if (reasoningLines.length > 40) {
-        ctx.fillStyle = TEXT_DIM;
-        ctx.fillText(`... (${reasoningLines.length - 40} more lines)`, textX, y);
-        y += 13;
-      }
-    }
-    y += 12;
-
-    // Change summary
     if (this.changeSummary) {
-      ctx.strokeStyle = TEXT_DIM;
+      ctx.font = '12px monospace';
+      ctx.fillStyle = TEXT_GREEN;
+      const summaryLines = this.wrapText(this.changeSummary, textW);
+      for (const line of summaryLines) {
+        ctx.fillText(line, textX, y); y += 15;
+      }
+      y += 8;
+    } else {
+      ctx.font = '11px monospace';
+      ctx.fillStyle = TEXT_DIM;
+      ctx.fillText('(reflecting...)', textX, y); y += 16;
+    }
+
+    // Token usage (driver)
+    if (this.reflectionResult?.tokenUsage) {
+      ctx.font = '10px monospace';
+      ctx.fillStyle = TEXT_DIM;
+      const t = this.reflectionResult.tokenUsage;
+      ctx.fillText(`driver tokens: ${t.input} in / ${t.output} out`, textX, y);
+      y += 16;
+    }
+
+    // ── PURSUIT DIVISION ──
+    if (this.pursuerReflectionResults.length > 0) {
+      y += 8;
+      ctx.strokeStyle = TEXT_BLUE;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(textX, y);
       ctx.lineTo(textX + textW, y);
@@ -696,28 +884,57 @@ export class Game {
       y += 12;
 
       ctx.font = 'bold 14px monospace';
-      ctx.fillStyle = TEXT_GREEN;
-      ctx.fillText('WHAT CHANGED:', textX, y); y += 20;
+      ctx.fillStyle = TEXT_BLUE;
+      ctx.fillText('PURSUIT DIVISION:', textX, y); y += 22;
 
-      ctx.font = '12px monospace';
-      ctx.fillStyle = TEXT_SAND;
-      const summaryLines = this.wrapText(this.changeSummary, textW);
-      for (const line of summaryLines) {
-        ctx.fillText(line, textX, y); y += 16;
+      for (let pi = 0; pi < this.pursuerReflectionResults.length; pi++) {
+        const pr = this.pursuerReflectionResults[pi];
+        const color = PURSUER_COLORS[pi % PURSUER_COLORS.length];
+
+        // Pursuer name header
+        ctx.font = 'bold 12px monospace';
+        ctx.fillStyle = color;
+        ctx.fillText(`${pr.pursuerName}`, textX, y); y += 16;
+
+        // Change summary
+        if (pr.changeSummary) {
+          ctx.font = '11px monospace';
+          ctx.fillStyle = TEXT_SAND;
+          const lines = this.wrapText(pr.changeSummary, textW - 8);
+          for (const line of lines) {
+            ctx.fillText(line, textX + 8, y); y += 13;
+          }
+        } else {
+          ctx.font = '11px monospace';
+          ctx.fillStyle = TEXT_DIM;
+          ctx.fillText('(no changes)', textX + 8, y); y += 13;
+        }
+
+        // Debrief summary
+        if (pr.debriefSummary) {
+          ctx.font = '10px monospace';
+          ctx.fillStyle = TEXT_DIM;
+          const debriefLines = this.wrapText(`Debrief: ${pr.debriefSummary}`, textW - 8);
+          for (const line of debriefLines) {
+            ctx.fillText(line, textX + 8, y); y += 12;
+          }
+        }
+
+        // Token usage
+        if (pr.tokenUsage) {
+          ctx.font = '9px monospace';
+          ctx.fillStyle = TEXT_DIM;
+          ctx.fillText(`tokens: ${pr.tokenUsage.input} in / ${pr.tokenUsage.output} out`, textX + 8, y);
+          y += 12;
+        }
+
+        y += 8;
       }
-      y += 12;
     }
 
-    // Token usage
-    if (this.reflectionResult?.tokenUsage) {
-      ctx.font = '10px monospace';
-      ctx.fillStyle = TEXT_DIM;
-      const t = this.reflectionResult.tokenUsage;
-      ctx.fillText(`tokens: ${t.input} in / ${t.output} out`, textX, y);
-      y += 20;
-    }
+    ctx.restore(); // End clip
 
-    // "Press space" prompt — fixed at bottom, not scrolled
+    // "Press space" prompt — fixed at bottom
     ctx.font = 'bold 16px monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = TEXT_SAND;
@@ -725,6 +942,12 @@ export class Game {
     if (pulse) {
       ctx.fillText('PRESS SPACE FOR NEXT RUN', W / 2, H - 30);
     }
+
+    // Scroll indicator
+    ctx.font = '10px monospace';
+    ctx.fillStyle = TEXT_DIM;
+    ctx.textAlign = 'right';
+    ctx.fillText('scroll to see more', W - 10, H - 12);
   }
 
   // ── Title Screen ──
@@ -737,14 +960,12 @@ export class Game {
     ctx.fillStyle = BG_DARK;
     ctx.fillRect(0, 0, W, H);
 
-    // Title
     ctx.font = 'bold 48px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = TEXT_SAND;
     ctx.fillText('WHEELMAN', W / 2, H / 2 - 80);
 
-    // Subtitle
     ctx.font = '16px monospace';
     ctx.fillStyle = TEXT_DIM;
     ctx.fillText("You're the boss. Your driver is an AI.", W / 2, H / 2 - 30);
@@ -754,6 +975,13 @@ export class Game {
     ctx.fillText('Watch the drone feed. Yell into the mic.', W / 2, H / 2);
     ctx.fillText('The driver listens to your radio and learns.', W / 2, H / 2 + 22);
 
+    // Pursuer info
+    const nextPursuerCount = this.getPursuerCount();
+    if (nextPursuerCount > 0) {
+      ctx.fillStyle = TEXT_RED;
+      ctx.fillText(`${nextPursuerCount} cop${nextPursuerCount > 1 ? 's' : ''} on patrol. They learn too.`, W / 2, H / 2 + 48);
+    }
+
     // Run history
     if (this.soma.runHistory.length > 0) {
       ctx.font = '12px monospace';
@@ -761,7 +989,7 @@ export class Game {
       const last = this.soma.runHistory[this.soma.runHistory.length - 1];
       ctx.fillText(
         `Last run: ${last.outcome} (${Math.round(last.durationSeconds)}s) | Total runs: ${this.soma.runHistory.length}`,
-        W / 2, H / 2 + 55,
+        W / 2, H / 2 + 75,
       );
     }
 
@@ -769,20 +997,19 @@ export class Game {
     if (!this.speech.supported) {
       ctx.font = '12px monospace';
       ctx.fillStyle = TEXT_RED;
-      ctx.fillText('WARNING: Speech recognition not supported in this browser.', W / 2, H / 2 + 85);
-      ctx.fillText('Use Chrome for voice input.', W / 2, H / 2 + 102);
+      ctx.fillText('WARNING: Speech recognition not supported in this browser.', W / 2, H / 2 + 105);
+      ctx.fillText('Use Chrome for voice input.', W / 2, H / 2 + 122);
     } else {
       ctx.font = '12px monospace';
       ctx.fillStyle = TEXT_GREEN;
-      ctx.fillText('Microphone ready.', W / 2, H / 2 + 85);
+      ctx.fillText('Microphone ready.', W / 2, H / 2 + 105);
     }
 
-    // Press space
     ctx.font = 'bold 18px monospace';
     ctx.fillStyle = TEXT_SAND;
     const pulse = Math.sin(performance.now() / 400) > 0;
     if (pulse) {
-      ctx.fillText('PRESS SPACE TO START', W / 2, H / 2 + 140);
+      ctx.fillText('PRESS SPACE TO START', W / 2, H / 2 + 155);
     }
   }
 
@@ -792,7 +1019,6 @@ export class Game {
     const lines: string[] = [];
     const ctx = this.ctx;
 
-    // Split on newlines first
     const paragraphs = text.split('\n');
     for (const para of paragraphs) {
       if (!para) {
