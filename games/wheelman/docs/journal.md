@@ -70,9 +70,22 @@ Built the entire M1 from scratch in one session. Wheelman is a driving sim where
 - **Space key not working in Playwright**: changed from press-held model to queue-based (`spaceQueued` flag set on keydown, consumed in next update frame)
 - **Speech spam**: `not-allowed` error from Playwright (no mic) caused infinite retry loop. Added early bail on `not-allowed` error.
 
+### Playtesting notes
+- User confirmed: watching improvement across runs is the hook. It works.
+- No mic on test machine — need text input fallback for radio (type-to-yell)
+- Visual polish needed — currently colored shapes, not sprites. Should use raceon's actual sprite sheets.
+- Needs enemies to create real pressure / interesting driving decisions
+
+### Future ideas (from user)
+- **Multiple drivers**: train them individually, frustrating to re-teach the same lessons = emotional investment
+- **Later rounds = multiple drivers at once**: once trained up, promote to "the big time" — coordinated multi-car missions
+- This creates a management sim layer on top of the driving sim — you're running a crew
+
 ### What's next (M2)
 - Enemies! Patrol vehicles with chase behavior
 - Driver sensor data (world.pursuers populated)
 - Run ends if caught
 - Pursuers on bird's-eye map
 - Escalating difficulty across runs
+- Text input fallback for radio (no mic machines)
+- Sprite rendering (use raceon's actual pixel art instead of colored shapes)
