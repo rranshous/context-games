@@ -279,9 +279,39 @@ Also added collision-specific particles:
 - Screen shake on rock collision gives satisfying feedback
 - Vague objective system means default on_tick is less precise — driver has to learn from radio
 
+### Batch 3: Color palette + tile-based rendering
+
+#### Root cause: color mismatch
+- Sprite tile backgrounds are `rgb(239, 182, 129)` = `#efb681` (warm peach sand)
+- Our sand base was `#c2b280` (greenish khaki) — completely different!
+- This caused visible square borders around every sprite tile
+
+#### Sand base color fix
+- Changed base sand from `#c2b280` → `#efb681` to match sprite tile backgrounds
+- Updated ALL terrain colors to harmonize: textured sand, roads, water borders, grove patches
+- Updated map renderer (`run-map-renderer.ts`) to match new palette
+
+#### Sprite index fix
+- **Was wrong**: cactus used tiles 0-2 (but tile 0=blank sand, 1=textured sand, only 2=cactus)
+- **Was wrong**: rock used tiles 3-4 (but tile 4 is empty/transparent)
+- **Fixed**: cactus always tile 2, rock always tile 3 — the correct sprites from the sheet
+- Desert details sheet is only 64×16 (4 tiles), not 128×16 (8)
+
+#### Tiled terrain (like raceon)
+- **Textured sand patches**: replaced solid color circles with tiled sprite rendering using tile 1 (brown specs)
+- **Water oases**: replaced smooth gradient circles with tiled water sprite (`Highway_water_color`) + textured sand border ring
+- **Cacti**: removed ground patch circles — sprites blend naturally on matching background
+- Loaded `Highway_water_color (16 x 16).png` as water tile sprite
+
+#### Assets
+- Replaced symlink with actual copy of `mini-pixel-pack-2` from raceon
+
+#### Dust trail fix
+- Spawn point offset 14px behind car center (was spawning at center → "coming from sunroof")
+- Render order: particles render BEFORE vehicles (ground level), not after
+
 ### What's next
 - Playtest in real browser with mic + reflection working
 - Text input fallback for radio (still needed for no-mic machines)
 - Consider per-cop model diversity via OpenRouter
-- Tune dust/particle density — might want more at high speed
 - Road rendering could use sprite tiles from Desert_road sheet

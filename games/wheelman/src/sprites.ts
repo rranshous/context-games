@@ -12,6 +12,7 @@ let desertDetailsImg: HTMLImageElement | null = null;
 let npcCarsImg: HTMLImageElement | null = null;
 let desertRoadImg: HTMLImageElement | null = null;
 let miscPropsImg: HTMLImageElement | null = null;
+let waterTileImg: HTMLImageElement | null = null;
 let loadPromise: Promise<void> | null = null;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -27,13 +28,14 @@ export async function loadSprites(): Promise<void> {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {
-      [playerCarImg, policeCarImg, desertDetailsImg, npcCarsImg, desertRoadImg, miscPropsImg] = await Promise.all([
+      [playerCarImg, policeCarImg, desertDetailsImg, npcCarsImg, desertRoadImg, miscPropsImg, waterTileImg] = await Promise.all([
         loadImage(`${ASSET_BASE}/Cars/Player_red%20(16%20x%2016).png`),
         loadImage(`${ASSET_BASE}/Cars/Police%20(16%20x%2016).png`),
         loadImage(`${ASSET_BASE}/Levels/Desert_details%20(16%20x%2016).png`),
         loadImage(`${ASSET_BASE}/Cars/NPC_cars%20(16%20x%2016).png`),
         loadImage(`${ASSET_BASE}/Levels/Desert_road%20(64%20x%2064).png`),
         loadImage(`${ASSET_BASE}/Props/Misc_props%20(16%20x%2016).png`),
+        loadImage(`${ASSET_BASE}/Levels/Highway_water_color%20(16%20x%2016).png`),
       ]);
       console.log('[SPRITES] All sprites loaded');
     } catch (err) {
@@ -98,25 +100,37 @@ export function renderPoliceCar(
 
 // ── Desert Detail Sprites ──
 // Desert_details sprite sheet: 16×16 tiles in a row
-// Tiles: 0=cactus, 1=cactus2, 2=rock?, 3=rock2?, etc.
+// Tile 0 = blank sand, 1 = textured sand (brown specs), 2 = cactus, 3 = rock, 4-7 = empty
 
 const DETAIL_SCALE = 2.0;
+const DETAIL_TILE = FRAME_SIZE * DETAIL_SCALE; // 32px on screen
+
+export function renderTexturedSandTile(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  screenY: number,
+): void {
+  if (!desertDetailsImg) return;
+  // Tile 1 = textured sand (small brown specs on sand bg)
+  ctx.drawImage(
+    desertDetailsImg,
+    1 * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE,
+    screenX - DETAIL_TILE / 2, screenY - DETAIL_TILE / 2, DETAIL_TILE, DETAIL_TILE,
+  );
+}
 
 export function renderCactus(
   ctx: CanvasRenderingContext2D,
   screenX: number,
   screenY: number,
-  variant: number = 0,
+  _variant: number = 0,
 ): void {
   if (!desertDetailsImg) return;
-  const sx = variant * FRAME_SIZE;
-  const sy = 0;
-  const size = FRAME_SIZE * DETAIL_SCALE;
-
+  // Tile 2 = cactus (the only cactus tile)
   ctx.drawImage(
     desertDetailsImg,
-    sx, sy, FRAME_SIZE, FRAME_SIZE,
-    screenX - size / 2, screenY - size / 2, size, size,
+    2 * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE,
+    screenX - DETAIL_TILE / 2, screenY - DETAIL_TILE / 2, DETAIL_TILE, DETAIL_TILE,
   );
 }
 
@@ -124,18 +138,28 @@ export function renderRock(
   ctx: CanvasRenderingContext2D,
   screenX: number,
   screenY: number,
-  variant: number = 0,
+  _variant: number = 0,
 ): void {
   if (!desertDetailsImg) return;
-  // Use frames starting from index 3 for rocks
-  const sx = (3 + (variant % 2)) * FRAME_SIZE;
-  const sy = 0;
-  const size = FRAME_SIZE * DETAIL_SCALE;
-
+  // Tile 3 = rock (the only rock tile)
   ctx.drawImage(
     desertDetailsImg,
-    sx, sy, FRAME_SIZE, FRAME_SIZE,
-    screenX - size / 2, screenY - size / 2, size, size,
+    3 * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE,
+    screenX - DETAIL_TILE / 2, screenY - DETAIL_TILE / 2, DETAIL_TILE, DETAIL_TILE,
+  );
+}
+
+export function renderWaterTile(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  screenY: number,
+): void {
+  if (!waterTileImg) return;
+  // Water tile is a single 16×16 tile, render at 2× scale
+  ctx.drawImage(
+    waterTileImg,
+    0, 0, FRAME_SIZE, FRAME_SIZE,
+    screenX - DETAIL_TILE / 2, screenY - DETAIL_TILE / 2, DETAIL_TILE, DETAIL_TILE,
   );
 }
 

@@ -67,8 +67,8 @@ export function renderRunMap(
     y: (pos.y - minY) * scale,
   });
 
-  // 1. Desert background
-  ctx.fillStyle = '#c2b280';
+  // 1. Desert background — matches sprite tile palette
+  ctx.fillStyle = '#efb681';
   ctx.fillRect(0, 0, canvasW, canvasH);
 
   // 2. Sample terrain features
@@ -82,11 +82,11 @@ export function renderRunMap(
         ctx.fillRect(p.x, p.y, Math.max(2, sampleStep * scale), Math.max(2, sampleStep * scale));
       } else if (effect < 0.5) {
         const p = toCanvas({ x: wx, y: wy });
-        ctx.fillStyle = '#a89060';
+        ctx.fillStyle = '#d9a06a';
         ctx.fillRect(p.x, p.y, Math.max(2, sampleStep * scale), Math.max(2, sampleStep * scale));
       } else if (effect > 0.85 && effect < 0.95) {
         const p = toCanvas({ x: wx, y: wy });
-        ctx.fillStyle = '#d4c498';
+        ctx.fillStyle = '#f5cfa0';
         ctx.fillRect(p.x, p.y, Math.max(2, sampleStep * scale), Math.max(2, sampleStep * scale));
       }
     }
@@ -257,7 +257,7 @@ export function renderRunMap(
   legendItems.push(
     { color: '#4a90c4', label: 'Water' },
     { color: '#5a5a5a', label: 'Rock' },
-    { color: '#d4c498', label: 'Road' },
+    { color: '#f5cfa0', label: 'Road' },
   );
 
   let lx = 6;

@@ -1,7 +1,7 @@
 import { CONFIG } from './config';
 import { Position, TerrainEffect, Obstacle } from './types';
 import { Camera } from './camera';
-import { renderCactus, renderRock, spritesLoaded } from './sprites';
+import { renderCactus, renderRock, renderTexturedSandTile, renderWaterTile, spritesLoaded } from './sprites';
 
 interface RoadSegment {
   x1: number; y1: number;
@@ -266,22 +266,38 @@ export class DesertWorld {
   render(ctx: CanvasRenderingContext2D, camera: Camera): void {
     const margin = 200;
 
-    // 1. Sand base
-    ctx.fillStyle = '#c2b280';
+    // 1. Sand base — matches sprite tile background (#efb681)
+    ctx.fillStyle = '#efb681';
     ctx.fillRect(0, 0, CONFIG.CANVAS.WIDTH, CONFIG.CANVAS.HEIGHT);
 
-    // 2. Textured sand patches
-    ctx.fillStyle = '#a89060';
+    // 2. Textured sand patches — tile with sprite or fall back to solid circle
+    const TILE_STEP = 32; // sprite tile is 32px on screen at 2× scale
     for (const ts of this.texturedSand) {
       if (!camera.isVisible(ts.x, ts.y, ts.radius + margin)) continue;
-      const screen = camera.worldToScreen(ts.x, ts.y);
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, ts.radius, 0, Math.PI * 2);
-      ctx.fill();
+      if (spritesLoaded()) {
+        // Fill the circular patch with textured sand tiles
+        const r = ts.radius;
+        for (let dy = -r; dy <= r; dy += TILE_STEP) {
+          for (let dx = -r; dx <= r; dx += TILE_STEP) {
+            if (dx * dx + dy * dy > r * r) continue;
+            const wx = ts.x + dx;
+            const wy = ts.y + dy;
+            if (!camera.isVisible(wx, wy, TILE_STEP)) continue;
+            const screen = camera.worldToScreen(wx, wy);
+            renderTexturedSandTile(ctx, screen.x, screen.y);
+          }
+        }
+      } else {
+        const screen = camera.worldToScreen(ts.x, ts.y);
+        ctx.fillStyle = '#d9a06a';
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, ts.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    // 3. Road segments
-    ctx.strokeStyle = '#d4c498';
+    // 3. Road segments — lighter, dusty road
+    ctx.strokeStyle = '#f5cfa0';
     ctx.lineWidth = 40;
     ctx.lineCap = 'round';
     for (const road of this.roads) {
@@ -296,30 +312,49 @@ export class DesertWorld {
       ctx.stroke();
     }
 
-    // 4. Water oases — muddy border + water body
+    // 4. Water oases — textured sand border + tiled water (like raceon)
     for (const w of this.waterOases) {
       if (!camera.isVisible(w.x, w.y, w.radius + margin)) continue;
-      const screen = camera.worldToScreen(w.x, w.y);
-      // Muddy/sandy border (like raceon's textured sand ring)
-      ctx.fillStyle = '#8a7a55';
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, w.radius + 20, 0, Math.PI * 2);
-      ctx.fill();
-      // Dark water edge
-      ctx.fillStyle = '#2a5a80';
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, w.radius + 4, 0, Math.PI * 2);
-      ctx.fill();
-      // Water body
-      ctx.fillStyle = '#4a90c4';
-      ctx.beginPath();
-      ctx.arc(screen.x, screen.y, w.radius, 0, Math.PI * 2);
-      ctx.fill();
-      // Water highlight shimmer
-      ctx.fillStyle = 'rgba(120, 190, 230, 0.3)';
-      ctx.beginPath();
-      ctx.arc(screen.x - w.radius * 0.2, screen.y - w.radius * 0.2, w.radius * 0.5, 0, Math.PI * 2);
-      ctx.fill();
+
+      if (spritesLoaded()) {
+        // Textured sand border ring (muddy shoreline)
+        const borderRadius = w.radius + 25;
+        for (let dy = -borderRadius; dy <= borderRadius; dy += TILE_STEP) {
+          for (let dx = -borderRadius; dx <= borderRadius; dx += TILE_STEP) {
+            const d2 = dx * dx + dy * dy;
+            // Only in the border ring, not inside the water
+            if (d2 > borderRadius * borderRadius || d2 < w.radius * w.radius * 0.8) continue;
+            const wx = w.x + dx;
+            const wy = w.y + dy;
+            if (!camera.isVisible(wx, wy, TILE_STEP)) continue;
+            const screen = camera.worldToScreen(wx, wy);
+            renderTexturedSandTile(ctx, screen.x, screen.y);
+          }
+        }
+        // Water body — tiled with water sprite
+        const r = w.radius;
+        for (let dy = -r; dy <= r; dy += TILE_STEP) {
+          for (let dx = -r; dx <= r; dx += TILE_STEP) {
+            if (dx * dx + dy * dy > r * r) continue;
+            const wx = w.x + dx;
+            const wy = w.y + dy;
+            if (!camera.isVisible(wx, wy, TILE_STEP)) continue;
+            const screen = camera.worldToScreen(wx, wy);
+            renderWaterTile(ctx, screen.x, screen.y);
+          }
+        }
+      } else {
+        // Fallback: solid circles
+        const screen = camera.worldToScreen(w.x, w.y);
+        ctx.fillStyle = '#c08a50';
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, w.radius + 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4a90c4';
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, w.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // 5. Rock formations — shadow + sprite
@@ -342,37 +377,13 @@ export class DesertWorld {
       }
     }
 
-    // 6. Cactus groves — ground patch + sprites
+    // 6. Cactus groves — sprites blend naturally on matching sand bg
     for (const grove of this.cactusGroves) {
-      if (grove.length === 0) continue;
-
-      // Compute grove center + radius for ground patch
-      let cx = 0, cy = 0;
-      for (const c of grove) { cx += c.x; cy += c.y; }
-      cx /= grove.length;
-      cy /= grove.length;
-      let maxDist = 0;
-      for (const c of grove) {
-        const d = Math.sqrt((c.x - cx) ** 2 + (c.y - cy) ** 2);
-        if (d > maxDist) maxDist = d;
-      }
-      const groveRadius = maxDist + 20;
-
-      if (!camera.isVisible(cx, cy, groveRadius + margin)) continue;
-
-      // Ground patch — darker sandy soil under the grove
-      const screenCenter = camera.worldToScreen(cx, cy);
-      ctx.fillStyle = '#a89a60';
-      ctx.beginPath();
-      ctx.arc(screenCenter.x, screenCenter.y, groveRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Individual cacti
       for (const cactus of grove) {
+        if (!camera.isVisible(cactus.x, cactus.y, margin)) continue;
         const screen = camera.worldToScreen(cactus.x, cactus.y);
         if (spritesLoaded()) {
-          const variant = Math.abs(Math.floor(cactus.x * 7 + cactus.y * 13)) % 3;
-          renderCactus(ctx, screen.x, screen.y, variant);
+          renderCactus(ctx, screen.x, screen.y);
         } else {
           ctx.fillStyle = '#3a7a3a';
           ctx.beginPath();

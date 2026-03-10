@@ -214,9 +214,9 @@ export function renderTireTracks(ctx: CanvasRenderingContext2D, camera: Camera):
     ctx.rotate(track.angle);
 
     if (track.vehicleType === 'player') {
-      ctx.fillStyle = `rgba(80,60,40,${(alpha * 0.5).toFixed(2)})`;
+      ctx.fillStyle = `rgba(140,100,60,${(alpha * 0.45).toFixed(2)})`;
     } else {
-      ctx.fillStyle = `rgba(40,40,80,${(alpha * 0.4).toFixed(2)})`;
+      ctx.fillStyle = `rgba(100,80,50,${(alpha * 0.35).toFixed(2)})`;
     }
     ctx.fillRect(-3, -1.5, 6, 3);
     ctx.restore();
