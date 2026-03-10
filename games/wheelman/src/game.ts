@@ -15,6 +15,11 @@ import { Pursuer, clearPursuerCompileCache } from './pursuer';
 import { loadOrCreatePursuerSomas, savePursuerSomas } from './pursuer-soma';
 import { reflectAllPursuers, PursuerReflectionResult, PursuerReflectionUpdate } from './pursuer-reflection';
 import { PursuerSoma } from './types';
+import {
+  updateParticles, renderParticles, clearParticles,
+  updateTireTracks, renderTireTracks, clearTireTracks,
+  updateShake,
+} from './effects';
 
 type GameState = 'title' | 'running' | 'reflecting' | 'after_action';
 
@@ -102,6 +107,10 @@ export class Game {
         e.preventDefault();
         this.spaceQueued = true;
       }
+      // R to reset on title screen
+      if (e.code === 'KeyR' && this.state === 'title') {
+        this.resetAll();
+      }
     });
 
     // Mouse wheel for after-action scroll
@@ -123,6 +132,16 @@ export class Game {
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  private resetAll(): void {
+    localStorage.removeItem('wheelman-soma');
+    localStorage.removeItem('wheelman-pursuers');
+    this.soma = createDefaultSoma();
+    this.runCount = 0;
+    this.pursuerSomas = [];
+    this.pursuers = [];
+    console.log('[WHEELMAN] All somas reset');
   }
 
   private consumeSpace(): boolean {
@@ -272,6 +291,10 @@ export class Game {
           this.endRun('timeout');
         }
 
+        // Update effects
+        updateParticles(dt);
+        updateTireTracks(dt);
+
         break;
       }
 
@@ -297,9 +320,20 @@ export class Game {
         this.renderTitle();
         break;
 
-      case 'running':
+      case 'running': {
+        // Screen shake offset
+        const shake = updateShake(1 / 60);
+
+        // Apply shake to camera rendering
+        ctx.save();
+        ctx.translate(shake.offsetX, shake.offsetY);
+
         // World
         this.world.render(ctx, this.camera);
+        // Tire tracks (ground level)
+        renderTireTracks(ctx, this.camera);
+        // Dust particles (ground level, behind/under vehicles)
+        renderParticles(ctx, this.camera);
         // Objective marker
         this.renderObjectiveMarker();
         // Pursuers
@@ -308,9 +342,13 @@ export class Game {
         }
         // Vehicle (on top)
         this.vehicle.render(ctx, this.camera);
-        // HUD
+
+        ctx.restore();
+
+        // HUD (not affected by shake)
         this.renderHUD();
         break;
+      }
 
       case 'reflecting':
         this.renderReflecting();
@@ -388,9 +426,11 @@ export class Game {
     this.pursuerReflectionPhase = '';
     this.state = 'running';
 
-    // Clear compile caches
+    // Clear compile caches + effects
     clearCompileCache();
     clearPursuerCompileCache();
+    clearParticles();
+    clearTireTracks();
 
     console.log(JSON.stringify({
       _wm: 'run_start',
@@ -1011,6 +1051,11 @@ export class Game {
     if (pulse) {
       ctx.fillText('PRESS SPACE TO START', W / 2, H / 2 + 155);
     }
+
+    // Reset hint
+    ctx.font = '11px monospace';
+    ctx.fillStyle = TEXT_DIM;
+    ctx.fillText('R = reset all somas', W / 2, H / 2 + 185);
   }
 
   // ── Utility ──

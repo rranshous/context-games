@@ -2,25 +2,32 @@ import { DriverSoma, Position } from './types';
 import { DesertWorld } from './desert-world';
 import { Vehicle } from './vehicle';
 
-// Default on_tick — basic "drive toward objective"
+// Default on_tick — basic "drive toward objective using vague direction"
 export const DEFAULT_ON_TICK = `async function onTick(me, world) {
-  // Drive toward the objective
+  // I only know the general direction and distance — no GPS
   const obj = world.objective;
   if (!obj) return;
 
-  const angleToObj = world.angleTo(obj.position);
-  const angleDiff = angleToObj - me.angle;
-
-  // Normalize angle difference to [-PI, PI]
+  // Convert compass direction to target angle
+  const dirAngles = {
+    east: 0, southeast: Math.PI/4, south: Math.PI/2, southwest: 3*Math.PI/4,
+    west: Math.PI, northwest: -3*Math.PI/4, north: -Math.PI/2, northeast: -Math.PI/4
+  };
+  const targetAngle = dirAngles[obj.direction] || 0;
+  const angleDiff = targetAngle - me.angle;
   const normalized = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
 
-  // Steer toward objective
-  if (Math.abs(normalized) > 0.1) {
+  // Steer toward the general direction
+  if (Math.abs(normalized) > 0.15) {
     me.steer(normalized > 0 ? 1 : -1);
   }
 
-  // Always accelerate
-  me.accelerate(0.8);
+  // Accelerate — slow down when close
+  if (obj.distance === 'right here' || obj.distance === 'very close') {
+    me.accelerate(0.4);
+  } else {
+    me.accelerate(0.8);
+  }
 }`;
 
 export const DEFAULT_IDENTITY = `I am a wheelman. A driver for hire in the desert. The boss watches me through a drone and talks to me on the radio. I need to prove I'm worth keeping — they're working on getting the drone to drive itself. Every run matters. I listen to the boss, I learn the terrain, I get better.`;
@@ -84,6 +91,31 @@ export function buildMeAPI(vehicle: Vehicle, soma: DriverSoma): any {
   };
 }
 
+// ── Vague direction helpers ──
+// Driver gets a compass bearing and rough distance, not GPS coordinates.
+
+function getCompassDirection(angleRad: number): string {
+  // Normalize to 0-2PI
+  const a = ((angleRad % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const deg = a * 180 / Math.PI;
+  if (deg < 22.5 || deg >= 337.5) return 'east';
+  if (deg < 67.5) return 'southeast';
+  if (deg < 112.5) return 'south';
+  if (deg < 157.5) return 'southwest';
+  if (deg < 202.5) return 'west';
+  if (deg < 247.5) return 'northwest';
+  if (deg < 292.5) return 'north';
+  return 'northeast';
+}
+
+function getDistanceCategory(dist: number): string {
+  if (dist < 200) return 'right here';
+  if (dist < 600) return 'very close';
+  if (dist < 1500) return 'close';
+  if (dist < 3000) return 'medium';
+  return 'far';
+}
+
 // Build the `world` API object
 export function buildWorldAPI(
   world: DesertWorld,
@@ -92,10 +124,24 @@ export function buildWorldAPI(
   objective: { position: Position; type: string } | null,
   pursuers: Array<{ position: Position; speed: number; angle: number }>,
 ): any {
+  // Build vague objective info — no exact position
+  let vagueObjective: any = null;
+  if (objective) {
+    const dx = objective.position.x - vehicle.x;
+    const dy = objective.position.y - vehicle.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+    vagueObjective = {
+      direction: getCompassDirection(angle),
+      distance: getDistanceCategory(dist),
+      type: objective.type,
+    };
+  }
+
   return {
     radio: radioTranscript,
 
-    objective: objective,
+    objective: vagueObjective,
 
     pursuers: pursuers,
 

@@ -1,6 +1,7 @@
 import { CONFIG } from './config';
 import { Position, TerrainEffect, Obstacle } from './types';
 import { Camera } from './camera';
+import { renderCactus, renderRock, spritesLoaded } from './sprites';
 
 interface RoadSegment {
   x1: number; y1: number;
@@ -295,12 +296,17 @@ export class DesertWorld {
       ctx.stroke();
     }
 
-    // 4. Water oases
+    // 4. Water oases — muddy border + water body
     for (const w of this.waterOases) {
       if (!camera.isVisible(w.x, w.y, w.radius + margin)) continue;
       const screen = camera.worldToScreen(w.x, w.y);
-      // Darker border
-      ctx.fillStyle = '#2a6496';
+      // Muddy/sandy border (like raceon's textured sand ring)
+      ctx.fillStyle = '#8a7a55';
+      ctx.beginPath();
+      ctx.arc(screen.x, screen.y, w.radius + 20, 0, Math.PI * 2);
+      ctx.fill();
+      // Dark water edge
+      ctx.fillStyle = '#2a5a80';
       ctx.beginPath();
       ctx.arc(screen.x, screen.y, w.radius + 4, 0, Math.PI * 2);
       ctx.fill();
@@ -309,27 +315,70 @@ export class DesertWorld {
       ctx.beginPath();
       ctx.arc(screen.x, screen.y, w.radius, 0, Math.PI * 2);
       ctx.fill();
-    }
-
-    // 5. Rock formations
-    ctx.fillStyle = '#5a5a5a';
-    for (const rock of this.rocks) {
-      if (!camera.isVisible(rock.x, rock.y, rock.radius + margin)) continue;
-      const screen = camera.worldToScreen(rock.x, rock.y);
+      // Water highlight shimmer
+      ctx.fillStyle = 'rgba(120, 190, 230, 0.3)';
       ctx.beginPath();
-      ctx.arc(screen.x, screen.y, rock.radius, 0, Math.PI * 2);
+      ctx.arc(screen.x - w.radius * 0.2, screen.y - w.radius * 0.2, w.radius * 0.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 6. Cactus groves
-    ctx.fillStyle = '#3a7a3a';
-    for (const grove of this.cactusGroves) {
-      for (const cactus of grove) {
-        if (!camera.isVisible(cactus.x, cactus.y, margin)) continue;
-        const screen = camera.worldToScreen(cactus.x, cactus.y);
+    // 5. Rock formations — shadow + sprite
+    for (const rock of this.rocks) {
+      if (!camera.isVisible(rock.x, rock.y, rock.radius + margin)) continue;
+      const screen = camera.worldToScreen(rock.x, rock.y);
+      // Ground shadow
+      ctx.fillStyle = 'rgba(80, 70, 50, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(screen.x + 2, screen.y + 3, rock.radius + 4, rock.radius + 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (spritesLoaded()) {
+        const rockVariant = Math.abs(Math.floor(rock.x * 3 + rock.y * 7)) % 2;
+        renderRock(ctx, screen.x, screen.y, rockVariant);
+      } else {
+        ctx.fillStyle = '#5a5a5a';
         ctx.beginPath();
-        ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
+        ctx.arc(screen.x, screen.y, rock.radius, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+
+    // 6. Cactus groves — ground patch + sprites
+    for (const grove of this.cactusGroves) {
+      if (grove.length === 0) continue;
+
+      // Compute grove center + radius for ground patch
+      let cx = 0, cy = 0;
+      for (const c of grove) { cx += c.x; cy += c.y; }
+      cx /= grove.length;
+      cy /= grove.length;
+      let maxDist = 0;
+      for (const c of grove) {
+        const d = Math.sqrt((c.x - cx) ** 2 + (c.y - cy) ** 2);
+        if (d > maxDist) maxDist = d;
+      }
+      const groveRadius = maxDist + 20;
+
+      if (!camera.isVisible(cx, cy, groveRadius + margin)) continue;
+
+      // Ground patch — darker sandy soil under the grove
+      const screenCenter = camera.worldToScreen(cx, cy);
+      ctx.fillStyle = '#a89a60';
+      ctx.beginPath();
+      ctx.arc(screenCenter.x, screenCenter.y, groveRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Individual cacti
+      for (const cactus of grove) {
+        const screen = camera.worldToScreen(cactus.x, cactus.y);
+        if (spritesLoaded()) {
+          const variant = Math.abs(Math.floor(cactus.x * 7 + cactus.y * 13)) % 3;
+          renderCactus(ctx, screen.x, screen.y, variant);
+        } else {
+          ctx.fillStyle = '#3a7a3a';
+          ctx.beginPath();
+          ctx.arc(screen.x, screen.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
   }

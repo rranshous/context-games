@@ -161,7 +161,9 @@ me.memory.write(text)        — overwrite memory (use sparingly, not every tick
 me.identity.read()           — read your identity
 me.on_tick.read()            — read your own driving code
 
-world.objective              — {position: {x,y}, type: string} or null
+world.objective              — {direction: "north"/"southeast"/etc, distance: "far"/"medium"/"close"/"very close"/"right here", type: string} or null
+                               NOTE: You do NOT get exact coordinates. You only know the general compass direction and rough distance.
+                               The boss can see the objective on the drone feed — listen to the radio for precise guidance!
 world.radio                  — boss radio transcript (string, all speech so far)
 world.pursuers               — array of {position, speed, angle} for any pursuers
 world.terrain(x, y)          — terrain slowdown at position (1.0 = clear, 0.15 = water)
@@ -216,8 +218,10 @@ Now reflect on this run. What worked? What failed? What did the boss tell you?
 1. **Review**: Look at the map, the path you took, and the boss's radio messages. Did you listen to the boss? Did your route make sense?
 
 2. **Call edit_on_tick**: Rewrite your driving code RIGHT NOW with specific improvements. Your current code is what actually runs — if you don't call edit_on_tick, nothing changes.
+   - REMEMBER: You only get a compass direction and rough distance to the objective — NOT exact coordinates. You must navigate by feel and by listening to the boss.
    - Think about: obstacle avoidance, route planning, speed control, responding to boss radio commands, terrain awareness
-   - The boss's radio messages are in world.radio — use them! If the boss says "go left" or "watch out", your code should respond.
+   - The boss's radio messages are in world.radio — use them! The boss can see the objective on the drone. If the boss says "go left" or "watch out", your code should respond.
+   - Parse the radio for directional cues! The boss is your GPS.
 
 3. **Call edit_memory**: Record what you learned. Focus on patterns — terrain layout, boss communication style, what driving strategies work.
 

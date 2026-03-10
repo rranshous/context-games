@@ -1,8 +1,11 @@
 import { CONFIG } from './config';
 import { DesertWorld } from './desert-world';
 import { Camera } from './camera';
+import { renderPlayerCar, spritesLoaded } from './sprites';
+import { spawnDust, spawnCollisionParticles, spawnWaterSplash, addTireTrack, triggerShake } from './effects';
 
 const V = CONFIG.VEHICLE;
+const DUST_SPEED_THRESHOLD = 80;
 
 export class Vehicle {
   x: number;
@@ -97,12 +100,28 @@ export class Vehicle {
       this.x += nx * (overlap + V.BOUNCE_DISTANCE);
       this.y += ny * (overlap + V.BOUNCE_DISTANCE);
 
-      // Bounce speed
+      // Effects
+      const impactSpeed = this.speed;
       this.speed *= Math.abs(V.BOUNCE_FACTOR);
+
+      if (impactSpeed > 40) {
+        if (collision.type === 'water') {
+          spawnWaterSplash(this.x, this.y, 10);
+        } else {
+          spawnCollisionParticles(this.x, this.y, 6);
+        }
+        triggerShake(Math.min(impactSpeed / 20, 8), 0.2);
+      }
     } else {
       this.x = newX;
       this.y = newY;
     }
+
+    // Tire tracks + dust
+    if (this.speed > DUST_SPEED_THRESHOLD) {
+      spawnDust(this.x, this.y, this.angle, this.speed, 2);
+    }
+    addTireTrack('player', this.x, this.y, this.angle, this.speed, 'player');
 
     // World bounds
     const halfW = this.width / 2;
@@ -124,28 +143,23 @@ export class Vehicle {
 
     const screen = camera.worldToScreen(this.x, this.y);
 
-    ctx.save();
-    ctx.translate(screen.x, screen.y);
-    ctx.rotate(this.angle);
-
-    // Car body
-    ctx.fillStyle = '#c03030';
-    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
-
-    // Direction indicator (small triangle at front)
-    ctx.fillStyle = '#ff8080';
-    ctx.beginPath();
-    ctx.moveTo(this.width / 2, 0);
-    ctx.lineTo(this.width / 2 - 6, -4);
-    ctx.lineTo(this.width / 2 - 6, 4);
-    ctx.closePath();
-    ctx.fill();
-
-    // Outline
-    ctx.strokeStyle = '#801818';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-this.width / 2, -this.height / 2, this.width, this.height);
-
-    ctx.restore();
+    if (spritesLoaded()) {
+      renderPlayerCar(ctx, screen.x, screen.y, this.angle);
+    } else {
+      // Fallback: colored rectangle
+      ctx.save();
+      ctx.translate(screen.x, screen.y);
+      ctx.rotate(this.angle);
+      ctx.fillStyle = '#c03030';
+      ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+      ctx.fillStyle = '#ff8080';
+      ctx.beginPath();
+      ctx.moveTo(this.width / 2, 0);
+      ctx.lineTo(this.width / 2 - 6, -4);
+      ctx.lineTo(this.width / 2 - 6, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   }
 }

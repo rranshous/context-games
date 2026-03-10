@@ -177,3 +177,111 @@ Built M2: soma-driven pursuers. Not simple patrol AI — full actant cops with t
 - Text input fallback for radio
 - Sprite rendering
 - Consider per-cop model diversity via OpenRouter
+
+---
+
+## Session 3 — 2026-03-09
+
+### What happened
+Two batches of changes in one session:
+
+**Batch 1 (pre-test):** Vague objectives + sprite system + reset. These were coded but untested at the start of the session.
+
+**Batch 2 (post-test):** Visual overhaul — after seeing the game running, the visuals were clearly not up to raceon's standard. Overhauled the entire rendering pipeline.
+
+### Batch 1: Vague objectives + sprites + reset
+
+#### Vague objective system
+- Driver no longer gets exact GPS coordinates to the objective
+- Instead gets compass direction (`north`, `southeast`, etc.) and rough distance category (`far`, `medium`, `close`, `very close`, `right here`)
+- Forces the driver to rely on the boss's radio for precise guidance — the boss can see the objective on the drone feed
+- `getCompassDirection()` and `getDistanceCategory()` in soma.ts
+- Default on_tick updated to use `dirAngles` lookup table for compass-to-angle conversion
+- Reflection prompt updated to explain the vague system and emphasize "the boss is your GPS"
+
+#### Sprite rendering (initial)
+- New `sprites.ts` — loads raceon's mini-pixel-pack-2 sprite sheets
+- Assets symlinked from `games/raceon/resources/assets/mini-pixel-pack-2`
+- Cars, desert details, rocks, cacti all sprite-rendered with shape fallbacks
+- Initially used 8-directional frame lookup (choppy)
+
+#### Reset
+- `R` key on title screen resets all somas (driver + pursuers)
+- "R = reset all somas" hint text on title screen
+
+### Batch 2: Visual overhaul — "learn from raceon"
+
+#### Car rotation fix
+- **Before**: 8-directional frame lookup from sprite sheet (choppy, 45° steps)
+- **After**: Canvas rotation of frame 0 (smooth, like raceon). `ctx.rotate(angle + π/2)` — sprite faces up, world angle 0 = east
+- Scale: 1.8× (slightly larger than raceon's 1.5, fits wheelman's wider camera)
+
+#### Effects system (`effects.ts` — new file)
+Ported raceon's three effect systems:
+
+| System | Details |
+|--------|---------|
+| **Dust particles** | Sandy puffs behind fast-moving vehicles (>80 px/s). Max 200, ejected behind at spread angle, gravity + friction, RGBA fade-out |
+| **Tire tracks** | Dual left/right marks (5px offset perpendicular to angle). 6×3px rectangles. Player = brown, pursuer = blue-gray. Max 600, 4-6s life. Speed threshold 30+ |
+| **Screen shake** | Intensity + duration, decays linearly. Triggered on collisions (proportional to impact speed, capped at 8px). Applied as camera offset before world render, HUD unaffected |
+
+Also added collision-specific particles:
+- `spawnCollisionParticles()` — brown/debris burst on rock hits
+- `spawnWaterSplash()` — blue splash on water entry
+
+#### Render pipeline (updated)
+```
+1. Screen shake offset (ctx.translate)
+2. Desert world (sand, textured sand, roads, water oases, rocks, cacti)
+3. Tire tracks (behind vehicles)
+4. Objective marker
+5. Pursuers
+6. Player vehicle
+7. Dust/collision particles (on top)
+8. ctx.restore() (end shake)
+9. HUD (unshaken)
+```
+
+#### Water oases improved
+- Added muddy/sandy border ring (20px, `#8a7a55`) — like raceon's textured sand transition
+- Dark water edge
+- Water highlight shimmer (semi-transparent lighter circle, offset for depth)
+
+#### Rock variants
+- Rocks now use 2 sprite variants (position-hashed) instead of always the same tile
+
+### Files changed
+| File | Change |
+|------|--------|
+| `sprites.ts` | **Rewritten** — canvas rotation instead of 8-dir frames, 1.8× scale, rock variants, also loads road + props sheets |
+| `effects.ts` | **New** — particles, tire tracks, screen shake |
+| `vehicle.ts` | Spawns dust + tire tracks during physics update, collision particles + screen shake on impact |
+| `pursuer.ts` | Spawns tire tracks + dust (only when pursuing) |
+| `game.ts` | Imports effects, updates particles/tracks each frame, render pipeline reordered with shake + effects, clears effects on run start |
+| `desert-world.ts` | Better water oases (muddy border + shimmer), rock variants |
+| `soma.ts` | Vague objective (compass + distance), helper functions |
+| `reflection.ts` | Updated prompts for vague objective system |
+| `main.ts` | Loads sprites on startup |
+
+### Testing
+- Sprites load correctly from raceon symlink
+- Car rotation smooth — no more choppy 8-direction snapping
+- Tire tracks visible behind both player and pursuer vehicles
+- Dust particles kick up at speed, fade naturally
+- Water oases look much better with muddy border
+- After-action screen + composite map still work
+- Reflection hits 401 in Playwright (expected, not authenticated)
+- Driver still delivers with default vague-objective code (~23s)
+
+### Playtesting notes
+- Visual quality now comparable to raceon — cars rotate smoothly, effects add life
+- The dust + tracks make speed feel tangible
+- Screen shake on rock collision gives satisfying feedback
+- Vague objective system means default on_tick is less precise — driver has to learn from radio
+
+### What's next
+- Playtest in real browser with mic + reflection working
+- Text input fallback for radio (still needed for no-mic machines)
+- Consider per-cop model diversity via OpenRouter
+- Tune dust/particle density — might want more at high speed
+- Road rendering could use sprite tiles from Desert_road sheet

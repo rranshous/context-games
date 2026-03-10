@@ -6,6 +6,8 @@ import { Position, PursuerSoma, PursuerSignal, PursuerMode, PursuerBroadcast } f
 import { DesertWorld } from './desert-world';
 import { CONFIG } from './config';
 import { Camera } from './camera';
+import { renderPoliceCar, spritesLoaded } from './sprites';
+import { addTireTrack, spawnDust } from './effects';
 
 const P = CONFIG.PURSUER;
 
@@ -342,6 +344,12 @@ export class Pursuer {
     if (this.x > world.width - halfW) { this.x = world.width - halfW; this.speed *= 0.5; }
     if (this.y < halfH) { this.y = halfH; this.speed *= 0.5; }
     if (this.y > world.height - halfH) { this.y = world.height - halfH; this.speed *= 0.5; }
+
+    // Tire tracks + dust
+    addTireTrack(this.soma.id, this.x, this.y, this.angle, this.speed, 'pursuer');
+    if (this.speed > 100 && this.mode === 'pursuing') {
+      spawnDust(this.x, this.y, this.angle, this.speed, 1);
+    }
   }
 
   // ── Rendering ──
@@ -351,35 +359,23 @@ export class Pursuer {
 
     const screen = camera.worldToScreen(this.x, this.y);
 
-    ctx.save();
-    ctx.translate(screen.x, screen.y);
-    ctx.rotate(this.angle);
+    if (spritesLoaded()) {
+      renderPoliceCar(ctx, screen.x, screen.y, this.angle);
+    } else {
+      // Fallback: colored rectangle
+      ctx.save();
+      ctx.translate(screen.x, screen.y);
+      ctx.rotate(this.angle);
+      ctx.fillStyle = this.mode === 'pursuing' ? '#cc2222' : '#2244aa';
+      ctx.fillRect(-P.WIDTH / 2, -P.HEIGHT / 2, P.WIDTH, P.HEIGHT);
+      ctx.restore();
+    }
 
-    // Cop car body — dark blue
-    ctx.fillStyle = this.mode === 'pursuing' ? '#cc2222' : '#2244aa';
-    ctx.fillRect(-P.WIDTH / 2, -P.HEIGHT / 2, P.WIDTH, P.HEIGHT);
-
-    // Direction indicator
-    ctx.fillStyle = this.mode === 'pursuing' ? '#ff6666' : '#6688cc';
-    ctx.beginPath();
-    ctx.moveTo(P.WIDTH / 2, 0);
-    ctx.lineTo(P.WIDTH / 2 - 6, -4);
-    ctx.lineTo(P.WIDTH / 2 - 6, 4);
-    ctx.closePath();
-    ctx.fill();
-
-    // Outline
-    ctx.strokeStyle = this.mode === 'pursuing' ? '#881111' : '#112255';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-P.WIDTH / 2, -P.HEIGHT / 2, P.WIDTH, P.HEIGHT);
-
-    ctx.restore();
-
-    // Name label above
+    // Name label above (always)
     ctx.font = '9px monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = this.mode === 'pursuing' ? '#ff6666' : '#6688cc';
-    ctx.fillText(this.soma.name, screen.x, screen.y - 14);
+    ctx.fillText(this.soma.name, screen.x, screen.y - 18);
   }
 
   // ── Catch check ──
