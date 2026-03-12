@@ -310,8 +310,39 @@ Also added collision-specific particles:
 - Spawn point offset 14px behind car center (was spawning at center → "coming from sunroof")
 - Render order: particles render BEFORE vehicles (ground level), not after
 
+---
+
+## Session 4 — Flow & Playability
+
+**Goal**: Fix the biggest pain points before playtesting — reflection takes forever, no situational awareness of chasers, no way to test without a mic.
+
+### Reflection speedup
+- **Driver reflection**: switched from opus-4-6 to sonnet-4-6, reduced max turns 5→3, dropped separate haiku summary call (inline string instead). Should be dramatically faster.
+- **Pursuer reflection**: now runs in **background during the next run**. Driver reflection stays blocking (you want to see updated behavior immediately). Pursuers improve silently — changes apply when API calls finish, compile cache auto-clears.
+- After-action screen shows "reflecting in background..." for pursuers if results aren't in yet. Subtle "cops reflecting..." HUD indicator during runs.
+
+### Minimap
+- Top-right corner during runs. Shows full world bounds with:
+  - Green dot: driver
+  - Colored dots: pursuers (red when in pursuit, labeled with name)
+  - Gold diamond: objective
+  - Blue patches: oases (terrain hint)
+  - Faint rectangle: current camera viewport
+- Exposed `oases` getter from `DesertWorld` (was private `waterOases`).
+
+### Text radio input
+- Press **T** during runs to open text input bar at bottom of screen.
+- Type a message, **Enter** to send (injected into radio transcript same as speech), **Escape** to cancel.
+- Works alongside mic or as sole input when Speech API unavailable.
+- `SpeechInput.injectText()` method for programmatic radio injection.
+- Title screen updated to mention T key.
+
+### Architecture notes
+- Patrol waypoints: engine generates 4-6 random positions, delivers current one in `tick` signal data. The *default* on_tick code drives toward them, but cops can rewrite this during reflection — waypoints are a suggestion, behavior is soma-owned.
+- Pursuers don't know objective location (asked, confirmed). Purely reactive: patrol → spot → chase → radio allies. Could be interesting to give them objective intel later as a difficulty escalation.
+
 ### What's next
-- Playtest in real browser with mic + reflection working
-- Text input fallback for radio (still needed for no-mic machines)
+- **Playtest** with these changes — especially reflection timing and minimap utility
 - Consider per-cop model diversity via OpenRouter
 - Road rendering could use sprite tiles from Desert_road sheet
+- Maybe give pursuers objective location at higher escalation tiers
