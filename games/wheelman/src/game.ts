@@ -66,9 +66,10 @@ export class Game {
   private reflectionText: string = '';
   private changeSummary: string = '';
 
-  // Pursuer reflection state
+  // Pursuer reflection state — runs in background during next run
   private pursuerReflectionResults: PursuerReflectionResult[] = [];
   private pursuerReflectionPhase: string = '';
+  private pendingPursuerReflection: Promise<void> | null = null;
 
   // Input state
   private spaceQueued: boolean = false;
@@ -515,8 +516,8 @@ export class Game {
 
   private async doReflection(recording: RunRecording): Promise<void> {
     try {
-      // Run driver reflection and pursuer reflections in parallel
-      const driverReflectionPromise = reflectDriver(
+      // Driver reflection — blocking (we want updated code before next run)
+      const driverResult = await reflectDriver(
         this.soma,
         recording,
         this.lastMapBase64,
@@ -531,37 +532,13 @@ export class Game {
         },
       );
 
-      // Pursuer reflections (only if there are pursuers)
-      let pursuerReflectionPromise: Promise<PursuerReflectionResult[]> = Promise.resolve([]);
-      if (this.pursuerSomas.length > 0) {
-        pursuerReflectionPromise = reflectAllPursuers(
-          this.pursuerSomas,
-          recording,
-          this.pursuerRadioLog,
-          this.lastMapBase64,
-          (update: PursuerReflectionUpdate) => {
-            this.pursuerReflectionPhase = update.phase;
-            if (update.currentPursuer) {
-              this.pursuerReflectionPhase += `: ${update.currentPursuer}`;
-            }
-            this.pursuerReflectionResults = update.results;
-          },
-        );
-      }
-
-      const [driverResult, pursuerResults] = await Promise.all([
-        driverReflectionPromise,
-        pursuerReflectionPromise,
-      ]);
-
       this.reflectionResult = driverResult;
       this.changeSummary = driverResult.changeSummary;
-      this.pursuerReflectionResults = pursuerResults;
-
-      // Save all somas
       saveSoma(this.soma);
+
+      // Pursuer reflections — fire in background, apply when done
       if (this.pursuerSomas.length > 0) {
-        savePursuerSomas(this.pursuerSomas);
+        this.startBackgroundPursuerReflection(recording);
       }
 
     } catch (err) {
@@ -569,9 +546,47 @@ export class Game {
       this.changeSummary = 'Reflection failed.';
     }
 
-    // Transition to after-action
+    // Transition to after-action — no wait for pursuers
     this.state = 'after_action';
     this.scrollY = 0;
+  }
+
+  private startBackgroundPursuerReflection(recording: RunRecording): void {
+    // Capture somas for this reflection (they may get replaced if a new run starts fast)
+    const somasToReflect = [...this.pursuerSomas];
+    const radioLog = this.pursuerRadioLog;
+    const mapBase64 = this.lastMapBase64;
+
+    this.pursuerReflectionPhase = 'reflecting (background)';
+
+    this.pendingPursuerReflection = reflectAllPursuers(
+      somasToReflect,
+      recording,
+      radioLog,
+      mapBase64,
+      (update: PursuerReflectionUpdate) => {
+        this.pursuerReflectionPhase = `${update.phase} (background)`;
+        if (update.currentPursuer) {
+          this.pursuerReflectionPhase += `: ${update.currentPursuer}`;
+        }
+        this.pursuerReflectionResults = update.results;
+      },
+    ).then((results) => {
+      this.pursuerReflectionResults = results;
+      savePursuerSomas(somasToReflect);
+      clearPursuerCompileCache();
+      this.pendingPursuerReflection = null;
+      this.pursuerReflectionPhase = '';
+
+      console.log(JSON.stringify({
+        _wm: 'background_pursuer_reflection_complete',
+        pursuers: results.map(r => r.pursuerName),
+      }));
+    }).catch((err) => {
+      console.error('[WHEELMAN] Background pursuer reflection failed:', err);
+      this.pendingPursuerReflection = null;
+      this.pursuerReflectionPhase = '';
+    });
   }
 
   // ── HUD Rendering (during 'running' state) ──
@@ -647,6 +662,16 @@ export class Game {
       for (let i = 0; i < lastLines.length; i++) {
         ctx.fillText(lastLines[i], 10, H - boxH + 6 + i * 16);
       }
+    }
+
+    // Background reflection indicator
+    if (this.pendingPursuerReflection) {
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = TEXT_BLUE;
+      ctx.globalAlpha = 0.6;
+      ctx.fillText('cops reflecting...', W - 10, H - 8);
+      ctx.globalAlpha = 1;
     }
 
     // Objective arrow when off-screen
@@ -751,13 +776,6 @@ export class Game {
     ctx.font = '14px monospace';
     ctx.fillStyle = TEXT_GREEN;
     ctx.fillText(`Driver reflecting${dots}`, W / 2, 55);
-
-    // Pursuer reflection status
-    if (this.pursuerSomas.length > 0) {
-      ctx.fillStyle = TEXT_BLUE;
-      const phase = this.pursuerReflectionPhase || 'waiting';
-      ctx.fillText(`Pursuit division: ${phase}${dots}`, W / 2, 75);
-    }
 
     // Streaming reasoning text (driver)
     if (this.reflectionText) {
@@ -913,7 +931,7 @@ export class Game {
     }
 
     // ── PURSUIT DIVISION ──
-    if (this.pursuerReflectionResults.length > 0) {
+    if (this.pursuerSomas.length > 0) {
       y += 8;
       ctx.strokeStyle = TEXT_BLUE;
       ctx.lineWidth = 1;
@@ -926,6 +944,13 @@ export class Game {
       ctx.font = 'bold 14px monospace';
       ctx.fillStyle = TEXT_BLUE;
       ctx.fillText('PURSUIT DIVISION:', textX, y); y += 22;
+
+      if (this.pursuerReflectionResults.length === 0 && this.pendingPursuerReflection) {
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEXT_DIM;
+        const bdots = '.'.repeat(Math.floor(performance.now() / 500) % 4);
+        ctx.fillText(`Reflecting in background${bdots}`, textX, y); y += 16;
+      }
 
       for (let pi = 0; pi < this.pursuerReflectionResults.length; pi++) {
         const pr = this.pursuerReflectionResults[pi];
