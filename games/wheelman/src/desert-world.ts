@@ -21,7 +21,7 @@ export class DesertWorld {
   readonly height = CONFIG.WORLD.HEIGHT;
 
   private waterOases_: TerrainEffect[] = [];
-  get oases(): ReadonlyArray<{ x: number; y: number; radius: number }> { return this.waterOases__; }
+  get oases(): ReadonlyArray<{ x: number; y: number; radius: number }> { return this.waterOases_; }
   private rocks: Obstacle[] = [];
   private cactusGroves: CactusPoint[][] = [];
   private texturedSand: TerrainEffect[] = [];
