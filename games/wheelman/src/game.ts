@@ -205,6 +205,9 @@ export class Game {
       }
 
       case 'running': {
+        // Pause simulation while typing radio commands
+        if (this.textInputActive) break;
+
         this.runTimer += dt;
 
         // Swap radio buffers (double-buffered, one-tick delay)
@@ -706,6 +709,10 @@ export class Game {
       ctx.strokeStyle = TEXT_GOLD;
       ctx.lineWidth = 1;
       ctx.strokeRect(0, barY, W, inputBarH);
+
+      // Dim the game view to show we're paused
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(0, 0, W, H);
 
       ctx.font = '13px monospace';
       ctx.textAlign = 'left';
