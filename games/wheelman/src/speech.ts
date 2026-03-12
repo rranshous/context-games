@@ -82,4 +82,13 @@ export class SpeechInput {
   clearTranscript(): void {
     this._transcript = '';
   }
+
+  // Inject text as if it were spoken — for text input fallback
+  injectText(text: string): void {
+    if (!text.trim()) return;
+    this._transcript += text + ' ';
+    if (this._onTranscript) {
+      this._onTranscript(text.trim());
+    }
+  }
 }

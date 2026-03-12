@@ -73,6 +73,8 @@ export class Game {
 
   // Input state
   private spaceQueued: boolean = false;
+  private textInputActive: boolean = false;
+  private textInputBuffer: string = '';
 
   // After-action scroll
   private scrollY: number = 0;
@@ -104,9 +106,35 @@ export class Game {
 
     // Keyboard
     window.addEventListener('keydown', (e) => {
+      // Text input mode during runs
+      if (this.textInputActive && this.state === 'running') {
+        e.preventDefault();
+        if (e.code === 'Enter') {
+          if (this.textInputBuffer.trim()) {
+            this.speech.injectText(this.textInputBuffer.trim());
+          }
+          this.textInputBuffer = '';
+          this.textInputActive = false;
+        } else if (e.code === 'Escape') {
+          this.textInputBuffer = '';
+          this.textInputActive = false;
+        } else if (e.code === 'Backspace') {
+          this.textInputBuffer = this.textInputBuffer.slice(0, -1);
+        } else if (e.key.length === 1) {
+          this.textInputBuffer += e.key;
+        }
+        return;
+      }
+
       if (e.code === 'Space') {
         e.preventDefault();
         this.spaceQueued = true;
+      }
+      // T to open text radio input during runs
+      if (e.code === 'KeyT' && this.state === 'running') {
+        e.preventDefault();
+        this.textInputActive = true;
+        this.textInputBuffer = '';
       }
       // R to reset on title screen
       if (e.code === 'KeyR' && this.state === 'title') {
@@ -647,21 +675,58 @@ export class Game {
       }
     }
 
-    // Bottom: radio transcript (last 3 lines)
+    // Bottom: text input bar + radio transcript
     const radioLines = this.radioTranscript.trim().split('\n').filter(l => l);
     const lastLines = radioLines.slice(-3);
-    if (lastLines.length > 0) {
-      const boxH = 20 + lastLines.length * 16;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(0, H - boxH, W, boxH);
+    const inputBarH = this.textInputActive ? 28 : 0;
+    const radioH = lastLines.length > 0 ? 20 + lastLines.length * 16 : 0;
+    const bottomH = inputBarH + radioH + ((!this.textInputActive && lastLines.length === 0) ? 20 : 0);
 
+    if (lastLines.length > 0 || this.textInputActive) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(0, H - bottomH, W, bottomH);
+    }
+
+    // Radio transcript lines
+    if (lastLines.length > 0) {
       ctx.font = '12px monospace';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillStyle = TEXT_GOLD;
       for (let i = 0; i < lastLines.length; i++) {
-        ctx.fillText(lastLines[i], 10, H - boxH + 6 + i * 16);
+        ctx.fillText(lastLines[i], 10, H - bottomH + 6 + i * 16);
       }
+    }
+
+    // Text input bar
+    if (this.textInputActive) {
+      const barY = H - inputBarH;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(0, barY, W, inputBarH);
+      ctx.strokeStyle = TEXT_GOLD;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, barY, W, inputBarH);
+
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = TEXT_GOLD;
+      const cursor = Math.floor(performance.now() / 500) % 2 === 0 ? '|' : '';
+      ctx.fillText(`RADIO> ${this.textInputBuffer}${cursor}`, 10, barY + inputBarH / 2);
+
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = TEXT_DIM;
+      ctx.fillText('ENTER send | ESC cancel', W - 10, barY + inputBarH / 2);
+    } else if (this.state === 'running') {
+      // Hint to open text input
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = TEXT_DIM;
+      ctx.globalAlpha = 0.5;
+      ctx.fillText('T = type radio', 10, H - 14);
+      ctx.globalAlpha = 1;
     }
 
     // Minimap
@@ -1145,16 +1210,15 @@ export class Game {
       );
     }
 
-    // Speech warning
+    // Speech / input info
     if (!this.speech.supported) {
       ctx.font = '12px monospace';
-      ctx.fillStyle = TEXT_RED;
-      ctx.fillText('WARNING: Speech recognition not supported in this browser.', W / 2, H / 2 + 105);
-      ctx.fillText('Use Chrome for voice input.', W / 2, H / 2 + 122);
+      ctx.fillStyle = TEXT_GOLD;
+      ctx.fillText('No mic detected. Press T during runs to type radio commands.', W / 2, H / 2 + 105);
     } else {
       ctx.font = '12px monospace';
       ctx.fillStyle = TEXT_GREEN;
-      ctx.fillText('Microphone ready.', W / 2, H / 2 + 105);
+      ctx.fillText('Microphone ready. Press T to type instead.', W / 2, H / 2 + 105);
     }
 
     ctx.font = 'bold 18px monospace';
