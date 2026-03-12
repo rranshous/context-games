@@ -1,7 +1,7 @@
 // ── Reflection System ──
 // After each run, the driver reviews what happened and updates their soma.
 // Single actant (the driver), with boss radio transcript as key input.
-// Uses claude-opus-4-6 for reflection, haiku for summaries.
+// Uses claude-sonnet-4-6 for reflection. No separate summary call.
 
 import { DriverSoma, RunRecording, Position } from './types';
 import { clearCompileCache } from './soma';
@@ -431,13 +431,13 @@ export async function reflectDriver(
     let totalInput = 0;
     let totalOutput = 0;
     let turns = 0;
-    const maxTurns = 5;
+    const maxTurns = 3;
 
     while (turns < maxTurns) {
       turns++;
 
       const response = await callAPI({
-        model: 'claude-opus-4-6',
+        model: 'claude-sonnet-4-6',
         system: systemPrompt,
         messages,
         tools: SCAFFOLD_TOOLS,
@@ -510,8 +510,15 @@ export async function reflectDriver(
       clearCompileCache();
     }
 
-    // Generate change summary — second opus call
-    result.changeSummary = await generateChangeSummary(soma, result);
+    // Simple inline summary — no extra API call
+    const changes = [
+      result.onTickUpdated ? 'Rewrote driving code' : null,
+      result.memoryUpdated ? 'Updated memory' : null,
+      result.identityUpdated ? 'Changed identity' : null,
+    ].filter(Boolean);
+    result.changeSummary = changes.length > 0
+      ? changes.join('. ') + '.'
+      : 'No changes made.';
 
     console.log(JSON.stringify({
       _wm: 'reflection_complete',
@@ -535,34 +542,3 @@ export async function reflectDriver(
   return result;
 }
 
-// ── Change Summary ──
-
-async function generateChangeSummary(
-  soma: DriverSoma,
-  result: ReflectionResult,
-): Promise<string> {
-  try {
-    const changes = [
-      result.onTickUpdated ? 'Rewrote their driving code' : null,
-      result.memoryUpdated ? 'Updated their memory' : null,
-      result.identityUpdated ? 'Changed their identity' : null,
-    ].filter(Boolean).join('. ');
-
-    const response = await callAPI({
-      model: 'claude-haiku-4-5-20251001',
-      system: 'You summarize what an AI driver learned and changed after reviewing a run. Write 2-3 plain English sentences. No code, no jargon, no bullet points. Speak about the driver in third person. Be specific about what they learned and changed.',
-      messages: [{
-        role: 'user',
-        content: `The driver just reflected on their run. Here's what happened.\n\nChanges made: ${changes || 'None'}\n\nTheir reasoning:\n${result.reasoning.slice(0, 3000)}\n\nSummarize in 2-3 sentences: what did they learn? What did they change in their driving?`,
-      }],
-      max_tokens: 256,
-    });
-
-    if (response?.content?.[0]?.type === 'text') {
-      return response.content[0].text || '';
-    }
-  } catch (err) {
-    console.log(JSON.stringify({ _wm: 'summary_error', error: String(err) }));
-  }
-  return '';
-}
