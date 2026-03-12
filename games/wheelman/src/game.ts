@@ -664,6 +664,9 @@ export class Game {
       }
     }
 
+    // Minimap
+    this.renderMinimap();
+
     // Background reflection indicator
     if (this.pendingPursuerReflection) {
       ctx.font = '10px monospace';
@@ -676,6 +679,90 @@ export class Game {
 
     // Objective arrow when off-screen
     this.renderObjectiveArrow();
+  }
+
+  private renderMinimap(): void {
+    const ctx = this.ctx;
+    const W = CONFIG.CANVAS.WIDTH;
+    const H = CONFIG.CANVAS.HEIGHT;
+
+    // Minimap dimensions — bottom-left, above radio area
+    const mapW = 160;
+    const mapH = mapW * (this.world.height / this.world.width); // preserve aspect ratio
+    const margin = 10;
+    const mapX = W - mapW - margin;
+    const mapY = 40; // below top bar
+
+    const scaleX = mapW / this.world.width;
+    const scaleY = mapH / this.world.height;
+
+    // Background
+    ctx.fillStyle = 'rgba(20, 18, 14, 0.75)';
+    ctx.fillRect(mapX, mapY, mapW, mapH);
+    ctx.strokeStyle = 'rgba(194, 178, 128, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mapX, mapY, mapW, mapH);
+
+    // Terrain hints — oases (from world data)
+    ctx.fillStyle = 'rgba(60, 100, 180, 0.3)';
+    for (const oasis of this.world.oases) {
+      const ox = mapX + oasis.x * scaleX;
+      const oy = mapY + oasis.y * scaleY;
+      const or = oasis.radius * scaleX;
+      ctx.beginPath();
+      ctx.arc(ox, oy, Math.max(or, 2), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Objective
+    if (this.objective) {
+      const ox = mapX + this.objective.position.x * scaleX;
+      const oy = mapY + this.objective.position.y * scaleY;
+      ctx.save();
+      ctx.translate(ox, oy);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = TEXT_GOLD;
+      ctx.fillRect(-3, -3, 6, 6);
+      ctx.restore();
+    }
+
+    // Pursuers
+    for (let i = 0; i < this.pursuers.length; i++) {
+      const p = this.pursuers[i];
+      const px = mapX + p.x * scaleX;
+      const py = mapY + p.y * scaleY;
+      const color = p.mode === 'pursuing' ? TEXT_RED : PURSUER_COLORS[i % PURSUER_COLORS.length];
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(px, py, p.mode === 'pursuing' ? 3.5 : 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Name label (tiny)
+      ctx.font = '7px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.soma.name, px, py - 5);
+    }
+
+    // Driver (always on top)
+    const dx = mapX + this.vehicle.x * scaleX;
+    const dy = mapY + this.vehicle.y * scaleY;
+    ctx.fillStyle = TEXT_GREEN;
+    ctx.beginPath();
+    ctx.arc(dx, dy, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Camera viewport rectangle (camera.x/y is top-left corner)
+    const camLeft = this.camera.x;
+    const camTop = this.camera.y;
+    ctx.strokeStyle = 'rgba(194, 178, 128, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      mapX + camLeft * scaleX,
+      mapY + camTop * scaleY,
+      CONFIG.CANVAS.WIDTH * scaleX,
+      CONFIG.CANVAS.HEIGHT * scaleY,
+    );
   }
 
   private renderObjectiveMarker(): void {

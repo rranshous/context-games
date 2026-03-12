@@ -20,7 +20,8 @@ export class DesertWorld {
   readonly width = CONFIG.WORLD.WIDTH;
   readonly height = CONFIG.WORLD.HEIGHT;
 
-  private waterOases: TerrainEffect[] = [];
+  private waterOases_: TerrainEffect[] = [];
+  get oases(): ReadonlyArray<{ x: number; y: number; radius: number }> { return this.waterOases__; }
   private rocks: Obstacle[] = [];
   private cactusGroves: CactusPoint[][] = [];
   private texturedSand: TerrainEffect[] = [];
@@ -51,7 +52,7 @@ export class DesertWorld {
       const radius = 50 + Math.random() * 70;
       const x = radius + Math.random() * (this.width - radius * 2);
       const y = radius + Math.random() * (this.height - radius * 2);
-      this.waterOases.push({
+      this.waterOases_.push({
         type: 'water',
         x, y, radius,
         slowdown: 0.15,
@@ -66,7 +67,7 @@ export class DesertWorld {
       const y = radius + Math.random() * (this.height - radius * 2);
       // Don't place rocks inside water
       let inWater = false;
-      for (const w of this.waterOases) {
+      for (const w of this.waterOases_) {
         const dx = x - w.x;
         const dy = y - w.y;
         if (Math.sqrt(dx * dx + dy * dy) < w.radius + radius) {
@@ -137,7 +138,7 @@ export class DesertWorld {
     // For each obstacle, mark nearby cells with push-away vectors
     const allObstacles: Array<{ x: number; y: number; radius: number }> = [
       ...this.rocks,
-      ...this.waterOases.map(w => ({ x: w.x, y: w.y, radius: w.radius })),
+      ...this.waterOases_.map(w => ({ x: w.x, y: w.y, radius: w.radius })),
     ];
 
     for (const obs of allObstacles) {
@@ -176,7 +177,7 @@ export class DesertWorld {
 
   getTerrainEffect(x: number, y: number): number {
     // Check water first (strongest slowdown)
-    for (const w of this.waterOases) {
+    for (const w of this.waterOases_) {
       const dx = x - w.x;
       const dy = y - w.y;
       if (dx * dx + dy * dy < w.radius * w.radius) {
@@ -224,7 +225,7 @@ export class DesertWorld {
       }
     }
     // Water edges act as soft obstacles at shore
-    for (const w of this.waterOases) {
+    for (const w of this.waterOases_) {
       const dx = x - w.x;
       const dy = y - w.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -313,7 +314,7 @@ export class DesertWorld {
     }
 
     // 4. Water oases — textured sand border + tiled water (like raceon)
-    for (const w of this.waterOases) {
+    for (const w of this.waterOases_) {
       if (!camera.isVisible(w.x, w.y, w.radius + margin)) continue;
 
       if (spritesLoaded()) {
