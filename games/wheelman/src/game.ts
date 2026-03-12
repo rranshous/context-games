@@ -8,7 +8,7 @@ import { DriverSoma, Objective, RunRecording, PursuerBroadcast } from './types';
 import { createDefaultSoma, loadSoma, saveSoma, executeTick, clearCompileCache } from './soma';
 import { RunRecorder } from './run-recorder';
 import { SpeechInput } from './speech';
-import { reflectDriver, ReflectionResult, TurnUpdate } from './reflection';
+import { reflectDriver, generateDebrief, ReflectionResult, TurnUpdate } from './reflection';
 import { renderRunMap } from './run-map-renderer';
 import { CONFIG } from './config';
 import { Pursuer, clearPursuerCompileCache } from './pursuer';
@@ -30,7 +30,6 @@ const TEXT_DIM = '#887a5a';
 const TEXT_GREEN = '#33ff33';
 const TEXT_RED = '#ff4444';
 const TEXT_GOLD = '#ffd700';
-const TEXT_BLUE = '#6688cc';
 
 // Pursuer path colors (match map renderer)
 const PURSUER_COLORS = ['#ff4444', '#ff8800', '#aa44ff', '#ff44aa'];
@@ -65,8 +64,10 @@ export class Game {
   private reflectionResult: ReflectionResult | null = null;
   private reflectionText: string = '';
   private changeSummary: string = '';
+  private debriefText: string = '';
 
-  // Pursuer reflection state — runs in background during next run
+  // Reflection state — both run in background
+  private pendingDriverReflection: Promise<void> | null = null;
   private pursuerReflectionResults: PursuerReflectionResult[] = [];
   private pursuerReflectionPhase: string = '';
   private pendingPursuerReflection: Promise<void> | null = null;
@@ -337,7 +338,15 @@ export class Game {
 
       case 'after_action': {
         if (this.consumeSpace()) {
-          this.startRun();
+          // Wait for driver reflection to finish before starting next run
+          if (this.pendingDriverReflection) {
+            this.state = 'reflecting';
+            this.pendingDriverReflection.then(() => {
+              this.startRun();
+            });
+          } else {
+            this.startRun();
+          }
         }
         break;
       }
@@ -452,7 +461,9 @@ export class Game {
     this.scrollY = 0;
     this.reflectionText = '';
     this.changeSummary = '';
+    this.debriefText = '';
     this.reflectionResult = null;
+    this.pendingDriverReflection = null;
     this.lastMapImage = null;
     this.pursuerReflectionResults = [];
     this.pursuerReflectionPhase = '';
@@ -546,8 +557,29 @@ export class Game {
   }
 
   private async doReflection(recording: RunRecording): Promise<void> {
+    // Debrief first — fast haiku call (~2s), shown immediately
     try {
-      // Driver reflection — blocking (we want updated code before next run)
+      const debrief = await generateDebrief(recording);
+      this.debriefText = debrief.text || '"..." *stares at the table*';
+    } catch {
+      this.debriefText = '"..." *stares at the table*';
+    }
+
+    // Show after-action screen right away with the debrief
+    this.state = 'after_action';
+    this.scrollY = 0;
+
+    // Driver reflection runs in background — updates soma before next run
+    this.pendingDriverReflection = this.runDriverReflection(recording);
+
+    // Pursuer reflections also in background
+    if (this.pursuerSomas.length > 0) {
+      this.startBackgroundPursuerReflection(recording);
+    }
+  }
+
+  private async runDriverReflection(recording: RunRecording): Promise<void> {
+    try {
       const driverResult = await reflectDriver(
         this.soma,
         recording,
@@ -566,20 +598,11 @@ export class Game {
       this.reflectionResult = driverResult;
       this.changeSummary = driverResult.changeSummary;
       saveSoma(this.soma);
-
-      // Pursuer reflections — fire in background, apply when done
-      if (this.pursuerSomas.length > 0) {
-        this.startBackgroundPursuerReflection(recording);
-      }
-
     } catch (err) {
-      this.reflectionText += `\n[REFLECTION ERROR: ${String(err)}]\n`;
       this.changeSummary = 'Reflection failed.';
+      console.log(JSON.stringify({ _wm: 'reflection_error', error: String(err) }));
     }
-
-    // Transition to after-action — no wait for pursuers
-    this.state = 'after_action';
-    this.scrollY = 0;
+    this.pendingDriverReflection = null;
   }
 
   private startBackgroundPursuerReflection(recording: RunRecording): void {
@@ -646,7 +669,8 @@ export class Game {
     // Speed + pursuer count
     ctx.textAlign = 'right';
     const pursuerText = this.pursuers.length > 0 ? ` | ${this.pursuers.length} COPS` : '';
-    ctx.fillText(`${Math.round(this.vehicle.speed)} px/s${pursuerText}`, W - 10, 16);
+    const mph = Math.round(this.vehicle.speed * CONFIG.UNITS.PX_TO_MPH);
+    ctx.fillText(`${mph} mph${pursuerText}`, W - 10, 16);
 
     // Objective distance
     if (this.objective) {
@@ -655,7 +679,9 @@ export class Game {
       const dist = Math.sqrt(dx * dx + dy * dy);
       ctx.textAlign = 'center';
       ctx.fillStyle = dist < 200 ? TEXT_GREEN : TEXT_SAND;
-      ctx.fillText(`OBJ: ${Math.round(dist)}px`, W / 2, 32 + 16);
+      const distMi = dist * CONFIG.UNITS.PX_TO_MILES;
+      const distLabel = distMi < 0.1 ? `${Math.round(distMi * 5280)} ft` : `${distMi.toFixed(1)} mi`;
+      ctx.fillText(`OBJ: ${distLabel}`, W / 2, 32 + 16);
     }
 
     // Pursuer proximity warnings
@@ -674,7 +700,9 @@ export class Game {
         const p = closePursuers[i];
         ctx.fillStyle = p.mode === 'pursuing' ? TEXT_RED : TEXT_GOLD;
         const icon = p.mode === 'pursuing' ? '!!' : '?';
-        ctx.fillText(`${icon} ${p.name}: ${Math.round(p.dist)}px`, 10, warningY + 10 + i * 20);
+        const warnDist = p.dist * CONFIG.UNITS.PX_TO_MILES;
+        const warnLabel = warnDist < 0.1 ? `${Math.round(warnDist * 5280)} ft` : `${warnDist.toFixed(1)} mi`;
+        ctx.fillText(`${icon} ${p.name}: ${warnLabel}`, 10, warningY + 10 + i * 20);
       }
     }
 
@@ -738,16 +766,6 @@ export class Game {
 
     // Minimap
     this.renderMinimap();
-
-    // Background reflection indicator
-    if (this.pendingPursuerReflection) {
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = TEXT_BLUE;
-      ctx.globalAlpha = 0.6;
-      ctx.fillText('cops reflecting...', W - 10, H - 8);
-      ctx.globalAlpha = 1;
-    }
 
     // Objective arrow when off-screen
     this.renderObjectiveArrow();
@@ -925,36 +943,44 @@ export class Game {
     ctx.fillStyle = BG_DARK;
     ctx.fillRect(0, 0, W, H);
 
-    ctx.font = 'bold 24px monospace';
+    const dots = '.'.repeat(Math.floor(performance.now() / 600) % 4);
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = TEXT_SAND;
-    ctx.fillText('REVIEWING THE RUN...', W / 2, 20);
+    ctx.textBaseline = 'middle';
 
-    const dots = '.'.repeat(Math.floor(performance.now() / 500) % 4);
-    ctx.font = '14px monospace';
-    ctx.fillStyle = TEXT_GREEN;
-    ctx.fillText(`Driver reflecting${dots}`, W / 2, 55);
+    // Two contexts: waiting for debrief (pre after-action) vs waiting for next run
+    if (this.debriefText) {
+      // Player hit space but driver reflection isn't done yet
+      ctx.font = 'bold 28px monospace';
+      ctx.fillStyle = TEXT_SAND;
+      ctx.fillText('PREPARING NEXT DROP', W / 2, H / 2 - 40);
 
-    // Streaming reasoning text (driver)
-    if (this.reflectionText) {
-      ctx.font = '11px monospace';
-      ctx.textAlign = 'left';
+      ctx.font = '14px monospace';
       ctx.fillStyle = TEXT_DIM;
+      ctx.fillText(`Driver's still going over the notes${dots}`, W / 2, H / 2 + 10);
+    } else {
+      // Initial post-run — waiting for debrief to generate
+      ctx.font = 'bold 28px monospace';
+      ctx.fillStyle = TEXT_SAND;
+      ctx.fillText('BACK AT THE DESK', W / 2, H / 2 - 40);
 
-      const lines = this.wrapText(this.reflectionText, W - 80);
-      const visibleLines = lines.slice(-25);
-      const startY = 105;
-      for (let i = 0; i < visibleLines.length; i++) {
-        const line = visibleLines[i];
-        if (line.includes('[TOOL:')) {
-          ctx.fillStyle = TEXT_GREEN;
-        } else if (line.includes('[REFLECTION ERROR')) {
-          ctx.fillStyle = TEXT_RED;
-        } else {
-          ctx.fillStyle = TEXT_DIM;
-        }
-        ctx.fillText(line, 40, startY + i * 14);
+      ctx.font = '14px monospace';
+      ctx.fillStyle = TEXT_DIM;
+      ctx.fillText(`Your driver is thinking${dots}`, W / 2, H / 2 + 10);
+
+      // Subtle outcome reminder
+      if (this.lastRecording) {
+        const outcomeColors: Record<string, string> = {
+          delivered: TEXT_GREEN,
+          caught: TEXT_RED,
+          crashed: TEXT_RED,
+          timeout: TEXT_GOLD,
+        };
+        ctx.font = '12px monospace';
+        ctx.fillStyle = outcomeColors[this.lastRecording.outcome] || TEXT_DIM;
+        ctx.fillText(
+          `Run #${this.runCount}: ${this.lastRecording.outcome.toUpperCase()}`,
+          W / 2, H / 2 + 40,
+        );
       }
     }
   }
@@ -1026,9 +1052,12 @@ export class Game {
     // Stats
     ctx.font = '13px monospace';
     ctx.fillStyle = TEXT_SAND;
+    const distMiles = (recording.distanceCovered * CONFIG.UNITS.PX_TO_MILES).toFixed(1);
+    const objMiles = recording.objectiveDistance * CONFIG.UNITS.PX_TO_MILES;
+    const objLabel = objMiles < 0.1 ? `${Math.round(objMiles * 5280)} ft` : `${objMiles.toFixed(1)} mi`;
     ctx.fillText(`Duration: ${recording.durationSeconds.toFixed(1)}s`, textX, y); y += 18;
-    ctx.fillText(`Distance: ${Math.round(recording.distanceCovered)}px`, textX, y); y += 18;
-    ctx.fillText(`Objective dist: ${Math.round(recording.objectiveDistance)}px`, textX, y); y += 18;
+    ctx.fillText(`Distance: ${distMiles} mi`, textX, y); y += 18;
+    ctx.fillText(`Objective dist: ${objLabel}`, textX, y); y += 18;
     ctx.fillText(`Run #${this.runCount} | ${this.pursuers.length} pursuers`, textX, y); y += 28;
 
     // Radio transcript
@@ -1061,99 +1090,31 @@ export class Game {
     ctx.stroke();
     y += 12;
 
-    // Driver reflection
+    // Driver debrief — in-character response
     ctx.font = 'bold 14px monospace';
     ctx.fillStyle = TEXT_SAND;
-    ctx.fillText('DRIVER REFLECTION:', textX, y); y += 20;
+    ctx.fillText('DEBRIEF:', textX, y); y += 22;
 
-    if (this.changeSummary) {
-      ctx.font = '12px monospace';
-      ctx.fillStyle = TEXT_GREEN;
-      const summaryLines = this.wrapText(this.changeSummary, textW);
-      for (const line of summaryLines) {
-        ctx.fillText(line, textX, y); y += 15;
+    if (this.debriefText) {
+      ctx.font = '13px monospace';
+      ctx.fillStyle = '#e8dcc8';
+      const debriefLines = this.wrapText(this.debriefText, textW);
+      for (const line of debriefLines) {
+        ctx.fillText(line, textX, y); y += 17;
       }
-      y += 8;
+      y += 12;
+
+      // Subtle change indicator
+      if (this.changeSummary && this.changeSummary !== 'No changes made.') {
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEXT_DIM;
+        ctx.fillText(`[${this.changeSummary}]`, textX, y);
+        y += 16;
+      }
     } else {
       ctx.font = '11px monospace';
       ctx.fillStyle = TEXT_DIM;
-      ctx.fillText('(reflecting...)', textX, y); y += 16;
-    }
-
-    // Token usage (driver)
-    if (this.reflectionResult?.tokenUsage) {
-      ctx.font = '10px monospace';
-      ctx.fillStyle = TEXT_DIM;
-      const t = this.reflectionResult.tokenUsage;
-      ctx.fillText(`driver tokens: ${t.input} in / ${t.output} out`, textX, y);
-      y += 16;
-    }
-
-    // ── PURSUIT DIVISION ──
-    if (this.pursuerSomas.length > 0) {
-      y += 8;
-      ctx.strokeStyle = TEXT_BLUE;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(textX, y);
-      ctx.lineTo(textX + textW, y);
-      ctx.stroke();
-      y += 12;
-
-      ctx.font = 'bold 14px monospace';
-      ctx.fillStyle = TEXT_BLUE;
-      ctx.fillText('PURSUIT DIVISION:', textX, y); y += 22;
-
-      if (this.pursuerReflectionResults.length === 0 && this.pendingPursuerReflection) {
-        ctx.font = '11px monospace';
-        ctx.fillStyle = TEXT_DIM;
-        const bdots = '.'.repeat(Math.floor(performance.now() / 500) % 4);
-        ctx.fillText(`Reflecting in background${bdots}`, textX, y); y += 16;
-      }
-
-      for (let pi = 0; pi < this.pursuerReflectionResults.length; pi++) {
-        const pr = this.pursuerReflectionResults[pi];
-        const color = PURSUER_COLORS[pi % PURSUER_COLORS.length];
-
-        // Pursuer name header
-        ctx.font = 'bold 12px monospace';
-        ctx.fillStyle = color;
-        ctx.fillText(`${pr.pursuerName}`, textX, y); y += 16;
-
-        // Change summary
-        if (pr.changeSummary) {
-          ctx.font = '11px monospace';
-          ctx.fillStyle = TEXT_SAND;
-          const lines = this.wrapText(pr.changeSummary, textW - 8);
-          for (const line of lines) {
-            ctx.fillText(line, textX + 8, y); y += 13;
-          }
-        } else {
-          ctx.font = '11px monospace';
-          ctx.fillStyle = TEXT_DIM;
-          ctx.fillText('(no changes)', textX + 8, y); y += 13;
-        }
-
-        // Debrief summary
-        if (pr.debriefSummary) {
-          ctx.font = '10px monospace';
-          ctx.fillStyle = TEXT_DIM;
-          const debriefLines = this.wrapText(`Debrief: ${pr.debriefSummary}`, textW - 8);
-          for (const line of debriefLines) {
-            ctx.fillText(line, textX + 8, y); y += 12;
-          }
-        }
-
-        // Token usage
-        if (pr.tokenUsage) {
-          ctx.font = '9px monospace';
-          ctx.fillStyle = TEXT_DIM;
-          ctx.fillText(`tokens: ${pr.tokenUsage.input} in / ${pr.tokenUsage.output} out`, textX + 8, y);
-          y += 12;
-        }
-
-        y += 8;
-      }
+      ctx.fillText('(waiting for driver...)', textX, y); y += 16;
     }
 
     ctx.restore(); // End clip

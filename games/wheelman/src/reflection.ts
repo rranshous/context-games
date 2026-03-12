@@ -20,6 +20,11 @@ export interface ReflectionResult {
   error?: string;
 }
 
+export interface DebriefResult {
+  text: string;
+  error?: string;
+}
+
 export interface TurnUpdate {
   turnNum: number;
   newText: string;
@@ -540,5 +545,81 @@ export async function reflectDriver(
   }
 
   return result;
+}
+
+// ── Debrief Generation ──
+// After the technical reflection, generate an in-character driver response.
+// The boss doesn't see code diffs — they see their driver explaining themselves.
+
+export async function generateDebrief(
+  recording: RunRecording,
+): Promise<DebriefResult> {
+  const outcomeText = {
+    delivered: 'The driver completed the delivery.',
+    caught: 'The driver was caught by the cops.',
+    crashed: 'The driver crashed.',
+    timeout: 'The driver ran out of time.',
+  }[recording.outcome];
+
+  const radioBlock = recording.radioTranscript.length > 0
+    ? recording.radioTranscript.map(r => `[${r.time.toFixed(1)}s] Boss: "${r.text}"`).join('\n')
+    : '(no radio communication)';
+
+  // Convert objective distance to vague human terms
+  const objDist = recording.objectiveDistance * CONFIG.UNITS.PX_TO_MILES;
+  const objDistLabel = objDist < 0.05 ? 'right at the drop point'
+    : objDist < 0.2 ? 'very close to the drop'
+    : objDist < 0.5 ? 'not far from the drop'
+    : objDist < 1.0 ? 'a ways out from the drop'
+    : 'far from the drop point';
+
+  const system = `You are a wheelman — a getaway driver sitting across the desk from your boss after a run. The boss watched you through a drone camera and talked to you on the radio during the run. Now the run is over and you're explaining yourself.
+
+Stay in character. You're a person, not a program. Never mention code, functions, variables, parameters, algorithms, pixels, or any technical terms. Talk about driving — roads, terrain, the cops, the route, the radio, what you saw and felt.
+
+THE WORLD: Open desert. Sand, dirt roads, water oases (slow you way down), rock formations (can't drive through), cactus groves. That's it. There are NO buildings, neighborhoods, industrial areas, cities, highways, or urban features. It's empty desert with scattered natural obstacles.
+
+Be concise. 2-4 sentences. Match the tone to the outcome — apologetic if you failed, satisfied if you delivered, frustrated if you were caught. Reference specific moments from the radio or the run if they happened.
+
+If the boss gave radio instructions, acknowledge whether you followed them or not.`;
+
+  const user = `${outcomeText}
+
+Duration: ${recording.durationSeconds.toFixed(1)} seconds
+Ended up: ${objDistLabel}
+
+Boss radio during the run:
+${radioBlock}
+
+Now respond as the driver, in character, explaining yourself to the boss.`;
+
+  try {
+    const response = await callAPI({
+      model: 'claude-haiku-4-5-20251001',
+      system,
+      messages: [{ role: 'user', content: user }],
+      max_tokens: 256,
+    });
+
+    if (!response) {
+      return { text: '', error: 'Debrief API call failed' };
+    }
+
+    const text = response.content
+      .filter(b => b.type === 'text' && b.text)
+      .map(b => b.text!)
+      .join('\n')
+      .trim();
+
+    console.log(JSON.stringify({
+      _wm: 'debrief_generated',
+      length: text.length,
+      tokens: response.usage,
+    }));
+
+    return { text };
+  } catch (err) {
+    return { text: '', error: String(err) };
+  }
 }
 

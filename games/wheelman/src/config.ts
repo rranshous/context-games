@@ -56,5 +56,12 @@ export const CONFIG = {
     { minRun: 7, count: 4 },
   ],
 
+  // Display units — pixels to human-readable
+  // 220 px/s max → ~120 mph, 8000px world → ~5.5 miles across
+  UNITS: {
+    PX_TO_MPH: 120 / 220,      // multiply px/s by this for mph
+    PX_TO_MILES: 5.5 / 8000,   // multiply px by this for miles
+  },
+
   API_ENDPOINT: '/api/inference/anthropic/messages',
 };

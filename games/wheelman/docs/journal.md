@@ -362,9 +362,75 @@ This could be a separate short API call (haiku?) with a character prompt: "You j
 
 The current reflection streaming text and technical change summary would be replaced by this debrief dialogue. The actual soma modifications still happen silently.
 
+---
+
+## Session 5 — 2026-03-12 — Debrief Scene + Immersion Fixes
+
+**Goal**: Replace technical reflection output with in-character driver debrief. Remove cop info from player view. Fix pixel units breaking immersion. Speed up post-run flow.
+
+### Debrief scene (the big change)
+- **New `generateDebrief()` in reflection.ts** — haiku call that generates 2-4 sentence in-character driver response after each run. System prompt establishes the wheelman persona, explicitly describes the desert world (sand, roads, oases, rocks, cacti — NO buildings/cities/highways), forbids code/technical language.
+- **Debrief fires FIRST** — fast haiku (~2s), then after-action screen shows immediately with the debrief text. Driver reflection (sonnet, tool-use, ~15-30s) now runs **in background** while player reads the debrief.
+- **"PREPARING NEXT DROP"** — if player hits space before background reflection finishes, they see this screen (not "BACK AT THE DESK" again). Run starts once reflection completes.
+- After-action shows: outcome, stats, radio transcript, **DEBRIEF** (driver's in-character response), and a subtle `[Rewrote driving code. Updated memory.]` line that updates when background reflection finishes.
+
+### Cop info removed from player view
+- Entire **PURSUIT DIVISION** section removed from after-action screen (was showing per-cop change summaries, debrief notes, token counts).
+- **"cops reflecting..."** HUD indicator during runs removed.
+- Cop reflections still run silently in background — they learn, player just doesn't see the internals.
+- Rationale: player is the boss, not a dev. Cops getting smarter is something you *feel*, not read about.
+
+### Display units — pixels → human
+- **config.ts**: added `UNITS.PX_TO_MPH` (220 px/s → 120 mph) and `UNITS.PX_TO_MILES` (8000px → 5.5 miles).
+- **HUD speed**: now shows `113 mph` instead of `220 px/s`.
+- **HUD objective distance**: shows `2.9 mi` or `342 ft` (switches to feet under 0.1 mi).
+- **After-action stats**: distance and objective dist in miles/feet.
+- **Cop proximity warnings**: converted from px to ft/mi.
+- **Debrief prompt**: objective distance converted to vague human terms ("right at the drop point", "a ways out from the drop", etc.) — never sends pixel values to the model.
+
+### Debrief prompt design
+- System: wheelman persona, no code talk, world description (desert only — explicit "NO buildings, neighborhoods, industrial areas"), 2-4 sentences, tone-matched to outcome.
+- User: outcome text, duration in seconds, vague distance label, radio transcript. NO pixel values, no reflection details.
+- Removed dependency on `ReflectionResult` — debrief doesn't need to know what code changed. Just talks about the run.
+
+### Reflecting screen states
+Two distinct contexts share the `reflecting` game state:
+1. **Post-run** (no debrief yet): "BACK AT THE DESK" / "Your driver is thinking..." + outcome color
+2. **Waiting for next run** (debrief exists, reflection pending): "PREPARING NEXT DROP" / "Driver's still going over the notes..."
+
+### Architecture changes
+- `doReflection()` split into two: quick debrief → state transition → `runDriverReflection()` in background
+- `pendingDriverReflection: Promise<void> | null` field tracks background driver reflection
+- Space in after-action: if reflection pending, sets state to `reflecting` and `.then(() => startRun())`
+- `startRun()` resets `pendingDriverReflection` to null
+
+### Terrain values (reference for tuning)
+- Sand (default): 1.0 (full speed)
+- Road: 0.9 (slightly fast — **roads are SLOWER than sand currently, this is wrong**)
+- Textured sand: 0.4 (rough)
+- Water oases: 0.15 (very slow)
+- Cacti: **no slowdown** (only rocks are obstacles via collision, cacti are visual only)
+- Rocks: solid obstacles (bounce on collision, no passthrough)
+
+### Playtesting observations
+- Debrief generated in ~2s, after-action shows almost instantly now (was 15-30s wait before)
+- First debrief: *"Clean run, boss — got the package to the drop point in under 23 seconds..."* — good tone, no code talk
+- With terrain whitelist in prompt, driver no longer hallucinates "industrial sectors" or urban features
+- Cops confirmed: they do NOT know objective position. Only get driver position when within 400px spot range + ally radio broadcasts. Any convergence on objective is learned/emergent from watching driver heading.
+- Cops DO have radio — `me.broadcast()` in signal handler, double-buffered one-tick delay, ally_signal priority
+
+### Open issues for session 6
+- **Roads slower than sand** — road terrain returns 0.9, sand returns 1.0. Roads should be FASTER than sand (maybe 1.1 or just higher than default). This also means the driver's soma reasoning about "sticking to roads" is backwards.
+- **Cacti don't slow you down** — they're purely visual. Should they have a slowdown? Or collision? Currently you drive right through them.
+- **Water slowdown could be stronger** — 0.15 is already heavy but player felt it could be more punishing. Could drop to 0.05-0.10.
+- **Background reflection can take a long time** — if player reads debrief fast and hits space, they wait on "PREPARING NEXT DROP" for 15-30s. Could reduce reflection max_turns further (currently 3), or reduce model from sonnet to haiku for speed. Trade-off: worse learning vs faster loop.
+- **Debrief terrain accuracy** — haiku sometimes mentions terrain it can't actually see/know about. The debrief gets run outcome + radio only, NOT what terrain the driver encountered. Could add terrain summary to debrief input (e.g., "drove through 2 oases, hit 3 rocks").
+- **"Preparing next drop" isn't waiting for cops** — correct. Only waits for driver reflection. Cop reflection runs fully in background and applies whenever it finishes (even mid-run).
+
 ### What's next
-- **Session 5**: Debrief scene — in-character driver response replaces technical reflection output
-- **Playtest** with auth'd dev server — see actual reflection + arms race
-- Consider per-cop model diversity via OpenRouter
-- Road rendering could use sprite tiles from Desert_road sheet
-- Maybe give pursuers objective location at higher escalation tiers
+- **Fix road/cactus/water terrain values** — roads should be fast, cacti should have some effect
+- **Playtest with radio** — the debrief really shines when there's radio transcript to reference
+- Per-cop model diversity via OpenRouter
+- Road sprite rendering from Desert_road sheet
+- Consider giving pursuers objective location at higher escalation tiers
+- Consider terrain event log in debrief input for better driver self-awareness
