@@ -341,8 +341,30 @@ Also added collision-specific particles:
 - Patrol waypoints: engine generates 4-6 random positions, delivers current one in `tick` signal data. The *default* on_tick code drives toward them, but cops can rewrite this during reflection — waypoints are a suggestion, behavior is soma-owned.
 - Pursuers don't know objective location (asked, confirmed). Purely reactive: patrol → spot → chase → radio allies. Could be interesting to give them objective intel later as a difficulty escalation.
 
+### Pause-while-typing
+- Game simulation freezes when text input is open (T key). Timer stops, vehicles stop. Screen dims.
+- Makes text input actually usable — you're not racing the clock while typing.
+
+### Bug fix
+- `replace_all` renamed `waterOases_` → `waterOases__` inside the getter (double underscore). Classic footgun.
+
+### Playtesting observations
+- Text input works end-to-end: T → type → Enter → message appears in radio transcript at bottom, driver reads from `world.radio`
+- Minimap is immediately useful — you can see cops converging before they're on screen
+- 401 errors from API (not logged into dev server during test) but flow is correct — reflection completes, after-action shows, space advances
+
+### Session 5 idea: Debrief Scene
+**Core insight**: The raw reflection text (AI reasoning about code changes) breaks immersion. The player is the **boss** — they don't care about code. They want to feel like they're grilling a peon who screwed up.
+
+**Vision**: After-action becomes a **debrief scene**. The driver sits across from you at a desk, explaining themselves in character. "Sorry boss, I got turned around near those rocks... next time I'll stick to the roads when I hear you say go east." The reflection still happens (soma updates), but what the player *sees* is the driver's in-character response to the run.
+
+This could be a separate short API call (haiku?) with a character prompt: "You just finished a run for the boss. The boss said [radio transcript]. You [outcome]. Explain yourself. Be specific about what went wrong and what you'll do differently. Stay in character — you're a driver trying to keep your job."
+
+The current reflection streaming text and technical change summary would be replaced by this debrief dialogue. The actual soma modifications still happen silently.
+
 ### What's next
-- **Playtest** with these changes — especially reflection timing and minimap utility
+- **Session 5**: Debrief scene — in-character driver response replaces technical reflection output
+- **Playtest** with auth'd dev server — see actual reflection + arms race
 - Consider per-cop model diversity via OpenRouter
 - Road rendering could use sprite tiles from Desert_road sheet
 - Maybe give pursuers objective location at higher escalation tiers
