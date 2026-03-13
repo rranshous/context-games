@@ -20,6 +20,9 @@ export class Vehicle {
   private accelInput: number = 0;  // 0 to 1
   private brakeInput: number = 0;  // 0 to 1
 
+  // Collision callback — set by game.ts to record hits
+  onCollision?: (type: 'rock' | 'water', pos: { x: number; y: number }, speed: number) => void;
+
   constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
@@ -103,6 +106,9 @@ export class Vehicle {
       // Effects
       const impactSpeed = this.speed;
       this.speed *= Math.abs(V.BOUNCE_FACTOR);
+
+      // Record collision
+      this.onCollision?.(collision.type as 'rock' | 'water', { x: this.x, y: this.y }, impactSpeed);
 
       if (impactSpeed > 40) {
         if (collision.type === 'water') {

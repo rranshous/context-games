@@ -46,6 +46,7 @@ export class Game {
   private objective: Objective | null = null;
   private state: GameState = 'title';
   private runCount: number = 0;
+  private winCount: number = 0;
   private runTimer: number = 0;
   private lastTime: number = 0;
   private radioTranscript: string = '';
@@ -100,6 +101,7 @@ export class Game {
     this.soma = saved || createDefaultSoma();
     if (saved) {
       this.runCount = saved.runHistory.length;
+      this.winCount = saved.runHistory.filter(h => h.outcome === 'delivered').length;
     }
 
     // Speech input
@@ -169,6 +171,7 @@ export class Game {
     localStorage.removeItem('wheelman-pursuers');
     this.soma = createDefaultSoma();
     this.runCount = 0;
+    this.winCount = 0;
     this.pursuerSomas = [];
     this.pursuers = [];
     console.log('[WHEELMAN] All somas reset');
@@ -185,9 +188,12 @@ export class Game {
   // ── Escalation ──
 
   private getPursuerCount(): number {
+    if (this.winCount >= CONFIG.ESCALATION_UNCAPPED_FROM) {
+      return 4 + (this.winCount - 6);
+    }
     let count = 0;
-    for (const tier of CONFIG.ESCALATION) {
-      if (this.runCount >= tier.minRun) {
+    for (const tier of CONFIG.ESCALATION_BASE) {
+      if (this.winCount >= tier.minWins) {
         count = tier.count;
       }
     }
@@ -416,6 +422,16 @@ export class Game {
     // Reset vehicle to center
     this.vehicle = new Vehicle(this.world.width / 2, this.world.height / 2);
 
+    // Wire collision recording
+    this.vehicle.onCollision = (type, pos, speed) => {
+      if (this.recorder) {
+        this.recorder.recordRockHit(type);
+        const mph = Math.round(speed * CONFIG.UNITS.PX_TO_MPH);
+        const label = type === 'water' ? 'Splashed into water oasis' : 'Hit a rock';
+        this.recorder.recordEvent('collision', `${label} going ~${mph} mph`, pos);
+      }
+    };
+
     // Spawn pursuers based on escalation
     const pursuerCount = this.getPursuerCount();
     this.pursuerSomas = loadOrCreatePursuerSomas(pursuerCount);
@@ -503,6 +519,11 @@ export class Game {
     const recording = this.recorder.finish(outcome, objDist);
     this.lastRecording = recording;
 
+    // Track wins for escalation
+    if (outcome === 'delivered') {
+      this.winCount++;
+    }
+
     // Add to driver run history
     this.soma.runHistory.push({
       runId: this.runCount,
@@ -546,6 +567,7 @@ export class Game {
     console.log(JSON.stringify({
       _wm: 'run_end',
       runCount: this.runCount,
+      winCount: this.winCount,
       outcome,
       duration: recording.durationSeconds,
       distance: recording.distanceCovered,

@@ -147,7 +147,7 @@ ${soma.memory || '(empty — no memories yet)'}
 <run_history>
 ${soma.runHistory.length === 0
     ? 'No previous runs.'
-    : soma.runHistory.map(h =>
+    : soma.runHistory.slice(-2).map(h =>
         `Run ${h.runId}: ${h.outcome} (${Math.round(h.durationSeconds)}s, ${(h.distanceCovered * CONFIG.UNITS.PX_TO_MILES).toFixed(1)} mi traveled${h.reachedObjective ? ', REACHED OBJECTIVE' : ''})`
       ).join('\n')
 }
@@ -212,6 +212,7 @@ Duration: ${recording.durationSeconds.toFixed(1)}s (max ${CONFIG.RUN.MAX_DURATIO
 Distance covered: ${distMi} mi
 Distance to objective at end: ${objDistLabel}
 Terrain: ${recording.terrainSummary || 'no data'}
+Incidents: ${recording.incidentSummary || 'nothing notable'}
 </run_summary>
 
 <events>
@@ -565,6 +566,8 @@ Duration: ${recording.durationSeconds.toFixed(1)} seconds
 Ended up: ${objDistLabel}
 
 Terrain driven through: ${recording.terrainSummary || 'no data'}
+
+Incidents: ${recording.incidentSummary || 'nothing notable'}
 
 Boss radio during the run:
 ${radioBlock}

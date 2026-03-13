@@ -7,6 +7,7 @@ export class RunRecorder {
   // Terrain tracking
   private terrainTicks: Record<string, number> = {};
   private rockHits: number = 0;
+  private waterHits: number = 0;
   private lastTerrain: string = 'sand';
 
   constructor() {
@@ -23,6 +24,7 @@ export class RunRecorder {
       distanceCovered: 0,
       objectiveDistance: 0,
       terrainSummary: '',
+      incidentSummary: '',
     };
   }
 
@@ -74,8 +76,12 @@ export class RunRecorder {
     this.lastTerrain = type;
   }
 
-  recordRockHit(): void {
-    this.rockHits++;
+  recordRockHit(type: 'rock' | 'water' = 'rock'): void {
+    if (type === 'water') {
+      this.waterHits++;
+    } else {
+      this.rockHits++;
+    }
   }
 
   finish(outcome: RunRecording['outcome'], objectiveDistance: number): RunRecording {
@@ -96,8 +102,21 @@ export class RunRecorder {
 
     // Build terrain summary
     this.recording.terrainSummary = this.buildTerrainSummary();
+    this.recording.incidentSummary = this.buildIncidentSummary();
 
     return this.recording;
+  }
+
+  private buildIncidentSummary(): string {
+    const parts: string[] = [];
+    if (this.rockHits > 0) parts.push(`hit ${this.rockHits} rock${this.rockHits > 1 ? 's' : ''}`);
+    if (this.waterHits > 0) parts.push(`drove into water ${this.waterHits} time${this.waterHits > 1 ? 's' : ''}`);
+
+    // Count pursuer-related events
+    const spotEvents = this.recording.events.filter(e => e.type === 'spotted');
+    if (spotEvents.length > 0) parts.push(`spotted by cops ${spotEvents.length} time${spotEvents.length > 1 ? 's' : ''}`);
+
+    return parts.length > 0 ? parts.join(', ') + '.' : 'Clean run — no collisions.';
   }
 
   private buildTerrainSummary(): string {
@@ -122,7 +141,6 @@ export class RunRecorder {
     if (roughPct > 0) parts.push(`${roughPct}% on rough sand`);
     if (waterPct > 0) parts.push(`${waterPct}% through water oases`);
     if (cactusPct > 0) parts.push(`${cactusPct}% through cactus thickets`);
-    if (this.rockHits > 0) parts.push(`hit ${this.rockHits} rock${this.rockHits > 1 ? 's' : ''}`);
 
     return parts.join(', ') + '.';
   }

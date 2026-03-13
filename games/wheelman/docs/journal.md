@@ -483,8 +483,50 @@ Playtesting revealed the desert was too sparse — driver could beeline straight
 
 Key lesson: individual small obstacles at driving speed are meaningless. You need *formations* that force route decisions — walls of rocks you must go around, oases big enough to be real barriers, cactus thickets dense enough that cutting through them hurts.
 
+---
+
+## Session 7 — Debrief awareness, win-based escalation
+
+Date: 2026-03-13
+
+### Collision recording for debrief immersion
+
+Problem: boss yells "you hit that rock!" on the radio, but the haiku debrief has no idea any collision happened. It would hallucinate urban features or ignore obstacles entirely. Broke immersion.
+
+Fix: `Vehicle.onCollision` callback fires on every obstacle hit (rock or water). Game wires it to the recorder:
+- `recordRockHit(type)` counts rocks vs water separately
+- `recordEvent('collision', 'Hit a rock going ~65 mph', pos)` logs each hit with speed (in mph, not px)
+- `buildIncidentSummary()` produces natural language: "hit 3 rocks, drove into water 2 times, spotted by cops 1 time"
+- `incidentSummary` field added to `RunRecording`
+
+Both the debrief (haiku) and reflection (sonnet) prompts now include the incident summary. Debrief can now say "Yeah, I clipped that rock formation" because it actually knows.
+
+Rock hit count removed from `buildTerrainSummary()` (was duplicated there, now lives in incident summary).
+
+### Run history capped to last 2
+
+Was sending entire unbounded `runHistory` array in the reflection system prompt. Now `.slice(-2)`. The driver's `memory` section is where long-term patterns should live, not a growing list of raw run outcomes.
+
+### Win-based escalation (uncapped)
+
+Old: cop count scaled by total run number (1→3→5→7 runs = 1→2→3→4 cops, capped at 4).
+
+New: escalation only advances on **deliveries** (wins). Failed runs don't increase difficulty.
+
+| Wins | Cops |
+|------|------|
+| 0    | 1    |
+| 2    | 2    |
+| 4    | 3    |
+| 6    | 4    |
+| 7+   | 4 + (wins - 6) |
+
+No cap. Win 10 = 8 cops. Win 15 = 13 cops. Templates cycle (cop 5 = second Viper, etc.) but diverge through reflection.
+
+Config: `ESCALATION_BASE` table for 0-6 wins, `ESCALATION_UNCAPPED_FROM` for the +1/win phase. `winCount` derived from `runHistory` on load, tracked live in `game.ts`, reset on R.
+
 ### What's next
-- **Playtest** — validate obstacle density, formation variety, route-forcing
+- **Playtest** — validate collision recording shows up in debrief, test escalation curve
 - Per-cop model diversity via OpenRouter
 - Road sprite rendering from Desert_road sheet
 - Consider giving pursuers objective location at higher escalation tiers

@@ -48,13 +48,15 @@ export const CONFIG = {
     SIGNAL_TIMEOUT: 50,      // ms max for on_tick execution
   },
 
-  // Escalation: how many pursuers per run
-  ESCALATION: [
-    { minRun: 1, count: 1 },
-    { minRun: 3, count: 2 },
-    { minRun: 5, count: 3 },
-    { minRun: 7, count: 4 },
+  // Escalation: how many pursuers per win count
+  // Only ticks up on successful deliveries. After 4 cops, +1 per win.
+  ESCALATION_BASE: [
+    { minWins: 0, count: 1 },
+    { minWins: 2, count: 2 },
+    { minWins: 4, count: 3 },
+    { minWins: 6, count: 4 },
   ],
+  ESCALATION_UNCAPPED_FROM: 7, // wins >= this: count = 4 + (wins - 6)
 
   // Display units — pixels to human-readable
   // 220 px/s max → ~120 mph, 14000px world → ~9.5 miles across
