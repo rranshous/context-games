@@ -466,8 +466,25 @@ Added `getTerrainType(x, y): string` method to DesertWorld for terrain logging (
 - Terrain description is just the values — no "STICK TO ROADS" hand-holding. The model should figure that out from the numbers.
 - Removed verbose bullet points about road-seeking and radio parsing. The API docs + terrain values tell the whole story.
 
+### Bigger map + denser obstacles (mid-session)
+
+Playtesting revealed the desert was too sparse — driver could beeline straight to objective without encountering anything. Two rounds of changes:
+
+**Map scale**: 8000×6000 → **14000×10000** (~9.5 miles across)
+
+**Obstacle generation overhaul** — individual scattered dots replaced with formations:
+- **Rock formations**: 40% ridges (lines of rocks forming walls 150-450px), 60% dense clusters. Plus scattered individuals. ~37 formations + 60 scatter from 300 budget.
+- **Water oases**: radius 100-220px (was 50-120). Real hazards now.
+- **Cactus groves**: 8-27 per grove with 60-140px spread (was 3-12 in 60px). Actual thickets.
+- **Rough sand**: radius 80-220px (was 50-140).
+- **Roads**: 18 segments (was 8). More route choices.
+
+**Timer**: 60s → **240s** (4 minutes). Bigger map needs more time. Preference: runs should end via delivery or capture, not timeout.
+
+Key lesson: individual small obstacles at driving speed are meaningless. You need *formations* that force route decisions — walls of rocks you must go around, oases big enough to be real barriers, cactus thickets dense enough that cutting through them hurts.
+
 ### What's next
-- **Playtest** — validate terrain feel, single-turn reflection quality, debrief terrain references
+- **Playtest** — validate obstacle density, formation variety, route-forcing
 - Per-cop model diversity via OpenRouter
 - Road sprite rendering from Desert_road sheet
 - Consider giving pursuers objective location at higher escalation tiers

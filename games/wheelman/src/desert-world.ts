@@ -48,8 +48,9 @@ export class DesertWorld {
   // --- Generation ---
 
   private generateWater(): void {
+    // Larger oases that actually block paths
     for (let i = 0; i < CONFIG.DESERT.WATER_COUNT; i++) {
-      const radius = 50 + Math.random() * 70;
+      const radius = 100 + Math.random() * 120; // 100-220px (was 50-120)
       const x = radius + Math.random() * (this.width - radius * 2);
       const y = radius + Math.random() * (this.height - radius * 2);
       this.waterOases_.push({
@@ -61,35 +62,65 @@ export class DesertWorld {
   }
 
   private generateRocks(): void {
-    for (let i = 0; i < CONFIG.DESERT.ROCK_COUNT; i++) {
-      const radius = 16;
-      const x = radius + Math.random() * (this.width - radius * 2);
-      const y = radius + Math.random() * (this.height - radius * 2);
-      // Don't place rocks inside water
-      let inWater = false;
-      for (const w of this.waterOases_) {
-        const dx = x - w.x;
-        const dy = y - w.y;
-        if (Math.sqrt(dx * dx + dy * dy) < w.radius + radius) {
-          inWater = true;
-          break;
+    // Rock formations — clusters that form barriers you must drive around
+    const formationCount = Math.floor(CONFIG.DESERT.ROCK_COUNT / 8);
+    for (let i = 0; i < formationCount; i++) {
+      const cx = 200 + Math.random() * (this.width - 400);
+      const cy = 200 + Math.random() * (this.height - 400);
+
+      // Alternate between ridges (linear walls) and clusters (dense groups)
+      if (Math.random() < 0.4) {
+        // Ridge — line of rocks forming a wall
+        const angle = Math.random() * Math.PI;
+        const length = 150 + Math.random() * 300; // 150-450px long
+        const count = Math.floor(length / 30);
+        for (let j = 0; j < count; j++) {
+          const t = (j / count) - 0.5;
+          const rx = cx + Math.cos(angle) * length * t + (Math.random() - 0.5) * 20;
+          const ry = cy + Math.sin(angle) * length * t + (Math.random() - 0.5) * 20;
+          this.addRockIfClear(rx, ry, 14 + Math.random() * 8);
+        }
+      } else {
+        // Cluster — dense group
+        const count = 5 + Math.floor(Math.random() * 8);
+        const spread = 40 + Math.random() * 60;
+        for (let j = 0; j < count; j++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = Math.random() * spread;
+          this.addRockIfClear(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 14 + Math.random() * 8);
         }
       }
-      if (!inWater) {
-        this.rocks.push({ x, y, radius, type: 'rock' });
-      }
+    }
+
+    // Scatter some individual rocks too
+    const scatterCount = Math.floor(CONFIG.DESERT.ROCK_COUNT * 0.2);
+    for (let i = 0; i < scatterCount; i++) {
+      const x = 100 + Math.random() * (this.width - 200);
+      const y = 100 + Math.random() * (this.height - 200);
+      this.addRockIfClear(x, y, 16);
     }
   }
 
+  private addRockIfClear(x: number, y: number, radius: number): void {
+    for (const w of this.waterOases_) {
+      const dx = x - w.x;
+      const dy = y - w.y;
+      if (Math.sqrt(dx * dx + dy * dy) < w.radius + radius) return;
+    }
+    this.rocks.push({ x, y, radius, type: 'rock' });
+  }
+
   private generateCactusGroves(): void {
+    // Denser, larger groves that form thickets you can't easily cut through
     for (let i = 0; i < CONFIG.DESERT.CACTUS_GROVE_COUNT; i++) {
       const cx = 100 + Math.random() * (this.width - 200);
       const cy = 100 + Math.random() * (this.height - 200);
-      const count = 3 + Math.floor(Math.random() * 10);
+      const count = 8 + Math.floor(Math.random() * 20); // 8-27 per grove (was 3-12)
+      const spread = 60 + Math.random() * 80; // larger spread
       const grove: CactusPoint[] = [];
       for (let j = 0; j < count; j++) {
         const angle = Math.random() * Math.PI * 2;
-        const dist = Math.random() * 60;
+        const dist = Math.random() * spread;
         grove.push({
           x: cx + Math.cos(angle) * dist,
           y: cy + Math.sin(angle) * dist,
@@ -100,8 +131,9 @@ export class DesertWorld {
   }
 
   private generateTexturedSand(): void {
+    // Larger rough patches
     for (let i = 0; i < CONFIG.DESERT.TEXTURED_SAND_COUNT; i++) {
-      const radius = 50 + Math.random() * 90;
+      const radius = 80 + Math.random() * 140; // 80-220px (was 50-140)
       const x = radius + Math.random() * (this.width - radius * 2);
       const y = radius + Math.random() * (this.height - radius * 2);
       this.texturedSand.push({

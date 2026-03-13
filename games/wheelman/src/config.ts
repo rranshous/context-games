@@ -1,5 +1,5 @@
 export const CONFIG = {
-  WORLD: { WIDTH: 8000, HEIGHT: 6000, TILE_SIZE: 32 },
+  WORLD: { WIDTH: 14000, HEIGHT: 10000, TILE_SIZE: 32 },
   CANVAS: { WIDTH: 960, HEIGHT: 720 },
 
   VEHICLE: {
@@ -18,7 +18,7 @@ export const CONFIG = {
   },
 
   RUN: {
-    MAX_DURATION: 60, // seconds
+    MAX_DURATION: 240, // seconds
     OBJECTIVE_REACH_DIST: 40, // pixels to count as "arrived"
   },
 
@@ -28,11 +28,11 @@ export const CONFIG = {
 
   // Desert generation
   DESERT: {
-    WATER_COUNT: 20,
-    ROCK_COUNT: 80,
-    CACTUS_GROVE_COUNT: 30,
-    TEXTURED_SAND_COUNT: 60,
-    ROAD_SEGMENTS: 8, // rough roads connecting areas
+    WATER_COUNT: 50,
+    ROCK_COUNT: 300,       // feeds formations (~37 clusters + 60 scatter)
+    CACTUS_GROVE_COUNT: 80,
+    TEXTURED_SAND_COUNT: 100,
+    ROAD_SEGMENTS: 18,     // more roads = more route choices
   },
 
   PURSUER: {
@@ -57,10 +57,10 @@ export const CONFIG = {
   ],
 
   // Display units — pixels to human-readable
-  // 220 px/s max → ~120 mph, 8000px world → ~5.5 miles across
+  // 220 px/s max → ~120 mph, 14000px world → ~9.5 miles across
   UNITS: {
     PX_TO_MPH: 120 / 220,      // multiply px/s by this for mph
-    PX_TO_MILES: 5.5 / 8000,   // multiply px by this for miles
+    PX_TO_MILES: 9.5 / 14000,  // multiply px by this for miles
   },
 
   API_ENDPOINT: '/api/inference/anthropic/messages',
