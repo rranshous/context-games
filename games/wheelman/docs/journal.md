@@ -427,10 +427,47 @@ Two distinct contexts share the `reflecting` game state:
 - **Debrief terrain accuracy** — haiku sometimes mentions terrain it can't actually see/know about. The debrief gets run outcome + radio only, NOT what terrain the driver encountered. Could add terrain summary to debrief input (e.g., "drove through 2 oases, hit 3 rocks").
 - **"Preparing next drop" isn't waiting for cops** — correct. Only waits for driver reflection. Cop reflection runs fully in background and applies whenever it finishes (even mid-run).
 
+---
+
+## Session 6 — 2026-03-12 — Terrain Rebalance + Single-Turn Reflection
+
+**Goal**: Fix broken terrain values (roads slower than sand!), add cactus slowdown, make water punishing, speed up reflection loop, give debrief terrain awareness.
+
+### Terrain rebalance
+- **Sand**: 1.0 → **0.85** (desert drag — ~102 mph effective max)
+- **Road**: 0.9 → **1.0** (fastest surface, no drag — full 120 mph)
+- **Cactus**: no effect → **0.5** (dense vegetation, significant slowdown)
+- **Textured sand**: 0.4 → **0.3** (rougher)
+- **Water**: 0.15 → **0.05** (near-impassable, super punishing)
+
+Key insight: instead of making roads go above 1.0 (would need physics changes), lowered sand baseline so roads are naturally fastest by comparison. 18% speed advantage on roads vs sand.
+
+Cactus hit radius: 12px per cactus point. With 30 groves × ~6 points = ~180 individual cacti checked per frame. Brute force is fine at this scale.
+
+Added `getTerrainType(x, y): string` method to DesertWorld for terrain logging (separate from the numeric `getTerrainEffect`).
+
+### Single-turn reflection
+- **Removed multi-turn tool loop** — was `while (turns < 3)` with up to 3 API round-trips
+- Now single inference call — model emits all tool_use blocks (edit_on_tick + edit_memory + edit_identity) in one response
+- User prompt tells model: "Call ALL tools you need in a single response"
+- **Tradeoff**: model can't retry on validation failure. In practice sonnet almost never produces invalid code.
+- **Speed gain**: ~5-15s faster (no re-sending the full context + map image 2-3x)
+
+### Terrain event log for debrief
+- `RunRecorder` now tracks terrain type every frame via `recordTerrain(type)`
+- Builds percentage summary on `finish()`: e.g., "42% on roads, 55% on open sand, 3% through water oases"
+- `terrainSummary: string` added to `RunRecording` type
+- Summary passed to both debrief (haiku) and reflection (sonnet) prompts
+- Debrief can now reference actual terrain: "plowing through that oasis" instead of hallucinating urban features
+
+### Reflection prompt cleanup
+- Removed pixel values from reflection user prompt (distances now in mi/ft)
+- Run history uses miles instead of px
+- Terrain description is just the values — no "STICK TO ROADS" hand-holding. The model should figure that out from the numbers.
+- Removed verbose bullet points about road-seeking and radio parsing. The API docs + terrain values tell the whole story.
+
 ### What's next
-- **Fix road/cactus/water terrain values** — roads should be fast, cacti should have some effect
-- **Playtest with radio** — the debrief really shines when there's radio transcript to reference
+- **Playtest** — validate terrain feel, single-turn reflection quality, debrief terrain references
 - Per-cop model diversity via OpenRouter
 - Road sprite rendering from Desert_road sheet
 - Consider giving pursuers objective location at higher escalation tiers
-- Consider terrain event log in debrief input for better driver self-awareness

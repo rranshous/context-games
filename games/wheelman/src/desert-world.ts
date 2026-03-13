@@ -55,7 +55,7 @@ export class DesertWorld {
       this.waterOases_.push({
         type: 'water',
         x, y, radius,
-        slowdown: 0.15,
+        slowdown: 0.05,
       });
     }
   }
@@ -107,7 +107,7 @@ export class DesertWorld {
       this.texturedSand.push({
         type: 'textured_sand',
         x, y, radius,
-        slowdown: 0.4,
+        slowdown: 0.3,
       });
     }
   }
@@ -181,29 +181,65 @@ export class DesertWorld {
       const dx = x - w.x;
       const dy = y - w.y;
       if (dx * dx + dy * dy < w.radius * w.radius) {
-        return w.slowdown;
+        return w.slowdown; // 0.05 — near halt
       }
     }
 
-    // Check roads (faster travel)
+    // Check cactus groves (dense vegetation)
+    for (const grove of this.cactusGroves) {
+      for (const c of grove) {
+        const dx = x - c.x;
+        const dy = y - c.y;
+        if (dx * dx + dy * dy < 12 * 12) {
+          return 0.5; // cactus thicket
+        }
+      }
+    }
+
+    // Check roads (best surface)
     for (const road of this.roads) {
       const dist = this.pointToSegmentDist(x, y, road.x1, road.y1, road.x2, road.y2);
       if (dist < road.width * 0.5) {
-        return 0.9;
+        return 1.0; // road — full speed, no drag
       }
     }
 
-    // Check textured sand
+    // Check textured sand (rough patches)
     for (const ts of this.texturedSand) {
       const dx = x - ts.x;
       const dy = y - ts.y;
       if (dx * dx + dy * dy < ts.radius * ts.radius) {
-        return ts.slowdown;
+        return ts.slowdown; // 0.3
       }
     }
 
-    // Default sand — full speed
-    return 1.0;
+    // Default sand — slight desert drag
+    return 0.85;
+  }
+
+  getTerrainType(x: number, y: number): string {
+    for (const w of this.waterOases_) {
+      const dx = x - w.x;
+      const dy = y - w.y;
+      if (dx * dx + dy * dy < w.radius * w.radius) return 'water';
+    }
+    for (const grove of this.cactusGroves) {
+      for (const c of grove) {
+        const dx = x - c.x;
+        const dy = y - c.y;
+        if (dx * dx + dy * dy < 12 * 12) return 'cactus';
+      }
+    }
+    for (const road of this.roads) {
+      const dist = this.pointToSegmentDist(x, y, road.x1, road.y1, road.x2, road.y2);
+      if (dist < road.width * 0.5) return 'road';
+    }
+    for (const ts of this.texturedSand) {
+      const dx = x - ts.x;
+      const dy = y - ts.y;
+      if (dx * dx + dy * dy < ts.radius * ts.radius) return 'rough_sand';
+    }
+    return 'sand';
   }
 
   getAvoidanceVector(pos: Position): Position | null {

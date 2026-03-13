@@ -38,6 +38,7 @@ export interface RunRecording {
   durationSeconds: number;
   distanceCovered: number;
   objectiveDistance: number; // how far from objective at end
+  terrainSummary: string; // human-readable summary of terrain encountered
 }
 
 // Driver soma

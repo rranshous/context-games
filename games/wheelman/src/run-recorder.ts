@@ -4,6 +4,11 @@ export class RunRecorder {
   private recording: RunRecording;
   private tickCount: number = 0;
 
+  // Terrain tracking
+  private terrainTicks: Record<string, number> = {};
+  private rockHits: number = 0;
+  private lastTerrain: string = 'sand';
+
   constructor() {
     this.recording = {
       driverPath: [],
@@ -17,6 +22,7 @@ export class RunRecorder {
       durationSeconds: 0,
       distanceCovered: 0,
       objectiveDistance: 0,
+      terrainSummary: '',
     };
   }
 
@@ -63,6 +69,15 @@ export class RunRecorder {
     });
   }
 
+  recordTerrain(type: string): void {
+    this.terrainTicks[type] = (this.terrainTicks[type] || 0) + 1;
+    this.lastTerrain = type;
+  }
+
+  recordRockHit(): void {
+    this.rockHits++;
+  }
+
   finish(outcome: RunRecording['outcome'], objectiveDistance: number): RunRecording {
     this.recording.endTime = Date.now();
     this.recording.outcome = outcome;
@@ -79,6 +94,36 @@ export class RunRecorder {
     }
     this.recording.distanceCovered = dist;
 
+    // Build terrain summary
+    this.recording.terrainSummary = this.buildTerrainSummary();
+
     return this.recording;
+  }
+
+  private buildTerrainSummary(): string {
+    const totalTicks = Object.values(this.terrainTicks).reduce((a, b) => a + b, 0);
+    if (totalTicks === 0) return 'No terrain data.';
+
+    const parts: string[] = [];
+    const pct = (type: string) => {
+      const t = this.terrainTicks[type] || 0;
+      return Math.round((t / totalTicks) * 100);
+    };
+
+    // Only mention terrain types the driver actually encountered
+    const sandPct = pct('sand');
+    const roadPct = pct('road');
+    const waterPct = pct('water');
+    const cactusPct = pct('cactus');
+    const roughPct = pct('rough_sand');
+
+    if (roadPct > 0) parts.push(`${roadPct}% on roads`);
+    if (sandPct > 0) parts.push(`${sandPct}% on open sand`);
+    if (roughPct > 0) parts.push(`${roughPct}% on rough sand`);
+    if (waterPct > 0) parts.push(`${waterPct}% through water oases`);
+    if (cactusPct > 0) parts.push(`${cactusPct}% through cactus thickets`);
+    if (this.rockHits > 0) parts.push(`hit ${this.rockHits} rock${this.rockHits > 1 ? 's' : ''}`);
+
+    return parts.join(', ') + '.';
   }
 }

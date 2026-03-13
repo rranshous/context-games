@@ -148,7 +148,7 @@ ${soma.memory || '(empty — no memories yet)'}
 ${soma.runHistory.length === 0
     ? 'No previous runs.'
     : soma.runHistory.map(h =>
-        `Run ${h.runId}: ${h.outcome} (${Math.round(h.durationSeconds)}s, ${Math.round(h.distanceCovered)}px traveled${h.reachedObjective ? ', REACHED OBJECTIVE' : ''})`
+        `Run ${h.runId}: ${h.outcome} (${Math.round(h.durationSeconds)}s, ${(h.distanceCovered * CONFIG.UNITS.PX_TO_MILES).toFixed(1)} mi traveled${h.reachedObjective ? ', REACHED OBJECTIVE' : ''})`
       ).join('\n')
 }
 </run_history>
@@ -171,13 +171,13 @@ world.objective              — {direction: "north"/"southeast"/etc, distance: 
                                The boss can see the objective on the drone feed — listen to the radio for precise guidance!
 world.radio                  — boss radio transcript (string, all speech so far)
 world.pursuers               — array of {position, speed, angle} for any pursuers
-world.terrain(x, y)          — terrain slowdown at position (1.0 = clear, 0.15 = water)
+world.terrain(x, y)          — terrain slowdown at position (1.0 = road, 0.85 = sand, 0.5 = cactus, 0.3 = rough sand, 0.05 = water)
 world.distanceTo(pos)        — distance from you to a position
 world.angleTo(pos)           — angle from you to a position
 world.mapBounds              — {width, height} of the desert
 world.sensorRange            — how far you can "see" (${CONFIG.VEHICLE.SENSOR_RANGE}px)
 
-TERRAIN: The desert has sand (1.0, normal), textured sand (0.4, rough), water oases (0.15, very slow), roads (0.9, fast), and rocks (solid obstacles that bounce you). Plan your route.
+TERRAIN: Roads (1.0), sand (0.85), cactus thickets (0.5), rough sand (0.3), water oases (0.05). Rocks are solid obstacles that bounce you.
 
 During this reflection, you have three tools:
 - edit_on_tick: Rewrite your driving code. This is the most important tool.
@@ -198,14 +198,20 @@ function buildUserPrompt(recording: RunRecording): string {
       ).join('\n')
     : '  (no notable events)';
 
+  const distMi = (recording.distanceCovered * CONFIG.UNITS.PX_TO_MILES).toFixed(1);
+  const objDistMi = recording.objectiveDistance * CONFIG.UNITS.PX_TO_MILES;
+  const objDistLabel = objDistMi < 0.1
+    ? `${Math.round(objDistMi * 5280)} ft`
+    : `${objDistMi.toFixed(1)} mi`;
+
   return `The run is over. Here's what happened.
 
 <run_summary>
 Outcome: ${recording.outcome.toUpperCase()}
 Duration: ${recording.durationSeconds.toFixed(1)}s (max ${CONFIG.RUN.MAX_DURATION}s)
-Distance covered: ${Math.round(recording.distanceCovered)}px
-Distance to objective at end: ${Math.round(recording.objectiveDistance)}px
-Path waypoints: ${recording.driverPath.length}
+Distance covered: ${distMi} mi
+Distance to objective at end: ${objDistLabel}
+Terrain: ${recording.terrainSummary || 'no data'}
 </run_summary>
 
 <events>
@@ -220,13 +226,13 @@ The attached image is a bird's-eye view of your run. Green line = your path. Gol
 
 Now reflect on this run. What worked? What failed? What did the boss tell you?
 
+Call ALL tools you need in a single response — edit_on_tick, edit_memory, and edit_identity if needed. Do not wait for tool results; make all changes at once.
+
 1. **Review**: Look at the map, the path you took, and the boss's radio messages. Did you listen to the boss? Did your route make sense?
 
-2. **Call edit_on_tick**: Rewrite your driving code RIGHT NOW with specific improvements. Your current code is what actually runs — if you don't call edit_on_tick, nothing changes.
-   - REMEMBER: You only get a compass direction and rough distance to the objective — NOT exact coordinates. You must navigate by feel and by listening to the boss.
-   - Think about: obstacle avoidance, route planning, speed control, responding to boss radio commands, terrain awareness
-   - The boss's radio messages are in world.radio — use them! The boss can see the objective on the drone. If the boss says "go left" or "watch out", your code should respond.
-   - Parse the radio for directional cues! The boss is your GPS.
+2. **Call edit_on_tick**: Rewrite your driving code with specific improvements.
+   - You only get a compass direction and rough distance — NOT exact coordinates. The boss is your GPS.
+   - Think about: obstacle avoidance, terrain awareness, speed control, responding to radio commands
 
 3. **Call edit_memory**: Record what you learned. Focus on patterns — terrain layout, boss communication style, what driving strategies work.
 
@@ -415,8 +421,8 @@ export async function reflectDriver(
       radioLines: recording.radioTranscript.length,
     }));
 
-    // Initial message — multimodal (image + text)
-    let messages: AnthropicMessage[] = [
+    // Single inference call — model uses all tools it needs in one shot
+    const messages: AnthropicMessage[] = [
       {
         role: 'user',
         content: [
@@ -433,82 +439,52 @@ export async function reflectDriver(
       },
     ];
 
-    let totalInput = 0;
-    let totalOutput = 0;
-    let turns = 0;
-    const maxTurns = 3;
+    const response = await callAPI({
+      model: 'claude-sonnet-4-6',
+      system: systemPrompt,
+      messages,
+      tools: SCAFFOLD_TOOLS,
+      max_tokens: 4096,
+    });
 
-    while (turns < maxTurns) {
-      turns++;
+    if (!response) {
+      result.error = 'API call failed';
+      return result;
+    }
 
-      const response = await callAPI({
-        model: 'claude-sonnet-4-6',
-        system: systemPrompt,
-        messages,
-        tools: SCAFFOLD_TOOLS,
-        max_tokens: 4096,
-      });
+    // Process all tool calls from the single response
+    let turnText = '';
+    const turnToolCalls: TurnUpdate['toolCalls'] = [];
 
-      if (!response) {
-        result.error = 'API call failed';
-        return result;
+    for (const block of response.content) {
+      if (block.type === 'text' && block.text) {
+        result.reasoning += block.text + '\n';
+        turnText += block.text + '\n';
       }
 
-      totalInput += response.usage.input_tokens;
-      totalOutput += response.usage.output_tokens;
-
-      // Process response
-      const toolResults: AnthropicContentBlock[] = [];
-      let hasToolUse = false;
-      let turnText = '';
-      const turnToolCalls: TurnUpdate['toolCalls'] = [];
-
-      for (const block of response.content) {
-        if (block.type === 'text' && block.text) {
-          result.reasoning += block.text + '\n';
-          turnText += block.text + '\n';
-        }
-
-        if (block.type === 'tool_use' && block.name && block.input) {
-          hasToolUse = true;
-          const toolResult = processToolCall(block.name, block.input, soma, result);
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: JSON.stringify(toolResult),
-          });
-          turnToolCalls.push({
-            name: block.name,
-            input: block.input,
-            result: toolResult,
-          });
-        }
-      }
-
-      // Fire per-turn callback for live UI
-      if (onTurnUpdate) {
-        onTurnUpdate({
-          turnNum: turns,
-          newText: turnText,
-          toolCalls: turnToolCalls,
+      if (block.type === 'tool_use' && block.name && block.input) {
+        const toolResult = processToolCall(block.name, block.input, soma, result);
+        turnToolCalls.push({
+          name: block.name,
+          input: block.input,
+          result: toolResult,
         });
       }
+    }
 
-      // If no tool use or stop, we're done
-      if (!hasToolUse || response.stop_reason === 'end_turn') {
-        break;
-      }
-
-      // Continue conversation with tool results
-      messages = [
-        ...messages,
-        { role: 'assistant', content: response.content },
-        { role: 'user', content: toolResults },
-      ];
+    if (onTurnUpdate) {
+      onTurnUpdate({
+        turnNum: 1,
+        newText: turnText,
+        toolCalls: turnToolCalls,
+      });
     }
 
     result.success = true;
-    result.tokenUsage = { input: totalInput, output: totalOutput };
+    result.tokenUsage = {
+      input: response.usage.input_tokens,
+      output: response.usage.output_tokens,
+    };
 
     // Clear compile cache so new code gets compiled next run
     if (result.onTickUpdated) {
@@ -587,6 +563,8 @@ If the boss gave radio instructions, acknowledge whether you followed them or no
 
 Duration: ${recording.durationSeconds.toFixed(1)} seconds
 Ended up: ${objDistLabel}
+
+Terrain driven through: ${recording.terrainSummary || 'no data'}
 
 Boss radio during the run:
 ${radioBlock}

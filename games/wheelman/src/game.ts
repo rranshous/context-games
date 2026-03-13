@@ -241,13 +241,14 @@ export class Game {
         // Camera follow
         this.camera.update(this.vehicle.x, this.vehicle.y);
 
-        // Record driver position
+        // Record driver position + terrain
         if (this.recorder) {
           this.recorder.recordDriverPosition(
             { x: this.vehicle.x, y: this.vehicle.y },
             this.vehicle.speed,
             this.vehicle.angle,
           );
+          this.recorder.recordTerrain(this.world.getTerrainType(this.vehicle.x, this.vehicle.y));
         }
 
         // Update each pursuer
