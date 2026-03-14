@@ -1,0 +1,17 @@
+{
+  "name": "tag-your-dead",
+  "version": "0.1.0",
+  "description": "Desert demolition derby tag — player vs self-improving AI actants",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch"
+  },
+  "keywords": ["game", "demolition-derby", "tag", "actants", "AI"],
+  "author": "Robby Ranshous",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.9.3"
+  }
+}
