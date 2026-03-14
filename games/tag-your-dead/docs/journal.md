@@ -65,9 +65,19 @@ Each has a soma with `identity`, `on_tick` (driving code), `memory`. On_tick run
 - Round results screen with placements and tag stats
 - Career stats persist across rounds on title screen
 
+### Current state (end of session 1)
+- Game is fully playable at `http://localhost:3000/dev/tag-your-dead/index.html`
+- AI cars chase/evade but mostly timeout rather than actively tagging each other — they need tighter pursuit logic or a smaller arena still
+- Reflection system is wired up but hasn't been tested end-to-end yet (need to press space on round-over screen to trigger it)
+- No car-to-car collision physics — cars pass through each other, only tagging on proximity check
+- The `me` API exposes: `x, y, angle, speed, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read()`
+- The `world` API exposes: `time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}]`
+- localStorage key: `tag-your-dead-somas` — `resetSomas()` via `window.__tagYourDead.resetSomas()`
+
 ### What's next
-- Playtest with actual keyboard input
-- Verify reflection actually improves AI driving (need to trigger space after round over)
-- Car-to-car collision physics (currently cars pass through each other, only tagging on proximity)
-- Sound effects?
-- More arena variety?
+- Playtest with actual keyboard input — verify it feels fun
+- Trigger reflection after a round and verify AI code actually changes
+- Car-to-car collision physics (bump/bounce on contact, not just tag check)
+- AI too passive when "it" — consider: shorter timeout, smaller arena, or smarter default on_tick
+- Sound effects
+- More arena variety (different seeds, maybe hazards like moving obstacles)
