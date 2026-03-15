@@ -22,7 +22,7 @@ async function callAPI(
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
-    body.tool_choice = { type: 'any' };
+    body.tool_choice = { type: 'auto' };
   }
 
   const resp = await fetch(API, {
@@ -115,6 +115,7 @@ export async function reflectOnLife(
 GAME MECHANICS:
 - Continuous demolition derby. No rounds — die, respawn in 5s, keep fighting.
 - Damage from collisions: speed × 0.15. Being "it" multiplies YOUR damage output by 3x.
+- Being "it" also gives +15% max speed and 2x faster boost recharge — use this advantage to chase down targets.
 - Front-bumper hits (ramming nose-first, within ±60° of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
 - Die (HP=0 or IT timer expires) → score halved, then respawn.
 - Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score → more HP and speed (caps at score 200).
@@ -134,7 +135,7 @@ Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills:
 Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
 Collisions: ${buildHitSummary(result)}.
 
-Reflect on this life and update your soma.`;
+Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit the same code — make a specific tactical change based on how you died. Also update memory with what you learned.`;
 
   try {
     const resp = await callAPI('claude-sonnet-4-5-20250929', system, userMsg, REFLECTION_TOOLS);
@@ -154,13 +155,21 @@ Reflect on this life and update your soma.`;
       }
     }
 
-    console.log(`[REFLECT] ${carName} reflection complete`);
+    // Log which tools were called
+    const toolsCalled = resp.content
+      .filter((b: { type: string }) => b.type === 'tool_use')
+      .map((b: { name?: string }) => b.name);
+    console.log(`[REFLECT] ${carName} reflection complete — tools: ${toolsCalled.join(', ') || 'none'}`);
 
     // Generate in-character brag if on_tick changed
     const codeChanged = updated.on_tick.content !== soma.on_tick.content;
     let brag: string | null = null;
     if (codeChanged) {
+      console.log(`[REFLECT] ${carName} on_tick changed, generating brag...`);
       brag = await generateBrag(carName, updated.identity.content, soma.on_tick.content, updated.on_tick.content);
+      console.log(`[REFLECT] ${carName} brag: ${brag ?? '(failed)'}`);
+    } else {
+      console.log(`[REFLECT] ${carName} on_tick unchanged — no brag`);
     }
 
     return { soma: updated, brag };
@@ -198,11 +207,16 @@ ${newCode.slice(0, 400)}`,
         }],
       }),
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.warn(`[BRAG] API ${resp.status}`);
+      return null;
+    }
     const data = await resp.json();
     const text = data.content?.[0]?.text?.trim();
+    if (!text) console.warn('[BRAG] empty response', data);
     return text || null;
-  } catch {
+  } catch (err) {
+    console.warn('[BRAG] failed:', err);
     return null;
   }
 }
