@@ -336,6 +336,13 @@ export class Game {
       damageTaken: Math.round(ai.car.damageTaken),
       kills: ai.car.kills,
       deathCause,
+      rockHits: ai.car.rockHits,
+      cactusHits: ai.car.cactusHits,
+      barrelHits: ai.car.barrelHits,
+      wallHits: ai.car.wallHits,
+      carCollisions: ai.car.carCollisions,
+      timeAtWall: Math.round(ai.car.timeAtWall),
+      avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0,
     };
 
     try {

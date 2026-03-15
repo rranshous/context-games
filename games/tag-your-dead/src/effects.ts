@@ -41,9 +41,13 @@ export function spawnDust(x: number, y: number, angle: number, speed: number, co
     const spread = (Math.random() - 0.5) * 1.5;
     const backAngle = angle + Math.PI + spread;
     const v = speed * (0.1 + Math.random() * 0.2);
+    // Spawn behind the car (offset 14px back from center)
+    const spawnDist = 14 + Math.random() * 4;
+    const bx = x + Math.cos(angle + Math.PI) * spawnDist;
+    const by = y + Math.sin(angle + Math.PI) * spawnDist;
     particles.push({
-      x: x + (Math.random() - 0.5) * 8,
-      y: y + (Math.random() - 0.5) * 8,
+      x: bx + (Math.random() - 0.5) * 6,
+      y: by + (Math.random() - 0.5) * 6,
       vx: Math.cos(backAngle) * v,
       vy: Math.sin(backAngle) * v,
       life: 0.3 + Math.random() * 0.4,

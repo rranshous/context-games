@@ -219,7 +219,38 @@ Cars that hit with their front bumper (within ±60° of facing direction) only t
 
 ### What's next
 - Playtest front-bumper mechanic — verify it feels rewarding
-- Update reflection prompt to mention front-bumper advantage (AI should learn to ram head-on)
 - Sound effects
-- Obstacle damage
+- More arena variety
+
+### Session 3b — Obstacle Physics, Hit Summary, Reflection Rewrite (2026-03-14)
+
+#### Obstacle physics overhaul
+- **Rocks**: solid — bounce off on contact + take damage (20% of equivalent car collision, front bumper reduction applies)
+- **Cacti & barrels**: soft — drive through them, speed halved on contact
+- Config: `ROCK_DAMAGE_FACTOR: 0.2`, `SOFT_OBSTACLE_SPEED_MULT: 0.5`
+
+#### Life event tracking
+Per-life counters on Car, reset on respawn:
+- `rockHits`, `cactusHits`, `barrelHits`, `wallHits`, `carCollisions`
+- `timeAtWall` — seconds spent pressed against arena edge (for detecting stuck-at-wall behavior)
+- `speedAccum`/`speedSamples` → average speed over the life
+- 0.5s cooldown on obstacle hit counting (prevents counting same obstacle 60 times while passing through)
+
+#### Reflection prompt rewrite
+Rewrote system + user prompts to be mechanics-only (no tactical prescriptions):
+- **System**: explains game mechanics (damage formula, front-bumper advantage, "it" multiplier, score formula, tag transfer, respawn), describes the arena (size, obstacle types and what they do), mentions what's visible via `world.otherCars`
+- **User**: death cause, score, avg speed, damage dealt/taken, kills, tags, and a `buildHitSummary()` string (e.g. "3 car collision(s), hit 2 rock(s), spent 4s pressed against arena edge")
+- No tactical suggestions — AI figures out its own strategy from the mechanics and its performance data
+
+#### Dust trail fix
+Dust particles now spawn 14-18px behind the car (offset along reverse of facing angle) instead of at car center. No longer renders on top of the car sprite.
+
+#### Current state
+- Rocks hurt, cacti/barrels slow but passable
+- Reflection gets full hit summary + avg speed + wall time
+- AI should be able to self-diagnose wall-hugging, rock-hitting, low-speed driving from the data
+
+#### What's next
+- Playtest and observe AI reflections — are they learning from the hit data?
+- Sound effects
 - More arena variety

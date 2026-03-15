@@ -39,6 +39,18 @@ export class Car implements CarState {
   damageDealt: number = 0;
   damageTaken: number = 0;
   kills: number = 0;
+  rockHits: number = 0;
+  cactusHits: number = 0;
+  barrelHits: number = 0;
+  wallHits: number = 0;
+  carCollisions: number = 0;
+  timeAtWall: number = 0;      // seconds spent pressed against arena edge
+  speedAccum: number = 0;      // accumulated |speed| for averaging
+  speedSamples: number = 0;    // frame count for speed averaging
+
+  // Obstacle hit tracking (for event log)
+  _lastObstacleHit: string | null = null;
+  private _obstacleCooldown: number = 0; // prevent counting same obstacle multiple frames
 
   // Controls — set each frame by player input or AI on_tick
   steerInput: number = 0;   // -1 to 1
@@ -142,33 +154,70 @@ export class Car implements CarState {
     let newX = this.x + vx;
     let newY = this.y + vy;
 
-    // Obstacle collision
+    // Obstacle collision — rocks bounce + damage, cacti/barrels slow + pass through
+    if (this._obstacleCooldown > 0) this._obstacleCooldown -= dt;
     const collision = arena.checkObstacleCollision(newX, newY, V.COLLISION_RADIUS);
     if (collision) {
-      const dx = newX - collision.x;
-      const dy = newY - collision.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = dx / dist;
-      const ny = dy / dist;
+      if (collision.type === 'rock') {
+        // Rock: solid bounce + damage
+        const dx = newX - collision.x;
+        const dy = newY - collision.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = dx / dist;
+        const ny = dy / dist;
 
-      const overlap = collision.radius + V.COLLISION_RADIUS - dist;
-      this.x += nx * (overlap + V.BOUNCE_DISTANCE);
-      this.y += ny * (overlap + V.BOUNCE_DISTANCE);
-      this.speed *= Math.abs(V.BOUNCE_FACTOR);
+        const overlap = collision.radius + V.COLLISION_RADIUS - dist;
+        this.x += nx * (overlap + V.BOUNCE_DISTANCE);
+        this.y += ny * (overlap + V.BOUNCE_DISTANCE);
+
+        // Rock damage: 20% of what a car collision would deal, front bumper applies
+        const impactSpeed = Math.abs(this.speed);
+        const rockDamage = impactSpeed * D.DAMAGE_FACTOR * D.ROCK_DAMAGE_FACTOR;
+        const angleToRock = Math.atan2(collision.y - this.y, collision.x - this.x);
+        const angleDiff = Math.abs(((angleToRock - this.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+        const frontHit = angleDiff < D.FRONT_HIT_ANGLE;
+        const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
+        if (finalDamage > 0.5) {
+          this.takeDamage(finalDamage);
+          this.damageTaken += finalDamage;
+        }
+
+        this.speed *= Math.abs(V.BOUNCE_FACTOR);
+        if (this._obstacleCooldown <= 0) { this.rockHits++; this._obstacleCooldown = 0.5; }
+        this._lastObstacleHit = collision.type;
+      } else {
+        // Cactus/barrel: slow down, drive through
+        this.x = newX;
+        this.y = newY;
+        this.speed *= D.SOFT_OBSTACLE_SPEED_MULT;
+        if (this._obstacleCooldown <= 0) {
+          if (collision.type === 'cactus') this.cactusHits++;
+          else this.barrelHits++;
+          this._obstacleCooldown = 0.5;
+        }
+        this._lastObstacleHit = collision.type;
+      }
     } else {
       this.x = newX;
       this.y = newY;
+      this._lastObstacleHit = null;
     }
 
     // Arena bounds
     const pos = arena.clampPosition(this.x, this.y, V.COLLISION_RADIUS);
     if (pos.x !== this.x || pos.y !== this.y) {
+      this.timeAtWall += dt;
       if (Math.abs(this.speed) > 10) {
         this.speed *= -0.3;
+        this.wallHits++;
       } else {
         this.speed = 0;
       }
     }
+
+    // Track average speed
+    this.speedAccum += Math.abs(this.speed);
+    this.speedSamples++;
     this.x = pos.x;
     this.y = pos.y;
 
@@ -238,6 +287,14 @@ export class Car implements CarState {
     this.damageDealt = 0;
     this.damageTaken = 0;
     this.kills = 0;
+    this.rockHits = 0;
+    this.cactusHits = 0;
+    this.barrelHits = 0;
+    this.wallHits = 0;
+    this.carCollisions = 0;
+    this.timeAtWall = 0;
+    this.speedAccum = 0;
+    this.speedSamples = 0;
   }
 }
 
@@ -293,6 +350,8 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
       if (collisionCooldowns.has(key)) continue;
 
       collisionCooldowns.set(key, D.COLLISION_COOLDOWN);
+      a.carCollisions++;
+      b.carCollisions++;
 
       // Capture speeds BEFORE bump
       const speedA = Math.abs(a.speed);

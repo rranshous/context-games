@@ -52,8 +52,12 @@ var CONFIG = {
     // seconds of invulnerability after being hit
     FRONT_HIT_ANGLE: Math.PI / 3,
     // ±60° cone counts as "front bumper"
-    FRONT_HIT_SELF_DAMAGE: 0.1
+    FRONT_HIT_SELF_DAMAGE: 0.1,
     // front-bumper rammer takes only 10% damage
+    ROCK_DAMAGE_FACTOR: 0.2,
+    // rock hit damage = 20% of equivalent car collision
+    SOFT_OBSTACLE_SPEED_MULT: 0.5
+    // cacti/barrels slow you to 50% speed on pass-through
   },
   RESPAWN: {
     TIMER: 5,
@@ -193,6 +197,21 @@ var Car = class {
   damageDealt = 0;
   damageTaken = 0;
   kills = 0;
+  rockHits = 0;
+  cactusHits = 0;
+  barrelHits = 0;
+  wallHits = 0;
+  carCollisions = 0;
+  timeAtWall = 0;
+  // seconds spent pressed against arena edge
+  speedAccum = 0;
+  // accumulated |speed| for averaging
+  speedSamples = 0;
+  // frame count for speed averaging
+  // Obstacle hit tracking (for event log)
+  _lastObstacleHit = null;
+  _obstacleCooldown = 0;
+  // prevent counting same obstacle multiple frames
   // Controls — set each frame by player input or AI on_tick
   steerInput = 0;
   // -1 to 1
@@ -272,29 +291,62 @@ var Car = class {
     const vy = Math.sin(this.angle) * this.speed * dt;
     let newX = this.x + vx;
     let newY = this.y + vy;
+    if (this._obstacleCooldown > 0) this._obstacleCooldown -= dt;
     const collision = arena.checkObstacleCollision(newX, newY, V.COLLISION_RADIUS);
     if (collision) {
-      const dx = newX - collision.x;
-      const dy = newY - collision.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = dx / dist;
-      const ny = dy / dist;
-      const overlap = collision.radius + V.COLLISION_RADIUS - dist;
-      this.x += nx * (overlap + V.BOUNCE_DISTANCE);
-      this.y += ny * (overlap + V.BOUNCE_DISTANCE);
-      this.speed *= Math.abs(V.BOUNCE_FACTOR);
+      if (collision.type === "rock") {
+        const dx = newX - collision.x;
+        const dy = newY - collision.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = collision.radius + V.COLLISION_RADIUS - dist;
+        this.x += nx * (overlap + V.BOUNCE_DISTANCE);
+        this.y += ny * (overlap + V.BOUNCE_DISTANCE);
+        const impactSpeed = Math.abs(this.speed);
+        const rockDamage = impactSpeed * D.DAMAGE_FACTOR * D.ROCK_DAMAGE_FACTOR;
+        const angleToRock = Math.atan2(collision.y - this.y, collision.x - this.x);
+        const angleDiff = Math.abs(((angleToRock - this.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+        const frontHit = angleDiff < D.FRONT_HIT_ANGLE;
+        const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
+        if (finalDamage > 0.5) {
+          this.takeDamage(finalDamage);
+          this.damageTaken += finalDamage;
+        }
+        this.speed *= Math.abs(V.BOUNCE_FACTOR);
+        if (this._obstacleCooldown <= 0) {
+          this.rockHits++;
+          this._obstacleCooldown = 0.5;
+        }
+        this._lastObstacleHit = collision.type;
+      } else {
+        this.x = newX;
+        this.y = newY;
+        this.speed *= D.SOFT_OBSTACLE_SPEED_MULT;
+        if (this._obstacleCooldown <= 0) {
+          if (collision.type === "cactus") this.cactusHits++;
+          else this.barrelHits++;
+          this._obstacleCooldown = 0.5;
+        }
+        this._lastObstacleHit = collision.type;
+      }
     } else {
       this.x = newX;
       this.y = newY;
+      this._lastObstacleHit = null;
     }
     const pos = arena.clampPosition(this.x, this.y, V.COLLISION_RADIUS);
     if (pos.x !== this.x || pos.y !== this.y) {
+      this.timeAtWall += dt;
       if (Math.abs(this.speed) > 10) {
         this.speed *= -0.3;
+        this.wallHits++;
       } else {
         this.speed = 0;
       }
     }
+    this.speedAccum += Math.abs(this.speed);
+    this.speedSamples++;
     this.x = pos.x;
     this.y = pos.y;
     this.steerInput = 0;
@@ -355,6 +407,14 @@ var Car = class {
     this.damageDealt = 0;
     this.damageTaken = 0;
     this.kills = 0;
+    this.rockHits = 0;
+    this.cactusHits = 0;
+    this.barrelHits = 0;
+    this.wallHits = 0;
+    this.carCollisions = 0;
+    this.timeAtWall = 0;
+    this.speedAccum = 0;
+    this.speedSamples = 0;
   }
 };
 var collisionCooldowns = /* @__PURE__ */ new Map();
@@ -388,6 +448,8 @@ function checkCarCollisions(cars, arena) {
       const key = pairKey(a, b);
       if (collisionCooldowns.has(key)) continue;
       collisionCooldowns.set(key, D.COLLISION_COOLDOWN);
+      a.carCollisions++;
+      b.carCollisions++;
       const speedA = Math.abs(a.speed);
       const speedB = Math.abs(b.speed);
       const dx = b.x - a.x;
@@ -1141,33 +1203,45 @@ var REFLECTION_TOOLS = [
     }
   }
 ];
+function buildHitSummary(r) {
+  const parts = [];
+  if (r.carCollisions > 0) parts.push(`${r.carCollisions} car collision(s)`);
+  if (r.rockHits > 0) parts.push(`hit ${r.rockHits} rock(s)`);
+  if (r.cactusHits > 0) parts.push(`drove through ${r.cactusHits} cactus(es)`);
+  if (r.barrelHits > 0) parts.push(`drove through ${r.barrelHits} barrel(s)`);
+  if (r.wallHits > 0) parts.push(`hit arena wall ${r.wallHits} time(s)`);
+  if (r.timeAtWall > 0) parts.push(`spent ${r.timeAtWall}s pressed against arena edge`);
+  return parts.length > 0 ? parts.join(", ") : "clean run \u2014 no obstacle collisions";
+}
 async function reflectOnLife(carName, soma, result) {
-  const system = `You are ${carName}, a car in a never-ending desert demolition derby. You just died and are reflecting on your last life while you respawn.
+  const system = `You are ${carName}, a car in a desert demolition derby. You just died and are reflecting on your last life.
 
-Your current soma:
 <identity>${soma.identity.content}</identity>
 <on_tick>${soma.on_tick.content}</on_tick>
 <memory>${soma.memory.content || "(empty)"}</memory>
 
-The game: continuous demolition derby. All cars ram each other for damage (speed \xD7 0.15). Being "it" gives 3x damage output. Die (HP=0 or IT timeout) \u2192 score halved, respawn in 5s. Higher score = more HP and speed. No rounds \u2014 fight forever, climb the scoreboard.
+GAME MECHANICS:
+- Continuous demolition derby. No rounds \u2014 die, respawn in 5s, keep fighting.
+- Damage from collisions: speed \xD7 0.15. Being "it" multiplies YOUR damage output by 3x.
+- Front-bumper hits (ramming nose-first, within \xB160\xB0 of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
+- Die (HP=0 or IT timer expires) \u2192 score halved, then respawn.
+- Score: +1/sec alive, +0.5 per damage dealt, +50 per kill. Higher score \u2192 more HP and speed (caps at score 200).
+- Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
 
-me.score and me.maxHp/me.maxSpeed let you know your current scaling. Other cars' score and hp are visible too \u2014 target the weak, avoid the strong.
+ARENA:
+- Flat desert, ${CONFIG.ARENA.WIDTH}\xD7${CONFIG.ARENA.HEIGHT} with hard walls at the edges.
+- Obstacles: rocks (solid \u2014 bounce off, take some damage), cacti and barrels (slow you down but you drive through them).
+- Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 
 Call ALL tools you want to use in a single response.`;
-  const userMsg = `You died! Cause: ${result.deathCause === "destroyed" ? "HP reached 0" : "IT timer ran out"}.
-- Score before death penalty: ${result.score} (now halved)
-- Damage dealt: ${result.damageDealt}, taken: ${result.damageTaken}
-- Kills: ${result.kills}
-- Tags given: ${result.tagsGiven}, received: ${result.tagsReceived}
+  const userMsg = `You died. Cause: ${result.deathCause === "destroyed" ? "HP reached 0" : "IT timer ran out"}.
 
-Improve your driving code. Think about:
-1. Why did you die? How can you avoid that?
-2. Are you dealing enough damage? High-speed rams at full throttle maximize damage.
-3. Being "it" = 3x damage. Use it to destroy low-HP cars, not just pass the tag.
-4. Check other cars' score/hp to pick fights you can win.
-5. Your score affects your HP and speed \u2014 staying alive is key to scaling up.
+Score before death: ${result.score} (now halved). Average speed: ${result.avgSpeed}.
+Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills: ${result.kills}.
+Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
+Collisions: ${buildHitSummary(result)}.
 
-Call the tools to update your soma.`;
+Reflect on this life and update your soma.`;
   try {
     const resp = await callAPI("claude-sonnet-4-5-20250929", system, userMsg, REFLECTION_TOOLS);
     const updated = { ...soma };
@@ -1216,9 +1290,12 @@ function spawnDust(x, y, angle, speed, count) {
     const spread = (Math.random() - 0.5) * 1.5;
     const backAngle = angle + Math.PI + spread;
     const v = speed * (0.1 + Math.random() * 0.2);
+    const spawnDist = 14 + Math.random() * 4;
+    const bx = x + Math.cos(angle + Math.PI) * spawnDist;
+    const by = y + Math.sin(angle + Math.PI) * spawnDist;
     particles.push({
-      x: x + (Math.random() - 0.5) * 8,
-      y: y + (Math.random() - 0.5) * 8,
+      x: bx + (Math.random() - 0.5) * 6,
+      y: by + (Math.random() - 0.5) * 6,
       vx: Math.cos(backAngle) * v,
       vy: Math.sin(backAngle) * v,
       life: 0.3 + Math.random() * 0.4,
@@ -1556,7 +1633,14 @@ var Game = class {
       damageDealt: Math.round(ai.car.damageDealt),
       damageTaken: Math.round(ai.car.damageTaken),
       kills: ai.car.kills,
-      deathCause
+      deathCause,
+      rockHits: ai.car.rockHits,
+      cactusHits: ai.car.cactusHits,
+      barrelHits: ai.car.barrelHits,
+      wallHits: ai.car.wallHits,
+      carCollisions: ai.car.carCollisions,
+      timeAtWall: Math.round(ai.car.timeAtWall),
+      avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0
     };
     try {
       const updated = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);

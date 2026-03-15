@@ -48,6 +48,14 @@ export interface LifeResult {
   damageTaken: number;
   kills: number;
   deathCause: 'destroyed' | 'timeout';
+  // Hit summary
+  rockHits: number;
+  cactusHits: number;
+  barrelHits: number;
+  wallHits: number;
+  carCollisions: number;
+  timeAtWall: number;
+  avgSpeed: number;
 }
 
 export type GamePhase = 'title' | 'playing';

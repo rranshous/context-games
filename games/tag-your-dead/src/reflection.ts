@@ -81,6 +81,19 @@ const REFLECTION_TOOLS = [
   },
 ];
 
+// ── Hit Summary Builder ──
+
+function buildHitSummary(r: LifeResult): string {
+  const parts: string[] = [];
+  if (r.carCollisions > 0) parts.push(`${r.carCollisions} car collision(s)`);
+  if (r.rockHits > 0) parts.push(`hit ${r.rockHits} rock(s)`);
+  if (r.cactusHits > 0) parts.push(`drove through ${r.cactusHits} cactus(es)`);
+  if (r.barrelHits > 0) parts.push(`drove through ${r.barrelHits} barrel(s)`);
+  if (r.wallHits > 0) parts.push(`hit arena wall ${r.wallHits} time(s)`);
+  if (r.timeAtWall > 0) parts.push(`spent ${r.timeAtWall}s pressed against arena edge`);
+  return parts.length > 0 ? parts.join(', ') : 'clean run — no obstacle collisions';
+}
+
 // ── Background Reflection ──
 
 export async function reflectOnLife(
@@ -88,33 +101,35 @@ export async function reflectOnLife(
   soma: CarSoma,
   result: LifeResult,
 ): Promise<CarSoma> {
-  const system = `You are ${carName}, a car in a never-ending desert demolition derby. You just died and are reflecting on your last life while you respawn.
+  const system = `You are ${carName}, a car in a desert demolition derby. You just died and are reflecting on your last life.
 
-Your current soma:
 <identity>${soma.identity.content}</identity>
 <on_tick>${soma.on_tick.content}</on_tick>
 <memory>${soma.memory.content || '(empty)'}</memory>
 
-The game: continuous demolition derby. All cars ram each other for damage (speed × 0.15). Being "it" gives 3x damage output. Die (HP=0 or IT timeout) → score halved, respawn in 5s. Higher score = more HP and speed. No rounds — fight forever, climb the scoreboard.
+GAME MECHANICS:
+- Continuous demolition derby. No rounds — die, respawn in 5s, keep fighting.
+- Damage from collisions: speed × 0.15. Being "it" multiplies YOUR damage output by 3x.
+- Front-bumper hits (ramming nose-first, within ±60° of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
+- Die (HP=0 or IT timer expires) → score halved, then respawn.
+- Score: +1/sec alive, +0.5 per damage dealt, +50 per kill. Higher score → more HP and speed (caps at score 200).
+- Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
 
-me.score and me.maxHp/me.maxSpeed let you know your current scaling. Other cars' score and hp are visible too — target the weak, avoid the strong.
+ARENA:
+- Flat desert, ${CONFIG.ARENA.WIDTH}×${CONFIG.ARENA.HEIGHT} with hard walls at the edges.
+- Obstacles: rocks (solid — bounce off, take some damage), cacti and barrels (slow you down but you drive through them).
+- Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 
 Call ALL tools you want to use in a single response.`;
 
-  const userMsg = `You died! Cause: ${result.deathCause === 'destroyed' ? 'HP reached 0' : 'IT timer ran out'}.
-- Score before death penalty: ${result.score} (now halved)
-- Damage dealt: ${result.damageDealt}, taken: ${result.damageTaken}
-- Kills: ${result.kills}
-- Tags given: ${result.tagsGiven}, received: ${result.tagsReceived}
+  const userMsg = `You died. Cause: ${result.deathCause === 'destroyed' ? 'HP reached 0' : 'IT timer ran out'}.
 
-Improve your driving code. Think about:
-1. Why did you die? How can you avoid that?
-2. Are you dealing enough damage? High-speed rams at full throttle maximize damage.
-3. Being "it" = 3x damage. Use it to destroy low-HP cars, not just pass the tag.
-4. Check other cars' score/hp to pick fights you can win.
-5. Your score affects your HP and speed — staying alive is key to scaling up.
+Score before death: ${result.score} (now halved). Average speed: ${result.avgSpeed}.
+Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills: ${result.kills}.
+Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
+Collisions: ${buildHitSummary(result)}.
 
-Call the tools to update your soma.`;
+Reflect on this life and update your soma.`;
 
   try {
     const resp = await callAPI('claude-sonnet-4-5-20250929', system, userMsg, REFLECTION_TOOLS);
