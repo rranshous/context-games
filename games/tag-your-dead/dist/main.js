@@ -1893,7 +1893,8 @@ var Game = class {
       ctx.save();
       ctx.font = "bold 10px monospace";
       ctx.textAlign = "center";
-      ctx.fillStyle = car.isIt ? "#ff4444" : "#ffffff";
+      const nameColor = car.isIt ? "#ff4444" : this.CAR_COLORS[car.id] ?? "#ffffff";
+      ctx.fillStyle = nameColor;
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 2;
       ctx.strokeText(name, s.x, s.y - 20);
@@ -1940,13 +1941,8 @@ var Game = class {
       const car = sorted[i];
       const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       const y = sbY + 14 + (i + 1) * lineH;
-      if (car.id === "player") {
-        ctx.fillStyle = "#ff8888";
-      } else if (!car.alive) {
-        ctx.fillStyle = "#666";
-      } else {
-        ctx.fillStyle = "#ccc";
-      }
+      const baseColor = this.CAR_COLORS[car.id] ?? "#ccc";
+      ctx.fillStyle = car.alive ? baseColor : "#555";
       const status = car.alive ? "" : " \u2620";
       const ai = this.aiCars.find((a) => a.car.id === car.id);
       const reflecting = ai?.reflecting ? " \u2699" : "";
@@ -2007,7 +2003,7 @@ var Game = class {
       if (!car.alive) continue;
       const cx = mmX + car.x / this.arena.width * mmW;
       const cy = mmY + car.y / this.arena.height * mmH;
-      ctx.fillStyle = car.isIt ? "#ff2222" : car.id === "player" ? "#ff6666" : "#4488ff";
+      ctx.fillStyle = car.isIt ? "#ff2222" : this.CAR_COLORS[car.id] ?? "#4488ff";
       ctx.beginPath();
       ctx.arc(cx, cy, car.id === "player" ? 3 : 2, 0, Math.PI * 2);
       ctx.fill();
