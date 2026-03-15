@@ -1,10 +1,9 @@
 // ── Reflection ──
-// Between rounds, AI cars reflect on their performance and edit their soma.
-// Sonnet for strategic reflection (edit on_tick/memory).
-// Haiku for trash talk (shown to player).
+// Background reflection: AI cars reflect on their last life after dying.
+// Runs async while the game continues.
 
 import { CONFIG } from './config.js';
-import { CarSoma, RoundResult } from './types.js';
+import { CarSoma, LifeResult } from './types.js';
 
 const API = CONFIG.API_ENDPOINT;
 
@@ -41,12 +40,12 @@ async function callAPI(
   return resp.json();
 }
 
-// ── Strategic Reflection (Sonnet) ──
+// ── Reflection Tools ──
 
 const REFLECTION_TOOLS = [
   {
     name: 'edit_on_tick',
-    description: 'Replace your driving code. This code runs every frame with (me, world) as arguments. me has: x, y, angle, speed, hp, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world has: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
+    description: 'Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -58,7 +57,7 @@ const REFLECTION_TOOLS = [
   },
   {
     name: 'edit_memory',
-    description: 'Update your persistent memory. Survives across rounds. Use it to track strategies, observations, what works and what doesn\'t.',
+    description: 'Update your persistent memory. Survives across lives. Track strategies, observations, what works.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -82,41 +81,44 @@ const REFLECTION_TOOLS = [
   },
 ];
 
-export async function reflectOnRound(
+// ── Background Reflection ──
+
+export async function reflectOnLife(
   carName: string,
   soma: CarSoma,
-  result: RoundResult,
+  result: LifeResult,
 ): Promise<CarSoma> {
-  const system = `You are ${carName}, a car in a desert demolition derby tag game. You have a soma — code that controls how you drive. After each round, you can modify your code and memory to improve.
+  const system = `You are ${carName}, a car in a never-ending desert demolition derby. You just died and are reflecting on your last life while you respawn.
 
 Your current soma:
 <identity>${soma.identity.content}</identity>
 <on_tick>${soma.on_tick.content}</on_tick>
 <memory>${soma.memory.content || '(empty)'}</memory>
 
-The game: desert demolition derby. All cars have HP (100 max). Ramming any car deals damage based on your speed. Being "it" gives you 3x damage — you're a wrecking ball. Pass the tag by ramming someone while "it". If your HP hits 0 or you're "it" too long, you're eliminated. Last car standing wins.
+The game: continuous demolition derby. All cars ram each other for damage (speed × 0.15). Being "it" gives 3x damage output. Die (HP=0 or IT timeout) → score halved, respawn in 5s. Higher score = more HP and speed. No rounds — fight forever, climb the scoreboard.
+
+me.score and me.maxHp/me.maxSpeed let you know your current scaling. Other cars' score and hp are visible too — target the weak, avoid the strong.
 
 Call ALL tools you want to use in a single response.`;
 
-  const userMsg = `Round ${result.roundNumber} results:
-- Placement: ${result.placement}/${result.totalCars}
-- Survived: ${result.survivedSeconds.toFixed(1)}s
-- Tags given: ${result.tagsGiven}, received: ${result.tagsReceived}
+  const userMsg = `You died! Cause: ${result.deathCause === 'destroyed' ? 'HP reached 0' : 'IT timer ran out'}.
+- Score before death penalty: ${result.score} (now halved)
 - Damage dealt: ${result.damageDealt}, taken: ${result.damageTaken}
-- ${result.wasEliminated ? 'ELIMINATED' : 'Survived!'}
+- Kills: ${result.kills}
+- Tags given: ${result.tagsGiven}, received: ${result.tagsReceived}
 
-Reflect on your performance and improve your driving code. Think about:
-1. Damage dealt vs taken — are you winning trades? High-speed rams deal more damage.
-2. Being "it" gives 3x damage — use it aggressively to destroy cars, not just pass the tag.
-3. Low HP? Play cautious, avoid head-on collisions. Target weakened cars for easy kills.
-4. Can you read other cars' HP (c.hp) to pick better targets?
+Improve your driving code. Think about:
+1. Why did you die? How can you avoid that?
+2. Are you dealing enough damage? High-speed rams at full throttle maximize damage.
+3. Being "it" = 3x damage. Use it to destroy low-HP cars, not just pass the tag.
+4. Check other cars' score/hp to pick fights you can win.
+5. Your score affects your HP and speed — staying alive is key to scaling up.
 
 Call the tools to update your soma.`;
 
   try {
     const resp = await callAPI('claude-sonnet-4-5-20250929', system, userMsg, REFLECTION_TOOLS);
 
-    // Apply tool calls
     const updated = { ...soma };
     for (const block of resp.content) {
       if (block.type === 'tool_use' && block.input) {
@@ -136,34 +138,6 @@ Call the tools to update your soma.`;
     return updated;
   } catch (err) {
     console.warn(`[REFLECT] ${carName} reflection failed:`, err);
-    return soma; // keep existing
-  }
-}
-
-// ── Trash Talk (Haiku) ──
-
-export async function generateTrashTalk(
-  carName: string,
-  soma: CarSoma,
-  result: RoundResult,
-  allResults: { name: string; result: RoundResult }[],
-): Promise<string> {
-  const system = `You are ${carName}, a car in a desert demolition derby tag game. Stay in character based on your identity: "${soma.identity.content.slice(0, 200)}"`;
-
-  const standings = allResults
-    .sort((a, b) => a.result.placement - b.result.placement)
-    .map(r => `${r.name}: #${r.result.placement}${r.result.wasEliminated ? ' (eliminated)' : ''}`)
-    .join(', ');
-
-  const userMsg = `You just finished round ${result.roundNumber}. You placed #${result.placement}/${result.totalCars}.${result.wasEliminated ? ' You got eliminated!' : ' You survived!'} Standings: ${standings}.
-
-Give a short trash talk line (1-2 sentences max). Be cocky if you won, salty if you lost. Reference specific rivals or moments. Keep it fun and in-character.`;
-
-  try {
-    const resp = await callAPI('claude-haiku-4-5-20251001', system, userMsg, undefined, 150);
-    const text = resp.content.find(b => b.type === 'text')?.text;
-    return text || '...';
-  } catch {
-    return '...';
+    return soma;
   }
 }

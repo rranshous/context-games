@@ -155,3 +155,71 @@ Replaced binary tag-only mechanic with a full damage system. Every car can ram e
 - Sound effects (hit impacts, engine rev, explosion)
 - Obstacle damage (hitting rocks/barrels at speed should hurt)
 - More arena variety
+
+---
+
+## Session 3 — Continuous Play & Front-Bumper Ramming (2026-03-14)
+
+### Design changes
+
+**Continuous play (no rounds)**
+Removed the round system entirely. No countdown, no round-over screen, no reflection pause. Title screen goes straight into the arena. Cars that die respawn after 5 seconds with score halved. Dead car wreck stays visible with countdown timer.
+
+**Score system**
+- +1/sec alive, +0.5 per damage dealt, +50 kill bonus
+- Score halved on death
+- Score scales stats: max HP 100→200, max speed 200→230 (linear with score, caps at score 200)
+- Persistent to localStorage (`tag-your-dead-scores`)
+
+**Scoreboard HUD**
+- Top-left, always visible, sorted by score
+- HP bars, skull icon when dead, gear icon when reflecting
+- Player highlighted in red
+
+**Background reflection**
+- AI cars reflect asynchronously while dead/respawning — game never pauses
+- Reflection uses sonnet 4.5, single-call pattern with 3 scaffold tools (edit_on_tick, edit_memory, edit_identity)
+- `tool_choice: { type: 'any' }` forces at least one tool call
+- Soma updates land silently when API returns
+
+**Respawn**
+- 5s countdown, random spawn far from other cars, 2s spawn immunity
+- `resetAll()` clears both somas and scores
+
+**Soma API additions**: `me.score`, `me.maxHp`, `me.maxSpeed`, `world.otherCars[].score`
+
+### Front-bumper ramming
+
+Cars that hit with their front bumper (within ±60° of facing direction) only take 10% of the incoming damage. Rewards aggressive head-on ramming — you dish full damage but barely scratch yourself. Getting T-boned or rear-ended still hurts full.
+
+**Implementation** (car.ts):
+- Angle from car A toward car B compared against car A's facing angle
+- If within `FRONT_HIT_ANGLE` (π/3 = ±60°), damage to self multiplied by `FRONT_HIT_SELF_DAMAGE` (0.1)
+- Full damage still dealt to the other car and counted for scoring
+
+**Config** (config.ts):
+| Setting | Value | Notes |
+|---------|-------|-------|
+| FRONT_HIT_ANGLE | π/3 (60°) | ±60° cone counts as front bumper |
+| FRONT_HIT_SELF_DAMAGE | 0.1 | Front-bumper rammer takes only 10% |
+
+### Reflection system details
+- Single API call, not multi-turn agentic
+- System prompt: full soma + game mechanics summary
+- User prompt: death cause, score, damage dealt/taken, kills, tags
+- 3 scaffold tools: `edit_on_tick` (API docs inline), `edit_memory`, `edit_identity`
+- Model: sonnet 4.5
+
+### Current state (end of session 3)
+- Continuous play, no rounds — title straight into arena
+- Cars respawn on death with score penalty
+- Front-bumper ramming: 10% self-damage encourages aggressive head-on play
+- Background reflection fires on death, gear icon in scoreboard
+- `window.__tagYourDead.resetAll()` clears everything
+
+### What's next
+- Playtest front-bumper mechanic — verify it feels rewarding
+- Update reflection prompt to mention front-bumper advantage (AI should learn to ram head-on)
+- Sound effects
+- Obstacle damage
+- More arena variety

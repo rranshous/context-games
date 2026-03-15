@@ -16,11 +16,13 @@ export interface CarState {
   y: number;
   angle: number;
   speed: number;
-  hp: number;             // current hit points (0 = dead)
+  hp: number;
+  score: number;
   isIt: boolean;
   alive: boolean;
-  itTimer: number;        // seconds left if "it"
-  immuneTimer: number;    // seconds of tag immunity remaining
+  itTimer: number;
+  immuneTimer: number;
+  respawnTimer: number;
   color: CarColor;
 }
 
@@ -36,16 +38,16 @@ export interface CarSoma {
   memory: SomaSection;
 }
 
-export interface RoundResult {
-  roundNumber: number;
-  placement: number;         // 1 = winner
-  totalCars: number;
+// Performance snapshot for reflection (when a car dies)
+export interface LifeResult {
+  score: number;
   survivedSeconds: number;
   tagsGiven: number;
   tagsReceived: number;
   damageDealt: number;
   damageTaken: number;
-  wasEliminated: boolean;
+  kills: number;
+  deathCause: 'destroyed' | 'timeout';
 }
 
-export type GamePhase = 'title' | 'countdown' | 'playing' | 'round_over' | 'reflecting' | 'game_over';
+export type GamePhase = 'title' | 'playing';

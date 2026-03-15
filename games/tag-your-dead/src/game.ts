@@ -1,12 +1,12 @@
 // ── Game ──
-// Main game loop. Title → Countdown → Playing → Round Over → Reflecting → repeat.
-// Player is one car among many. AI cars run soma on_tick each frame.
+// Continuous demolition derby. No rounds — cars respawn on death.
+// Score scales HP and speed. Background AI reflection.
 
 import { CONFIG } from './config.js';
 import { Arena } from './arena.js';
 import { Car, checkCarCollisions, updateCollisionCooldowns, resetCollisionCooldowns } from './car.js';
 import { Camera } from './camera.js';
-import { CarSoma, GamePhase, RoundResult, CarColor } from './types.js';
+import { CarSoma, GamePhase, LifeResult, CarColor } from './types.js';
 import { getPlayerControls, clearFrame, wasPressed } from './input.js';
 import {
   loadSprites, spritesLoaded, renderCar, renderRock, renderCactus,
@@ -16,7 +16,7 @@ import {
   PERSONALITIES, CarPersonality, createSoma, runOnTick,
   saveSomas, loadSomas, compileOnTick,
 } from './soma.js';
-import { reflectOnRound, generateTrashTalk } from './reflection.js';
+import { reflectOnLife } from './reflection.js';
 import {
   triggerShake, updateShake, spawnDust, spawnTagSparks,
   spawnEliminationExplosion, updateParticles, renderParticles,
@@ -31,6 +31,7 @@ interface AICarEntry {
   car: Car;
   personality: CarPersonality;
   soma: CarSoma;
+  reflecting: boolean; // true while background reflection is in progress
 }
 
 export class Game {
@@ -44,22 +45,13 @@ export class Game {
   private allCars: Car[] = [];
 
   private phase: GamePhase = 'title';
-  private roundNumber = 0;
-  private roundTime = 0;
-  private countdownTimer = 0;
-  private pauseTimer = 0;
-
-  // Round results + trash talk
-  private roundResults: { name: string; result: RoundResult }[] = [];
-  private trashTalkLines: { name: string; line: string; color: CarColor }[] = [];
-  private reflectionProgress = 0;
-  private reflectionTotal = 0;
+  private gameTime = 0; // total elapsed play time
 
   // Persisted somas
   private savedSomas: Map<string, CarSoma>;
 
-  // Overall scores across rounds
-  private scores: Map<string, { wins: number; rounds: number }> = new Map();
+  // Persisted scores
+  private savedScores: Map<string, number>;
 
   private lastTime = 0;
 
@@ -70,11 +62,18 @@ export class Game {
     canvas.height = CH;
 
     this.savedSomas = loadSomas();
+    this.savedScores = this.loadScores();
 
     // Expose debug
     (window as unknown as Record<string, unknown>).__tagYourDead = {
       game: this,
       resetSomas: () => { localStorage.removeItem('tag-your-dead-somas'); location.reload(); },
+      resetScores: () => { localStorage.removeItem('tag-your-dead-scores'); location.reload(); },
+      resetAll: () => {
+        localStorage.removeItem('tag-your-dead-somas');
+        localStorage.removeItem('tag-your-dead-scores');
+        location.reload();
+      },
     };
   }
 
@@ -86,7 +85,7 @@ export class Game {
   }
 
   private loop(timestamp: number): void {
-    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.05); // cap at 50ms
+    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.05);
     this.lastTime = timestamp;
 
     this.update(dt);
@@ -102,62 +101,40 @@ export class Game {
     switch (this.phase) {
       case 'title':
         if (wasPressed(' ') || wasPressed('Enter')) {
-          this.startNewRound();
-        }
-        break;
-
-      case 'countdown':
-        this.countdownTimer -= dt;
-        if (this.countdownTimer <= 0) {
-          this.phase = 'playing';
+          this.startGame();
         }
         break;
 
       case 'playing':
         this.updatePlaying(dt);
         break;
-
-      case 'round_over':
-        this.pauseTimer -= dt;
-        if (this.pauseTimer <= 0 && (wasPressed(' ') || wasPressed('Enter'))) {
-          this.startReflection();
-        }
-        break;
-
-      case 'reflecting':
-        // Waiting for reflection to complete (async)
-        break;
-
-      case 'game_over':
-        if (wasPressed(' ') || wasPressed('Enter')) {
-          this.phase = 'title';
-        }
-        break;
     }
   }
 
   private updatePlaying(dt: number): void {
-    this.roundTime += dt;
+    this.gameTime += dt;
 
-    // Player input
-    const controls = getPlayerControls();
-    this.player.steer(controls.steer);
-    this.player.accelerate(controls.accel);
-    this.player.brake(controls.brake);
+    // Player input (only if alive)
+    if (this.player.alive) {
+      const controls = getPlayerControls();
+      this.player.steer(controls.steer);
+      this.player.accelerate(controls.accel);
+      this.player.brake(controls.brake);
+    }
 
     // AI on_tick
     for (const ai of this.aiCars) {
       if (!ai.car.alive) continue;
-      runOnTick(ai.car, ai.soma, this.roundTime, this.arena, this.allCars);
+      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
     }
 
-    // Track who was alive before update (for elimination detection)
+    // Track who was alive before update
     const wasAlive = new Map<string, boolean>();
     for (const car of this.allCars) {
       wasAlive.set(car.id, car.alive);
     }
 
-    // Physics update all cars
+    // Physics update all alive cars
     for (const car of this.allCars) {
       car.update(dt, this.arena);
     }
@@ -165,15 +142,15 @@ export class Game {
     // Effects
     for (const car of this.allCars) {
       if (!car.alive) continue;
-      if (car.speed > 60) {
-        spawnDust(car.x, car.y, car.angle, car.speed, 1);
+      if (Math.abs(car.speed) > 60) {
+        spawnDust(car.x, car.y, car.angle, Math.abs(car.speed), 1);
       }
-      if (car.speed > 30) {
+      if (Math.abs(car.speed) > 30) {
         addTireTrack(car.x, car.y, car.angle);
       }
     }
 
-    // Car-to-car collisions: bump, damage, and tag transfer
+    // Car-to-car collisions
     updateCollisionCooldowns(dt);
     const collisions = checkCarCollisions(this.allCars, this.arena);
     for (const col of collisions) {
@@ -185,27 +162,42 @@ export class Game {
         triggerShake(6, 0.3);
         console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
       } else if (col.damageToA > 5 || col.damageToB > 5) {
-        // Significant hit — smaller sparks
         spawnTagSparks(midX, midY);
         triggerShake(3, 0.15);
       }
     }
 
-    // Check for eliminations (HP=0 from damage, or IT timer ran out)
+    // Check for deaths
     for (const car of this.allCars) {
       if (wasAlive.get(car.id) && !car.alive) {
         spawnEliminationExplosion(car.x, car.y);
         triggerShake(10, 0.5);
         const reason = car.hp <= 0 ? 'destroyed' : 'timed out';
-        console.log(`[ELIMINATED] ${car.id} ${reason}!`);
+        console.log(`[ELIMINATED] ${car.id} ${reason}! Score halved to ${Math.floor(car.score)}`);
 
-        // Transfer tag to a random alive car if needed
+        // Ensure someone is always "it"
         const alive = this.allCars.filter(c => c.alive);
-        if (alive.length > 1 && !alive.some(c => c.isIt)) {
+        if (alive.length > 0 && !alive.some(c => c.isIt)) {
           const next = alive[Math.floor(Math.random() * alive.length)];
           next.isIt = true;
           next.itTimer = T.IT_TIMEOUT;
           console.log(`[TAG] ${next.id} is now IT!`);
+        }
+
+        // Trigger background reflection for AI cars
+        const ai = this.aiCars.find(a => a.car === car);
+        if (ai && !ai.reflecting) {
+          this.triggerBackgroundReflection(ai, reason === 'destroyed' ? 'destroyed' : 'timeout');
+        }
+      }
+    }
+
+    // Respawn timers for dead cars
+    for (const car of this.allCars) {
+      if (!car.alive && car.respawnTimer > 0) {
+        car.respawnTimer -= dt;
+        if (car.respawnTimer <= 0) {
+          this.respawnCar(car);
         }
       }
     }
@@ -213,7 +205,7 @@ export class Game {
     updateParticles(dt);
     updateTracks(dt);
 
-    // Camera follows player (or first alive car if player is dead)
+    // Camera follows player (or first alive car if player dead)
     if (this.player.alive) {
       this.camera.update(this.player.x, this.player.y, this.arena.width, this.arena.height);
     } else {
@@ -223,42 +215,41 @@ export class Game {
       }
     }
 
-    // Check round end: <= 1 car alive
-    const alive = this.allCars.filter(c => c.alive);
-    if (alive.length <= 1) {
-      this.endRound();
+    // Auto-save scores periodically (every ~5s)
+    if (Math.floor(this.gameTime) % 5 === 0 && Math.floor(this.gameTime) !== Math.floor(this.gameTime - dt)) {
+      this.saveScores();
+      saveSomas(this.savedSomas);
     }
   }
 
-  // ── Round Management ──
+  // ── Game Setup ──
 
-  private startNewRound(): void {
-    this.roundNumber++;
-    this.roundTime = 0;
-    this.trashTalkLines = [];
+  private startGame(): void {
+    this.gameTime = 0;
 
-    // Create arena (new seed each round for variety)
-    this.arena = new Arena(42 + this.roundNumber);
+    // Create arena
+    this.arena = new Arena(42);
 
     // Spawn positions — ring around center
     const cx = this.arena.width / 2;
     const cy = this.arena.height / 2;
-    const totalCars = T.INITIAL_CAR_COUNT + 1; // +1 for player
+    const totalCars = T.CAR_COUNT + 1;
     const spawnRadius = 150;
 
     // Player
-    const playerAngle = 0;
     this.player = new Car(
-      cx + Math.cos(playerAngle) * spawnRadius,
-      cy + Math.sin(playerAngle) * spawnRadius,
+      cx + Math.cos(0) * spawnRadius,
+      cy + Math.sin(0) * spawnRadius,
       'red',
       'player',
     );
-    this.player.angle = playerAngle + Math.PI; // face center
+    this.player.angle = Math.PI;
+    this.player.score = this.savedScores.get('player') ?? 0;
+    this.player.hp = this.player.maxHp;
 
     // AI cars
     this.aiCars = [];
-    for (let i = 0; i < T.INITIAL_CAR_COUNT; i++) {
+    for (let i = 0; i < T.CAR_COUNT; i++) {
       const p = PERSONALITIES[i % PERSONALITIES.length];
       const spawnAngle = ((i + 1) / totalCars) * Math.PI * 2;
       const car = new Car(
@@ -267,11 +258,12 @@ export class Game {
         p.color,
         p.name.toLowerCase(),
       );
-      car.angle = spawnAngle + Math.PI; // face center
+      car.angle = spawnAngle + Math.PI;
+      car.score = this.savedScores.get(car.id) ?? 0;
+      car.hp = car.maxHp;
 
-      // Load persisted soma or create fresh
       const soma = this.savedSomas.get(car.id) ?? createSoma(p);
-      this.aiCars.push({ car, personality: p, soma });
+      this.aiCars.push({ car, personality: p, soma, reflecting: false });
     }
 
     this.allCars = [this.player, ...this.aiCars.map(a => a.car)];
@@ -281,95 +273,103 @@ export class Game {
     this.allCars[itIndex].isIt = true;
     this.allCars[itIndex].itTimer = T.IT_TIMEOUT;
 
-    // Reset collision cooldowns for new round
     resetCollisionCooldowns();
-
-    // Camera snap
     this.camera.snap(this.player.x, this.player.y, this.arena.width, this.arena.height);
-
-    // Countdown
-    this.countdownTimer = 3;
-    this.phase = 'countdown';
+    this.phase = 'playing';
   }
 
-  private endRound(): void {
-    this.phase = 'round_over';
-    this.pauseTimer = 1.5; // brief pause before accepting input
-
-    // Calculate placements
-    // Alive car = winner, eliminated cars ranked by when they died
+  private respawnCar(car: Car): void {
+    // Find a spawn point far from other alive cars
     const alive = this.allCars.filter(c => c.alive);
-    const dead = this.allCars.filter(c => !c.alive).sort((a, b) => b.eliminatedAt - a.eliminatedAt);
-    const ranked = [...alive, ...dead];
+    const margin = CONFIG.RESPAWN.MIN_DISTANCE;
+    let bestX = this.arena.width / 2;
+    let bestY = this.arena.height / 2;
+    let bestMinDist = 0;
 
-    this.roundResults = [];
-    for (let i = 0; i < ranked.length; i++) {
-      const car = ranked[i];
-      const name = car.id === 'player' ? 'You' :
-        this.aiCars.find(a => a.car.id === car.id)?.personality.name ?? car.id;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const x = 100 + Math.random() * (this.arena.width - 200);
+      const y = 100 + Math.random() * (this.arena.height - 200);
 
-      const result: RoundResult = {
-        roundNumber: this.roundNumber,
-        placement: i + 1,
-        totalCars: ranked.length,
-        survivedSeconds: this.roundTime,
-        tagsGiven: car.tagsGiven,
-        tagsReceived: car.tagsReceived,
-        damageDealt: Math.round(car.damageDealt),
-        damageTaken: Math.round(car.damageTaken),
-        wasEliminated: !car.alive,
-      };
+      // Check obstacle collision
+      if (this.arena.checkObstacleCollision(x, y, CONFIG.VEHICLE.COLLISION_RADIUS)) continue;
 
-      this.roundResults.push({ name, result });
+      let minDist = Infinity;
+      for (const other of alive) {
+        const dx = other.x - x;
+        const dy = other.y - y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < minDist) minDist = d;
+      }
 
-      // Update overall scores
-      const score = this.scores.get(car.id) ?? { wins: 0, rounds: 0 };
-      score.rounds++;
-      if (i === 0) score.wins++;
-      this.scores.set(car.id, score);
+      if (minDist > bestMinDist) {
+        bestMinDist = minDist;
+        bestX = x;
+        bestY = y;
+      }
+
+      if (minDist >= margin) break;
+    }
+
+    car.respawn(bestX, bestY);
+
+    // Ensure someone is always "it"
+    const allAlive = this.allCars.filter(c => c.alive);
+    if (allAlive.length > 0 && !allAlive.some(c => c.isIt)) {
+      car.isIt = true;
+      car.itTimer = T.IT_TIMEOUT;
+    }
+
+    console.log(`[RESPAWN] ${car.id} respawned at (${Math.round(bestX)}, ${Math.round(bestY)}) with ${Math.round(car.maxHp)} HP, score ${Math.floor(car.score)}`);
+  }
+
+  // ── Background Reflection ──
+
+  private async triggerBackgroundReflection(ai: AICarEntry, deathCause: 'destroyed' | 'timeout'): Promise<void> {
+    ai.reflecting = true;
+
+    const lifeResult: LifeResult = {
+      score: Math.floor(ai.car.score),
+      survivedSeconds: 0, // we don't track per-life time currently
+      tagsGiven: ai.car.tagsGiven,
+      tagsReceived: ai.car.tagsReceived,
+      damageDealt: Math.round(ai.car.damageDealt),
+      damageTaken: Math.round(ai.car.damageTaken),
+      kills: ai.car.kills,
+      deathCause,
+    };
+
+    try {
+      const updated = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
+      ai.soma = updated;
+      this.savedSomas.set(ai.car.id, updated);
+      saveSomas(this.savedSomas);
+      console.log(`[REFLECTION] ${ai.personality.name} updated their code`);
+    } catch (err) {
+      console.warn(`[REFLECTION] ${ai.personality.name} failed:`, err);
+    }
+
+    ai.reflecting = false;
+  }
+
+  // ── Score Persistence ──
+
+  private loadScores(): Map<string, number> {
+    const raw = localStorage.getItem('tag-your-dead-scores');
+    if (!raw) return new Map();
+    try {
+      const obj = JSON.parse(raw) as Record<string, number>;
+      return new Map(Object.entries(obj));
+    } catch {
+      return new Map();
     }
   }
 
-  private async startReflection(): Promise<void> {
-    this.phase = 'reflecting';
-    this.trashTalkLines = [];
-    this.reflectionProgress = 0;
-    this.reflectionTotal = this.aiCars.length;
-
-    // Run all reflections in parallel
-    const promises = this.aiCars.map(async (ai) => {
-      const myResult = this.roundResults.find(r =>
-        r.name === ai.personality.name
-      )?.result;
-      if (!myResult) return;
-
-      // Reflect (sonnet)
-      const updated = await reflectOnRound(ai.personality.name, ai.soma, myResult);
-      ai.soma = updated;
-      this.savedSomas.set(ai.car.id, updated);
-
-      // Trash talk (haiku) — in parallel with reflection
-      const talk = await generateTrashTalk(
-        ai.personality.name,
-        ai.soma,
-        myResult,
-        this.roundResults,
-      );
-      this.trashTalkLines.push({
-        name: ai.personality.name,
-        line: talk,
-        color: ai.personality.color,
-      });
-
-      this.reflectionProgress++;
-    });
-
-    await Promise.all(promises);
-    saveSomas(this.savedSomas);
-
-    // Auto-advance to next round after brief display
-    this.phase = 'round_over';
-    this.pauseTimer = 0;
+  private saveScores(): void {
+    const obj: Record<string, number> = {};
+    for (const car of this.allCars) {
+      obj[car.id] = Math.floor(car.score);
+    }
+    localStorage.setItem('tag-your-dead-scores', JSON.stringify(obj));
   }
 
   // ── Render ──
@@ -382,24 +382,9 @@ export class Game {
       case 'title':
         this.renderTitle();
         break;
-      case 'countdown':
-        this.renderArena();
-        this.renderCountdown();
-        break;
       case 'playing':
         this.renderArena();
         this.renderHUD();
-        break;
-      case 'round_over':
-        this.renderArena();
-        this.renderRoundOver();
-        break;
-      case 'reflecting':
-        this.renderArena();
-        this.renderReflecting();
-        break;
-      case 'game_over':
-        this.renderGameOver();
         break;
     }
   }
@@ -408,7 +393,6 @@ export class Game {
     const ctx = this.ctx;
     const cam = this.camera;
 
-    // Apply screen shake
     const shake = updateShake(0.016);
     ctx.save();
     ctx.translate(shake.dx, shake.dy);
@@ -425,7 +409,7 @@ export class Game {
       }
     }
 
-    // Tire tracks (below everything)
+    // Tire tracks
     renderTracks(ctx, cam);
 
     // Arena border
@@ -444,7 +428,7 @@ export class Game {
       else if (obs.type === 'barrel') renderBarrel(ctx, s.x, s.y);
     }
 
-    // Cars (dead ones first, dimmed)
+    // Dead cars (dimmed, with respawn timer)
     for (const car of this.allCars) {
       if (car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 30)) continue;
@@ -453,8 +437,23 @@ export class Game {
       ctx.globalAlpha = 0.3;
       renderCar(ctx, s.x, s.y, car.angle, car.color, false, 0);
       ctx.restore();
+
+      // Respawn timer
+      if (car.respawnTimer > 0) {
+        ctx.save();
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ff8844';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        const text = car.respawnTimer.toFixed(1);
+        ctx.strokeText(text, s.x, s.y - 15);
+        ctx.fillText(text, s.x, s.y - 15);
+        ctx.restore();
+      }
     }
 
+    // Alive cars
     for (const car of this.allCars) {
       if (!car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 30)) continue;
@@ -462,11 +461,10 @@ export class Game {
       renderCar(ctx, s.x, s.y, car.angle, car.color, car.isIt, car.immuneTimer);
     }
 
-    // Particles on top
+    // Particles
     renderParticles(ctx, cam);
 
     // Name labels + HP bars
-    const maxHp = CONFIG.DAMAGE.MAX_HP;
     for (const car of this.allCars) {
       if (!car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 40)) continue;
@@ -476,12 +474,12 @@ export class Game {
 
       ctx.save();
 
-      // HP bar
+      // HP bar (width scales with maxHp)
       const barW = 24;
       const barH = 3;
       const barX = s.x - barW / 2;
       const barY = s.y - 38;
-      const hpFrac = car.hp / maxHp;
+      const hpFrac = car.hp / car.maxHp;
       ctx.fillStyle = '#000';
       ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
       ctx.fillStyle = hpFrac > 0.5 ? '#44cc44' : hpFrac > 0.25 ? '#ccaa22' : '#cc2222';
@@ -509,33 +507,86 @@ export class Game {
 
   private renderHUD(): void {
     const ctx = this.ctx;
-    const alive = this.allCars.filter(c => c.alive).length;
 
-    // Alive count
     ctx.save();
-    ctx.font = 'bold 16px monospace';
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 3;
-    ctx.textAlign = 'left';
-    const text = `HP: ${Math.round(this.player.hp)}  |  ALIVE: ${alive}/${this.allCars.length}  |  ROUND ${this.roundNumber}`;
-    ctx.strokeText(text, 10, 24);
-    ctx.fillText(text, 10, 24);
 
-    // Player status
+    // ── Scoreboard (top-left) ──
+    const sorted = [...this.allCars].sort((a, b) => b.score - a.score);
+    const sbX = 10;
+    const sbY = 10;
+    const lineH = 18;
+    const sbW = 180;
+    const sbH = 14 + sorted.length * lineH + 6;
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(sbX, sbY, sbW, sbH);
+    ctx.strokeStyle = '#8b4513';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sbX, sbY, sbW, sbH);
+
+    // Header
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffaa22';
+    ctx.fillText('SCOREBOARD', sbX + 6, sbY + 12);
+
+    // Entries
+    ctx.font = '10px monospace';
+    for (let i = 0; i < sorted.length; i++) {
+      const car = sorted[i];
+      const name = car.id === 'player' ? 'YOU' :
+        this.aiCars.find(a => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
+      const y = sbY + 14 + (i + 1) * lineH;
+
+      // Highlight player
+      if (car.id === 'player') {
+        ctx.fillStyle = '#ff8888';
+      } else if (!car.alive) {
+        ctx.fillStyle = '#666';
+      } else {
+        ctx.fillStyle = '#ccc';
+      }
+
+      const status = car.alive ? '' : ' \u2620'; // skull when dead
+      const ai = this.aiCars.find(a => a.car.id === car.id);
+      const reflecting = ai?.reflecting ? ' \u2699' : ''; // gear when reflecting
+      ctx.fillText(`${Math.floor(car.score).toString().padStart(4)} ${name}${status}${reflecting}`, sbX + 6, y);
+
+      // HP bar next to score
+      if (car.alive) {
+        const bx = sbX + sbW - 40;
+        const bw = 30;
+        const bh = 4;
+        const by = y - 4;
+        const hpFrac = car.hp / car.maxHp;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = hpFrac > 0.5 ? '#44cc44' : hpFrac > 0.25 ? '#ccaa22' : '#cc2222';
+        ctx.fillRect(bx, by, bw * hpFrac, bh);
+      }
+    }
+
+    // ── Player status (top-center) ──
+    ctx.textAlign = 'center';
     if (this.player.isIt) {
       ctx.font = 'bold 20px monospace';
       ctx.fillStyle = '#ff2222';
-      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
       const itText = `YOU'RE IT! ${this.player.itTimer.toFixed(1)}s`;
       ctx.strokeText(itText, CW / 2, 30);
       ctx.fillText(itText, CW / 2, 30);
     } else if (!this.player.alive) {
       ctx.font = 'bold 20px monospace';
       ctx.fillStyle = '#ff4444';
-      ctx.textAlign = 'center';
-      ctx.strokeText('ELIMINATED — WATCHING', CW / 2, 30);
-      ctx.fillText('ELIMINATED — WATCHING', CW / 2, 30);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      const text = this.player.respawnTimer > 0
+        ? `RESPAWNING IN ${this.player.respawnTimer.toFixed(1)}s`
+        : 'ELIMINATED — WATCHING';
+      ctx.strokeText(text, CW / 2, 30);
+      ctx.fillText(text, CW / 2, 30);
     }
 
     // Minimap
@@ -586,7 +637,6 @@ export class Game {
     ctx.fillStyle = '#1a0f08';
     ctx.fillRect(0, 0, CW, CH);
 
-    // Title
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff4444';
@@ -601,21 +651,21 @@ export class Game {
     ctx.font = '14px monospace';
     ctx.fillText('Arrow keys / WASD to drive', CW / 2, CH / 2 + 20);
     ctx.fillText('Ram cars to deal damage — being IT means 3x damage', CW / 2, CH / 2 + 45);
-    ctx.fillText('Pass the tag before the timer runs out', CW / 2, CH / 2 + 70);
-    ctx.fillText('Last car standing wins!', CW / 2, CH / 2 + 95);
+    ctx.fillText('Higher score = more HP and speed', CW / 2, CH / 2 + 70);
+    ctx.fillText('Die? Score halved. Respawn. Keep fighting.', CW / 2, CH / 2 + 95);
 
-    // Overall scores if any
-    if (this.scores.size > 0) {
+    // Show saved scores if any
+    if (this.savedScores.size > 0) {
       ctx.fillStyle = '#aaa';
       ctx.font = 'bold 14px monospace';
-      ctx.fillText('─── CAREER STATS ───', CW / 2, CH / 2 + 140);
+      ctx.fillText('\u2500\u2500\u2500 CAREER SCORES \u2500\u2500\u2500', CW / 2, CH / 2 + 140);
       ctx.font = '12px monospace';
       let y = CH / 2 + 160;
-      const entries = [...this.scores.entries()].sort((a, b) => b[1].wins - a[1].wins);
+      const entries = [...this.savedScores.entries()].sort((a, b) => b[1] - a[1]);
       for (const [id, score] of entries.slice(0, 6)) {
         const name = id === 'player' ? 'YOU' :
-          this.aiCars.find(a => a.car.id === id)?.personality.name ?? id;
-        ctx.fillText(`${name}: ${score.wins}W / ${score.rounds}R`, CW / 2, y);
+          PERSONALITIES.find(p => p.name.toLowerCase() === id)?.name ?? id;
+        ctx.fillText(`${name}: ${score}`, CW / 2, y);
         y += 18;
       }
     }
@@ -625,114 +675,6 @@ export class Game {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 16px monospace';
     ctx.fillText('PRESS SPACE TO START', CW / 2, CH - 60);
-    ctx.restore();
-  }
-
-  private renderCountdown(): void {
-    const ctx = this.ctx;
-    const num = Math.ceil(this.countdownTimer);
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 72px monospace';
-    ctx.fillStyle = '#ff4444';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
-    const text = num > 0 ? String(num) : 'GO!';
-    ctx.strokeText(text, CW / 2, CH / 2);
-    ctx.fillText(text, CW / 2, CH / 2);
-    ctx.restore();
-  }
-
-  private renderRoundOver(): void {
-    const ctx = this.ctx;
-
-    // Semi-transparent overlay
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(0, 0, CW, CH);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ff4444';
-    ctx.font = 'bold 36px monospace';
-    ctx.fillText(`ROUND ${this.roundNumber} OVER`, CW / 2, 60);
-
-    // Results
-    ctx.font = '16px monospace';
-    let y = 110;
-    for (const { name, result } of this.roundResults) {
-      const isPlayer = name === 'You';
-      ctx.fillStyle = isPlayer ? '#ff8888' : '#ccc';
-      const status = result.wasEliminated ? 'ELIMINATED' : 'SURVIVED';
-      ctx.fillText(
-        `#${result.placement} ${name} — ${status} | DMG: ${result.damageDealt}/${result.damageTaken} | Tags: ${result.tagsGiven}G ${result.tagsReceived}R`,
-        CW / 2, y,
-      );
-      y += 24;
-    }
-
-    // Trash talk
-    if (this.trashTalkLines.length > 0) {
-      y += 20;
-      ctx.fillStyle = '#888';
-      ctx.font = 'bold 14px monospace';
-      ctx.fillText('─── POST-ROUND CHATTER ───', CW / 2, y);
-      y += 24;
-
-      ctx.font = 'italic 13px monospace';
-      for (const { name, line } of this.trashTalkLines) {
-        ctx.fillStyle = '#aaa';
-        ctx.fillText(`${name}: "${line}"`, CW / 2, y);
-        y += 20;
-      }
-    }
-
-    // Prompt
-    if (this.pauseTimer <= 0) {
-      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 400);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 14px monospace';
-      ctx.fillText('PRESS SPACE — AI CARS WILL REFLECT & IMPROVE', CW / 2, CH - 40);
-    }
-
-    ctx.restore();
-  }
-
-  private renderReflecting(): void {
-    const ctx = this.ctx;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, CW, CH);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffaa22';
-    ctx.font = 'bold 24px monospace';
-    ctx.fillText('PIT STOP', CW / 2, CH / 2 - 30);
-
-    ctx.fillStyle = '#888';
-    ctx.font = '16px monospace';
-    ctx.fillText(
-      `${this.reflectionProgress}/${this.reflectionTotal} drivers healing up and planning for slaughter`,
-      CW / 2, CH / 2 + 10,
-    );
-
-    // Spinner
-    const dots = '.'.repeat(Math.floor(performance.now() / 300) % 4);
-    ctx.fillText(dots, CW / 2, CH / 2 + 40);
-
-    ctx.restore();
-  }
-
-  private renderGameOver(): void {
-    const ctx = this.ctx;
-    ctx.fillStyle = '#1a0f08';
-    ctx.fillRect(0, 0, CW, CH);
-
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ff4444';
-    ctx.font = 'bold 36px monospace';
-    ctx.fillText('GAME OVER', CW / 2, CH / 3);
     ctx.restore();
   }
 }

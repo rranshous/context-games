@@ -299,6 +299,9 @@ export interface MeAPI {
   angle: number;
   speed: number;
   hp: number;
+  maxHp: number;
+  maxSpeed: number;
+  score: number;
   isIt: boolean;
   itTimer: number;
   immuneTimer: number;
@@ -320,6 +323,7 @@ export interface OtherCarAPI {
   angle: number;
   speed: number;
   hp: number;
+  score: number;
   isIt: boolean;
   alive: boolean;
   immuneTimer: number;
@@ -340,6 +344,9 @@ export function buildMeAPI(car: Car, soma: CarSoma): MeAPI {
     get angle() { return car.angle; },
     get speed() { return car.speed; },
     get hp() { return car.hp; },
+    get maxHp() { return car.maxHp; },
+    get maxSpeed() { return car.maxSpeed; },
+    get score() { return Math.floor(car.score); },
     get isIt() { return car.isIt; },
     get itTimer() { return car.itTimer; },
     get immuneTimer() { return car.immuneTimer; },
@@ -387,6 +394,7 @@ export function buildWorldAPI(
         angle: c.angle,
         speed: c.speed,
         hp: c.hp,
+        score: Math.floor(c.score),
         isIt: c.isIt,
         alive: c.alive,
         immuneTimer: c.immuneTimer,

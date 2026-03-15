@@ -12,7 +12,7 @@ export const CONFIG = {
   },
 
   VEHICLE: {
-    MAX_SPEED: 200,
+    BASE_MAX_SPEED: 200,
     ACCELERATION: 300,
     BRAKING: 400,
     FRICTION: 80,
@@ -28,13 +28,12 @@ export const CONFIG = {
     IT_TIMEOUT: 25,          // seconds before "it" is eliminated
     TAG_DISTANCE: 30,        // how close to tag someone
     TAG_IMMUNITY: 1.5,       // seconds of immunity after being tagged
-    ROUND_PAUSE: 3,          // seconds between rounds
     MIN_SPEED_TO_TAG: 40,    // must be moving to tag
-    INITIAL_CAR_COUNT: 5,    // AI cars per round
+    CAR_COUNT: 5,            // AI cars
   },
 
   DAMAGE: {
-    MAX_HP: 100,
+    BASE_MAX_HP: 100,
     COLLISION_DISTANCE: 28,    // car-to-car collision check radius
     DAMAGE_FACTOR: 0.15,       // damage = speed * factor (200 speed = 30 base damage)
     IT_DAMAGE_MULTIPLIER: 3,   // "it" cars deal 3x damage
@@ -42,6 +41,25 @@ export const CONFIG = {
     BUMP_FORCE: 20,            // push-apart distance on collision
     BUMP_SPEED_TRANSFER: 0.3,  // speed reduction on bump
     HIT_GRACE_PERIOD: 1.0,     // seconds of invulnerability after being hit
+    FRONT_HIT_ANGLE: Math.PI / 3,  // ±60° cone counts as "front bumper"
+    FRONT_HIT_SELF_DAMAGE: 0.1,    // front-bumper rammer takes only 10% damage
+  },
+
+  RESPAWN: {
+    TIMER: 5,                  // seconds before respawn
+    MIN_DISTANCE: 200,         // minimum distance from other cars on respawn
+    SPAWN_IMMUNITY: 2.0,       // seconds of immunity after respawn
+  },
+
+  SCORE: {
+    PER_SECOND: 1,             // points per second alive
+    PER_DAMAGE: 0.5,           // points per damage dealt
+    KILL_BONUS: 50,            // points for destroying a car
+    DEATH_PENALTY: 0.5,        // multiply score by this on death
+    // Stat scaling: stat = base + min(score, CAP) * FACTOR
+    HP_FACTOR: 0.5,            // score 200 → +100 HP (200 total)
+    SPEED_FACTOR: 0.15,        // score 200 → +30 speed (230 total)
+    SCALE_CAP: 200,            // score above this doesn't increase stats further
   },
 
   CAMERA: {
