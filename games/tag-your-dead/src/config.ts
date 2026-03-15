@@ -44,7 +44,8 @@ export const CONFIG = {
     FRONT_HIT_ANGLE: Math.PI / 3,  // ±60° cone counts as "front bumper"
     FRONT_HIT_SELF_DAMAGE: 0.1,    // front-bumper rammer takes only 10% damage
     ROCK_DAMAGE_FACTOR: 0.2,       // rock hit damage = 20% of equivalent car collision
-    SOFT_OBSTACLE_SPEED_MULT: 0.5, // cacti/barrels slow you to 50% speed on pass-through
+    SOFT_OBSTACLE_SPEED_MULT: 0.6, // cacti/barrels slow you to 60% speed on pass-through (one-time)
+    SAND_FRICTION_MULT: 3.0,       // rough sand multiplies friction by 3x (gradual slowdown)
   },
 
   RESPAWN: {

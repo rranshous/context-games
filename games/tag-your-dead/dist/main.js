@@ -56,8 +56,10 @@ var CONFIG = {
     // front-bumper rammer takes only 10% damage
     ROCK_DAMAGE_FACTOR: 0.2,
     // rock hit damage = 20% of equivalent car collision
-    SOFT_OBSTACLE_SPEED_MULT: 0.5
-    // cacti/barrels slow you to 50% speed on pass-through
+    SOFT_OBSTACLE_SPEED_MULT: 0.6,
+    // cacti/barrels slow you to 60% speed on pass-through (one-time)
+    SAND_FRICTION_MULT: 3
+    // rough sand multiplies friction by 3x (gradual slowdown)
   },
   RESPAWN: {
     TIMER: 5,
@@ -107,7 +109,7 @@ var Arena = class {
   width = A.WIDTH;
   height = A.HEIGHT;
   obstacles = [];
-  // Pre-baked sand texture positions (cosmetic only)
+  // Rough sand patches — slow cars that drive through them
   sandPatches = [];
   constructor(seed = 42) {
     const rng = seededRng(seed);
@@ -140,11 +142,13 @@ var Arena = class {
       if (Math.sqrt(dx * dx + dy * dy) < 200) continue;
       this.obstacles.push({ x, y, radius: 10, type: "barrel" });
     }
-    for (let i = 0; i < 60; i++) {
-      this.sandPatches.push({
-        x: rng() * this.width,
-        y: rng() * this.height
-      });
+    for (let i = 0; i < 20; i++) {
+      const x = margin + rng() * (this.width - 2 * margin);
+      const y = margin + rng() * (this.height - 2 * margin);
+      const dx2 = x - center.x;
+      const dy2 = y - center.y;
+      if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < 200) continue;
+      this.sandPatches.push({ x, y, radius: 30 + rng() * 40 });
     }
   }
   checkObstacleCollision(x, y, radius) {
@@ -157,6 +161,15 @@ var Arena = class {
       }
     }
     return null;
+  }
+  // Check if position is in rough sand (returns true if in any patch)
+  isInSand(x, y) {
+    for (const sp of this.sandPatches) {
+      const dx = x - sp.x;
+      const dy = y - sp.y;
+      if (dx * dx + dy * dy < sp.radius * sp.radius) return true;
+    }
+    return false;
   }
   // Clamp position to arena bounds
   clampPosition(x, y, margin = 10) {
@@ -272,11 +285,13 @@ var Car = class {
         this.speed -= V.ACCELERATION * 0.5 * this.brakeInput * dt;
       }
     }
+    const inSand = arena.isInSand(this.x, this.y);
+    const friction = V.FRICTION * (inSand ? D.SAND_FRICTION_MULT : 1);
     if (this.speed > 0) {
-      this.speed -= V.FRICTION * dt;
+      this.speed -= friction * dt;
       if (this.speed < 0) this.speed = 0;
     } else if (this.speed < 0) {
-      this.speed += V.FRICTION * dt;
+      this.speed += friction * dt;
       if (this.speed > 0) this.speed = 0;
     }
     const ms = this.maxSpeed;
@@ -322,8 +337,8 @@ var Car = class {
       } else {
         this.x = newX;
         this.y = newY;
-        this.speed *= D.SOFT_OBSTACLE_SPEED_MULT;
         if (this._obstacleCooldown <= 0) {
+          this.speed *= D.SOFT_OBSTACLE_SPEED_MULT;
           if (collision.type === "cactus") this.cactusHits++;
           else this.barrelHits++;
           this._obstacleCooldown = 0.5;
@@ -723,7 +738,7 @@ function renderBarrel(ctx, sx, sy) {
   if (miscPropsImg) {
     ctx.drawImage(
       miscPropsImg,
-      0,
+      2 * FRAME_SIZE,
       0,
       FRAME_SIZE,
       FRAME_SIZE,
@@ -1691,12 +1706,20 @@ var Game = class {
     const shake = updateShake(0.016);
     ctx.save();
     ctx.translate(shake.dx, shake.dy);
-    ctx.fillStyle = "#d4b896";
+    ctx.fillStyle = "#efb681";
     ctx.fillRect(0, 0, CW2, CH2);
     for (const sp of this.arena.sandPatches) {
-      if (cam.isVisible(sp.x, sp.y, 20)) {
-        const s = cam.worldToScreen(sp.x, sp.y);
-        renderSandPatch(ctx, s.x, s.y);
+      if (!cam.isVisible(sp.x, sp.y, sp.radius + 32)) continue;
+      const step = 28;
+      for (let ox = -sp.radius; ox <= sp.radius; ox += step) {
+        for (let oy = -sp.radius; oy <= sp.radius; oy += step) {
+          if (ox * ox + oy * oy > sp.radius * sp.radius) continue;
+          const wx = sp.x + ox;
+          const wy = sp.y + oy;
+          if (!cam.isVisible(wx, wy, 16)) continue;
+          const s = cam.worldToScreen(wx, wy);
+          renderSandPatch(ctx, s.x, s.y);
+        }
       }
     }
     renderTracks(ctx, cam);
@@ -1746,15 +1769,6 @@ var Game = class {
       const s = cam.worldToScreen(car.x, car.y);
       const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       ctx.save();
-      const barW = 24;
-      const barH = 3;
-      const barX = s.x - barW / 2;
-      const barY = s.y - 38;
-      const hpFrac = car.hp / car.maxHp;
-      ctx.fillStyle = "#000";
-      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
-      ctx.fillStyle = hpFrac > 0.5 ? "#44cc44" : hpFrac > 0.25 ? "#ccaa22" : "#cc2222";
-      ctx.fillRect(barX, barY, barW * hpFrac, barH);
       ctx.font = "bold 10px monospace";
       ctx.textAlign = "center";
       ctx.fillStyle = car.isIt ? "#ff4444" : "#ffffff";
@@ -1765,9 +1779,18 @@ var Game = class {
       if (car.isIt) {
         ctx.font = "bold 9px monospace";
         ctx.fillStyle = "#ff8888";
-        ctx.strokeText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 30);
-        ctx.fillText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 30);
+        ctx.strokeText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
+        ctx.fillText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
       }
+      const barW = 24;
+      const barH = 3;
+      const barX = s.x - barW / 2;
+      const barY = car.isIt ? s.y - 44 : s.y - 38;
+      const hpFrac = car.hp / car.maxHp;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+      ctx.fillStyle = hpFrac > 0.5 ? "#44cc44" : hpFrac > 0.25 ? "#ccaa22" : "#cc2222";
+      ctx.fillRect(barX, barY, barW * hpFrac, barH);
       ctx.restore();
     }
     ctx.restore();

@@ -254,3 +254,32 @@ Dust particles now spawn 14-18px behind the car (offset along reverse of facing 
 - Playtest and observe AI reflections — are they learning from the hit data?
 - Sound effects
 - More arena variety
+
+### Session 3c — Bug Fixes & Terrain Polish (2026-03-14)
+
+#### Bugs fixed
+1. **Soft obstacle perma-slowdown**: `speed *= 0.5` applied every frame while overlapping cactus/barrel — speed hit zero instantly. Fixed: one-time slowdown on entry with 0.5s cooldown (same cooldown already used for hit counting). Bumped multiplier from 0.5 to 0.6.
+2. **HP bar invisible on "it" car**: `strokeText` for the IT timer (lineWidth 2, black stroke at y-30) painted over the HP bar (at y-38, 3px tall). Fixed: draw text first, then HP bar on top; moved IT text to y-32 and HP bar to y-44 when car is "it".
+3. **Barrel sprite was hazard chevron**: `renderBarrel()` was using Misc_props tile 0 (orange/black chevron stripe). Changed to tile 2 (traffic cone) which looks correct for a small obstacle.
+4. **Background color mismatch**: `#d4b896` was too dark/warm for the sprite palette. Changed to `#efb681` (same as Wheelman) — seamless blend with Desert_details tile sprites.
+
+#### Rough sand terrain
+- Sand patches upgraded from cosmetic to functional: `SandPatch { x, y, radius }` with `isInSand()` check
+- 20 patches (radius 30-70), center-cleared for spawning
+- Effect: 3x friction multiplier (gradual slowdown, not a hard speed cut — learned from cactus bug)
+- Rendered as tiled Desert_details tile 1 filling circular area (step=28px for slight overlap)
+- Config: `SAND_FRICTION_MULT: 3.0`
+
+#### Sprite sheet reference (mini-pixel-pack-2)
+- **Desert_details**: tile 0 = blank sand, tile 1 = textured/rough sand, tile 2 = cactus, tile 3 = rock
+- **Misc_props**: tile 0 = hazard chevron (DON'T USE for barrels), tile 2 = traffic cone (used for barrels)
+
+#### Current state
+- All 5 feedback items resolved: slowdown, HP bar, barrel sprite, sand terrain, background color
+- Visually matches Wheelman's desert aesthetic
+- Sand patches create tactical terrain variety (slower zones to avoid or use for defense)
+
+#### What's next
+- Playtest: sand friction feel, barrel/cone placement, AI behavior
+- Sound effects
+- Arena variety (multiple seeds, hazard layouts)

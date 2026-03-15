@@ -404,15 +404,23 @@ export class Game {
     ctx.save();
     ctx.translate(shake.dx, shake.dy);
 
-    // Desert background
-    ctx.fillStyle = '#d4b896';
+    // Desert background (matches sprite sand palette)
+    ctx.fillStyle = '#efb681';
     ctx.fillRect(0, 0, CW, CH);
 
-    // Sand patches
+    // Sand patches (rough terrain zones — tiled to fill radius)
     for (const sp of this.arena.sandPatches) {
-      if (cam.isVisible(sp.x, sp.y, 20)) {
-        const s = cam.worldToScreen(sp.x, sp.y);
-        renderSandPatch(ctx, s.x, s.y);
+      if (!cam.isVisible(sp.x, sp.y, sp.radius + 32)) continue;
+      const step = 28; // tile spacing (slightly less than 32 for overlap)
+      for (let ox = -sp.radius; ox <= sp.radius; ox += step) {
+        for (let oy = -sp.radius; oy <= sp.radius; oy += step) {
+          if (ox * ox + oy * oy > sp.radius * sp.radius) continue;
+          const wx = sp.x + ox;
+          const wy = sp.y + oy;
+          if (!cam.isVisible(wx, wy, 16)) continue;
+          const s = cam.worldToScreen(wx, wy);
+          renderSandPatch(ctx, s.x, s.y);
+        }
       }
     }
 
@@ -481,18 +489,7 @@ export class Game {
 
       ctx.save();
 
-      // HP bar (width scales with maxHp)
-      const barW = 24;
-      const barH = 3;
-      const barX = s.x - barW / 2;
-      const barY = s.y - 38;
-      const hpFrac = car.hp / car.maxHp;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
-      ctx.fillStyle = hpFrac > 0.5 ? '#44cc44' : hpFrac > 0.25 ? '#ccaa22' : '#cc2222';
-      ctx.fillRect(barX, barY, barW * hpFrac, barH);
-
-      // Name
+      // Name + IT label first (so HP bar draws on top, never covered)
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = car.isIt ? '#ff4444' : '#ffffff';
@@ -503,9 +500,20 @@ export class Game {
       if (car.isIt) {
         ctx.font = 'bold 9px monospace';
         ctx.fillStyle = '#ff8888';
-        ctx.strokeText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 30);
-        ctx.fillText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 30);
+        ctx.strokeText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
+        ctx.fillText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
       }
+
+      // HP bar (drawn last so it's never covered by text)
+      const barW = 24;
+      const barH = 3;
+      const barX = s.x - barW / 2;
+      const barY = car.isIt ? s.y - 44 : s.y - 38;
+      const hpFrac = car.hp / car.maxHp;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+      ctx.fillStyle = hpFrac > 0.5 ? '#44cc44' : hpFrac > 0.25 ? '#ccaa22' : '#cc2222';
+      ctx.fillRect(barX, barY, barW * hpFrac, barH);
       ctx.restore();
     }
 

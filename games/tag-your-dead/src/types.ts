@@ -3,6 +3,12 @@ export interface Position {
   y: number;
 }
 
+export interface SandPatch {
+  x: number;
+  y: number;
+  radius: number;
+}
+
 export interface Obstacle {
   x: number;
   y: number;

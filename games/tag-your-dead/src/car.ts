@@ -127,12 +127,14 @@ export class Car implements CarState {
       }
     }
 
-    // Friction
+    // Friction (increased in rough sand)
+    const inSand = arena.isInSand(this.x, this.y);
+    const friction = V.FRICTION * (inSand ? D.SAND_FRICTION_MULT : 1);
     if (this.speed > 0) {
-      this.speed -= V.FRICTION * dt;
+      this.speed -= friction * dt;
       if (this.speed < 0) this.speed = 0;
     } else if (this.speed < 0) {
-      this.speed += V.FRICTION * dt;
+      this.speed += friction * dt;
       if (this.speed > 0) this.speed = 0;
     }
 
@@ -186,11 +188,11 @@ export class Car implements CarState {
         if (this._obstacleCooldown <= 0) { this.rockHits++; this._obstacleCooldown = 0.5; }
         this._lastObstacleHit = collision.type;
       } else {
-        // Cactus/barrel: slow down, drive through
+        // Cactus/barrel: one-time slowdown on entry, then drive through
         this.x = newX;
         this.y = newY;
-        this.speed *= D.SOFT_OBSTACLE_SPEED_MULT;
         if (this._obstacleCooldown <= 0) {
+          this.speed *= D.SOFT_OBSTACLE_SPEED_MULT;
           if (collision.type === 'cactus') this.cactusHits++;
           else this.barrelHits++;
           this._obstacleCooldown = 0.5;

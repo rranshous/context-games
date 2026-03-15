@@ -3,7 +3,7 @@
 // Smaller than wheelman's world — tight quarters for derby action.
 
 import { CONFIG } from './config.js';
-import { Obstacle, Position } from './types.js';
+import { Obstacle, Position, SandPatch } from './types.js';
 
 const A = CONFIG.ARENA;
 
@@ -20,8 +20,8 @@ export class Arena {
   readonly height = A.HEIGHT;
   obstacles: Obstacle[] = [];
 
-  // Pre-baked sand texture positions (cosmetic only)
-  sandPatches: Position[] = [];
+  // Rough sand patches — slow cars that drive through them
+  sandPatches: SandPatch[] = [];
 
   constructor(seed: number = 42) {
     const rng = seededRng(seed);
@@ -63,12 +63,15 @@ export class Arena {
       this.obstacles.push({ x, y, radius: 10, type: 'barrel' });
     }
 
-    // Sand texture patches (purely visual)
-    for (let i = 0; i < 60; i++) {
-      this.sandPatches.push({
-        x: rng() * this.width,
-        y: rng() * this.height,
-      });
+    // Rough sand patches — clusters of textured sand that slow cars
+    for (let i = 0; i < 20; i++) {
+      const x = margin + rng() * (this.width - 2 * margin);
+      const y = margin + rng() * (this.height - 2 * margin);
+      // Keep center clear
+      const dx2 = x - center.x;
+      const dy2 = y - center.y;
+      if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < 200) continue;
+      this.sandPatches.push({ x, y, radius: 30 + rng() * 40 });
     }
   }
 
@@ -82,6 +85,16 @@ export class Arena {
       }
     }
     return null;
+  }
+
+  // Check if position is in rough sand (returns true if in any patch)
+  isInSand(x: number, y: number): boolean {
+    for (const sp of this.sandPatches) {
+      const dx = x - sp.x;
+      const dy = y - sp.y;
+      if (dx * dx + dy * dy < sp.radius * sp.radius) return true;
+    }
+    return false;
   }
 
   // Clamp position to arena bounds

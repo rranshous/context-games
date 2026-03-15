@@ -160,9 +160,10 @@ export function renderCactus(ctx: CanvasRenderingContext2D, sx: number, sy: numb
 
 export function renderBarrel(ctx: CanvasRenderingContext2D, sx: number, sy: number): void {
   if (miscPropsImg) {
+    // Tile 2 = traffic cone (tile 0 was hazard chevron, wrong sprite)
     ctx.drawImage(
       miscPropsImg,
-      0, 0, FRAME_SIZE, FRAME_SIZE,
+      2 * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE,
       sx - DETAIL_TILE / 2, sy - DETAIL_TILE / 2, DETAIL_TILE, DETAIL_TILE,
     );
   } else {
