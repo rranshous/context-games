@@ -540,3 +540,32 @@ Scrolling ticker at the bottom of the playing screen shows in-character brags wh
 - Sound effects
 - Arena variety
 - Playtest boost balance — may need tuning
+
+---
+
+## Session 7 — Fixing Reflection Self-Modification (2026-03-15)
+
+### Problem
+Reflection was firing (logs showed `tools: edit_memory, edit_on_tick`) but the on_tick code never actually changed. The brag marquee never appeared because brags only generate when on_tick changes.
+
+**Root cause**: `tool_choice: { type: 'any' }` forced the model to call tools even when it had nothing to change — it would resubmit the exact same on_tick code to satisfy the forced-tool-use constraint. String comparison correctly detected "unchanged" and skipped brag generation.
+
+### Fixes applied
+1. **`tool_choice: 'auto'`** — model now only calls `edit_on_tick` when it genuinely has code changes
+2. **Sharper reflection prompt** — changed "Reflect on this life and update your soma" to explicit instruction: "Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit the same code — make a specific tactical change based on how you died."
+3. **Added "it" advantage docs** — reflection prompt now mentions +15% max speed and 2x faster boost recharge when IT (was undocumented in the reflection context)
+4. **Better logging** — `[REFLECT]` logs now show which tools were called and whether on_tick changed
+
+### Comparison with Hot Pursuit reflection
+Hot Pursuit officers self-modify much more effectively. Key differences identified:
+- **Visual context**: officers get a base64-encoded bird's-eye chase map showing paths, buildings, key moments — far richer than tag-your-dead's text-only stats
+- **Key moments timeline**: numbered significant events with timestamps ("spotted suspect at 15s", "lost visual at 23s")
+- **Multi-turn**: up to 5 agentic turns with `query_replay` tool to deep-dive specific moments
+- **No forced tool use**: `tool_choice` not set (defaults to auto)
+- **Movement accountability**: warns if officer barely moved ("You barely moved — your handler probably isn't producing movement commands")
+
+### What's next — improving reflection quality
+- Add chase/encounter timeline (key moments: close calls, tag transfers, kills, near-misses)
+- Consider visual map context (bird's-eye replay of the life)
+- Movement accountability warning for low-distance lives
+- Multi-turn reflection (query specific moments)
