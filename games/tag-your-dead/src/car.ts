@@ -48,6 +48,9 @@ export class Car implements CarState {
   speedAccum: number = 0;      // accumulated |speed| for averaging
   speedSamples: number = 0;    // frame count for speed averaging
 
+  // Kill attribution — who last dealt damage to this car
+  lastAttackerId: string | null = null;
+
   // Obstacle hit tracking (for event log)
   _lastObstacleHit: string | null = null;
   private _obstacleCooldown: number = 0; // prevent counting same obstacle multiple frames
@@ -288,6 +291,7 @@ export class Car implements CarState {
     this.timeAtWall = 0;
     this.speedAccum = 0;
     this.speedSamples = 0;
+    this.lastAttackerId = null;
   }
 }
 
@@ -411,6 +415,10 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
       // Capture "it" status before damage (die() clears isIt)
       const bWasIt = b.isIt;
       const aWasIt = a.isIt;
+
+      // Track last attacker for kill attribution
+      if (selfDamageToB > 0) b.lastAttackerId = a.id;
+      if (selfDamageToA > 0) a.lastAttackerId = b.id;
 
       // Apply damage (reduced for front-bumper hits)
       const killedB = b.takeDamage(selfDamageToB);

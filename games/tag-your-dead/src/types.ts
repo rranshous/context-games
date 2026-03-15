@@ -74,6 +74,7 @@ export interface ScoreSnapshot {
 export interface GameEvent {
   time: number;
   carId: string;
-  type: 'kill' | 'death' | 'tagged_it';
+  type: 'kill' | 'death' | 'tagged_it' | 'big_hit';
   detail: string;
+  relatedCarId?: string; // killer for deaths
 }

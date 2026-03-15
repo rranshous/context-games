@@ -209,6 +209,24 @@ export class Game {
         spawnTagSparks(midX, midY);
         triggerShake(3, 0.15);
       }
+
+      // Big hit events (damage > 25 — notable collisions only)
+      if (col.damageToB > 25) {
+        this.gameEvents.push({
+          time: this.gameTime,
+          carId: col.a.id,
+          type: 'big_hit',
+          detail: `Hit ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToB)} dmg`,
+        });
+      }
+      if (col.damageToA > 25) {
+        this.gameEvents.push({
+          time: this.gameTime,
+          carId: col.b.id,
+          type: 'big_hit',
+          detail: `Hit ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToA)} dmg`,
+        });
+      }
     }
 
     // Check for deaths
@@ -219,12 +237,28 @@ export class Game {
         const reason = car.hp <= 0 ? 'destroyed' : 'timed out';
         console.log(`[ELIMINATED] ${car.id} ${reason}! Score halved to ${Math.floor(car.score)}`);
 
+        const killerId = car.lastAttackerId;
+        const killerName = killerId ? this.carDisplayName(killerId) : null;
+
         this.gameEvents.push({
           time: this.gameTime,
           carId: car.id,
           type: 'death',
-          detail: reason === 'destroyed' ? 'Destroyed' : 'IT timeout',
+          detail: reason === 'destroyed'
+            ? (killerName ? `Killed by ${killerName}` : 'Destroyed')
+            : 'IT timeout',
+          relatedCarId: killerId ?? undefined,
         });
+
+        // Kill event on the killer's line
+        if (reason === 'destroyed' && killerId) {
+          this.gameEvents.push({
+            time: this.gameTime,
+            carId: killerId,
+            type: 'kill',
+            detail: `Destroyed ${this.carDisplayName(car.id)}`,
+          });
+        }
 
         // Ensure someone is always "it"
         const alive = this.allCars.filter(c => c.alive);
@@ -854,15 +888,39 @@ export class Game {
       const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
 
       if (ev.type === 'death') {
-        // Skull marker — large, solid, with black outline for contrast
+        // Skull in killer's color (or own color if no killer)
+        const killerColor = ev.relatedCarId ? (this.CAR_COLORS[ev.relatedCarId] ?? color) : color;
         ctx.font = 'bold 22px monospace';
         ctx.textAlign = 'center';
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 3;
         ctx.strokeText('\u2620', ex, ey - 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = killerColor;
         ctx.fillText('\u2620', ex, ey - 2);
-        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} — ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} — ${ev.detail} [${timeStr}]`, color: killerColor });
+      } else if (ev.type === 'kill') {
+        // Kill marker — crosshair/target circle on the killer's line
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 8, 0, Math.PI * 2);
+        ctx.stroke();
+        // Cross inside
+        ctx.beginPath();
+        ctx.moveTo(ex - 5, ey); ctx.lineTo(ex + 5, ey);
+        ctx.moveTo(ex, ey - 5); ctx.lineTo(ex, ey + 5);
+        ctx.stroke();
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} — ${ev.detail} [${timeStr}]`, color });
+      } else if (ev.type === 'big_hit') {
+        // Small burst/star for big hits
+        ctx.fillStyle = color;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeText('\u2737', ex, ey + 1); // six-pointed star
+        ctx.fillText('\u2737', ex, ey + 1);
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} — ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === 'tagged_it') {
         // Red pulsing circle (like IT glow ring)
         const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 300);
@@ -921,7 +979,11 @@ export class Game {
     // Marker legend
     ctx.fillStyle = '#888';
     ctx.fillText('\u2620=death', legendX + 4, plotY - 8);
-    legendX += 60;
+    legendX += 55;
+    ctx.fillText('\u2295=kill', legendX + 4, plotY - 8);
+    legendX += 45;
+    ctx.fillText('\u2737=hit', legendX + 4, plotY - 8);
+    legendX += 40;
     // Red circle legend marker
     ctx.strokeStyle = '#ff4444';
     ctx.lineWidth = 1.5;
@@ -929,7 +991,7 @@ export class Game {
     ctx.arc(legendX + 4, plotY - 10, 4, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = '#ff4444';
-    ctx.fillText('=tagged IT', legendX + 11, plotY - 8);
+    ctx.fillText('=IT', legendX + 11, plotY - 8);
   }
 
   private renderTactics(ctx: CanvasRenderingContext2D, tx: number, ty: number, tw: number, th: number): void {
