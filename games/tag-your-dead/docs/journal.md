@@ -432,6 +432,32 @@ Pause screen (ESC / P to toggle) with two panels:
 - `game.ts` — pause toggle, score/event tracking, graph renderer, tactics panel, haiku fetch, mouse tracking
 - `input.ts` — added Escape to preventDefault list
 
+### Session 5b — Graph polish + kill attribution + per-driver colors (2026-03-15)
+
+**Kill attribution on graph:**
+- `lastAttackerId` tracked on each Car — set when collision damage is dealt, reset on respawn
+- Death skulls now rendered in the **killer's color** (not the victim's) — a green skull on Viper's line means Bruiser killed them
+- Hover tooltip shows "Killed by BRUISER" etc.
+- Kill events (crosshair icon) appear on the **killer's** score line when they destroy someone
+- Big hit events (star icon, damage > 25) tracked on attacker's line — notable rams
+
+**4 marker types on graph:**
+- Skull = death (colored by killer)
+- Crosshair = kill (on killer's line)
+- Star = big hit (25+ damage)
+- Pulsing red circle = tagged IT
+
+**Per-driver colors everywhere:**
+- `CAR_COLORS` map (red/blue/green/yellow/purple/gray) now used consistently across:
+  - Scoreboard text (was white/gray, now per-driver; dimmed when dead)
+  - Name labels over cars in arena (was white, now per-driver; red when IT)
+  - Minimap dots (was all-blue for AI, now per-driver)
+  - Pause screen graph lines and driver intel panel
+- Same color identity from graph → scoreboard → minimap → car labels
+
+**Skull visibility fix:**
+- Skulls bumped from 16px to 22px bold with 3px black stroke outline for contrast
+
 ### What's next
 - Sound effects
 - Arena variety
