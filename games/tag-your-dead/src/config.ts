@@ -33,6 +33,17 @@ export const CONFIG = {
     INITIAL_CAR_COUNT: 5,    // AI cars per round
   },
 
+  DAMAGE: {
+    MAX_HP: 100,
+    COLLISION_DISTANCE: 28,    // car-to-car collision check radius
+    DAMAGE_FACTOR: 0.15,       // damage = speed * factor (200 speed = 30 base damage)
+    IT_DAMAGE_MULTIPLIER: 3,   // "it" cars deal 3x damage
+    COLLISION_COOLDOWN: 0.3,   // seconds between damage from same pair
+    BUMP_FORCE: 20,            // push-apart distance on collision
+    BUMP_SPEED_TRANSFER: 0.3,  // speed reduction on bump
+    HIT_GRACE_PERIOD: 1.0,     // seconds of invulnerability after being hit
+  },
+
   CAMERA: {
     SMOOTHING: 0.08,
   },

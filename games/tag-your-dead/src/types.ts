@@ -16,6 +16,7 @@ export interface CarState {
   y: number;
   angle: number;
   speed: number;
+  hp: number;             // current hit points (0 = dead)
   isIt: boolean;
   alive: boolean;
   itTimer: number;        // seconds left if "it"
@@ -42,6 +43,8 @@ export interface RoundResult {
   survivedSeconds: number;
   tagsGiven: number;
   tagsReceived: number;
+  damageDealt: number;
+  damageTaken: number;
   wasEliminated: boolean;
 }
 

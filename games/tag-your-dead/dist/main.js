@@ -36,6 +36,23 @@ var CONFIG = {
     INITIAL_CAR_COUNT: 5
     // AI cars per round
   },
+  DAMAGE: {
+    MAX_HP: 100,
+    COLLISION_DISTANCE: 28,
+    // car-to-car collision check radius
+    DAMAGE_FACTOR: 0.15,
+    // damage = speed * factor (200 speed = 30 base damage)
+    IT_DAMAGE_MULTIPLIER: 3,
+    // "it" cars deal 3x damage
+    COLLISION_COOLDOWN: 0.3,
+    // seconds between damage from same pair
+    BUMP_FORCE: 20,
+    // push-apart distance on collision
+    BUMP_SPEED_TRANSFER: 0.3,
+    // speed reduction on bump
+    HIT_GRACE_PERIOD: 1
+    // seconds of invulnerability after being hit
+  },
   CAMERA: {
     SMOOTHING: 0.08
   },
@@ -122,6 +139,7 @@ var Arena = class {
 // src/car.ts
 var V = CONFIG.VEHICLE;
 var T = CONFIG.TAG;
+var D = CONFIG.DAMAGE;
 var nextId = 0;
 var Car = class {
   id;
@@ -129,6 +147,7 @@ var Car = class {
   y;
   angle = 0;
   speed = 0;
+  hp = D.MAX_HP;
   isIt = false;
   alive = true;
   itTimer = 0;
@@ -137,6 +156,8 @@ var Car = class {
   // Stats for round
   tagsGiven = 0;
   tagsReceived = 0;
+  damageDealt = 0;
+  damageTaken = 0;
   eliminatedAt = 0;
   // timestamp when eliminated (0 = alive)
   // Controls — set each frame by player input or AI on_tick
@@ -178,21 +199,35 @@ var Car = class {
       }
     }
     if (this.accelInput > 0) {
-      this.speed += V.ACCELERATION * this.accelInput * dt;
+      if (this.speed < 0) {
+        this.speed += V.BRAKING * this.accelInput * dt;
+        if (this.speed > 0) this.speed = 0;
+      } else {
+        this.speed += V.ACCELERATION * this.accelInput * dt;
+      }
     }
     if (this.brakeInput > 0) {
-      this.speed -= V.BRAKING * this.brakeInput * dt;
-      if (this.speed < 0) this.speed = 0;
+      if (this.speed > 0) {
+        this.speed -= V.BRAKING * this.brakeInput * dt;
+        if (this.speed < 0) this.speed = 0;
+      } else {
+        this.speed -= V.ACCELERATION * 0.5 * this.brakeInput * dt;
+      }
     }
     if (this.speed > 0) {
       this.speed -= V.FRICTION * dt;
       if (this.speed < 0) this.speed = 0;
+    } else if (this.speed < 0) {
+      this.speed += V.FRICTION * dt;
+      if (this.speed > 0) this.speed = 0;
     }
+    const maxReverse = V.MAX_SPEED * 0.4;
     if (this.speed > V.MAX_SPEED) this.speed = V.MAX_SPEED;
-    if (this.speed > 10) {
-      const speedFactor = Math.min(1, this.speed / (V.MAX_SPEED * 0.5));
-      this.angle += this.steerInput * V.TURN_SPEED * speedFactor * dt;
-    }
+    if (this.speed < -maxReverse) this.speed = -maxReverse;
+    const absSpeed = Math.abs(this.speed);
+    const speedFactor = Math.max(0.3, Math.min(1, absSpeed / (V.MAX_SPEED * 0.5)));
+    const steerDir = this.speed < 0 ? -1 : 1;
+    this.angle += this.steerInput * V.TURN_SPEED * speedFactor * steerDir * dt;
     const vx = Math.cos(this.angle) * this.speed * dt;
     const vy = Math.sin(this.angle) * this.speed * dt;
     let newX = this.x + vx;
@@ -214,7 +249,11 @@ var Car = class {
     }
     const pos = arena.clampPosition(this.x, this.y, V.COLLISION_RADIUS);
     if (pos.x !== this.x || pos.y !== this.y) {
-      this.speed *= 0.5;
+      if (Math.abs(this.speed) > 10) {
+        this.speed *= -0.3;
+      } else {
+        this.speed = 0;
+      }
     }
     this.x = pos.x;
     this.y = pos.y;
@@ -222,15 +261,18 @@ var Car = class {
     this.accelInput = 0;
     this.brakeInput = 0;
   }
-  // Check if this car can tag another
+  // Check distance to another car
+  distanceTo(other) {
+    const dx = this.x - other.x;
+    const dy = this.y - other.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  // Check if this car can tag another (transfer "it")
   canTag(other) {
     if (!this.isIt || !this.alive || !other.alive) return false;
     if (other.immuneTimer > 0) return false;
     if (this.speed < T.MIN_SPEED_TO_TAG) return false;
-    const dx = this.x - other.x;
-    const dy = this.y - other.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    return dist < T.TAG_DISTANCE;
+    return this.distanceTo(other) < T.TAG_DISTANCE;
   }
   // Tag another car — transfer "it" status
   tagCar(other) {
@@ -242,17 +284,94 @@ var Car = class {
     other.itTimer = T.IT_TIMEOUT;
     other.tagsReceived++;
     other.immuneTimer = T.TAG_IMMUNITY;
-    const dx = other.x - this.x;
-    const dy = other.y - this.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const nx = dx / dist;
-    const ny = dy / dist;
-    other.x += nx * 30;
-    other.y += ny * 30;
-    other.speed = Math.max(other.speed, 60);
-    this.speed *= 0.3;
+  }
+  // Take damage, return true if eliminated
+  takeDamage(amount) {
+    this.hp -= amount;
+    this.damageTaken += amount;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.alive = false;
+      this.isIt = false;
+      this.eliminatedAt = performance.now();
+      return true;
+    }
+    return false;
   }
 };
+var collisionCooldowns = /* @__PURE__ */ new Map();
+function pairKey(a, b) {
+  return a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+}
+function updateCollisionCooldowns(dt) {
+  for (const [key, remaining] of collisionCooldowns) {
+    const next = remaining - dt;
+    if (next <= 0) {
+      collisionCooldowns.delete(key);
+    } else {
+      collisionCooldowns.set(key, next);
+    }
+  }
+}
+function resetCollisionCooldowns() {
+  collisionCooldowns.clear();
+}
+function checkCarCollisions(cars, arena) {
+  const results = [];
+  for (let i = 0; i < cars.length; i++) {
+    const a = cars[i];
+    if (!a.alive) continue;
+    for (let j = i + 1; j < cars.length; j++) {
+      const b = cars[j];
+      if (!b.alive) continue;
+      const dist = a.distanceTo(b);
+      if (dist >= D.COLLISION_DISTANCE) continue;
+      if (a.immuneTimer > 0 || b.immuneTimer > 0) continue;
+      const key = pairKey(a, b);
+      if (collisionCooldowns.has(key)) continue;
+      collisionCooldowns.set(key, D.COLLISION_COOLDOWN);
+      const speedA = Math.abs(a.speed);
+      const speedB = Math.abs(b.speed);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = dist || 1;
+      const nx = dx / d;
+      const ny = dy / d;
+      const overlap = D.COLLISION_DISTANCE - dist;
+      const push = overlap / 2 + D.BUMP_FORCE;
+      a.x -= nx * push;
+      a.y -= ny * push;
+      b.x += nx * push;
+      b.y += ny * push;
+      const posA = arena.clampPosition(a.x, a.y, V.COLLISION_RADIUS);
+      a.x = posA.x;
+      a.y = posA.y;
+      const posB = arena.clampPosition(b.x, b.y, V.COLLISION_RADIUS);
+      b.x = posB.x;
+      b.y = posB.y;
+      a.speed *= 1 - D.BUMP_SPEED_TRANSFER;
+      b.speed *= 1 - D.BUMP_SPEED_TRANSFER;
+      const damageFromA = speedA * D.DAMAGE_FACTOR * (a.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
+      const damageFromB = speedB * D.DAMAGE_FACTOR * (b.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
+      a.damageDealt += damageFromA;
+      b.damageDealt += damageFromB;
+      let tagTransfer = false;
+      if (a.isIt && a.alive && b.alive && speedA >= T.MIN_SPEED_TO_TAG) {
+        a.tagCar(b);
+        tagTransfer = true;
+      } else if (b.isIt && b.alive && a.alive && speedB >= T.MIN_SPEED_TO_TAG) {
+        b.tagCar(a);
+        tagTransfer = true;
+      }
+      b.takeDamage(damageFromA);
+      a.takeDamage(damageFromB);
+      a.immuneTimer = Math.max(a.immuneTimer, D.HIT_GRACE_PERIOD);
+      b.immuneTimer = Math.max(b.immuneTimer, D.HIT_GRACE_PERIOD);
+      results.push({ a, b, damageToA: damageFromB, damageToB: damageFromA, tagTransfer });
+    }
+  }
+  return results;
+}
 
 // src/camera.ts
 var C = CONFIG.CAMERA;
@@ -506,33 +625,49 @@ var PERSONALITIES = [
   {
     name: "Viper",
     color: "blue",
-    identity: `I am Viper. I strike fast and vanish. When I'm it, I pick the nearest target and ram them at full speed. When I'm not it, I stay near the edges where I can see threats coming and dodge at the last second.`,
+    identity: `I am Viper. I strike fast and vanish. When I'm it, I'm a wrecking ball \u2014 3x damage means I can destroy cars fast. When not it, I ram weakened targets to finish them off, but dodge the "it" car. Low HP? Play cautious.`,
     on_tick: `
-      const nearest = world.otherCars.reduce((best, c) => {
-        if (!c.alive) return best;
-        const d = me.distanceTo(c.x, c.y);
-        return (!best || d < best.dist) ? { car: c, dist: d } : best;
-      }, null);
+      // When "it": chase nearest to pass tag AND deal massive damage
+      // When not "it": hunt low-HP cars, dodge "it" car
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
 
-      if (me.isIt && nearest) {
-        const angle = me.angleTo(nearest.car.x, nearest.car.y);
-        const diff = angle - me.angle;
-        const norm = Math.atan2(Math.sin(diff), Math.cos(diff));
-        me.steer(norm * 2);
-        me.accelerate(1);
-      } else if (!me.isIt) {
-        // Find who is "it" and run away
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+      if (me.isIt) {
+        // Target nearest non-immune car (preferring low HP)
+        let best = null;
+        let bestScore = -Infinity;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
+          const d = me.distanceTo(c.x, c.y);
+          const score = (100 - c.hp) - d * 0.3; // prefer low HP + close
+          if (score > bestScore) { bestScore = score; best = c; }
+        }
+        if (best) {
+          const angle = me.angleTo(best.x, best.y);
+          const diff = angle - me.angle;
+          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
+          me.accelerate(1);
+        }
+      } else {
+        // Dodge "it" car if close
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
           const awayAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
           const diff = awayAngle - me.angle;
-          const norm = Math.atan2(Math.sin(diff), Math.cos(diff));
-          me.steer(norm * 2);
+          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
           me.accelerate(1);
         } else {
-          // Cruise around
-          me.steer(Math.sin(world.time * 0.5) * 0.3);
-          me.accelerate(0.6);
+          // Ram weakened cars if we're healthy
+          const weak = alive.filter(c => !c.isIt && c.hp < 40);
+          if (me.hp > 50 && weak.length > 0) {
+            const target = weak.reduce((a, b) => me.distanceTo(a.x, a.y) < me.distanceTo(b.x, b.y) ? a : b);
+            const angle = me.angleTo(target.x, target.y);
+            const diff = angle - me.angle;
+            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
+            me.accelerate(0.8);
+          } else {
+            me.steer(Math.sin(world.time * 0.5) * 0.3);
+            me.accelerate(0.6);
+          }
         }
       }
     `
@@ -540,14 +675,17 @@ var PERSONALITIES = [
   {
     name: "Bruiser",
     color: "green",
-    identity: `I am Bruiser. Big hits, no finesse. I drive straight at my target and never let up. When running, I weave through obstacles to shake pursuers.`,
+    identity: `I am Bruiser. Big hits, no finesse. I charge straight at targets to deal maximum damage. When I'm it, I'm devastating \u2014 3x damage with full-speed rams. I never back down.`,
     on_tick: `
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
+
       if (me.isIt) {
-        // Charge the closest car
+        // Charge closest non-immune car at full speed
         let closestDist = Infinity;
         let target = null;
-        for (const c of world.otherCars) {
-          if (!c.alive || c.immuneTimer > 0) continue;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
           const d = me.distanceTo(c.x, c.y);
           if (d < closestDist) { closestDist = d; target = c; }
         }
@@ -558,16 +696,24 @@ var PERSONALITIES = [
           me.accelerate(1);
         }
       } else {
-        // Zigzag away from "it"
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
-        if (itCar) {
+        // Zigzag away from "it", but ram anyone in our path
+        if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
           const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
           const diff = away - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 3) * 0.5);
           me.accelerate(0.9);
         } else {
-          me.steer(Math.sin(world.time * 0.8) * 0.5);
-          me.accelerate(0.5);
+          // Hunt weakest car
+          const weakest = alive.filter(c => !c.isIt).sort((a, b) => a.hp - b.hp)[0];
+          if (weakest && me.hp > 30) {
+            const angle = me.angleTo(weakest.x, weakest.y);
+            const diff = angle - me.angle;
+            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
+            me.accelerate(1);
+          } else {
+            me.steer(Math.sin(world.time * 0.8) * 0.5);
+            me.accelerate(0.5);
+          }
         }
       }
     `
@@ -575,17 +721,19 @@ var PERSONALITIES = [
   {
     name: "Ghost",
     color: "yellow",
-    identity: `I am Ghost. I stay near the center of the arena where I have maximum escape routes. I drift smoothly and use obstacles as shields. When it, I'm patient \u2014 I herd targets into corners.`,
+    identity: `I am Ghost. I drift near the center for maximum escape routes. I avoid damage when healthy and only engage when I have the advantage. When it, I herd targets into corners for devastating 3x hits.`,
     on_tick: `
       const centerX = world.arenaWidth / 2;
       const centerY = world.arenaHeight / 2;
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
 
       if (me.isIt) {
-        // Find nearest non-immune target
+        // Herd nearest non-immune target
         let target = null;
         let minD = Infinity;
-        for (const c of world.otherCars) {
-          if (!c.alive || c.immuneTimer > 0) continue;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
           const d = me.distanceTo(c.x, c.y);
           if (d < minD) { minD = d; target = c; }
         }
@@ -596,39 +744,42 @@ var PERSONALITIES = [
           me.accelerate(minD < 100 ? 1 : 0.7);
         }
       } else {
-        // Orbit center, dodge "it"
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+        // Orbit center, dodge "it" and high-speed cars
         const toCenter = me.angleTo(centerX, centerY);
         let targetAngle = toCenter;
 
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 180) {
-          const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
-          targetAngle = away;
+          targetAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
         }
 
         const diff = targetAngle - me.angle;
         me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
-        me.accelerate(0.65);
+        // Slow down when low HP to reduce collision damage taken
+        me.accelerate(me.hp < 30 ? 0.4 : 0.65);
       }
     `
   },
   {
     name: "Rattler",
     color: "police",
-    identity: `I am Rattler. I lurk near obstacles and use them to cut off escape routes. When it, I predict where my target is heading and cut them off rather than chasing directly.`,
+    identity: `I am Rattler. I intercept targets by predicting their path. When it, I lead my target for high-speed 3x damage impacts. When not it, I lurk and strike low-HP cars opportunistically.`,
     on_tick: `
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
+
       if (me.isIt) {
-        // Intercept: aim ahead of target's path
+        // Intercept: aim ahead of target's path (prioritize low HP)
         let target = null;
-        let minD = Infinity;
-        for (const c of world.otherCars) {
-          if (!c.alive || c.immuneTimer > 0) continue;
+        let bestScore = -Infinity;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
           const d = me.distanceTo(c.x, c.y);
-          if (d < minD) { minD = d; target = c; }
+          const score = (100 - c.hp) * 2 - d;
+          if (score > bestScore) { bestScore = score; target = c; }
         }
         if (target) {
-          // Lead the target \u2014 aim where they'll be
-          const lead = Math.min(minD / 200, 1.5);
+          const d = me.distanceTo(target.x, target.y);
+          const lead = Math.min(d / 200, 1.5);
           const futureX = target.x + Math.cos(target.angle) * target.speed * lead;
           const futureY = target.y + Math.sin(target.angle) * target.speed * lead;
           const angle = me.angleTo(futureX, futureY);
@@ -637,16 +788,28 @@ var PERSONALITIES = [
           me.accelerate(1);
         }
       } else {
-        // Patrol edges, stay away from it
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+        // Dodge "it", opportunistically ram low-HP cars
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 220) {
           const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
           const diff = away - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
           me.accelerate(1);
         } else {
-          me.steer(Math.sin(world.time * 0.4 + 1.5) * 0.4);
-          me.accelerate(0.55);
+          const weak = alive.filter(c => !c.isIt && c.hp < 50);
+          if (weak.length > 0 && me.hp > 40) {
+            const t = weak[0];
+            const d = me.distanceTo(t.x, t.y);
+            const lead = Math.min(d / 200, 1);
+            const fx = t.x + Math.cos(t.angle) * t.speed * lead;
+            const fy = t.y + Math.sin(t.angle) * t.speed * lead;
+            const angle = me.angleTo(fx, fy);
+            const diff = angle - me.angle;
+            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
+            me.accelerate(0.8);
+          } else {
+            me.steer(Math.sin(world.time * 0.4 + 1.5) * 0.4);
+            me.accelerate(0.55);
+          }
         }
       }
     `
@@ -654,22 +817,24 @@ var PERSONALITIES = [
   {
     name: "Dust Devil",
     color: "npc",
-    identity: `I am Dust Devil. Chaotic and unpredictable. I change direction constantly to be hard to catch. When it, I pick random targets to keep everyone guessing.`,
+    identity: `I am Dust Devil. Chaotic and unpredictable. I change direction constantly to be hard to catch and hard to predict. When it, I pick random targets and slam them with 3x damage. Chaos is my advantage.`,
     on_tick: `
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
+
       if (me.isIt) {
-        // Pick a random alive target, switch every few seconds
-        const alive = world.otherCars.filter(c => c.alive && c.immuneTimer <= 0);
-        if (alive.length > 0) {
-          const idx = Math.floor(world.time * 0.3) % alive.length;
-          const target = alive[idx];
+        // Random target, switch every few seconds \u2014 chaos with 3x damage
+        const targets = alive.filter(c => c.immuneTimer <= 0);
+        if (targets.length > 0) {
+          const idx = Math.floor(world.time * 0.3) % targets.length;
+          const target = targets[idx];
           const angle = me.angleTo(target.x, target.y);
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 5) * 0.3);
           me.accelerate(1);
         }
       } else {
-        // Erratic movement
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+        // Erratic \u2014 dodge "it", crash into everyone else
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
           const away = me.angleTo(itCar.x, itCar.y) + Math.PI + (Math.random() - 0.5) * 1.5;
           const diff = away - me.angle;
@@ -733,6 +898,9 @@ function buildMeAPI(car, soma) {
     get speed() {
       return car.speed;
     },
+    get hp() {
+      return car.hp;
+    },
     get isIt() {
       return car.isIt;
     },
@@ -793,6 +961,7 @@ function buildWorldAPI(time, arena, allCars, selfId) {
       y: c.y,
       angle: c.angle,
       speed: c.speed,
+      hp: c.hp,
       isIt: c.isIt,
       alive: c.alive,
       immuneTimer: c.immuneTimer
@@ -851,7 +1020,7 @@ async function callAPI(model, system, userMsg, tools, maxTokens = 1024) {
 var REFLECTION_TOOLS = [
   {
     name: "edit_on_tick",
-    description: "Replace your driving code. This code runs every frame with (me, world) as arguments. me has: x, y, angle, speed, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world has: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].",
+    description: "Replace your driving code. This code runs every frame with (me, world) as arguments. me has: x, y, angle, speed, hp, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world has: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].",
     input_schema: {
       type: "object",
       properties: {
@@ -894,19 +1063,21 @@ Your current soma:
 <on_tick>${soma.on_tick.content}</on_tick>
 <memory>${soma.memory.content || "(empty)"}</memory>
 
-The game: cars play tag in a desert arena with obstacles. One car is "it" and must ram another car to pass the tag. If you're "it" too long, you're eliminated. Last car alive wins.
+The game: desert demolition derby. All cars have HP (100 max). Ramming any car deals damage based on your speed. Being "it" gives you 3x damage \u2014 you're a wrecking ball. Pass the tag by ramming someone while "it". If your HP hits 0 or you're "it" too long, you're eliminated. Last car standing wins.
 
 Call ALL tools you want to use in a single response.`;
   const userMsg = `Round ${result.roundNumber} results:
 - Placement: ${result.placement}/${result.totalCars}
 - Survived: ${result.survivedSeconds.toFixed(1)}s
 - Tags given: ${result.tagsGiven}, received: ${result.tagsReceived}
-- ${result.wasEliminated ? 'ELIMINATED (timed out while "it")' : "Survived!"}
+- Damage dealt: ${result.damageDealt}, taken: ${result.damageTaken}
+- ${result.wasEliminated ? "ELIMINATED" : "Survived!"}
 
 Reflect on your performance and improve your driving code. Think about:
-1. If you got eliminated, how can you tag someone faster?
-2. If you survived, what worked well? Can you be even better?
-3. Are there patterns in how other cars move that you can exploit?
+1. Damage dealt vs taken \u2014 are you winning trades? High-speed rams deal more damage.
+2. Being "it" gives 3x damage \u2014 use it aggressively to destroy cars, not just pass the tag.
+3. Low HP? Play cautious, avoid head-on collisions. Target weakened cars for easy kills.
+4. Can you read other cars' HP (c.hp) to pick better targets?
 
 Call the tools to update your soma.`;
   try {
@@ -1184,26 +1355,28 @@ var Game = class {
         addTireTrack(car.x, car.y, car.angle);
       }
     }
-    for (const car of this.allCars) {
-      if (!car.isIt || !car.alive) continue;
-      for (const other of this.allCars) {
-        if (car === other) continue;
-        if (car.canTag(other)) {
-          car.tagCar(other);
-          spawnTagSparks((car.x + other.x) / 2, (car.y + other.y) / 2);
-          triggerShake(6, 0.3);
-          console.log(`[TAG] ${car.id} tagged ${other.id}!`);
-          break;
-        }
+    updateCollisionCooldowns(dt);
+    const collisions = checkCarCollisions(this.allCars, this.arena);
+    for (const col of collisions) {
+      const midX = (col.a.x + col.b.x) / 2;
+      const midY = (col.a.y + col.b.y) / 2;
+      if (col.tagTransfer) {
+        spawnTagSparks(midX, midY);
+        triggerShake(6, 0.3);
+        console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
+      } else if (col.damageToA > 5 || col.damageToB > 5) {
+        spawnTagSparks(midX, midY);
+        triggerShake(3, 0.15);
       }
     }
     for (const car of this.allCars) {
       if (wasAlive.get(car.id) && !car.alive) {
         spawnEliminationExplosion(car.x, car.y);
         triggerShake(10, 0.5);
-        console.log(`[ELIMINATED] ${car.id} timed out!`);
+        const reason = car.hp <= 0 ? "destroyed" : "timed out";
+        console.log(`[ELIMINATED] ${car.id} ${reason}!`);
         const alive2 = this.allCars.filter((c) => c.alive);
-        if (alive2.length > 1) {
+        if (alive2.length > 1 && !alive2.some((c) => c.isIt)) {
           const next = alive2[Math.floor(Math.random() * alive2.length)];
           next.isIt = true;
           next.itTimer = T2.IT_TIMEOUT;
@@ -1262,6 +1435,7 @@ var Game = class {
     const itIndex = Math.floor(Math.random() * this.allCars.length);
     this.allCars[itIndex].isIt = true;
     this.allCars[itIndex].itTimer = T2.IT_TIMEOUT;
+    resetCollisionCooldowns();
     this.camera.snap(this.player.x, this.player.y, this.arena.width, this.arena.height);
     this.countdownTimer = 3;
     this.phase = "countdown";
@@ -1283,6 +1457,8 @@ var Game = class {
         survivedSeconds: this.roundTime,
         tagsGiven: car.tagsGiven,
         tagsReceived: car.tagsReceived,
+        damageDealt: Math.round(car.damageDealt),
+        damageTaken: Math.round(car.damageTaken),
         wasEliminated: !car.alive
       };
       this.roundResults.push({ name, result });
@@ -1395,12 +1571,22 @@ var Game = class {
       renderCar(ctx, s.x, s.y, car.angle, car.color, car.isIt, car.immuneTimer);
     }
     renderParticles(ctx, cam);
+    const maxHp = CONFIG.DAMAGE.MAX_HP;
     for (const car of this.allCars) {
       if (!car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 40)) continue;
       const s = cam.worldToScreen(car.x, car.y);
       const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       ctx.save();
+      const barW = 24;
+      const barH = 3;
+      const barX = s.x - barW / 2;
+      const barY = s.y - 38;
+      const hpFrac = car.hp / maxHp;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+      ctx.fillStyle = hpFrac > 0.5 ? "#44cc44" : hpFrac > 0.25 ? "#ccaa22" : "#cc2222";
+      ctx.fillRect(barX, barY, barW * hpFrac, barH);
       ctx.font = "bold 10px monospace";
       ctx.textAlign = "center";
       ctx.fillStyle = car.isIt ? "#ff4444" : "#ffffff";
@@ -1427,7 +1613,7 @@ var Game = class {
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 3;
     ctx.textAlign = "left";
-    const text = `ALIVE: ${alive}/${this.allCars.length}  |  ROUND ${this.roundNumber}`;
+    const text = `HP: ${Math.round(this.player.hp)}  |  ALIVE: ${alive}/${this.allCars.length}  |  ROUND ${this.roundNumber}`;
     ctx.strokeText(text, 10, 24);
     ctx.fillText(text, 10, 24);
     if (this.player.isIt) {
@@ -1492,9 +1678,9 @@ var Game = class {
     ctx.fillStyle = "#888";
     ctx.font = "14px monospace";
     ctx.fillText("Arrow keys / WASD to drive", CW2 / 2, CH2 / 2 + 20);
-    ctx.fillText("One car is IT \u2014 ram someone to pass the tag", CW2 / 2, CH2 / 2 + 45);
-    ctx.fillText("If you're IT too long, you're OUT", CW2 / 2, CH2 / 2 + 70);
-    ctx.fillText("Last car alive wins!", CW2 / 2, CH2 / 2 + 95);
+    ctx.fillText("Ram cars to deal damage \u2014 being IT means 3x damage", CW2 / 2, CH2 / 2 + 45);
+    ctx.fillText("Pass the tag before the timer runs out", CW2 / 2, CH2 / 2 + 70);
+    ctx.fillText("Last car standing wins!", CW2 / 2, CH2 / 2 + 95);
     if (this.scores.size > 0) {
       ctx.fillStyle = "#aaa";
       ctx.font = "bold 14px monospace";
@@ -1544,7 +1730,7 @@ var Game = class {
       ctx.fillStyle = isPlayer ? "#ff8888" : "#ccc";
       const status = result.wasEliminated ? "ELIMINATED" : "SURVIVED";
       ctx.fillText(
-        `#${result.placement} ${name} \u2014 ${status} | Tags: ${result.tagsGiven}G ${result.tagsReceived}R`,
+        `#${result.placement} ${name} \u2014 ${status} | DMG: ${result.damageDealt}/${result.damageTaken} | Tags: ${result.tagsGiven}G ${result.tagsReceived}R`,
         CW2 / 2,
         y
       );
@@ -1579,11 +1765,11 @@ var Game = class {
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffaa22";
     ctx.font = "bold 24px monospace";
-    ctx.fillText("AI CARS ARE REFLECTING...", CW2 / 2, CH2 / 2 - 30);
+    ctx.fillText("PIT STOP", CW2 / 2, CH2 / 2 - 30);
     ctx.fillStyle = "#888";
     ctx.font = "16px monospace";
     ctx.fillText(
-      `${this.reflectionProgress}/${this.reflectionTotal} cars improving their code`,
+      `${this.reflectionProgress}/${this.reflectionTotal} drivers healing up and planning for slaughter`,
       CW2 / 2,
       CH2 / 2 + 10
     );

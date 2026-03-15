@@ -75,9 +75,83 @@ Each has a soma with `identity`, `on_tick` (driving code), `memory`. On_tick run
 - localStorage key: `tag-your-dead-somas` — `resetSomas()` via `window.__tagYourDead.resetSomas()`
 
 ### What's next
-- Playtest with actual keyboard input — verify it feels fun
 - Trigger reflection after a round and verify AI code actually changes
-- Car-to-car collision physics (bump/bounce on contact, not just tag check)
-- AI too passive when "it" — consider: shorter timeout, smaller arena, or smarter default on_tick
 - Sound effects
 - More arena variety (different seeds, maybe hazards like moving obstacles)
+
+---
+
+## Session 2 — HP & Damage System (2026-03-14)
+
+### Design change: everyone deals damage
+Replaced binary tag-only mechanic with a full damage system. Every car can ram every other car for damage, but being "it" gives 3x damage output — makes "it" a double-edged sword (powerful but on a timer).
+
+### What changed
+
+**HP & Damage (config.ts, car.ts, types.ts)**
+- Every car has 100 HP. Eliminated at 0 HP or IT timer expiry.
+- Damage formula: `speed × 0.15 × (isIt ? 3 : 1)`. Max-speed "it" ram = 90 damage (devastating). Normal max-speed hit = 30 damage.
+- Per-pair collision cooldown (0.3s) prevents repeated damage from same contact.
+- 1 second invulnerability grace period after any hit — `immuneTimer` reused for this.
+- Cars that are immune skip collision checks entirely (no damage, no tag transfer, no bump).
+
+**Car-to-car collision physics (car.ts)**
+- Cars now physically collide — bump apart on contact, speed reduced by 30%.
+- Collision bumps clamped to arena bounds (no pushing through walls).
+- Tag transfer uses pre-bump speed for the `MIN_SPEED_TO_TAG` check (was broken when checked after speed reduction).
+- `CollisionResult` struct returned to game.ts for effects (sparks, shake, console log).
+
+**Reverse gear & steering fix (car.ts)**
+- Holding brake at zero speed now reverses (half acceleration, 40% max speed cap).
+- Steering always works (min 30% turn rate at standstill). Inverts when reversing.
+- Wall bounces: hitting arena edges at speed reverses you slightly (`speed *= -0.3`) instead of trapping.
+
+**AI personalities rewritten (soma.ts)**
+- All 5 default on_tick scripts now HP-aware: target low-HP cars, play cautious when hurt, use "it" aggressively for 3x damage.
+- Identities updated to reference the damage system.
+
+**Reflection updated (reflection.ts)**
+- Reflection prompt explains HP/damage/3x multiplier mechanics.
+- Tool descriptions include `hp` in API documentation.
+- Round results include `damageDealt` and `damageTaken` stats.
+
+**Visual (game.ts)**
+- HP bars above every car (green → yellow → red).
+- Player HP in top-left HUD.
+- Round results show DMG dealt/taken.
+- Title screen instructions updated for damage mechanic.
+- Reflection screen: "PIT STOP — drivers healing up and planning for slaughter"
+
+**Soma API additions**
+- `me.hp` — own hit points
+- `world.otherCars[].hp` — other cars' HP (for targeting weakened enemies)
+- `RoundResult.damageDealt` / `RoundResult.damageTaken`
+
+### Config values
+| Setting | Value | Notes |
+|---------|-------|-------|
+| MAX_HP | 100 | |
+| COLLISION_DISTANCE | 28px | Car-to-car collision check |
+| DAMAGE_FACTOR | 0.15 | speed × factor = base damage |
+| IT_DAMAGE_MULTIPLIER | 3 | "it" cars deal 3x |
+| COLLISION_COOLDOWN | 0.3s | Per-pair cooldown |
+| HIT_GRACE_PERIOD | 1.0s | Invulnerability after any hit |
+| BUMP_FORCE | 20px | Push-apart distance |
+| BUMP_SPEED_TRANSFER | 0.3 | 30% speed reduction on bump |
+| Max reverse speed | 40% of MAX_SPEED | |
+
+### Current state (end of session 2)
+- Game plays as demolition derby — everyone ramming everyone, "it" car is feared
+- Tag transfers on "it" car contact (if moving fast enough)
+- Cars bounce off each other and walls, can reverse out of corners
+- 1s invulnerability after each hit prevents stunlock
+- The `me` API exposes: `x, y, angle, speed, hp, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read()`
+- The `world` API exposes: `time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}]`
+- **Must reset somas** after update: `window.__tagYourDead.resetSomas()` (old somas don't know about HP)
+
+### What's next
+- Playtest and tune damage numbers (might need adjustment)
+- Test reflection end-to-end — verify AI adapts to damage meta
+- Sound effects (hit impacts, engine rev, explosion)
+- Obstacle damage (hitting rocks/barrels at speed should hurt)
+- More arena variety

@@ -46,7 +46,7 @@ async function callAPI(
 const REFLECTION_TOOLS = [
   {
     name: 'edit_on_tick',
-    description: 'Replace your driving code. This code runs every frame with (me, world) as arguments. me has: x, y, angle, speed, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world has: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
+    description: 'Replace your driving code. This code runs every frame with (me, world) as arguments. me has: x, y, angle, speed, hp, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world has: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -94,7 +94,7 @@ Your current soma:
 <on_tick>${soma.on_tick.content}</on_tick>
 <memory>${soma.memory.content || '(empty)'}</memory>
 
-The game: cars play tag in a desert arena with obstacles. One car is "it" and must ram another car to pass the tag. If you're "it" too long, you're eliminated. Last car alive wins.
+The game: desert demolition derby. All cars have HP (100 max). Ramming any car deals damage based on your speed. Being "it" gives you 3x damage — you're a wrecking ball. Pass the tag by ramming someone while "it". If your HP hits 0 or you're "it" too long, you're eliminated. Last car standing wins.
 
 Call ALL tools you want to use in a single response.`;
 
@@ -102,12 +102,14 @@ Call ALL tools you want to use in a single response.`;
 - Placement: ${result.placement}/${result.totalCars}
 - Survived: ${result.survivedSeconds.toFixed(1)}s
 - Tags given: ${result.tagsGiven}, received: ${result.tagsReceived}
-- ${result.wasEliminated ? 'ELIMINATED (timed out while "it")' : 'Survived!'}
+- Damage dealt: ${result.damageDealt}, taken: ${result.damageTaken}
+- ${result.wasEliminated ? 'ELIMINATED' : 'Survived!'}
 
 Reflect on your performance and improve your driving code. Think about:
-1. If you got eliminated, how can you tag someone faster?
-2. If you survived, what worked well? Can you be even better?
-3. Are there patterns in how other cars move that you can exploit?
+1. Damage dealt vs taken — are you winning trades? High-speed rams deal more damage.
+2. Being "it" gives 3x damage — use it aggressively to destroy cars, not just pass the tag.
+3. Low HP? Play cautious, avoid head-on collisions. Target weakened cars for easy kills.
+4. Can you read other cars' HP (c.hp) to pick better targets?
 
 Call the tools to update your soma.`;
 

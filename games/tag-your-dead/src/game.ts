@@ -4,7 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { Arena } from './arena.js';
-import { Car } from './car.js';
+import { Car, checkCarCollisions, updateCollisionCooldowns, resetCollisionCooldowns } from './car.js';
 import { Camera } from './camera.js';
 import { CarSoma, GamePhase, RoundResult, CarColor } from './types.js';
 import { getPlayerControls, clearFrame, wasPressed } from './input.js';
@@ -173,31 +173,35 @@ export class Game {
       }
     }
 
-    // Check for tag collisions
-    for (const car of this.allCars) {
-      if (!car.isIt || !car.alive) continue;
-      for (const other of this.allCars) {
-        if (car === other) continue;
-        if (car.canTag(other)) {
-          car.tagCar(other);
-          spawnTagSparks((car.x + other.x) / 2, (car.y + other.y) / 2);
-          triggerShake(6, 0.3);
-          console.log(`[TAG] ${car.id} tagged ${other.id}!`);
-          break;
-        }
+    // Car-to-car collisions: bump, damage, and tag transfer
+    updateCollisionCooldowns(dt);
+    const collisions = checkCarCollisions(this.allCars, this.arena);
+    for (const col of collisions) {
+      const midX = (col.a.x + col.b.x) / 2;
+      const midY = (col.a.y + col.b.y) / 2;
+
+      if (col.tagTransfer) {
+        spawnTagSparks(midX, midY);
+        triggerShake(6, 0.3);
+        console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
+      } else if (col.damageToA > 5 || col.damageToB > 5) {
+        // Significant hit — smaller sparks
+        spawnTagSparks(midX, midY);
+        triggerShake(3, 0.15);
       }
     }
 
-    // Check for eliminations (timer ran out)
+    // Check for eliminations (HP=0 from damage, or IT timer ran out)
     for (const car of this.allCars) {
       if (wasAlive.get(car.id) && !car.alive) {
         spawnEliminationExplosion(car.x, car.y);
         triggerShake(10, 0.5);
-        console.log(`[ELIMINATED] ${car.id} timed out!`);
+        const reason = car.hp <= 0 ? 'destroyed' : 'timed out';
+        console.log(`[ELIMINATED] ${car.id} ${reason}!`);
 
-        // Transfer tag to a random alive car
+        // Transfer tag to a random alive car if needed
         const alive = this.allCars.filter(c => c.alive);
-        if (alive.length > 1) {
+        if (alive.length > 1 && !alive.some(c => c.isIt)) {
           const next = alive[Math.floor(Math.random() * alive.length)];
           next.isIt = true;
           next.itTimer = T.IT_TIMEOUT;
@@ -277,6 +281,9 @@ export class Game {
     this.allCars[itIndex].isIt = true;
     this.allCars[itIndex].itTimer = T.IT_TIMEOUT;
 
+    // Reset collision cooldowns for new round
+    resetCollisionCooldowns();
+
     // Camera snap
     this.camera.snap(this.player.x, this.player.y, this.arena.width, this.arena.height);
 
@@ -308,6 +315,8 @@ export class Game {
         survivedSeconds: this.roundTime,
         tagsGiven: car.tagsGiven,
         tagsReceived: car.tagsReceived,
+        damageDealt: Math.round(car.damageDealt),
+        damageTaken: Math.round(car.damageTaken),
         wasEliminated: !car.alive,
       };
 
@@ -456,14 +465,29 @@ export class Game {
     // Particles on top
     renderParticles(ctx, cam);
 
-    // Name labels
+    // Name labels + HP bars
+    const maxHp = CONFIG.DAMAGE.MAX_HP;
     for (const car of this.allCars) {
       if (!car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 40)) continue;
       const s = cam.worldToScreen(car.x, car.y);
       const name = car.id === 'player' ? 'YOU' :
         this.aiCars.find(a => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
+
       ctx.save();
+
+      // HP bar
+      const barW = 24;
+      const barH = 3;
+      const barX = s.x - barW / 2;
+      const barY = s.y - 38;
+      const hpFrac = car.hp / maxHp;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+      ctx.fillStyle = hpFrac > 0.5 ? '#44cc44' : hpFrac > 0.25 ? '#ccaa22' : '#cc2222';
+      ctx.fillRect(barX, barY, barW * hpFrac, barH);
+
+      // Name
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = car.isIt ? '#ff4444' : '#ffffff';
@@ -494,7 +518,7 @@ export class Game {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 3;
     ctx.textAlign = 'left';
-    const text = `ALIVE: ${alive}/${this.allCars.length}  |  ROUND ${this.roundNumber}`;
+    const text = `HP: ${Math.round(this.player.hp)}  |  ALIVE: ${alive}/${this.allCars.length}  |  ROUND ${this.roundNumber}`;
     ctx.strokeText(text, 10, 24);
     ctx.fillText(text, 10, 24);
 
@@ -576,9 +600,9 @@ export class Game {
     ctx.fillStyle = '#888';
     ctx.font = '14px monospace';
     ctx.fillText('Arrow keys / WASD to drive', CW / 2, CH / 2 + 20);
-    ctx.fillText('One car is IT — ram someone to pass the tag', CW / 2, CH / 2 + 45);
-    ctx.fillText('If you\'re IT too long, you\'re OUT', CW / 2, CH / 2 + 70);
-    ctx.fillText('Last car alive wins!', CW / 2, CH / 2 + 95);
+    ctx.fillText('Ram cars to deal damage — being IT means 3x damage', CW / 2, CH / 2 + 45);
+    ctx.fillText('Pass the tag before the timer runs out', CW / 2, CH / 2 + 70);
+    ctx.fillText('Last car standing wins!', CW / 2, CH / 2 + 95);
 
     // Overall scores if any
     if (this.scores.size > 0) {
@@ -640,7 +664,7 @@ export class Game {
       ctx.fillStyle = isPlayer ? '#ff8888' : '#ccc';
       const status = result.wasEliminated ? 'ELIMINATED' : 'SURVIVED';
       ctx.fillText(
-        `#${result.placement} ${name} — ${status} | Tags: ${result.tagsGiven}G ${result.tagsReceived}R`,
+        `#${result.placement} ${name} — ${status} | DMG: ${result.damageDealt}/${result.damageTaken} | Tags: ${result.tagsGiven}G ${result.tagsReceived}R`,
         CW / 2, y,
       );
       y += 24;
@@ -683,12 +707,12 @@ export class Game {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffaa22';
     ctx.font = 'bold 24px monospace';
-    ctx.fillText('AI CARS ARE REFLECTING...', CW / 2, CH / 2 - 30);
+    ctx.fillText('PIT STOP', CW / 2, CH / 2 - 30);
 
     ctx.fillStyle = '#888';
     ctx.font = '16px monospace';
     ctx.fillText(
-      `${this.reflectionProgress}/${this.reflectionTotal} cars improving their code`,
+      `${this.reflectionProgress}/${this.reflectionTotal} drivers healing up and planning for slaughter`,
       CW / 2, CH / 2 + 10,
     );
 

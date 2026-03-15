@@ -8,6 +8,7 @@ import { CarState, CarColor } from './types.js';
 
 const V = CONFIG.VEHICLE;
 const T = CONFIG.TAG;
+const D = CONFIG.DAMAGE;
 
 let nextId = 0;
 
@@ -17,6 +18,7 @@ export class Car implements CarState {
   y: number;
   angle: number = 0;
   speed: number = 0;
+  hp: number = D.MAX_HP;
   isIt: boolean = false;
   alive: boolean = true;
   itTimer: number = 0;
@@ -26,6 +28,8 @@ export class Car implements CarState {
   // Stats for round
   tagsGiven: number = 0;
   tagsReceived: number = 0;
+  damageDealt: number = 0;
+  damageTaken: number = 0;
   eliminatedAt: number = 0; // timestamp when eliminated (0 = alive)
 
   // Controls — set each frame by player input or AI on_tick
@@ -75,29 +79,45 @@ export class Car implements CarState {
 
     // Acceleration
     if (this.accelInput > 0) {
-      this.speed += V.ACCELERATION * this.accelInput * dt;
+      if (this.speed < 0) {
+        // Accelerating while reversing — brake first
+        this.speed += V.BRAKING * this.accelInput * dt;
+        if (this.speed > 0) this.speed = 0;
+      } else {
+        this.speed += V.ACCELERATION * this.accelInput * dt;
+      }
     }
 
-    // Braking
+    // Braking / Reverse
     if (this.brakeInput > 0) {
-      this.speed -= V.BRAKING * this.brakeInput * dt;
-      if (this.speed < 0) this.speed = 0;
+      if (this.speed > 0) {
+        this.speed -= V.BRAKING * this.brakeInput * dt;
+        if (this.speed < 0) this.speed = 0;
+      } else {
+        // Already stopped or reversing — go into reverse
+        this.speed -= V.ACCELERATION * 0.5 * this.brakeInput * dt;
+      }
     }
 
-    // Friction
+    // Friction (applies in both directions)
     if (this.speed > 0) {
       this.speed -= V.FRICTION * dt;
       if (this.speed < 0) this.speed = 0;
+    } else if (this.speed < 0) {
+      this.speed += V.FRICTION * dt;
+      if (this.speed > 0) this.speed = 0;
     }
 
-    // Cap speed
+    // Cap speed (forward and reverse)
+    const maxReverse = V.MAX_SPEED * 0.4;
     if (this.speed > V.MAX_SPEED) this.speed = V.MAX_SPEED;
+    if (this.speed < -maxReverse) this.speed = -maxReverse;
 
-    // Steering — scales with speed
-    if (this.speed > 10) {
-      const speedFactor = Math.min(1, this.speed / (V.MAX_SPEED * 0.5));
-      this.angle += this.steerInput * V.TURN_SPEED * speedFactor * dt;
-    }
+    // Steering — always works, scales with speed
+    const absSpeed = Math.abs(this.speed);
+    const speedFactor = Math.max(0.3, Math.min(1, absSpeed / (V.MAX_SPEED * 0.5)));
+    const steerDir = this.speed < 0 ? -1 : 1; // reverse steering when reversing
+    this.angle += this.steerInput * V.TURN_SPEED * speedFactor * steerDir * dt;
 
     // Move
     const vx = Math.cos(this.angle) * this.speed * dt;
@@ -126,7 +146,12 @@ export class Car implements CarState {
     // Arena bounds
     const pos = arena.clampPosition(this.x, this.y, V.COLLISION_RADIUS);
     if (pos.x !== this.x || pos.y !== this.y) {
-      this.speed *= 0.5;
+      // Bounce off wall — reverse speed slightly instead of just slowing
+      if (Math.abs(this.speed) > 10) {
+        this.speed *= -0.3;
+      } else {
+        this.speed = 0;
+      }
     }
     this.x = pos.x;
     this.y = pos.y;
@@ -137,16 +162,19 @@ export class Car implements CarState {
     this.brakeInput = 0;
   }
 
-  // Check if this car can tag another
+  // Check distance to another car
+  distanceTo(other: Car): number {
+    const dx = this.x - other.x;
+    const dy = this.y - other.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Check if this car can tag another (transfer "it")
   canTag(other: Car): boolean {
     if (!this.isIt || !this.alive || !other.alive) return false;
     if (other.immuneTimer > 0) return false;
     if (this.speed < T.MIN_SPEED_TO_TAG) return false;
-
-    const dx = this.x - other.x;
-    const dy = this.y - other.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    return dist < T.TAG_DISTANCE;
+    return this.distanceTo(other) < T.TAG_DISTANCE;
   }
 
   // Tag another car — transfer "it" status
@@ -160,16 +188,136 @@ export class Car implements CarState {
     other.itTimer = T.IT_TIMEOUT;
     other.tagsReceived++;
     other.immuneTimer = T.TAG_IMMUNITY;
-
-    // Bump both cars apart
-    const dx = other.x - this.x;
-    const dy = other.y - this.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const nx = dx / dist;
-    const ny = dy / dist;
-    other.x += nx * 30;
-    other.y += ny * 30;
-    other.speed = Math.max(other.speed, 60);
-    this.speed *= 0.3;
   }
+
+  // Take damage, return true if eliminated
+  takeDamage(amount: number): boolean {
+    this.hp -= amount;
+    this.damageTaken += amount;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.alive = false;
+      this.isIt = false;
+      this.eliminatedAt = performance.now();
+      return true;
+    }
+    return false;
+  }
+}
+
+// ── Car-to-car collision ──
+// Returns pairs that collided this frame (for game.ts to handle effects)
+
+export interface CollisionResult {
+  a: Car;
+  b: Car;
+  damageToA: number;
+  damageToB: number;
+  tagTransfer: boolean; // true if "it" transferred
+}
+
+// Track per-pair cooldowns to prevent repeated hits from same contact
+const collisionCooldowns = new Map<string, number>();
+
+function pairKey(a: Car, b: Car): string {
+  return a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+}
+
+export function updateCollisionCooldowns(dt: number): void {
+  for (const [key, remaining] of collisionCooldowns) {
+    const next = remaining - dt;
+    if (next <= 0) {
+      collisionCooldowns.delete(key);
+    } else {
+      collisionCooldowns.set(key, next);
+    }
+  }
+}
+
+export function resetCollisionCooldowns(): void {
+  collisionCooldowns.clear();
+}
+
+export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[] {
+  const results: CollisionResult[] = [];
+
+  for (let i = 0; i < cars.length; i++) {
+    const a = cars[i];
+    if (!a.alive) continue;
+
+    for (let j = i + 1; j < cars.length; j++) {
+      const b = cars[j];
+      if (!b.alive) continue;
+
+      const dist = a.distanceTo(b);
+      if (dist >= D.COLLISION_DISTANCE) continue;
+
+      // Skip if either car is invulnerable (grace period)
+      if (a.immuneTimer > 0 || b.immuneTimer > 0) continue;
+
+      const key = pairKey(a, b);
+      if (collisionCooldowns.has(key)) continue;
+
+      // Collision! Set cooldown
+      collisionCooldowns.set(key, D.COLLISION_COOLDOWN);
+
+      // Capture speeds BEFORE bump for damage + tag checks
+      const speedA = Math.abs(a.speed);
+      const speedB = Math.abs(b.speed);
+
+      // Bump apart
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = dist || 1;
+      const nx = dx / d;
+      const ny = dy / d;
+      const overlap = D.COLLISION_DISTANCE - dist;
+      const push = (overlap / 2) + D.BUMP_FORCE;
+      a.x -= nx * push;
+      a.y -= ny * push;
+      b.x += nx * push;
+      b.y += ny * push;
+
+      // Clamp bumped positions to arena
+      const posA = arena.clampPosition(a.x, a.y, V.COLLISION_RADIUS);
+      a.x = posA.x; a.y = posA.y;
+      const posB = arena.clampPosition(b.x, b.y, V.COLLISION_RADIUS);
+      b.x = posB.x; b.y = posB.y;
+
+      // Speed exchange — both slow down
+      a.speed *= (1 - D.BUMP_SPEED_TRANSFER);
+      b.speed *= (1 - D.BUMP_SPEED_TRANSFER);
+
+      // Damage based on pre-bump speed + "it" multiplier
+      const damageFromA = speedA * D.DAMAGE_FACTOR * (a.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
+      const damageFromB = speedB * D.DAMAGE_FACTOR * (b.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
+
+      // Track damage dealt
+      a.damageDealt += damageFromA;
+      b.damageDealt += damageFromB;
+
+      // Tag transfer — check with pre-bump speed (canTag uses this.speed but
+      // speed was already reduced, so check directly)
+      let tagTransfer = false;
+      if (a.isIt && a.alive && b.alive && speedA >= T.MIN_SPEED_TO_TAG) {
+        a.tagCar(b);
+        tagTransfer = true;
+      } else if (b.isIt && b.alive && a.alive && speedB >= T.MIN_SPEED_TO_TAG) {
+        b.tagCar(a);
+        tagTransfer = true;
+      }
+
+      // Apply damage
+      b.takeDamage(damageFromA);
+      a.takeDamage(damageFromB);
+
+      // 1 second grace period after being hit
+      a.immuneTimer = Math.max(a.immuneTimer, D.HIT_GRACE_PERIOD);
+      b.immuneTimer = Math.max(b.immuneTimer, D.HIT_GRACE_PERIOD);
+
+      results.push({ a, b, damageToA: damageFromB, damageToB: damageFromA, tagTransfer });
+    }
+  }
+
+  return results;
 }

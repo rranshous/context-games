@@ -22,33 +22,49 @@ export const PERSONALITIES: CarPersonality[] = [
   {
     name: 'Viper',
     color: 'blue',
-    identity: `I am Viper. I strike fast and vanish. When I'm it, I pick the nearest target and ram them at full speed. When I'm not it, I stay near the edges where I can see threats coming and dodge at the last second.`,
+    identity: `I am Viper. I strike fast and vanish. When I'm it, I'm a wrecking ball — 3x damage means I can destroy cars fast. When not it, I ram weakened targets to finish them off, but dodge the "it" car. Low HP? Play cautious.`,
     on_tick: `
-      const nearest = world.otherCars.reduce((best, c) => {
-        if (!c.alive) return best;
-        const d = me.distanceTo(c.x, c.y);
-        return (!best || d < best.dist) ? { car: c, dist: d } : best;
-      }, null);
+      // When "it": chase nearest to pass tag AND deal massive damage
+      // When not "it": hunt low-HP cars, dodge "it" car
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
 
-      if (me.isIt && nearest) {
-        const angle = me.angleTo(nearest.car.x, nearest.car.y);
-        const diff = angle - me.angle;
-        const norm = Math.atan2(Math.sin(diff), Math.cos(diff));
-        me.steer(norm * 2);
-        me.accelerate(1);
-      } else if (!me.isIt) {
-        // Find who is "it" and run away
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+      if (me.isIt) {
+        // Target nearest non-immune car (preferring low HP)
+        let best = null;
+        let bestScore = -Infinity;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
+          const d = me.distanceTo(c.x, c.y);
+          const score = (100 - c.hp) - d * 0.3; // prefer low HP + close
+          if (score > bestScore) { bestScore = score; best = c; }
+        }
+        if (best) {
+          const angle = me.angleTo(best.x, best.y);
+          const diff = angle - me.angle;
+          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
+          me.accelerate(1);
+        }
+      } else {
+        // Dodge "it" car if close
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
           const awayAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
           const diff = awayAngle - me.angle;
-          const norm = Math.atan2(Math.sin(diff), Math.cos(diff));
-          me.steer(norm * 2);
+          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
           me.accelerate(1);
         } else {
-          // Cruise around
-          me.steer(Math.sin(world.time * 0.5) * 0.3);
-          me.accelerate(0.6);
+          // Ram weakened cars if we're healthy
+          const weak = alive.filter(c => !c.isIt && c.hp < 40);
+          if (me.hp > 50 && weak.length > 0) {
+            const target = weak.reduce((a, b) => me.distanceTo(a.x, a.y) < me.distanceTo(b.x, b.y) ? a : b);
+            const angle = me.angleTo(target.x, target.y);
+            const diff = angle - me.angle;
+            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
+            me.accelerate(0.8);
+          } else {
+            me.steer(Math.sin(world.time * 0.5) * 0.3);
+            me.accelerate(0.6);
+          }
         }
       }
     `,
@@ -56,14 +72,17 @@ export const PERSONALITIES: CarPersonality[] = [
   {
     name: 'Bruiser',
     color: 'green',
-    identity: `I am Bruiser. Big hits, no finesse. I drive straight at my target and never let up. When running, I weave through obstacles to shake pursuers.`,
+    identity: `I am Bruiser. Big hits, no finesse. I charge straight at targets to deal maximum damage. When I'm it, I'm devastating — 3x damage with full-speed rams. I never back down.`,
     on_tick: `
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
+
       if (me.isIt) {
-        // Charge the closest car
+        // Charge closest non-immune car at full speed
         let closestDist = Infinity;
         let target = null;
-        for (const c of world.otherCars) {
-          if (!c.alive || c.immuneTimer > 0) continue;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
           const d = me.distanceTo(c.x, c.y);
           if (d < closestDist) { closestDist = d; target = c; }
         }
@@ -74,16 +93,24 @@ export const PERSONALITIES: CarPersonality[] = [
           me.accelerate(1);
         }
       } else {
-        // Zigzag away from "it"
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
-        if (itCar) {
+        // Zigzag away from "it", but ram anyone in our path
+        if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
           const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
           const diff = away - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 3) * 0.5);
           me.accelerate(0.9);
         } else {
-          me.steer(Math.sin(world.time * 0.8) * 0.5);
-          me.accelerate(0.5);
+          // Hunt weakest car
+          const weakest = alive.filter(c => !c.isIt).sort((a, b) => a.hp - b.hp)[0];
+          if (weakest && me.hp > 30) {
+            const angle = me.angleTo(weakest.x, weakest.y);
+            const diff = angle - me.angle;
+            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
+            me.accelerate(1);
+          } else {
+            me.steer(Math.sin(world.time * 0.8) * 0.5);
+            me.accelerate(0.5);
+          }
         }
       }
     `,
@@ -91,17 +118,19 @@ export const PERSONALITIES: CarPersonality[] = [
   {
     name: 'Ghost',
     color: 'yellow',
-    identity: `I am Ghost. I stay near the center of the arena where I have maximum escape routes. I drift smoothly and use obstacles as shields. When it, I'm patient — I herd targets into corners.`,
+    identity: `I am Ghost. I drift near the center for maximum escape routes. I avoid damage when healthy and only engage when I have the advantage. When it, I herd targets into corners for devastating 3x hits.`,
     on_tick: `
       const centerX = world.arenaWidth / 2;
       const centerY = world.arenaHeight / 2;
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
 
       if (me.isIt) {
-        // Find nearest non-immune target
+        // Herd nearest non-immune target
         let target = null;
         let minD = Infinity;
-        for (const c of world.otherCars) {
-          if (!c.alive || c.immuneTimer > 0) continue;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
           const d = me.distanceTo(c.x, c.y);
           if (d < minD) { minD = d; target = c; }
         }
@@ -112,39 +141,42 @@ export const PERSONALITIES: CarPersonality[] = [
           me.accelerate(minD < 100 ? 1 : 0.7);
         }
       } else {
-        // Orbit center, dodge "it"
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+        // Orbit center, dodge "it" and high-speed cars
         const toCenter = me.angleTo(centerX, centerY);
         let targetAngle = toCenter;
 
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 180) {
-          const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
-          targetAngle = away;
+          targetAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
         }
 
         const diff = targetAngle - me.angle;
         me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
-        me.accelerate(0.65);
+        // Slow down when low HP to reduce collision damage taken
+        me.accelerate(me.hp < 30 ? 0.4 : 0.65);
       }
     `,
   },
   {
     name: 'Rattler',
     color: 'police',
-    identity: `I am Rattler. I lurk near obstacles and use them to cut off escape routes. When it, I predict where my target is heading and cut them off rather than chasing directly.`,
+    identity: `I am Rattler. I intercept targets by predicting their path. When it, I lead my target for high-speed 3x damage impacts. When not it, I lurk and strike low-HP cars opportunistically.`,
     on_tick: `
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
+
       if (me.isIt) {
-        // Intercept: aim ahead of target's path
+        // Intercept: aim ahead of target's path (prioritize low HP)
         let target = null;
-        let minD = Infinity;
-        for (const c of world.otherCars) {
-          if (!c.alive || c.immuneTimer > 0) continue;
+        let bestScore = -Infinity;
+        for (const c of alive) {
+          if (c.immuneTimer > 0) continue;
           const d = me.distanceTo(c.x, c.y);
-          if (d < minD) { minD = d; target = c; }
+          const score = (100 - c.hp) * 2 - d;
+          if (score > bestScore) { bestScore = score; target = c; }
         }
         if (target) {
-          // Lead the target — aim where they'll be
-          const lead = Math.min(minD / 200, 1.5);
+          const d = me.distanceTo(target.x, target.y);
+          const lead = Math.min(d / 200, 1.5);
           const futureX = target.x + Math.cos(target.angle) * target.speed * lead;
           const futureY = target.y + Math.sin(target.angle) * target.speed * lead;
           const angle = me.angleTo(futureX, futureY);
@@ -153,16 +185,28 @@ export const PERSONALITIES: CarPersonality[] = [
           me.accelerate(1);
         }
       } else {
-        // Patrol edges, stay away from it
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+        // Dodge "it", opportunistically ram low-HP cars
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 220) {
           const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
           const diff = away - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
           me.accelerate(1);
         } else {
-          me.steer(Math.sin(world.time * 0.4 + 1.5) * 0.4);
-          me.accelerate(0.55);
+          const weak = alive.filter(c => !c.isIt && c.hp < 50);
+          if (weak.length > 0 && me.hp > 40) {
+            const t = weak[0];
+            const d = me.distanceTo(t.x, t.y);
+            const lead = Math.min(d / 200, 1);
+            const fx = t.x + Math.cos(t.angle) * t.speed * lead;
+            const fy = t.y + Math.sin(t.angle) * t.speed * lead;
+            const angle = me.angleTo(fx, fy);
+            const diff = angle - me.angle;
+            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
+            me.accelerate(0.8);
+          } else {
+            me.steer(Math.sin(world.time * 0.4 + 1.5) * 0.4);
+            me.accelerate(0.55);
+          }
         }
       }
     `,
@@ -170,22 +214,24 @@ export const PERSONALITIES: CarPersonality[] = [
   {
     name: 'Dust Devil',
     color: 'npc',
-    identity: `I am Dust Devil. Chaotic and unpredictable. I change direction constantly to be hard to catch. When it, I pick random targets to keep everyone guessing.`,
+    identity: `I am Dust Devil. Chaotic and unpredictable. I change direction constantly to be hard to catch and hard to predict. When it, I pick random targets and slam them with 3x damage. Chaos is my advantage.`,
     on_tick: `
+      const alive = world.otherCars.filter(c => c.alive);
+      const itCar = alive.find(c => c.isIt);
+
       if (me.isIt) {
-        // Pick a random alive target, switch every few seconds
-        const alive = world.otherCars.filter(c => c.alive && c.immuneTimer <= 0);
-        if (alive.length > 0) {
-          const idx = Math.floor(world.time * 0.3) % alive.length;
-          const target = alive[idx];
+        // Random target, switch every few seconds — chaos with 3x damage
+        const targets = alive.filter(c => c.immuneTimer <= 0);
+        if (targets.length > 0) {
+          const idx = Math.floor(world.time * 0.3) % targets.length;
+          const target = targets[idx];
           const angle = me.angleTo(target.x, target.y);
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 5) * 0.3);
           me.accelerate(1);
         }
       } else {
-        // Erratic movement
-        const itCar = world.otherCars.find(c => c.isIt && c.alive);
+        // Erratic — dodge "it", crash into everyone else
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
           const away = me.angleTo(itCar.x, itCar.y) + Math.PI + (Math.random() - 0.5) * 1.5;
           const diff = away - me.angle;
@@ -252,6 +298,7 @@ export interface MeAPI {
   y: number;
   angle: number;
   speed: number;
+  hp: number;
   isIt: boolean;
   itTimer: number;
   immuneTimer: number;
@@ -272,6 +319,7 @@ export interface OtherCarAPI {
   y: number;
   angle: number;
   speed: number;
+  hp: number;
   isIt: boolean;
   alive: boolean;
   immuneTimer: number;
@@ -291,6 +339,7 @@ export function buildMeAPI(car: Car, soma: CarSoma): MeAPI {
     get y() { return car.y; },
     get angle() { return car.angle; },
     get speed() { return car.speed; },
+    get hp() { return car.hp; },
     get isIt() { return car.isIt; },
     get itTimer() { return car.itTimer; },
     get immuneTimer() { return car.immuneTimer; },
@@ -337,6 +386,7 @@ export function buildWorldAPI(
         y: c.y,
         angle: c.angle,
         speed: c.speed,
+        hp: c.hp,
         isIt: c.isIt,
         alive: c.alive,
         immuneTimer: c.immuneTimer,
