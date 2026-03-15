@@ -64,4 +64,16 @@ export interface LifeResult {
   avgSpeed: number;
 }
 
-export type GamePhase = 'title' | 'playing';
+export type GamePhase = 'title' | 'playing' | 'paused';
+
+export interface ScoreSnapshot {
+  time: number;
+  scores: Record<string, number>;
+}
+
+export interface GameEvent {
+  time: number;
+  carId: string;
+  type: 'kill' | 'death' | 'tagged_it';
+  detail: string;
+}

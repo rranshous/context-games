@@ -392,3 +392,47 @@ The key insight: camera.worldToScreen wraps each world coordinate relative to th
 - Playtest wrapping + gamepad — verify infinite-map feel, analog steering
 - Sound effects
 - Arena variety
+
+---
+
+## Session 5 — Pause Screen: Score Graph + Driver Intel (2026-03-15)
+
+### What we built
+Pause screen (ESC / P to toggle) with two panels:
+
+**Score graph** — line chart of all cars' scores over time:
+- Color-coded lines (red=player, blue=viper, green=bruiser, yellow=ghost, purple=rattler, gray=dust devil)
+- Score snapshots recorded every ~1s during gameplay
+- Event markers on each car's line:
+  - Skull markers for deaths (colored per car)
+  - Pulsing red circles for tagged-IT events (like the IT glow ring in-game)
+- Mouse hover tooltips on markers — shows car name, event type, and timestamp
+- Horizontal legend above plot, Y-axis labels, X-axis time labels (mm:ss)
+
+**Driver Intel** — AI tactics summaries via single haiku call:
+- On pause, sends all 5 AI somas (identity, on_tick, memory) to haiku in one request
+- Structured output returns concise per-driver tactical analysis
+- Displayed in 5 columns below the graph with car color, score, and word-wrapped summary
+- Falls back to identity text if API fails
+- Summaries are specific — "charges nearest target at full throttle", not generic descriptions
+
+### Technical details
+- New `GamePhase = 'paused'` — game loop stops updating physics/AI while paused
+- `ScoreSnapshot` and `GameEvent` types in types.ts
+- `scoreHistory: ScoreSnapshot[]` — sampled every ~1s in `updatePlaying()`
+- `gameEvents: GameEvent[]` — pushed on death and tag transfer in collision/death handling
+- `eventMarkers[]` — built during render, stores screen positions for hit-testing mouse hover
+- Mouse tracking via `mousemove` listener on canvas, scaled to canvas coords
+- Haiku call: `claude-haiku-4-5-20251001`, structured output with JSON schema, max 1024 tokens
+- Score history + events reset on game start (new session = fresh graph)
+- All existing gameplay unaffected — pause just freezes the loop
+
+### Files changed
+- `types.ts` — added `'paused'` to GamePhase, `ScoreSnapshot`, `GameEvent` interfaces
+- `game.ts` — pause toggle, score/event tracking, graph renderer, tactics panel, haiku fetch, mouse tracking
+- `input.ts` — added Escape to preventDefault list
+
+### What's next
+- Sound effects
+- Arena variety
+- Car-to-car collision physics improvements (bump/bounce feel)

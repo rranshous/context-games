@@ -5,7 +5,7 @@ const held = new Set<string>();
 const justPressed = new Set<string>();
 
 window.addEventListener('keydown', (e) => {
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Escape'].includes(e.key)) {
     e.preventDefault();
   }
   if (!held.has(e.key)) {

@@ -585,7 +585,7 @@ var Camera = class {
 var held = /* @__PURE__ */ new Set();
 var justPressed = /* @__PURE__ */ new Set();
 window.addEventListener("keydown", (e) => {
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Escape"].includes(e.key)) {
     e.preventDefault();
   }
   if (!held.has(e.key)) {
@@ -1500,12 +1500,28 @@ var Game = class {
   savedSomas;
   // Persisted scores
   savedScores;
+  // Score history for pause screen graph
+  scoreHistory = [];
+  gameEvents = [];
+  lastSnapshotTime = 0;
+  // Pause screen AI summaries
+  tacticsSummaries = null;
+  tacticsFetching = false;
+  // Mouse tracking for pause screen tooltips
+  mouseX = 0;
+  mouseY = 0;
+  eventMarkers = [];
   lastTime = 0;
   constructor(canvas2) {
     this.canvas = canvas2;
     this.ctx = canvas2.getContext("2d");
     canvas2.width = CW2;
     canvas2.height = CH2;
+    canvas2.addEventListener("mousemove", (e) => {
+      const rect = canvas2.getBoundingClientRect();
+      this.mouseX = (e.clientX - rect.left) * (CW2 / rect.width);
+      this.mouseY = (e.clientY - rect.top) * (CH2 / rect.height);
+    });
     this.savedSomas = loadSomas();
     this.savedScores = this.loadScores();
     window.__tagYourDead = {
@@ -1549,7 +1565,18 @@ var Game = class {
         }
         break;
       case "playing":
+        if (wasPressed("Escape") || wasPressed("p") || wasPressed("P")) {
+          this.phase = "paused";
+          this.tacticsSummaries = null;
+          this.fetchTacticsSummaries();
+          break;
+        }
         this.updatePlaying(dt);
+        break;
+      case "paused":
+        if (wasPressed("Escape") || wasPressed("p") || wasPressed("P") || wasPressed(" ") || wasPressed("Enter") || gamepadWasPressed()) {
+          this.phase = "playing";
+        }
         break;
     }
   }
@@ -1590,6 +1617,13 @@ var Game = class {
         spawnTagSparks(midX, midY);
         triggerShake(6, 0.3);
         console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
+        const newIt = col.a.isIt ? col.a : col.b;
+        this.gameEvents.push({
+          time: this.gameTime,
+          carId: newIt.id,
+          type: "tagged_it",
+          detail: `Tagged IT`
+        });
       } else if (col.damageToA > 5 || col.damageToB > 5) {
         spawnTagSparks(midX, midY);
         triggerShake(3, 0.15);
@@ -1601,6 +1635,12 @@ var Game = class {
         triggerShake(10, 0.5);
         const reason = car.hp <= 0 ? "destroyed" : "timed out";
         console.log(`[ELIMINATED] ${car.id} ${reason}! Score halved to ${Math.floor(car.score)}`);
+        this.gameEvents.push({
+          time: this.gameTime,
+          carId: car.id,
+          type: "death",
+          detail: reason === "destroyed" ? "Destroyed" : "IT timeout"
+        });
         const alive = this.allCars.filter((c) => c.alive);
         if (alive.length > 0 && !alive.some((c) => c.isIt)) {
           const next = alive[Math.floor(Math.random() * alive.length)];
@@ -1632,6 +1672,14 @@ var Game = class {
         this.camera.update(firstAlive.x, firstAlive.y, this.arena.width, this.arena.height);
       }
     }
+    if (this.gameTime - this.lastSnapshotTime >= 1) {
+      this.lastSnapshotTime = this.gameTime;
+      const scores = {};
+      for (const car of this.allCars) {
+        scores[car.id] = Math.floor(car.score);
+      }
+      this.scoreHistory.push({ time: this.gameTime, scores });
+    }
     if (Math.floor(this.gameTime) % 5 === 0 && Math.floor(this.gameTime) !== Math.floor(this.gameTime - dt)) {
       this.saveScores();
       saveSomas(this.savedSomas);
@@ -1640,6 +1688,10 @@ var Game = class {
   // ── Game Setup ──
   startGame() {
     this.gameTime = 0;
+    this.scoreHistory = [];
+    this.gameEvents = [];
+    this.lastSnapshotTime = 0;
+    this.tacticsSummaries = null;
     this.arena = new Arena(42);
     const cx = this.arena.width / 2;
     const cy = this.arena.height / 2;
@@ -1769,6 +1821,9 @@ var Game = class {
       case "playing":
         this.renderArena();
         this.renderHUD();
+        break;
+      case "paused":
+        this.renderPauseScreen();
         break;
     }
   }
@@ -1958,6 +2013,329 @@ var Game = class {
       ctx.fill();
     }
     ctx.restore();
+  }
+  // ── Pause Screen ──
+  CAR_COLORS = {
+    player: "#ff4444",
+    viper: "#4488ff",
+    bruiser: "#44cc44",
+    ghost: "#cccc44",
+    rattler: "#8888ff",
+    "dust devil": "#999999"
+  };
+  carDisplayName(id) {
+    if (id === "player") return "YOU";
+    return this.aiCars.find((a) => a.car.id === id)?.personality.name.toUpperCase() ?? id.toUpperCase();
+  }
+  renderPauseScreen() {
+    const ctx = this.ctx;
+    ctx.fillStyle = "#1a0f08";
+    ctx.fillRect(0, 0, CW2, CH2);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffaa22";
+    ctx.font = "bold 24px monospace";
+    ctx.fillText("PAUSED", CW2 / 2, 30);
+    ctx.fillStyle = "#888";
+    ctx.font = "10px monospace";
+    ctx.fillText("Press ESC / P / SPACE to resume", CW2 / 2, 48);
+    this.renderScoreGraph(ctx, 20, 60, CW2 - 40, 260);
+    this.renderTactics(ctx, 20, 340, CW2 - 40, CH2 - 360);
+    ctx.restore();
+  }
+  renderScoreGraph(ctx, gx, gy, gw, gh) {
+    const history = this.scoreHistory;
+    if (history.length < 2) {
+      ctx.fillStyle = "#666";
+      ctx.font = "12px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("Not enough data yet \u2014 play for a few seconds", gx + gw / 2, gy + gh / 2);
+      return;
+    }
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(gx, gy, gw, gh);
+    ctx.strokeStyle = "#8b4513";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(gx, gy, gw, gh);
+    const pad = { left: 45, right: 15, top: 20, bottom: 25 };
+    const plotX = gx + pad.left;
+    const plotY = gy + pad.top;
+    const plotW = gw - pad.left - pad.right;
+    const plotH = gh - pad.top - pad.bottom;
+    const minTime = history[0].time;
+    const maxTime = history[history.length - 1].time;
+    const timeRange = maxTime - minTime || 1;
+    let maxScore = 0;
+    for (const snap of history) {
+      for (const s of Object.values(snap.scores)) {
+        if (s > maxScore) maxScore = s;
+      }
+    }
+    maxScore = Math.max(maxScore, 10);
+    const toX = (t) => plotX + (t - minTime) / timeRange * plotW;
+    const toY = (s) => plotY + plotH - s / maxScore * plotH;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    ctx.lineWidth = 1;
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+      const y = plotY + i / gridLines * plotH;
+      ctx.beginPath();
+      ctx.moveTo(plotX, y);
+      ctx.lineTo(plotX + plotW, y);
+      ctx.stroke();
+      const val = Math.round(maxScore * (1 - i / gridLines));
+      ctx.fillStyle = "#666";
+      ctx.font = "9px monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(String(val), plotX - 5, y + 3);
+    }
+    ctx.textAlign = "center";
+    const timeSteps = Math.min(6, Math.floor(timeRange / 10));
+    for (let i = 0; i <= timeSteps; i++) {
+      const t = minTime + i / Math.max(timeSteps, 1) * timeRange;
+      const x = toX(t);
+      ctx.fillStyle = "#666";
+      ctx.font = "9px monospace";
+      const mins = Math.floor(t / 60);
+      const secs = Math.floor(t % 60);
+      ctx.fillText(`${mins}:${secs.toString().padStart(2, "0")}`, x, plotY + plotH + 14);
+    }
+    const carIds = Object.keys(history[0].scores);
+    for (const carId of carIds) {
+      const color = this.CAR_COLORS[carId] ?? "#888";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      let started = false;
+      for (const snap of history) {
+        const x = toX(snap.time);
+        const y = toY(snap.scores[carId] ?? 0);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    this.eventMarkers = [];
+    for (const ev of this.gameEvents) {
+      if (ev.time < minTime || ev.time > maxTime) continue;
+      const color = this.CAR_COLORS[ev.carId] ?? "#888";
+      const name = this.carDisplayName(ev.carId);
+      let evScore = 0;
+      for (let i = 0; i < history.length; i++) {
+        if (history[i].time >= ev.time) {
+          evScore = history[i].scores[ev.carId] ?? 0;
+          break;
+        }
+      }
+      const ex = toX(ev.time);
+      const ey = toY(evScore);
+      const mins = Math.floor(ev.time / 60);
+      const secs = Math.floor(ev.time % 60);
+      const timeStr = `${mins}:${secs.toString().padStart(2, "0")}`;
+      if (ev.type === "death") {
+        ctx.fillStyle = color;
+        ctx.font = "bold 16px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("\u2620", ex, ey - 4);
+        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
+      } else if (ev.type === "tagged_it") {
+        const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 300);
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = "#ff4444";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = "#ff4444";
+        ctx.beginPath();
+        ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+        ctx.fill();
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
+      }
+    }
+    const hitRadius = 14;
+    for (const marker of this.eventMarkers) {
+      const dx = this.mouseX - marker.x;
+      const dy = this.mouseY - marker.y;
+      if (dx * dx + dy * dy < hitRadius * hitRadius) {
+        ctx.font = "10px monospace";
+        const tw = ctx.measureText(marker.label).width + 12;
+        const tooltipX = Math.min(marker.x + 10, plotX + plotW - tw);
+        const tooltipY = Math.max(marker.y - 24, plotY);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        ctx.fillRect(tooltipX, tooltipY, tw, 18);
+        ctx.strokeStyle = marker.color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tooltipX, tooltipY, tw, 18);
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "left";
+        ctx.fillText(marker.label, tooltipX + 6, tooltipY + 13);
+        break;
+      }
+    }
+    ctx.textAlign = "left";
+    ctx.font = "9px monospace";
+    let legendX = plotX;
+    for (const carId of carIds) {
+      const color = this.CAR_COLORS[carId] ?? "#888";
+      ctx.fillStyle = color;
+      ctx.fillRect(legendX, plotY - 12, 8, 3);
+      const name = this.carDisplayName(carId);
+      ctx.fillText(name, legendX + 11, plotY - 8);
+      legendX += ctx.measureText(name).width + 22;
+    }
+    ctx.fillStyle = "#888";
+    ctx.fillText("\u2620=death", legendX + 4, plotY - 8);
+    legendX += 60;
+    ctx.strokeStyle = "#ff4444";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(legendX + 4, plotY - 10, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#ff4444";
+    ctx.fillText("=tagged IT", legendX + 11, plotY - 8);
+  }
+  renderTactics(ctx, tx, ty, tw, th) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(tx, ty, tw, th);
+    ctx.strokeStyle = "#8b4513";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tx, ty, tw, th);
+    ctx.fillStyle = "#ffaa22";
+    ctx.font = "bold 12px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("DRIVER INTEL", tx + 10, ty + 18);
+    if (this.tacticsFetching) {
+      ctx.fillStyle = "#888";
+      ctx.font = "11px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("Analyzing driver tactics...", tx + tw / 2, ty + th / 2);
+      return;
+    }
+    if (!this.tacticsSummaries) {
+      ctx.fillStyle = "#666";
+      ctx.font = "11px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("No intel available", tx + tw / 2, ty + th / 2);
+      return;
+    }
+    const colCount = this.aiCars.length;
+    const colW = Math.floor((tw - 20) / colCount);
+    const startX = tx + 10;
+    const startY = ty + 32;
+    for (let i = 0; i < this.aiCars.length; i++) {
+      const ai = this.aiCars[i];
+      const cx = startX + i * colW;
+      const summary = this.tacticsSummaries[ai.car.id] ?? "Unknown";
+      const color = this.CAR_COLORS[ai.car.id] ?? "#888";
+      ctx.fillStyle = color;
+      ctx.font = "bold 11px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(ai.personality.name.toUpperCase(), cx + 4, startY);
+      ctx.fillStyle = "#aaa";
+      ctx.font = "9px monospace";
+      ctx.fillText(`Score: ${Math.floor(ai.car.score)}`, cx + 4, startY + 13);
+      ctx.fillStyle = "#ccc";
+      ctx.font = "9px monospace";
+      const maxLineW = colW - 12;
+      const lines = this.wrapText(ctx, summary, maxLineW);
+      let ly = startY + 28;
+      for (const line of lines.slice(0, 12)) {
+        ctx.fillText(line, cx + 4, ly);
+        ly += 11;
+      }
+    }
+  }
+  wrapText(ctx, text, maxWidth) {
+    const words = text.split(" ");
+    const lines = [];
+    let current = "";
+    for (const word of words) {
+      const test = current ? current + " " + word : word;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+  async fetchTacticsSummaries() {
+    if (this.tacticsFetching) return;
+    this.tacticsFetching = true;
+    const drivers = this.aiCars.map((ai) => ({
+      id: ai.car.id,
+      name: ai.personality.name,
+      score: Math.floor(ai.car.score),
+      identity: ai.soma.identity.content,
+      on_tick: ai.soma.on_tick.content,
+      memory: ai.soma.memory.content
+    }));
+    const prompt = drivers.map(
+      (d) => `<driver id="${d.id}" name="${d.name}" score="${d.score}">
+<identity>${d.identity}</identity>
+<on_tick>${d.on_tick}</on_tick>
+<memory>${d.memory}</memory>
+</driver>`
+    ).join("\n\n");
+    const schema = {
+      type: "object",
+      properties: Object.fromEntries(drivers.map((d) => [
+        d.id,
+        { type: "string", description: `2-3 sentence tactics summary for ${d.name}` }
+      ])),
+      required: drivers.map((d) => d.id),
+      additionalProperties: false
+    };
+    try {
+      const resp = await fetch(CONFIG.API_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          messages: [
+            {
+              role: "user",
+              content: `Demolition derby driver analysis. For each driver, write a 1-2 sentence summary of their driving tactics based on their code. Be specific and concise \u2014 what do they target, how do they dodge, what's their style? Max 30 words each.
+
+${prompt}`
+            }
+          ],
+          output_config: {
+            format: {
+              type: "json_schema",
+              schema: {
+                type: "object",
+                properties: schema.properties,
+                required: schema.required,
+                additionalProperties: false
+              }
+            }
+          }
+        })
+      });
+      if (!resp.ok) throw new Error(`API ${resp.status}`);
+      const data = await resp.json();
+      const text = data.content?.[0]?.text;
+      if (text) {
+        this.tacticsSummaries = JSON.parse(text);
+      }
+    } catch (err) {
+      console.warn("[TACTICS] Failed to fetch summaries:", err);
+      this.tacticsSummaries = {};
+      for (const ai of this.aiCars) {
+        this.tacticsSummaries[ai.car.id] = ai.soma.identity.content;
+      }
+    }
+    this.tacticsFetching = false;
   }
   renderTitle() {
     const ctx = this.ctx;

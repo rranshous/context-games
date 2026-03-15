@@ -6,7 +6,7 @@ import { CONFIG } from './config.js';
 import { Arena } from './arena.js';
 import { Car, checkCarCollisions, updateCollisionCooldowns, resetCollisionCooldowns } from './car.js';
 import { Camera } from './camera.js';
-import { CarSoma, GamePhase, LifeResult, CarColor } from './types.js';
+import { CarSoma, GamePhase, LifeResult, CarColor, ScoreSnapshot, GameEvent } from './types.js';
 import { getPlayerControls, clearFrame, wasPressed, pollGamepad, gamepadWasPressed } from './input.js';
 import {
   loadSprites, spritesLoaded, renderCar, renderRock, renderCactus,
@@ -53,6 +53,20 @@ export class Game {
   // Persisted scores
   private savedScores: Map<string, number>;
 
+  // Score history for pause screen graph
+  private scoreHistory: ScoreSnapshot[] = [];
+  private gameEvents: GameEvent[] = [];
+  private lastSnapshotTime = 0;
+
+  // Pause screen AI summaries
+  private tacticsSummaries: Record<string, string> | null = null;
+  private tacticsFetching = false;
+
+  // Mouse tracking for pause screen tooltips
+  private mouseX = 0;
+  private mouseY = 0;
+  private eventMarkers: { x: number; y: number; label: string; color: string }[] = [];
+
   private lastTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -60,6 +74,13 @@ export class Game {
     this.ctx = canvas.getContext('2d')!;
     canvas.width = CW;
     canvas.height = CH;
+
+    // Track mouse position (scaled to canvas coords)
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      this.mouseX = (e.clientX - rect.left) * (CW / rect.width);
+      this.mouseY = (e.clientY - rect.top) * (CH / rect.height);
+    });
 
     this.savedSomas = loadSomas();
     this.savedScores = this.loadScores();
@@ -107,7 +128,20 @@ export class Game {
         break;
 
       case 'playing':
+        if (wasPressed('Escape') || wasPressed('p') || wasPressed('P')) {
+          this.phase = 'paused';
+          this.tacticsSummaries = null;
+          this.fetchTacticsSummaries();
+          break;
+        }
         this.updatePlaying(dt);
+        break;
+
+      case 'paused':
+        if (wasPressed('Escape') || wasPressed('p') || wasPressed('P')
+            || wasPressed(' ') || wasPressed('Enter') || gamepadWasPressed()) {
+          this.phase = 'playing';
+        }
         break;
     }
   }
@@ -163,6 +197,14 @@ export class Game {
         spawnTagSparks(midX, midY);
         triggerShake(6, 0.3);
         console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
+        // Record who became IT
+        const newIt = col.a.isIt ? col.a : col.b;
+        this.gameEvents.push({
+          time: this.gameTime,
+          carId: newIt.id,
+          type: 'tagged_it',
+          detail: `Tagged IT`,
+        });
       } else if (col.damageToA > 5 || col.damageToB > 5) {
         spawnTagSparks(midX, midY);
         triggerShake(3, 0.15);
@@ -176,6 +218,13 @@ export class Game {
         triggerShake(10, 0.5);
         const reason = car.hp <= 0 ? 'destroyed' : 'timed out';
         console.log(`[ELIMINATED] ${car.id} ${reason}! Score halved to ${Math.floor(car.score)}`);
+
+        this.gameEvents.push({
+          time: this.gameTime,
+          carId: car.id,
+          type: 'death',
+          detail: reason === 'destroyed' ? 'Destroyed' : 'IT timeout',
+        });
 
         // Ensure someone is always "it"
         const alive = this.allCars.filter(c => c.alive);
@@ -217,6 +266,16 @@ export class Game {
       }
     }
 
+    // Score snapshots for pause screen graph (~1s intervals)
+    if (this.gameTime - this.lastSnapshotTime >= 1) {
+      this.lastSnapshotTime = this.gameTime;
+      const scores: Record<string, number> = {};
+      for (const car of this.allCars) {
+        scores[car.id] = Math.floor(car.score);
+      }
+      this.scoreHistory.push({ time: this.gameTime, scores });
+    }
+
     // Auto-save scores periodically (every ~5s)
     if (Math.floor(this.gameTime) % 5 === 0 && Math.floor(this.gameTime) !== Math.floor(this.gameTime - dt)) {
       this.saveScores();
@@ -228,6 +287,10 @@ export class Game {
 
   private startGame(): void {
     this.gameTime = 0;
+    this.scoreHistory = [];
+    this.gameEvents = [];
+    this.lastSnapshotTime = 0;
+    this.tacticsSummaries = null;
 
     // Create arena
     this.arena = new Arena(42);
@@ -392,6 +455,9 @@ export class Game {
       case 'playing':
         this.renderArena();
         this.renderHUD();
+        break;
+      case 'paused':
+        this.renderPauseScreen();
         break;
     }
   }
@@ -638,6 +704,389 @@ export class Game {
     }
 
     ctx.restore();
+  }
+
+  // ── Pause Screen ──
+
+  private readonly CAR_COLORS: Record<string, string> = {
+    player: '#ff4444',
+    viper: '#4488ff',
+    bruiser: '#44cc44',
+    ghost: '#cccc44',
+    rattler: '#8888ff',
+    'dust devil': '#999999',
+  };
+
+  private carDisplayName(id: string): string {
+    if (id === 'player') return 'YOU';
+    return this.aiCars.find(a => a.car.id === id)?.personality.name.toUpperCase() ?? id.toUpperCase();
+  }
+
+  private renderPauseScreen(): void {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#1a0f08';
+    ctx.fillRect(0, 0, CW, CH);
+
+    ctx.save();
+
+    // Title
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffaa22';
+    ctx.font = 'bold 24px monospace';
+    ctx.fillText('PAUSED', CW / 2, 30);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('Press ESC / P / SPACE to resume', CW / 2, 48);
+
+    // Score graph
+    this.renderScoreGraph(ctx, 20, 60, CW - 40, 260);
+
+    // Driver tactics
+    this.renderTactics(ctx, 20, 340, CW - 40, CH - 360);
+
+    ctx.restore();
+  }
+
+  private renderScoreGraph(ctx: CanvasRenderingContext2D, gx: number, gy: number, gw: number, gh: number): void {
+    const history = this.scoreHistory;
+    if (history.length < 2) {
+      ctx.fillStyle = '#666';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Not enough data yet — play for a few seconds', gx + gw / 2, gy + gh / 2);
+      return;
+    }
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(gx, gy, gw, gh);
+    ctx.strokeStyle = '#8b4513';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(gx, gy, gw, gh);
+
+    const pad = { left: 45, right: 15, top: 20, bottom: 25 };
+    const plotX = gx + pad.left;
+    const plotY = gy + pad.top;
+    const plotW = gw - pad.left - pad.right;
+    const plotH = gh - pad.top - pad.bottom;
+
+    // Determine ranges
+    const minTime = history[0].time;
+    const maxTime = history[history.length - 1].time;
+    const timeRange = maxTime - minTime || 1;
+
+    let maxScore = 0;
+    for (const snap of history) {
+      for (const s of Object.values(snap.scores)) {
+        if (s > maxScore) maxScore = s;
+      }
+    }
+    maxScore = Math.max(maxScore, 10); // minimum scale
+
+    const toX = (t: number) => plotX + ((t - minTime) / timeRange) * plotW;
+    const toY = (s: number) => plotY + plotH - (s / maxScore) * plotH;
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+      const y = plotY + (i / gridLines) * plotH;
+      ctx.beginPath();
+      ctx.moveTo(plotX, y);
+      ctx.lineTo(plotX + plotW, y);
+      ctx.stroke();
+
+      // Y-axis labels
+      const val = Math.round(maxScore * (1 - i / gridLines));
+      ctx.fillStyle = '#666';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(val), plotX - 5, y + 3);
+    }
+
+    // X-axis time labels
+    ctx.textAlign = 'center';
+    const timeSteps = Math.min(6, Math.floor(timeRange / 10));
+    for (let i = 0; i <= timeSteps; i++) {
+      const t = minTime + (i / Math.max(timeSteps, 1)) * timeRange;
+      const x = toX(t);
+      ctx.fillStyle = '#666';
+      ctx.font = '9px monospace';
+      const mins = Math.floor(t / 60);
+      const secs = Math.floor(t % 60);
+      ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, x, plotY + plotH + 14);
+    }
+
+    // Draw lines for each car
+    const carIds = Object.keys(history[0].scores);
+    for (const carId of carIds) {
+      const color = this.CAR_COLORS[carId] ?? '#888';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      let started = false;
+      for (const snap of history) {
+        const x = toX(snap.time);
+        const y = toY(snap.scores[carId] ?? 0);
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Draw event markers on each car's line
+    this.eventMarkers = [];
+    for (const ev of this.gameEvents) {
+      if (ev.time < minTime || ev.time > maxTime) continue;
+      const color = this.CAR_COLORS[ev.carId] ?? '#888';
+      const name = this.carDisplayName(ev.carId);
+
+      // Find score at event time from snapshots
+      let evScore = 0;
+      for (let i = 0; i < history.length; i++) {
+        if (history[i].time >= ev.time) {
+          evScore = history[i].scores[ev.carId] ?? 0;
+          break;
+        }
+      }
+
+      const ex = toX(ev.time);
+      const ey = toY(evScore);
+      const mins = Math.floor(ev.time / 60);
+      const secs = Math.floor(ev.time % 60);
+      const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+      if (ev.type === 'death') {
+        // Skull marker — larger
+        ctx.fillStyle = color;
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('\u2620', ex, ey - 4);
+        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} — ${ev.detail} [${timeStr}]`, color });
+      } else if (ev.type === 'tagged_it') {
+        // Red pulsing circle (like IT glow ring)
+        const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 300);
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        // Inner dot
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+        ctx.fill();
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} — ${ev.detail} [${timeStr}]`, color });
+      }
+    }
+
+    // Hover tooltip
+    const hitRadius = 14;
+    for (const marker of this.eventMarkers) {
+      const dx = this.mouseX - marker.x;
+      const dy = this.mouseY - marker.y;
+      if (dx * dx + dy * dy < hitRadius * hitRadius) {
+        // Tooltip background
+        ctx.font = '10px monospace';
+        const tw = ctx.measureText(marker.label).width + 12;
+        const tooltipX = Math.min(marker.x + 10, plotX + plotW - tw);
+        const tooltipY = Math.max(marker.y - 24, plotY);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(tooltipX, tooltipY, tw, 18);
+        ctx.strokeStyle = marker.color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tooltipX, tooltipY, tw, 18);
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText(marker.label, tooltipX + 6, tooltipY + 13);
+        break; // only show one tooltip
+      }
+    }
+
+    // Legend (horizontal, above graph area)
+    ctx.textAlign = 'left';
+    ctx.font = '9px monospace';
+    let legendX = plotX;
+    for (const carId of carIds) {
+      const color = this.CAR_COLORS[carId] ?? '#888';
+      ctx.fillStyle = color;
+      ctx.fillRect(legendX, plotY - 12, 8, 3);
+      const name = this.carDisplayName(carId);
+      ctx.fillText(name, legendX + 11, plotY - 8);
+      legendX += ctx.measureText(name).width + 22;
+    }
+    // Marker legend
+    ctx.fillStyle = '#888';
+    ctx.fillText('\u2620=death', legendX + 4, plotY - 8);
+    legendX += 60;
+    // Red circle legend marker
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(legendX + 4, plotY - 10, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ff4444';
+    ctx.fillText('=tagged IT', legendX + 11, plotY - 8);
+  }
+
+  private renderTactics(ctx: CanvasRenderingContext2D, tx: number, ty: number, tw: number, th: number): void {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(tx, ty, tw, th);
+    ctx.strokeStyle = '#8b4513';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tx, ty, tw, th);
+
+    ctx.fillStyle = '#ffaa22';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('DRIVER INTEL', tx + 10, ty + 18);
+
+    if (this.tacticsFetching) {
+      ctx.fillStyle = '#888';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Analyzing driver tactics...', tx + tw / 2, ty + th / 2);
+      return;
+    }
+
+    if (!this.tacticsSummaries) {
+      ctx.fillStyle = '#666';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('No intel available', tx + tw / 2, ty + th / 2);
+      return;
+    }
+
+    // Render each AI driver's tactics summary in columns
+    const colCount = this.aiCars.length;
+    const colW = Math.floor((tw - 20) / colCount);
+    const startX = tx + 10;
+    const startY = ty + 32;
+
+    for (let i = 0; i < this.aiCars.length; i++) {
+      const ai = this.aiCars[i];
+      const cx = startX + i * colW;
+      const summary = this.tacticsSummaries[ai.car.id] ?? 'Unknown';
+      const color = this.CAR_COLORS[ai.car.id] ?? '#888';
+
+      // Driver name
+      ctx.fillStyle = color;
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(ai.personality.name.toUpperCase(), cx + 4, startY);
+
+      // Score
+      ctx.fillStyle = '#aaa';
+      ctx.font = '9px monospace';
+      ctx.fillText(`Score: ${Math.floor(ai.car.score)}`, cx + 4, startY + 13);
+
+      // Tactics text (word-wrapped)
+      ctx.fillStyle = '#ccc';
+      ctx.font = '9px monospace';
+      const maxLineW = colW - 12;
+      const lines = this.wrapText(ctx, summary, maxLineW);
+      let ly = startY + 28;
+      for (const line of lines.slice(0, 12)) { // cap lines
+        ctx.fillText(line, cx + 4, ly);
+        ly += 11;
+      }
+    }
+  }
+
+  private wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      const test = current ? current + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  private async fetchTacticsSummaries(): Promise<void> {
+    if (this.tacticsFetching) return;
+    this.tacticsFetching = true;
+
+    // Build a single prompt with all AI somas
+    const drivers = this.aiCars.map(ai => ({
+      id: ai.car.id,
+      name: ai.personality.name,
+      score: Math.floor(ai.car.score),
+      identity: ai.soma.identity.content,
+      on_tick: ai.soma.on_tick.content,
+      memory: ai.soma.memory.content,
+    }));
+
+    const prompt = drivers.map(d =>
+      `<driver id="${d.id}" name="${d.name}" score="${d.score}">\n<identity>${d.identity}</identity>\n<on_tick>${d.on_tick}</on_tick>\n<memory>${d.memory}</memory>\n</driver>`
+    ).join('\n\n');
+
+    const schema = {
+      type: 'object' as const,
+      properties: Object.fromEntries(drivers.map(d => [
+        d.id,
+        { type: 'string' as const, description: `2-3 sentence tactics summary for ${d.name}` },
+      ])),
+      required: drivers.map(d => d.id),
+      additionalProperties: false,
+    };
+
+    try {
+      const resp = await fetch(CONFIG.API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          messages: [
+            {
+              role: 'user',
+              content: `Demolition derby driver analysis. For each driver, write a 1-2 sentence summary of their driving tactics based on their code. Be specific and concise — what do they target, how do they dodge, what's their style? Max 30 words each.\n\n${prompt}`,
+            },
+          ],
+          output_config: {
+            format: {
+              type: 'json_schema',
+              schema: {
+                type: 'object',
+                properties: schema.properties,
+                required: schema.required,
+                additionalProperties: false,
+              },
+            },
+          },
+        }),
+      });
+
+      if (!resp.ok) throw new Error(`API ${resp.status}`);
+      const data = await resp.json();
+      const text = data.content?.[0]?.text;
+      if (text) {
+        this.tacticsSummaries = JSON.parse(text);
+      }
+    } catch (err) {
+      console.warn('[TACTICS] Failed to fetch summaries:', err);
+      // Fallback: just show identities
+      this.tacticsSummaries = {};
+      for (const ai of this.aiCars) {
+        this.tacticsSummaries[ai.car.id] = ai.soma.identity.content;
+      }
+    }
+
+    this.tacticsFetching = false;
   }
 
   private renderTitle(): void {
