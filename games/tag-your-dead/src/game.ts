@@ -859,11 +859,14 @@ export class Game {
       const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
 
       if (ev.type === 'death') {
-        // Skull marker — larger
-        ctx.fillStyle = color;
-        ctx.font = 'bold 16px monospace';
+        // Skull marker — large, solid, with black outline for contrast
+        ctx.font = 'bold 22px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('\u2620', ex, ey - 4);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.strokeText('\u2620', ex, ey - 2);
+        ctx.fillStyle = color;
+        ctx.fillText('\u2620', ex, ey - 2);
         this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} — ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === 'tagged_it') {
         // Red pulsing circle (like IT glow ring)
