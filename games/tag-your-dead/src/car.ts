@@ -11,6 +11,7 @@ const T = CONFIG.TAG;
 const D = CONFIG.DAMAGE;
 const S = CONFIG.SCORE;
 const R = CONFIG.RESPAWN;
+const B = CONFIG.BOOST;
 
 let nextId = 0;
 
@@ -55,6 +56,10 @@ export class Car implements CarState {
   _lastObstacleHit: string | null = null;
   private _obstacleCooldown: number = 0; // prevent counting same obstacle multiple frames
 
+  // Boost
+  boostTimer: number = 0;     // remaining boost duration (0 = not boosting)
+  boostCooldown: number = 0;  // cooldown before next boost
+
   // Controls — set each frame by player input or AI on_tick
   steerInput: number = 0;   // -1 to 1
   accelInput: number = 0;   // 0 to 1
@@ -89,6 +94,22 @@ export class Car implements CarState {
     this.brakeInput = Math.max(0, Math.min(1, amount));
   }
 
+  boost(): void {
+    if (this.boostCooldown <= 0 && this.boostTimer <= 0) {
+      this.boostTimer = B.DURATION;
+      this.boostCooldown = B.COOLDOWN;
+    }
+  }
+
+  get isBoosting(): boolean {
+    return this.boostTimer > 0;
+  }
+
+  /** 0 = ready, 1 = full cooldown */
+  get boostCooldownFrac(): number {
+    return Math.max(0, this.boostCooldown / B.COOLDOWN);
+  }
+
   update(dt: number, arena: Arena): void {
     if (!this.alive) return;
 
@@ -107,17 +128,26 @@ export class Car implements CarState {
       }
     }
 
+    // Boost timers
+    if (this.boostTimer > 0) this.boostTimer -= dt;
+    if (this.boostCooldown > 0) this.boostCooldown -= dt;
+
     // Score: +points per second alive
     this.score += S.PER_SECOND * dt;
 
-    // Acceleration
+    // Acceleration (boosted when boosting)
+    const accelMult = this.boostTimer > 0 ? B.ACCEL_MULT : 1;
     if (this.accelInput > 0) {
       if (this.speed < 0) {
         this.speed += V.BRAKING * this.accelInput * dt;
         if (this.speed > 0) this.speed = 0;
       } else {
-        this.speed += V.ACCELERATION * this.accelInput * dt;
+        this.speed += V.ACCELERATION * accelMult * this.accelInput * dt;
       }
+    }
+    // Boost also accelerates even without throttle input
+    if (this.boostTimer > 0 && this.accelInput === 0) {
+      this.speed += V.ACCELERATION * B.ACCEL_MULT * dt;
     }
 
     // Braking / Reverse
@@ -141,9 +171,9 @@ export class Car implements CarState {
       if (this.speed > 0) this.speed = 0;
     }
 
-    // Cap speed (score-scaled)
-    const ms = this.maxSpeed;
-    const maxReverse = ms * 0.4;
+    // Cap speed (score-scaled, higher cap during boost)
+    const ms = this.maxSpeed * (this.boostTimer > 0 ? B.SPEED_MULT : 1);
+    const maxReverse = this.maxSpeed * 0.4;
     if (this.speed > ms) this.speed = ms;
     if (this.speed < -maxReverse) this.speed = -maxReverse;
 
@@ -292,6 +322,8 @@ export class Car implements CarState {
     this.speedAccum = 0;
     this.speedSamples = 0;
     this.lastAttackerId = null;
+    this.boostTimer = 0;
+    this.boostCooldown = 0;
   }
 }
 

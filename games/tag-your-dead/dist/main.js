@@ -86,6 +86,16 @@ var CONFIG = {
     SCALE_CAP: 200
     // score above this doesn't increase stats further
   },
+  BOOST: {
+    SPEED_MULT: 1.8,
+    // boost multiplies max speed by this
+    DURATION: 0.4,
+    // seconds of boost
+    COOLDOWN: 3,
+    // seconds before boost recharges
+    ACCEL_MULT: 3
+    // acceleration multiplier during boost
+  },
   CAMERA: {
     SMOOTHING: 0.08
   },
@@ -197,6 +207,7 @@ var T = CONFIG.TAG;
 var D = CONFIG.DAMAGE;
 var S = CONFIG.SCORE;
 var R = CONFIG.RESPAWN;
+var B = CONFIG.BOOST;
 var nextId = 0;
 var Car = class {
   id;
@@ -238,6 +249,11 @@ var Car = class {
   _lastObstacleHit = null;
   _obstacleCooldown = 0;
   // prevent counting same obstacle multiple frames
+  // Boost
+  boostTimer = 0;
+  // remaining boost duration (0 = not boosting)
+  boostCooldown = 0;
+  // cooldown before next boost
   // Controls — set each frame by player input or AI on_tick
   steerInput = 0;
   // -1 to 1
@@ -268,6 +284,19 @@ var Car = class {
   brake(amount) {
     this.brakeInput = Math.max(0, Math.min(1, amount));
   }
+  boost() {
+    if (this.boostCooldown <= 0 && this.boostTimer <= 0) {
+      this.boostTimer = B.DURATION;
+      this.boostCooldown = B.COOLDOWN;
+    }
+  }
+  get isBoosting() {
+    return this.boostTimer > 0;
+  }
+  /** 0 = ready, 1 = full cooldown */
+  get boostCooldownFrac() {
+    return Math.max(0, this.boostCooldown / B.COOLDOWN);
+  }
   update(dt, arena) {
     if (!this.alive) return;
     if (this.immuneTimer > 0) {
@@ -281,14 +310,20 @@ var Car = class {
         return;
       }
     }
+    if (this.boostTimer > 0) this.boostTimer -= dt;
+    if (this.boostCooldown > 0) this.boostCooldown -= dt;
     this.score += S.PER_SECOND * dt;
+    const accelMult = this.boostTimer > 0 ? B.ACCEL_MULT : 1;
     if (this.accelInput > 0) {
       if (this.speed < 0) {
         this.speed += V.BRAKING * this.accelInput * dt;
         if (this.speed > 0) this.speed = 0;
       } else {
-        this.speed += V.ACCELERATION * this.accelInput * dt;
+        this.speed += V.ACCELERATION * accelMult * this.accelInput * dt;
       }
+    }
+    if (this.boostTimer > 0 && this.accelInput === 0) {
+      this.speed += V.ACCELERATION * B.ACCEL_MULT * dt;
     }
     if (this.brakeInput > 0) {
       if (this.speed > 0) {
@@ -307,8 +342,8 @@ var Car = class {
       this.speed += friction * dt;
       if (this.speed > 0) this.speed = 0;
     }
-    const ms = this.maxSpeed;
-    const maxReverse = ms * 0.4;
+    const ms = this.maxSpeed * (this.boostTimer > 0 ? B.SPEED_MULT : 1);
+    const maxReverse = this.maxSpeed * 0.4;
     if (this.speed > ms) this.speed = ms;
     if (this.speed < -maxReverse) this.speed = -maxReverse;
     const absSpeed = Math.abs(this.speed);
@@ -435,6 +470,8 @@ var Car = class {
     this.speedAccum = 0;
     this.speedSamples = 0;
     this.lastAttackerId = null;
+    this.boostTimer = 0;
+    this.boostCooldown = 0;
   }
 };
 var collisionCooldowns = /* @__PURE__ */ new Map();
@@ -648,7 +685,7 @@ function getPlayerControls() {
   if (isHeld("ArrowRight") || isHeld("d")) steer += 1;
   if (isHeld("ArrowUp") || isHeld("w")) accel = 1;
   if (isHeld("ArrowDown") || isHeld("s")) brake = 1;
-  if (isHeld(" ")) brake = 1;
+  const boost = isHeld(" ");
   const gp = getActiveGamepad();
   if (gp) {
     const lx = gp.axes[0] ?? 0;
@@ -665,7 +702,8 @@ function getPlayerControls() {
     if (gp.buttons[14]?.pressed && steer > -1) steer = -1;
     if (gp.buttons[15]?.pressed && steer > -1) steer = 1;
   }
-  return { steer, accel, brake };
+  const gpBoost = gp ? gp.buttons[1]?.pressed ?? false : false;
+  return { steer, accel, brake, boost: boost || gpBoost };
 }
 
 // src/sprites.ts
@@ -876,6 +914,8 @@ var PERSONALITIES = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
           me.accelerate(1);
+          // Boost when closing in for the kill
+          if (me.distanceTo(best.x, best.y) < 120) me.boost();
         }
       } else {
         // Dodge "it" car if close
@@ -884,6 +924,8 @@ var PERSONALITIES = [
           const diff = awayAngle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
           me.accelerate(1);
+          // Boost to escape if "it" is very close
+          if (me.distanceTo(itCar.x, itCar.y) < 100) me.boost();
         } else {
           // Ram weakened cars if we're healthy
           const weak = alive.filter(c => !c.isIt && c.hp < 40);
@@ -923,6 +965,8 @@ var PERSONALITIES = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
           me.accelerate(1);
+          // Bruiser always boosts when charging
+          me.boost();
         }
       } else {
         // Zigzag away from "it", but ram anyone in our path
@@ -971,6 +1015,8 @@ var PERSONALITIES = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
           me.accelerate(minD < 100 ? 1 : 0.7);
+          // Boost for the final approach
+          if (minD < 80) me.boost();
         }
       } else {
         // Orbit center, dodge "it" and high-speed cars
@@ -979,6 +1025,8 @@ var PERSONALITIES = [
 
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 180) {
           targetAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
+          // Boost away from danger
+          if (me.distanceTo(itCar.x, itCar.y) < 100) me.boost();
         }
 
         const diff = targetAngle - me.angle;
@@ -1015,6 +1063,8 @@ var PERSONALITIES = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
           me.accelerate(1);
+          // Boost when intercept is close
+          if (d < 150) me.boost();
         }
       } else {
         // Dodge "it", opportunistically ram low-HP cars
@@ -1061,6 +1111,8 @@ var PERSONALITIES = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 5) * 0.3);
           me.accelerate(1);
+          // Chaotic boost \u2014 whenever it's ready, use it
+          me.boost();
         }
       } else {
         // Erratic \u2014 dodge "it", crash into everyone else
@@ -1159,6 +1211,15 @@ function buildMeAPI(car, soma, arena) {
     },
     brake(amt) {
       car.brake(amt);
+    },
+    boost() {
+      car.boost();
+    },
+    get isBoosting() {
+      return car.isBoosting;
+    },
+    get boostCooldownFrac() {
+      return car.boostCooldownFrac;
     },
     distanceTo(x, y) {
       const dx = arena.wrapDx(car.x - x);
@@ -1261,7 +1322,7 @@ async function callAPI(model, system, userMsg, tools, maxTokens = 1024) {
 var REFLECTION_TOOLS = [
   {
     name: "edit_on_tick",
-    description: "Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].",
+    description: "Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), boost() (short speed burst, 3s cooldown), isBoosting, boostCooldownFrac (0=ready, 1=full cooldown), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].",
     input_schema: {
       type: "object",
       properties: {
@@ -1352,10 +1413,46 @@ Reflect on this life and update your soma.`;
       }
     }
     console.log(`[REFLECT] ${carName} reflection complete`);
-    return updated;
+    const codeChanged = updated.on_tick.content !== soma.on_tick.content;
+    let brag = null;
+    if (codeChanged) {
+      brag = await generateBrag(carName, updated.identity.content, soma.on_tick.content, updated.on_tick.content);
+    }
+    return { soma: updated, brag };
   } catch (err) {
     console.warn(`[REFLECT] ${carName} reflection failed:`, err);
-    return soma;
+    return { soma, brag: null };
+  }
+}
+async function generateBrag(name, identity, oldCode, newCode) {
+  try {
+    const resp = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 100,
+        messages: [{
+          role: "user",
+          content: `You are ${name}, a demolition derby driver. Your identity: "${identity}"
+
+You just updated your driving code after dying. Write a short, cocky, in-character brag about what you changed (1 sentence, max 15 words). Be specific about the tactical change, not generic. No quotes.
+
+OLD CODE (snippet):
+${oldCode.slice(0, 400)}
+
+NEW CODE (snippet):
+${newCode.slice(0, 400)}`
+        }]
+      })
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = data.content?.[0]?.text?.trim();
+    return text || null;
+  } catch {
+    return null;
   }
 }
 
@@ -1516,6 +1613,10 @@ var Game = class {
   mouseX = 0;
   mouseY = 0;
   eventMarkers = [];
+  // Ticker banner for driver brags
+  tickerMessages = [];
+  tickerSpeed = 60;
+  // pixels per second
   lastTime = 0;
   constructor(canvas2) {
     this.canvas = canvas2;
@@ -1592,6 +1693,7 @@ var Game = class {
       this.player.steer(controls.steer);
       this.player.accelerate(controls.accel);
       this.player.brake(controls.brake);
+      if (controls.boost) this.player.boost();
     }
     for (const ai of this.aiCars) {
       if (!ai.car.alive) continue;
@@ -1607,7 +1709,8 @@ var Game = class {
     for (const car of this.allCars) {
       if (!car.alive) continue;
       if (Math.abs(car.speed) > 60) {
-        spawnDust(car.x, car.y, car.angle, Math.abs(car.speed), 1);
+        const dustCount = car.isBoosting ? 4 : 1;
+        spawnDust(car.x, car.y, car.angle, Math.abs(car.speed), dustCount);
       }
       if (Math.abs(car.speed) > 30) {
         addTireTrack(car.x, car.y, car.angle);
@@ -1696,6 +1799,7 @@ var Game = class {
     }
     updateParticles(dt);
     updateTracks(dt);
+    this.updateTicker(dt);
     if (this.player.alive) {
       this.camera.update(this.player.x, this.player.y, this.arena.width, this.arena.height);
     } else {
@@ -1814,11 +1918,14 @@ var Game = class {
       avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0
     };
     try {
-      const updated = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
-      ai.soma = updated;
-      this.savedSomas.set(ai.car.id, updated);
+      const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
+      ai.soma = result.soma;
+      this.savedSomas.set(ai.car.id, result.soma);
       saveSomas(this.savedSomas);
       console.log(`[REFLECTION] ${ai.personality.name} updated their code`);
+      if (result.brag) {
+        this.pushTickerMessage(ai.personality.name, ai.car.id, result.brag);
+      }
     } catch (err) {
       console.warn(`[REFLECTION] ${ai.personality.name} failed:`, err);
     }
@@ -1853,6 +1960,7 @@ var Game = class {
       case "playing":
         this.renderArena();
         this.renderHUD();
+        this.renderTicker();
         break;
       case "paused":
         this.renderPauseScreen();
@@ -2008,6 +2116,30 @@ var Game = class {
       const text = this.player.respawnTimer > 0 ? `RESPAWNING IN ${this.player.respawnTimer.toFixed(1)}s` : "ELIMINATED \u2014 WATCHING";
       ctx.strokeText(text, CW2 / 2, 30);
       ctx.fillText(text, CW2 / 2, 30);
+    }
+    if (this.player.alive) {
+      const bw = 80;
+      const bh = 8;
+      const bx = CW2 / 2 - bw / 2;
+      const by = CH2 - 30;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      if (this.player.isBoosting) {
+        const frac = this.player.boostTimer / CONFIG.BOOST.DURATION;
+        ctx.fillStyle = "#ffaa00";
+        ctx.fillRect(bx, by, bw * frac, bh);
+      } else if (this.player.boostCooldownFrac > 0) {
+        const frac = 1 - this.player.boostCooldownFrac;
+        ctx.fillStyle = "#555";
+        ctx.fillRect(bx, by, bw * frac, bh);
+      } else {
+        ctx.fillStyle = "#ffaa00";
+        ctx.fillRect(bx, by, bw, bh);
+      }
+      ctx.font = "bold 9px monospace";
+      ctx.textAlign = "center";
+      ctx.fillStyle = this.player.boostCooldownFrac > 0 && !this.player.isBoosting ? "#666" : "#fff";
+      ctx.fillText("BOOST [SPACE]", CW2 / 2, by - 4);
     }
     this.renderMinimap();
     ctx.restore();
@@ -2395,6 +2527,36 @@ ${prompt}`
     }
     this.tacticsFetching = false;
   }
+  pushTickerMessage(name, carId, text) {
+    const color = this.CAR_COLORS[carId] ?? "#888";
+    this.tickerMessages.push({ name: name.toUpperCase(), color, text, x: CW2 + 10 });
+  }
+  updateTicker(dt) {
+    for (const msg of this.tickerMessages) {
+      msg.x -= this.tickerSpeed * dt;
+    }
+    this.tickerMessages = this.tickerMessages.filter(
+      (msg) => msg.x > -(msg.name.length + msg.text.length + 10) * 7
+    );
+  }
+  renderTicker() {
+    if (this.tickerMessages.length === 0) return;
+    const ctx = this.ctx;
+    const y = CH2 - 12;
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(0, y - 11, CW2, 18);
+    ctx.font = "bold 10px monospace";
+    for (const msg of this.tickerMessages) {
+      ctx.fillStyle = msg.color;
+      ctx.textAlign = "left";
+      ctx.fillText(`${msg.name}:`, msg.x, y);
+      const nameW = ctx.measureText(`${msg.name}: `).width;
+      ctx.fillStyle = "#ccc";
+      ctx.fillText(msg.text, msg.x + nameW, y);
+    }
+    ctx.restore();
+  }
   renderTitle() {
     const ctx = this.ctx;
     ctx.fillStyle = "#1a0f08";
@@ -2409,7 +2571,7 @@ ${prompt}`
     ctx.fillText("Desert Demolition Derby", CW2 / 2, CH2 / 3 + 40);
     ctx.fillStyle = "#888";
     ctx.font = "14px monospace";
-    ctx.fillText("Arrow keys / WASD / Gamepad to drive", CW2 / 2, CH2 / 2 + 20);
+    ctx.fillText("Arrow keys / WASD / Gamepad to drive \u2014 SPACE to boost", CW2 / 2, CH2 / 2 + 20);
     ctx.fillText("Ram cars to deal damage \u2014 being IT means 3x damage output", CW2 / 2, CH2 / 2 + 45);
     ctx.fillText("Higher score = more HP and speed", CW2 / 2, CH2 / 2 + 70);
     ctx.fillText("No walls \u2014 edges wrap around. Die? Score halved. Keep fighting.", CW2 / 2, CH2 / 2 + 95);

@@ -72,7 +72,7 @@ export function gamepadWasPressed(): boolean {
 }
 
 // Convenience for car controls (keyboard + gamepad merged)
-export function getPlayerControls(): { steer: number; accel: number; brake: number } {
+export function getPlayerControls(): { steer: number; accel: number; brake: number; boost: boolean } {
   let steer = 0;
   let accel = 0;
   let brake = 0;
@@ -82,7 +82,7 @@ export function getPlayerControls(): { steer: number; accel: number; brake: numb
   if (isHeld('ArrowRight') || isHeld('d')) steer += 1;
   if (isHeld('ArrowUp') || isHeld('w')) accel = 1;
   if (isHeld('ArrowDown') || isHeld('s')) brake = 1;
-  if (isHeld(' ')) brake = 1;
+  const boost = isHeld(' ');
 
   // Gamepad (additive — whichever has stronger input wins)
   const gp = getActiveGamepad();
@@ -108,5 +108,8 @@ export function getPlayerControls(): { steer: number; accel: number; brake: numb
     if (gp.buttons[15]?.pressed && steer > -1) steer = 1;
   }
 
-  return { steer, accel, brake };
+  // Gamepad boost: B button (index 1)
+  const gpBoost = gp ? (gp.buttons[1]?.pressed ?? false) : false;
+
+  return { steer, accel, brake, boost: boost || gpBoost };
 }

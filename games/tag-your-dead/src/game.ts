@@ -16,7 +16,7 @@ import {
   PERSONALITIES, CarPersonality, createSoma, runOnTick,
   saveSomas, loadSomas, compileOnTick,
 } from './soma.js';
-import { reflectOnLife } from './reflection.js';
+import { reflectOnLife, ReflectionResult } from './reflection.js';
 import {
   triggerShake, updateShake, spawnDust, spawnTagSparks,
   spawnEliminationExplosion, updateParticles, renderParticles,
@@ -66,6 +66,10 @@ export class Game {
   private mouseX = 0;
   private mouseY = 0;
   private eventMarkers: { x: number; y: number; label: string; color: string }[] = [];
+
+  // Ticker banner for driver brags
+  private tickerMessages: { name: string; color: string; text: string; x: number }[] = [];
+  private tickerSpeed = 60; // pixels per second
 
   private lastTime = 0;
 
@@ -155,6 +159,7 @@ export class Game {
       this.player.steer(controls.steer);
       this.player.accelerate(controls.accel);
       this.player.brake(controls.brake);
+      if (controls.boost) this.player.boost();
     }
 
     // AI on_tick
@@ -178,7 +183,8 @@ export class Game {
     for (const car of this.allCars) {
       if (!car.alive) continue;
       if (Math.abs(car.speed) > 60) {
-        spawnDust(car.x, car.y, car.angle, Math.abs(car.speed), 1);
+        const dustCount = car.isBoosting ? 4 : 1;
+        spawnDust(car.x, car.y, car.angle, Math.abs(car.speed), dustCount);
       }
       if (Math.abs(car.speed) > 30) {
         addTireTrack(car.x, car.y, car.angle);
@@ -289,6 +295,7 @@ export class Game {
 
     updateParticles(dt);
     updateTracks(dt);
+    this.updateTicker(dt);
 
     // Camera follows player (or first alive car if player dead)
     if (this.player.alive) {
@@ -443,11 +450,15 @@ export class Game {
     };
 
     try {
-      const updated = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
-      ai.soma = updated;
-      this.savedSomas.set(ai.car.id, updated);
+      const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
+      ai.soma = result.soma;
+      this.savedSomas.set(ai.car.id, result.soma);
       saveSomas(this.savedSomas);
       console.log(`[REFLECTION] ${ai.personality.name} updated their code`);
+
+      if (result.brag) {
+        this.pushTickerMessage(ai.personality.name, ai.car.id, result.brag);
+      }
     } catch (err) {
       console.warn(`[REFLECTION] ${ai.personality.name} failed:`, err);
     }
@@ -489,6 +500,7 @@ export class Game {
       case 'playing':
         this.renderArena();
         this.renderHUD();
+        this.renderTicker();
         break;
       case 'paused':
         this.renderPauseScreen();
@@ -691,6 +703,38 @@ export class Game {
         : 'ELIMINATED — WATCHING';
       ctx.strokeText(text, CW / 2, 30);
       ctx.fillText(text, CW / 2, 30);
+    }
+
+    // Boost indicator (bottom-center)
+    if (this.player.alive) {
+      const bw = 80;
+      const bh = 8;
+      const bx = CW / 2 - bw / 2;
+      const by = CH - 30;
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+
+      if (this.player.isBoosting) {
+        // Active boost — bright bar draining
+        const frac = this.player.boostTimer / CONFIG.BOOST.DURATION;
+        ctx.fillStyle = '#ffaa00';
+        ctx.fillRect(bx, by, bw * frac, bh);
+      } else if (this.player.boostCooldownFrac > 0) {
+        // Recharging
+        const frac = 1 - this.player.boostCooldownFrac;
+        ctx.fillStyle = '#555';
+        ctx.fillRect(bx, by, bw * frac, bh);
+      } else {
+        // Ready
+        ctx.fillStyle = '#ffaa00';
+        ctx.fillRect(bx, by, bw, bh);
+      }
+
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = this.player.boostCooldownFrac > 0 && !this.player.isBoosting ? '#666' : '#fff';
+      ctx.fillText('BOOST [SPACE]', CW / 2, by - 4);
     }
 
     // Minimap
@@ -1149,6 +1193,47 @@ export class Game {
     this.tacticsFetching = false;
   }
 
+  private pushTickerMessage(name: string, carId: string, text: string): void {
+    const color = this.CAR_COLORS[carId] ?? '#888';
+    // Start off-screen right
+    this.tickerMessages.push({ name: name.toUpperCase(), color, text, x: CW + 10 });
+  }
+
+  private updateTicker(dt: number): void {
+    for (const msg of this.tickerMessages) {
+      msg.x -= this.tickerSpeed * dt;
+    }
+    // Remove messages that have scrolled fully off-screen left
+    // Estimate width: name + text at ~7px per char
+    this.tickerMessages = this.tickerMessages.filter(
+      msg => msg.x > -(msg.name.length + msg.text.length + 10) * 7
+    );
+  }
+
+  private renderTicker(): void {
+    if (this.tickerMessages.length === 0) return;
+    const ctx = this.ctx;
+    const y = CH - 12;
+
+    // Banner background
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(0, y - 11, CW, 18);
+
+    ctx.font = 'bold 10px monospace';
+    for (const msg of this.tickerMessages) {
+      // Driver name in their color
+      ctx.fillStyle = msg.color;
+      ctx.textAlign = 'left';
+      ctx.fillText(`${msg.name}:`, msg.x, y);
+      // Brag text in white
+      const nameW = ctx.measureText(`${msg.name}: `).width;
+      ctx.fillStyle = '#ccc';
+      ctx.fillText(msg.text, msg.x + nameW, y);
+    }
+    ctx.restore();
+  }
+
   private renderTitle(): void {
     const ctx = this.ctx;
     ctx.fillStyle = '#1a0f08';
@@ -1166,7 +1251,7 @@ export class Game {
 
     ctx.fillStyle = '#888';
     ctx.font = '14px monospace';
-    ctx.fillText('Arrow keys / WASD / Gamepad to drive', CW / 2, CH / 2 + 20);
+    ctx.fillText('Arrow keys / WASD / Gamepad to drive — SPACE to boost', CW / 2, CH / 2 + 20);
     ctx.fillText('Ram cars to deal damage — being IT means 3x damage output', CW / 2, CH / 2 + 45);
     ctx.fillText('Higher score = more HP and speed', CW / 2, CH / 2 + 70);
     ctx.fillText('No walls — edges wrap around. Die? Score halved. Keep fighting.', CW / 2, CH / 2 + 95);

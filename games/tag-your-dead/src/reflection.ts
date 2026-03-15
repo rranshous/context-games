@@ -45,7 +45,7 @@ async function callAPI(
 const REFLECTION_TOOLS = [
   {
     name: 'edit_on_tick',
-    description: 'Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
+    description: 'Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), boost() (short speed burst, 3s cooldown), isBoosting, boostCooldownFrac (0=ready, 1=full cooldown), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -96,11 +96,16 @@ function buildHitSummary(r: LifeResult): string {
 
 // ── Background Reflection ──
 
+export interface ReflectionResult {
+  soma: CarSoma;
+  brag: string | null; // in-character announcement of changes, null if no on_tick change
+}
+
 export async function reflectOnLife(
   carName: string,
   soma: CarSoma,
   result: LifeResult,
-): Promise<CarSoma> {
+): Promise<ReflectionResult> {
   const system = `You are ${carName}, a car in a desert demolition derby. You just died and are reflecting on your last life.
 
 <identity>${soma.identity.content}</identity>
@@ -150,9 +155,54 @@ Reflect on this life and update your soma.`;
     }
 
     console.log(`[REFLECT] ${carName} reflection complete`);
-    return updated;
+
+    // Generate in-character brag if on_tick changed
+    const codeChanged = updated.on_tick.content !== soma.on_tick.content;
+    let brag: string | null = null;
+    if (codeChanged) {
+      brag = await generateBrag(carName, updated.identity.content, soma.on_tick.content, updated.on_tick.content);
+    }
+
+    return { soma: updated, brag };
   } catch (err) {
     console.warn(`[REFLECT] ${carName} reflection failed:`, err);
-    return soma;
+    return { soma, brag: null };
+  }
+}
+
+async function generateBrag(
+  name: string,
+  identity: string,
+  oldCode: string,
+  newCode: string,
+): Promise<string | null> {
+  try {
+    const resp = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 100,
+        messages: [{
+          role: 'user',
+          content: `You are ${name}, a demolition derby driver. Your identity: "${identity}"
+
+You just updated your driving code after dying. Write a short, cocky, in-character brag about what you changed (1 sentence, max 15 words). Be specific about the tactical change, not generic. No quotes.
+
+OLD CODE (snippet):
+${oldCode.slice(0, 400)}
+
+NEW CODE (snippet):
+${newCode.slice(0, 400)}`,
+        }],
+      }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = data.content?.[0]?.text?.trim();
+    return text || null;
+  } catch {
+    return null;
   }
 }

@@ -462,3 +462,81 @@ Pause screen (ESC / P to toggle) with two panels:
 - Sound effects
 - Arena variety
 - Car-to-car collision physics improvements (bump/bounce feel)
+
+---
+
+## Session 6 — Boost & Reflection Ticker (2026-03-15)
+
+### Boost mechanic
+Player (and AI) cars can now boost — a short speed burst on a cooldown.
+
+**Controls:**
+- Keyboard: Spacebar (was brake — moved brake to S/Down only)
+- Gamepad: B button (index 1)
+
+**Physics (car.ts):**
+- `boost()` triggers if cooldown is ready — sets `boostTimer` to duration
+- During boost: 3x acceleration multiplier, 1.8x max speed cap
+- Boost accelerates even without throttle held (just tap space and go)
+- `isBoosting` getter + `boostCooldownFrac` (0=ready, 1=full cooldown) exposed to AI
+
+**Config (BOOST section):**
+| Setting | Value | Notes |
+|---------|-------|-------|
+| SPEED_MULT | 1.8 | Max speed multiplier during boost |
+| DURATION | 0.4s | Boost duration |
+| COOLDOWN | 3.0s | Recharge time |
+| ACCEL_MULT | 3.0 | Acceleration multiplier |
+
+**HUD (game.ts):**
+- Bottom-center bar: gold when ready, drains during boost, grey while recharging
+- Label: `BOOST [SPACE]`
+
+**Effects:**
+- 4x dust particles while boosting (vs 1 normally)
+
+**AI integration:**
+- `me.boost()`, `me.isBoosting`, `me.boostCooldownFrac` added to MeAPI
+- Reflection tool description updated with boost API
+- Each AI personality uses boost with distinct tactics:
+  - Viper: boost when closing in (<120) or escaping IT (<100)
+  - Bruiser: boost every charge (always aggressive)
+  - Ghost: boost on final approach (<80) or to flee IT (<100)
+  - Rattler: boost when intercept is close (<150)
+  - Dust Devil: mash boost on cooldown (chaotic)
+
+### Reflection ticker banner
+Scrolling ticker at the bottom of the playing screen shows in-character brags when AI drivers update their code after reflection.
+
+**Flow:**
+1. AI car dies → background reflection fires (sonnet)
+2. If on_tick code changed, haiku generates a 1-sentence in-character brag
+3. Brag appears as a scrolling message: `DRIVER_NAME: brag text`
+4. Driver name in their car color, text in white
+5. Scrolls left at 60px/s, removed when off-screen (no looping)
+
+**Implementation:**
+- `reflection.ts`: `reflectOnLife()` now returns `ReflectionResult { soma, brag }` instead of just `CarSoma`
+- `generateBrag()`: haiku call with old/new on_tick snippets + identity, asks for ≤15-word cocky brag
+- `game.ts`: `tickerMessages[]` queue, `pushTickerMessage()`, `updateTicker()`, `renderTicker()`
+- Dark banner background (60% opacity) at bottom of screen when messages are active
+
+### Files changed
+- `config.ts` — BOOST section
+- `car.ts` — boost state, timers, physics, reset on respawn
+- `input.ts` — spacebar→boost (removed from brake), gamepad B button, return type includes `boost`
+- `soma.ts` — MeAPI boost methods, default on_tick boost tactics for all 5 AIs
+- `reflection.ts` — `ReflectionResult` type, `generateBrag()`, brag generation after reflection
+- `game.ts` — boost input wiring, HUD indicator, ticker system, render pipeline
+
+### Current state (end of session 6)
+- Boost feels punchy — short burst, visible dust cloud, clear HUD feedback
+- AI drivers use boost tactically (and will learn to improve usage through reflection)
+- Ticker keeps player informed of AI improvements without pausing gameplay
+- `me` API: `x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), boost(), isBoosting, boostCooldownFrac, distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read()`
+- **Must reset somas**: `window.__tagYourDead.resetSomas()` (old somas don't know about boost)
+
+### What's next
+- Sound effects
+- Arena variety
+- Playtest boost balance — may need tuning

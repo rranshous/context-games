@@ -44,6 +44,8 @@ export const PERSONALITIES: CarPersonality[] = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
           me.accelerate(1);
+          // Boost when closing in for the kill
+          if (me.distanceTo(best.x, best.y) < 120) me.boost();
         }
       } else {
         // Dodge "it" car if close
@@ -52,6 +54,8 @@ export const PERSONALITIES: CarPersonality[] = [
           const diff = awayAngle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
           me.accelerate(1);
+          // Boost to escape if "it" is very close
+          if (me.distanceTo(itCar.x, itCar.y) < 100) me.boost();
         } else {
           // Ram weakened cars if we're healthy
           const weak = alive.filter(c => !c.isIt && c.hp < 40);
@@ -91,6 +95,8 @@ export const PERSONALITIES: CarPersonality[] = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
           me.accelerate(1);
+          // Bruiser always boosts when charging
+          me.boost();
         }
       } else {
         // Zigzag away from "it", but ram anyone in our path
@@ -139,6 +145,8 @@ export const PERSONALITIES: CarPersonality[] = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
           me.accelerate(minD < 100 ? 1 : 0.7);
+          // Boost for the final approach
+          if (minD < 80) me.boost();
         }
       } else {
         // Orbit center, dodge "it" and high-speed cars
@@ -147,6 +155,8 @@ export const PERSONALITIES: CarPersonality[] = [
 
         if (itCar && me.distanceTo(itCar.x, itCar.y) < 180) {
           targetAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
+          // Boost away from danger
+          if (me.distanceTo(itCar.x, itCar.y) < 100) me.boost();
         }
 
         const diff = targetAngle - me.angle;
@@ -183,6 +193,8 @@ export const PERSONALITIES: CarPersonality[] = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
           me.accelerate(1);
+          // Boost when intercept is close
+          if (d < 150) me.boost();
         }
       } else {
         // Dodge "it", opportunistically ram low-HP cars
@@ -229,6 +241,8 @@ export const PERSONALITIES: CarPersonality[] = [
           const diff = angle - me.angle;
           me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 5) * 0.3);
           me.accelerate(1);
+          // Chaotic boost — whenever it's ready, use it
+          me.boost();
         }
       } else {
         // Erratic — dodge "it", crash into everyone else
@@ -309,6 +323,9 @@ export interface MeAPI {
   steer(dir: number): void;
   accelerate(amount: number): void;
   brake(amount: number): void;
+  boost(): void;
+  isBoosting: boolean;
+  boostCooldownFrac: number;
   distanceTo(x: number, y: number): number;
   angleTo(x: number, y: number): number;
   memory: { read(): string; write(s: string): void };
@@ -354,6 +371,9 @@ export function buildMeAPI(car: Car, soma: CarSoma, arena: Arena): MeAPI {
     steer(dir: number) { car.steer(dir); },
     accelerate(amt: number) { car.accelerate(amt); },
     brake(amt: number) { car.brake(amt); },
+    boost() { car.boost(); },
+    get isBoosting() { return car.isBoosting; },
+    get boostCooldownFrac() { return car.boostCooldownFrac; },
     distanceTo(x: number, y: number) {
       const dx = arena.wrapDx(car.x - x);
       const dy = arena.wrapDy(car.y - y);

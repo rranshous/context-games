@@ -65,6 +65,13 @@ export const CONFIG = {
     SCALE_CAP: 200,            // score above this doesn't increase stats further
   },
 
+  BOOST: {
+    SPEED_MULT: 1.8,         // boost multiplies max speed by this
+    DURATION: 0.4,           // seconds of boost
+    COOLDOWN: 3.0,           // seconds before boost recharges
+    ACCEL_MULT: 3.0,         // acceleration multiplier during boost
+  },
+
   CAMERA: {
     SMOOTHING: 0.08,
   },
