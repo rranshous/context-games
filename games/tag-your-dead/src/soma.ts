@@ -337,7 +337,7 @@ export interface WorldAPI {
   obstacles: { x: number; y: number; radius: number; type: string }[];
 }
 
-export function buildMeAPI(car: Car, soma: CarSoma): MeAPI {
+export function buildMeAPI(car: Car, soma: CarSoma, arena: Arena): MeAPI {
   return {
     get x() { return car.x; },
     get y() { return car.y; },
@@ -355,12 +355,14 @@ export function buildMeAPI(car: Car, soma: CarSoma): MeAPI {
     accelerate(amt: number) { car.accelerate(amt); },
     brake(amt: number) { car.brake(amt); },
     distanceTo(x: number, y: number) {
-      const dx = car.x - x;
-      const dy = car.y - y;
+      const dx = arena.wrapDx(car.x - x);
+      const dy = arena.wrapDy(car.y - y);
       return Math.sqrt(dx * dx + dy * dy);
     },
     angleTo(x: number, y: number) {
-      return Math.atan2(y - car.y, x - car.x);
+      const dx = arena.wrapDx(x - car.x);
+      const dy = arena.wrapDy(y - car.y);
+      return Math.atan2(dy, dx);
     },
     memory: {
       read() { return soma.memory.content; },
@@ -410,7 +412,7 @@ export function buildWorldAPI(
 
 export function runOnTick(car: Car, soma: CarSoma, time: number, arena: Arena, allCars: Car[]): void {
   const fn = compileOnTick(soma.on_tick.content);
-  const me = buildMeAPI(car, soma);
+  const me = buildMeAPI(car, soma, arena);
   const world = buildWorldAPI(time, arena, allCars, car.id);
 
   try {

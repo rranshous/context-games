@@ -308,3 +308,87 @@ Dust particles now spawn 14-18px behind the car (offset along reverse of facing 
 - Toroidal world wrapping (edges connect, no walls) — next session
 - Sound effects
 - Arena variety
+
+---
+
+## Session 4 — Toroidal World Wrapping (2026-03-14)
+
+### Design change: no walls, edges wrap
+
+Removed arena walls entirely. Driving off one edge puts you on the opposite side — seamless toroidal world. No more getting trapped in corners or wall-hugging. The arena is effectively infinite via tiling.
+
+### What changed
+
+**Arena wrapping (arena.ts)**
+- Added `wrapX(x)`, `wrapY(y)`, `wrapPosition(x, y)` — modulo wrapping for positions
+- Added `wrapDx(dx)`, `wrapDy(dy)` — shortest-path delta across seam (for distance/angle calculations)
+- Added `wrapDistance(x1, y1, x2, y2)` — full wrap-aware distance
+- `checkObstacleCollision()` and `isInSand()` now use wrapped deltas
+- Removed `clampPosition()` — no longer needed
+
+**Car physics (car.ts)**
+- Replaced arena bounds clamping with `arena.wrapPosition()` at end of update
+- Removed wall bounce code (`speed *= -0.3`, `wallHits++`, `timeAtWall`)
+- Rock bounce normal computed with wrapped delta
+- `checkCarCollisions`: distance, bump normal, and front-bumper angle all use wrapped deltas
+- Post-bump positions wrapped via `arena.wrapPosition()` instead of clamped
+
+**Camera (camera.ts)**
+- Removed all clamping from `update()` and `snap()` — camera follows freely
+- `worldToScreen()` wraps world coord relative to camera before converting — objects render at their nearest position across the seam
+- `isVisible()` uses same wrapping — objects near the seam are visible from both sides
+- Camera smooth-follow uses wrap-aware delta so it doesn't jump when crossing seam
+- Stored `worldW`/`worldH` on camera for use in worldToScreen/isVisible
+
+**Soma API (soma.ts)**
+- `me.distanceTo(x,y)` and `me.angleTo(x,y)` now wrap-aware — AI code navigates correctly across seams
+- `buildMeAPI` takes arena parameter for wrap calculations
+
+**Rendering (game.ts)**
+- Removed arena border rendering (no borders in toroidal world)
+- Collision effect midpoint computed with wrap-aware delta
+- Respawn: random position anywhere in arena (no edge margin needed), wrap-aware distance check for "far from others"
+- Title screen text updated: "No walls — edges wrap around"
+
+**Reflection (reflection.ts)**
+- Arena description: "toroidal — driving off one edge puts you on the opposite side (no walls)"
+
+### Technical approach
+
+The key insight: camera.worldToScreen wraps each world coordinate relative to the camera center, choosing the nearest representation across the seam. This means every object — cars, obstacles, sand patches, particles, tire tracks — renders at its closest position to the camera automatically. No ghost rendering or 3x3 tiling needed. Large objects like sand patches work because each tile is independently wrapped.
+
+### Fields kept but unused
+- `wallHits`, `timeAtWall` fields still exist on Car and in LifeResult (type compat) but never increment
+- `buildHitSummary()` still checks for them — they just won't fire
+
+**Arena generation updated**
+- Removed 120px edge margin — obstacles and sand patches spawn anywhere in the full arena (toroidal, no edges to avoid)
+- Center clear zone uses wrap-aware distance
+
+**Gamepad support (input.ts, game.ts)**
+- Polls `navigator.getGamepads()` every frame via `pollGamepad()`
+- Left stick X → analog steering (with 0.15 deadzone)
+- Right trigger (button 7) → analog accelerate, left trigger (button 6) → analog brake
+- D-pad: up=accel, down=brake, left/right=steer (digital fallback)
+- A button (0) or Start (9) → menu confirm (same as Space/Enter)
+- Keyboard + gamepad merge: whichever input is stronger wins (no conflict)
+- Rising-edge detection for button presses (A/Start) via `_prevButtons` tracking
+- Title screen updated: "Arrow keys / WASD / Gamepad to drive", "PRESS SPACE / A TO START"
+
+**Camera seam fix (camera.ts)**
+- Bug: `worldToScreen` uses a single `if` wrap adjustment, not `while`. When camera.x drifted past `[0, worldW)` from repeated seam crossings, the single adjustment wasn't enough and objects rendered at wrong positions — visible as a jerk/pop.
+- Fix: wrap camera position to `[0, worldW)` after each smooth-follow update. No visual discontinuity (worldToScreen is wrap-relative), prevents drift, keeps single-adjustment math correct.
+
+### Current state (end of session 4)
+- Seamless toroidal wrapping — feels like an infinite map, no visible seam
+- Camera stays in canonical `[0, worldW)` range — no drift, no jerk on seam crossing
+- All distance/angle calculations wrap-aware (car collisions, obstacle checks, AI navigation)
+- AI drivers navigate across seams correctly via wrap-aware `distanceTo`/`angleTo`
+- Gamepad fully supported — analog steering + triggers, d-pad fallback, A/Start for menu
+- `window.__tagYourDead.resetAll()` still works
+- **Must reset somas** after update: `window.__tagYourDead.resetSomas()` (old somas may reference walls/corners)
+
+### What's next
+- Playtest wrapping + gamepad — verify infinite-map feel, analog steering
+- Sound effects
+- Arena variety

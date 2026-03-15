@@ -161,9 +161,9 @@ export class Car implements CarState {
     const collision = arena.checkObstacleCollision(newX, newY, V.COLLISION_RADIUS);
     if (collision) {
       if (collision.type === 'rock') {
-        // Rock: solid bounce + damage
-        const dx = newX - collision.x;
-        const dy = newY - collision.y;
+        // Rock: solid bounce + damage (wrap-aware delta for normal)
+        const dx = arena.wrapDx(newX - collision.x);
+        const dy = arena.wrapDy(newY - collision.y);
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const nx = dx / dist;
         const ny = dy / dist;
@@ -175,7 +175,7 @@ export class Car implements CarState {
         // Rock damage: 20% of what a car collision would deal, front bumper applies
         const impactSpeed = Math.abs(this.speed);
         const rockDamage = impactSpeed * D.DAMAGE_FACTOR * D.ROCK_DAMAGE_FACTOR;
-        const angleToRock = Math.atan2(collision.y - this.y, collision.x - this.x);
+        const angleToRock = Math.atan2(arena.wrapDy(collision.y - this.y), arena.wrapDx(collision.x - this.x));
         const angleDiff = Math.abs(((angleToRock - this.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
         const frontHit = angleDiff < D.FRONT_HIT_ANGLE;
         const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
@@ -205,23 +205,14 @@ export class Car implements CarState {
       this._lastObstacleHit = null;
     }
 
-    // Arena bounds
-    const pos = arena.clampPosition(this.x, this.y, V.COLLISION_RADIUS);
-    if (pos.x !== this.x || pos.y !== this.y) {
-      this.timeAtWall += dt;
-      if (Math.abs(this.speed) > 10) {
-        this.speed *= -0.3;
-        this.wallHits++;
-      } else {
-        this.speed = 0;
-      }
-    }
+    // Toroidal wrapping — drive off one edge, appear on the opposite
+    const wrapped = arena.wrapPosition(this.x, this.y);
+    this.x = wrapped.x;
+    this.y = wrapped.y;
 
     // Track average speed
     this.speedAccum += Math.abs(this.speed);
     this.speedSamples++;
-    this.x = pos.x;
-    this.y = pos.y;
 
     // Reset controls each frame
     this.steerInput = 0;
@@ -342,7 +333,10 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
       const b = cars[j];
       if (!b.alive) continue;
 
-      const dist = a.distanceTo(b);
+      // Wrap-aware distance
+      const dx = arena.wrapDx(b.x - a.x);
+      const dy = arena.wrapDy(b.y - a.y);
+      const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist >= D.COLLISION_DISTANCE) continue;
 
       // Skip if either car is invulnerable
@@ -359,9 +353,7 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
       const speedA = Math.abs(a.speed);
       const speedB = Math.abs(b.speed);
 
-      // Bump apart
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
+      // Bump apart (using wrapped normal)
       const d = dist || 1;
       const nx = dx / d;
       const ny = dy / d;
@@ -372,10 +364,10 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
       b.x += nx * push;
       b.y += ny * push;
 
-      // Clamp to arena
-      const posA = arena.clampPosition(a.x, a.y, V.COLLISION_RADIUS);
+      // Wrap to arena (toroidal)
+      const posA = arena.wrapPosition(a.x, a.y);
       a.x = posA.x; a.y = posA.y;
-      const posB = arena.clampPosition(b.x, b.y, V.COLLISION_RADIUS);
+      const posB = arena.wrapPosition(b.x, b.y);
       b.x = posB.x; b.y = posB.y;
 
       // Speed reduction
@@ -384,7 +376,8 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
 
       // Determine if each car is hitting with its front bumper
       // Front = angle from car toward the other is within ±FRONT_HIT_ANGLE of car's facing
-      const angleAtoB = Math.atan2(dy, dx);   // dx,dy = b - a
+      // dx,dy already wrap-aware (computed above)
+      const angleAtoB = Math.atan2(dy, dx);
       const angleBtoA = Math.atan2(-dy, -dx);
       const diffA = Math.abs(((angleAtoB - a.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
       const diffB = Math.abs(((angleBtoA - b.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);

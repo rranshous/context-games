@@ -116,7 +116,7 @@ GAME MECHANICS:
 - Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
 
 ARENA:
-- Flat desert, ${CONFIG.ARENA.WIDTH}×${CONFIG.ARENA.HEIGHT} with hard walls at the edges.
+- Flat desert, ${CONFIG.ARENA.WIDTH}×${CONFIG.ARENA.HEIGHT}, toroidal — driving off one edge puts you on the opposite side (no walls).
 - Obstacles: rocks (solid — bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 

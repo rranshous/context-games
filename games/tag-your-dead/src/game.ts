@@ -7,7 +7,7 @@ import { Arena } from './arena.js';
 import { Car, checkCarCollisions, updateCollisionCooldowns, resetCollisionCooldowns } from './car.js';
 import { Camera } from './camera.js';
 import { CarSoma, GamePhase, LifeResult, CarColor } from './types.js';
-import { getPlayerControls, clearFrame, wasPressed } from './input.js';
+import { getPlayerControls, clearFrame, wasPressed, pollGamepad, gamepadWasPressed } from './input.js';
 import {
   loadSprites, spritesLoaded, renderCar, renderRock, renderCactus,
   renderBarrel, renderSandPatch,
@@ -88,6 +88,7 @@ export class Game {
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.05);
     this.lastTime = timestamp;
 
+    pollGamepad();
     this.update(dt);
     this.render();
     clearFrame();
@@ -100,7 +101,7 @@ export class Game {
   private update(dt: number): void {
     switch (this.phase) {
       case 'title':
-        if (wasPressed(' ') || wasPressed('Enter')) {
+        if (wasPressed(' ') || wasPressed('Enter') || gamepadWasPressed()) {
           this.startGame();
         }
         break;
@@ -154,8 +155,9 @@ export class Game {
     updateCollisionCooldowns(dt);
     const collisions = checkCarCollisions(this.allCars, this.arena);
     for (const col of collisions) {
-      const midX = (col.a.x + col.b.x) / 2;
-      const midY = (col.a.y + col.b.y) / 2;
+      // Wrap-aware midpoint for effects
+      const midX = col.a.x + this.arena.wrapDx(col.b.x - col.a.x) / 2;
+      const midY = col.a.y + this.arena.wrapDy(col.b.y - col.a.y) / 2;
 
       if (col.tagTransfer) {
         spawnTagSparks(midX, midY);
@@ -287,17 +289,15 @@ export class Game {
     let bestMinDist = 0;
 
     for (let attempt = 0; attempt < 20; attempt++) {
-      const x = 100 + Math.random() * (this.arena.width - 200);
-      const y = 100 + Math.random() * (this.arena.height - 200);
+      const x = Math.random() * this.arena.width;
+      const y = Math.random() * this.arena.height;
 
       // Check obstacle collision
       if (this.arena.checkObstacleCollision(x, y, CONFIG.VEHICLE.COLLISION_RADIUS)) continue;
 
       let minDist = Infinity;
       for (const other of alive) {
-        const dx = other.x - x;
-        const dy = other.y - y;
-        const d = Math.sqrt(dx * dx + dy * dy);
+        const d = this.arena.wrapDistance(x, y, other.x, other.y);
         if (d < minDist) minDist = d;
       }
 
@@ -426,13 +426,6 @@ export class Game {
 
     // Tire tracks
     renderTracks(ctx, cam);
-
-    // Arena border
-    const tl = cam.worldToScreen(0, 0);
-    const br = cam.worldToScreen(this.arena.width, this.arena.height);
-    ctx.strokeStyle = '#8b4513';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
 
     // Obstacles
     for (const obs of this.arena.obstacles) {
@@ -664,10 +657,10 @@ export class Game {
 
     ctx.fillStyle = '#888';
     ctx.font = '14px monospace';
-    ctx.fillText('Arrow keys / WASD to drive', CW / 2, CH / 2 + 20);
+    ctx.fillText('Arrow keys / WASD / Gamepad to drive', CW / 2, CH / 2 + 20);
     ctx.fillText('Ram cars to deal damage — being IT means 3x damage output', CW / 2, CH / 2 + 45);
     ctx.fillText('Higher score = more HP and speed', CW / 2, CH / 2 + 70);
-    ctx.fillText('Die? Score halved. Respawn. Keep fighting.', CW / 2, CH / 2 + 95);
+    ctx.fillText('No walls — edges wrap around. Die? Score halved. Keep fighting.', CW / 2, CH / 2 + 95);
 
     // Show saved scores if any
     if (this.savedScores.size > 0) {
@@ -689,7 +682,7 @@ export class Game {
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 400);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 16px monospace';
-    ctx.fillText('PRESS SPACE TO START', CW / 2, CH - 60);
+    ctx.fillText('PRESS SPACE / A TO START', CW / 2, CH - 60);
     ctx.restore();
   }
 }

@@ -116,45 +116,37 @@ var Arena = class {
     this.generate(rng);
   }
   generate(rng) {
-    const margin = 120;
     const center = { x: this.width / 2, y: this.height / 2 };
+    const clearRadius = 200;
     for (let i = 0; i < A.ROCK_COUNT; i++) {
-      const x = margin + rng() * (this.width - 2 * margin);
-      const y = margin + rng() * (this.height - 2 * margin);
-      const dx = x - center.x;
-      const dy = y - center.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 200) continue;
+      const x = rng() * this.width;
+      const y = rng() * this.height;
+      if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
       this.obstacles.push({ x, y, radius: 14 + rng() * 12, type: "rock" });
     }
     for (let i = 0; i < A.CACTUS_COUNT; i++) {
-      const x = margin + rng() * (this.width - 2 * margin);
-      const y = margin + rng() * (this.height - 2 * margin);
-      const dx = x - center.x;
-      const dy = y - center.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 200) continue;
+      const x = rng() * this.width;
+      const y = rng() * this.height;
+      if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
       this.obstacles.push({ x, y, radius: 8 + rng() * 6, type: "cactus" });
     }
     for (let i = 0; i < A.BARREL_COUNT; i++) {
-      const x = margin + rng() * (this.width - 2 * margin);
-      const y = margin + rng() * (this.height - 2 * margin);
-      const dx = x - center.x;
-      const dy = y - center.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 200) continue;
+      const x = rng() * this.width;
+      const y = rng() * this.height;
+      if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
       this.obstacles.push({ x, y, radius: 10, type: "barrel" });
     }
     for (let i = 0; i < 20; i++) {
-      const x = margin + rng() * (this.width - 2 * margin);
-      const y = margin + rng() * (this.height - 2 * margin);
-      const dx2 = x - center.x;
-      const dy2 = y - center.y;
-      if (Math.sqrt(dx2 * dx2 + dy2 * dy2) < 200) continue;
+      const x = rng() * this.width;
+      const y = rng() * this.height;
+      if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
       this.sandPatches.push({ x, y, radius: 30 + rng() * 40 });
     }
   }
   checkObstacleCollision(x, y, radius) {
     for (const obs of this.obstacles) {
-      const dx = x - obs.x;
-      const dy = y - obs.y;
+      const dx = this.wrapDx(x - obs.x);
+      const dy = this.wrapDy(y - obs.y);
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < obs.radius + radius) {
         return obs;
@@ -165,18 +157,37 @@ var Arena = class {
   // Check if position is in rough sand (returns true if in any patch)
   isInSand(x, y) {
     for (const sp of this.sandPatches) {
-      const dx = x - sp.x;
-      const dy = y - sp.y;
+      const dx = this.wrapDx(x - sp.x);
+      const dy = this.wrapDy(y - sp.y);
       if (dx * dx + dy * dy < sp.radius * sp.radius) return true;
     }
     return false;
   }
-  // Clamp position to arena bounds
-  clampPosition(x, y, margin = 10) {
-    return {
-      x: Math.max(margin, Math.min(this.width - margin, x)),
-      y: Math.max(margin, Math.min(this.height - margin, y))
-    };
+  // Toroidal wrapping — position modulo arena size
+  wrapX(x) {
+    return (x % this.width + this.width) % this.width;
+  }
+  wrapY(y) {
+    return (y % this.height + this.height) % this.height;
+  }
+  wrapPosition(x, y) {
+    return { x: this.wrapX(x), y: this.wrapY(y) };
+  }
+  // Shortest-path delta (for distance/angle calculations across seam)
+  wrapDx(dx) {
+    if (dx > this.width / 2) return dx - this.width;
+    if (dx < -this.width / 2) return dx + this.width;
+    return dx;
+  }
+  wrapDy(dy) {
+    if (dy > this.height / 2) return dy - this.height;
+    if (dy < -this.height / 2) return dy + this.height;
+    return dy;
+  }
+  wrapDistance(x1, y1, x2, y2) {
+    const dx = this.wrapDx(x1 - x2);
+    const dy = this.wrapDy(y1 - y2);
+    return Math.sqrt(dx * dx + dy * dy);
   }
 };
 
@@ -310,8 +321,8 @@ var Car = class {
     const collision = arena.checkObstacleCollision(newX, newY, V.COLLISION_RADIUS);
     if (collision) {
       if (collision.type === "rock") {
-        const dx = newX - collision.x;
-        const dy = newY - collision.y;
+        const dx = arena.wrapDx(newX - collision.x);
+        const dy = arena.wrapDy(newY - collision.y);
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const nx = dx / dist;
         const ny = dy / dist;
@@ -320,7 +331,7 @@ var Car = class {
         this.y += ny * (overlap + V.BOUNCE_DISTANCE);
         const impactSpeed = Math.abs(this.speed);
         const rockDamage = impactSpeed * D.DAMAGE_FACTOR * D.ROCK_DAMAGE_FACTOR;
-        const angleToRock = Math.atan2(collision.y - this.y, collision.x - this.x);
+        const angleToRock = Math.atan2(arena.wrapDy(collision.y - this.y), arena.wrapDx(collision.x - this.x));
         const angleDiff = Math.abs(((angleToRock - this.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
         const frontHit = angleDiff < D.FRONT_HIT_ANGLE;
         const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
@@ -350,20 +361,11 @@ var Car = class {
       this.y = newY;
       this._lastObstacleHit = null;
     }
-    const pos = arena.clampPosition(this.x, this.y, V.COLLISION_RADIUS);
-    if (pos.x !== this.x || pos.y !== this.y) {
-      this.timeAtWall += dt;
-      if (Math.abs(this.speed) > 10) {
-        this.speed *= -0.3;
-        this.wallHits++;
-      } else {
-        this.speed = 0;
-      }
-    }
+    const wrapped = arena.wrapPosition(this.x, this.y);
+    this.x = wrapped.x;
+    this.y = wrapped.y;
     this.speedAccum += Math.abs(this.speed);
     this.speedSamples++;
-    this.x = pos.x;
-    this.y = pos.y;
     this.steerInput = 0;
     this.accelInput = 0;
     this.brakeInput = 0;
@@ -457,7 +459,9 @@ function checkCarCollisions(cars, arena) {
     for (let j = i + 1; j < cars.length; j++) {
       const b = cars[j];
       if (!b.alive) continue;
-      const dist = a.distanceTo(b);
+      const dx = arena.wrapDx(b.x - a.x);
+      const dy = arena.wrapDy(b.y - a.y);
+      const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist >= D.COLLISION_DISTANCE) continue;
       if (a.immuneTimer > 0 || b.immuneTimer > 0) continue;
       const key = pairKey(a, b);
@@ -467,8 +471,6 @@ function checkCarCollisions(cars, arena) {
       b.carCollisions++;
       const speedA = Math.abs(a.speed);
       const speedB = Math.abs(b.speed);
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
       const d = dist || 1;
       const nx = dx / d;
       const ny = dy / d;
@@ -478,10 +480,10 @@ function checkCarCollisions(cars, arena) {
       a.y -= ny * push;
       b.x += nx * push;
       b.y += ny * push;
-      const posA = arena.clampPosition(a.x, a.y, V.COLLISION_RADIUS);
+      const posA = arena.wrapPosition(a.x, a.y);
       a.x = posA.x;
       a.y = posA.y;
-      const posB = arena.clampPosition(b.x, b.y, V.COLLISION_RADIUS);
+      const posB = arena.wrapPosition(b.x, b.y);
       b.x = posB.x;
       b.y = posB.y;
       a.speed *= 1 - D.BUMP_SPEED_TRANSFER;
@@ -535,26 +537,47 @@ var CH = CONFIG.CANVAS.HEIGHT;
 var Camera = class {
   x = 0;
   y = 0;
+  worldW = 1;
+  worldH = 1;
   update(targetX, targetY, worldW, worldH) {
-    this.x += (targetX - this.x) * C.SMOOTHING;
-    this.y += (targetY - this.y) * C.SMOOTHING;
-    this.x = Math.max(CW / 2, Math.min(worldW - CW / 2, this.x));
-    this.y = Math.max(CH / 2, Math.min(worldH - CH / 2, this.y));
+    this.worldW = worldW;
+    this.worldH = worldH;
+    let dx = targetX - this.x;
+    let dy = targetY - this.y;
+    if (dx > worldW / 2) dx -= worldW;
+    if (dx < -worldW / 2) dx += worldW;
+    if (dy > worldH / 2) dy -= worldH;
+    if (dy < -worldH / 2) dy += worldH;
+    this.x += dx * C.SMOOTHING;
+    this.y += dy * C.SMOOTHING;
+    this.x = (this.x % worldW + worldW) % worldW;
+    this.y = (this.y % worldH + worldH) % worldH;
   }
   worldToScreen(wx, wy) {
-    return {
-      x: wx - this.x + CW / 2,
-      y: wy - this.y + CH / 2
-    };
+    let dx = wx - this.x;
+    let dy = wy - this.y;
+    if (dx > this.worldW / 2) dx -= this.worldW;
+    if (dx < -this.worldW / 2) dx += this.worldW;
+    if (dy > this.worldH / 2) dy -= this.worldH;
+    if (dy < -this.worldH / 2) dy += this.worldH;
+    return { x: dx + CW / 2, y: dy + CH / 2 };
   }
   isVisible(wx, wy, margin = 50) {
-    const sx = wx - this.x + CW / 2;
-    const sy = wy - this.y + CH / 2;
+    let dx = wx - this.x;
+    let dy = wy - this.y;
+    if (dx > this.worldW / 2) dx -= this.worldW;
+    if (dx < -this.worldW / 2) dx += this.worldW;
+    if (dy > this.worldH / 2) dy -= this.worldH;
+    if (dy < -this.worldH / 2) dy += this.worldH;
+    const sx = dx + CW / 2;
+    const sy = dy + CH / 2;
     return sx > -margin && sx < CW + margin && sy > -margin && sy < CH + margin;
   }
   snap(targetX, targetY, worldW, worldH) {
-    this.x = Math.max(CW / 2, Math.min(worldW - CW / 2, targetX));
-    this.y = Math.max(CH / 2, Math.min(worldH - CH / 2, targetY));
+    this.worldW = worldW;
+    this.worldH = worldH;
+    this.x = targetX;
+    this.y = targetY;
   }
 };
 
@@ -581,6 +604,36 @@ function wasPressed(key) {
 }
 function clearFrame() {
   justPressed.clear();
+  _gamepadButtonJustPressed = false;
+}
+var DEADZONE = 0.15;
+var _gamepadButtonJustPressed = false;
+var _prevButtons = [];
+function getActiveGamepad() {
+  const gamepads = navigator.getGamepads();
+  for (const gp of gamepads) {
+    if (gp && gp.connected) return gp;
+  }
+  return null;
+}
+function pollGamepad() {
+  const gp = getActiveGamepad();
+  if (!gp) {
+    _prevButtons = [];
+    return;
+  }
+  const curr = gp.buttons.map((b) => b.pressed);
+  if (_prevButtons.length > 0) {
+    for (const idx of [0, 9]) {
+      if (curr[idx] && !_prevButtons[idx]) {
+        _gamepadButtonJustPressed = true;
+      }
+    }
+  }
+  _prevButtons = curr;
+}
+function gamepadWasPressed() {
+  return _gamepadButtonJustPressed;
 }
 function getPlayerControls() {
   let steer = 0;
@@ -591,6 +644,22 @@ function getPlayerControls() {
   if (isHeld("ArrowUp") || isHeld("w")) accel = 1;
   if (isHeld("ArrowDown") || isHeld("s")) brake = 1;
   if (isHeld(" ")) brake = 1;
+  const gp = getActiveGamepad();
+  if (gp) {
+    const lx = gp.axes[0] ?? 0;
+    if (Math.abs(lx) > DEADZONE) {
+      const gpSteer = Math.sign(lx) * ((Math.abs(lx) - DEADZONE) / (1 - DEADZONE));
+      if (Math.abs(gpSteer) > Math.abs(steer)) steer = gpSteer;
+    }
+    const rt = gp.buttons[7]?.value ?? 0;
+    const lt = gp.buttons[6]?.value ?? 0;
+    if (rt > accel) accel = rt;
+    if (lt > brake) brake = lt;
+    if (gp.buttons[12]?.pressed && accel < 1) accel = 1;
+    if (gp.buttons[13]?.pressed && brake < 1) brake = 1;
+    if (gp.buttons[14]?.pressed && steer > -1) steer = -1;
+    if (gp.buttons[15]?.pressed && steer > -1) steer = 1;
+  }
   return { steer, accel, brake };
 }
 
@@ -1039,7 +1108,7 @@ function compileOnTick(code) {
     };
   }
 }
-function buildMeAPI(car, soma) {
+function buildMeAPI(car, soma, arena) {
   return {
     get x() {
       return car.x;
@@ -1087,12 +1156,14 @@ function buildMeAPI(car, soma) {
       car.brake(amt);
     },
     distanceTo(x, y) {
-      const dx = car.x - x;
-      const dy = car.y - y;
+      const dx = arena.wrapDx(car.x - x);
+      const dy = arena.wrapDy(car.y - y);
       return Math.sqrt(dx * dx + dy * dy);
     },
     angleTo(x, y) {
-      return Math.atan2(y - car.y, x - car.x);
+      const dx = arena.wrapDx(x - car.x);
+      const dy = arena.wrapDy(y - car.y);
+      return Math.atan2(dy, dx);
     },
     memory: {
       read() {
@@ -1141,7 +1212,7 @@ function buildWorldAPI(time, arena, allCars, selfId) {
 }
 function runOnTick(car, soma, time, arena, allCars) {
   const fn = compileOnTick(soma.on_tick.content);
-  const me = buildMeAPI(car, soma);
+  const me = buildMeAPI(car, soma, arena);
   const world = buildWorldAPI(time, arena, allCars, car.id);
   try {
     fn(me, world);
@@ -1246,7 +1317,7 @@ GAME MECHANICS:
 - Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
 
 ARENA:
-- Flat desert, ${CONFIG.ARENA.WIDTH}\xD7${CONFIG.ARENA.HEIGHT} with hard walls at the edges.
+- Flat desert, ${CONFIG.ARENA.WIDTH}\xD7${CONFIG.ARENA.HEIGHT}, toroidal \u2014 driving off one edge puts you on the opposite side (no walls).
 - Obstacles: rocks (solid \u2014 bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 
@@ -1463,6 +1534,7 @@ var Game = class {
   loop(timestamp) {
     const dt = Math.min((timestamp - this.lastTime) / 1e3, 0.05);
     this.lastTime = timestamp;
+    pollGamepad();
     this.update(dt);
     this.render();
     clearFrame();
@@ -1472,7 +1544,7 @@ var Game = class {
   update(dt) {
     switch (this.phase) {
       case "title":
-        if (wasPressed(" ") || wasPressed("Enter")) {
+        if (wasPressed(" ") || wasPressed("Enter") || gamepadWasPressed()) {
           this.startGame();
         }
         break;
@@ -1512,8 +1584,8 @@ var Game = class {
     updateCollisionCooldowns(dt);
     const collisions = checkCarCollisions(this.allCars, this.arena);
     for (const col of collisions) {
-      const midX = (col.a.x + col.b.x) / 2;
-      const midY = (col.a.y + col.b.y) / 2;
+      const midX = col.a.x + this.arena.wrapDx(col.b.x - col.a.x) / 2;
+      const midY = col.a.y + this.arena.wrapDy(col.b.y - col.a.y) / 2;
       if (col.tagTransfer) {
         spawnTagSparks(midX, midY);
         triggerShake(6, 0.3);
@@ -1613,14 +1685,12 @@ var Game = class {
     let bestY = this.arena.height / 2;
     let bestMinDist = 0;
     for (let attempt = 0; attempt < 20; attempt++) {
-      const x = 100 + Math.random() * (this.arena.width - 200);
-      const y = 100 + Math.random() * (this.arena.height - 200);
+      const x = Math.random() * this.arena.width;
+      const y = Math.random() * this.arena.height;
       if (this.arena.checkObstacleCollision(x, y, CONFIG.VEHICLE.COLLISION_RADIUS)) continue;
       let minDist = Infinity;
       for (const other of alive) {
-        const dx = other.x - x;
-        const dy = other.y - y;
-        const d = Math.sqrt(dx * dx + dy * dy);
+        const d = this.arena.wrapDistance(x, y, other.x, other.y);
         if (d < minDist) minDist = d;
       }
       if (minDist > bestMinDist) {
@@ -1725,11 +1795,6 @@ var Game = class {
       }
     }
     renderTracks(ctx, cam);
-    const tl = cam.worldToScreen(0, 0);
-    const br = cam.worldToScreen(this.arena.width, this.arena.height);
-    ctx.strokeStyle = "#8b4513";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
     for (const obs of this.arena.obstacles) {
       if (!cam.isVisible(obs.x, obs.y, obs.radius + 10)) continue;
       const s = cam.worldToScreen(obs.x, obs.y);
@@ -1908,10 +1973,10 @@ var Game = class {
     ctx.fillText("Desert Demolition Derby", CW2 / 2, CH2 / 3 + 40);
     ctx.fillStyle = "#888";
     ctx.font = "14px monospace";
-    ctx.fillText("Arrow keys / WASD to drive", CW2 / 2, CH2 / 2 + 20);
+    ctx.fillText("Arrow keys / WASD / Gamepad to drive", CW2 / 2, CH2 / 2 + 20);
     ctx.fillText("Ram cars to deal damage \u2014 being IT means 3x damage output", CW2 / 2, CH2 / 2 + 45);
     ctx.fillText("Higher score = more HP and speed", CW2 / 2, CH2 / 2 + 70);
-    ctx.fillText("Die? Score halved. Respawn. Keep fighting.", CW2 / 2, CH2 / 2 + 95);
+    ctx.fillText("No walls \u2014 edges wrap around. Die? Score halved. Keep fighting.", CW2 / 2, CH2 / 2 + 95);
     if (this.savedScores.size > 0) {
       ctx.fillStyle = "#aaa";
       ctx.font = "bold 14px monospace";
@@ -1928,7 +1993,7 @@ var Game = class {
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 400);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 16px monospace";
-    ctx.fillText("PRESS SPACE TO START", CW2 / 2, CH2 - 60);
+    ctx.fillText("PRESS SPACE / A TO START", CW2 / 2, CH2 - 60);
     ctx.restore();
   }
 };
