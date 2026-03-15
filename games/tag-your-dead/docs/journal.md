@@ -283,3 +283,28 @@ Dust particles now spawn 14-18px behind the car (offset along reverse of facing 
 - Playtest: sand friction feel, barrel/cone placement, AI behavior
 - Sound effects
 - Arena variety (multiple seeds, hazard layouts)
+
+### Session 3d — IT Kill Bonus & Reflection Tweaks (2026-03-14)
+
+#### 3x kill bonus for killing the "it" car
+- Killing the car that's "it" awards 150 points (3× the normal 50 kill bonus)
+- Captured `isIt` status before `takeDamage()` since `die()` clears it
+- Reflection prompt updated to mention the +150 IT kill bonus
+- Title screen text updated
+
+#### Reflection prompt additions
+- Sand patches mentioned in arena description ("rough sand patches increase friction")
+- IT kill bonus in score breakdown
+
+#### Terrain slowdown hierarchy
+| Terrain | Effect |
+|---------|--------|
+| Open sand | No effect |
+| Rough sand patches | 3× friction (gradual slowdown) |
+| Cacti / barrels | One-time speed × 0.6 on entry, drive through |
+| Rocks | Solid bounce + 20% car-collision damage |
+
+#### What's next
+- Toroidal world wrapping (edges connect, no walls) — next session
+- Sound effects
+- Arena variety

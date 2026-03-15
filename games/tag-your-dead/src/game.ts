@@ -665,7 +665,7 @@ export class Game {
     ctx.fillStyle = '#888';
     ctx.font = '14px monospace';
     ctx.fillText('Arrow keys / WASD to drive', CW / 2, CH / 2 + 20);
-    ctx.fillText('Ram cars to deal damage — being IT means 3x damage', CW / 2, CH / 2 + 45);
+    ctx.fillText('Ram cars to deal damage — being IT means 3x damage output', CW / 2, CH / 2 + 45);
     ctx.fillText('Higher score = more HP and speed', CW / 2, CH / 2 + 70);
     ctx.fillText('Die? Score halved. Respawn. Keep fighting.', CW / 2, CH / 2 + 95);
 

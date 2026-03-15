@@ -508,15 +508,17 @@ function checkCarCollisions(cars, arena) {
         b.tagCar(a);
         tagTransfer = true;
       }
+      const bWasIt = b.isIt;
+      const aWasIt = a.isIt;
       const killedB = b.takeDamage(selfDamageToB);
       const killedA = a.takeDamage(selfDamageToA);
       if (killedB) {
         a.kills++;
-        a.score += S.KILL_BONUS;
+        a.score += S.KILL_BONUS * (bWasIt ? 3 : 1);
       }
       if (killedA) {
         b.kills++;
-        b.score += S.KILL_BONUS;
+        b.score += S.KILL_BONUS * (aWasIt ? 3 : 1);
       }
       a.immuneTimer = Math.max(a.immuneTimer, D.HIT_GRACE_PERIOD);
       b.immuneTimer = Math.max(b.immuneTimer, D.HIT_GRACE_PERIOD);
@@ -1240,12 +1242,12 @@ GAME MECHANICS:
 - Damage from collisions: speed \xD7 0.15. Being "it" multiplies YOUR damage output by 3x.
 - Front-bumper hits (ramming nose-first, within \xB160\xB0 of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
 - Die (HP=0 or IT timer expires) \u2192 score halved, then respawn.
-- Score: +1/sec alive, +0.5 per damage dealt, +50 per kill. Higher score \u2192 more HP and speed (caps at score 200).
+- Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score \u2192 more HP and speed (caps at score 200).
 - Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
 
 ARENA:
 - Flat desert, ${CONFIG.ARENA.WIDTH}\xD7${CONFIG.ARENA.HEIGHT} with hard walls at the edges.
-- Obstacles: rocks (solid \u2014 bounce off, take some damage), cacti and barrels (slow you down but you drive through them).
+- Obstacles: rocks (solid \u2014 bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 
 Call ALL tools you want to use in a single response.`;
@@ -1907,7 +1909,7 @@ var Game = class {
     ctx.fillStyle = "#888";
     ctx.font = "14px monospace";
     ctx.fillText("Arrow keys / WASD to drive", CW2 / 2, CH2 / 2 + 20);
-    ctx.fillText("Ram cars to deal damage \u2014 being IT means 3x damage", CW2 / 2, CH2 / 2 + 45);
+    ctx.fillText("Ram cars to deal damage \u2014 being IT means 3x damage output", CW2 / 2, CH2 / 2 + 45);
     ctx.fillText("Higher score = more HP and speed", CW2 / 2, CH2 / 2 + 70);
     ctx.fillText("Die? Score halved. Respawn. Keep fighting.", CW2 / 2, CH2 / 2 + 95);
     if (this.savedScores.size > 0) {

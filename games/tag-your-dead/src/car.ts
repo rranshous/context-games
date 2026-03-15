@@ -415,13 +415,17 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
         tagTransfer = true;
       }
 
+      // Capture "it" status before damage (die() clears isIt)
+      const bWasIt = b.isIt;
+      const aWasIt = a.isIt;
+
       // Apply damage (reduced for front-bumper hits)
       const killedB = b.takeDamage(selfDamageToB);
       const killedA = a.takeDamage(selfDamageToA);
 
-      // Kill bonus
-      if (killedB) { a.kills++; a.score += S.KILL_BONUS; }
-      if (killedA) { b.kills++; b.score += S.KILL_BONUS; }
+      // Kill bonus (3x for killing the "it" car)
+      if (killedB) { a.kills++; a.score += S.KILL_BONUS * (bWasIt ? 3 : 1); }
+      if (killedA) { b.kills++; b.score += S.KILL_BONUS * (aWasIt ? 3 : 1); }
 
       // Grace period
       a.immuneTimer = Math.max(a.immuneTimer, D.HIT_GRACE_PERIOD);

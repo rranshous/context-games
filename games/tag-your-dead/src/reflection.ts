@@ -112,12 +112,12 @@ GAME MECHANICS:
 - Damage from collisions: speed × 0.15. Being "it" multiplies YOUR damage output by 3x.
 - Front-bumper hits (ramming nose-first, within ±60° of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
 - Die (HP=0 or IT timer expires) → score halved, then respawn.
-- Score: +1/sec alive, +0.5 per damage dealt, +50 per kill. Higher score → more HP and speed (caps at score 200).
+- Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score → more HP and speed (caps at score 200).
 - Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
 
 ARENA:
 - Flat desert, ${CONFIG.ARENA.WIDTH}×${CONFIG.ARENA.HEIGHT} with hard walls at the edges.
-- Obstacles: rocks (solid — bounce off, take some damage), cacti and barrels (slow you down but you drive through them).
+- Obstacles: rocks (solid — bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 
 Call ALL tools you want to use in a single response.`;
