@@ -44,6 +44,22 @@ export interface CarSoma {
   memory: SomaSection;
 }
 
+// Per-life position sample (for bird's-eye replay map)
+export interface TrailPoint {
+  time: number;
+  x: number;
+  y: number;
+  isIt: boolean;
+}
+
+// Per-life significant event (for reflection context)
+export interface LifeEvent {
+  time: number;
+  x: number;
+  y: number;
+  description: string;
+}
+
 // Performance snapshot for reflection (when a car dies)
 export interface LifeResult {
   score: number;
@@ -62,6 +78,9 @@ export interface LifeResult {
   carCollisions: number;
   timeAtWall: number;
   avgSpeed: number;
+  // Per-life trail + events for reflection map
+  trail: TrailPoint[];
+  lifeEvents: LifeEvent[];
 }
 
 export type GamePhase = 'title' | 'playing' | 'paused';

@@ -4,7 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { Arena } from './arena.js';
-import { CarState, CarColor } from './types.js';
+import { CarState, CarColor, TrailPoint, LifeEvent } from './types.js';
 
 const V = CONFIG.VEHICLE;
 const T = CONFIG.TAG;
@@ -56,6 +56,11 @@ export class Car implements CarState {
   _lastObstacleHit: string | null = null;
   private _obstacleCooldown: number = 0; // prevent counting same obstacle multiple frames
 
+  // Per-life trail + events (for reflection map)
+  trail: TrailPoint[] = [];
+  lifeEvents: LifeEvent[] = [];
+  private _trailTimer: number = 0;
+
   // Boost
   boostTimer: number = 0;     // remaining boost duration (0 = not boosting)
   boostCooldown: number = 0;  // cooldown before next boost
@@ -79,7 +84,8 @@ export class Car implements CarState {
   }
 
   get maxSpeed(): number {
-    return V.BASE_MAX_SPEED + Math.min(this.score, S.SCALE_CAP) * S.SPEED_FACTOR;
+    const base = V.BASE_MAX_SPEED + Math.min(this.score, S.SCALE_CAP) * S.SPEED_FACTOR;
+    return this.isIt ? base * CONFIG.IT.SPEED_BONUS : base;
   }
 
   steer(dir: number): void {
@@ -97,7 +103,7 @@ export class Car implements CarState {
   boost(): void {
     if (this.boostCooldown <= 0 && this.boostTimer <= 0) {
       this.boostTimer = B.DURATION;
-      this.boostCooldown = B.COOLDOWN;
+      this.boostCooldown = this.isIt ? B.COOLDOWN * B.IT_COOLDOWN_MULT : B.COOLDOWN;
     }
   }
 
@@ -107,7 +113,8 @@ export class Car implements CarState {
 
   /** 0 = ready, 1 = full cooldown */
   get boostCooldownFrac(): number {
-    return Math.max(0, this.boostCooldown / B.COOLDOWN);
+    const cd = this.isIt ? B.COOLDOWN * B.IT_COOLDOWN_MULT : B.COOLDOWN;
+    return Math.max(0, this.boostCooldown / cd);
   }
 
   update(dt: number, arena: Arena): void {
@@ -295,6 +302,27 @@ export class Car implements CarState {
     return false;
   }
 
+  /** Sample position for reflection trail — call from game loop */
+  sampleTrail(gameTime: number, dt: number): void {
+    if (!this.alive) return;
+    this._trailTimer += dt;
+    if (this._trailTimer >= 0.5) {
+      this._trailTimer -= 0.5;
+      // Cap at 200 samples (100s of life — more than enough)
+      if (this.trail.length < 200) {
+        this.trail.push({ time: gameTime, x: this.x, y: this.y, isIt: this.isIt });
+      }
+    }
+  }
+
+  /** Record a significant life event */
+  addLifeEvent(time: number, description: string): void {
+    // Cap at 30 events per life
+    if (this.lifeEvents.length < 30) {
+      this.lifeEvents.push({ time, x: this.x, y: this.y, description });
+    }
+  }
+
   // Respawn at a position
   respawn(x: number, y: number): void {
     this.x = x;
@@ -324,6 +352,9 @@ export class Car implements CarState {
     this.lastAttackerId = null;
     this.boostTimer = 0;
     this.boostCooldown = 0;
+    this.trail = [];
+    this.lifeEvents = [];
+    this._trailTimer = 0;
   }
 }
 

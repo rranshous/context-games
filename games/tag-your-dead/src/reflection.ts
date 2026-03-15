@@ -3,22 +3,31 @@
 // Runs async while the game continues.
 
 import { CONFIG } from './config.js';
-import { CarSoma, LifeResult } from './types.js';
+import { CarSoma, LifeResult, Obstacle, SandPatch } from './types.js';
+import { renderLifeMap } from './life-map.js';
 
 const API = CONFIG.API_ENDPOINT;
+
+export interface ArenaContext {
+  arenaWidth: number;
+  arenaHeight: number;
+  obstacles: Obstacle[];
+  sandPatches: SandPatch[];
+  carColor: string;
+}
 
 async function callAPI(
   model: string,
   system: string,
-  userMsg: string,
+  userContent: string | Array<Record<string, unknown>>,
   tools?: unknown[],
   maxTokens: number = 1024,
-): Promise<{ content: Array<{ type: string; text?: string; input?: Record<string, string> }>; tool_calls?: unknown[] }> {
+): Promise<{ content: Array<{ type: string; text?: string; input?: Record<string, string>; name?: string }>; tool_calls?: unknown[] }> {
   const body: Record<string, unknown> = {
     model,
     max_tokens: maxTokens,
     system,
-    messages: [{ role: 'user', content: userMsg }],
+    messages: [{ role: 'user', content: userContent }],
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
@@ -105,6 +114,7 @@ export async function reflectOnLife(
   carName: string,
   soma: CarSoma,
   result: LifeResult,
+  arena: ArenaContext,
 ): Promise<ReflectionResult> {
   const system = `You are ${carName}, a car in a desert demolition derby. You just died and are reflecting on your last life.
 
@@ -120,32 +130,66 @@ GAME MECHANICS:
 - Die (HP=0 or IT timer expires) → score halved, then respawn.
 - Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score → more HP and speed (caps at score 200).
 - Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
+- boost(): short speed burst (1.8x max speed, 3x accel) on 3s cooldown. IT cars recharge 2x faster.
 
 ARENA:
 - Flat desert, ${CONFIG.ARENA.WIDTH}×${CONFIG.ARENA.HEIGHT}, toroidal — driving off one edge puts you on the opposite side (no walls).
 - Obstacles: rocks (solid — bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
+- Coordinates: (0,0) is top-left, (${CONFIG.ARENA.WIDTH},${CONFIG.ARENA.HEIGHT}) is bottom-right.
+
+The attached image shows a bird's-eye map of your last life. Your path is shown in your color (red when IT). Numbered circles mark key events listed below. Green square = spawn, red X = death.
 
 Call ALL tools you want to use in a single response.`;
 
-  const userMsg = `You died. Cause: ${result.deathCause === 'destroyed' ? 'HP reached 0' : 'IT timer ran out'}.
+  // Build key moments text
+  const moments = result.lifeEvents.length > 0
+    ? '\nKEY MOMENTS:\n' + result.lifeEvents.map((ev, i) =>
+        `${i + 1}. [${Math.round(ev.time)}s] ${ev.description}`
+      ).join('\n')
+    : '';
+
+  const userText = `You died. Cause: ${result.deathCause === 'destroyed' ? 'HP reached 0' : 'IT timer ran out'}.
 
 Score before death: ${result.score} (now halved). Average speed: ${result.avgSpeed}.
 Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills: ${result.kills}.
 Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
 Collisions: ${buildHitSummary(result)}.
-
+${moments}
 Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit the same code — make a specific tactical change based on how you died. Also update memory with what you learned.`;
 
+  // Render life map if we have trail data
+  let userContent: string | Array<Record<string, unknown>> = userText;
+  if (result.trail.length > 2) {
+    try {
+      const mapBase64 = renderLifeMap({
+        arenaWidth: arena.arenaWidth,
+        arenaHeight: arena.arenaHeight,
+        obstacles: arena.obstacles,
+        sandPatches: arena.sandPatches,
+        trail: result.trail,
+        events: result.lifeEvents,
+        carColor: arena.carColor,
+        carName,
+      });
+      userContent = [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: mapBase64 } },
+        { type: 'text', text: userText },
+      ];
+      console.log(`[REFLECT] ${carName} life map rendered (${result.trail.length} trail points, ${result.lifeEvents.length} events)`);
+    } catch (err) {
+      console.warn(`[REFLECT] ${carName} life map failed, using text-only:`, err);
+    }
+  }
+
   try {
-    const resp = await callAPI('claude-sonnet-4-5-20250929', system, userMsg, REFLECTION_TOOLS);
+    const resp = await callAPI('claude-sonnet-4-5-20250929', system, userContent, REFLECTION_TOOLS);
 
     const updated = { ...soma };
     for (const block of resp.content) {
       if (block.type === 'tool_use' && block.input) {
         const input = block.input as Record<string, string>;
-        const name = (block as { name?: string }).name;
-        if (name === 'edit_on_tick' && input.code) {
+        if (block.name === 'edit_on_tick' && input.code) {
           updated.on_tick = { content: input.code };
         } else if (name === 'edit_memory' && input.content) {
           updated.memory = { content: input.content };

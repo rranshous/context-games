@@ -565,7 +565,48 @@ Hot Pursuit officers self-modify much more effectively. Key differences identifi
 - **Movement accountability**: warns if officer barely moved ("You barely moved — your handler probably isn't producing movement commands")
 
 ### What's next — improving reflection quality
-- Add chase/encounter timeline (key moments: close calls, tag transfers, kills, near-misses)
-- Consider visual map context (bird's-eye replay of the life)
+- ~~Add chase/encounter timeline (key moments: close calls, tag transfers, kills, near-misses)~~ ✓ session 7b
+- ~~Consider visual map context (bird's-eye replay of the life)~~ ✓ session 7b
 - Movement accountability warning for low-distance lives
 - Multi-turn reflection (query specific moments)
+
+### Session 7b — Life Map + Key Moments for Reflection (2026-03-15)
+
+#### Per-life tracking (car.ts, types.ts)
+Added two new per-life data structures on Car, reset on respawn:
+- **`trail: TrailPoint[]`** — position sampled every 0.5s with `{ time, x, y, isIt }`. Capped at 200 samples (100s of life).
+- **`lifeEvents: LifeEvent[]`** — significant moments with `{ time, x, y, description }`. Capped at 30 events.
+
+Life events recorded for:
+- Tag transfers (both cars get an event)
+- Big hits (>25 damage, both attacker and victim)
+- Death (cause + killer if applicable)
+
+#### Bird's-eye life map (new file: life-map.ts)
+Renders an offscreen canvas (400px) showing:
+- Desert background with sand patches (darker circles)
+- All obstacles (gray rocks, green cacti, orange barrels)
+- Car's position trail — colored in their car color, red when IT
+- Green square = spawn point, red X = death location
+- Numbered white circles for each key event (matching the text timeline)
+- Color legend at bottom
+
+Rendered to base64 PNG, sent as multimodal image in the reflection API call.
+
+#### Multimodal reflection (reflection.ts)
+- `callAPI` now accepts `string | Array<Record<string, unknown>>` for user content
+- When trail data exists, sends `[image, text]` content blocks (like hot-pursuit)
+- Falls back to text-only if map render fails
+- Key moments timeline appended to user prompt: `1. [15s] Tagged Bruiser — became IT`
+- System prompt now describes the map and coordinate system
+- Added boost mechanic to system prompt (was missing)
+
+#### Bounded data
+All per-life data is:
+- Capped (200 trail points, 30 events)
+- Reset on respawn (no accumulation across lives)
+- Only passed to reflection on death (not stored elsewhere)
+
+### Design ideas (not yet implemented)
+- **IT vulnerability**: being IT should also make you take +35% more damage (risk/reward tradeoff — you deal 3x but take 1.35x)
+- **IT kill bonus**: killing the car that's IT should give bonus points (may already exist as +150 — verify)

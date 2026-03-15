@@ -179,6 +179,11 @@ export class Game {
       car.update(dt, this.arena);
     }
 
+    // Sample position trails for reflection maps
+    for (const car of this.allCars) {
+      car.sampleTrail(this.gameTime, dt);
+    }
+
     // Effects
     for (const car of this.allCars) {
       if (!car.alive) continue;
@@ -205,12 +210,16 @@ export class Game {
         console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
         // Record who became IT
         const newIt = col.a.isIt ? col.a : col.b;
+        const gaveIt = col.a.isIt ? col.b : col.a;
         this.gameEvents.push({
           time: this.gameTime,
           carId: newIt.id,
           type: 'tagged_it',
           detail: `Tagged IT`,
         });
+        // Life events for both cars involved
+        newIt.addLifeEvent(this.gameTime, `Tagged ${this.carDisplayName(gaveIt.id)} — became IT`);
+        gaveIt.addLifeEvent(this.gameTime, `Got tagged by ${this.carDisplayName(newIt.id)} — now IT`);
       } else if (col.damageToA > 5 || col.damageToB > 5) {
         spawnTagSparks(midX, midY);
         triggerShake(3, 0.15);
@@ -224,6 +233,8 @@ export class Game {
           type: 'big_hit',
           detail: `Hit ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToB)} dmg`,
         });
+        col.a.addLifeEvent(this.gameTime, `Rammed ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToB)} dmg`);
+        col.b.addLifeEvent(this.gameTime, `Got rammed by ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToB)} dmg`);
       }
       if (col.damageToA > 25) {
         this.gameEvents.push({
@@ -232,6 +243,8 @@ export class Game {
           type: 'big_hit',
           detail: `Hit ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToA)} dmg`,
         });
+        col.b.addLifeEvent(this.gameTime, `Rammed ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToA)} dmg`);
+        col.a.addLifeEvent(this.gameTime, `Got rammed by ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToA)} dmg`);
       }
     }
 
@@ -255,6 +268,11 @@ export class Game {
             : 'IT timeout',
           relatedCarId: killerId ?? undefined,
         });
+
+        // Life event on the dying car
+        car.addLifeEvent(this.gameTime, reason === 'destroyed'
+          ? (killerName ? `Destroyed by ${killerName}` : 'Destroyed (HP=0)')
+          : 'Died — IT timer ran out');
 
         // Kill event on the killer's line
         if (reason === 'destroyed' && killerId) {
@@ -447,17 +465,28 @@ export class Game {
       carCollisions: ai.car.carCollisions,
       timeAtWall: Math.round(ai.car.timeAtWall),
       avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0,
+      trail: ai.car.trail,
+      lifeEvents: ai.car.lifeEvents,
     };
 
     try {
-      const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
+      const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult, {
+        arenaWidth: this.arena.width,
+        arenaHeight: this.arena.height,
+        obstacles: this.arena.obstacles,
+        sandPatches: this.arena.sandPatches,
+        carColor: this.CAR_COLORS[ai.car.id] ?? '#888',
+      });
       ai.soma = result.soma;
       this.savedSomas.set(ai.car.id, result.soma);
       saveSomas(this.savedSomas);
       console.log(`[REFLECTION] ${ai.personality.name} updated their code`);
 
       if (result.brag) {
+        console.log(`[TICKER] ${ai.personality.name}: ${result.brag}`);
         this.pushTickerMessage(ai.personality.name, ai.car.id, result.brag);
+      } else {
+        console.log(`[TICKER] ${ai.personality.name}: no brag returned`);
       }
     } catch (err) {
       console.warn(`[REFLECTION] ${ai.personality.name} failed:`, err);

@@ -93,8 +93,14 @@ var CONFIG = {
     // seconds of boost
     COOLDOWN: 3,
     // seconds before boost recharges
-    ACCEL_MULT: 3
+    ACCEL_MULT: 3,
     // acceleration multiplier during boost
+    IT_COOLDOWN_MULT: 0.5
+    // IT cars recharge boost 2x faster
+  },
+  IT: {
+    SPEED_BONUS: 1.15
+    // IT car gets 15% higher max speed
   },
   CAMERA: {
     SMOOTHING: 0.08
@@ -249,6 +255,10 @@ var Car = class {
   _lastObstacleHit = null;
   _obstacleCooldown = 0;
   // prevent counting same obstacle multiple frames
+  // Per-life trail + events (for reflection map)
+  trail = [];
+  lifeEvents = [];
+  _trailTimer = 0;
   // Boost
   boostTimer = 0;
   // remaining boost duration (0 = not boosting)
@@ -273,7 +283,8 @@ var Car = class {
     return D.BASE_MAX_HP + Math.min(this.score, S.SCALE_CAP) * S.HP_FACTOR;
   }
   get maxSpeed() {
-    return V.BASE_MAX_SPEED + Math.min(this.score, S.SCALE_CAP) * S.SPEED_FACTOR;
+    const base = V.BASE_MAX_SPEED + Math.min(this.score, S.SCALE_CAP) * S.SPEED_FACTOR;
+    return this.isIt ? base * CONFIG.IT.SPEED_BONUS : base;
   }
   steer(dir) {
     this.steerInput = Math.max(-1, Math.min(1, dir));
@@ -287,7 +298,7 @@ var Car = class {
   boost() {
     if (this.boostCooldown <= 0 && this.boostTimer <= 0) {
       this.boostTimer = B.DURATION;
-      this.boostCooldown = B.COOLDOWN;
+      this.boostCooldown = this.isIt ? B.COOLDOWN * B.IT_COOLDOWN_MULT : B.COOLDOWN;
     }
   }
   get isBoosting() {
@@ -295,7 +306,8 @@ var Car = class {
   }
   /** 0 = ready, 1 = full cooldown */
   get boostCooldownFrac() {
-    return Math.max(0, this.boostCooldown / B.COOLDOWN);
+    const cd = this.isIt ? B.COOLDOWN * B.IT_COOLDOWN_MULT : B.COOLDOWN;
+    return Math.max(0, this.boostCooldown / cd);
   }
   update(dt, arena) {
     if (!this.alive) return;
@@ -444,6 +456,23 @@ var Car = class {
     }
     return false;
   }
+  /** Sample position for reflection trail — call from game loop */
+  sampleTrail(gameTime, dt) {
+    if (!this.alive) return;
+    this._trailTimer += dt;
+    if (this._trailTimer >= 0.5) {
+      this._trailTimer -= 0.5;
+      if (this.trail.length < 200) {
+        this.trail.push({ time: gameTime, x: this.x, y: this.y, isIt: this.isIt });
+      }
+    }
+  }
+  /** Record a significant life event */
+  addLifeEvent(time, description) {
+    if (this.lifeEvents.length < 30) {
+      this.lifeEvents.push({ time, x: this.x, y: this.y, description });
+    }
+  }
   // Respawn at a position
   respawn(x, y) {
     this.x = x;
@@ -472,6 +501,9 @@ var Car = class {
     this.lastAttackerId = null;
     this.boostTimer = 0;
     this.boostCooldown = 0;
+    this.trail = [];
+    this.lifeEvents = [];
+    this._trailTimer = 0;
   }
 };
 var collisionCooldowns = /* @__PURE__ */ new Map();
@@ -1294,18 +1326,141 @@ function createSoma(personality) {
   };
 }
 
+// src/life-map.ts
+var MAP_SIZE = 400;
+function renderLifeMap(input) {
+  const { arenaWidth, arenaHeight, obstacles, sandPatches, trail, events, carColor, carName } = input;
+  const scaleX = MAP_SIZE / arenaWidth;
+  const scaleY = MAP_SIZE / arenaHeight;
+  const scale = Math.min(scaleX, scaleY);
+  const mapW = Math.round(arenaWidth * scale);
+  const mapH = Math.round(arenaHeight * scale);
+  const legendH = 36;
+  const canvas2 = document.createElement("canvas");
+  canvas2.width = mapW;
+  canvas2.height = mapH + legendH;
+  const ctx = canvas2.getContext("2d");
+  const tx = (x) => x * scale;
+  const ty = (y) => y * scale;
+  ctx.fillStyle = "#d4b088";
+  ctx.fillRect(0, 0, mapW, mapH);
+  ctx.fillStyle = "#c4a070";
+  for (const sp of sandPatches) {
+    ctx.beginPath();
+    ctx.arc(tx(sp.x), ty(sp.y), sp.radius * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const obs of obstacles) {
+    const ox = tx(obs.x);
+    const oy = ty(obs.y);
+    const or = Math.max(obs.radius * scale, 2);
+    if (obs.type === "rock") {
+      ctx.fillStyle = "#666";
+      ctx.beginPath();
+      ctx.arc(ox, oy, or, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (obs.type === "cactus") {
+      ctx.fillStyle = "#4a7a3a";
+      ctx.beginPath();
+      ctx.arc(ox, oy, or, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#cc6633";
+      ctx.beginPath();
+      ctx.arc(ox, oy, or, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  if (trail.length > 1) {
+    ctx.lineWidth = 2.5;
+    for (let i = 1; i < trail.length; i++) {
+      const prev = trail[i - 1];
+      const curr = trail[i];
+      if (Math.abs(curr.x - prev.x) > arenaWidth / 2 || Math.abs(curr.y - prev.y) > arenaHeight / 2) continue;
+      ctx.strokeStyle = curr.isIt ? "#ff3333" : carColor;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(tx(prev.x), ty(prev.y));
+      ctx.lineTo(tx(curr.x), ty(curr.y));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#33ff33";
+    const sx = tx(trail[0].x);
+    const sy = ty(trail[0].y);
+    ctx.fillRect(sx - 4, sy - 4, 8, 8);
+    const last = trail[trail.length - 1];
+    const dx = tx(last.x);
+    const dy = ty(last.y);
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(dx - 5, dy - 5);
+    ctx.lineTo(dx + 5, dy + 5);
+    ctx.moveTo(dx + 5, dy - 5);
+    ctx.lineTo(dx - 5, dy + 5);
+    ctx.stroke();
+  }
+  ctx.font = "bold 10px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    const ex = tx(ev.x);
+    const ey = ty(ev.y);
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#000";
+    ctx.fillText(String(i + 1), ex, ey);
+  }
+  const ly = mapH + 4;
+  ctx.fillStyle = "#1a0f08";
+  ctx.fillRect(0, mapH, mapW, legendH);
+  ctx.font = "10px monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  let lx = 6;
+  const items = [
+    { color: "#33ff33", label: "Spawn" },
+    { color: "#ff0000", label: "Death" },
+    { color: carColor, label: `${carName} (normal)` },
+    { color: "#ff3333", label: `${carName} (IT)` },
+    { color: "#666", label: "Rock" },
+    { color: "#4a7a3a", label: "Cactus" },
+    { color: "#fff", label: "# = Event" }
+  ];
+  for (const item of items) {
+    ctx.fillStyle = item.color;
+    ctx.fillRect(lx, ly + 2, 8, 8);
+    ctx.fillStyle = "#999";
+    ctx.fillText(item.label, lx + 11, ly + 1);
+    lx += ctx.measureText(item.label).width + 22;
+    if (lx > mapW - 50) {
+      lx = 6;
+      ctx.translate(0, 14);
+    }
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  return canvas2.toDataURL("image/png").split(",")[1];
+}
+
 // src/reflection.ts
 var API = CONFIG.API_ENDPOINT;
-async function callAPI(model, system, userMsg, tools, maxTokens = 1024) {
+async function callAPI(model, system, userContent, tools, maxTokens = 1024) {
   const body = {
     model,
     max_tokens: maxTokens,
     system,
-    messages: [{ role: "user", content: userMsg }]
+    messages: [{ role: "user", content: userContent }]
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
-    body.tool_choice = { type: "any" };
+    body.tool_choice = { type: "auto" };
   }
   const resp = await fetch(API, {
     method: "POST",
@@ -1367,7 +1522,7 @@ function buildHitSummary(r) {
   if (r.timeAtWall > 0) parts.push(`spent ${r.timeAtWall}s pressed against arena edge`);
   return parts.length > 0 ? parts.join(", ") : "clean run \u2014 no obstacle collisions";
 }
-async function reflectOnLife(carName, soma, result) {
+async function reflectOnLife(carName, soma, result, arena) {
   const system = `You are ${carName}, a car in a desert demolition derby. You just died and are reflecting on your last life.
 
 <identity>${soma.identity.content}</identity>
@@ -1377,33 +1532,62 @@ async function reflectOnLife(carName, soma, result) {
 GAME MECHANICS:
 - Continuous demolition derby. No rounds \u2014 die, respawn in 5s, keep fighting.
 - Damage from collisions: speed \xD7 0.15. Being "it" multiplies YOUR damage output by 3x.
+- Being "it" also gives +15% max speed and 2x faster boost recharge \u2014 use this advantage to chase down targets.
 - Front-bumper hits (ramming nose-first, within \xB160\xB0 of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
 - Die (HP=0 or IT timer expires) \u2192 score halved, then respawn.
 - Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score \u2192 more HP and speed (caps at score 200).
 - Tag transfer: ram the "it" car or get rammed by it (must be moving) to transfer the tag. 1.5s immunity after tag transfer.
+- boost(): short speed burst (1.8x max speed, 3x accel) on 3s cooldown. IT cars recharge 2x faster.
 
 ARENA:
 - Flat desert, ${CONFIG.ARENA.WIDTH}\xD7${CONFIG.ARENA.HEIGHT}, toroidal \u2014 driving off one edge puts you on the opposite side (no walls).
 - Obstacles: rocks (solid \u2014 bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
+- Coordinates: (0,0) is top-left, (${CONFIG.ARENA.WIDTH},${CONFIG.ARENA.HEIGHT}) is bottom-right.
+
+The attached image shows a bird's-eye map of your last life. Your path is shown in your color (red when IT). Numbered circles mark key events listed below. Green square = spawn, red X = death.
 
 Call ALL tools you want to use in a single response.`;
-  const userMsg = `You died. Cause: ${result.deathCause === "destroyed" ? "HP reached 0" : "IT timer ran out"}.
+  const moments = result.lifeEvents.length > 0 ? "\nKEY MOMENTS:\n" + result.lifeEvents.map(
+    (ev, i) => `${i + 1}. [${Math.round(ev.time)}s] ${ev.description}`
+  ).join("\n") : "";
+  const userText = `You died. Cause: ${result.deathCause === "destroyed" ? "HP reached 0" : "IT timer ran out"}.
 
 Score before death: ${result.score} (now halved). Average speed: ${result.avgSpeed}.
 Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills: ${result.kills}.
 Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
 Collisions: ${buildHitSummary(result)}.
-
-Reflect on this life and update your soma.`;
+${moments}
+Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit the same code \u2014 make a specific tactical change based on how you died. Also update memory with what you learned.`;
+  let userContent = userText;
+  if (result.trail.length > 2) {
+    try {
+      const mapBase64 = renderLifeMap({
+        arenaWidth: arena.arenaWidth,
+        arenaHeight: arena.arenaHeight,
+        obstacles: arena.obstacles,
+        sandPatches: arena.sandPatches,
+        trail: result.trail,
+        events: result.lifeEvents,
+        carColor: arena.carColor,
+        carName
+      });
+      userContent = [
+        { type: "image", source: { type: "base64", media_type: "image/png", data: mapBase64 } },
+        { type: "text", text: userText }
+      ];
+      console.log(`[REFLECT] ${carName} life map rendered (${result.trail.length} trail points, ${result.lifeEvents.length} events)`);
+    } catch (err) {
+      console.warn(`[REFLECT] ${carName} life map failed, using text-only:`, err);
+    }
+  }
   try {
-    const resp = await callAPI("claude-sonnet-4-5-20250929", system, userMsg, REFLECTION_TOOLS);
+    const resp = await callAPI("claude-sonnet-4-5-20250929", system, userContent, REFLECTION_TOOLS);
     const updated = { ...soma };
     for (const block of resp.content) {
       if (block.type === "tool_use" && block.input) {
         const input = block.input;
-        const name = block.name;
-        if (name === "edit_on_tick" && input.code) {
+        if (block.name === "edit_on_tick" && input.code) {
           updated.on_tick = { content: input.code };
         } else if (name === "edit_memory" && input.content) {
           updated.memory = { content: input.content };
@@ -1412,11 +1596,16 @@ Reflect on this life and update your soma.`;
         }
       }
     }
-    console.log(`[REFLECT] ${carName} reflection complete`);
+    const toolsCalled = resp.content.filter((b) => b.type === "tool_use").map((b) => b.name);
+    console.log(`[REFLECT] ${carName} reflection complete \u2014 tools: ${toolsCalled.join(", ") || "none"}`);
     const codeChanged = updated.on_tick.content !== soma.on_tick.content;
     let brag = null;
     if (codeChanged) {
+      console.log(`[REFLECT] ${carName} on_tick changed, generating brag...`);
       brag = await generateBrag(carName, updated.identity.content, soma.on_tick.content, updated.on_tick.content);
+      console.log(`[REFLECT] ${carName} brag: ${brag ?? "(failed)"}`);
+    } else {
+      console.log(`[REFLECT] ${carName} on_tick unchanged \u2014 no brag`);
     }
     return { soma: updated, brag };
   } catch (err) {
@@ -1424,7 +1613,7 @@ Reflect on this life and update your soma.`;
     return { soma, brag: null };
   }
 }
-async function generateBrag(name, identity, oldCode, newCode) {
+async function generateBrag(name2, identity, oldCode, newCode) {
   try {
     const resp = await fetch(API, {
       method: "POST",
@@ -1435,7 +1624,7 @@ async function generateBrag(name, identity, oldCode, newCode) {
         max_tokens: 100,
         messages: [{
           role: "user",
-          content: `You are ${name}, a demolition derby driver. Your identity: "${identity}"
+          content: `You are ${name2}, a demolition derby driver. Your identity: "${identity}"
 
 You just updated your driving code after dying. Write a short, cocky, in-character brag about what you changed (1 sentence, max 15 words). Be specific about the tactical change, not generic. No quotes.
 
@@ -1447,11 +1636,16 @@ ${newCode.slice(0, 400)}`
         }]
       })
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.warn(`[BRAG] API ${resp.status}`);
+      return null;
+    }
     const data = await resp.json();
     const text = data.content?.[0]?.text?.trim();
+    if (!text) console.warn("[BRAG] empty response", data);
     return text || null;
-  } catch {
+  } catch (err) {
+    console.warn("[BRAG] failed:", err);
     return null;
   }
 }
@@ -1707,6 +1901,9 @@ var Game = class {
       car.update(dt, this.arena);
     }
     for (const car of this.allCars) {
+      car.sampleTrail(this.gameTime, dt);
+    }
+    for (const car of this.allCars) {
       if (!car.alive) continue;
       if (Math.abs(car.speed) > 60) {
         const dustCount = car.isBoosting ? 4 : 1;
@@ -1726,12 +1923,15 @@ var Game = class {
         triggerShake(6, 0.3);
         console.log(`[TAG] tag transferred between ${col.a.id} and ${col.b.id}!`);
         const newIt = col.a.isIt ? col.a : col.b;
+        const gaveIt = col.a.isIt ? col.b : col.a;
         this.gameEvents.push({
           time: this.gameTime,
           carId: newIt.id,
           type: "tagged_it",
           detail: `Tagged IT`
         });
+        newIt.addLifeEvent(this.gameTime, `Tagged ${this.carDisplayName(gaveIt.id)} \u2014 became IT`);
+        gaveIt.addLifeEvent(this.gameTime, `Got tagged by ${this.carDisplayName(newIt.id)} \u2014 now IT`);
       } else if (col.damageToA > 5 || col.damageToB > 5) {
         spawnTagSparks(midX, midY);
         triggerShake(3, 0.15);
@@ -1743,6 +1943,8 @@ var Game = class {
           type: "big_hit",
           detail: `Hit ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToB)} dmg`
         });
+        col.a.addLifeEvent(this.gameTime, `Rammed ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToB)} dmg`);
+        col.b.addLifeEvent(this.gameTime, `Got rammed by ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToB)} dmg`);
       }
       if (col.damageToA > 25) {
         this.gameEvents.push({
@@ -1751,6 +1953,8 @@ var Game = class {
           type: "big_hit",
           detail: `Hit ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToA)} dmg`
         });
+        col.b.addLifeEvent(this.gameTime, `Rammed ${this.carDisplayName(col.a.id)} for ${Math.round(col.damageToA)} dmg`);
+        col.a.addLifeEvent(this.gameTime, `Got rammed by ${this.carDisplayName(col.b.id)} for ${Math.round(col.damageToA)} dmg`);
       }
     }
     for (const car of this.allCars) {
@@ -1768,6 +1972,7 @@ var Game = class {
           detail: reason === "destroyed" ? killerName ? `Killed by ${killerName}` : "Destroyed" : "IT timeout",
           relatedCarId: killerId ?? void 0
         });
+        car.addLifeEvent(this.gameTime, reason === "destroyed" ? killerName ? `Destroyed by ${killerName}` : "Destroyed (HP=0)" : "Died \u2014 IT timer ran out");
         if (reason === "destroyed" && killerId) {
           this.gameEvents.push({
             time: this.gameTime,
@@ -1915,16 +2120,27 @@ var Game = class {
       wallHits: ai.car.wallHits,
       carCollisions: ai.car.carCollisions,
       timeAtWall: Math.round(ai.car.timeAtWall),
-      avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0
+      avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0,
+      trail: ai.car.trail,
+      lifeEvents: ai.car.lifeEvents
     };
     try {
-      const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult);
+      const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult, {
+        arenaWidth: this.arena.width,
+        arenaHeight: this.arena.height,
+        obstacles: this.arena.obstacles,
+        sandPatches: this.arena.sandPatches,
+        carColor: this.CAR_COLORS[ai.car.id] ?? "#888"
+      });
       ai.soma = result.soma;
       this.savedSomas.set(ai.car.id, result.soma);
       saveSomas(this.savedSomas);
       console.log(`[REFLECTION] ${ai.personality.name} updated their code`);
       if (result.brag) {
+        console.log(`[TICKER] ${ai.personality.name}: ${result.brag}`);
         this.pushTickerMessage(ai.personality.name, ai.car.id, result.brag);
+      } else {
+        console.log(`[TICKER] ${ai.personality.name}: no brag returned`);
       }
     } catch (err) {
       console.warn(`[REFLECTION] ${ai.personality.name} failed:`, err);
@@ -2029,7 +2245,7 @@ var Game = class {
       if (!car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 40)) continue;
       const s = cam.worldToScreen(car.x, car.y);
-      const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
+      const name2 = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       ctx.save();
       ctx.font = "bold 10px monospace";
       ctx.textAlign = "center";
@@ -2037,8 +2253,8 @@ var Game = class {
       ctx.fillStyle = nameColor;
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 2;
-      ctx.strokeText(name, s.x, s.y - 20);
-      ctx.fillText(name, s.x, s.y - 20);
+      ctx.strokeText(name2, s.x, s.y - 20);
+      ctx.fillText(name2, s.x, s.y - 20);
       if (car.isIt) {
         ctx.font = "bold 9px monospace";
         ctx.fillStyle = "#ff8888";
@@ -2079,14 +2295,14 @@ var Game = class {
     ctx.font = "10px monospace";
     for (let i = 0; i < sorted.length; i++) {
       const car = sorted[i];
-      const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
+      const name2 = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       const y = sbY + 14 + (i + 1) * lineH;
       const baseColor = this.CAR_COLORS[car.id] ?? "#ccc";
       ctx.fillStyle = car.alive ? baseColor : "#555";
       const status = car.alive ? "" : " \u2620";
       const ai = this.aiCars.find((a) => a.car.id === car.id);
       const reflecting = ai?.reflecting ? " \u2699" : "";
-      ctx.fillText(`${Math.floor(car.score).toString().padStart(4)} ${name}${status}${reflecting}`, sbX + 6, y);
+      ctx.fillText(`${Math.floor(car.score).toString().padStart(4)} ${name2}${status}${reflecting}`, sbX + 6, y);
       if (car.alive) {
         const bx = sbX + sbW - 40;
         const bw = 30;
@@ -2281,7 +2497,7 @@ var Game = class {
     for (const ev of this.gameEvents) {
       if (ev.time < minTime || ev.time > maxTime) continue;
       const color = this.CAR_COLORS[ev.carId] ?? "#888";
-      const name = this.carDisplayName(ev.carId);
+      const name2 = this.carDisplayName(ev.carId);
       let evScore = 0;
       for (let i = 0; i < history.length; i++) {
         if (history[i].time >= ev.time) {
@@ -2303,7 +2519,7 @@ var Game = class {
         ctx.strokeText("\u2620", ex, ey - 2);
         ctx.fillStyle = killerColor;
         ctx.fillText("\u2620", ex, ey - 2);
-        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color: killerColor });
+        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color: killerColor });
       } else if (ev.type === "kill") {
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
@@ -2316,7 +2532,7 @@ var Game = class {
         ctx.moveTo(ex, ey - 5);
         ctx.lineTo(ex, ey + 5);
         ctx.stroke();
-        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === "big_hit") {
         ctx.fillStyle = color;
         ctx.font = "bold 14px monospace";
@@ -2325,7 +2541,7 @@ var Game = class {
         ctx.lineWidth = 2;
         ctx.strokeText("\u2737", ex, ey + 1);
         ctx.fillText("\u2737", ex, ey + 1);
-        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === "tagged_it") {
         const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 300);
         ctx.save();
@@ -2340,7 +2556,7 @@ var Game = class {
         ctx.beginPath();
         ctx.arc(ex, ey, 3, 0, Math.PI * 2);
         ctx.fill();
-        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color });
       }
     }
     const hitRadius = 14;
@@ -2370,9 +2586,9 @@ var Game = class {
       const color = this.CAR_COLORS[carId] ?? "#888";
       ctx.fillStyle = color;
       ctx.fillRect(legendX, plotY - 12, 8, 3);
-      const name = this.carDisplayName(carId);
-      ctx.fillText(name, legendX + 11, plotY - 8);
-      legendX += ctx.measureText(name).width + 22;
+      const name2 = this.carDisplayName(carId);
+      ctx.fillText(name2, legendX + 11, plotY - 8);
+      legendX += ctx.measureText(name2).width + 22;
     }
     ctx.fillStyle = "#888";
     ctx.fillText("\u2620=death", legendX + 4, plotY - 8);
@@ -2527,9 +2743,9 @@ ${prompt}`
     }
     this.tacticsFetching = false;
   }
-  pushTickerMessage(name, carId, text) {
+  pushTickerMessage(name2, carId, text) {
     const color = this.CAR_COLORS[carId] ?? "#888";
-    this.tickerMessages.push({ name: name.toUpperCase(), color, text, x: CW2 + 10 });
+    this.tickerMessages.push({ name: name2.toUpperCase(), color, text, x: CW2 + 10 });
   }
   updateTicker(dt) {
     for (const msg of this.tickerMessages) {
@@ -2583,8 +2799,8 @@ ${prompt}`
       let y = CH2 / 2 + 160;
       const entries = [...this.savedScores.entries()].sort((a, b) => b[1] - a[1]);
       for (const [id, score] of entries.slice(0, 6)) {
-        const name = id === "player" ? "YOU" : PERSONALITIES.find((p) => p.name.toLowerCase() === id)?.name ?? id;
-        ctx.fillText(`${name}: ${score}`, CW2 / 2, y);
+        const name2 = id === "player" ? "YOU" : PERSONALITIES.find((p) => p.name.toLowerCase() === id)?.name ?? id;
+        ctx.fillText(`${name2}: ${score}`, CW2 / 2, y);
         y += 18;
       }
     }
