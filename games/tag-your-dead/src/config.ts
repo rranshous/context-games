@@ -70,6 +70,12 @@ export const CONFIG = {
     DURATION: 0.4,           // seconds of boost
     COOLDOWN: 3.0,           // seconds before boost recharges
     ACCEL_MULT: 3.0,         // acceleration multiplier during boost
+    IT_COOLDOWN_MULT: 0.5,   // IT cars recharge boost 2x faster
+  },
+
+  IT: {
+    SPEED_BONUS: 1.15,       // IT car gets 15% higher max speed
+    DAMAGE_TAKEN_MULT: 1.35, // IT car takes 35% more damage (risk/reward)
   },
 
   CAMERA: {

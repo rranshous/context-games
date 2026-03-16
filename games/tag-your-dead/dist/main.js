@@ -99,8 +99,10 @@ var CONFIG = {
     // IT cars recharge boost 2x faster
   },
   IT: {
-    SPEED_BONUS: 1.15
+    SPEED_BONUS: 1.15,
     // IT car gets 15% higher max speed
+    DAMAGE_TAKEN_MULT: 1.35
+    // IT car takes 35% more damage (risk/reward)
   },
   CAMERA: {
     SMOOTHING: 0.08
@@ -383,7 +385,7 @@ var Car = class {
         const angleToRock = Math.atan2(arena.wrapDy(collision.y - this.y), arena.wrapDx(collision.x - this.x));
         const angleDiff = Math.abs(((angleToRock - this.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
         const frontHit = angleDiff < D.FRONT_HIT_ANGLE;
-        const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
+        const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1) * (this.isIt ? CONFIG.IT.DAMAGE_TAKEN_MULT : 1);
         if (finalDamage > 0.5) {
           this.takeDamage(finalDamage);
           this.damageTaken += finalDamage;
@@ -568,8 +570,9 @@ function checkCarCollisions(cars, arena) {
       const bFrontHit = diffB < D.FRONT_HIT_ANGLE;
       const damageFromA = speedA * D.DAMAGE_FACTOR * (a.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
       const damageFromB = speedB * D.DAMAGE_FACTOR * (b.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
-      const selfDamageToA = damageFromB * (aFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
-      const selfDamageToB = damageFromA * (bFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
+      const itVuln = CONFIG.IT.DAMAGE_TAKEN_MULT;
+      const selfDamageToA = damageFromB * (aFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1) * (a.isIt ? itVuln : 1);
+      const selfDamageToB = damageFromA * (bFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1) * (b.isIt ? itVuln : 1);
       a.damageDealt += damageFromA;
       a.score += damageFromA * S.PER_DAMAGE;
       b.damageDealt += damageFromB;
@@ -1534,6 +1537,7 @@ GAME MECHANICS:
 - Continuous demolition derby. No rounds \u2014 die, respawn in 5s, keep fighting.
 - Damage from collisions: speed \xD7 0.15. Being "it" multiplies YOUR damage output by 3x.
 - Being "it" also gives +15% max speed and 2x faster boost recharge \u2014 use this advantage to chase down targets.
+- BUT being "it" makes you take 35% MORE damage from all sources. High reward, high risk \u2014 pass the tag quickly or die fast.
 - Front-bumper hits (ramming nose-first, within \xB160\xB0 of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
 - Die (HP=0 or IT timer expires) \u2192 score halved, then respawn.
 - Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score \u2192 more HP and speed (caps at score 200).
@@ -2776,7 +2780,17 @@ ${prompt}`
   }
   pushTickerMessage(name, carId, text) {
     const color = this.CAR_COLORS[carId] ?? "#888";
-    this.tickerMessages.push({ name: name.toUpperCase(), color, text, x: CW2 + 10 });
+    const label = name.toUpperCase();
+    const GAP = 40;
+    const charW = 7;
+    let startX = CW2 + 10;
+    if (this.tickerMessages.length > 0) {
+      const last = this.tickerMessages[this.tickerMessages.length - 1];
+      const lastWidth = (last.name.length + last.text.length + 2) * charW;
+      const lastEnd = last.x + lastWidth + GAP;
+      if (lastEnd > startX) startX = lastEnd;
+    }
+    this.tickerMessages.push({ name: label, color, text, x: startX });
   }
   updateTicker(dt) {
     for (const msg of this.tickerMessages) {
@@ -2819,7 +2833,7 @@ ${prompt}`
     ctx.fillStyle = "#888";
     ctx.font = "14px monospace";
     ctx.fillText("Arrow keys / WASD / Gamepad to drive \u2014 SPACE to boost", CW2 / 2, CH2 / 2 + 20);
-    ctx.fillText("Ram cars to deal damage \u2014 being IT means 3x damage output", CW2 / 2, CH2 / 2 + 45);
+    ctx.fillText("Being IT: 3x damage output but take 35% more damage", CW2 / 2, CH2 / 2 + 45);
     ctx.fillText("Higher score = more HP and speed", CW2 / 2, CH2 / 2 + 70);
     ctx.fillText("No walls \u2014 edges wrap around. Die? Score halved. Keep fighting.", CW2 / 2, CH2 / 2 + 95);
     if (this.savedScores.size > 0) {

@@ -660,8 +660,47 @@ The model literally couldn't fit the on_tick code (~2000 chars) in 1024 output t
 **Key debugging insight**: `edit_on_tick` with input length 2 = `{}` = model called tool with no code field. The `if (input.code)` guard silently skipped it. Always log tool input lengths.
 
 ### Design ideas (not yet implemented)
-- **IT vulnerability**: being IT should also make you take +35% more damage (risk/reward tradeoff — you deal 3x but take 1.35x)
-- **IT kill bonus**: killing the car that's IT should give bonus points (already exists as +150 in session 3d — just needs to be in reflection prompt, which it is)
-- **Ticker overlap**: end of one brag message overlaps with the handle of the next — need spacing or min gap between messages
 - **Sound effects**: still not done
 - **Arena variety**: different seeds, hazard layouts
+
+---
+
+## Session 8 — IT Vulnerability & Ticker Fix (2026-03-15)
+
+### IT vulnerability (risk/reward tradeoff)
+Being "it" is now a double-edged sword: you deal 3x damage but take 35% more from all sources.
+
+**Config (config.ts):**
+| Setting | Value | Notes |
+|---------|-------|-------|
+| IT.DAMAGE_TAKEN_MULT | 1.35 | IT car takes 35% more damage |
+
+**Implementation (car.ts):**
+- Applied to car-to-car collisions: `selfDamageToA/B` multiplied by 1.35 when that car is IT
+- Applied to rock hits: `finalDamage` multiplied by 1.35 when IT
+- Stacks with front-bumper reduction: IT car ramming nose-first takes 10% × 1.35 = 13.5%
+- Stacks with IT damage output: if two IT-tagged cars collide (edge case after tag transfer with immunity), both multipliers apply independently
+
+**Damage math examples:**
+- Normal car rams at max speed: 200 × 0.15 = 30 dmg dealt, 30 taken
+- IT car rams at max speed: 200 × 0.15 × 3 = 90 dmg dealt, but takes 30 × 1.35 = 40.5 from the other car
+- IT car front-bumper ram: deals 90, takes 30 × 0.1 × 1.35 = 4.05 (still very favorable)
+
+**Reflection prompt** updated to explain the vulnerability — AI should learn to pass the tag quickly or exploit the speed/boost advantage before dying.
+
+**Title screen** updated: "Being IT: 3x damage output but take 35% more damage"
+
+### Ticker overlap fix
+Brag messages no longer overlap each other in the scrolling ticker.
+
+**Problem**: all messages started at `CW + 10` regardless of what was already queued — simultaneous reflections produced overlapping text.
+
+**Fix (game.ts `pushTickerMessage`):**
+- Estimates pixel width of the last queued message (~7px per char)
+- New message starts after the last one's estimated end + 40px gap
+- Falls back to `CW + 10` if no messages queued or last message has already scrolled past
+
+### What's next
+- Sound effects
+- Arena variety (different seeds, hazard layouts)
+- Playtest IT vulnerability — does it change AI strategy?

@@ -218,7 +218,7 @@ export class Car implements CarState {
         const angleToRock = Math.atan2(arena.wrapDy(collision.y - this.y), arena.wrapDx(collision.x - this.x));
         const angleDiff = Math.abs(((angleToRock - this.angle) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
         const frontHit = angleDiff < D.FRONT_HIT_ANGLE;
-        const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
+        const finalDamage = rockDamage * (frontHit ? D.FRONT_HIT_SELF_DAMAGE : 1) * (this.isIt ? CONFIG.IT.DAMAGE_TAKEN_MULT : 1);
         if (finalDamage > 0.5) {
           this.takeDamage(finalDamage);
           this.damageTaken += finalDamage;
@@ -455,9 +455,10 @@ export function checkCarCollisions(cars: Car[], arena: Arena): CollisionResult[]
       const damageFromA = speedA * D.DAMAGE_FACTOR * (a.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
       const damageFromB = speedB * D.DAMAGE_FACTOR * (b.isIt ? D.IT_DAMAGE_MULTIPLIER : 1);
 
-      // Front-bumper rammers take reduced self-damage
-      const selfDamageToA = damageFromB * (aFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
-      const selfDamageToB = damageFromA * (bFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1);
+      // Front-bumper rammers take reduced self-damage; IT cars take +35% more
+      const itVuln = CONFIG.IT.DAMAGE_TAKEN_MULT;
+      const selfDamageToA = damageFromB * (aFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1) * (a.isIt ? itVuln : 1);
+      const selfDamageToB = damageFromA * (bFrontHit ? D.FRONT_HIT_SELF_DAMAGE : 1) * (b.isIt ? itVuln : 1);
 
       // Track damage dealt + score (full damage dealt counts for scoring)
       a.damageDealt += damageFromA;

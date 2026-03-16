@@ -1224,8 +1224,20 @@ export class Game {
 
   private pushTickerMessage(name: string, carId: string, text: string): void {
     const color = this.CAR_COLORS[carId] ?? '#888';
-    // Start off-screen right
-    this.tickerMessages.push({ name: name.toUpperCase(), color, text, x: CW + 10 });
+    const label = name.toUpperCase();
+    // Estimate pixel width of the full message (~7px per char)
+    const GAP = 40; // px gap between messages
+    const charW = 7;
+
+    // Start after the last queued message clears, or off-screen right
+    let startX = CW + 10;
+    if (this.tickerMessages.length > 0) {
+      const last = this.tickerMessages[this.tickerMessages.length - 1];
+      const lastWidth = (last.name.length + last.text.length + 2) * charW;
+      const lastEnd = last.x + lastWidth + GAP;
+      if (lastEnd > startX) startX = lastEnd;
+    }
+    this.tickerMessages.push({ name: label, color, text, x: startX });
   }
 
   private updateTicker(dt: number): void {
@@ -1281,7 +1293,7 @@ export class Game {
     ctx.fillStyle = '#888';
     ctx.font = '14px monospace';
     ctx.fillText('Arrow keys / WASD / Gamepad to drive — SPACE to boost', CW / 2, CH / 2 + 20);
-    ctx.fillText('Ram cars to deal damage — being IT means 3x damage output', CW / 2, CH / 2 + 45);
+    ctx.fillText('Being IT: 3x damage output but take 35% more damage', CW / 2, CH / 2 + 45);
     ctx.fillText('Higher score = more HP and speed', CW / 2, CH / 2 + 70);
     ctx.fillText('No walls — edges wrap around. Die? Score halved. Keep fighting.', CW / 2, CH / 2 + 95);
 

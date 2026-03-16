@@ -140,6 +140,7 @@ GAME MECHANICS:
 - Continuous demolition derby. No rounds — die, respawn in 5s, keep fighting.
 - Damage from collisions: speed × 0.15. Being "it" multiplies YOUR damage output by 3x.
 - Being "it" also gives +15% max speed and 2x faster boost recharge — use this advantage to chase down targets.
+- BUT being "it" makes you take 35% MORE damage from all sources. High reward, high risk — pass the tag quickly or die fast.
 - Front-bumper hits (ramming nose-first, within ±60° of your facing direction) only deal 10% damage to YOU. Side and rear hits take full damage. Facing your target when you ram is much safer.
 - Die (HP=0 or IT timer expires) → score halved, then respawn.
 - Score: +1/sec alive, +0.5 per damage dealt, +50 per kill (+150 for killing the "it" car). Higher score → more HP and speed (caps at score 200).
