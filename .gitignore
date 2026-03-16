@@ -33,3 +33,4 @@ Thumbs.db
 
 # Release artifacts (uploaded to platforms manually)
 **/releases/
+/.playwright-mcp/
