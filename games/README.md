@@ -30,6 +30,24 @@ Top-down chase game with evolving AI police actants. Officers have soma-driven b
 🤖 **AI:** ✅ Claude Sonnet for officer reflection, Haiku for summaries and inspector
 ✨ **Unique:** Multimodal reflection with vision, live radio dispatch, debrief strategy sharing between officers
 
+### [Bloom](./bloom/)
+Self-modifying AI actant that bootstraps itself from nothing and builds games from first principles. Bloom reads its own soma (persistent identity living in files), receives impulse signals, and executes multi-turn inference loops. Two-package architecture: Frame (Express server) + Chassis (Node.js engine). Has built entire games autonomously — best run created a full 57KB Qacky clone in 8 minutes.
+🎯 **Status:** 19 sessions, 13 awakenings complete
+🤖 **AI:** ✅ Claude Sonnet for self-modification, 12 built-in tools + self-authored custom tools, up to 50 turns per dispatch
+✨ **Unique:** AI builds games from scratch, signal-driven stateless loop, branch-isolated runs, full audit trail
+
+### [Tag Your Dead](./tag-your-dead/)
+Desert demolition derby tag game. Player + 5 AI cars in an arena — one car is "it," ram someone to pass the tag. Being "it" gives 3× damage but takes 35% more. Tag timer ticks down; run out and you're eliminated. Last car alive wins. AI drivers have soma embodiment with self-modifying on_tick driving code and multimodal reflection using bird's-eye life maps.
+🎯 **Status:** Playable (9 sessions complete)
+🤖 **AI:** ✅ 5 personality actants (Sonnet for reflection, Haiku for trash talk), self-modifying driving code
+✨ **Unique:** Demolition derby + tag mechanics, toroidal wrapping arena, per-life trail tracking, gamepad support
+
+### [Wheelman](./wheelman/)
+Driving sim where you're the boss watching from a drone camera. The driver is a soma-based AI actant that writes its own driving code. Yell instructions via live speech-to-text, and the driver learns from your feedback. After each run, the driver reflects and updates their code. Escalating cop opposition with soma-driven pursuers that coordinate via radio.
+🎯 **Status:** Playable (7 sessions, M1-M2 complete)
+🤖 **AI:** ✅ Sonnet for driver + pursuer reflection, Haiku for debrief. Self-modifying driver and cops.
+✨ **Unique:** Voice-coached AI driver, inter-cop radio coordination, dual self-modification (driver + pursuers)
+
 ### [Sparkly-Sim](./sparkly-sim/)
 Ecosystem simulation exploring AI + simulation interaction. Can the AI turn knobs to help its actors propagate?
 🎯 **Status:** In development
@@ -107,6 +125,12 @@ Helps children digitize hand-drawn characters and stories into shareable wiki pa
 ✨ **Unique:** Physical-to-digital transformation workflow, voice-driven documentation
 
 ## Action & Arcade Games 🕹️
+
+### [Dungeon Valet](./dungeon-valet/)
+Valet parking game in a demonic dungeon. Cars arrive with eyeball and slime customers — walk to them, drive through lava-filled arena, and park before patience expires. Wave-based escalation with 3 lives. Single-file HTML with all assets embedded as data URIs.
+🎯 **Status:** Complete, published
+🤖 **AI:** None
+✨ **Unique:** Zero-shot build, demonic valet parking theme, animated lava and screen shake
 
 ### [Rampart Ridge](./rampart-ridge/)
 Sci-fi tower defense with 4-player couch co-op on gamepads. Three.js isometric cel-shading with pixelated rendering. Build, defend, and survive against waves of enemies.
