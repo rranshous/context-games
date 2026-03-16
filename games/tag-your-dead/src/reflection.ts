@@ -16,18 +16,31 @@ export interface ArenaContext {
   carColor: string;
 }
 
+interface ContentBlock {
+  type: string;
+  text?: string;
+  input?: Record<string, string>;
+  name?: string;
+  id?: string;
+}
+
+interface APIResponse {
+  content: ContentBlock[];
+  stop_reason?: string;
+}
+
 async function callAPI(
   model: string,
   system: string,
-  userContent: string | Array<Record<string, unknown>>,
+  messages: Array<{ role: string; content: unknown }>,
   tools?: unknown[],
-  maxTokens: number = 1024,
-): Promise<{ content: Array<{ type: string; text?: string; input?: Record<string, string>; name?: string }>; tool_calls?: unknown[] }> {
+  maxTokens: number = 4096,
+): Promise<APIResponse> {
   const body: Record<string, unknown> = {
     model,
     max_tokens: maxTokens,
     system,
-    messages: [{ role: 'user', content: userContent }],
+    messages,
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
@@ -54,13 +67,14 @@ async function callAPI(
 const REFLECTION_TOOLS = [
   {
     name: 'edit_on_tick',
-    description: 'Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), boost() (short speed burst, 3s cooldown), isBoosting, boostCooldownFrac (0=ready, 1=full cooldown), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].',
+    description: 'Rewrite your driving code — this is what actually runs every frame. Write the COMPLETE new on_tick body. Available API: me.x, me.y, me.angle, me.speed, me.hp, me.maxHp, me.maxSpeed, me.score, me.isIt, me.itTimer, me.immuneTimer, me.alive, me.steer(dir), me.accelerate(amt), me.brake(amt), me.boost(), me.isBoosting, me.boostCooldownFrac, me.distanceTo(x,y), me.angleTo(x,y), me.memory.read()/write(), me.identity.read(), me.on_tick.read(). world.time, world.arenaWidth, world.arenaHeight, world.otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], world.obstacles[{x,y,radius,type}].',
     input_schema: {
       type: 'object' as const,
       properties: {
-        code: { type: 'string' as const, description: 'New JavaScript code for on_tick' },
+        reasoning: { type: 'string' as const, description: 'What you are changing and why — reference specific events from your last life' },
+        code: { type: 'string' as const, description: 'The COMPLETE new on_tick code. Must be valid JavaScript.' },
       },
-      required: ['code'],
+      required: ['reasoning', 'code'],
       additionalProperties: false,
     },
   },
@@ -156,7 +170,12 @@ Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills:
 Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
 Collisions: ${buildHitSummary(result)}.
 ${moments}
-Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit the same code — make a specific tactical change based on how you died. Also update memory with what you learned.`;
+Steps:
+1. Review the map and key moments above. What pattern led to your death?
+2. Call edit_on_tick RIGHT NOW with your improved driving code. Include reasoning about what you changed. The code field must contain your COMPLETE new on_tick body — not a description, the actual JavaScript.
+3. Call edit_memory to record what you learned.
+
+DO NOT just describe what you would change. CALL THE TOOLS. Your driving code is what runs — analysis without edit_on_tick changes nothing.`;
 
   // Render life map if we have trail data
   let userContent: string | Array<Record<string, unknown>> = userText;
@@ -183,33 +202,62 @@ Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit th
   }
 
   try {
-    const resp = await callAPI('claude-sonnet-4-5-20250929', system, userContent, REFLECTION_TOOLS);
-
     const updated = { ...soma };
-    for (const block of resp.content) {
-      if (block.type === 'tool_use' && block.input) {
-        const input = block.input as Record<string, string>;
-        if (block.name === 'edit_on_tick' && input.code) {
-          updated.on_tick = { content: input.code };
-        } else if (name === 'edit_memory' && input.content) {
-          updated.memory = { content: input.content };
-        } else if (name === 'edit_identity' && input.content) {
-          updated.identity = { content: input.content };
+    const messages: Array<{ role: string; content: unknown }> = [
+      { role: 'user', content: userContent },
+    ];
+    const allToolsCalled: string[] = [];
+    const MAX_TURNS = 3;
+
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      const resp = await callAPI('claude-sonnet-4-6', system, messages, REFLECTION_TOOLS);
+
+      // Process tool calls
+      const toolResults: Array<{ type: string; tool_use_id: string; content: string }> = [];
+      for (const block of resp.content) {
+        if (block.type === 'tool_use' && block.id) {
+          const input = (block.input || {}) as Record<string, string>;
+          console.log(`[REFLECT] ${carName} turn ${turn + 1}: ${block.name} (${JSON.stringify(input).length} chars)`);
+          allToolsCalled.push(block.name || 'unknown');
+
+          let resultText = '';
+          if (block.name === 'edit_on_tick' && input.code) {
+            updated.on_tick = { content: input.code };
+            resultText = `on_tick updated (${input.code.length} chars). Your new driving code is now active.`;
+          } else if (block.name === 'edit_on_tick') {
+            resultText = 'Error: code field is required. You must provide the full new on_tick code.';
+          } else if (block.name === 'edit_memory' && input.content) {
+            updated.memory = { content: input.content };
+            resultText = 'Memory updated.';
+          } else if (block.name === 'edit_identity' && input.content) {
+            updated.identity = { content: input.content };
+            resultText = 'Identity updated.';
+          } else {
+            resultText = 'Error: content field is required.';
+          }
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultText });
         }
       }
+
+      // If no tool calls or stop_reason is end_turn, we're done
+      if (toolResults.length === 0 || resp.stop_reason === 'end_turn') {
+        break;
+      }
+
+      // Add assistant response + tool results for next turn
+      messages.push({ role: 'assistant', content: resp.content });
+      messages.push({ role: 'user', content: toolResults });
     }
 
-    // Log which tools were called
-    const toolsCalled = resp.content
-      .filter((b: { type: string }) => b.type === 'tool_use')
-      .map((b: { name?: string }) => b.name);
-    console.log(`[REFLECT] ${carName} reflection complete — tools: ${toolsCalled.join(', ') || 'none'}`);
+    console.log(`[REFLECT] ${carName} reflection complete — tools: ${allToolsCalled.join(', ') || 'none'}`);
 
     // Generate in-character brag if on_tick changed
-    const codeChanged = updated.on_tick.content !== soma.on_tick.content;
+    const oldCode = soma.on_tick.content.trim();
+    const newCode = updated.on_tick.content.trim();
+    const codeChanged = newCode !== oldCode;
     let brag: string | null = null;
     if (codeChanged) {
-      console.log(`[REFLECT] ${carName} on_tick changed, generating brag...`);
+      console.log(`[REFLECT] ${carName} on_tick changed (${oldCode.length} → ${newCode.length} chars), generating brag...`);
       brag = await generateBrag(carName, updated.identity.content, soma.on_tick.content, updated.on_tick.content);
       console.log(`[REFLECT] ${carName} brag: ${brag ?? '(failed)'}`);
     } else {

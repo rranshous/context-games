@@ -1451,12 +1451,12 @@ function renderLifeMap(input) {
 
 // src/reflection.ts
 var API = CONFIG.API_ENDPOINT;
-async function callAPI(model, system, userContent, tools, maxTokens = 1024) {
+async function callAPI(model, system, messages, tools, maxTokens = 4096) {
   const body = {
     model,
     max_tokens: maxTokens,
     system,
-    messages: [{ role: "user", content: userContent }]
+    messages
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
@@ -1477,13 +1477,14 @@ async function callAPI(model, system, userContent, tools, maxTokens = 1024) {
 var REFLECTION_TOOLS = [
   {
     name: "edit_on_tick",
-    description: "Replace your driving code. Runs every frame with (me, world). me: x, y, angle, speed, hp, maxHp, maxSpeed, score, isIt, itTimer, immuneTimer, alive, steer(dir), accelerate(amt), brake(amt), boost() (short speed burst, 3s cooldown), isBoosting, boostCooldownFrac (0=ready, 1=full cooldown), distanceTo(x,y), angleTo(x,y), memory.read()/write(), identity.read(), on_tick.read(). world: time, arenaWidth, arenaHeight, otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], obstacles[{x,y,radius,type}].",
+    description: "Rewrite your driving code \u2014 this is what actually runs every frame. Write the COMPLETE new on_tick body. Available API: me.x, me.y, me.angle, me.speed, me.hp, me.maxHp, me.maxSpeed, me.score, me.isIt, me.itTimer, me.immuneTimer, me.alive, me.steer(dir), me.accelerate(amt), me.brake(amt), me.boost(), me.isBoosting, me.boostCooldownFrac, me.distanceTo(x,y), me.angleTo(x,y), me.memory.read()/write(), me.identity.read(), me.on_tick.read(). world.time, world.arenaWidth, world.arenaHeight, world.otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], world.obstacles[{x,y,radius,type}].",
     input_schema: {
       type: "object",
       properties: {
-        code: { type: "string", description: "New JavaScript code for on_tick" }
+        reasoning: { type: "string", description: "What you are changing and why \u2014 reference specific events from your last life" },
+        code: { type: "string", description: "The COMPLETE new on_tick code. Must be valid JavaScript." }
       },
-      required: ["code"],
+      required: ["reasoning", "code"],
       additionalProperties: false
     }
   },
@@ -1558,7 +1559,12 @@ Damage dealt: ${result.damageDealt}. Damage taken: ${result.damageTaken}. Kills:
 Tags given: ${result.tagsGiven}. Tags received: ${result.tagsReceived}.
 Collisions: ${buildHitSummary(result)}.
 ${moments}
-Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit the same code \u2014 make a specific tactical change based on how you died. Also update memory with what you learned.`;
+Steps:
+1. Review the map and key moments above. What pattern led to your death?
+2. Call edit_on_tick RIGHT NOW with your improved driving code. Include reasoning about what you changed. The code field must contain your COMPLETE new on_tick body \u2014 not a description, the actual JavaScript.
+3. Call edit_memory to record what you learned.
+
+DO NOT just describe what you would change. CALL THE TOOLS. Your driving code is what runs \u2014 analysis without edit_on_tick changes nothing.`;
   let userContent = userText;
   if (result.trail.length > 2) {
     try {
@@ -1582,26 +1588,51 @@ Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit th
     }
   }
   try {
-    const resp = await callAPI("claude-sonnet-4-5-20250929", system, userContent, REFLECTION_TOOLS);
     const updated = { ...soma };
-    for (const block of resp.content) {
-      if (block.type === "tool_use" && block.input) {
-        const input = block.input;
-        if (block.name === "edit_on_tick" && input.code) {
-          updated.on_tick = { content: input.code };
-        } else if (name === "edit_memory" && input.content) {
-          updated.memory = { content: input.content };
-        } else if (name === "edit_identity" && input.content) {
-          updated.identity = { content: input.content };
+    const messages = [
+      { role: "user", content: userContent }
+    ];
+    const allToolsCalled = [];
+    const MAX_TURNS = 3;
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      const resp = await callAPI("claude-sonnet-4-6", system, messages, REFLECTION_TOOLS);
+      const toolResults = [];
+      for (const block of resp.content) {
+        if (block.type === "tool_use" && block.id) {
+          const input = block.input || {};
+          console.log(`[REFLECT] ${carName} turn ${turn + 1}: ${block.name} (${JSON.stringify(input).length} chars)`);
+          allToolsCalled.push(block.name || "unknown");
+          let resultText = "";
+          if (block.name === "edit_on_tick" && input.code) {
+            updated.on_tick = { content: input.code };
+            resultText = `on_tick updated (${input.code.length} chars). Your new driving code is now active.`;
+          } else if (block.name === "edit_on_tick") {
+            resultText = "Error: code field is required. You must provide the full new on_tick code.";
+          } else if (block.name === "edit_memory" && input.content) {
+            updated.memory = { content: input.content };
+            resultText = "Memory updated.";
+          } else if (block.name === "edit_identity" && input.content) {
+            updated.identity = { content: input.content };
+            resultText = "Identity updated.";
+          } else {
+            resultText = "Error: content field is required.";
+          }
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: resultText });
         }
       }
+      if (toolResults.length === 0 || resp.stop_reason === "end_turn") {
+        break;
+      }
+      messages.push({ role: "assistant", content: resp.content });
+      messages.push({ role: "user", content: toolResults });
     }
-    const toolsCalled = resp.content.filter((b) => b.type === "tool_use").map((b) => b.name);
-    console.log(`[REFLECT] ${carName} reflection complete \u2014 tools: ${toolsCalled.join(", ") || "none"}`);
-    const codeChanged = updated.on_tick.content !== soma.on_tick.content;
+    console.log(`[REFLECT] ${carName} reflection complete \u2014 tools: ${allToolsCalled.join(", ") || "none"}`);
+    const oldCode = soma.on_tick.content.trim();
+    const newCode = updated.on_tick.content.trim();
+    const codeChanged = newCode !== oldCode;
     let brag = null;
     if (codeChanged) {
-      console.log(`[REFLECT] ${carName} on_tick changed, generating brag...`);
+      console.log(`[REFLECT] ${carName} on_tick changed (${oldCode.length} \u2192 ${newCode.length} chars), generating brag...`);
       brag = await generateBrag(carName, updated.identity.content, soma.on_tick.content, updated.on_tick.content);
       console.log(`[REFLECT] ${carName} brag: ${brag ?? "(failed)"}`);
     } else {
@@ -1613,7 +1644,7 @@ Analyze what went wrong and IMPROVE your on_tick driving code. Don't resubmit th
     return { soma, brag: null };
   }
 }
-async function generateBrag(name2, identity, oldCode, newCode) {
+async function generateBrag(name, identity, oldCode, newCode) {
   try {
     const resp = await fetch(API, {
       method: "POST",
@@ -1624,7 +1655,7 @@ async function generateBrag(name2, identity, oldCode, newCode) {
         max_tokens: 100,
         messages: [{
           role: "user",
-          content: `You are ${name2}, a demolition derby driver. Your identity: "${identity}"
+          content: `You are ${name}, a demolition derby driver. Your identity: "${identity}"
 
 You just updated your driving code after dying. Write a short, cocky, in-character brag about what you changed (1 sentence, max 15 words). Be specific about the tactical change, not generic. No quotes.
 
@@ -2245,7 +2276,7 @@ var Game = class {
       if (!car.alive) continue;
       if (!cam.isVisible(car.x, car.y, 40)) continue;
       const s = cam.worldToScreen(car.x, car.y);
-      const name2 = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
+      const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       ctx.save();
       ctx.font = "bold 10px monospace";
       ctx.textAlign = "center";
@@ -2253,8 +2284,8 @@ var Game = class {
       ctx.fillStyle = nameColor;
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 2;
-      ctx.strokeText(name2, s.x, s.y - 20);
-      ctx.fillText(name2, s.x, s.y - 20);
+      ctx.strokeText(name, s.x, s.y - 20);
+      ctx.fillText(name, s.x, s.y - 20);
       if (car.isIt) {
         ctx.font = "bold 9px monospace";
         ctx.fillStyle = "#ff8888";
@@ -2295,14 +2326,14 @@ var Game = class {
     ctx.font = "10px monospace";
     for (let i = 0; i < sorted.length; i++) {
       const car = sorted[i];
-      const name2 = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
+      const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       const y = sbY + 14 + (i + 1) * lineH;
       const baseColor = this.CAR_COLORS[car.id] ?? "#ccc";
       ctx.fillStyle = car.alive ? baseColor : "#555";
       const status = car.alive ? "" : " \u2620";
       const ai = this.aiCars.find((a) => a.car.id === car.id);
       const reflecting = ai?.reflecting ? " \u2699" : "";
-      ctx.fillText(`${Math.floor(car.score).toString().padStart(4)} ${name2}${status}${reflecting}`, sbX + 6, y);
+      ctx.fillText(`${Math.floor(car.score).toString().padStart(4)} ${name}${status}${reflecting}`, sbX + 6, y);
       if (car.alive) {
         const bx = sbX + sbW - 40;
         const bw = 30;
@@ -2497,7 +2528,7 @@ var Game = class {
     for (const ev of this.gameEvents) {
       if (ev.time < minTime || ev.time > maxTime) continue;
       const color = this.CAR_COLORS[ev.carId] ?? "#888";
-      const name2 = this.carDisplayName(ev.carId);
+      const name = this.carDisplayName(ev.carId);
       let evScore = 0;
       for (let i = 0; i < history.length; i++) {
         if (history[i].time >= ev.time) {
@@ -2519,7 +2550,7 @@ var Game = class {
         ctx.strokeText("\u2620", ex, ey - 2);
         ctx.fillStyle = killerColor;
         ctx.fillText("\u2620", ex, ey - 2);
-        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color: killerColor });
+        this.eventMarkers.push({ x: ex, y: ey - 8, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color: killerColor });
       } else if (ev.type === "kill") {
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
@@ -2532,7 +2563,7 @@ var Game = class {
         ctx.moveTo(ex, ey - 5);
         ctx.lineTo(ex, ey + 5);
         ctx.stroke();
-        this.eventMarkers.push({ x: ex, y: ey, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === "big_hit") {
         ctx.fillStyle = color;
         ctx.font = "bold 14px monospace";
@@ -2541,7 +2572,7 @@ var Game = class {
         ctx.lineWidth = 2;
         ctx.strokeText("\u2737", ex, ey + 1);
         ctx.fillText("\u2737", ex, ey + 1);
-        this.eventMarkers.push({ x: ex, y: ey, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === "tagged_it") {
         const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 300);
         ctx.save();
@@ -2556,7 +2587,7 @@ var Game = class {
         ctx.beginPath();
         ctx.arc(ex, ey, 3, 0, Math.PI * 2);
         ctx.fill();
-        this.eventMarkers.push({ x: ex, y: ey, label: `${name2} \u2014 ${ev.detail} [${timeStr}]`, color });
+        this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
       }
     }
     const hitRadius = 14;
@@ -2586,9 +2617,9 @@ var Game = class {
       const color = this.CAR_COLORS[carId] ?? "#888";
       ctx.fillStyle = color;
       ctx.fillRect(legendX, plotY - 12, 8, 3);
-      const name2 = this.carDisplayName(carId);
-      ctx.fillText(name2, legendX + 11, plotY - 8);
-      legendX += ctx.measureText(name2).width + 22;
+      const name = this.carDisplayName(carId);
+      ctx.fillText(name, legendX + 11, plotY - 8);
+      legendX += ctx.measureText(name).width + 22;
     }
     ctx.fillStyle = "#888";
     ctx.fillText("\u2620=death", legendX + 4, plotY - 8);
@@ -2743,9 +2774,9 @@ ${prompt}`
     }
     this.tacticsFetching = false;
   }
-  pushTickerMessage(name2, carId, text) {
+  pushTickerMessage(name, carId, text) {
     const color = this.CAR_COLORS[carId] ?? "#888";
-    this.tickerMessages.push({ name: name2.toUpperCase(), color, text, x: CW2 + 10 });
+    this.tickerMessages.push({ name: name.toUpperCase(), color, text, x: CW2 + 10 });
   }
   updateTicker(dt) {
     for (const msg of this.tickerMessages) {
@@ -2799,8 +2830,8 @@ ${prompt}`
       let y = CH2 / 2 + 160;
       const entries = [...this.savedScores.entries()].sort((a, b) => b[1] - a[1]);
       for (const [id, score] of entries.slice(0, 6)) {
-        const name2 = id === "player" ? "YOU" : PERSONALITIES.find((p) => p.name.toLowerCase() === id)?.name ?? id;
-        ctx.fillText(`${name2}: ${score}`, CW2 / 2, y);
+        const name = id === "player" ? "YOU" : PERSONALITIES.find((p) => p.name.toLowerCase() === id)?.name ?? id;
+        ctx.fillText(`${name}: ${score}`, CW2 / 2, y);
         y += 18;
       }
     }
