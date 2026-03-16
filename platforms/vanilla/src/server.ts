@@ -64,7 +64,7 @@ app.use('/admin', adminRoutes);
 // Access games at /dev/game-name/index.html (e.g., /dev/rescue-run/index.html)
 // Note: __dirname is dist/ when compiled, so we need to go up 3 levels to reach games/
 const DEV_GAMES_DIR = path.join(__dirname, '../../../games');
-app.use('/dev', express.static(DEV_GAMES_DIR));
+app.use('/dev', express.static(DEV_GAMES_DIR, { etag: false, lastModified: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-store'); } }));
 console.log(`🔧 Dev mode enabled: serving games from ${DEV_GAMES_DIR}`);
 
 // Ensure directories exist
@@ -291,8 +291,9 @@ app.use('/games/:id', async (req: Request, res: Response, next) => {
       return res.redirect(`/games/${gameId}/`);
     }
     
-    // Serve the main game file
+    // Serve the main game file, no caching
     const gamePath = path.join(gameDir, game.fileName);
+    res.setHeader('Cache-Control', 'no-store');
     return res.sendFile(gamePath);
   }
   
@@ -325,7 +326,8 @@ app.use('/games/:id', async (req: Request, res: Response, next) => {
   
   const mimeType = mimeTypes[ext] || 'application/octet-stream';
   
-  // Send file with correct MIME type
+  // Send file with correct MIME type, no caching
+  res.setHeader('Cache-Control', 'no-store');
   res.type(mimeType);
   res.sendFile(filePath);
 });
