@@ -132,7 +132,7 @@ export class Game {
         break;
 
       case 'playing':
-        if (wasPressed('Escape') || wasPressed('p') || wasPressed('P')) {
+        if (wasPressed('Escape') || wasPressed('p') || wasPressed('P') || gamepadWasPressed()) {
           this.phase = 'paused';
           this.tacticsSummaries = null;
           this.fetchTacticsSummaries();

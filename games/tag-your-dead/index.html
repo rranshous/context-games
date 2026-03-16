@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Tag You're Dead — Desert Demolition Derby</title>
   <style>
     @font-face {
@@ -53,7 +56,33 @@
     <canvas id="game-canvas"></canvas>
   </div>
   <div id="build-tag"></div>
-  <script type="module" src="dist/main.js"></script>
+  <script>
+    // Cache-bust the module script
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.src = 'dist/main.js?v=' + Date.now();
+    document.head.appendChild(s);
+  </script>
   <script>document.getElementById('build-tag').textContent = 'b.' + String(Date.now()).slice(-6);</script>
+  <script>
+    // Scale canvas to fit viewport while preserving aspect ratio
+    (function() {
+      var c = document.getElementById('game-canvas');
+      function fit() {
+        // Wait until game has set canvas dimensions (default is 300x150)
+        if (c.width < 400) return;
+        var border = 4; // 2px border on each side
+        var vw = window.innerWidth - border, vh = window.innerHeight - border;
+        var scale = Math.min(vw / c.width, vh / c.height);
+        c.style.width = Math.floor(c.width * scale) + 'px';
+        c.style.height = Math.floor(c.height * scale) + 'px';
+      }
+      window.addEventListener('resize', fit);
+      // Poll until canvas is initialized, then fit
+      var poll = setInterval(function() {
+        if (c.width >= 400) { clearInterval(poll); fit(); }
+      }, 50);
+    })();
+  </script>
 </body>
 </html>
