@@ -638,7 +638,30 @@ The model literally couldn't fit the on_tick code (~2000 chars) in 1024 output t
 #### Insight
 **max_tokens is the #1 lever for code self-modification.** If the model can't fit the code in its output budget, it will call the tool with empty input as an acknowledgment gesture. This looks like "unchanged" but is actually "couldn't write". The prompt quality and tool_choice settings are secondary — you need room to write first.
 
+### Full session 7 summary — what landed
+
+**New files**: `life-map.ts` (bird's-eye life map renderer)
+
+**Changed files**: `reflection.ts` (major rewrite), `car.ts` (trail/event tracking), `game.ts` (trail sampling, life events, arena context pass-through), `types.ts` (TrailPoint, LifeEvent, LifeResult additions), `config.ts` (no changes)
+
+**Reflection architecture (final state)**:
+- Model: `claude-sonnet-4-6`, max_tokens: 4096, up to 3 agentic turns
+- Multimodal: bird's-eye life map (base64 PNG) + text stats + key moments timeline
+- 3 scaffold tools: `edit_on_tick` (with `reasoning` + `code` fields), `edit_memory`, `edit_identity`
+- Procedural user prompt with explicit numbered steps and "CALL THE TOOLS" imperative
+- Tool results fed back for multi-turn (error messages if fields missing)
+- Brag generation (haiku) only when on_tick actually changes
+
+**Per-life tracking on Car** (reset on respawn):
+- `trail: TrailPoint[]` — position every 0.5s, capped at 200
+- `lifeEvents: LifeEvent[]` — tags, big hits, deaths, capped at 30
+- Life events recorded in game.ts collision/death handlers
+
+**Key debugging insight**: `edit_on_tick` with input length 2 = `{}` = model called tool with no code field. The `if (input.code)` guard silently skipped it. Always log tool input lengths.
+
 ### Design ideas (not yet implemented)
 - **IT vulnerability**: being IT should also make you take +35% more damage (risk/reward tradeoff — you deal 3x but take 1.35x)
-- **IT kill bonus**: killing the car that's IT should give bonus points (may already exist as +150 — verify)
+- **IT kill bonus**: killing the car that's IT should give bonus points (already exists as +150 in session 3d — just needs to be in reflection prompt, which it is)
 - **Ticker overlap**: end of one brag message overlaps with the handle of the next — need spacing or min gap between messages
+- **Sound effects**: still not done
+- **Arena variety**: different seeds, hazard layouts
