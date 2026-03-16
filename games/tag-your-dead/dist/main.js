@@ -758,7 +758,7 @@ function getPlayerControls() {
     if (gp.buttons[12]?.pressed && accel < 1) accel = 1;
     if (gp.buttons[13]?.pressed && brake < 1) brake = 1;
     if (gp.buttons[14]?.pressed && steer > -1) steer = -1;
-    if (gp.buttons[15]?.pressed && steer > -1) steer = 1;
+    if (gp.buttons[15]?.pressed && steer < 1) steer = 1;
   }
   const gpBoost = gp ? gp.buttons[1]?.pressed ?? false : false;
   return { steer, accel, brake, boost: boost || gpBoost };
