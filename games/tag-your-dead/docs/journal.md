@@ -700,6 +700,12 @@ Brag messages no longer overlap each other in the scrolling ticker.
 - New message starts after the last one's estimated end + 40px gap
 - Falls back to `CW + 10` if no messages queued or last message has already scrolled past
 
+### Driver Intel prompt grounding
+Haiku was hallucinating "arena blind side" and other non-existent concepts in the pause screen Driver Intel summaries. Fixed by adding game context block to the tactics prompt:
+- Explains toroidal arena, damage formula, IT mechanics, front-bumper, boost
+- Explicitly states "All cars have full visibility... no blind spots, no hidden information"
+- Instruction: "Only describe behavior visible in the code — do not invent tactics or concepts not present"
+
 ### What's next
 - Sound effects
 - Arena variety (different seeds, hazard layouts)

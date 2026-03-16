@@ -1187,7 +1187,11 @@ export class Game {
           messages: [
             {
               role: 'user',
-              content: `Demolition derby driver analysis. For each driver, write a 1-2 sentence summary of their driving tactics based on their code. Be specific and concise — what do they target, how do they dodge, what's their style? Max 30 words each.\n\n${prompt}`,
+              content: `You are analyzing AI drivers in a top-down demolition derby game. Each driver has on_tick code that runs every frame controlling their car via me.steer()/accelerate()/brake()/boost().
+
+GAME CONTEXT: Toroidal desert arena (no walls, edges wrap). Cars ram each other for damage (speed × 0.15). Being "it" = 3x damage output but +35% damage taken. Front-bumper hits (nose-first) = only 10% self-damage. All cars have full visibility of all other cars via world.otherCars (no blind spots, no hidden information). boost() gives 1.8x speed burst on 3s cooldown.
+
+For each driver, write a 1-2 sentence summary of what their code ACTUALLY DOES. Only describe behavior visible in the code — do not invent tactics or concepts not present. Max 30 words each.\n\n${prompt}`,
             },
           ],
           output_config: {
