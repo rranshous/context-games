@@ -607,6 +607,38 @@ All per-life data is:
 - Reset on respawn (no accumulation across lives)
 - Only passed to reflection on death (not stored elsewhere)
 
+### Session 7c — Fixing Reflection Self-Modification (the real fix) (2026-03-15)
+
+#### Root cause: max_tokens was 1024
+The model literally couldn't fit the on_tick code (~2000 chars) in 1024 output tokens. It called `edit_on_tick` with `{}` (2 chars) — an empty acknowledgment. The `code` field was undefined, so the conditional `if (input.code)` silently skipped it. Every reflection appeared to work but changed nothing.
+
+#### Three-part fix (matching hot-pursuit patterns)
+
+1. **max_tokens: 1024 → 4096** — the critical fix. Model needs room to output full code.
+2. **Added `reasoning` field to `edit_on_tick`** — forces think-before-act. Hot Pursuit uses this pattern too.
+3. **Procedural user prompt** — changed from single aggressive paragraph to numbered steps:
+   ```
+   1. Review the map and key moments. What pattern led to your death?
+   2. Call edit_on_tick RIGHT NOW with your improved driving code.
+   3. Call edit_memory to record what you learned.
+   DO NOT just describe what you would change. CALL THE TOOLS.
+   ```
+
+#### Other changes
+- Model: `claude-sonnet-4-5-20250929` → `claude-sonnet-4-6`
+- Multi-turn agentic loop (up to 3 turns with tool results) — if edit_on_tick fails validation, error message sent back
+- Fixed `block.name` references (edit_memory/edit_identity were using undefined `name` variable)
+- Added per-tool input length logging
+
+#### Confirmed working
+- **Rattler**: 2120 → 4239 chars — "Now I lead targets by their velocity vector instead of guessing"
+- **Dust Devil**: 1263 → 3868 chars — "Now I predict targets three ticks ahead so chumps can't juke my chaos anymore"
+- Both updated in single turn with meaningful tactical changes. Brag ticker visible on screen.
+
+#### Insight
+**max_tokens is the #1 lever for code self-modification.** If the model can't fit the code in its output budget, it will call the tool with empty input as an acknowledgment gesture. This looks like "unchanged" but is actually "couldn't write". The prompt quality and tool_choice settings are secondary — you need room to write first.
+
 ### Design ideas (not yet implemented)
 - **IT vulnerability**: being IT should also make you take +35% more damage (risk/reward tradeoff — you deal 3x but take 1.35x)
 - **IT kill bonus**: killing the car that's IT should give bonus points (may already exist as +150 — verify)
+- **Ticker overlap**: end of one brag message overlaps with the handle of the next — need spacing or min gap between messages
