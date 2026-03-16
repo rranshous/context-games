@@ -590,7 +590,7 @@ export class Game {
       // Respawn timer
       if (car.respawnTimer > 0) {
         ctx.save();
-        ctx.font = 'bold 12px monospace';
+        ctx.font = 'bold 12px "tEggst", monospace';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#ff8844';
         ctx.strokeStyle = '#000';
@@ -624,7 +624,7 @@ export class Game {
       ctx.save();
 
       // Name + IT label first (so HP bar draws on top, never covered)
-      ctx.font = 'bold 10px monospace';
+      ctx.font = 'bold 10px "tEggst", monospace';
       ctx.textAlign = 'center';
       const nameColor = car.isIt ? '#ff4444' : (this.CAR_COLORS[car.id] ?? '#ffffff');
       ctx.fillStyle = nameColor;
@@ -633,7 +633,7 @@ export class Game {
       ctx.strokeText(name, s.x, s.y - 20);
       ctx.fillText(name, s.x, s.y - 20);
       if (car.isIt) {
-        ctx.font = 'bold 9px monospace';
+        ctx.font = 'bold 9px "tEggst", monospace';
         ctx.fillStyle = '#ff8888';
         ctx.strokeText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
         ctx.fillText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
@@ -676,13 +676,13 @@ export class Game {
     ctx.strokeRect(sbX, sbY, sbW, sbH);
 
     // Header
-    ctx.font = 'bold 10px monospace';
+    ctx.font = 'bold 10px "tEggst", monospace';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#ffaa22';
     ctx.fillText('SCOREBOARD', sbX + 6, sbY + 12);
 
     // Entries
-    ctx.font = '10px monospace';
+    ctx.font = '10px "tEggst", monospace';
     for (let i = 0; i < sorted.length; i++) {
       const car = sorted[i];
       const name = car.id === 'player' ? 'YOU' :
@@ -715,7 +715,7 @@ export class Game {
     // ── Player status (top-center) ──
     ctx.textAlign = 'center';
     if (this.player.isIt) {
-      ctx.font = 'bold 20px monospace';
+      ctx.font = 'bold 20px "tEggst", monospace';
       ctx.fillStyle = '#ff2222';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 3;
@@ -723,7 +723,7 @@ export class Game {
       ctx.strokeText(itText, CW / 2, 30);
       ctx.fillText(itText, CW / 2, 30);
     } else if (!this.player.alive) {
-      ctx.font = 'bold 20px monospace';
+      ctx.font = 'bold 20px "tEggst", monospace';
       ctx.fillStyle = '#ff4444';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 3;
@@ -739,7 +739,7 @@ export class Game {
       const bw = 80;
       const bh = 8;
       const bx = CW / 2 - bw / 2;
-      const by = CH - 30;
+      const by = CH - 50;
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
@@ -760,7 +760,7 @@ export class Game {
         ctx.fillRect(bx, by, bw, bh);
       }
 
-      ctx.font = 'bold 9px monospace';
+      ctx.font = '300 9px "tEggst", monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = this.player.boostCooldownFrac > 0 && !this.player.isBoosting ? '#666' : '#fff';
       ctx.fillText('BOOST [SPACE]', CW / 2, by - 4);
@@ -834,11 +834,11 @@ export class Game {
     // Title
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffaa22';
-    ctx.font = 'bold 24px monospace';
+    ctx.font = 'bold 24px "tEggst", monospace';
     ctx.fillText('PAUSED', CW / 2, 30);
 
     ctx.fillStyle = '#888';
-    ctx.font = '10px monospace';
+    ctx.font = '10px "tEggst", monospace';
     ctx.fillText('Press ESC / P / SPACE to resume', CW / 2, 48);
 
     // Score graph
@@ -854,7 +854,7 @@ export class Game {
     const history = this.scoreHistory;
     if (history.length < 2) {
       ctx.fillStyle = '#666';
-      ctx.font = '12px monospace';
+      ctx.font = '12px "tEggst", monospace';
       ctx.textAlign = 'center';
       ctx.fillText('Not enough data yet — play for a few seconds', gx + gw / 2, gy + gh / 2);
       return;
@@ -903,7 +903,7 @@ export class Game {
       // Y-axis labels
       const val = Math.round(maxScore * (1 - i / gridLines));
       ctx.fillStyle = '#666';
-      ctx.font = '9px monospace';
+      ctx.font = '9px "tEggst", monospace';
       ctx.textAlign = 'right';
       ctx.fillText(String(val), plotX - 5, y + 3);
     }
@@ -915,7 +915,7 @@ export class Game {
       const t = minTime + (i / Math.max(timeSteps, 1)) * timeRange;
       const x = toX(t);
       ctx.fillStyle = '#666';
-      ctx.font = '9px monospace';
+      ctx.font = '9px "tEggst", monospace';
       const mins = Math.floor(t / 60);
       const secs = Math.floor(t % 60);
       ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, x, plotY + plotH + 14);
@@ -963,7 +963,7 @@ export class Game {
       if (ev.type === 'death') {
         // Skull in killer's color (or own color if no killer)
         const killerColor = ev.relatedCarId ? (this.CAR_COLORS[ev.relatedCarId] ?? color) : color;
-        ctx.font = 'bold 22px monospace';
+        ctx.font = 'bold 22px "tEggst", monospace';
         ctx.textAlign = 'center';
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 3;
@@ -987,7 +987,7 @@ export class Game {
       } else if (ev.type === 'big_hit') {
         // Small burst/star for big hits
         ctx.fillStyle = color;
-        ctx.font = 'bold 14px monospace';
+        ctx.font = 'bold 14px "tEggst", monospace';
         ctx.textAlign = 'center';
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
@@ -1021,7 +1021,7 @@ export class Game {
       const dy = this.mouseY - marker.y;
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
         // Tooltip background
-        ctx.font = '10px monospace';
+        ctx.font = '10px "tEggst", monospace';
         const tw = ctx.measureText(marker.label).width + 12;
         const tooltipX = Math.min(marker.x + 10, plotX + plotW - tw);
         const tooltipY = Math.max(marker.y - 24, plotY);
@@ -1039,7 +1039,7 @@ export class Game {
 
     // Legend (horizontal, above graph area)
     ctx.textAlign = 'left';
-    ctx.font = '9px monospace';
+    ctx.font = '9px "tEggst", monospace';
     let legendX = plotX;
     for (const carId of carIds) {
       const color = this.CAR_COLORS[carId] ?? '#888';
@@ -1075,13 +1075,13 @@ export class Game {
     ctx.strokeRect(tx, ty, tw, th);
 
     ctx.fillStyle = '#ffaa22';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 12px "tEggst", monospace';
     ctx.textAlign = 'left';
     ctx.fillText('DRIVER INTEL', tx + 10, ty + 18);
 
     if (this.tacticsFetching) {
       ctx.fillStyle = '#888';
-      ctx.font = '11px monospace';
+      ctx.font = '11px "tEggst", monospace';
       ctx.textAlign = 'center';
       ctx.fillText('Analyzing driver tactics...', tx + tw / 2, ty + th / 2);
       return;
@@ -1089,7 +1089,7 @@ export class Game {
 
     if (!this.tacticsSummaries) {
       ctx.fillStyle = '#666';
-      ctx.font = '11px monospace';
+      ctx.font = '11px "tEggst", monospace';
       ctx.textAlign = 'center';
       ctx.fillText('No intel available', tx + tw / 2, ty + th / 2);
       return;
@@ -1109,18 +1109,18 @@ export class Game {
 
       // Driver name
       ctx.fillStyle = color;
-      ctx.font = 'bold 11px monospace';
+      ctx.font = 'bold 11px "tEggst", monospace';
       ctx.textAlign = 'left';
       ctx.fillText(ai.personality.name.toUpperCase(), cx + 4, startY);
 
       // Score
       ctx.fillStyle = '#aaa';
-      ctx.font = '9px monospace';
+      ctx.font = '9px "tEggst", monospace';
       ctx.fillText(`Score: ${Math.floor(ai.car.score)}`, cx + 4, startY + 13);
 
       // Tactics text (word-wrapped)
       ctx.fillStyle = '#ccc';
-      ctx.font = '9px monospace';
+      ctx.font = '9px "tEggst", monospace';
       const maxLineW = colW - 12;
       const lines = this.wrapText(ctx, summary, maxLineW);
       let ly = startY + 28;
@@ -1265,7 +1265,7 @@ For each driver, write a 1-2 sentence summary of what their code ACTUALLY DOES. 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(0, y - 11, CW, 18);
 
-    ctx.font = 'bold 10px monospace';
+    ctx.font = '300 10px "tEggst", monospace';
     for (const msg of this.tickerMessages) {
       // Driver name in their color
       ctx.fillStyle = msg.color;
@@ -1287,15 +1287,15 @@ For each driver, write a 1-2 sentence summary of what their code ACTUALLY DOES. 
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff4444';
-    ctx.font = 'bold 48px monospace';
+    ctx.font = 'bold 48px "tEggst", monospace';
     ctx.fillText("TAG YOU'RE DEAD", CW / 2, CH / 3);
 
     ctx.fillStyle = '#d4b896';
-    ctx.font = '18px monospace';
+    ctx.font = '18px "tEggst", monospace';
     ctx.fillText('Desert Demolition Derby', CW / 2, CH / 3 + 40);
 
     ctx.fillStyle = '#888';
-    ctx.font = '14px monospace';
+    ctx.font = '14px "tEggst", monospace';
     ctx.fillText('Arrow keys / WASD / Gamepad to drive — SPACE to boost', CW / 2, CH / 2 + 20);
     ctx.fillText('Being IT: 3x damage output but take 35% more damage', CW / 2, CH / 2 + 45);
     ctx.fillText('Higher score = more HP and speed', CW / 2, CH / 2 + 70);
@@ -1304,9 +1304,9 @@ For each driver, write a 1-2 sentence summary of what their code ACTUALLY DOES. 
     // Show saved scores if any
     if (this.savedScores.size > 0) {
       ctx.fillStyle = '#aaa';
-      ctx.font = 'bold 14px monospace';
+      ctx.font = 'bold 14px "tEggst", monospace';
       ctx.fillText('\u2500\u2500\u2500 CAREER SCORES \u2500\u2500\u2500', CW / 2, CH / 2 + 140);
-      ctx.font = '12px monospace';
+      ctx.font = '12px "tEggst", monospace';
       let y = CH / 2 + 160;
       const entries = [...this.savedScores.entries()].sort((a, b) => b[1] - a[1]);
       for (const [id, score] of entries.slice(0, 6)) {
@@ -1320,7 +1320,7 @@ For each driver, write a 1-2 sentence summary of what their code ACTUALLY DOES. 
     // Blink prompt
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 400);
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 16px monospace';
+    ctx.font = 'bold 16px "tEggst", monospace';
     ctx.fillText('PRESS SPACE / A TO START', CW / 2, CH - 60);
     ctx.restore();
   }

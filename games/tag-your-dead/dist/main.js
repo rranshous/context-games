@@ -1,14 +1,13 @@
 // src/config.ts
 var CONFIG = {
   CANVAS: { WIDTH: 960, HEIGHT: 720 },
-  // Tighter arena for derby action
   ARENA: {
-    WIDTH: 2e3,
-    HEIGHT: 1500,
+    WIDTH: 4e3,
+    HEIGHT: 3e3,
     TILE_SIZE: 32,
-    ROCK_COUNT: 25,
-    CACTUS_COUNT: 15,
-    BARREL_COUNT: 8
+    ROCK_COUNT: 80,
+    CACTUS_COUNT: 40,
+    BARREL_COUNT: 20
   },
   VEHICLE: {
     BASE_MAX_SPEED: 200,
@@ -64,7 +63,7 @@ var CONFIG = {
   RESPAWN: {
     TIMER: 5,
     // seconds before respawn
-    MIN_DISTANCE: 200,
+    MIN_DISTANCE: 400,
     // minimum distance from other cars on respawn
     SPAWN_IMMUNITY: 2
     // seconds of immunity after respawn
@@ -135,7 +134,7 @@ var Arena = class {
   }
   generate(rng) {
     const center = { x: this.width / 2, y: this.height / 2 };
-    const clearRadius = 200;
+    const clearRadius = 400;
     for (let i = 0; i < A.ROCK_COUNT; i++) {
       const x = rng() * this.width;
       const y = rng() * this.height;
@@ -154,7 +153,7 @@ var Arena = class {
       if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
       this.obstacles.push({ x, y, radius: 10, type: "barrel" });
     }
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 50; i++) {
       const x = rng() * this.width;
       const y = rng() * this.height;
       if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
@@ -206,6 +205,27 @@ var Arena = class {
     const dx = this.wrapDx(x1 - x2);
     const dy = this.wrapDy(y1 - y2);
     return Math.sqrt(dx * dx + dy * dy);
+  }
+  /** Check if a rock blocks the line of sight between two points (wrap-aware). */
+  hasLineOfSight(x1, y1, x2, y2) {
+    const dx = this.wrapDx(x2 - x1);
+    const dy = this.wrapDy(y2 - y1);
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return true;
+    const ux = dx / len;
+    const uy = dy / len;
+    for (const obs of this.obstacles) {
+      if (obs.type !== "rock") continue;
+      const ox = this.wrapDx(obs.x - x1);
+      const oy = this.wrapDy(obs.y - y1);
+      const t = ox * ux + oy * uy;
+      if (t < 0 || t > len) continue;
+      const perpX = ox - ux * t;
+      const perpY = oy - uy * t;
+      const perpDist = Math.sqrt(perpX * perpX + perpY * perpY);
+      if (perpDist < obs.radius) return false;
+    }
+    return true;
   }
 };
 
@@ -356,14 +376,17 @@ var Car = class {
       this.speed += friction * dt;
       if (this.speed > 0) this.speed = 0;
     }
-    const ms = this.maxSpeed * (this.boostTimer > 0 ? B.SPEED_MULT : 1);
-    const maxReverse = this.maxSpeed * 0.4;
+    const hpFrac = this.hp / this.maxHp;
+    const hpSpeedMult = 0.8 + 0.2 * Math.min(1, hpFrac / 0.5);
+    const ms = this.maxSpeed * (this.boostTimer > 0 ? B.SPEED_MULT : 1) * hpSpeedMult;
+    const maxReverse = this.maxSpeed * 0.4 * hpSpeedMult;
     if (this.speed > ms) this.speed = ms;
     if (this.speed < -maxReverse) this.speed = -maxReverse;
     const absSpeed = Math.abs(this.speed);
     const speedFactor = Math.max(0.3, Math.min(1, absSpeed / (ms * 0.5)));
     const steerDir = this.speed < 0 ? -1 : 1;
-    this.angle += this.steerInput * V.TURN_SPEED * speedFactor * steerDir * dt;
+    const listBias = hpFrac < 0.5 ? (1 - hpFrac * 2) * 0.15 * (parseInt(this.id.replace(/\D/g, "") || "0") % 2 === 0 ? 1 : -1) : 0;
+    this.angle += (this.steerInput + listBias) * V.TURN_SPEED * speedFactor * steerDir * dt;
     const vx = Math.cos(this.angle) * this.speed * dt;
     const vy = Math.sin(this.angle) * this.speed * dt;
     let newX = this.x + vx;
@@ -1287,11 +1310,12 @@ function buildMeAPI(car, soma, arena) {
   };
 }
 function buildWorldAPI(time, arena, allCars, selfId) {
+  const self = allCars.find((c) => c.id === selfId);
   return {
     time,
     arenaWidth: arena.width,
     arenaHeight: arena.height,
-    otherCars: allCars.filter((c) => c.id !== selfId).map((c) => ({
+    otherCars: allCars.filter((c) => c.id !== selfId).filter((c) => !self || !c.alive || arena.hasLineOfSight(self.x, self.y, c.x, c.y)).map((c) => ({
       id: c.id,
       x: c.x,
       y: c.y,
@@ -1339,10 +1363,10 @@ function renderLifeMap(input) {
   const mapW = Math.round(arenaWidth * scale);
   const mapH = Math.round(arenaHeight * scale);
   const legendH = 36;
-  const canvas2 = document.createElement("canvas");
-  canvas2.width = mapW;
-  canvas2.height = mapH + legendH;
-  const ctx = canvas2.getContext("2d");
+  const canvas = document.createElement("canvas");
+  canvas.width = mapW;
+  canvas.height = mapH + legendH;
+  const ctx = canvas.getContext("2d");
   const tx = (x) => x * scale;
   const ty = (y) => y * scale;
   ctx.fillStyle = "#d4b088";
@@ -1404,7 +1428,7 @@ function renderLifeMap(input) {
     ctx.lineTo(dx - 5, dy + 5);
     ctx.stroke();
   }
-  ctx.font = "bold 10px monospace";
+  ctx.font = 'bold 10px "tEggst", monospace';
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (let i = 0; i < events.length; i++) {
@@ -1424,7 +1448,7 @@ function renderLifeMap(input) {
   const ly = mapH + 4;
   ctx.fillStyle = "#1a0f08";
   ctx.fillRect(0, mapH, mapW, legendH);
-  ctx.font = "10px monospace";
+  ctx.font = '10px "tEggst", monospace';
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   let lx = 6;
@@ -1449,7 +1473,7 @@ function renderLifeMap(input) {
     }
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  return canvas2.toDataURL("image/png").split(",")[1];
+  return canvas.toDataURL("image/png").split(",")[1];
 }
 
 // src/reflection.ts
@@ -1547,6 +1571,8 @@ GAME MECHANICS:
 ARENA:
 - Flat desert, ${CONFIG.ARENA.WIDTH}\xD7${CONFIG.ARENA.HEIGHT}, toroidal \u2014 driving off one edge puts you on the opposite side (no walls).
 - Obstacles: rocks (solid \u2014 bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
+- Rocks block line of sight \u2014 world.otherCars only includes cars you can see (no rock between you and them). Use this tactically: hide behind rocks when hurt, or flush targets out from cover.
+- Damage slows you down \u2014 below 50% HP your max speed drops (up to 20% slower at critical HP) and your steering pulls slightly to one side.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 - Coordinates: (0,0) is top-left, (${CONFIG.ARENA.WIDTH},${CONFIG.ARENA.HEIGHT}) is bottom-right.
 
@@ -1847,13 +1873,13 @@ var Game = class {
   tickerSpeed = 60;
   // pixels per second
   lastTime = 0;
-  constructor(canvas2) {
-    this.canvas = canvas2;
-    this.ctx = canvas2.getContext("2d");
-    canvas2.width = CW2;
-    canvas2.height = CH2;
-    canvas2.addEventListener("mousemove", (e) => {
-      const rect = canvas2.getBoundingClientRect();
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    canvas.width = CW2;
+    canvas.height = CH2;
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
       this.mouseX = (e.clientX - rect.left) * (CW2 / rect.width);
       this.mouseY = (e.clientY - rect.top) * (CH2 / rect.height);
     });
@@ -2258,7 +2284,7 @@ var Game = class {
       ctx.restore();
       if (car.respawnTimer > 0) {
         ctx.save();
-        ctx.font = "bold 12px monospace";
+        ctx.font = 'bold 12px "tEggst", monospace';
         ctx.textAlign = "center";
         ctx.fillStyle = "#ff8844";
         ctx.strokeStyle = "#000";
@@ -2282,7 +2308,7 @@ var Game = class {
       const s = cam.worldToScreen(car.x, car.y);
       const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
       ctx.save();
-      ctx.font = "bold 10px monospace";
+      ctx.font = 'bold 10px "tEggst", monospace';
       ctx.textAlign = "center";
       const nameColor = car.isIt ? "#ff4444" : this.CAR_COLORS[car.id] ?? "#ffffff";
       ctx.fillStyle = nameColor;
@@ -2291,7 +2317,7 @@ var Game = class {
       ctx.strokeText(name, s.x, s.y - 20);
       ctx.fillText(name, s.x, s.y - 20);
       if (car.isIt) {
-        ctx.font = "bold 9px monospace";
+        ctx.font = 'bold 9px "tEggst", monospace';
         ctx.fillStyle = "#ff8888";
         ctx.strokeText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
         ctx.fillText(`IT ${car.itTimer.toFixed(0)}s`, s.x, s.y - 32);
@@ -2323,11 +2349,11 @@ var Game = class {
     ctx.strokeStyle = "#8b4513";
     ctx.lineWidth = 1;
     ctx.strokeRect(sbX, sbY, sbW, sbH);
-    ctx.font = "bold 10px monospace";
+    ctx.font = 'bold 10px "tEggst", monospace';
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffaa22";
     ctx.fillText("SCOREBOARD", sbX + 6, sbY + 12);
-    ctx.font = "10px monospace";
+    ctx.font = '10px "tEggst", monospace';
     for (let i = 0; i < sorted.length; i++) {
       const car = sorted[i];
       const name = car.id === "player" ? "YOU" : this.aiCars.find((a) => a.car.id === car.id)?.personality.name.toUpperCase() ?? car.id;
@@ -2352,7 +2378,7 @@ var Game = class {
     }
     ctx.textAlign = "center";
     if (this.player.isIt) {
-      ctx.font = "bold 20px monospace";
+      ctx.font = 'bold 20px "tEggst", monospace';
       ctx.fillStyle = "#ff2222";
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 3;
@@ -2360,7 +2386,7 @@ var Game = class {
       ctx.strokeText(itText, CW2 / 2, 30);
       ctx.fillText(itText, CW2 / 2, 30);
     } else if (!this.player.alive) {
-      ctx.font = "bold 20px monospace";
+      ctx.font = 'bold 20px "tEggst", monospace';
       ctx.fillStyle = "#ff4444";
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 3;
@@ -2372,7 +2398,7 @@ var Game = class {
       const bw = 80;
       const bh = 8;
       const bx = CW2 / 2 - bw / 2;
-      const by = CH2 - 30;
+      const by = CH2 - 50;
       ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
       ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
       if (this.player.isBoosting) {
@@ -2387,7 +2413,7 @@ var Game = class {
         ctx.fillStyle = "#ffaa00";
         ctx.fillRect(bx, by, bw, bh);
       }
-      ctx.font = "bold 9px monospace";
+      ctx.font = '300 9px "tEggst", monospace';
       ctx.textAlign = "center";
       ctx.fillStyle = this.player.boostCooldownFrac > 0 && !this.player.isBoosting ? "#666" : "#fff";
       ctx.fillText("BOOST [SPACE]", CW2 / 2, by - 4);
@@ -2445,10 +2471,10 @@ var Game = class {
     ctx.save();
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffaa22";
-    ctx.font = "bold 24px monospace";
+    ctx.font = 'bold 24px "tEggst", monospace';
     ctx.fillText("PAUSED", CW2 / 2, 30);
     ctx.fillStyle = "#888";
-    ctx.font = "10px monospace";
+    ctx.font = '10px "tEggst", monospace';
     ctx.fillText("Press ESC / P / SPACE to resume", CW2 / 2, 48);
     this.renderScoreGraph(ctx, 20, 60, CW2 - 40, 260);
     this.renderTactics(ctx, 20, 340, CW2 - 40, CH2 - 360);
@@ -2458,7 +2484,7 @@ var Game = class {
     const history = this.scoreHistory;
     if (history.length < 2) {
       ctx.fillStyle = "#666";
-      ctx.font = "12px monospace";
+      ctx.font = '12px "tEggst", monospace';
       ctx.textAlign = "center";
       ctx.fillText("Not enough data yet \u2014 play for a few seconds", gx + gw / 2, gy + gh / 2);
       return;
@@ -2496,7 +2522,7 @@ var Game = class {
       ctx.stroke();
       const val = Math.round(maxScore * (1 - i / gridLines));
       ctx.fillStyle = "#666";
-      ctx.font = "9px monospace";
+      ctx.font = '9px "tEggst", monospace';
       ctx.textAlign = "right";
       ctx.fillText(String(val), plotX - 5, y + 3);
     }
@@ -2506,7 +2532,7 @@ var Game = class {
       const t = minTime + i / Math.max(timeSteps, 1) * timeRange;
       const x = toX(t);
       ctx.fillStyle = "#666";
-      ctx.font = "9px monospace";
+      ctx.font = '9px "tEggst", monospace';
       const mins = Math.floor(t / 60);
       const secs = Math.floor(t % 60);
       ctx.fillText(`${mins}:${secs.toString().padStart(2, "0")}`, x, plotY + plotH + 14);
@@ -2547,7 +2573,7 @@ var Game = class {
       const timeStr = `${mins}:${secs.toString().padStart(2, "0")}`;
       if (ev.type === "death") {
         const killerColor = ev.relatedCarId ? this.CAR_COLORS[ev.relatedCarId] ?? color : color;
-        ctx.font = "bold 22px monospace";
+        ctx.font = 'bold 22px "tEggst", monospace';
         ctx.textAlign = "center";
         ctx.strokeStyle = "#000";
         ctx.lineWidth = 3;
@@ -2570,7 +2596,7 @@ var Game = class {
         this.eventMarkers.push({ x: ex, y: ey, label: `${name} \u2014 ${ev.detail} [${timeStr}]`, color });
       } else if (ev.type === "big_hit") {
         ctx.fillStyle = color;
-        ctx.font = "bold 14px monospace";
+        ctx.font = 'bold 14px "tEggst", monospace';
         ctx.textAlign = "center";
         ctx.strokeStyle = "#000";
         ctx.lineWidth = 2;
@@ -2599,7 +2625,7 @@ var Game = class {
       const dx = this.mouseX - marker.x;
       const dy = this.mouseY - marker.y;
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
-        ctx.font = "10px monospace";
+        ctx.font = '10px "tEggst", monospace';
         const tw = ctx.measureText(marker.label).width + 12;
         const tooltipX = Math.min(marker.x + 10, plotX + plotW - tw);
         const tooltipY = Math.max(marker.y - 24, plotY);
@@ -2615,7 +2641,7 @@ var Game = class {
       }
     }
     ctx.textAlign = "left";
-    ctx.font = "9px monospace";
+    ctx.font = '9px "tEggst", monospace';
     let legendX = plotX;
     for (const carId of carIds) {
       const color = this.CAR_COLORS[carId] ?? "#888";
@@ -2647,19 +2673,19 @@ var Game = class {
     ctx.lineWidth = 1;
     ctx.strokeRect(tx, ty, tw, th);
     ctx.fillStyle = "#ffaa22";
-    ctx.font = "bold 12px monospace";
+    ctx.font = 'bold 12px "tEggst", monospace';
     ctx.textAlign = "left";
     ctx.fillText("DRIVER INTEL", tx + 10, ty + 18);
     if (this.tacticsFetching) {
       ctx.fillStyle = "#888";
-      ctx.font = "11px monospace";
+      ctx.font = '11px "tEggst", monospace';
       ctx.textAlign = "center";
       ctx.fillText("Analyzing driver tactics...", tx + tw / 2, ty + th / 2);
       return;
     }
     if (!this.tacticsSummaries) {
       ctx.fillStyle = "#666";
-      ctx.font = "11px monospace";
+      ctx.font = '11px "tEggst", monospace';
       ctx.textAlign = "center";
       ctx.fillText("No intel available", tx + tw / 2, ty + th / 2);
       return;
@@ -2674,14 +2700,14 @@ var Game = class {
       const summary = this.tacticsSummaries[ai.car.id] ?? "Unknown";
       const color = this.CAR_COLORS[ai.car.id] ?? "#888";
       ctx.fillStyle = color;
-      ctx.font = "bold 11px monospace";
+      ctx.font = 'bold 11px "tEggst", monospace';
       ctx.textAlign = "left";
       ctx.fillText(ai.personality.name.toUpperCase(), cx + 4, startY);
       ctx.fillStyle = "#aaa";
-      ctx.font = "9px monospace";
+      ctx.font = '9px "tEggst", monospace';
       ctx.fillText(`Score: ${Math.floor(ai.car.score)}`, cx + 4, startY + 13);
       ctx.fillStyle = "#ccc";
-      ctx.font = "9px monospace";
+      ctx.font = '9px "tEggst", monospace';
       const maxLineW = colW - 12;
       const lines = this.wrapText(ctx, summary, maxLineW);
       let ly = startY + 28;
@@ -2811,7 +2837,7 @@ ${prompt}`
     ctx.save();
     ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
     ctx.fillRect(0, y - 11, CW2, 18);
-    ctx.font = "bold 10px monospace";
+    ctx.font = '300 10px "tEggst", monospace';
     for (const msg of this.tickerMessages) {
       ctx.fillStyle = msg.color;
       ctx.textAlign = "left";
@@ -2829,22 +2855,22 @@ ${prompt}`
     ctx.save();
     ctx.textAlign = "center";
     ctx.fillStyle = "#ff4444";
-    ctx.font = "bold 48px monospace";
+    ctx.font = 'bold 48px "tEggst", monospace';
     ctx.fillText("TAG YOU'RE DEAD", CW2 / 2, CH2 / 3);
     ctx.fillStyle = "#d4b896";
-    ctx.font = "18px monospace";
+    ctx.font = '18px "tEggst", monospace';
     ctx.fillText("Desert Demolition Derby", CW2 / 2, CH2 / 3 + 40);
     ctx.fillStyle = "#888";
-    ctx.font = "14px monospace";
+    ctx.font = '14px "tEggst", monospace';
     ctx.fillText("Arrow keys / WASD / Gamepad to drive \u2014 SPACE to boost", CW2 / 2, CH2 / 2 + 20);
     ctx.fillText("Being IT: 3x damage output but take 35% more damage", CW2 / 2, CH2 / 2 + 45);
     ctx.fillText("Higher score = more HP and speed", CW2 / 2, CH2 / 2 + 70);
     ctx.fillText("No walls \u2014 edges wrap around. Die? Score halved. Keep fighting.", CW2 / 2, CH2 / 2 + 95);
     if (this.savedScores.size > 0) {
       ctx.fillStyle = "#aaa";
-      ctx.font = "bold 14px monospace";
+      ctx.font = 'bold 14px "tEggst", monospace';
       ctx.fillText("\u2500\u2500\u2500 CAREER SCORES \u2500\u2500\u2500", CW2 / 2, CH2 / 2 + 140);
-      ctx.font = "12px monospace";
+      ctx.font = '12px "tEggst", monospace';
       let y = CH2 / 2 + 160;
       const entries = [...this.savedScores.entries()].sort((a, b) => b[1] - a[1]);
       for (const [id, score] of entries.slice(0, 6)) {
@@ -2855,14 +2881,16 @@ ${prompt}`
     }
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 400);
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 16px monospace";
+    ctx.font = 'bold 16px "tEggst", monospace';
     ctx.fillText("PRESS SPACE / A TO START", CW2 / 2, CH2 - 60);
     ctx.restore();
   }
 };
 
 // src/main.ts
-var canvas = document.getElementById("game-canvas");
-var game = new Game(canvas);
-game.start();
+document.fonts.ready.then(() => {
+  const canvas = document.getElementById("game-canvas");
+  const game = new Game(canvas);
+  game.start();
+});
 //# sourceMappingURL=main.js.map

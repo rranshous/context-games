@@ -109,7 +109,7 @@ export function renderLifeMap(input: LifeMapInput): string {
   }
 
   // 5. Key moment markers — numbered circles
-  ctx.font = 'bold 10px monospace';
+  ctx.font = 'bold 10px "tEggst", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let i = 0; i < events.length; i++) {
@@ -133,7 +133,7 @@ export function renderLifeMap(input: LifeMapInput): string {
   const ly = mapH + 4;
   ctx.fillStyle = '#1a0f08';
   ctx.fillRect(0, mapH, mapW, legendH);
-  ctx.font = '10px monospace';
+  ctx.font = '10px "tEggst", monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 

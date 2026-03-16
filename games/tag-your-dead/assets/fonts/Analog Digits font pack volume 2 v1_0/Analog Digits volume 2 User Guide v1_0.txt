@@ -1,0 +1,759 @@
+======================================
+ANALOG DIGITS FONT PACK VOLUME 2 GUIDE
+======================================
+
+Title: Analog Digits Font Pack Volume 2 User Guide.
+Subtitle: information and advice on using the handwritten 8-segment display font 'cursiv8', the eggcrate display font 'tEggst', and the lightguide display font 'reLix'.
+Version: 1.0.
+Designer: Speak the Sky.
+License: You’re free to use these fonts in personal and commercial projects. I don’t mind if you edit them. Just don’t redistribute the font files in themselves (original or edited, paid or for free). Credit is much appreciated (as is a link to the typeface’s page on itch.io), but not necessary.
+
+
+
+
+
+==============================
+=====CONTENTS.
+
+SECTION 0: README.
+	0 1: The License.
+	0 2: Troubleshooting.
+	0 3: Credits.
+	0 4: Version History.
+
+SECTION 1: INTRODUCTION.
+	1 1: Here's what you get
+	1 1 1: Analog digits.
+	1 1 2: Mostly numerals.
+	1 1 3: Layer fonts.
+	1 1 4: Precomposed glyphs.
+	1 2: How to use the layers.
+	1 3: OpenType Features.
+	1 3 1: What is OpenType?
+	1 3 2: Which OT features do the fonts have?
+	1 4: How to Activate OT Features. 	1 4 1: ...in Affinity.
+	1 4 2: ...in LibreOffice.
+	1 4 3: ...in MS Office.
+	1 4 4: ...in Scribus.
+	1 4 5: ...in Apple Pages and TextEdit.
+	1 4 6: ...in Inkscape.
+	1 5: Accessibility.
+
+SECTION 2: CURSIV8.
+	2 1: Introduction.
+	2 1 1: Vacuum fluorescent displays.
+	2 1 2: Credits.
+	2 2: Layers.
+	2 3: Characters.
+	2 3 1: Numerals.
+	2 3 2: Decimal point.
+	2 3 3: Other characters.
+	2 5: Extra Features.
+	2 5 1: Proportional figures (pnum).
+	2 5 2: Precomposed glyphs (ss02).
+	2 5 3: Bottom-left decimal point (cv01).
+	2 5 4: Spaces to empty tubes (cv02 to 05).
+	2 5 5: Separate segments.
+	2 5 6: Separate outlined segments (ss03).
+	2 5 7: Condensed maths operators (ss04).
+	2 5 8: Fixed-position decimal point (dlig).
+
+SECTION 3: TEGGST.
+	3 1: Introduction.
+	3 1 1: Nimo tubes.
+	3 1 2: tEggst vs the other Analog Digits fonts.
+	3 1 3: Credits.
+	3 2: Layers.
+	3 3: Weights.
+	3 4: Characters.
+	3 4 1: Combining Marks.
+	3 4 2: Localisation.
+	3 5: Extra Info.
+	3 5 1: Burnt-out bulbs.
+	3 6: Extra Features.
+	3 6 1: Numeral variants (cv01 to 19 and zero).
+	3 6 2: Inverted hatching (ss05).
+	3 6 3: Alternate pointing hand (ss06).
+	3 6 4: Alternate numeral sets (ss07 to 09).
+	3 6 5: Card icons (dlig).
+	3 6 6: Gaelic type (ss10).
+	3 6 7: Left-running figure (cv22).
+	3 6 8: Left-pointing hand (cv23).
+
+SECTION 4: RELIX.
+	4 1: Introduction.
+	4 1 1: Lightguide displays.
+	4 1 2: Credits.
+	4 2: Layers.
+	4 3: Characters.
+	4 3 1: Numerals.
+	4 3 2: Decimal point.
+	4 3 3: Other characters.
+	4 4: Extra Features.
+	4 4 1: Proportional figures (pnum).
+	4 4 2: Single unlit etching (ss01).
+	4 4 3: Spot etchings (ss03 and 04).
+	4 4 4: Bottom-right decimal point (cv01).
+	4 4 5: Precomposed glyphs (ss11 to 16).
+
+SECTION 5: CONTACT.
+
+
+
+
+
+==============================
+=====SECTION 0: README.
+
+------------------------------
+-----0 1: The License.
+
+You can freely (i.e. without royalties) use the fonts in this font pack (i.e. the .otf, .woff, and .woff2 files for cursiv8, tEggst, and reLix) in both personal and commercial projects as long as you purchased the pack from the designer. Currently, the only place where this font pack is sold is on itch, at the following url:
+
+https://speakthesky.itch.io/typeface-analog-digits-pack-2
+
+You may modify the font files, but not redistribute the original or modified font files in themselves as free or paid products.
+
+
+------------------------------
+-----0 2: Troubleshooting.
+
+These fonts use OpenType (OT) features. In apps that support OT features, you can usually activate them in a menu with a name like "Text Style", "Typography", etc. For more info, read your app’s documentation. Some apps have limited OT support (e.g. Microsoft Word has the "standard ligatures" feature switched off by default and can’t activate the "character variant" features).
+
+
+------------------------------
+-----0 3: Credits.
+
+cursiv8, tEggst, and reLix by Speak the Sky (https://speakthesky.com) using Glyphs (https://glyphsapp.com).
+
+
+------------------------------
+-----0 4: Version History.
+
+2022-05-20:
+	• Analog Digits Font Pack volume 2 v1.0 is released:
+		• cursiv8 v1.0
+		• tEggst v1.0
+		• reLix v1.0
+
+
+
+
+
+==============================
+=====SECTION 1: INTRODUCTION.
+
+------------------------------
+-----1 1: Here's what you get.
+
+----------
+---1 1 1: Analog digits.
+
+The fonts in this pack are based on different types of analog electronic display (analog as in “not pixels” here). Each font’s set up to help you make graphics of a different kind of numerical display, from eggcrate lightbulb gameshow boards to cursive 8-segment displays.
+
+
+----------
+---1 1 2: Mostly numerals.
+
+Most of the characters you can type in these fonts are numerals (1 to 9 and 0) and a few punctuation marks (e.g. decimal points) and maths operators (e.g. plus and minus) that are helpful for imitating those displays. These fonts are not full text fonts, nor are they meant to be, nor will they ever be! Exception: tEggst.
+
+
+----------
+---1 1 3: Layer fonts.
+
+Each font has different layers for different parts of the display, such as the lit and unlit bulbs of an eggcrate display. This lets you separately change each layer’s colour and effects (like glow).
+
+
+----------
+---1 1 4: Precomposed glyphs.
+
+You can use the layers to build graphics piece by piece, but each font also comes with sets of precomposed (pre-built) glyphs for when you don’t want/need to (or can’t) go into all that detail.
+
+
+------------------------------
+-----1 2: How to use the layers.
+
+It’s simple: to build graphics out of these layer fonts... just make several layers of text stacked on top of each other, and apply different OpenType (OT) features to match each layer’s position. You can find more about OpenType features and how to use them later in this section, but basically they’re like switches that let you change how some or all of a font’s characters look.
+
+The fonts in this pack use “stylistic set” OT features to change between layers. For example, in the lightguide font, reLix, by default you type the lit forms for each number, and switching on “stylistic set 1” (or, ss01) lets you type the unlit forms for that same number. Each layer uses the same text, just with different OT features applied.
+
+
+------------------------------
+-----1 3: OpenType Features.
+
+----------
+---1 3 1: What is OpenType?
+
+OpenType is a font format with special features—OpenType/OT features—that let you change how a font looks and behaves, if the font has those features.
+
+
+----------
+---1 3 2: Which OT features do the fonts have?
+
+cursiv8 and reLix use these features:
+	• stylistic sets let you swap out a large group of glyphs for a set with a different style
+	• character variants let you swap out a small group of glyphs to fine-tune a font’s appearance
+	• proportional figures/numbers replace fixed-width numerals (and other characters) with versions that have widths proportionate to the characters
+	• standard and discretionary ligatures (cursiv8 and reLix) replace series of glyphs with single glyphs
+
+Standard ligatures are normally on by default and discretionary are always off. You can usually activate ligatures in the same places as other OT features.
+
+tEggst is unusual in the Analog Digits Font Packs in that it’s a normal font with text, numerals, punctuation, and other symbols. You can find out more about it in its own section.
+
+For best results, only switch on one of cursiv8’s, tEggst’s, or reLix’s stylistic sets for a given piece of text or text style.
+
+
+------------------------------
+-----1 4: How to Activate OT Features. 
+----------
+---1 4 1: ...in Affinity.
+
+There are at least 3 ways to switch on OT features in Affinity Suite apps like Affinity Publisher:
+	A. The Typography pop-up, found through the top menu through "Text", then "Show Typography", with its keyboard shortcut. This lets you control features for text you’re selecting.
+	B. The Character studio panel, switched on through the top menu through "View", then "Studio", then "Character". This panel’s Typography section lets you control features for text you’re selecting.
+	C. The Text Styles studio panel, switched on similarly to the Character panel. This lets you edit text styles by right-clicking a style’s name or left-clicking the icon to its right, then choosing ‘Edit’. You can find stylistic set, character variant, and other settings in the style editing pop-up under "Typography", then "Alternates and Variants".
+
+
+----------
+---1 4 2: ...in LibreOffice.
+
+You can switch on OT features in LibreOffice apps that allow you to use and edit text styles, like LibreOffice Writer.
+
+There are two ways to switch on OT features in LibreOffie Writer:
+	A. The Character pop-up, found through the top menu through "Format", then "Character". In the ‘Font’ tab, click the ‘Features’ button to open a menu for activating features for text you’re selecting.
+	B. The Text Styles panel, switched on in a number of ways, including in the top menu through "Styles", then "Manage Styles". This lets you edit text styles by right-clicking a style and choosing ‘Modify’. In the style editing pop-up’s ‘Font’ tab, click the ‘Features’ button to open a menu for activating features for that style.
+
+NOTE FOR OPENOFFICE: Apache OpenOffice does not support OpenType substitutions. As OpenOffice has been discontinued, it’s unlikely any of the fonts in this pack will ever work in this software.
+
+
+----------
+---1 4 3: ...in MS Office.
+
+These instructions are for Word from Microsoft Office 365.
+
+There are two ways to switch on OT features in MS Office:
+	A. The Font Format pop-up, found in the top menu under "Format", then "Font" with its keyboard shortcut. The ‘Advanced’ tab lets you control features for text you’re selecting.
+	B. The Text Styles menu, found in the ‘Home’ section of the ribbon menu. This lets you edit text styles by right-clicking a style and choosing ‘Modify’. In the style editing pop-up, choose ‘Font’ from the drop-down menu in the lower left, then click the ‘Advanced’ tab for feature settings.
+
+IMPORTANT: MS Office has incomplete support for OT features:
+	• You can’t switch on character variants;
+	• You need to switch on standard ligatures manually. You can do this in the ‘Advanced’ tab mentioned above.
+	• Other MS Office apps (e.g. Powerpoint, Publisher) do not support OT features.
+
+
+----------
+---1 4 4: ...in Scribus.
+
+You can switch on OT features in Scribus in the Style Manager pop-up found in the top menu under "Edit", then "Styles" with its keyboard shortcut. Choose or create a new text style and find the ‘Font Features’ tab (for Paragraph Styles, find it under the Character Style tab).
+
+The menu here lets you switch on some, but not all OT features, including stylistic sets.
+
+IMPORTANT: Scribus doesn’t allow you to switch on character variants (as of v1.5.6.1, on Mac).
+
+
+----------
+---1 4 5: ...in Apple Pages and TextEdit.
+
+You can switch on OT features in both Apple Pages and TextEdit by opening the Fonts pop-up, found through the top menu through "Format", then "Font", then "Show Fonts" along with its keyboard shortcut. Click the gear menu icon, then ‘Typography’ to open a pop-up that lets you control features for the text you’re selecting (which you can bake into that text’s style using the ‘Update’ button in the Text Style panel on the right).
+
+IMPORTANT: These apps have limited support for OT features and user fonts:
+	• User-installed fonts may not be available in the drop-down font menu, in which case they must be selected through the Fonts pop-up.
+	• Neither app supports character variants.
+
+
+----------
+---1 4 6: ...in Inkscape.
+
+You can switch on OT features in Inkscape in the Text and Font panel, found through the top menu under "Text", then "Text and Font" with its keyboard shortcut. Select a text object, navigate to the Font tab of the panel, select and apply your chosen font using the list and ‘Apply’ button, then navigate to the Features tab and open the drop-down menus to activate OT features:
+	• ligature settings are under the ‘Ligatures’ menu.
+	• proportional figures settings are under the ‘Numeric’ menu.
+	• stylistic set and character variant settings are under the ‘Feature Settings’ menu.
+
+
+------------------------------
+-----1 5: Accessibility.
+
+Every layer of a layer font is its own piece of text. This means that e.g. a full set of fluoWrite layers will consist of the same text twice, once for the lit segments layer and once again for the unlit layer. Text-to-speech apps will read the same text twice.
+
+This isn’t a show-stopping accessibility problem, because these fonts are designed to be used in images for short stretches of numbers, not long text. However, it could be a bit confusing or annoying. For a better reading experience, try one of these options (not all of these will work for any given app):
+	• convert the text to shapes/curves (e.g. the Affinity Suite’s “Convert to Curves” option).
+	• put the text in a shape or text box and apply alt-text (e.g. in LibreOffice or MS Word).
+	• use the fonts in an image editor (e.g. GIMP, Adobe Photoshop), export images in pixel formats (e.g. .png, .jpg, .gif), then import the images into your text.
+
+I can’t guarantee that the second option will work, but the first and third will.
+
+
+
+
+
+=============================
+=====SECTION 2: CURSIV8.
+
+------------------------------
+-----2 1: Introduction.
+
+----------
+---2 1 1: Vacuum fluorescent displays.
+
+Vacuum fluorescent displays (VFDs) make light by sending electrons from a cathode (electron source) to an anode (electron sink) coated in phosphorus that glows when electrons travel through it. Anodes could be made in the shape of symbols (e.g. play, rewind), tick-marks (e.g. on clocks or speedometers), words (e.g. “HIGH”, “LOW”), or the segments of an 8-segment display, among other things.
+
+8-segment displays show different numbers by lighting up segments in the shape of each number. The Sharp QT-8D (1969) and EL-8 (1971), some of the earliest electronic hand calculators, displayed outputs via unusual handwriting-styled 8-segment VFDs. The displays were coloured a medium green or slightly-bluish green, but could probably be manufactured to make any colour.
+
+
+----------
+---2 1 2: Credits.
+
+Design images: photos of the unlit Sharp EL-8 display and the full set of lit numerals in a web museum for music technology and old calculators (https://www.johnwolff.id.au/calculators/Sharp/EL8-8M/EL8-8M.htm). The full set of lit numerals is linked at the end of the “Operator’s display” section.
+
+Information: the wikipedia page for the Sharp EL-8 and the above-mentioned museum site.
+
+
+------------------------------
+-----2 2: Layers.
+
+cursiv8 has 2 layers: lit segments and unlit segments.
+	1) lit segments (no stylistic set needed),
+	2) unlit segments (stylistic set 1, ss01).
+
+These can go in either order, as they don’t overlap at all. However, if you want to apply effects such as shadow or glow to the lit layer, then you should position the lit layer above the unlit layer.
+
+
+------------------------------
+-----2 3: Characters.
+
+----------
+---2 3 1: Numerals.
+
+cursiv8 includes the numerals 1 to 9 and 0.
+
+
+----------
+---2 3 2: Decimal point.
+
+The cursiv8 decimal point sits in the lower-right of each unit.
+
+
+----------
+---2 3 3: Other characters.
+
+cursiv8 also includes a set of mathematical operators: plus, minus, multiply (represented by the dot operator, not the cross operator), and divide. The unicode hyphen-minus (U+002D, -) and minus sign (U+2212, −) both produce the minus operator in cursiv8, and the unicode slash (U+002F, /) and divide sign (U+00F7, ÷) both produce the divide operator in cursiv8.
+
+
+------------------------------
+-----2 5: Extra Features.
+
+----------
+---2 5 1: Proportional figures (pnum).
+
+Activating the ‘proportional figures’ OT feature (pnum) sets the width of the numerals, decimal point, and maths operators to be proportionate to the width of the glyphs instead of fixed to the width of the displays. This feature doesn’t affect the unlit segments (ss01) or precomposed glyphs (ss02).
+
+
+----------
+---2 5 2: Precomposed glyphs (ss02).
+
+Activating stylistic set 2 (ss02) produces pre-composed glyphs with filled lit segments and outlined unlit segments. This affects the numerals and maths operators, but not the decimal point.
+
+
+----------
+---2 5 3: Bottom-left decimal point (cv01).
+
+Activating character variant 1 (cv01) moves the decimal point from the bottom-right of the current numeral to the bottom-left of the next numeral.
+
+
+----------
+---2 5 4: Spaces to empty tubes (cv02 to 05).
+
+Activating character variant 2-5 (cv02-05) replaces the space and non-breaking space, which are normally empty, with every segment of the numeral or operator display.
+	cv02: numeral display, filled segments.
+	cv03: numeral display, outlined segments.
+	cv04: operator display, filled segments.
+	cv05: operator display, outlined segments.
+
+
+----------
+---2 5 5: Separate segments.
+
+Typing the lowercase letters a, b, c, d, e, f, g, h, or i will produce the matching segment of the 8-segment display (clockwise from the top: a to f, with g and h down the middle), or the decimal point (i). These segments overlap with each other as if they were part of the same unit; type a space to move to the next unit.
+
+
+----------
+---2 5 6: Separate outlined segments (ss03).
+
+Activating stylistic set 3 (ss03) replaces the filled separate segments with outlined segments.
+
+
+----------
+---2 5 7: Condensed maths operators (ss04).
+
+Activating stylistic set 4 (ss04) with proportional figures (pnum) condenses the segments (except the multiply sign, which only has one segment). This has no effect on the fixed-width versions.
+
+
+----------
+---2 5 8: Fixed-position decimal point (dlig).
+
+Normally, cursiv8’s decimal point will shift out of position if the tracking or letter-spacing is changed. Activating discretionary ligatures (dlig) fixes the decimal point in place relative to its numeral.
+
+
+
+
+
+============================
+=====SECTION 3: TEGGST.
+
+------------------------------
+-----3 1: Introduction.
+
+----------
+---3 1 1: Nimo tubes.
+
+Eggcrate displays are maybe the simplest electrical display—just a grid of lightbulbs that are lit up like pixels to make the shapes of letters, numbers, etc. To prevent light from spilling to the side, each bulb is fixed in a bowl-shaped reflector. The look of this grid of bowls led to the name “eggcrate display”.
+
+Eggcrate displays can be plain bulbs, colour-stained bulbs, or even LED bulbs (for an enormous range of colours).
+
+
+----------
+---3 1 2: tEggst vs the other Analog Digits fonts.
+
+This font is unusual compared with cursiv8 and reLix:
+	• It’s a complete text font.
+	• It has different weights: Light, Regular, and Bold.
+	• It has multiple possible combinations of layers.
+
+
+----------
+---3 1 3: Credits.
+
+Design image: a photo of an eggcrate display uploaded to Wikimedia Commons, taken by Wikipedia user Tomcatbk (https://commons.wikimedia.org/wiki/File:Eggcrate.jpg), and a video of uploaded to reddit (https://www.reddit.com/r/gameshow/comments/diqsk1/im_planning_on_building_a_set_of_game_show/).
+
+Information: the wikipedia page for Text Displays (the section on “Eggcrate displays”).
+
+
+------------------------------
+-----3 2: Layers.
+
+tEggst has 5 layers: lit (default), unlit (ss01), shadow (ss02), unshadowed (ss03), and unlit-unshadowed (ss04). Unlike the other fonts, these can’t all be used in the same layered graphics. Some combinations include: default + ss01; default + ss04; and default + ss03 + ss04.
+
+Note: although some of these sets are referred to as “unlit”, that just means that those bulbs aren’t lit up to form the character in the default glyph. They could be lit up as a background instead, for example.
+
+
+------------------------------
+-----3 3: Weights.
+
+tEggst has 3 weights: Light, Regular, and Bold. All three have the same characters and features.
+
+
+------------------------------
+-----3 4: Characters.
+
+tEggst includes:
+	• a broad range of Latin-script letters
+	• numerals
+	• punctuation
+	• various other symbols
+	• some shape characters
+	• arrows
+	• some unicode poker suits
+	• unicode dice
+	• unicode white and black flags
+	• many block characters and box-drawing characters
+	• some legacy computing symbols
+
+For a full list of characters in tEggst, see the file "tEggst Glyphs List.txt".
+
+Note 1: tEggst uses the same characters for upper- and lowercase.
+
+Note 2: the block and box-drawing characters and some of the included legacy computing symbols (hatching, corners, corner cuts, and edges) do not have ss02, 03, or 04 versions (shadow, unshadowed, or unlit+unshadowed). This is because at least one character in each subset of these characters occupies the right-most column and/or bottom row of bulbs, which needs to be unused for shadows to be drawn. For example, the full-size block occupies the full 6-by-8 block of bulbs available for each character, so there's nowhere to draw the shadow.
+
+
+----------
+---3 4 1: Combining Marks.
+
+tEggst has pre-composed accented letters as well as combining marks (e.g. the combining acute mark). However, the combining marks are only a shortcut to the pre-composed characters. For example, typing ‘E’ followed by the combining acute accent will give the pre-composed letter ‘É’.
+
+This is done via the ‘required ligatures’ OpenType feature, so it should always be active, no matter what settings you apply.
+
+
+----------
+---3 4 2: Localisation.
+
+tEggst includes localised forms for Latin-script languages via the localised forms (locl) feature. These will activate according to the typographic language of the text.
+
+Catalan (CAT): centred periods between two Ls of the same case will become punts volats.
+
+Polish (PLK): acute accents over C, N, O, S, and Z (upper- and lowercase) will become kreskas.
+
+Romanian (ROM) + Moldovan (MOL) Latin: cedillas under S and T (upper- and lowercase) will become comma accents.
+
+Dutch (NLD): I with an acute accent followed by a J will produce the acute Ĳ. This works for both upper- and lowercase, as long as both letters are of the same case. You can produce the same glyph, regardless of language, by typing the Ĳ digraph followed by combining acute accent.
+
+Tahitian (THT): the turned comma modifier will turn sideways for use as the Tahitian ʻeta (and Wallisian fakamoga). Activating the OT feature character variant 21 (cv21) will rotate the ʻeta back to a vertical orientation while the text is using Tahitian language, if preferred.
+
+Marshallese (MAH): comma accents under L, M, N, and O (upper- and lowercase) will become the more cedilla-like accent found in Marshallese. As there are no M-comma or O-comma unicode characters, Zenimini includes ligatures for these letters: type the letter M or O followed by a combining comma accent to produce the Marshallese comma-accented letter.
+
+
+------------------------------
+-----3 5: Extra Info.
+
+----------
+---3 5 1: Burnt-out bulbs.
+
+One prominent way that eggcrate displays can show their age is with burnt-out bulbs—the lightbulb equivalent of dead pixels. tEggst doesn’t have any way of representing this using font tech, but you can achieve a similar effect by converting the text to pixels or curves and replacing some of the “live” bulbs with “dead” ones. However, this process can be time-consuming.
+
+
+------------------------------
+-----3 6: Extra Features.
+
+----------
+---3 6 1: Numeral variants (cv01 to 19 and zero).
+
+Activating character variants 1 through 19 (cv01-19), and the “slashed zero” OpenType feature (zero), swaps the matching numerals for variants:
+	cv01 and 11 are variants of numeral 1.
+	cv02 and 12 are variants of numeral 2.
+	etc. through to cv09 and 19, which are variants of numeral 9.
+	cv10 and the slashed zero feature are variants of numeral 0.
+
+Note: in tEggst, the “slashed zero” feature un-slashes 0 instead.
+
+
+----------
+---3 6 2: Inverted hatching (ss05).
+
+Activating stylistic set 5 (ss05) inverts the hatching characters from the legacy computing symbols.
+
+
+----------
+---3 6 3: Alternate pointing hand (ss06).
+
+Activating stylistic set 6 (ss06) replaces the middle and right parts of the pointing hand (from the legacy computing symbols) with a closed fist.
+
+
+----------
+---3 6 4: Alternate numeral sets (ss07 to 09).
+
+Activating stylistic set 7 (ss07) replaces the numerals 1 to 9 and 0 with pipped dice, and stylistic set 8 (ss08) replaces them with the pip patterns only. Activating stylistic set 9 (ss09) replaces them with seven-segment numerals.
+
+----------
+---3 6 5: Card icons (dlig).
+
+Activating discretionary ligatures (dlig) enables icon ligatures for both poker and tarot cards. Typing an icon’s code (in all-caps) will convert the code to the icon. Some icons have alternative codes. All codes are listed below.
+
+You can add an underscore between any rank and suit pair (including the numbers 2 to 10) to set the icons side by side without (hopefully) causing problems for text-to-speech (TTS) software. For example, instead of A C E H E A R T S (ACEHEARTS) you could instead type A C E underscore H E A R T S (ACE_HEARTS).
+
+Icon: uppercase A.
+Code: A C E. ACE.
+
+Icon: uppercase J.
+Code: J A C K. JACK.
+
+Icon: uppercase Q.
+Code: Q U E E N. QUEEN.
+
+Icon: uppercase K.
+Code: K I N G. KING.
+
+Icon: hearts suit symbol.
+Code: H E A R T S. HEARTS.
+
+Icon: diamonds suit symbol.
+Code: D I A M O N D S. DIAMONDS.
+
+Icon: clubs suit symbol.
+Code: C L U B S. CLUBS.
+
+Icon: spades suit symbol.
+Code: S P A D E S. SPADES.
+
+---
+
+Icon: uppercase D.
+Code: D A M S E L. DAMSEL.
+
+Icon: uppercase M.
+Code: M A I D. MAID.
+
+Icon: uppercase P.
+Code: P A G E. PAGE.
+
+Icon: uppercase miniature K V.
+Code: K N A V E. KNAVE.
+
+Icon: uppercase miniature K and T.
+Code: K N I G H T. KNIGHT.
+
+Icon: magic wand symbol (black stick with white ends).
+Code 1: W A N D S. WANDS.
+Code 2: R O D S. RODS.
+
+Icon: club-shaped stave symbol.
+Code 1: S T A V E S. STAVES.
+Code 2: S T A F F S. STAFFS.
+
+Icon: thin baton symbol.
+Code: B A T O N S. BATONS.
+
+Icon: circled within a circle.
+Code 1: P E N T A C L E. PENTACLE.
+Code 2: D I S K S. DISKS.
+
+Icon: circle with the number 1.
+Code: C O I N S. COINS.
+
+Icon: ring symbol.
+Code: R I N G S. RINGS.
+
+Icon: goblet symbol.
+Code 1: C U P S. CUPS.
+Code 2: G O B L E T S. GOBLETS.
+Code 3: C H A L I C E S. CHALICES.
+Code 4: V E S S E L S. VESSELS.
+
+Icon: sword symbol.
+Code 1: S W O R D S. SWORDS.
+Code 2: B L A D E S. BLADES.
+
+---
+
+Note 1: PENTACLE is spelt without the S due to the 8-character limit imposed on ligatures in Affinity Publisher (at the last time I checked).
+
+Note 2: to display characters next to one another, you can also use a zero-width space (U+200B).
+
+
+----------
+---3 6 6: Gaelic type (ss10).
+
+Activating stylistic set 10 (ss10) replaces specific letters with their Gaelic type equivalents, and replaces the ampersand with the Tironian et. The KNIGHT icon (enabled with discretionary ligatures) also changes with this stylistic set.
+
+This affects the letters D, F, G, R, S, and T, the dot-accented letters D, F, G, S, and T, the ampersand, and the KNIGHT icon.
+
+
+----------
+---3 6 7: Left-running figure (cv22).
+
+Activating character variant 22 (cv22) switches the direction of the running figure (in the legacy computing symbols) from right to left.
+
+
+----------
+---3 6 8: Left-pointing hand (cv23).
+
+Activating character variant 23 (cv23) switches the direction of the pointing hand (in the legacy computing symbols) from right to left.
+
+
+
+
+
+===========================
+=====SECTION 4: RELIX.
+
+------------------------------
+-----4 1: Introduction.
+
+----------
+---4 1 1: Lightguide displays.
+
+Lightguide displays are of stacks of transparent plastic layers etched with a numeral (or other character), each with a small lightbulb at the edge of the layer. When a bulb is switched on, its light passes through the clear plastic, hits the etched character, and scatters, making the character seem to glow against a dark background.
+
+The technology was first patented in the early 20th century, but was only used for alphanumeric readouts starting in the 1950s with the rise of computers in science and business (including in pinball machines). They later fell out of favour with the rise of light-emitting diodes (LEDs), but the basic principle of edge-lighting is still occasionally used in more advanced displays.
+
+Note: reLix is pronounced “re-Lix”, not like “relics”.
+
+
+----------
+---4 1 2: Credits.
+
+Design image: photos from an online auction of lightguide displays (https://www.electricstuff.co.uk/auctions.html); a youtube video by electronics account 50sTransistorRadios (https://youtube.com/watch?v=5Om8SCLDTlE); and a photo of a multimeter display uploaded to Wikimedia Commons by Wikipedia user Thatbrock (https://commons.wikimedia.org/wiki/File:Edge_lit.JPG), from which the non-numeral symbols were taken.
+
+Information: the wikipedia page for lightguide displays.
+
+
+------------------------------
+-----4 2: Layers.
+
+reLix has 4 layers, front to back:
+	1) the unit outline (no stylistic set needed, type a lowercase o),
+	2) lit character (no stylistic set needed),
+	3) unlit etching stack (stylistic set 2, ss02),
+	4) and the unit background (no stylistic set needed, type an uppercase O).
+
+Note: in a real lightguide display the lit character would be mid-way through the stack (except for the characters etched in the front and back acrylics), meaning there should be one layer for the unlit etchings in front and another layer for those behind the lit character. However, the etchings in front of the lit layer don’t noticeably block the light, so, to simplify the font, all unlit etchings are condensed into one layer.
+
+
+------------------------------
+-----4 3: Characters.
+
+----------
+---4 3 1: Numerals.
+
+reLix includes the numerals 1 to 9 and 0.
+
+
+----------
+---4 3 2: Decimal point.
+
+The reLix decimal point sits in the lower-left of each unit.
+
+
+----------
+---4 3 3: Other characters.
+
+reLix includes several other characters: plus, minus, and A/B (a ligature of A, slash, and B). The unicode hyphen-minus (U+002D, -) and minus sign (U+2212, −) both produce the minus operator in reLix.
+
+Note: A/B (A slash B) may be for an incremental encoder output.
+
+
+------------------------------
+-----4 4: Extra Features.
+
+----------
+---4 4 1: Proportional figures (pnum).
+
+Activating the ‘proportional figures’ OT feature (pnum) sets the width of the numerals, decimal point, and maths operators to be proportionate to the width of the glyphs instead of fixed to the width of the displays.
+
+This feature doesn’t affect unlit etching stacks (ss02) or precomposed glyphs.
+
+
+----------
+---4 4 2: Single unlit etching (ss01).
+
+Activating stylistic set 1 (ss01) replaces lit characters with single unlit etchings. You could use this to create your own stack order if you want to have a proper 3-dimensional stack, instead of the lit characters appearing on top of the unlit stack layer.
+
+
+----------
+---4 4 3: Spot etchings (ss03 and 04).
+
+Activating stylistic sets 3 or 4 replaces the linear etching with lit (ss03) and unlit (ss04) spot etching. The change is most visible at larger font sizes.
+
+
+----------
+---4 4 4: Bottom-right decimal point (cv01).
+
+Activating character variant 1 (cv01) moves the decimal point from the bottom-left of the next numeral to the bottom-right of the previous numeral.
+
+
+----------
+---4 4 5: Precomposed glyphs (ss11 to 16).
+
+Activating stylistic sets 11 through to 16 (ss11 to 16) produces pre-composed glyphs with lit characters combined with various other characters.
+
+Stylistic set 11 (ss11): lit line + unlit etchings.
+Stylistic set 12 (ss12): lit line + unit outline.
+Stylistic set 13 (ss13): lit line + unlit etchings + unit outline.
+Stylistic set 14 (ss14): lit line + unit background.
+Stylistic set 15 (ss15): lit spots + unit outline.
+Stylistic set 16 (ss16): lit spots + unit background.
+
+
+
+
+
+==============================
+=====SECTION 5: CONTACT.
+
+That’s the end of the user guide—for now!
+
+If you use these fonts in a project, please let me know about it—I’d love to see how it looks in practice!
+
+Also, let me know if I made any mistakes in any technical info—I don’t know much about electronics.
+
+https://speakthesky.itch.io/typeface-analog-digits-pack-2
+
+contact@speakthesky.com

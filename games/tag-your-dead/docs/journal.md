@@ -710,3 +710,101 @@ Haiku was hallucinating "arena blind side" and other non-existent concepts in th
 - Sound effects
 - Arena variety (different seeds, hazard layouts)
 - Playtest IT vulnerability — does it change AI strategy?
+
+---
+
+## Session 9 — Bigger Arena, Rock LOS, Damage Physics, Custom Font (2026-03-15)
+
+### Arena doubled (config.ts, arena.ts)
+Arena is now 4000×3000 (was 2000×1500). More space, more terrain, more tactical variety.
+
+| Setting | Old | New |
+|---------|-----|-----|
+| Arena size | 2000×1500 | 4000×3000 |
+| Rocks | 25 | 80 |
+| Cacti | 15 | 40 |
+| Barrels | 8 | 20 |
+| Sand patches | 20 | 50 |
+| Center clear radius | 200 | 400 |
+| Respawn min distance | 200 | 400 |
+
+### Rocks block line of sight (arena.ts, soma.ts)
+Rocks now break AI line of sight. `world.otherCars` is filtered — only cars with an unobstructed line to the observer are included.
+
+**Implementation (arena.ts):**
+- `hasLineOfSight(x1, y1, x2, y2)`: wrap-aware segment-circle intersection test against all rock obstacles
+- Projects each rock center onto the line segment, checks perpendicular distance vs rock radius
+- Only rocks block LOS (cacti/barrels are transparent — they're soft obstacles you drive through)
+
+**Integration (soma.ts):**
+- `buildWorldAPI()` now filters `otherCars` through `arena.hasLineOfSight(self.x, self.y, c.x, c.y)`
+- Dead cars always visible (no hiding corpses behind rocks)
+- Player's view is NOT affected — LOS only applies to AI `world.otherCars`
+
+**Reflection prompt** updated to explain LOS and suggest tactical use of rocks as cover.
+
+### HP-based speed penalty + steering pull (car.ts)
+Damaged cars are slower and harder to control.
+
+**Speed penalty:**
+- Above 50% HP: no effect
+- Below 50% HP: max speed drops linearly, up to 20% reduction at 0 HP
+- Formula: `hpSpeedMult = 0.8 + 0.2 × min(1, hpFrac / 0.5)`
+- Applies to both forward and reverse max speed
+- Stacks with boost multiplier
+
+**Steering pull (listing):**
+- Below 50% HP: constant steering bias added to input
+- Direction deterministic per car ID (even=right, odd=left)
+- Strength: `(1 - hpFrac×2) × 0.15` — subtle at 40% HP, noticeable at 10%
+- Player has to counter-steer to drive straight when hurt
+
+**Reflection prompt** updated to mention both mechanics.
+
+### Boost bar position fix (game.ts)
+Moved boost bar from `CH - 30` to `CH - 50` — 20px more clearance above the ticker banner. No more visual collision.
+
+### Custom font: tEggst (index.html, game.ts, life-map.ts, main.ts)
+Replaced all `monospace` font references with `"tEggst", monospace` — a retro digital display font from the Analog Digits pack.
+
+**Three weights loaded via @font-face:**
+- **Bold (700)**: title screen, big status text (YOU'RE IT, RESPAWNING), section headers
+- **Regular (400)**: HUD, names, scoreboard, timer, minimap, general text
+- **Light (300)**: ticker banner, boost label — subtle/secondary text
+
+**Font loading:**
+- `@font-face` declarations in index.html pointing to woff2 files in `assets/fonts/`
+- `main.ts` waits for `document.fonts.ready` before starting game (canvas needs fonts loaded)
+- Monospace fallback for any rendering before fonts load
+
+### Font preview tool (tools/font-preview/)
+Built a Playwright-interactive font preview tool following the tools/ pattern:
+- Loads fonts via `window.loadFonts([{ name, url }])` — returns load status
+- Shows each font at multiple sizes with configurable preview text and background
+- Role assignment tags (title, hud, timer, ticker, names, trash-talk) — click to assign
+- `window.getSelections()` returns role→font mapping
+- Served via `python3 -m http.server 8765` from repo root
+
+### Files changed
+- `config.ts` — arena size doubled, obstacle counts scaled, respawn distance
+- `arena.ts` — scaled sand patches/clear radius, `hasLineOfSight()` method
+- `car.ts` — HP speed penalty, steering pull
+- `soma.ts` — LOS filtering in `buildWorldAPI()`
+- `reflection.ts` — LOS and damage-slowdown in prompt
+- `game.ts` — boost bar position, tEggst font everywhere
+- `life-map.ts` — tEggst font
+- `main.ts` — wait for font loading
+- `index.html` — @font-face declarations, body font-family
+- `tools/font-preview/index.html` — new tool
+
+### Current state (end of session 9)
+- Arena feels expansive with room for chases and rock-cover tactics
+- AI can't see through rocks — ambushes and evasion behind cover are possible
+- Damaged cars visibly struggle — slower, pulling to one side
+- tEggst font gives the whole game a cohesive retro-digital look
+- **Must reset somas**: `window.__tagYourDead.resetSomas()` (old somas don't know about LOS)
+
+### What's next
+- Sound effects
+- Playtest LOS — do AI drivers learn to use rocks as cover through reflection?
+- Arena variety (different seeds)

@@ -178,9 +178,13 @@ export class Car implements CarState {
       if (this.speed > 0) this.speed = 0;
     }
 
-    // Cap speed (score-scaled, higher cap during boost)
-    const ms = this.maxSpeed * (this.boostTimer > 0 ? B.SPEED_MULT : 1);
-    const maxReverse = this.maxSpeed * 0.4;
+    // HP-based speed penalty: up to 20% slower at critical HP
+    const hpFrac = this.hp / this.maxHp;
+    const hpSpeedMult = 0.8 + 0.2 * Math.min(1, hpFrac / 0.5); // 1.0 above 50% HP, drops to 0.8 at 0 HP
+
+    // Cap speed (score-scaled, higher cap during boost, reduced when damaged)
+    const ms = this.maxSpeed * (this.boostTimer > 0 ? B.SPEED_MULT : 1) * hpSpeedMult;
+    const maxReverse = this.maxSpeed * 0.4 * hpSpeedMult;
     if (this.speed > ms) this.speed = ms;
     if (this.speed < -maxReverse) this.speed = -maxReverse;
 
@@ -188,7 +192,9 @@ export class Car implements CarState {
     const absSpeed = Math.abs(this.speed);
     const speedFactor = Math.max(0.3, Math.min(1, absSpeed / (ms * 0.5)));
     const steerDir = this.speed < 0 ? -1 : 1;
-    this.angle += this.steerInput * V.TURN_SPEED * speedFactor * steerDir * dt;
+    // Damaged cars pull to one side (deterministic per car ID)
+    const listBias = hpFrac < 0.5 ? (1 - hpFrac * 2) * 0.15 * (parseInt(this.id.replace(/\D/g, '') || '0') % 2 === 0 ? 1 : -1) : 0;
+    this.angle += (this.steerInput + listBias) * V.TURN_SPEED * speedFactor * steerDir * dt;
 
     // Move
     const vx = Math.cos(this.angle) * this.speed * dt;

@@ -1,14 +1,13 @@
 export const CONFIG = {
   CANVAS: { WIDTH: 960, HEIGHT: 720 },
 
-  // Tighter arena for derby action
   ARENA: {
-    WIDTH: 2000,
-    HEIGHT: 1500,
+    WIDTH: 4000,
+    HEIGHT: 3000,
     TILE_SIZE: 32,
-    ROCK_COUNT: 25,
-    CACTUS_COUNT: 15,
-    BARREL_COUNT: 8,
+    ROCK_COUNT: 80,
+    CACTUS_COUNT: 40,
+    BARREL_COUNT: 20,
   },
 
   VEHICLE: {
@@ -50,7 +49,7 @@ export const CONFIG = {
 
   RESPAWN: {
     TIMER: 5,                  // seconds before respawn
-    MIN_DISTANCE: 200,         // minimum distance from other cars on respawn
+    MIN_DISTANCE: 400,         // minimum distance from other cars on respawn
     SPAWN_IMMUNITY: 2.0,       // seconds of immunity after respawn
   },
 

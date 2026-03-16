@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Font Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 { margin-bottom: 8px; color: #f4d03f; }
+        .subtitle { color: #888; margin-bottom: 20px; font-size: 14px; }
+        .controls {
+            display: flex; gap: 12px; align-items: center;
+            margin-bottom: 24px; flex-wrap: wrap;
+        }
+        .controls label { color: #aaa; font-size: 13px; }
+        .controls input[type="text"] {
+            background: #16213e; border: 1px solid #444; color: #eee;
+            padding: 6px 10px; border-radius: 4px; font-size: 14px; width: 300px;
+        }
+        .controls input[type="range"] { width: 120px; }
+        .controls select {
+            background: #16213e; border: 1px solid #444; color: #eee;
+            padding: 6px 10px; border-radius: 4px;
+        }
+        .size-label { min-width: 40px; text-align: right; color: #f4d03f; font-size: 13px; }
+        .font-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        .font-card {
+            background: #16213e;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 16px 20px;
+            transition: border-color 0.2s;
+            cursor: pointer;
+        }
+        .font-card:hover { border-color: #f4d03f; }
+        .font-card.selected { border-color: #4ade80; }
+        .font-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px;
+        }
+        .font-name { color: #f4d03f; font-size: 14px; font-family: monospace; }
+        .font-file { color: #666; font-size: 11px; font-family: monospace; }
+        .font-preview {
+            line-height: 1.3;
+            color: #fff;
+            word-break: break-word;
+        }
+        .font-preview-row {
+            margin: 6px 0;
+            padding: 4px 0;
+            border-bottom: 1px solid #ffffff08;
+        }
+        .font-preview-row:last-child { border-bottom: none; }
+        .row-label { color: #666; font-size: 10px; font-family: monospace; margin-bottom: 2px; }
+        .role-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+        .role-tag {
+            font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            cursor: pointer; border: 1px solid #555; color: #aaa;
+            transition: all 0.15s;
+        }
+        .role-tag:hover { border-color: #f4d03f; color: #f4d03f; }
+        .role-tag.active { border-color: #4ade80; color: #4ade80; background: #4ade8018; }
+        .summary {
+            margin-top: 24px; padding: 16px; background: #0f3460;
+            border-radius: 8px; border: 1px solid #1a5276;
+        }
+        .summary h3 { color: #f4d03f; margin-bottom: 8px; }
+        .summary-item { font-family: monospace; font-size: 13px; margin: 4px 0; color: #ccc; }
+        .summary-item span { color: #4ade80; }
+        #status { color: #888; font-size: 12px; margin-top: 12px; }
+        .bg-toggle {
+            display: flex; gap: 4px;
+        }
+        .bg-btn {
+            width: 24px; height: 24px; border-radius: 4px; border: 2px solid #555;
+            cursor: pointer; transition: border-color 0.15s;
+        }
+        .bg-btn:hover, .bg-btn.active { border-color: #f4d03f; }
+    </style>
+</head>
+<body>
+    <h1>Font Preview</h1>
+    <p class="subtitle">Click role tags to assign fonts. Results readable via <code>window.getSelections()</code></p>
+
+    <div class="controls">
+        <label>Preview text:</label>
+        <input type="text" id="previewText" value="TAG YOUR DEAD — 25s remaining">
+
+        <label>Size:</label>
+        <input type="range" id="fontSize" min="8" max="72" value="24">
+        <span class="size-label" id="sizeLabel">24px</span>
+
+        <label>BG:</label>
+        <div class="bg-toggle">
+            <div class="bg-btn active" style="background:#1a1a2e" data-bg="#1a1a2e"></div>
+            <div class="bg-btn" style="background:#000" data-bg="#000"></div>
+            <div class="bg-btn" style="background:#d4a574" data-bg="#d4a574"></div>
+            <div class="bg-btn" style="background:#fff" data-bg="#fff"></div>
+        </div>
+    </div>
+
+    <div class="font-grid" id="fontGrid"></div>
+
+    <div class="summary" id="summary" style="display:none">
+        <h3>Selections</h3>
+        <div id="summaryContent"></div>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        const ROLES = ['title', 'hud', 'timer', 'ticker', 'names', 'trash-talk'];
+        const roleAssignments = {}; // role -> fontName
+
+        let fonts = [];
+        let previewSizes = [12, 18, 24, 36, 48];
+
+        // === PLAYWRIGHT API ===
+
+        window.loadFonts = async function(fontList) {
+            // fontList: [{ name: 'cursiv8', url: '/path/to/font.woff2' }, ...]
+            fonts = [];
+            for (const f of fontList) {
+                try {
+                    const face = new FontFace(f.name, `url(${f.url})`);
+                    await face.load();
+                    document.fonts.add(face);
+                    fonts.push({ name: f.name, url: f.url, loaded: true });
+                } catch (e) {
+                    fonts.push({ name: f.name, url: f.url, loaded: false, error: e.message });
+                }
+            }
+            render();
+            return fonts.map(f => ({ name: f.name, loaded: f.loaded }));
+        };
+
+        window.getSelections = function() {
+            return { ...roleAssignments };
+        };
+
+        window.setSelections = function(data) {
+            Object.assign(roleAssignments, data);
+            render();
+        };
+
+        // === RENDERING ===
+
+        function render() {
+            const grid = document.getElementById('fontGrid');
+            const text = document.getElementById('previewText').value || 'TAG YOUR DEAD';
+            const size = parseInt(document.getElementById('fontSize').value);
+
+            grid.innerHTML = '';
+
+            for (const f of fonts) {
+                if (!f.loaded) continue;
+
+                const card = document.createElement('div');
+                card.className = 'font-card';
+
+                // Check if this font is assigned to any role
+                const assignedRoles = Object.entries(roleAssignments)
+                    .filter(([_, name]) => name === f.name)
+                    .map(([role]) => role);
+                if (assignedRoles.length > 0) card.classList.add('selected');
+
+                // Header
+                const header = document.createElement('div');
+                header.className = 'font-header';
+                header.innerHTML = `
+                    <span class="font-name">${f.name}</span>
+                    <span class="font-file">${f.url.split('/').pop()}</span>
+                `;
+                card.appendChild(header);
+
+                // Preview rows at different sizes
+                const preview = document.createElement('div');
+                preview.className = 'font-preview';
+
+                // Main preview at selected size
+                const mainRow = document.createElement('div');
+                mainRow.className = 'font-preview-row';
+                mainRow.innerHTML = `<div class="row-label">${size}px</div>`;
+                const mainText = document.createElement('div');
+                mainText.style.fontFamily = `'${f.name}', monospace`;
+                mainText.style.fontSize = `${size}px`;
+                mainText.textContent = text;
+                mainRow.appendChild(mainText);
+                preview.appendChild(mainRow);
+
+                // Extra size samples
+                const extraSizes = [10, 14, 20, 32];
+                for (const s of extraSizes) {
+                    if (s === size) continue;
+                    const row = document.createElement('div');
+                    row.className = 'font-preview-row';
+                    row.innerHTML = `<div class="row-label">${s}px</div>`;
+                    const t = document.createElement('div');
+                    t.style.fontFamily = `'${f.name}', monospace`;
+                    t.style.fontSize = `${s}px`;
+                    t.textContent = text;
+                    row.appendChild(t);
+                    preview.appendChild(row);
+                }
+
+                card.appendChild(preview);
+
+                // Role tags
+                const tags = document.createElement('div');
+                tags.className = 'role-tags';
+                for (const role of ROLES) {
+                    const tag = document.createElement('span');
+                    tag.className = 'role-tag';
+                    if (roleAssignments[role] === f.name) tag.classList.add('active');
+                    tag.textContent = role;
+                    tag.onclick = (e) => {
+                        e.stopPropagation();
+                        if (roleAssignments[role] === f.name) {
+                            delete roleAssignments[role];
+                        } else {
+                            roleAssignments[role] = f.name;
+                        }
+                        render();
+                    };
+                    tags.appendChild(tag);
+                }
+                card.appendChild(tags);
+
+                grid.appendChild(card);
+            }
+
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const content = document.getElementById('summaryContent');
+            const entries = Object.entries(roleAssignments);
+
+            if (entries.length === 0) {
+                summary.style.display = 'none';
+                return;
+            }
+
+            summary.style.display = 'block';
+            content.innerHTML = entries
+                .map(([role, font]) => `<div class="summary-item"><span>${role}</span>: ${font}</div>`)
+                .join('');
+        }
+
+        // === EVENT HANDLERS ===
+
+        document.getElementById('previewText').addEventListener('input', render);
+        document.getElementById('fontSize').addEventListener('input', (e) => {
+            document.getElementById('sizeLabel').textContent = e.target.value + 'px';
+            render();
+        });
+
+        document.querySelectorAll('.bg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.font-card').forEach(card => {
+                    card.style.background = btn.dataset.bg;
+                });
+            });
+        });
+
+        render();
+    </script>
+</body>
+</html>

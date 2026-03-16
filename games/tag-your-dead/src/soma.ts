@@ -403,12 +403,14 @@ export function buildWorldAPI(
   allCars: Car[],
   selfId: string,
 ): WorldAPI {
+  const self = allCars.find(c => c.id === selfId);
   return {
     time,
     arenaWidth: arena.width,
     arenaHeight: arena.height,
     otherCars: allCars
       .filter(c => c.id !== selfId)
+      .filter(c => !self || !c.alive || arena.hasLineOfSight(self.x, self.y, c.x, c.y))
       .map(c => ({
         id: c.id,
         x: c.x,

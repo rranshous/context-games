@@ -30,7 +30,7 @@ export class Arena {
 
   private generate(rng: () => number): void {
     const center = { x: this.width / 2, y: this.height / 2 };
-    const clearRadius = 200;
+    const clearRadius = 400;
 
     for (let i = 0; i < A.ROCK_COUNT; i++) {
       const x = rng() * this.width;
@@ -53,7 +53,7 @@ export class Arena {
       this.obstacles.push({ x, y, radius: 10, type: 'barrel' });
     }
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 50; i++) {
       const x = rng() * this.width;
       const y = rng() * this.height;
       if (this.wrapDistance(x, y, center.x, center.y) < clearRadius) continue;
@@ -113,5 +113,37 @@ export class Arena {
     const dx = this.wrapDx(x1 - x2);
     const dy = this.wrapDy(y1 - y2);
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /** Check if a rock blocks the line of sight between two points (wrap-aware). */
+  hasLineOfSight(x1: number, y1: number, x2: number, y2: number): boolean {
+    const dx = this.wrapDx(x2 - x1);
+    const dy = this.wrapDy(y2 - y1);
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return true;
+
+    // Unit direction
+    const ux = dx / len;
+    const uy = dy / len;
+
+    for (const obs of this.obstacles) {
+      if (obs.type !== 'rock') continue;
+
+      // Vector from line start to obstacle center (wrap-aware)
+      const ox = this.wrapDx(obs.x - x1);
+      const oy = this.wrapDy(obs.y - y1);
+
+      // Project onto line — closest point parameter t
+      const t = ox * ux + oy * uy;
+      if (t < 0 || t > len) continue; // rock center not alongside the segment
+
+      // Perpendicular distance from obstacle center to line
+      const perpX = ox - ux * t;
+      const perpY = oy - uy * t;
+      const perpDist = Math.sqrt(perpX * perpX + perpY * perpY);
+
+      if (perpDist < obs.radius) return false; // rock blocks the view
+    }
+    return true;
   }
 }

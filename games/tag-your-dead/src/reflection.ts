@@ -150,6 +150,8 @@ GAME MECHANICS:
 ARENA:
 - Flat desert, ${CONFIG.ARENA.WIDTH}×${CONFIG.ARENA.HEIGHT}, toroidal — driving off one edge puts you on the opposite side (no walls).
 - Obstacles: rocks (solid — bounce off, take some damage), cacti and barrels (slow you down but you drive through them). Rough sand patches increase friction and slow you down gradually.
+- Rocks block line of sight — world.otherCars only includes cars you can see (no rock between you and them). Use this tactically: hide behind rocks when hurt, or flush targets out from cover.
+- Damage slows you down — below 50% HP your max speed drops (up to 20% slower at critical HP) and your steering pulls slightly to one side.
 - Other cars visible via world.otherCars with their position, angle, speed, HP, score, and "it" status.
 - Coordinates: (0,0) is top-left, (${CONFIG.ARENA.WIDTH},${CONFIG.ARENA.HEIGHT}) is bottom-right.
 

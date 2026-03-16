@@ -1,0 +1,796 @@
+=============================
+ANALOG DIGITS FONT PACK GUIDE
+=============================
+
+Title: Analog Digits Font Pack User Guide.
+Subtitle: information and advice on using the Nixie tube font 'reNix', the Nimo tube font 'nimoTyoe', and the vacuum fluorescent display font 'fluoWrite'.
+Version: 1.1.
+Designer: Speak the Sky.
+License: You’re free to use these fonts in personal and commercial projects. I don’t mind if you edit them. Just don’t redistribute the font files in themselves (original or edited, paid or for free). Credit is much appreciated (as is a link to the typeface’s page on itch.io), but not necessary.
+
+
+
+
+
+==============================
+=====CONTENTS.
+
+SECTION 0: README.
+	0 1: The License.
+	0 2: Troubleshooting.
+	0 3: Credits.
+	0 4: Version History.
+
+SECTION 1: INTRODUCTION.
+	1 1: Here's what you get
+	1 1 1: Analog digits.
+	1 1 2: Mostly numerals.
+	1 1 3: Layer fonts.
+	1 1 4: Precomposed glyphs.
+	1 2: How to use the layers.
+	1 3: OpenType Features.
+	1 3 1: What is OpenType?
+	1 3 2: Which OT features do the fonts have?
+	1 4: How to Activate OT Features. 	1 4 1: ...in Affinity.
+	1 4 2: ...in LibreOffice.
+	1 4 3: ...in MS Office.
+	1 4 4: ...in Scribus.
+	1 4 5: ...in Apple Pages and TextEdit.
+	1 4 6: ...in Inkscape.
+	1 5: Accessibility.
+
+SECTION 2: RENIX.
+	2 1: Introduction.
+	2 1 1: Nixie tubes.
+	2 1 2: Credits.
+	2 2: Layers.
+	2 3: Characters.
+	2 3 1: Numerals.
+	2 3 2: Decimal point.
+	2 3 3: Scientific units tube.
+	2 3 4: Scales tube.
+	2 3 5: Mathematical operators tube.
+	2 4: Extra Info.
+	2 4 1: Filament orders.
+	2 4 2: Offset filaments.
+	2 4 3: Scientific units.
+	2 4 4: Unit scales.
+	2 5: Extra Features.
+	2 5 1: Proportional figures (pnum).
+	2 5 2: Single unlit filaments (ss01).
+	2 5 3: Monoline filaments (ss05).
+	2 5 4: Precomposed glyphs (ss11 to 14).
+	2 5 5: Bottom-right decimal point (cv01).
+	2 5 6: Filled tubes (cv02).
+	2 5 7: Centred lit and unlit filaments (cv03).
+	2 5 8: Full-tube decimal point (cv04).
+	2 5 9: Centred full-tube decimal point (cv05).
+	2 5 10: Normal 5 (cv06).
+	2 5 11: The Divergence Meter (Steins;Gate).
+
+SECTION 3: NIMOTYPE.
+	3 1: Introduction.
+	3 1 1: Nimo tubes.
+	3 1 2: Credits.
+	3 2: Layers.
+	3 3: Characters.
+	3 3 1: Numerals.
+	3 3 2: Decimal point.
+	3 3 3: Other characters.
+	3 4: Extra Info.
+	3 4 1: Burn-in.
+	3 4 2: Overlap.
+	3 4 3: The distortion problem.
+	3 5: Extra Features.
+	3 5 1: Proportional figures (pnum).
+	3 5 2: Precomposed glyphs (ss02 to 06).
+	3 5 3: Alternate decimal positions (cv01 to 03).
+
+SECTION 4: FLUOWRITE.
+	4 1: Introduction.
+	4 1 1: Vacuum fluorescent displays.
+	4 1 2: Credits.
+	4 2: Layers.
+	4 3: Characters.
+	4 3 1: Numerals.
+	4 3 2: Decimal point.
+	4 3 3: Other characters.
+	4 4: Extra Features.
+	4 4 1: Proportional figures (pnum).
+	4 4 2: Precomposed glyphs (ss02).
+	4 4 3: Thin number 1 (cv01).
+	4 4 4: Full-height colon (cv02).
+	4 4 5: Square punctuation (cv03).
+	4 4 6: VCR icon ligatures (liga).
+	4 4 7: Filled VCR icons (ss03).
+	4 4 8: Separate segments.
+	4 4 9: Separate outlined segments (ss04).
+	4 4 10: Separate tall colon dots.
+	4 4 11: Fixed-position decimal and colon (dlig).
+	4 4 12: Spaces to empty units (cv04 and 05).
+
+SECTION 5: CONTACT.
+
+
+
+
+
+==============================
+=====SECTION 0: README.
+
+------------------------------
+-----0 1: The License.
+
+You can freely (i.e. without royalties) use the fonts in this font pack (i.e. the .otf, .woff, and .woff2 files for reNix, nimoType, and fluoWrite) in both personal and commercial projects as long as you purchased the pack from the designer. Currently, the only place where this font pack is sold is on itch, at the following url:
+
+https://speakthesky.itch.io/typeface-analog-digits-pack
+
+You may modify the font files, but not redistribute the original or modified font files in themselves as free or paid products.
+
+
+------------------------------
+-----0 2: Troubleshooting.
+
+These fonts use OpenType (OT) features. In apps that support OT features, you can usually activate them in a menu with a name like "Text Style", "Typography", etc. For more info, read your app’s documentation. Some apps have limited OT support (e.g. Microsoft Word has the "standard ligatures" feature switched off by default and can’t activate the "character variant" features).
+
+
+------------------------------
+-----0 3: Credits.
+
+reNix, nimoType, and fluoWrite by Speak the Sky (https://speakthesky.com) using Glyphs (https://glyphsapp.com).
+
+
+------------------------------
+-----0 4: Version History.
+
+2022-05-17:
+	• fluoWrite is updated to v1.1:
+		• added fixed-position decimal and colon (dlig).
+		• added spaces to empty units (cv04 and 05).
+		• added individual segments ‘h’ and ‘i’.
+
+2022-04-15: v1.0.
+	• Analog Digits Font Pack v1.0 is released:
+		• reNix v1.0.
+		• nimoType v1.0.
+		• fluoWrite v1.0.
+
+
+
+
+
+==============================
+=====SECTION 1: INTRODUCTION.
+
+------------------------------
+-----1 1: Here's what you get.
+
+----------
+---1 1 1: Analog digits.
+
+The fonts in this pack are based on different types of analog electronic display (analog as in “not pixels” here). Each font’s set up to help you make graphics of a different kind of numerical display, from the good old retro standby, Nixie tubes, to the somewhat more futuristic 7-segment fluorescent displays.
+
+
+----------
+---1 1 2: Mostly numerals.
+
+Most of the characters you can type in these fonts are numerals (1 to 9 and 0) and a few punctuation marks (e.g. decimal points) and maths operators (e.g. plus and minus) that are helpful for imitating those displays. These fonts are not full text fonts, nor are they meant to be, nor will they ever be!
+
+
+----------
+---1 1 3: Layer fonts.
+
+Each font has different layers for different parts of the display, such as the lit and unlit segments of a 7-segment display. This lets you separately change each layer’s colour and effects (like glow).
+
+
+----------
+---1 1 4: Precomposed glyphs.
+
+You can use the layers to build graphics piece by piece, but each font also comes with sets of precomposed (pre-built) glyphs for when you don’t want/need to (or can’t) go into all that detail.
+
+
+------------------------------
+-----1 2: How to use the layers.
+
+It’s simple: to build graphics out of these layer fonts... just make several layers of text stacked on top of each other, and apply different OpenType (OT) features to match each layer’s position. You can find more about OpenType features and how to use them later in this section, but basically they’re like switches that let you change how some or all of a font’s characters look.
+
+The fonts in this pack use “stylistic set” OT features to change between layers. For example, in the vacuum fluorescent display font, fluoWrite, by default you type the lit segments for each number, and switching on “stylistic set 1” (or, ss01) lets you type the unlit segments for that same number. Each layer uses the same text, just with different OT features applied.
+
+
+------------------------------
+-----1 3: OpenType Features.
+
+----------
+---1 3 1: What is OpenType?
+
+OpenType is a font format with special features—OpenType/OT features—that let you change how a font looks and behaves, if the font has those features.
+
+
+----------
+---1 3 2: Which OT features do the fonts have?
+
+Every font in the pack uses these features:
+	• stylistic sets let you swap out a large group of glyphs for a set with a different style
+	• character variants let you swap out a small group of glyphs to fine-tune a font’s appearance
+	• proportional figures/numbers replace fixed-width numerals (and other characters) with versions that have widths proportionate to the characters
+
+fluoWrite also uses the “standard ligatures” feature, which swaps out several characters for a single alternate glyph. It uses this to transform words into VCR symbols (e.g. typing PLAY in all-capitals gives you a play-button icon). Standard ligatures are normally on by default in most apps, but if not, you can usually activate them in the same places as other OT features.
+
+For best results, only switch on one of reNix’s, nimoType’s, or fluoWrite’s stylistic sets for a given piece of text or text style.
+
+
+------------------------------
+-----1 4: How to Activate OT Features. 
+----------
+---1 4 1: ...in Affinity.
+
+There are at least 3 ways to switch on OT features in Affinity Suite apps like Affinity Publisher:
+	A. The Typography pop-up, found through the top menu through "Text", then "Show Typography", with its keyboard shortcut. This lets you control features for text you’re selecting.
+	B. The Character studio panel, switched on through the top menu through "View", then "Studio", then "Character". This panel’s Typography section lets you control features for text you’re selecting.
+	C. The Text Styles studio panel, switched on similarly to the Character panel. This lets you edit text styles by right-clicking a style’s name or left-clicking the icon to its right, then choosing ‘Edit’. You can find stylistic set, character variant, and other settings in the style editing pop-up under "Typography", then "Alternates and Variants".
+
+
+----------
+---1 4 2: ...in LibreOffice.
+
+You can switch on OT features in LibreOffice apps that allow you to use and edit text styles, like LibreOffice Writer.
+
+There are two ways to switch on OT features in LibreOffie Writer:
+	A. The Character pop-up, found through the top menu through "Format", then "Character". In the ‘Font’ tab, click the ‘Features’ button to open a menu for activating features for text you’re selecting.
+	B. The Text Styles panel, switched on in a number of ways, including in the top menu through "Styles", then "Manage Styles". This lets you edit text styles by right-clicking a style and choosing ‘Modify’. In the style editing pop-up’s ‘Font’ tab, click the ‘Features’ button to open a menu for activating features for that style.
+
+NOTE FOR OPENOFFICE: Apache OpenOffice does not support OpenType substitutions. As OpenOffice has been discontinued, it’s unlikely any of the fonts in this pack will ever work in this software.
+
+
+----------
+---1 4 3: ...in MS Office.
+
+These instructions are for Word from Microsoft Office 365.
+
+There are two ways to switch on OT features in MS Office:
+	A. The Font Format pop-up, found in the top menu under "Format", then "Font" with its keyboard shortcut. The ‘Advanced’ tab lets you control features for text you’re selecting.
+	B. The Text Styles menu, found in the ‘Home’ section of the ribbon menu. This lets you edit text styles by right-clicking a style and choosing ‘Modify’. In the style editing pop-up, choose ‘Font’ from the drop-down menu in the lower left, then click the ‘Advanced’ tab for feature settings.
+
+IMPORTANT: MS Office has incomplete support for OT features:
+	• You can’t switch on character variants;
+	• You need to switch on standard ligatures manually. You can do this in the ‘Advanced’ tab mentioned above.
+	• Other MS Office apps (e.g. Powerpoint, Publisher) do not support OT features.
+
+
+----------
+---1 4 4: ...in Scribus.
+
+You can switch on OT features in Scribus in the Style Manager pop-up found in the top menu under "Edit", then "Styles" with its keyboard shortcut. Choose or create a new text style and find the ‘Font Features’ tab (for Paragraph Styles, find it under the Character Style tab).
+
+The menu here lets you switch on some, but not all OT features, including stylistic sets.
+
+IMPORTANT: Scribus doesn’t allow you to switch on character variants (as of v1.5.6.1, on Mac).
+
+
+----------
+---1 4 5: ...in Apple Pages and TextEdit.
+
+You can switch on OT features in both Apple Pages and TextEdit by opening the Fonts pop-up, found through the top menu through "Format", then "Font", then "Show Fonts" along with its keyboard shortcut. Click the gear menu icon, then ‘Typography’ to open a pop-up that lets you control features for the text you’re selecting (which you can bake into that text’s style using the ‘Update’ button in the Text Style panel on the right).
+
+IMPORTANT: These apps have limited support for OT features and user fonts:
+	• User-installed fonts may not be available in the drop-down font menu, in which case they must be selected through the Fonts pop-up.
+	• Neither app supports character variants.
+
+
+----------
+---1 4 6: ...in Inkscape.
+
+You can switch on OT features in Inkscape in the Text and Font panel, found through the top menu under "Text", then "Text and Font" with its keyboard shortcut. Select a text object, navigate to the Font tab of the panel, select and apply your chosen font using the list and ‘Apply’ button, then navigate to the Features tab and open the drop-down menus to activate OT features:
+	• ligature settings are under the ‘Ligatures’ menu.
+	• proportional figures settings are under the ‘Numeric’ menu.
+	• stylistic set and character variant settings are under the ‘Feature Settings’ menu.
+
+
+------------------------------
+-----1 5: Accessibility.
+
+Every layer of a layer font is its own piece of text. This means that e.g. a full set of fluoWrite layers will consist of the same text twice, once for the lit segments layer and once again for the unlit layer. Text-to-speech apps will read the same text twice.
+
+This isn’t a show-stopping accessibility problem, because these fonts are designed to be used in images for short stretches of numbers, not long text. However, it could be a bit confusing or annoying. For a better reading experience, try one of these options (not all of these will work for any given app):
+	• convert the text to shapes/curves (e.g. the Affinity Suite’s “Convert to Curves” option).
+	• put the text in a shape or text box and apply alt-text (e.g. in LibreOffice or MS Word).
+	• use the fonts in an image editor (e.g. GIMP, Adobe Photoshop), export images in pixel formats (e.g. .png, .jpg, .gif), then import the images into your text.
+
+I can’t guarantee that the second option will work, but the first and third will.
+
+
+
+
+
+==============================
+=====SECTION 2: RENIX.
+
+------------------------------
+-----2 1: Introduction.
+
+----------
+---2 1 1: Nixie tubes.
+
+You’ve probably seen Nixie tubes in films, TV series, or other media before, even if you didn’t know their name or what they were, e.g. the reactor control room power readings in the 2019 live-action TV series Chernobyl, or the divergence meter in the 2009 visual novel/2011 anime series Steins;Gate.
+
+Despite how complex they might look, the way they work is very simple. They're like household filament light bulbs with multiple filaments in the shape of numbers (or other symbols). When electricity is passed through a particular filament, that number (or symbol) lights up.
+
+Most Nixie tubes included numerals and the decimal point, but some alternative models instead had filaments for scientific units and mathematical operators (like plus and minus). In reNix, these tubes are shorter and the filaments fit into a square rather than a rectangle.
+
+
+----------
+---2 1 2: Credits.
+
+Design images: photos of Nixie tubes on an electronics hobby website (http://danyk.cz/digitrony_en.html). The numerals tube was based on the Z5680M and the units, scales, and operators were based on the ИН-12А/IN-12A and B and the ИН-15А/IN-15A.
+
+Information: the wikipedia page for Nixie tubes and the above-mentioned hobby site.
+
+
+------------------------------
+-----2 2: Layers.
+
+reNix has 4 main layers, front to back:
+	1) unlit filament stack in front (stylistic set 2, ss02),
+	2) lit filament (no stylistic set needed),
+	3) unlit filament stack behind (stylistic set 3, ss03),
+	4) and glass tube (stylistic set 4, ss04).
+
+As the names suggest, the unlit filaments in front should be in front of the lit filaments and the unlit filaments behind should be behind the lit filaments. The tube glass can be positioned anywhere, but is probably best put towards the middle or the back.
+
+
+
+------------------------------
+-----2 3: Characters.
+
+----------
+---2 3 1: Numerals.
+
+reNix includes the numerals 1 to 9 and 0.
+
+The default 5 in reNix is an inverted 2, which has a similar shape to 5. This was a feature of some Russian tubes (e.g. the ИH-14/IN-14), likely to reduce costs or increase manufacturing speed. reNix uses this by default because it’s more characterful; if you want a more normal numeral 5 then see the later subsection on using the OT feature ‘character variant 6’ (cv06).
+
+The order of filaments in the numerals tube, front to back, is 3, 5, 6, 7, 9, 2, 4, 1, 0, 8.
+
+
+----------
+---2 3 2: Decimal point.
+
+The reNix decimal point sits in the bottom-left of the tube, and doesn’t appear in unlit filament layers (ss01, ss02, and ss03) or the tube layer (ss04).
+
+
+----------
+---2 3 3: Scientific units tube.
+
+reNix includes the following scientific units in its scientific units tube, in order from front to back: Roentgen (R), Kelvin (K), Hertz (Hz, H z), bar (b a r), degrees Celsius/Centigrade (°C), and Psi (Ψ).
+
+The units are written with the letters normally used to abbreviate them. Roentgen and Kelvin are written with uppercase R and K. Hertz is written with uppercase H followed by lowercase z. bar is written with lowercase b, a, then r. Degrees Celsius/Centigrade is written with the degree symbol followed by uppercase C. Psi is written with the Greek uppercase letter Psi.
+
+
+----------
+---2 3 4: Scales tube.
+
+reNix includes the following scales in its unit scales tube, in order from front to back: G (giga-), E (E-notation), μ (micro-), M (mega-), k (kilo-), n (nano-), and m (milli-).
+
+G, E, and M for mega- are all written in uppercase. k, m for mill-, and n are all written in lowercase. The micro symbol is the Greek lowercase letter mu. The unicode Greek Small Letter Mu (U+03BC, μ) and Micro Sign (U+00B5, µ) both produce the micro scale in reNix.
+
+
+----------
+---2 3 5: Mathematical operators tube.
+
+reNix includes the following symbols in its mathematical operators tube, in order from front to back: minus (-) and plus (+). The unicode hyphen-minus (U+002D, -) and minus sign (U+2212, −) both produce the minus operator in reNix.
+
+
+------------------------------
+-----2 4: Extra Info.
+
+----------
+---2 4 1: Filament orders.
+
+Summary of the order of filaments in each tube, from front to back:
+
+Numerals tube: 3, 5, 6, 7, 9, 2, 4, 1, 0, 8.
+Units tube: R, K, Hz, bar, °C, and Ψ.
+Scales tube: G, E, μ, M (uppercase), k, n, m (lowercase).
+Operators tube: minus, plus.
+
+
+----------
+---2 4 2: Offset filaments.
+
+Some filaments are offset to reduce overlap. These filaments are offset by the same amount in the regular layers and some extra features, but centred in other extra features. The offset filaments are R, K, and bar in the units tube; m, μ, and n in the scales tube; and minus in the operators tube (minus is offset vertically, not horizontally).
+
+
+----------
+---2 4 3: Scientific units.
+
+Roentgen, R, ionising radiation.
+Might be used in: radiation sensors, nuclear fission plants or submarines, scientific facilities.
+
+Kelvin, K, (absolute) temperature.
+Might be used in: scientific facilities, experimental nuclear fusion plants, factories.
+
+Hertz, Hz, frequency.
+Might be used in: submarines (in SONAR), satellite arrays, radio stations, scientific facilities.
+
+bar, (air) pressure.
+Might be used in: aeroplanes, spacecraft, weather/meteorological stations, factories.
+
+degrees Celsius/Centigrade, °C, (relative) temperature.
+Might be used in: various vehicles, factories, weather/meteorological stations.
+
+Psi, Ψ,Ψ(liquid) pressure.
+Might be used in: ships, submarines, hydroelectric dams, factories.
+
+Note 1: these units are historically valid (if not always the most common or officially recommended) for the period when Nixie tubes were most commonly used.
+
+Note 2: “Roentgen” is pronounced Ront (like in "pronto") gen (with a hard g, like “given”, and an unstressed e, like in “camera”).
+
+Note 3: “Psi” is pronounced like “sigh”.
+
+
+----------
+---2 4 4: Unit scales.
+
+giga-, e.g. gigaHertz (GHz).
+1E9 or 1,000,000,000 or 1 billion.
+
+mega-, e.g. megaKelvin (MK).
+1E6 or 1,000,000 or 1 million.
+
+kilo-, e.g. kilogram (kg).
+1E3 or 1,000 or 1 thousand.
+
+milli-, e.g. millibar (mbar).
+1E-3 or 0.001 or 1 thousandth.
+
+micro-, e.g. micrometre (μm).
+1E-6 or 0.000001 or 1 millionth.
+
+nano-, e.g. nano-angstrom (nÅ).
+1E-9 or 0.000000001 or 1 billionth.
+
+E-notation, or “scientific notation”: a simple way to represent very large or small numbers.
+E-notation is written as two numbers separated by “E” (upper- or lowercase). “E” stands for “times 10 to the power of”: 3.0E2 means “3.0 times 10 to the power of 2” (3.0*100), and 7.6E-5 means “7.6 times 10 to the power of -5” (7.6*0.00001). Just move the first number’s decimal point that many digits right (if the second number is positive) or left (if it’s negative).
+
+
+------------------------------
+-----2 5: Extra Features.
+
+----------
+---2 5 1: Proportional figures (pnum).
+
+Activating the ‘proportional figures’ OT feature (pnum) sets the width of the numerals and decimal point to be proportionate to the width of the glyphs instead of fixed to the width of the tubes. This applies to the lit (default), unlit single (ss01) and monoline (ss05) forms, and affects the regular and non-breaking spaces.
+
+
+----------
+---2 5 2: Single unlit filaments (ss01).
+
+Activating stylistic set 1 (ss01) replaces the lit filaments with single unlit filaments instead of unlit filament stacks. This may be useful if, e.g., you want finer control over how the filaments look depending on their depth in the stack, or if you want to “switch off” a tube (e.g. the scales tube) without removing it entirely.
+
+
+----------
+---2 5 3: Monoline filaments (ss05).
+
+Activating stylistic set 5 (ss05) replaces the lit filaments with monoline filaments whose lines are the same width as the tube outlines (ss04). All monoline filaments are horizontally centred except for the default decimal point, and the monoline minus sign is vertically-centred (shifted slightly down to be level with the crossbar of the plus sign). Unlike all of the other monoline characters, the monoline decimal point is an outline of the default decimal point instead of just a dot.
+
+
+----------
+---2 5 4: Precomposed glyphs (ss11 to 14).
+
+reNix includes a few precomposed sets using the OT features ‘stylistic set 11’ through ‘stylistic set 14’ (ss11 to ss14).
+
+Stylistic set 11 (ss11): lit filaments and tubes. The lit filaments in ss11 are centred, unlike the default lit filaments.
+Stylistic set 12 (ss12): lit and unlit filaments.
+Stylistic set 13 (ss13): lit filaments, unlit filaments, and tubes.
+Stylistic set 14 (ss14): monoline filaments and tubes.
+
+
+----------
+---2 5 5: Bottom-right decimal point (cv01).
+
+Activating character variant 1 (cv01) moves the decimal point from the bottom-left of the next numeral to the bottom-right of the previous numeral.
+
+
+----------
+---2 5 6: Filled tubes (cv02).
+
+Activating character variant 2 (cv02) replaces tube outlines with filled/dark tube glyphs. This only applies to tubes displayed with stylistic set 4 (ss04), not precomposed glyphs with tubes.
+
+
+----------
+---2 5 7: Centred lit and unlit filaments (cv03).
+
+Activating character variant 3 (cv03) centres off-centre lit and unlit filaments (R, K, bar, m, n, μ, minus sign). This only applies to the default lit filaments and to unlit filaments displayed with stylistic set 1 (ss01). This may be useful if you’re using separate layers, but only using one filament layer (lit or single unlit).
+
+
+----------
+---2 5 8: Full-tube decimal point (cv04).
+
+Activating character variant 4 (cv04) gives decimal points their own separate tubes (with the numerical filaments unlit). It also centres the decimal point in stylistic sets 5 (monoline), 11 (lit + tube), and 14 (monoline + tube).
+
+
+----------
+---2 5 9: Centred full-tube decimal point (cv05).
+
+Character variant 5 (cv05) works like 4, but centres the decimal point in stylistic sets 12 (lit + unlit) and 13 (lit + unlit + tube).
+
+
+----------
+---2 5 10: Normal 5 (cv06).
+
+Activating character variant 6 (cv06) replaces the default reNix numeral 5 (shaped like an inverted 2) with a more typical form.
+
+
+----------
+---2 5 11: The Divergence Meter (Steins;Gate).
+
+reNix and the Divergence Meter from Steins;Gate unfortunately have different designs. However, you can make something similar using cv01 and cv04 to put the decimal point in the bottom right of an empty tube and cv06 to replace numeral 5.
+
+
+
+
+
+==============================
+=====SECTION 3: NIMOTYPE.
+
+------------------------------
+-----3 1: Introduction.
+
+----------
+---3 1 1: Nimo tubes.
+
+Nimo tubes were meant to be a Nixie tube killer, using superior technology and design to snap up the market for numerical displays. You probably haven’t seen them before—they were very rarely used due to costly and complex electrical requirements. Replacing other displays with Nimo tubes could be a neat, subtle background detail for 1960s-onwards alt-history settings.
+
+A Nimo tube is like a mini cathode ray tube (CRT) television. Older TVs, which use CRTs, make images by shooting electrons out of an ‘electron gun’ at a glass screen coated with phosphorus powder that glows where the electrons hit. Nimo tubes have one gun for each numeral; each gun has a stencil mounted on the front, cut in the shape of the numeral.
+
+Historically, Nimo tubes were generally made to display in green, but could be manufactured to make any colour.
+
+
+----------
+---3 1 2: Credits.
+
+Design image: a photo of the imitation Telefunken XM1000 tube. The photo’s source is a now-deleted eBay listing.
+
+Information: the wikipedia page for Nimo tubes; an ad booklet (http://lampes-et-tubes.info/cd/nimo_display_tubes.pdf); a youtube video by electriconics engineer Fran Blanche (https://youtube.com/watch?v=xmWg7CtN0Ac, there’s a demo about 14 minutes in).
+
+
+------------------------------
+-----3 2: Layers.
+
+nimoType has 4 layers, front to back:	
+	1) lit characters (no stylistic set needed),
+	2) distorted characters (stylistic set 1, ss01),
+	3) tube outline (no stylistic set needed, type a lowercase o),
+	4) and tube background (no stylistic set needed, type an uppercase O).
+
+
+------------------------------
+-----3 3: Characters.
+
+----------
+---3 3 1: Numerals.
+
+nimoType includes the numerals 1 to 9 and 0.
+
+
+----------
+---3 3 2: Decimal point.
+
+The nimoType decimal point (never used in real tubes, possibly used in the imitation Telefunken XM1000 tubes that this font’s designed from) sits in the bottom-left of the tube.
+
+
+----------
+---3 3 3: Other characters.
+
+nimoType includes a few punctuation marks (mostly never used in real tubes) that may be useful with numbers. These characters are the colon, slash, plus, and minus. The unicode hyphen-minus (U+002D, -) and minus sign (U+2212, −) both produce the minus sign in nimoType.
+
+
+------------------------------
+-----3 4: Extra Info.
+
+----------
+---3 4 1: Burn-in.
+
+Like any CRT display, Nimo tubes can suffer burn-in, where the tube displays the same character for a very long period of time and burns it into the phosphorus coating. This is more likely with 0, 1, or 2 (in the first digit of clocks), and 0 or 9 (in counters, e.g. if a counter starts at 999999 and slowly falls to 000000).
+
+Burn-in appears as a fuzzy dark area in the shape of the burnt-in character, appearing on top of the lit layer. It can be represented with default characters coloured translucent medium grey. Some visual noise, a little blur, or both, may enhance the effect.
+
+
+----------
+---3 4 2: Overlap.
+
+More than one character can briefly appear on a tube when the tube changes which character it’s displaying. If it changes fast enough several times in a row, even more characters might blend together.
+
+This can be represented with 2+ lit and distorted layers at once. All of the lit layers should be grouped together on top of all the distorted layers.
+
+
+----------
+---3 4 3: The distortion problem.
+
+While researching Nimo tubes, I saw photos where the numerals were surrounded by translucent, expanded, often incomplete versions of themselves.
+
+I don’t know exactly what this is (e.g. refraction?) or whether it’s even just a photo/video artefact that wouldn’t be easily visible in real life. The ‘distortion’ layer is one attempt to recreate this, but you may need to do extra work—e.g. draw on or add textures to the distortion layer—to make it look realistic. In the examples used in this guide, I mainly just use the distortion layer to make more glow instead of trying to recreate the actual effect seen in the photos.
+
+
+------------------------------
+-----3 5: Extra Features.
+
+----------
+---3 5 1: Proportional figures (pnum).
+
+Activating the ‘proportional figures’ OT feature (pnum) sets the width of almost all of the characters to be proportionate to the width of the glyphs instead of fixed to the width of the tubes. This affects every non-space character, the space, and the non-breaking space, and applies to both the lit (default) and distorted (ss01) forms.
+
+
+----------
+---3 5 2: Precomposed glyphs (ss02 to 06).
+
+nimoType includes precomposed sets for most combinations of layers, using the OT features ‘stylistic set 2’ through ‘stylistic set 6’ (ss02 to ss06).
+
+Stylistic set 2 (ss02): lit and distorted numerals.
+Stylistic set 3 (ss03): lit numerals and tubes.
+Stylistic set 4 (ss04): lit numerals, distorted numerals, and tubes.
+Stylistic set 5 (ss05): lit numerals and dark tubes.
+Stylistic set 6 (ss06): lit numerals, distorted numerals, and dark tubes.
+
+
+----------
+---3 5 3: Alternate decimal positions (cv01 to 03).
+
+By default, the decimal point is in the lower-left of the following tube, but this can be changed with character variants 1 to 3 (cv01 to cv03), which move it to the lower-right of the previous tube (cv01), the lower-middle of its own empty tube (cv02), or the centre-middle of its own empty tube (cv03).
+
+
+
+
+
+==============================
+=====SECTION 4: FLUOWRITE.
+
+------------------------------
+-----4 1: Introduction.
+
+----------
+---4 1 1: Vacuum fluorescent displays.
+
+Vacuum fluorescent displays (VFDs) make light by sending electrons from a cathode (electron source) to an anode (electron sink) coated in phosphorus that glows when electrons travel through it. Anodes could be made in the shape of symbols (e.g. play, rewind), tick-marks (e.g. on clocks or speedometers), words (e.g. “HIGH”, “LOW”), or the segments of a 7-segment display, among other things.
+
+7-segment displays show different numbers by lighting up segments in the shape of each number, and modular 7-segment displays (which join in a row to display larger numbers) can also include dots in the top-left and/or bottom-right for displaying colons and decimal points.
+
+Vacuum fluorescent displays were used in the second half of the 20th century, being replaced with (usually red-coloured) LEDs. Historically, VFDs were generally made to display in light blue, but could be manufactured to make any colour.
+
+
+----------
+---4 1 2: Credits.
+
+Design image: a photo of a VCR display uploaded to Wikimedia Commons, taken by wikipedia user Atlant.
+
+Information: the wikipedia page for VFDs.
+
+
+------------------------------
+-----4 2: Layers.
+
+fluoWrite has 2 layers: lit segments (the default) and unlit segments (stylistic set 1, ss01). These can go in either order, as they don’t overlap at all. However, if you want to apply effects such as shadow or glow to the lit layer, then you should position the lit layer above the unlit layer.
+
+
+------------------------------
+-----4 3: Characters.
+
+----------
+---4 3 1: Numerals.
+
+fluoWrite includes the numerals 1 to 9 and 0.
+
+
+----------
+---4 3 2: Decimal point.
+
+The fluoWrite decimal point sits in the lower-right of each unit.
+
+
+----------
+---4 3 3: Other characters.
+
+fluowrite includes several other characters: colon, slash, plus, and minus. The unicode hyphen-minus (U+002D, -) and minus sign (U+2212, −) both produce the minus operator in fluoWrite.
+
+
+------------------------------
+-----4 4: Extra Features.
+
+----------
+---4 4 1: Proportional figures (pnum).
+
+Activating the ‘proportional figures’ OT feature increases the spacing on the left and right sides of the period and colon and decreases the spacing on the left side of the numerals 1 and 7 (by a subtle amount on the 7). It also decreases the width of the regular and non-breaking spaces.
+
+This feature doesn’t affect the unlit segments (ss01) or precomposed glyphs (ss02), though activating pnum will still change the colon, decimal point, and space even when using ss01 or ss02 (as those sets don’t affect punctuation or spaces).
+
+
+----------
+---4 4 2: Precomposed glyphs (ss02).
+
+Activating stylistic set 2 produces pre-composed glyphs with filled lit segments and outlined unlit segments. This affects the numerals, plus, and minus.
+
+
+----------
+---4 4 3: Thin number 1 (cv01).
+
+Activating character variant 1 (cv01) replaces the numerals 1 and 0 with thin versions, for use in displays that fit an extra numeral at the start (e.g. a counter that runs from 0 to 100). This feature should only be applied to the initial 1 or 0 of such a display.
+
+
+----------
+---4 4 4: Full-height colon (cv02).
+
+Activating character variant 2 (cv02) replaces the colon with a taller alternate that fits snugly between the numerals. This form can be found in modular 7-segment displays, which switch on the decimal points in the bottom-right of one unit and the top-left of another to form this tall colon.
+
+
+----------
+---4 4 5: Square punctuation (cv03).
+
+Activating character variant 3 (cv03) replaces the rounded dot colon and decimal point/period with square (or, rhombic) forms. This may be useful if you’re using fluoWrite as a more general segmented numeral display font in sci-fi settings, rather than specifically to mimic modern 7-segment displays.
+
+
+----------
+---4 4 6: VCR icon ligatures (liga).
+
+Typing certain words in all-capitals, using the underscore as a space, produces matching symbols typically found on VCRs or similar devices that often used 7-segment displays like those fluoWrite is based on. This is done using the ‘standard ligatures’ (liga) OpenType feature, which is usually (but not always) on by default in word processors, layout apps, and web browsers.
+
+P A U S E. PAUSE.
+S T O P. STOP.
+P L A Y. PLAY.
+R E W I N D. REWIND.
+F A S T underscore F O R W A R D. FAST_FORWARD.
+T A P E. TAPE.
+
+Note: the slash (/) included in the ‘Other characters’ section for this font is actually designed to be used with these icons more than the numerals.
+
+
+----------
+---4 4 7: Filled VCR icons (ss03).
+
+Activating stylistic set 3 (ss03) replaces the outline icons with filled versions.
+
+
+----------
+---4 4 8: Separate segments.
+
+Typing the lowercase letters a, b, c, d, e, f, g, h, or i will produce the matching segment of the 7-segment display (clockwise from the top: a to f, with g across the middle), or the bottom and top dots (h and i). These characters overlap with each other.
+
+
+----------
+---4 4 9: Separate outlined segments (ss04).
+
+Activating stylistic set 4 (ss04) replaces the filled segments with outlined segments.
+
+
+----------
+---4 4 10: Separate tall colon dots.
+
+The tall colon (via cv02) is formed by switching on the dot in the bottom-right of one 7-segment unit and the top-left corner of the next unit. To create both dots separately, use a period for the bottom-right dot, then a centred period for the top-left dot.
+
+
+----------
+---4 4 11: Fixed-position decimal and colon (dlig).
+
+Normally, fluoWrite’s decimal point (and upper colon dot) will shift out of position if the tracking/letter-spacing is changed. Activating discretionary ligatures (dlig) fixes the decimal point and upper tall colon dot in place relative to their numeral.
+
+
+----------
+---4 4 12: Spaces to empty units (cv04 and 05).
+
+Activating character variant 4 or 5 (cv04 or 05) replaces the space and non-breaking space with every segment of the numeral display; cv04 uses solid segments and cv05 uses outlined segments.
+
+
+
+
+
+==============================
+=====SECTION 5: CONTACT.
+
+That’s the end of the user guide—for now!
+
+If you use these fonts in a project, please let me know about it—I’d love to see how it looks in practice!
+
+Also, let me know if I made any mistakes in any technical info—I don’t know much about electronics.
+
+https://speakthesky.itch.io/typeface-analog-digits-pack
+
+contact@speakthesky.com
