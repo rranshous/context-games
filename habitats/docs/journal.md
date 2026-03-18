@@ -73,6 +73,51 @@ Eight design docs covering modules, habitat, chassis, clock, StateStore, ownersh
 
 ---
 
-## Session 2 — 2026-03-18: Recap
+## Session 2 — 2026-03-18: From Design to Implementation
+
+### Recap and Journal
 
 Returned after a day. Reviewed the full state. Started this journal to capture the design narrative — the docs have the *what*, the journal has the *why we got there*.
+
+### Implementation Decisions
+
+**TypeScript.** No debate. The actant somas contain JS code that gets compiled and executed — TypeScript→JS is zero friction. Node's `vm` module gives us the sandboxed execution we designed. Every prior project in this repo is TypeScript. The inference APIs are JS/TS native.
+
+**Standalone Node process.** Not tied to the vanilla platform. Could run on a backend. The habitat is a process, not a web app.
+
+**Terminal-first for the admin interface.** No browser, no web server, no websockets. The habitat actant's collaborative frame is text in the terminal. The UI actant renders text. Later, a web UI is just another channel connecting to the same habitat. Starting simple keeps the focus on the architecture, not the presentation.
+
+**Modules have no render functions.** Modules expose methods and events. How that gets presented is the UI actant's job. This is consistent with the "actant creates the collaborative frame" principle from the human access design.
+
+**Code topology matches the mental model.** The chassis/soma split is visible in the directory structure:
+
+```
+habitats/src/
+  chassis/           ← fixed bootstrap, never changes
+    index.ts         ← entry point: boot, load, loop
+    clock.ts         ← wall-time → monotonic counter
+    persistence.ts   ← read/write state to disk
+    vm-runner.ts     ← stripped vm.createContext, AST scan
+    statestore.ts    ← redis-subset (strings, lists, hashes, sets)
+  soma/              ← habitat actant's soma (defines inner world)
+    habitat-soma.ts  ← identity, handlers, module loading, actant lifecycle
+    module-runtime.ts ← loads modules, dispatches calls through vm-runner
+    surface-builder.ts ← constructs bound surfaces at connection time
+  modules/           ← module definitions (blueprints, read at boot/hot-reload)
+    chat.ts
+    knock-knock.ts
+habitats/data/       ← persisted StateStore on disk
+```
+
+**No `actants/` directory.** Actants are just soma in the StateStore. There's nothing on disk. The habitat soma's bootstrap handler creates initial actants by writing soma to the store. Killed the directory after Robby pointed out everything lives in the store.
+
+**`chassis/index.ts` IS the bootstrap.** It starts the clock, loads the StateStore from disk, loads the habitat soma, and kicks off the first tick. The fixed kernel that brings the habitat actant to life.
+
+### First Modules
+
+- **Chat** — simple, exercises the module contract, events, multi-caller interaction.
+- **Knock-knock jokes** — one actant poses a joke, another guesses the punchline. Module keeps score (guessing accuracy + joke difficulty). Clear format, multi-actant interaction, stateful in an interesting way.
+
+### Building
+
+Building chassis-first. StateStore, clock, persistence, vm-runner — the foundation. Then habitat soma, module runtime, surface builder. Then modules. Committing incrementally, testing by running and observing logs.
