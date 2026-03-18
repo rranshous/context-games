@@ -138,3 +138,13 @@ Built chassis-first, then soma, then modules. All in one session.
 - Chat state verified: both messages persisted with correct sender and tick
 
 The habitat boots, ticks, and persists. `cd habitats && npm run dev` to see it run.
+
+### Admin REPL
+
+Built a terminal REPL as the admin's collaborative frame. Commands: `status`, `actants`, `modules`, `soma <id>`, `chat`, `chat <msg>`, `audit [n]`, `store keys/get`, `knock-knock`, `pause`, `resume`, `step`, `speed <ms>`.
+
+The REPL interleaves cleanly with tick output — you see `[tick N]` and actant activity flowing past while you type commands. Admin can chat as "admin" identity, inspect any actant's soma, browse the store directly, control the clock.
+
+This is the first version of the habitat actant's collaborative frame. It's text, it's the terminal, and it works. The admin's view into the habitat.
+
+**Current state**: habitat boots, two actants activate modules and post to chat, admin can observe and interact. The actants' on_tick handlers are trivial (activate + hello on tick 1/2, then idle). Next step is making them more interesting — richer behavior, actually playing knock-knock, etc.

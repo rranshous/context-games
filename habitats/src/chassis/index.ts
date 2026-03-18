@@ -17,6 +17,7 @@ import { Clock } from './clock.js';
 import { Persistence } from './persistence.js';
 import { ModuleRuntime } from '../soma/module-runtime.js';
 import { HabitatSoma } from '../soma/habitat-soma.js';
+import { startRepl } from './repl.js';
 
 // Modules
 import { chatModule } from '../modules/chat.js';
@@ -121,11 +122,10 @@ async function boot() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  console.log('=== HABITAT RUNNING ===');
-  console.log(`  Actants: ${habitatSoma.listActants().join(', ')}`);
-  console.log(`  Modules: ${moduleRuntime.listModules().join(', ')}`);
-  console.log(`  Clock: tick ${clock.now()}`);
-  console.log('  Press Ctrl+C to stop\n');
+  console.log('=== HABITAT RUNNING ===\n');
+
+  // 9. Start the admin REPL
+  startRepl({ store, clock, persistence, moduleRuntime, habitatSoma });
 }
 
 // --- Tick Handler ---
