@@ -1,21 +1,28 @@
 /**
  * Surface Builder — constructs bound surfaces at connection time.
  *
- * When an actant activates a module, the surface builder creates an object
- * with the module's methods bound to the actant's caller identity.
+ * When an inhabitant activates a module, the surface builder creates an object
+ * with the module's methods bound to the inhabitant's caller identity.
  * Having the surface IS the permission. No runtime checks.
+ *
+ * Module surfaces live under habitat.modules namespace:
+ *   habitat.modules.chat.post({ text })
+ *   habitat.modules['knock-knock'].pose({ setup, punchline })
  */
 
 import { ModuleRuntime } from './module-runtime.js';
 import { StateStore } from '../chassis/statestore.js';
 import { Clock } from '../chassis/clock.js';
 
+export interface ModulesNamespace {
+  activate: (moduleId: string) => boolean;
+  deactivate: (moduleId: string) => boolean;
+  list: () => string[];
+  [moduleId: string]: unknown;
+}
+
 export interface HabitatSurface {
-  modules: {
-    activate: (moduleId: string) => boolean;
-    deactivate: (moduleId: string) => boolean;
-    list: () => string[];
-  };
+  modules: ModulesNamespace;
   events: {
     subscribe: (event: string) => void;
     unsubscribe: (event: string) => void;
@@ -23,13 +30,11 @@ export interface HabitatSurface {
   clock: {
     now: () => number;
   };
-  // Module surfaces are added dynamically: habitat.chat.post(...), etc.
-  [moduleId: string]: unknown;
 }
 
 /**
- * Build the `habitat` object that an actant's handlers receive.
- * Module surfaces are bound with the actant's identity baked in.
+ * Build the `habitat` object that an inhabitant's handlers receive.
+ * Module surfaces are bound with the inhabitant's identity baked in.
  */
 export function buildHabitatSurface(
   actantId: string,
@@ -39,29 +44,36 @@ export function buildHabitatSurface(
 ): HabitatSurface {
   const activationsKey = `activations:${actantId}`;
 
-  const surface: HabitatSurface = {
-    modules: {
-      activate(moduleId: string): boolean {
-        const added = store.sadd(activationsKey, moduleId, actantId);
-        if (added) {
-          // Build and attach the module surface
-          attachModuleSurface(surface, moduleId, actantId, moduleRuntime);
-          console.log(`[surface] ${actantId} activated ${moduleId}`);
-        }
-        return added;
-      },
-      deactivate(moduleId: string): boolean {
-        const removed = store.srem(activationsKey, moduleId, actantId);
-        if (removed) {
-          delete surface[moduleId];
-          console.log(`[surface] ${actantId} deactivated ${moduleId}`);
-        }
-        return removed;
-      },
-      list(): string[] {
-        return moduleRuntime.listModules();
-      },
+  const modules: ModulesNamespace = {
+    activate(moduleId: string): boolean {
+      const added = store.sadd(activationsKey, moduleId, actantId);
+      if (added) {
+        attachModuleSurface(modules, moduleId, actantId, moduleRuntime);
+        console.log(`[surface] ${actantId} activated ${moduleId}`);
+      }
+      return added;
     },
+    deactivate(moduleId: string): boolean {
+      const removed = store.srem(activationsKey, moduleId, actantId);
+      if (removed) {
+        delete modules[moduleId];
+        console.log(`[surface] ${actantId} deactivated ${moduleId}`);
+      }
+      return removed;
+    },
+    list(): string[] {
+      return moduleRuntime.listModules();
+    },
+  };
+
+  // Rebuild surfaces for already-activated modules
+  const activated = store.smembers(activationsKey);
+  for (const moduleId of activated) {
+    attachModuleSurface(modules, moduleId, actantId, moduleRuntime);
+  }
+
+  return {
+    modules,
     events: {
       subscribe(event: string): void {
         store.sadd(`subscriptions:${actantId}`, event, actantId);
@@ -76,21 +88,13 @@ export function buildHabitatSurface(
       },
     },
   };
-
-  // Rebuild surfaces for already-activated modules
-  const activated = store.smembers(activationsKey);
-  for (const moduleId of activated) {
-    attachModuleSurface(surface, moduleId, actantId, moduleRuntime);
-  }
-
-  return surface;
 }
 
 /**
- * Attach a module's methods to the habitat surface, with caller identity baked in.
+ * Attach a module's methods to the modules namespace, with caller identity baked in.
  */
 function attachModuleSurface(
-  surface: HabitatSurface,
+  modules: ModulesNamespace,
   moduleId: string,
   actantId: string,
   moduleRuntime: ModuleRuntime,
@@ -105,5 +109,5 @@ function attachModuleSurface(
     };
   }
 
-  surface[moduleId] = moduleSurface;
+  modules[moduleId] = moduleSurface;
 }
