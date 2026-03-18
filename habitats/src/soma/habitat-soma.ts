@@ -230,56 +230,41 @@ export class HabitatSoma {
 
 // --- Tool building ---
 
+// Soma sections that get read/write tools
+const SOMA_SECTIONS = ['identity', 'memory', 'on_tick', 'on_event'] as const;
+
 function buildToolsForActant(
   actantId: string,
   store: StateStore,
   moduleRuntime: ModuleRuntime,
 ): Anthropic.Tool[] {
   const tools: Anthropic.Tool[] = [];
-
   const obj = 'object' as const;
 
-  // Soma tools
-  tools.push({
-    name: 'read_memory',
-    description: 'Read your memory',
-    input_schema: { type: obj, properties: {} },
-  });
-  tools.push({
-    name: 'write_memory',
-    description: 'Write to your memory (replaces current content)',
-    input_schema: {
-      type: obj,
-      properties: { content: { type: 'string', description: 'New memory content' } },
-      required: ['content'],
-    },
-  });
-  tools.push({
-    name: 'post_chat',
-    description: 'Post a message to the habitat chat',
-    input_schema: {
-      type: obj,
-      properties: { text: { type: 'string', description: 'Message text' } },
-      required: ['text'],
-    },
-  });
-  tools.push({
-    name: 'read_chat',
-    description: 'Read recent chat messages',
-    input_schema: {
-      type: obj,
-      properties: { count: { type: 'number', description: 'Number of messages to read (default 10)' } },
-    },
-  });
+  // Soma section tools — read_<section> and write_<section> for each
+  for (const section of SOMA_SECTIONS) {
+    tools.push({
+      name: `soma__read_${section}`,
+      description: `Read your ${section} section`,
+      input_schema: { type: obj, properties: {} },
+    });
+    tools.push({
+      name: `soma__write_${section}`,
+      description: `Write to your ${section} section (replaces current content)`,
+      input_schema: {
+        type: obj,
+        properties: { content: { type: 'string', description: `New ${section} content` } },
+        required: ['content'],
+      },
+    });
+  }
 
-  // Module tools from activated modules
+  // Module tools from activated modules — no special cases
   const activated = store.smembers(`activations:${actantId}`);
   for (const moduleId of activated) {
     const schemas = moduleRuntime.getMethodSchemas(moduleId);
     if (!schemas) continue;
     for (const [method, info] of Object.entries(schemas)) {
-      // Skip chat methods since we have dedicated tools
-      if (moduleId === 'chat') continue;
       tools.push({
         name: `${moduleId}__${method}`,
         description: `[${moduleId}] ${info.description}`,
@@ -300,28 +285,24 @@ function executeToolCall(
 ): unknown {
   const hashKey = `actants/${actantId}`;
 
-  switch (toolName) {
-    case 'read_memory':
-      return store.hget(hashKey, 'memory');
-    case 'write_memory':
-      store.hset(hashKey, 'memory', input.content as string, actantId);
-      return { ok: true };
-    case 'post_chat': {
-      store.sadd(`activations:${actantId}`, 'chat', actantId);
-      const tick = parseInt(store.get('habitat/clock/tick') || '0', 10);
-      return moduleRuntime.call('chat', 'post', { text: input.text, tick }, actantId);
-    }
-    case 'read_chat':
-      return moduleRuntime.call('chat', 'read', { count: input.count || 10 }, actantId);
-    default: {
-      // Module method: "moduleId__method" — double underscore separator
-      const sep = toolName.indexOf('__');
-      if (sep > 0) {
-        const moduleId = toolName.slice(0, sep);
-        const method = toolName.slice(sep + 2);
-        return moduleRuntime.call(moduleId, method, input, actantId);
-      }
-      return { error: `Unknown tool: ${toolName}` };
-    }
+  // Soma tools: soma__read_<section> / soma__write_<section>
+  if (toolName.startsWith('soma__read_')) {
+    const section = toolName.slice('soma__read_'.length);
+    return store.hget(hashKey, section) ?? '(empty)';
   }
+  if (toolName.startsWith('soma__write_')) {
+    const section = toolName.slice('soma__write_'.length);
+    store.hset(hashKey, section, input.content as string, actantId);
+    return { ok: true };
+  }
+
+  // Module tools: moduleId__method (double underscore separator)
+  const sep = toolName.indexOf('__');
+  if (sep > 0) {
+    const moduleId = toolName.slice(0, sep);
+    const method = toolName.slice(sep + 2);
+    return moduleRuntime.call(moduleId, method, input, actantId);
+  }
+
+  return { error: `Unknown tool: ${toolName}` };
 }

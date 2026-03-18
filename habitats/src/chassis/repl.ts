@@ -198,21 +198,19 @@ function cmdModules(ctx: ReplContext): void {
 }
 
 function cmdChatRead(ctx: ReplContext): void {
-  const result = ctx.moduleRuntime.call('chat', 'read', { count: 15 }, 'admin') as { messages?: Array<{ from: string; text: string; tick: number }> };
+  const result = ctx.moduleRuntime.call('chat', 'read', { count: 15 }, 'admin') as { messages?: Array<{ from: string; text: string; msg?: number }> };
   const messages = result?.messages || [];
   if (messages.length === 0) {
     print('  (no messages)');
     return;
   }
   for (const msg of messages) {
-    print(`  [tick ${msg.tick}] ${msg.from}: ${msg.text}`);
+    print(`  [#${msg.msg || '?'}] ${msg.from}: ${msg.text}`);
   }
 }
 
 function cmdChatPost(ctx: ReplContext, text: string): void {
-  // Activate chat for admin if not already
-  ctx.store.sadd('activations:admin', 'chat', 'admin');
-  ctx.moduleRuntime.call('chat', 'post', { text, tick: ctx.clock.now() }, 'admin');
+  ctx.moduleRuntime.call('chat', 'post', { text }, 'admin');
   print(`  posted.`);
 }
 

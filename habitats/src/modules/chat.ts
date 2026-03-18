@@ -22,15 +22,23 @@ export const chatModule: ModuleDefinition = {
   methods: {
     post: {
       description: 'Post a message to the chat room',
+      input_schema: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Message text' },
+        },
+        required: ['text'],
+      },
       handler: `
         var messages = state.messages || [];
         var maxMessages = state.maxMessages || 50;
-        messages.push({ from: caller, text: input.text, tick: input.tick || 0 });
+        var msgNum = (state.nextMsg || 0) + 1;
+        messages.push({ from: caller, text: input.text, msg: msgNum });
         if (messages.length > maxMessages) {
           messages = messages.slice(-maxMessages);
         }
         return {
-          state: { messages: messages, maxMessages: maxMessages },
+          state: { messages: messages, maxMessages: maxMessages, nextMsg: msgNum },
           result: { ok: true },
           emit: [{ event: 'message_posted', data: { from: caller, text: input.text } }]
         };
@@ -38,7 +46,13 @@ export const chatModule: ModuleDefinition = {
     },
 
     read: {
-      description: 'Read recent messages (default last 10)',
+      description: 'Read recent chat messages',
+      input_schema: {
+        type: 'object',
+        properties: {
+          count: { type: 'number', description: 'Number of messages to read (default 10)' },
+        },
+      },
       handler: `
         var messages = state.messages || [];
         var count = (input && input.count) || 10;
@@ -49,6 +63,7 @@ export const chatModule: ModuleDefinition = {
 
     history: {
       description: 'Get full message history',
+      input_schema: { type: 'object', properties: {} },
       handler: `
         return { state: state, result: { messages: state.messages || [], total: (state.messages || []).length } };
       `,
