@@ -11,6 +11,7 @@ import { Clock } from './clock.js';
 import { Persistence } from './persistence.js';
 import { ModuleRuntime } from '../soma/module-runtime.js';
 import { HabitatSoma } from '../soma/habitat-soma.js';
+import { enableGate, print, toggleWatch, isWatching } from './logger.js';
 
 interface ReplContext {
   store: StateStore;
@@ -21,6 +22,9 @@ interface ReplContext {
 }
 
 export function startRepl(ctx: ReplContext): void {
+  // Enable log gating — tick output suppressed by default
+  enableGate();
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -90,7 +94,7 @@ export function startRepl(ctx: ReplContext): void {
 
         case 'step':
           if (ctx.clock.isRunning()) {
-            console.log('  Pause first, then step.');
+            print('  Pause first, then step.');
           } else {
             ctx.clock.step();
           }
@@ -99,7 +103,7 @@ export function startRepl(ctx: ReplContext): void {
         case 'speed': {
           const ms = parseInt(args[0]);
           if (isNaN(ms) || ms < 100) {
-            console.log('  Usage: speed <ms>  (minimum 100)');
+            print('  Usage: speed <ms>  (minimum 100)');
           } else {
             ctx.clock.setRate(ms);
           }
@@ -110,11 +114,17 @@ export function startRepl(ctx: ReplContext): void {
           cmdKnockKnock(ctx, args);
           break;
 
+        case 'watch': {
+          const on = toggleWatch();
+          print(`  watch mode: ${on ? 'ON — live output' : 'OFF — quiet'}`);
+          break;
+        }
+
         default:
-          console.log(`  Unknown command: ${cmd}. Type "help" for commands.`);
+          print(`  Unknown command: ${cmd}. Type "help" for commands.`);
       }
     } catch (err) {
-      console.error(`  Error: ${(err as Error).message}`);
+      print(`  Error: ${(err as Error).message}`);
     }
 
     rl.prompt();
@@ -127,7 +137,7 @@ export function startRepl(ctx: ReplContext): void {
 }
 
 function printHelp(): void {
-  console.log(`
+  print(`
   ╔═══════════════════════════════════════╗
   ║         HABITAT ADMIN CONSOLE         ║
   ╠═══════════════════════════════════════╣
@@ -145,17 +155,18 @@ function printHelp(): void {
   ║  resume          start the clock      ║
   ║  step            advance one tick     ║
   ║  speed <ms>      set tick interval    ║
+  ║  watch           toggle live output   ║
   ║  help            show this            ║
   ╚═══════════════════════════════════════╝`);
 }
 
 function cmdStatus(ctx: ReplContext): void {
   const { clock, moduleRuntime, habitatSoma } = ctx;
-  console.log(`  Tick:     ${clock.now()}`);
-  console.log(`  Clock:    ${clock.isRunning() ? 'running' : 'paused'}`);
-  console.log(`  Actants:  ${habitatSoma.listActants().join(', ')}`);
-  console.log(`  Modules:  ${moduleRuntime.listModules().join(', ')}`);
-  console.log(`  Audit:    ${ctx.store.getAuditLength()} entries`);
+  print(`  Tick:     ${clock.now()}`);
+  print(`  Clock:    ${clock.isRunning() ? 'running' : 'paused'}`);
+  print(`  Actants:  ${habitatSoma.listActants().join(', ')}`);
+  print(`  Modules:  ${moduleRuntime.listModules().join(', ')}`);
+  print(`  Audit:    ${ctx.store.getAuditLength()} entries`);
 }
 
 function cmdActants(ctx: ReplContext): void {
@@ -164,11 +175,11 @@ function cmdActants(ctx: ReplContext): void {
     const identity = ctx.store.hget(`actants/${id}`, 'identity') as string;
     const memory = ctx.store.hget(`actants/${id}`, 'memory') as string;
     const activated = ctx.store.smembers(`activations:${id}`);
-    console.log(`  ┌─ ${id}`);
-    console.log(`  │ identity: ${truncate(identity, 60)}`);
-    console.log(`  │ memory:   ${truncate(memory || '(empty)', 60)}`);
-    console.log(`  │ modules:  ${activated.length ? activated.join(', ') : '(none)'}`);
-    console.log(`  └─`);
+    print(`  ┌─ ${id}`);
+    print(`  │ identity: ${truncate(identity, 60)}`);
+    print(`  │ memory:   ${truncate(memory || '(empty)', 60)}`);
+    print(`  │ modules:  ${activated.length ? activated.join(', ') : '(none)'}`);
+    print(`  └─`);
   }
 }
 
@@ -176,13 +187,13 @@ function cmdModules(ctx: ReplContext): void {
   const ids = ctx.moduleRuntime.listModules();
   for (const id of ids) {
     const methods = ctx.moduleRuntime.getMethodDescriptions(id);
-    console.log(`  ┌─ ${id}`);
+    print(`  ┌─ ${id}`);
     if (methods) {
       for (const [name, desc] of Object.entries(methods)) {
-        console.log(`  │ .${name}() — ${desc}`);
+        print(`  │ .${name}() — ${desc}`);
       }
     }
-    console.log(`  └─`);
+    print(`  └─`);
   }
 }
 
@@ -190,11 +201,11 @@ function cmdChatRead(ctx: ReplContext): void {
   const result = ctx.moduleRuntime.call('chat', 'read', { count: 15 }, 'admin') as { messages?: Array<{ from: string; text: string; tick: number }> };
   const messages = result?.messages || [];
   if (messages.length === 0) {
-    console.log('  (no messages)');
+    print('  (no messages)');
     return;
   }
   for (const msg of messages) {
-    console.log(`  [tick ${msg.tick}] ${msg.from}: ${msg.text}`);
+    print(`  [tick ${msg.tick}] ${msg.from}: ${msg.text}`);
   }
 }
 
@@ -202,12 +213,12 @@ function cmdChatPost(ctx: ReplContext, text: string): void {
   // Activate chat for admin if not already
   ctx.store.sadd('activations:admin', 'chat', 'admin');
   ctx.moduleRuntime.call('chat', 'post', { text, tick: ctx.clock.now() }, 'admin');
-  console.log(`  posted.`);
+  print(`  posted.`);
 }
 
 function cmdSoma(ctx: ReplContext, actantId?: string): void {
   if (!actantId) {
-    console.log('  Usage: soma <actant-id>');
+    print('  Usage: soma <actant-id>');
     return;
   }
   const fields = ['identity', 'memory', 'on_tick', 'on_event'];
@@ -215,18 +226,18 @@ function cmdSoma(ctx: ReplContext, actantId?: string): void {
     const value = ctx.store.hget(`actants/${actantId}`, field);
     if (value === null) continue;
     const strValue = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-    console.log(`  ── ${field} ──`);
+    print(`  ── ${field} ──`);
     // Indent multiline values
     const lines = strValue.split('\n');
     for (const line of lines) {
-      console.log(`  ${line}`);
+      print(`  ${line}`);
     }
   }
 }
 
 function cmdStore(ctx: ReplContext, subcmd?: string, args?: string[]): void {
   if (!subcmd) {
-    console.log('  Usage: store keys <prefix>  |  store get <key>');
+    print('  Usage: store keys <prefix>  |  store get <key>');
     return;
   }
   switch (subcmd) {
@@ -234,11 +245,11 @@ function cmdStore(ctx: ReplContext, subcmd?: string, args?: string[]): void {
       const pattern = (args?.[0] || '') + '*';
       const keys = ctx.store.keys(pattern);
       if (keys.length === 0) {
-        console.log('  (no keys)');
+        print('  (no keys)');
       } else {
         for (const key of keys) {
           const t = ctx.store.type(key);
-          console.log(`  ${t?.padEnd(7)} ${key}`);
+          print(`  ${t?.padEnd(7)} ${key}`);
         }
       }
       break;
@@ -246,37 +257,37 @@ function cmdStore(ctx: ReplContext, subcmd?: string, args?: string[]): void {
     case 'get': {
       const key = args?.[0];
       if (!key) {
-        console.log('  Usage: store get <key>');
+        print('  Usage: store get <key>');
         return;
       }
       const t = ctx.store.type(key);
       if (!t) {
-        console.log('  (key not found)');
+        print('  (key not found)');
         return;
       }
       switch (t) {
         case 'string':
-          console.log(`  ${ctx.store.get(key)}`);
+          print(`  ${ctx.store.get(key)}`);
           break;
         case 'list': {
           const items = ctx.store.lrange(key, 0, -1);
-          console.log(`  (list, ${items.length} items)`);
+          print(`  (list, ${items.length} items)`);
           for (const item of items.slice(-10)) {
-            console.log(`  ${JSON.stringify(item)}`);
+            print(`  ${JSON.stringify(item)}`);
           }
           break;
         }
         case 'hash':
-          console.log(JSON.stringify(ctx.store.hgetall(key), null, 2).split('\n').map(l => `  ${l}`).join('\n'));
+          print(JSON.stringify(ctx.store.hgetall(key), null, 2).split('\n').map(l => `  ${l}`).join('\n'));
           break;
         case 'set':
-          console.log(`  ${ctx.store.smembers(key).join(', ')}`);
+          print(`  ${ctx.store.smembers(key).join(', ')}`);
           break;
       }
       break;
     }
     default:
-      console.log('  Usage: store keys <prefix>  |  store get <key>');
+      print('  Usage: store keys <prefix>  |  store get <key>');
   }
 }
 
@@ -285,26 +296,26 @@ function cmdAudit(ctx: ReplContext, count: number): void {
   const start = Math.max(0, total - count);
   const entries = ctx.store.getAudit(start, count);
   if (entries.length === 0) {
-    console.log('  (no audit entries)');
+    print('  (no audit entries)');
     return;
   }
   for (const e of entries) {
     const argsStr = e.args ? ` ${JSON.stringify(e.args)}` : '';
-    console.log(`  tick ${String(e.tick).padStart(3)} | ${e.writer.padEnd(15)} | ${e.op.padEnd(5)} ${e.key}${truncate(argsStr, 60)}`);
+    print(`  tick ${String(e.tick).padStart(3)} | ${e.writer.padEnd(15)} | ${e.op.padEnd(5)} ${e.key}${truncate(argsStr, 60)}`);
   }
 }
 
 function cmdKnockKnock(ctx: ReplContext, args: string[]): void {
   const result = ctx.moduleRuntime.call('knock-knock', 'scores', {}, 'admin') as { scores?: Record<string, unknown> };
-  console.log('  Scores:', JSON.stringify(result?.scores || {}, null, 2).split('\n').map(l => `  ${l}`).join('\n'));
+  print('  Scores:', JSON.stringify(result?.scores || {}, null, 2).split('\n').map(l => `  ${l}`).join('\n'));
 
   // Show pending jokes
   const pending = ctx.moduleRuntime.call('knock-knock', 'pending', {}, 'admin') as { jokes?: Array<{ joke_id: number; poser: string; setup: string }> };
   const jokes = pending?.jokes || [];
   if (jokes.length > 0) {
-    console.log('  Pending jokes:');
+    print('  Pending jokes:');
     for (const j of jokes) {
-      console.log(`    #${j.joke_id} by ${j.poser}: ${j.setup}`);
+      print(`    #${j.joke_id} by ${j.poser}: ${j.setup}`);
     }
   }
 }
