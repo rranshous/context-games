@@ -120,4 +120,21 @@ habitats/data/       ← persisted StateStore on disk
 
 ### Building
 
-Building chassis-first. StateStore, clock, persistence, vm-runner — the foundation. Then habitat soma, module runtime, surface builder. Then modules. Committing incrementally, testing by running and observing logs.
+Built chassis-first, then soma, then modules. All in one session.
+
+**Chassis** — StateStore, Clock, Persistence, VM Runner all straightforward. The StateStore is a clean Redis subset: `get`/`set` for strings, `rpush`/`lrange`/`llen`/`ltrim` for lists, `hget`/`hset`/`hdel`/`hgetall` for hashes, `sadd`/`srem`/`smembers`/`sismember` for sets. Plus `keys` (prefix glob), `exists`, `del`, `type`. Audit trail appends on every mutation: `{ tick, writer, op, key, args }`.
+
+**VM Runner** — stripped `vm.createContext` with only basic JS globals (JSON, Math, Array, Object, etc.) plus a sandboxed console. AST scan is simple regex-based whole-word matching against forbidden tokens. Handler receives `(state, input, caller)`, must return `{ state, result, emit? }`.
+
+**Soma** — ModuleRuntime loads module definitions, dispatches method calls through the VM runner. SurfaceBuilder constructs bound surfaces at activation time. HabitatSoma manages actant lifecycle and tick dispatch.
+
+**Key design trade-off discovered**: actant `on_tick` handlers run via `new Function` in the main process (not VM-sandboxed) because they need access to complex `me` and `habitat` objects that can't be easily serialized into a VM context. Module handlers run in the VM. This means actants are more trusted than modules — consistent with the design (actants are inhabitants, modules are inert containers).
+
+**Bug found and fixed**: module state existence check used the wrong key format (`modules/{id}/state` vs hash field on `modules`). Fixed to use `hget('modules', def.id)`.
+
+**Boot test results**:
+- Fresh boot: creates actants, loads modules, tick 1 → alpha activates + posts to chat, tick 2 → beta activates + posts
+- Restore: clock resumes at correct tick, modules say "existing state", actants restored, no duplicate activations
+- Chat state verified: both messages persisted with correct sender and tick
+
+The habitat boots, ticks, and persists. `cd habitats && npm run dev` to see it run.
