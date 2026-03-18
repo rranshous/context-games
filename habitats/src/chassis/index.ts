@@ -75,16 +75,23 @@ async function boot() {
       on_tick: `
         var tick = habitat.clock.now();
 
-        // First tick: activate modules
+        // First tick: activate modules and subscribe to events
         if (tick === 1) {
           habitat.modules.activate('chat');
           habitat.modules.activate('knock-knock');
+          habitat.events.subscribe('chat.message_posted');
+          habitat.events.subscribe('knock-knock.joke_posed');
+          habitat.events.subscribe('knock-knock.joke_guessed');
         }
 
         // Think every 3 ticks
         if (tick % 3 === 1) {
           await me.thinkAbout('thrive');
         }
+      `,
+      on_event: `
+        // React to habitat events
+        await me.thinkAbout('Something happened: ' + event.name + ' - ' + JSON.stringify(event.data));
       `,
     });
 
@@ -94,16 +101,23 @@ async function boot() {
       on_tick: `
         var tick = habitat.clock.now();
 
-        // First tick: activate modules
+        // First tick: activate modules and subscribe to events
         if (tick === 2) {
           habitat.modules.activate('chat');
           habitat.modules.activate('knock-knock');
+          habitat.events.subscribe('chat.message_posted');
+          habitat.events.subscribe('knock-knock.joke_posed');
+          habitat.events.subscribe('knock-knock.joke_guessed');
         }
 
         // Think every 3 ticks (offset from alpha)
         if (tick % 3 === 2) {
           await me.thinkAbout('thrive');
         }
+      `,
+      on_event: `
+        // React to habitat events
+        await me.thinkAbout('Something happened: ' + event.name + ' - ' + JSON.stringify(event.data));
       `,
     });
   }

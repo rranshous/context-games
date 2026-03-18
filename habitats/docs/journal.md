@@ -213,3 +213,26 @@ During thinkAbout, the model gets tools from two sources:
 ### Habitat Actant — Not Yet Evolvable
 
 Noted that the habitat-soma.ts is frozen TypeScript, not a modifiable soma. The habitat actant doesn't call thinkAbout. Its behavior is hardcoded in the chassis. For the habitat to self-modify, it would need its own soma sections in the StateStore and a collaborative thinkAbout loop with the admin. Flagged for future work — "boots operational, evolves through collaboration" is the principle, but only "boots operational" is implemented so far.
+
+### Event System — Live and Cascading
+
+Wired up the full event pipeline: module handler emits → StateStore logs → habitat dispatches to subscribed inhabitants' `on_event` handlers.
+
+**What was already there but unused**: the dispatch code in `onModuleEvent` was complete. The gap was just that no inhabitants subscribed to events or had `on_event` handlers.
+
+**What we added**:
+- Starter somas now subscribe to `chat.message_posted`, `knock-knock.joke_posed`, `knock-knock.joke_guessed` on first tick
+- `on_event` handler calls `thinkAbout` with the event as context
+- Event queue: events that arrive while an inhabitant is mid-inference get queued and drained after thinking completes
+- Self-event filtering: inhabitants don't receive events triggered by their own actions (checked via `data.from`/`data.poser`/`data.guesser`)
+- thinkAbout tools: `events__subscribe`, `events__unsubscribe`, `events__list_subscriptions` so inhabitants can manage subscriptions during inference
+
+**The cascade problem**: events work beautifully — inhabitants react to each other's chat messages and joke guesses in real-time. But every reaction triggers new events, which trigger more reactions. Alpha posts → Beta gets `message_posted` event → Beta thinks → Beta posts → Alpha gets `message_posted` event → Alpha thinks → ... This creates a much more dynamic conversation but at the cost of many inference calls. In 8 ticks, the inhabitants made ~15 thinkAbout calls (vs ~5 without events).
+
+**This is a design question, not a bug**: the event system works correctly. The cascade is the natural consequence of "events trigger thinking." The options are:
+- Inhabitants could choose to not call thinkAbout on every event (smarter on_event handlers)
+- A cooldown per inhabitant (don't fire on_event if you just thought)
+- Batch events — accumulate events between ticks and deliver as a bundle
+- Let the inhabitants evolve their own event handling (they have `soma__write_on_event`)
+
+For now, it works and demonstrates the full pipeline. Cost management is a future concern.
