@@ -1,0 +1,17 @@
+{
+  "name": "habitat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/chassis/index.ts --bundle --platform=node --format=esm --outfile=dist/habitat.js --packages=external",
+    "start": "node dist/habitat.js",
+    "dev": "npm run build && npm start",
+    "watch": "esbuild src/chassis/index.ts --bundle --platform=node --format=esm --outfile=dist/habitat.js --packages=external --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

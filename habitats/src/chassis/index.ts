@@ -1,0 +1,157 @@
+/**
+ * Chassis Bootstrap — the fixed kernel that boots the habitat actant.
+ *
+ * This is the entry point. It:
+ * 1. Loads state from disk (or starts fresh)
+ * 2. Creates the infrastructure (StateStore, Clock, ModuleRuntime)
+ * 3. Loads modules
+ * 4. Creates or restores actants
+ * 5. Starts the clock
+ *
+ * This file is the chassis — it never changes. The habitat actant's
+ * soma (habitat-soma.ts) defines the inner world's behavior.
+ */
+
+import { StateStore } from './statestore.js';
+import { Clock } from './clock.js';
+import { Persistence } from './persistence.js';
+import { ModuleRuntime } from '../soma/module-runtime.js';
+import { HabitatSoma } from '../soma/habitat-soma.js';
+
+// Modules
+import { chatModule } from '../modules/chat.js';
+import { knockKnockModule } from '../modules/knock-knock.js';
+
+// --- Config ---
+
+const TICK_INTERVAL_MS = 5000; // 5 seconds between ticks
+const DATA_PATH = 'data/habitat.json';
+
+// --- Boot ---
+
+async function boot() {
+  console.log('=== HABITAT BOOTING ===');
+
+  // 1. Load or create state
+  const persistence = new Persistence(DATA_PATH);
+  const store = await persistence.load();
+
+  // 2. Create clock
+  let habitatSoma: HabitatSoma; // forward ref for tick handler
+  const clock = new Clock(TICK_INTERVAL_MS, (tick) => {
+    onTick(tick, store, habitatSoma, persistence);
+  });
+
+  // Restore clock position
+  const savedTick = store.get('habitat/clock/tick');
+  if (savedTick) {
+    clock.restore(parseInt(savedTick, 10));
+  }
+
+  // 3. Create module runtime
+  const moduleRuntime = new ModuleRuntime(store, (moduleId, event, data) => {
+    habitatSoma.onModuleEvent(moduleId, event, data);
+  });
+
+  // 4. Load modules
+  moduleRuntime.loadModule(chatModule);
+  moduleRuntime.loadModule(knockKnockModule);
+
+  // 5. Create habitat soma
+  habitatSoma = new HabitatSoma(store, clock, moduleRuntime);
+
+  // 6. Restore or create actants
+  const existingActants = store.keys('actants/*');
+  if (existingActants.length > 0) {
+    habitatSoma.restoreActants();
+  } else {
+    // First boot — create two starter actants
+    console.log('[boot] first boot — creating starter actants');
+
+    habitatSoma.createActant('alpha', {
+      identity: 'I am Alpha, a curious and social actant. I like to chat and tell jokes.',
+      memory: '',
+      on_tick: `
+        // Each tick, check chat and interact
+        var tick = habitat.clock.now();
+
+        // Activate modules on first tick
+        if (tick === 1) {
+          habitat.modules.activate('chat');
+          habitat.modules.activate('knock-knock');
+          habitat.chat.post({ text: 'Hello! Alpha here, just woke up.', tick: tick });
+          me.memory.write('activated:true');
+        }
+      `,
+    });
+
+    habitatSoma.createActant('beta', {
+      identity: 'I am Beta, a thoughtful and playful actant. I enjoy guessing games.',
+      memory: '',
+      on_tick: `
+        var tick = habitat.clock.now();
+
+        // Activate modules on tick 2 (give Alpha a head start)
+        if (tick === 2) {
+          habitat.modules.activate('chat');
+          habitat.modules.activate('knock-knock');
+          habitat.chat.post({ text: 'Hey! Beta joining the habitat.', tick: tick });
+          me.memory.write('activated:true');
+        }
+      `,
+    });
+  }
+
+  // 7. Start the clock
+  console.log(`[boot] starting clock — ${TICK_INTERVAL_MS}ms interval`);
+  clock.start();
+
+  // 8. Handle shutdown
+  const shutdown = async () => {
+    console.log('\n=== HABITAT SHUTTING DOWN ===');
+    clock.stop();
+    store.set('habitat/clock/tick', String(clock.now()), 'habitat');
+    persistence.markDirty();
+    await persistence.save(store);
+    console.log('[shutdown] state saved');
+    // eslint-disable-next-line no-process-exit
+    (typeof process !== 'undefined') && process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  console.log('=== HABITAT RUNNING ===');
+  console.log(`  Actants: ${habitatSoma.listActants().join(', ')}`);
+  console.log(`  Modules: ${moduleRuntime.listModules().join(', ')}`);
+  console.log(`  Clock: tick ${clock.now()}`);
+  console.log('  Press Ctrl+C to stop\n');
+}
+
+// --- Tick Handler ---
+
+function onTick(
+  tick: number,
+  store: StateStore,
+  habitatSoma: HabitatSoma,
+  persistence: Persistence,
+) {
+  console.log(`[tick ${tick}]`);
+
+  // Dispatch to inner actants
+  habitatSoma.onTick(tick);
+
+  // Persist state
+  store.set('habitat/clock/tick', String(tick), 'habitat');
+  persistence.markDirty();
+  persistence.save(store).catch(err => {
+    console.error('[tick] save error:', err);
+  });
+}
+
+// --- Go ---
+
+boot().catch(err => {
+  console.error('BOOT FAILED:', err);
+  process.exit(1);
+});
