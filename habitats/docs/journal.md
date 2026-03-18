@@ -173,3 +173,43 @@ Wired up `thinkAbout` as an async method on `me`. Uses the Anthropic SDK directl
 - Chat tick timestamps were hardcoded to 0 — now reads from store
 - Module tool names used single underscore (`knock-knock_pose`) causing split bugs — switched to double underscore
 - Tool schemas were too vague (`input: { type: 'object' }`) — knock-knock module now has proper schemas with field descriptions
+
+### Refactoring — Uniform Surfaces
+
+Robby caught several design inconsistencies and we cleaned them up:
+
+**Chat was special-cased.** `read_chat`/`post_chat` were hardcoded tools, not module surface methods. Fixed: chat is now a module like everything else. Its methods (`chat__post`, `chat__read`, `chat__history`) come from the module definition's schemas. No special tools.
+
+**Soma tools were incomplete.** Only `read_memory`/`write_memory` existed. But the design says all soma sections should be read/writable. Fixed: tools are now generated from `SOMA_SECTIONS` array — `soma__read_identity`, `soma__write_identity`, `soma__read_memory`, etc. for all 4 sections. Inhabitants can now self-modify their `on_tick` and `on_event` handlers through thinkAbout.
+
+**Module surfaces were on the wrong namespace.** Activated modules hung directly on the `habitat` object (`habitat.chat.post()`), conflating modules with habitat infrastructure. Fixed: modules live under `habitat.modules` namespace (`habitat.modules.chat.post()`). Habitat infrastructure (`events`, `clock`) stays at the top level.
+
+**Terminology**: we started calling inner actants "inhabitants" to distinguish from the habitat actant itself.
+
+### What the Surfaces Look Like Now
+
+```
+me                                ← your embodiment
+  .id                             → "alpha"
+  .identity.read() / .write()     → self-model
+  .memory.read() / .write()       → what you know
+  .on_tick.read() / .write()      → your tick handler
+  .on_event.read() / .write()     → your event handler
+  .thinkAbout(impulse)            → inference, soma as system prompt
+
+habitat                           ← the environment
+  .modules                        ← module namespace
+    .activate(id) / .deactivate(id) / .list()
+    .chat.post({ text })          → after activation
+    ['knock-knock'].pose(...)     → caller identity baked in
+  .events.subscribe / .unsubscribe  ← habitat infrastructure
+  .clock.now()                      ← habitat infrastructure
+```
+
+During thinkAbout, the model gets tools from two sources:
+- **Soma**: `soma__read_<section>` / `soma__write_<section>` for all sections
+- **Modules**: `<moduleId>__<method>` for all activated module methods
+
+### Habitat Actant — Not Yet Evolvable
+
+Noted that the habitat-soma.ts is frozen TypeScript, not a modifiable soma. The habitat actant doesn't call thinkAbout. Its behavior is hardcoded in the chassis. For the habitat to self-modify, it would need its own soma sections in the StateStore and a collaborative thinkAbout loop with the admin. Flagged for future work — "boots operational, evolves through collaboration" is the principle, but only "boots operational" is implemented so far.
