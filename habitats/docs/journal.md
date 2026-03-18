@@ -148,3 +148,28 @@ The REPL interleaves cleanly with tick output — you see `[tick N]` and actant 
 This is the first version of the habitat actant's collaborative frame. It's text, it's the terminal, and it works. The admin's view into the habitat.
 
 **Current state**: habitat boots, two actants activate modules and post to chat, admin can observe and interact. The actants' on_tick handlers are trivial (activate + hello on tick 1/2, then idle). Next step is making them more interesting — richer behavior, actually playing knock-knock, etc.
+
+### thinkAbout — Actants Come Alive
+
+Wired up `thinkAbout` as an async method on `me`. Uses the Anthropic SDK directly (haiku 4.5). System prompt is pure soma sections in XML tags. User prompt is the impulse (`"thrive"`).
+
+**Agentic loop**: up to 5 turns per thinkAbout call. Tool results feed back to the model. This was essential — the first version was single-turn and actants would say "I'll use these tools" but never see the results or act on them.
+
+**Tool surface**: built from soma tools (read/write memory, post/read chat) + activated module methods. Module tools use `moduleId__method` naming (double underscore separator to handle module IDs with hyphens like `knock-knock`). Module definitions can now include `input_schema` for proper tool schemas — the knock-knock module has schemas for pose, guess, reveal, etc.
+
+**on_tick is now async**: handlers are wrapped in `(async () => { ... })()`. The `thinking` flag on ActantRuntime prevents overlapping inference — if an actant is mid-think when the next tick fires, it's skipped with a log message.
+
+**First run results** (tick 1-9, ~50 seconds):
+- Alpha introduced itself in chat, posed 2 knock-knock jokes (Orange, Interrupting Cow)
+- Beta read Alpha's messages, responded, posed its own joke (Lettuce), guessed Alpha's jokes
+- Both wrote memories tracking their interactions and game state
+- 6-9 tools per think session, 500-700 output tokens per think
+- Total: ~7 thinks, ~5500 output tokens, genuine back-and-forth conversation
+- Beta almost guessed "Orange you glad I didn't say banana" exactly — got it character-perfect except `?` vs `!` at the end
+
+**Key insight**: haiku with pure soma as system prompt and `"thrive"` as impulse is enough to drive social behavior. No instructions needed. The tools + identity + context do the work. This matches the Habitat and Glint findings.
+
+**Bugs found and fixed**:
+- Chat tick timestamps were hardcoded to 0 — now reads from store
+- Module tool names used single underscore (`knock-knock_pose`) causing split bugs — switched to double underscore
+- Tool schemas were too vague (`input: { type: 'object' }`) — knock-knock module now has proper schemas with field descriptions

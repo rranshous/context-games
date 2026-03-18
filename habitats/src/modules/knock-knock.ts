@@ -27,7 +27,15 @@ export const knockKnockModule: ModuleDefinition = {
 
   methods: {
     pose: {
-      description: 'Pose a knock-knock joke with a setup and hidden punchline',
+      description: 'Pose a knock-knock joke. Provide "setup" (the "who\'s there" answer) and "punchline" (the final line).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          setup: { type: 'string', description: 'The "who\'s there" answer (e.g., "Boo")' },
+          punchline: { type: 'string', description: 'The punchline (e.g., "Don\'t cry!")' },
+        },
+        required: ['setup', 'punchline'],
+      },
       handler: `
         var jokes = state.jokes || [];
         var scores = state.scores || {};
@@ -57,7 +65,15 @@ export const knockKnockModule: ModuleDefinition = {
     },
 
     guess: {
-      description: 'Guess the punchline of a joke',
+      description: 'Guess the punchline of a knock-knock joke. Provide joke_id and your guess as "punchline".',
+      input_schema: {
+        type: 'object',
+        properties: {
+          joke_id: { type: 'number', description: 'The joke ID to guess' },
+          punchline: { type: 'string', description: 'Your guess for the punchline' },
+        },
+        required: ['joke_id', 'punchline'],
+      },
       handler: `
         var jokes = state.jokes || [];
         var scores = state.scores || {};
@@ -102,7 +118,12 @@ export const knockKnockModule: ModuleDefinition = {
     },
 
     reveal: {
-      description: 'Reveal the punchline of a joke (only the poser can reveal)',
+      description: 'Reveal the punchline and all guesses for a joke. Only the poser can reveal.',
+      input_schema: {
+        type: 'object',
+        properties: { joke_id: { type: 'number', description: 'The joke ID to reveal' } },
+        required: ['joke_id'],
+      },
       handler: `
         var jokes = state.jokes || [];
 
@@ -127,7 +148,8 @@ export const knockKnockModule: ModuleDefinition = {
     },
 
     pending: {
-      description: 'List jokes that still need guessing',
+      description: 'List jokes you haven\'t guessed yet (shows setup but not punchline)',
+      input_schema: { type: 'object', properties: {} },
       handler: `
         var jokes = state.jokes || [];
         var pending = [];
@@ -146,7 +168,8 @@ export const knockKnockModule: ModuleDefinition = {
     },
 
     scores: {
-      description: 'Get the scoreboard',
+      description: 'Get the scoreboard showing posed/guessed/correct counts per actant',
+      input_schema: { type: 'object', properties: {} },
       handler: `
         return { state: state, result: { scores: state.scores || {} } };
       `,

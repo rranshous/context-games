@@ -13,6 +13,7 @@ import { scanSource, runHandler } from '../chassis/vm-runner.js';
 export interface MethodDef {
   description: string;
   handler: string; // function body as source string
+  input_schema?: Record<string, unknown>; // JSON Schema for tool generation
 }
 
 export interface ModuleDefinition {
@@ -129,5 +130,16 @@ export class ModuleRuntime {
       descriptions[name] = method.description;
     }
     return descriptions;
+  }
+
+  /** Get method info including input schemas (for tool generation). */
+  getMethodSchemas(moduleId: string): Record<string, { description: string; input_schema?: Record<string, unknown> }> | null {
+    const def = this.modules.get(moduleId);
+    if (!def) return null;
+    const schemas: Record<string, { description: string; input_schema?: Record<string, unknown> }> = {};
+    for (const [name, method] of Object.entries(def.methods)) {
+      schemas[name] = { description: method.description, input_schema: method.input_schema };
+    }
+    return schemas;
   }
 }

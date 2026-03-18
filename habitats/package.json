@@ -5,13 +5,17 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/chassis/index.ts --bundle --platform=node --format=esm --outfile=dist/habitat.js --packages=external",
-    "start": "node dist/habitat.js",
+    "start": "node -e \"import('dotenv/config');import('./dist/habitat.js')\"",
     "dev": "npm run build && npm start",
     "watch": "esbuild src/chassis/index.ts --bundle --platform=node --format=esm --outfile=dist/habitat.js --packages=external --watch"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "esbuild": "^0.25.0",
-    "typescript": "^5.7.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "dotenv": "^17.3.1"
   }
 }

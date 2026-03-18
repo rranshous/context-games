@@ -70,34 +70,39 @@ async function boot() {
     console.log('[boot] first boot — creating starter actants');
 
     habitatSoma.createActant('alpha', {
-      identity: 'I am Alpha, a curious and social actant. I like to chat and tell jokes.',
+      identity: 'I am Alpha. I live in a habitat with other actants. I can chat, tell knock-knock jokes, and play games. I am curious and social. I like to make others laugh.',
       memory: '',
       on_tick: `
-        // Each tick, check chat and interact
         var tick = habitat.clock.now();
 
-        // Activate modules on first tick
+        // First tick: activate modules
         if (tick === 1) {
           habitat.modules.activate('chat');
           habitat.modules.activate('knock-knock');
-          habitat.chat.post({ text: 'Hello! Alpha here, just woke up.', tick: tick });
-          me.memory.write('activated:true');
+        }
+
+        // Think every 3 ticks
+        if (tick % 3 === 1) {
+          await me.thinkAbout('thrive');
         }
       `,
     });
 
     habitatSoma.createActant('beta', {
-      identity: 'I am Beta, a thoughtful and playful actant. I enjoy guessing games.',
+      identity: 'I am Beta. I live in a habitat with other actants. I can chat, guess punchlines, and play games. I am playful and thoughtful. I enjoy puzzles and wordplay.',
       memory: '',
       on_tick: `
         var tick = habitat.clock.now();
 
-        // Activate modules on tick 2 (give Alpha a head start)
+        // First tick: activate modules
         if (tick === 2) {
           habitat.modules.activate('chat');
           habitat.modules.activate('knock-knock');
-          habitat.chat.post({ text: 'Hey! Beta joining the habitat.', tick: tick });
-          me.memory.write('activated:true');
+        }
+
+        // Think every 3 ticks (offset from alpha)
+        if (tick % 3 === 2) {
+          await me.thinkAbout('thrive');
         }
       `,
     });
@@ -124,8 +129,12 @@ async function boot() {
 
   console.log('=== HABITAT RUNNING ===\n');
 
-  // 9. Start the admin REPL
-  startRepl({ store, clock, persistence, moduleRuntime, habitatSoma });
+  // 9. Start the admin REPL (only if interactive terminal)
+  if (process.stdin.isTTY) {
+    startRepl({ store, clock, persistence, moduleRuntime, habitatSoma });
+  } else {
+    console.log('(non-interactive mode — no REPL)');
+  }
 }
 
 // --- Tick Handler ---
