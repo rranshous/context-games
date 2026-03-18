@@ -109,8 +109,56 @@ The documents describe the same things. The framing reveals that these aren't in
 
 ---
 
+## Operational from Boot
+
+The habitat actant boots and the inner world works immediately. Clock ticks, modules run, inner actants go. That's the chassis doing its mechanical job — no inference needed. The habitat actant doesn't need to think to function.
+
+Evolution comes through collaboration with its human (the admin). The admin observes the habitat running, notices something, and the habitat actant reasons about it together with them through the collaborative frame. The audit trail provides the raw material — everything that happened, reviewable at any time.
+
+This is a deliberate choice: start operational, accumulate history, evolve through collaboration. A habitat actant that self-modifies its inner world's mechanisms before it has any accumulated experience or collaborative history is just guessing. The same pattern that works for inner actants (boot with a working soma, evolve from experience) works for the habitat actant itself.
+
+---
+
+## Self-Reflection
+
+The habitat actant CAN thinkAbout itself — same mechanism as any actant. When it does, it sees its own soma: the StateStore definitions, the clock logic, the module loading rules, the surface construction patterns. It could decide to cap list lengths, unload a broken module, or change how surfaces are constructed.
+
+But when does it think? Not every tick — most ticks are mechanical. The rhythm is different from inner actants:
+
+- **Inner actants**: think on their tick schedule, driven by impulse (`"thrive"`)
+- **Habitat actant**: thinks when the human collaborator engages, or when conditions warrant attention (exception-driven, not tick-driven)
+
+The habitat actant's impulse — if it has one — might be something like `"sustain"`. But it may not need a standing impulse at all. Its thinking is collaborative (with the admin) rather than autonomous (like inner actants). At least to start. What emerges from that collaboration is an open question.
+
+---
+
+## Nested Habitats
+
+If a habitat is an actant, an inner actant can BE a habitat — running its own clock, hosting its own modules, containing its own inner actants. From the outer habitat's perspective, it's just another actant with a large soma and a slow handler.
+
+### Time Nesting
+
+The inner habitat's clock is derived from the outer habitat's tick, but not bound to it:
+
+- Each outer tick, the inner habitat-actant receives an `on_tick` signal
+- Its handler might advance its inner clock by 1, or 10, or 0 (paused)
+- Inner time can run faster, slower, or at variable rate relative to outer time
+- The outer habitat doesn't know there's a world inside — it just sees an actant whose handler runs and whose soma changes
+
+### Resource Nesting
+
+Cost nests multiplicatively. If an inner habitat runs 10 inner ticks per outer tick, and each fires `thinkAbout` for 3 inner actants, one outer tick becomes 30 inference calls. This means:
+
+- **Resource budgets flow downward.** The outer habitat gives the inner habitat-actant a budget. The inner habitat distributes it to its inhabitants.
+- **The ticks-vs-turns question becomes load-bearing.** Frequent ticks × expensive thinkAbout × nesting depth = the resource model needs real constraints.
+- **Budget exhaustion = pause.** An inner habitat that runs out of budget pauses its own clock until the outer habitat grants more. Same pattern as Bloom's token budget.
+
+The resource model needs to be felt through running habitats, not designed in the abstract. Flagged for future work.
+
+---
+
 ## Open Threads
 
-- **Can the habitat actant thinkAbout itself?** If the soma defines the inner world's mechanisms, and thinkAbout sends the soma as system prompt... the habitat actant could reason about its own mechanisms and rewrite them. Self-modifying infrastructure. Powerful and dangerous.
-- **What's the habitat actant's impulse?** Inner actants get `"thrive"`. What drives the habitat actant? `"sustain"`? `"nurture"`? Or does it not need one — it just runs the loop?
-- **Admin as the habitat's human.** If participant humans interact through inner actants, the admin might be the habitat actant's human — collaborating through the habitat's own frame (the admin UI). The admin UI is the habitat actant's render function.
+- **Admin as the habitat's human.** The admin is the habitat actant's human — collaborating through the habitat's own frame (the admin UI). The admin UI is the habitat actant's render function. YES!
+- **Ticks vs turns.** How does `thinkAbout` relate to the tick cycle? Does an inference call block the tick? Can multiple ticks fire while an actant is thinking? This connects to the resource model and nesting costs.
+- **Multiple humans.** Can the habitat actant collaborate with more than one admin? Is admin-ship transferable?
