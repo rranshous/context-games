@@ -370,11 +370,26 @@ function buildToolsForActant(
   });
   tools.push({
     name: 'modules__destroy',
-    description: 'Destroy a module you own (removes definition and state)',
+    description: 'Destroy a module you created (removes definition and state)',
     input_schema: {
       type: obj,
       properties: { id: { type: 'string', description: 'Module ID to destroy' } },
       required: ['id'],
+    },
+  });
+  tools.push({
+    name: 'modules__update',
+    description: 'Update methods on a module you created. Provide the module ID and new/updated method definitions. Existing methods not listed are preserved. State is preserved.',
+    input_schema: {
+      type: obj,
+      properties: {
+        id: { type: 'string', description: 'Module ID to update' },
+        methods: {
+          type: 'object',
+          description: 'Method definitions to add or update. Each key is a method name, value is { description: string, handler: string }.',
+        },
+      },
+      required: ['id', 'methods'],
     },
   });
 
@@ -475,12 +490,56 @@ function executeToolCall(
   if (toolName === 'modules__destroy') {
     const id = input.id as string;
     if (!id) return { error: 'Need id' };
+
+    // Ownership check — only the creator can destroy
+    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
+    if (moduleState && moduleState._creator && moduleState._creator !== actantId) {
+      return { error: `Only the creator (${moduleState._creator}) can destroy "${id}"` };
+    }
+
     const destroyed = moduleRuntime.destroyModule(id);
     if (destroyed) {
       store.hdel('module-defs', id, actantId);
       console.log(`[habitat] ${actantId} destroyed module "${id}"`);
     }
     return { ok: destroyed };
+  }
+
+  if (toolName === 'modules__update') {
+    const id = input.id as string;
+    const rawMethods = input.methods as Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>;
+    if (!id || !rawMethods) return { error: 'Need id and methods' };
+
+    // Ownership check — only the creator can update
+    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
+    if (moduleState && moduleState._creator && moduleState._creator !== actantId) {
+      return { error: `Only the creator (${moduleState._creator}) can update "${id}"` };
+    }
+
+    // Build method definitions
+    const methods: Record<string, MethodDef> = {};
+    for (const [methodName, methodInfo] of Object.entries(rawMethods)) {
+      methods[methodName] = {
+        description: methodInfo.description || methodName,
+        handler: methodInfo.handler,
+        input_schema: methodInfo.input_schema,
+      };
+    }
+
+    const result = moduleRuntime.updateMethods(id, methods);
+    if (result.ok) {
+      // Update persisted definition
+      const existingDef = store.hget('module-defs', id) as Record<string, unknown> | null;
+      if (existingDef) {
+        const existingMethods = (existingDef.methods || {}) as Record<string, unknown>;
+        store.hset('module-defs', id, {
+          ...existingDef,
+          methods: { ...existingMethods, ...rawMethods },
+        }, actantId);
+      }
+      console.log(`[habitat] ${actantId} updated module "${id}": ${Object.keys(rawMethods).join(', ')}`);
+    }
+    return result;
   }
 
   // Module tools: moduleId__method (double underscore separator)

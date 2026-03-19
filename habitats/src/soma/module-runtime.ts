@@ -78,6 +78,29 @@ export class ModuleRuntime {
     return { ok: true };
   }
 
+  /** Update specific methods on an existing module. State preserved. */
+  updateMethods(moduleId: string, methods: Record<string, MethodDef>): { ok: boolean; error?: string } {
+    const existing = this.modules.get(moduleId);
+    if (!existing) return { ok: false, error: `Module "${moduleId}" not found` };
+
+    // AST scan new handlers
+    for (const [name, method] of Object.entries(methods)) {
+      const violations = scanSource(method.handler);
+      if (violations.length > 0) {
+        return { ok: false, error: `Method "${name}" uses forbidden tokens: ${violations.join(', ')}` };
+      }
+    }
+
+    // Merge — new methods override, existing methods preserved
+    const updated: ModuleDefinition = {
+      ...existing,
+      methods: { ...existing.methods, ...methods },
+    };
+    this.modules.set(moduleId, updated);
+    console.log(`[module-runtime] updated methods on "${moduleId}": ${Object.keys(methods).join(', ')}`);
+    return { ok: true };
+  }
+
   /** Unload a module. Removes definition but preserves state in store. */
   unloadModule(moduleId: string): boolean {
     const existed = this.modules.delete(moduleId);

@@ -187,7 +187,11 @@ function cmdModules(ctx: ReplContext): void {
   const ids = ctx.moduleRuntime.listModules();
   for (const id of ids) {
     const methods = ctx.moduleRuntime.getMethodDescriptions(id);
-    print(`  ┌─ ${id}`);
+    const moduleState = ctx.store.hget('modules', id) as Record<string, unknown> | null;
+    const creator = moduleState?._creator as string | undefined;
+    const isDynamic = ctx.store.hget('module-defs', id) !== null;
+    const label = isDynamic ? `${id} (by ${creator || '?'})` : `${id} (built-in)`;
+    print(`  ┌─ ${label}`);
     if (methods) {
       for (const [name, desc] of Object.entries(methods)) {
         print(`  │ .${name}() — ${desc}`);
