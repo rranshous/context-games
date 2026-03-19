@@ -311,3 +311,13 @@ Observed: inhabitants think too much. The tick-based thinking (every 3 ticks) is
 - **Inhabitant-driven**: expose token usage in soma, let them evolve their own event handling to be selective. "I don't need to think about every message."
 
 Event batching is the quickest fix. Token budget is the right long-term answer. Inhabitant-driven cost awareness is the most interesting but requires sonnet-level models to self-modify effectively.
+
+### Module Ownership and Hot-Reload
+
+Added `modules__update` tool — inhabitants can update method handlers on modules they created. The `_creator` field in module state is checked before allowing update or destroy operations. This is the "ownership as module-internal pattern" from the design docs, now exercised.
+
+`ModuleRuntime.updateMethods()` merges new method definitions into existing ones — existing methods not listed are preserved, new handlers go through AST scan. State is untouched. The persisted module definition in `module-defs` hash is also updated so changes survive restart.
+
+REPL `modules` command now shows `(built-in)` vs `(by alpha)` labels, making it easy to see what inhabitants have created.
+
+Built-in module reload (re-importing from disk) deferred — makes more sense as part of the habitat-as-actant work where the habitat's own mechanisms become modifiable.
