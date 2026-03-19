@@ -321,3 +321,38 @@ Added `modules__update` tool — inhabitants can update method handlers on modul
 REPL `modules` command now shows `(built-in)` vs `(by alpha)` labels, making it easy to see what inhabitants have created.
 
 Built-in module reload (re-importing from disk) deferred — makes more sense as part of the habitat-as-actant work where the habitat's own mechanisms become modifiable.
+
+### Habitat as an Actant — THE BIG ONE
+
+The habitat is now a real actant with its own soma in the StateStore. When the admin types, the habitat thinks and responds.
+
+**What changed:**
+
+**inference.ts** — model, maxTokens, maxTurns are now configurable parameters with defaults. Inhabitants still use haiku/1024/5. The habitat uses sonnet/4096/10.
+
+**habitat-soma.ts** — the big changes:
+- Constructor initializes habitat soma at `actants/habitat` (identity, memory, on_human_input) if not present
+- `buildHabitatMe()` — habitat's `me` object, same shape as inhabitants but with `on_human_input` instead of `on_tick`/`on_event`
+- `habitatThinkAbout(impulse)` — sonnet model, 4096 tokens, habitat-specific tools, 10 turns
+- `onHumanInput(input)` — reads `on_human_input` handler from soma, compiles and runs it with `buildHabitatMe()` and the admin's input
+- `buildToolsForHabitat()` — 18 tools across 7 categories: soma (6), inhabitants (3), clock (5), modules (2), store (2), audit (1), chat (1)
+- `executeHabitatToolCall()` — routes tool calls for the habitat, has direct access to all infrastructure
+- `restoreActants()` now filters out `actants/habitat` so it's not treated as an inhabitant
+
+**repl.ts** — stripped to thin shell. Only `watch` and `exit` are handled directly. Everything else → `habitatSoma.onHumanInput(trimmed)` → print response. Shows "thinking..." while waiting for inference.
+
+**First test:** typed "status" → habitat used `clock__status`, `inhabitants__list`, `modules__list` → returned a beautiful natural language overview with tick count, inhabitant descriptions, module methods. The habitat IS the admin interface now.
+
+**Bug found and fixed:** habitat soma at `actants/habitat` was being counted as an existing actant, preventing first-boot inhabitant creation. Fixed by filtering `actants/habitat` from the existence check.
+
+**What the habitat's `on_human_input` handler looks like:**
+```javascript
+var response = await me.thinkAbout(input);
+return response;
+```
+
+That's it. The intelligence is in the model + tools, not in the handler code. The handler is evolvable — the habitat or admin could rewrite it to add pattern matching for common commands, preprocessing, memory management, etc.
+
+**The old REPL is gone.** No more switch-case commands. The habitat actant IS the interface. If inference fails, you see the error. The admin can still use `watch` for live tick output and Ctrl+C for shutdown — those are chassis-level, not soma-level.
+
+**What this means architecturally:** the habitat is no longer frozen TypeScript. Its identity, memory, and input handler are in the StateStore. They persist, they can be read, they can be rewritten. The habitat can self-modify (via `soma__write_*` tools during thinkAbout). The admin can ask the habitat to change itself. "Add a welcome brochure module" → the habitat reasons about it and acts. This is "boots operational, evolves through collaboration" — fully realized.

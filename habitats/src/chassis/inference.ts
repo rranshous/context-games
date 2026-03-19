@@ -8,9 +8,10 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-const MODEL = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS = 1024;
-const MAX_TURNS = 5;
+// Defaults — inhabitants use these, habitat overrides
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+const DEFAULT_MAX_TOKENS = 1024;
+const DEFAULT_MAX_TURNS = 5;
 
 let client: Anthropic | null = null;
 
@@ -26,6 +27,9 @@ export interface ThinkAboutOptions {
   impulse: string;
   tools?: Anthropic.Tool[];
   executeTool: (name: string, input: Record<string, unknown>) => unknown;
+  model?: string;
+  maxTokens?: number;
+  maxTurns?: number;
 }
 
 export interface ThinkAboutResult {
@@ -35,10 +39,18 @@ export interface ThinkAboutResult {
 }
 
 /**
- * Agentic thinkAbout — loops up to MAX_TURNS, feeding tool results back.
+ * Agentic thinkAbout — loops up to maxTurns, feeding tool results back.
  */
 export async function thinkAbout(options: ThinkAboutOptions): Promise<ThinkAboutResult> {
-  const { soma, impulse, tools, executeTool } = options;
+  const {
+    soma,
+    impulse,
+    tools,
+    executeTool,
+    model = DEFAULT_MODEL,
+    maxTokens = DEFAULT_MAX_TOKENS,
+    maxTurns = DEFAULT_MAX_TURNS,
+  } = options;
 
   // Build system prompt from soma sections
   const systemParts: string[] = [];
@@ -55,10 +67,10 @@ export async function thinkAbout(options: ThinkAboutOptions): Promise<ThinkAbout
   let totalOutput = 0;
   let finalText = '';
 
-  for (let turn = 0; turn < MAX_TURNS; turn++) {
+  for (let turn = 0; turn < maxTurns; turn++) {
     const params: Anthropic.MessageCreateParams = {
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
+      model,
+      max_tokens: maxTokens,
       system,
       messages,
     };

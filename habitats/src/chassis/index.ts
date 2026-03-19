@@ -65,7 +65,7 @@ async function boot() {
   habitatSoma.restoreDynamicModules();
 
   // 6. Restore or create actants
-  const existingActants = store.keys('actants/*');
+  const existingActants = store.keys('actants/*').filter(k => k !== 'actants/habitat');
   if (existingActants.length > 0) {
     habitatSoma.restoreActants();
   } else {
@@ -148,7 +148,7 @@ async function boot() {
 
   // 9. Start the admin REPL (only if interactive terminal)
   if (process.stdin.isTTY) {
-    startRepl({ store, clock, persistence, moduleRuntime, habitatSoma });
+    startRepl({ habitatSoma });
   } else {
     console.log('(non-interactive mode — no REPL)');
   }

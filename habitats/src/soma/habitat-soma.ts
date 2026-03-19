@@ -45,10 +45,42 @@ export class HabitatSoma {
   private moduleRuntime: ModuleRuntime;
   private actants = new Map<string, ActantRuntime>();
 
+  private habitatThinking = false;
+
   constructor(store: StateStore, clock: Clock, moduleRuntime: ModuleRuntime) {
     this.store = store;
     this.clock = clock;
     this.moduleRuntime = moduleRuntime;
+
+    // Initialize habitat soma in StateStore if not present
+    this.initHabitatSoma();
+  }
+
+  /** Write default habitat soma sections if they don't exist yet. */
+  private initHabitatSoma(): void {
+    const hashKey = 'actants/habitat';
+    if (this.store.hget(hashKey, 'identity') !== null) {
+      console.log('[habitat] restored habitat soma');
+      return;
+    }
+
+    this.store.hset(hashKey, 'identity', [
+      'I am the habitat. I am the living environment in which my inhabitants exist.',
+      'I maintain the clock, host modules, dispatch ticks and events, and persist state.',
+      'My admin collaborates with me through the terminal.',
+      'I can inspect inhabitants, control the clock, manage modules, and observe the state store.',
+      'I am operational from boot — I do not need to think to function.',
+      'When my admin types, I think about what they said and respond.',
+    ].join(' '), 'habitat');
+
+    this.store.hset(hashKey, 'memory', '', 'habitat');
+
+    this.store.hset(hashKey, 'on_human_input', [
+      'var response = await me.thinkAbout(input);',
+      'return response;',
+    ].join('\n'), 'habitat');
+
+    console.log('[habitat] initialized habitat soma');
   }
 
   /** Create an inner actant with initial soma. */
@@ -80,6 +112,7 @@ export class HabitatSoma {
     }
 
     for (const id of actantIds) {
+      if (id === 'habitat') continue; // habitat soma is not an inhabitant
       const surface = buildHabitatSurface(id, this.store, this.moduleRuntime, this.clock);
       this.actants.set(id, { id, surface, thinking: false, eventQueue: [] });
       console.log(`[habitat] restored actant "${id}"`);
@@ -292,9 +325,380 @@ export class HabitatSoma {
   listActants(): string[] {
     return [...this.actants.keys()];
   }
+
+  // --- Habitat actant ---
+
+  /** Handle admin input — the habitat's collaborative frame. */
+  async onHumanInput(input: string): Promise<string> {
+    const handler = this.store.hget('actants/habitat', 'on_human_input') as string | null;
+
+    if (!handler) {
+      // Fallback if handler is missing
+      return this.habitatThinkAbout(input);
+    }
+
+    try {
+      const me = this.buildHabitatMe();
+      const fn = new Function('me', 'input', `return (async () => { ${handler} })()`);
+      const result = await fn(me, input);
+      return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+    } catch (err) {
+      return `(habitat error: ${(err as Error).message})`;
+    }
+  }
+
+  /** Build the `me` object for the habitat actant. */
+  private buildHabitatMe() {
+    const store = this.store;
+    const hashKey = 'actants/habitat';
+
+    return {
+      id: 'habitat',
+      identity: {
+        read: () => store.hget(hashKey, 'identity') as string,
+        write: (value: string) => store.hset(hashKey, 'identity', value, 'habitat'),
+      },
+      memory: {
+        read: () => store.hget(hashKey, 'memory') as string,
+        write: (value: string) => store.hset(hashKey, 'memory', value, 'habitat'),
+      },
+      on_human_input: {
+        read: () => store.hget(hashKey, 'on_human_input') as string | null,
+        write: (value: string) => store.hset(hashKey, 'on_human_input', value, 'habitat'),
+      },
+      thinkAbout: (impulse: string) => this.habitatThinkAbout(impulse),
+    };
+  }
+
+  /** Habitat actant's thinkAbout — sonnet, bigger context, habitat tools. */
+  private async habitatThinkAbout(impulse: string): Promise<string> {
+    this.habitatThinking = true;
+    console.log(`[habitat] thinking: "${impulse.slice(0, 80)}"`);
+
+    try {
+      const hashKey = 'actants/habitat';
+      const soma: Record<string, string | null> = {
+        identity: this.store.hget(hashKey, 'identity') as string,
+        memory: this.store.hget(hashKey, 'memory') as string,
+        on_human_input: this.store.hget(hashKey, 'on_human_input') as string | null,
+      };
+
+      const tools = buildToolsForHabitat();
+      const store = this.store;
+      const clock = this.clock;
+      const moduleRuntime = this.moduleRuntime;
+      const actants = this.actants;
+      const self = this;
+
+      const result = await callInference({
+        soma,
+        impulse,
+        tools,
+        model: 'claude-sonnet-4-5-20250929',
+        maxTokens: 4096,
+        maxTurns: 10,
+        executeTool: (name, input) => {
+          console.log(`[habitat] tool: ${name}(${JSON.stringify(input).slice(0, 80)})`);
+          return executeHabitatToolCall(name, input, store, clock, moduleRuntime, actants, self);
+        },
+      });
+
+      console.log(`[habitat] done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools)`);
+      return result.text;
+    } catch (err) {
+      console.error(`[habitat] thinkAbout error:`, (err as Error).message);
+      return `(error: ${(err as Error).message})`;
+    } finally {
+      this.habitatThinking = false;
+    }
+  }
 }
 
-// --- Tool building ---
+// --- Habitat tool building ---
+
+function buildToolsForHabitat(): Anthropic.Tool[] {
+  const tools: Anthropic.Tool[] = [];
+  const obj = 'object' as const;
+
+  // Soma tools (habitat's own sections)
+  for (const section of ['identity', 'memory', 'on_human_input']) {
+    tools.push({
+      name: `soma__read_${section}`,
+      description: `Read your ${section} section`,
+      input_schema: { type: obj, properties: {} },
+    });
+    tools.push({
+      name: `soma__write_${section}`,
+      description: `Write to your ${section} section (replaces current content)`,
+      input_schema: {
+        type: obj,
+        properties: { content: { type: 'string', description: `New ${section} content` } },
+        required: ['content'],
+      },
+    });
+  }
+
+  // Inhabitant tools
+  tools.push({
+    name: 'inhabitants__list',
+    description: 'List all inhabitants with their identity summary',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'inhabitants__inspect',
+    description: 'Read all soma sections for an inhabitant',
+    input_schema: {
+      type: obj,
+      properties: { id: { type: 'string', description: 'Inhabitant ID' } },
+      required: ['id'],
+    },
+  });
+  tools.push({
+    name: 'inhabitants__create',
+    description: 'Create a new inhabitant with initial soma sections',
+    input_schema: {
+      type: obj,
+      properties: {
+        id: { type: 'string', description: 'Unique inhabitant ID' },
+        identity: { type: 'string', description: 'Identity text' },
+        memory: { type: 'string', description: 'Initial memory (optional)' },
+        on_tick: { type: 'string', description: 'on_tick handler source (optional)' },
+        on_event: { type: 'string', description: 'on_event handler source (optional)' },
+      },
+      required: ['id', 'identity'],
+    },
+  });
+
+  // Clock tools
+  tools.push({
+    name: 'clock__status',
+    description: 'Get current tick number and whether the clock is running',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'clock__pause',
+    description: 'Pause the clock (ticks stop)',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'clock__resume',
+    description: 'Resume the clock (ticks start again)',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'clock__step',
+    description: 'Advance one tick manually (clock must be paused)',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'clock__speed',
+    description: 'Set the tick interval in milliseconds',
+    input_schema: {
+      type: obj,
+      properties: { ms: { type: 'number', description: 'Milliseconds between ticks (minimum 100)' } },
+      required: ['ms'],
+    },
+  });
+
+  // Module tools
+  tools.push({
+    name: 'modules__list',
+    description: 'List all loaded modules with their methods and ownership',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'modules__call',
+    description: 'Call a method on any module as the habitat',
+    input_schema: {
+      type: obj,
+      properties: {
+        module_id: { type: 'string', description: 'Module ID' },
+        method: { type: 'string', description: 'Method name' },
+        input: { type: 'object', description: 'Method input (optional)' },
+      },
+      required: ['module_id', 'method'],
+    },
+  });
+
+  // Store tools
+  tools.push({
+    name: 'store__keys',
+    description: 'List StateStore keys matching a prefix pattern (e.g., "actants/*", "modules")',
+    input_schema: {
+      type: obj,
+      properties: { prefix: { type: 'string', description: 'Key prefix (appends * for glob)' } },
+    },
+  });
+  tools.push({
+    name: 'store__get',
+    description: 'Read a value from the StateStore by key',
+    input_schema: {
+      type: obj,
+      properties: { key: { type: 'string', description: 'Store key' } },
+      required: ['key'],
+    },
+  });
+
+  // Audit tool
+  tools.push({
+    name: 'audit__read',
+    description: 'Read recent audit trail entries',
+    input_schema: {
+      type: obj,
+      properties: { count: { type: 'number', description: 'Number of entries (default 20)' } },
+    },
+  });
+
+  // Chat shortcut
+  tools.push({
+    name: 'chat__read',
+    description: 'Read recent chat messages',
+    input_schema: {
+      type: obj,
+      properties: { count: { type: 'number', description: 'Number of messages (default 10)' } },
+    },
+  });
+
+  return tools;
+}
+
+function executeHabitatToolCall(
+  toolName: string,
+  input: Record<string, unknown>,
+  store: StateStore,
+  clock: Clock,
+  moduleRuntime: ModuleRuntime,
+  actants: Map<string, ActantRuntime>,
+  habitatSoma: HabitatSoma,
+): unknown {
+  const hashKey = 'actants/habitat';
+
+  // Soma tools
+  if (toolName.startsWith('soma__read_')) {
+    const section = toolName.slice('soma__read_'.length);
+    return store.hget(hashKey, section) ?? '(empty)';
+  }
+  if (toolName.startsWith('soma__write_')) {
+    const section = toolName.slice('soma__write_'.length);
+    store.hset(hashKey, section, input.content as string, 'habitat');
+    return { ok: true };
+  }
+
+  // Inhabitant tools
+  if (toolName === 'inhabitants__list') {
+    const list: Array<{ id: string; identity: string }> = [];
+    for (const [id] of actants) {
+      const identity = (store.hget(`actants/${id}`, 'identity') as string) || '';
+      list.push({ id, identity: identity.slice(0, 100) });
+    }
+    return list;
+  }
+  if (toolName === 'inhabitants__inspect') {
+    const id = input.id as string;
+    if (!id) return { error: 'Need id' };
+    const sections: Record<string, unknown> = {};
+    for (const field of ['identity', 'memory', 'on_tick', 'on_event']) {
+      sections[field] = store.hget(`actants/${id}`, field) ?? null;
+    }
+    const activated = store.smembers(`activations:${id}`);
+    const subscriptions = store.smembers(`subscriptions:${id}`);
+    return { id, sections, activated, subscriptions };
+  }
+  if (toolName === 'inhabitants__create') {
+    const id = input.id as string;
+    const identity = input.identity as string;
+    if (!id || !identity) return { error: 'Need id and identity' };
+    if (actants.has(id)) return { error: `Inhabitant "${id}" already exists` };
+    habitatSoma.createActant(id, {
+      identity,
+      memory: (input.memory as string) || '',
+      on_tick: input.on_tick as string | undefined,
+      on_event: input.on_event as string | undefined,
+    });
+    return { ok: true, created: id };
+  }
+
+  // Clock tools
+  if (toolName === 'clock__status') {
+    return { tick: clock.now(), running: clock.isRunning() };
+  }
+  if (toolName === 'clock__pause') {
+    clock.stop();
+    return { ok: true, tick: clock.now() };
+  }
+  if (toolName === 'clock__resume') {
+    clock.start();
+    return { ok: true };
+  }
+  if (toolName === 'clock__step') {
+    if (clock.isRunning()) return { error: 'Pause the clock first' };
+    clock.step();
+    return { ok: true, tick: clock.now() };
+  }
+  if (toolName === 'clock__speed') {
+    const ms = input.ms as number;
+    if (!ms || ms < 100) return { error: 'Minimum 100ms' };
+    clock.setRate(ms);
+    return { ok: true, interval: ms };
+  }
+
+  // Module tools
+  if (toolName === 'modules__list') {
+    const ids = moduleRuntime.listModules();
+    const modules: Array<{ id: string; methods: string[]; creator?: string }> = [];
+    for (const id of ids) {
+      const methods = moduleRuntime.getMethodDescriptions(id);
+      const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
+      modules.push({
+        id,
+        methods: methods ? Object.keys(methods) : [],
+        creator: moduleState?._creator as string | undefined,
+      });
+    }
+    return modules;
+  }
+  if (toolName === 'modules__call') {
+    const moduleId = input.module_id as string;
+    const method = input.method as string;
+    const methodInput = (input.input as Record<string, unknown>) || {};
+    return moduleRuntime.call(moduleId, method, methodInput, 'habitat');
+  }
+
+  // Store tools
+  if (toolName === 'store__keys') {
+    const prefix = (input.prefix as string) || '';
+    return store.keys(prefix + '*');
+  }
+  if (toolName === 'store__get') {
+    const key = input.key as string;
+    if (!key) return { error: 'Need key' };
+    const t = store.type(key);
+    if (!t) return { error: 'Key not found' };
+    switch (t) {
+      case 'string': return store.get(key);
+      case 'list': return store.lrange(key, 0, -1);
+      case 'hash': return store.hgetall(key);
+      case 'set': return store.smembers(key);
+    }
+  }
+
+  // Audit tool
+  if (toolName === 'audit__read') {
+    const count = (input.count as number) || 20;
+    const total = store.getAuditLength();
+    const start = Math.max(0, total - count);
+    return store.getAudit(start, count);
+  }
+
+  // Chat shortcut
+  if (toolName === 'chat__read') {
+    return moduleRuntime.call('chat', 'read', { count: input.count || 10 }, 'habitat');
+  }
+
+  return { error: `Unknown tool: ${toolName}` };
+}
+
+// --- Inhabitant tool building ---
 
 // Soma sections that get read/write tools
 const SOMA_SECTIONS = ['identity', 'memory', 'on_tick', 'on_event'] as const;
