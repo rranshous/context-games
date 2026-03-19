@@ -61,6 +61,9 @@ async function boot() {
   // 5. Create habitat soma
   habitatSoma = new HabitatSoma(store, clock, moduleRuntime);
 
+  // 5b. Restore dynamically created modules
+  habitatSoma.restoreDynamicModules();
+
   // 6. Restore or create actants
   const existingActants = store.keys('actants/*');
   if (existingActants.length > 0) {

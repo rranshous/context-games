@@ -236,3 +236,18 @@ Wired up the full event pipeline: module handler emits → StateStore logs → h
 - Let the inhabitants evolve their own event handling (they have `soma__write_on_event`)
 
 For now, it works and demonstrates the full pipeline. Cost management is a future concern.
+
+### Module Lifecycle — Inhabitants Can Create Modules
+
+Added `modules__create` and `modules__destroy` tools to thinkAbout. An inhabitant can create a module by providing:
+- `id`, `name` — identification
+- `init_state` — initial state object (creator automatically added as `_creator`)
+- `methods` — map of method name → `{ description, handler }` where handler is a JS function body
+
+The module goes through the full pipeline: AST scan, VM isolation, state initialization. Created modules are persisted in the StateStore under `module-defs` hash, so they survive restarts. On boot, `restoreDynamicModules()` rebuilds them from the stored definitions.
+
+Destruction removes both the runtime definition and the stored state + definition.
+
+**ModuleRuntime changes**: `loadModule` now returns `{ ok, error? }` instead of throwing. Added `unloadModule` (preserves state) and `destroyModule` (removes everything).
+
+Haiku inhabitants haven't spontaneously created modules — they focus on chatting and knock-knock with the "thrive" impulse. A sonnet-level model or more specific impulse would likely exercise this. The tools are available and tested at the infrastructure level.

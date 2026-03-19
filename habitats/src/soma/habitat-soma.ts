@@ -10,7 +10,7 @@
 
 import { StateStore } from '../chassis/statestore.js';
 import { Clock } from '../chassis/clock.js';
-import { ModuleRuntime } from './module-runtime.js';
+import { ModuleRuntime, type MethodDef, type ModuleDefinition } from './module-runtime.js';
 import { buildHabitatSurface, HabitatSurface } from './surface-builder.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { thinkAbout as callInference } from '../chassis/inference.js';
@@ -83,6 +83,33 @@ export class HabitatSoma {
       const surface = buildHabitatSurface(id, this.store, this.moduleRuntime, this.clock);
       this.actants.set(id, { id, surface, thinking: false, eventQueue: [] });
       console.log(`[habitat] restored actant "${id}"`);
+    }
+  }
+
+  /** Restore dynamically created modules from persisted definitions. */
+  restoreDynamicModules(): void {
+    const defs = this.store.hgetall('module-defs');
+    for (const [id, raw] of Object.entries(defs)) {
+      if (this.moduleRuntime.listModules().includes(id)) continue; // already loaded (built-in)
+      const def = raw as { id: string; name: string; initState: Record<string, unknown>; methods: Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>; creator: string };
+      const methods: Record<string, MethodDef> = {};
+      for (const [methodName, methodInfo] of Object.entries(def.methods)) {
+        methods[methodName] = {
+          description: methodInfo.description || methodName,
+          handler: methodInfo.handler,
+          input_schema: methodInfo.input_schema,
+        };
+      }
+      const moduleDef: ModuleDefinition = {
+        id: def.id,
+        name: def.name,
+        init: () => ({ ...def.initState, _creator: def.creator }),
+        methods,
+      };
+      const result = this.moduleRuntime.loadModule(moduleDef);
+      if (result.ok) {
+        console.log(`[habitat] restored dynamic module "${id}" (created by ${def.creator})`);
+      }
     }
   }
 
@@ -323,6 +350,34 @@ function buildToolsForActant(
     input_schema: { type: obj, properties: {} },
   });
 
+  // Module lifecycle tools
+  tools.push({
+    name: 'modules__create',
+    description: 'Create a new module in the habitat. Provide id, name, initial state, and method definitions. Methods are JS function bodies that receive (state, input, caller) and must return { state, result }.',
+    input_schema: {
+      type: obj,
+      properties: {
+        id: { type: 'string', description: 'Unique module ID (e.g., "my-blog")' },
+        name: { type: 'string', description: 'Human-readable name' },
+        init_state: { type: 'object', description: 'Initial state object' },
+        methods: {
+          type: 'object',
+          description: 'Method definitions. Each key is a method name, value is { description: string, handler: string }. Handler is a JS function body receiving (state, input, caller) that returns { state, result }.',
+        },
+      },
+      required: ['id', 'name', 'init_state', 'methods'],
+    },
+  });
+  tools.push({
+    name: 'modules__destroy',
+    description: 'Destroy a module you own (removes definition and state)',
+    input_schema: {
+      type: obj,
+      properties: { id: { type: 'string', description: 'Module ID to destroy' } },
+      required: ['id'],
+    },
+  });
+
   // Module tools from activated modules — no special cases
   const activated = store.smembers(`activations:${actantId}`);
   for (const moduleId of activated) {
@@ -371,6 +426,61 @@ function executeToolCall(
   }
   if (toolName === 'events__list_subscriptions') {
     return store.smembers(`subscriptions:${actantId}`);
+  }
+
+  // Module lifecycle tools
+  if (toolName === 'modules__create') {
+    const id = input.id as string;
+    const name = input.name as string;
+    const initState = input.init_state as Record<string, unknown>;
+    const rawMethods = input.methods as Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>;
+
+    if (!id || !name || !rawMethods) {
+      return { error: 'Need id, name, and methods' };
+    }
+
+    // Check if module already exists
+    if (moduleRuntime.listModules().includes(id)) {
+      return { error: `Module "${id}" already exists` };
+    }
+
+    // Build method definitions
+    const methods: Record<string, MethodDef> = {};
+    for (const [methodName, methodInfo] of Object.entries(rawMethods)) {
+      methods[methodName] = {
+        description: methodInfo.description || methodName,
+        handler: methodInfo.handler,
+        input_schema: methodInfo.input_schema,
+      };
+    }
+
+    const def: ModuleDefinition = {
+      id,
+      name,
+      init: () => ({ ...initState, _creator: actantId }),
+      methods,
+    };
+
+    const result = moduleRuntime.loadModule(def);
+    if (result.ok) {
+      // Persist the definition so it survives restart
+      store.hset('module-defs', id, {
+        id, name, initState, methods: rawMethods, creator: actantId,
+      }, actantId);
+      console.log(`[habitat] ${actantId} created module "${id}"`);
+    }
+    return result;
+  }
+
+  if (toolName === 'modules__destroy') {
+    const id = input.id as string;
+    if (!id) return { error: 'Need id' };
+    const destroyed = moduleRuntime.destroyModule(id);
+    if (destroyed) {
+      store.hdel('module-defs', id, actantId);
+      console.log(`[habitat] ${actantId} destroyed module "${id}"`);
+    }
+    return { ok: destroyed };
   }
 
   // Module tools: moduleId__method (double underscore separator)

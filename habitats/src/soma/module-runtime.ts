@@ -41,14 +41,14 @@ export class ModuleRuntime {
   }
 
   /** Load a module definition. Initializes state if none exists in the store. */
-  loadModule(def: ModuleDefinition): void {
+  loadModule(def: ModuleDefinition): { ok: boolean; error?: string } {
     // AST scan all method handlers
     for (const [name, method] of Object.entries(def.methods)) {
       const violations = scanSource(method.handler);
       if (violations.length > 0) {
-        throw new Error(
-          `Module "${def.id}" method "${name}" uses forbidden tokens: ${violations.join(', ')}`,
-        );
+        const msg = `Module "${def.id}" method "${name}" uses forbidden tokens: ${violations.join(', ')}`;
+        console.error(`[module-runtime] ${msg}`);
+        return { ok: false, error: msg };
       }
     }
 
@@ -57,9 +57,9 @@ export class ModuleRuntime {
       for (const [event, handler] of Object.entries(def.on)) {
         const violations = scanSource(handler);
         if (violations.length > 0) {
-          throw new Error(
-            `Module "${def.id}" event handler "${event}" uses forbidden tokens: ${violations.join(', ')}`,
-          );
+          const msg = `Module "${def.id}" event handler "${event}" uses forbidden tokens: ${violations.join(', ')}`;
+          console.error(`[module-runtime] ${msg}`);
+          return { ok: false, error: msg };
         }
       }
     }
@@ -74,6 +74,27 @@ export class ModuleRuntime {
     } else {
       console.log(`[module-runtime] loaded module "${def.id}" (existing state)`);
     }
+
+    return { ok: true };
+  }
+
+  /** Unload a module. Removes definition but preserves state in store. */
+  unloadModule(moduleId: string): boolean {
+    const existed = this.modules.delete(moduleId);
+    if (existed) {
+      console.log(`[module-runtime] unloaded module "${moduleId}"`);
+    }
+    return existed;
+  }
+
+  /** Destroy a module. Removes definition AND state. */
+  destroyModule(moduleId: string): boolean {
+    const existed = this.modules.delete(moduleId);
+    if (existed) {
+      this.store.hdel('modules', moduleId, 'module-runtime');
+      console.log(`[module-runtime] destroyed module "${moduleId}"`);
+    }
+    return existed;
   }
 
   /** Call a method on a module. Returns the result. */
