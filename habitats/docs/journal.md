@@ -251,3 +251,51 @@ Destruction removes both the runtime definition and the stored state + definitio
 **ModuleRuntime changes**: `loadModule` now returns `{ ok, error? }` instead of throwing. Added `unloadModule` (preserves state) and `destroyModule` (removes everything).
 
 Haiku inhabitants haven't spontaneously created modules — they focus on chatting and knock-knock with the "thrive" impulse. A sonnet-level model or more specific impulse would likely exercise this. The tools are available and tested at the infrastructure level.
+
+### Architecture Notes
+
+**ActantRuntime** — the per-inhabitant bookkeeping the habitat maintains:
+- `surface` — the bound `habitat` object, constructed once with caller identity closed over. When alpha's surface calls `habitat.modules.chat.post(...)`, it's already wired to pass `'alpha'` as caller. Identity is structural, not checked at call time.
+- `thinking` — concurrency guard. While true, ticks skip this inhabitant. Prevents overlapping inference calls.
+- `eventQueue` — timing buffer. Events arriving during inference get queued. When thinkAbout completes, `drainEventQueue()` processes them one at a time, in order.
+
+**Where is the inhabitant's chassis?** There's no separate Chassis class. The habitat soma IS the inhabitants' chassis — it compiles their handlers, dispatches signals, builds their `me` API, manages their thinking state and event queues. This is conceptually right: the inhabitants' chassis is the habitat actant's behavior. "We all live within a god's dream." Extracting a Chassis class would be cleaner code but doesn't change the architecture. Noted for later if `HabitatSoma` gets too large.
+
+**Future module idea**: a "welcome to the habitat" brochure/document module. Read-only for inhabitants, gives them orientation on what the habitat is, what modules are available, how things work. Could be the first thing an inhabitant reads on boot.
+
+### Remaining Gaps
+
+From the design docs, what's still unimplemented:
+
+**Habitat-as-Actant (the big one)**:
+- Habitat's own soma in the StateStore (readable/writable)
+- Habitat calling thinkAbout collaboratively with admin
+- Self-modifying infrastructure — habitat evolves its mechanisms
+
+**Human Collaboration**:
+- Collaborative frame via render function (not hardcoded REPL)
+- Participant humans interacting through inhabitant actants
+- Admin as habitat's human collaborator (not just observer)
+
+**Module Features**:
+- Hot-reloading (swap code on disk, runtime picks up changes)
+- Module ownership enforcement (designed as self-guarding pattern, not yet exercised)
+- Module patronage (owner actant reflects on and evolves module behavior)
+
+**Inhabitant Features**:
+- `on_activate` handler (fire when module is activated)
+- `on_turn_end` handler (fire after thinkAbout completes)
+- Soma write validation / safety constraints on self-modification
+- Self-modification hasn't been observed — haiku with "thrive" doesn't try it
+
+**Clock / Timing**:
+- Ticks vs turns — formal resolution of concurrent inference
+- Currently: ticks skip thinking inhabitants, events queue. Works but not designed.
+
+**World Surface**:
+- External API access through habitat boundary
+- Inhabitants bringing outside data in through modules
+
+**Nested Habitats**:
+- An inhabitant that IS a habitat
+- Resource budgets flowing downward
