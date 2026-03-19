@@ -299,3 +299,15 @@ From the design docs, what's still unimplemented:
 **Nested Habitats**:
 - An inhabitant that IS a habitat
 - Resource budgets flowing downward
+
+### Thinking Pressure — Too Many Inference Calls
+
+Observed: inhabitants think too much. The tick-based thinking (every 3 ticks) is fine. The problem is events — every chat message and joke action triggers `on_event` which calls `thinkAbout`. Two inhabitants chatting create an echo cascade: post → event → think → post → event → think → ...
+
+**Options discussed**:
+- **Token budget** (Bloom pattern): N tokens per inhabitant, track usage, pause when exhausted. They see budget in soma, learn to be judicious.
+- **Think cooldown**: minimum ticks between thinkAbout calls. Events during cooldown batch up.
+- **Event batching**: accumulate events between ticks, deliver as a list. One think per batch, not per event. This is the biggest win — the cascade is the expensive part.
+- **Inhabitant-driven**: expose token usage in soma, let them evolve their own event handling to be selective. "I don't need to think about every message."
+
+Event batching is the quickest fix. Token budget is the right long-term answer. Inhabitant-driven cost awareness is the most interesting but requires sonnet-level models to self-modify effectively.
