@@ -21,7 +21,8 @@ import { startRepl } from './repl.js';
 
 // --- Config ---
 
-const DEFAULT_TICK_INTERVAL_MS = 30000;
+// Fallback only — the real default is in the habitat soma's tick_rate section
+const FALLBACK_TICK_INTERVAL_MS = 30000;
 const DATA_PATH = 'data/habitat.json';
 
 // --- Boot ---
@@ -35,7 +36,7 @@ async function boot() {
 
   // 2. Create clock — restore tick rate from habitat soma if available
   const savedRate = store.hget('actants/habitat', 'tick_rate') as string | null;
-  const tickRate = savedRate ? parseInt(savedRate, 10) : DEFAULT_TICK_INTERVAL_MS;
+  const tickRate = savedRate ? parseInt(savedRate, 10) : FALLBACK_TICK_INTERVAL_MS;
 
   let habitatSoma: HabitatSoma; // forward ref for tick handler
   const clock = new Clock(tickRate, (tick) => {

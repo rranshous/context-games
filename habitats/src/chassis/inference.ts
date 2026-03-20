@@ -10,7 +10,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 // Defaults — inhabitants use these, habitat overrides
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
-const DEFAULT_MAX_TOKENS = 1024;
+const DEFAULT_MAX_TOKENS = 2048;
 const DEFAULT_MAX_TURNS = 5;
 
 let client: Anthropic | null = null;

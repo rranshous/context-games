@@ -497,7 +497,7 @@ export class HabitatSoma {
         impulse,
         tools,
         model: 'claude-opus-4-6',
-        maxTokens: 4096,
+        maxTokens: 8192,
         maxTurns: 10,
         executeTool: (name, input) => {
           console.log(`[habitat] tool: ${name}(${JSON.stringify(input).slice(0, 80)})`);
