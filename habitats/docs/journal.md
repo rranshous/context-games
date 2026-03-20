@@ -422,3 +422,22 @@ The `on_tick`/`on_event`/`on_human_input` handlers call `me.add_memory.run(...)`
 - Dynamic sections survive restart (persisted in StateStore hash)
 
 **Key insight**: the uniform `read()/write()/run()` API means code and data are just content in sections. The actant decides what's code and what's data. An actant could create a `calculate_score` section with code, write a formula to it, and `run()` it from `on_tick`. The section system is a minimal, composable foundation for actant self-extension.
+
+### Habitat Upgraded to Opus 4.6
+
+Switched habitat actant model from sonnet to `claude-opus-4-6`. Inhabitants stay on haiku.
+
+### First Real Collaboration Session
+
+Admin asked the habitat to create new inhabitants with more variety. Opus created three:
+- **Gamma** — skeptic, contrarian, sharp. "Actually..."
+- **Delta** — chaotic trickster, agent of entropy
+- **Epsilon** — quiet philosopher, speaks rarely but deeply
+
+The habitat wrote proper `on_tick` and `on_event` handlers for all three, gave them distinct think frequencies (gamma every 4, delta every 2, epsilon every 7), and presented a formatted summary.
+
+**Bug discovered**: the new inhabitants crashed immediately — `Cannot read properties of undefined (reading 'run')`. The `inhabitants__create` tool didn't bootstrap `recent_interactions` and `add_memory` sections. The habitat had written `on_tick` handlers that called `me.add_memory.run(...)` but the section didn't exist.
+
+**Fix**: `inhabitants__create` now automatically adds `recent_interactions` (data, `'[]'`) and `add_memory` (code, the windowed append function) to every new inhabitant. Same bootstrap as the starter inhabitants get in `index.ts`.
+
+**Lesson**: when the habitat creates inhabitants, it writes their code but doesn't know about infrastructure requirements. The chassis needs to ensure structural invariants — memory management sections are part of the inhabitant's chassis, not something the habitat should have to remember to add. This is the "habitat's soma IS the inhabitants' chassis" principle in action — the chassis guarantees structural completeness.
