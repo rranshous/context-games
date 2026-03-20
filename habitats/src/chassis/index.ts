@@ -21,7 +21,7 @@ import { startRepl } from './repl.js';
 
 // --- Config ---
 
-const DEFAULT_TICK_INTERVAL_MS = 5000;
+const DEFAULT_TICK_INTERVAL_MS = 30000;
 const DATA_PATH = 'data/habitat.json';
 
 // --- Boot ---

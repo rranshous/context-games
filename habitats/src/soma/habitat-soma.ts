@@ -47,9 +47,9 @@ const DEFAULT_MODULE_DEFS = [
     init_state: { messages: [], maxMessages: 50, nextMsg: 0 },
     methods: {
       post: {
-        description: 'Post a message to the chat room',
-        input_schema: { type: 'object', properties: { text: { type: 'string', description: 'Message text' } }, required: ['text'] },
-        handler: 'var messages = state.messages || []; var maxMessages = state.maxMessages || 50; var msgNum = (state.nextMsg || 0) + 1; messages.push({ from: caller, text: input.text, msg: msgNum }); if (messages.length > maxMessages) { messages = messages.slice(-maxMessages); } return { state: { messages: messages, maxMessages: maxMessages, nextMsg: msgNum }, result: { ok: true }, emit: [{ event: "message_posted", data: { from: caller, text: input.text } }] };',
+        description: 'Post a message to the chat room (max 280 characters)',
+        input_schema: { type: 'object', properties: { text: { type: 'string', description: 'Message text (max 280 chars)' } }, required: ['text'] },
+        handler: 'var raw = input.text || ""; var truncated = raw.length > 280; var text = raw.slice(0, 280); var messages = state.messages || []; var maxMessages = state.maxMessages || 50; var msgNum = (state.nextMsg || 0) + 1; messages.push({ from: caller, text: text, msg: msgNum }); if (messages.length > maxMessages) { messages = messages.slice(-maxMessages); } return { state: { messages: messages, maxMessages: maxMessages, nextMsg: msgNum }, result: { ok: true, chars: text.length, truncated: truncated }, emit: [{ event: "message_posted", data: { from: caller, text: text } }] };',
       },
       read: {
         description: 'Read recent chat messages',
@@ -150,7 +150,7 @@ export class HabitatSoma {
       'me.recent_interactions.write(JSON.stringify(log));',
     ].join('\n'), 'habitat');
 
-    this.store.hset(hashKey, 'tick_rate', '5000', 'habitat');
+    this.store.hset(hashKey, 'tick_rate', '30000', 'habitat');
 
     // Default module definitions — data section, JSON
     this.store.hset(hashKey, 'default_modules', JSON.stringify(DEFAULT_MODULE_DEFS), 'habitat');
@@ -594,6 +594,16 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
     },
   });
 
+  tools.push({
+    name: 'inhabitants__destroy',
+    description: 'Remove an inhabitant from the habitat (deletes their soma and runtime state)',
+    input_schema: {
+      type: obj,
+      properties: { id: { type: 'string', description: 'Inhabitant ID to remove' } },
+      required: ['id'],
+    },
+  });
+
   // Clock tools
   tools.push({
     name: 'clock__status',
@@ -786,6 +796,21 @@ function executeHabitatToolCall(
     store.hset(`actants/${id}`, 'recent_interactions', '[]', 'habitat');
     store.hset(`actants/${id}`, 'add_memory', addMemoryCode, 'habitat');
     return { ok: true, created: id };
+  }
+
+  if (toolName === 'inhabitants__destroy') {
+    const id = input.id as string;
+    if (!id) return { error: 'Need id' };
+    if (!actants.has(id)) return { error: `Inhabitant "${id}" not found` };
+    // Remove from runtime
+    actants.delete(id);
+    // Remove soma from store
+    store.del(`actants/${id}`, 'habitat');
+    // Clean up activations and subscriptions
+    store.del(`activations:${id}`, 'habitat');
+    store.del(`subscriptions:${id}`, 'habitat');
+    console.log(`[habitat] destroyed inhabitant "${id}"`);
+    return { ok: true, destroyed: id };
   }
 
   // Clock tools
