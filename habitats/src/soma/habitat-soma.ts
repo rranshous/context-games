@@ -1166,9 +1166,11 @@ function executeToolCall(
       store.hset('module-defs', id, {
         id, name, initState, methods: rawMethods, creator: actantId,
       }, actantId);
-      console.log(`[habitat] ${actantId} created module "${id}"`);
+      // Auto-activate for the creator
+      store.sadd(`activations:${actantId}`, id, actantId);
+      console.log(`[habitat] ${actantId} created module "${id}" (auto-activated)`);
     }
-    return result;
+    return { ...result, activated: true };
   }
 
   if (toolName === 'modules__destroy') {
