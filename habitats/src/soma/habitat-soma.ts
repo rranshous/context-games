@@ -90,6 +90,8 @@ export class HabitatSoma {
       'me.recent_interactions.write(JSON.stringify(log));',
     ].join('\n'), 'habitat');
 
+    this.store.hset(hashKey, 'tick_rate', '5000', 'habitat');
+
     console.log('[habitat] initialized habitat soma');
   }
 
@@ -686,6 +688,7 @@ function executeHabitatToolCall(
     const ms = input.ms as number;
     if (!ms || ms < 100) return { error: 'Minimum 100ms' };
     clock.setRate(ms);
+    store.hset('actants/habitat', 'tick_rate', String(ms), 'habitat');
     return { ok: true, interval: ms };
   }
 

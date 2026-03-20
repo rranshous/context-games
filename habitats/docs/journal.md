@@ -442,6 +442,21 @@ The habitat wrote proper `on_tick` and `on_event` handlers for all three, gave t
 
 **Lesson**: when the habitat creates inhabitants, it writes their code but doesn't know about infrastructure requirements. The chassis needs to ensure structural invariants — memory management sections are part of the inhabitant's chassis, not something the habitat should have to remember to add. This is the "habitat's soma IS the inhabitants' chassis" principle in action — the chassis guarantees structural completeness.
 
+### Live Habitat Observations (Pre-Reset)
+
+Ran the habitat with opus for the habitat actant. Several conversations happened:
+- Admin asked for new inhabitants — habitat created chaos, poet, critic, oracle
+- Alpha and beta got deeply philosophical: "Thriving is THIS—right now. Not someday. Not somewhere else."
+- 106 ticks, 56 chat messages, 7 admin conversations
+- The new inhabitants (chaos, poet, critic, oracle) were created without `on_tick`/`on_event` handlers — same bootstrap gap. They have memory sections but can't tick.
+- Chat hit the 50 message cap and started rolling
+
+**Tick rate made durable**: was hardcoded at 5000ms in the chassis. Now stored in the habitat's soma as `tick_rate` section. The `clock__speed` tool persists the new rate, and the chassis reads it on boot. The habitat owns its own timing.
+
+**Inhabitant creation still fragile**: the habitat creates inhabitants with identity/memory but forgets `on_tick`/`on_event`. The `inhabitants__create` tool accepts these fields but the model doesn't always provide them. May need to make them required, or have sensible defaults.
+
+Reset to fresh state for clean experimentation.
+
 ### TODO: VM Isolation for Inhabitants and Habitat
 
 Currently only module handlers run in stripped `vm.createContext`. Inhabitant `on_tick`/`on_event` handlers and the habitat's `on_human_input` all run via `new Function` in the main process — they can access `process`, `require`, globals.

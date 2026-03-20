@@ -25,7 +25,7 @@ import { knockKnockModule } from '../modules/knock-knock.js';
 
 // --- Config ---
 
-const TICK_INTERVAL_MS = 5000; // 5 seconds between ticks
+const DEFAULT_TICK_INTERVAL_MS = 5000;
 const DATA_PATH = 'data/habitat.json';
 
 // --- Boot ---
@@ -37,9 +37,12 @@ async function boot() {
   const persistence = new Persistence(DATA_PATH);
   const store = await persistence.load();
 
-  // 2. Create clock
+  // 2. Create clock — restore tick rate from habitat soma if available
+  const savedRate = store.hget('actants/habitat', 'tick_rate') as string | null;
+  const tickRate = savedRate ? parseInt(savedRate, 10) : DEFAULT_TICK_INTERVAL_MS;
+
   let habitatSoma: HabitatSoma; // forward ref for tick handler
-  const clock = new Clock(TICK_INTERVAL_MS, (tick) => {
+  const clock = new Clock(tickRate, (tick) => {
     onTick(tick, store, habitatSoma, persistence);
   });
 
@@ -142,7 +145,7 @@ async function boot() {
   }
 
   // 7. Start the clock
-  console.log(`[boot] starting clock — ${TICK_INTERVAL_MS}ms interval`);
+  console.log(`[boot] starting clock — ${tickRate}ms interval`);
   clock.start();
 
   // 8. Handle shutdown
