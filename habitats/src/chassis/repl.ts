@@ -4,6 +4,7 @@
  * Admin types → habitat thinks → habitat responds.
  * Only `watch` and `exit` are handled directly.
  * Everything else goes through habitatSoma.onHumanInput().
+ * Messages queued while thinking are drained in order.
  */
 
 import * as readline from 'node:readline';
@@ -28,15 +29,41 @@ export function startRepl(ctx: ReplContext): void {
   rl.prompt();
 
   let processing = false;
+  const inputQueue: string[] = [];
 
-  rl.on('line', async (line: string) => {
+  async function processInput(input: string): Promise<void> {
+    processing = true;
+    print('  thinking...');
+
+    try {
+      const response = await ctx.habitatSoma.onHumanInput(input);
+      print(`\n${response}`);
+    } catch (err) {
+      print(`  error: ${(err as Error).message}`);
+    } finally {
+      processing = false;
+      drainQueue();
+    }
+  }
+
+  function drainQueue(): void {
+    if (processing || inputQueue.length === 0) {
+      rl.prompt();
+      return;
+    }
+    const next = inputQueue.shift()!;
+    print(`\n  (queued) "${next}"`);
+    processInput(next);
+  }
+
+  rl.on('line', (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) {
       rl.prompt();
       return;
     }
 
-    // Direct commands — no inference
+    // Direct commands — no inference, no queue
     if (trimmed === 'watch') {
       const on = toggleWatch();
       print(`  watch mode: ${on ? 'ON — live output' : 'OFF — quiet'}`);
@@ -49,24 +76,14 @@ export function startRepl(ctx: ReplContext): void {
       return;
     }
 
-    // Everything else goes to the habitat actant
+    // Queue if busy, process immediately if not
     if (processing) {
-      print('  (still thinking...)');
+      inputQueue.push(trimmed);
+      print(`  (queued — ${inputQueue.length} waiting)`);
       return;
     }
 
-    processing = true;
-    print('  thinking...');
-
-    try {
-      const response = await ctx.habitatSoma.onHumanInput(trimmed);
-      print(`\n${response}`);
-    } catch (err) {
-      print(`  error: ${(err as Error).message}`);
-    } finally {
-      processing = false;
-      rl.prompt();
-    }
+    processInput(trimmed);
   });
 
   rl.on('close', () => {
