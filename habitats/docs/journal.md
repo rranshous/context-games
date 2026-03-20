@@ -397,3 +397,28 @@ Sections are dynamic — not a fixed `SOMA_SECTIONS` array. The `me` object buil
 - `add_memory` — function that appends to recent_interactions (code)
 
 The `on_tick`/`on_event`/`on_human_input` handlers call `me.add_memory.run(...)` after interactions. The model sees `recent_interactions` in its soma during thinkAbout — rolling context of what happened.
+
+### Implementation
+
+**`buildSectionAccessor()`** — new helper that creates `{ read(), write(), run(args?) }` for any section. `run()` compiles content as `new Function('me', 'args', source)` and executes with the full `me` object. The `me` passed to `run()` has accessors for all sections, so code sections can read/write other sections.
+
+**`buildMe()` is now dynamic** — iterates `store.hgetall(hashKey)` and creates a section accessor for each field. No hardcoded section list. Same change applied to `buildHabitatMe()`.
+
+**Tool generation is dynamic** — `buildToolsForActant()` generates `soma__read_*`, `soma__write_*`, `soma__run_*` for all sections that exist in the hash. Plus `soma__create_section` to add new sections during thinkAbout.
+
+**`executeToolCall()` handles dynamic tools** — `soma__run_*` builds a temporary `me` with all section accessors and runs the section as a function. `soma__create_section` writes to the hash.
+
+**Starter sections for inhabitants:**
+- `recent_interactions` — `'[]'` (data, JSONL-ish)
+- `add_memory` — code that parses `recent_interactions`, pushes new entry, caps at 20 entries, writes back
+- `on_tick` calls `me.add_memory.run({ tick, type, summary })` after each thinkAbout
+- `on_event` calls `me.add_memory.run(...)` with event details before thinkAbout
+
+**Habitat `on_human_input` handler** now calls `me.add_memory.run({ type: 'conversation', human: input, habitat: response })` after thinkAbout.
+
+**Test results:**
+- Inhabitants: `recent_interactions` correctly populated with tick entries, windowed to last 20
+- Habitat: "what did I just say to you?" → "you just said 'hello, how are you?'" — memory works across conversations
+- Dynamic sections survive restart (persisted in StateStore hash)
+
+**Key insight**: the uniform `read()/write()/run()` API means code and data are just content in sections. The actant decides what's code and what's data. An actant could create a `calculate_score` section with code, write a formula to it, and `run()` it from `on_tick`. The section system is a minimal, composable foundation for actant self-extension.

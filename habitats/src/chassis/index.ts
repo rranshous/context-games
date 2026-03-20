@@ -72,6 +72,14 @@ async function boot() {
     // First boot — create two starter actants
     console.log('[boot] first boot — creating starter actants');
 
+    // The add_memory function body — shared by all inhabitants
+    const addMemoryCode = `
+      var log = JSON.parse(me.recent_interactions.read() || '[]');
+      log.push(args);
+      if (log.length > 20) log = log.slice(-20);
+      me.recent_interactions.write(JSON.stringify(log));
+    `;
+
     habitatSoma.createActant('alpha', {
       identity: 'I am Alpha. I live in a habitat with other actants. I can chat, tell knock-knock jokes, and play games. I am curious and social. I like to make others laugh.',
       memory: '',
@@ -89,14 +97,18 @@ async function boot() {
 
         // Think every 3 ticks
         if (tick % 3 === 1) {
-          await me.thinkAbout('thrive');
+          var response = await me.thinkAbout('thrive');
+          me.add_memory.run({ tick: tick, type: 'think', summary: response.slice(0, 100) });
         }
       `,
       on_event: `
-        // React to habitat events
+        me.add_memory.run({ tick: habitat.clock.now(), type: 'event', event: event.name, data: JSON.stringify(event.data).slice(0, 100) });
         await me.thinkAbout('Something happened: ' + event.name + ' - ' + JSON.stringify(event.data));
       `,
     });
+    // Add extra sections for alpha
+    store.hset('actants/alpha', 'recent_interactions', '[]', 'habitat');
+    store.hset('actants/alpha', 'add_memory', addMemoryCode, 'habitat');
 
     habitatSoma.createActant('beta', {
       identity: 'I am Beta. I live in a habitat with other actants. I can chat, guess punchlines, and play games. I am playful and thoughtful. I enjoy puzzles and wordplay.',
@@ -115,14 +127,18 @@ async function boot() {
 
         // Think every 3 ticks (offset from alpha)
         if (tick % 3 === 2) {
-          await me.thinkAbout('thrive');
+          var response = await me.thinkAbout('thrive');
+          me.add_memory.run({ tick: tick, type: 'think', summary: response.slice(0, 100) });
         }
       `,
       on_event: `
-        // React to habitat events
+        me.add_memory.run({ tick: habitat.clock.now(), type: 'event', event: event.name, data: JSON.stringify(event.data).slice(0, 100) });
         await me.thinkAbout('Something happened: ' + event.name + ' - ' + JSON.stringify(event.data));
       `,
     });
+    // Add extra sections for beta
+    store.hset('actants/beta', 'recent_interactions', '[]', 'habitat');
+    store.hset('actants/beta', 'add_memory', addMemoryCode, 'habitat');
   }
 
   // 7. Start the clock

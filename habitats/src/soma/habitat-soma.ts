@@ -77,7 +77,17 @@ export class HabitatSoma {
 
     this.store.hset(hashKey, 'on_human_input', [
       'var response = await me.thinkAbout(input);',
+      'me.add_memory.run({ type: "conversation", human: input, habitat: response.slice(0, 200) });',
       'return response;',
+    ].join('\n'), 'habitat');
+
+    this.store.hset(hashKey, 'recent_interactions', '[]', 'habitat');
+
+    this.store.hset(hashKey, 'add_memory', [
+      'var log = JSON.parse(me.recent_interactions.read() || "[]");',
+      'log.push(args);',
+      'if (log.length > 20) log = log.slice(-20);',
+      'me.recent_interactions.write(JSON.stringify(log));',
     ].join('\n'), 'habitat');
 
     console.log('[habitat] initialized habitat soma');
@@ -245,80 +255,64 @@ export class HabitatSoma {
     this.fireEvent(id, actant, next);
   }
 
-  /** Build the `me` object for an actant — read/write access to its own soma + thinkAbout. */
+  /** Build the `me` object for an actant — dynamic sections with read/write/run + thinkAbout. */
   private buildMe(actantId: string, runtime: ActantRuntime) {
     const store = this.store;
     const hashKey = `actants/${actantId}`;
     const moduleRuntime = this.moduleRuntime;
 
-    return {
-      id: actantId,
-      identity: {
-        read: () => store.hget(hashKey, 'identity') as string,
-        write: (value: string) => store.hset(hashKey, 'identity', value, actantId),
-      },
-      memory: {
-        read: () => store.hget(hashKey, 'memory') as string,
-        write: (value: string) => store.hset(hashKey, 'memory', value, actantId),
-      },
-      on_tick: {
-        read: () => store.hget(hashKey, 'on_tick') as string | null,
-        write: (value: string) => store.hset(hashKey, 'on_tick', value, actantId),
-      },
-      on_event: {
-        read: () => store.hget(hashKey, 'on_event') as string | null,
-        write: (value: string) => store.hset(hashKey, 'on_event', value, actantId),
-      },
+    // Build section accessors dynamically from all hash fields
+    const me: Record<string, unknown> = { id: actantId };
 
-      /**
-       * thinkAbout — the core inference primitive.
-       * System prompt is the pure soma. User prompt is the impulse.
-       * Tools are compiled from active module surfaces.
-       */
-      thinkAbout: async (impulse: string): Promise<string> => {
-        runtime.thinking = true;
-        console.log(`[habitat] ${actantId} thinking: "${impulse}"`);
+    const allFields = store.hgetall(hashKey);
+    for (const section of Object.keys(allFields)) {
+      me[section] = buildSectionAccessor(store, hashKey, section, actantId, () => me);
+    }
 
-        try {
-          // Gather soma sections
-          const soma: Record<string, string | null> = {
-            identity: store.hget(hashKey, 'identity') as string,
-            memory: store.hget(hashKey, 'memory') as string,
-            on_tick: store.hget(hashKey, 'on_tick') as string | null,
-            on_event: store.hget(hashKey, 'on_event') as string | null,
-          };
+    // thinkAbout — the core inference primitive
+    me.thinkAbout = async (impulse: string) => {
+      runtime.thinking = true;
+      console.log(`[habitat] ${actantId} thinking: "${impulse}"`);
 
-          // Build tools from activated module surfaces
-          const tools = buildToolsForActant(actantId, store, moduleRuntime);
-
-          // Agentic loop — tool results feed back to the model
-          const result = await callInference({
-            soma,
-            impulse,
-            tools,
-            executeTool: (name, input) => {
-              console.log(`[habitat] ${actantId} tool: ${name}(${JSON.stringify(input).slice(0, 80)})`);
-              return executeToolCall(actantId, name, input, store, moduleRuntime);
-            },
-          });
-
-          console.log(`[habitat] ${actantId} done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools)`);
-
-          if (result.text) {
-            console.log(`[habitat] ${actantId} says: ${result.text.slice(0, 120)}`);
-          }
-
-          return result.text;
-        } catch (err) {
-          console.error(`[habitat] ${actantId} thinkAbout error:`, (err as Error).message);
-          return `(error: ${(err as Error).message})`;
-        } finally {
-          runtime.thinking = false;
-          // Drain any events that queued while thinking
-          this.drainEventQueue(actantId, runtime);
+      try {
+        // Gather all soma sections dynamically
+        const soma: Record<string, string | null> = {};
+        const fields = store.hgetall(hashKey);
+        for (const [section, value] of Object.entries(fields)) {
+          soma[section] = typeof value === 'string' ? value : JSON.stringify(value);
         }
-      },
+
+        // Build tools from activated module surfaces
+        const tools = buildToolsForActant(actantId, store, moduleRuntime);
+
+        // Agentic loop — tool results feed back to the model
+        const result = await callInference({
+          soma,
+          impulse,
+          tools,
+          executeTool: (name, input) => {
+            console.log(`[habitat] ${actantId} tool: ${name}(${JSON.stringify(input).slice(0, 80)})`);
+            return executeToolCall(actantId, name, input, store, moduleRuntime);
+          },
+        });
+
+        console.log(`[habitat] ${actantId} done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools)`);
+
+        if (result.text) {
+          console.log(`[habitat] ${actantId} says: ${result.text.slice(0, 120)}`);
+        }
+
+        return result.text;
+      } catch (err) {
+        console.error(`[habitat] ${actantId} thinkAbout error:`, (err as Error).message);
+        return `(error: ${(err as Error).message})`;
+      } finally {
+        runtime.thinking = false;
+        this.drainEventQueue(actantId, runtime);
+      }
     };
+
+    return me;
   }
 
   /** List all actant IDs. */
@@ -347,27 +341,21 @@ export class HabitatSoma {
     }
   }
 
-  /** Build the `me` object for the habitat actant. */
+  /** Build the `me` object for the habitat actant — dynamic sections, same as inhabitants. */
   private buildHabitatMe() {
     const store = this.store;
     const hashKey = 'actants/habitat';
 
-    return {
-      id: 'habitat',
-      identity: {
-        read: () => store.hget(hashKey, 'identity') as string,
-        write: (value: string) => store.hset(hashKey, 'identity', value, 'habitat'),
-      },
-      memory: {
-        read: () => store.hget(hashKey, 'memory') as string,
-        write: (value: string) => store.hset(hashKey, 'memory', value, 'habitat'),
-      },
-      on_human_input: {
-        read: () => store.hget(hashKey, 'on_human_input') as string | null,
-        write: (value: string) => store.hset(hashKey, 'on_human_input', value, 'habitat'),
-      },
-      thinkAbout: (impulse: string) => this.habitatThinkAbout(impulse),
-    };
+    const me: Record<string, unknown> = { id: 'habitat' };
+
+    const allFields = store.hgetall(hashKey);
+    for (const section of Object.keys(allFields)) {
+      me[section] = buildSectionAccessor(store, hashKey, section, 'habitat', () => me);
+    }
+
+    me.thinkAbout = (impulse: string) => this.habitatThinkAbout(impulse);
+
+    return me;
   }
 
   /** Habitat actant's thinkAbout — sonnet, bigger context, habitat tools. */
@@ -377,13 +365,13 @@ export class HabitatSoma {
 
     try {
       const hashKey = 'actants/habitat';
-      const soma: Record<string, string | null> = {
-        identity: this.store.hget(hashKey, 'identity') as string,
-        memory: this.store.hget(hashKey, 'memory') as string,
-        on_human_input: this.store.hget(hashKey, 'on_human_input') as string | null,
-      };
+      const soma: Record<string, string | null> = {};
+      const fields = this.store.hgetall(hashKey);
+      for (const [section, value] of Object.entries(fields)) {
+        soma[section] = typeof value === 'string' ? value : JSON.stringify(value);
+      }
 
-      const tools = buildToolsForHabitat();
+      const tools = buildToolsForHabitat(this.store);
       const store = this.store;
       const clock = this.clock;
       const moduleRuntime = this.moduleRuntime;
@@ -416,12 +404,13 @@ export class HabitatSoma {
 
 // --- Habitat tool building ---
 
-function buildToolsForHabitat(): Anthropic.Tool[] {
+function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
   const tools: Anthropic.Tool[] = [];
   const obj = 'object' as const;
 
-  // Soma tools (habitat's own sections)
-  for (const section of ['identity', 'memory', 'on_human_input']) {
+  // Soma tools — dynamic from habitat's hash fields
+  const allFields = store.hgetall('actants/habitat');
+  for (const section of Object.keys(allFields)) {
     tools.push({
       name: `soma__read_${section}`,
       description: `Read your ${section} section`,
@@ -436,7 +425,29 @@ function buildToolsForHabitat(): Anthropic.Tool[] {
         required: ['content'],
       },
     });
+    tools.push({
+      name: `soma__run_${section}`,
+      description: `Run your ${section} section as code with (me, args)`,
+      input_schema: {
+        type: obj,
+        properties: { args: { description: 'Arguments to pass (optional)' } },
+      },
+    });
   }
+
+  // Create new section
+  tools.push({
+    name: 'soma__create_section',
+    description: 'Create a new soma section. Can hold code or data.',
+    input_schema: {
+      type: obj,
+      properties: {
+        name: { type: 'string', description: 'Section name (snake_case)' },
+        content: { type: 'string', description: 'Initial content' },
+      },
+      required: ['name', 'content'],
+    },
+  });
 
   // Inhabitant tools
   tools.push({
@@ -576,12 +587,39 @@ function executeHabitatToolCall(
   // Soma tools
   if (toolName.startsWith('soma__read_')) {
     const section = toolName.slice('soma__read_'.length);
-    return store.hget(hashKey, section) ?? '(empty)';
+    const val = store.hget(hashKey, section);
+    if (val === null) return '(empty)';
+    return typeof val === 'string' ? val : JSON.stringify(val);
   }
   if (toolName.startsWith('soma__write_')) {
     const section = toolName.slice('soma__write_'.length);
     store.hset(hashKey, section, input.content as string, 'habitat');
     return { ok: true };
+  }
+  if (toolName.startsWith('soma__run_')) {
+    const section = toolName.slice('soma__run_'.length);
+    const source = store.hget(hashKey, section);
+    if (source === null) return { error: `Section "${section}" is empty` };
+    const sourceStr = typeof source === 'string' ? source : JSON.stringify(source);
+    try {
+      const me: Record<string, unknown> = { id: 'habitat' };
+      const allFields = store.hgetall(hashKey);
+      for (const s of Object.keys(allFields)) {
+        me[s] = buildSectionAccessor(store, hashKey, s, 'habitat', () => me);
+      }
+      const fn = new Function('me', 'args', sourceStr);
+      const result = fn(me, input.args);
+      return result ?? { ok: true };
+    } catch (err) {
+      return { error: `Run error: ${(err as Error).message}` };
+    }
+  }
+  if (toolName === 'soma__create_section') {
+    const name = input.name as string;
+    const content = input.content as string;
+    if (!name || content === undefined) return { error: 'Need name and content' };
+    store.hset(hashKey, name, content, 'habitat');
+    return { ok: true, created: name };
   }
 
   // Inhabitant tools
@@ -698,10 +736,45 @@ function executeHabitatToolCall(
   return { error: `Unknown tool: ${toolName}` };
 }
 
-// --- Inhabitant tool building ---
+// --- Section accessor ---
 
-// Soma sections that get read/write tools
-const SOMA_SECTIONS = ['identity', 'memory', 'on_tick', 'on_event'] as const;
+/**
+ * Build a section accessor with read/write/run for a soma section.
+ * `run(args?)` compiles the section content as `function(me, args) { ... }` and executes it.
+ */
+function buildSectionAccessor(
+  store: StateStore,
+  hashKey: string,
+  section: string,
+  actantId: string,
+  getMe: () => Record<string, unknown>,
+) {
+  return {
+    read: (): string => {
+      const val = store.hget(hashKey, section);
+      if (val === null) return '';
+      return typeof val === 'string' ? val : JSON.stringify(val);
+    },
+    write: (value: string): void => {
+      store.hset(hashKey, section, value, actantId);
+    },
+    run: (args?: unknown): unknown => {
+      const source = store.hget(hashKey, section);
+      if (source === null || source === undefined) {
+        throw new Error(`Section "${section}" is empty, cannot run`);
+      }
+      const sourceStr = typeof source === 'string' ? source : JSON.stringify(source);
+      try {
+        const fn = new Function('me', 'args', sourceStr);
+        return fn(getMe(), args);
+      } catch (err) {
+        throw new Error(`Error running ${section}: ${(err as Error).message}`);
+      }
+    },
+  };
+}
+
+// --- Inhabitant tool building ---
 
 function buildToolsForActant(
   actantId: string,
@@ -711,8 +784,9 @@ function buildToolsForActant(
   const tools: Anthropic.Tool[] = [];
   const obj = 'object' as const;
 
-  // Soma section tools — read_<section> and write_<section> for each
-  for (const section of SOMA_SECTIONS) {
+  // Soma section tools — dynamic, from whatever fields exist in the hash
+  const allFields = store.hgetall(`actants/${actantId}`);
+  for (const section of Object.keys(allFields)) {
     tools.push({
       name: `soma__read_${section}`,
       description: `Read your ${section} section`,
@@ -727,7 +801,29 @@ function buildToolsForActant(
         required: ['content'],
       },
     });
+    tools.push({
+      name: `soma__run_${section}`,
+      description: `Run your ${section} section as code. The content is compiled as a function body with (me, args) and executed.`,
+      input_schema: {
+        type: obj,
+        properties: { args: { description: 'Arguments to pass to the function (optional)' } },
+      },
+    });
   }
+
+  // Create new soma section
+  tools.push({
+    name: 'soma__create_section',
+    description: 'Create a new soma section. Can hold code or data — you decide what to write to it.',
+    input_schema: {
+      type: obj,
+      properties: {
+        name: { type: 'string', description: 'Section name (snake_case)' },
+        content: { type: 'string', description: 'Initial content (code or data)' },
+      },
+      required: ['name', 'content'],
+    },
+  });
 
   // Event tools
   tools.push({
@@ -823,15 +919,43 @@ function executeToolCall(
 ): unknown {
   const hashKey = `actants/${actantId}`;
 
-  // Soma tools: soma__read_<section> / soma__write_<section>
+  // Soma tools: soma__read_<section> / soma__write_<section> / soma__run_<section>
   if (toolName.startsWith('soma__read_')) {
     const section = toolName.slice('soma__read_'.length);
-    return store.hget(hashKey, section) ?? '(empty)';
+    const val = store.hget(hashKey, section);
+    if (val === null) return '(empty)';
+    return typeof val === 'string' ? val : JSON.stringify(val);
   }
   if (toolName.startsWith('soma__write_')) {
     const section = toolName.slice('soma__write_'.length);
     store.hset(hashKey, section, input.content as string, actantId);
     return { ok: true };
+  }
+  if (toolName.startsWith('soma__run_')) {
+    const section = toolName.slice('soma__run_'.length);
+    const source = store.hget(hashKey, section);
+    if (source === null) return { error: `Section "${section}" is empty` };
+    const sourceStr = typeof source === 'string' ? source : JSON.stringify(source);
+    try {
+      // Build a temporary me with section accessors
+      const me: Record<string, unknown> = { id: actantId };
+      const allFields = store.hgetall(hashKey);
+      for (const s of Object.keys(allFields)) {
+        me[s] = buildSectionAccessor(store, hashKey, s, actantId, () => me);
+      }
+      const fn = new Function('me', 'args', sourceStr);
+      const result = fn(me, input.args);
+      return result ?? { ok: true };
+    } catch (err) {
+      return { error: `Run error: ${(err as Error).message}` };
+    }
+  }
+  if (toolName === 'soma__create_section') {
+    const name = input.name as string;
+    const content = input.content as string;
+    if (!name || content === undefined) return { error: 'Need name and content' };
+    store.hset(hashKey, name, content, actantId);
+    return { ok: true, created: name };
   }
 
   // Event tools
