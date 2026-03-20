@@ -37,6 +37,66 @@ interface ActantRuntime {
   eventQueue: QueuedEvent[];  // events received while thinking
 }
 
+// --- Default Module Definitions ---
+// These get stored in the habitat's soma and created on first tick.
+
+const DEFAULT_MODULE_DEFS = [
+  {
+    id: 'chat',
+    name: 'Chat',
+    init_state: { messages: [], maxMessages: 50, nextMsg: 0 },
+    methods: {
+      post: {
+        description: 'Post a message to the chat room',
+        input_schema: { type: 'object', properties: { text: { type: 'string', description: 'Message text' } }, required: ['text'] },
+        handler: 'var messages = state.messages || []; var maxMessages = state.maxMessages || 50; var msgNum = (state.nextMsg || 0) + 1; messages.push({ from: caller, text: input.text, msg: msgNum }); if (messages.length > maxMessages) { messages = messages.slice(-maxMessages); } return { state: { messages: messages, maxMessages: maxMessages, nextMsg: msgNum }, result: { ok: true }, emit: [{ event: "message_posted", data: { from: caller, text: input.text } }] };',
+      },
+      read: {
+        description: 'Read recent chat messages',
+        input_schema: { type: 'object', properties: { count: { type: 'number', description: 'Number of messages to read (default 10)' } } },
+        handler: 'var messages = state.messages || []; var count = (input && input.count) || 10; var recent = messages.slice(-count); return { state: state, result: { messages: recent } };',
+      },
+      history: {
+        description: 'Get full message history',
+        input_schema: { type: 'object', properties: {} },
+        handler: 'return { state: state, result: { messages: state.messages || [], total: (state.messages || []).length } };',
+      },
+    },
+  },
+  {
+    id: 'knock-knock',
+    name: 'Knock-Knock Jokes',
+    init_state: { jokes: [], scores: {}, nextId: 1 },
+    methods: {
+      pose: {
+        description: 'Pose a knock-knock joke. Provide "setup" and "punchline".',
+        input_schema: { type: 'object', properties: { setup: { type: 'string', description: 'The "who\'s there" answer' }, punchline: { type: 'string', description: 'The punchline' } }, required: ['setup', 'punchline'] },
+        handler: 'var jokes = state.jokes || []; var scores = state.scores || {}; var id = state.nextId || 1; if (!input.setup || !input.punchline) { return { state: state, result: { error: "Need setup and punchline" } }; } jokes.push({ id: id, poser: caller, setup: input.setup, punchline: input.punchline, guesses: [] }); if (!scores[caller]) scores[caller] = { posed: 0, guessed: 0, correct: 0 }; scores[caller].posed++; return { state: { jokes: jokes, scores: scores, nextId: id + 1 }, result: { ok: true, joke_id: id }, emit: [{ event: "joke_posed", data: { joke_id: id, poser: caller, setup: input.setup } }] };',
+      },
+      guess: {
+        description: 'Guess the punchline of a knock-knock joke. Provide joke_id and "punchline".',
+        input_schema: { type: 'object', properties: { joke_id: { type: 'number', description: 'The joke ID' }, punchline: { type: 'string', description: 'Your guess' } }, required: ['joke_id', 'punchline'] },
+        handler: 'var jokes = state.jokes || []; var scores = state.scores || {}; if (!input.joke_id || !input.punchline) { return { state: state, result: { error: "Need joke_id and punchline" } }; } var joke = null; for (var i = 0; i < jokes.length; i++) { if (jokes[i].id === input.joke_id) { joke = jokes[i]; break; } } if (!joke) { return { state: state, result: { error: "Joke not found" } }; } if (joke.poser === caller) { return { state: state, result: { error: "Cannot guess your own joke" } }; } var correct = input.punchline.trim().toLowerCase() === joke.punchline.trim().toLowerCase(); joke.guesses.push({ guesser: caller, guess: input.punchline, correct: correct }); if (!scores[caller]) scores[caller] = { posed: 0, guessed: 0, correct: 0 }; scores[caller].guessed++; if (correct) scores[caller].correct++; return { state: { jokes: jokes, scores: scores, nextId: state.nextId }, result: { correct: correct, actual_punchline: correct ? joke.punchline : null }, emit: [{ event: "joke_guessed", data: { joke_id: input.joke_id, guesser: caller, correct: correct } }] };',
+      },
+      reveal: {
+        description: 'Reveal the punchline and all guesses. Only the poser can reveal.',
+        input_schema: { type: 'object', properties: { joke_id: { type: 'number', description: 'The joke ID' } }, required: ['joke_id'] },
+        handler: 'var jokes = state.jokes || []; var joke = null; for (var i = 0; i < jokes.length; i++) { if (jokes[i].id === input.joke_id) { joke = jokes[i]; break; } } if (!joke) { return { state: state, result: { error: "Joke not found" } }; } if (joke.poser !== caller) { return { state: state, result: { error: "Only the poser can reveal" } }; } return { state: state, result: { setup: joke.setup, punchline: joke.punchline, guesses: joke.guesses } };',
+      },
+      pending: {
+        description: 'List jokes you haven\'t guessed yet',
+        input_schema: { type: 'object', properties: {} },
+        handler: 'var jokes = state.jokes || []; var pending = []; for (var i = 0; i < jokes.length; i++) { var j = jokes[i]; var callerGuessed = false; for (var g = 0; g < j.guesses.length; g++) { if (j.guesses[g].guesser === caller) { callerGuessed = true; break; } } if (j.poser !== caller && !callerGuessed) { pending.push({ joke_id: j.id, poser: j.poser, setup: j.setup }); } } return { state: state, result: { jokes: pending } };',
+      },
+      scores: {
+        description: 'Get the scoreboard',
+        input_schema: { type: 'object', properties: {} },
+        handler: 'return { state: state, result: { scores: state.scores || {} } };',
+      },
+    },
+  },
+];
+
 // --- Habitat Soma ---
 
 export class HabitatSoma {
@@ -92,6 +152,32 @@ export class HabitatSoma {
 
     this.store.hset(hashKey, 'tick_rate', '5000', 'habitat');
 
+    // Default module definitions — data section, JSON
+    this.store.hset(hashKey, 'default_modules', JSON.stringify(DEFAULT_MODULE_DEFS), 'habitat');
+
+    // on_tick bootstrap — creates modules from default_modules, then clears itself
+    this.store.hset(hashKey, 'on_tick', [
+      '// Bootstrap: create default modules, then self-destruct',
+      'var defs = JSON.parse(me.default_modules.read());',
+      'for (var i = 0; i < defs.length; i++) {',
+      '  var d = defs[i];',
+      '  if (moduleRuntime.listModules().indexOf(d.id) === -1) {',
+      '    var methods = {};',
+      '    var methodNames = Object.keys(d.methods);',
+      '    for (var j = 0; j < methodNames.length; j++) {',
+      '      var mn = methodNames[j];',
+      '      methods[mn] = { description: d.methods[mn].description, handler: d.methods[mn].handler, input_schema: d.methods[mn].input_schema };',
+      '    }',
+      '    var result = moduleRuntime.loadModule({ id: d.id, name: d.name, init: function() { return JSON.parse(JSON.stringify(d.init_state)); }, methods: methods });',
+      '    if (result.ok) {',
+      '      store.hset("module-defs", d.id, JSON.stringify({ id: d.id, name: d.name, initState: d.init_state, methods: d.methods, creator: "habitat" }), "habitat");',
+      '    }',
+      '  }',
+      '}',
+      '// Bootstrap complete — clear this handler',
+      'me.on_tick.write("");',
+    ].join('\n'), 'habitat');
+
     console.log('[habitat] initialized habitat soma');
   }
 
@@ -135,8 +221,9 @@ export class HabitatSoma {
   restoreDynamicModules(): void {
     const defs = this.store.hgetall('module-defs');
     for (const [id, raw] of Object.entries(defs)) {
-      if (this.moduleRuntime.listModules().includes(id)) continue; // already loaded (built-in)
-      const def = raw as { id: string; name: string; initState: Record<string, unknown>; methods: Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>; creator: string };
+      if (this.moduleRuntime.listModules().includes(id)) continue;
+      // Handle both string (from bootstrap) and object (from tools) formats
+      const def = (typeof raw === 'string' ? JSON.parse(raw) : raw) as { id: string; name: string; initState: Record<string, unknown>; methods: Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>; creator: string };
       const methods: Record<string, MethodDef> = {};
       for (const [methodName, methodInfo] of Object.entries(def.methods)) {
         methods[methodName] = {
@@ -158,9 +245,12 @@ export class HabitatSoma {
     }
   }
 
-  /** Called every tick. Dispatches on_tick to all inner actants. */
+  /** Called every tick. Dispatches on_tick to habitat and all inner actants. */
   onTick(tick: number): void {
     this.store.setTick(tick);
+
+    // Run habitat's own on_tick (if it has one)
+    this.runHabitatOnTick();
 
     for (const [id, actant] of this.actants) {
       const onTick = this.store.hget(`actants/${id}`, 'on_tick') as string | null;
@@ -320,6 +410,28 @@ export class HabitatSoma {
   /** List all actant IDs. */
   listActants(): string[] {
     return [...this.actants.keys()];
+  }
+
+  // --- Habitat tick ---
+
+  /** Run the habitat's own on_tick handler if it exists. */
+  private runHabitatOnTick(): void {
+    const onTick = this.store.hget('actants/habitat', 'on_tick') as string | null;
+    if (!onTick || !onTick.trim()) return;
+
+    try {
+      const me = this.buildHabitatMe();
+      // Habitat on_tick gets me + moduleRuntime for direct module creation
+      const fn = new Function('me', 'moduleRuntime', 'store', `return (async () => { ${onTick} })()`);
+      const promise = fn(me, this.moduleRuntime, this.store);
+      if (promise && typeof promise.then === 'function') {
+        promise.catch((err: Error) => {
+          console.error(`[habitat] on_tick error:`, err.message);
+        });
+      }
+    } catch (err) {
+      console.error(`[habitat] on_tick error:`, (err as Error).message);
+    }
   }
 
   // --- Habitat actant ---

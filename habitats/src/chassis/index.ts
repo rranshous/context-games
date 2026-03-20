@@ -19,10 +19,6 @@ import { ModuleRuntime } from '../soma/module-runtime.js';
 import { HabitatSoma } from '../soma/habitat-soma.js';
 import { startRepl } from './repl.js';
 
-// Modules
-import { chatModule } from '../modules/chat.js';
-import { knockKnockModule } from '../modules/knock-knock.js';
-
 // --- Config ---
 
 const DEFAULT_TICK_INTERVAL_MS = 5000;
@@ -57,14 +53,10 @@ async function boot() {
     habitatSoma.onModuleEvent(moduleId, event, data);
   });
 
-  // 4. Load modules
-  moduleRuntime.loadModule(chatModule);
-  moduleRuntime.loadModule(knockKnockModule);
-
-  // 5. Create habitat soma
+  // 4. Create habitat soma (initializes habitat's soma sections if first boot)
   habitatSoma = new HabitatSoma(store, clock, moduleRuntime);
 
-  // 5b. Restore dynamically created modules
+  // 5. Restore dynamically created modules (including defaults after first tick)
   habitatSoma.restoreDynamicModules();
 
   // 6. Restore or create actants

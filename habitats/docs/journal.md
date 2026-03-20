@@ -469,3 +469,23 @@ Possible approaches:
 - Accept the risk and rely on the fact that inhabitants are "trusted more than modules" (current position)
 
 Worth revisiting when we have more inhabitants or untrusted code.
+
+### Self-Consuming Module Bootstrap
+
+Moved default module definitions (chat, knock-knock) out of `index.ts` and into the habitat's soma. No more built-in module imports in the chassis.
+
+**How it works:**
+1. `initHabitatSoma()` writes two sections: `default_modules` (data — JSON array of module definitions) and `on_tick` (code — reads definitions, creates modules, then clears itself)
+2. On tick 1, the habitat's `on_tick` runs: parses `default_modules`, calls `moduleRuntime.loadModule()` for each, persists definitions to `module-defs` hash, then calls `me.on_tick.write("")` — self-destruct
+3. On subsequent boots, `restoreDynamicModules()` loads them from `module-defs` (same as inhabitant-created modules)
+4. The `on_tick` is empty after tick 1 — the habitat goes back to only thinking on admin input
+
+**Changes required:**
+- Added `runHabitatOnTick()` to dispatch the habitat's `on_tick` handler — it runs before inhabitants' ticks, gets `me` + `moduleRuntime` + `store`
+- `restoreDynamicModules()` now handles both string and object formats for module definitions (bootstrap stores as JSON string, tool stores as object)
+- `DEFAULT_MODULE_DEFS` constant in habitat-soma.ts holds the module definitions as plain objects
+- Removed `chatModule`/`knockKnockModule` imports from index.ts
+
+**The chassis is now truly minimal:** it creates StateStore, Clock, ModuleRuntime, HabitatSoma, restores dynamic modules, restores/creates inhabitants, starts clock. No module knowledge. The habitat's soma defines what modules exist.
+
+**Admin input queue:** also added in this session — messages sent while the habitat is thinking are queued and drained in order, same pattern as inhabitant event queues.
