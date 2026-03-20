@@ -653,6 +653,15 @@ function executeHabitatToolCall(
       on_tick: input.on_tick as string | undefined,
       on_event: input.on_event as string | undefined,
     });
+    // Bootstrap memory management sections
+    const addMemoryCode = [
+      'var log = JSON.parse(me.recent_interactions.read() || "[]");',
+      'log.push(args);',
+      'if (log.length > 20) log = log.slice(-20);',
+      'me.recent_interactions.write(JSON.stringify(log));',
+    ].join('\n');
+    store.hset(`actants/${id}`, 'recent_interactions', '[]', 'habitat');
+    store.hset(`actants/${id}`, 'add_memory', addMemoryCode, 'habitat');
     return { ok: true, created: id };
   }
 
