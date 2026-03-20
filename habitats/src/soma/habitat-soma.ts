@@ -520,6 +520,15 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
     input_schema: { type: obj, properties: {} },
   });
   tools.push({
+    name: 'modules__inspect',
+    description: 'Read a module\'s full definition including method handler source code. Only works for modules you own.',
+    input_schema: {
+      type: obj,
+      properties: { id: { type: 'string', description: 'Module ID' } },
+      required: ['id'],
+    },
+  });
+  tools.push({
     name: 'modules__call',
     description: 'Call a method on any module as the habitat',
     input_schema: {
@@ -707,6 +716,20 @@ function executeHabitatToolCall(
     }
     return modules;
   }
+  if (toolName === 'modules__inspect') {
+    const id = input.id as string;
+    if (!id) return { error: 'Need id' };
+    // Check if it's a dynamic module with a stored definition
+    const def = store.hget('module-defs', id) as Record<string, unknown> | null;
+    if (def) {
+      return def;
+    }
+    // Built-in module — return method descriptions (no source access)
+    const methods = moduleRuntime.getMethodDescriptions(id);
+    if (!methods) return { error: `Module "${id}" not found` };
+    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
+    return { id, type: 'built-in', methods, creator: moduleState?._creator };
+  }
   if (toolName === 'modules__call') {
     const moduleId = input.module_id as string;
     const method = input.method as string;
@@ -890,6 +913,15 @@ function buildToolsForActant(
     },
   });
   tools.push({
+    name: 'modules__inspect',
+    description: 'Read a module\'s full definition including method handler source code',
+    input_schema: {
+      type: obj,
+      properties: { id: { type: 'string', description: 'Module ID' } },
+      required: ['id'],
+    },
+  });
+  tools.push({
     name: 'modules__update',
     description: 'Update methods on a module you created. Provide the module ID and new/updated method definitions. Existing methods not listed are preserved. State is preserved.',
     input_schema: {
@@ -1043,6 +1075,17 @@ function executeToolCall(
       console.log(`[habitat] ${actantId} destroyed module "${id}"`);
     }
     return { ok: destroyed };
+  }
+
+  if (toolName === 'modules__inspect') {
+    const id = input.id as string;
+    if (!id) return { error: 'Need id' };
+    const def = store.hget('module-defs', id) as Record<string, unknown> | null;
+    if (def) return def;
+    const methods = moduleRuntime.getMethodDescriptions(id);
+    if (!methods) return { error: `Module "${id}" not found` };
+    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
+    return { id, type: 'built-in', methods, creator: moduleState?._creator };
   }
 
   if (toolName === 'modules__update') {
