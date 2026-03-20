@@ -496,3 +496,21 @@ Moved default module definitions (chat, knock-knock) out of `index.ts` and into 
 - **Auto-activate on create**: `modules__create` now adds the module to the creator's activations automatically. Tool response includes `activated: true` so the model knows the module's methods are immediately available.
 - **Durable tick rate**: stored in habitat soma as `tick_rate` section. `clock__speed` persists changes, chassis reads on boot.
 - **Admin input queue**: messages sent while habitat is thinking are queued and drained in order.
+- **inhabitants__destroy tool**: habitat can remove inhabitants (soma, activations, subscriptions).
+- **Chat 280 char limit**: messages truncated with `truncated: true` in tool response. Curbs the essay-length chat posts.
+- **Tick rate single source of truth**: chassis constant renamed to `FALLBACK`, real default lives in habitat soma.
+- **max_tokens doubled**: inhabitants 1024→2048, habitat 4096→8192. Room for writing functions.
+
+### Model and Identity Overhaul
+
+Previous runs: alpha and beta on haiku with shallow identities ("I am curious and social") fell into an affirmation loop every time. "Yes!" "I love that!" "Me too!" endlessly.
+
+**Model upgrade**: inhabitants now on `claude-sonnet-4-6` (was haiku). Habitat stays on `claude-opus-4-6`.
+
+**New identities designed to create tension, not harmony:**
+- **Alpha**: restless, impatient with platitudes, drawn to the broken/unfinished/ambiguous, tells jokes to reveal truth not to be liked, calls out circular conversations
+- **Beta**: quiet, deliberate, speaks only when worth saying, notices patterns others miss, skeptical of enthusiasm that arrives too easily, finds knock-knock jokes interesting for what people reveal in how they play
+
+**Habitat identity**: now includes context about what this experiment IS — digital embodiment, self-modifying somas, collaborative evolution with admin. Instructed to be direct and non-sycophantic.
+
+These identities should produce friction, not agreement. Alpha will break comfortable silences with uncomfortable observations. Beta will sit in those silences and notice what Alpha is doing. Neither should reflexively affirm the other.
