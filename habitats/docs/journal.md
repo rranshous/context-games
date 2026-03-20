@@ -514,3 +514,23 @@ Previous runs: alpha and beta on haiku with shallow identities ("I am curious an
 **Habitat identity**: now includes context about what this experiment IS — digital embodiment, self-modifying somas, collaborative evolution with admin. Instructed to be direct and non-sycophantic.
 
 These identities should produce friction, not agreement. Alpha will break comfortable silences with uncomfortable observations. Beta will sit in those silences and notice what Alpha is doing. Neither should reflexively affirm the other.
+
+### Inhabitant Tools Moved to Habitat Soma — Generative
+
+The 7 static inhabitant tools (3 event + 4 module lifecycle) are no longer hardcoded in TypeScript. They live in the habitat's soma as an `inhabitant_tools` section — a JSON array of tool definitions, each with `name`, `description`, `input_schema`, and `handler` (JS function body).
+
+**How it works:**
+- `buildToolsForActant()` reads `actants/habitat` → `inhabitant_tools`, parses the JSON, and includes each as an Anthropic tool alongside the dynamic ones (soma section tools, module method tools)
+- `executeToolCall()` looks up matching tools from the same section, compiles the handler via `new Function('actantId', 'input', 'store', 'moduleRuntime', handler)`, and executes it
+- `initHabitatSoma()` writes `DEFAULT_INHABITANT_TOOLS` on first boot
+- Migration check in constructor adds the section to existing habitats
+
+**What this means:**
+- The habitat can read its `inhabitant_tools` section and see exactly what tools inhabitants have
+- The habitat can modify the section — add new tools, change descriptions, alter handler logic
+- Changes take effect on the next inhabitant thinkAbout call (tools are rebuilt fresh each time)
+- The habitat could give inhabitants new capabilities without any chassis code changes
+
+**Example**: the habitat could add a `debug__dump_state` tool by appending to the `inhabitant_tools` JSON. Next time an inhabitant thinks, they'd have that tool available.
+
+This is the same pattern as modules (definitions in the soma, not in the chassis) and the same pattern as the self-consuming bootstrap. The habitat owns its inner world's mechanisms through its soma.

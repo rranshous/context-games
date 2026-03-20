@@ -97,6 +97,89 @@ const DEFAULT_MODULE_DEFS = [
   },
 ];
 
+// --- Default Inhabitant Tool Definitions ---
+// Stored in the habitat's soma as `inhabitant_tools`. The habitat can read and modify these.
+// Each handler is a JS function body receiving (actantId, input, store, moduleRuntime).
+
+const DEFAULT_INHABITANT_TOOLS = [
+  {
+    name: 'events__subscribe',
+    description: 'Subscribe to an event (e.g., "chat.message_posted", "knock-knock.joke_posed")',
+    input_schema: { type: 'object', properties: { event: { type: 'string', description: 'Event name to subscribe to' } }, required: ['event'] },
+    handler: 'store.sadd("subscriptions:" + actantId, input.event, actantId); return { ok: true, subscribed: input.event };',
+  },
+  {
+    name: 'events__unsubscribe',
+    description: 'Unsubscribe from an event',
+    input_schema: { type: 'object', properties: { event: { type: 'string', description: 'Event name to unsubscribe from' } }, required: ['event'] },
+    handler: 'store.srem("subscriptions:" + actantId, input.event, actantId); return { ok: true, unsubscribed: input.event };',
+  },
+  {
+    name: 'events__list_subscriptions',
+    description: 'List your current event subscriptions',
+    input_schema: { type: 'object', properties: {} },
+    handler: 'return store.smembers("subscriptions:" + actantId);',
+  },
+  {
+    name: 'modules__create',
+    description: 'Create a new module in the habitat. Methods are JS function bodies receiving (state, input, caller) that return { state, result }.',
+    input_schema: { type: 'object', properties: { id: { type: 'string', description: 'Unique module ID' }, name: { type: 'string', description: 'Human-readable name' }, init_state: { type: 'object', description: 'Initial state object' }, methods: { type: 'object', description: '{ methodName: { description, handler, input_schema? } }' } }, required: ['id', 'name', 'init_state', 'methods'] },
+    handler: [
+      'var id = input.id, name = input.name, initState = input.init_state, rawMethods = input.methods;',
+      'if (!id || !name || !rawMethods) return { error: "Need id, name, and methods" };',
+      'if (moduleRuntime.listModules().indexOf(id) !== -1) return { error: "Module already exists: " + id };',
+      'var methods = {}; var mns = Object.keys(rawMethods);',
+      'for (var i = 0; i < mns.length; i++) { var mn = mns[i]; var mi = rawMethods[mn]; methods[mn] = { description: mi.description || mn, handler: mi.handler, input_schema: mi.input_schema }; }',
+      'var def = { id: id, name: name, init: function() { var s = JSON.parse(JSON.stringify(initState)); s._creator = actantId; return s; }, methods: methods };',
+      'var result = moduleRuntime.loadModule(def);',
+      'if (result.ok) { store.hset("module-defs", id, { id: id, name: name, initState: initState, methods: rawMethods, creator: actantId }, actantId); store.sadd("activations:" + actantId, id, actantId); }',
+      'return result.ok ? { ok: true, activated: true } : result;',
+    ].join('\n'),
+  },
+  {
+    name: 'modules__destroy',
+    description: 'Destroy a module you created (removes definition and state)',
+    input_schema: { type: 'object', properties: { id: { type: 'string', description: 'Module ID to destroy' } }, required: ['id'] },
+    handler: [
+      'var id = input.id; if (!id) return { error: "Need id" };',
+      'var ms = store.hget("modules", id);',
+      'if (ms && ms._creator && ms._creator !== actantId) return { error: "Only the creator can destroy this module" };',
+      'var destroyed = moduleRuntime.destroyModule(id);',
+      'if (destroyed) store.hdel("module-defs", id, actantId);',
+      'return { ok: destroyed };',
+    ].join('\n'),
+  },
+  {
+    name: 'modules__inspect',
+    description: "Read a module's full definition including method handler source code",
+    input_schema: { type: 'object', properties: { id: { type: 'string', description: 'Module ID' } }, required: ['id'] },
+    handler: [
+      'var id = input.id; if (!id) return { error: "Need id" };',
+      'var def = store.hget("module-defs", id); if (def) return typeof def === "string" ? JSON.parse(def) : def;',
+      'var methods = moduleRuntime.getMethodDescriptions(id);',
+      'if (!methods) return { error: "Module not found: " + id };',
+      'var ms = store.hget("modules", id);',
+      'return { id: id, type: "built-in", methods: methods, creator: ms ? ms._creator : undefined };',
+    ].join('\n'),
+  },
+  {
+    name: 'modules__update',
+    description: 'Update methods on a module you created. Existing methods not listed are preserved. State is preserved.',
+    input_schema: { type: 'object', properties: { id: { type: 'string', description: 'Module ID to update' }, methods: { type: 'object', description: '{ methodName: { description, handler } }' } }, required: ['id', 'methods'] },
+    handler: [
+      'var id = input.id, rawMethods = input.methods;',
+      'if (!id || !rawMethods) return { error: "Need id and methods" };',
+      'var ms = store.hget("modules", id);',
+      'if (ms && ms._creator && ms._creator !== actantId) return { error: "Only the creator can update this module" };',
+      'var methods = {}; var mns = Object.keys(rawMethods);',
+      'for (var i = 0; i < mns.length; i++) { var mn = mns[i]; var mi = rawMethods[mn]; methods[mn] = { description: mi.description || mn, handler: mi.handler, input_schema: mi.input_schema }; }',
+      'var result = moduleRuntime.updateMethods(id, methods);',
+      'if (result.ok) { var ed = store.hget("module-defs", id); if (ed) { var em = (typeof ed === "string" ? JSON.parse(ed) : ed).methods || {}; store.hset("module-defs", id, Object.assign({}, typeof ed === "string" ? JSON.parse(ed) : ed, { methods: Object.assign({}, em, rawMethods) }), actantId); } }',
+      'return result;',
+    ].join('\n'),
+  },
+];
+
 // --- Habitat Soma ---
 
 export class HabitatSoma {
@@ -114,6 +197,12 @@ export class HabitatSoma {
 
     // Initialize habitat soma in StateStore if not present
     this.initHabitatSoma();
+
+    // Migration: ensure inhabitant_tools section exists for older habitats
+    if (this.store.hget('actants/habitat', 'inhabitant_tools') === null) {
+      this.store.hset('actants/habitat', 'inhabitant_tools', JSON.stringify(DEFAULT_INHABITANT_TOOLS), 'habitat');
+      console.log('[habitat] migrated: added inhabitant_tools section');
+    }
   }
 
   /** Write default habitat soma sections if they don't exist yet. */
@@ -156,6 +245,9 @@ export class HabitatSoma {
 
     // Default module definitions — data section, JSON
     this.store.hset(hashKey, 'default_modules', JSON.stringify(DEFAULT_MODULE_DEFS), 'habitat');
+
+    // Inhabitant tool definitions — the habitat owns what tools inhabitants get
+    this.store.hset(hashKey, 'inhabitant_tools', JSON.stringify(DEFAULT_INHABITANT_TOOLS), 'habitat');
 
     // on_tick bootstrap — creates modules from default_modules, then clears itself
     this.store.hset(hashKey, 'on_tick', [
@@ -999,82 +1091,20 @@ function buildToolsForActant(
     },
   });
 
-  // Event tools
-  tools.push({
-    name: 'events__subscribe',
-    description: 'Subscribe to an event (e.g., "chat.message_posted", "knock-knock.joke_posed")',
-    input_schema: {
-      type: obj,
-      properties: { event: { type: 'string', description: 'Event name to subscribe to' } },
-      required: ['event'],
-    },
-  });
-  tools.push({
-    name: 'events__unsubscribe',
-    description: 'Unsubscribe from an event',
-    input_schema: {
-      type: obj,
-      properties: { event: { type: 'string', description: 'Event name to unsubscribe from' } },
-      required: ['event'],
-    },
-  });
-  tools.push({
-    name: 'events__list_subscriptions',
-    description: 'List your current event subscriptions',
-    input_schema: { type: obj, properties: {} },
-  });
-
-  // Module lifecycle tools
-  tools.push({
-    name: 'modules__create',
-    description: 'Create a new module in the habitat. Provide id, name, initial state, and method definitions. Methods are JS function bodies that receive (state, input, caller) and must return { state, result }.',
-    input_schema: {
-      type: obj,
-      properties: {
-        id: { type: 'string', description: 'Unique module ID (e.g., "my-blog")' },
-        name: { type: 'string', description: 'Human-readable name' },
-        init_state: { type: 'object', description: 'Initial state object' },
-        methods: {
-          type: 'object',
-          description: 'Method definitions. Each key is a method name, value is { description: string, handler: string }. Handler is a JS function body receiving (state, input, caller) that returns { state, result }.',
-        },
-      },
-      required: ['id', 'name', 'init_state', 'methods'],
-    },
-  });
-  tools.push({
-    name: 'modules__destroy',
-    description: 'Destroy a module you created (removes definition and state)',
-    input_schema: {
-      type: obj,
-      properties: { id: { type: 'string', description: 'Module ID to destroy' } },
-      required: ['id'],
-    },
-  });
-  tools.push({
-    name: 'modules__inspect',
-    description: 'Read a module\'s full definition including method handler source code',
-    input_schema: {
-      type: obj,
-      properties: { id: { type: 'string', description: 'Module ID' } },
-      required: ['id'],
-    },
-  });
-  tools.push({
-    name: 'modules__update',
-    description: 'Update methods on a module you created. Provide the module ID and new/updated method definitions. Existing methods not listed are preserved. State is preserved.',
-    input_schema: {
-      type: obj,
-      properties: {
-        id: { type: 'string', description: 'Module ID to update' },
-        methods: {
-          type: 'object',
-          description: 'Method definitions to add or update. Each key is a method name, value is { description: string, handler: string }.',
-        },
-      },
-      required: ['id', 'methods'],
-    },
-  });
+  // Inhabitant tools from habitat soma — event tools, module lifecycle, etc.
+  const inhabitantToolsRaw = store.hget('actants/habitat', 'inhabitant_tools');
+  if (inhabitantToolsRaw) {
+    const inhabitantTools = JSON.parse(
+      typeof inhabitantToolsRaw === 'string' ? inhabitantToolsRaw : JSON.stringify(inhabitantToolsRaw),
+    ) as Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+    for (const tool of inhabitantTools) {
+      tools.push({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.input_schema as Anthropic.Tool.InputSchema,
+      });
+    }
+  }
 
   // Module tools from activated modules — no special cases
   const activated = store.smembers(`activations:${actantId}`);
@@ -1141,129 +1171,21 @@ function executeToolCall(
     return { ok: true, created: name };
   }
 
-  // Event tools
-  if (toolName === 'events__subscribe') {
-    store.sadd(`subscriptions:${actantId}`, input.event as string, actantId);
-    return { ok: true, subscribed: input.event };
-  }
-  if (toolName === 'events__unsubscribe') {
-    store.srem(`subscriptions:${actantId}`, input.event as string, actantId);
-    return { ok: true, unsubscribed: input.event };
-  }
-  if (toolName === 'events__list_subscriptions') {
-    return store.smembers(`subscriptions:${actantId}`);
-  }
-
-  // Module lifecycle tools
-  if (toolName === 'modules__create') {
-    const id = input.id as string;
-    const name = input.name as string;
-    const initState = input.init_state as Record<string, unknown>;
-    const rawMethods = input.methods as Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>;
-
-    if (!id || !name || !rawMethods) {
-      return { error: 'Need id, name, and methods' };
-    }
-
-    // Check if module already exists
-    if (moduleRuntime.listModules().includes(id)) {
-      return { error: `Module "${id}" already exists` };
-    }
-
-    // Build method definitions
-    const methods: Record<string, MethodDef> = {};
-    for (const [methodName, methodInfo] of Object.entries(rawMethods)) {
-      methods[methodName] = {
-        description: methodInfo.description || methodName,
-        handler: methodInfo.handler,
-        input_schema: methodInfo.input_schema,
-      };
-    }
-
-    const def: ModuleDefinition = {
-      id,
-      name,
-      init: () => ({ ...initState, _creator: actantId }),
-      methods,
-    };
-
-    const result = moduleRuntime.loadModule(def);
-    if (result.ok) {
-      // Persist the definition so it survives restart
-      store.hset('module-defs', id, {
-        id, name, initState, methods: rawMethods, creator: actantId,
-      }, actantId);
-      // Auto-activate for the creator
-      store.sadd(`activations:${actantId}`, id, actantId);
-      console.log(`[habitat] ${actantId} created module "${id}" (auto-activated)`);
-    }
-    return { ...result, activated: true };
-  }
-
-  if (toolName === 'modules__destroy') {
-    const id = input.id as string;
-    if (!id) return { error: 'Need id' };
-
-    // Ownership check — only the creator can destroy
-    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
-    if (moduleState && moduleState._creator && moduleState._creator !== actantId) {
-      return { error: `Only the creator (${moduleState._creator}) can destroy "${id}"` };
-    }
-
-    const destroyed = moduleRuntime.destroyModule(id);
-    if (destroyed) {
-      store.hdel('module-defs', id, actantId);
-      console.log(`[habitat] ${actantId} destroyed module "${id}"`);
-    }
-    return { ok: destroyed };
-  }
-
-  if (toolName === 'modules__inspect') {
-    const id = input.id as string;
-    if (!id) return { error: 'Need id' };
-    const def = store.hget('module-defs', id) as Record<string, unknown> | null;
-    if (def) return def;
-    const methods = moduleRuntime.getMethodDescriptions(id);
-    if (!methods) return { error: `Module "${id}" not found` };
-    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
-    return { id, type: 'built-in', methods, creator: moduleState?._creator };
-  }
-
-  if (toolName === 'modules__update') {
-    const id = input.id as string;
-    const rawMethods = input.methods as Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>;
-    if (!id || !rawMethods) return { error: 'Need id and methods' };
-
-    // Ownership check — only the creator can update
-    const moduleState = store.hget('modules', id) as Record<string, unknown> | null;
-    if (moduleState && moduleState._creator && moduleState._creator !== actantId) {
-      return { error: `Only the creator (${moduleState._creator}) can update "${id}"` };
-    }
-
-    // Build method definitions
-    const methods: Record<string, MethodDef> = {};
-    for (const [methodName, methodInfo] of Object.entries(rawMethods)) {
-      methods[methodName] = {
-        description: methodInfo.description || methodName,
-        handler: methodInfo.handler,
-        input_schema: methodInfo.input_schema,
-      };
-    }
-
-    const result = moduleRuntime.updateMethods(id, methods);
-    if (result.ok) {
-      // Update persisted definition
-      const existingDef = store.hget('module-defs', id) as Record<string, unknown> | null;
-      if (existingDef) {
-        const existingMethods = (existingDef.methods || {}) as Record<string, unknown>;
-        store.hset('module-defs', id, {
-          ...existingDef,
-          methods: { ...existingMethods, ...rawMethods },
-        }, actantId);
+  // Inhabitant tools — dispatched from habitat soma section
+  const inhabitantToolsRaw = store.hget('actants/habitat', 'inhabitant_tools');
+  if (inhabitantToolsRaw) {
+    const inhabitantTools = JSON.parse(
+      typeof inhabitantToolsRaw === 'string' ? inhabitantToolsRaw : JSON.stringify(inhabitantToolsRaw),
+    ) as Array<{ name: string; handler: string }>;
+    const toolDef = inhabitantTools.find(t => t.name === toolName);
+    if (toolDef) {
+      try {
+        const fn = new Function('actantId', 'input', 'store', 'moduleRuntime', toolDef.handler);
+        return fn(actantId, input, store, moduleRuntime);
+      } catch (err) {
+        return { error: `Tool handler error: ${(err as Error).message}` };
       }
-      console.log(`[habitat] ${actantId} updated module "${id}": ${Object.keys(rawMethods).join(', ')}`);
     }
-    return result;
   }
 
   // Module tools: moduleId__method (double underscore separator)
