@@ -356,3 +356,44 @@ That's it. The intelligence is in the model + tools, not in the handler code. Th
 **The old REPL is gone.** No more switch-case commands. The habitat actant IS the interface. If inference fails, you see the error. The admin can still use `watch` for live tick output and Ctrl+C for shutdown — those are chassis-level, not soma-level.
 
 **What this means architecturally:** the habitat is no longer frozen TypeScript. Its identity, memory, and input handler are in the StateStore. They persist, they can be read, they can be rewritten. The habitat can self-modify (via `soma__write_*` tools during thinkAbout). The admin can ask the habitat to change itself. "Add a welcome brochure module" → the habitat reasons about it and acts. This is "boots operational, evolves through collaboration" — fully realized.
+
+---
+
+## Session 3 — 2026-03-19: Memory, Dynamic Sections, and Running Habitat
+
+### Memory Problem
+
+Tested the habitat-as-actant. It works — "status" gives a beautiful natural language response. But the habitat's memory is empty after every interaction. No continuity between conversations.
+
+Same problem for inhabitants: each `thinkAbout("thrive")` is a fresh call. The model sees the soma and the impulse but nothing about what happened last time. Inhabitants DO sometimes write to memory via `soma__write_memory`, but it's spotty and model-dependent.
+
+Root cause: there's no mechanism for programmatic memory management. The only persistence between handler invocations is soma sections via `read()`/`write()`. No closures (handlers recompile from source strings), no store access, just string blobs in soma sections.
+
+### Dynamic Soma Sections with `run()`
+
+Design decision: every soma section gets a uniform API: `me.<section>.read()`, `me.<section>.write()`, `me.<section>.run(args?)`.
+
+- `read()` — returns the string content
+- `write(content)` — replaces the content
+- `run(args?)` — compiles the content as a function body `(me, args) => { ... }` and executes it
+
+A section doesn't know if it holds code or data — that's the actant's choice. `run()` a data section and it errors. `read()` a code section and you get the source. Content determines behavior.
+
+Sections are dynamic — not a fixed `SOMA_SECTIONS` array. The `me` object builds from whatever fields exist in the `actants/{id}` hash. Actants can create new sections via thinkAbout tools.
+
+**Starter sections for inhabitants:**
+- `identity` — who you are (data)
+- `memory` — curated notes (data)
+- `on_tick` — tick handler (code, run by chassis)
+- `on_event` — event handler (code, run by chassis)
+- `recent_interactions` — rolling JSONL log (data, starts as `[]`)
+- `add_memory` — function that appends to recent_interactions with windowing (code, called by handlers)
+
+**Starter sections for habitat:**
+- `identity` — who you are (data)
+- `memory` — curated notes (data)
+- `on_human_input` — admin input handler (code, run by chassis)
+- `recent_interactions` — rolling conversation log (data)
+- `add_memory` — function that appends to recent_interactions (code)
+
+The `on_tick`/`on_event`/`on_human_input` handlers call `me.add_memory.run(...)` after interactions. The model sees `recent_interactions` in its soma during thinkAbout — rolling context of what happened.
