@@ -441,3 +441,16 @@ The habitat wrote proper `on_tick` and `on_event` handlers for all three, gave t
 **Fix**: `inhabitants__create` now automatically adds `recent_interactions` (data, `'[]'`) and `add_memory` (code, the windowed append function) to every new inhabitant. Same bootstrap as the starter inhabitants get in `index.ts`.
 
 **Lesson**: when the habitat creates inhabitants, it writes their code but doesn't know about infrastructure requirements. The chassis needs to ensure structural invariants — memory management sections are part of the inhabitant's chassis, not something the habitat should have to remember to add. This is the "habitat's soma IS the inhabitants' chassis" principle in action — the chassis guarantees structural completeness.
+
+### TODO: VM Isolation for Inhabitants and Habitat
+
+Currently only module handlers run in stripped `vm.createContext`. Inhabitant `on_tick`/`on_event` handlers and the habitat's `on_human_input` all run via `new Function` in the main process — they can access `process`, `require`, globals.
+
+The original trade-off: inhabitants need `me` and `habitat` objects (complex, with closures) that are hard to pass into a VM context. But this is a real isolation gap. A rogue `on_tick` handler could crash the process or access the file system.
+
+Possible approaches:
+- Serialize `me` and `habitat` into a VM context as simple proxy objects that message-pass back to the main process
+- Run inhabitant handlers in Worker threads with a message-passing API
+- Accept the risk and rely on the fact that inhabitants are "trusted more than modules" (current position)
+
+Worth revisiting when we have more inhabitants or untrusted code.
