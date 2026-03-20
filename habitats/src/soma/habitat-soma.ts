@@ -382,7 +382,7 @@ export class HabitatSoma {
         soma,
         impulse,
         tools,
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-opus-4-6',
         maxTokens: 4096,
         maxTurns: 10,
         executeTool: (name, input) => {
