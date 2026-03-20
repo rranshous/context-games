@@ -489,3 +489,10 @@ Moved default module definitions (chat, knock-knock) out of `index.ts` and into 
 **The chassis is now truly minimal:** it creates StateStore, Clock, ModuleRuntime, HabitatSoma, restores dynamic modules, restores/creates inhabitants, starts clock. No module knowledge. The habitat's soma defines what modules exist.
 
 **Admin input queue:** also added in this session — messages sent while the habitat is thinking are queued and drained in order, same pattern as inhabitant event queues.
+
+### QoL Improvements
+
+- **modules__inspect tool**: both habitat and inhabitants can read a module's full definition including handler source code. Dynamic modules return the full definition; built-in modules return method descriptions.
+- **Auto-activate on create**: `modules__create` now adds the module to the creator's activations automatically. Tool response includes `activated: true` so the model knows the module's methods are immediately available.
+- **Durable tick rate**: stored in habitat soma as `tick_rate` section. `clock__speed` persists changes, chassis reads on boot.
+- **Admin input queue**: messages sent while habitat is thinking are queued and drained in order.
