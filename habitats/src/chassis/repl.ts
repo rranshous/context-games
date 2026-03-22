@@ -37,7 +37,9 @@ export function startRepl(ctx: ReplContext): void {
 
     try {
       const response = await ctx.habitatSoma.onHumanInput(input);
-      print(`\n${response}`);
+      print(`\n────────────────────────────────────────`);
+      print(response);
+      print(`────────────────────────────────────────`);
     } catch (err) {
       print(`  error: ${(err as Error).message}`);
     } finally {
