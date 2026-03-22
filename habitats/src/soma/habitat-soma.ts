@@ -14,6 +14,7 @@ import { StateStore } from '../chassis/statestore.js';
 import { Clock } from '../chassis/clock.js';
 import { ModuleRuntime, type MethodDef, type ModuleDefinition } from './module-runtime.js';
 import { buildHabitatSurface, HabitatSurface } from './surface-builder.js';
+import { buildMeFromHash, buildSectionAccessor } from './embodiment.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { thinkAbout as callInference } from '../chassis/inference.js';
 
@@ -254,6 +255,12 @@ export class HabitatSoma {
     // Auto-mount errors for early visibility
     this.store.hset(hashKey, 'store_mounts', JSON.stringify(['errors']), 'habitat');
 
+    // Auto-mount embodiment.ts so the habitat can see its own `me` API definition
+    try {
+      const embodimentSource = readFileSync('src/soma/embodiment.ts', 'utf-8');
+      this.store.hset(hashKey, 'mounted:soma/embodiment.ts', embodimentSource, 'habitat');
+    } catch { /* file may not exist in all environments */ }
+
     // on_tick bootstrap — creates modules from default_modules, then clears itself
     this.store.hset(hashKey, 'on_tick', [
       '// Bootstrap: create default modules, then self-destruct',
@@ -446,21 +453,16 @@ export class HabitatSoma {
     this.fireEvent(id, actant, next);
   }
 
-  /** Build the `me` object for an actant — dynamic sections with read/write/run + thinkAbout. */
+  /** Build the `me` object for an inhabitant — see embodiment.ts for the full API. */
   private buildMe(actantId: string, runtime: ActantRuntime) {
     const store = this.store;
     const hashKey = `actants/${actantId}`;
     const moduleRuntime = this.moduleRuntime;
 
-    // Build section accessors dynamically from all hash fields
-    const me: Record<string, unknown> = { id: actantId };
+    const me = buildMeFromHash(store, hashKey, actantId);
 
-    const allFields = store.hgetall(hashKey);
-    for (const section of Object.keys(allFields)) {
-      me[section] = buildSectionAccessor(store, hashKey, section, actantId, () => me);
-    }
-
-    // thinkAbout — the core inference primitive
+    // Add thinkAbout — the inference primitive (not in embodiment.ts because
+    // it needs runtime state: thinking flag, tool building, event queue drain)
     me.thinkAbout = async (impulse: string) => {
       runtime.thinking = true;
       console.log(`[habitat] ${actantId} thinking: "${impulse}"`);
@@ -554,20 +556,10 @@ export class HabitatSoma {
     }
   }
 
-  /** Build the `me` object for the habitat actant — dynamic sections, same as inhabitants. */
+  /** Build the `me` object for the habitat — see embodiment.ts for the full API. */
   private buildHabitatMe() {
-    const store = this.store;
-    const hashKey = 'actants/habitat';
-
-    const me: Record<string, unknown> = { id: 'habitat' };
-
-    const allFields = store.hgetall(hashKey);
-    for (const section of Object.keys(allFields)) {
-      me[section] = buildSectionAccessor(store, hashKey, section, 'habitat', () => me);
-    }
-
+    const me = buildMeFromHash(this.store, 'actants/habitat', 'habitat');
     me.thinkAbout = (impulse: string) => this.habitatThinkAbout(impulse);
-
     return me;
   }
 
@@ -1253,44 +1245,6 @@ function logError(
   if (store.llen('errors') > 100) store.ltrim('errors', -100, -1, 'habitat');
   if (store.llen(`errors:${actantId}`) > 50) store.ltrim(`errors:${actantId}`, -50, -1, 'habitat');
   console.error(`[habitat] ${actantId} ${context}: ${message}`);
-}
-
-// --- Section accessor ---
-
-/**
- * Build a section accessor with read/write/run for a soma section.
- * `run(args?)` compiles the section content as `function(me, args) { ... }` and executes it.
- */
-function buildSectionAccessor(
-  store: StateStore,
-  hashKey: string,
-  section: string,
-  actantId: string,
-  getMe: () => Record<string, unknown>,
-) {
-  return {
-    read: (): string => {
-      const val = store.hget(hashKey, section);
-      if (val === null) return '';
-      return typeof val === 'string' ? val : JSON.stringify(val);
-    },
-    write: (value: string): void => {
-      store.hset(hashKey, section, value, actantId);
-    },
-    run: (args?: unknown): unknown => {
-      const source = store.hget(hashKey, section);
-      if (source === null || source === undefined) {
-        throw new Error(`Section "${section}" is empty, cannot run`);
-      }
-      const sourceStr = typeof source === 'string' ? source : JSON.stringify(source);
-      try {
-        const fn = new Function('me', 'args', sourceStr);
-        return fn(getMe(), args);
-      } catch (err) {
-        throw new Error(`Error running ${section}: ${(err as Error).message}`);
-      }
-    },
-  };
 }
 
 // --- Inhabitant tool building ---
