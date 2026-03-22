@@ -200,12 +200,6 @@ export class HabitatSoma {
 
     // Initialize habitat soma in StateStore if not present
     this.initHabitatSoma();
-
-    // Migration: ensure inhabitant_tools section exists for older habitats
-    if (this.store.hget('actants/habitat', 'inhabitant_tools') === null) {
-      this.store.hset('actants/habitat', 'inhabitant_tools', JSON.stringify(DEFAULT_INHABITANT_TOOLS), 'habitat');
-      console.log('[habitat] migrated: added inhabitant_tools section');
-    }
   }
 
   /** Write default habitat soma sections if they don't exist yet. */
@@ -356,7 +350,7 @@ export class HabitatSoma {
     this.store.setTick(tick);
 
     // Check token budget — pause clock if exceeded
-    const { used, budget } = getTokenUsage(this.store);
+    const { used, budget } = getTokenUsage();
     if (used >= budget) {
       console.error(`[habitat] TOKEN BUDGET EXHAUSTED (${used}/${budget}) — pausing clock`);
       this.clock.stop();
@@ -507,7 +501,7 @@ export class HabitatSoma {
 
         // Track token usage
         const budgetExceeded = recordTokenUsage(store, actantId, result.usage.input, result.usage.output);
-        const { used, budget } = getTokenUsage(store);
+        const { used, budget } = getTokenUsage();
         console.log(`[habitat] ${actantId} done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools) [${used}/${budget} total]`);
 
         if (budgetExceeded) {
@@ -640,7 +634,7 @@ export class HabitatSoma {
       });
 
       recordTokenUsage(this.store, 'habitat', result.usage.input, result.usage.output);
-      const { used, budget } = getTokenUsage(this.store);
+      const { used, budget } = getTokenUsage();
       console.log(`[habitat] done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools) [${used}/${budget} total]`);
       return result.text;
     } catch (err) {
@@ -1255,19 +1249,16 @@ function executeHabitatToolCall(
 // --- Token budget ---
 
 const DEFAULT_TOKEN_BUDGET = 2_000_000; // 2M tokens per session
+let sessionTokenUsage = 0; // resets on process restart, not in StateStore
 
 /** Record token usage and check budget. Returns true if budget exceeded. */
-function recordTokenUsage(store: StateStore, actantId: string, input: number, output: number): boolean {
-  const key = 'habitat/token_usage';
-  const current = parseInt(store.get(key) || '0', 10);
-  const total = current + input + output;
-  store.set(key, String(total), actantId);
-  return total >= DEFAULT_TOKEN_BUDGET;
+function recordTokenUsage(_store: StateStore, _actantId: string, input: number, output: number): boolean {
+  sessionTokenUsage += input + output;
+  return sessionTokenUsage >= DEFAULT_TOKEN_BUDGET;
 }
 
-function getTokenUsage(store: StateStore): { used: number; budget: number } {
-  const used = parseInt(store.get('habitat/token_usage') || '0', 10);
-  return { used, budget: DEFAULT_TOKEN_BUDGET };
+function getTokenUsage(): { used: number; budget: number } {
+  return { used: sessionTokenUsage, budget: DEFAULT_TOKEN_BUDGET };
 }
 
 // --- Error logging ---
