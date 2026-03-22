@@ -105,8 +105,8 @@ async function boot() {
         }
       `,
       on_event: `
-        me.add_memory.run({ tick: habitat.clock.now(), type: 'event', event: event.name, data: JSON.stringify(event.data).slice(0, 100) });
-        await me.thinkAbout('Something happened: ' + event.name + ' - ' + JSON.stringify(event.data));
+        me.add_memory.run({ tick: habitat.clock.now(), type: 'events', count: event.count, summary: event.summary.slice(0, 200) });
+        await me.thinkAbout('Events since last tick:\\n' + event.summary);
       `,
     });
     // Add extra sections for alpha
@@ -142,8 +142,8 @@ async function boot() {
         }
       `,
       on_event: `
-        me.add_memory.run({ tick: habitat.clock.now(), type: 'event', event: event.name, data: JSON.stringify(event.data).slice(0, 100) });
-        await me.thinkAbout('Something happened: ' + event.name + ' - ' + JSON.stringify(event.data));
+        me.add_memory.run({ tick: habitat.clock.now(), type: 'events', count: event.count, summary: event.summary.slice(0, 200) });
+        await me.thinkAbout('Events since last tick:\\n' + event.summary);
       `,
     });
     // Add extra sections for beta

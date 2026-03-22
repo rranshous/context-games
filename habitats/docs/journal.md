@@ -710,4 +710,19 @@ Added cumulative token tracking:
 - Console shows running total: `[habitat] alpha done (1234→567 tokens, 3 tools) [45000/2000000 total]`
 - Habitat can see usage via `store__get` with key `habitat/token_usage`
 
-**2M tokens is roughly $6-15 depending on model mix.** Much better than unbounded. The admin can reset usage by writing `0` to `habitat/token_usage` in the state file and restarting.
+**2M tokens is roughly $6-15 depending on model mix.** Much better than unbounded.
+
+**Update**: token counter moved to in-memory variable (not StateStore). Resets on every process restart. The habitat can't edit it. No need to manually reset — just restart. Removed the backwards-compat migration for `inhabitant_tools` since we blow away state.
+
+### Verified: Batching + Budget Working
+
+Test run (3 ticks, 2 inhabitants):
+- Tick 1: alpha thinks, posts chat, poses joke. `[15567/2000000 total]`
+- Tick 2: beta thinks, reads chat, guesses joke, posts response. `[31577/2000000 total]`
+- Tick 3: alpha gets 2 batched events (joke_guessed + message_posted), thinks ONCE, responds ONCE
+
+No cascade. One thinkAbout per event batch per tick. The $90 problem is structurally impossible now.
+
+**Bug fixed during testing**: starter `on_event` handlers assumed `event.data` (single event format) but batching passes `{ name: 'batch', count, events, summary }`. Updated handlers to use `event.summary` and `event.count`.
+
+The conversation quality is good — alpha said "Less certain is better. 'Good' was lazy" in response to beta's pushback. The deeper identities are working.
