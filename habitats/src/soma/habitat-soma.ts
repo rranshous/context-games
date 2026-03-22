@@ -643,8 +643,10 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
   const obj = 'object' as const;
 
   // Soma tools — dynamic from habitat's hash fields
+  // Skip sections with chars invalid for tool names (mounted:, live: sections)
   const allFields = store.hgetall('actants/habitat');
   for (const section of Object.keys(allFields)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(section)) continue;
     tools.push({
       name: `soma__read_${section}`,
       description: `Read your ${section} section`,
@@ -1206,8 +1208,10 @@ function buildToolsForActant(
   const obj = 'object' as const;
 
   // Soma section tools — dynamic, from whatever fields exist in the hash
+  // Skip sections with chars invalid for tool names
   const allFields = store.hgetall(`actants/${actantId}`);
   for (const section of Object.keys(allFields)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(section)) continue;
     tools.push({
       name: `soma__read_${section}`,
       description: `Read your ${section} section`,
