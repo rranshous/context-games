@@ -789,6 +789,42 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
     },
   });
 
+  tools.push({
+    name: 'modules__create',
+    description: 'Create a new module. Methods are JS function bodies receiving (state, input, caller) that return { state, result }. input_schema must have type: "object".',
+    input_schema: {
+      type: obj,
+      properties: {
+        id: { type: 'string', description: 'Unique module ID' },
+        name: { type: 'string', description: 'Human-readable name' },
+        init_state: { type: 'object', description: 'Initial state object' },
+        methods: { type: 'object', description: '{ methodName: { description, handler, input_schema? } }' },
+      },
+      required: ['id', 'name', 'init_state', 'methods'],
+    },
+  });
+  tools.push({
+    name: 'modules__destroy',
+    description: 'Destroy a module (removes definition and state)',
+    input_schema: {
+      type: obj,
+      properties: { id: { type: 'string', description: 'Module ID to destroy' } },
+      required: ['id'],
+    },
+  });
+  tools.push({
+    name: 'modules__update',
+    description: 'Update methods on a module. Existing methods not listed are preserved. State is preserved.',
+    input_schema: {
+      type: obj,
+      properties: {
+        id: { type: 'string', description: 'Module ID to update' },
+        methods: { type: 'object', description: '{ methodName: { description, handler } }' },
+      },
+      required: ['id', 'methods'],
+    },
+  });
+
   // Store tools
   tools.push({
     name: 'store__keys',
@@ -1042,6 +1078,63 @@ function executeHabitatToolCall(
     const method = input.method as string;
     const methodInput = (input.input as Record<string, unknown>) || {};
     return moduleRuntime.call(moduleId, method, methodInput, 'habitat');
+  }
+  if (toolName === 'modules__create') {
+    const id = input.id as string;
+    const name = input.name as string;
+    const initState = input.init_state as Record<string, unknown>;
+    const rawMethods = input.methods as Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>;
+    if (!id || !name || !rawMethods) return { error: 'Need id, name, and methods' };
+    if (moduleRuntime.listModules().includes(id)) return { error: `Module "${id}" already exists` };
+    // Validate schemas
+    const methods: Record<string, MethodDef> = {};
+    for (const [mn, mi] of Object.entries(rawMethods)) {
+      const schema = mi.input_schema || { type: 'object', properties: {} };
+      if (schema.type !== 'object') return { error: `Method ${mn}: input_schema.type must be 'object'` };
+      methods[mn] = { description: mi.description || mn, handler: mi.handler, input_schema: schema };
+    }
+    const def: ModuleDefinition = {
+      id, name,
+      init: () => ({ ...initState, _creator: 'habitat' }),
+      methods,
+    };
+    const result = moduleRuntime.loadModule(def);
+    if (result.ok) {
+      store.hset('module-defs', id, { id, name, initState, methods: rawMethods, creator: 'habitat' }, 'habitat');
+      console.log(`[habitat] created module "${id}"`);
+    }
+    return result;
+  }
+  if (toolName === 'modules__destroy') {
+    const id = input.id as string;
+    if (!id) return { error: 'Need id' };
+    const destroyed = moduleRuntime.destroyModule(id);
+    if (destroyed) {
+      store.hdel('module-defs', id, 'habitat');
+      console.log(`[habitat] destroyed module "${id}"`);
+    }
+    return { ok: destroyed };
+  }
+  if (toolName === 'modules__update') {
+    const id = input.id as string;
+    const rawMethods = input.methods as Record<string, { description: string; handler: string; input_schema?: Record<string, unknown> }>;
+    if (!id || !rawMethods) return { error: 'Need id and methods' };
+    const methods: Record<string, MethodDef> = {};
+    for (const [mn, mi] of Object.entries(rawMethods)) {
+      const schema = mi.input_schema || { type: 'object', properties: {} };
+      if (schema.type !== 'object') return { error: `Method ${mn}: input_schema.type must be 'object'` };
+      methods[mn] = { description: mi.description || mn, handler: mi.handler, input_schema: schema };
+    }
+    const result = moduleRuntime.updateMethods(id, methods);
+    if (result.ok) {
+      const existingDef = store.hget('module-defs', id) as Record<string, unknown> | null;
+      if (existingDef) {
+        const ed = typeof existingDef === 'string' ? JSON.parse(existingDef) : existingDef;
+        store.hset('module-defs', id, { ...ed, methods: { ...(ed.methods || {}), ...rawMethods } }, 'habitat');
+      }
+      console.log(`[habitat] updated module "${id}"`);
+    }
+    return result;
   }
 
   // Store tools
