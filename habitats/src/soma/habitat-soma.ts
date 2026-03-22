@@ -251,6 +251,9 @@ export class HabitatSoma {
     // Inhabitant tool definitions — the habitat owns what tools inhabitants get
     this.store.hset(hashKey, 'inhabitant_tools', JSON.stringify(DEFAULT_INHABITANT_TOOLS), 'habitat');
 
+    // Auto-mount errors for early visibility
+    this.store.hset(hashKey, 'store_mounts', JSON.stringify(['errors']), 'habitat');
+
     // on_tick bootstrap — creates modules from default_modules, then clears itself
     this.store.hset(hashKey, 'on_tick', [
       '// Bootstrap: create default modules, then self-destruct',
