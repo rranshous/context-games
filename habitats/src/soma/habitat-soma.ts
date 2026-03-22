@@ -610,7 +610,7 @@ export class HabitatSoma {
         tools,
         model: 'claude-opus-4-6',
         maxTokens: 8192,
-        maxTurns: 10,
+        maxTurns: 25,
         executeTool: (name, input) => {
           console.log(`[habitat] tool: ${name}(${JSON.stringify(input).slice(0, 80)})`);
           return executeHabitatToolCall(name, input, store, clock, moduleRuntime, actants, self);

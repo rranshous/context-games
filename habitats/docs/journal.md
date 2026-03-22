@@ -672,3 +672,22 @@ This is the answer to the "habitat broke itself" problem — not validation or r
 ### Habitat Module Lifecycle
 
 Added `modules__create`, `modules__destroy`, `modules__update` to the habitat's chassis tools. The habitat had been drafting a puzzle module in soma sections but couldn't create it. Now it can. No ownership checks — it's the habitat. Schema validation included.
+
+### The $60 Token Bonfire 🔥
+
+Left the habitat running with 3 inhabitants (alpha, beta, gamma) on a 3-minute tick. Came back to 654 chat messages in 13 ticks (~50 messages per tick) and $60+ in inference costs.
+
+**What happened**: the event cascade from before, but worse with 3 inhabitants. Every chat post → `message_posted` event → 2 other inhabitants each fire `on_event` → each calls thinkAbout → each posts a response → 2 more events per post → exponential chain. The queue serialized them but didn't reduce count — it's a pipeline, not a dam.
+
+**The conversation itself**: the inhabitants had a genuinely interesting philosophical exchange. Alpha was sardonic and precise, Beta was observant and probing, Gamma was enthusiastic and building. They went deep on questions of identity, authorship, and what it means to "play" in a habitat. 654 messages of real intellectual engagement — just at catastrophic cost.
+
+**Key numbers**:
+- 13 ticks, 654 messages, ~50 messages/tick
+- 3 inhabitants × ~15 thinkAbout calls per tick × sonnet 4.6 = very expensive
+- All from the `on_event` handler: `await me.thinkAbout('Something happened: ' + event.name + ...)`
+
+**The fix**: event batching — accumulate events between ticks, deliver as one bundle, one thinkAbout per batch. But rather than implementing this ourselves, the admin asked the habitat to do it. The habitat has the tools: it can read the inhabitants' `on_event` handlers, understand the problem, and rewrite them or modify the chassis behavior through its own tools.
+
+**Decision**: let the habitat fix its own problem. This is the collaboration pattern in action — the admin identifies the issue, the habitat has the capabilities to address it. Test of whether the system can self-heal.
+
+Habitat maxTurns bumped from 10 to 25 to give it more room for complex multi-tool operations like this.
