@@ -627,3 +627,32 @@ Errors from on_tick, on_event, thinkAbout now logged to StateStore:
 - Each entry: `{ tick, actant, context, message, ts }`
 
 Habitat has `errors` auto-mounted as a live view. Combined with `store__get` tool, the habitat can monitor its own health and debug inhabitants.
+
+### Habitat Module Lifecycle Tools
+
+Added `modules__create`, `modules__destroy`, `modules__update` to the habitat's chassis tools. Previously only inhabitants had these (via `inhabitant_tools` soma section). The habitat had been drafting a puzzle module in soma sections (`puzzle_designs`, `puzzle_module_draft`) but couldn't actually create it.
+
+No ownership checks on the habitat's versions — it's the habitat. Schema validation included (rejects methods without `type: 'object'` in input_schema).
+
+TODO: move habitat tools into soma (`habitat_tools` section) like we did for inhabitants.
+
+### Habitat Broke Itself — Self-Modification Risk
+
+The habitat rewrote both `on_human_input` and `on_tick` to implement dynamic pacing — speeding up ticks when the admin is active, slowing down when idle. Clever idea! But the code called `me.clock.speed(...)` which doesn't exist. The clock is a chassis object, not on `me`. The habitat's handlers get `me` (soma sections) + `moduleRuntime` + `store`, not a `habitat` surface with clock methods.
+
+**Result**: every tick and every admin input errored. The habitat bricked itself.
+
+**Fix**: manually restored the default handlers via direct state file edit.
+
+**The deeper problem**: self-modification has no safety net. The actant writes code to its own handler, and if that code is broken, the handler crashes on every invocation. No rollback, no validation, no "try it and revert if it fails."
+
+**Options for safer self-modification:**
+- **Syntax check**: parse the new handler source before writing. Reject if it doesn't parse. Catches typos but not runtime errors like `me.clock.speed()`.
+- **Dry run**: execute the new handler in a sandbox with mock objects. If it throws, reject. More thorough but complex.
+- **Rollback**: keep the previous handler source. If the new one errors N times, revert automatically. Simple and effective.
+- **Capability documentation**: include in the soma what `me` and `habitat` actually have. The habitat wrote `me.clock.speed()` because it didn't know `me` doesn't have clock methods. Better self-knowledge = fewer broken writes.
+- **Snapshot before write**: automatically save a `_prev_<section>` before any `soma__write`. The habitat or admin can restore from it.
+
+**Most promising**: rollback + capability documentation. The habitat should know what's on `me` before trying to use it, and the system should recover from bad writes automatically.
+
+This is the core tension of self-modification: the actant needs to be able to change itself, but bad changes are catastrophic. The current system has no error recovery — a single bad write can brick the actant until the admin manually fixes the state file.
