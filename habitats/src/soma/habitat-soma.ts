@@ -799,18 +799,27 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
     },
   });
 
-  // Chassis introspection
+  // Chassis introspection — mount pattern (content persists in soma until unmounted)
   tools.push({
     name: 'chassis__list_sources',
     description: 'List all source files in the habitat chassis and soma',
     input_schema: { type: obj, properties: {} },
   });
   tools.push({
-    name: 'chassis__read_source',
-    description: 'Read the contents of a habitat source file',
+    name: 'chassis__mount_source',
+    description: 'Mount a source file into your soma as a section. The file contents will be visible in your soma on every subsequent thinkAbout until unmounted. Section name will be "mounted:<path>".',
     input_schema: {
       type: obj,
-      properties: { path: { type: 'string', description: 'File path relative to src/ (e.g., "chassis/index.ts", "soma/habitat-soma.ts")' } },
+      properties: { path: { type: 'string', description: 'File path relative to src/ (e.g., "chassis/index.ts")' } },
+      required: ['path'],
+    },
+  });
+  tools.push({
+    name: 'chassis__unmount_source',
+    description: 'Unmount a previously mounted source file from your soma',
+    input_schema: {
+      type: obj,
+      properties: { path: { type: 'string', description: 'File path to unmount' } },
       required: ['path'],
     },
   });
@@ -1036,17 +1045,26 @@ function executeHabitatToolCall(
     walk(srcDir);
     return files;
   }
-  if (toolName === 'chassis__read_source') {
+  if (toolName === 'chassis__mount_source') {
     const path = input.path as string;
     if (!path) return { error: 'Need path' };
     if (path.includes('..')) return { error: 'No traversal allowed' };
-    // Ensure path is under src/
     const fullPath = path.startsWith('src/') ? path : join('src', path);
     try {
-      return readFileSync(fullPath, 'utf-8');
+      const content = readFileSync(fullPath, 'utf-8');
+      const sectionName = `mounted:${path}`;
+      store.hset('actants/habitat', sectionName, content, 'habitat');
+      return { ok: true, mounted: sectionName, chars: content.length };
     } catch (err) {
       return { error: `Could not read: ${(err as Error).message}` };
     }
+  }
+  if (toolName === 'chassis__unmount_source') {
+    const path = input.path as string;
+    if (!path) return { error: 'Need path' };
+    const sectionName = `mounted:${path}`;
+    store.hdel('actants/habitat', sectionName, 'habitat');
+    return { ok: true, unmounted: sectionName };
   }
 
   return { error: `Unknown tool: ${toolName}` };
