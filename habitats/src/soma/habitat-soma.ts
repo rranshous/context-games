@@ -581,6 +581,27 @@ export class HabitatSoma {
         soma[section] = typeof value === 'string' ? value : JSON.stringify(value);
       }
 
+      // Inject live store mounts — read fresh values for each mounted key
+      const mountsRaw = this.store.hget(hashKey, 'store_mounts') as string | null;
+      if (mountsRaw) {
+        const mounts: string[] = JSON.parse(mountsRaw);
+        for (const key of mounts) {
+          const t = this.store.type(key);
+          if (!t) {
+            soma[`live:${key}`] = '(key not found)';
+            continue;
+          }
+          let value: unknown;
+          switch (t) {
+            case 'string': value = this.store.get(key); break;
+            case 'list': value = this.store.lrange(key, 0, -1); break;
+            case 'hash': value = this.store.hgetall(key); break;
+            case 'set': value = this.store.smembers(key); break;
+          }
+          soma[`live:${key}`] = typeof value === 'string' ? value : JSON.stringify(value);
+        }
+      }
+
       const tools = buildToolsForHabitat(this.store);
       const store = this.store;
       const clock = this.clock;
@@ -796,6 +817,26 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
     input_schema: {
       type: obj,
       properties: { count: { type: 'number', description: 'Number of messages (default 10)' } },
+    },
+  });
+
+  // Store mounts — live views of store data injected into soma on each thinkAbout
+  tools.push({
+    name: 'store__mount',
+    description: 'Mount a store key as a live view in your soma. The current value will be read fresh and injected as a "live:<key>" section on every thinkAbout until unmounted.',
+    input_schema: {
+      type: obj,
+      properties: { key: { type: 'string', description: 'Store key to mount (e.g., "errors", "actants/alpha", "modules")' } },
+      required: ['key'],
+    },
+  });
+  tools.push({
+    name: 'store__unmount',
+    description: 'Unmount a previously mounted store key from your soma',
+    input_schema: {
+      type: obj,
+      properties: { key: { type: 'string', description: 'Store key to unmount' } },
+      required: ['key'],
     },
   });
 
@@ -1044,6 +1085,30 @@ function executeHabitatToolCall(
     }
     walk(srcDir);
     return files;
+  }
+  if (toolName === 'store__mount') {
+    const key = input.key as string;
+    if (!key) return { error: 'Need key' };
+    // Store the mount in a list
+    const mountsRaw = store.hget('actants/habitat', 'store_mounts') as string | null;
+    const mounts: string[] = mountsRaw ? JSON.parse(mountsRaw) : [];
+    if (!mounts.includes(key)) {
+      mounts.push(key);
+      store.hset('actants/habitat', 'store_mounts', JSON.stringify(mounts), 'habitat');
+    }
+    return { ok: true, mounted: `live:${key}`, mounts };
+  }
+  if (toolName === 'store__unmount') {
+    const key = input.key as string;
+    if (!key) return { error: 'Need key' };
+    const mountsRaw = store.hget('actants/habitat', 'store_mounts') as string | null;
+    const mounts: string[] = mountsRaw ? JSON.parse(mountsRaw) : [];
+    const idx = mounts.indexOf(key);
+    if (idx !== -1) {
+      mounts.splice(idx, 1);
+      store.hset('actants/habitat', 'store_mounts', JSON.stringify(mounts), 'habitat');
+    }
+    return { ok: true, unmounted: `live:${key}`, mounts };
   }
   if (toolName === 'chassis__mount_source') {
     const path = input.path as string;
