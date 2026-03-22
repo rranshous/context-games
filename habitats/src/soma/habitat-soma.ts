@@ -8,6 +8,8 @@
  * - The habitat's identity
  */
 
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { StateStore } from '../chassis/statestore.js';
 import { Clock } from '../chassis/clock.js';
 import { ModuleRuntime, type MethodDef, type ModuleDefinition } from './module-runtime.js';
@@ -797,6 +799,22 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
     },
   });
 
+  // Chassis introspection
+  tools.push({
+    name: 'chassis__list_sources',
+    description: 'List all source files in the habitat chassis and soma',
+    input_schema: { type: obj, properties: {} },
+  });
+  tools.push({
+    name: 'chassis__read_source',
+    description: 'Read the contents of a habitat source file',
+    input_schema: {
+      type: obj,
+      properties: { path: { type: 'string', description: 'File path relative to src/ (e.g., "chassis/index.ts", "soma/habitat-soma.ts")' } },
+      required: ['path'],
+    },
+  });
+
   return tools;
 }
 
@@ -997,6 +1015,38 @@ function executeHabitatToolCall(
   // Chat shortcut
   if (toolName === 'chat__read') {
     return moduleRuntime.call('chat', 'read', { count: input.count || 10 }, 'habitat');
+  }
+
+  // Chassis introspection
+  if (toolName === 'chassis__list_sources') {
+    const srcDir = 'src';
+    const files: string[] = [];
+    function walk(dir: string) {
+      try {
+        for (const entry of readdirSync(dir)) {
+          const full = join(dir, entry);
+          if (statSync(full).isDirectory()) {
+            walk(full);
+          } else if (entry.endsWith('.ts')) {
+            files.push(full);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    walk(srcDir);
+    return files;
+  }
+  if (toolName === 'chassis__read_source') {
+    const path = input.path as string;
+    if (!path) return { error: 'Need path' };
+    if (path.includes('..')) return { error: 'No traversal allowed' };
+    // Ensure path is under src/
+    const fullPath = path.startsWith('src/') ? path : join('src', path);
+    try {
+      return readFileSync(fullPath, 'utf-8');
+    } catch (err) {
+      return { error: `Could not read: ${(err as Error).message}` };
+    }
   }
 
   return { error: `Unknown tool: ${toolName}` };
