@@ -643,7 +643,10 @@ function buildToolsForHabitat(store: StateStore): Anthropic.Tool[] {
   const obj = 'object' as const;
 
   // Soma tools — dynamic from habitat's hash fields
-  // Skip sections with chars invalid for tool names (mounted:, live: sections)
+  // Sections like "mounted:chassis/index.ts" and "live:errors" contain colons/slashes
+  // which violate the Anthropic tool name pattern ^[a-zA-Z0-9_-]{1,64}$.
+  // These sections are still visible in the soma (system prompt) — they just don't
+  // need read/write/run tools because the content is already in the prompt.
   const allFields = store.hgetall('actants/habitat');
   for (const section of Object.keys(allFields)) {
     if (!/^[a-zA-Z0-9_-]+$/.test(section)) continue;
@@ -1208,7 +1211,8 @@ function buildToolsForActant(
   const obj = 'object' as const;
 
   // Soma section tools — dynamic, from whatever fields exist in the hash
-  // Skip sections with chars invalid for tool names
+  // Skip sections with names that would produce invalid Anthropic tool names
+  // (e.g., "mounted:" or "live:" prefixed sections with colons/slashes)
   const allFields = store.hgetall(`actants/${actantId}`);
   for (const section of Object.keys(allFields)) {
     if (!/^[a-zA-Z0-9_-]+$/.test(section)) continue;

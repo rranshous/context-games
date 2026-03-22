@@ -579,3 +579,51 @@ The pattern that keeps emerging: **move things from the chassis into the soma.**
 The chassis keeps shrinking. The soma keeps growing. The habitat owns more of its own world with each change. The end state the design docs described — "the infrastructure docs are really anatomy docs" — is becoming true in the code.
 
 What remains in the chassis: StateStore, Clock, Persistence, VM Runner, signal dispatch, inference bridge. The irreducible kernel that makes an actant go.
+
+---
+
+## Session 4 — 2026-03-22: Mount Patterns, Observability, and the Habitat-Admin Boundary
+
+### Mount Pattern for Chassis Sources
+
+Replaced `chassis__read_source` (evaporating — results disappear between thinkAbout calls) with mount/unmount pattern from Bloom:
+- `chassis__mount_source` writes file contents to soma section `mounted:<path>`
+- `chassis__unmount_source` removes it
+- Content persists in soma, visible on every thinkAbout until unmounted
+
+### Live Store Mounts
+
+Extended the mount pattern to StateStore keys with live re-reading:
+- `store__mount` adds a key to the `store_mounts` list
+- On every `habitatThinkAbout`, mounted keys are read fresh and injected as `live:<key>` sections
+- `store__unmount` removes the mount
+- Unlike file mounts (static snapshots), store mounts are truly live — the habitat sees current data
+
+`errors` is auto-mounted on first boot. The habitat sees `<live:errors>` from its first interaction.
+
+### Tool Name Validation Bug
+
+The `mounted:` and `live:` sections created tool names like `soma__read_mounted:chassis/index.ts` — colons and slashes violate the Anthropic API pattern `^[a-zA-Z0-9_-]{1,64}$`. Result: 400 errors on every thinkAbout.
+
+Fix: skip sections with invalid tool name characters during tool generation. The sections are still visible in the soma (system prompt), they just don't get read/write/run tools. They don't need tools — the content is already in the prompt.
+
+### The Habitat-Admin Boundary
+
+Discussion about what happens when the habitat can edit its own source files. Key insight: **letting the habitat write to disk breaks our (developer + admin) relationship to the code.** We can't trust that what's in `src/` is what we wrote.
+
+The design line: **the habitat reads the chassis to understand itself. It evolves through the soma.** If it needs a capability that's in the chassis, it talks to the admin and we decide whether to move it into the soma or change the chassis ourselves.
+
+This keeps the collaboration real. The habitat works through its soma. We work through the code. Different mechanisms, shared intent.
+
+### REPL Visual Separator
+
+Added `────` lines around habitat responses so they're visually distinct from tick output and admin input in the terminal.
+
+### Error Visibility
+
+Errors from on_tick, on_event, thinkAbout now logged to StateStore:
+- `errors` list (global, capped at 100)
+- `errors:{actantId}` list (per-inhabitant, capped at 50)
+- Each entry: `{ tick, actant, context, message, ts }`
+
+Habitat has `errors` auto-mounted as a live view. Combined with `store__get` tool, the habitat can monitor its own health and debug inhabitants.
