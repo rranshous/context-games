@@ -534,3 +534,48 @@ The 7 static inhabitant tools (3 event + 4 module lifecycle) are no longer hardc
 **Example**: the habitat could add a `debug__dump_state` tool by appending to the `inhabitant_tools` JSON. Next time an inhabitant thinks, they'd have that tool available.
 
 This is the same pattern as modules (definitions in the soma, not in the chassis) and the same pattern as the self-consuming bootstrap. The habitat owns its inner world's mechanisms through its soma.
+
+### Chassis Introspection
+
+Added `chassis__list_sources` and `chassis__read_source` tools to the habitat. It can now list all TypeScript source files under `src/` and read their contents. Path traversal blocked. The habitat can inspect its own implementation during thinkAbout — read how `buildMe` works, how tools are dispatched, how the clock ticks. Reading, not writing — the chassis is still fixed.
+
+### Schema Validation — Structural Correctness
+
+The habitat created a `directory` module with malformed `input_schema` — missing `type: 'object'`. This caused 400 errors from the Anthropic API when inhabitants tried to use the module's tools.
+
+**Fix approach: reject, don't normalize.** Two validation points:
+1. `modules__create` handler validates each method's schema at creation time. Returns a clear error: "input_schema.type must be 'object', got 'undefined'"
+2. `buildToolsForActant` skips methods with bad schemas at tool-generation time, logging to console
+
+The model gets feedback about what's wrong and can fix it. We don't silently fix malformed data — correctness should be structural.
+
+### Error Logging to StateStore
+
+Previously: errors went to `console.error` only. Inhabitants and habitat had zero visibility into failures.
+
+Now: `logError()` writes to three places:
+- `errors` list in the store (global, capped at 100) — habitat reads via `store__get`
+- `errors:{actantId}` list (per-inhabitant, capped at 50)
+- Console (same as before)
+
+Each entry: `{ tick, actant, context, message, ts }`. Covers on_tick errors, on_event errors, thinkAbout errors.
+
+The habitat can now ask "are there any errors?" and use `store__get` with key `errors` to see what's been going wrong across all inhabitants. This is the beginning of observability — the habitat can monitor its own health.
+
+---
+
+### Architecture Evolution — Session 3 Summary
+
+The pattern that keeps emerging: **move things from the chassis into the soma.**
+
+| What | Before | After |
+|------|--------|-------|
+| Default modules | Hardcoded imports in index.ts | `default_modules` soma section, self-consuming on_tick bootstrap |
+| Inhabitant tools | Hardcoded in buildToolsForActant | `inhabitant_tools` soma section, generative |
+| Tick rate | Hardcoded constant | `tick_rate` soma section |
+| REPL commands | Switch-case in repl.ts | habitat's `on_human_input` → thinkAbout |
+| Module definitions | TypeScript files in src/modules/ | JSON in StateStore via `module-defs` |
+
+The chassis keeps shrinking. The soma keeps growing. The habitat owns more of its own world with each change. The end state the design docs described — "the infrastructure docs are really anatomy docs" — is becoming true in the code.
+
+What remains in the chassis: StateStore, Clock, Persistence, VM Runner, signal dispatch, inference bridge. The irreducible kernel that makes an actant go.
