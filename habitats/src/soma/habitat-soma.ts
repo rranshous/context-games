@@ -131,7 +131,7 @@ const DEFAULT_INHABITANT_TOOLS = [
       'if (!id || !name || !rawMethods) return { error: "Need id, name, and methods" };',
       'if (moduleRuntime.listModules().indexOf(id) !== -1) return { error: "Module already exists: " + id };',
       'var methods = {}; var mns = Object.keys(rawMethods);',
-      'for (var i = 0; i < mns.length; i++) { var mn = mns[i]; var mi = rawMethods[mn]; methods[mn] = { description: mi.description || mn, handler: mi.handler, input_schema: mi.input_schema }; }',
+      'for (var i = 0; i < mns.length; i++) { var mn = mns[i]; var mi = rawMethods[mn]; var schema = mi.input_schema || { type: "object", properties: {} }; if (schema.type !== "object") return { error: "Method " + mn + ": input_schema.type must be \'object\', got \'" + (schema.type || "undefined") + "\'. Schema should be { type: \'object\', properties: { ... } }" }; methods[mn] = { description: mi.description || mn, handler: mi.handler, input_schema: schema }; }',
       'var def = { id: id, name: name, init: function() { var s = JSON.parse(JSON.stringify(initState)); s._creator = actantId; return s; }, methods: methods };',
       'var result = moduleRuntime.loadModule(def);',
       'if (result.ok) { store.hset("module-defs", id, { id: id, name: name, initState: initState, methods: rawMethods, creator: actantId }, actantId); store.sadd("activations:" + actantId, id, actantId); }',
@@ -1162,10 +1162,15 @@ function buildToolsForActant(
     const schemas = moduleRuntime.getMethodSchemas(moduleId);
     if (!schemas) continue;
     for (const [method, info] of Object.entries(schemas)) {
+      const schema = info.input_schema || { type: 'object', properties: {} };
+      if (schema.type !== 'object') {
+        console.error(`[habitat] skipping tool ${moduleId}__${method}: input_schema.type must be 'object', got '${schema.type || 'undefined'}'`);
+        continue;
+      }
       tools.push({
         name: `${moduleId}__${method}`,
         description: `[${moduleId}] ${info.description}`,
-        input_schema: (info.input_schema || { type: obj, properties: {} }) as Anthropic.Tool.InputSchema,
+        input_schema: schema as Anthropic.Tool.InputSchema,
       });
     }
   }
