@@ -656,3 +656,19 @@ The habitat rewrote both `on_human_input` and `on_tick` to implement dynamic pac
 **Most promising**: rollback + capability documentation. The habitat should know what's on `me` before trying to use it, and the system should recover from bad writes automatically.
 
 This is the core tension of self-modification: the actant needs to be able to change itself, but bad changes are catastrophic. The current system has no error recovery — a single bad write can brick the actant until the admin manually fixes the state file.
+
+### Embodiment as Documentation
+
+Rather than writing docs about what `me` has, we extracted the implementation into `src/soma/embodiment.ts` — a focused, well-commented file that defines `buildSectionAccessor` and `buildMeFromHash`. The file header documents the full `me` API:
+- Every section gets `read()`, `write()`, `run(args?)`
+- `thinkAbout(impulse)` is the inference primitive
+- What `me` does NOT have: no clock, no store, no module runtime, no other actants
+- What each handler context receives (inhabitant on_tick gets `me` + `habitat`, habitat on_tick gets `me` + `moduleRuntime` + `store`, etc.)
+
+Auto-mounted into the habitat's soma on first boot as `mounted:soma/embodiment.ts`. The habitat sees the actual TypeScript source that constructs its `me` object — the implementation communicates its own surface. When it self-modifies, it can check what's available before writing broken code.
+
+This is the answer to the "habitat broke itself" problem — not validation or rollback (yet), but self-knowledge. The habitat called `me.clock.speed()` because it didn't know `me` doesn't have clock. Now it can see that it doesn't.
+
+### Habitat Module Lifecycle
+
+Added `modules__create`, `modules__destroy`, `modules__update` to the habitat's chassis tools. The habitat had been drafting a puzzle module in soma sections but couldn't create it. Now it can. No ownership checks — it's the habitat. Schema validation included.
