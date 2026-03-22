@@ -355,8 +355,19 @@ export class HabitatSoma {
   onTick(tick: number): void {
     this.store.setTick(tick);
 
+    // Check token budget — pause clock if exceeded
+    const { used, budget } = getTokenUsage(this.store);
+    if (used >= budget) {
+      console.error(`[habitat] TOKEN BUDGET EXHAUSTED (${used}/${budget}) — pausing clock`);
+      this.clock.stop();
+      return;
+    }
+
     // Run habitat's own on_tick (if it has one)
     this.runHabitatOnTick();
+
+    // Process batched events from last tick — one thinkAbout per inhabitant max
+    this.processBatchedEvents();
 
     for (const [id, actant] of this.actants) {
       const onTick = this.store.hget(`actants/${id}`, 'on_tick') as string | null;
@@ -400,57 +411,62 @@ export class HabitatSoma {
     // Dispatch to module subscribers
     this.moduleRuntime.dispatchEvent(fullEvent, { emitter: moduleId, data });
 
-    // Dispatch to actant subscribers
+    // Always queue — events are batched and delivered at the start of the next tick
     for (const [id, actant] of this.actants) {
       const subscribed = this.store.sismember(`subscriptions:${id}`, fullEvent);
       if (!subscribed) continue;
 
-      // Don't fire events for the actant that caused them
+      // Don't queue events for the actant that caused them
       const eventData = data as Record<string, unknown> | null;
       if (eventData && (eventData.from === id || eventData.poser === id || eventData.guesser === id)) continue;
 
-      const queuedEvent: QueuedEvent = { name: fullEvent, emitter: moduleId, data };
+      actant.eventQueue.push({ name: fullEvent, emitter: moduleId, data });
+    }
+  }
 
-      if (actant.thinking) {
-        // Queue for later — actant is mid-inference
-        actant.eventQueue.push(queuedEvent);
+  /**
+   * Process batched events for all inhabitants.
+   * Called at the start of each tick. All queued events are bundled into
+   * a single thinkAbout call per inhabitant. No chain reactions.
+   */
+  private processBatchedEvents(): void {
+    for (const [id, actant] of this.actants) {
+      if (actant.eventQueue.length === 0) continue;
+      if (actant.thinking) continue;
+
+      const onEvent = this.store.hget(`actants/${id}`, 'on_event') as string | null;
+      if (!onEvent) {
+        actant.eventQueue.length = 0;
         continue;
       }
 
-      this.fireEvent(id, actant, queuedEvent);
-    }
-  }
+      // Bundle all queued events into one batch
+      const batch = actant.eventQueue.splice(0);
+      const summary = batch.map(e =>
+        `${e.name}: ${JSON.stringify(e.data).slice(0, 100)}`
+      ).join('\n');
 
-  /** Fire an event handler for an actant. */
-  private fireEvent(id: string, actant: ActantRuntime, event: QueuedEvent): void {
-    const onEvent = this.store.hget(`actants/${id}`, 'on_event') as string | null;
-    if (!onEvent) return;
+      console.log(`[habitat] ${id} processing ${batch.length} batched events`);
 
-    console.log(`[habitat] ${id} event: ${event.name}`);
-
-    try {
-      const me = this.buildMe(id, actant);
-      const handler = new Function('me', 'habitat', 'event', `return (async () => { ${onEvent} })();`);
-      const promise = handler(me, actant.surface, event);
-      if (promise && typeof promise.then === 'function') {
-        promise.then(() => {
-          // Process queued events after this one completes
-          this.drainEventQueue(id, actant);
-        }).catch((err: Error) => {
-          logError(this.store, id, 'on_event', err.message);
-          this.drainEventQueue(id, actant);
+      try {
+        const me = this.buildMe(id, actant);
+        // Pass the full batch as `event` — it's an array now
+        const handler = new Function('me', 'habitat', 'event', `return (async () => { ${onEvent} })();`);
+        const promise = handler(me, actant.surface, {
+          name: 'batch',
+          count: batch.length,
+          events: batch,
+          summary,
         });
+        if (promise && typeof promise.then === 'function') {
+          promise.catch((err: Error) => {
+            logError(this.store, id, 'on_event', err.message);
+          });
+        }
+      } catch (err) {
+        logError(this.store, id, 'on_event', (err as Error).message);
       }
-    } catch (err) {
-      logError(this.store, id, 'on_event', (err as Error).message);
     }
-  }
-
-  /** Process queued events after thinking completes. */
-  private drainEventQueue(id: string, actant: ActantRuntime): void {
-    if (actant.eventQueue.length === 0 || actant.thinking) return;
-    const next = actant.eventQueue.shift()!;
-    this.fireEvent(id, actant, next);
   }
 
   /** Build the `me` object for an inhabitant — see embodiment.ts for the full API. */
@@ -489,7 +505,14 @@ export class HabitatSoma {
           },
         });
 
-        console.log(`[habitat] ${actantId} done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools)`);
+        // Track token usage
+        const budgetExceeded = recordTokenUsage(store, actantId, result.usage.input, result.usage.output);
+        const { used, budget } = getTokenUsage(store);
+        console.log(`[habitat] ${actantId} done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools) [${used}/${budget} total]`);
+
+        if (budgetExceeded) {
+          console.error(`[habitat] TOKEN BUDGET EXCEEDED (${used}/${budget}) — pausing clock`);
+        }
 
         if (result.text) {
           console.log(`[habitat] ${actantId} says: ${result.text.slice(0, 120)}`);
@@ -501,7 +524,6 @@ export class HabitatSoma {
         return `(error: ${(err as Error).message})`;
       } finally {
         runtime.thinking = false;
-        this.drainEventQueue(actantId, runtime);
       }
     };
 
@@ -617,7 +639,9 @@ export class HabitatSoma {
         },
       });
 
-      console.log(`[habitat] done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools)`);
+      recordTokenUsage(this.store, 'habitat', result.usage.input, result.usage.output);
+      const { used, budget } = getTokenUsage(this.store);
+      console.log(`[habitat] done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools) [${used}/${budget} total]`);
       return result.text;
     } catch (err) {
       logError(this.store, 'habitat', 'thinkAbout', (err as Error).message);
@@ -1226,6 +1250,24 @@ function executeHabitatToolCall(
   }
 
   return { error: `Unknown tool: ${toolName}` };
+}
+
+// --- Token budget ---
+
+const DEFAULT_TOKEN_BUDGET = 2_000_000; // 2M tokens per session
+
+/** Record token usage and check budget. Returns true if budget exceeded. */
+function recordTokenUsage(store: StateStore, actantId: string, input: number, output: number): boolean {
+  const key = 'habitat/token_usage';
+  const current = parseInt(store.get(key) || '0', 10);
+  const total = current + input + output;
+  store.set(key, String(total), actantId);
+  return total >= DEFAULT_TOKEN_BUDGET;
+}
+
+function getTokenUsage(store: StateStore): { used: number; budget: number } {
+  const used = parseInt(store.get('habitat/token_usage') || '0', 10);
+  return { used, budget: DEFAULT_TOKEN_BUDGET };
 }
 
 // --- Error logging ---

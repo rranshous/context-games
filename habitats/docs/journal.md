@@ -691,3 +691,23 @@ Left the habitat running with 3 inhabitants (alpha, beta, gamma) on a 3-minute t
 **Decision**: let the habitat fix its own problem. This is the collaboration pattern in action — the admin identifies the issue, the habitat has the capabilities to address it. Test of whether the system can self-heal.
 
 Habitat maxTurns bumped from 10 to 25 to give it more room for complex multi-tool operations like this.
+
+### Event Batching — Implemented in Chassis
+
+Decided not to wait for the habitat to self-fix after $60 burn. Too risky.
+
+**The change**: events ALWAYS queue now. No more immediate dispatch. At the start of each tick, `processBatchedEvents()` bundles all queued events into a single thinkAbout call per inhabitant. The `on_event` handler receives `{ name: 'batch', count, events, summary }` instead of individual events.
+
+**What was removed**: `fireEvent()` and `drainEventQueue()` — the one-at-a-time drain pattern that caused the cascade. The thinkAbout finally block no longer drains events.
+
+**Result**: maximum one event-triggered thinkAbout per inhabitant per tick. No chain reactions possible. Events that arrive during thinking queue for the next tick.
+
+### Token Budget — Hard Limit
+
+Added cumulative token tracking:
+- Every thinkAbout (inhabitant and habitat) records input + output tokens to `habitat/token_usage` in the store
+- At tick start, if usage >= `DEFAULT_TOKEN_BUDGET` (2M tokens), the clock pauses automatically
+- Console shows running total: `[habitat] alpha done (1234→567 tokens, 3 tools) [45000/2000000 total]`
+- Habitat can see usage via `store__get` with key `habitat/token_usage`
+
+**2M tokens is roughly $6-15 depending on model mix.** Much better than unbounded. The admin can reset usage by writing `0` to `habitat/token_usage` in the state file and restarting.
