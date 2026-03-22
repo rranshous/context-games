@@ -9,7 +9,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { StateStore } from '../chassis/statestore.js';
 import { Clock } from '../chassis/clock.js';
 import { ModuleRuntime, type MethodDef, type ModuleDefinition } from './module-runtime.js';
@@ -367,11 +367,11 @@ export class HabitatSoma {
         // Handle async completion
         if (promise && typeof promise.then === 'function') {
           promise.catch((err: Error) => {
-            console.error(`[habitat] ${id} on_tick async error:`, err.message);
+            logError(this.store, id, 'on_tick', err.message);
           });
         }
       } catch (err) {
-        console.error(`[habitat] ${id} on_tick error:`, (err as Error).message);
+        logError(this.store, id, 'on_tick', (err as Error).message);
       }
     }
   }
@@ -427,12 +427,12 @@ export class HabitatSoma {
           // Process queued events after this one completes
           this.drainEventQueue(id, actant);
         }).catch((err: Error) => {
-          console.error(`[habitat] ${id} on_event async error:`, err.message);
+          logError(this.store, id, 'on_event', err.message);
           this.drainEventQueue(id, actant);
         });
       }
     } catch (err) {
-      console.error(`[habitat] ${id} on_event error:`, (err as Error).message);
+      logError(this.store, id, 'on_event', (err as Error).message);
     }
   }
 
@@ -492,7 +492,7 @@ export class HabitatSoma {
 
         return result.text;
       } catch (err) {
-        console.error(`[habitat] ${actantId} thinkAbout error:`, (err as Error).message);
+        logError(store, actantId, 'thinkAbout', (err as Error).message);
         return `(error: ${(err as Error).message})`;
       } finally {
         runtime.thinking = false;
@@ -522,11 +522,11 @@ export class HabitatSoma {
       const promise = fn(me, this.moduleRuntime, this.store);
       if (promise && typeof promise.then === 'function') {
         promise.catch((err: Error) => {
-          console.error(`[habitat] on_tick error:`, err.message);
+          logError(this.store, 'habitat', 'on_tick', err.message);
         });
       }
     } catch (err) {
-      console.error(`[habitat] on_tick error:`, (err as Error).message);
+      logError(this.store, 'habitat', 'on_tick', (err as Error).message);
     }
   }
 
@@ -604,7 +604,7 @@ export class HabitatSoma {
       console.log(`[habitat] done (${result.usage.input}→${result.usage.output} tokens, ${result.toolsUsed.length} tools)`);
       return result.text;
     } catch (err) {
-      console.error(`[habitat] thinkAbout error:`, (err as Error).message);
+      logError(this.store, 'habitat', 'thinkAbout', (err as Error).message);
       return `(error: ${(err as Error).message})`;
     } finally {
       this.habitatThinking = false;
@@ -1050,6 +1050,25 @@ function executeHabitatToolCall(
   }
 
   return { error: `Unknown tool: ${toolName}` };
+}
+
+// --- Error logging ---
+
+/** Log an error to the store — global list + per-actant list + console. */
+function logError(
+  store: StateStore,
+  actantId: string,
+  context: string,
+  message: string,
+): void {
+  const tick = parseInt(store.get('habitat/clock/tick') || '0', 10);
+  const entry = { tick, actant: actantId, context, message, ts: Date.now() };
+  store.rpush('errors', entry, 'habitat');
+  store.rpush(`errors:${actantId}`, entry, 'habitat');
+  // Cap at 100 entries each
+  if (store.llen('errors') > 100) store.ltrim('errors', -100, -1, 'habitat');
+  if (store.llen(`errors:${actantId}`) > 50) store.ltrim(`errors:${actantId}`, -50, -1, 'habitat');
+  console.error(`[habitat] ${actantId} ${context}: ${message}`);
 }
 
 // --- Section accessor ---
