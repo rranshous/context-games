@@ -7,6 +7,9 @@
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "start": "node dist/server.js",
+    "bot": "node dist/bot.js",
+    "bot:easy": "SOD_DIFFICULTY=easy node dist/bot.js",
+    "bot:hard": "SOD_DIFFICULTY=hard node dist/bot.js",
     "dev": "node esbuild.config.mjs && node dist/server.js"
   },
   "keywords": ["game", "rts"],

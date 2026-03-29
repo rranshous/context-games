@@ -17,6 +17,17 @@ const serverConfig = {
   },
 };
 
+const botConfig = {
+  bundle: true,
+  sourcemap: true,
+  target: 'es2022',
+  format: 'esm',
+  platform: 'node',
+  entryPoints: ['src/bot/bot.ts'],
+  outfile: 'dist/bot.js',
+  packages: 'external',
+};
+
 const clientConfig = {
   bundle: true,
   sourcemap: true,
@@ -38,8 +49,9 @@ async function build() {
     await Promise.all([
       esbuild.build(serverConfig),
       esbuild.build(clientConfig),
+      esbuild.build(botConfig),
     ]);
-    console.log('Build complete (server + client).');
+    console.log('Build complete (server + client + bot).');
   }
 }
 
