@@ -4,7 +4,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { SurrenderOrDieServer } from './game-engine.js';
-import { login, authMiddleware } from './auth.js';
+import { login, authMiddleware, resolveToken } from './auth.js';
 import { recordWin, recordLoss, recordSurrender, recordDraw, getLeaderboard, getStats } from './scoring.js';
 import { TICK_RATE, TICK_DT } from '../shared/types.js';
 
@@ -73,7 +73,7 @@ app.post('/api/games/:id/join', authMiddleware, (req, res) => {
   }
 });
 
-// --- Game state ---
+// --- Game state (fog-aware: pass auth token to get fog-filtered view) ---
 app.get('/api/games/:id/state', (req, res) => {
   const since = parseInt(req.query.since as string);
   if (!isNaN(since)) {
@@ -83,7 +83,13 @@ app.get('/api/games/:id/state', (req, res) => {
       return;
     }
   }
-  const state = engine.getStatus(req.params.id);
+  // If auth header present, return fog-filtered state
+  let handle: string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    handle = resolveToken(authHeader.slice(7)) ?? undefined;
+  }
+  const state = engine.getStatus(req.params.id, handle);
   if (!state) {
     res.status(404).json({ error: 'Game not found' });
     return;
@@ -151,6 +157,39 @@ app.post('/api/games/:id/surrender', authMiddleware, (req, res) => {
   try {
     const handle = (req as any).playerHandle;
     const state = engine.surrender(req.params.id, handle);
+    res.json(state);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/games/:id/mine', authMiddleware, (req, res) => {
+  try {
+    const handle = (req as any).playerHandle;
+    const { unitIds, mineId } = req.body;
+    const state = engine.mineGold(req.params.id, handle, unitIds, mineId);
+    res.json(state);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/games/:id/ability', authMiddleware, (req, res) => {
+  try {
+    const handle = (req as any).playerHandle;
+    const { unitId, targetX, targetY } = req.body;
+    const state = engine.useAbility(req.params.id, handle, unitId, targetX, targetY);
+    res.json(state);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/games/:id/research', authMiddleware, (req, res) => {
+  try {
+    const handle = (req as any).playerHandle;
+    const { upgradeId } = req.body;
+    const state = engine.research(req.params.id, handle, upgradeId);
     res.json(state);
   } catch (e: any) {
     res.status(400).json({ error: e.message });

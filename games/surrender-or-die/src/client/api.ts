@@ -59,7 +59,7 @@ export class SodAPI {
   async getState(gameId: string, sinceTick?: number): Promise<GameState | null> {
     const url = `${this.baseUrl}/api/games/${gameId}/state` +
       (sinceTick != null ? `?since=${sinceTick}` : '');
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: this.authHeaders() });
     if (res.status === 304) return null;
     if (!res.ok) throw new Error((await res.json()).error);
     return res.json();
@@ -119,6 +119,36 @@ export class SodAPI {
     const res = await fetch(`${this.baseUrl}/api/games/${gameId}/surrender`, {
       method: 'POST',
       headers: this.authHeaders(),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    return res.json();
+  }
+
+  async mineGold(gameId: string, unitIds: number[], mineId: number): Promise<GameState> {
+    const res = await fetch(`${this.baseUrl}/api/games/${gameId}/mine`, {
+      method: 'POST',
+      headers: this.authHeaders(),
+      body: JSON.stringify({ unitIds, mineId }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    return res.json();
+  }
+
+  async useAbility(gameId: string, unitId: number, targetX?: number, targetY?: number): Promise<GameState> {
+    const res = await fetch(`${this.baseUrl}/api/games/${gameId}/ability`, {
+      method: 'POST',
+      headers: this.authHeaders(),
+      body: JSON.stringify({ unitId, targetX, targetY }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    return res.json();
+  }
+
+  async research(gameId: string, upgradeId: string): Promise<GameState> {
+    const res = await fetch(`${this.baseUrl}/api/games/${gameId}/research`, {
+      method: 'POST',
+      headers: this.authHeaders(),
+      body: JSON.stringify({ upgradeId }),
     });
     if (!res.ok) throw new Error((await res.json()).error);
     return res.json();

@@ -185,6 +185,7 @@ function enterGame(gameId: string, side: Side): void {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   if (!renderer) {
     renderer = new Renderer(canvas);
+    renderer.playerSide = side;
     // Scale canvas
     const container = document.getElementById('game-container')!;
     const scale = Math.min(

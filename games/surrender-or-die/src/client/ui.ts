@@ -122,13 +122,30 @@ export class UI {
     const game = this.latestState;
     if (!game) return;
 
+    // Right-click on enemy unit: attack
     const target = this.renderer.unitAtPixel(game, px, py);
     if (target && target.owner !== this.playerSide) {
       this.api.attackTarget(this.gameId, selected, target.id).catch(() => {});
-    } else {
-      const [tx, ty] = this.renderer.pixelToTile(px, py);
-      this.api.attackMove(this.gameId, selected, tx, ty).catch(() => {});
+      return;
     }
+
+    // Right-click on gold mine: send peasants to mine
+    const mine = this.renderer.mineAtPixel(game, px, py);
+    if (mine && mine.remaining > 0) {
+      // Filter to peasants only
+      const peasantIds = selected.filter(id => {
+        const u = game.units.find(u => u.id === id);
+        return u && u.type === 'peasant';
+      });
+      if (peasantIds.length > 0) {
+        this.api.mineGold(this.gameId, peasantIds, mine.id).catch(() => {});
+        return;
+      }
+    }
+
+    // Right-click on empty ground: attack-move
+    const [tx, ty] = this.renderer.pixelToTile(px, py);
+    this.api.attackMove(this.gameId, selected, tx, ty).catch(() => {});
   }
 
   private setupKeyboardHandlers(): void {
@@ -139,6 +156,15 @@ export class UI {
 
       if (keyMap[e.key]) {
         this.api.train(this.gameId, keyMap[e.key]).catch(() => {});
+        return;
+      }
+
+      // Q = use ability on first selected unit
+      if (e.key === 'q' || e.key === 'Q') {
+        const selected = Array.from(this.renderer.selectedUnitIds);
+        if (selected.length > 0) {
+          this.api.useAbility(this.gameId, selected[0]).catch(() => {});
+        }
         return;
       }
 

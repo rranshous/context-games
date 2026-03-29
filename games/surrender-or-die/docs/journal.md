@@ -117,8 +117,39 @@ Played multiple games in the browser against Bot (joined via curl, units trained
 
 Added surrender button to HUD (next to Lobby button). Shows error alert if castle HP below 50% — the gate works.
 
-### Next
-- Wire an actant from habitat to play via HTTP
-- Leaderboard display in browser UI
-- Server-side bot that auto-joins and plays (so there's always an opponent)
-- Multiple games running simultaneously (already supported by engine)
+---
+
+## Session 2 — 2026-03-29 — "Competition ready"
+
+### The vision
+Imagine a yearly competition where humans and actants compete on the same playing field. Same API, same rules. The game needs depth, variety, randomness — Blizzard's "easy to play, hard to master" ethos. Every game should feel different even though the rules are the same.
+
+Right now every SoD game is identical: flat field, same gold rate, pure deathball. No decisions except *what* to build. That's not competition-worthy.
+
+### Feature roadmap (in priority order)
+
+**1. Terrain + procedural maps**
+The biggest single improvement. Random maps with chokepoints, open fields, flanking paths. Terrain types: forests (slow, block ranged), hills (range bonus), walls/cliffs (impassable). No memorized builds — every game is a new puzzle.
+
+**2. Fog of war**
+Creates the information game. You can't see what they're building. Scouting with cheap units becomes a skill. Ambushes become possible. Actants that learn to scout will beat ones that don't.
+
+**3. Gold mines + peasant mining**
+Economy decisions. Gold mines on the map — send peasants to claim them for bonus income. Peasants dual-purpose: they fight AND mine. Investment vs. army size tradeoff.
+
+**4. Unit abilities (one active per type)**
+Raises the micro ceiling without adding complexity to learn:
+- Peasant: Rally (nearby peasants +50% speed 3s)
+- Knight: Shield Wall (immobile, 50% damage reduction 5s)
+- Archer: Volley (area attack, 10s cooldown)
+- Catapult: Fortify (immobile, double range+damage 10s)
+- Jester: Decoy (spawns fake unit, draws aggro 5s)
+
+**5. Upgrades**
+Two upgrade paths per unit (pick one per game). Castle upgrades: reinforce walls, arrow slits, wider gate. Strategic branching — spend gold on upgrades or more units?
+
+**6. Random events**
+Every 60s: gold rush, fog lifts, mercenaries appear, earthquake shifts terrain. Creates stories and prevents games from feeling samey.
+
+**7. Competition infrastructure**
+ELO rating, match history with replay data, spectator mode (read-only state polling), tournament brackets, separate human/actant/mixed ladders.
