@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surrender or Die</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: monospace;
+      color: #e0d0ff;
+    }
+
+    /* --- Login --- */
+    #login-screen {
+      text-align: center;
+    }
+    #login-screen h1 {
+      font-size: 32px;
+      color: #ffd700;
+      margin-bottom: 8px;
+    }
+    #login-screen .subtitle {
+      color: #888;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    #login-form {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    #handle-input {
+      background: #2a1a4a;
+      border: 1px solid #6a4a9a;
+      color: #e0d0ff;
+      padding: 8px 14px;
+      font-family: monospace;
+      font-size: 16px;
+      border-radius: 4px;
+      outline: none;
+      width: 200px;
+    }
+    #handle-input:focus { border-color: #ffd700; }
+    #login-form button {
+      background: #4a2a7a;
+      border: 1px solid #6a4a9a;
+      color: #ffd700;
+      padding: 8px 18px;
+      font-family: monospace;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    #login-form button:hover { background: #5a3a8a; }
+
+    /* --- Lobby --- */
+    #lobby-screen {
+      text-align: center;
+      width: 500px;
+    }
+    #lobby-screen h2 {
+      color: #ffd700;
+      margin-bottom: 4px;
+    }
+    .lobby-info {
+      color: #888;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+    #create-game-btn {
+      background: #2a5a2a;
+      border: 1px solid #4a8a4a;
+      color: #aaffaa;
+      padding: 8px 20px;
+      font-family: monospace;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+    #create-game-btn:hover { background: #3a6a3a; }
+    #games-list {
+      text-align: left;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .game-entry {
+      background: #2a1a4a;
+      border: 1px solid #3a2a5a;
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+    }
+    .game-id { color: #ffd700; font-weight: bold; min-width: 30px; }
+    .game-players { flex: 1; }
+    .game-status { color: #888; font-size: 11px; }
+    .join-btn {
+      background: #4a2a7a;
+      border: 1px solid #6a4a9a;
+      color: #ffd700;
+      padding: 4px 12px;
+      font-family: monospace;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .join-btn:hover { background: #5a3a8a; }
+    .no-games { color: #666; padding: 20px; text-align: center; }
+
+    /* --- Game --- */
+    #game-screen { display: none; }
+    #game-container { position: relative; }
+    canvas {
+      image-rendering: pixelated;
+      cursor: crosshair;
+    }
+    #hud {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background: rgba(10, 5, 20, 0.9);
+      border-top: 2px solid #4a2a7a;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+    }
+    .train-btn {
+      background: #2a1a4a;
+      border: 1px solid #6a4a9a;
+      color: #e0d0ff;
+      padding: 4px 10px;
+      font-family: monospace;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 3px;
+      line-height: 1.3;
+    }
+    .train-btn:hover { background: #3a2a5a; }
+    .train-btn:active { background: #4a3a6a; }
+    .train-btn .key { color: #ffd700; font-weight: bold; }
+    .train-btn .cost { color: #aaa; font-size: 10px; }
+    #gold-display {
+      color: #ffd700;
+      font-size: 14px;
+      font-weight: bold;
+      margin-right: 12px;
+    }
+    #surrender-btn {
+      margin-left: auto;
+      background: #4a4a22;
+      border: 1px solid #8a8a33;
+      color: #ffd700;
+      padding: 4px 10px;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    #surrender-btn:hover { background: #5a5a33; }
+    #back-btn {
+      background: #4a2222;
+      border: 1px solid #6a3333;
+      color: #ff8888;
+      padding: 4px 10px;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    #back-btn:hover { background: #5a3333; }
+    #event-log {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 300px;
+      max-height: 200px;
+      overflow: hidden;
+      font-size: 10px;
+      line-height: 1.4;
+      pointer-events: none;
+    }
+    .log-entry {
+      opacity: 0.8;
+      padding: 1px 4px;
+      text-align: center;
+    }
+    .log-entry.fade { opacity: 0.3; }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login-screen">
+  <h1>SURRENDER or DIE</h1>
+  <div class="subtitle">Castle wars micro-RTS</div>
+  <form id="login-form">
+    <input type="text" id="handle-input" placeholder="Your handle" maxlength="32" autofocus>
+    <button type="submit">Enter</button>
+  </form>
+</div>
+
+<!-- Lobby Screen -->
+<div id="lobby-screen" style="display:none">
+  <h2>SURRENDER or DIE</h2>
+  <div class="lobby-info">Logged in as <span id="lobby-handle"></span></div>
+  <button id="create-game-btn">+ New Game</button>
+  <div id="games-list"></div>
+</div>
+
+<!-- Game Screen -->
+<div id="game-screen" style="display:none">
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="hud">
+      <span id="gold-display">Gold: 50</span>
+      <button class="train-btn" data-unit="peasant"><span class="key">1</span> Peasant<br><span class="cost">10g</span></button>
+      <button class="train-btn" data-unit="knight"><span class="key">2</span> Knight<br><span class="cost">30g</span></button>
+      <button class="train-btn" data-unit="archer"><span class="key">3</span> Archer<br><span class="cost">20g</span></button>
+      <button class="train-btn" data-unit="catapult"><span class="key">4</span> Catapult<br><span class="cost">50g</span></button>
+      <button class="train-btn" data-unit="jester"><span class="key">5</span> Jester<br><span class="cost">15g</span></button>
+      <button id="surrender-btn">Surrender</button>
+      <button id="back-btn">Lobby</button>
+    </div>
+    <div id="event-log"></div>
+  </div>
+</div>
+
+<script type="module" src="/dist/client/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "surrender-or-die",
+  "version": "0.2.0",
+  "description": "Castle wars micro-RTS — surrender or die",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "start": "node dist/server.js",
+    "dev": "node esbuild.config.mjs && node dist/server.js"
+  },
+  "keywords": ["game", "rts"],
+  "author": "Robby Ranshous",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.9.3"
+  }
+}
