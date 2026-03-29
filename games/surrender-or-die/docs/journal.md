@@ -245,9 +245,41 @@ All six gameplay features built in one session. Every game now feels fundamental
 ### What's working
 All 7 features are implemented server-side and wired to the HTTP API. The browser client renders terrain, fog (implicitly via filtered state), mines, unit abilities, and events. Games feel genuinely different every time due to procedural maps. The ELO system tracks competitive progress.
 
+### Standalone bot process
+
+Built a full bot (`src/bot/bot.ts`) that runs as a separate Node.js process and plays via the same HTTP API as humans. Three difficulty levels:
+- **Easy** (3s poll): random unit composition, no abilities, no upgrades
+- **Medium** (1.5s poll): counter-composition (reads enemy units), uses abilities tactically, researches upgrades based on army composition
+- **Hard** (500ms poll): aggressive spending, sends idle peasants to fight, faster reactions
+
+The bot auto-joins lobby games created by other players. If no games exist, it creates one and waits. After each game ends, it loops back to find or create another. The bot mines gold, uses shield wall when surrounded, fires volleys into enemy clusters, fortifies catapults near castles, and rallies peasant groups.
+
+**Usage:** `npm run bot` (medium) / `npm run bot:easy` / `npm run bot:hard`
+
+**Key design choice:** Bot as external process, not embedded in server. Same API surface a habitat actant would use. Proves the API is complete enough for autonomous play.
+
+### Upgrade UI panel
+
+Added toggleable upgrade panel to the game HUD:
+- "⚙ Upgrades" button in HUD toggles the left-side panel
+- Shows all 12 upgrades organized by category (Peasant, Knight, Archer, Catapult, Jester, Castle)
+- Owned upgrades shown with green border + ✓
+- Researching shown with amber border + countdown timer
+- Blocked (exclusive conflict) shown dimmed
+- Click to research
+
+### Leaderboard in lobby
+
+Lobby screen now shows ELO leaderboard below the games list:
+- Top 10 players ranked by ELO
+- Shows handle, ELO rating, W/L/S record
+- Updates every 2 seconds with lobby refresh
+
+### Balance tuning
+- Castle HP: 250 → 400 (games were ending too fast)
+- Mine gold display: fixed floating point (395.459... → 395)
+
 ### Still needed for competition-readiness
-- Leaderboard + match history displayed in browser UI
-- Upgrade UI panel (currently API-only, no browser buttons)
-- Server-side bot that auto-joins games
 - Tournament bracket system
 - Sound effects / victory fanfare
+- Replay system for post-game analysis

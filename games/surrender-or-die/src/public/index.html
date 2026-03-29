@@ -200,6 +200,80 @@
       text-align: center;
     }
     .log-entry.fade { opacity: 0.3; }
+
+    /* --- Upgrade Panel --- */
+    #upgrade-panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 180px;
+      height: calc(100% - 64px);
+      background: rgba(10, 5, 20, 0.92);
+      border-right: 2px solid #4a2a7a;
+      overflow-y: auto;
+      display: none;
+      padding: 8px;
+      font-size: 10px;
+      z-index: 10;
+    }
+    #upgrade-panel.visible { display: block; }
+    #upgrade-panel h3 {
+      color: #ffd700;
+      font-size: 12px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .upgrade-item {
+      background: #2a1a4a;
+      border: 1px solid #3a2a5a;
+      border-radius: 3px;
+      padding: 4px 6px;
+      margin-bottom: 4px;
+      cursor: pointer;
+    }
+    .upgrade-item:hover { border-color: #6a4a9a; }
+    .upgrade-item.owned { border-color: #44cc44; background: #1a3a1a; cursor: default; }
+    .upgrade-item.blocked { opacity: 0.4; cursor: not-allowed; }
+    .upgrade-item.researching { border-color: #ffaa00; }
+    .upgrade-name { color: #e0d0ff; font-weight: bold; }
+    .upgrade-cost { color: #ffd700; font-size: 9px; }
+    .upgrade-desc { color: #888; font-size: 9px; margin-top: 2px; }
+    .upgrade-category { color: #aaa; font-size: 9px; margin: 6px 0 3px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+    #upgrade-toggle {
+      background: #2a2a4a;
+      border: 1px solid #4a4a7a;
+      color: #aaddff;
+      padding: 4px 8px;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    #upgrade-toggle:hover { background: #3a3a5a; }
+
+    /* --- Leaderboard (lobby) --- */
+    #leaderboard {
+      margin-top: 16px;
+      text-align: left;
+    }
+    #leaderboard h3 {
+      color: #ffd700;
+      font-size: 13px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .lb-entry {
+      display: flex;
+      gap: 8px;
+      padding: 3px 8px;
+      font-size: 11px;
+      border-bottom: 1px solid #2a1a4a;
+    }
+    .lb-rank { color: #ffd700; min-width: 20px; }
+    .lb-handle { flex: 1; }
+    .lb-elo { color: #aaddff; min-width: 40px; text-align: right; }
+    .lb-record { color: #888; min-width: 60px; text-align: right; }
+    .lb-empty { color: #666; padding: 12px; text-align: center; }
   </style>
 </head>
 <body>
@@ -220,14 +294,20 @@
   <div class="lobby-info">Logged in as <span id="lobby-handle"></span></div>
   <button id="create-game-btn">+ New Game</button>
   <div id="games-list"></div>
+  <div id="leaderboard"></div>
 </div>
 
 <!-- Game Screen -->
 <div id="game-screen" style="display:none">
   <div id="game-container">
     <canvas id="game-canvas"></canvas>
+    <div id="upgrade-panel">
+      <h3>Upgrades</h3>
+      <div id="upgrade-list"></div>
+    </div>
     <div id="hud">
       <span id="gold-display">Gold: 50</span>
+      <button id="upgrade-toggle">⚙ Upgrades</button>
       <button class="train-btn" data-unit="peasant"><span class="key">1</span> Peasant<br><span class="cost">10g</span></button>
       <button class="train-btn" data-unit="knight"><span class="key">2</span> Knight<br><span class="cost">30g</span></button>
       <button class="train-btn" data-unit="archer"><span class="key">3</span> Archer<br><span class="cost">20g</span></button>

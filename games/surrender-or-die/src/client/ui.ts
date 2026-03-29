@@ -1,7 +1,7 @@
 // ui.ts — Human input: click-drag select, right-click move/attack, keyboard shortcuts
 // All commands go through the HTTP API.
 
-import { type GameState, type Unit, type Side, type UnitType, UNIT_STATS } from '../shared/types.js';
+import { type GameState, type Unit, type Side, type UnitType, type UpgradeId, UNIT_STATS, UPGRADES } from '../shared/types.js';
 import { Renderer } from './renderer.js';
 import { SodAPI } from './api.js';
 
@@ -36,6 +36,7 @@ export class UI {
     this.setupMouseHandlers();
     this.setupKeyboardHandlers();
     this.setupTrainButtons();
+    this.setupUpgradePanel();
   }
 
   updateGame(gameId: string, side: Side): void {
@@ -209,5 +210,85 @@ export class UI {
       const fade = i < recent.length - 4 ? ' fade' : '';
       return `<div class="log-entry${fade}">${entry.message}</div>`;
     }).join('');
+  }
+
+  // --- Upgrade panel ---
+  private setupUpgradePanel(): void {
+    const toggle = document.getElementById('upgrade-toggle');
+    const panel = document.getElementById('upgrade-panel');
+    if (toggle && panel) {
+      toggle.addEventListener('click', () => {
+        panel.classList.toggle('visible');
+      });
+    }
+  }
+
+  updateUpgradePanel(game: GameState): void {
+    const listEl = document.getElementById('upgrade-list');
+    if (!listEl) return;
+    const panel = document.getElementById('upgrade-panel');
+    if (!panel?.classList.contains('visible')) return;
+
+    const player = game.players[this.playerSide];
+    if (!player) return;
+
+    const owned = new Set(player.upgrades);
+    const researching = player.researching;
+
+    const categories: Record<string, UpgradeId[]> = {
+      'Peasant': ['peasant_militia', 'peasant_prospector'],
+      'Knight': ['knight_heavy', 'knight_lancer'],
+      'Archer': ['archer_longbow', 'archer_rapid'],
+      'Catapult': ['catapult_trebuchet', 'catapult_bombard'],
+      'Jester': ['jester_trickster', 'jester_saboteur'],
+      'Castle': ['castle_reinforce', 'castle_arrowslits', 'castle_warhorn'],
+    };
+
+    let html = '';
+    for (const [cat, ids] of Object.entries(categories)) {
+      html += `<div class="upgrade-category">${cat}</div>`;
+      for (const id of ids) {
+        const def = UPGRADES.find(u => u.id === id);
+        if (!def) continue;
+
+        const isOwned = owned.has(id);
+        const isResearching = researching?.id === id;
+        const isBlocked = !isOwned && def.exclusive && owned.has(def.exclusive as UpgradeId);
+        const canAfford = player.gold >= def.cost;
+
+        let cls = 'upgrade-item';
+        let status = '';
+        if (isOwned) {
+          cls += ' owned';
+          status = ' ✓';
+        } else if (isResearching) {
+          cls += ' researching';
+          const remaining = Math.max(0, Math.ceil((researching!.completeTick - game.tick) / 20));
+          status = ` ⚙${remaining}s`;
+        } else if (isBlocked) {
+          cls += ' blocked';
+        }
+
+        html += `<div class="${cls}" data-upgrade="${id}">`;
+        html += `<div class="upgrade-name">${def.name}${status}</div>`;
+        if (!isOwned && !isResearching) {
+          html += `<div class="upgrade-cost">${def.cost}g · ${def.researchTime}s${!canAfford ? ' (need gold)' : ''}</div>`;
+        }
+        html += `</div>`;
+      }
+    }
+    listEl.innerHTML = html;
+
+    // Click handlers
+    listEl.querySelectorAll('.upgrade-item:not(.owned):not(.blocked):not(.researching)').forEach(el => {
+      el.addEventListener('click', () => {
+        const upgradeId = (el as HTMLElement).dataset.upgrade;
+        if (upgradeId && !player.researching) {
+          this.api.research(this.gameId, upgradeId).catch((err: any) => {
+            console.log('[Upgrade]', err.message);
+          });
+        }
+      });
+    });
   }
 }

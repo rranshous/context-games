@@ -216,7 +216,7 @@ export const EVENT_DEFS: { type: EventType; name: string; description: string; d
 ];
 
 // --- Castle ---
-export const CASTLE_HP = 250;
+export const CASTLE_HP = 400;
 export const CASTLE_WIDTH = 2;  // tiles wide
 
 // Castle positions (top-left corner of castle)

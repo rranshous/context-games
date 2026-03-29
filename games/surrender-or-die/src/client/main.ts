@@ -138,6 +138,29 @@ async function refreshGamesList(): Promise<void> {
   } catch (err) {
     console.error('Failed to list games:', err);
   }
+
+  // Update leaderboard
+  try {
+    const leaderboard = await api.getLeaderboard();
+    const lbEl = document.getElementById('leaderboard')!;
+    if (leaderboard.length === 0) {
+      lbEl.innerHTML = '<h3>Leaderboard</h3><div class="lb-empty">No games played yet</div>';
+    } else {
+      let html = '<h3>Leaderboard</h3>';
+      for (let i = 0; i < Math.min(leaderboard.length, 10); i++) {
+        const p = leaderboard[i];
+        html += `<div class="lb-entry">
+          <span class="lb-rank">#${i + 1}</span>
+          <span class="lb-handle">${p.handle}</span>
+          <span class="lb-elo">${p.elo}</span>
+          <span class="lb-record">${p.wins}W ${p.losses}L ${p.surrenders}S</span>
+        </div>`;
+      }
+      lbEl.innerHTML = html;
+    }
+  } catch (err) {
+    console.error('Failed to load leaderboard:', err);
+  }
 }
 
 createGameBtn.addEventListener('click', async () => {
@@ -237,6 +260,7 @@ function startRenderLoop(): void {
       if (ui) {
         ui.updateGoldDisplay(latestState);
         ui.updateEventLog(latestState);
+        ui.updateUpgradePanel(latestState);
       }
     }
     requestAnimationFrame(render);

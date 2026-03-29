@@ -186,7 +186,7 @@ export class Renderer {
       // Remaining text
       ctx.fillStyle = '#fff';
       ctx.font = '7px monospace';
-      ctx.fillText(`${mine.remaining}`, px, py + r + 6);
+      ctx.fillText(`${Math.floor(mine.remaining)}`, px, py + r + 6);
 
       // Worker count
       if (mine.workerIds.length > 0) {
