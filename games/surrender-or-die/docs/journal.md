@@ -153,3 +153,101 @@ Every 60s: gold rush, fog lifts, mercenaries appear, earthquake shifts terrain. 
 
 **7. Competition infrastructure**
 ELO rating, match history with replay data, spectator mode (read-only state polling), tournament brackets, separate human/actant/mixed ladders.
+
+### Implementation — features 1-6
+
+All six gameplay features built in one session. Every game now feels fundamentally different.
+
+**Terrain + procedural maps (map-gen.ts):**
+- Seeded RNG (mulberry32) for reproducible maps. Seed shown in game log.
+- 4 terrain types beyond open: forest (♣ slow, blocks ranged LoS), hill (▲ range+vision bonus), wall (█ impassable), water (~ impassable)
+- 3-5 wall clusters, 4-7 forest patches, 2-4 hill patches, 1-2 ponds
+- Castle zones kept clear (CASTLE_WIDTH + 2 margin)
+- BFS path guarantee — if no path exists between spawns, carves one through the middle
+- Maps are symmetrical-ish in mine placement but asymmetric in terrain — creates different experiences for left vs right
+
+**Fog of war:**
+- Per-unit vision radius (peasant 4, archer 7, knight 5, jester 6, catapult 4)
+- Terrain modifiers: hills +3 vision, forests -2 vision
+- Castle has 6-tile vision radius
+- Server filters game state per-player — you only see enemy units in your visible tiles
+- Mines in fog show as existing but with hidden info (remaining = -1, no workers)
+- "Fog Lifts" event grants full vision temporarily
+
+**Gold mines:**
+- 3 per map: one near left, one near right, one contested in center
+- 500 gold capacity each, 3 gold/sec per worker, max 3 workers per mine
+- Peasants right-click a mine to start mining (dual-purpose: fight or mine)
+- Prospector upgrade: +50% mine rate
+- Passive income reduced from 8 to 5 gold/sec — mines make up the difference
+
+**Unit abilities (Q key):**
+- Peasant Rally: nearby peasants +50% speed for 3s
+- Knight Shield Wall: immobile, 50% damage reduction for 5s
+- Archer Volley: AoE damage at target location, 3-tile radius, 10s cooldown
+- Catapult Fortify: immobile, 2x range + 2x damage for 10s
+- Jester Decoy: spawns fake unit that draws aggro for 5s
+- Green dot on unit = ability ready
+- Each has unique cooldown (8-25s)
+
+**Upgrades (12 total):**
+- 2 paths per unit type (pick one, exclusive):
+  - Peasant: Militia (+10 HP, +3 dmg) vs Prospector (+50% mine rate)
+  - Knight: Heavy Armor (+30 HP, -0.5 speed) vs Lancer (+10 dmg, first-hit 2x)
+  - Archer: Longbow (+2 range) vs Rapid Fire (+0.5 attack speed)
+  - Catapult: Trebuchet (+3 range, +10 dmg) vs Bombard (splash damage)
+  - Jester: Trickster (5s confuse) vs Saboteur (50% slow debuff 4s)
+- 3 castle upgrades (can get multiple): Reinforce (+100 HP), Arrow Slits (5 dps to nearby enemies), War Horn (faster spawns — not yet implemented)
+- Research costs gold + time. One research at a time per player. ⚙ indicator on castle.
+
+**Random events (every 60s):**
+- Gold Rush: double passive income for 15s
+- Fog Lifts: full map vision for 10s
+- Mercenaries: 3 neutral units spawn at random positions (instant)
+- Earthquake: 8 random tiles change terrain (instant)
+- Event banner shows at top of screen
+
+**Engine changes:**
+- `moveUnitToward()` respects terrain speed multipliers and walkability
+- `isRangedBlocked()` traces line-of-sight through forests/walls
+- `getUnitRange()` adds terrain + upgrade + ability bonuses
+- `getUnitDamage()` adds upgrade + ability modifiers
+- Combat handles: knight armor, shield wall, lancer charge, bombard splash, saboteur slow
+- Owner type changed from `Side` to `Side | 'neutral'` for mercenaries
+- Decoy units: isDecoy flag, auto-expire, 1 HP, rendered ghostly
+
+### Implementation — feature 7: Competition infrastructure
+
+**ELO rating system:**
+- Starting ELO: 1000, K-factor: 32
+- Standard ELO formula: expected score → actual score → delta
+- ELO change logged per game alongside points
+
+**Match history:**
+- Every completed game recorded: id, timestamp, players, winner, surrendered, duration, mapSeed, eloChange
+- `GET /api/matches` — all matches (with optional ?handle= and ?limit= filters)
+
+**Spectator mode:**
+- `GET /api/games/:id/spectate` — full game state with no fog filtering
+- Same ?since=tick support for efficient polling
+
+**API additions:**
+- `POST /api/games/:id/mine` — send peasants to mine
+- `POST /api/games/:id/ability` — use unit ability (Q key in UI)
+- `POST /api/games/:id/research` — start researching an upgrade
+- `GET /api/matches` — match history
+- `GET /api/games/:id/spectate` — spectator view (no fog)
+
+### Bugs found
+- `game.mines is not iterable` — `listGames()` strips mines/terrain for small responses, but renderer didn't guard against null. Fixed with null checks.
+- Fog of war state endpoint used `require()` (CJS) in ESM module — fixed to use imported `resolveToken`.
+
+### What's working
+All 7 features are implemented server-side and wired to the HTTP API. The browser client renders terrain, fog (implicitly via filtered state), mines, unit abilities, and events. Games feel genuinely different every time due to procedural maps. The ELO system tracks competitive progress.
+
+### Still needed for competition-readiness
+- Leaderboard + match history displayed in browser UI
+- Upgrade UI panel (currently API-only, no browser buttons)
+- Server-side bot that auto-joins games
+- Tournament bracket system
+- Sound effects / victory fanfare

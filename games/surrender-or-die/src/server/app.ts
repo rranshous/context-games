@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { SurrenderOrDieServer } from './game-engine.js';
 import { login, authMiddleware, resolveToken } from './auth.js';
-import { recordWin, recordLoss, recordSurrender, recordDraw, getLeaderboard, getStats } from './scoring.js';
+import { recordGameResult, getLeaderboard, getStats, getMatchHistory } from './scoring.js';
 import { TICK_RATE, TICK_DT } from '../shared/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -210,6 +210,31 @@ app.get('/api/players/:handle/stats', (req, res) => {
   res.json(stats);
 });
 
+// --- Match history ---
+app.get('/api/matches', (req, res) => {
+  const handle = req.query.handle as string | undefined;
+  const limit = parseInt(req.query.limit as string) || 20;
+  res.json(getMatchHistory(handle, limit));
+});
+
+// --- Spectator: full game state (no fog) ---
+app.get('/api/games/:id/spectate', (req, res) => {
+  const since = parseInt(req.query.since as string);
+  if (!isNaN(since)) {
+    const currentTick = engine.getGameTick(req.params.id);
+    if (currentTick >= 0 && currentTick <= since) {
+      res.status(304).end();
+      return;
+    }
+  }
+  const state = engine.getStatusFull(req.params.id);
+  if (!state) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+  res.json(state);
+});
+
 // --- Server-side tick loop ---
 function tickAllGames(): void {
   const activeIds = engine.activeGameIds();
@@ -230,24 +255,15 @@ function scoreGame(state: import('../shared/types.js').GameState): void {
   const right = state.players.right;
   if (!left || !right) return;
 
-  if (state.winner === 'draw') {
-    recordDraw(left.handle);
-    recordDraw(right.handle);
-    console.log(`[Score] Game ${state.id}: draw`);
-  } else if (state.surrendered) {
-    // Someone surrendered
-    recordSurrender(state.surrendered);
-    const winner = state.surrendered === left.handle ? right.handle : left.handle;
-    recordWin(winner, true);
-    console.log(`[Score] Game ${state.id}: ${state.surrendered} surrendered, ${winner} wins (+2)`);
-  } else {
-    // Castle destroyed
-    const winner = state.winner!;
-    const loser = winner === left.handle ? right.handle : left.handle;
-    recordWin(winner, false);
-    recordLoss(loser);
-    console.log(`[Score] Game ${state.id}: ${winner} wins (+3), ${loser} loses (-2)`);
-  }
+  recordGameResult(
+    state.id,
+    left.handle,
+    right.handle,
+    state.winner,
+    state.surrendered,
+    state.elapsed,
+    state.mapSeed,
+  );
 }
 
 setInterval(tickAllGames, 1000 / TICK_RATE);
