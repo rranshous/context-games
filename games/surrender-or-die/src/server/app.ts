@@ -217,19 +217,15 @@ app.get('/api/matches', (req, res) => {
   res.json(getMatchHistory(handle, limit));
 });
 
-// --- Spectator: full game state (no fog) ---
+// --- Spectator: full game state (no fog) — only for finished games ---
 app.get('/api/games/:id/spectate', (req, res) => {
-  const since = parseInt(req.query.since as string);
-  if (!isNaN(since)) {
-    const currentTick = engine.getGameTick(req.params.id);
-    if (currentTick >= 0 && currentTick <= since) {
-      res.status(304).end();
-      return;
-    }
-  }
   const state = engine.getStatusFull(req.params.id);
   if (!state) {
     res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+  if (state.phase === 'playing') {
+    res.status(403).json({ error: 'Cannot spectate a live game — fog of war is sacred' });
     return;
   }
   res.json(state);
