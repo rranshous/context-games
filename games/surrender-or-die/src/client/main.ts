@@ -241,6 +241,10 @@ function startPolling(): void {
         latestState = state;
         lastTick = state.tick;
         if (ui) ui.latestState = state;
+        // Auto-return to lobby 3s after game ends
+        if (state.phase === 'finished' && !gameOverTimer) {
+          gameOverTimer = window.setTimeout(returnToLobby, 3000);
+        }
       }
     } catch (err) {
       // Ignore transient errors
@@ -268,18 +272,18 @@ function startRenderLoop(): void {
   requestAnimationFrame(render);
 }
 
-// Back to lobby on game end
-document.addEventListener('keydown', (e) => {
-  if ((e.key === ' ' || e.key === 'r') && latestState?.phase === 'finished') {
-    if (pollInterval !== null) clearInterval(pollInterval);
-    pollInterval = null;
-    currentGameId = null;
-    latestState = null;
-    lastTick = -1;
-    showLobby();
-    startLobbyRefresh();
-  }
-});
+// Auto-return to lobby on game end
+let gameOverTimer: number | null = null;
+function returnToLobby(): void {
+  if (gameOverTimer !== null) { clearTimeout(gameOverTimer); gameOverTimer = null; }
+  if (pollInterval !== null) clearInterval(pollInterval);
+  pollInterval = null;
+  currentGameId = null;
+  latestState = null;
+  lastTick = -1;
+  showLobby();
+  startLobbyRefresh();
+}
 
 // Surrender button in HUD
 document.getElementById('surrender-btn')?.addEventListener('click', async () => {
@@ -292,15 +296,7 @@ document.getElementById('surrender-btn')?.addEventListener('click', async () => 
 });
 
 // Back button in HUD
-document.getElementById('back-btn')?.addEventListener('click', () => {
-  if (pollInterval !== null) clearInterval(pollInterval);
-  pollInterval = null;
-  currentGameId = null;
-  latestState = null;
-  lastTick = -1;
-  showLobby();
-  startLobbyRefresh();
-});
+document.getElementById('back-btn')?.addEventListener('click', returnToLobby);
 
 // Start lobby refresh if we're on lobby screen
 if (lobbyScreen.style.display !== 'none') {

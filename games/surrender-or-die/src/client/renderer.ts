@@ -109,7 +109,7 @@ export class Renderer {
       this.drawOverlay(ctx, 'Waiting for opponent...');
     } else if (game.phase === 'finished') {
       const msg = game.winner === 'draw' ? 'DRAW!' : `${game.winner} WINS!`;
-      this.drawOverlay(ctx, msg, 'Press SPACE or R to return to lobby');
+      this.drawOverlay(ctx, msg, 'Returning to lobby...');
     }
   }
 

@@ -615,19 +615,35 @@ export class SurrenderOrDieServer {
     const move = Math.min(step, dist);
     const dir = unit.confused ? -1 : 1;
 
-    const newX = unit.x + (dx / dist) * move * dir;
-    const newY = unit.y + (dy / dist) * move * dir;
+    const moveX = (dx / dist) * move * dir;
+    const moveY = (dy / dist) * move * dir;
 
-    // Check if target tile is walkable
-    const ntx = Math.floor(Math.max(0, Math.min(MAP_W - 1, newX)));
-    const nty = Math.floor(Math.max(0, Math.min(MAP_H - 1, newY)));
-    const targetTerrain = game.terrain[nty]?.[ntx] ?? 'open';
+    // Try full diagonal move first
+    let newX = unit.x + moveX;
+    let newY = unit.y + moveY;
+    let ntx = Math.floor(Math.max(0, Math.min(MAP_W - 1, newX)));
+    let nty = Math.floor(Math.max(0, Math.min(MAP_H - 1, newY)));
 
-    if (TERRAIN_PROPS[targetTerrain].walkable) {
+    if (this.tileWalkable(game, ntx, nty)) {
       unit.x = Math.max(0, Math.min(MAP_W, newX));
       unit.y = Math.max(0, Math.min(MAP_H, newY));
+    } else {
+      // Wall slide: try X-only, then Y-only
+      const slideX = unit.x + moveX;
+      const stx = Math.floor(Math.max(0, Math.min(MAP_W - 1, slideX)));
+      const sty = Math.floor(Math.max(0, Math.min(MAP_H - 1, unit.y)));
+
+      const slideY = unit.y + moveY;
+      const stx2 = Math.floor(Math.max(0, Math.min(MAP_W - 1, unit.x)));
+      const sty2 = Math.floor(Math.max(0, Math.min(MAP_H - 1, slideY)));
+
+      if (this.tileWalkable(game, stx, sty)) {
+        unit.x = Math.max(0, Math.min(MAP_W, slideX));
+      } else if (this.tileWalkable(game, stx2, sty2)) {
+        unit.y = Math.max(0, Math.min(MAP_H, slideY));
+      }
+      // If both axes blocked, unit waits (truly boxed in)
     }
-    // If not walkable, unit gets stuck (could add pathfinding later)
 
     unit.state = 'moving';
   }
@@ -996,6 +1012,12 @@ export class SurrenderOrDieServer {
       if (TERRAIN_PROPS[game.terrain[y][x]].walkable) return [x + 0.5, y + 0.5];
     }
     return null;
+  }
+
+  private tileWalkable(game: GameState, tileX: number, tileY: number): boolean {
+    if (tileX < 0 || tileX >= MAP_W || tileY < 0 || tileY >= MAP_H) return false;
+    const t = game.terrain[tileY]?.[tileX] ?? 'open';
+    return TERRAIN_PROPS[t].walkable;
   }
 
   private distance(ax: number, ay: number, bx: number, by: number): number {
