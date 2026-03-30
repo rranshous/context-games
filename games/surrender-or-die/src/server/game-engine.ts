@@ -131,6 +131,7 @@ export class SurrenderOrDieServer {
         unit.targetY = ty;
         unit.attackTargetId = null;
         unit.miningTargetId = null;
+        unit.isAttackMove = false;
         unit.state = 'moving';
       }
     }
@@ -151,6 +152,7 @@ export class SurrenderOrDieServer {
         unit.targetY = ty;
         unit.attackTargetId = null;
         unit.miningTargetId = null;
+        unit.isAttackMove = true;
         unit.state = 'moving';
       }
     }
@@ -568,15 +570,17 @@ export class SurrenderOrDieServer {
         continue;
       }
 
-      // Auto-acquire enemies while moving
-      const nearest = this.findNearestEnemy(game, unit);
-      if (nearest) {
-        const range = this.getUnitRange(unit, game);
-        const eDist = this.distance(unit.x, unit.y, nearest.x, nearest.y);
-        if (eDist <= range) {
-          unit.attackTargetId = nearest.id;
-          unit.state = 'attacking';
-          continue;
+      // Auto-acquire enemies while moving (only on attack-move orders)
+      if (unit.isAttackMove) {
+        const nearest = this.findNearestEnemy(game, unit);
+        if (nearest) {
+          const range = this.getUnitRange(unit, game);
+          const eDist = this.distance(unit.x, unit.y, nearest.x, nearest.y);
+          if (eDist <= range) {
+            unit.attackTargetId = nearest.id;
+            unit.state = 'attacking';
+            continue;
+          }
         }
       }
 
@@ -835,7 +839,7 @@ export class SurrenderOrDieServer {
                 x: pos[0], y: pos[1],
                 hp: stats.hp, maxHp: stats.hp,
                 targetX: pos[0], targetY: pos[1],
-                attackTargetId: null, attackCooldown: 0,
+                attackTargetId: null, attackCooldown: 0, isAttackMove: false,
                 confused: false, confusedUntil: 0,
                 state: 'idle',
                 abilityCooldown: 0, abilityActive: false, abilityUntil: 0,
@@ -974,6 +978,7 @@ export class SurrenderOrDieServer {
       targetY: MAP_H / 2,
       attackTargetId: null,
       attackCooldown: 0,
+      isAttackMove: true,
       confused: false,
       confusedUntil: 0,
       state: 'moving',

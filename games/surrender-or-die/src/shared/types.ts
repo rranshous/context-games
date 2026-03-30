@@ -240,6 +240,7 @@ export interface Unit {
   targetY: number;
   attackTargetId: number | null;  // specific unit to attack
   attackCooldown: number;         // seconds until next attack
+  isAttackMove: boolean;          // true = fight on the way, false = just move
   confused: boolean;
   confusedUntil: number;          // tick at which confusion ends
   state: 'moving' | 'attacking' | 'idle' | 'mining' | 'fortified';

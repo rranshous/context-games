@@ -66,7 +66,7 @@ export class UI {
         this.dragStartY = py;
         this.renderer.selectionBox = { x1: px, y1: py, x2: px, y2: py };
       } else if (e.button === 2) {
-        this.handleRightClick(px, py);
+        this.handleRightClick(px, py, e.shiftKey);
       }
     });
 
@@ -117,7 +117,7 @@ export class UI {
     });
   }
 
-  private handleRightClick(px: number, py: number): void {
+  private handleRightClick(px: number, py: number, shiftKey = false): void {
     const selected = Array.from(this.renderer.selectedUnitIds);
     if (selected.length === 0) return;
     const game = this.latestState;
@@ -144,9 +144,13 @@ export class UI {
       }
     }
 
-    // Right-click on empty ground: attack-move
+    // Right-click ground: move (shift+right-click = attack-move)
     const [tx, ty] = this.renderer.pixelToTile(px, py);
-    this.api.attackMove(this.gameId, selected, tx, ty).catch(() => {});
+    if (shiftKey) {
+      this.api.attackMove(this.gameId, selected, tx, ty).catch(() => {});
+    } else {
+      this.api.moveUnits(this.gameId, selected, tx, ty).catch(() => {});
+    }
   }
 
   private setupKeyboardHandlers(): void {
