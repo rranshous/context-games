@@ -808,3 +808,605 @@ Built a Playwright-interactive font preview tool following the tools/ pattern:
 - Sound effects
 - Playtest LOS — do AI drivers learn to use rocks as cover through reflection?
 - Arena variety (different seeds)
+
+---
+
+## Session: Reflex Layer Integration (2026-04-06)
+
+### Context
+
+This session integrates the "frozen reservoir + linear probe" subsystem
+developed in the hunch experiment (`games/hunch/`, branch `feat/hunch`)
+into tag-your-dead. The idea: a frozen small LLM (distilgpt2) converts
+each car's situation to a 768-dim activation vector, and linear probes
+trained online via TD learning score a vocabulary of 15 candidate actions.
+The highest-priority available action fires each tick. This "reflex layer"
+sits between the soma's on_tick code and the physics engine, giving each
+car learned reflexes that develop through experience.
+
+See `games/hunch/docs/walkthrough.md` on branch `feat/hunch` for the full
+conceptual backstory (Parts 1-10 covering reservoir computing, linear
+probes, Pipeline A vs B, and why TD learning fits continuous games).
+
+Branch: `feat/tag-your-dead-reservoir`
+
+### Architecture
+
+```
+game tick (60fps)
+  → on_tick (soma's authored code — sets steer/accel/brake)
+  → reflex.preTick (learned action selection — can override controls)
+    → state-to-text → reservoir.embed → td.priorities → argmax → execute
+  → car.update (physics)
+  → reflex.postTick (compute reward, TD update)
+    → td_error = reward + γ * V_next - V_now
+    → update value probe + selected action probe
+```
+
+Reflex fires AFTER on_tick so it has the final word. The soma's authored
+code sets the "conscious" intent; the reflex overrides with learned
+preferences.
+
+### 15 derby-specific actions
+
+```
+PURSUIT:  ram_nearest, ram_it_car, ram_weakest, boost_ram_nearest
+EVASION:  flee_nearest, flee_it_car, boost_flee
+POSITION: circle_nearest, cruise_forward, hard_turn_left/right, reverse, stop
+IT-SPEC:  hunt_non_immune, boost_hunt
+```
+
+### Files added
+
+All in `src/reflex/`:
+- `state-to-text.ts` — qualitative: "I am damaged. car close northwest (IT). boost ready."
+- `reward.ts` — per-tick signal from damage/kills/score/tag events
+- `actions.ts` — 15-action vocabulary with availability rules
+- `td-learner.ts` — OnlineProbe + TDLearner with per-tick updates
+- `reflex-layer.ts` — ReflexLayer + per-car CarReflex orchestrator
+- `onnx-bridge.ts` — ONNX reservoir bridge (distilgpt2 via @huggingface/transformers)
+
+### Three bugs found and fixed during live testing
+
+**Bug 1: ONNX model 404s.** `allowLocalModels = true` made transformers.js
+try local `/models/` path before HuggingFace CDN. Fix: `allowLocalModels = false`.
+
+**Bug 2: Reflex order.** Reflex fired BEFORE on_tick, so soma's 1200-2100
+char authored driving code overwrote all reflex control inputs every tick.
+The reflex was doing work that got immediately erased. Fix: swapped order —
+on_tick first, reflex second (final word).
+
+**Bug 3: Reward incentivized spinning.** After fixing the order bug,
+observed 3/5 cars learn `hard_turn_right` 100%. Ghost scored highest
+(695) by spinning in circles. Root cause: +0.001/tick survival reward
+was denser than +0.005/damage-dealt reward. A car that spins in circles
+takes no damage and accumulates survival reward faster than a car that
+rams and takes counter-damage.
+
+Fix: removed passive survival reward. Reward now comes ONLY from dealing
+damage (+0.01/hit), kills (+2.0), score gains (+0.002/point), and passing
+the IT tag (+0.5). Passive strategies earn zero.
+
+### Observation after all fixes (90 seconds of gameplay, ~1140 TD updates/car)
+
+```
+car         dominant action       other actions         score
+Viper       ram_nearest   100%   —                      253
+Bruiser     circle_nearest 92%   flee_it 5%, flee 4%    480
+Ghost       flee_nearest   86%   reverse 13%, ram 2%    778
+Rattler     ram_nearest   100%   —                      697
+Dust Devil  ram_nearest    72%   stop 15%, turn 13%     292
+Player      (autopilot)                                  34
+```
+
+**Key findings:**
+
+1. **No more spinning** — dominant strategies are ram (3 cars) and flee
+   (Ghost). Both involve engaging with other cars.
+
+2. **Behavioral diversity**: different cars developed different dominant
+   actions from the same random initialization, through the same TD
+   process. The per-car random weight fingerprints interact with per-car
+   activation patterns (each car sees a different situation) to produce
+   different initial preferences, which TD learning then amplifies.
+
+3. **Bruiser shows situational switching**: 92% circle, 5% flee_it_car,
+   4% flee_nearest. It mostly orbits but flees specifically when the IT
+   car is near. This is early content-dependent behavior — the probe
+   output changes based on the situation.
+
+4. **Both ram and flee are viable**: Ghost (flee 86%, score 778) vs
+   Rattler (ram 100%, score 697). The reward structure allows multiple
+   strategies to coexist rather than collapsing to one dominant.
+
+5. **TD learning is extremely slow**: bias deltas are 0.0005-0.0014
+   after ~1140 updates. Action differentiation comes mostly from random
+   init fingerprints, not from learned preferences. True content-dependent
+   learning needs much longer runs or higher learning rates.
+
+### Serial experiments: reward signal + orienting context
+
+After the initial bugs were fixed, ran two serial experiments per
+Robby's direction: first change the reward, then change the state-to-text.
+
+**Experiment A: reward signal (3 iterations)**
+
+| version | reward | dominant behavior | finding |
+|---------|--------|-------------------|---------|
+| v1 hand-shaped | 6 custom components | 3/5 ram, 1 flee, 1 mixed | worked but Robby flagged: "reward shaping is the same problem as feature engineering" |
+| v2 raw score delta | `curr.score - prev.score` | 3/5 spinning | game score includes +1/sec survival, spinning is optimal |
+| v3 score minus passive | `delta - (1/60)` | 3/5 circle, 1 flee_it, 1 cruise | no spinning, evasive strategies dominate |
+
+Robby's insight was right to test: the game's built-in scoring was
+designed for human player experience (where survival is an achievement),
+not for RL reward (where you need to incentivize the behavior you want).
+Raw score delta didn't work as a drop-in reward — the +1/sec passive
+component dominated. Subtracting the passive baseline was a minimal
+fix that preserved the game's own damage/kill balance.
+
+v3 is interesting: Bruiser showed 67% `flee_it_car` + 34%
+`hard_turn_left` — genuine situational switching based on whether the
+IT car is visible.
+
+**Experiment B: orienting context in state-to-text**
+
+Added a constant prefix explaining the game to the reservoir:
+```
+Demolition derby. Ram other cars to score points. Being IT means
+dealing 3x damage but dying if the timer runs out.
+```
+Plus added the car's current score to the text.
+
+Key finding: **TD errors are 10-100x larger** with orienting context.
+
+```
+state-to-text version         meanAbsTD range
+no context (session 10b)      0.0001 - 0.0025
+score-minus-passive           0.0092 - 0.0098
+WITH orienting context        0.0097 - 0.3276  ← massive range
+```
+
+Rattler's TD error GREW from 0.08 to 0.25 between 426 and 972
+updates. Probes are actively learning — predictions getting
+contradicted by new experience — not plateauing. This is the first
+time we've seen growing TD errors, which means the gradient signal
+is strong enough to meaningfully move weights.
+
+Interpretation: distilgpt2 has richer pre-trained representations for
+"demolition derby" + "ram" + "danger" than for bare "car close
+northwest". The context primes the activation space toward
+game-relevant dimensions, amplifying per-state variance. This is
+exactly the argument for the LLM-as-reservoir: the model's pre-
+trained knowledge about concepts IS the feature engineering.
+
+### Architectural pivot: from reflex-as-override to tendency system
+
+Through conversation, Robby identified that the "reflex selects an action
+and overrides the soma" design is wrong in a fundamental way. The reflex
+layer was either overwriting the soma (which meant the reflex carried the
+entire behavior and needed engineered rewards) or getting overwritten by
+the soma (which meant it had no effect). Neither is right.
+
+What Robby described instead: **"the body's tendency to move on its own."**
+Not action selection. Not overriding controls. A set of muscles that all
+fire simultaneously, each pulling the car in a direction with a learned
+magnitude. Without any on_tick code, the body would drift according to
+those tendencies. WITH on_tick code, the driver's intent composes with
+the body's lean.
+
+Key design decisions reached through conversation:
+
+1. **Every action fires every tick.** No argmax, no "which action wins."
+   All tendencies contribute simultaneously. `ram_nearest` pulls toward
+   the nearest car with magnitude 0.3 while `flee_it_car` pulls away
+   from the IT car with magnitude 0.6 while `cruise_forward` pushes
+   forward with magnitude 0.4. The net result is a composed direction.
+
+2. **Shared vocabulary for both layers.** The action vocabulary (ram_nearest,
+   flee_it_car, cruise_forward, etc.) is the API for BOTH the tendency
+   system and the on_tick code. The tendency probes call them at learned
+   magnitudes. The on_tick code calls them at author-determined magnitudes.
+   They compose additively. This means on_tick code looks like:
+   ```
+   me.ram_nearest(0.8);  // "I strongly want to ram"
+   ```
+   instead of:
+   ```
+   me.steer(Math.atan2(dy, dx) - me.angle);  // angle math
+   ```
+   Same vocabulary, less complexity, portable across games.
+
+3. **Ordinal magnitudes via softmax.** Magnitudes are floats 0..1 but the
+   system is ordinal: only the relative proportions matter, not absolute
+   values. All tendencies (from probes AND from on_tick) enter a softmax
+   pool. Each tendency's share of the total determines what fraction of
+   the car's movement budget goes toward that impulse. `(0.8, 0.2, 0.4)`
+   and `(0.4, 0.1, 0.2)` produce identical behavior — same ratios.
+
+4. **Reward simplifies to raw score delta.** When the tendency system is
+   a gentle lean rather than the entire behavior, the on_tick code still
+   carries most of the strategy. The TD learner can use raw score delta
+   because the tendency's contribution is proportional — it doesn't need
+   to specify what "good behavior" is, just whether the body's lean
+   correlated with score going up.
+
+5. **Portable pattern.** The vocabulary changes per game but the shape is
+   universal: named actions with ordinal magnitudes, composed via softmax,
+   probes on the tendency layer + explicit calls on the on_tick layer.
+
+### Live observation: tendency system working (2026-04-06)
+
+Tested in browser. Cars engage actively — no spinning, no single-action
+dominance. The shared vocabulary works: on_tick code like
+`me.ram_nearest(0.8)` composes with probe outputs via softmax.
+
+Probe magnitudes after 314 TD updates (sample from Viper):
+```
+ram_nearest:    0.827   steer_right:  0.831
+flee_it_car:    0.826   steer_left:   0.829
+reverse:        0.828   cruise_forward: 0.821
+ram_weakest:    0.811   brake:        0.815
+```
+
+All tendencies have comparable magnitudes (0.81-0.83 range). No single
+tendency dominates the softmax — each gets ~7-8% share. The on_tick's
+explicit calls shift the composition toward the driver's intent, and the
+body's learned lean sits underneath.
+
+TD errors are healthy (0.008-0.020), learning is active. Raw score delta
+reward is flowing without the passive-survival spinning problem because
+the tendency system can't spin — multiple tendencies pulling in different
+directions produce net movement, not circles.
+
+Scores: Viper 1371, Ghost 711, Rattler 275, Dust Devil 253, Bruiser 207.
+The rewritten on_tick code produces engaging derby behavior.
+
+### Reflection working: Claude evolves on_tick using the vocabulary (2026-04-06)
+
+Auth'd into the vanilla platform, reflection API calls now succeed.
+Observed two cars die and reflect with the new vocabulary API.
+
+**Rattler's first death + reflection:**
+- Died: IT timer ran out after 26 seconds
+- Claude called `edit_on_tick` (189 → 1534 chars) and `edit_memory` (845 chars)
+- New code uses vocabulary correctly with multiple simultaneous tendencies:
+  ```js
+  me.hunt_non_immune(1.0);
+  me.ram_nearest(0.7);
+  // If urgent:
+  me.ram_nearest(1.0);
+  me.hunt_non_immune(1.0);
+  ```
+- HP-aware mode switching: low HP → increase flee magnitudes
+- Mixed vocabulary with direct world queries (checks for weak targets
+  before boosting) — hybrid strategic reasoning
+- Memory: structured analysis of the life + strategy notes referencing
+  the vocabulary ("use hunt_non_immune(1.0) + ram_nearest(0.7)")
+- Brag: "Now I don't waste boost sitting around—I chain-ram hunts when
+  I'm it before the timer kills me."
+
+**Dust Devil's first death + reflection:**
+- Died: IT timer ran out after ~25 seconds
+- Self-corrected: identified `me.steer_left(0.2)` from the original
+  on_tick was causing circles, REMOVED it: "Steer_left bias was causing
+  circles instead of straight pursuit"
+- New code: cleaner, no steering bias, focused ram+hunt when IT
+- Memory: "When IT: Hunt non-immune HARD (0.9+), boost constantly, no
+  steering bias"
+
+**What this validates:**
+1. The cognition layer (Claude) understands and uses the vocabulary API
+   correctly — multiple simultaneous tendencies with ordinal magnitudes
+2. Claude reasons about strategy in terms of the vocabulary — memory
+   entries reference action names and magnitudes
+3. Claude can diagnose problems in its own code using the vocabulary
+   abstraction ("steer_left was causing circles")
+4. The two-layer system composes naturally: Claude writes strategic code
+   using the vocabulary, tendency probes add body lean underneath,
+   softmax composes both
+
+### Honest assessment: what worked, what didn't, what surprised me
+
+**Did it work?**
+
+The plumbing works. The three layers compose. Claude writes valid vocabulary code, the tendency system compiles it, the softmax produces net movement, the TD learner updates probes, the reservoir loads and embeds. As a piece of engineering, it's sound.
+
+But did the actants get *better* in a way I found meaningful? That's a more honest question and the answer is more nuanced.
+
+**What I genuinely appreciated:**
+
+Rattler's reflection was the highlight. It went from a 189-char template to a 1534-char strategic driver that manages boost timing, escalates aggression under IT timer pressure, and backs off when HP is low. That's a real behavioral arc: simple → situationally aware. If I watched Rattler play before and after, the difference would be visible — the after-Rattler would hunt more aggressively when IT, flee more carefully when hurt. That's a real improvement authored by a cognition layer that understood the vocabulary.
+
+Dust Devil's self-correction was the other standout. It looked at its own trail map, saw circular motion, traced it to `steer_left(0.2)` in its code, and removed it. That's metacognition — the actant diagnosing its own authored behavior through observation. The vocabulary made this possible because the action names are human-readable: "steer_left was causing circles" is a sentence a reasoning model can produce. If the code had been raw `me.steer(-0.4 * Math.sin(world.time))`, Claude would have had a much harder time connecting that to "I'm going in circles."
+
+**What I'm less sure about:**
+
+The tendency probes (layer 1, the reservoir part) haven't demonstrated clear value yet in tag-your-dead. The probe magnitudes are all clustered around 0.7-0.83, contributing roughly equal shares to the softmax. The body "lean" is gentle and approximately uniform — it's not clear it's doing anything the on_tick code couldn't do alone. The TD errors are present but the learning is slow relative to a single Claude reflection, which can rewrite the entire strategy in one shot.
+
+This is the fundamental tension: **Claude's reflection is SO powerful that it might make the sub-cognitive layer redundant for this game.** One reflection call rewrites 1500 chars of strategic code with conditional logic, world queries, and magnitude tuning. The tendency probes nudge steer by ±0.01 after 1000 TD updates. The timescales are mismatched by orders of magnitude.
+
+In the original hunch experiment with fixed on_tick code, the probes were the ONLY adaptation mechanism, so they carried all the learning weight. Here, with Claude reflecting between deaths, the probes are competing with a much more powerful learner for the same job. It's like giving someone both a calculator and a supercomputer and asking whether the calculator helped.
+
+**What actually surprised me:**
+
+The vocabulary API itself — independent of both the probes and the reservoir — might be the real contribution. Look at what happened when we gave Claude this API vs the old raw steer/accelerate API:
+
+Old API code (from session 1-3):
+```js
+const angle = me.angleTo(target.x, target.y);
+const diff = angle - me.angle;
+me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
+me.accelerate(1);
+```
+
+New vocabulary code (from Rattler's reflection):
+```js
+me.hunt_non_immune(1.0);
+me.ram_nearest(0.7);
+if (lowHp) {
+  me.flee_it_car(0.9);
+  me.flee_nearest(0.5);
+}
+```
+
+The second version is shorter, clearer, higher-level, and easier for
+Claude to reason about. The vocabulary is doing what good abstractions
+do: it lets the author think at the right level. Claude doesn't need
+to compute angles — it needs to express intent. "Hunt strongly, ram
+moderately, flee when hurt" is the intent. The chassis handles the
+geometry.
+
+This is arguably more valuable for actant embodiment across games than
+the reservoir probes are. The shared vocabulary pattern — named actions
+with ordinal magnitudes, softmax-composed, usable by both authored code
+and a learned layer — is a clean, portable abstraction that:
+
+1. Makes on_tick code readable and writable by LLMs
+2. Makes self-diagnosis possible ("steer_left caused circles")
+3. Composes naturally with any sub-cognitive layer
+4. Ports across games by changing only the action definitions
+
+**The thing I'd want to test next:**
+
+Run the game for 10+ deaths per car with the tendency probes OFF
+(zeroed), then 10+ deaths with them ON, and compare the Claude-evolved
+code quality and scores. If the probes are helping, cars with probes ON
+should converge to better strategies faster — the body's learned lean
+gives the conscious code a better baseline to work from. If there's no
+difference, the probes aren't adding value and the vocabulary abstraction
+is the real output of this experiment.
+
+I genuinely don't know which way that would go, and that's what makes
+it a good experiment.
+
+### Two-timescale coupling and the oscillation question (2026-04-06)
+
+Conversation with Robby surfaced a dynamic neither of us had thought
+through: the tendency layer is always *chasing* the on_tick code.
+
+The tendency probes train on score delta from the COMBINED behavior
+(tendency lean + on_tick intent). But Claude's reflection rewrites
+on_tick in one shot between deaths — shifting the entire strategy
+instantaneously. The tendency probes, trained over thousands of ticks
+at tiny learning rates, are always learning what worked under the
+PREVIOUS strategy. By the time they converge, the strategy has already
+shifted again.
+
+This creates oscillation: on_tick shifts → tendencies chase → tendencies
+lag behind → on_tick adapts to the (now slightly wrong) tendencies →
+tendencies chase the new on_tick → cycle continues.
+
+**Robby's insight: the oscillation might be GOOD.** If the tendency
+layer perfectly aligned with on_tick, the system would settle into a
+fixed point. The lag means there's always a mismatch — the body wants
+something slightly different from what the driver intends. That
+perturbation is free exploration. An actant whose body lean is "wrong"
+for its current strategy might stumble into discoveries that a
+perfectly-aligned system wouldn't.
+
+This is a known phenomenon in two-timescale learning systems in RL
+theory. The fast learner (Claude, one-shot strategy rewrite) and the
+slow learner (TD probes, gradual weight updates) interact in ways
+that are hard to predict from either layer alone. The oscillation is
+an emergent property of the coupling, not a bug in either layer.
+
+**The echo idea:** Robby also pointed at the reservoir's temporal
+properties. Currently state-to-text is a single-tick snapshot: "I am
+damaged. Car close northwest." But the reservoir is an LLM — it
+processes token sequences and its activations carry context from earlier
+tokens. If we fed it a SEQUENCE of recent states instead of a single
+snapshot, the activations would encode temporal patterns: "I've been
+taking damage for 3 seconds" or "I just boosted and am closing in."
+
+The probes could then learn to recognize temporal patterns that a
+single snapshot can't capture. "Closing in on a weak target after
+boosting" is a temporal concept — it requires knowing both the current
+state AND the recent trajectory. This would give the tendency layer
+access to information that's genuinely complementary to what the on_tick
+code sees (which is also a single-tick snapshot of me/world).
+
+### Temporal sequences implemented + initial observation (2026-04-06)
+
+Implemented StateHistory: rolling buffer of last 4 state snapshots per
+car. Reservoir input now looks like:
+
+```
+Demolition derby. Ram other cars to score...
+Earlier: healthy. Moving. Car close east.
+Then: damaged. Fast. Car very close east.
+Recently: damaged. Boosting! Car very close east.
+Now: critical. Slow. Car adjacent east, weak.
+Score: 253.
+```
+
+TD errors at ~324 updates with temporal sequences:
+```
+car         single-snap   orienting-ctx   temporal-seq
+Viper       0.0001        0.0485          0.0200
+Bruiser     0.0001        0.0463          0.0294
+Ghost       0.0000        0.0177          0.0754  ← higher
+Rattler     0.0001        0.0794          0.0662
+Dust Devil  0.0001        0.1241          0.0081
+```
+
+TD errors are in the same healthy range as orienting context (0.01-0.08).
+Ghost shows HIGHER TD error with sequences (0.075 vs 0.018), suggesting
+the temporal context is producing more variable activations for Ghost's
+situations — possibly because Ghost's evasive play creates more varied
+trajectories than aggressive cars.
+
+History buffers fill correctly (all at max 4 entries).
+
+**Performance is the blocker for proper observation.** Game runs at ~1/10
+real time — 7 seconds of game time in 5 minutes wall time. The temporal
+sequences add ~50% more tokens to the reservoir input (100-150 tokens vs
+~80 previously), further slowing each reservoir call. No cars died in
+this observation window.
+
+### 30-minute unattended run: massive code evolution (2026-04-06)
+
+Bumped reservoir cadence to 60 frames (~1Hz) for ~3× real time speed.
+Ran unattended for 30 minutes with autopilot on human player and data
+logger snapshotting every 30 seconds. 353 seconds of game time, 63 log
+entries, ~17,000 TD updates per car.
+
+**Code evolution summary:**
+
+| car        | start  | final   | growth | score | deaths |
+|------------|--------|---------|--------|-------|--------|
+| Viper      | 259    | 6,688   | 25.8×  | 699   | ~5     |
+| Ghost      | 283    | 6,305   | 22.3×  | 575   | ~5     |
+| Dust Devil | 246    | 6,860   | 27.9×  | 253   | ~5     |
+| Bruiser    | 153    | 3,595   | 23.5×  | 113   | ~8     |
+| Rattler    | 189    | 2,435   | 12.9×  | 93    | ~5     |
+
+Every car evolved from ~200-char vocabulary templates to 2,500-6,800
+char strategic drivers through multiple death/reflection cycles.
+
+**What Claude evolved (highlights across all cars):**
+
+1. **Tag state tracking.** Every car independently developed code to
+   track IT state transitions via `me.memory.read()/write()`. They
+   detect "was I IT last tick but not now?" (just gave tag) and "was I
+   not IT but now am?" (just received tag). This is emergent — no car
+   started with this logic.
+
+2. **Post-tag escape.** After passing the IT tag, the newly-not-IT car
+   learned that the NEW IT car is right next to them with 3x damage.
+   Every car developed a flee-after-tagging routine: 3-4 seconds of
+   maximum flee + boost. Bruiser self-labeled this code "v8" and added
+   an early `return` to prevent conflicting tendencies during escape.
+
+3. **Tag chain awareness.** Ghost tracks a `tagHistory` array — how
+   many times it was tagged in the last 15 seconds. When tagged 2+
+   times ("hot zone"), it enters maximum evasion mode. This is a
+   genuinely emergent higher-order strategy: not just reacting to the
+   current tag state but to the pattern of recent tag events.
+
+4. **Cluster detection.** Ghost counts cars within 400 units and
+   adjusts behavior when in a dense cluster vs isolated. This is
+   spatial reasoning that the original 200-char templates didn't
+   have.
+
+5. **Stuck detection.** Rattler checks `me.speed < 20` and does
+   `me.reverse(1.0); me.steer_right(1.0); return` — a practical
+   fix for a real gameplay problem (getting jammed against obstacles).
+
+6. **Smart boost timing.** Dust Devil conditionally boosts: "when IT
+   car is close OR low HP OR nearest car is very close AND not IT."
+   Instead of boosting on cooldown, it saves boost for moments that
+   matter. Viper always boosts when available because "critical when
+   IT (2x recharge)."
+
+7. **Memory for learning.** Viper's memory tracks 4 lives of specific
+   lessons: "Life 1 - Died in 2 seconds. Life 2 - Survived 136
+   seconds, kills: 1, 102 car collisions — too much grinding."
+   Bruiser's memory spans 4,894 chars of structured strategy notes.
+
+**What this validates:**
+
+The vocabulary API + Claude reflection produces genuine strategic
+evolution. Cars went from simple tendency calls to full strategic
+drivers with state machines, memory management, tag tracking, cluster
+detection, and conditional logic — ALL expressed in the vocabulary
+("me.flee_it_car(1.0); me.cruise_forward(1.0); return;") rather than
+raw angle math.
+
+The code grows sophisticated WITHOUT growing unreadable. Even at
+6,000+ chars, the code is structured, commented (Claude adds
+comments), and self-documenting via the vocabulary names. Compare to
+the old API where 2,000 chars of `Math.atan2(Math.sin(diff),
+Math.cos(diff)) * 2.5` was opaque.
+
+**Scores tell a story:** Viper (699) and Ghost (575) — the two most
+sophisticated evolved codes — are the top scorers. Bruiser (113) and
+Rattler (93) — less evolved — are the lowest. Correlation doesn't
+prove causation, but the directionality is suggestive.
+
+**TD probe NaN issue:** Viper and Ghost show `meanAbsTD: NaN` at the
+end. Likely a numerical stability issue in the TD learner (weight
+values growing unbounded after 17,000 updates without normalization).
+Need to investigate — possibly add weight clipping or learning rate
+decay. The probes may have diverged after many updates, which means
+their contribution to the softmax is unpredictable. Didn't crash the
+game though.
+
+Proper comparative testing needs either:
+1. Reduce reservoir cadence to fire less often (e.g. every 30 frames
+   instead of 6) — accept staleness for speed
+2. Run headless without rendering — save the rendering overhead
+3. Accept slow speed and run unattended for 30+ minutes
+4. Batch reservoir calls across cars (one embedding call for all 5)
+
+This is a running-cost / wall-time tradeoff, not a design problem. The
+temporal sequences are working — we just can't observe enough game time
+interactively to see their effect on probe behavior or reflection quality.
+
+**What to test:**
+1. Probes ON vs OFF comparison over 10+ deaths — does the tendency
+   layer help or hinder Claude's strategy evolution?
+2. Recent-state sequence in state-to-text — does temporal context in
+   the reservoir input produce measurably different probe behavior?
+3. Long run observation — does the oscillation between layers produce
+   exploration that improves outcomes over many death/reflect cycles?
+
+**Performance issue:** game runs at ~1/10 real time with reservoir
+active (5 AI cars × reservoir calls on cadence). 70s game time in
+~8 min wall time. Not a blocker for the experiment but would need
+optimization for playable integration (reduce cadence, batch reservoir
+calls, or skip reservoir for some cars).
+
+**Implementation plan:**
+- `actions.ts` — each action becomes a directional function returning
+  `{steer, accel}` instead of calling `me.steer()` directly
+- New `tendency-system.ts` — fires all tendencies, softmax composition
+- `soma.ts` — `buildMeAPI` exposes vocabulary as `me.ram_nearest(mag)`
+  instead of raw `me.steer(x)`. Both layers use the same API.
+- `game.ts` — composition step: collect all tendency contributions from
+  both layers, softmax, compute net steer/accel, apply
+- All 5 personality on_tick rewrites in the new vocabulary
+- `reflection.ts` — Claude knows the new API shape
+
+### What's working well
+
+- Reservoir loads from HuggingFace CDN in ~30s first run, ~2s cached
+- TD updates fire every tick, probe weights persist to localStorage
+- `__tagYourDead.reflexSummary()` gives clean diagnostic output
+- Reflex layer doesn't crash the game or cause visible lag
+- Per-car independent probes create natural behavioral diversity
+
+### What needs work
+
+- **Learning is too slow** for a single play session to show clear
+  improvement. Need either: higher learning rates (risk instability),
+  dataset centering (amplify per-state activation variance), or
+  longer accumulation across many sessions.
+- **No A/B comparison** yet — need to measure scores with vs without
+  the reflex layer to answer "does this actually help?"
+- **Soma interaction** is crude (reflex overwrites everything). A more
+  nuanced integration would let the soma and reflex cooperate — e.g.,
+  soma sets general direction, reflex fine-tunes timing.
+- **No integration with reflection** yet — the cognition layer (between-
+  death Claude reflection) doesn't know about the reflex's action
+  histogram. Feeding it that data would let it evolve the action
+  vocabulary based on what the reflex actually uses.

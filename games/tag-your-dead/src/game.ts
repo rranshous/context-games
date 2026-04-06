@@ -13,10 +13,14 @@ import {
   renderBarrel, renderSandPatch,
 } from './sprites.js';
 import {
-  PERSONALITIES, CarPersonality, createSoma, runOnTick,
+  PERSONALITIES, CarPersonality, createSoma,
   saveSomas, loadSomas, compileOnTick,
+  buildMeAPI, buildWorldAPI,
 } from './soma.js';
 import { reflectOnLife, ReflectionResult } from './reflection.js';
+import { ReflexLayer } from './reflex/reflex-layer.js';
+import { OnnxReservoirBridge } from './reflex/onnx-bridge.js';
+import { TendencyAccumulator } from './reflex/tendency-system.js';
 import {
   triggerShake, updateShake, spawnDust, spawnTagSparks,
   spawnEliminationExplosion, updateParticles, renderParticles,
@@ -73,6 +77,14 @@ export class Game {
 
   private lastTime = 0;
 
+  // ── Reflex Layer ──
+  // Off by default to keep the game playable at full speed.
+  // Enable via URL param: ?reflex=on
+  private reflexEnabled = new URLSearchParams(window.location.search).get('reflex') === 'on';
+  private reflexLayer: ReflexLayer | null = null;
+  private reflexLoading = false;
+  private reflexSaveTimer = 0;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -92,11 +104,15 @@ export class Game {
     // Expose debug
     (window as unknown as Record<string, unknown>).__tagYourDead = {
       game: this,
+      getReflex: () => this.reflexLayer,
+      reflexSummary: () => this.reflexLayer?.summary(),
       resetSomas: () => { localStorage.removeItem('tag-your-dead-somas'); location.reload(); },
       resetScores: () => { localStorage.removeItem('tag-your-dead-scores'); location.reload(); },
+      resetReflexes: () => { localStorage.removeItem('tag-your-dead-reflexes'); location.reload(); },
       resetAll: () => {
         localStorage.removeItem('tag-your-dead-somas');
         localStorage.removeItem('tag-your-dead-scores');
+        localStorage.removeItem('tag-your-dead-reflexes');
         location.reload();
       },
     };
@@ -162,10 +178,50 @@ export class Game {
       if (controls.boost) this.player.boost();
     }
 
-    // AI on_tick
+    // ── Tendency composition: both layers contribute to the same pool ──
+    //
+    // 1. Create accumulator, set probe magnitudes (learned tendencies)
+    // 2. Build me API with accumulator so on_tick vocabulary calls register
+    // 3. Run on_tick (authored tendencies register via me.ram_nearest(0.8) etc.)
+    // 4. Softmax-compose all tendencies → net steer/accel → apply to car
+    //
+    // Both layers speak the same vocabulary. The car's movement is the
+    // ordinal-weighted composition of all active tendencies from both sources.
     for (const ai of this.aiCars) {
       if (!ai.car.alive) continue;
-      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
+
+      const accum = new TendencyAccumulator();
+
+      // Tendency probes: set learned magnitudes (if reflex layer is loaded)
+      if (this.reflexLayer) {
+        const cr = this.reflexLayer.getReflex(ai.car.id);
+        if (cr.cachedPriorities) {
+          accum.setProbes(cr.cachedPriorities);
+        }
+        // Fire-and-forget reservoir update on cadence
+        const meForText = buildMeAPI(ai.car, ai.soma, this.arena);
+        const worldForText = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
+        this.reflexLayer.updateReservoir(ai.car, meForText, worldForText);
+      }
+
+      // on_tick: soma's authored code registers tendencies via vocabulary
+      const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
+      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum);
+      try {
+        const fn = compileOnTick(ai.soma.on_tick.content);
+        fn(me, world);
+      } catch (err) {
+        console.warn(`[SOMA] on_tick error for ${ai.car.id}:`, err);
+      }
+
+      // Compose: softmax all tendencies → net controls → apply
+      const net = accum.compose(me, world);
+      ai.car.steer(net.steer);
+      if (net.accel >= 0) {
+        ai.car.accelerate(net.accel);
+      } else {
+        ai.car.brake(-net.accel);
+      }
     }
 
     // Track who was alive before update
@@ -177,6 +233,13 @@ export class Game {
     // Physics update all alive cars
     for (const car of this.allCars) {
       car.update(dt, this.arena);
+    }
+
+    // Reflex post-tick: compute reward + TD update for each AI car
+    if (this.reflexLayer) {
+      for (const ai of this.aiCars) {
+        this.reflexLayer.postTick(ai.car);
+      }
     }
 
     // Sample position trails for reflection maps
@@ -293,6 +356,11 @@ export class Game {
           console.log(`[TAG] ${next.id} is now IT!`);
         }
 
+        // Notify reflex layer of death (reset TD per-life state)
+        if (this.reflexLayer) {
+          this.reflexLayer.onCarDeath(car.id);
+        }
+
         // Trigger background reflection for AI cars
         const ai = this.aiCars.find(a => a.car === car);
         if (ai && !ai.reflecting) {
@@ -314,6 +382,15 @@ export class Game {
     updateParticles(dt);
     updateTracks(dt);
     this.updateTicker(dt);
+
+    // Periodically save reflex probe weights (every 30 seconds)
+    if (this.reflexLayer) {
+      this.reflexSaveTimer += dt;
+      if (this.reflexSaveTimer > 30) {
+        this.reflexSaveTimer = 0;
+        this.reflexLayer.save();
+      }
+    }
 
     // Camera follows player (or first alive car if player dead)
     if (this.player.alive) {
@@ -400,6 +477,23 @@ export class Game {
     resetCollisionCooldowns();
     this.camera.snap(this.player.x, this.player.y, this.arena.width, this.arena.height);
     this.phase = 'playing';
+
+    // Initialize reflex layer (async — loads reservoir model in background)
+    // Only when ?reflex=on — off by default for playable speed.
+    if (this.reflexEnabled && !this.reflexLayer && !this.reflexLoading) {
+      this.reflexLoading = true;
+      const bridge = new OnnxReservoirBridge('Xenova/distilgpt2');
+      const layer = new ReflexLayer(bridge);
+      layer.load().then(() => {
+        layer.loadSaved();
+        this.reflexLayer = layer;
+        this.reflexLoading = false;
+        console.log('[GAME] reflex layer ready');
+      }).catch(err => {
+        console.warn('[GAME] reflex layer failed to load:', err);
+        this.reflexLoading = false;
+      });
+    }
   }
 
   private respawnCar(car: Car): void {
