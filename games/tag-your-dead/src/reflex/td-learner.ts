@@ -20,8 +20,8 @@ export interface TDConfig {
 
 export const DEFAULT_TD_CONFIG: TDConfig = {
   gamma: 0.99,
-  valueLR: 0.001,
-  actionLR: 0.0005,
+  valueLR: 0.01,
+  actionLR: 0.005,
 };
 
 /** Linear probe: y = sigmoid(w·x + b). Mutable weights for online updates. */

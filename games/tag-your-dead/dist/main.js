@@ -36355,8 +36355,8 @@ ${newCode.slice(0, 400)}`
 // src/reflex/td-learner.ts
 var DEFAULT_TD_CONFIG = {
   gamma: 0.99,
-  valueLR: 1e-3,
-  actionLR: 5e-4
+  valueLR: 0.01,
+  actionLR: 5e-3
 };
 var OnlineProbe = class _OnlineProbe {
   name;
@@ -36934,7 +36934,7 @@ var OnnxReservoirBridge = class {
   }
   async load() {
     const { AutoTokenizer: AutoTokenizer2, AutoModel: AutoModel2, env: env3 } = await Promise.resolve().then(() => (init_transformers_web(), transformers_web_exports));
-    env3.allowLocalModels = true;
+    env3.allowLocalModels = false;
     env3.allowRemoteModels = true;
     this.tokenizer = await AutoTokenizer2.from_pretrained(this.modelId);
     this.model = await AutoModel2.from_pretrained(this.modelId);
@@ -37233,6 +37233,10 @@ var Game = class {
       this.player.brake(controls.brake);
       if (controls.boost) this.player.boost();
     }
+    for (const ai of this.aiCars) {
+      if (!ai.car.alive) continue;
+      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
+    }
     if (this.reflexLayer) {
       for (const ai of this.aiCars) {
         if (!ai.car.alive) continue;
@@ -37240,10 +37244,6 @@ var Game = class {
         const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
         this.reflexLayer.preTick(ai.car, me, world);
       }
-    }
-    for (const ai of this.aiCars) {
-      if (!ai.car.alive) continue;
-      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
     }
     const wasAlive = /* @__PURE__ */ new Map();
     for (const car of this.allCars) {

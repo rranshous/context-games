@@ -24,7 +24,9 @@ export class OnnxReservoirBridge implements ReservoirBridge {
 
   async load(): Promise<void> {
     const { AutoTokenizer, AutoModel, env } = await import('@huggingface/transformers');
-    env.allowLocalModels = true;
+    // In browser: fetch from HuggingFace CDN, don't try local paths (causes 404s).
+    // In Node: local models dir may exist from bench, but remote fallback is fine too.
+    env.allowLocalModels = false;
     env.allowRemoteModels = true;
 
     this.tokenizer = await AutoTokenizer.from_pretrained(this.modelId);

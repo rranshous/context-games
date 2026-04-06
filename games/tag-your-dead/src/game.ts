@@ -174,8 +174,20 @@ export class Game {
       if (controls.boost) this.player.boost();
     }
 
-    // Reflex layer: fire BEFORE on_tick so reflexes set initial controls,
-    // then on_tick code (the "conscious" layer) can override.
+    // AI on_tick (soma's authored code runs FIRST — sets the "conscious" controls)
+    for (const ai of this.aiCars) {
+      if (!ai.car.alive) continue;
+      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
+    }
+
+    // Reflex layer: fires AFTER on_tick. The reflex is the "final word" —
+    // it can override the soma's controls based on learned priorities. This
+    // ordering means the reflex IS the behavioral output. The soma provides
+    // authored intent; the reflex provides learned reflex override.
+    //
+    // In the future this could be more nuanced (blend soma + reflex, or let
+    // the reflex selectively override only certain controls). For now, the
+    // experiment needs clean measurement of whether reflexes help.
     if (this.reflexLayer) {
       for (const ai of this.aiCars) {
         if (!ai.car.alive) continue;
@@ -183,15 +195,8 @@ export class Game {
         const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
         // Fire-and-forget: preTick is async (reservoir call) but we don't await.
         // The reflex layer caches its last result and uses it synchronously.
-        // First tick after load will use random-init probes until reservoir warms up.
         this.reflexLayer.preTick(ai.car, me, world);
       }
-    }
-
-    // AI on_tick (soma's authored code — can override reflex inputs)
-    for (const ai of this.aiCars) {
-      if (!ai.car.alive) continue;
-      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
     }
 
     // Track who was alive before update
