@@ -1179,6 +1179,60 @@ is the real output of this experiment.
 I genuinely don't know which way that would go, and that's what makes
 it a good experiment.
 
+### Two-timescale coupling and the oscillation question (2026-04-06)
+
+Conversation with Robby surfaced a dynamic neither of us had thought
+through: the tendency layer is always *chasing* the on_tick code.
+
+The tendency probes train on score delta from the COMBINED behavior
+(tendency lean + on_tick intent). But Claude's reflection rewrites
+on_tick in one shot between deaths — shifting the entire strategy
+instantaneously. The tendency probes, trained over thousands of ticks
+at tiny learning rates, are always learning what worked under the
+PREVIOUS strategy. By the time they converge, the strategy has already
+shifted again.
+
+This creates oscillation: on_tick shifts → tendencies chase → tendencies
+lag behind → on_tick adapts to the (now slightly wrong) tendencies →
+tendencies chase the new on_tick → cycle continues.
+
+**Robby's insight: the oscillation might be GOOD.** If the tendency
+layer perfectly aligned with on_tick, the system would settle into a
+fixed point. The lag means there's always a mismatch — the body wants
+something slightly different from what the driver intends. That
+perturbation is free exploration. An actant whose body lean is "wrong"
+for its current strategy might stumble into discoveries that a
+perfectly-aligned system wouldn't.
+
+This is a known phenomenon in two-timescale learning systems in RL
+theory. The fast learner (Claude, one-shot strategy rewrite) and the
+slow learner (TD probes, gradual weight updates) interact in ways
+that are hard to predict from either layer alone. The oscillation is
+an emergent property of the coupling, not a bug in either layer.
+
+**The echo idea:** Robby also pointed at the reservoir's temporal
+properties. Currently state-to-text is a single-tick snapshot: "I am
+damaged. Car close northwest." But the reservoir is an LLM — it
+processes token sequences and its activations carry context from earlier
+tokens. If we fed it a SEQUENCE of recent states instead of a single
+snapshot, the activations would encode temporal patterns: "I've been
+taking damage for 3 seconds" or "I just boosted and am closing in."
+
+The probes could then learn to recognize temporal patterns that a
+single snapshot can't capture. "Closing in on a weak target after
+boosting" is a temporal concept — it requires knowing both the current
+state AND the recent trajectory. This would give the tendency layer
+access to information that's genuinely complementary to what the on_tick
+code sees (which is also a single-tick snapshot of me/world).
+
+**What to test:**
+1. Probes ON vs OFF comparison over 10+ deaths — does the tendency
+   layer help or hinder Claude's strategy evolution?
+2. Recent-state sequence in state-to-text — does temporal context in
+   the reservoir input produce measurably different probe behavior?
+3. Long run observation — does the oscillation between layers produce
+   exploration that improves outcomes over many death/reflect cycles?
+
 **Performance issue:** game runs at ~1/10 real time with reservoir
 active (5 AI cars × reservoir calls on cadence). 70s game time in
 ~8 min wall time. Not a blocker for the experiment but would need
