@@ -36713,31 +36713,33 @@ function hpBucket(hp, maxHp) {
   if (frac > 0.15) return "critical";
   return "nearly dead";
 }
+var CONTEXT = "Demolition derby. Ram other cars to score points. Being IT means dealing 3x damage but dying if the timer runs out. ";
 function stateToText(me, world) {
-  const parts = [];
+  const parts = [CONTEXT];
   parts.push(`I am ${hpBucket(me.hp, me.maxHp)}.`);
   if (me.isIt) {
-    parts.push(`I am IT, ${Math.round(me.itTimer)}s left.`);
+    parts.push(`I am IT, ${Math.round(me.itTimer)}s left \u2014 I need to ram someone fast.`);
   }
-  if (me.speed > 150) parts.push("moving fast.");
-  else if (me.speed > 60) parts.push("moving.");
-  else parts.push("slow.");
+  if (me.speed > 150) parts.push("Moving fast.");
+  else if (me.speed > 60) parts.push("Moving.");
+  else parts.push("Slow.");
   const visible = world.otherCars.filter((c) => c.alive).map((c) => ({
     c,
     dist: me.distanceTo(c.x, c.y),
     angle: me.angleTo(c.x, c.y)
   })).sort((a, b) => a.dist - b.dist).slice(0, 3);
   if (visible.length === 0) {
-    parts.push("no cars visible.");
+    parts.push("No other cars in sight.");
   } else {
     for (const { c, dist, angle } of visible) {
-      const tag = c.isIt ? " (IT)" : "";
+      const tag = c.isIt ? ", IT" : "";
       const health = c.hp < 30 ? ", weak" : "";
-      parts.push(`car ${distBucket(dist)} ${bearing(angle)}${tag}${health}.`);
+      parts.push(`Car ${distBucket(dist)} to the ${bearing(angle)}${tag}${health}.`);
     }
   }
-  if (me.isBoosting) parts.push("boosting!");
-  else if (me.boostCooldownFrac >= 1) parts.push("boost ready.");
+  if (me.isBoosting) parts.push("Boosting!");
+  else if (me.boostCooldownFrac >= 1) parts.push("Boost ready.");
+  parts.push(`Score: ${Math.floor(me.score)}.`);
   return parts.join(" ");
 }
 
