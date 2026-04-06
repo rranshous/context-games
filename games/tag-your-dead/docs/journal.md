@@ -1105,6 +1105,80 @@ Observed two cars die and reflect with the new vocabulary API.
    using the vocabulary, tendency probes add body lean underneath,
    softmax composes both
 
+### Honest assessment: what worked, what didn't, what surprised me
+
+**Did it work?**
+
+The plumbing works. The three layers compose. Claude writes valid vocabulary code, the tendency system compiles it, the softmax produces net movement, the TD learner updates probes, the reservoir loads and embeds. As a piece of engineering, it's sound.
+
+But did the actants get *better* in a way I found meaningful? That's a more honest question and the answer is more nuanced.
+
+**What I genuinely appreciated:**
+
+Rattler's reflection was the highlight. It went from a 189-char template to a 1534-char strategic driver that manages boost timing, escalates aggression under IT timer pressure, and backs off when HP is low. That's a real behavioral arc: simple → situationally aware. If I watched Rattler play before and after, the difference would be visible — the after-Rattler would hunt more aggressively when IT, flee more carefully when hurt. That's a real improvement authored by a cognition layer that understood the vocabulary.
+
+Dust Devil's self-correction was the other standout. It looked at its own trail map, saw circular motion, traced it to `steer_left(0.2)` in its code, and removed it. That's metacognition — the actant diagnosing its own authored behavior through observation. The vocabulary made this possible because the action names are human-readable: "steer_left was causing circles" is a sentence a reasoning model can produce. If the code had been raw `me.steer(-0.4 * Math.sin(world.time))`, Claude would have had a much harder time connecting that to "I'm going in circles."
+
+**What I'm less sure about:**
+
+The tendency probes (layer 1, the reservoir part) haven't demonstrated clear value yet in tag-your-dead. The probe magnitudes are all clustered around 0.7-0.83, contributing roughly equal shares to the softmax. The body "lean" is gentle and approximately uniform — it's not clear it's doing anything the on_tick code couldn't do alone. The TD errors are present but the learning is slow relative to a single Claude reflection, which can rewrite the entire strategy in one shot.
+
+This is the fundamental tension: **Claude's reflection is SO powerful that it might make the sub-cognitive layer redundant for this game.** One reflection call rewrites 1500 chars of strategic code with conditional logic, world queries, and magnitude tuning. The tendency probes nudge steer by ±0.01 after 1000 TD updates. The timescales are mismatched by orders of magnitude.
+
+In the original hunch experiment with fixed on_tick code, the probes were the ONLY adaptation mechanism, so they carried all the learning weight. Here, with Claude reflecting between deaths, the probes are competing with a much more powerful learner for the same job. It's like giving someone both a calculator and a supercomputer and asking whether the calculator helped.
+
+**What actually surprised me:**
+
+The vocabulary API itself — independent of both the probes and the reservoir — might be the real contribution. Look at what happened when we gave Claude this API vs the old raw steer/accelerate API:
+
+Old API code (from session 1-3):
+```js
+const angle = me.angleTo(target.x, target.y);
+const diff = angle - me.angle;
+me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
+me.accelerate(1);
+```
+
+New vocabulary code (from Rattler's reflection):
+```js
+me.hunt_non_immune(1.0);
+me.ram_nearest(0.7);
+if (lowHp) {
+  me.flee_it_car(0.9);
+  me.flee_nearest(0.5);
+}
+```
+
+The second version is shorter, clearer, higher-level, and easier for
+Claude to reason about. The vocabulary is doing what good abstractions
+do: it lets the author think at the right level. Claude doesn't need
+to compute angles — it needs to express intent. "Hunt strongly, ram
+moderately, flee when hurt" is the intent. The chassis handles the
+geometry.
+
+This is arguably more valuable for actant embodiment across games than
+the reservoir probes are. The shared vocabulary pattern — named actions
+with ordinal magnitudes, softmax-composed, usable by both authored code
+and a learned layer — is a clean, portable abstraction that:
+
+1. Makes on_tick code readable and writable by LLMs
+2. Makes self-diagnosis possible ("steer_left caused circles")
+3. Composes naturally with any sub-cognitive layer
+4. Ports across games by changing only the action definitions
+
+**The thing I'd want to test next:**
+
+Run the game for 10+ deaths per car with the tendency probes OFF
+(zeroed), then 10+ deaths with them ON, and compare the Claude-evolved
+code quality and scores. If the probes are helping, cars with probes ON
+should converge to better strategies faster — the body's learned lean
+gives the conscious code a better baseline to work from. If there's no
+difference, the probes aren't adding value and the vocabulary abstraction
+is the real output of this experiment.
+
+I genuinely don't know which way that would go, and that's what makes
+it a good experiment.
+
 **Performance issue:** game runs at ~1/10 real time with reservoir
 active (5 AI cars × reservoir calls on cadence). 70s game time in
 ~8 min wall time. Not a blocker for the experiment but would need
