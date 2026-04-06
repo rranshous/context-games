@@ -78,6 +78,9 @@ export class Game {
   private lastTime = 0;
 
   // ── Reflex Layer ──
+  // Off by default to keep the game playable at full speed.
+  // Enable via URL param: ?reflex=on
+  private reflexEnabled = new URLSearchParams(window.location.search).get('reflex') === 'on';
   private reflexLayer: ReflexLayer | null = null;
   private reflexLoading = false;
   private reflexSaveTimer = 0;
@@ -476,7 +479,8 @@ export class Game {
     this.phase = 'playing';
 
     // Initialize reflex layer (async — loads reservoir model in background)
-    if (!this.reflexLayer && !this.reflexLoading) {
+    // Only when ?reflex=on — off by default for playable speed.
+    if (this.reflexEnabled && !this.reflexLayer && !this.reflexLoading) {
       this.reflexLoading = true;
       const bridge = new OnnxReservoirBridge('Xenova/distilgpt2');
       const layer = new ReflexLayer(bridge);

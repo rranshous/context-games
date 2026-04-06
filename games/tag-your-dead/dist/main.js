@@ -37044,6 +37044,9 @@ var Game = class {
   // pixels per second
   lastTime = 0;
   // ── Reflex Layer ──
+  // Off by default to keep the game playable at full speed.
+  // Enable via URL param: ?reflex=on
+  reflexEnabled = new URLSearchParams(window.location.search).get("reflex") === "on";
   reflexLayer = null;
   reflexLoading = false;
   reflexSaveTimer = 0;
@@ -37351,7 +37354,7 @@ var Game = class {
     resetCollisionCooldowns();
     this.camera.snap(this.player.x, this.player.y, this.arena.width, this.arena.height);
     this.phase = "playing";
-    if (!this.reflexLayer && !this.reflexLoading) {
+    if (this.reflexEnabled && !this.reflexLayer && !this.reflexLoading) {
       this.reflexLoading = true;
       const bridge = new OnnxReservoirBridge("Xenova/distilgpt2");
       const layer = new ReflexLayer(bridge);
