@@ -979,6 +979,72 @@ game-relevant dimensions, amplifying per-state variance. This is
 exactly the argument for the LLM-as-reservoir: the model's pre-
 trained knowledge about concepts IS the feature engineering.
 
+### Architectural pivot: from reflex-as-override to tendency system
+
+Through conversation, Robby identified that the "reflex selects an action
+and overrides the soma" design is wrong in a fundamental way. The reflex
+layer was either overwriting the soma (which meant the reflex carried the
+entire behavior and needed engineered rewards) or getting overwritten by
+the soma (which meant it had no effect). Neither is right.
+
+What Robby described instead: **"the body's tendency to move on its own."**
+Not action selection. Not overriding controls. A set of muscles that all
+fire simultaneously, each pulling the car in a direction with a learned
+magnitude. Without any on_tick code, the body would drift according to
+those tendencies. WITH on_tick code, the driver's intent composes with
+the body's lean.
+
+Key design decisions reached through conversation:
+
+1. **Every action fires every tick.** No argmax, no "which action wins."
+   All tendencies contribute simultaneously. `ram_nearest` pulls toward
+   the nearest car with magnitude 0.3 while `flee_it_car` pulls away
+   from the IT car with magnitude 0.6 while `cruise_forward` pushes
+   forward with magnitude 0.4. The net result is a composed direction.
+
+2. **Shared vocabulary for both layers.** The action vocabulary (ram_nearest,
+   flee_it_car, cruise_forward, etc.) is the API for BOTH the tendency
+   system and the on_tick code. The tendency probes call them at learned
+   magnitudes. The on_tick code calls them at author-determined magnitudes.
+   They compose additively. This means on_tick code looks like:
+   ```
+   me.ram_nearest(0.8);  // "I strongly want to ram"
+   ```
+   instead of:
+   ```
+   me.steer(Math.atan2(dy, dx) - me.angle);  // angle math
+   ```
+   Same vocabulary, less complexity, portable across games.
+
+3. **Ordinal magnitudes via softmax.** Magnitudes are floats 0..1 but the
+   system is ordinal: only the relative proportions matter, not absolute
+   values. All tendencies (from probes AND from on_tick) enter a softmax
+   pool. Each tendency's share of the total determines what fraction of
+   the car's movement budget goes toward that impulse. `(0.8, 0.2, 0.4)`
+   and `(0.4, 0.1, 0.2)` produce identical behavior — same ratios.
+
+4. **Reward simplifies to raw score delta.** When the tendency system is
+   a gentle lean rather than the entire behavior, the on_tick code still
+   carries most of the strategy. The TD learner can use raw score delta
+   because the tendency's contribution is proportional — it doesn't need
+   to specify what "good behavior" is, just whether the body's lean
+   correlated with score going up.
+
+5. **Portable pattern.** The vocabulary changes per game but the shape is
+   universal: named actions with ordinal magnitudes, composed via softmax,
+   probes on the tendency layer + explicit calls on the on_tick layer.
+
+**Implementation plan:**
+- `actions.ts` — each action becomes a directional function returning
+  `{steer, accel}` instead of calling `me.steer()` directly
+- New `tendency-system.ts` — fires all tendencies, softmax composition
+- `soma.ts` — `buildMeAPI` exposes vocabulary as `me.ram_nearest(mag)`
+  instead of raw `me.steer(x)`. Both layers use the same API.
+- `game.ts` — composition step: collect all tendency contributions from
+  both layers, softmax, compute net steer/accel, apply
+- All 5 personality on_tick rewrites in the new vocabulary
+- `reflection.ts` — Claude knows the new API shape
+
 ### What's working well
 
 - Reservoir loads from HuggingFace CDN in ~30s first run, ~2s cached
