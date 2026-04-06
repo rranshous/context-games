@@ -36754,16 +36754,16 @@ function captureRewardSnapshot(car) {
 }
 function computeReward(prev, curr) {
   let r = 0;
-  if (curr.alive) r += 1e-3;
   const dmgDelta = curr.damageDealt - prev.damageDealt;
-  if (dmgDelta > 0) r += dmgDelta * 5e-3;
+  if (dmgDelta > 0) r += dmgDelta * 0.01;
   const killDelta = curr.kills - prev.kills;
-  if (killDelta > 0) r += killDelta * 1;
+  if (killDelta > 0) r += killDelta * 2;
   const hpLost = prev.hp - curr.hp;
-  if (hpLost > 0) r -= hpLost * 3e-3;
-  if (prev.alive && !curr.alive) r -= 1;
-  if (!prev.isIt && curr.isIt) r -= 0.1;
-  if (prev.isIt && !curr.isIt && curr.alive) r += 0.3;
+  if (hpLost > 0) r -= hpLost * 2e-3;
+  if (prev.alive && !curr.alive) r -= 0.5;
+  const scoreDelta = curr.score - prev.score;
+  if (scoreDelta > 0) r += scoreDelta * 2e-3;
+  if (prev.isIt && !curr.isIt && curr.alive) r += 0.5;
   return r;
 }
 

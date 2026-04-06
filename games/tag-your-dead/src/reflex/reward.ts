@@ -33,29 +33,35 @@ export function captureRewardSnapshot(car: Car): RewardSnapshot {
 export function computeReward(prev: RewardSnapshot, curr: RewardSnapshot): number {
   let r = 0;
 
-  // Survival: small positive per tick alive
-  if (curr.alive) r += 0.001;
+  // ── Session 10 rebalance ──
+  // First version had +0.001/tick survival reward, which made passive spinning
+  // (hard_turn_right 100%) the optimal strategy. Cars that spin in circles
+  // never take damage and accumulate survival reward faster than aggressive
+  // cars accumulate damage-dealt reward. The fix: remove passive survival
+  // reward entirely. Reward comes ONLY from dealing damage, getting kills,
+  // and passing the IT tag. You have to engage to earn reward.
 
-  // Damage dealt this tick (delta of cumulative)
+  // Damage dealt this tick — primary reward signal for aggression
   const dmgDelta = curr.damageDealt - prev.damageDealt;
-  if (dmgDelta > 0) r += dmgDelta * 0.005;
+  if (dmgDelta > 0) r += dmgDelta * 0.01;
 
-  // Kill this tick (delta of cumulative)
+  // Kill — big spike
   const killDelta = curr.kills - prev.kills;
-  if (killDelta > 0) r += killDelta * 1.0;
+  if (killDelta > 0) r += killDelta * 2.0;
 
-  // HP lost this tick
+  // HP lost this tick — mild negative to prefer dealing damage over trading
   const hpLost = prev.hp - curr.hp;
-  if (hpLost > 0) r -= hpLost * 0.003;
+  if (hpLost > 0) r -= hpLost * 0.002;
 
-  // Death this tick
-  if (prev.alive && !curr.alive) r -= 1.0;
+  // Death — moderate negative (not huge — dying is part of the game)
+  if (prev.alive && !curr.alive) r -= 0.5;
 
-  // Gaining IT tag (risky — 3x damage but timer pressure)
-  if (!prev.isIt && curr.isIt) r -= 0.1;
+  // Score gain this tick — aligns with the game's own scoring
+  const scoreDelta = curr.score - prev.score;
+  if (scoreDelta > 0) r += scoreDelta * 0.002;
 
-  // Losing IT tag (good — you tagged someone)
-  if (prev.isIt && !curr.isIt && curr.alive) r += 0.3;
+  // Losing IT tag to someone else (you tagged them — good!)
+  if (prev.isIt && !curr.isIt && curr.alive) r += 0.5;
 
   return r;
 }
