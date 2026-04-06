@@ -808,3 +808,142 @@ Built a Playwright-interactive font preview tool following the tools/ pattern:
 - Sound effects
 - Playtest LOS — do AI drivers learn to use rocks as cover through reflection?
 - Arena variety (different seeds)
+
+---
+
+## Session: Reflex Layer Integration (2026-04-06)
+
+### Context
+
+This session integrates the "frozen reservoir + linear probe" subsystem
+developed in the hunch experiment (`games/hunch/`, branch `feat/hunch`)
+into tag-your-dead. The idea: a frozen small LLM (distilgpt2) converts
+each car's situation to a 768-dim activation vector, and linear probes
+trained online via TD learning score a vocabulary of 15 candidate actions.
+The highest-priority available action fires each tick. This "reflex layer"
+sits between the soma's on_tick code and the physics engine, giving each
+car learned reflexes that develop through experience.
+
+See `games/hunch/docs/walkthrough.md` on branch `feat/hunch` for the full
+conceptual backstory (Parts 1-10 covering reservoir computing, linear
+probes, Pipeline A vs B, and why TD learning fits continuous games).
+
+Branch: `feat/tag-your-dead-reservoir`
+
+### Architecture
+
+```
+game tick (60fps)
+  → on_tick (soma's authored code — sets steer/accel/brake)
+  → reflex.preTick (learned action selection — can override controls)
+    → state-to-text → reservoir.embed → td.priorities → argmax → execute
+  → car.update (physics)
+  → reflex.postTick (compute reward, TD update)
+    → td_error = reward + γ * V_next - V_now
+    → update value probe + selected action probe
+```
+
+Reflex fires AFTER on_tick so it has the final word. The soma's authored
+code sets the "conscious" intent; the reflex overrides with learned
+preferences.
+
+### 15 derby-specific actions
+
+```
+PURSUIT:  ram_nearest, ram_it_car, ram_weakest, boost_ram_nearest
+EVASION:  flee_nearest, flee_it_car, boost_flee
+POSITION: circle_nearest, cruise_forward, hard_turn_left/right, reverse, stop
+IT-SPEC:  hunt_non_immune, boost_hunt
+```
+
+### Files added
+
+All in `src/reflex/`:
+- `state-to-text.ts` — qualitative: "I am damaged. car close northwest (IT). boost ready."
+- `reward.ts` — per-tick signal from damage/kills/score/tag events
+- `actions.ts` — 15-action vocabulary with availability rules
+- `td-learner.ts` — OnlineProbe + TDLearner with per-tick updates
+- `reflex-layer.ts` — ReflexLayer + per-car CarReflex orchestrator
+- `onnx-bridge.ts` — ONNX reservoir bridge (distilgpt2 via @huggingface/transformers)
+
+### Three bugs found and fixed during live testing
+
+**Bug 1: ONNX model 404s.** `allowLocalModels = true` made transformers.js
+try local `/models/` path before HuggingFace CDN. Fix: `allowLocalModels = false`.
+
+**Bug 2: Reflex order.** Reflex fired BEFORE on_tick, so soma's 1200-2100
+char authored driving code overwrote all reflex control inputs every tick.
+The reflex was doing work that got immediately erased. Fix: swapped order —
+on_tick first, reflex second (final word).
+
+**Bug 3: Reward incentivized spinning.** After fixing the order bug,
+observed 3/5 cars learn `hard_turn_right` 100%. Ghost scored highest
+(695) by spinning in circles. Root cause: +0.001/tick survival reward
+was denser than +0.005/damage-dealt reward. A car that spins in circles
+takes no damage and accumulates survival reward faster than a car that
+rams and takes counter-damage.
+
+Fix: removed passive survival reward. Reward now comes ONLY from dealing
+damage (+0.01/hit), kills (+2.0), score gains (+0.002/point), and passing
+the IT tag (+0.5). Passive strategies earn zero.
+
+### Observation after all fixes (90 seconds of gameplay, ~1140 TD updates/car)
+
+```
+car         dominant action       other actions         score
+Viper       ram_nearest   100%   —                      253
+Bruiser     circle_nearest 92%   flee_it 5%, flee 4%    480
+Ghost       flee_nearest   86%   reverse 13%, ram 2%    778
+Rattler     ram_nearest   100%   —                      697
+Dust Devil  ram_nearest    72%   stop 15%, turn 13%     292
+Player      (autopilot)                                  34
+```
+
+**Key findings:**
+
+1. **No more spinning** — dominant strategies are ram (3 cars) and flee
+   (Ghost). Both involve engaging with other cars.
+
+2. **Behavioral diversity**: different cars developed different dominant
+   actions from the same random initialization, through the same TD
+   process. The per-car random weight fingerprints interact with per-car
+   activation patterns (each car sees a different situation) to produce
+   different initial preferences, which TD learning then amplifies.
+
+3. **Bruiser shows situational switching**: 92% circle, 5% flee_it_car,
+   4% flee_nearest. It mostly orbits but flees specifically when the IT
+   car is near. This is early content-dependent behavior — the probe
+   output changes based on the situation.
+
+4. **Both ram and flee are viable**: Ghost (flee 86%, score 778) vs
+   Rattler (ram 100%, score 697). The reward structure allows multiple
+   strategies to coexist rather than collapsing to one dominant.
+
+5. **TD learning is extremely slow**: bias deltas are 0.0005-0.0014
+   after ~1140 updates. Action differentiation comes mostly from random
+   init fingerprints, not from learned preferences. True content-dependent
+   learning needs much longer runs or higher learning rates.
+
+### What's working well
+
+- Reservoir loads from HuggingFace CDN in ~30s first run, ~2s cached
+- TD updates fire every tick, probe weights persist to localStorage
+- `__tagYourDead.reflexSummary()` gives clean diagnostic output
+- Reflex layer doesn't crash the game or cause visible lag
+- Per-car independent probes create natural behavioral diversity
+
+### What needs work
+
+- **Learning is too slow** for a single play session to show clear
+  improvement. Need either: higher learning rates (risk instability),
+  dataset centering (amplify per-state activation variance), or
+  longer accumulation across many sessions.
+- **No A/B comparison** yet — need to measure scores with vs without
+  the reflex layer to answer "does this actually help?"
+- **Soma interaction** is crude (reflex overwrites everything). A more
+  nuanced integration would let the soma and reflex cooperate — e.g.,
+  soma sets general direction, reflex fine-tunes timing.
+- **No integration with reflection** yet — the cognition layer (between-
+  death Claude reflection) doesn't know about the reflex's action
+  histogram. Feeding it that data would let it evolve the action
+  vocabulary based on what the reflex actually uses.
