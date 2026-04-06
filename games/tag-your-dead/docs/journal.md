@@ -1263,6 +1263,94 @@ sequences add ~50% more tokens to the reservoir input (100-150 tokens vs
 ~80 previously), further slowing each reservoir call. No cars died in
 this observation window.
 
+### 30-minute unattended run: massive code evolution (2026-04-06)
+
+Bumped reservoir cadence to 60 frames (~1Hz) for ~3× real time speed.
+Ran unattended for 30 minutes with autopilot on human player and data
+logger snapshotting every 30 seconds. 353 seconds of game time, 63 log
+entries, ~17,000 TD updates per car.
+
+**Code evolution summary:**
+
+| car        | start  | final   | growth | score | deaths |
+|------------|--------|---------|--------|-------|--------|
+| Viper      | 259    | 6,688   | 25.8×  | 699   | ~5     |
+| Ghost      | 283    | 6,305   | 22.3×  | 575   | ~5     |
+| Dust Devil | 246    | 6,860   | 27.9×  | 253   | ~5     |
+| Bruiser    | 153    | 3,595   | 23.5×  | 113   | ~8     |
+| Rattler    | 189    | 2,435   | 12.9×  | 93    | ~5     |
+
+Every car evolved from ~200-char vocabulary templates to 2,500-6,800
+char strategic drivers through multiple death/reflection cycles.
+
+**What Claude evolved (highlights across all cars):**
+
+1. **Tag state tracking.** Every car independently developed code to
+   track IT state transitions via `me.memory.read()/write()`. They
+   detect "was I IT last tick but not now?" (just gave tag) and "was I
+   not IT but now am?" (just received tag). This is emergent — no car
+   started with this logic.
+
+2. **Post-tag escape.** After passing the IT tag, the newly-not-IT car
+   learned that the NEW IT car is right next to them with 3x damage.
+   Every car developed a flee-after-tagging routine: 3-4 seconds of
+   maximum flee + boost. Bruiser self-labeled this code "v8" and added
+   an early `return` to prevent conflicting tendencies during escape.
+
+3. **Tag chain awareness.** Ghost tracks a `tagHistory` array — how
+   many times it was tagged in the last 15 seconds. When tagged 2+
+   times ("hot zone"), it enters maximum evasion mode. This is a
+   genuinely emergent higher-order strategy: not just reacting to the
+   current tag state but to the pattern of recent tag events.
+
+4. **Cluster detection.** Ghost counts cars within 400 units and
+   adjusts behavior when in a dense cluster vs isolated. This is
+   spatial reasoning that the original 200-char templates didn't
+   have.
+
+5. **Stuck detection.** Rattler checks `me.speed < 20` and does
+   `me.reverse(1.0); me.steer_right(1.0); return` — a practical
+   fix for a real gameplay problem (getting jammed against obstacles).
+
+6. **Smart boost timing.** Dust Devil conditionally boosts: "when IT
+   car is close OR low HP OR nearest car is very close AND not IT."
+   Instead of boosting on cooldown, it saves boost for moments that
+   matter. Viper always boosts when available because "critical when
+   IT (2x recharge)."
+
+7. **Memory for learning.** Viper's memory tracks 4 lives of specific
+   lessons: "Life 1 - Died in 2 seconds. Life 2 - Survived 136
+   seconds, kills: 1, 102 car collisions — too much grinding."
+   Bruiser's memory spans 4,894 chars of structured strategy notes.
+
+**What this validates:**
+
+The vocabulary API + Claude reflection produces genuine strategic
+evolution. Cars went from simple tendency calls to full strategic
+drivers with state machines, memory management, tag tracking, cluster
+detection, and conditional logic — ALL expressed in the vocabulary
+("me.flee_it_car(1.0); me.cruise_forward(1.0); return;") rather than
+raw angle math.
+
+The code grows sophisticated WITHOUT growing unreadable. Even at
+6,000+ chars, the code is structured, commented (Claude adds
+comments), and self-documenting via the vocabulary names. Compare to
+the old API where 2,000 chars of `Math.atan2(Math.sin(diff),
+Math.cos(diff)) * 2.5` was opaque.
+
+**Scores tell a story:** Viper (699) and Ghost (575) — the two most
+sophisticated evolved codes — are the top scorers. Bruiser (113) and
+Rattler (93) — less evolved — are the lowest. Correlation doesn't
+prove causation, but the directionality is suggestive.
+
+**TD probe NaN issue:** Viper and Ghost show `meanAbsTD: NaN` at the
+end. Likely a numerical stability issue in the TD learner (weight
+values growing unbounded after 17,000 updates without normalization).
+Need to investigate — possibly add weight clipping or learning rate
+decay. The probes may have diverged after many updates, which means
+their contribution to the softmax is unpredictable. Didn't crash the
+game though.
+
 Proper comparative testing needs either:
 1. Reduce reservoir cadence to fire less often (e.g. every 30 frames
    instead of 6) — accept staleness for speed
