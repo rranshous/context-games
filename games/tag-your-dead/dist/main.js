@@ -36744,27 +36744,11 @@ function stateToText(me, world) {
 // src/reflex/reward.ts
 function captureRewardSnapshot(car) {
   return {
-    hp: car.hp,
-    score: car.score,
-    damageDealt: car.damageDealt,
-    kills: car.kills,
-    alive: car.alive,
-    isIt: car.isIt
+    score: car.score
   };
 }
 function computeReward(prev, curr) {
-  let r = 0;
-  const dmgDelta = curr.damageDealt - prev.damageDealt;
-  if (dmgDelta > 0) r += dmgDelta * 0.01;
-  const killDelta = curr.kills - prev.kills;
-  if (killDelta > 0) r += killDelta * 2;
-  const hpLost = prev.hp - curr.hp;
-  if (hpLost > 0) r -= hpLost * 2e-3;
-  if (prev.alive && !curr.alive) r -= 0.5;
-  const scoreDelta = curr.score - prev.score;
-  if (scoreDelta > 0) r += scoreDelta * 2e-3;
-  if (prev.isIt && !curr.isIt && curr.alive) r += 0.5;
-  return r;
+  return curr.score - prev.score;
 }
 
 // src/reflex/reflex-layer.ts
