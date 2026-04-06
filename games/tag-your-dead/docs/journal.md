@@ -1225,6 +1225,55 @@ state AND the recent trajectory. This would give the tendency layer
 access to information that's genuinely complementary to what the on_tick
 code sees (which is also a single-tick snapshot of me/world).
 
+### Temporal sequences implemented + initial observation (2026-04-06)
+
+Implemented StateHistory: rolling buffer of last 4 state snapshots per
+car. Reservoir input now looks like:
+
+```
+Demolition derby. Ram other cars to score...
+Earlier: healthy. Moving. Car close east.
+Then: damaged. Fast. Car very close east.
+Recently: damaged. Boosting! Car very close east.
+Now: critical. Slow. Car adjacent east, weak.
+Score: 253.
+```
+
+TD errors at ~324 updates with temporal sequences:
+```
+car         single-snap   orienting-ctx   temporal-seq
+Viper       0.0001        0.0485          0.0200
+Bruiser     0.0001        0.0463          0.0294
+Ghost       0.0000        0.0177          0.0754  ← higher
+Rattler     0.0001        0.0794          0.0662
+Dust Devil  0.0001        0.1241          0.0081
+```
+
+TD errors are in the same healthy range as orienting context (0.01-0.08).
+Ghost shows HIGHER TD error with sequences (0.075 vs 0.018), suggesting
+the temporal context is producing more variable activations for Ghost's
+situations — possibly because Ghost's evasive play creates more varied
+trajectories than aggressive cars.
+
+History buffers fill correctly (all at max 4 entries).
+
+**Performance is the blocker for proper observation.** Game runs at ~1/10
+real time — 7 seconds of game time in 5 minutes wall time. The temporal
+sequences add ~50% more tokens to the reservoir input (100-150 tokens vs
+~80 previously), further slowing each reservoir call. No cars died in
+this observation window.
+
+Proper comparative testing needs either:
+1. Reduce reservoir cadence to fire less often (e.g. every 30 frames
+   instead of 6) — accept staleness for speed
+2. Run headless without rendering — save the rendering overhead
+3. Accept slow speed and run unattended for 30+ minutes
+4. Batch reservoir calls across cars (one embedding call for all 5)
+
+This is a running-cost / wall-time tradeoff, not a design problem. The
+temporal sequences are working — we just can't observe enough game time
+interactively to see their effect on probe behavior or reflection quality.
+
 **What to test:**
 1. Probes ON vs OFF comparison over 10+ deaths — does the tendency
    layer help or hinder Claude's strategy evolution?
