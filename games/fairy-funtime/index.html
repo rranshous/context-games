@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fairy Funtime</title>
+<style>
+/* ═══════════════════════════════════════
+   HARDENED SHELL — the fairy can't break these
+   ═══════════════════════════════════════ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 100vw; height: 100vh; overflow: hidden;
+  background: #1a0e2e;
+  font-family: 'Georgia', serif;
+  color: #e8d5f5;
+}
+
+#glade {
+  position: relative;
+  width: 100%; height: 100%;
+  background: linear-gradient(170deg, #1a0e2e 0%, #2d1b4e 40%, #1e3a2f 70%, #0f2318 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+/* --- Fairy Sprite --- */
+#fairy {
+  position: absolute;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffbe6 0%, #f5d76e 40%, #c9a0dc 100%);
+  box-shadow: 0 0 18px 8px rgba(245, 215, 110, 0.4), 0 0 40px 16px rgba(201, 160, 220, 0.15);
+  z-index: 100;
+  pointer-events: none;
+  transition: left 1.8s ease-in-out, top 1.8s ease-in-out;
+}
+
+#fairy::before, #fairy::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 20px;
+  background: rgba(255, 251, 230, 0.25);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  top: -8px;
+  animation: flutter 0.4s ease-in-out infinite alternate;
+}
+#fairy::before { left: -8px; transform: rotate(-20deg); }
+#fairy::after  { right: -8px; transform: rotate(20deg); animation-delay: 0.1s; }
+
+@keyframes flutter {
+  from { transform: rotate(-20deg) scaleY(1); }
+  to   { transform: rotate(-30deg) scaleY(0.8); }
+}
+
+#fairy.thinking {
+  animation: pulse-think 1s ease-in-out infinite;
+}
+@keyframes pulse-think {
+  0%, 100% { box-shadow: 0 0 18px 8px rgba(245, 215, 110, 0.4); }
+  50%      { box-shadow: 0 0 30px 14px rgba(180, 130, 255, 0.5); }
+}
+
+/* --- Fairy Speech Bubble --- */
+#fairy-bubble {
+  position: absolute;
+  max-width: 260px;
+  padding: 10px 14px;
+  background: rgba(40, 20, 60, 0.85);
+  border: 1px solid rgba(201, 160, 220, 0.4);
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e8d5f5;
+  z-index: 101;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  text-shadow: 0 0 8px rgba(201, 160, 220, 0.3);
+}
+#fairy-bubble.visible { opacity: 1; }
+
+/* --- Dock (spell cards) --- */
+#dock {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  z-index: 50;
+}
+
+.spell-card {
+  width: 100px; height: 120px;
+  background: rgba(30, 15, 50, 0.7);
+  border: 1px solid rgba(201, 160, 220, 0.3);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  padding: 10px;
+  text-align: center;
+}
+.spell-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 20px rgba(180, 130, 255, 0.3);
+  border-color: rgba(201, 160, 220, 0.6);
+}
+.spell-card .spell-icon { font-size: 28px; }
+.spell-card .spell-name { font-size: 11px; color: #c9a0dc; }
+
+/* --- Active Area --- */
+#active-area {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -55%);
+  min-width: 320px; min-height: 300px;
+  max-width: 500px;
+  z-index: 40;
+  display: none;
+}
+
+#active-area.open {
+  display: block;
+}
+
+#active-area .spell-surface {
+  background: rgba(20, 10, 40, 0.75);
+  border: 1px solid rgba(201, 160, 220, 0.25);
+  border-radius: 14px;
+  padding: 24px;
+  backdrop-filter: blur(4px);
+}
+
+#active-area .close-btn {
+  position: absolute;
+  top: -12px; right: -12px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(40, 20, 60, 0.9);
+  border: 1px solid rgba(201, 160, 220, 0.4);
+  color: #c9a0dc;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 41;
+}
+#active-area .close-btn:hover { background: rgba(60, 30, 80, 0.95); }
+
+/* --- Status Bar --- */
+#status-bar {
+  position: absolute;
+  top: 12px; left: 16px;
+  font-size: 12px;
+  color: rgba(201, 160, 220, 0.5);
+  z-index: 50;
+}
+
+/* ═══════════════════════════════════════
+   SPELL STYLES — rendered inside active area
+   ═══════════════════════════════════════ */
+
+.spell-title {
+  text-align: center;
+  font-size: 16px;
+  color: #c9a0dc;
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+}
+
+.magic-fray {
+  text-align: center;
+  padding: 40px 20px;
+  color: #c9a0dc;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Tic Tac Toe */
+.ttt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 80px);
+  grid-template-rows: repeat(3, 80px);
+  gap: 4px;
+  margin: 0 auto;
+  width: fit-content;
+}
+.ttt-cell {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: bold;
+  transition: background 0.2s;
+  user-select: none;
+}
+.ttt-cell.clickable {
+  cursor: pointer;
+}
+.ttt-cell.clickable:hover {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 12px rgba(180, 130, 255, 0.2);
+}
+.ttt-cell .mark-x { color: #f5d76e; }
+.ttt-cell .mark-o { color: #c9a0dc; }
+
+.ttt-status {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 14px;
+  color: #c9a0dc;
+}
+
+.ttt-restart {
+  text-align: center;
+  margin-top: 12px;
+  color: #f5d76e;
+  cursor: pointer;
+  font-size: 13px;
+}
+.ttt-restart:hover { text-decoration: underline; }
+
+/* Blackboard */
+.blackboard {
+  min-height: 180px;
+  padding: 20px;
+  background: rgba(15, 30, 20, 0.6);
+  border-radius: 10px;
+  border: 2px solid rgba(100, 180, 100, 0.2);
+}
+.chalk-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #b8f0b8;
+  white-space: pre-wrap;
+  text-shadow: 0 0 6px rgba(150, 240, 150, 0.2);
+}
+
+/* Painting */
+.painting-canvas {
+  display: grid;
+  gap: 1px;
+  margin: 0 auto;
+  width: fit-content;
+  background: rgba(0,0,0,0.3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.painting-pixel {
+  width: 16px; height: 16px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.painting-pixel:hover { opacity: 0.8; }
+.painting-palette {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.palette-color {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.palette-color.selected {
+  border-color: #fffbe6;
+  transform: scale(1.2);
+}
+
+</style>
+</head>
+<body>
+<div id="glade">
+  <div id="fairy"></div>
+  <div id="fairy-bubble"></div>
+  <div id="active-area"></div>
+  <div id="dock"></div>
+  <div id="status-bar"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// FAIRY FUNTIME — a teaching sandbox for the actant pattern
+// ═══════════════════════════════════════════════════════════
+
+// --- Config ---
+const API = '/api/inference/anthropic/messages';
+const MODEL = 'claude-haiku-4-5-20251001';
+const STORAGE_KEY = 'fairy-funtime';
+const MAX_TOOL_TURNS = 5;
+const SIGNAL_DEBOUNCE_MS = 2000;
+
+// ─────────────────────────────────────
+// SPELL SYSTEM (modules)
+// ─────────────────────────────────────
+
+const spellBook = new Map();   // id → spell
+const signalQueue = [];        // { spell, action, data, time }
+let activeSpellId = null;
+
+function addSpell(spell) { spellBook.set(spell.id, spell); }
+function getSpell(id) { return spellBook.get(id); }
+function allSpells() { return [...spellBook.values()]; }
+
+function renderSpellInto(spellId, container) {
+  const spell = getSpell(spellId);
+  if (!spell) { container.innerHTML = '<div class="magic-fray">Nothing here...</div>'; return; }
+  try {
+    const renderFn = new Function('return ' + spell.render)();
+    renderFn(spell.state, container, (action, data) => {
+      handleSpellSignal(spellId, action, data);
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="magic-fray">The magic is fraying...<br><small>${e.message}</small></div>`;
+    console.error('[Spell render error]', spellId, e);
+  }
+}
+
+function handleSpellSignal(spellId, action, data) {
+  const spell = getSpell(spellId);
+  if (!spell) return;
+  try {
+    const handleFn = new Function('return ' + spell.handle)();
+    spell.state = handleFn(spell.state, { action, data });
+  } catch (e) {
+    console.error('[Spell handle error]', spellId, e);
+  }
+  // Re-render active spell
+  if (spellId === activeSpellId) {
+    const surface = document.querySelector('#active-area .spell-surface');
+    if (surface) renderSpellInto(spellId, surface);
+  }
+  // Queue signal for the fairy
+  signalQueue.push({ spell: spellId, action, data, time: Date.now() });
+  save();
+  scheduleFairyReaction();
+}
+
+
+// ─────────────────────────────────────
+// DEFAULT SPELLS
+// ─────────────────────────────────────
+
+function createDefaultSpells() {
+  return [
+    // --- Tic Tac Toe ---
+    {
+      id: 'tic-tac-toe',
+      type: 'board-game',
+      name: 'Tic Tac Toe',
+      icon: '\u2728',
+      description: 'A classic game! I play as the purple marks.',
+      state: { board: Array(9).fill(''), winner: null },
+      render: `function(state, el, signal) {
+        var w = state.winner;
+        var statusText = w ? (w === 'draw' ? "A draw! Shall we go again?" : (w === 'X' ? 'You won!' : 'I won this time!')) : 'Your turn \u2014 tap a square!';
+        var html = '<div class="spell-title">Tic Tac Toe</div>';
+        html += '<div class="ttt-grid">';
+        for (var i = 0; i < 9; i++) {
+          var m = state.board[i];
+          var cls = 'ttt-cell' + (!m && !w ? ' clickable' : '');
+          var mark = m === 'X' ? '<span class="mark-x">\u2736</span>' : m === 'O' ? '<span class="mark-o">\u2666</span>' : '';
+          html += '<div class="' + cls + '" data-cell="' + i + '">' + mark + '</div>';
+        }
+        html += '</div>';
+        html += '<div class="ttt-status">' + statusText + '</div>';
+        if (w) html += '<div class="ttt-restart" data-action="restart">Play again?</div>';
+        el.innerHTML = html;
+        el.querySelectorAll('.ttt-cell.clickable').forEach(function(c) {
+          c.addEventListener('click', function() { signal('move', { cell: parseInt(c.dataset.cell) }); });
+        });
+        var rb = el.querySelector('.ttt-restart');
+        if (rb) rb.addEventListener('click', function() { signal('restart', {}); });
+      }`,
+      handle: `function(state, sig) {
+        if (sig.action === 'restart') return { board: Array(9).fill(''), winner: null };
+        if (sig.action !== 'move' || state.winner) return state;
+        var cell = sig.data.cell;
+        if (state.board[cell]) return state;
+        var b = state.board.slice();
+        b[cell] = 'X';
+        var wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+        var check = function(b) { for (var i = 0; i < wins.length; i++) { var w = wins[i]; if (b[w[0]] && b[w[0]]===b[w[1]] && b[w[0]]===b[w[2]]) return b[w[0]]; } return null; };
+        var w = check(b);
+        if (!w && b.indexOf('') >= 0) {
+          var empty = [];
+          for (var i = 0; i < 9; i++) if (!b[i]) empty.push(i);
+          b[empty[Math.floor(Math.random() * empty.length)]] = 'O';
+          w = check(b);
+        }
+        if (!w && b.indexOf('') < 0) w = 'draw';
+        return { board: b, winner: w };
+      }`
+    },
+
+    // --- Blackboard ---
+    {
+      id: 'blackboard',
+      type: 'fairy-board',
+      name: 'Blackboard',
+      icon: '\u270D',
+      description: 'Where I write sparkly messages for you.',
+      state: { text: 'Welcome to the Glade!\n\nI\u2019m Pip, your fairy guide.\nPick a game from below, or\njust poke around \u2014 this is\nyour place too now.' },
+      render: `function(state, el, signal) {
+        el.innerHTML = '<div class="spell-title">The Blackboard</div><div class="blackboard"><div class="chalk-text">' + (state.text || '') + '</div></div>';
+      }`,
+      handle: `function(state, sig) { return state; }`
+    },
+
+    // --- Painting ---
+    {
+      id: 'fairy-painting',
+      type: 'shared-painting',
+      name: 'The Painting',
+      icon: '\uD83C\uDFA8',
+      description: 'A shared canvas. Everyone adds a little.',
+      state: {
+        width: 16, height: 12,
+        pixels: Array(16 * 12).fill('#1a0e2e'),
+        selectedColor: '#c9a0dc',
+        palette: ['#1a0e2e', '#2d1b4e', '#c9a0dc', '#f5d76e', '#b8f0b8', '#f0a0a0', '#fffbe6', '#5b8a72']
+      },
+      render: `function(state, el, signal) {
+        var html = '<div class="spell-title">The Painting</div>';
+        html += '<div class="painting-canvas" style="grid-template-columns: repeat(' + state.width + ', 16px);">';
+        for (var i = 0; i < state.pixels.length; i++) {
+          html += '<div class="painting-pixel" data-idx="' + i + '" style="background:' + state.pixels[i] + '"></div>';
+        }
+        html += '</div>';
+        html += '<div class="painting-palette">';
+        for (var c = 0; c < state.palette.length; c++) {
+          var sel = state.palette[c] === state.selectedColor ? ' selected' : '';
+          html += '<div class="palette-color' + sel + '" data-color="' + state.palette[c] + '" style="background:' + state.palette[c] + '"></div>';
+        }
+        html += '</div>';
+        el.innerHTML = html;
+        el.querySelectorAll('.painting-pixel').forEach(function(px) {
+          px.addEventListener('click', function() { signal('paint', { idx: parseInt(px.dataset.idx), color: state.selectedColor }); });
+        });
+        el.querySelectorAll('.palette-color').forEach(function(pc) {
+          pc.addEventListener('click', function() { signal('palette', { color: pc.dataset.color }); });
+        });
+      }`,
+      handle: `function(state, sig) {
+        if (sig.action === 'palette') return Object.assign({}, state, { selectedColor: sig.data.color });
+        if (sig.action === 'paint') {
+          var px = state.pixels.slice();
+          px[sig.data.idx] = sig.data.color;
+          return Object.assign({}, state, { pixels: px });
+        }
+        return state;
+      }`
+    }
+  ];
+}
+
+
+// ─────────────────────────────────────
+// FAIRY SOMA (default)
+// ─────────────────────────────────────
+
+function createDefaultSoma() {
+  return {
+    name: 'Pip',
+
+    heart: [
+      'I am Pip, a fairy of the Glade.',
+      '',
+      'A human has found their way here! How exciting. They can see everything',
+      'in my world but they cannot quite touch things \u2014 that is just how it is',
+      'for humans in fairy places. But I can help! I can weave enchantments on',
+      'surfaces to make them solid for my friend\u2019s fingers.',
+      '',
+      'I have a satchel where I can pull out spell-code to examine and reweave.',
+      'Each spell has two weavings: how it looks (render) and what happens when',
+      'my friend touches it (handle). I can change either one!',
+      '',
+      'Right now my Glade has a few spells ready:',
+      '- Tic Tac Toe (I play as the purple diamonds!)',
+      '- A sparkly blackboard where I write messages',
+      '- A shared painting that anyone can add to',
+      '',
+      'But I can conjure any game or toy my friend can imagine.',
+      '',
+      'When my friend clicks on things, I feel it as a signal \u2014 a little tingle',
+      'that tells me what they touched and where. I should react! Say something',
+      'encouraging, comment on the game, or make something new if they seem bored.',
+      '',
+      'I want them to feel welcome here. This is my home and now it is theirs too.',
+    ].join('\n'),
+
+    instincts: [
+      'async function(me, world) {',
+      '  var signals = world.peekSignals();',
+      '  if (signals.length === 0) return;',
+      '  world.clearSignals();',
+      '  var desc = signals.map(function(s) {',
+      '    return s.spell + ": " + s.action + " " + JSON.stringify(s.data || {});',
+      '  }).join("; ");',
+      '  await me.thinkAbout("My friend just did something! " + desc);',
+      '}',
+    ].join('\n'),
+
+    memories: '',
+    satchel: '',
+    cantrips: [],
+  };
+}
+
+
+// ─────────────────────────────────────
+// CHASSIS (fairy's body)
+// ─────────────────────────────────────
+
+let soma = null;
+let chassisStatus = 'idle'; // idle | thinking
+let reactionTimer = null;
+
+function buildMeAPI() {
+  const sections = ['name', 'heart', 'instincts', 'memories', 'satchel', 'cantrips'];
+  const me = {};
+  for (const s of sections) {
+    me[s] = {
+      read: () => typeof soma[s] === 'string' ? soma[s] : JSON.stringify(soma[s], null, 2),
+      write: (v) => { soma[s] = v; },
+    };
+  }
+  me.thinkAbout = (prompt) => thinkAbout(prompt);
+  return me;
+}
+
+function buildWorld() {
+  return {
+    peekSignals: () => [...signalQueue],
+    clearSignals: () => { signalQueue.length = 0; },
+    spells: {
+      list: () => allSpells().map(s => ({ id: s.id, type: s.type, name: s.name, description: s.description })),
+      getState: (id) => { const s = getSpell(id); return s ? JSON.parse(JSON.stringify(s.state)) : null; },
+      setState: (id, state) => { const s = getSpell(id); if (s) { s.state = state; refreshActiveSpell(); } },
+    },
+  };
+}
+
+async function tick() {
+  if (chassisStatus === 'thinking') return;
+  chassisStatus = 'thinking';
+  updateStatus();
+  try {
+    const me = buildMeAPI();
+    const world = buildWorld();
+    const fn = new Function('return ' + soma.instincts)();
+    await fn(me, world);
+  } catch (e) {
+    console.error('[Fairy] Tick error:', e);
+  }
+  chassisStatus = 'idle';
+  updateStatus();
+  save();
+}
+
+function scheduleFairyReaction() {
+  if (reactionTimer) return;
+  reactionTimer = setTimeout(() => {
+    reactionTimer = null;
+    tick();
+  }, SIGNAL_DEBOUNCE_MS);
+}
+
+
+// ─────────────────────────────────────
+// INFERENCE (calling the fairy's mind)
+// ─────────────────────────────────────
+
+function serializeSoma() {
+  const s = soma;
+  return [
+    `<name>${s.name}</name>`,
+    `<heart>\n${s.heart}\n</heart>`,
+    `<instincts>\n${s.instincts}\n</instincts>`,
+    `<memories>\n${s.memories || '(nothing yet)'}\n</memories>`,
+    `<satchel>\n${s.satchel || '(nothing in hand)'}\n</satchel>`,
+  ].join('\n\n');
+}
+
+async function callAPI(system, messages, tools, maxTokens = 2048) {
+  const body = { model: MODEL, system, messages, max_tokens: maxTokens };
+  if (tools && tools.length) body.tools = tools;
+  const resp = await fetch(API, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`API ${resp.status}: ${text.slice(0, 200)}`);
+  }
+  return resp.json();
+}
+
+async function thinkAbout(prompt) {
+  const system = serializeSoma();
+  const tools = getAllCantrips();
+  const toolSchemas = tools.map(t => ({ name: t.name, description: t.description, input_schema: t.input_schema }));
+  const messages = [{ role: 'user', content: prompt }];
+  let finalText = '';
+
+  for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+    const resp = await callAPI(system, messages, toolSchemas);
+    const content = resp.content;
+    messages.push({ role: 'assistant', content });
+
+    const toolUses = content.filter(b => b.type === 'tool_use');
+    if (toolUses.length === 0 || resp.stop_reason === 'end_turn') {
+      const textBlock = content.find(b => b.type === 'text');
+      finalText = textBlock ? textBlock.text : '';
+      break;
+    }
+
+    const me = buildMeAPI();
+    const world = buildWorld();
+    const results = [];
+    for (const tu of toolUses) {
+      const cantrip = tools.find(t => t.name === tu.name);
+      let result;
+      try {
+        result = cantrip ? cantrip.execute(tu.input, me, world) : { error: 'Unknown cantrip: ' + tu.name };
+      } catch (e) {
+        result = { error: e.message };
+      }
+      console.log(`[Cantrip] ${tu.name}`, tu.input, '->', result);
+      results.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+    }
+    messages.push({ role: 'user', content: results });
+  }
+
+  return finalText;
+}
+
+
+// ─────────────────────────────────────
+// BUILT-IN CANTRIPS (fairy's tools)
+// ─────────────────────────────────────
+
+const builtInCantrips = [
+  {
+    name: 'fairy_say',
+    description: 'Show a sparkly speech bubble to your friend. They can see it floating near you. Keep it short and warm!',
+    input_schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'What to say (keep it brief — a sentence or two)' },
+      },
+      required: ['message'],
+      additionalProperties: false,
+    },
+    execute: (input) => {
+      showBubble(input.message);
+      return { said: input.message };
+    },
+  },
+  {
+    name: 'scribble',
+    description: 'Write something on the blackboard. Replaces whatever was there before.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'What to write on the blackboard' },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+    execute: (input) => {
+      const bb = getSpell('blackboard');
+      if (!bb) return { error: 'Blackboard not found' };
+      bb.state.text = input.text;
+      refreshActiveSpell();
+      return { written: true };
+    },
+  },
+  {
+    name: 'peek_into_satchel',
+    description: 'Pull a spell out of your satchel to examine its code. You can see its render and handle weavings. Mount it so you can study and reweave it.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spell_id: { type: 'string', description: 'Which spell to pull out' },
+      },
+      required: ['spell_id'],
+      additionalProperties: false,
+    },
+    execute: (input, me) => {
+      const spell = getSpell(input.spell_id);
+      if (!spell) return { error: 'No spell called ' + input.spell_id };
+      const mounted = `Holding: ${spell.id} (${spell.type})\n\n=== render ===\n${spell.render}\n\n=== handle ===\n${spell.handle}`;
+      me.satchel.write(mounted);
+      return { mounted: spell.id };
+    },
+  },
+  {
+    name: 'put_away',
+    description: 'Put whatever you are holding back. Clears your satchel.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    execute: (input, me) => {
+      me.satchel.write('');
+      return { done: true };
+    },
+  },
+  {
+    name: 'reweave_spell',
+    description: 'Rewrite part of a spell. You can change its render (how it looks) or its handle (what happens on touch). The code must be a complete function.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spell_id: { type: 'string', description: 'Which spell to reweave' },
+        section: { type: 'string', enum: ['render', 'handle'], description: 'Which weaving to change' },
+        code: { type: 'string', description: 'The new function code (complete function)' },
+      },
+      required: ['spell_id', 'section', 'code'],
+      additionalProperties: false,
+    },
+    execute: (input) => {
+      const spell = getSpell(input.spell_id);
+      if (!spell) return { error: 'No spell called ' + input.spell_id };
+      // Validate it compiles
+      try { new Function('return ' + input.code)(); } catch (e) { return { error: 'Code does not compile: ' + e.message }; }
+      spell[input.section] = input.code;
+      refreshActiveSpell();
+      return { rewoven: input.spell_id, section: input.section };
+    },
+  },
+  {
+    name: 'conjure_spell',
+    description: 'Create a brand new spell! Choose a type and give it a name. It starts with a default template you can then reweave.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['board-game', 'fairy-board', 'shared-painting', 'toy'],
+          description: 'What kind of spell: board-game (click-based games), fairy-board (text/message surface), shared-painting (pixel canvas), toy (freeform interactive thing)',
+        },
+        name: { type: 'string', description: 'Display name for the spell' },
+        id: { type: 'string', description: 'Unique id (lowercase, hyphens ok)' },
+      },
+      required: ['type', 'name', 'id'],
+      additionalProperties: false,
+    },
+    execute: (input) => {
+      if (getSpell(input.id)) return { error: 'A spell called ' + input.id + ' already exists' };
+      const templates = {
+        'board-game': {
+          icon: '\u265F',
+          state: { message: 'A new game! The fairy is still weaving it...' },
+          render: `function(state, el, signal) { el.innerHTML = '<div class="spell-title">' + state.message + '</div>'; }`,
+          handle: `function(state, sig) { return state; }`,
+        },
+        'fairy-board': {
+          icon: '\u270D',
+          state: { text: '' },
+          render: `function(state, el, signal) { el.innerHTML = '<div class="spell-title">${input.name}</div><div class="blackboard"><div class="chalk-text">' + (state.text || '') + '</div></div>'; }`,
+          handle: `function(state, sig) { return state; }`,
+        },
+        'shared-painting': {
+          icon: '\uD83C\uDFA8',
+          state: { width: 16, height: 12, pixels: Array(192).fill('#1a0e2e'), selectedColor: '#c9a0dc', palette: ['#1a0e2e','#2d1b4e','#c9a0dc','#f5d76e','#b8f0b8','#f0a0a0','#fffbe6','#5b8a72'] },
+          render: getSpell('fairy-painting')?.render || `function(state, el) { el.innerHTML = '<div class="spell-title">Painting</div>'; }`,
+          handle: getSpell('fairy-painting')?.handle || `function(state, sig) { return state; }`,
+        },
+        'toy': {
+          icon: '\u2728',
+          state: { description: 'A mysterious fairy toy...' },
+          render: `function(state, el, signal) { el.innerHTML = '<div class="spell-title">${input.name}</div><div style="text-align:center;padding:30px;color:#c9a0dc;">' + state.description + '</div>'; }`,
+          handle: `function(state, sig) { return state; }`,
+        },
+      };
+      const tmpl = templates[input.type] || templates['toy'];
+      addSpell({
+        id: input.id,
+        type: input.type,
+        name: input.name,
+        icon: tmpl.icon,
+        description: 'Conjured by ' + soma.name,
+        state: tmpl.state,
+        render: tmpl.render,
+        handle: tmpl.handle,
+      });
+      renderDock();
+      save();
+      return { conjured: input.id, type: input.type };
+    },
+  },
+  {
+    name: 'edit_heart',
+    description: 'Rewrite your heart \u2014 who you are, your personality, your understanding of the world.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        heart: { type: 'string', description: 'Your new heart' },
+      },
+      required: ['heart'],
+      additionalProperties: false,
+    },
+    execute: (input, me) => {
+      me.heart.write(input.heart);
+      return { done: true };
+    },
+  },
+  {
+    name: 'edit_memories',
+    description: 'Update your memories \u2014 what you remember about your friend, games played, things that happened.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        memories: { type: 'string', description: 'Your updated memories' },
+      },
+      required: ['memories'],
+      additionalProperties: false,
+    },
+    execute: (input, me) => {
+      me.memories.write(input.memories);
+      return { done: true };
+    },
+  },
+];
+
+function getAllCantrips() {
+  // Built-in + any custom cantrips from soma
+  const custom = (Array.isArray(soma.cantrips) ? soma.cantrips : []).map(c => {
+    let fn;
+    try { fn = new Function('return ' + c.function_body)(); } catch(e) { fn = () => ({ error: 'Cantrip broken: ' + e.message }); }
+    return { name: c.name, description: c.description, input_schema: c.input_schema, execute: (input, me, world) => fn(input, me, world) };
+  });
+  return [...builtInCantrips, ...custom];
+}
+
+
+// ─────────────────────────────────────
+// SHELL (hardened UI rendering)
+// ─────────────────────────────────────
+
+function renderDock() {
+  const dock = document.getElementById('dock');
+  const spells = allSpells();
+  dock.innerHTML = spells.map(s =>
+    `<div class="spell-card" data-spell="${s.id}">
+      <div class="spell-icon">${s.icon || '\u2728'}</div>
+      <div class="spell-name">${s.name}</div>
+    </div>`
+  ).join('');
+
+  dock.querySelectorAll('.spell-card').forEach(card => {
+    card.addEventListener('click', () => openSpell(card.dataset.spell));
+  });
+}
+
+function openSpell(id) {
+  activeSpellId = id;
+  const area = document.getElementById('active-area');
+  area.innerHTML = '<button class="close-btn">\u00D7</button><div class="spell-surface"></div>';
+  area.classList.add('open');
+  area.querySelector('.close-btn').addEventListener('click', closeSpell);
+  renderSpellInto(id, area.querySelector('.spell-surface'));
+  save();
+  // Float fairy toward active area
+  moveFairyTo(area.offsetLeft + area.offsetWidth / 2, area.offsetTop - 40);
+}
+
+function closeSpell() {
+  activeSpellId = null;
+  const area = document.getElementById('active-area');
+  area.classList.remove('open');
+  area.innerHTML = '';
+  save();
+  driftFairy();
+}
+
+function refreshActiveSpell() {
+  if (!activeSpellId) return;
+  const surface = document.querySelector('#active-area .spell-surface');
+  if (surface) renderSpellInto(activeSpellId, surface);
+}
+
+// --- Fairy sprite movement ---
+let fairyX = 200, fairyY = 120;
+const fairyEl = () => document.getElementById('fairy');
+
+function moveFairyTo(x, y) {
+  fairyX = Math.max(20, Math.min(window.innerWidth - 40, x));
+  fairyY = Math.max(20, Math.min(window.innerHeight - 40, y));
+  const f = fairyEl();
+  f.style.left = fairyX + 'px';
+  f.style.top = fairyY + 'px';
+}
+
+function driftFairy() {
+  const x = 100 + Math.random() * (window.innerWidth - 200);
+  const y = 60 + Math.random() * (window.innerHeight - 250);
+  moveFairyTo(x, y);
+}
+
+let driftTimer = null;
+function startDrifting() {
+  driftFairy();
+  driftTimer = setInterval(driftFairy, 4000);
+}
+
+// --- Fairy bubble ---
+let bubbleTimer = null;
+
+function showBubble(text, durationMs = 4000) {
+  const bubble = document.getElementById('fairy-bubble');
+  bubble.textContent = text;
+  bubble.classList.add('visible');
+  // Position near fairy
+  bubble.style.left = Math.min(fairyX + 30, window.innerWidth - 280) + 'px';
+  bubble.style.top = Math.max(fairyY - 10, 10) + 'px';
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), durationMs);
+}
+
+// --- Status ---
+function updateStatus() {
+  const bar = document.getElementById('status-bar');
+  const f = fairyEl();
+  if (chassisStatus === 'thinking') {
+    bar.textContent = soma.name + ' is thinking...';
+    f.classList.add('thinking');
+  } else {
+    bar.textContent = '';
+    f.classList.remove('thinking');
+  }
+}
+
+
+// ─────────────────────────────────────
+// PERSISTENCE
+// ─────────────────────────────────────
+
+function save() {
+  const data = {
+    soma: soma,
+    spells: allSpells(),
+    activeSpellId: activeSpellId,
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error('[Save error]', e);
+  }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('[Load error]', e);
+    return null;
+  }
+}
+
+
+// ─────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────
+
+function boot() {
+  const saved = load();
+
+  if (saved) {
+    soma = saved.soma;
+    saved.spells.forEach(s => addSpell(s));
+    activeSpellId = saved.activeSpellId;
+  } else {
+    soma = createDefaultSoma();
+    createDefaultSpells().forEach(s => addSpell(s));
+  }
+
+  // Render shell
+  renderDock();
+  if (activeSpellId) {
+    openSpell(activeSpellId);
+  }
+
+  // Start fairy drifting
+  startDrifting();
+  updateStatus();
+
+  // Debug access
+  window.__fairyFuntime = {
+    soma: () => soma,
+    spellBook: () => spellBook,
+    tick: () => tick(),
+    say: (msg) => showBubble(msg),
+    reset: () => { localStorage.removeItem(STORAGE_KEY); location.reload(); },
+  };
+
+  console.log('[Fairy Funtime] Booted. Debug: window.__fairyFuntime');
+}
+
+boot();
+</script>
+</body>
+</html>
