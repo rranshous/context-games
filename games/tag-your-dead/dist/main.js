@@ -36743,12 +36743,12 @@ function stateToText(me, world) {
 
 // src/reflex/reward.ts
 function captureRewardSnapshot(car) {
-  return {
-    score: car.score
-  };
+  return { score: car.score };
 }
+var PASSIVE_PER_TICK = CONFIG.SCORE.PER_SECOND / 60;
 function computeReward(prev, curr) {
-  return curr.score - prev.score;
+  const delta = curr.score - prev.score;
+  return delta - PASSIVE_PER_TICK;
 }
 
 // src/reflex/reflex-layer.ts
