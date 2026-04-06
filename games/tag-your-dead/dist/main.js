@@ -35586,6 +35586,152 @@ function renderSandPatch(ctx, sx, sy) {
   }
 }
 
+// src/reflex/actions.ts
+function nearestCar(me, cars, filter) {
+  let best = null;
+  let bestD = Infinity;
+  for (const c of cars) {
+    if (!c.alive) continue;
+    if (filter && !filter(c)) continue;
+    const d = me.distanceTo(c.x, c.y);
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
+}
+function steerToward(me, tx, ty) {
+  const targetAngle = me.angleTo(tx, ty);
+  let diff = targetAngle - me.angle;
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  return { steer: Math.max(-1, Math.min(1, diff * 3)), accel: 1 };
+}
+function steerAway(me, tx, ty) {
+  const v = steerToward(me, tx, ty);
+  return { steer: -v.steer, accel: 1 };
+}
+var TENDENCY_DEFS = [
+  // ── Pursuit ──
+  {
+    name: "ram_nearest",
+    description: "steer toward the nearest visible car and accelerate",
+    available: (_me, world) => world.otherCars.some((c) => c.alive),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars);
+      return t ? steerToward(me, t.x, t.y) : { steer: 0, accel: 0 };
+    }
+  },
+  {
+    name: "ram_it_car",
+    description: "steer toward the car that is IT",
+    available: (_me, world) => world.otherCars.some((c) => c.alive && c.isIt),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars, (c) => c.isIt);
+      return t ? steerToward(me, t.x, t.y) : { steer: 0, accel: 0 };
+    }
+  },
+  {
+    name: "ram_weakest",
+    description: "steer toward the car with the lowest HP",
+    available: (_me, world) => world.otherCars.some((c) => c.alive),
+    direction: (me, world) => {
+      const alive = world.otherCars.filter((c) => c.alive);
+      if (alive.length === 0) return { steer: 0, accel: 0 };
+      const weakest = alive.reduce((a, b) => a.hp < b.hp ? a : b);
+      return steerToward(me, weakest.x, weakest.y);
+    }
+  },
+  // ── Evasion ──
+  {
+    name: "flee_nearest",
+    description: "steer away from the nearest visible car",
+    available: (_me, world) => world.otherCars.some((c) => c.alive),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars);
+      return t ? steerAway(me, t.x, t.y) : { steer: 0, accel: 0 };
+    }
+  },
+  {
+    name: "flee_it_car",
+    description: "steer away from the car that is IT",
+    available: (_me, world) => world.otherCars.some((c) => c.alive && c.isIt),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars, (c) => c.isIt);
+      return t ? steerAway(me, t.x, t.y) : { steer: 0, accel: 0 };
+    }
+  },
+  // ── Positioning ──
+  {
+    name: "circle_nearest",
+    description: "orbit around the nearest car at medium distance",
+    available: (_me, world) => world.otherCars.some((c) => c.alive),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars);
+      if (!t) return { steer: 0, accel: 0 };
+      const angle = me.angleTo(t.x, t.y);
+      const orbitAngle = angle + Math.PI / 2;
+      let diff = orbitAngle - me.angle;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      return { steer: Math.max(-1, Math.min(1, diff * 2)), accel: 0.7 };
+    }
+  },
+  {
+    name: "cruise_forward",
+    description: "drive straight ahead",
+    available: () => true,
+    direction: () => ({ steer: 0, accel: 1 })
+  },
+  {
+    name: "steer_left",
+    description: "turn left",
+    available: () => true,
+    direction: () => ({ steer: -1, accel: 0.5 })
+  },
+  {
+    name: "steer_right",
+    description: "turn right",
+    available: () => true,
+    direction: () => ({ steer: 1, accel: 0.5 })
+  },
+  {
+    name: "brake",
+    description: "slow down",
+    available: () => true,
+    direction: () => ({ steer: 0, accel: -1 })
+  },
+  {
+    name: "reverse",
+    description: "back up",
+    available: () => true,
+    direction: () => ({ steer: 0, accel: -0.8 })
+  },
+  // ── IT-specific ──
+  {
+    name: "hunt_non_immune",
+    description: "chase the nearest non-immune car to pass the IT tag",
+    available: (me, world) => me.isIt && world.otherCars.some((c) => c.alive && c.immuneTimer <= 0),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars, (c) => c.immuneTimer <= 0);
+      return t ? steerToward(me, t.x, t.y) : { steer: 0, accel: 0 };
+    }
+  },
+  // ── Ally-relative ──
+  {
+    name: "spread_out",
+    description: "move away from the nearest visible car to spread coverage",
+    available: (_me, world) => world.otherCars.some((c) => c.alive),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars);
+      return t ? steerAway(me, t.x, t.y) : { steer: 0, accel: 0 };
+    }
+  }
+];
+var TENDENCY_NAMES = TENDENCY_DEFS.map((t) => t.name);
+var TENDENCY_COUNT = TENDENCY_DEFS.length;
+
 // src/soma.ts
 var PERSONALITIES = [
   {
@@ -35593,51 +35739,15 @@ var PERSONALITIES = [
     color: "blue",
     identity: `I am Viper. I strike fast and vanish. When I'm it, I'm a wrecking ball \u2014 3x damage means I can destroy cars fast. When not it, I ram weakened targets to finish them off, but dodge the "it" car. Low HP? Play cautious.`,
     on_tick: `
-      // When "it": chase nearest to pass tag AND deal massive damage
-      // When not "it": hunt low-HP cars, dodge "it" car
-      const alive = world.otherCars.filter(c => c.alive);
-      const itCar = alive.find(c => c.isIt);
-
       if (me.isIt) {
-        // Target nearest non-immune car (preferring low HP)
-        let best = null;
-        let bestScore = -Infinity;
-        for (const c of alive) {
-          if (c.immuneTimer > 0) continue;
-          const d = me.distanceTo(c.x, c.y);
-          const score = (100 - c.hp) - d * 0.3; // prefer low HP + close
-          if (score > bestScore) { bestScore = score; best = c; }
-        }
-        if (best) {
-          const angle = me.angleTo(best.x, best.y);
-          const diff = angle - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
-          me.accelerate(1);
-          // Boost when closing in for the kill
-          if (me.distanceTo(best.x, best.y) < 120) me.boost();
-        }
+        me.hunt_non_immune(0.9);
+        me.ram_weakest(0.5);
       } else {
-        // Dodge "it" car if close
-        if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
-          const awayAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
-          const diff = awayAngle - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
-          me.accelerate(1);
-          // Boost to escape if "it" is very close
-          if (me.distanceTo(itCar.x, itCar.y) < 100) me.boost();
-        } else {
-          // Ram weakened cars if we're healthy
-          const weak = alive.filter(c => !c.isIt && c.hp < 40);
-          if (me.hp > 50 && weak.length > 0) {
-            const target = weak.reduce((a, b) => me.distanceTo(a.x, a.y) < me.distanceTo(b.x, b.y) ? a : b);
-            const angle = me.angleTo(target.x, target.y);
-            const diff = angle - me.angle;
-            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
-            me.accelerate(0.8);
-          } else {
-            me.steer(Math.sin(world.time * 0.5) * 0.3);
-            me.accelerate(0.6);
-          }
+        me.flee_it_car(0.6);
+        me.ram_weakest(0.7);
+        if (me.hp < 40) {
+          me.flee_nearest(0.4);
+          me.cruise_forward(0.3);
         }
       }
     `
@@ -35647,183 +35757,63 @@ var PERSONALITIES = [
     color: "green",
     identity: `I am Bruiser. Big hits, no finesse. I charge straight at targets to deal maximum damage. When I'm it, I'm devastating \u2014 3x damage with full-speed rams. I never back down.`,
     on_tick: `
-      const alive = world.otherCars.filter(c => c.alive);
-      const itCar = alive.find(c => c.isIt);
-
       if (me.isIt) {
-        // Charge closest non-immune car at full speed
-        let closestDist = Infinity;
-        let target = null;
-        for (const c of alive) {
-          if (c.immuneTimer > 0) continue;
-          const d = me.distanceTo(c.x, c.y);
-          if (d < closestDist) { closestDist = d; target = c; }
-        }
-        if (target) {
-          const angle = me.angleTo(target.x, target.y);
-          const diff = angle - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
-          me.accelerate(1);
-          // Bruiser always boosts when charging
-          me.boost();
-        }
+        me.ram_nearest(0.9);
       } else {
-        // Zigzag away from "it", but ram anyone in our path
-        if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
-          const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
-          const diff = away - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 3) * 0.5);
-          me.accelerate(0.9);
-        } else {
-          // Hunt weakest car
-          const weakest = alive.filter(c => !c.isIt).sort((a, b) => a.hp - b.hp)[0];
-          if (weakest && me.hp > 30) {
-            const angle = me.angleTo(weakest.x, weakest.y);
-            const diff = angle - me.angle;
-            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
-            me.accelerate(1);
-          } else {
-            me.steer(Math.sin(world.time * 0.8) * 0.5);
-            me.accelerate(0.5);
-          }
-        }
+        me.flee_it_car(0.4);
+        me.ram_nearest(0.8);
+        me.ram_weakest(0.6);
       }
     `
   },
   {
     name: "Ghost",
     color: "yellow",
-    identity: `I am Ghost. I drift near the center for maximum escape routes. I avoid damage when healthy and only engage when I have the advantage. When it, I herd targets into corners for devastating 3x hits.`,
+    identity: `I am Ghost. Patient and evasive. I avoid damage and only engage when I have the advantage. When it, I hunt carefully. When not, I keep my distance and pick my moments.`,
     on_tick: `
-      const centerX = world.arenaWidth / 2;
-      const centerY = world.arenaHeight / 2;
-      const alive = world.otherCars.filter(c => c.alive);
-      const itCar = alive.find(c => c.isIt);
-
       if (me.isIt) {
-        // Herd nearest non-immune target
-        let target = null;
-        let minD = Infinity;
-        for (const c of alive) {
-          if (c.immuneTimer > 0) continue;
-          const d = me.distanceTo(c.x, c.y);
-          if (d < minD) { minD = d; target = c; }
-        }
-        if (target) {
-          const angle = me.angleTo(target.x, target.y);
-          const diff = angle - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
-          me.accelerate(minD < 100 ? 1 : 0.7);
-          // Boost for the final approach
-          if (minD < 80) me.boost();
-        }
+        me.hunt_non_immune(0.8);
+        me.ram_nearest(0.4);
       } else {
-        // Orbit center, dodge "it" and high-speed cars
-        const toCenter = me.angleTo(centerX, centerY);
-        let targetAngle = toCenter;
-
-        if (itCar && me.distanceTo(itCar.x, itCar.y) < 180) {
-          targetAngle = me.angleTo(itCar.x, itCar.y) + Math.PI;
-          // Boost away from danger
-          if (me.distanceTo(itCar.x, itCar.y) < 100) me.boost();
+        me.flee_it_car(0.7);
+        me.flee_nearest(0.3);
+        me.circle_nearest(0.4);
+        if (me.hp < 30) {
+          me.flee_nearest(0.6);
+          me.brake(0.2);
         }
-
-        const diff = targetAngle - me.angle;
-        me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2);
-        // Slow down when low HP to reduce collision damage taken
-        me.accelerate(me.hp < 30 ? 0.4 : 0.65);
       }
     `
   },
   {
     name: "Rattler",
     color: "police",
-    identity: `I am Rattler. I intercept targets by predicting their path. When it, I lead my target for high-speed 3x damage impacts. When not it, I lurk and strike low-HP cars opportunistically.`,
+    identity: `I am Rattler. I intercept and strike. When it, I hunt aggressively to pass the tag. When not it, I lurk and strike low-HP cars opportunistically.`,
     on_tick: `
-      const alive = world.otherCars.filter(c => c.alive);
-      const itCar = alive.find(c => c.isIt);
-
       if (me.isIt) {
-        // Intercept: aim ahead of target's path (prioritize low HP)
-        let target = null;
-        let bestScore = -Infinity;
-        for (const c of alive) {
-          if (c.immuneTimer > 0) continue;
-          const d = me.distanceTo(c.x, c.y);
-          const score = (100 - c.hp) * 2 - d;
-          if (score > bestScore) { bestScore = score; target = c; }
-        }
-        if (target) {
-          const d = me.distanceTo(target.x, target.y);
-          const lead = Math.min(d / 200, 1.5);
-          const futureX = target.x + Math.cos(target.angle) * target.speed * lead;
-          const futureY = target.y + Math.sin(target.angle) * target.speed * lead;
-          const angle = me.angleTo(futureX, futureY);
-          const diff = angle - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
-          me.accelerate(1);
-          // Boost when intercept is close
-          if (d < 150) me.boost();
-        }
+        me.hunt_non_immune(0.9);
+        me.ram_weakest(0.6);
       } else {
-        // Dodge "it", opportunistically ram low-HP cars
-        if (itCar && me.distanceTo(itCar.x, itCar.y) < 220) {
-          const away = me.angleTo(itCar.x, itCar.y) + Math.PI;
-          const diff = away - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
-          me.accelerate(1);
-        } else {
-          const weak = alive.filter(c => !c.isIt && c.hp < 50);
-          if (weak.length > 0 && me.hp > 40) {
-            const t = weak[0];
-            const d = me.distanceTo(t.x, t.y);
-            const lead = Math.min(d / 200, 1);
-            const fx = t.x + Math.cos(t.angle) * t.speed * lead;
-            const fy = t.y + Math.sin(t.angle) * t.speed * lead;
-            const angle = me.angleTo(fx, fy);
-            const diff = angle - me.angle;
-            me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5);
-            me.accelerate(0.8);
-          } else {
-            me.steer(Math.sin(world.time * 0.4 + 1.5) * 0.4);
-            me.accelerate(0.55);
-          }
-        }
+        me.flee_it_car(0.5);
+        me.ram_weakest(0.8);
+        me.cruise_forward(0.3);
       }
     `
   },
   {
     name: "Dust Devil",
     color: "npc",
-    identity: `I am Dust Devil. Chaotic and unpredictable. I change direction constantly to be hard to catch and hard to predict. When it, I pick random targets and slam them with 3x damage. Chaos is my advantage.`,
+    identity: `I am Dust Devil. Chaotic and unpredictable. I change direction constantly. When it, I ram everyone. Chaos is my advantage.`,
     on_tick: `
-      const alive = world.otherCars.filter(c => c.alive);
-      const itCar = alive.find(c => c.isIt);
-
       if (me.isIt) {
-        // Random target, switch every few seconds \u2014 chaos with 3x damage
-        const targets = alive.filter(c => c.immuneTimer <= 0);
-        if (targets.length > 0) {
-          const idx = Math.floor(world.time * 0.3) % targets.length;
-          const target = targets[idx];
-          const angle = me.angleTo(target.x, target.y);
-          const diff = angle - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 2 + Math.sin(world.time * 5) * 0.3);
-          me.accelerate(1);
-          // Chaotic boost \u2014 whenever it's ready, use it
-          me.boost();
-        }
+        me.ram_nearest(0.7);
+        me.hunt_non_immune(0.5);
+        me.steer_left(0.2);
       } else {
-        // Erratic \u2014 dodge "it", crash into everyone else
-        if (itCar && me.distanceTo(itCar.x, itCar.y) < 200) {
-          const away = me.angleTo(itCar.x, itCar.y) + Math.PI + (Math.random() - 0.5) * 1.5;
-          const diff = away - me.angle;
-          me.steer(Math.atan2(Math.sin(diff), Math.cos(diff)) * 3);
-          me.accelerate(1);
-        } else {
-          me.steer(Math.sin(world.time * 2.5) * 0.8 + Math.cos(world.time * 1.7) * 0.4);
-          me.accelerate(0.5 + Math.sin(world.time * 3) * 0.3);
-        }
+        me.flee_it_car(0.3);
+        me.ram_nearest(0.4);
+        me.steer_right(0.3);
+        me.cruise_forward(0.3);
       }
     `
   }
@@ -35864,8 +35854,8 @@ function compileOnTick(code) {
     };
   }
 }
-function buildMeAPI(car, soma, arena) {
-  return {
+function buildMeAPI(car, soma, arena, tendencyAccumulator) {
+  const me = {
     get x() {
       return car.x;
     },
@@ -35902,6 +35892,9 @@ function buildMeAPI(car, soma, arena) {
     get alive() {
       return car.alive;
     },
+    // Legacy direct controls — kept for backward compat if Claude
+    // generates them during reflection, but on_tick should prefer
+    // the vocabulary methods (me.ram_nearest(0.8) etc.)
     steer(dir) {
       car.steer(dir);
     },
@@ -35949,6 +35942,14 @@ function buildMeAPI(car, soma, arena) {
       }
     }
   };
+  if (tendencyAccumulator) {
+    for (const name of TENDENCY_NAMES) {
+      me[name] = (magnitude2) => {
+        tendencyAccumulator.setOnTick(name, magnitude2);
+      };
+    }
+  }
+  return me;
 }
 function buildWorldAPI(time, arena, allCars, selfId) {
   const self2 = allCars.find((c) => c.id === selfId);
@@ -35975,16 +35976,6 @@ function buildWorldAPI(time, arena, allCars, selfId) {
       type: o.type
     }))
   };
-}
-function runOnTick(car, soma, time, arena, allCars) {
-  const fn2 = compileOnTick(soma.on_tick.content);
-  const me = buildMeAPI(car, soma, arena);
-  const world = buildWorldAPI(time, arena, allCars, car.id);
-  try {
-    fn2(me, world);
-  } catch (err) {
-    console.warn(`[SOMA] on_tick error for ${car.id}:`, err);
-  }
 }
 function createSoma(personality) {
   return {
@@ -36436,16 +36427,22 @@ var TDLearner = class _TDLearner {
   }
   /** Online TD update: called AFTER the next tick's activation is available. */
   update(currentActivation, reward) {
-    if (!this.prevActivation || this.prevActionIndex < 0) return;
+    if (!this.prevActivation) return;
     const V_now = this.prevValue;
     const V_next = this.valueProbe.logit(currentActivation);
     const tdError = reward + this.config.gamma * V_next - V_now;
     this.valueProbe.update(this.prevActivation, tdError, this.config.valueLR);
-    this.actionProbes[this.prevActionIndex].update(
-      this.prevActivation,
-      tdError,
-      this.config.actionLR
-    );
+    if (this.prevActionIndex >= 0) {
+      this.actionProbes[this.prevActionIndex].update(
+        this.prevActivation,
+        tdError,
+        this.config.actionLR
+      );
+    } else {
+      for (const probe of this.actionProbes) {
+        probe.update(this.prevActivation, tdError, this.config.actionLR);
+      }
+    }
     this.totalUpdates++;
     this.recentTDErrors.push(tdError);
     if (this.recentTDErrors.length > 100) this.recentTDErrors.shift();
@@ -36489,209 +36486,6 @@ var TDLearner = class _TDLearner {
     return td;
   }
 };
-
-// src/reflex/actions.ts
-function nearestCar(me, cars, filter) {
-  let best = null;
-  let bestD = Infinity;
-  for (const c of cars) {
-    if (!c.alive) continue;
-    if (filter && !filter(c)) continue;
-    const d = me.distanceTo(c.x, c.y);
-    if (d < bestD) {
-      bestD = d;
-      best = c;
-    }
-  }
-  return best;
-}
-function steerToward(me, tx, ty) {
-  const targetAngle = me.angleTo(tx, ty);
-  let diff = targetAngle - me.angle;
-  while (diff > Math.PI) diff -= 2 * Math.PI;
-  while (diff < -Math.PI) diff += 2 * Math.PI;
-  me.steer(Math.max(-1, Math.min(1, diff * 3)));
-  me.accelerate(1);
-}
-function steerAway(me, tx, ty) {
-  const awayAngle = me.angleTo(tx, ty) + Math.PI;
-  let diff = awayAngle - me.angle;
-  while (diff > Math.PI) diff -= 2 * Math.PI;
-  while (diff < -Math.PI) diff += 2 * Math.PI;
-  me.steer(Math.max(-1, Math.min(1, diff * 3)));
-  me.accelerate(1);
-}
-var DERBY_ACTIONS = [
-  // ── Pursuit ──
-  {
-    name: "ram_nearest",
-    description: "charge the nearest visible car at full speed",
-    available: (_me, world) => world.otherCars.some((c) => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (t) {
-        steerToward(me, t.x, t.y);
-      }
-    }
-  },
-  {
-    name: "ram_it_car",
-    description: "charge the car that is IT",
-    available: (_me, world) => world.otherCars.some((c) => c.alive && c.isIt),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars, (c) => c.isIt);
-      if (t) {
-        steerToward(me, t.x, t.y);
-      }
-    }
-  },
-  {
-    name: "ram_weakest",
-    description: "charge the car with the lowest HP",
-    available: (_me, world) => world.otherCars.some((c) => c.alive),
-    execute: (me, world) => {
-      const alive = world.otherCars.filter((c) => c.alive);
-      if (alive.length === 0) return;
-      const weakest = alive.reduce((a, b) => a.hp < b.hp ? a : b);
-      steerToward(me, weakest.x, weakest.y);
-    }
-  },
-  {
-    name: "boost_ram_nearest",
-    description: "boost and charge the nearest car",
-    available: (me, world) => me.boostCooldownFrac >= 1 && world.otherCars.some((c) => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (t) {
-        steerToward(me, t.x, t.y);
-        me.boost();
-      }
-    }
-  },
-  // ── Evasion ──
-  {
-    name: "flee_nearest",
-    description: "drive away from the nearest visible car",
-    available: (_me, world) => world.otherCars.some((c) => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (t) {
-        steerAway(me, t.x, t.y);
-      }
-    }
-  },
-  {
-    name: "flee_it_car",
-    description: "drive away from the car that is IT",
-    available: (_me, world) => world.otherCars.some((c) => c.alive && c.isIt),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars, (c) => c.isIt);
-      if (t) {
-        steerAway(me, t.x, t.y);
-      }
-    }
-  },
-  {
-    name: "boost_flee",
-    description: "boost and flee from the nearest car",
-    available: (me, world) => me.boostCooldownFrac >= 1 && world.otherCars.some((c) => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (t) {
-        steerAway(me, t.x, t.y);
-        me.boost();
-      }
-    }
-  },
-  // ── Positioning ──
-  {
-    name: "circle_nearest",
-    description: "orbit around the nearest car at medium distance",
-    available: (_me, world) => world.otherCars.some((c) => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (!t) return;
-      const angle = me.angleTo(t.x, t.y);
-      const orbitAngle = angle + Math.PI / 2;
-      let diff = orbitAngle - me.angle;
-      while (diff > Math.PI) diff -= 2 * Math.PI;
-      while (diff < -Math.PI) diff += 2 * Math.PI;
-      me.steer(Math.max(-1, Math.min(1, diff * 2)));
-      me.accelerate(0.7);
-    }
-  },
-  {
-    name: "cruise_forward",
-    description: "drive straight ahead at moderate speed",
-    available: () => true,
-    execute: (me) => {
-      me.steer(0);
-      me.accelerate(0.6);
-    }
-  },
-  {
-    name: "hard_turn_left",
-    description: "sharp left turn",
-    available: () => true,
-    execute: (me) => {
-      me.steer(-1);
-      me.accelerate(0.5);
-    }
-  },
-  {
-    name: "hard_turn_right",
-    description: "sharp right turn",
-    available: () => true,
-    execute: (me) => {
-      me.steer(1);
-      me.accelerate(0.5);
-    }
-  },
-  {
-    name: "reverse",
-    description: "back up",
-    available: () => true,
-    execute: (me) => {
-      me.steer(0);
-      me.brake(1);
-    }
-  },
-  {
-    name: "stop",
-    description: "full brake, hold position",
-    available: () => true,
-    execute: (me) => {
-      me.brake(1);
-    }
-  },
-  // ── IT-specific ──
-  {
-    name: "hunt_non_immune",
-    description: "chase the nearest non-immune car to pass the IT tag",
-    available: (me, world) => me.isIt && world.otherCars.some((c) => c.alive && c.immuneTimer <= 0),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars, (c) => c.immuneTimer <= 0);
-      if (t) {
-        steerToward(me, t.x, t.y);
-        me.accelerate(1);
-      }
-    }
-  },
-  {
-    name: "boost_hunt",
-    description: "boost toward the nearest non-immune car",
-    available: (me, world) => me.isIt && me.boostCooldownFrac >= 1 && world.otherCars.some((c) => c.alive && c.immuneTimer <= 0),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars, (c) => c.immuneTimer <= 0);
-      if (t) {
-        steerToward(me, t.x, t.y);
-        me.boost();
-      }
-    }
-  }
-];
-var DERBY_ACTION_NAMES = DERBY_ACTIONS.map((a) => a.name);
-var DERBY_ACTION_COUNT = DERBY_ACTIONS.length;
 
 // src/reflex/state-to-text.ts
 function bearing(angle) {
@@ -36747,10 +36541,8 @@ function stateToText(me, world) {
 function captureRewardSnapshot(car) {
   return { score: car.score };
 }
-var PASSIVE_PER_TICK = CONFIG.SCORE.PER_SECOND / 60;
 function computeReward(prev, curr) {
-  const delta = curr.score - prev.score;
-  return delta - PASSIVE_PER_TICK;
+  return curr.score - prev.score;
 }
 
 // src/reflex/reflex-layer.ts
@@ -36772,11 +36564,14 @@ var CarReflex = class {
   ticksSinceReset = 0;
   constructor(carId, dim) {
     this.carId = carId;
-    this.td = new TDLearner(dim, DERBY_ACTION_NAMES);
-    for (const name of DERBY_ACTION_NAMES) this.actionCounts.set(name, 0);
+    this.td = new TDLearner(dim, TENDENCY_NAMES);
+    for (const name of TENDENCY_NAMES) this.actionCounts.set(name, 0);
   }
-  /** Run before on_tick: compute priorities, select action, apply controls. */
-  async preTick(car, me, world, reservoir, config) {
+  /** Update cached reservoir activations + probe priorities on cadence.
+   *  Does NOT select or execute actions — that's done via the
+   *  TendencyAccumulator in game.ts, which composes probe magnitudes
+   *  with on_tick magnitudes via softmax. */
+  async updateReservoir(car, me, world, reservoir, config) {
     if (!config.enabled || !car.alive) return;
     this.ticksSinceReset++;
     this.framesSinceReservoir++;
@@ -36786,22 +36581,8 @@ var CarReflex = class {
       this.cachedPriorities = this.td.priorities(this.cachedActivation);
       this.framesSinceReservoir = 0;
     }
-    if (!this.cachedActivation || !this.cachedPriorities) return;
-    let bestIdx = -1;
-    let bestPriority = -Infinity;
-    for (let i = 0; i < DERBY_ACTIONS.length; i++) {
-      if (!DERBY_ACTIONS[i].available(me, world)) continue;
-      if (this.cachedPriorities[i] > bestPriority) {
-        bestPriority = this.cachedPriorities[i];
-        bestIdx = i;
-      }
-    }
-    if (bestIdx >= 0) {
-      DERBY_ACTIONS[bestIdx].execute(me, world);
-      this.lastSelectedAction = bestIdx;
-      this.td.recordSelection(bestIdx, this.cachedActivation);
-      const name = DERBY_ACTION_NAMES[bestIdx];
-      this.actionCounts.set(name, (this.actionCounts.get(name) || 0) + 1);
+    if (this.cachedActivation) {
+      this.td.recordSelection(-1, this.cachedActivation);
     }
   }
   /** Run after physics: compute reward, TD update. */
@@ -36840,7 +36621,7 @@ var ReflexLayer = class {
     if (this.loaded) return;
     await this.reservoir.load();
     this.loaded = true;
-    console.log(`[REFLEX] reservoir loaded, dim=${this.reservoir.activationDim}, actions=${DERBY_ACTION_COUNT}`);
+    console.log(`[REFLEX] reservoir loaded, dim=${this.reservoir.activationDim}, actions=${TENDENCY_COUNT}`);
   }
   /** Get or create the CarReflex for a given car. */
   getReflex(carId) {
@@ -36851,11 +36632,11 @@ var ReflexLayer = class {
     }
     return cr2;
   }
-  /** Pre-tick for one car. Called from game.ts before on_tick. */
-  async preTick(car, me, world) {
+  /** Update reservoir + priorities for one car. Called from game.ts. */
+  async updateReservoir(car, me, world) {
     if (!this.loaded || !this.config.enabled) return;
     const cr2 = this.getReflex(car.id);
-    await cr2.preTick(car, me, world, this.reservoir, this.config);
+    await cr2.updateReservoir(car, me, world, this.reservoir, this.config);
   }
   /** Post-tick for one car. Called from game.ts after physics. */
   postTick(car) {
@@ -36966,6 +36747,69 @@ var OnnxReservoirBridge = class {
     }
     const n = numHeads * seqLen;
     for (let d = 0; d < headDim; d++) out[offset + d] /= n;
+  }
+};
+
+// src/reflex/tendency-system.ts
+var TendencyAccumulator = class {
+  /** Magnitudes from tendency probes (learned). */
+  probeMagnitudes;
+  /** Magnitudes from on_tick calls (authored). */
+  onTickMagnitudes;
+  constructor() {
+    this.probeMagnitudes = new Float32Array(TENDENCY_COUNT);
+    this.onTickMagnitudes = new Float32Array(TENDENCY_COUNT);
+  }
+  /** Reset for a new tick. */
+  clear() {
+    this.probeMagnitudes.fill(0);
+    this.onTickMagnitudes.fill(0);
+  }
+  /** Called by the on_tick API: me.ram_nearest(0.8) → setOnTick('ram_nearest', 0.8). */
+  setOnTick(name, magnitude2) {
+    const idx = TENDENCY_NAMES.indexOf(name);
+    if (idx < 0) return;
+    this.onTickMagnitudes[idx] = Math.max(0, Math.min(1, magnitude2));
+  }
+  /** Set probe magnitudes from the TD learner. */
+  setProbes(magnitudes) {
+    for (let i = 0; i < TENDENCY_COUNT && i < magnitudes.length; i++) {
+      this.probeMagnitudes[i] = magnitudes[i];
+    }
+  }
+  /** Compose all tendencies via softmax → net (steer, accel).
+   *  Returns the clamped controls to apply to the car. */
+  compose(me, world) {
+    const totals = new Float32Array(TENDENCY_COUNT);
+    for (let i = 0; i < TENDENCY_COUNT; i++) {
+      totals[i] = this.probeMagnitudes[i] + this.onTickMagnitudes[i];
+    }
+    const directions = [];
+    for (let i = 0; i < TENDENCY_COUNT; i++) {
+      if (totals[i] < 1e-3 || !TENDENCY_DEFS[i].available(me, world)) {
+        directions.push(null);
+        totals[i] = 0;
+      } else {
+        directions.push(TENDENCY_DEFS[i].direction(me, world));
+      }
+    }
+    let sum = 0;
+    for (let i = 0; i < TENDENCY_COUNT; i++) sum += totals[i];
+    if (sum < 1e-3) {
+      return { steer: 0, accel: 0 };
+    }
+    let netSteer = 0;
+    let netAccel = 0;
+    for (let i = 0; i < TENDENCY_COUNT; i++) {
+      if (!directions[i]) continue;
+      const share = totals[i] / sum;
+      netSteer += share * directions[i].steer;
+      netAccel += share * directions[i].accel;
+    }
+    return {
+      steer: Math.max(-1, Math.min(1, netSteer)),
+      accel: Math.max(-1, Math.min(1, netAccel))
+    };
   }
 };
 
@@ -37221,14 +37065,30 @@ var Game = class {
     }
     for (const ai of this.aiCars) {
       if (!ai.car.alive) continue;
-      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
-    }
-    if (this.reflexLayer) {
-      for (const ai of this.aiCars) {
-        if (!ai.car.alive) continue;
-        const me = buildMeAPI(ai.car, ai.soma, this.arena);
-        const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
-        this.reflexLayer.preTick(ai.car, me, world);
+      const accum = new TendencyAccumulator();
+      if (this.reflexLayer) {
+        const cr2 = this.reflexLayer.getReflex(ai.car.id);
+        if (cr2.cachedPriorities) {
+          accum.setProbes(cr2.cachedPriorities);
+        }
+        const meForText = buildMeAPI(ai.car, ai.soma, this.arena);
+        const worldForText = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
+        this.reflexLayer.updateReservoir(ai.car, meForText, worldForText);
+      }
+      const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
+      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum);
+      try {
+        const fn2 = compileOnTick(ai.soma.on_tick.content);
+        fn2(me, world);
+      } catch (err) {
+        console.warn(`[SOMA] on_tick error for ${ai.car.id}:`, err);
+      }
+      const net = accum.compose(me, world);
+      ai.car.steer(net.steer);
+      if (net.accel >= 0) {
+        ai.car.accelerate(net.accel);
+      } else {
+        ai.car.brake(-net.accel);
       }
     }
     const wasAlive = /* @__PURE__ */ new Map();

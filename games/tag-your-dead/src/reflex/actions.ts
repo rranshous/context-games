@@ -1,21 +1,33 @@
-// ── Action Vocabulary for Derby Cars ──
-// Each action maps to a specific driving behavior. The reflex layer scores
-// all available actions and the highest-priority one fires.
+// ── Action Vocabulary (Tendency System) ──
+// Each action is a DIRECTIONAL FUNCTION: given (me, world), it returns the
+// direction this tendency wants to pull the car. The magnitude comes from
+// elsewhere — either the tendency probe (learned) or the on_tick code
+// (authored). Both use the same vocabulary.
 //
-// The actions here produce CONTROL INPUTS (steer, accel, brake, boost) on the
-// `me` API — they don't bypass physics. They compose with whatever the soma's
-// on_tick code is doing.
-//
-// Design intent: broad vocabulary, let training discover what's useful. Dead
-// actions are diagnostic signal for the cognition layer (reflection).
+// Every action fires every tick. The net movement is a softmax-weighted
+// composition of all active tendencies. There is no argmax, no selection.
 
 import { MeAPI, WorldAPI, OtherCarAPI } from '../soma';
 
-export interface DerbyAction {
+/** A tendency's directional contribution: where it wants to steer and
+ *  how much it wants to accelerate. Values are unbounded unit-direction
+ *  type numbers (the softmax + clamping happens downstream). */
+export interface TendencyVector {
+  steer: number;   // negative = left, positive = right (relative to car facing)
+  accel: number;   // positive = forward, negative = brake/reverse
+}
+
+export interface TendencyDef {
+  /** Short name — used in on_tick API as me.{name}(magnitude). */
   name: string;
+  /** Human-readable description for Claude reflection context. */
   description: string;
+  /** Is this tendency applicable right now? If false, it contributes
+   *  nothing regardless of magnitude. */
   available: (me: MeAPI, world: WorldAPI) => boolean;
-  execute: (me: MeAPI, world: WorldAPI) => void;
+  /** The directional pull of this tendency. Returns a unit-ish direction;
+   *  magnitude is applied externally. */
+  direction: (me: MeAPI, world: WorldAPI) => TendencyVector;
 }
 
 // ── Helpers ──
@@ -32,93 +44,70 @@ function nearestCar(me: MeAPI, cars: OtherCarAPI[], filter?: (c: OtherCarAPI) =>
   return best;
 }
 
-function steerToward(me: MeAPI, tx: number, ty: number): void {
+function steerToward(me: MeAPI, tx: number, ty: number): TendencyVector {
   const targetAngle = me.angleTo(tx, ty);
   let diff = targetAngle - me.angle;
   while (diff > Math.PI) diff -= 2 * Math.PI;
   while (diff < -Math.PI) diff += 2 * Math.PI;
-  me.steer(Math.max(-1, Math.min(1, diff * 3)));
-  me.accelerate(1);
+  return { steer: Math.max(-1, Math.min(1, diff * 3)), accel: 1 };
 }
 
-function steerAway(me: MeAPI, tx: number, ty: number): void {
-  const awayAngle = me.angleTo(tx, ty) + Math.PI;
-  let diff = awayAngle - me.angle;
-  while (diff > Math.PI) diff -= 2 * Math.PI;
-  while (diff < -Math.PI) diff += 2 * Math.PI;
-  me.steer(Math.max(-1, Math.min(1, diff * 3)));
-  me.accelerate(1);
+function steerAway(me: MeAPI, tx: number, ty: number): TendencyVector {
+  const v = steerToward(me, tx, ty);
+  return { steer: -v.steer, accel: 1 };
 }
 
-// ── The action vocabulary ──
+// ── The vocabulary ──
 
-export const DERBY_ACTIONS: DerbyAction[] = [
+export const TENDENCY_DEFS: TendencyDef[] = [
   // ── Pursuit ──
   {
     name: 'ram_nearest',
-    description: 'charge the nearest visible car at full speed',
+    description: 'steer toward the nearest visible car and accelerate',
     available: (_me, world) => world.otherCars.some(c => c.alive),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const t = nearestCar(me, world.otherCars);
-      if (t) { steerToward(me, t.x, t.y); }
+      return t ? steerToward(me, t.x, t.y) : { steer: 0, accel: 0 };
     },
   },
   {
     name: 'ram_it_car',
-    description: 'charge the car that is IT',
+    description: 'steer toward the car that is IT',
     available: (_me, world) => world.otherCars.some(c => c.alive && c.isIt),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const t = nearestCar(me, world.otherCars, c => c.isIt);
-      if (t) { steerToward(me, t.x, t.y); }
+      return t ? steerToward(me, t.x, t.y) : { steer: 0, accel: 0 };
     },
   },
   {
     name: 'ram_weakest',
-    description: 'charge the car with the lowest HP',
+    description: 'steer toward the car with the lowest HP',
     available: (_me, world) => world.otherCars.some(c => c.alive),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const alive = world.otherCars.filter(c => c.alive);
-      if (alive.length === 0) return;
+      if (alive.length === 0) return { steer: 0, accel: 0 };
       const weakest = alive.reduce((a, b) => a.hp < b.hp ? a : b);
-      steerToward(me, weakest.x, weakest.y);
-    },
-  },
-  {
-    name: 'boost_ram_nearest',
-    description: 'boost and charge the nearest car',
-    available: (me, world) => me.boostCooldownFrac >= 1 && world.otherCars.some(c => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (t) { steerToward(me, t.x, t.y); me.boost(); }
+      return steerToward(me, weakest.x, weakest.y);
     },
   },
 
   // ── Evasion ──
   {
     name: 'flee_nearest',
-    description: 'drive away from the nearest visible car',
+    description: 'steer away from the nearest visible car',
     available: (_me, world) => world.otherCars.some(c => c.alive),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const t = nearestCar(me, world.otherCars);
-      if (t) { steerAway(me, t.x, t.y); }
+      return t ? steerAway(me, t.x, t.y) : { steer: 0, accel: 0 };
     },
   },
   {
     name: 'flee_it_car',
-    description: 'drive away from the car that is IT',
+    description: 'steer away from the car that is IT',
     available: (_me, world) => world.otherCars.some(c => c.alive && c.isIt),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const t = nearestCar(me, world.otherCars, c => c.isIt);
-      if (t) { steerAway(me, t.x, t.y); }
-    },
-  },
-  {
-    name: 'boost_flee',
-    description: 'boost and flee from the nearest car',
-    available: (me, world) => me.boostCooldownFrac >= 1 && world.otherCars.some(c => c.alive),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars);
-      if (t) { steerAway(me, t.x, t.y); me.boost(); }
+      return t ? steerAway(me, t.x, t.y) : { steer: 0, accel: 0 };
     },
   },
 
@@ -127,62 +116,46 @@ export const DERBY_ACTIONS: DerbyAction[] = [
     name: 'circle_nearest',
     description: 'orbit around the nearest car at medium distance',
     available: (_me, world) => world.otherCars.some(c => c.alive),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const t = nearestCar(me, world.otherCars);
-      if (!t) return;
+      if (!t) return { steer: 0, accel: 0 };
       const angle = me.angleTo(t.x, t.y);
-      // Perpendicular offset for orbiting
       const orbitAngle = angle + Math.PI / 2;
       let diff = orbitAngle - me.angle;
       while (diff > Math.PI) diff -= 2 * Math.PI;
       while (diff < -Math.PI) diff += 2 * Math.PI;
-      me.steer(Math.max(-1, Math.min(1, diff * 2)));
-      me.accelerate(0.7);
+      return { steer: Math.max(-1, Math.min(1, diff * 2)), accel: 0.7 };
     },
   },
   {
     name: 'cruise_forward',
-    description: 'drive straight ahead at moderate speed',
+    description: 'drive straight ahead',
     available: () => true,
-    execute: (me) => {
-      me.steer(0);
-      me.accelerate(0.6);
-    },
+    direction: () => ({ steer: 0, accel: 1 }),
   },
   {
-    name: 'hard_turn_left',
-    description: 'sharp left turn',
+    name: 'steer_left',
+    description: 'turn left',
     available: () => true,
-    execute: (me) => {
-      me.steer(-1);
-      me.accelerate(0.5);
-    },
+    direction: () => ({ steer: -1, accel: 0.5 }),
   },
   {
-    name: 'hard_turn_right',
-    description: 'sharp right turn',
+    name: 'steer_right',
+    description: 'turn right',
     available: () => true,
-    execute: (me) => {
-      me.steer(1);
-      me.accelerate(0.5);
-    },
+    direction: () => ({ steer: 1, accel: 0.5 }),
+  },
+  {
+    name: 'brake',
+    description: 'slow down',
+    available: () => true,
+    direction: () => ({ steer: 0, accel: -1 }),
   },
   {
     name: 'reverse',
     description: 'back up',
     available: () => true,
-    execute: (me) => {
-      me.steer(0);
-      me.brake(1);
-    },
-  },
-  {
-    name: 'stop',
-    description: 'full brake, hold position',
-    available: () => true,
-    execute: (me) => {
-      me.brake(1);
-    },
+    direction: () => ({ steer: 0, accel: -0.8 }),
   },
 
   // ── IT-specific ──
@@ -190,21 +163,23 @@ export const DERBY_ACTIONS: DerbyAction[] = [
     name: 'hunt_non_immune',
     description: 'chase the nearest non-immune car to pass the IT tag',
     available: (me, world) => me.isIt && world.otherCars.some(c => c.alive && c.immuneTimer <= 0),
-    execute: (me, world) => {
+    direction: (me, world) => {
       const t = nearestCar(me, world.otherCars, c => c.immuneTimer <= 0);
-      if (t) { steerToward(me, t.x, t.y); me.accelerate(1); }
+      return t ? steerToward(me, t.x, t.y) : { steer: 0, accel: 0 };
     },
   },
+
+  // ── Ally-relative ──
   {
-    name: 'boost_hunt',
-    description: 'boost toward the nearest non-immune car',
-    available: (me, world) => me.isIt && me.boostCooldownFrac >= 1 && world.otherCars.some(c => c.alive && c.immuneTimer <= 0),
-    execute: (me, world) => {
-      const t = nearestCar(me, world.otherCars, c => c.immuneTimer <= 0);
-      if (t) { steerToward(me, t.x, t.y); me.boost(); }
+    name: 'spread_out',
+    description: 'move away from the nearest visible car to spread coverage',
+    available: (_me, world) => world.otherCars.some(c => c.alive),
+    direction: (me, world) => {
+      const t = nearestCar(me, world.otherCars);
+      return t ? steerAway(me, t.x, t.y) : { steer: 0, accel: 0 };
     },
   },
 ];
 
-export const DERBY_ACTION_NAMES: string[] = DERBY_ACTIONS.map(a => a.name);
-export const DERBY_ACTION_COUNT: number = DERBY_ACTIONS.length;
+export const TENDENCY_NAMES: string[] = TENDENCY_DEFS.map(t => t.name);
+export const TENDENCY_COUNT: number = TENDENCY_DEFS.length;

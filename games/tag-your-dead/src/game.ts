@@ -13,13 +13,14 @@ import {
   renderBarrel, renderSandPatch,
 } from './sprites.js';
 import {
-  PERSONALITIES, CarPersonality, createSoma, runOnTick,
+  PERSONALITIES, CarPersonality, createSoma,
   saveSomas, loadSomas, compileOnTick,
+  buildMeAPI, buildWorldAPI,
 } from './soma.js';
 import { reflectOnLife, ReflectionResult } from './reflection.js';
 import { ReflexLayer } from './reflex/reflex-layer.js';
 import { OnnxReservoirBridge } from './reflex/onnx-bridge.js';
-import { buildMeAPI, buildWorldAPI } from './soma.js';
+import { TendencyAccumulator } from './reflex/tendency-system.js';
 import {
   triggerShake, updateShake, spawnDust, spawnTagSparks,
   spawnEliminationExplosion, updateParticles, renderParticles,
@@ -174,28 +175,49 @@ export class Game {
       if (controls.boost) this.player.boost();
     }
 
-    // AI on_tick (soma's authored code runs FIRST — sets the "conscious" controls)
+    // ── Tendency composition: both layers contribute to the same pool ──
+    //
+    // 1. Create accumulator, set probe magnitudes (learned tendencies)
+    // 2. Build me API with accumulator so on_tick vocabulary calls register
+    // 3. Run on_tick (authored tendencies register via me.ram_nearest(0.8) etc.)
+    // 4. Softmax-compose all tendencies → net steer/accel → apply to car
+    //
+    // Both layers speak the same vocabulary. The car's movement is the
+    // ordinal-weighted composition of all active tendencies from both sources.
     for (const ai of this.aiCars) {
       if (!ai.car.alive) continue;
-      runOnTick(ai.car, ai.soma, this.gameTime, this.arena, this.allCars);
-    }
 
-    // Reflex layer: fires AFTER on_tick. The reflex is the "final word" —
-    // it can override the soma's controls based on learned priorities. This
-    // ordering means the reflex IS the behavioral output. The soma provides
-    // authored intent; the reflex provides learned reflex override.
-    //
-    // In the future this could be more nuanced (blend soma + reflex, or let
-    // the reflex selectively override only certain controls). For now, the
-    // experiment needs clean measurement of whether reflexes help.
-    if (this.reflexLayer) {
-      for (const ai of this.aiCars) {
-        if (!ai.car.alive) continue;
-        const me = buildMeAPI(ai.car, ai.soma, this.arena);
-        const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
-        // Fire-and-forget: preTick is async (reservoir call) but we don't await.
-        // The reflex layer caches its last result and uses it synchronously.
-        this.reflexLayer.preTick(ai.car, me, world);
+      const accum = new TendencyAccumulator();
+
+      // Tendency probes: set learned magnitudes (if reflex layer is loaded)
+      if (this.reflexLayer) {
+        const cr = this.reflexLayer.getReflex(ai.car.id);
+        if (cr.cachedPriorities) {
+          accum.setProbes(cr.cachedPriorities);
+        }
+        // Fire-and-forget reservoir update on cadence
+        const meForText = buildMeAPI(ai.car, ai.soma, this.arena);
+        const worldForText = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
+        this.reflexLayer.updateReservoir(ai.car, meForText, worldForText);
+      }
+
+      // on_tick: soma's authored code registers tendencies via vocabulary
+      const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
+      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum);
+      try {
+        const fn = compileOnTick(ai.soma.on_tick.content);
+        fn(me, world);
+      } catch (err) {
+        console.warn(`[SOMA] on_tick error for ${ai.car.id}:`, err);
+      }
+
+      // Compose: softmax all tendencies → net controls → apply
+      const net = accum.compose(me, world);
+      ai.car.steer(net.steer);
+      if (net.accel >= 0) {
+        ai.car.accelerate(net.accel);
+      } else {
+        ai.car.brake(-net.accel);
       }
     }
 

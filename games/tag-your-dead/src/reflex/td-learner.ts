@@ -116,7 +116,7 @@ export class TDLearner {
 
   /** Online TD update: called AFTER the next tick's activation is available. */
   update(currentActivation: Float32Array, reward: number): void {
-    if (!this.prevActivation || this.prevActionIndex < 0) return;
+    if (!this.prevActivation) return;
 
     const V_now = this.prevValue;
     const V_next = this.valueProbe.logit(currentActivation);
@@ -125,10 +125,22 @@ export class TDLearner {
     // Update value probe
     this.valueProbe.update(this.prevActivation, tdError, this.config.valueLR);
 
-    // Update the action probe that was selected
-    this.actionProbes[this.prevActionIndex].update(
-      this.prevActivation, tdError, this.config.actionLR,
-    );
+    if (this.prevActionIndex >= 0) {
+      // Single action mode (legacy argmax): update only the selected probe
+      this.actionProbes[this.prevActionIndex].update(
+        this.prevActivation, tdError, this.config.actionLR,
+      );
+    } else {
+      // Tendency mode (all-fire): update ALL action probes.
+      // Each probe contributed proportionally via softmax, so each gets
+      // the same TD error signal. The probe's own magnitude determines
+      // how much it contributed, but the gradient direction is the same
+      // for all — this is correct because the TD error reflects the
+      // whole composition, not any individual tendency.
+      for (const probe of this.actionProbes) {
+        probe.update(this.prevActivation, tdError, this.config.actionLR);
+      }
+    }
 
     this.totalUpdates++;
     this.recentTDErrors.push(tdError);

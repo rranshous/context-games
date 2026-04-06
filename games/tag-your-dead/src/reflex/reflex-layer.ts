@@ -20,7 +20,7 @@
 import { MeAPI, WorldAPI } from '../soma';
 import { Car } from '../car';
 import { TDLearner, DEFAULT_TD_CONFIG, TDConfig } from './td-learner';
-import { DERBY_ACTIONS, DERBY_ACTION_NAMES, DERBY_ACTION_COUNT } from './actions';
+import { TENDENCY_DEFS, TENDENCY_NAMES, TENDENCY_COUNT } from './actions';
 import { stateToText } from './state-to-text';
 import { RewardSnapshot, captureRewardSnapshot, computeReward } from './reward';
 
@@ -51,7 +51,7 @@ export class CarReflex {
   readonly carId: string;
   readonly td: TDLearner;
   private cachedActivation: Float32Array | null = null;
-  private cachedPriorities: Float32Array | null = null;
+  cachedPriorities: Float32Array | null = null;
   private prevReward: RewardSnapshot | null = null;
   private framesSinceReservoir: number = 0;
   private lastSelectedAction: number = -1;
@@ -62,12 +62,15 @@ export class CarReflex {
 
   constructor(carId: string, dim: number) {
     this.carId = carId;
-    this.td = new TDLearner(dim, DERBY_ACTION_NAMES);
-    for (const name of DERBY_ACTION_NAMES) this.actionCounts.set(name, 0);
+    this.td = new TDLearner(dim, TENDENCY_NAMES);
+    for (const name of TENDENCY_NAMES) this.actionCounts.set(name, 0);
   }
 
-  /** Run before on_tick: compute priorities, select action, apply controls. */
-  async preTick(
+  /** Update cached reservoir activations + probe priorities on cadence.
+   *  Does NOT select or execute actions — that's done via the
+   *  TendencyAccumulator in game.ts, which composes probe magnitudes
+   *  with on_tick magnitudes via softmax. */
+  async updateReservoir(
     car: Car,
     me: MeAPI,
     world: WorldAPI,
@@ -87,27 +90,13 @@ export class CarReflex {
       this.framesSinceReservoir = 0;
     }
 
-    if (!this.cachedActivation || !this.cachedPriorities) return;
-
-    // Select highest-priority available action
-    let bestIdx = -1;
-    let bestPriority = -Infinity;
-    for (let i = 0; i < DERBY_ACTIONS.length; i++) {
-      if (!DERBY_ACTIONS[i].available(me, world)) continue;
-      if (this.cachedPriorities[i] > bestPriority) {
-        bestPriority = this.cachedPriorities[i];
-        bestIdx = i;
-      }
-    }
-
-    if (bestIdx >= 0) {
-      // Execute the reflex action (sets steer/accel/brake on the me API)
-      DERBY_ACTIONS[bestIdx].execute(me, world);
-      this.lastSelectedAction = bestIdx;
-      this.td.recordSelection(bestIdx, this.cachedActivation);
-      // Track usage
-      const name = DERBY_ACTION_NAMES[bestIdx];
-      this.actionCounts.set(name, (this.actionCounts.get(name) || 0) + 1);
+    // Record activation for TD update (will be used in postTick)
+    if (this.cachedActivation) {
+      // In the tendency system, ALL probes contribute simultaneously.
+      // We record the activation for the value probe's TD update.
+      // Individual action probes get updated proportionally to their
+      // magnitude in the softmax composition.
+      this.td.recordSelection(-1, this.cachedActivation); // -1 = all probes
     }
   }
 
@@ -156,7 +145,7 @@ export class ReflexLayer {
     if (this.loaded) return;
     await this.reservoir.load();
     this.loaded = true;
-    console.log(`[REFLEX] reservoir loaded, dim=${this.reservoir.activationDim}, actions=${DERBY_ACTION_COUNT}`);
+    console.log(`[REFLEX] reservoir loaded, dim=${this.reservoir.activationDim}, actions=${TENDENCY_COUNT}`);
   }
 
   /** Get or create the CarReflex for a given car. */
@@ -169,11 +158,11 @@ export class ReflexLayer {
     return cr;
   }
 
-  /** Pre-tick for one car. Called from game.ts before on_tick. */
-  async preTick(car: Car, me: MeAPI, world: WorldAPI): Promise<void> {
+  /** Update reservoir + priorities for one car. Called from game.ts. */
+  async updateReservoir(car: Car, me: MeAPI, world: WorldAPI): Promise<void> {
     if (!this.loaded || !this.config.enabled) return;
     const cr = this.getReflex(car.id);
-    await cr.preTick(car, me, world, this.reservoir, this.config);
+    await cr.updateReservoir(car, me, world, this.reservoir, this.config);
   }
 
   /** Post-tick for one car. Called from game.ts after physics. */

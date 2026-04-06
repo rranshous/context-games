@@ -17,7 +17,6 @@
 // everything EXCEPT the free survival drip.
 
 import { Car } from '../car';
-import { CONFIG } from '../config';
 
 export interface RewardSnapshot {
   score: number;
@@ -27,11 +26,10 @@ export function captureRewardSnapshot(car: Car): RewardSnapshot {
   return { score: car.score };
 }
 
-// Passive score per tick: CONFIG.SCORE.PER_SECOND / assumed 60fps
-const PASSIVE_PER_TICK = CONFIG.SCORE.PER_SECOND / 60;
-
-/** Reward = score delta minus passive baseline. */
+/** Reward = score delta. That's it. The game's own scoring IS the reward.
+ *  With the tendency system, the probes are a gentle lean — not the entire
+ *  behavior. The on_tick code carries the strategy. If the body's lean
+ *  helps what the driver is doing, score goes up. */
 export function computeReward(prev: RewardSnapshot, curr: RewardSnapshot): number {
-  const delta = curr.score - prev.score;
-  return delta - PASSIVE_PER_TICK;
+  return curr.score - prev.score;
 }
