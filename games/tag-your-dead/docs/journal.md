@@ -924,6 +924,61 @@ Player      (autopilot)                                  34
    init fingerprints, not from learned preferences. True content-dependent
    learning needs much longer runs or higher learning rates.
 
+### Serial experiments: reward signal + orienting context
+
+After the initial bugs were fixed, ran two serial experiments per
+Robby's direction: first change the reward, then change the state-to-text.
+
+**Experiment A: reward signal (3 iterations)**
+
+| version | reward | dominant behavior | finding |
+|---------|--------|-------------------|---------|
+| v1 hand-shaped | 6 custom components | 3/5 ram, 1 flee, 1 mixed | worked but Robby flagged: "reward shaping is the same problem as feature engineering" |
+| v2 raw score delta | `curr.score - prev.score` | 3/5 spinning | game score includes +1/sec survival, spinning is optimal |
+| v3 score minus passive | `delta - (1/60)` | 3/5 circle, 1 flee_it, 1 cruise | no spinning, evasive strategies dominate |
+
+Robby's insight was right to test: the game's built-in scoring was
+designed for human player experience (where survival is an achievement),
+not for RL reward (where you need to incentivize the behavior you want).
+Raw score delta didn't work as a drop-in reward — the +1/sec passive
+component dominated. Subtracting the passive baseline was a minimal
+fix that preserved the game's own damage/kill balance.
+
+v3 is interesting: Bruiser showed 67% `flee_it_car` + 34%
+`hard_turn_left` — genuine situational switching based on whether the
+IT car is visible.
+
+**Experiment B: orienting context in state-to-text**
+
+Added a constant prefix explaining the game to the reservoir:
+```
+Demolition derby. Ram other cars to score points. Being IT means
+dealing 3x damage but dying if the timer runs out.
+```
+Plus added the car's current score to the text.
+
+Key finding: **TD errors are 10-100x larger** with orienting context.
+
+```
+state-to-text version         meanAbsTD range
+no context (session 10b)      0.0001 - 0.0025
+score-minus-passive           0.0092 - 0.0098
+WITH orienting context        0.0097 - 0.3276  ← massive range
+```
+
+Rattler's TD error GREW from 0.08 to 0.25 between 426 and 972
+updates. Probes are actively learning — predictions getting
+contradicted by new experience — not plateauing. This is the first
+time we've seen growing TD errors, which means the gradient signal
+is strong enough to meaningfully move weights.
+
+Interpretation: distilgpt2 has richer pre-trained representations for
+"demolition derby" + "ram" + "danger" than for bare "car close
+northwest". The context primes the activation space toward
+game-relevant dimensions, amplifying per-state variance. This is
+exactly the argument for the LLM-as-reservoir: the model's pre-
+trained knowledge about concepts IS the feature engineering.
+
 ### What's working well
 
 - Reservoir loads from HuggingFace CDN in ~30s first run, ~2s cached
