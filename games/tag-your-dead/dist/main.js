@@ -36136,7 +36136,35 @@ async function callAPI(model, system, messages, tools, maxTokens = 4096) {
 var REFLECTION_TOOLS = [
   {
     name: "edit_on_tick",
-    description: "Rewrite your driving code \u2014 this is what actually runs every frame. Write the COMPLETE new on_tick body. Available API: me.x, me.y, me.angle, me.speed, me.hp, me.maxHp, me.maxSpeed, me.score, me.isIt, me.itTimer, me.immuneTimer, me.alive, me.steer(dir), me.accelerate(amt), me.brake(amt), me.boost(), me.isBoosting, me.boostCooldownFrac, me.distanceTo(x,y), me.angleTo(x,y), me.memory.read()/write(), me.identity.read(), me.on_tick.read(). world.time, world.arenaWidth, world.arenaHeight, world.otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], world.obstacles[{x,y,radius,type}].",
+    description: `Rewrite your driving code \u2014 runs every frame. Write the COMPLETE new on_tick body.
+
+DRIVING API \u2014 use these named actions instead of raw steer/accelerate. Each takes an ordinal magnitude (0 to 1) expressing how strongly you want that tendency. All active tendencies compose via softmax \u2014 they pull the car in different directions simultaneously. Higher magnitude = stronger pull.
+
+PURSUIT:
+  me.ram_nearest(mag)      \u2014 steer toward the nearest visible car
+  me.ram_it_car(mag)       \u2014 steer toward the car that is IT
+  me.ram_weakest(mag)      \u2014 steer toward the car with lowest HP
+  me.hunt_non_immune(mag)  \u2014 chase nearest non-immune car (to pass IT tag)
+
+EVASION:
+  me.flee_nearest(mag)     \u2014 steer away from the nearest car
+  me.flee_it_car(mag)      \u2014 steer away from the IT car
+  me.spread_out(mag)       \u2014 move away from nearest car (coverage)
+
+POSITIONING:
+  me.circle_nearest(mag)   \u2014 orbit around the nearest car
+  me.cruise_forward(mag)   \u2014 drive straight ahead
+  me.steer_left(mag)       \u2014 turn left
+  me.steer_right(mag)      \u2014 turn right
+  me.brake(mag)            \u2014 slow down
+  me.reverse(mag)          \u2014 back up
+
+SPECIAL:
+  me.boost()               \u2014 short speed burst (3s cooldown)
+
+Multiple tendencies compose: calling me.ram_nearest(0.8) AND me.flee_it_car(0.6) means "charge nearest car but veer away from IT car." The car's body also has its own learned tendencies that contribute \u2014 your code adds to those, not replaces them.
+
+READ-ONLY: me.x, me.y, me.angle, me.speed, me.hp, me.maxHp, me.maxSpeed, me.score, me.isIt, me.itTimer, me.immuneTimer, me.alive, me.isBoosting, me.boostCooldownFrac, me.distanceTo(x,y), me.angleTo(x,y), me.memory.read()/write(), me.identity.read(), me.on_tick.read(). world.time, world.arenaWidth, world.arenaHeight, world.otherCars[{id,x,y,angle,speed,hp,score,isIt,alive,immuneTimer}], world.obstacles[{x,y,radius,type}].`,
     input_schema: {
       type: "object",
       properties: {
@@ -36188,6 +36216,11 @@ async function reflectOnLife(carName, soma, result, arena) {
 <identity>${soma.identity.content}</identity>
 <on_tick>${soma.on_tick.content}</on_tick>
 <memory>${soma.memory.content || "(empty)"}</memory>
+
+HOW YOUR BODY WORKS:
+Your car has a tendency system \u2014 a set of learned "muscle memories" that pull your car in different directions simultaneously. Your on_tick code adds to those tendencies, not replaces them. Think of it like: the body already wants to move (based on experience), and your code gives conscious direction on top.
+
+Use named actions like me.ram_nearest(0.8) instead of raw me.steer()/me.accelerate(). The magnitude (0 to 1) expresses how strongly you want that tendency. Multiple tendencies compose \u2014 calling me.ram_nearest(0.8) AND me.flee_it_car(0.6) means "charge nearest but veer from IT." The magnitudes are ordinal: only relative proportions matter, not exact numbers.
 
 GAME MECHANICS:
 - Continuous demolition derby. No rounds \u2014 die, respawn in 5s, keep fighting.
