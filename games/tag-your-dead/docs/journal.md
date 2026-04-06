@@ -1034,6 +1034,33 @@ Key design decisions reached through conversation:
    universal: named actions with ordinal magnitudes, composed via softmax,
    probes on the tendency layer + explicit calls on the on_tick layer.
 
+### Live observation: tendency system working (2026-04-06)
+
+Tested in browser. Cars engage actively — no spinning, no single-action
+dominance. The shared vocabulary works: on_tick code like
+`me.ram_nearest(0.8)` composes with probe outputs via softmax.
+
+Probe magnitudes after 314 TD updates (sample from Viper):
+```
+ram_nearest:    0.827   steer_right:  0.831
+flee_it_car:    0.826   steer_left:   0.829
+reverse:        0.828   cruise_forward: 0.821
+ram_weakest:    0.811   brake:        0.815
+```
+
+All tendencies have comparable magnitudes (0.81-0.83 range). No single
+tendency dominates the softmax — each gets ~7-8% share. The on_tick's
+explicit calls shift the composition toward the driver's intent, and the
+body's learned lean sits underneath.
+
+TD errors are healthy (0.008-0.020), learning is active. Raw score delta
+reward is flowing without the passive-survival spinning problem because
+the tendency system can't spin — multiple tendencies pulling in different
+directions produce net movement, not circles.
+
+Scores: Viper 1371, Ghost 711, Rattler 275, Dust Devil 253, Bruiser 207.
+The rewritten on_tick code produces engaging derby behavior.
+
 **Implementation plan:**
 - `actions.ts` — each action becomes a directional function returning
   `{steer, accel}` instead of calling `me.steer()` directly
