@@ -21,7 +21,7 @@ import { MeAPI, WorldAPI } from '../soma';
 import { Car } from '../car';
 import { TDLearner, DEFAULT_TD_CONFIG, TDConfig } from './td-learner';
 import { TENDENCY_DEFS, TENDENCY_NAMES, TENDENCY_COUNT } from './actions';
-import { stateToText } from './state-to-text';
+import { stateToText, StateHistory } from './state-to-text';
 import { RewardSnapshot, captureRewardSnapshot, computeReward } from './reward';
 
 // Reservoir bridge interface (same as hunch)
@@ -56,6 +56,9 @@ export class CarReflex {
   private framesSinceReservoir: number = 0;
   private lastSelectedAction: number = -1;
 
+  // State history for temporal context in reservoir input
+  stateHistory: StateHistory = new StateHistory(4);
+
   // Diagnostics
   actionCounts: Map<string, number> = new Map();
   ticksSinceReset: number = 0;
@@ -84,9 +87,11 @@ export class CarReflex {
 
     // Reservoir forward pass on cadence
     if (this.framesSinceReservoir >= config.reservoirCadence || !this.cachedActivation) {
-      const text = stateToText(me, world);
+      const text = stateToText(me, world, this.stateHistory);
       this.cachedActivation = await reservoir.embed(text);
       this.cachedPriorities = this.td.priorities(this.cachedActivation);
+      // Push current snapshot to history for next reservoir call
+      this.stateHistory.push(stateToText(me, world));  // snapshot without history (just current tick)
       this.framesSinceReservoir = 0;
     }
 
@@ -116,6 +121,7 @@ export class CarReflex {
     this.prevReward = null;
     this.cachedActivation = null;
     this.cachedPriorities = null;
+    this.stateHistory.clear();
     this.framesSinceReservoir = 999; // force reservoir on next alive tick
   }
 

@@ -47,45 +47,80 @@ function hpBucket(hp: number, maxHp: number): string {
 // its representations for "IT" or "car close northwest" in isolation.
 const CONTEXT = 'Demolition derby. Ram other cars to score points. Being IT means dealing 3x damage but dying if the timer runs out. ';
 
-export function stateToText(me: MeAPI, world: WorldAPI): string {
-  const parts: string[] = [CONTEXT];
-
-  // Self status
-  parts.push(`I am ${hpBucket(me.hp, me.maxHp)}.`);
-  if (me.isIt) {
-    parts.push(`I am IT, ${Math.round(me.itTimer)}s left — I need to ram someone fast.`);
-  }
-  if (me.speed > 150) parts.push('Moving fast.');
+/** Generate a single-tick state description (no context prefix, no score). */
+function tickSnapshot(me: MeAPI, world: WorldAPI): string {
+  const parts: string[] = [];
+  parts.push(hpBucket(me.hp, me.maxHp) + '.');
+  if (me.isIt) parts.push(`IT, ${Math.round(me.itTimer)}s left.`);
+  if (me.speed > 150) parts.push('Fast.');
   else if (me.speed > 60) parts.push('Moving.');
   else parts.push('Slow.');
 
-  // Nearby cars (sorted by distance, top 3)
   const visible = world.otherCars
     .filter(c => c.alive)
-    .map(c => ({
-      c,
-      dist: me.distanceTo(c.x, c.y),
-      angle: me.angleTo(c.x, c.y),
-    }))
+    .map(c => ({ c, dist: me.distanceTo(c.x, c.y), angle: me.angleTo(c.x, c.y) }))
     .sort((a, b) => a.dist - b.dist)
-    .slice(0, 3);
+    .slice(0, 2);
 
   if (visible.length === 0) {
-    parts.push('No other cars in sight.');
+    parts.push('No cars visible.');
   } else {
     for (const { c, dist, angle } of visible) {
-      const tag = c.isIt ? ', IT' : '';
-      const health = c.hp < 30 ? ', weak' : '';
-      parts.push(`Car ${distBucket(dist)} to the ${bearing(angle)}${tag}${health}.`);
+      const tag = c.isIt ? ' IT' : '';
+      const health = c.hp < 30 ? ' weak' : '';
+      parts.push(`Car ${distBucket(dist)} ${bearing(angle)}${tag}${health}.`);
     }
   }
-
-  // Boost status
   if (me.isBoosting) parts.push('Boosting!');
-  else if (me.boostCooldownFrac >= 1) parts.push('Boost ready.');
-
-  // Score (awareness of own performance)
-  parts.push(`Score: ${Math.floor(me.score)}.`);
-
   return parts.join(' ');
+}
+
+/**
+ * Rolling history of recent state snapshots. Stored per-car in CarReflex.
+ * Each entry is a short tick-level description sampled every N ticks.
+ */
+export class StateHistory {
+  private buffer: string[] = [];
+  private maxEntries: number;
+
+  constructor(maxEntries: number = 4) {
+    this.maxEntries = maxEntries;
+  }
+
+  push(snapshot: string): void {
+    this.buffer.push(snapshot);
+    if (this.buffer.length > this.maxEntries) this.buffer.shift();
+  }
+
+  clear(): void {
+    this.buffer = [];
+  }
+
+  /** Build the full state-to-text with temporal context.
+   *  Format: orienting context + recent history + current state + score. */
+  toText(currentSnapshot: string, score: number): string {
+    const parts: string[] = [CONTEXT];
+    // Recent history (oldest first) with temporal labels
+    if (this.buffer.length > 0) {
+      const labels = ['Earlier', 'Then', 'Recently', 'Just now'];
+      const startIdx = Math.max(0, labels.length - this.buffer.length);
+      for (let i = 0; i < this.buffer.length; i++) {
+        parts.push(`${labels[startIdx + i]}: ${this.buffer[i]}`);
+      }
+    }
+    parts.push(`Now: ${currentSnapshot}`);
+    parts.push(`Score: ${score}.`);
+    return parts.join(' ');
+  }
+}
+
+/** Generate the state-to-text string for the reservoir. If a StateHistory
+ *  is provided, includes recent trajectory. Otherwise, single snapshot. */
+export function stateToText(me: MeAPI, world: WorldAPI, history?: StateHistory): string {
+  const snapshot = tickSnapshot(me, world);
+  if (history) {
+    return history.toText(snapshot, Math.floor(me.score));
+  }
+  // Fallback: single snapshot with context + score
+  return CONTEXT + snapshot + ` Score: ${Math.floor(me.score)}.`;
 }
