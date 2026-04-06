@@ -41,7 +41,9 @@ export interface ReflexConfig {
 }
 
 export const DEFAULT_REFLEX_CONFIG: ReflexConfig = {
-  reservoirCadence: 6,
+  reservoirCadence: 60,  // every 60 frames (~1Hz at 60fps). Was 6 (~10Hz).
+                         // Staler activations but ~10x faster game speed.
+                         // Probes read cached priorities between reservoir calls.
   td: DEFAULT_TD_CONFIG,
   enabled: true,
 };
