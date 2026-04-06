@@ -1061,6 +1061,56 @@ directions produce net movement, not circles.
 Scores: Viper 1371, Ghost 711, Rattler 275, Dust Devil 253, Bruiser 207.
 The rewritten on_tick code produces engaging derby behavior.
 
+### Reflection working: Claude evolves on_tick using the vocabulary (2026-04-06)
+
+Auth'd into the vanilla platform, reflection API calls now succeed.
+Observed two cars die and reflect with the new vocabulary API.
+
+**Rattler's first death + reflection:**
+- Died: IT timer ran out after 26 seconds
+- Claude called `edit_on_tick` (189 → 1534 chars) and `edit_memory` (845 chars)
+- New code uses vocabulary correctly with multiple simultaneous tendencies:
+  ```js
+  me.hunt_non_immune(1.0);
+  me.ram_nearest(0.7);
+  // If urgent:
+  me.ram_nearest(1.0);
+  me.hunt_non_immune(1.0);
+  ```
+- HP-aware mode switching: low HP → increase flee magnitudes
+- Mixed vocabulary with direct world queries (checks for weak targets
+  before boosting) — hybrid strategic reasoning
+- Memory: structured analysis of the life + strategy notes referencing
+  the vocabulary ("use hunt_non_immune(1.0) + ram_nearest(0.7)")
+- Brag: "Now I don't waste boost sitting around—I chain-ram hunts when
+  I'm it before the timer kills me."
+
+**Dust Devil's first death + reflection:**
+- Died: IT timer ran out after ~25 seconds
+- Self-corrected: identified `me.steer_left(0.2)` from the original
+  on_tick was causing circles, REMOVED it: "Steer_left bias was causing
+  circles instead of straight pursuit"
+- New code: cleaner, no steering bias, focused ram+hunt when IT
+- Memory: "When IT: Hunt non-immune HARD (0.9+), boost constantly, no
+  steering bias"
+
+**What this validates:**
+1. The cognition layer (Claude) understands and uses the vocabulary API
+   correctly — multiple simultaneous tendencies with ordinal magnitudes
+2. Claude reasons about strategy in terms of the vocabulary — memory
+   entries reference action names and magnitudes
+3. Claude can diagnose problems in its own code using the vocabulary
+   abstraction ("steer_left was causing circles")
+4. The two-layer system composes naturally: Claude writes strategic code
+   using the vocabulary, tendency probes add body lean underneath,
+   softmax composes both
+
+**Performance issue:** game runs at ~1/10 real time with reservoir
+active (5 AI cars × reservoir calls on cadence). 70s game time in
+~8 min wall time. Not a blocker for the experiment but would need
+optimization for playable integration (reduce cadence, batch reservoir
+calls, or skip reservoir for some cars).
+
 **Implementation plan:**
 - `actions.ts` — each action becomes a directional function returning
   `{steer, accel}` instead of calling `me.steer()` directly
