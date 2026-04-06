@@ -1660,6 +1660,228 @@ description string, a reward signal, and a tick loop.
 
 ---
 
+## Part 11: What happened when we built it into a real game
+
+*Added after integrating the tendency system into tag-your-dead, a
+continuous demolition derby with 5 AI personalities and Claude
+reflection between deaths.*
+
+### From experiment to integration
+
+Everything up to Part 10 was built in the hunch sandbox — a stripped-down
+fork of Hot Pursuit designed specifically for testing the reservoir+probe
+idea. Parts 1-10 proved the plumbing works, Pipeline A beats Pipeline B,
+and the vocabulary abstraction makes LLM-authored code dramatically
+cleaner. But it was all laboratory work.
+
+This section covers what happened when we brought the system into
+tag-your-dead, a game people actually play: continuous action, no
+discrete rounds, a human driver, 5 AI cars with Claude-authored driving
+code that evolves between deaths.
+
+### The tendency system (how vocabulary composition actually works)
+
+In hunch, the cop onTick selected ONE action via argmax — whoever had the
+highest priority won. That led to dominant-strategy collapse (one action
+always winning). In tag-your-dead, we built something different:
+
+**Every tendency fires every tick.** There's no selection. `ram_nearest`,
+`flee_it_car`, `cruise_forward` — all of them compute a directional pull
+simultaneously. Each has a magnitude from two sources: the learned probes
+(body lean) and the authored on_tick code (driver intent). All magnitudes
+enter a **softmax** pool — each tendency gets a proportional share of the
+car's movement budget.
+
+The key property: the magnitudes are **ordinal**. Only relative
+proportions matter. `me.ram_nearest(0.8)` and `me.ram_nearest(0.4)`
+produce different behavior only in relation to what OTHER tendencies are
+active. If `ram_nearest` is the only tendency, 0.8 and 0.4 give the same
+result (100% of the softmax share). If `flee_it_car(0.6)` is also
+active, then `ram_nearest(0.8)` wins the share competition differently
+than `ram_nearest(0.4)` does.
+
+Softmax is worth understanding because it shows up everywhere in ML.
+The formula:
+
+```
+share(i) = magnitude(i) / sum(all magnitudes)
+```
+
+With magnitudes `[0.8, 0.6, 0.3]`:
+```
+ram:   0.8 / 1.7 = 47%
+flee:  0.6 / 1.7 = 35%
+cruise: 0.3 / 1.7 = 18%
+```
+
+The car steers 47% toward ramming, 35% toward fleeing, 18% toward
+cruising. The net motion is a weighted blend of all three directional
+vectors. This is why the system can't collapse to spinning — multiple
+pulls in different directions produce net movement, not circles.
+
+### Three bugs that each taught something
+
+**Bug 1: Reward spinning.** The first reward function included
+`+0.001 per tick alive`. A car that spins in circles takes no damage and
+accumulates survival reward faster than a car that rams and takes
+counter-damage. Ghost won with 695 points by doing nothing but
+`hard_turn_right`.
+
+**Lesson: dense passive rewards drown out sparse active rewards.** In
+reinforcement learning, the reward function defines what "good" means.
+If survival is rewarded every tick but damage-dealing is rewarded only on
+collision, the optimal policy is to survive without colliding. This is
+called **reward hacking** — the agent finds a way to maximize the reward
+that doesn't match the designer's intent.
+
+**Bug 2: Soma overwriting reflex.** The reflex fired BEFORE on_tick, so
+the soma's authored code overwrote all reflex control inputs every tick.
+The reflex was doing work that got immediately erased.
+
+**Lesson: integration order matters in layered systems.** When two
+systems write to the same output, whoever writes last wins. The tendency
+system eventually moved to a composition model (softmax of both layers)
+rather than a sequential overwrite model.
+
+**Bug 3: Game score ≠ RL reward.** We tried using the game's own score
+(+1/sec alive, +0.5/damage, +50/kill) as the reward signal. Cars learned
+to spin — the +1/sec passive component dominated. Game scoring is
+designed for player engagement; RL reward must incentivize specific
+behaviors. These are different design objectives.
+
+**Lesson: the same number can be a good game score and a bad training
+signal.** A game designer balances scoring for fun. An RL designer
+balances reward for learning. Survival feeling rewarding to a human
+player is different from survival being the optimal RL strategy.
+
+### Orienting context: one sentence changes everything
+
+Adding a single framing sentence to the reservoir input — "Demolition
+derby. Ram other cars to score points. Being IT means dealing 3x damage
+but dying if the timer runs out." — produced 10-100x larger TD errors.
+
+This is the reservoir's pre-trained knowledge paying dividends. The
+word "demolition" activates semantic associations with destruction,
+collision, impact. "Ram" activates action-oriented representations.
+"Danger" activates threat-related representations. These are richer,
+more differentiated activation patterns than what bare coordinate data
+produces, which gives the linear probes more variance to work with.
+
+**Takeaway: always orient the reservoir.** One sentence of context is
+worth more than any amount of numeric data formatting. The LLM's
+pre-trained knowledge about concepts is the free feature engineering.
+
+### What Claude did with the vocabulary
+
+This is where the experiment became genuinely exciting. When cars died
+and Claude reflected on their life (reviewing a trail map + stats), it
+rewrote their on_tick code using the vocabulary API. Over 30 minutes of
+unattended play (~5 deaths per car), the code evolved from 200-char
+templates to 2,500-6,800 chars of strategic drivers.
+
+**What every car independently evolved:**
+
+- **Tag state tracking.** Every car built code to detect "was I IT last
+  tick but not now?" (just gave tag) and "was I not IT but now am?" (just
+  received tag). This was emergent — no car started with this logic.
+
+- **Post-tag escape.** After passing the IT tag, the newly-not-IT car
+  learned that the NEW IT car is right next to them with 3x damage.
+  Every car developed a 3-4 second flee-after-tagging routine.
+
+- **Conditional boost timing.** Instead of boosting on cooldown, cars
+  learned to save boost for critical moments — when IT car is close,
+  when HP is low, when a kill opportunity is near.
+
+**What individual cars evolved uniquely:**
+
+- Ghost built a **tag chain detector** — tracks how many times it was
+  tagged in the last 15 seconds and enters "hot zone" evasion when the
+  count hits 2+. This is a higher-order temporal strategy.
+
+- Bruiser self-versioned its code as "v8" and added an early `return`
+  during post-tag escape to prevent conflicting tendencies — a
+  genuine software engineering technique applied by an LLM to its own
+  runtime code.
+
+- Dust Devil diagnosed that its original `steer_left(0.2)` was causing
+  circular motion by looking at its own trail map, and removed it.
+  Self-diagnosis through self-observation.
+
+**The vocabulary made all of this possible.** These strategic improvements
+are expressed as `me.hunt_non_immune(1.0); me.flee_it_car(0.9);` — intent
+in plain English action names. The old API would have required
+`Math.atan2(Math.sin(diff), Math.cos(diff)) * 2.5` — opaque angle math
+that an LLM can write but can't easily reason about or debug.
+
+### The honest question: does the reservoir matter?
+
+After observing the 30-minute run, I had to be honest: **Claude's
+reflection is so much more powerful than the probe learning that the
+probes might be redundant.**
+
+One reflection call rewrites 1,500-6,000 chars of strategic code with
+conditional logic, state machines, and game-mechanic awareness. The TD
+probes nudge weights by ±0.01 after thousands of updates. The timescales
+are mismatched by orders of magnitude.
+
+But there's a nuance Robby pointed out: the two layers create a
+**two-timescale coupling** where the tendency probes are always chasing
+the on_tick code. The on_tick shifts strategy in one shot via reflection;
+the probes slowly converge toward what worked under the previous
+strategy; by the time they converge, the strategy has already shifted
+again. This creates oscillation.
+
+**The oscillation might be valuable.** It means the body never fully
+settles. There's always a slight mismatch between what the body wants
+(learned from experience) and what the driver intends (authored by
+Claude). That mismatch is free exploration — the body's "wrong" lean
+might discover things the driver never considered.
+
+Whether this is actually helpful is an open empirical question. We'd
+need extended comparative runs (probes ON vs OFF) to measure it.
+
+### What we actually built: a three-layer actant embodiment
+
+Looking at the whole system, what emerged is a clean three-layer
+architecture:
+
+| layer | what it does | timescale | mechanism |
+|-------|-------------|-----------|-----------|
+| tendency probes | body lean, sub-cognitive | per-tick, gradual | TD learning on reservoir activations |
+| on_tick code | conscious intent | per-death, one-shot | Claude reflection + vocabulary API |
+| chassis | execute + compose | per-tick, fixed | softmax composition + physics |
+
+Each layer does what it's good at. The probes learn continuously from
+experience. Claude reasons strategically from replays. The chassis
+handles geometry and composition. The vocabulary is the shared language
+between all three.
+
+This pattern — not the specific reservoir model or the specific probe
+training algorithm — is what we think is worth standardizing across
+actant embodiments.
+
+### New concepts from this section
+
+- **Softmax composition**: proportional sharing of a budget based on
+  relative magnitudes. `share(i) = mag(i) / sum(all mags)`. The
+  workhorse of the tendency system and of attention in transformers.
+- **Reward hacking**: when an RL agent finds a way to maximize the
+  reward function that doesn't match the designer's intent. Our
+  spinning cars were a textbook case.
+- **Two-timescale coupling**: when two learning systems operate at
+  different speeds on the same problem, creating emergent dynamics
+  (oscillation, exploration) that neither system would produce alone.
+- **Orienting context**: a constant prefix in the reservoir input that
+  grounds the model's activations in domain-relevant semantics.
+  Dramatically amplifies per-state activation variance.
+- **Emergent strategy**: behavior that arises from the learning process
+  without being explicitly programmed. Tag state tracking, post-tag
+  escape, and cluster detection all emerged from Claude reflecting on
+  death replays — no one wrote those strategies into the initial code.
+
+---
+
 ## Appendix: Where things live
 
 - [games/hunch/docs/journal.md](journal.md) — the session-by-session lab notebook
@@ -1677,3 +1899,12 @@ description string, a reward signal, and a tick loop.
 - [games/hunch/src/cops.ts](../src/cops.ts) — argmax over action registry priorities
 - [games/hunch/test/](../test/) — every experiment as a standalone headless test
 - `git log feat/hunch ^main --oneline` — the commit progression tells the story
+
+### tag-your-dead integration
+- [games/tag-your-dead/docs/learnings.md](../../tag-your-dead/docs/learnings.md) —
+  structured findings from the integration (vocabulary, two-timescale
+  coupling, reward shaping, orienting context)
+- [games/tag-your-dead/docs/journal.md](../../tag-your-dead/docs/journal.md) —
+  session notes from the integration
+- [games/tag-your-dead/src/reflex/](../../tag-your-dead/src/reflex/) —
+  tendency system, TD learner, reservoir bridge, state-to-text
