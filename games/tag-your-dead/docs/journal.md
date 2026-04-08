@@ -1655,6 +1655,24 @@ state boundaries as conscious strategy — either via conditional
 rewards, conditional probe activation, or by letting the cognitive
 layer explicitly gate when probes are allowed to contribute.
 
+### Reflex layer removed (2026-04-08)
+
+Deleted:
+- `src/reflex/reflex-layer.ts`, `td-learner.ts`, `state-to-text.ts`,
+  `reward.ts`, `onnx-bridge.ts`
+- `src/experiment.ts`
+- All reflex/experiment/autopilot/uniform references in game.ts,
+  car.ts, soma.ts, types.ts
+- `probeMagnitudes` and `setProbes()` from TendencyAccumulator
+
+Kept:
+- `src/reflex/actions.ts` — vocabulary definitions (13 tendencies)
+- `src/reflex/tendency-system.ts` — softmax composition (simplified,
+  probe magnitudes removed)
+
+The vocabulary + softmax composition is the lasting contribution.
+Claude reflection on its own produces excellent strategic evolution.
+
 ### Experiment Conclusion — Removing the Reflex Layer (2026-04-08)
 
 **Verdict: the reflex/probe/TD subsystem is being removed.**

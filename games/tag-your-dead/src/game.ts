@@ -13,15 +13,12 @@ import {
   renderBarrel, renderSandPatch,
 } from './sprites.js';
 import {
-  PERSONALITIES, CarPersonality, createSoma, createUniformSoma,
+  PERSONALITIES, CarPersonality, createSoma,
   saveSomas, loadSomas, compileOnTick,
   buildMeAPI, buildWorldAPI,
 } from './soma.js';
 import { reflectOnLife, ReflectionResult } from './reflection.js';
-import { ReflexLayer } from './reflex/reflex-layer.js';
-import { OnnxReservoirBridge } from './reflex/onnx-bridge.js';
 import { TendencyAccumulator } from './reflex/tendency-system.js';
-import { ExperimentLog, getExperimentGroup, isReflexEnabled } from './experiment.js';
 import {
   triggerShake, updateShake, spawnDust, spawnTagSparks,
   spawnEliminationExplosion, updateParticles, renderParticles,
@@ -37,7 +34,6 @@ interface AICarEntry {
   personality: CarPersonality;
   soma: CarSoma;
   reflecting: boolean; // true while background reflection is in progress
-  reflexEnabled: boolean; // per-car: does this car get reflex probe bias?
 }
 
 export class Game {
@@ -79,19 +75,6 @@ export class Game {
 
   private lastTime = 0;
 
-  // ── Reflex Layer ──
-  // Off by default to keep the game playable at full speed.
-  // Enable via URL param: ?reflex=on
-  private autopilot = new URLSearchParams(window.location.search).get('autopilot') === 'on';
-  private uniformMode = new URLSearchParams(window.location.search).get('uniform') === 'on';
-  private reflexEnabled = new URLSearchParams(window.location.search).get('reflex') === 'on';
-  private reflexLayer: ReflexLayer | null = null;
-  private reflexLoading = false;
-  private reflexSaveTimer = 0;
-
-  // ── Experiment ──
-  private experimentLog = new ExperimentLog();
-
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -111,19 +94,13 @@ export class Game {
     // Expose debug
     (window as unknown as Record<string, unknown>).__tagYourDead = {
       game: this,
-      getReflex: () => this.reflexLayer,
-      reflexSummary: () => this.reflexLayer?.summary(),
       resetSomas: () => { localStorage.removeItem('tag-your-dead-somas'); location.reload(); },
       resetScores: () => { localStorage.removeItem('tag-your-dead-scores'); location.reload(); },
-      resetReflexes: () => { localStorage.removeItem('tag-your-dead-reflexes'); location.reload(); },
       resetAll: () => {
         localStorage.removeItem('tag-your-dead-somas');
         localStorage.removeItem('tag-your-dead-scores');
-        localStorage.removeItem('tag-your-dead-reflexes');
         location.reload();
       },
-      experiment: this.experimentLog,
-      printExperiment: () => this.experimentLog.printComparison(),
     };
   }
 
@@ -180,61 +157,22 @@ export class Game {
 
     // Player input (only if alive)
     if (this.player.alive) {
-      if (this.autopilot) {
-        // Dumb autopilot: cruise around, flee IT car, avoid walls
-        const accum = new TendencyAccumulator();
-        const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, this.player.id);
-        const me = buildMeAPI(this.player, { identity: { content: '' }, on_tick: { content: '' }, memory: { content: '' } }, this.arena, accum, this.gameTime);
-        accum.setOnTick('cruise_forward', 0.5);
-        accum.setOnTick('flee_it_car', 0.7);
-        accum.setOnTick('spread_out', 0.3);
-        if (me.isIt) {
-          accum.setOnTick('hunt_non_immune', 0.8);
-          accum.setOnTick('ram_nearest', 0.4);
-        }
-        const net = accum.compose(me, world);
-        this.player.steer(net.steer);
-        if (net.accel >= 0) this.player.accelerate(net.accel);
-        else this.player.brake(-net.accel);
-      } else {
-        const controls = getPlayerControls();
-        this.player.steer(controls.steer);
-        this.player.accelerate(controls.accel);
-        this.player.brake(controls.brake);
-        if (controls.boost) this.player.boost();
-      }
+      const controls = getPlayerControls();
+      this.player.steer(controls.steer);
+      this.player.accelerate(controls.accel);
+      this.player.brake(controls.brake);
+      if (controls.boost) this.player.boost();
     }
 
-    // ── Tendency composition: both layers contribute to the same pool ──
-    //
-    // 1. Create accumulator, set probe magnitudes (learned tendencies)
-    // 2. Build me API with accumulator so on_tick vocabulary calls register
-    // 3. Run on_tick (authored tendencies register via me.ram_nearest(0.8) etc.)
-    // 4. Softmax-compose all tendencies → net steer/accel → apply to car
-    //
-    // Both layers speak the same vocabulary. The car's movement is the
-    // ordinal-weighted composition of all active tendencies from both sources.
+    // ── Tendency composition ──
+    // on_tick vocabulary calls (me.ram_nearest(0.8) etc.) register magnitudes
+    // in a TendencyAccumulator. Softmax composes all → net steer/accel.
     for (const ai of this.aiCars) {
       if (!ai.car.alive) continue;
 
       const accum = new TendencyAccumulator();
-
-      // Tendency probes: set learned magnitudes ONLY for reflex-group cars
-      if (this.reflexLayer) {
-        const cr = this.reflexLayer.getReflex(ai.car.id);
-        // All cars get reservoir updates (so we can track TD error for both groups)
-        const meForText = buildMeAPI(ai.car, ai.soma, this.arena);
-        const worldForText = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
-        this.reflexLayer.updateReservoir(ai.car, meForText, worldForText);
-        // But only reflex-group cars get probe magnitudes fed into softmax
-        if (ai.reflexEnabled && cr.cachedPriorities) {
-          accum.setProbes(cr.cachedPriorities);
-        }
-      }
-
-      // on_tick: soma's authored code registers tendencies via vocabulary
       const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
-      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum, this.gameTime);
+      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum);
       try {
         const fn = compileOnTick(ai.soma.on_tick.content);
         fn(me, world);
@@ -261,18 +199,6 @@ export class Game {
     // Physics update all alive cars
     for (const car of this.allCars) {
       car.update(dt, this.arena);
-    }
-
-    // Reflex post-tick: compute reward + TD update for each AI car
-    if (this.reflexLayer) {
-      for (const ai of this.aiCars) {
-        this.reflexLayer.postTick(ai.car);
-      }
-    }
-
-    // Experiment: track IT time + boost effectiveness for all cars
-    for (const car of this.allCars) {
-      car.updateItTracking(dt, this.gameTime);
     }
 
     // Sample position trails for reflection maps
@@ -307,8 +233,6 @@ export class Game {
         // Record who became IT
         const newIt = col.a.isIt ? col.a : col.b;
         const gaveIt = col.a.isIt ? col.b : col.a;
-        // Experiment: check boost effectiveness for the car that gave the tag
-        gaveIt.checkBoostEffectiveness(this.gameTime);
         this.gameEvents.push({
           time: this.gameTime,
           carId: newIt.id,
@@ -380,9 +304,6 @@ export class Game {
             type: 'kill',
             detail: `Destroyed ${this.carDisplayName(car.id)}`,
           });
-          // Experiment: check boost effectiveness for the killer
-          const killerCar = this.allCars.find(c => c.id === killerId);
-          if (killerCar) killerCar.checkBoostEffectiveness(this.gameTime);
         }
 
         // Ensure someone is always "it"
@@ -392,11 +313,6 @@ export class Game {
           next.isIt = true;
           next.itTimer = T.IT_TIMEOUT;
           console.log(`[TAG] ${next.id} is now IT!`);
-        }
-
-        // Notify reflex layer of death (reset TD per-life state)
-        if (this.reflexLayer) {
-          this.reflexLayer.onCarDeath(car.id);
         }
 
         // Trigger background reflection for AI cars
@@ -420,15 +336,6 @@ export class Game {
     updateParticles(dt);
     updateTracks(dt);
     this.updateTicker(dt);
-
-    // Periodically save reflex probe weights (every 30 seconds)
-    if (this.reflexLayer) {
-      this.reflexSaveTimer += dt;
-      if (this.reflexSaveTimer > 30) {
-        this.reflexSaveTimer = 0;
-        this.reflexLayer.save();
-      }
-    }
 
     // Camera follows player (or first alive car if player dead)
     if (this.player.alive) {
@@ -501,29 +408,11 @@ export class Game {
       car.score = this.savedScores.get(car.id) ?? 0;
       car.hp = car.maxHp;
 
-      const soma = this.savedSomas.get(car.id) ?? (this.uniformMode ? createUniformSoma() : createSoma(p));
-      const reflexOn = this.reflexEnabled && isReflexEnabled(car.id);
-      this.aiCars.push({ car, personality: p, soma, reflecting: false, reflexEnabled: reflexOn });
-      this.experimentLog.recordInitialCodeSize(car.id, soma.on_tick.content.length);
+      const soma = this.savedSomas.get(car.id) ?? createSoma(p);
+      this.aiCars.push({ car, personality: p, soma, reflecting: false });
     }
 
     this.allCars = [this.player, ...this.aiCars.map(a => a.car)];
-
-    // All cars start at gameTime 0
-    for (const car of this.allCars) {
-      car.lifeStartTime = 0;
-    }
-
-    // Log experiment assignment
-    if (this.reflexEnabled) {
-      console.log('[EXPERIMENT] ═══════════════════════════════════════');
-      console.log(`[EXPERIMENT] Reflex A/B experiment active!${this.uniformMode ? ' (UNIFORM identities)' : ''}`);
-      for (const ai of this.aiCars) {
-        const group = getExperimentGroup(ai.car.id);
-        console.log(`[EXPERIMENT]   ${ai.personality.name} (${ai.car.id}): ${group.toUpperCase()} ${ai.reflexEnabled ? '🔬' : '🎮'}`);
-      }
-      console.log('[EXPERIMENT] ═══════════════════════════════════════');
-    }
 
     // Pick random car to be "it" first
     const itIndex = Math.floor(Math.random() * this.allCars.length);
@@ -533,23 +422,6 @@ export class Game {
     resetCollisionCooldowns();
     this.camera.snap(this.player.x, this.player.y, this.arena.width, this.arena.height);
     this.phase = 'playing';
-
-    // Initialize reflex layer (async — loads reservoir model in background)
-    // Only when ?reflex=on — off by default for playable speed.
-    if (this.reflexEnabled && !this.reflexLayer && !this.reflexLoading) {
-      this.reflexLoading = true;
-      const bridge = new OnnxReservoirBridge('Xenova/distilgpt2');
-      const layer = new ReflexLayer(bridge);
-      layer.load().then(() => {
-        layer.loadSaved();
-        this.reflexLayer = layer;
-        this.reflexLoading = false;
-        console.log('[GAME] reflex layer ready');
-      }).catch(err => {
-        console.warn('[GAME] reflex layer failed to load:', err);
-        this.reflexLoading = false;
-      });
-    }
   }
 
   private respawnCar(car: Car): void {
@@ -583,7 +455,6 @@ export class Game {
     }
 
     car.respawn(bestX, bestY);
-    car.lifeStartTime = this.gameTime;
 
     // Ensure someone is always "it"
     const allAlive = this.allCars.filter(c => c.alive);
@@ -600,13 +471,9 @@ export class Game {
   private async triggerBackgroundReflection(ai: AICarEntry, deathCause: 'destroyed' | 'timeout'): Promise<void> {
     ai.reflecting = true;
 
-    const survivedSeconds = this.gameTime - ai.car.lifeStartTime;
-    const obstacleCollisions = ai.car.rockHits + ai.car.cactusHits + ai.car.barrelHits + ai.car.wallHits;
-    const scorePerSecond = survivedSeconds > 0 ? Math.floor(ai.car.score) / survivedSeconds : 0;
-
     const lifeResult: LifeResult = {
       score: Math.floor(ai.car.score),
-      survivedSeconds,
+      survivedSeconds: 0, // per-life time not tracked
       tagsGiven: ai.car.tagsGiven,
       tagsReceived: ai.car.tagsReceived,
       damageDealt: Math.round(ai.car.damageDealt),
@@ -622,29 +489,7 @@ export class Game {
       avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0,
       trail: ai.car.trail,
       lifeEvents: ai.car.lifeEvents,
-      // Experiment behavioral metrics
-      timeAsIt: ai.car.timeAsIt,
-      tagShedTimes: [...ai.car.tagShedTimes],
-      boostCount: ai.car.boostCount,
-      effectiveBoosts: ai.car.effectiveBoosts,
-      obstacleCollisions,
-      scorePerSecond,
     };
-
-    // Record to experiment log
-    this.experimentLog.recordLife(
-      ai.car.id,
-      ai.personality.name,
-      lifeResult,
-      ai.soma.on_tick.content.length,
-      this.gameTime,
-    );
-
-    // Print comparison after every 5 total deaths
-    const counts = this.experimentLog.getCounts();
-    if ((counts.reflex + counts.control) % 5 === 0) {
-      this.experimentLog.printComparison();
-    }
 
     try {
       const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult, {
