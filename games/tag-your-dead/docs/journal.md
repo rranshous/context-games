@@ -1351,6 +1351,39 @@ decay. The probes may have diverged after many updates, which means
 their contribution to the softmax is unpredictable. Didn't crash the
 game though.
 
+### Playtest feedback from Robby (2026-04-08)
+
+Robby played the game with the merged changes on main (reflex OFF,
+vocabulary on_tick active, reflection working).
+
+**UI issues:**
+- Marquee ticker at bottom: text not readable against the dark
+  background. Needs higher contrast / glow / outline.
+- Minimap IT indicator: IT car turns red, but player is ALSO red on
+  the minimap → confusing. Suggestion: keep original car color on
+  minimap, add a red trail or pulsing concentric circles to mark the
+  IT car instead.
+
+**Gameplay observations:**
+- Cars start out "real dumb" with the new 200-char vocabulary templates.
+  Once they die and reflect (Claude rewrites their code), they get much
+  better. But the initial period before first death is notably worse
+  than the old angle-math templates.
+  - This is the trade-off: simpler starting code → Claude can reason
+    about it and evolve it → much better AFTER reflection. But the
+    cold start is rough.
+  - Could mitigate by making the starting templates slightly more
+    capable (add a few more tendency calls) without going back to the
+    old 2000-char angle math style.
+- Without `?reflex=on`, the probe/reservoir subsystem is off but the
+  vocabulary API (me.ram_nearest etc) + softmax composition is still
+  active. The on_tick code uses the new vocabulary, composes via
+  softmax, just without learned probe magnitudes in the pool.
+
+**Missing features flagged:**
+- No in-game reset button. Currently only `__tagYourDead.resetAll()`
+  in console. Need a UI button on the pause screen.
+
 Proper comparative testing needs either:
 1. Reduce reservoir cadence to fire less often (e.g. every 30 frames
    instead of 6) — accept staleness for speed
