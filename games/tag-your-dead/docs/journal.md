@@ -1447,3 +1447,80 @@ calls, or skip reservoir for some cars).
   death Claude reflection) doesn't know about the reflex's action
   histogram. Feeding it that data would let it evolve the action
   vocabulary based on what the reflex actually uses.
+
+### Reflex A/B Experiment — Design & Implementation (2026-04-08)
+
+**The question:** Does the reflex layer's learned probe bias help Claude's
+reflection produce better strategies faster? Or is reflection alone
+sufficient?
+
+**Experiment design (approach #2 — within-arena controls):**
+
+All 5 AI cars reflect normally after every death. Claude rewrites
+their on_tick code exactly as before. The ONLY variable is whether
+the learned probe magnitudes feed into the tendency softmax alongside
+the on_tick authored magnitudes.
+
+| Group    | Cars                          | Probes? | Reflection? |
+|----------|-------------------------------|---------|-------------|
+| REFLEX   | Viper, Ghost                  | YES     | YES         |
+| CONTROL  | Bruiser, Rattler, Dust Devil  | no      | YES         |
+
+Assignment is deterministic, not random. We chose Viper and Ghost for
+the reflex group because they were the strongest evolvers in the prior
+30-minute unattended run (25.8× and 22.3× code growth, 699 and 575
+scores). If probes don't help even the best evolvers, they don't help.
+
+**Why not random assignment?** With only 5 cars, randomization gives us
+garbage statistical power. Better to stack the deck in favor of the
+hypothesis and see if it can even beat that bar.
+
+**How `?reflex=on` now works:**
+- Still a global URL param to load the reservoir model
+- But probe magnitudes are only fed into the softmax for reflex-group
+  cars (per-car `reflexEnabled` flag on `AICarEntry`)
+- All cars get reservoir updates (so we can observe TD learning for
+  both groups), but control cars' probes don't influence movement
+- `src/experiment.ts` — new file, handles group assignment + logging
+
+**Behavioral metrics added to LifeResult:**
+1. `timeAsIt` — seconds spent as IT during the life
+2. `tagShedTimes` — array of seconds from becoming IT to passing it
+3. `boostCount` — total boosts fired
+4. `effectiveBoosts` — boosts leading to tag/kill within 3 seconds
+5. `obstacleCollisions` — total obstacle hits (rock+cactus+barrel+wall)
+6. `scorePerSecond` — score gained / survivedSeconds
+7. `survivedSeconds` — now properly computed from `lifeStartTime`
+
+**Why these metrics:**
+- Outcome metrics alone (score) are zero-sum in a competitive arena —
+  if everyone improves equally, scores stay flat
+- Behavioral metrics capture decision quality independent of opponent
+  strength: how fast you shed IT, how efficiently you use boosts,
+  how well you avoid obstacles
+- Code growth (onTickLength over time) measures evolution speed
+
+**Reporting:**
+- Every death logs `[EXPERIMENT] GROUP CarName life #N | stats...`
+- Every 5 total deaths, prints a comparison table with delta analysis
+- `__tagYourDead.printExperiment()` dumps comparison anytime
+- `__tagYourDead.experiment` gives raw ExperimentLog access
+
+**Implementation changes:**
+- `src/types.ts` — new fields on LifeResult + ExperimentLifeRecord,
+  ExperimentSummary, ExperimentGroup types
+- `src/car.ts` — IT tracking (updateItTracking), boost tracking
+  (recordBoost, checkBoostEffectiveness), lifeStartTime
+- `src/soma.ts` — buildMeAPI accepts optional gameTime, wraps
+  boost() to call recordBoost
+- `src/game.ts` — per-car reflexEnabled flag, experiment log,
+  IT tracking in game loop, boost effectiveness on tag/kill events,
+  full LifeResult population with new metrics
+- `src/experiment.ts` — ExperimentLog class, group assignment,
+  comparison table with delta analysis
+
+**What comes next (planned phases):**
+1. ✅ Phase 1 (this): within-arena A/B with behavioral metrics
+2. Phase 2: behavioral metric deep analysis (after collecting data)
+3. Phase 3: cross-condition tournament (train reflex vs control
+   cohorts separately, then pit graduates against each other)
