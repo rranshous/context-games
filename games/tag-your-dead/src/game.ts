@@ -13,7 +13,7 @@ import {
   renderBarrel, renderSandPatch,
 } from './sprites.js';
 import {
-  PERSONALITIES, CarPersonality, createSoma,
+  PERSONALITIES, CarPersonality, createSoma, createUniformSoma,
   saveSomas, loadSomas, compileOnTick,
   buildMeAPI, buildWorldAPI,
 } from './soma.js';
@@ -83,6 +83,7 @@ export class Game {
   // Off by default to keep the game playable at full speed.
   // Enable via URL param: ?reflex=on
   private autopilot = new URLSearchParams(window.location.search).get('autopilot') === 'on';
+  private uniformMode = new URLSearchParams(window.location.search).get('uniform') === 'on';
   private reflexEnabled = new URLSearchParams(window.location.search).get('reflex') === 'on';
   private reflexLayer: ReflexLayer | null = null;
   private reflexLoading = false;
@@ -500,7 +501,7 @@ export class Game {
       car.score = this.savedScores.get(car.id) ?? 0;
       car.hp = car.maxHp;
 
-      const soma = this.savedSomas.get(car.id) ?? createSoma(p);
+      const soma = this.savedSomas.get(car.id) ?? (this.uniformMode ? createUniformSoma() : createSoma(p));
       const reflexOn = this.reflexEnabled && isReflexEnabled(car.id);
       this.aiCars.push({ car, personality: p, soma, reflecting: false, reflexEnabled: reflexOn });
       this.experimentLog.recordInitialCodeSize(car.id, soma.on_tick.content.length);
@@ -516,7 +517,7 @@ export class Game {
     // Log experiment assignment
     if (this.reflexEnabled) {
       console.log('[EXPERIMENT] ═══════════════════════════════════════');
-      console.log('[EXPERIMENT] Reflex A/B experiment active!');
+      console.log(`[EXPERIMENT] Reflex A/B experiment active!${this.uniformMode ? ' (UNIFORM identities)' : ''}`);
       for (const ai of this.aiCars) {
         const group = getExperimentGroup(ai.car.id);
         console.log(`[EXPERIMENT]   ${ai.personality.name} (${ai.car.id}): ${group.toUpperCase()} ${ai.reflexEnabled ? '🔬' : '🎮'}`);

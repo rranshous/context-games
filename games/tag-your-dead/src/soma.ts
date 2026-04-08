@@ -106,6 +106,31 @@ export const PERSONALITIES: CarPersonality[] = [
   },
 ];
 
+// ── Uniform personality (for controlled experiments) ──
+// All cars get the same neutral identity and starting code.
+// Removes personality as a variable — only the reflex layer differs.
+
+const UNIFORM_IDENTITY = `I am a demolition derby driver. When I'm IT, I deal 3x damage but must pass the tag before the timer runs out or I die. When not IT, I dodge the IT car and ram others to score. Boost is a short speed burst on cooldown. Score halves on death.`;
+
+const UNIFORM_ON_TICK = `
+  if (me.isIt) {
+    me.hunt_non_immune(0.8);
+    me.ram_nearest(0.5);
+  } else {
+    me.flee_it_car(0.5);
+    me.ram_nearest(0.5);
+    me.cruise_forward(0.3);
+  }
+`;
+
+export function createUniformSoma(): CarSoma {
+  return {
+    identity: { content: UNIFORM_IDENTITY },
+    on_tick: { content: UNIFORM_ON_TICK.trim() },
+    memory: { content: '' },
+  };
+}
+
 // ── Soma Storage ──
 
 const STORAGE_KEY = 'tag-your-dead-somas';
