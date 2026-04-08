@@ -53,3 +53,65 @@ Tool calls use OpenAI's format (stringified JSON in `arguments`), not Anthropic'
 - Implement the three bare-model baselines
 - Run a small benchmark to establish baseline scores
 - Then: design the first actant embodiment
+
+---
+
+## Session 2 — TypeScript Harness + Baselines (2026-04-08)
+
+### Goal
+Replace the Python hello-agent with a proper TypeScript harness. Run baseline benchmarks across haiku, sonnet 4.6, and opus 4.6 on the same 20 OS tasks.
+
+### What We Built
+
+**TypeScript workspace** (`src/`):
+- `types.ts` — FC types (OpenAI format), Agent interface, run result types
+- `controller.ts` — thin client for the AgentRL REST API (startSample, interact, listWorkers)
+- `format.ts` — pure functions to convert FC ↔ Anthropic formats (tools + messages both directions)
+- `runner.ts` — runs N samples through any Agent, collects scores/timing/rounds
+- `bench.ts` — CLI: `npx tsx src/bench.ts run --agent bare-haiku --count 20`
+- `agents/bare-model.ts` — three bare agents (haiku, sonnet 4.6, opus 4.6). No embodiment — just Claude + tools directly.
+- `agents/index.ts` — registry so the CLI can look up agents by name
+
+**Agent interface** (the contract for all future agents):
+```typescript
+interface Agent {
+  name: string;
+  act(messages: FCMessage[], tools: FCTool[]): Promise<FCMessage[]>;
+}
+```
+
+The runner doesn't care what's behind `act()` — bare model, embodied actant, or multi-actant habitat all look the same from the outside.
+
+### Infrastructure Fixes
+- Built `local-os/packages` and `local-os/ubuntu` Docker images — some tasks need them for package installs or specific Ubuntu configs. First haiku run had false failures from missing images.
+- Added graceful handling for tasks where the container setup fails (returns 0 messages). Runner reports `task_setup_failed` instead of crashing.
+- Fixed lazy client initialization — Anthropic SDK was constructed at import time, before `.env` was loaded. Moved to lazy singleton.
+- Fixed opus model ID: `claude-opus-4-5-20250514` → `claude-opus-4-6` (old ID returned 404).
+
+### Baseline Results (20 samples, indices 0-19, OS tasks)
+
+| Agent | Pass Rate | Avg Rounds | Avg Time |
+|-------|-----------|------------|----------|
+| bare-haiku | **17/20 (85%)** | 4.2 | 7.3s |
+| bare-sonnet 4.6 | 16/20 (80%) | 4.0 | 11.7s |
+| bare-opus 4.6 | 16/20 (80%) | 3.8 | 12.5s |
+
+### Observations
+
+- **Haiku wins this set.** On these relatively straightforward OS tasks, haiku's speed advantage matters — it gets more attempts within the round limit and doesn't overthink. The bigger models don't bring enough reasoning advantage on "grep a log file" tasks to offset their slower response times.
+- **Index 4 is universally hard** — all three models fail it. It asks for stocks Bob bought but not sold (set difference). All models struggle with the awk pipeline to compute this.
+- **Index 6 is tricky** — asks for a total count, models sometimes return wrong column. Haiku got it on retry, sonnet/opus didn't.
+- **The task set (indices 0-19) skews easy** — lots of log parsing and file finding. Harder tasks (indices 50+) may change the ranking. Worth running a wider range.
+- **20 samples is small** — enough to prove the harness works and spot obvious issues, but not statistically robust. For real experiments we'd want 50+ samples per agent.
+- **Round limit (8) is constraining** — several failures are from round exhaustion, not wrong answers. Could experiment with higher limits.
+
+### What We Learned
+
+- On simple tool-use tasks, model quality matters less than speed. The cost/performance sweet spot for baselines is haiku.
+- The harness works cleanly — adding a new agent is one file that exports an `Agent`. No changes to the runner or CLI.
+- Format conversion (FC ↔ Anthropic) is the main friction. It's isolated in `format.ts` so agents don't need to think about it.
+
+### Next
+- Design the first actant embodiment (soma + mount system wrapping the task)
+- Run baselines on a wider sample range to get more robust numbers
+- Consider adding the DB task for a second benchmark dimension

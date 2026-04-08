@@ -30,6 +30,19 @@ async function runSample(
   try {
     const { sessionId, data } = await controller.startSample(task, index);
 
+    // Some tasks fail to initialize (container setup error). Skip gracefully.
+    if (data.messages.length === 0) {
+      return {
+        index,
+        agent: agent.name,
+        score: 0,
+        rounds: 0,
+        status: 'task_setup_failed',
+        durationMs: Date.now() - start,
+        error: 'No initial messages — task worker failed to set up environment',
+      };
+    }
+
     // Build up conversation history
     const history: FCMessage[] = [...data.messages];
 

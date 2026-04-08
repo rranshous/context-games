@@ -40,5 +40,5 @@ function createBareAgent(model: string, label: string): Agent {
 }
 
 export const bareHaiku = createBareAgent('claude-haiku-4-5-20251001', 'bare-haiku');
-export const bareSonnet = createBareAgent('claude-sonnet-4-5-20250929', 'bare-sonnet');
-export const bareOpus = createBareAgent('claude-opus-4-5-20250514', 'bare-opus');
+export const bareSonnet = createBareAgent('claude-sonnet-4-6', 'bare-sonnet');
+export const bareOpus = createBareAgent('claude-opus-4-6', 'bare-opus');
