@@ -1579,3 +1579,78 @@ Removes personality as a variable. The ONLY difference between groups
 is now the reflex probe bias. Running experiment 2 with this flag.
 
 URL: `?reflex=on&autopilot=on&uniform=on`
+
+### Experiment Run 2 — Uniform Identities (2026-04-08)
+
+30 minutes wall time, 316s game time. Clean slate, uniform identities,
+autopilot player. 21 total deaths (13 reflex, 8 control).
+
+**Group comparison:**
+
+| Metric           | REFLEX (n=13) | CONTROL (n=8) |
+|------------------|--------------|--------------|
+| Avg survival     | 40.2s        | 75.7s        |
+| Avg score/s      | 1.66         | 3.22         |
+| Avg time as IT   | 12.5s        | 8.0s         |
+| Tag shed time    | 11.9s (1!)   | 8.0s avg     |
+| Code growth      | 26.4×        | 16.5×        |
+
+**The pattern from Run 1 persists with uniform identities.**
+
+This rules out personality as the cause. With identical starting
+somas, the reflex group still:
+- Dies ~2× as often (13 vs 8 deaths)
+- Survives ~half as long (40s vs 76s)
+- Scores ~half as much per second (1.66 vs 3.22)
+- Almost never sheds the IT tag (1 shed in 13 deaths vs 8 sheds
+  in 8 deaths)
+
+**IT timeout deaths:**
+- Ghost (reflex): 5 of 7 deaths were IT timeouts
+- Viper (reflex): 2 of 6 deaths were IT timeouts
+- Control cars: 0 IT timeouts in 8 deaths
+
+**Final scores:**
+- Rattler (control): 1605
+- Bruiser (control): 896
+- Viper (reflex): 127
+- Ghost (reflex): 95
+
+**Root cause hypothesis: reward signal misalignment.**
+
+The TD learner's reward = score_delta. Score comes from: time alive
+(+1/s), damage dealt (+0.5/dmg), kill bonus (+50). The probes learn
+"stay away from other cars = surviving = good." This is correct when
+NOT IT (evasion is survival). But when IT, you MUST close distance
+to pass the tag — the probe's learned evasion bias directly opposes
+the on_tick's hunt_non_immune calls.
+
+The softmax composition means even a small evasion probe bias dilutes
+the on_tick's hunt magnitude. The car approaches its target slower,
+fails to reach tagging distance before timeout.
+
+**This is the key insight: a single reward signal can't serve both
+IT and non-IT states.** The probe needs state-conditional rewards or
+separate probe sets for IT vs non-IT.
+
+**Possible fixes (not yet attempted):**
+1. IT-conditional reward: when IT, reward = -1 per second (penalize
+   failing to shed), reward tag_given events heavily
+2. Separate probe banks: one set trained on non-IT states (evasion),
+   one set trained on IT states (pursuit). Switch at tag transitions.
+3. Disable probes when IT: simplest fix — zero probe magnitudes when
+   `me.isIt`, let on_tick code handle IT behavior unimpeded
+4. Invert pursuit probes when IT: flip the sign of pursuit tendency
+   probes when IT so learned evasion becomes learned pursuit
+
+**What this means for the actant pattern:**
+The reflex layer IS learning — it just learns the wrong thing for
+a dual-role game. In a pure survival game (Glint's sharks) or pure
+pursuit game, the single reward signal would align correctly. The
+problem is specific to games where the optimal behavior flips based
+on a state variable (IT/not-IT).
+
+This suggests that sub-cognitive layers need to respect the same
+state boundaries as conscious strategy — either via conditional
+rewards, conditional probe activation, or by letting the cognitive
+layer explicitly gate when probes are allowed to contribute.
