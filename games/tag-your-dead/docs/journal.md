@@ -1384,6 +1384,10 @@ vocabulary on_tick active, reflection working).
 - No in-game reset button. Currently only `__tagYourDead.resetAll()`
   in console. Need a UI button on the pause screen.
 
+- Pause screen score graph: may only be showing first ~3 minutes of
+  the game. Needs investigation — possibly the snapshot interval or
+  the graph rendering is capped.
+
 Proper comparative testing needs either:
 1. Reduce reservoir cadence to fire less often (e.g. every 30 frames
    instead of 6) — accept staleness for speed
