@@ -231,3 +231,42 @@ The models treat the soma tools as irrelevant noise. When there's a clear task t
 - Consider on_tick pattern (v1) where the model writes code that drives the task
 - Consider mounting pressure — force the model to manage its own context
 - May need different tasks (longer horizon, more state accumulation) to see embodiment benefits
+
+---
+
+## Session 3b — Terminology + Next Directions (2026-04-08)
+
+### Naming the Drive Patterns
+
+Two named patterns for how the model relates to the task:
+
+- **Direct driver** — the model calls external tools each turn. This is what bare agents and v0 embodied agents do. The model IS the actor. Standard LLM agent pattern. Models are heavily trained toward this — they reach for it naturally.
+
+- **Navigator** — the model shapes its embodiment (on_tick code, memory, tools) and the embodiment drives the task. The model's job is to observe outcomes and refine the form, not to directly act. This is the Glint/Habitat/Bloom pattern.
+
+v0 showed that direct driver + soma = pure overhead. The model doesn't self-modify because it doesn't need to — it can just act. Navigator creates the pressure: the model *can't* call bash_action directly, it can only write code that does.
+
+### v0 Result Context
+
+The v0 result (embodiment hurts in direct drive) is not surprising in retrospect. Models are trained to be direct-drive agents. Adding self-modification tools alongside direct action tools is like giving someone a wrench and a car — they'll drive, not tune.
+
+The exact-match scoring issue is also notable: the embodied identity made sonnet answer "The number of CPUs is **8**." — which IS exact and precise, just not terse. The benchmark's string match doesn't distinguish "correct but formatted differently" from "wrong." This is a benchmark limitation we should keep in mind when interpreting scores.
+
+### Directions Under Consideration
+
+**1. Multi-run persistence — does the actant improve over repeated attempts?**
+- Run the same actant against the same task N times, persisting soma between runs
+- Key question: does the actant get feedback? Currently AgentBench returns `score: 0|1` and `status` but not *why* it failed. The actant would need to learn from its own observations (tool output, what it tried) rather than explicit grade feedback.
+- This tests whether embodiment enables learning-from-experience vs treating each attempt as fresh.
+
+**2. Navigator pattern — tight-loop on_tick**
+- The model writes on_tick code that makes the tool calls
+- Chassis executes on_tick each round
+- Model reflects after every N rounds (tight loop for these short tasks) or after failure
+- For 8-round tasks, "tight loop" might mean: model writes on_tick, chassis runs it once, model sees result and refines. Almost 1:1 but the model is editing code, not directly choosing actions.
+
+### Open Questions
+- Does the model get its score after each run? Or does it only see what happened (observations, tool outputs) and must infer success/failure?
+- For navigator: how tight is the reflection loop? Every round? Every 2? Only on stuck/failure?
+- Do we persist soma across *different* tasks too, or only same-task retries?
+- What does on_tick code look like for these tasks? A bash pipeline? A strategy description the chassis interprets? Actual JS/TS?
