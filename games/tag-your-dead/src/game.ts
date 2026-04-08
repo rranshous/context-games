@@ -82,6 +82,7 @@ export class Game {
   // ── Reflex Layer ──
   // Off by default to keep the game playable at full speed.
   // Enable via URL param: ?reflex=on
+  private autopilot = new URLSearchParams(window.location.search).get('autopilot') === 'on';
   private reflexEnabled = new URLSearchParams(window.location.search).get('reflex') === 'on';
   private reflexLayer: ReflexLayer | null = null;
   private reflexLoading = false;
@@ -178,11 +179,29 @@ export class Game {
 
     // Player input (only if alive)
     if (this.player.alive) {
-      const controls = getPlayerControls();
-      this.player.steer(controls.steer);
-      this.player.accelerate(controls.accel);
-      this.player.brake(controls.brake);
-      if (controls.boost) this.player.boost();
+      if (this.autopilot) {
+        // Dumb autopilot: cruise around, flee IT car, avoid walls
+        const accum = new TendencyAccumulator();
+        const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, this.player.id);
+        const me = buildMeAPI(this.player, { identity: { content: '' }, on_tick: { content: '' }, memory: { content: '' } }, this.arena, accum, this.gameTime);
+        accum.setOnTick('cruise_forward', 0.5);
+        accum.setOnTick('flee_it_car', 0.7);
+        accum.setOnTick('spread_out', 0.3);
+        if (me.isIt) {
+          accum.setOnTick('hunt_non_immune', 0.8);
+          accum.setOnTick('ram_nearest', 0.4);
+        }
+        const net = accum.compose(me, world);
+        this.player.steer(net.steer);
+        if (net.accel >= 0) this.player.accelerate(net.accel);
+        else this.player.brake(-net.accel);
+      } else {
+        const controls = getPlayerControls();
+        this.player.steer(controls.steer);
+        this.player.accelerate(controls.accel);
+        this.player.brake(controls.brake);
+        if (controls.boost) this.player.boost();
+      }
     }
 
     // ── Tendency composition: both layers contribute to the same pool ──
