@@ -1,0 +1,19 @@
+{
+  "name": "harness-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/bench.ts --bundle --platform=node --format=esm --outfile=dist/bench.js --external:@anthropic-ai/sdk",
+    "bench": "npx tsx src/bench.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
