@@ -200,7 +200,7 @@ export interface WorldAPI {
   obstacles: { x: number; y: number; radius: number; type: string }[];
 }
 
-export function buildMeAPI(car: Car, soma: CarSoma, arena: Arena, tendencyAccumulator?: TendencyAccumulator): MeAPI {
+export function buildMeAPI(car: Car, soma: CarSoma, arena: Arena, tendencyAccumulator?: TendencyAccumulator, gameTime?: number): MeAPI {
   const me: MeAPI = {
     get x() { return car.x; },
     get y() { return car.y; },
@@ -220,7 +220,7 @@ export function buildMeAPI(car: Car, soma: CarSoma, arena: Arena, tendencyAccumu
     steer(dir: number) { car.steer(dir); },
     accelerate(amt: number) { car.accelerate(amt); },
     brake(amt: number) { car.brake(amt); },
-    boost() { car.boost(); },
+    boost() { car.boost(); if (gameTime !== undefined) car.recordBoost(gameTime); },
     get isBoosting() { return car.isBoosting; },
     get boostCooldownFrac() { return car.boostCooldownFrac; },
     distanceTo(x: number, y: number) {

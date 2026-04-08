@@ -21,6 +21,7 @@ import { reflectOnLife, ReflectionResult } from './reflection.js';
 import { ReflexLayer } from './reflex/reflex-layer.js';
 import { OnnxReservoirBridge } from './reflex/onnx-bridge.js';
 import { TendencyAccumulator } from './reflex/tendency-system.js';
+import { ExperimentLog, getExperimentGroup, isReflexEnabled } from './experiment.js';
 import {
   triggerShake, updateShake, spawnDust, spawnTagSparks,
   spawnEliminationExplosion, updateParticles, renderParticles,
@@ -36,6 +37,7 @@ interface AICarEntry {
   personality: CarPersonality;
   soma: CarSoma;
   reflecting: boolean; // true while background reflection is in progress
+  reflexEnabled: boolean; // per-car: does this car get reflex probe bias?
 }
 
 export class Game {
@@ -85,6 +87,9 @@ export class Game {
   private reflexLoading = false;
   private reflexSaveTimer = 0;
 
+  // ── Experiment ──
+  private experimentLog = new ExperimentLog();
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -115,6 +120,8 @@ export class Game {
         localStorage.removeItem('tag-your-dead-reflexes');
         location.reload();
       },
+      experiment: this.experimentLog,
+      printExperiment: () => this.experimentLog.printComparison(),
     };
   }
 
@@ -192,21 +199,22 @@ export class Game {
 
       const accum = new TendencyAccumulator();
 
-      // Tendency probes: set learned magnitudes (if reflex layer is loaded)
+      // Tendency probes: set learned magnitudes ONLY for reflex-group cars
       if (this.reflexLayer) {
         const cr = this.reflexLayer.getReflex(ai.car.id);
-        if (cr.cachedPriorities) {
-          accum.setProbes(cr.cachedPriorities);
-        }
-        // Fire-and-forget reservoir update on cadence
+        // All cars get reservoir updates (so we can track TD error for both groups)
         const meForText = buildMeAPI(ai.car, ai.soma, this.arena);
         const worldForText = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
         this.reflexLayer.updateReservoir(ai.car, meForText, worldForText);
+        // But only reflex-group cars get probe magnitudes fed into softmax
+        if (ai.reflexEnabled && cr.cachedPriorities) {
+          accum.setProbes(cr.cachedPriorities);
+        }
       }
 
       // on_tick: soma's authored code registers tendencies via vocabulary
       const world = buildWorldAPI(this.gameTime, this.arena, this.allCars, ai.car.id);
-      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum);
+      const me = buildMeAPI(ai.car, ai.soma, this.arena, accum, this.gameTime);
       try {
         const fn = compileOnTick(ai.soma.on_tick.content);
         fn(me, world);
@@ -242,6 +250,11 @@ export class Game {
       }
     }
 
+    // Experiment: track IT time + boost effectiveness for all cars
+    for (const car of this.allCars) {
+      car.updateItTracking(dt, this.gameTime);
+    }
+
     // Sample position trails for reflection maps
     for (const car of this.allCars) {
       car.sampleTrail(this.gameTime, dt);
@@ -274,6 +287,8 @@ export class Game {
         // Record who became IT
         const newIt = col.a.isIt ? col.a : col.b;
         const gaveIt = col.a.isIt ? col.b : col.a;
+        // Experiment: check boost effectiveness for the car that gave the tag
+        gaveIt.checkBoostEffectiveness(this.gameTime);
         this.gameEvents.push({
           time: this.gameTime,
           carId: newIt.id,
@@ -345,6 +360,9 @@ export class Game {
             type: 'kill',
             detail: `Destroyed ${this.carDisplayName(car.id)}`,
           });
+          // Experiment: check boost effectiveness for the killer
+          const killerCar = this.allCars.find(c => c.id === killerId);
+          if (killerCar) killerCar.checkBoostEffectiveness(this.gameTime);
         }
 
         // Ensure someone is always "it"
@@ -464,10 +482,28 @@ export class Game {
       car.hp = car.maxHp;
 
       const soma = this.savedSomas.get(car.id) ?? createSoma(p);
-      this.aiCars.push({ car, personality: p, soma, reflecting: false });
+      const reflexOn = this.reflexEnabled && isReflexEnabled(car.id);
+      this.aiCars.push({ car, personality: p, soma, reflecting: false, reflexEnabled: reflexOn });
+      this.experimentLog.recordInitialCodeSize(car.id, soma.on_tick.content.length);
     }
 
     this.allCars = [this.player, ...this.aiCars.map(a => a.car)];
+
+    // All cars start at gameTime 0
+    for (const car of this.allCars) {
+      car.lifeStartTime = 0;
+    }
+
+    // Log experiment assignment
+    if (this.reflexEnabled) {
+      console.log('[EXPERIMENT] ═══════════════════════════════════════');
+      console.log('[EXPERIMENT] Reflex A/B experiment active!');
+      for (const ai of this.aiCars) {
+        const group = getExperimentGroup(ai.car.id);
+        console.log(`[EXPERIMENT]   ${ai.personality.name} (${ai.car.id}): ${group.toUpperCase()} ${ai.reflexEnabled ? '🔬' : '🎮'}`);
+      }
+      console.log('[EXPERIMENT] ═══════════════════════════════════════');
+    }
 
     // Pick random car to be "it" first
     const itIndex = Math.floor(Math.random() * this.allCars.length);
@@ -527,6 +563,7 @@ export class Game {
     }
 
     car.respawn(bestX, bestY);
+    car.lifeStartTime = this.gameTime;
 
     // Ensure someone is always "it"
     const allAlive = this.allCars.filter(c => c.alive);
@@ -543,9 +580,13 @@ export class Game {
   private async triggerBackgroundReflection(ai: AICarEntry, deathCause: 'destroyed' | 'timeout'): Promise<void> {
     ai.reflecting = true;
 
+    const survivedSeconds = this.gameTime - ai.car.lifeStartTime;
+    const obstacleCollisions = ai.car.rockHits + ai.car.cactusHits + ai.car.barrelHits + ai.car.wallHits;
+    const scorePerSecond = survivedSeconds > 0 ? Math.floor(ai.car.score) / survivedSeconds : 0;
+
     const lifeResult: LifeResult = {
       score: Math.floor(ai.car.score),
-      survivedSeconds: 0, // we don't track per-life time currently
+      survivedSeconds,
       tagsGiven: ai.car.tagsGiven,
       tagsReceived: ai.car.tagsReceived,
       damageDealt: Math.round(ai.car.damageDealt),
@@ -561,7 +602,29 @@ export class Game {
       avgSpeed: ai.car.speedSamples > 0 ? Math.round(ai.car.speedAccum / ai.car.speedSamples) : 0,
       trail: ai.car.trail,
       lifeEvents: ai.car.lifeEvents,
+      // Experiment behavioral metrics
+      timeAsIt: ai.car.timeAsIt,
+      tagShedTimes: [...ai.car.tagShedTimes],
+      boostCount: ai.car.boostCount,
+      effectiveBoosts: ai.car.effectiveBoosts,
+      obstacleCollisions,
+      scorePerSecond,
     };
+
+    // Record to experiment log
+    this.experimentLog.recordLife(
+      ai.car.id,
+      ai.personality.name,
+      lifeResult,
+      ai.soma.on_tick.content.length,
+      this.gameTime,
+    );
+
+    // Print comparison after every 5 total deaths
+    const counts = this.experimentLog.getCounts();
+    if ((counts.reflex + counts.control) % 5 === 0) {
+      this.experimentLog.printComparison();
+    }
 
     try {
       const result = await reflectOnLife(ai.personality.name, ai.soma, lifeResult, {

@@ -49,6 +49,15 @@ export class Car implements CarState {
   speedAccum: number = 0;      // accumulated |speed| for averaging
   speedSamples: number = 0;    // frame count for speed averaging
 
+  // ── Experiment behavioral metrics ──
+  timeAsIt: number = 0;        // seconds spent as IT this life
+  private _itStartTime: number = 0;  // gameTime when became IT (0 = not tracking)
+  tagShedTimes: number[] = [];  // seconds from becoming IT to passing it
+  boostCount: number = 0;       // total boosts fired this life
+  effectiveBoosts: number = 0;  // boosts that led to tag/kill within 3s
+  private _recentBoostTime: number = -999;  // last boost gameTime (for effectiveness tracking)
+  lifeStartTime: number = 0;   // gameTime when this life started (set on spawn)
+
   // Kill attribution — who last dealt damage to this car
   lastAttackerId: string | null = null;
 
@@ -308,6 +317,35 @@ export class Car implements CarState {
     return false;
   }
 
+  /** Track IT time accumulation — call every frame from game loop */
+  updateItTracking(dt: number, gameTime: number): void {
+    if (!this.alive) return;
+    if (this.isIt) {
+      this.timeAsIt += dt;
+      if (this._itStartTime === 0) {
+        this._itStartTime = gameTime; // just became IT
+      }
+    } else if (this._itStartTime > 0) {
+      // Was IT, now not — shed the tag
+      this.tagShedTimes.push(gameTime - this._itStartTime);
+      this._itStartTime = 0;
+    }
+  }
+
+  /** Record a boost for effectiveness tracking */
+  recordBoost(gameTime: number): void {
+    this.boostCount++;
+    this._recentBoostTime = gameTime;
+  }
+
+  /** Check if a recent boost led to this event (tag or kill within 3s) */
+  checkBoostEffectiveness(gameTime: number): void {
+    if (gameTime - this._recentBoostTime <= 3) {
+      this.effectiveBoosts++;
+      this._recentBoostTime = -999; // don't double-count
+    }
+  }
+
   /** Sample position for reflection trail — call from game loop */
   sampleTrail(gameTime: number, dt: number): void {
     if (!this.alive) return;
@@ -361,6 +399,13 @@ export class Car implements CarState {
     this.trail = [];
     this.lifeEvents = [];
     this._trailTimer = 0;
+    // Experiment metrics
+    this.timeAsIt = 0;
+    this._itStartTime = 0;
+    this.tagShedTimes = [];
+    this.boostCount = 0;
+    this.effectiveBoosts = 0;
+    this._recentBoostTime = -999;
   }
 }
 

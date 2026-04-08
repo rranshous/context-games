@@ -81,6 +81,40 @@ export interface LifeResult {
   // Per-life trail + events for reflection map
   trail: TrailPoint[];
   lifeEvents: LifeEvent[];
+  // ── Experiment behavioral metrics ──
+  timeAsIt: number;           // seconds spent as IT during this life
+  tagShedTimes: number[];     // seconds from becoming IT to passing it, each instance
+  boostCount: number;         // total boosts fired
+  effectiveBoosts: number;    // boosts that led to a tag or kill within 3s
+  obstacleCollisions: number; // total obstacle hits (rock + cactus + barrel + wall)
+  scorePerSecond: number;     // score gained this life / survivedSeconds
+}
+
+// ── Experiment types ──
+
+export type ExperimentGroup = 'reflex' | 'control';
+
+export interface ExperimentLifeRecord {
+  carId: string;
+  carName: string;
+  group: ExperimentGroup;
+  lifeIndex: number;
+  life: LifeResult;
+  onTickLength: number;  // code size at death — tracks evolution
+  gameTime: number;       // when this death occurred
+}
+
+export interface ExperimentSummary {
+  group: ExperimentGroup;
+  carIds: string[];
+  lives: number;
+  avgSurvival: number;
+  avgScorePerSecond: number;
+  avgTimeAsIt: number;
+  avgTagShedTime: number;
+  avgObstacleCollisions: number;
+  avgBoostEfficiency: number;  // effectiveBoosts / boostCount
+  avgCodeGrowth: number;       // final onTickLength / initial onTickLength
 }
 
 export type GamePhase = 'title' | 'playing' | 'paused';
