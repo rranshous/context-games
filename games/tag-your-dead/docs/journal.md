@@ -1654,3 +1654,55 @@ This suggests that sub-cognitive layers need to respect the same
 state boundaries as conscious strategy — either via conditional
 rewards, conditional probe activation, or by letting the cognitive
 layer explicitly gate when probes are allowed to contribute.
+
+### Experiment Conclusion — Removing the Reflex Layer (2026-04-08)
+
+**Verdict: the reflex/probe/TD subsystem is being removed.**
+
+Two controlled runs (one with unique personalities, one with uniform
+identities) both showed the same result: the learned probe bias makes
+cars measurably worse. The effect is large and consistent — not a
+marginal signal that needs more data.
+
+**What the experiment proved:**
+1. The probe layer actively interferes with on_tick strategy execution
+2. The interference is worst during IT state (probes learn evasion,
+   IT requires pursuit)
+3. The root cause is reward signal misalignment, not implementation bugs
+4. Removing personality as a variable (uniform mode) didn't change the
+   outcome — this is a structural problem with single-signal TD learning
+   in a dual-role game
+
+**What's being kept:**
+- The **vocabulary API** (`me.ram_nearest(0.8)`, `me.flee_it_car(0.6)`,
+  etc.) — this is genuinely valuable. Claude writes better, more
+  readable, more evolvable code using named tendencies vs raw angle math.
+- The **softmax composition** in `tendency-system.ts` — composing
+  multiple named impulses into a net movement vector is elegant and
+  works well.
+- The **actions.ts** tendency definitions — the directional functions
+  (steerToward, steerAway, orbit) are reusable infrastructure.
+
+**What's being removed:**
+- `src/reflex/reflex-layer.ts` — CarReflex, ReflexLayer orchestration
+- `src/reflex/td-learner.ts` — linear TD probes
+- `src/reflex/state-to-text.ts` — game state → text for reservoir
+- `src/reflex/reward.ts` — reward signal computation
+- `src/reflex/onnx-bridge.ts` — distilgpt2 ONNX reservoir bridge
+- `src/experiment.ts` — A/B experiment harness
+- All reflex/experiment references in game.ts, car.ts, soma.ts, types.ts
+- `?reflex=on`, `?autopilot=on`, `?uniform=on` URL params
+- Experiment behavioral metrics on LifeResult and Car
+
+**Lessons for the actant pattern (cross-project):**
+1. Sub-cognitive learned layers need state-aware reward signals. A
+   single score delta can't serve roles with opposing optimal behavior.
+2. The vocabulary abstraction (named impulses with magnitude) is more
+   valuable than the learning layer built on top of it. The API design
+   outlives the ML experiment.
+3. Claude's reflection (conscious rewrite) is remarkably effective on
+   its own. The 30-minute unattended run (pre-experiment) showed cars
+   evolving from 200-char templates to 6,800-char strategic drivers.
+   Adding a sub-cognitive bias didn't help and actively hurt.
+4. A/B testing within a competitive arena works well as a methodology.
+   The in-arena control group approach gave clear signal fast.
