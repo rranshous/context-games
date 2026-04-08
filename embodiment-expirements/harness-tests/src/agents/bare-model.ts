@@ -32,6 +32,7 @@ function createBareAgent(model: string, label: string): Agent {
         system,
         messages: anthropicMessages,
         tools: anthropicTools,
+        tool_choice: { type: 'auto', disable_parallel_tool_use: true },
       });
 
       return anthropicResponseToFC(response);
