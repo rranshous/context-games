@@ -1524,3 +1524,58 @@ hypothesis and see if it can even beat that bar.
 2. Phase 2: behavioral metric deep analysis (after collecting data)
 3. Phase 3: cross-condition tournament (train reflex vs control
    cohorts separately, then pit graduates against each other)
+
+### Experiment Run 1 — Results (2026-04-08)
+
+30 minutes wall time, 193s game time (~1/10 real time with reservoir).
+Clean slate (all localStorage cleared). Autopilot player. 15 total
+deaths (9 reflex, 6 control).
+
+**Per-car results:**
+
+| Car        | Group   | Deaths | Avg Surv | Avg Score/s | Code Growth | IT Timeouts |
+|------------|---------|--------|----------|-------------|-------------|-------------|
+| Viper      | REFLEX  | 4      | 39.0s    | 1.70        | 259→3553    | 1           |
+| Ghost      | REFLEX  | 5      | 32.6s    | 0.91        | 283→5480    | 3           |
+| Bruiser    | CONTROL | 2      | 58.0s    | 5.32        | 153→1146    | 0           |
+| Rattler    | CONTROL | 2      | 51.7s    | 1.94        | 189→1637    | 0           |
+| Dust Devil | CONTROL | 2      | 86.3s    | 7.01        | 246→2087    | 0           |
+
+**Group comparison:**
+
+| Metric           | REFLEX (n=9) | CONTROL (n=6) |
+|------------------|-------------|--------------|
+| Avg survival     | 35.4s       | 65.3s        |
+| Avg score/s      | 1.26        | 4.76         |
+| Avg time as IT   | 11.1s       | 4.5s         |
+| Tag shed time    | never shed  | 5.3s avg     |
+| Code growth      | 16.5×       | 8.2×         |
+
+**Key finding: reflex group performed WORSE.**
+
+Ghost (reflex) died 5 times — 3 were IT timeout deaths (25s as IT,
+0 tag sheds). The probe bias appears to interfere with tag-passing
+behavior. Control cars shed tags successfully (Bruiser: 8s, 6s;
+Dust Devil: 3.4s, 8.5s; Rattler: 0.8s).
+
+The reflex group evolved code faster (16.5× vs 8.2×) but only because
+more deaths = more reflections. Dying from IT timeout is bad evolution
+pressure — it trains Claude to write evasion code when the real
+problem was inability to pass the tag.
+
+**Confounding variable identified: different personalities.**
+
+Viper's identity says "strike fast and vanish" (evasive). Ghost says
+"patient and evasive." Bruiser says "charge straight at targets"
+(aggressive). Claude reads identity during reflection. The reflex
+group has evasive identities, control has aggressive ones. This
+personality difference could explain the tag-shedding gap independent
+of the reflex layer.
+
+**Fix: added `?uniform=on` mode.**
+
+All 5 cars get identical neutral identity and starting on_tick code.
+Removes personality as a variable. The ONLY difference between groups
+is now the reflex probe bias. Running experiment 2 with this flag.
+
+URL: `?reflex=on&autopilot=on&uniform=on`
