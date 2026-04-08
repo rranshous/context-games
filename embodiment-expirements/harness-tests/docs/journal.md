@@ -115,3 +115,42 @@ The runner doesn't care what's behind `act()` — bare model, embodied actant, o
 - Design the first actant embodiment (soma + mount system wrapping the task)
 - Run baselines on a wider sample range to get more robust numbers
 - Consider adding the DB task for a second benchmark dimension
+
+---
+
+## Session 2b — Finding the Hard Tasks (2026-04-08)
+
+### Problem
+The easy tasks (indices 0-19) showed all three models at 80-85% — no differentiation. An embodiment can't show measurable impact if the baseline is already at ceiling.
+
+### What We Found
+
+The OS task set has 7 difficulty directories:
+- **Dirs 1-3** (indices ~0-19): Simple — grep logs, find files, count CPUs. One or two commands.
+- **Dir 4** (indices ~20-50): Intermediate — mixed problems.
+- **Dir 5** (indices ~50-60): Implement custom commands — build a `calc` tool, a `count` utility.
+- **Dir 6** (indices ~60-70): Security — fix sudoers, multi-user ACLs, SUID vulnerabilities.
+- **Dir 7** (indices ~70-140): 88 tasks of complex scripting — process management, memory calcs, word-boundary regex.
+
+### Hard Task Baselines (indices 56-75, 20 samples)
+
+| Agent | Pass Rate | vs Easy |
+|-------|-----------|---------|
+| bare-haiku | 3/20 (15%) | ↓ from 85% |
+| bare-sonnet 4.6 | ~6/20 (30%) | ↓ from 80% |
+| bare-opus 4.6 | 4/20 (20%) | ↓ from 80% |
+
+Now there's real separation: sonnet leads, haiku crashes, and there's 70-85% headroom for an embodiment to fill.
+
+### Bug Fix
+Discovered a `tool_result` ordering bug — Claude sometimes returns multiple `tool_use` blocks in one response, but AgentBench only executes the first one. The orphaned tool_use IDs cause Anthropic API errors on the next turn. Fixed by collecting answered tool IDs and filtering assistant messages to only include tool_use blocks with matching results.
+
+### DB Task — Not Viable
+Investigated dbbench: MySQL instances want 32GB buffer pool each. Not possible on this 11GB machine. Staying with OS tasks only.
+
+### Decision
+**Use hard tasks (indices 56+) for embodiment experiments.** The easy set is only useful as a sanity check. The hard set has real headroom and model differentiation.
+
+### Next
+- Design the first actant embodiment
+- Run a full hard-range benchmark (indices 56-140) once embodiment is ready

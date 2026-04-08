@@ -31,6 +31,13 @@ export function fcMessagesToAnthropic(messages: FCMessage[]): {
   let system = '';
   const out: Anthropic.MessageParam[] = [];
 
+  // Collect all tool_call_ids that have a corresponding tool result,
+  // so we can strip orphaned tool_use blocks from assistant messages.
+  // (AgentBench only executes the first tool call; extras have no result.)
+  const answeredToolIds = new Set(
+    messages.filter(m => m.role === 'tool' && m.tool_call_id).map(m => m.tool_call_id!)
+  );
+
   for (const msg of messages) {
     switch (msg.role) {
       case 'system':
@@ -48,6 +55,8 @@ export function fcMessagesToAnthropic(messages: FCMessage[]): {
         }
         if (msg.tool_calls) {
           for (const tc of msg.tool_calls) {
+            // Only include tool_use blocks that have a matching tool_result
+            if (!answeredToolIds.has(tc.id)) continue;
             content.push({
               type: 'tool_use',
               id: tc.id,
@@ -56,7 +65,9 @@ export function fcMessagesToAnthropic(messages: FCMessage[]): {
             });
           }
         }
-        out.push({ role: 'assistant', content });
+        if (content.length > 0) {
+          out.push({ role: 'assistant', content });
+        }
         break;
       }
 
