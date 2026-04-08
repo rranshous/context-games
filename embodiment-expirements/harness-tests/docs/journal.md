@@ -154,3 +154,80 @@ Investigated dbbench: MySQL instances want 32GB buffer pool each. Not possible o
 ### Next
 - Design the first actant embodiment
 - Run a full hard-range benchmark (indices 56-140) once embodiment is ready
+
+---
+
+## Session 3 — v0 Embodiment: First Contact (2026-04-08)
+
+### Goal
+Build the simplest embodiment that's actually an actant and test whether it helps, hurts, or is neutral vs bare baselines on the hard task set.
+
+### Embodiment Design Dimensions (discussed, not all implemented)
+
+We identified these independent dimensions for embodiment experiments:
+
+1. **Drive pattern**: direct (model every turn) / embodied (on_tick code) / hybrid
+2. **Mounting**: none / fixed / actant-managed
+3. **Self-modification**: none / memory only / full soma
+4. **Tool relationship**: passthrough / wrapped / self-authored
+5. **Orienting context**: none / identity / strategy scaffolding / full soma
+6. **Disposition framing**: literal instructions vs metaphorical values (first-person, RP-style)
+7. **Soma ownership**: pre-authored / seed+grow / blank slate
+8. **Memory architecture**: none / flat / structured / journal
+9. **Reflection trigger**: every turn / periodic / event-driven
+10. **Pressure**: max mounts, max soma size, max section sizes, max tools, reflection budget
+
+Key insight from Robby: embodied identity works better when written from the actant's POV using metaphor and values rather than literal traits and instructions. "I move through problems like water" > "You are a careful problem solver."
+
+Key insight re: drive pattern: the actant should be *shaping itself so its embodiment completes the task*, not directly solving each step. The on_tick code drives; the model reflects periodically to improve it. This is the Glint/Habitat pattern. We saved this for v1.
+
+### v0 Implementation — "the simplest actual actant"
+
+- Three soma sections: `<identity>`, `<task>`, `<memory>` (XML tags, this order)
+- Each writable via LLM tools: `edit_identity`, `edit_task`, `edit_memory`
+- Direct drive (model every turn)
+- Passthrough to AgentBench external tools
+- One pressure knob: max total soma size
+- Identity seed: first-person, metaphorical values
+- Task section initialized from AgentBench's task description
+- Memory starts empty
+
+Internal tool calls intercepted by chassis, recursed (agent called again with synthetic tool_result). External tool calls pass through to AgentBench.
+
+### Results — Hard Tasks (56-75)
+
+| Agent | Bare | Embodied v0 | Delta |
+|-------|------|-------------|-------|
+| haiku | 20% | 15% | **-5%** |
+| sonnet | 30% | 15% | **-15%** |
+| opus | 25% | 15% | **-10%** |
+
+**The embodiment made things worse across all three models.**
+
+### Why: Zero Self-Modification
+
+Checked conversation logs: **zero internal tool calls across all 60 samples** (20 per model). The models never used `edit_identity`, `edit_memory`, or `edit_task`. Not once.
+
+The models treat the soma tools as irrelevant noise. When there's a clear task to solve and external tools available, they go straight for `bash_action`. The identity/memory/task sections add system prompt overhead without being used.
+
+### Observations
+
+- **AgentBench scoring is exact string match.** The embodied sonnet answered "The number of CPUs is **8**." instead of "8" — correct and precise, but fails the exact match. This is a benchmark limitation, not an actant failure. The values-based identity may be causing more verbose answers. Worth tracking but not worth tuning to the benchmark.
+
+- **Direct drive doesn't create self-modification pressure.** When the model is solving each step directly, it has no reason to edit its soma — it can just make the next bash_action call. Self-modification tools only make sense when: (a) there's pressure that forces curation (mounting limits), or (b) the model's job is to shape a persistent behavior (on_tick pattern) rather than directly act.
+
+- **The soma is pure overhead in direct drive.** ~500 extra tokens of identity text in the system prompt, with no benefit. The model would be better off without it.
+
+- **Full conversation logs now saved** to `results/logs/` (gitignored) for post-hoc analysis.
+
+### Questions for Next Iteration
+
+- Would the on_tick/periodic-wake pattern force engagement with self-modification?
+- Would mounting pressure (limited context window) force the actant to curate via edit_task/edit_memory?
+- Does the identity framing need to be more directive about *when* to use the tools?
+- Or is direct drive fundamentally the wrong pattern for embodiment on these tasks?
+
+### Next
+- Consider on_tick pattern (v1) where the model writes code that drives the task
+- Consider mounting pressure — force the model to manage its own context
+- May need different tasks (longer horizon, more state accumulation) to see embodiment benefits

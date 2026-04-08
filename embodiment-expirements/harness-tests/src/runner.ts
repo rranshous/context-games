@@ -2,8 +2,14 @@
  * Runs agent(s) against AgentBench tasks and collects results.
  */
 
+import { writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { Controller } from './controller.js';
 import type { Agent, SampleResult, BenchRun, FCMessage } from './types.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const LOGS_DIR = join(__dirname, '..', 'results', 'logs');
 
 const MAX_ROUNDS = 8;
 const TASK = 'os-std';
@@ -77,6 +83,13 @@ async function runSample(
 
       if (lastResult.finish || lastResult.status !== 'running') break;
     }
+
+    // Write full conversation log
+    try {
+      mkdirSync(LOGS_DIR, { recursive: true });
+      const logFile = join(LOGS_DIR, `${agent.name}_${task}_${index}.json`);
+      writeFileSync(logFile, JSON.stringify({ index, agent: agent.name, task, history, result: lastResult }, null, 2));
+    } catch { /* logging is best-effort */ }
 
     return {
       index,
