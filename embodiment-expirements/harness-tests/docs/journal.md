@@ -265,8 +265,30 @@ The exact-match scoring issue is also notable: the embodied identity made sonnet
 - Model reflects after every N rounds (tight loop for these short tasks) or after failure
 - For 8-round tasks, "tight loop" might mean: model writes on_tick, chassis runs it once, model sees result and refines. Almost 1:1 but the model is editing code, not directly choosing actions.
 
+### Single-Turn Lookback Refactor
+
+Updated the v0 embodiment to use proper actant context model:
+- **System prompt** = assembled soma (identity, task, memory, history)
+- **Messages** = only the last turn (assistant tool_use + user tool_result)
+- **First turn** = just a "Begin." user message
+- **History section** = chassis-managed, one-liner per round (`r1: bash: find / -name ... → output...`)
+
+This means the actant can't see its full conversation — only its soma + what just happened. If it wants to remember something, it *must* use `edit_memory`. This should create natural pressure to self-modify.
+
+**Result: still zero internal tool calls.** Even with limited context, the model doesn't use edit_memory. Direct drive completely suppresses self-modification behavior. The trained instinct to call the next external tool is too strong.
+
+### Confirmed Finding
+
+Direct drive + self-modification tools = models ignore self-modification. Tested across:
+- Full history (v0 original): 0/60 internal tool calls
+- Single-turn lookback (v0 refactored): 0/22 internal tool calls (sonnet subset)
+
+This is not a context problem — it's a drive pattern problem.
+
 ### Open Questions
 - Does the model get its score after each run? Or does it only see what happened (observations, tool outputs) and must infer success/failure?
 - For navigator: how tight is the reflection loop? Every round? Every 2? Only on stuck/failure?
 - Do we persist soma across *different* tasks too, or only same-task retries?
 - What does on_tick code look like for these tasks? A bash pipeline? A strategy description the chassis interprets? Actual JS/TS?
+- Can we make tasks with longer horizons where the model needs to accumulate more state?
+- Does repeating the same task (multi-run persistence) finally trigger self-modification?
