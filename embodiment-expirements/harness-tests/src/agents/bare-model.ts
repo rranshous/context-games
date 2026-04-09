@@ -1,16 +1,12 @@
 /**
- * Bare model agent — no embodiment, no soma, just raw Claude + tools.
+ * Bare model agent for TALES text adventures.
  *
- * This is the baseline: Claude receives the conversation history and tools
- * directly from AgentBench and responds. No wrapping, no mount system,
- * no extra context management.
- *
- * Three instances exported: bareHaiku, bareSonnet, bareOpus.
+ * No embodiment — just Claude receiving observations and choosing actions.
+ * Maintains a sliding window of conversation history.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { fcToolsToAnthropic, fcMessagesToAnthropic, anthropicResponseToFC } from '../format.js';
-import type { Agent, FCMessage, FCTool } from '../types.js';
+import type { Agent, TalesState } from '../types.js';
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -18,24 +14,54 @@ function getClient(): Anthropic {
   return _client;
 }
 
+const MAX_HISTORY = 40; // 20 turns (user + assistant pairs)
+
 function createBareAgent(model: string, label: string): Agent {
+  let messages: Anthropic.MessageParam[] = [];
+  let systemPrompt = '';
+
   return {
     name: label,
 
-    async act(messages: FCMessage[], tools: FCTool[]): Promise<FCMessage[]> {
-      const anthropicTools = fcToolsToAnthropic(tools);
-      const { system, messages: anthropicMessages } = fcMessagesToAnthropic(messages);
+    reset(observation: string, info: TalesState) {
+      messages = [];
+      systemPrompt = `You are playing a text adventure game (${info.env_name}).
+
+Each turn you receive a text observation and a list of available actions.
+Respond with ONLY the action you want to take — nothing else. No explanation, no quotes, just the action text exactly as listed.`;
+    },
+
+    async act(observation: string, info: TalesState): Promise<string> {
+      // Build user message
+      const cmds = info.admissible_commands;
+      const cmdsText = cmds && cmds.length > 0
+        ? cmds.map(c => `  - ${c}`).join('\n')
+        : '(no commands listed — type a valid game command)';
+
+      messages.push({
+        role: 'user',
+        content: `${observation}\n\nAvailable actions:\n${cmdsText}`,
+      });
+
+      // Sliding window
+      if (messages.length > MAX_HISTORY) {
+        messages = messages.slice(-MAX_HISTORY);
+      }
 
       const response = await getClient().messages.create({
         model,
-        max_tokens: 1024,
-        system,
-        messages: anthropicMessages,
-        tools: anthropicTools,
-        tool_choice: { type: 'auto', disable_parallel_tool_use: true },
+        max_tokens: 64,
+        system: systemPrompt,
+        messages,
       });
 
-      return anthropicResponseToFC(response);
+      const action = response.content[0].type === 'text'
+        ? response.content[0].text.trim().replace(/^["']|["']$/g, '')
+        : 'look';
+
+      messages.push({ role: 'assistant', content: action });
+
+      return action;
     },
   };
 }

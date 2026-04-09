@@ -1,57 +1,52 @@
 /**
- * Client for the AgentRL controller REST API.
+ * Client for the TALES HTTP bridge.
  */
 
-import type { StartSampleResponse, InteractResponse, FCMessage } from './types.js';
+import type { TalesState } from './types.js';
 
-const DEFAULT_URL = 'http://localhost:5020/api';
+const DEFAULT_URL = 'http://localhost:5050';
 
-export class Controller {
+export class TalesBridge {
   private url: string;
 
   constructor(url = DEFAULT_URL) {
     this.url = url;
   }
 
-  /** List registered task workers and their status. */
-  async listWorkers(): Promise<Record<string, unknown>> {
-    const resp = await fetch(`${this.url}/list_workers`);
-    if (!resp.ok) throw new Error(`list_workers failed: ${resp.status}`);
-    return resp.json();
+  /** List available environments. */
+  async listEnvs(): Promise<string[]> {
+    const resp = await fetch(`${this.url}/envs`);
+    if (!resp.ok) throw new Error(`/envs failed: ${resp.status}`);
+    const data = await resp.json();
+    return data.environments;
   }
 
-  /** Get available sample indices for a task. */
-  async getIndices(task: string): Promise<number[]> {
-    const resp = await fetch(`${this.url}/get_indices?name=${task}`);
-    if (!resp.ok) throw new Error(`get_indices failed: ${resp.status}`);
-    return resp.json();
-  }
-
-  /** Start a new task sample. Returns session ID + initial messages/tools. */
-  async startSample(task: string, index: number): Promise<{ sessionId: string; data: StartSampleResponse }> {
-    const resp = await fetch(`${this.url}/start_sample`, {
+  /** Start or restart a game. */
+  async reset(envName: string): Promise<TalesState> {
+    const resp = await fetch(`${this.url}/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: task, index }),
+      body: JSON.stringify({ env_name: envName }),
     });
-    if (!resp.ok) throw new Error(`start_sample failed: ${resp.status} ${await resp.text()}`);
-    const sessionId = resp.headers.get('Session_id');
-    if (!sessionId) throw new Error('No Session_id header in start_sample response');
-    const data: StartSampleResponse = await resp.json();
-    return { sessionId, data };
+    if (!resp.ok) throw new Error(`/reset failed: ${resp.status} ${await resp.text()}`);
+    return resp.json();
   }
 
-  /** Send agent response, get task feedback. */
-  async interact(sessionId: string, messages: FCMessage[]): Promise<InteractResponse> {
-    const resp = await fetch(`${this.url}/interact`, {
+  /** Take an action in the current game. */
+  async step(action: string): Promise<TalesState> {
+    const resp = await fetch(`${this.url}/step`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Session_id': sessionId,
-      },
-      body: JSON.stringify({ messages }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
     });
-    if (!resp.ok) throw new Error(`interact failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok) throw new Error(`/step failed: ${resp.status} ${await resp.text()}`);
+    return resp.json();
+  }
+
+  /** Get current game status. */
+  async status(): Promise<TalesState> {
+    const resp = await fetch(`${this.url}/status`);
+    if (!resp.ok) throw new Error(`/status failed: ${resp.status}`);
     return resp.json();
   }
 }

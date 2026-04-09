@@ -1,103 +1,79 @@
 /**
- * Types for the AgentBench FC harness.
- *
- * Two format families live here:
- * - FC (OpenAI function-calling) — what the AgentRL controller speaks
- * - Agent — our internal interface that agent implementations use
+ * Types for the TALES text adventure harness.
  */
 
-// ── AgentBench FC controller types ──────────────────────────
+// ── TALES bridge types ──────────────────────────────────────
 
-/** OpenAI-style function-calling tool definition */
-export interface FCTool {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  };
-}
-
-/** OpenAI-style message (system, user, assistant, tool) */
-export interface FCMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string;
-  tool_calls?: FCToolCall[];
-  tool_call_id?: string;
-}
-
-export interface FCToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string; // JSON-stringified
-  };
-}
-
-/** Response from POST /api/start_sample */
-export interface StartSampleResponse {
-  messages: FCMessage[];
-  tools: FCTool[];
-}
-
-/** Response from POST /api/interact */
-export interface InteractResponse {
-  finish: boolean;
-  reward: number;
-  status: 'running' | 'completed' | 'task limit reached' | 'task error' | 'cancelled';
-  messages: FCMessage[];
-  metrics: { score: number };
+/** Response from POST /reset and POST /step */
+export interface TalesState {
+  active: boolean;
+  env_name: string;
+  observation: string;
+  done: boolean;
+  steps: number;
+  score: number;
+  max_score: number;
+  won: boolean;
+  lost: boolean;
+  admissible_commands: string[] | null;
 }
 
 // ── Agent interface ─────────────────────────────────────────
 
 /**
  * The contract every agent implementation must satisfy.
- * Given the conversation so far and available tools, return tool calls.
+ * Text in, text out — matches the TALES protocol.
  */
 export interface Agent {
   name: string;
 
   /**
-   * Decide the next action.
-   * @param messages - full conversation history (FC format)
-   * @param tools - available tool definitions (FC format)
-   * @returns assistant message(s) with tool_calls
+   * Called when a new game starts.
+   * @param observation - initial game text
+   * @param info - game state (score, commands, etc)
    */
-  act(messages: FCMessage[], tools: FCTool[]): Promise<FCMessage[]>;
+  reset(observation: string, info: TalesState): void;
 
   /**
-   * Notify the agent that an attempt just finished.
-   * Called between multi-run attempts. Soma persists, history resets.
-   * Optional — bare agents don't need this.
+   * Decide the next action.
+   * @param observation - current game text
+   * @param info - game state (score, commands, etc)
+   * @returns the action string to take
    */
-  onAttemptComplete?(score: number, attempt: number): void;
+  act(observation: string, info: TalesState): Promise<string>;
+
+  /**
+   * Called when a game episode ends.
+   * Optional — for agents that learn across episodes.
+   */
+  onEpisodeComplete?(info: TalesState, episode: number): void;
 }
 
 // ── Run results ─────────────────────────────────────────────
 
-export interface SampleResult {
-  index: number;
+export interface EpisodeResult {
+  env: string;
   agent: string;
   score: number;
-  rounds: number;
-  status: string;
+  maxScore: number;
+  steps: number;
+  won: boolean;
   durationMs: number;
   error?: string;
 }
 
 export interface BenchRun {
   agent: string;
-  task: string;
-  model?: string;
+  env: string;
   timestamp: string;
-  samples: SampleResult[];
+  episodes: EpisodeResult[];
   summary: {
     total: number;
-    passed: number;
-    passRate: number;
-    avgRounds: number;
+    wins: number;
+    winRate: number;
+    avgScore: number;
+    avgNormScore: number;
+    avgSteps: number;
     avgDurationMs: number;
   };
 }

@@ -1,19 +1,19 @@
 #!/usr/bin/env npx tsx
 /**
- * CLI for running AgentBench harness tests.
+ * CLI for running TALES text adventure benchmarks.
  *
  * Usage:
- *   npx tsx src/bench.ts run --agent bare-haiku --start 0 --count 10
- *   npx tsx src/bench.ts run --agent bare-haiku,bare-sonnet --start 0 --count 5
+ *   npx tsx src/bench.ts run --agent bare-haiku --env JerichoEnvZork1 --steps 50
+ *   npx tsx src/bench.ts run --agent bare-haiku --env TWCookingLevel3 --episodes 3
  *   npx tsx src/bench.ts list-agents
- *   npx tsx src/bench.ts list-tasks
+ *   npx tsx src/bench.ts list-envs
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { AGENTS } from './agents/index.js';
-import { Controller } from './controller.js';
+import { TalesBridge } from './controller.js';
 import { runBench } from './runner.js';
 import type { BenchRun } from './types.js';
 
@@ -39,15 +39,14 @@ Usage: npx tsx src/bench.ts <command> [options]
 Commands:
   run           Run benchmark
   list-agents   List available agents
-  list-tasks    Check controller for available tasks
+  list-envs     List available TALES environments
 
 Run options:
-  --agent NAME[,NAME]   Agent(s) to run (required)
-  --start N             Starting sample index (default: 0)
-  --count N             Number of samples (default: 10)
-  --verbose             Show per-round details
-  --task NAME           Task name (default: os-std)
-  --attempts N          Multi-run: retry each task N times with persistent soma (default: 1)
+  --agent NAME          Agent to run (required)
+  --env NAME            TALES environment (required)
+  --episodes N          Number of episodes (default: 1)
+  --steps N             Max steps per episode (default: 50)
+  --verbose             Show per-step details
   `.trim());
 }
 
@@ -91,67 +90,55 @@ async function main() {
     return;
   }
 
-  if (command === 'list-tasks') {
-    const controller = new Controller();
-    const workers = await controller.listWorkers();
-    console.log('Registered tasks:');
-    for (const [name, info] of Object.entries(workers)) {
-      const w = info as any;
-      const workerCount = Object.keys(w.workers ?? {}).length;
-      console.log(`  ${name} (${workerCount} worker(s), ${w.indices?.length ?? '?'} samples)`);
+  if (command === 'list-envs') {
+    const bridge = new TalesBridge();
+    try {
+      const envs = await bridge.listEnvs();
+      console.log(`Available environments (${envs.length}):`);
+      for (const name of envs) {
+        console.log(`  ${name}`);
+      }
+    } catch (e: any) {
+      console.error('Could not connect to TALES bridge. Is tales-bridge.py running?');
+      console.error(`  Error: ${e.message}`);
+      process.exit(1);
     }
     return;
   }
 
   if (command === 'run') {
-    const agentNames = (opts.agent ?? '').split(',').filter(Boolean);
-    if (agentNames.length === 0) {
+    const agentName = opts.agent;
+    const envName = opts.env;
+
+    if (!agentName) {
       console.error('Error: --agent required. Use list-agents to see options.');
       process.exit(1);
     }
-
-    const start = parseInt(opts.start ?? '0', 10);
-    const count = parseInt(opts.count ?? '10', 10);
-    const verbose = opts.verbose === 'true';
-    const task = opts.task ?? 'os-std';
-    const maxAttempts = parseInt(opts.attempts ?? '1', 10);
-    const indices = Array.from({ length: count }, (_, i) => start + i);
-
-    const allRuns: BenchRun[] = [];
-
-    for (const name of agentNames) {
-      const agent = AGENTS[name];
-      if (!agent) {
-        console.error(`Unknown agent: ${name}. Available: ${Object.keys(AGENTS).join(', ')}`);
-        process.exit(1);
-      }
-
-      const run = await runBench({ agent, task, indices, maxAttempts, verbose });
-      allRuns.push(run);
+    if (!envName) {
+      console.error('Error: --env required. Use list-envs to see options.');
+      process.exit(1);
     }
+
+    const agent = AGENTS[agentName];
+    if (!agent) {
+      console.error(`Unknown agent: ${agentName}. Available: ${Object.keys(AGENTS).join(', ')}`);
+      process.exit(1);
+    }
+
+    const episodes = parseInt(opts.episodes ?? '1', 10);
+    const maxSteps = parseInt(opts.steps ?? '50', 10);
+    const verbose = opts.verbose === 'true';
+
+    const run = await runBench({ agent, env: envName, episodes, maxSteps, verbose });
 
     // Save results
     const resultsDir = join(ROOT, 'results');
     mkdirSync(resultsDir, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${agentNames.join('_')}_${timestamp}.json`;
+    const filename = `${agentName}_${envName}_${timestamp}.json`;
     const outPath = join(resultsDir, filename);
-    writeFileSync(outPath, JSON.stringify(allRuns, null, 2));
+    writeFileSync(outPath, JSON.stringify(run, null, 2));
     console.log(`\nResults saved to ${outPath}`);
-
-    // Comparison table if multiple agents
-    if (allRuns.length > 1) {
-      console.log('\n' + '='.repeat(60));
-      console.log('Comparison:');
-      console.log(`${'Agent'.padEnd(20)} ${'Pass'.padEnd(8)} ${'Rate'.padEnd(8)} ${'Avg Rnd'.padEnd(8)} ${'Avg Time'.padEnd(10)}`);
-      console.log('-'.repeat(60));
-      for (const run of allRuns) {
-        const s = run.summary;
-        console.log(
-          `${run.agent.padEnd(20)} ${`${s.passed}/${s.total}`.padEnd(8)} ${`${(s.passRate * 100).toFixed(0)}%`.padEnd(8)} ${s.avgRounds.toFixed(1).padEnd(8)} ${`${(s.avgDurationMs / 1000).toFixed(1)}s`.padEnd(10)}`
-        );
-      }
-    }
 
     return;
   }

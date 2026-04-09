@@ -437,3 +437,43 @@ An actant with memory that tracks visited rooms, found objects, and current goal
 - Build embodied TALES agent with memory section (track rooms, objects, goals)
 - Compare bare vs embodied on Zork 1 (and other Jericho games)
 - This time the task creates genuine memory pressure — should see real embodiment benefit
+
+---
+
+## Session 7 — TALES TS Harness (2026-04-09)
+
+### What We Did
+
+Replaced the AgentBench-specific TS harness with a TALES-native one. Clean swap:
+
+**Python HTTP bridge** (`tales-bridge.py`):
+- `POST /reset {env_name}` → start a game, get initial observation + state
+- `POST /step {action}` → take action, get new observation + state
+- `GET /envs` → list 122 available environments
+- Single global game state, one game at a time
+
+**TS harness** (rewritten):
+- `types.ts` — `TalesState`, `Agent` (text-based: `reset()` + `act(obs, info) → action`), `EpisodeResult`, `BenchRun`
+- `controller.ts` — `TalesBridge` client (fetch-based, talks to bridge)
+- `runner.ts` — episode loop: reset → act → step → repeat. Logs to `results/logs/`
+- `bench.ts` — CLI: `npx tsx src/bench.ts run --agent bare-haiku --env JerichoEnvZork1 --steps 50`
+- `agents/bare-model.ts` — bare haiku/sonnet/opus, sliding window of 20 turns
+
+Old AgentBench-specific files (`format.ts`, `embodied-v0.ts`) moved to `src/archive/`.
+
+### Smoke Test Results
+
+| Game | Score | Steps | Won? |
+|------|-------|-------|------|
+| TWXCoinCollector | 100/100 | 1 | Yes |
+| JerichoEnvZork1 | 15/350 | 50 | No — wandering after step 25 |
+
+Zork pattern identical to Python version: purposeful for ~25 steps (found egg +5, entered house +10), then aimless wandering.
+
+### Token Budget Note
+Yesterday's runs burned through a lot of sonnet/opus tokens — the AgentBench multi-attempt benchmarks (20 samples × 3 attempts × 8 rounds × 3 models) plus accidentally duplicated background runs. Need to be more careful with larger models. Haiku is cheap enough for iteration.
+
+### Next
+- Build embodied TALES agent (memory section, self-modification tools)
+- This time the task creates genuine memory pressure — agent must remember rooms, objects, goals
+- Start with haiku to conserve tokens

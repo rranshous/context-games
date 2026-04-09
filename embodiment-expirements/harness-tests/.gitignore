@@ -2,4 +2,5 @@ AgentBench/
 node_modules/
 dist/
 .env
+.venv/
 results/
