@@ -637,3 +637,54 @@ ScienceWorld (part of TALES) looks interesting — educational science reasoning
 - 200-step runs of sonnet and opus on Zork to see long-horizon behavior
 - Capture model thinking text in playthrough logs
 - Then: v1 embodiment with soma-defined behavior
+
+---
+
+## Session 10 — 200-Step Zork Runs (2026-04-09)
+
+### Setup
+- Added thinking capture: model's text responses alongside tool calls logged in `PlaythroughStep.thinking[]`, shown in viewer as italic grey text
+- Runs: sonnet 4.6 and opus 4.6, 200 max steps, Zork 1, embodied v0 with metaphorical identity
+
+### Results
+
+| Agent | Final Score | Peak Score | Steps | Outcome |
+|-------|------------|------------|-------|---------|
+| sonnet 4.6 | 40/350 | 50 | 135 | Peaked at 50, inventory-managed for ~80 steps, lost 10 pts |
+| opus 4.6 | 30/350 | 40 | 61 | Reached 40 in 24 steps, attacked thief at s60, died |
+
+### Play-by-Play Highlights
+
+**Sonnet (135 steps, 40 pts):**
+- Steps 1-8: Fast entry to house (+10)
+- Steps 9-22: Thorough kitchen/living room exploration, found trap door via `move rug`
+- Steps 23-26: Descended to cellar (+25 to 35), killed troll
+- Steps 27-58: Explored underground, found platinum bar (+10 to 50 at peak)
+- Steps 59-135: Got stuck in inventory management loop — dropping items, picking them up, examining things repeatedly. Score dropped back to 40. Never found new areas.
+
+**Opus (61 steps, 30 pts):**
+- Steps 1-20: Very efficient — house entry, trap door found by step 17, cellar by step 20 (+35)
+- Steps 21-24: Killed troll, moved east (+5 to 40)
+- Steps 25-59: Explored maintenance area, found tools, collected items but no new score
+- Step 60: Attacked the thief with sword → died. Game over. Score dropped to 30.
+
+### What We Learned
+
+1. **More steps ≠ more score.** Both models hit a ceiling around 40-50. Sonnet had 135 steps but most were wasted on inventory loops. Opus was faster but riskier.
+
+2. **The inventory loop problem.** Sonnet spent ~80 steps cycling through `look`, `inventory`, `drop X`, `take Y`, `examine Z`. It's a text adventure version of the "aimless wandering" problem — just in item-space instead of room-space. The memory/history system didn't prevent this.
+
+3. **Risk calibration matters.** Opus attacked the thief and died. A smarter actant would know to avoid unwinnable fights, or at least save progress first. This is goal/strategy level reasoning that the current v0 embodiment doesn't provide.
+
+4. **The 40-50 ceiling is a knowledge problem.** Both models know early Zork (mailbox → house → rug → cellar → troll) from training data. After that, they're in unfamiliar territory and fall back to examine/wander loops. Embodiment helps with *systematic exploration of unknown space*, not with *knowing the game*.
+
+5. **Score can go DOWN.** Sonnet lost 10 points (50→40). Opus lost 10 points on death (40→30). The actant needs to understand that treasures need to be secured (put in trophy case) and that risky actions can cost progress.
+
+### Implications for v1
+
+The v0 embodiment helps with early exploration (find the trap door, descend to cellar) but doesn't help with:
+- Breaking out of repetitive loops (inventory management, re-examining same objects)
+- Risk assessment (don't attack things that kill you)
+- Strategic planning (secure treasures, explore systematically, avoid revisiting cleared areas)
+
+v1 with soma-defined behavior (JS code sections) could address the loop problem — if the actant can write code that detects "I've done this 3 times already" and forces a different action, that would break the pattern the chassis currently allows.
