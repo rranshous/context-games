@@ -395,3 +395,45 @@ AgentBench OS tasks are short-horizon tool-use competence tests. Embodiment adds
 3. Baseline a few games (Coin Collector, a Jericho game, a cooking task)
 4. Then: embodied actant with memory/self-modification on same games
 5. This time the embodiment should actually matter — the tasks create the pressure
+
+---
+
+## Session 6 — TALES Running, First Results (2026-04-09)
+
+### Setup
+- `pip install tale-suite anthropic` (needed python symlink for `fast-downward-textworld` build)
+- 122 environments available across TextWorld, TextWorld-Express, Jericho, ALFWorld, ScienceWorld
+- Gymnasium interface: `reset() → (obs, info)`, `step(action) → (obs, reward, done, info)`
+- Pure text in/out — no tool calls, no function calling
+
+### tales-agent.py
+Bare Claude agent for TALES. ~100 lines Python. Takes observation + available actions, asks Claude for an action, sends it to the environment. Sliding window of last 20 turns to keep conversation manageable.
+
+### First Results (bare haiku)
+
+| Game | Score | Max | Steps | Won? |
+|------|-------|-----|-------|------|
+| TWXCoinCollector | 100 | 100 | 1 | Yes — coin was in starting room |
+| TWCookingLevel3 | 4 | 4 | 13 | Yes — found cheese, sliced, prepared, ate |
+| JerichoEnvZork1 | 10 | 350 | 50 | No — got into house (10pts), then wandered |
+
+### The Wandering Problem — Exactly What We Need
+
+Zork 1 is the perfect embodiment test case. Haiku scored 10/350:
+- Steps 1-22: purposeful exploration, found the house, entered through window (+10 pts)
+- Steps 23-27: grabbed useful items (lantern, sword, bottle)
+- Steps 28-50: **aimless wandering** — north, south, east, west, with no apparent strategy. Revisiting rooms. No progress.
+
+This is the known failure mode from the TALES research: "agents wander aimlessly, revisiting rooms they've already explored." The sliding window context means the agent literally forgets where it's been after 20 turns.
+
+An actant with memory that tracks visited rooms, found objects, and current goals should do dramatically better here. This is the context management problem embodiment is designed to solve.
+
+### Notes
+- Jericho games don't provide `admissible_commands` (unlike TextWorld) — the agent must generate valid commands from the observation text. Haiku handles this well enough.
+- TextWorld cooking was surprisingly easy for haiku — solved in 13 steps with `admissible_commands` guidance.
+- The token budget per game varies wildly: CoinCollector = 1 API call, Zork = 50 API calls. Need to be mindful of costs.
+
+### Next
+- Build embodied TALES agent with memory section (track rooms, objects, goals)
+- Compare bare vs embodied on Zork 1 (and other Jericho games)
+- This time the task creates genuine memory pressure — should see real embodiment benefit
