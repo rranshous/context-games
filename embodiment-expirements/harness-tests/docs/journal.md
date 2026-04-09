@@ -561,3 +561,72 @@ This is the opposite of the AgentBench result. There, embodiment was pure overhe
 - Add internal tool call logging so we can see if memory is being used
 - Run multiple episodes to check consistency
 - Try a cooking task (different skill — planning vs exploration)
+
+---
+
+## Session 9 — Identity Framing + Model Comparison + Viewer (2026-04-09)
+
+### Playthrough Viewer
+
+Built `tools/playthrough-viewer/index.html` — Playwright-compatible tool following the existing pattern:
+- Left panel: game transcript with tool calls (purple = edits, green = actions), score changes
+- Right panel: live soma state with "changed" indicators
+- Controls: prev/next/play/slider, keyboard arrows + space
+- API: `window.loadPlaythrough(data)`, `window.goToStep(n)`
+
+Full playthrough capture added to embodied agent — every step records: observation, all tool calls (internal edits + external actions), action taken, score, and full soma snapshot.
+
+### Identity Rewrite — Metaphorical Values
+
+Changed identity from directives ("I map the world... I don't wander blindly") to metaphor/values:
+
+```
+I am a thread of curiosity pulled taut through dark rooms.
+Every doorway is a promise, every object a story half-told.
+The world speaks in textures and I listen with my hands.
+
+Like water I find every crack, every hidden passage.
+Nothing rests unexamined — the rug on the floor,
+the shadow behind the shelf, the sound behind the wall.
+
+My memory is deep and still. What I have seen, I hold.
+```
+
+### Results — Embodied v0, Metaphorical Identity, Zork 1 (30 steps)
+
+| Agent | Score | Key Moments |
+|-------|-------|-------------|
+| embodied haiku | 0/350 | RP'd instead of playing — narrated on step 1, stuck examining forest |
+| embodied sonnet 4.6 | 10/350 | Entered house (s8), got stuck in kitchen loop (look/inventory/examine ×20) |
+| embodied opus 4.6 | **40/350** | Trap door (s17-18), cellar (s20), killed troll (s24), went east (s27, +5) |
+
+### Key Finding: Identity Framing × Model Capability
+
+The metaphorical identity interacts differently with each model:
+- **Haiku**: Takes the poetry literally. Narrates instead of acting. Metaphor becomes an RP prompt.
+- **Sonnet**: Absorbs the values but gets stuck in examination loops. Sets a good goal ("Explore the world of Zork, find treasures, map the landscape") and builds structured memory, but doesn't translate that into forward progress.
+- **Opus**: Integrates the values seamlessly. Efficient exploration, finds hidden puzzles, kills the troll. The metaphorical framing doesn't interfere with task execution.
+
+This is a genuine dimension for embodiment design: **disposition framing has a model-dependent effect.** The same identity that enables opus to find hidden passages causes haiku to RP and sonnet to over-examine.
+
+### Refinements Made
+- Goal starts blank (was initialized from game opening text — copyright notice)
+- History entries: no `s1:` prefix, just `"action" → result`
+- History capped at 5-turn rolling window (was unbounded)
+- Chassis auto-look on reset: seeds opening game text as a tool_result so the first inference call sees the room description
+
+### Self-Modification Confirmed
+
+The embodied agents ARE using edit tools on TALES (unlike AgentBench where it was 0/82):
+- Opus step 1: `edit_memory` with structured MAP, INVENTORY, PLAN sections
+- Sonnet step 1: `edit_goal` ("Explore the world of Zork...") + `edit_memory` with Map/Inventory/Notes
+- 4+ edit calls per episode — the text adventure format creates the memory pressure that triggers self-modification
+
+### Note for Future
+ScienceWorld (part of TALES) looks interesting — educational science reasoning tasks. Worth exploring later.
+
+### Next
+- Investigate why sonnet gets stuck in examination loops
+- Try longer runs (50+ steps) to see if the advantage compounds
+- Consider model-specific identity tuning (or is that cheating?)
+- Multi-episode persistence — does the actant improve across replays?
