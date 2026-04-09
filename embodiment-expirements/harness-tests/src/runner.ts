@@ -6,7 +6,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { TalesBridge } from './controller.js';
-import type { Agent, EpisodeResult, BenchRun, TalesState } from './types.js';
+import type { Agent, EpisodeResult, BenchRun, TalesState, Playthrough } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOGS_DIR = join(__dirname, '..', 'results', 'logs');
@@ -56,14 +56,23 @@ async function runEpisode(
       agent.onEpisodeComplete(state, episode);
     }
 
-    // Log full episode
+    // Save playthrough log if agent supports it
     try {
       mkdirSync(LOGS_DIR, { recursive: true });
+      const steps = agent.getPlaythrough?.() ?? [];
+      const playthrough: Playthrough = {
+        agent: agent.name,
+        env,
+        episode,
+        timestamp: new Date().toISOString(),
+        steps,
+        finalScore: state.score,
+        maxScore: state.max_score,
+        won: state.won,
+        totalSteps: state.steps,
+      };
       const logFile = join(LOGS_DIR, `${agent.name}_${env}_ep${episode}.json`);
-      writeFileSync(logFile, JSON.stringify({
-        env, agent: agent.name, episode,
-        finalState: state,
-      }, null, 2));
+      writeFileSync(logFile, JSON.stringify(playthrough, null, 2));
     } catch { /* best-effort */ }
 
     return {

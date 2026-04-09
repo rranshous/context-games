@@ -14,9 +14,11 @@
  *
  * Tools: edit_identity, edit_goal, edit_memory, take_action
  * take_action is the only external tool — returns TALES observation.
+ *
+ * Captures full playthrough log for the viewer.
  */
 
-import type { Agent, TalesState } from '../types.js';
+import type { Agent, TalesState, PlaythroughStep, PlaythroughToolCall } from '../types.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -40,9 +42,13 @@ rather than trying the same thing again.
 
 I write things down. My memory is my map.`;
 
+const HISTORY_WINDOW = 5;
+
 function assembleSoma(soma: Soma, maxSize: number): string {
-  const historyText = soma.history.length > 0
-    ? soma.history.join('\n')
+  // Rolling window — only show last N history entries
+  const recentHistory = soma.history.slice(-HISTORY_WINDOW);
+  const historyText = recentHistory.length > 0
+    ? (soma.history.length > HISTORY_WINDOW ? '...\n' : '') + recentHistory.join('\n')
     : '(no actions yet)';
 
   let parts = [
@@ -53,12 +59,10 @@ function assembleSoma(soma: Soma, maxSize: number): string {
   ];
   let assembled = parts.join('\n\n');
 
-  // Pressure: trim history from front, then memory from front
   if (maxSize > 0 && assembled.length > maxSize) {
     while (assembled.length > maxSize && soma.history.length > 1) {
       soma.history.shift();
-      const ht = soma.history.join('\n');
-      parts[3] = `<history>\n...\n${ht}\n</history>`;
+      parts[3] = `<history>\n...\n${soma.history.join('\n')}\n</history>`;
       assembled = parts.join('\n\n');
     }
     if (assembled.length > maxSize && soma.memory.length > 0) {
@@ -70,6 +74,15 @@ function assembleSoma(soma: Soma, maxSize: number): string {
   }
 
   return assembled;
+}
+
+function cloneSoma(soma: Soma): Soma {
+  return {
+    identity: soma.identity,
+    goal: soma.goal,
+    memory: soma.memory,
+    history: [...soma.history],
+  };
 }
 
 // ── Tool definitions (OpenAI format for OpenRouter) ─────────
@@ -142,10 +155,7 @@ interface ORMessage {
 }
 
 async function callOpenRouter(
-  model: string,
-  system: string,
-  messages: ORMessage[],
-  tools: any[],
+  model: string, system: string, messages: ORMessage[], tools: any[],
 ): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
@@ -176,7 +186,6 @@ async function callOpenRouter(
 // ── Summarize observation for history ───────────────────────
 
 function summarizeObs(obs: string): string {
-  // Take first 120 chars, collapse newlines
   const clean = obs.replace(/\n/g, ' ').trim();
   return clean.length > 120 ? clean.slice(0, 120) + '...' : clean;
 }
@@ -194,174 +203,40 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
   const { model, label, maxSomaSize = 0, identity = DEFAULT_IDENTITY } = opts;
 
   let soma: Soma = { identity, goal: '', memory: '', history: [] };
-  let lastTurnMessages: ORMessage[] = [];
-
-  return {
-    name: label,
-
-    reset(observation: string, info: TalesState) {
-      soma = {
-        identity,
-        goal: observation, // game opening text becomes initial goal
-        memory: '',
-        history: [],
-      };
-      lastTurnMessages = [];
-    },
-
-    async act(observation: string, info: TalesState): Promise<string> {
-      // Build system prompt from soma
-      const system = assembleSoma(soma, maxSomaSize);
-
-      // Messages: last turn if we have one, otherwise "play"
-      const messages: ORMessage[] = lastTurnMessages.length > 0
-        ? [...lastTurnMessages]
-        : [{ role: 'user', content: 'play' }];
-
-      let internalCalls = 0;
-
-      // Loop: model may call edit tools before taking an action
-      while (true) {
-        const data = await callOpenRouter(model, system, messages, TOOLS);
-        const choice = data.choices?.[0]?.message;
-
-        if (!choice) throw new Error('No response from model');
-
-        // Check for tool call
-        const toolCall = choice.tool_calls?.[0];
-
-        if (!toolCall) {
-          // No tool call — model responded with text. Use it as action.
-          const action = choice.content?.trim() ?? 'look';
-          soma.history.push(`s${soma.history.length + 1}: "${action}" → ${summarizeObs(observation)}`);
-          return action;
-        }
-
-        const fnName = toolCall.function.name;
-        const fnArgs = JSON.parse(toolCall.function.arguments);
-
-        if (INTERNAL_TOOL_NAMES.has(fnName)) {
-          // Internal tool — update soma
-          switch (fnName) {
-            case 'edit_identity': soma.identity = fnArgs.content; break;
-            case 'edit_goal': soma.goal = fnArgs.content; break;
-            case 'edit_memory': soma.memory = fnArgs.content; break;
-          }
-
-          internalCalls++;
-
-          // Set up messages for next iteration with tool result
-          messages.length = 0;
-          messages.push({
-            role: 'assistant',
-            content: choice.content ?? undefined,
-            tool_calls: choice.tool_calls,
-          });
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: `Updated ${fnName.replace('edit_', '')} section.`,
-          });
-
-          if (internalCalls >= MAX_INTERNAL_PER_STEP) {
-            // Force an action — call without internal tools
-            const forced = await callOpenRouter(model, assembleSoma(soma, maxSomaSize), messages, [TOOLS[3]]); // take_action only
-            const fc = forced.choices?.[0]?.message?.tool_calls?.[0];
-            if (fc) {
-              const action = JSON.parse(fc.function.arguments).action;
-              soma.history.push(`s${soma.history.length + 1}: "${action}" → ${summarizeObs(observation)}`);
-              return action;
-            }
-            return 'look';
-          }
-
-          continue;
-        }
-
-        if (fnName === 'take_action') {
-          const action = fnArgs.action;
-
-          // We'll update history with the NEXT observation (not current one)
-          // For now, record what we're about to do
-          // The history gets the result on the NEXT act() call when we see the new observation
-
-          // Actually — we have the current observation from the last step.
-          // Record previous step's result if history is behind
-          soma.history.push(`s${soma.history.length + 1}: "${action}"`);
-
-          // Set up last turn for next call: the take_action tool call + its result
-          // (result will be filled in on next act() when we get the new observation)
-          lastTurnMessages = [
-            {
-              role: 'assistant',
-              tool_calls: choice.tool_calls,
-              content: choice.content ?? undefined,
-            },
-            {
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: '', // placeholder — filled on next call
-            },
-          ];
-
-          return action;
-        }
-
-        // Unknown tool
-        return 'look';
-      }
-    },
-
-    onEpisodeComplete(info: TalesState, episode: number) {
-      // Could persist soma across episodes here
-    },
-  };
-}
-
-// We need to fill in the tool result from the previous step when act() is called again.
-// Let me restructure: the runner calls act() with the new observation AFTER taking the action.
-// So on entry to act(), observation is the RESULT of our last action.
-
-function createEmbodiedV0AgentFixed(opts: EmbodiedV0Options): Agent {
-  const { model, label, maxSomaSize = 0, identity = DEFAULT_IDENTITY } = opts;
-
-  let soma: Soma = { identity, goal: '', memory: '', history: [] };
   let pendingLastTurn: { toolCalls: any; toolCallId: string } | null = null;
+  let playthroughLog: PlaythroughStep[] = [];
+  let stepCounter = 0;
 
   return {
     name: label,
 
     reset(observation: string, info: TalesState) {
-      soma = {
-        identity,
-        goal: observation,
-        memory: '',
-        history: [],
-      };
+      soma = { identity, goal: observation, memory: '', history: [] };
       pendingLastTurn = null;
+      playthroughLog = [];
+      stepCounter = 0;
+    },
+
+    getPlaythrough() {
+      return playthroughLog;
     },
 
     async act(observation: string, info: TalesState): Promise<string> {
-      // Build last turn messages from pending action + current observation (its result)
+      stepCounter++;
+      const stepToolCalls: PlaythroughToolCall[] = [];
+
+      // Build last turn messages
       let messages: ORMessage[];
 
       if (pendingLastTurn) {
-        // Update history with the result
         const lastIdx = soma.history.length;
         if (lastIdx > 0) {
           soma.history[lastIdx - 1] += ` → ${summarizeObs(observation)}`;
         }
 
         messages = [
-          {
-            role: 'assistant',
-            tool_calls: pendingLastTurn.toolCalls,
-          },
-          {
-            role: 'tool',
-            tool_call_id: pendingLastTurn.toolCallId,
-            content: observation,
-          },
+          { role: 'assistant', tool_calls: pendingLastTurn.toolCalls },
+          { role: 'tool', tool_call_id: pendingLastTurn.toolCallId, content: observation },
         ];
         pendingLastTurn = null;
       } else {
@@ -374,15 +249,25 @@ function createEmbodiedV0AgentFixed(opts: EmbodiedV0Options): Agent {
       while (true) {
         const data = await callOpenRouter(model, system, messages, TOOLS);
         const choice = data.choices?.[0]?.message;
-
         if (!choice) throw new Error('No response from model');
 
         const toolCall = choice.tool_calls?.[0];
 
         if (!toolCall) {
-          // Text response — use as action
           const action = choice.content?.trim() ?? 'look';
           soma.history.push(`s${soma.history.length + 1}: "${action}"`);
+
+          stepToolCalls.push({ name: 'take_action', args: { action } });
+          playthroughLog.push({
+            step: stepCounter,
+            observation,
+            toolCalls: stepToolCalls,
+            action,
+            score: info.score,
+            maxScore: info.max_score,
+            soma: cloneSoma(soma),
+          });
+
           return action;
         }
 
@@ -390,6 +275,13 @@ function createEmbodiedV0AgentFixed(opts: EmbodiedV0Options): Agent {
         const fnArgs = JSON.parse(toolCall.function.arguments);
 
         if (INTERNAL_TOOL_NAMES.has(fnName)) {
+          // Record the edit
+          stepToolCalls.push({
+            name: fnName,
+            args: fnArgs,
+            result: `Updated ${fnName.replace('edit_', '')} section.`,
+          });
+
           switch (fnName) {
             case 'edit_identity': soma.identity = fnArgs.content; break;
             case 'edit_goal': soma.goal = fnArgs.content; break;
@@ -410,6 +302,18 @@ function createEmbodiedV0AgentFixed(opts: EmbodiedV0Options): Agent {
               const action = JSON.parse(fc.function.arguments).action;
               soma.history.push(`s${soma.history.length + 1}: "${action}"`);
               pendingLastTurn = { toolCalls: forced.choices[0].message.tool_calls, toolCallId: fc.id };
+
+              stepToolCalls.push({ name: 'take_action', args: { action } });
+              playthroughLog.push({
+                step: stepCounter,
+                observation,
+                toolCalls: stepToolCalls,
+                action,
+                score: info.score,
+                maxScore: info.max_score,
+                soma: cloneSoma(soma),
+              });
+
               return action;
             }
             return 'look';
@@ -422,6 +326,18 @@ function createEmbodiedV0AgentFixed(opts: EmbodiedV0Options): Agent {
           const action = fnArgs.action;
           soma.history.push(`s${soma.history.length + 1}: "${action}"`);
           pendingLastTurn = { toolCalls: choice.tool_calls, toolCallId: toolCall.id };
+
+          stepToolCalls.push({ name: 'take_action', args: { action } });
+          playthroughLog.push({
+            step: stepCounter,
+            observation,
+            toolCalls: stepToolCalls,
+            action,
+            score: info.score,
+            maxScore: info.max_score,
+            soma: cloneSoma(soma),
+          });
+
           return action;
         }
 
@@ -435,12 +351,12 @@ function createEmbodiedV0AgentFixed(opts: EmbodiedV0Options): Agent {
 
 // ── Exports ─────────────────────────────────────────────────
 
-export const embodiedV0Haiku = createEmbodiedV0AgentFixed({
+export const embodiedV0Haiku = createEmbodiedV0Agent({
   model: 'anthropic/claude-haiku-4.5',
   label: 'embodied-v0-haiku',
 });
 
-export const embodiedV0Sonnet = createEmbodiedV0AgentFixed({
+export const embodiedV0Sonnet = createEmbodiedV0Agent({
   model: 'anthropic/claude-sonnet-4.6',
   label: 'embodied-v0-sonnet',
 });

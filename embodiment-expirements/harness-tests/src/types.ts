@@ -47,6 +47,50 @@ export interface Agent {
    * Optional — for agents that learn across episodes.
    */
   onEpisodeComplete?(info: TalesState, episode: number): void;
+
+  /**
+   * Get the playthrough log for the current/last episode.
+   * Optional — only embodied agents track this.
+   */
+  getPlaythrough?(): PlaythroughStep[];
+}
+
+// ── Playthrough capture ─────────────────────────────────────
+
+/** A single tool call made by the agent (internal or external) */
+export interface PlaythroughToolCall {
+  name: string;
+  args: Record<string, any>;
+  result?: string;
+}
+
+/** Full snapshot of one step in a playthrough */
+export interface PlaythroughStep {
+  step: number;
+  observation: string;       // what the game showed
+  toolCalls: PlaythroughToolCall[];  // all tool calls this step (edits + action)
+  action: string;            // the take_action that was sent to TALES
+  score: number;
+  maxScore: number;
+  soma: {                    // soma state AFTER this step's edits
+    identity: string;
+    goal: string;
+    memory: string;
+    history: string[];
+  };
+}
+
+/** Complete playthrough log for one episode */
+export interface Playthrough {
+  agent: string;
+  env: string;
+  episode: number;
+  timestamp: string;
+  steps: PlaythroughStep[];
+  finalScore: number;
+  maxScore: number;
+  won: boolean;
+  totalSteps: number;
 }
 
 // ── Run results ─────────────────────────────────────────────
