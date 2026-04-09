@@ -297,19 +297,45 @@ function createEmbodiedV0AgentWithLookback(opts: EmbodiedV0Options): Agent {
   let lastTurnMessages: Anthropic.MessageParam[] = [];
   let prevHistoryLength = 0;
 
+  let attemptCount = 0;
+  let internalCallsThisTurn = 0;
+  const MAX_INTERNAL_CALLS_PER_TURN = 5;
+
   return {
     name: label,
 
+    onAttemptComplete(score: number, attempt: number) {
+      // Soma persists. History resets. Score is noted.
+      const outcome = score > 0 ? 'succeeded' : 'failed';
+      soma.history = [`[Attempt ${attempt} ${outcome} (score: ${score})]`];
+      lastTurnMessages = [];
+      prevHistoryLength = 0;
+      attemptCount = attempt;
+    },
+
     async act(messages: FCMessage[], tools: FCTool[]): Promise<FCMessage[]> {
+      // Reset internal call counter when the runner calls us (not on recursion)
+      if (messages.length !== prevHistoryLength || !initialized) {
+        internalCallsThisTurn = 0;
+      }
+
       // Detect new task
       if (!initialized || messages.length <= 2) {
         const userMsg = messages.find(m => m.role === 'user');
-        soma = {
-          identity,
-          task: userMsg?.content ?? '',
-          memory: '',
-          history: [],
-        };
+        // Only reset full soma on first-ever task, not between attempts
+        // (onAttemptComplete handles the between-attempt reset)
+        if (attemptCount === 0) {
+          soma = {
+            identity,
+            task: userMsg?.content ?? '',
+            memory: '',
+            history: [],
+          };
+        } else {
+          // New attempt on same task — task description may differ (new container)
+          // but keep identity + memory from previous attempts
+          soma.task = userMsg?.content ?? soma.task;
+        }
         lastTurnMessages = [];
         prevHistoryLength = messages.length;
         initialized = true;
@@ -409,7 +435,20 @@ function createEmbodiedV0AgentWithLookback(opts: EmbodiedV0Options): Agent {
           },
         ];
 
-        // Recurse
+        // Recurse (with limit to prevent infinite internal tool loops)
+        internalCallsThisTurn++;
+        if (internalCallsThisTurn >= MAX_INTERNAL_CALLS_PER_TURN) {
+          // Hit limit — call Claude once more with ONLY external tools to force an action
+          const forcedResponse = await getClient().messages.create({
+            model,
+            max_tokens: 1024,
+            system: assembleSoma(soma, maxSomaSize),
+            messages: lastTurnMessages,
+            tools: externalTools,
+            tool_choice: { type: 'auto', disable_parallel_tool_use: true },
+          });
+          return anthropicResponseToFC(forcedResponse);
+        }
         return this.act(messages, tools);
       }
 

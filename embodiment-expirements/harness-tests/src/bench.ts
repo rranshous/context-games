@@ -47,6 +47,7 @@ Run options:
   --count N             Number of samples (default: 10)
   --verbose             Show per-round details
   --task NAME           Task name (default: os-std)
+  --attempts N          Multi-run: retry each task N times with persistent soma (default: 1)
   `.trim());
 }
 
@@ -113,6 +114,7 @@ async function main() {
     const count = parseInt(opts.count ?? '10', 10);
     const verbose = opts.verbose === 'true';
     const task = opts.task ?? 'os-std';
+    const maxAttempts = parseInt(opts.attempts ?? '1', 10);
     const indices = Array.from({ length: count }, (_, i) => start + i);
 
     const allRuns: BenchRun[] = [];
@@ -124,7 +126,7 @@ async function main() {
         process.exit(1);
       }
 
-      const run = await runBench({ agent, task, indices, verbose });
+      const run = await runBench({ agent, task, indices, maxAttempts, verbose });
       allRuns.push(run);
     }
 

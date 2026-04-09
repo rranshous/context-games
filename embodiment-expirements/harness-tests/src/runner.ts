@@ -19,6 +19,7 @@ export interface RunOptions {
   task?: string;
   indices: number[];
   maxRounds?: number;
+  maxAttempts?: number; // multi-run: retry same task N times with persistent soma
   verbose?: boolean;
 }
 
@@ -117,20 +118,37 @@ export async function runBench(opts: RunOptions): Promise<BenchRun> {
   const controller = new Controller();
   const task = opts.task ?? TASK;
   const maxRounds = opts.maxRounds ?? MAX_ROUNDS;
+  const maxAttempts = opts.maxAttempts ?? 1;
   const verbose = opts.verbose ?? false;
 
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`Agent: ${opts.agent.name} | Task: ${task} | Samples: ${opts.indices.length}`);
+  console.log(`Agent: ${opts.agent.name} | Task: ${task} | Samples: ${opts.indices.length}${maxAttempts > 1 ? ` | Max attempts: ${maxAttempts}` : ''}`);
   console.log('='.repeat(60));
 
   const samples: SampleResult[] = [];
 
   for (const index of opts.indices) {
-    const result = await runSample(controller, opts.agent, task, index, maxRounds, verbose);
-    samples.push(result);
+    let bestResult: SampleResult | null = null;
 
-    const icon = result.score > 0 ? '✓' : '✗';
-    console.log(`  ${icon} [${index}] score=${result.score} rounds=${result.rounds} ${result.durationMs}ms${result.error ? ' ERR: ' + result.error : ''}`);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const result = await runSample(controller, opts.agent, task, index, maxRounds, verbose);
+
+      const icon = result.score > 0 ? '✓' : '✗';
+      const attemptLabel = maxAttempts > 1 ? ` a${attempt}` : '';
+      console.log(`  ${icon} [${index}]${attemptLabel} score=${result.score} rounds=${result.rounds} ${result.durationMs}ms${result.error ? ' ERR: ' + result.error : ''}`);
+
+      // Notify agent of attempt completion (for soma persistence)
+      if (opts.agent.onAttemptComplete) {
+        opts.agent.onAttemptComplete(result.score, attempt);
+      }
+
+      bestResult = result;
+
+      // Stop retrying if we scored
+      if (result.score > 0) break;
+    }
+
+    samples.push(bestResult!);
   }
 
   const passed = samples.filter(s => s.score > 0).length;

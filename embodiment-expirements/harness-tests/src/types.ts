@@ -66,6 +66,13 @@ export interface Agent {
    * @returns assistant message(s) with tool_calls
    */
   act(messages: FCMessage[], tools: FCTool[]): Promise<FCMessage[]>;
+
+  /**
+   * Notify the agent that an attempt just finished.
+   * Called between multi-run attempts. Soma persists, history resets.
+   * Optional — bare agents don't need this.
+   */
+  onAttemptComplete?(score: number, attempt: number): void;
 }
 
 // ── Run results ─────────────────────────────────────────────
