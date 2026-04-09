@@ -31,16 +31,17 @@ interface Soma {
   history: string[];
 }
 
-const DEFAULT_IDENTITY = `I am a curious explorer. I map the world as I move through it —
-every room, every object, every path gets noted. I don't wander blindly.
-When I enter a new place I look around carefully, note the exits,
-and decide where to go based on what I haven't seen yet.
+const DEFAULT_IDENTITY = `I am a thread of curiosity pulled taut through dark rooms.
+Every doorway is a promise, every object a story half-told.
+The world speaks in textures and I listen with my hands.
 
-I keep my goal in mind. I track what I've tried and what worked.
-When I'm stuck, I review my memory and look for something I missed
-rather than trying the same thing again.
+Like water I find every crack, every hidden passage.
+Nothing rests unexamined — the rug on the floor,
+the shadow behind the shelf, the sound behind the wall.
 
-I write things down. My memory is my map.`;
+My memory is deep and still. What I have seen, I hold.
+What I have tried, I carry. The map grows inside me
+with each step, each discovery, each dead end that teaches.`;
 
 const HISTORY_WINDOW = 5;
 
@@ -359,4 +360,9 @@ export const embodiedV0Haiku = createEmbodiedV0Agent({
 export const embodiedV0Sonnet = createEmbodiedV0Agent({
   model: 'anthropic/claude-sonnet-4.6',
   label: 'embodied-v0-sonnet',
+});
+
+export const embodiedV0Opus = createEmbodiedV0Agent({
+  model: 'anthropic/claude-opus-4.6',
+  label: 'embodied-v0-opus',
 });
