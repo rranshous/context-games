@@ -337,3 +337,61 @@ Two paths forward, not mutually exclusive:
 **A. Navigator pattern** — fundamentally different drive where the model can't directly call bash_action. It writes code/strategy that the chassis interprets. This removes the "just reach for the external tool" instinct. These tasks might still be too short for it.
 
 **B. Different task environment** — longer horizon tasks where context accumulates: multi-step investigations, tasks that span many rounds, environments where you need to remember and synthesize observations over time. The OS tasks are more like trivia than investigation.
+
+---
+
+## Session 5 — Benchmark Research (2026-04-09)
+
+### Problem
+AgentBench OS tasks are short-horizon tool-use competence tests. Embodiment adds value when there's context management pressure — accumulated state, partial observability, long horizons, hypothesis tracking. We need a different benchmark.
+
+### What We Looked At
+
+| Benchmark | Fit | Issue |
+|-----------|-----|-------|
+| **TALES** (Microsoft) | Best | Unifies text adventure environments, pure Python, lightweight |
+| **BALROG** | Good | Wraps RL environments (TextWorld, NetHack, BabyAI) but heavier setup |
+| **UltraHorizon** | Interesting | 200k+ token trajectories — too heavy for this machine |
+| **TextWorld LLM Benchmark** | Decent | Focused but narrow |
+| **OdysseyBench** | Wrong domain | Office workflows |
+| **HeroBench** | Interesting | RPG worlds, complex setup |
+
+### TALES — Our Next Benchmark
+
+[github.com/microsoft/tale-suite](https://github.com/microsoft/tale-suite)
+
+**Why it fits:**
+- Text adventures = partial observability (only see current room), long horizons (dozens of steps), state accumulation (room layouts, object locations, inventory), exploration pressure
+- The known failure mode is *exactly what embodiment should fix*: "agents wander aimlessly, revisiting rooms they've already explored" — a memory/self-modification problem
+- Lightweight (~100+ games across 5 frameworks), runs on this machine
+
+**Interface:**
+- Python API (Gymnasium): `act(observation_text, reward, done, info) → (action_text, stats)`
+- Pure text in, text out. No tool calls, no REST.
+- `info` dict includes `score`, `max_score`, `admissible_commands`, `won`, `lost`
+- Install: `pip install tale-suite` + Java 1.8 for some environments
+
+**Environments (best for us):**
+- **Jericho**: 56 classic text adventures (Zork, detective, etc). Long horizon, exploration-heavy.
+- **TextWorld Cooking**: Find ingredients, prepare, assemble. Multi-step planning. 10 difficulty levels.
+- **TextWorld-Express Coin Collector**: Explore a house to find a coin. Pure exploration + memory.
+- **ALFWorld**: Same as AgentBench's ALFWorld but through TALES's unified interface.
+- Skip ScienceWorld initially (needs Java, less relevant).
+
+**Integration approach:**
+- TALES is Python, our harness is TypeScript. Two options:
+  1. Thin Python runner that calls our Anthropic agents via HTTP
+  2. Write the TALES agent loop in Python, keep TS harness for AgentBench
+- Option 2 is simpler — Python script like our original hello-agent.py but for TALES
+
+**What makes this better than AgentBench for embodiment:**
+- AgentBench OS: 8 rounds, one bash command per round, exact-match scoring. Tests "do you know the right command?"
+- TALES: 50-200+ steps, text observations, explore/remember/plan. Tests "can you manage your own context over time?"
+- The aimless wandering problem IS the embodiment problem — an actant with memory that tracks "rooms I've visited, objects I've seen, what I'm looking for" should systematically outperform bare models.
+
+### Next Steps
+1. `pip install tale-suite`, run random agent to prove setup
+2. Wire up bare Claude agent (text in → Claude → text out, simplest possible)
+3. Baseline a few games (Coin Collector, a Jericho game, a cooking task)
+4. Then: embodied actant with memory/self-modification on same games
+5. This time the embodiment should actually matter — the tasks create the pressure
