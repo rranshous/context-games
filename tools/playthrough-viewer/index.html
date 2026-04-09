@@ -52,6 +52,7 @@
     .soma-section-name .changed { font-size: 9px; color: #c792ea; background: #2a1a3a; padding: 1px 6px; border-radius: 8px; }
     .soma-section-content { font-size: 12px; line-height: 1.5; color: #c8c8d0; white-space: pre-wrap; background: #16213e; padding: 8px; border-radius: 4px; border: 1px solid #2a2a4a; max-height: 200px; overflow-y: auto; }
     .soma-section-content.history { max-height: 300px; }
+    .soma-section-content.code { font-size: 11px; color: #89ddff; background: #0d1117; border-color: #1a3a2a; }
 
     /* Empty state */
     #empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: #555; font-size: 14px; }
@@ -232,11 +233,16 @@
         { name: 'history', content: soma.history.join('\n'), prev: prevStep?.soma.history.join('\n'), isHistory: true },
       ];
 
+      // Add code sections if present (v1+)
+      if (soma.on_observation) sections.push({ name: 'on_observation', content: soma.on_observation, prev: prevStep?.soma.on_observation, isCode: true });
+      if (soma.on_history) sections.push({ name: 'on_history', content: soma.on_history, prev: prevStep?.soma.on_history, isCode: true });
+      if (soma.on_score) sections.push({ name: 'on_score', content: soma.on_score, prev: prevStep?.soma.on_score, isCode: true });
+
       el.innerHTML = sections.map(s => {
         const changed = s.prev !== undefined && s.prev !== s.content;
         return `<div class="soma-section">
           <div class="soma-section-name">${s.name} ${changed ? '<span class="changed">changed</span>' : ''}</div>
-          <div class="soma-section-content${s.isHistory ? ' history' : ''}">${escHtml(s.content || '(empty)')}</div>
+          <div class="soma-section-content${s.isHistory ? ' history' : ''}${s.isCode ? ' code' : ''}">${escHtml(s.content || '(empty)')}</div>
         </div>`;
       }).join('');
     }
