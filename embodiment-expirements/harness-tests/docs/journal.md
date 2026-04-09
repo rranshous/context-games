@@ -744,3 +744,58 @@ This is the fundamental shift: in v0/v1, the model CAN act directly, so it does.
 ### Playthrough Viewer
 
 Updated to show code sections (syntax-highlighted in cyan on dark background). "changed" indicator shows when code is rewritten. Ready for v2 playthroughs where code changes will actually happen.
+
+---
+
+## Session 12 — v2 Navigator: First Code Self-Modification (2026-04-09)
+
+### v2 Design
+
+**The model can't call take_action.** Instead:
+- `on_tick` code runs every step — decides the game action based on observation + info
+- Model reflects every 5 steps — sees soma (including on_tick code, history, score) and can edit any section
+- Reflection tools are edit-only: `edit_on_tick`, `edit_memory`, `edit_goal`, `edit_identity`, `edit_on_score`
+- Default `on_tick` has basic exploration logic: take items > open things > go unexplored > fallback
+
+This is the Glint/Habitat pattern applied to benchmarking.
+
+### Sonnet Navigator — In-Progress Results
+
+Running 200 steps on Zork 1 (still in progress, very slow due to reflection API calls):
+
+**Steps 1-24**: Default on_tick code plays well — enters house (+10), finds rug, moves it, opens trap door, turns on lamp. Score: 10.
+
+**Steps 25-35**: Goes down to cellar (+25 to 35). Gets stuck fighting troll — on_tick keeps choosing "kill troll with sword" because it's in admissible_commands.
+
+**Step 35 — FIRST CODE SELF-MODIFICATION**: Reflection fires. Model sees 10 steps of "kill troll with sword" in history. **Rewrites on_tick code** to stop fighting and move on.
+
+**Steps 36-40**: New on_tick code moves east past the troll area (+5 to 40).
+
+**Steps 40+**: Exploring underground, score 40. Still running.
+
+### The Breakthrough
+
+**The navigator pattern produced the first code self-modification.** In v0 and v1, models never touched code sections (0 edits across hundreds of steps). In v2, because the model CAN'T act directly, it MUST work through its code. When the code gets stuck, the model rewrites it.
+
+The troll loop is exactly the scenario we designed v2 for:
+1. Default code gets into a repetitive pattern
+2. History accumulates evidence of the loop
+3. Reflection fires and the model sees the problem
+4. Model rewrites on_tick to break the pattern
+5. New code takes a different approach
+
+This is embodied self-modification working as intended.
+
+### Performance Notes
+- Reflections are slow — each involves 1-8 API calls (one per edit tool use)
+- With reflections every 5 steps, a 200-step run may take 30+ minutes
+- Most steps (non-reflection) are near-instant since on_tick runs locally
+- The cost is front-loaded in reflections, not in per-step API calls
+
+### Opus Run
+Pending — will run after sonnet completes.
+
+### Still Open
+- What did sonnet actually rewrite on_tick to? Need to check the playthrough log.
+- Is the new code better, or just different?
+- Does the model's code improve over multiple reflection cycles?
