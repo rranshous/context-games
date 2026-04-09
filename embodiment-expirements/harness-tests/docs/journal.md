@@ -688,3 +688,59 @@ The v0 embodiment helps with early exploration (find the trap door, descend to c
 - Strategic planning (secure treasures, explore systematically, avoid revisiting cleared areas)
 
 v1 with soma-defined behavior (JS code sections) could address the loop problem — if the actant can write code that detects "I've done this 3 times already" and forces a different action, that would break the pattern the chassis currently allows.
+
+---
+
+## Session 11 — v1 Embodiment: Code Sections in Soma (2026-04-09)
+
+### What v1 Adds
+
+Three executable code sections in the soma, compiled via `new Function()` each call:
+
+- **`on_observation(observation, info, me)`** → processes raw game text before the actant sees it
+- **`on_history(entries, me)`** → formats the history section from raw entries
+- **`on_score(prevScore, newScore, me)`** → reacts to score changes, can update goal/memory
+
+Each receives a `me` object with `me.memory.read()/write()`, `me.goal.read()/write()` etc — the section API pattern from Habitat/Glint.
+
+Edit tools: `edit_on_observation`, `edit_on_history`, `edit_on_score` alongside the existing text section edits. History window increased to 10 (from 5) to give code sections more data to work with.
+
+Default implementations are sensible seeds. The actant can rewrite any of them and changes take effect immediately (hot reload).
+
+### Results — v1, 200 Steps, Zork 1
+
+| Agent | v0 Score | v1 Score | v1 Peak | Steps | Code Edits | Text Edits |
+|-------|----------|----------|---------|-------|------------|------------|
+| sonnet | 40 | 40 | 40 | 200 (looping) | **0** | 2 |
+| opus | 30 | 44 | **54** | 88 (died) | **0** | 21 |
+
+### Key Finding: Zero Code Edits
+
+Neither model rewrote any code section. Not once across 288 combined steps. They used text edit tools (opus used edit_memory 21 times) but never touched `on_observation`, `on_history`, or `on_score`.
+
+The same pattern as AgentBench: **models don't rewrite code when they can just act.** Having the code sections available in the soma doesn't mean the model will modify them. The tools exist, the model sees them, but it always reaches for `take_action` or `edit_memory` instead.
+
+### Why Code Sections Weren't Used
+
+Hypothesis: the models treat code sections as infrastructure, not as something they own. The text sections (identity, goal, memory) feel like "mine" — the model writes in them naturally. The code sections feel like "the system" — the model reads them but doesn't think to modify them.
+
+This is the same finding from Habitat/Glint: models need to be nudged into self-modification of code. In those projects, the reflection prompt specifically says "review your on_tick and improve it." Without that explicit nudge, the model ignores the code.
+
+### Opus Progress
+
+Despite no code edits, opus did better in v1 — peaked at 54 (found trident, +4 over v0 peak of 50). The `on_score` handler was working (adding score change notes to memory), and opus made 21 text edits (active memory management). But it died attacking the thief again at step 88 (score 54→44).
+
+Sonnet was identical to v0 — 40/350, look/inventory loop for 160 of 200 steps.
+
+### Implications for v2 (Navigator)
+
+Making code sections *available* isn't enough. The navigator pattern should work because:
+1. The model's ONLY job is to write/edit code sections — it can't call take_action directly
+2. The chassis runs the code — the model must shape its behavior through code edits
+3. Reflection happens separately from action — the model reviews outcomes and adjusts
+
+This is the fundamental shift: in v0/v1, the model CAN act directly, so it does. In v2, it CAN'T — its only way to influence the game is through the code it writes. That's the navigator pattern.
+
+### Playthrough Viewer
+
+Updated to show code sections (syntax-highlighted in cyan on dark background). "changed" indicator shows when code is rewritten. Ready for v2 playthroughs where code changes will actually happen.
