@@ -4,12 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/bench.ts --bundle --platform=node --format=esm --outfile=dist/bench.js --external:@anthropic-ai/sdk",
+    "build": "esbuild src/bench.ts --bundle --platform=node --format=esm --outfile=dist/bench.js",
     "bench": "npx tsx src/bench.ts"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "esbuild": "^0.25.0",
     "tsx": "^4.19.0",
