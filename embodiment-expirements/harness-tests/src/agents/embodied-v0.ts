@@ -45,6 +45,13 @@ with each step, each discovery, each dead end that teaches.`;
 
 const HISTORY_WINDOW = 5;
 
+function pushHistory(soma: Soma, entry: string) {
+  soma.history.push(entry);
+  if (soma.history.length > HISTORY_WINDOW) {
+    soma.history = soma.history.slice(-HISTORY_WINDOW);
+  }
+}
+
 function assembleSoma(soma: Soma, maxSize: number): string {
   // Rolling window — only show last N history entries
   const recentHistory = soma.history.slice(-HISTORY_WINDOW);
@@ -212,10 +219,17 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
     name: label,
 
     reset(observation: string, info: TalesState) {
-      soma = { identity, goal: observation, memory: '', history: [] };
-      pendingLastTurn = null;
+      soma = { identity, goal: '', memory: '', history: [] };
       playthroughLog = [];
       stepCounter = 0;
+
+      // Chassis does an automatic "look" — seed the opening text as a pending turn
+      // so the first act() call sees it as a tool_result
+      pendingLastTurn = {
+        toolCalls: [{ id: 'init', type: 'function', function: { name: 'take_action', arguments: '{"action":"look"}' } }],
+        toolCallId: 'init',
+      };
+      pushHistory(soma, `"look"`);
     },
 
     getPlaythrough() {
@@ -256,7 +270,7 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
 
         if (!toolCall) {
           const action = choice.content?.trim() ?? 'look';
-          soma.history.push(`s${soma.history.length + 1}: "${action}"`);
+          pushHistory(soma, `"${action}"`);
 
           stepToolCalls.push({ name: 'take_action', args: { action } });
           playthroughLog.push({
@@ -301,7 +315,7 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
             const fc = forced.choices?.[0]?.message?.tool_calls?.[0];
             if (fc) {
               const action = JSON.parse(fc.function.arguments).action;
-              soma.history.push(`s${soma.history.length + 1}: "${action}"`);
+              pushHistory(soma, `"${action}"`);
               pendingLastTurn = { toolCalls: forced.choices[0].message.tool_calls, toolCallId: fc.id };
 
               stepToolCalls.push({ name: 'take_action', args: { action } });
@@ -325,7 +339,7 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
 
         if (fnName === 'take_action') {
           const action = fnArgs.action;
-          soma.history.push(`s${soma.history.length + 1}: "${action}"`);
+          pushHistory(soma, `"${action}"`);
           pendingLastTurn = { toolCalls: choice.tool_calls, toolCallId: toolCall.id };
 
           stepToolCalls.push({ name: 'take_action', args: { action } });
