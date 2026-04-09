@@ -792,10 +792,28 @@ This is embodied self-modification working as intended.
 - Most steps (non-reflection) are near-instant since on_tick runs locally
 - The cost is front-loaded in reflections, not in per-step API calls
 
-### Opus Run
-Pending — will run after sonnet completes.
+### Sonnet Navigator — Final Results
 
-### Still Open
-- What did sonnet actually rewrite on_tick to? Need to check the playthrough log.
-- Is the new code better, or just different?
-- Does the model's code improve over multiple reflection cycles?
+**40/350, 200 steps, ~2 hours (7072s)**
+
+Score progression: 0 → 10 → 35 → 40 (same ceiling as v0/v1)
+
+**162 code edits** (on_tick rewrites) + 116 text edits (memory/goal). Compared to v0/v1: 0 code edits. The navigator pattern completely changed self-modification behavior.
+
+The model rewrote on_tick at nearly every reflection point (every 5 steps), often multiple times per reflection. Key moments:
+- Step 5: first on_tick rewrite (3 edits)
+- Step 35: broke the troll combat loop — stopped fighting, moved east
+- Steps 40-200: continuous rewrites, but score stuck at 40
+
+**The paradox**: massive self-modification activity but same score. The model is actively shaping its code, but the new code isn't producing better outcomes. It's churning — rewriting for the sake of rewriting, or oscillating between approaches without finding one that works.
+
+This mirrors the "tendency oscillation" finding from Glint: aggressive self-modification can create churn rather than convergence. The model needs a reason to STOP editing and let the code run.
+
+### Opus Navigator
+Running — started after sonnet. Results pending.
+
+### Emerging Questions
+- Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
+- Does the model need a "don't edit unless things are clearly wrong" signal?
+- Is the on_tick code actually improving, or just cycling through equivalent approaches?
+- The 40-point ceiling might be a Zork knowledge limit, not an embodiment limit — both bare and embodied models hit it.
