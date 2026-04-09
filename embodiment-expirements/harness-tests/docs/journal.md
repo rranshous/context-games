@@ -477,3 +477,29 @@ Yesterday's runs burned through a lot of sonnet/opus tokens — the AgentBench m
 - Build embodied TALES agent (memory section, self-modification tools)
 - This time the task creates genuine memory pressure — agent must remember rooms, objects, goals
 - Start with haiku to conserve tokens
+
+---
+
+## Session 7b — Switch to OpenRouter (2026-04-09)
+
+### Why
+
+A rogue background process (likely one of the duplicated benchmark runs from session 4) ran overnight and burned through a large amount of Anthropic API tokens — mostly sonnet calls. The Anthropic API key has no spend limits, so there was no safety net.
+
+**OpenRouter provides daily spend limits per API key.** This is the main reason for switching — we can cap daily spend and avoid surprise bills from runaway processes. The benchmarking work involves many API calls (50+ per Zork episode, hundreds across multi-attempt runs) and accidental parallel runs are easy to trigger.
+
+### What Changed
+
+- `.env` now has `OPENROUTER_API_KEY` instead of `ANTHROPIC_API_KEY`
+- `bare-model.ts` uses direct `fetch()` to OpenRouter's OpenAI-compatible API (`/v1/chat/completions`) instead of the Anthropic SDK
+- Removed `@anthropic-ai/sdk` as a dependency — no SDK, just HTTP
+- Model IDs use OpenRouter format: `anthropic/claude-haiku-4.5`, `anthropic/claude-sonnet-4.6`, `anthropic/claude-opus-4.6`
+- `tales-agent.py` (Python reference script) still uses Anthropic SDK — it's a reference, not the main path
+
+### Verified
+
+Haiku via OpenRouter on CoinCollector: works, 1 step, won. Same behavior as direct Anthropic.
+
+### Next
+- Build embodied TALES agent
+- Use haiku for iteration (cheapest), only run sonnet/opus for final comparisons
