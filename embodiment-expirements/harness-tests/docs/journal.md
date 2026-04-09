@@ -625,8 +625,15 @@ The embodied agents ARE using edit tools on TALES (unlike AgentBench where it wa
 ### Note for Future
 ScienceWorld (part of TALES) looks interesting — educational science reasoning tasks. Worth exploring later.
 
+### Embodiment Roadmap
+
+**v0 (current):** Chassis manages history, text response handling, tool dispatch. Soma has identity/goal/memory/history sections. Edit tools available. Minimal — most logic lives in chassis code.
+
+**v1 (next):** Move more embodiment INTO the soma. JS code sections that define how history is built, how text responses are processed. The chassis becomes thinner — just a runtime that executes the soma's code. The actant shapes more of its own behavior through its soma rather than having it hardcoded in chassis TypeScript.
+
+**v2 (future):** Navigator pattern. The actant writes on_tick code that drives the task. The model doesn't call take_action directly — it writes code that does. Model wakes up periodically to observe and refine. Full separation between the shaping intelligence and the executing embodiment.
+
 ### Next
-- Investigate why sonnet gets stuck in examination loops
-- Try longer runs (50+ steps) to see if the advantage compounds
-- Consider model-specific identity tuning (or is that cheating?)
-- Multi-episode persistence — does the actant improve across replays?
+- 200-step runs of sonnet and opus on Zork to see long-horizon behavior
+- Capture model thinking text in playthrough logs
+- Then: v1 embodiment with soma-defined behavior
