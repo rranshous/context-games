@@ -286,9 +286,54 @@ Direct drive + self-modification tools = models ignore self-modification. Tested
 This is not a context problem — it's a drive pattern problem.
 
 ### Open Questions
-- Does the model get its score after each run? Or does it only see what happened (observations, tool outputs) and must infer success/failure?
 - For navigator: how tight is the reflection loop? Every round? Every 2? Only on stuck/failure?
 - Do we persist soma across *different* tasks too, or only same-task retries?
 - What does on_tick code look like for these tasks? A bash pipeline? A strategy description the chassis interprets? Actual JS/TS?
 - Can we make tasks with longer horizons where the model needs to accumulate more state?
-- Does repeating the same task (multi-run persistence) finally trigger self-modification?
+
+---
+
+## Session 4 — Multi-Run Persistence (2026-04-08/09)
+
+### Goal
+Test whether repeating the same task with persistent soma triggers self-modification behavior. Score feedback injected between attempts.
+
+### Implementation
+- `--attempts N` flag: runner loops each task N times, best score kept
+- `Agent.onAttemptComplete(score, attempt)`: resets history, preserves soma, injects score into history section (`[Attempt 1 failed (score: 0)]`)
+- Added recursion limit (max 5 internal tool calls per turn) — discovered the model can get stuck in infinite edit loops when it does engage with internal tools
+- Confirmed internal tools ARE being called on some attempts (visible as missing round numbers in output, e.g. r4 skipped = internal tool intercepted)
+
+### Results — Embodied Sonnet, 3 Attempts, Hard Tasks (56-75)
+
+| Config | Pass Rate |
+|--------|-----------|
+| bare sonnet (1 attempt) | **6/20 (30%)** |
+| embodied v0 sonnet (1 attempt) | 3/20 (15%) |
+| embodied v0 sonnet (3 attempts) | 4/20 (20%) |
+
+**All 4 passes in the 3-attempt run were on attempt 1.** Zero conversions from retries. The model never turned a failure into a success by trying again with persistent soma.
+
+### What This Tells Us
+
+1. **Retries don't help in direct drive.** The model doesn't learn from failure between attempts — it approaches the same problem the same way or with random variation, not informed adaptation.
+
+2. **Some internal tool usage appeared** (recursion limit was hit, confirming edit tools were called), but it didn't translate to improved outcomes. The model might edit memory but doesn't use that memory effectively on the next external tool call.
+
+3. **The embodiment overhead still hurts.** Extra tokens in system prompt (identity, empty memory, history summaries) push useful context out. On exact-match scoring, verbose framing from the identity causes format mismatches ("The number of CPUs is **8**." instead of "8").
+
+4. **These tasks may be too short-horizon for embodiment to matter.** Each task is 8 rounds. The model either gets it in 2-3 rounds or it doesn't. There's not enough state accumulation for memory/self-modification to become valuable. The tasks that fail tend to fail because the model doesn't know the right bash incantation, not because it lost track of context.
+
+### Key Insight: Benchmark vs Embodiment Mismatch
+
+AgentBench OS tasks test **tool-use competence** — do you know the right bash command? This is exactly what models are trained for in direct-drive mode. Embodiment adds value when there's **context management pressure** — accumulated state, partial observability, long horizons, need to track hypotheses. These 8-round bash tasks don't create that pressure.
+
+The verbose answer issue (e.g. "The number of CPUs is **8**." scoring 0) is an example of the benchmark measuring something different than what we're testing. The embodiment makes the model more "itself" (more careful, more explanatory), which is the point — but the benchmark penalizes it.
+
+### Where To Go
+
+Two paths forward, not mutually exclusive:
+
+**A. Navigator pattern** — fundamentally different drive where the model can't directly call bash_action. It writes code/strategy that the chassis interprets. This removes the "just reach for the external tool" instinct. These tasks might still be too short for it.
+
+**B. Different task environment** — longer horizon tasks where context accumulates: multi-step investigations, tasks that span many rounds, environments where you need to remember and synthesize observations over time. The OS tasks are more like trivia than investigation.
