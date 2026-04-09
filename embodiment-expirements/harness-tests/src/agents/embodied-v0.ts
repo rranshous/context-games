@@ -239,6 +239,7 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
     async act(observation: string, info: TalesState): Promise<string> {
       stepCounter++;
       const stepToolCalls: PlaythroughToolCall[] = [];
+      const stepThinking: string[] = [];
 
       // Build last turn messages
       let messages: ORMessage[];
@@ -266,6 +267,11 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
         const choice = data.choices?.[0]?.message;
         if (!choice) throw new Error('No response from model');
 
+        // Capture any text the model produced alongside tool calls
+        if (choice.content?.trim()) {
+          stepThinking.push(choice.content.trim());
+        }
+
         const toolCall = choice.tool_calls?.[0];
 
         if (!toolCall) {
@@ -276,6 +282,7 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
           playthroughLog.push({
             step: stepCounter,
             observation,
+            thinking: [...stepThinking],
             toolCalls: stepToolCalls,
             action,
             score: info.score,
@@ -312,7 +319,9 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
 
           if (internalCalls >= MAX_INTERNAL_PER_STEP) {
             const forced = await callOpenRouter(model, assembleSoma(soma, maxSomaSize), messages, [TOOLS[3]]);
-            const fc = forced.choices?.[0]?.message?.tool_calls?.[0];
+            const forcedChoice = forced.choices?.[0]?.message;
+            if (forcedChoice?.content?.trim()) stepThinking.push(forcedChoice.content.trim());
+            const fc = forcedChoice?.tool_calls?.[0];
             if (fc) {
               const action = JSON.parse(fc.function.arguments).action;
               pushHistory(soma, `"${action}"`);
@@ -346,6 +355,7 @@ function createEmbodiedV0Agent(opts: EmbodiedV0Options): Agent {
           playthroughLog.push({
             step: stepCounter,
             observation,
+            thinking: [...stepThinking],
             toolCalls: stepToolCalls,
             action,
             score: info.score,

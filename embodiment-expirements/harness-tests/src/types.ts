@@ -68,6 +68,7 @@ export interface PlaythroughToolCall {
 export interface PlaythroughStep {
   step: number;
   observation: string;       // what the game showed
+  thinking: string[];        // model's text responses alongside tool calls
   toolCalls: PlaythroughToolCall[];  // all tool calls this step (edits + action)
   action: string;            // the take_action that was sent to TALES
   score: number;

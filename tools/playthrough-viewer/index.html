@@ -35,6 +35,7 @@
     .step-num { font-size: 10px; color: #666; margin-bottom: 2px; }
     .observation { color: #c8c8d0; font-size: 13px; line-height: 1.5; margin-bottom: 6px; white-space: pre-wrap; }
     .tool-call { font-size: 12px; margin: 2px 0; padding: 3px 8px; border-radius: 3px; }
+    .tool-call.thinking { background: #1a1a2a; color: #a0a0c0; border-left: 2px solid #555; font-style: italic; white-space: pre-wrap; }
     .tool-call.edit { background: #2a1a3a; color: #c792ea; border-left: 2px solid #c792ea; }
     .tool-call.action { background: #1a2a1a; color: #7fdbca; border-left: 2px solid #7fdbca; }
     .tool-call .tool-name { font-weight: bold; }
@@ -137,6 +138,16 @@
         obsEl.className = 'observation';
         obsEl.textContent = step.observation;
         block.appendChild(obsEl);
+
+        // Thinking (model's text alongside tool calls)
+        if (step.thinking && step.thinking.length > 0) {
+          for (const thought of step.thinking) {
+            const thEl = document.createElement('div');
+            thEl.className = 'tool-call thinking';
+            thEl.textContent = thought;
+            block.appendChild(thEl);
+          }
+        }
 
         // Tool calls
         for (const tc of step.toolCalls) {
