@@ -503,3 +503,61 @@ Haiku via OpenRouter on CoinCollector: works, 1 step, won. Same behavior as dire
 ### Next
 - Build embodied TALES agent
 - Use haiku for iteration (cheapest), only run sonnet/opus for final comparisons
+
+---
+
+## Session 8 — Embodied v0 on Zork: First Positive Result (2026-04-09)
+
+### What We Built
+
+Embodied v0 agent for TALES, using OpenRouter + function calling:
+
+**Soma sections** (XML tags):
+- `<identity>` — explorer values, map-making disposition
+- `<goal>` — initialized from game opening text, writable
+- `<memory>` — flat scratchpad, writable
+- `<history>` — chassis-managed, one-liner per step (`s1: "open mailbox" → You open the small mailbox...`)
+
+**Tools** (OpenRouter function calling):
+- `edit_identity`, `edit_goal`, `edit_memory` — internal, intercepted by chassis
+- `take_action` — external, sent to TALES bridge
+
+**Context model**: system prompt = soma, messages = last turn only (take_action tool_call + tool_result with observation). First turn: `"play"` as user message.
+
+**Recursion**: model can call edit tools before taking an action (max 5 per step). If it hits the limit, forced to use take_action only.
+
+### Results — Zork 1, 50 Steps
+
+| Agent | Score | Max | Pct | Key Achievement |
+|-------|-------|-----|-----|-----------------|
+| bare haiku | 15 | 350 | 4% | Entered house, grabbed items |
+| **embodied v0 haiku** | **39** | **350** | **11%** | Found trap door, descended to cellar, took painting |
+
+**2.6x score improvement.** First positive embodiment result.
+
+### Play-by-Play Comparison
+
+**Bare haiku** (15 pts): Mailbox → tree → egg (+5) → house window (+10) → grabbed items → wandered aimlessly for 17 steps. Never found the trap door.
+
+**Embodied haiku** (39 pts): Mailbox → explored forest → house window (+10) → explored house thoroughly → moved rug → found trap door → opened it → descended to cellar (+25 to 35) → navigated past troll → found and took painting (+4 to 39). Much more systematic exploration.
+
+### Why It Worked This Time
+
+The text adventure format creates genuine memory pressure:
+- The agent can only see the current room (partial observability)
+- The history section gives it a compressed log of everywhere it's been
+- The identity ("I map the world as I move through it") encourages systematic exploration
+- The `move rug` → `open trap door` sequence requires the kind of careful examination that the identity values promote
+
+This is the opposite of the AgentBench result. There, embodiment was pure overhead because the tasks were short and the model could just reach for bash_action. Here, the task rewards exactly what embodiment provides: persistence, systematic exploration, goal tracking.
+
+### Open Questions
+- How much of the improvement is the identity/values framing vs the history section vs memory?
+- Is the model actually using edit_memory? (Log doesn't track internal tool calls yet — need to add that)
+- Would multiple episodes with persistent soma improve further?
+- Is this repeatable, or did we get lucky with the path?
+
+### Next
+- Add internal tool call logging so we can see if memory is being used
+- Run multiple episodes to check consistency
+- Try a cooking task (different skill — planning vs exploration)
