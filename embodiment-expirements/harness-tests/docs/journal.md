@@ -866,6 +866,93 @@ The model isn't getting:
 
 This puts the surveillance loop INSIDE the embodiment instead of in the chassis. The actant shapes not just how it acts but how it sees itself.
 
+---
+
+## Session 13 — v3: Notice + reflectOn + Composite Score (2026-04-09/10)
+
+### Architecture
+
+v3 removes chassis-triggered reflection entirely. Reflection only happens when soma code calls `me.reflectOn(prompt)`. The actant decides when to think.
+
+**New soma sections:**
+- `notice(observation, info, me) → string` — runs every tick, output becomes `things_noticed`
+- (kept) `on_tick`, `on_score`
+
+**New me API:**
+- `me.reflectOn(prompt)` — queues a wake-up. Chassis runs it after the handler returns. Up to 5 edit turns per reflectOn call.
+- `me.reflectionsUsed`, `me.maxReflections` — visible to the actant so it can feel the cost.
+
+**Composite score:** `game_score - (reflection_turns * 1)`. Hard cap of 50 reflection turns per run. Notice handler computes this and writes it into things_noticed so the model sees it.
+
+**Naive default on_tick:** cycles `admissible_commands`, calls `me.reflectOn("regular checkin")` every 10 actions. Intentionally bad — should be first thing rewritten.
+
+**Orienting context** lives in the default handler comments. The model reads the comments as part of its own soma. No chassis-imposed instructions, no external system prompt override.
+
+### Bug: Empty Code Edits
+
+First smoke test: sonnet wrote empty strings for on_tick multiple times, wiping working code. Likely caused by max_tokens=2048 truncating during long tool call arguments.
+
+**Fixes:**
+- Bumped max_tokens to 4096
+- Chassis rejects empty code edits for code sections (returns error to model)
+- Text sections (identity/goal/memory) can still be cleared
+
+### Smoke Test Results (30 steps, Zork 1)
+
+| Run | Agent | Score | Reflection turns | Composite | Observation |
+|-----|-------|-------|------------------|-----------|-------------|
+| 1 | sonnet (before fixes) | 0 | 47 | -47 | Panic loop — reflected every tick, exhausted budget |
+| 2 | sonnet (with fixes + context) | 0 | 13 | -13 | Much more restrained, 4 reflections total, tried directions |
+| 3 | opus (with fixes + context) | 0 | 5 | -5 | ONE reflection, wrote sophisticated on_tick with visited-room tracking, stagnation detection, priority-based command scoring |
+
+### The Opus on_tick Rewrite
+
+Opus reflected once (at the 10-tick checkin from the naive default) and wrote 3 iterations of on_tick, ending with ~4500 chars of sophisticated code:
+- Room visit tracking via observation hash
+- Stagnation counter with self-reflection trigger at 30 ticks
+- Priority-based command scoring (take > open > direction)
+- Memory-persisted state between ticks
+
+This is legitimately thoughtful code. Composite score: -5 (just the cost of the single reflection).
+
+### The Problem: Jericho Doesn't Provide admissible_commands
+
+Both sonnet and opus wrote code that depends on `info.admissible_commands`. But **Jericho games (Zork, etc) don't provide this** — `cmds` is always empty in Jericho. TextWorld and TextWorld-Express DO provide it.
+
+So opus's elegant priority-scoring logic never runs. It falls through to `return "look"` every tick. 30 steps of "look".
+
+### Key Findings
+
+1. **v3 architecture works.** The model can successfully trigger reflection, compute composite score, shape its own handlers. Opus demonstrated genuine self-modification with thoughtful code (5 turns for one reflection = very efficient).
+
+2. **Orienting context matters enormously.** Adding cost/budget comments to default handlers reduced sonnet's reflection count from 47 to 13. The actant reads its own code as context.
+
+3. **Model disposition differs dramatically.** Opus: 5 reflection turns, 1 wake-up, sophisticated code. Sonnet (fixed version): 13 reflection turns, 4 wake-ups, multiple rewrites. Both working on the same problem with the same architecture.
+
+4. **Abstraction mismatch is a real failure mode.** Opus wrote code for a world where admissible_commands exist (valid mental model for text adventures) but Jericho doesn't match that world. The code was correct for its assumed abstraction, wrong for reality.
+
+### What This Suggests for Next
+
+The actant needs to discover the actual interface of the game. Options:
+- Switch benchmark to TextWorld-Express which provides admissible_commands
+- Let the actant learn that cmds is always empty and write parser logic on its observation text
+- Seed default memory with "note: Jericho games don't provide admissible_commands — you'll need to parse observations"
+
+The third option is cheating (chassis-provided game knowledge). The second is the "real" test of embodiment. The first is pragmatic — run the experiment on a world that matches the default handler's assumptions.
+
+### Composite Scores So Far (Zork 1)
+
+| Version | Model | Game Score | Reflection Cost | Composite |
+|---------|-------|-----------|-----------------|-----------|
+| v0 | sonnet | 40 | N/A | 40 |
+| v0 | opus | 40 | N/A | 40 |
+| v2 | sonnet | 40 | ~162 (all edits) | -122 |
+| v2 | opus | 25 | ~9 | 16 |
+| v3 | sonnet (30 steps) | 0 | 13 | -13 |
+| v3 | opus (30 steps) | 0 | 5 | -5 |
+
+When we count reflection cost, v2 sonnet's aggressive editing was actually catastrophic. v3's reflection budget makes this visible.
+
 ### Emerging Questions
 - Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
 - Does the model need a "don't edit unless things are clearly wrong" signal?
