@@ -17,6 +17,7 @@ export interface RunOptions {
   episodes?: number;
   maxSteps?: number;
   verbose?: boolean;
+  maxReflections?: number;
 }
 
 /** Run a single episode: reset → loop actions → score. */
@@ -125,8 +126,12 @@ export async function runBench(opts: RunOptions): Promise<BenchRun> {
   const maxSteps = opts.maxSteps ?? 50;
   const verbose = opts.verbose ?? false;
 
+  if (opts.maxReflections !== undefined && opts.agent.setMaxReflections) {
+    opts.agent.setMaxReflections(opts.maxReflections);
+  }
+
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`Agent: ${opts.agent.name} | Env: ${opts.env} | Episodes: ${episodes} | Max steps: ${maxSteps}`);
+  console.log(`Agent: ${opts.agent.name} | Env: ${opts.env} | Episodes: ${episodes} | Max steps: ${maxSteps}${opts.maxReflections !== undefined ? ` | Max reflections: ${opts.maxReflections}` : ''}`);
   console.log('='.repeat(60));
 
   const results: EpisodeResult[] = [];

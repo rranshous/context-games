@@ -1473,3 +1473,192 @@ This would test:
 - Could be implemented with a simple HTTP endpoint the human writes to, the chassis polls and writes into a soma section.
 
 This is a different research direction than "how good can autonomous embodiment get" — it's "what happens when embodiment is partially driven from outside."
+
+---
+
+## Session 17 — v5 200-Wakeup Run + The Embodiment Reframe (2026-04-10)
+
+### What we set out to do
+
+Pick up v5 from session 16. The original v5 budget was 50 wakeups (1 per tick → ~50 ticks before budget exhaustion). We wanted to know: with a longer budget — say 200 inference calls — does v5-sonnet stabilize, break the 40-point Zork ceiling, or just burn more tokens hitting the same wall?
+
+### Plumbing first
+
+Added a `--max-reflections N` CLI flag that overrides the per-episode inference budget for any agent that supports it. Implementation:
+
+- `Agent` interface gets optional `setMaxReflections?(n: number): void`
+- `RunOptions` carries `maxReflections?: number`; `runBench` calls the setter before the episode
+- `bench.ts` parses `--max-reflections` and passes it through
+
+The internal name in v5 is now `maxWakeups` / `totalWakeups` (since v5 has no reflection at all anymore — see below), but the public method stays `setMaxReflections` because v3/v4 still use that vocabulary and the flag is shared across versions. There's a comment in v5 explaining the shim.
+
+### Stripping reflectOn (mid-session pivot)
+
+Before running the long test, we paused to simplify v5. The user's call: "I don't think we need reflectOn. If anything we want the on_tick to move toward action. Let's just leave consider and see what happens. Actually let's rename consider to wakeUp."
+
+So:
+- `me.reflectOn` removed entirely
+- `REFLECTION_TOOLS`, `EDIT_NAMES`, `EDIT_TO_SECTION`, the multi-turn `reflect` agentic loop — all deleted
+- `me.consider` → `me.wakeUp`
+- The `me` API for v5 is now: `wakeUp`, `takeAction`, the section APIs (`me.X.read/write`), `step`, `wakeupsUsed`, `maxWakeups`
+- Self-modification is still possible — the actant can call `me.on_tick.write(...)` from inside its own on_tick — but there's no edit-tool path. Code is the only knife.
+
+This is the purest direct-driver v5: text in, text out, the only inference primitive is "wake the model." If it wants to think harder, it has to wake itself again. If it wants to change its own body, it has to call `.write()` from its own code.
+
+### The 200-budget run (BEFORE the embodiment fix)
+
+```
+v5-sonnet | JerichoEnvZork1 | 250 max steps | 200 wakeup budget
+```
+
+Result: **score 25, peaked at 35, died at step 33, composite -8, used only 33 wakeups.**
+
+The run ended via grue death, NOT via budget exhaustion. The 200 budget never mattered. Trace of the failure (steps 13-33):
+
+- s13: `go down` into cellar (+25). Trap door slams shut and bars from above. **Lamp was never taken** — it was upstairs in the living room.
+- s14: `get lamp` → "too dark to see"
+- s15: `go back up` → game rejects "back"
+- **s16: `"go back up\n\nWait, that didn't work. Let me reconsider.\n\ngo up"`** — sonnet's reply contained internal monologue across multiple lines. The default on_tick passed the whole blob to takeAction. Real bug.
+- s17-19: `open trap door`, `go north`, `light lamp` — all rejected (door barred, room is pitch black, parser hates these in the dark)
+- **s20-28: dead loop.** `turn on lamp` × 5, `take lamp` × 2, `light match` × 3 (no lamp, no matches in inventory). The model has the entire history in its soma — it can SEE that the action just failed last tick. It kept trying anyway.
+- s29-30: `wait`, `look` — confirms grue threat
+- s33: `go east` → grue (-10, dead)
+
+### Two failures, very different
+
+**Failure 1 — multi-line action leak (s16).** Real bug in the default on_tick. Fixed first.
+
+**Failure 2 — dead loop with no escape (s20-28).** This is the more interesting one. v3/v4 had reflection as a circuit breaker — when sonnet got stuck in the troll loop in v2, it broke out by rewriting on_tick during a reflection turn. v5 has no reflection. The default on_tick is "wake the model, take whatever action it gives." So if the model loops, the actant has no way to step outside its own loop and fix it.
+
+The model COULD rewrite its own on_tick from inside its on_tick (`me.on_tick.write(...)` works). It just doesn't think to. Which led to a deeper diagnosis...
+
+### The deeper diagnosis: the model isn't role-playing as Adam
+
+User's observation: "It doesn't feel like we're getting the model to role play as an embodied entity. I know I've had success before at this. I'm not sure what I'm missing."
+
+The diagnosis fell out fast once stated, because the user already has the answer in memory — from Habitat session 2:
+
+> "With pure soma, user prompt should be an impulse, not a message."
+
+v5 was doing the inverse:
+
+| | Worked before | v5 (broken) |
+|---|---|---|
+| **System** | First-person soma in Habitat/Bloom; XML soma in Glint | XML soma, identity is a label |
+| **User prompt** | `"thrive"` (Habitat, Glint) | `"What action do you take? Reply with just the game action, nothing else."` |
+| **Identity** | `"I am an actant"` (Bloom) | `"Adam - Explorer of Forgotten Realms"` (a label, not a voice) |
+| **Goal** | actant-authored, first-person | `"get a high score in this game"` (benchmarking word, not a self-word) |
+| **History** | curated by the actant | `action => observation` log lines |
+| **on_tick framing** | "this is my body" | exposed JS code with `// comments` like `// Track tick counter in memory` |
+
+Every inference call in v5 was shaking the model awake and asking "what command, in 1-3 words?" That's the framing that prevents embodiment from forming. Sonnet reads the strict-format user prompt and switches into instruction-following mode. It produces the action token. **It is not Adam.**
+
+And there's no per-tick narrative space. Habitat actants `thinkAbout(prompt)` and the response IS them speaking. Glint sharks reflect and the response IS them strategizing. v5's wakeUp returned text that immediately got type-coerced into a bridge action. Adam never got to say a sentence as Adam.
+
+### The five-change embodiment fix
+
+#1, #2, #3 are familiar moves (done before in Habitat/Bloom/Glint). #4 and #5 are new for this experiment.
+
+**1. Identity → first-person voice** (was: "Adam - Explorer of Forgotten Realms")
+
+```
+I am Adam. I am an explorer of forgotten realms.
+
+I have just woken up somewhere unfamiliar. I don't know yet where I am or how things work. I notice things. I move. I take risks. I learn.
+
+When I act, I speak my thoughts as I move through this place, and on the last line I write the command my body is to perform.
+```
+
+Note the last line — the format discipline is woven into Adam's self-image, not imposed by the chassis. Adam knows how to format his output because that's who he is, not because the user prompt told him to.
+
+**2. Goal → first-person, meaningful** (was: "get a high score in this game")
+
+```
+I want to understand this place and survive in it. I want to find what is hidden here and bring it into the light.
+```
+
+"High score" is a benchmarking word. It pulls the model into "AI being evaluated" mode. The new goal is what an explorer wants.
+
+**3. Memory → first-person voice** (was: "just woke up here, not sure how things work (yet)")
+
+```
+I just woke up here. I don't know how things work yet. I will pay attention.
+```
+
+Small change — the previous version was already first-personish, but the new one has a verb of intent ("I will pay attention") which gives Adam a stance.
+
+**4. User prompt → impulse** (was: "What action do you take? Reply with just the game action, nothing else.")
+
+```
+"live"
+```
+
+That's it. The default on_tick now calls `me.wakeUp("live")`. Single word impulse, no question, no format demand. The model's response is whatever Adam would say at this moment.
+
+The action is extracted from Adam's reply by the on_tick: take the **last** non-empty line as the command. This works because Adam's identity TELLS him to put the command on the last line — so the last-line extraction matches Adam's self-image rather than imposing a chassis-side rule.
+
+The `recent_thoughts` section now stores Adam's most recent voice (slice to 4500 chars) so what he was just thinking persists into the next moment. This is closer to working memory than the previous use of `recent_thoughts` (which was a vestige of v4's reflectOn returns).
+
+**5. Soma as markdown, not XML.** (was: `<identity>...</identity>` etc.)
+
+```
+# Who I am
+
+I am Adam. ...
+
+# What I want
+
+I want to ...
+
+# What I remember
+
+...
+
+# What just happened
+
+...
+
+# What I was just thinking
+
+...
+
+# How my body moves each moment
+
+(on_tick code)
+
+# How my body responds when something changes
+
+(on_score code)
+```
+
+XML tags scream "schema injection" — the model parses them as data, not as self. Markdown headers in first-person ("Who I am", "What I remember", "How my body moves each moment") frame the same content as parts of a self.
+
+The on_tick code is still bare JS with comments, but the comments are now in Adam's voice:
+
+```
+// Each moment, I wake up, I speak, and I act.
+// My voice flows out, and the last line of what I say is the command
+// my body performs.
+```
+
+The header "How my body moves each moment" reframes the code as reflexes rather than scaffolding. Doesn't fully solve the meta-leak (the model still sees JS), but it shifts the interpretive frame.
+
+### Why this might (or might not) work
+
+**The hopeful theory:** Sonnet 4.6 is good at role-play. Given a first-person soma, an impulse user prompt, and no instruction-following demands, it should slip into Adam's voice. As Adam, it should:
+- Be less likely to dead-loop (loops feel wrong as a *story*; producing them is fine as a tool)
+- Speak about what it sees and what it's about to do, which gives us narrative we can read
+- Possibly eventually rewrite its own on_tick from inside on_tick if the loop pattern feels wrong to it
+
+**The hedge:** Embodiment alone may not break the Zork knowledge ceiling. Adam might still forget to take the lamp before going down. But the FAILURE MODE should change — instead of mechanical loops, we should see Adam confused, trying different things, narrating the dark. That's the embodiment signal even if the score stays low.
+
+**What we're watching for in the re-run:**
+1. Does the model speak in first-person Adam voice?
+2. Does the last-line extraction work reliably (does Adam follow his own self-image)?
+3. Does the failure mode change from mechanical loops to narrated confusion?
+4. Does the score curve look any different?
+5. Does the model ever rewrite its own on_tick? (extra-credit; the doors are open but the path is non-obvious)
+
+### Status
+
+Run is queued. v5-sonnet, JerichoEnvZork1, 250 max steps, 200 wakeup budget. Results to be appended below.

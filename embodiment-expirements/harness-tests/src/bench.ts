@@ -46,6 +46,7 @@ Run options:
   --env NAME            TALES environment (required)
   --episodes N          Number of episodes (default: 1)
   --steps N             Max steps per episode (default: 50)
+  --max-reflections N   Override agent's reflection/inference budget (v3+ only)
   --verbose             Show per-step details
   `.trim());
 }
@@ -128,8 +129,11 @@ async function main() {
     const episodes = parseInt(opts.episodes ?? '1', 10);
     const maxSteps = parseInt(opts.steps ?? '50', 10);
     const verbose = opts.verbose === 'true';
+    const maxReflections = opts['max-reflections'] !== undefined
+      ? parseInt(opts['max-reflections'], 10)
+      : undefined;
 
-    const run = await runBench({ agent, env: envName, episodes, maxSteps, verbose });
+    const run = await runBench({ agent, env: envName, episodes, maxSteps, verbose, maxReflections });
 
     // Save results
     const resultsDir = join(ROOT, 'results');

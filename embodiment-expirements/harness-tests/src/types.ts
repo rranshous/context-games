@@ -71,6 +71,12 @@ export interface Agent {
    * Optional — only embodied agents track this.
    */
   getPlaythrough?(): PlaythroughStep[];
+
+  /**
+   * Override the per-episode reflection/inference budget.
+   * Optional — only agents that gate on a reflection budget (v3+) implement this.
+   */
+  setMaxReflections?(n: number): void;
 }
 
 // ── Playthrough capture ─────────────────────────────────────

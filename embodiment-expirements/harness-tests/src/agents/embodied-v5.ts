@@ -1,27 +1,25 @@
 /**
- * v5 Embodied Agent — Direct driver wearing v4's clothes.
+ * v5 Embodied Agent — Direct driver. No reflection, no edit tools.
  *
- * v5 keeps the v4 architecture (me.takeAction, me.reflectOn, async on_tick, section caps)
- * but adds me.consider(prompt) — text in, text out, NO edit tools.
+ * v5 keeps the v4 architecture (me.takeAction, async on_tick, section caps)
+ * but the only inference primitive is me.wakeUp(prompt) — text in, text out,
+ * NO tools. Self-modification still happens: on_tick is JS, the actant can
+ * call me.on_tick.write(...) (or any other section's .write()) directly from
+ * its own code.
  *
- * The default on_tick uses me.consider to ask the model what to do, then passes
- * the response straight to me.takeAction. This is the direct-driver pattern in
- * embodiment clothing: the model is in the loop every tick, but only because the
- * actant's code chooses to consult it.
+ * The default on_tick uses me.wakeUp to ask the model what to do, then passes
+ * the response straight to me.takeAction. This is the direct-driver pattern
+ * in embodiment clothing: the model is in the loop every tick, but only
+ * because the actant's code chooses to wake it.
  *
- * The actant can still rewrite on_tick to do something else, edit goal/memory/etc,
- * or call reflectOn for full self-modification. But the default is "ask the model
- * what to do, then do it."
- *
- * Both me.consider and me.reflectOn count against the same 50-turn budget. With
- * a consider call every tick, the budget burns in ~50 ticks.
+ * me.wakeUp counts against a per-episode budget (default 50). With a wakeUp
+ * call every tick, the budget burns in ~50 ticks unless on_tick gets smarter.
  */
 
-import type { Agent, TalesState, PlaythroughStep, PlaythroughToolCall } from '../types.js';
+import type { Agent, TalesState, PlaythroughStep } from '../types.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MAX_REFLECTION_TURNS = 5;
-const MAX_TOTAL_REFLECTIONS = 50;
+const MAX_TOTAL_WAKEUPS = 50;
 
 // ── Section caps ───────────────────────────────────────────
 
@@ -49,31 +47,36 @@ interface Soma {
   on_score: string;
 }
 
-const DEFAULT_IDENTITY = `Adam - Explorer of Forgotten Realms`;
+const DEFAULT_IDENTITY = `I am Adam. I am an explorer of forgotten realms.
 
-const DEFAULT_GOAL = `get a high score in this game`;
+I have just woken up somewhere unfamiliar. I don't know yet where I am or how things work. I notice things. I move. I take risks. I learn.
 
-const DEFAULT_MEMORY = `just woke up here, not sure how things work (yet)`;
+When I act, I speak my thoughts as I move through this place, and on the last line I write the command my body is to perform.`;
 
-const DEFAULT_ON_TICK = `// on_tick(me) — runs each tick. The default is direct-driver:
-// ask the model what to do, then do it.
+const DEFAULT_GOAL = `I want to understand this place and survive in it. I want to find what is hidden here and bring it into the light.`;
+
+const DEFAULT_MEMORY = `I just woke up here. I don't know how things work yet. I will pay attention.`;
+
+const DEFAULT_ON_TICK = `// Each moment, I wake up, I speak, and I act.
+// My voice flows out, and the last line of what I say is the command
+// my body performs.
 
 const histText = me.history.read();
 
-// Track tick counter in memory
-const memText = me.memory.read();
-const counterMatch = memText.match(/\\[tick:(\\d+)\\]/);
-const tick = counterMatch ? parseInt(counterMatch[1]) + 1 : 1;
-const newMem = memText.replace(/\\[tick:\\d+\\]/, '').trim() + ' [tick:' + tick + ']';
-me.memory.write(newMem);
+// I wake up.
+const reply = await me.wakeUp("live");
 
-// Consider what to do
-const action = await me.consider("What should I do next? Reply with just the game action, nothing else.");
+// I keep what I just thought, so I can remember it next moment.
+me.recent_thoughts.write(reply.slice(-4500));
 
-// Take the action and get the observation back
+// The last non-empty line of my voice is the command my body performs.
+const lines = reply.split("\\n").map(l => l.trim()).filter(l => l.length > 0);
+const action = lines.length > 0 ? lines[lines.length - 1] : reply.trim();
+
+// My body acts.
 const observation = await me.takeAction(action);
 
-// Append to history (rolling window — chassis enforces cap, default keeps last 20 lines)
+// I remember what just happened. (rolling window — last 20 moments)
 const entry = action + " => " + observation.slice(0, 200).replace(/\\n/g, ' ');
 const newHist = (histText ? histText + "\\n" : "") + entry;
 const allLines = newHist.split("\\n");
@@ -124,13 +127,13 @@ function buildSectionAPI(soma: Soma, name: SectionName) {
 
 function assembleSoma(soma: Soma): string {
   return [
-    `<identity>\n${soma.identity}\n</identity>`,
-    `<goal>\n${soma.goal || '(no goal set)'}\n</goal>`,
-    `<memory>\n${soma.memory || '(empty)'}\n</memory>`,
-    `<history>\n${soma.history || '(no actions yet)'}\n</history>`,
-    `<recent_thoughts>\n${soma.recent_thoughts || '(none)'}\n</recent_thoughts>`,
-    `<on_tick>\n${soma.on_tick}\n</on_tick>`,
-    `<on_score>\n${soma.on_score}\n</on_score>`,
+    `# Who I am\n\n${soma.identity}`,
+    `# What I want\n\n${soma.goal || '(nothing yet)'}`,
+    `# What I remember\n\n${soma.memory || '(nothing yet)'}`,
+    `# What just happened\n\n${soma.history || '(nothing yet — I have only just woken)'}`,
+    `# What I was just thinking\n\n${soma.recent_thoughts || '(nothing yet)'}`,
+    `# How my body moves each moment\n\n${soma.on_tick}`,
+    `# How my body responds when something changes\n\n${soma.on_score}`,
   ].join('\n\n');
 }
 
@@ -138,42 +141,15 @@ function cloneSoma(soma: Soma) {
   return { ...soma };
 }
 
-// ── Reflection tools (only used by reflectOn) ───────────────
-
-const REFLECTION_TOOLS = [
-  { type: 'function' as const, function: { name: 'edit_identity', description: 'Rewrite your identity section.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'edit_goal', description: 'Rewrite your goal section.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'edit_memory', description: 'Rewrite your memory section.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'edit_history', description: 'Rewrite your history section.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'edit_recent_thoughts', description: 'Rewrite your recent_thoughts section.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'edit_on_tick', description: 'Rewrite the on_tick code. Signature: (me) → void. This is your body.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'edit_on_score', description: 'Rewrite the on_score code. Signature: (prevScore, newScore, me) → void.', parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'], additionalProperties: false } } },
-];
-
-const EDIT_NAMES = new Set(REFLECTION_TOOLS.map(t => t.function.name));
-const EDIT_TO_SECTION: Record<string, SectionName> = {
-  edit_identity: 'identity',
-  edit_goal: 'goal',
-  edit_memory: 'memory',
-  edit_history: 'history',
-  edit_recent_thoughts: 'recent_thoughts',
-  edit_on_tick: 'on_tick',
-  edit_on_score: 'on_score',
-};
-
 // ── OpenRouter ──────────────────────────────────────────────
 
-interface ORMessage { role: 'system' | 'user' | 'assistant' | 'tool'; content?: string; tool_calls?: any[]; tool_call_id?: string; }
+interface ORMessage { role: 'system' | 'user' | 'assistant'; content?: string; }
 
-async function callOpenRouter(model: string, system: string, messages: ORMessage[], tools?: any[]): Promise<any> {
+async function callOpenRouter(model: string, system: string, messages: ORMessage[]): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
 
   const body: any = { model, max_tokens: 4096, messages: [{ role: 'system', content: system }, ...messages] };
-  if (tools && tools.length > 0) {
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
 
   const resp = await fetch(OPENROUTER_URL, {
     method: 'POST',
@@ -219,17 +195,18 @@ interface V5Options {
   model: string;
   label: string;
   identity?: string;
-  maxReflections?: number;
+  maxWakeups?: number;
 }
 
 function createV5Agent(opts: V5Options): Agent {
-  const { model, label, identity = DEFAULT_IDENTITY, maxReflections = MAX_TOTAL_REFLECTIONS } = opts;
+  const { model, label, identity = DEFAULT_IDENTITY } = opts;
+  let maxWakeups = opts.maxWakeups ?? MAX_TOTAL_WAKEUPS;
 
   let soma: Soma;
   let playthroughLog: PlaythroughStep[] = [];
   let stepCounter = 0;
   let prevScore = 0;
-  let totalReflectionTurns = 0;
+  let totalWakeups = 0;
 
   function resetSoma() {
     soma = {
@@ -248,12 +225,18 @@ function createV5Agent(opts: V5Options): Agent {
   return {
     name: label,
 
+    setMaxReflections(n: number) {
+      // Shared Agent-interface name for "per-episode inference budget".
+      // In v5 there's no reflection at all — this caps wakeUps.
+      maxWakeups = n;
+    },
+
     reset(observation: string, info: TalesState) {
       resetSoma();
       playthroughLog = [];
       stepCounter = 0;
       prevScore = 0;
-      totalReflectionTurns = 0;
+      totalWakeups = 0;
       try {
         writeSection(soma, 'history', `look => ${observation.replace(/\n/g, ' ').slice(0, 200)}`);
       } catch { /* ignore */ }
@@ -268,74 +251,17 @@ function createV5Agent(opts: V5Options): Agent {
       stepCounter = 0;
 
       // ── per-step capture buckets ──
-      let stepReflectionToolCalls: PlaythroughToolCall[] = [];
-      let stepReflectionPrompts: string[] = [];
+      let stepWakeupPrompts: string[] = [];
       let stepThinking: string[] = [];
       let stepActionTaken = '(no action)';
 
-      // ── reflectOn (full edit reflection) ──
-      const reflect = async (prompt: string): Promise<string> => {
-        if (totalReflectionTurns >= maxReflections) return '';
-        const system = assembleSoma(soma);
-        let messages: ORMessage[] = [{ role: 'user', content: prompt }];
-        let turns = 0;
-        const collectedThoughts: string[] = [];
-
-        while (turns < MAX_REFLECTION_TURNS && totalReflectionTurns < maxReflections) {
-          const data = await callOpenRouter(model, system, messages, REFLECTION_TOOLS);
-          totalReflectionTurns++;
-          turns++;
-
-          const choice = data.choices?.[0]?.message;
-          if (!choice) break;
-
-          if (choice.content?.trim()) collectedThoughts.push(choice.content.trim());
-
-          const toolCall = choice.tool_calls?.[0];
-          if (!toolCall) break;
-
-          const fnName = toolCall.function.name;
-          if (!EDIT_NAMES.has(fnName)) break;
-
-          const fnArgs = JSON.parse(toolCall.function.arguments);
-          const sectionName = EDIT_TO_SECTION[fnName];
-          const content = fnArgs.content;
-
-          let resultText: string;
-          try {
-            const isCodeSection = sectionName === 'on_tick' || sectionName === 'on_score';
-            if (isCodeSection && (!content || content.trim().length === 0)) {
-              resultText = `Error: cannot set ${sectionName} to empty. Provide full code.`;
-            } else {
-              writeSection(soma, sectionName, content ?? '');
-              resultText = `Updated ${sectionName}.`;
-            }
-          } catch (err: any) {
-            if (err instanceof SectionWriteError) {
-              resultText = `Error: ${sectionName} write rejected — length ${err.attemptedLength} exceeds cap ${err.cap}.`;
-            } else {
-              resultText = `Error: ${err.message}`;
-            }
-          }
-
-          stepReflectionToolCalls.push({ name: fnName, args: fnArgs, result: resultText });
-
-          messages = [
-            { role: 'assistant', tool_calls: choice.tool_calls, content: choice.content ?? undefined },
-            { role: 'tool', tool_call_id: toolCall.id, content: resultText },
-          ];
-        }
-
-        return collectedThoughts.join('\n\n');
-      };
-
-      // ── consider (text-only, no edit tools) ──
-      const consider = async (prompt: string): Promise<string> => {
-        if (totalReflectionTurns >= maxReflections) return '';
+      // ── wakeUp (text in, text out, no tools) ──
+      const wakeUp = async (prompt: string): Promise<string> => {
+        if (totalWakeups >= maxWakeups) return '';
         const system = assembleSoma(soma);
         const messages: ORMessage[] = [{ role: 'user', content: prompt }];
-        const data = await callOpenRouter(model, system, messages); // no tools
-        totalReflectionTurns++;
+        const data = await callOpenRouter(model, system, messages);
+        totalWakeups++;
 
         const choice = data.choices?.[0]?.message;
         const text = (choice?.content ?? '').trim();
@@ -350,27 +276,18 @@ function createV5Agent(opts: V5Options): Agent {
         return newState.observation;
       };
 
-      // ── reflectOn helper that records prompts/thinking ──
-      const reflectOnHelper = async (prompt: string): Promise<string> => {
-        stepReflectionPrompts.push(`reflectOn: ${prompt}`);
-        const thought = await reflect(prompt);
-        if (thought) stepThinking.push(`[reflectOn: ${prompt.slice(0, 60)}] → ${thought.slice(0, 200)}`);
-        return thought;
-      };
-
-      // ── consider helper that records prompts/thinking ──
-      const considerHelper = async (prompt: string): Promise<string> => {
-        stepReflectionPrompts.push(`consider: ${prompt}`);
-        const text = await consider(prompt);
-        if (text) stepThinking.push(`[consider: ${prompt.slice(0, 60)}] → ${text.slice(0, 200)}`);
+      // ── wakeUp helper that records prompts/thinking ──
+      const wakeUpHelper = async (prompt: string): Promise<string> => {
+        stepWakeupPrompts.push(`wakeUp: ${prompt}`);
+        const text = await wakeUp(prompt);
+        if (text) stepThinking.push(`[wakeUp: ${prompt.slice(0, 60)}] → ${text.slice(0, 200)}`);
         return text;
       };
 
       // ── Main loop ──
       for (let step = 1; step <= maxSteps; step++) {
         stepCounter = step;
-        stepReflectionToolCalls = [];
-        stepReflectionPrompts = [];
+        stepWakeupPrompts = [];
         stepThinking = [];
         stepActionTaken = '(no action)';
 
@@ -383,11 +300,10 @@ function createV5Agent(opts: V5Options): Agent {
           on_tick: buildSectionAPI(soma, 'on_tick'),
           on_score: buildSectionAPI(soma, 'on_score'),
           takeAction,
-          consider: considerHelper,
-          reflectOn: reflectOnHelper,
+          wakeUp: wakeUpHelper,
           step,
-          reflectionsUsed: totalReflectionTurns,
-          maxReflections,
+          wakeupsUsed: totalWakeups,
+          maxWakeups,
         };
 
         // Run on_score if score changed since last tick
@@ -397,7 +313,7 @@ function createV5Agent(opts: V5Options): Agent {
             appendToMemorySafe(soma, `[on_score error step ${step}: ${scoreRes.error.slice(0, 200)}]`);
           }
           prevScore = currentState.score;
-          me.reflectionsUsed = totalReflectionTurns;
+          me.wakeupsUsed = totalWakeups;
         }
 
         // Run on_tick (async)
@@ -412,21 +328,20 @@ function createV5Agent(opts: V5Options): Agent {
           observation: currentState.observation,
           thinking: [...stepThinking],
           toolCalls: [
-            ...stepReflectionToolCalls,
             { name: 'on_tick', args: { action: stepActionTaken } },
           ],
           action: stepActionTaken,
           score: currentState.score,
           maxScore: currentState.max_score,
-          reflectionsTriggered: [...stepReflectionPrompts],
-          reflectionTurnsUsed: totalReflectionTurns,
-          compositeScore: currentState.score - totalReflectionTurns,
+          reflectionsTriggered: [...stepWakeupPrompts],
+          reflectionTurnsUsed: totalWakeups,
+          compositeScore: currentState.score - totalWakeups,
           soma: cloneSoma(soma),
         });
 
         if (currentState.done) break;
-        if (totalReflectionTurns >= maxReflections) {
-          appendToMemorySafe(soma, `[reflection budget exhausted at step ${step}]`);
+        if (totalWakeups >= maxWakeups) {
+          appendToMemorySafe(soma, `[wakeUp budget exhausted at step ${step}]`);
           break;
         }
       }
