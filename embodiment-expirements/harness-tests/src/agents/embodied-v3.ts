@@ -274,7 +274,7 @@ async function callOpenRouter(model: string, system: string, messages: ORMessage
   const resp = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role: 'system', content: system }, ...messages], tools, tool_choice: 'auto' }),
+    body: JSON.stringify({ model, max_tokens: 4096, messages: [{ role: 'system', content: system }, ...messages], tools, tool_choice: 'auto' }),
   });
 
   if (!resp.ok) throw new Error(`OpenRouter ${resp.status}: ${await resp.text()}`);
@@ -339,14 +339,27 @@ function createV3Agent(opts: V3Options): Agent {
 
       const fnArgs = JSON.parse(toolCall.function.arguments);
       const section = fnName.replace('edit_', '');
+      const content = fnArgs.content;
+
+      // Reject empty code edits — they'd wipe out working handlers.
+      // Allow empty text edits (identity/goal/memory can legitimately be cleared).
+      const isCodeSection = ['on_tick', 'on_score', 'notice'].includes(section);
+      if (isCodeSection && (!content || content.trim().length === 0)) {
+        toolCalls.push({ name: fnName, args: fnArgs, result: `REJECTED: empty code for ${section}` });
+        messages = [
+          { role: 'assistant', tool_calls: choice.tool_calls, content: choice.content ?? undefined },
+          { role: 'tool', tool_call_id: toolCall.id, content: `Error: cannot set ${section} to empty string. Provide full code or don't edit this section.` },
+        ];
+        continue;
+      }
 
       switch (fnName) {
-        case 'edit_identity': soma.identity = fnArgs.content; break;
-        case 'edit_goal': soma.goal = fnArgs.content; break;
-        case 'edit_memory': soma.memory = fnArgs.content; break;
-        case 'edit_on_tick': soma.on_tick = fnArgs.content; break;
-        case 'edit_on_score': soma.on_score = fnArgs.content; break;
-        case 'edit_notice': soma.notice = fnArgs.content; break;
+        case 'edit_identity': soma.identity = content; break;
+        case 'edit_goal': soma.goal = content; break;
+        case 'edit_memory': soma.memory = content; break;
+        case 'edit_on_tick': soma.on_tick = content; break;
+        case 'edit_on_score': soma.on_score = content; break;
+        case 'edit_notice': soma.notice = content; break;
       }
 
       toolCalls.push({ name: fnName, args: fnArgs, result: `Updated ${section} (turn ${turns})` });
