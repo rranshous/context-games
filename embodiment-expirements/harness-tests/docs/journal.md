@@ -1122,3 +1122,104 @@ This is a *different* kind of failure — the actant wrote code that emits its o
 - Does the model need a "don't edit unless things are clearly wrong" signal?
 - Is the on_tick code actually improving, or just cycling through equivalent approaches?
 - The 40-point ceiling might be a Zork knowledge limit, not an embodiment limit — both bare and embodied models hit it.
+
+---
+
+## Session 15 — v4 Design (2026-04-10)
+
+### Why v4
+
+The v3 architecture had several leaky abstractions:
+1. `on_tick` received `(observation, info, me)` — the game state was injected as args, not accessed through the actant's body. The actant's "body" wasn't really how it touched the world.
+2. Model text responses from reflection were captured in playthrough logs but never re-entered the soma. The model is trained to assume its text feeds back; we were dropping it on the floor.
+3. The `notice` handler was a chassis-imposed surveillance loop. The actant could rewrite it, but its existence (and the things_noticed section) was a chassis assumption about what the actant should pay attention to.
+4. History was a chassis-managed array. The actant could read it but the format was fixed.
+5. Soma sections had no size caps — they could grow unbounded.
+6. on_tick errors crashed silently — the actant had no way to see runtime failures in its own code.
+
+### v4 Changes
+
+**`on_tick(me)` — no observation/info args.** The world is accessed through `me.takeAction(action) → observation`. This makes the embodiment more honest: the actant's body interacts with the world through a method on `me`, not through chassis-injected parameters.
+
+**`me.takeAction(action) → observation_string`** — sends action to the game, returns the observation. The chassis stores nothing automatically. If the actant wants to remember the observation, its on_tick code does the storing.
+
+**`me.reflectOn(prompt) → thought_string`** — wakes the model, returns its text response. The model can edit soma sections AND/OR produce a text response. The text response is returned to the calling code. Same principle: chassis stores nothing automatically, the actant's code does it.
+
+**Sections are pure text.** No `push()` or array APIs. `me.X.read()` returns a string, `me.X.write(s)` sets it. If the actant wants a rolling window in its history, its on_tick code does the splitting and trimming.
+
+**No notice handler. No things_noticed section.** Removed entirely. on_tick has the same access (history, memory, reflection budget) and can compute whatever surveillance it wants. Simplifies the model: one handler that runs each tick (on_tick), one that runs on score change (on_score). The composite score becomes implicit — the actant must compute it itself if it wants to track it. This tests whether the explicit chassis-computed score was helping or just spoon-feeding.
+
+**Section caps.**
+
+| Section | Cap |
+|---------|-----|
+| identity | 2000 |
+| goal | 1000 |
+| memory | 5000 |
+| history | 5000 |
+| recent_thoughts | 5000 |
+| on_tick | 8000 |
+| on_score | 4000 |
+
+**Hard reject on overflow.** `me.X.write(too_long_string)` throws. Same for the edit_X tools — the chassis returns an error to the model. The actant has to actively manage its own bloat. No silent truncation, no magic chassis cleanup. The default on_tick must include rolling-window logic so it doesn't break the cap on its own.
+
+**on_tick error handling.** Chassis wraps `compileAndRun(on_tick)` in try/catch. On runtime error, the chassis writes `[runtime error step N: <message>]` to memory (subject to memory cap). The actant sees the error on the next tick or during reflection. This gives the model feedback on broken code instead of silent failures.
+
+### v4 me API
+
+```typescript
+interface Me {
+  identity: { read(): string; write(s: string): void; };
+  goal:     { read(): string; write(s: string): void; };
+  memory:   { read(): string; write(s: string): void; };
+  history:  { read(): string; write(s: string): void; };
+  recent_thoughts: { read(): string; write(s: string): void; };
+
+  on_tick:  { read(): string; write(s: string): void; };
+  on_score: { read(): string; write(s: string): void; };
+
+  takeAction(action: string): string;       // returns observation
+  reflectOn(prompt: string): string;        // returns model's text response
+
+  step: number;
+  reflectionsUsed: number;
+  maxReflections: number;
+}
+```
+
+### Default on_tick — demonstrates the pattern
+
+```javascript
+// on_tick(me) → void
+// I act on the world via me.takeAction(...) and decide what to remember.
+
+// Pick an action by parsing my own history for unexplored directions
+const obs = me.history.read();
+const recent = obs.split("\n").slice(-5);
+// ... choose an action ...
+const action = "north"; // (real default has the parsing logic)
+
+// Take it. The observation comes back as a string.
+const observation = me.takeAction(action);
+
+// Decide what to remember. I append to history and trim if needed.
+const current = me.history.read();
+const entry = action + " => " + observation.slice(0, 200);
+const updated = current + "\n" + entry;
+const lines = updated.split("\n");
+const trimmed = lines.length > 20 ? lines.slice(-20).join("\n") : updated;
+me.history.write(trimmed);
+```
+
+The default demonstrates rolling-window management explicitly. The actant inherits the pattern.
+
+### What v4 Tests
+
+- Does the actant manage its own attention better when there's no chassis-imposed `notice` loop?
+- Does removing the explicit composite score change anything? (Composite is still computed by the chassis for measurement, just not surfaced to the actant.)
+- Does giving the actant the model's text responses (via reflectOn return + recent_thoughts section) reduce wasted reasoning?
+- Do the section caps force the actant to be intentional about what it remembers?
+- Does runtime error feedback in memory help the actant fix broken on_tick code?
+
+### TODO for Later (Not v4)
+- **on_tick safeguards from other projects** — sanity check before update (does the new code at least parse?), give model feedback on failures (already partially in v4 via try/catch). Worth a more thorough pass later: AST parse before accepting, dry-run on a fixture, etc.
