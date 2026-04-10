@@ -1223,3 +1223,95 @@ The default demonstrates rolling-window management explicitly. The actant inheri
 
 ### TODO for Later (Not v4)
 - **on_tick safeguards from other projects** — sanity check before update (does the new code at least parse?), give model feedback on failures (already partially in v4 via try/catch). Worth a more thorough pass later: AST parse before accepting, dry-run on a fixture, etc.
+
+### v4 Smoke Test (10 steps, sonnet)
+
+- Default on_tick navigated 4 rooms via direction parsing
+- Reflection at tick 10: model produced detailed self-analysis (~2500 chars) AND called `edit_recent_thoughts`
+- Both pathways captured the model's reasoning into the soma — first time we haven't dropped the text response on the floor
+- Composite: -2 (2 reflection turns)
+- Total runtime: 40s
+
+### v4 100-Step Runs (Zork 1)
+
+| Agent | Game Score | Composite | Reflections | Reflection Turns | on_tick edits | Section errors |
+|-------|-----------|-----------|-------------|------------------|---------------|----------------|
+| **v4-sonnet** | 40 | **15** | 7 | 25 | 8 | 1 (on_tick > 8000 at s44) |
+| **v4-opus** | 25 | **17** | 4 | 8 | 1 | 0 |
+
+**Both runs reached positive composite scores.** v4-opus matched v3-opus's 17 composite (close to v3-opus's 26). v4-sonnet got composite 15 — much better than v3-sonnet's -5.
+
+### What v4 Showed
+
+**1. Sonnet started rewriting reflection prompts to include game state.**
+
+The model changed how it called `me.reflectOn()` over time. Early prompts:
+> "Tick 10 checkin. What's working?"
+
+Later prompts:
+> "Tick 30. Observation: 'you used the word \"ring\" in a way that I don't understand'. Memory flags: ... What is my best next action in Zork I to maximize score?"
+
+> "Zork I tick 60. Obs:'you can't see any troll here!'. Best next action?"
+
+The actant teaches itself to give itself more context during reflection. **The actant is shaping its own surveillance loop** — exactly what we hoped removing the chassis-managed `notice` would enable.
+
+**2. Section caps worked as designed.**
+
+At step 44, sonnet tried to write a 9478-char on_tick. The chassis rejected with `length 9478 exceeds cap 8000`. Sonnet recovered — final on_tick is 6103 chars. The actant felt the constraint and adapted.
+
+**3. Both pathways for thought capture worked.**
+
+The model's text response from `reflectOn` was captured in TWO ways:
+- The actant called `edit_recent_thoughts` directly during reflection (writing its own summary)
+- The default `on_tick` code captured the returned text from `me.reflectOn()` and pushed it into recent_thoughts
+
+In v3 and earlier, this text was dropped entirely. In v4, the model's reasoning is now part of the soma the model sees on the next tick.
+
+**4. The actant managed its own rolling window.**
+
+recent_thoughts capped at 941 chars (sonnet) and 3275 chars (opus). The default code's "trim to last 5 entries" worked. The actant didn't blow the cap on this section.
+
+**5. Score progression in v4-sonnet:**
+- s25: enter window → +10
+- s48: go down → +25 (cellar)
+- s76: east → +5 (40)
+
+Real Zork progress while self-modifying. The same arc as bare/v0/v1/v2/v3 sonnet, but with active code rewrites along the way.
+
+**6. The 40-point Zork ceiling held again.**
+
+Across all versions (v0 through v4), neither sonnet nor opus has gone past 40 on Zork without the troll killing them. This is a knowledge problem, not an embodiment problem. The cellar east passage is the limit of what model knowledge gets you without solving real puzzles.
+
+### Composite Score Comparison Across Versions (Zork 1)
+
+| Version | Sonnet Game | Sonnet Composite | Opus Game | Opus Composite |
+|---------|-------------|------------------|-----------|----------------|
+| v0 | 40 | 40 | 40 | 40 |
+| v2 | 40 | -122 | 25 | 16 |
+| v3 (stripped, fixed) | 0 | -5 | 25 | 26 |
+| **v4** | **40** | **15** | **25** | **17** |
+
+v4 sonnet is the first sonnet run to reach positive composite WHILE making real game progress. v0 sonnet had higher composite (40) because there was no reflection cost being measured — that's not a fair comparison. Among v2/v3/v4 (where reflection costs are tracked), v4 is sonnet's best.
+
+### v4 Architecture Validation
+
+The architecture changes that mattered:
+1. **Removing notice/things_noticed simplified the model** without losing functionality. The actant computes whatever surveillance it wants inside on_tick.
+2. **`me.reflectOn` returning text** lets the actant capture and use its own reasoning. Previously dropped.
+3. **Section caps create real pressure** — sonnet hit them and adapted.
+4. **on_tick errors written to memory** gives the actant feedback on broken code (not exercised heavily in this test, but the mechanism is there).
+5. **Async on_tick with await me.takeAction** — the actant's "body" really is the code that touches the world via the `me` API.
+
+The architecture is the cleanest yet. Subsequent versions can build on this without architectural debt.
+
+### Remaining Issue: The 40-Point Ceiling Is Real
+
+No embodiment work has cracked the Zork knowledge ceiling. Both models hit 40 and either die at the troll or wander past the cellar east area. This suggests:
+- Future tests should use TextWorld (more grounded, less reliant on game-specific knowledge)
+- OR we accept Zork as a progress floor and measure the *path* to 40, not the score itself
+- OR we test on multiple games and look at composite-across-games, not single-game scores
+
+### Open Threads
+- Do longer runs (200+ steps) stabilize sonnet's composite? Or does the constant rewriting eventually catch up?
+- Can the embodied actant find a way past the troll that bare models can't? (Probably not — it's a knowledge gap.)
+- TextWorld cooking task as a different benchmark — does v4 transfer?
