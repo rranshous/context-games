@@ -809,8 +809,62 @@ The model rewrote on_tick at nearly every reflection point (every 5 steps), ofte
 
 This mirrors the "tendency oscillation" finding from Glint: aggressive self-modification can create churn rather than convergence. The model needs a reason to STOP editing and let the code run.
 
-### Opus Navigator
-Running — started after sonnet. Results pending.
+### Opus Navigator — Results
+
+**25-35/350, 54 steps, ~8 minutes**
+
+Opus died/ended in the Troll Room at step 54. Score peaked at 35 (cellar descent), not the 40 the cellar east passage gives.
+
+**9 code edits** (vs sonnet's 162) and 16 text edits. Opus was dramatically more conservative — it edited code only when something seemed clearly wrong, not at every reflection point.
+
+### v2 Navigator Comparison
+
+| Agent | Final | Peak | Steps | Code Edits | Text Edits | Edits/Step |
+|-------|-------|------|-------|------------|------------|-----------|
+| navigator-sonnet | 40 | 40 | 200 | 162 | 116 | 1.39 |
+| navigator-opus | 25 | 35 | 54 | 9 | 16 | 0.46 |
+
+**Key contrast**: sonnet edited 18x more aggressively than opus. Yet both hit similar score ceilings. **Aggressive editing didn't help.**
+
+### v0 → v1 → v2 Score Comparison (Zork 1)
+
+| Version | Sonnet Score | Opus Score | Code Edits |
+|---------|-------------|------------|------------|
+| v0 (text edits only) | 40 | 30 | 0 |
+| v1 (code sections + text edits) | 40 | 44 | 0 |
+| v2 (navigator, code-only edits) | 40 | 25 | sonnet 162, opus 9 |
+
+The score ceiling is stubbornly around 40. **Embodiment changes didn't break it.** This suggests the ceiling is a Zork-specific knowledge/strategy limit, not an embodiment limit.
+
+### What v2 Did Prove
+
+The navigator pattern WORKS as an architecture:
+- ✓ Forces engagement with code (162 edits vs 0 in prior versions for sonnet)
+- ✓ Successfully broke the troll combat loop (sonnet step 35)
+- ✓ Models can write functional game-playing code
+
+What v2 did NOT prove:
+- ✗ Better scores on Zork
+- ✗ Convergence (sonnet kept editing without settling)
+- ✗ Smart use of edit budget (opus barely edited at all)
+
+### The Real Insight
+
+Maybe the issue isn't the embodiment pattern — maybe the issue is **what the model is reflecting on**. At reflection time, the model sees:
+- The soma sections (which it largely wrote)
+- Recent history (raw action → observation summaries)
+- That's it.
+
+The model isn't getting:
+- Score trends (stuck at 40 for how long?)
+- Action repetition signals
+- Distinct rooms visited
+- Code execution errors
+- Time since last progress
+
+**v3 (formerly v4): notice/observations code section.** Let the actant write code that computes its own status signals. The chassis runs `notice()` each tick and the output goes into a `<things_noticed>` soma section. The actant decides what to surveil — and can rewrite that surveillance code as it learns what matters.
+
+This puts the surveillance loop INSIDE the embodiment instead of in the chassis. The actant shapes not just how it acts but how it sees itself.
 
 ### Emerging Questions
 - Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
