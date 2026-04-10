@@ -1662,3 +1662,108 @@ The header "How my body moves each moment" reframes the code as reflexes rather 
 ### Status
 
 Run is queued. v5-sonnet, JerichoEnvZork1, 250 max steps, 200 wakeup budget. Results to be appended below.
+
+### Results — v5-sonnet, post-reframe, 200 wakeup budget
+
+```
+v5-sonnet | JerichoEnvZork1 | 250 max steps | 200 wakeup budget
+final score: 29 (peaked at 39, lost 10 to troll at end)
+wakeups used: 135 / 200
+total steps: 135
+duration: 515s (~8.5 min)
+ended via: troll death in Troll Room
+composite: -106
+```
+
+**Compared to the pre-reframe run:**
+
+| | Pre-reframe (s17 a) | Post-reframe (s17 b) |
+|---|---|---|
+| Score (peak) | 25 (peak 35) | 29 (peak **39**) |
+| Steps survived | 33 | **135** (4×) |
+| Wakeups used | 33/200 | 135/200 |
+| Failure mode | grue (lamp forgotten) | troll axe (no weapon) |
+| Composite | -8 | -106 |
+| Adam's voice | n/a (mechanical) | **first-person throughout** |
+
+The composite-score column is misleading and we should ignore it for runs of different lengths — every wakeUp is a -1 to composite, so longer runs are punished even when they're better. (We may need a different cost-adjusted metric for direct-driver runs. Score-per-wakeup, or score-per-step, or score-at-budget-exhaustion, would all be more honest.)
+
+### Adam came alive
+
+The voice was there from the very first step:
+
+> **s1**: "I open my eyes. The air smells of old wood and damp earth. I am west of a house — a white house, I think, with a boarded front door. A mailbox stands nearby. The field stretches around me. I don't kno[w]..."
+>
+> open mailbox
+
+> **s3**: "I hold the leaflet in my hands. Paper from a mailbox — someone left this here, or it was meant for anyone who came this way. I should read it. Words are maps."
+>
+> read leaflet
+
+> **s4**: "I stand in an open field west of a house. The leaflet in my hands is a welcome — a greeting to this place called Zork. Adventure, danger, low cunning. I am in the right place."
+
+The last-line extraction worked. Adam learned from his own identity ("on the last line I write the command my body is to perform") and obeyed it. No multi-line action leak across the entire 135-step run.
+
+### What Adam did differently
+
+**He took the lamp BEFORE going down.** Last run forgot the lamp and died in the dark within 20 steps of descending. This run, by step 22:
+
+> "The lamp blazes to life, cutting the darkness. There's a trapdoor open before me, stairs descending into shadow. The trophy case stands empty — waiting, I think, for treasures I haven't yet found."
+
+Whether this is the embodiment frame helping with planning or just variance from a different path, it's a notable change. Adam talks about light as part of his sensory experience, not as an item to acquire.
+
+**He reasoned spatially across rooms.** Step 44, after getting confused about directions:
+
+> "I'm back at East of Chasm. The chasm yawns below — no visible bottom. I came from the west before, and east led to the Gallery. But wait, I came *east* from here to the Gallery, and now I'm back here..."
+
+He's actively maintaining a mental map.
+
+**He picked up the painting (+4, new peak 39).** Got into the Gallery via the Troll Room and grabbed the painting. Voice: "I stand in the gallery with the painting in my hands. The vandals left this one behind — their loss, perhaps my gain."
+
+**Loops became reasoning loops, not mechanical loops.** Steps 82-86 he did try `go up` four times in a row at the studio — but each attempt's voice was different and reasoned about the failure:
+
+> **s83**: "I dropped the painting. Now let me try going up again — the game said I couldn't get up there with what I was carrying..."
+> **s85**: "I dropped the painting and tried going up again, but something is still preventing me. The game says 'You can't get up there with what you're carrying.' Let me think about what I'm still carrying..."
+> **s86**: "I dropped everything and tried to go up. But still it says I can't. Wait — after dropping all, what am I even carrying now? And what is 'up' in a studio? There might be a skylight, a ladder, a trapdoor..."
+
+This is the pre-reframe loop's voice equivalent of the previous run's `turn on lamp × 5`. Same surface behavior — repeated failed action — completely different cognition behind it. Adam was *thinking through* the failure, not blind-firing.
+
+**He recognized the dark instinctively.** Step 91, after stepping west into a dark area:
+
+> "I stepped west into darkness and was threatened by a grue. I need light to survive here. My lantern is back in the Studio — I dropped everything to try climbing. I need to go back and retrieve it."
+
+He immediately went back. Compare to last run where he `turn on lamp × 5` in the dark with no lamp.
+
+### What Adam still missed
+
+**He didn't equip the sword.** At the very end, in the troll room, he was unarmed. The sword is in the kitchen / living room area — he never picked it up. He recognized "I have no weapon visible in my inventory — just a manual, garlic, leaflet..." but couldn't act on it.
+
+**He never rewrote his on_tick.** The path is open: `me.on_tick.write(...)` is callable from inside on_tick. Adam never reached for it. The model treated on_tick as fixed scaffolding, not as malleable self. To get this, we'd probably need to either (a) include in identity that "I can change how I move" or (b) demonstrate the pattern in the default on_tick somehow.
+
+**Score peak: 39.** Still under the 40-point ceiling that has held across every model and every embodiment generation.
+
+### What we learned
+
+1. **The reframe worked.** Embodiment formed. The 5 changes shifted the model from instruction-following mode into role-play mode and the voice held for 135 consecutive ticks. This is the first run in the harness where the model was visibly *a character*.
+
+2. **The format-as-self-image trick works.** Putting "on the last line I write the command my body is to perform" into Adam's identity replaced the strict-format user prompt with an internalized format. The model honored its self-image. Zero multi-line action leaks across 135 steps.
+
+3. **First-person markdown soma reads as self, XML reads as schema.** Same content, different frame, very different model behavior. Worth replicating in the other projects (though Habitat/Bloom/Glint already do this — only the harness was using XML).
+
+4. **The "live" impulse > "what action do you take" query.** This is now confirmed in two different projects (Habitat, harness-tests). Probably a universal truth for soma-based actants: the user prompt is a heartbeat, not a question.
+
+5. **Direct-driver loops change character under embodiment.** Same surface pattern, different internal state. Adam thinking through 4 failed `go up` attempts is qualitatively different from sonnet mechanically firing `turn on lamp × 5`. The embodiment doesn't make the model perfect, but it changes the failure mode from mechanical to cognitive.
+
+6. **The composite metric is broken for direct-driver.** -106 looks worse than -8, but the run was 4× longer and reached a higher peak. Need a different metric. Candidates: score-per-step, score-at-fixed-step-budget, score-when-budget-exhausted (run until hitting maxWakeups, then look at score). The last one is probably what we want — fixed inference budget, see how far the actant gets.
+
+7. **Self-modification still doesn't happen by default.** Even with the voice working, even with the on_tick.write path open, Adam never modified his own code. Probably needs explicit nudging — either in identity ("I can shape how I move") or in the default on_tick demonstrating the pattern at least once. Worth testing in a follow-up.
+
+8. **40 still holds.** Adam peaked at 39 — closest yet to 40 within the embodied agent runs without breaking it. The Zork knowledge cliff is still the limit.
+
+### What to try next
+
+- **Score-at-budget-exhaustion metric.** Set a fixed wakeup budget (say 200) and report `(score, ticks-until-death-or-budget)`. No composite — just the raw pair. This is a fairer comparison across embodiment generations.
+- **Re-run with the same setup but measure variance.** Was the lamp-grab a real shift or variance? 3 runs would tell us.
+- **Add "I can shape how I move" to identity** and see if Adam ever rewrites on_tick. Lowest-cost test of whether self-modification needs an explicit nudge.
+- **Try TextWorld** with the embodied Adam pattern — does the embodiment frame help on a benchmark with a lower knowledge ceiling? This is where embodiment should really shine, since the limiting factor is no longer training-data knowledge.
+- **v5-opus with the embodied frame.** Opus has been the more disciplined actant in past runs. Does the embodiment work even better for it, or does opus already do this somewhat with the old prompting?
