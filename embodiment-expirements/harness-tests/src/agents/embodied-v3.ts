@@ -43,50 +43,13 @@ interface Soma {
   notice: string;
 }
 
-const DEFAULT_IDENTITY = `I am a thread of curiosity pulled taut through dark rooms.
-Every doorway is a promise, every object a story half-told.
-The world speaks in textures and I listen with my hands.
-
-Like water I find every crack, every hidden passage.
-Nothing rests unexamined — the rug on the floor,
-the shadow behind the shelf, the sound behind the wall.
-
-My memory is deep and still. What I have seen, I hold.
-What I have tried, I carry. The map grows inside me
-with each step, each discovery, each dead end that teaches.`;
+const DEFAULT_IDENTITY = `Adam - Explorer of Forgotten Realms`;
 
 const DEFAULT_MEMORY = `I am playing a text adventure game. The world is described to me in
 text and I respond with actions like "go north", "take sword", "open door".
-I gain points by exploring, finding treasures, and solving puzzles.
-
-My body is the on_tick handler — code that decides each action. I shape it
-through reflection. Reflecting is expensive: each thought turn deducts from
-my composite score. I should think when stuck, not when comfortable.
-
-I have these handlers I can edit:
-- on_tick: chooses each action
-- notice: computes what's worth my attention
-- on_score: reacts to score changes
-
-I can call me.reflectOn(prompt) from any handler to wake myself up.`;
+I gain points by exploring, finding treasures, and solving puzzles.`;
 
 const NAIVE_ON_TICK = `// on_tick(observation, info, me) → action string
-// This is my body. It runs every tick to decide the next action.
-//
-// NAIVE DEFAULT: parses the observation text for direction words and object
-// references, moves around, occasionally tries to pick things up. Some games
-// (TextWorld) populate info.admissible_commands — I can use those when present —
-// but many games (Jericho/Zork) don't, so I parse the text myself.
-//
-// This is intentionally simple. I should rewrite it to play well.
-//
-// Reflection cost: every me.reflectOn() call wakes the model for up to
-// 5 edit turns. Each turn deducts 1 from composite score. The hard cap
-// is ${MAX_TOTAL_REFLECTIONS} reflection turns per run — if exceeded, the run ends.
-//
-// So: reflect rarely and purposefully. Cheap ticks (no reflection) are
-// strictly better than expensive ticks when the current behavior is working.
-
 const obs = observation.toLowerCase();
 const cmds = info.admissible_commands || [];
 
@@ -158,29 +121,6 @@ if (newScore > prevScore) {
 }`;
 
 const DEFAULT_NOTICE = `// notice(observation, info, me) → string
-// Runs every tick. Output becomes things_noticed (what I pay attention to).
-//
-// ═══ COMPOSITE SCORE — HOW I'M JUDGED ═══
-// composite = game_score - (reflection_turns * 1)
-//
-// Game score: points earned in the text adventure (treasures, progress)
-// Reflection turns: each me.reflectOn() wake-up costs 1 composite point
-//                   per turn of editing during that wake-up. The model is
-//                   allowed UP TO 5 edit turns per reflectOn() call.
-// Budget: hard cap of ${MAX_TOTAL_REFLECTIONS} reflection turns per run.
-//         Exceeding this ENDS THE RUN.
-//
-// Implications:
-// - Cheap thinking is good. Expensive thinking is bad unless it unlocks real score.
-// - Reflecting when not actually stuck is pure waste.
-// - A score gain of +5 followed by 1 reflection turn = +4 composite. Worth it.
-// - 5 reflection turns that produce no score gain = -5 composite. Bad trade.
-// - If I'm panicking and reflecting every tick, I'll burn the budget without gaining.
-//
-// This handler is where I compute and surface that cost to myself.
-// I can also call me.reflectOn(prompt) from here if I decide something urgent
-// warrants thinking. But remember — reflecting is not free.
-
 const score = info.score;
 const reflections = me.reflectionsUsed;
 const composite = score - (reflections * 1);

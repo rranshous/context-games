@@ -953,6 +953,52 @@ The third option is cheating (chassis-provided game knowledge). The second is th
 
 When we count reflection cost, v2 sonnet's aggressive editing was actually catastrophic. v3's reflection budget makes this visible.
 
+---
+
+## Session 14 — v3: Stripped Identity and Context (2026-04-10)
+
+### The Experiment
+
+Robby stripped the default soma way down:
+- **Identity**: `"Adam - Explorer of Forgotten Realms"` (was ~10 lines of metaphorical poetry about curiosity, water, maps)
+- **Memory**: 3 lines about the game — *no mention of handlers, reflectOn, composite score, or budgets*
+- **on_tick**: no comments, just the code
+- **notice**: no comments, just the code
+- **on_score**: kept its cost-benefit comments (the one place reflectOn is explained)
+
+### Why This Matters
+
+The previous v3 had orienting context spread across all three handlers:
+- on_tick explained reflection costs
+- notice explained composite score formula and budget
+- on_score explained the cost of reflecting on drops
+
+That's a lot of chassis-as-teacher. The model was learning the rules from its own code comments, but those comments were me (the chassis author) lecturing it.
+
+Stripping that down tests a different hypothesis: **does the actant discover the dynamics through the composite score it sees in things_noticed and the feedback it gets?** Without upfront budget warnings, does it still learn to reflect sparingly, or does it panic and burn the budget?
+
+The cost context is now only visible in *one* place — the on_score handler comment. The rest is pure code that computes values without narrating what they mean.
+
+### Not Removed
+- `me.reflectionsUsed` and `me.maxReflections` are still exposed in the API
+- The notice handler still computes composite score and surfaces it in things_noticed
+- The on_score handler still has the only remaining prose about reflection cost
+
+### The Test
+
+Same runs, stripped soma, see if:
+1. The stripped identity produces different play styles
+2. The actant figures out reflection budgeting from things_noticed alone
+3. The rewrites are more or less aggressive without the upfront budget warnings
+
+### Hypothesis
+
+I suspect two things will happen:
+1. The actant will reflect MORE initially because there's no "don't reflect casually" guidance
+2. After seeing the composite score drop in things_noticed, it may course-correct — or it may not realize the connection and keep burning budget
+
+This is the "discover it" vs "be told it" test.
+
 ### Emerging Questions
 - Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
 - Does the model need a "don't edit unless things are clearly wrong" signal?
