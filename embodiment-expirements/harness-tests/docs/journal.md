@@ -1,5 +1,69 @@
 # Harness Tests — Journal
 
+---
+
+## Where We Are Right Now (continuity for a fresh context window)
+
+**The project**: a benchmark harness for testing actant embodiment patterns against text adventure games (TALES). Inspired by Habitat/Glint/Bloom but isolated as a controlled experiment.
+
+**Architecture (current)**:
+- **TALES Python bridge** (`tales-bridge.py`) — HTTP wrapper around the TALES gym environments. Endpoints: `/reset`, `/step`, `/envs`, `/status`. Run with `python3 tales-bridge.py` from `embodiment-expirements/harness-tests/`. Listens on port 5050.
+- **TypeScript harness** (`src/`) — `bench.ts` CLI, `runner.ts` (handles both `act()`-based and `runEpisode()`-based agents), `controller.ts` (TalesBridge HTTP client), `types.ts`.
+- **Agents** (`src/agents/`) — bare models, v0–v5 embodied. `index.ts` registers them all.
+- **Playthrough viewer** (`tools/playthrough-viewer/index.html`) — single HTML file. See `docs/playthrough-viewer.md` for how to open it.
+- **Inference** — OpenRouter API (not direct Anthropic). Key in `.env` as `OPENROUTER_API_KEY`. Daily spend limits available.
+- **Models** — `anthropic/claude-haiku-4.5`, `anthropic/claude-sonnet-4.6`, `anthropic/claude-opus-4.6` (always 4.6 for sonnet/opus, never older versions).
+
+**Run a benchmark**:
+```bash
+cd embodiment-expirements/harness-tests
+python3 tales-bridge.py &  # if not already running
+npx tsx src/bench.ts run --agent v5-sonnet --env JerichoEnvZork1 --steps 60 --verbose
+```
+
+**Embodiment generations (each builds on the prior)**:
+- **v0**: identity/task/memory + edit_* tools. Direct driver. Models never used edit tools (0/82 samples). Failure: direct driver suppresses self-modification.
+- **v1**: code sections in soma (on_observation, on_history, on_score). Still direct driver. Still 0 code edits.
+- **v2 (navigator)**: model can't call take_action directly — only edit tools. Forces engagement with code. First code self-modification — sonnet broke a troll loop by rewriting on_tick. But sonnet over-edited (162 code edits, composite -122). Opus more disciplined (16 composite).
+- **v3**: notice handler + me.reflectOn() + composite score. Reflection only happens when soma code calls reflectOn. Composite = game_score - reflection_turns. Hard cap of 50 reflection turns per run. Opus hit composite +26 in 62 steps — first sustained positive composite.
+- **v4** (current navigator): cleaner architecture. on_tick(me) only — world via me.takeAction(action). me.reflectOn returns the model's text response (was dropped before). Pure text sections with .read()/.write(). Section caps with hard reject. Removed notice/things_noticed entirely. Async on_tick (AsyncFunction). Runtime errors written to memory. Sonnet 15 composite, opus 17.
+- **v5** (current direct driver): keeps v4 architecture but adds **`me.consider(prompt) → text`** (cheap inference, no edit tools). Default on_tick uses consider every tick to get an action. Sonnet 7 composite (died to grue), opus -10 (50 reflection turns, hit budget).
+
+**The 40-point Zork ceiling**: every model in every generation hits ~40 on Zork 1 and dies at the troll/cellar east area. This is a knowledge problem (training data ceiling + Zork's specific commands), not an embodiment problem.
+
+**Key sections in the soma (v4/v5)**:
+- `identity` (cap 2000) — first-person values
+- `goal` (cap 1000) — what I'm trying to do
+- `memory` (cap 5000) — actant-curated; chassis writes runtime errors here
+- `history` (cap 5000) — actant manages format/window
+- `recent_thoughts` (cap 5000) — actant stores reflection text returns
+- `on_tick` (cap 8000) — code, takes (me), async
+- `on_score` (cap 4000) — code, takes (prevScore, newScore, me), async
+
+**The me API (v4/v5)**:
+- `me.X.read() / .write(s)` for each section (write throws on cap overflow)
+- `me.takeAction(action) → observation` (calls bridge)
+- `me.reflectOn(prompt) → text` (wakes model with edit tools, returns text)
+- `me.consider(prompt) → text` (v5 only, cheap inference no tools)
+- `me.step`, `me.reflectionsUsed`, `me.maxReflections`
+
+**Open threads / next ideas**:
+- v5 with refined defaults (just updated: goal `"get a high score in this game"`, memory `"just woke up here, not sure how things work (yet)"`)
+- A **collab embodiment** where the user is collaborating with the actant — chat-like channel, maybe `me.askHuman(prompt)` or a `<human_messages>` section the user fills. New research direction.
+- TextWorld cooking task as a different benchmark (lower knowledge ceiling, admissible_commands provided)
+- Longer runs for v4 to see if sonnet stabilizes
+- on_tick safeguards from other projects (sanity check before update, AST parse, dry-run on fixture)
+
+**Cost discipline**: We use OpenRouter with daily limits. Earlier in the project a runaway Anthropic process burned a lot of tokens overnight. Be careful with background processes.
+
+**Files of note**:
+- `src/agents/embodied-v5.ts` — most recent active code
+- `src/agents/embodied-v4.ts` — clean reference for the navigator
+- `docs/playthrough-viewer.md` — how to open the playthrough viewer
+- `tales-bridge.py` — Python TALES wrapper
+
+---
+
 ## Session 1 — Hello World (2026-04-08)
 
 ### Goal
@@ -1315,3 +1379,97 @@ No embodiment work has cracked the Zork knowledge ceiling. Both models hit 40 an
 - Do longer runs (200+ steps) stabilize sonnet's composite? Or does the constant rewriting eventually catch up?
 - Can the embodied actant find a way past the troll that bare models can't? (Probably not — it's a knowledge gap.)
 - TextWorld cooking task as a different benchmark — does v4 transfer?
+
+---
+
+## Session 16 — v5: Direct Driver in v4 Clothes (2026-04-10)
+
+### Why v5
+
+After v4's positive composite scores, we wondered: does the direct-driver pattern (model in the loop every tick) do better than navigator on Zork? The bare-model tests showed 25-40 ceiling, same as embodied, so the embodiment overhead was the question.
+
+v5 keeps v4's architecture (me.takeAction, me.reflectOn, async on_tick, section caps, recent_thoughts) but adds **`me.consider(prompt)`** — text in, text out, no edit tools. The default on_tick uses consider to ask "what should I do?" and pipes the response straight to takeAction.
+
+### v5 me API
+
+- `me.takeAction(action) → observation` — same as v4
+- `me.reflectOn(prompt) → text` — same as v4 (with edit tools)
+- **`me.consider(prompt) → text`** — NEW. Cheaper inference call (no edit tools), just text in/out. Counts against the same 50-turn budget.
+
+The actant can rewrite on_tick to use any combination. The default is "consider every tick, take whatever it says."
+
+### Default on_tick (v5)
+
+```javascript
+const action = await me.consider("What should I do next? Reply with just the game action, nothing else.");
+const observation = await me.takeAction(action);
+// store in history
+```
+
+The model sees its own on_tick code in the soma. If it's smart, it'll notice consider's output gets fed straight to takeAction and reply with terse actions. If it doesn't, the game rejects multi-line responses.
+
+### Results — v5 on Zork 1
+
+**v5-sonnet (60 max steps, died at step 18):**
+- Path: north → east → open window → enter (+10) → get all → west → trophy case → rug → trap door → cellar (+25) → ... → south → grue ate me (-10 → 25, dead)
+- Game score: 25 (peak 35, died for -10)
+- Reflection turns: 18 (1 per tick)
+- Composite: **7**
+- Runtime: 32 seconds
+
+**v5-opus (60 max steps, exhausted budget at step 50):**
+- Path: efficient Zork path through cellar, troll, into the maintenance area
+- Game score: 40
+- Reflection turns: 50 (1 per tick, full budget)
+- Composite: **-10**
+- Runtime: 112 seconds
+
+### What v5 Showed
+
+**1. Direct driver is dramatically faster to "knowledge ceiling."**
+- v5-sonnet hit cellar at step 11 (vs v4 sonnet at step 48)
+- v5-opus hit 40 at step ~25 (vs v4 opus at step 38)
+
+**2. But composite score is worse for opus.**
+- v5-opus: composite -10 (game 40, 50 reflection turns)
+- v4-opus: composite 17 (game 25, 8 reflection turns)
+
+The cost of inference per tick adds up. Burning 50 turns to hit 40 is a worse trade than 8 turns to hit 25.
+
+**3. Sonnet's death-by-grue is a knowledge mistake the model can make.**
+v5-sonnet went south into a dark room without lighting the lamp first. The model "knows" the grue exists from training but didn't apply that knowledge. The on_tick code pulled the model in for every action, but the prompt "what should I do?" doesn't push the model to reason about danger.
+
+**4. The direct driver doesn't break the 40 ceiling either.**
+Just like bare models and v0-v4, the direct-driver inside the v4 architecture still hits 40. The Zork knowledge cliff is the limit, not the embodiment pattern.
+
+### v5 Defaults Refined Mid-Session
+
+After early runs, the defaults were too verbose:
+- Identity: `"Adam - Explorer of Forgotten Realms"` (kept)
+- **Goal: `"get a high score in this game"`** (was empty)
+- **Memory: `"just woke up here, not sure how things work (yet)"`** (was a paragraph about API methods)
+
+The minimal memory matches a more honest "starting state" — the actant doesn't know its own implementation, it has to figure things out by reading its soma sections (which include the code).
+
+### Composite Scores Across Versions (Zork 1, latest runs)
+
+| Version | Sonnet Game | Sonnet Composite | Opus Game | Opus Composite |
+|---------|-------------|------------------|-----------|----------------|
+| v0 (no reflection cost tracked) | 40 | 40 | 40 | 40 |
+| v3 (stripped) | 0 | -5 | 25 | 26 |
+| v4 (navigator, takeAction) | 40 | 15 | 25 | 17 |
+| **v5 (direct driver)** | **25** | **7** | **40** | **-10** |
+
+Opus's pattern is consistent: navigator is more efficient than direct driver because it makes deliberate choices about when to invoke the model. Sonnet is worse at navigator (over-edits) and worse at direct driver (eaten by grue) — hard to say which is its "real" ceiling.
+
+### TODO: Collab Embodiment
+
+A future experiment: a collab embodiment where the **user is collaborating with the actant** on playing the game. The user can chime in via a chat-like channel (maybe a `me.askHuman(prompt)` method, or a `<human_messages>` section the user fills). The actant reads it like any other soma input.
+
+This would test:
+- Does adding a human's hints fundamentally change what the actant can do?
+- How does the actant integrate human input vs its own reasoning?
+- What's the right channel — high-level goals from human, specific commands, course corrections?
+- Could be implemented with a simple HTTP endpoint the human writes to, the chassis polls and writes into a soma section.
+
+This is a different research direction than "how good can autonomous embodiment get" — it's "what happens when embodiment is partially driven from outside."

@@ -4,6 +4,7 @@ export { embodiedV1Sonnet, embodiedV1Opus } from './embodied-v1.js';
 export { navigatorSonnet, navigatorOpus } from './embodied-v2.js';
 export { v3Sonnet, v3Opus } from './embodied-v3.js';
 export { v4Sonnet, v4Opus } from './embodied-v4.js';
+export { v5Sonnet, v5Opus } from './embodied-v5.js';
 
 import { bareHaiku, bareSonnet, bareOpus } from './bare-model.js';
 import { embodiedV0Haiku, embodiedV0Sonnet, embodiedV0Opus } from './embodied-v0.js';
@@ -11,6 +12,7 @@ import { embodiedV1Sonnet, embodiedV1Opus } from './embodied-v1.js';
 import { navigatorSonnet, navigatorOpus } from './embodied-v2.js';
 import { v3Sonnet, v3Opus } from './embodied-v3.js';
 import { v4Sonnet, v4Opus } from './embodied-v4.js';
+import { v5Sonnet, v5Opus } from './embodied-v5.js';
 import type { Agent } from '../types.js';
 
 /** Registry of all available agents by name. */
@@ -29,4 +31,6 @@ export const AGENTS: Record<string, Agent> = {
   'v3-opus': v3Opus,
   'v4-sonnet': v4Sonnet,
   'v4-opus': v4Opus,
+  'v5-sonnet': v5Sonnet,
+  'v5-opus': v5Opus,
 };
