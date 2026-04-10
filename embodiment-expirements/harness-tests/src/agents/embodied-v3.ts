@@ -51,7 +51,6 @@ I gain points by exploring, finding treasures, and solving puzzles.`;
 
 const NAIVE_ON_TICK = `// on_tick(observation, info, me) → action string
 const obs = observation.toLowerCase();
-const cmds = info.admissible_commands || [];
 
 // Track tick counter in memory
 const counterMatch = me.memory.read().match(/\\[tick:(\\d+)\\]/);
@@ -63,16 +62,6 @@ me.memory.write(newMem);
 if (tick % 10 === 0) {
   me.reflectOn("regular checkin: 10 actions taken. Score is " + info.score + ". Should I change my approach?");
 }
-
-// Prefer admissible_commands when the game provides them
-if (cmds.length > 0) {
-  // Rotate through: takes first, then others
-  const takes = cmds.filter(c => c.toLowerCase().startsWith("take"));
-  if (tick % 5 === 0 && takes.length > 0) return takes[0];
-  return cmds[tick % cmds.length];
-}
-
-// Otherwise, parse the observation text
 
 // Every 4th tick, try to take something we see in the observation
 if (tick % 4 === 0) {
