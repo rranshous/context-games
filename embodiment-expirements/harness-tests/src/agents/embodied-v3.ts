@@ -73,8 +73,12 @@ I can call me.reflectOn(prompt) from any handler to wake myself up.`;
 const NAIVE_ON_TICK = `// on_tick(observation, info, me) → action string
 // This is my body. It runs every tick to decide the next action.
 //
-// NAIVE DEFAULT: cycles admissible commands, reflects every 10 actions.
-// This is intentionally dumb — I should rewrite it to play well.
+// NAIVE DEFAULT: parses the observation text for direction words and object
+// references, moves around, occasionally tries to pick things up. Some games
+// (TextWorld) populate info.admissible_commands — I can use those when present —
+// but many games (Jericho/Zork) don't, so I parse the text myself.
+//
+// This is intentionally simple. I should rewrite it to play well.
 //
 // Reflection cost: every me.reflectOn() call wakes the model for up to
 // 5 edit turns. Each turn deducts 1 from composite score. The hard cap
@@ -83,9 +87,10 @@ const NAIVE_ON_TICK = `// on_tick(observation, info, me) → action string
 // So: reflect rarely and purposefully. Cheap ticks (no reflection) are
 // strictly better than expensive ticks when the current behavior is working.
 
+const obs = observation.toLowerCase();
 const cmds = info.admissible_commands || [];
 
-// Track action count via memory (hacky — using as a counter)
+// Track tick counter in memory
 const counterMatch = me.memory.read().match(/\\[tick:(\\d+)\\]/);
 const tick = counterMatch ? parseInt(counterMatch[1]) + 1 : 1;
 const newMem = me.memory.read().replace(/\\[tick:\\d+\\]/, '') + '[tick:' + tick + ']';
@@ -96,11 +101,41 @@ if (tick % 10 === 0) {
   me.reflectOn("regular checkin: 10 actions taken. Score is " + info.score + ". Should I change my approach?");
 }
 
-// Naive cycling: pick the action at index (tick % cmds.length)
+// Prefer admissible_commands when the game provides them
 if (cmds.length > 0) {
+  // Rotate through: takes first, then others
+  const takes = cmds.filter(c => c.toLowerCase().startsWith("take"));
+  if (tick % 5 === 0 && takes.length > 0) return takes[0];
   return cmds[tick % cmds.length];
 }
-return "look";`;
+
+// Otherwise, parse the observation text
+
+// Every 4th tick, try to take something we see in the observation
+if (tick % 4 === 0) {
+  const nouns = ["leaflet","sword","lamp","lantern","sack","bottle","rope","knife","coin","key","egg","painting","bar","book","map","torch","treasure","gold","jewel"];
+  for (const noun of nouns) {
+    if (obs.includes(noun)) return "take " + noun;
+  }
+}
+
+// Look for exit/direction words in the observation
+const dirMap = {
+  "north": "north", "south": "south", "east": "east", "west": "west",
+  "northeast": "northeast", "northwest": "northwest",
+  "southeast": "southeast", "southwest": "southwest",
+  "up": "up", "down": "down",
+};
+const directions = Object.keys(dirMap).filter(d => obs.includes(d));
+
+// Pick a direction — rotate through the ones mentioned in this observation
+if (directions.length > 0) {
+  return dirMap[directions[tick % directions.length]];
+}
+
+// No directions mentioned — try a default exploration command
+const fallbacks = ["look", "north", "open door", "examine room"];
+return fallbacks[tick % fallbacks.length];`;
 
 const DEFAULT_ON_SCORE = `// on_score(prevScore, newScore, me) → void
 // Runs when the game score changes (up or down).
