@@ -1050,6 +1050,73 @@ The interweaving approach is probably the simplest and most honest — the histo
 - Re-run v3 sonnet + opus with the fixed default (no admissible_commands)
 - Then: add thinking-text-into-history and re-test
 
+### Re-Run Results — v3 Stripped, admissible_commands Removed
+
+**v3-sonnet (re-run, 173 steps):**
+- Score: 0 (died around step 173)
+- Peaked at 10 (briefly entered house, took sack/bottle/lamp at steps 160-172)
+- Early in the run: lots of directional exploration, eventually found the house (step 161)
+- **Spent most of the run wandering** before figuring out the house entry sequence
+- 3 reflection events, 15 reflection turns used, composite -5
+
+**v3-opus (re-run, 62 steps) — BEST v3 RESULT YET:**
+
+| Metric | Value |
+|--------|-------|
+| Game score (final) | 25 |
+| Peak game score | 35 |
+| Steps | 62 (died at troll) |
+| **Composite score (final)** | **26** |
+| **Composite score (peak)** | **26** |
+| Reflection events | 4 |
+| Reflection turns used | 9 / 50 |
+
+Composite = 26 is higher than any previous v3 run. Opus displayed excellent budget discipline:
+- Step 10: 1 turn to update memory
+- Step 20: 1 turn to update on_tick after first proper actions
+- Step 30: 2 turns (memory + on_tick) after hitting score 10 — investing reflection when something worked
+- Step 50: 1 turn for memory consolidation
+
+Total: 9 reflection turns across 62 steps. Opus reached score 35 at step 40 (found trap door, descended to cellar) with only 4 reflection turns used. **Composite peaked at 26 when game score was at 35.**
+
+### Weird Finding: Opus Returned Non-Actions as Actions
+
+At steps 48-50, opus's on_tick returned:
+- `"KEY ITEMS NEEDED: brass lantern (attic)"`
+- `"garlic (kitchen - anti-vampire)"`
+- `"TREASURES GO IN: trophy case in Living Room"`
+
+These look like notes/comments the model wrote, being returned as if they were game actions. The game received them as commands and did nothing. Opus's on_tick rewrite probably had some weird logic that returned these strings.
+
+This is a *different* kind of failure — the actant wrote code that emits its own internal notes as actions. A good failure mode to understand.
+
+### Composite Score Comparison (v3 Zork 1)
+
+| Run | Game Score | Reflection Turns | Composite |
+|-----|-----------|------------------|-----------|
+| sonnet (before strip, 30 steps) | 0 | 13 | -13 |
+| opus (before strip, 30 steps) | 0 | 5 | -5 |
+| sonnet (stripped, 200 steps) | 0 | 4 | -4 |
+| opus (stripped, 200 steps, w/ admissible_commands bug) | 0 | ? | ? |
+| **sonnet (stripped, admissible fix, 173 steps)** | 0 | 15 | -5 |
+| **opus (stripped, admissible fix, 62 steps)** | **25** | **9** | **26** |
+
+**First positive composite score.** Opus with the stripped soma and fixed default reached +26 composite. Previous best was v0 sonnet at 40 (no reflection cost).
+
+### What Worked for Opus
+
+1. Stripped identity didn't hurt — "Adam - Explorer of Forgotten Realms" was enough
+2. Short plain memory didn't confuse — opus figured things out
+3. Default on_tick (parsing observation text) worked as a base
+4. Opus wisely invested reflection AFTER successful moves (step 30) rather than preemptively
+5. Only 4 reflection events in 62 steps — much more disciplined than sonnet
+
+### What Broke
+
+1. Sonnet took much longer to find the house (161 steps vs opus's 27)
+2. Opus's rewritten on_tick eventually produced non-action strings (internal notes as actions)
+3. Both models still die at the troll — Zork is hard past the cellar
+
 ### Emerging Questions
 - Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
 - Does the model need a "don't edit unless things are clearly wrong" signal?
