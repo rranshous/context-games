@@ -41,15 +41,24 @@ async function runEpisode(
     }
 
     if (agent.runEpisode) {
-      // v4+: agent owns the loop. We give it the bridge step function.
+      // v4+: agent owns the loop. We give it the bridge step+reset functions.
       // Use a wrapper that prints verbose output as actions are taken.
       let stepCounter = 0;
+      let lifeCounter = 1;
       const wrappedBridge = {
         step: async (action: string) => {
           stepCounter++;
           const newState = await bridge.step(action);
           if (verbose) {
-            console.log(`    s${stepCounter}: "${action}" → score=${newState.score}${newState.won ? ' WON' : ''}`);
+            console.log(`    s${stepCounter} L${lifeCounter}: "${action}" → score=${newState.score}${newState.done ? (newState.won ? ' WON' : ' DEAD') : ''}`);
+          }
+          return newState;
+        },
+        reset: async () => {
+          lifeCounter++;
+          const newState = await bridge.reset(env);
+          if (verbose) {
+            console.log(`    *** new life L${lifeCounter} — game reset ***`);
           }
           return newState;
         },

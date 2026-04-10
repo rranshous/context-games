@@ -55,7 +55,10 @@ export interface Agent {
    *   - Capture playthrough steps internally for getPlaythrough()
    */
   runEpisode?(
-    bridge: { step(action: string): Promise<TalesState> },
+    bridge: {
+      step(action: string): Promise<TalesState>;
+      reset(): Promise<TalesState>;
+    },
     initialState: TalesState,
     maxSteps: number,
   ): Promise<TalesState>;

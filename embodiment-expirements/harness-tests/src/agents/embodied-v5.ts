@@ -145,11 +145,23 @@ function cloneSoma(soma: Soma) {
 
 interface ORMessage { role: 'system' | 'user' | 'assistant'; content?: string; }
 
+// Extended thinking gives the model space to deliberate before its visible
+// reply. The thinking content is NOT exposed to Adam in his soma — it's
+// internal cognition that improves the quality of his voice without
+// teaching him about his own scaffolding.
+const THINKING_BUDGET_TOKENS = 2048;
+const MAX_TOKENS = 6144; // must be > thinking budget
+
 async function callOpenRouter(model: string, system: string, messages: ORMessage[]): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
 
-  const body: any = { model, max_tokens: 4096, messages: [{ role: 'system', content: system }, ...messages] };
+  const body: any = {
+    model,
+    max_tokens: MAX_TOKENS,
+    messages: [{ role: 'system', content: system }, ...messages],
+    thinking: { type: 'enabled', budget_tokens: THINKING_BUDGET_TOKENS },
+  };
 
   const resp = await fetch(OPENROUTER_URL, {
     method: 'POST',
@@ -249,6 +261,10 @@ function createV5Agent(opts: V5Options): Agent {
     async runEpisode(bridge, initialState, maxSteps): Promise<TalesState> {
       let currentState = initialState;
       stepCounter = 0;
+      let lifeNumber = 1;
+      let lifeStepStart = 0;
+      const lives: Array<{ life: number; score: number; steps: number; deathReason: string }> = [];
+      let bestScore = 0;
 
       // ── per-step capture buckets ──
       let stepWakeupPrompts: string[] = [];
@@ -302,6 +318,7 @@ function createV5Agent(opts: V5Options): Agent {
           takeAction,
           wakeUp: wakeUpHelper,
           step,
+          life: lifeNumber,
           wakeupsUsed: totalWakeups,
           maxWakeups,
         };
@@ -335,18 +352,56 @@ function createV5Agent(opts: V5Options): Agent {
           maxScore: currentState.max_score,
           reflectionsTriggered: [...stepWakeupPrompts],
           reflectionTurnsUsed: totalWakeups,
-          compositeScore: currentState.score - totalWakeups,
           soma: cloneSoma(soma),
         });
 
-        if (currentState.done) break;
+        if (currentState.score > bestScore) bestScore = currentState.score;
+
+        // ── Life ended? ──
+        if (currentState.done) {
+          const lifeSteps = step - lifeStepStart;
+          const deathReason = currentState.observation.replace(/\n+/g, ' ').trim().slice(0, 200);
+          lives.push({ life: lifeNumber, score: currentState.score, steps: lifeSteps, deathReason });
+
+          // Out of budget? Stop here, don't respawn into a life with no thoughts.
+          if (totalWakeups >= maxWakeups) {
+            appendToMemorySafe(soma, `[wakeUp budget exhausted after life ${lifeNumber} ended at score ${currentState.score}]`);
+            break;
+          }
+
+          // Write a death note Adam will see in his memory next moment.
+          const deathNote = `[life ${lifeNumber} ended: score ${currentState.score} after ${lifeSteps} steps — "${deathReason.slice(0, 120)}"]`;
+          appendToMemorySafe(soma, deathNote);
+
+          // Respawn: new game, fresh history, persistent self.
+          // recent_thoughts persists too — Adam's last words carry forward.
+          lifeNumber++;
+          lifeStepStart = step;
+          currentState = await bridge.reset();
+          prevScore = 0;
+          soma.history = `look => ${currentState.observation.replace(/\n/g, ' ').slice(0, 200)}`;
+          continue;
+        }
+
         if (totalWakeups >= maxWakeups) {
-          appendToMemorySafe(soma, `[wakeUp budget exhausted at step ${step}]`);
+          appendToMemorySafe(soma, `[wakeUp budget exhausted at step ${step} during life ${lifeNumber} at score ${currentState.score}]`);
+          // Record this life as it stands, no death reason.
+          lives.push({ life: lifeNumber, score: currentState.score, steps: step - lifeStepStart, deathReason: '(budget exhausted, still alive)' });
           break;
         }
       }
 
-      return currentState;
+      // ── End-of-episode summary ──
+      console.log(`\n  ── lives lived (${lives.length}) ──`);
+      for (const l of lives) {
+        console.log(`    L${l.life}: score=${l.score} steps=${l.steps} — ${l.deathReason.slice(0, 80)}`);
+      }
+      console.log(`  best score across all lives: ${bestScore}`);
+      console.log(`  total wakeups: ${totalWakeups}/${maxWakeups}`);
+
+      // Synthesize a "best life" return state so the bench summary shows
+      // Adam's peak achievement, not whatever he was at when budget ran out.
+      return { ...currentState, score: bestScore };
     },
   };
 }
