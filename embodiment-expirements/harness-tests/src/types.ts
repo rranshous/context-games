@@ -73,11 +73,21 @@ export interface PlaythroughStep {
   action: string;            // the take_action that was sent to TALES
   score: number;
   maxScore: number;
+  // v3+ fields
+  reflectionsTriggered?: string[];   // prompts passed to me.reflectOn() this step
+  reflectionTurnsUsed?: number;      // total reflection turns consumed up to and including this step
+  compositeScore?: number;            // game_score - (reflectionTurnsUsed * penalty)
   soma: {                    // soma state AFTER this step's edits
     identity: string;
     goal: string;
     memory: string;
     history: string[];
+    things_noticed?: string;          // v3+
+    on_tick?: string;
+    on_score?: string;
+    notice?: string;                  // v3+
+    on_observation?: string;          // v1
+    on_history?: string;              // v1
   };
 }
 

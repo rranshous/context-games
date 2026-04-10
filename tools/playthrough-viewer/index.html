@@ -188,9 +188,14 @@
       document.getElementById('step-slider').value = currentStep;
 
       // Score display
-      const score = currentStep > 0 ? playthrough.steps[currentStep - 1].score : 0;
+      const stepData = currentStep > 0 ? playthrough.steps[currentStep - 1] : null;
+      const score = stepData?.score ?? 0;
       const max = playthrough.maxScore;
-      document.getElementById('score-display').textContent = `Score: ${score}/${max}`;
+      let scoreText = `Score: ${score}/${max}`;
+      if (stepData?.compositeScore !== undefined) {
+        scoreText += ` | Composite: ${stepData.compositeScore} | Reflections: ${stepData.reflectionTurnsUsed ?? 0}`;
+      }
+      document.getElementById('score-display').textContent = scoreText;
 
       // Highlight current step, fade future
       for (const step of playthrough.steps) {
@@ -230,12 +235,20 @@
         { name: 'identity', content: soma.identity, prev: prevStep?.soma.identity },
         { name: 'goal', content: soma.goal, prev: prevStep?.soma.goal },
         { name: 'memory', content: soma.memory, prev: prevStep?.soma.memory },
-        { name: 'history', content: soma.history.join('\n'), prev: prevStep?.soma.history.join('\n'), isHistory: true },
       ];
+
+      // v3+ things_noticed
+      if (soma.things_noticed !== undefined) {
+        sections.push({ name: 'things_noticed', content: soma.things_noticed, prev: prevStep?.soma.things_noticed });
+      }
+
+      sections.push({ name: 'history', content: soma.history.join('\n'), prev: prevStep?.soma.history.join('\n'), isHistory: true });
 
       // Add code sections if present (v1+)
       if (soma.on_observation) sections.push({ name: 'on_observation', content: soma.on_observation, prev: prevStep?.soma.on_observation, isCode: true });
       if (soma.on_history) sections.push({ name: 'on_history', content: soma.on_history, prev: prevStep?.soma.on_history, isCode: true });
+      if (soma.on_tick) sections.push({ name: 'on_tick', content: soma.on_tick, prev: prevStep?.soma.on_tick, isCode: true });
+      if (soma.notice) sections.push({ name: 'notice', content: soma.notice, prev: prevStep?.soma.notice, isCode: true });
       if (soma.on_score) sections.push({ name: 'on_score', content: soma.on_score, prev: prevStep?.soma.on_score, isCode: true });
 
       el.innerHTML = sections.map(s => {
