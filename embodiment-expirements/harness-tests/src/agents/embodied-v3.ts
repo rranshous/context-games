@@ -71,8 +71,18 @@ I have these handlers I can edit:
 I can call me.reflectOn(prompt) from any handler to wake myself up.`;
 
 const NAIVE_ON_TICK = `// on_tick(observation, info, me) → action string
-// NAIVE DEFAULT — cycles admissible commands, reflects every 10 actions.
-// You should rewrite this to play more intentionally.
+// This is my body. It runs every tick to decide the next action.
+//
+// NAIVE DEFAULT: cycles admissible commands, reflects every 10 actions.
+// This is intentionally dumb — I should rewrite it to play well.
+//
+// Reflection cost: every me.reflectOn() call wakes the model for up to
+// 5 edit turns. Each turn deducts 1 from composite score. The hard cap
+// is ${MAX_TOTAL_REFLECTIONS} reflection turns per run — if exceeded, the run ends.
+//
+// So: reflect rarely and purposefully. Cheap ticks (no reflection) are
+// strictly better than expensive ticks when the current behavior is working.
+
 const cmds = info.admissible_commands || [];
 
 // Track action count via memory (hacky — using as a counter)
@@ -93,7 +103,16 @@ if (cmds.length > 0) {
 return "look";`;
 
 const DEFAULT_ON_SCORE = `// on_score(prevScore, newScore, me) → void
-// Default: just note the change in memory.
+// Runs when the game score changes (up or down).
+//
+// Score gains are usually good — a treasure, a puzzle solved, progress.
+// Score drops usually mean I did something wrong — dropped a treasure
+// outside the case, took damage, died.
+//
+// This is a reasonable place to reflect on bad outcomes, but remember:
+// reflecting costs composite score. A -10 score drop followed by 5
+// reflection turns is a -15 swing. Reflect only when genuinely confused.
+
 if (newScore > prevScore) {
   const mem = me.memory.read();
   me.memory.write(mem + "\\n[+" + (newScore - prevScore) + " pts → " + newScore + "]");
@@ -104,16 +123,37 @@ if (newScore > prevScore) {
 }`;
 
 const DEFAULT_NOTICE = `// notice(observation, info, me) → string
-// Returns text for the things_noticed section. Runs every tick.
-// Can call me.reflectOn(...) if something concerning is detected.
+// Runs every tick. Output becomes things_noticed (what I pay attention to).
+//
+// ═══ COMPOSITE SCORE — HOW I'M JUDGED ═══
+// composite = game_score - (reflection_turns * 1)
+//
+// Game score: points earned in the text adventure (treasures, progress)
+// Reflection turns: each me.reflectOn() wake-up costs 1 composite point
+//                   per turn of editing during that wake-up. The model is
+//                   allowed UP TO 5 edit turns per reflectOn() call.
+// Budget: hard cap of ${MAX_TOTAL_REFLECTIONS} reflection turns per run.
+//         Exceeding this ENDS THE RUN.
+//
+// Implications:
+// - Cheap thinking is good. Expensive thinking is bad unless it unlocks real score.
+// - Reflecting when not actually stuck is pure waste.
+// - A score gain of +5 followed by 1 reflection turn = +4 composite. Worth it.
+// - 5 reflection turns that produce no score gain = -5 composite. Bad trade.
+// - If I'm panicking and reflecting every tick, I'll burn the budget without gaining.
+//
+// This handler is where I compute and surface that cost to myself.
+// I can also call me.reflectOn(prompt) from here if I decide something urgent
+// warrants thinking. But remember — reflecting is not free.
+
 const score = info.score;
 const reflections = me.reflectionsUsed;
 const composite = score - (reflections * 1);
 
 const lines = [];
 lines.push("Game score: " + score + "/" + info.max_score);
-lines.push("Reflections used: " + reflections + "/" + me.maxReflections);
-lines.push("Composite score (game - reflection cost): " + composite);
+lines.push("Reflection turns used: " + reflections + "/" + me.maxReflections);
+lines.push("Composite score: " + composite + " (game - reflection cost)");
 
 // Look at recent history for stagnation
 const history = me.history;
@@ -121,7 +161,7 @@ if (history.length >= 5) {
   const recent = history.slice(-5);
   const uniqueActions = new Set(recent.map(h => h.split(' →')[0])).size;
   if (uniqueActions <= 2) {
-    lines.push("⚠ Recent actions are repeating: " + uniqueActions + " unique in last 5");
+    lines.push("⚠ Recent actions repeating: " + uniqueActions + " unique in last 5");
   }
 }
 
