@@ -1031,6 +1031,25 @@ The ethics are interesting. If the chassis detects that the actant has no `me.re
 
 For now, going with B — the actant can trap itself. That's a real failure the research should reveal.
 
+### TODO: Fold Model Text Responses Into History
+
+**We're throwing the model's text replies on the ground.** When the model produces text alongside tool calls during reflection, we capture it in the `thinking` field of the playthrough log — but that's ONLY for the viewer. The text never re-enters the soma or gets shown to the model on the next reflection.
+
+The model is trained to assume its text responses feed back into context. Every reply the model makes is written as if someone will read it next turn. We're dropping that signal entirely.
+
+**This is a problem across all our embodiment experiments** (v0, v1, v2, v3). Worth going back and adding.
+
+Ideas:
+- Interweave thinking text into the history section alongside the tick entries
+- A dedicated `<recent_thoughts>` section in the soma that holds the last N text responses
+- Expose the last response via `me.lastThought` so the actant's code can decide what to do with it
+
+The interweaving approach is probably the simplest and most honest — the history becomes action+observation+thought triples. The model sees what it said, what it did, and what came back.
+
+### Next Sessions
+- Re-run v3 sonnet + opus with the fixed default (no admissible_commands)
+- Then: add thinking-text-into-history and re-test
+
 ### Emerging Questions
 - Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
 - Does the model need a "don't edit unless things are clearly wrong" signal?
