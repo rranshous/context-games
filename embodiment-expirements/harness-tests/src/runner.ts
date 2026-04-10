@@ -30,9 +30,32 @@ async function runEpisode(
   episode: number,
 ): Promise<EpisodeResult> {
   const start = Date.now();
+  let state: TalesState | null = null;
+  let runError: Error | null = null;
+
+  // ── Playthrough save helper (used for per-tick checkpoint AND final save) ──
+  const logFile = join(LOGS_DIR, `${agent.name}_${env}_ep${episode}.json`);
+  const savePlaythrough = () => {
+    try {
+      mkdirSync(LOGS_DIR, { recursive: true });
+      const steps = agent.getPlaythrough?.() ?? [];
+      const playthrough: Playthrough = {
+        agent: agent.name,
+        env,
+        episode,
+        timestamp: new Date().toISOString(),
+        steps,
+        finalScore: state?.score ?? 0,
+        maxScore: state?.max_score ?? 0,
+        won: state?.won ?? false,
+        totalSteps: state?.steps ?? 0,
+      };
+      writeFileSync(logFile, JSON.stringify(playthrough, null, 2));
+    } catch { /* best-effort */ }
+  };
 
   try {
-    let state = await bridge.reset(env);
+    state = await bridge.reset(env);
     agent.reset(state.observation, state);
 
     if (verbose) {
@@ -41,8 +64,9 @@ async function runEpisode(
     }
 
     if (agent.runEpisode) {
-      // v4+: agent owns the loop. We give it the bridge step+reset functions.
-      // Use a wrapper that prints verbose output as actions are taken.
+      // v4+: agent owns the loop. We give it the bridge step+reset+checkpoint functions.
+      // checkpoint is called by the agent after each playthrough push so we
+      // never lose more than one tick of progress on a mid-run crash.
       let stepCounter = 0;
       let lifeCounter = 1;
       const wrappedBridge = {
@@ -61,6 +85,11 @@ async function runEpisode(
             console.log(`    *** new life L${lifeCounter} — game reset ***`);
           }
           return newState;
+        },
+        checkpoint: () => {
+          // Update state snapshot for the save (we need the latest score/etc
+          // even though the agent owns currentState).
+          savePlaythrough();
         },
       };
       state = await agent.runEpisode(wrappedBridge, state, maxSteps);
@@ -85,47 +114,26 @@ async function runEpisode(
     if (agent.onEpisodeComplete) {
       agent.onEpisodeComplete(state, episode);
     }
-
-    // Save playthrough log if agent supports it
-    try {
-      mkdirSync(LOGS_DIR, { recursive: true });
-      const steps = agent.getPlaythrough?.() ?? [];
-      const playthrough: Playthrough = {
-        agent: agent.name,
-        env,
-        episode,
-        timestamp: new Date().toISOString(),
-        steps,
-        finalScore: state.score,
-        maxScore: state.max_score,
-        won: state.won,
-        totalSteps: state.steps,
-      };
-      const logFile = join(LOGS_DIR, `${agent.name}_${env}_ep${episode}.json`);
-      writeFileSync(logFile, JSON.stringify(playthrough, null, 2));
-    } catch { /* best-effort */ }
-
-    return {
-      env,
-      agent: agent.name,
-      score: state.score,
-      maxScore: state.max_score,
-      steps: state.steps,
-      won: state.won,
-      durationMs: Date.now() - start,
-    };
   } catch (err: any) {
-    return {
-      env,
-      agent: agent.name,
-      score: 0,
-      maxScore: 0,
-      steps: 0,
-      won: false,
-      durationMs: Date.now() - start,
-      error: err.message,
-    };
+    runError = err;
+    if (verbose) {
+      console.log(`  [ep${episode}] !! ERROR mid-run: ${err.message?.slice(0, 200)}`);
+    }
   }
+
+  // ── Final save (covers both clean exit and crash paths) ──
+  savePlaythrough();
+
+  return {
+    env,
+    agent: agent.name,
+    score: state?.score ?? 0,
+    maxScore: state?.max_score ?? 0,
+    steps: state?.steps ?? 0,
+    won: state?.won ?? false,
+    durationMs: Date.now() - start,
+    ...(runError ? { error: runError.message } : {}),
+  };
 }
 
 /** Run multiple episodes and produce a BenchRun summary. */

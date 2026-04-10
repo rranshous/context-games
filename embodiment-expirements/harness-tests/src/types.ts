@@ -58,6 +58,10 @@ export interface Agent {
     bridge: {
       step(action: string): Promise<TalesState>;
       reset(): Promise<TalesState>;
+      /** Optional per-tick checkpoint hook. Agent calls this after pushing
+       *  to its playthrough log so the runner can persist progress to disk
+       *  in case of mid-run crashes. */
+      checkpoint?(): void;
     },
     initialState: TalesState,
     maxSteps: number,

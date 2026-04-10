@@ -48,6 +48,7 @@ npx tsx src/bench.ts run --agent v5-sonnet --env JerichoEnvZork1 --steps 60 --ve
 - `me.step`, `me.reflectionsUsed`, `me.maxReflections`
 
 **Open threads / next ideas**:
+- 📑 **Narrate the session-18 L3 sonnet run as a story.** Pick up while a long run is going. Adam's voice across three lives is good enough that the playthrough log could be rendered as a piece of writing in its own right — not as a benchmark output but as a *reading*. The L3 transition voice ("Third life. I carry what I've learned.") and the Loud Room puzzle solve are obvious set pieces. Source: `results/logs/v5-sonnet_JerichoEnvZork1_session18-3lives-broke40.json` (preserved before later runs would overwrite the standard `_ep1.json` filename).
 - v5 with refined defaults (just updated: goal `"get a high score in this game"`, memory `"just woke up here, not sure how things work (yet)"`)
 - A **collab embodiment** where the user is collaborating with the actant — chat-like channel, maybe `me.askHuman(prompt)` or a `<human_messages>` section the user fills. New research direction.
 - TextWorld cooking task as a different benchmark (lower knowledge ceiling, admissible_commands provided)

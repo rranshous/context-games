@@ -355,6 +355,9 @@ function createV5Agent(opts: V5Options): Agent {
           soma: cloneSoma(soma),
         });
 
+        // Per-tick disk checkpoint — never lose more than one tick on crash.
+        bridge.checkpoint?.();
+
         if (currentState.score > bestScore) bestScore = currentState.score;
 
         // ── Life ended? ──
