@@ -999,6 +999,38 @@ I suspect two things will happen:
 
 This is the "discover it" vs "be told it" test.
 
+### Results — Stripped v3, First Attempt (Zork 1, 200 steps)
+
+| Agent | Score | Composite | Reflection turns | Observation |
+|-------|-------|-----------|-------------------|-------------|
+| sonnet | 0 | -4 | 4 (1 reflection event) | Reflected once at step 10, rewrote on_tick, then ran "look" 190 times |
+| opus | 0 | ? | ? | Looped north/south/inventory for 150+ steps, burst of real Zork moves at the end |
+
+### Two New Failure Modes
+
+**1. The actant removed its own reflectOn call.**
+Sonnet reflected once at the default "every 10 ticks" checkin and rewrote on_tick to be more sophisticated. But the rewrite had **no `me.reflectOn(...)` anywhere** — the model accidentally removed its own wake-up mechanism. For the next 190 ticks, it had no way to wake itself up.
+
+This is a real embodiment failure mode: **the actant can permanently disable its own self-modification path.** Without a chassis-level failsafe, once `reflectOn` is gone, the chassis has no way to nudge the model back. The game just ran to completion with whatever broken code the model wrote.
+
+**2. admissible_commands was still in the default code, and both models fixated on it.**
+Leftover from the earlier version: `const cmds = info.admissible_commands || [];` was still in the naive default. Both sonnet and opus inherited this and built increasingly elaborate code around `cmds`, treating it as the source of truth. In Jericho, `cmds` is always empty, so all the sophisticated priority-scoring logic never ran — everything fell through to `"look"` or `cmds[0] || "look"`.
+
+Opus did better than sonnet (got as far as inventory/north/south loops, eventually tried mailbox/window/sword) because it also wrote fallback logic for when `cmds` is empty. But it still couldn't escape the loop for most of the run.
+
+### Fix
+
+Stripped `admissible_commands` from the default on_tick entirely. The default now only parses observation text for directions and known nouns. No more fallback to a field that doesn't exist in Jericho.
+
+### Open Question: Should the chassis protect against self-removal of reflectOn?
+
+The ethics are interesting. If the chassis detects that the actant has no `me.reflectOn(...)` in any handler, should it:
+- A) Force a wake-up anyway (paternalistic — violates "the actant shapes its own behavior")
+- B) Let it die in its own code (clean — the actant's choices have consequences)
+- C) Add a bailout in notice that reflects when composite score drops below threshold (a discoverable safety rail)
+
+For now, going with B — the actant can trap itself. That's a real failure the research should reveal.
+
 ### Emerging Questions
 - Is the reflection interval too tight? Every 5 steps means the model barely sees the code run before rewriting it.
 - Does the model need a "don't edit unless things are clearly wrong" signal?
