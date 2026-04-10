@@ -39,16 +39,36 @@ async function runEpisode(
       console.log(`  [ep${episode}] ${preview}...`);
     }
 
-    for (let step = 1; step <= maxSteps; step++) {
-      const action = await agent.act(state.observation, state);
+    if (agent.runEpisode) {
+      // v4+: agent owns the loop. We give it the bridge step function.
+      // Use a wrapper that prints verbose output as actions are taken.
+      let stepCounter = 0;
+      const wrappedBridge = {
+        step: async (action: string) => {
+          stepCounter++;
+          const newState = await bridge.step(action);
+          if (verbose) {
+            console.log(`    s${stepCounter}: "${action}" → score=${newState.score}${newState.won ? ' WON' : ''}`);
+          }
+          return newState;
+        },
+      };
+      state = await agent.runEpisode(wrappedBridge, state, maxSteps);
+    } else if (agent.act) {
+      // Classic v0-v3: runner owns the loop, calls agent.act for each step
+      for (let step = 1; step <= maxSteps; step++) {
+        const action = await agent.act(state.observation, state);
 
-      state = await bridge.step(action);
+        state = await bridge.step(action);
 
-      if (verbose) {
-        console.log(`    s${step}: "${action}" → score=${state.score}${state.won ? ' WON' : ''}`);
+        if (verbose) {
+          console.log(`    s${step}: "${action}" → score=${state.score}${state.won ? ' WON' : ''}`);
+        }
+
+        if (state.done) break;
       }
-
-      if (state.done) break;
+    } else {
+      throw new Error('Agent must implement either act() or runEpisode()');
     }
 
     // Notify agent episode is done

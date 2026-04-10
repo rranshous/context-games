@@ -39,8 +39,26 @@ export interface Agent {
    * @param observation - current game text
    * @param info - game state (score, commands, etc)
    * @returns the action string to take
+   *
+   * Used by classic act-based agents (v0-v3, bare). v4+ agents use runEpisode instead.
    */
-  act(observation: string, info: TalesState): Promise<string>;
+  act?(observation: string, info: TalesState): Promise<string>;
+
+  /**
+   * Run a full episode. The agent owns the loop and calls bridge methods directly.
+   * Optional — only used by agents (v4+) where the model's body interacts with
+   * the world via me.takeAction() rather than returning actions to the runner.
+   *
+   * The agent should:
+   *   - Run for up to maxSteps OR until the bridge reports done
+   *   - Return the final TalesState
+   *   - Capture playthrough steps internally for getPlaythrough()
+   */
+  runEpisode?(
+    bridge: { step(action: string): Promise<TalesState> },
+    initialState: TalesState,
+    maxSteps: number,
+  ): Promise<TalesState>;
 
   /**
    * Called when a game episode ends.
@@ -81,13 +99,14 @@ export interface PlaythroughStep {
     identity: string;
     goal: string;
     memory: string;
-    history: string[];
-    things_noticed?: string;          // v3+
+    history: string[] | string; // v4 makes this a string
+    things_noticed?: string;          // v3
     on_tick?: string;
     on_score?: string;
-    notice?: string;                  // v3+
+    notice?: string;                  // v3
     on_observation?: string;          // v1
     on_history?: string;              // v1
+    recent_thoughts?: string;         // v4
   };
 }
 
