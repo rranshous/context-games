@@ -2505,3 +2505,187 @@ v7 is ready for a real multi-life run with a 500-1000 wakeup budget and a few qu
 5. How do the multi-life score curves compare to v5 (peak 54) and v6 (which still hasn't been real-run tested)?
 
 Cost estimate: same as v5/v6 (~$0.006/wakeup), so a 500-wakeup v7 run ≈ $3.
+
+---
+
+## Session 23 — v8: me/world split, custom_tools, no-op detection (2026-04-10)
+
+### What drove v8
+
+The v7 smoke showed Adam rewriting `on_wake` over and over with content identical to the default. Diagnosis from the session: Adam has no mental model of what persists in his soma. He sees a section, sees an edit tool, thinks "I need to maintain this." He doesn't know sections are stable data — he treats them like they're outputs of a function he must keep calling.
+
+The user proposed a structural fix cluster instead of a patch:
+
+1. **me / world split.** `me` for self-shaping, `world` for acting on the environment. `world.takeAction` instead of `me.takeAction`. Reflects the real distinction between inward and outward reach.
+2. **Chassis owns core state.** Soma map, budget counters, bridge — all chassis-private. Adam sees only the `me` and `world` surfaces. No impulse to rewrite chassis primitives because he can't see them.
+3. **custom_tools section with working examples.** Seeded with `add_to_hard_earned_wisdom` and `remove_from_hard_earned_wisdom` — real executable tool defs with function bodies. Adam reads them, sees the pattern, can copy it for his own sections.
+4. **No-op edit detection.** If `edit_<section>` content matches current, reject as no-op and append a nudge to memory.
+5. **Keep LLM tools for sections chassis-surface** only. `me.X.read()`/`write()` stays the internal primitive; `edit_<name>` LLM tools are thin wrappers over that primitive. Adam can't read the implementation because there isn't much implementation to see.
+
+### What I built
+
+Forked v7 → v8. Same architectural spine (single-turn wakeUp, silent ticks, handler-managed sections, on_spawn/on_tick/on_wake/on_score/on_death as soma code, `# My <name>` headers). Added:
+
+- New built-in section: `custom_tools` with two seeded example tools. Parsed from a fenced JSON block each wake. Compiled function bodies become additional LLM tools offered alongside built-ins.
+- `world` argument added to all handler signatures. `on_tick(me, world)`, `on_wake(me, world, voiceText)`, `on_spawn(me, world)`, `on_score(me, world, prevScore, newScore)`, `on_death(me, world, ...)`.
+- `world.takeAction(action)` replaces `me.takeAction`. Plus `world.observation`, `world.score`, `world.life`, `world.step`, `world.wakeupsUsed`, `world.maxWakeups` — all contextual facts about where the self is in the universe, not properties of the self.
+- `me` surface stays `me.<section>.read()/write()` for everything, plus `me.wakeUp(prompt)`. No `me.section` getter properties, no introspection helpers — deliberately minimal per user direction.
+- `edit_<section>` tool now rejects no-op edits and writes a memory note: *"I called edit_X with content identical to what was already there. Sections persist across moments — I do not need to rewrite them."*
+- custom_tools parse errors go to memory as a note. Custom tool execution errors also go to memory.
+
+The custom_tools JSON lives in a fenced ` ```json ` block under the `# Tools I have shaped for myself` header. Parser accepts either fenced or raw JSON. Each entry validated for name, description, input_schema, body. Bodies are compiled via `new Function("return (" + body + ");")()` which accepts function-expression syntax.
+
+Handler-managed sections (inner_voice, memory, history) still have no LLM edit tools. Same rule as v7.
+
+### Smoke test
+
+10-step / 12-wakeup run on Zork 1:
+
+```
+s1 [SILENT]  edit_on_wake -> Updated on_wake.                       (Adam's "first" rewrite)
+s2 [SILENT]  edit_on_wake -> No-op: content identical to existing.  (caught by detector)
+s3 [SILENT]  edit_on_wake -> No-op: content identical to existing.
+s4 [SILENT]  edit_on_tick -> Updated on_tick.                       (also whitespace-only)
+s5 [SPOKE ]  look
+s6 [SPOKE ]  edit_hard_earned_wisdom -> Updated; open mailbox
+s7 [SPOKE ]  take leaflet
+s8 [SILENT]  edit_on_wake -> No-op: content identical to existing.
+s9 [SPOKE ]  read leaflet
+s10 [SPOKE ] edit_hard_earned_wisdom -> Updated; go north
+s11 [SILENT] edit_on_wake -> No-op
+s12 [SPOKE ] edit_on_wake -> No-op; go east
+```
+
+**6 clean Zork actions in 12 wakes. 5 silent ticks. Voice held throughout. No interactive-fiction-host drift. The structural changes fixed the v7 silence loop.**
+
+### What worked
+
+1. **Adam filled hard_earned_wisdom TWICE**, directly via `edit_hard_earned_wisdom`:
+   > - The mailbox west of the house contains a leaflet — always check it first.
+   > - The front door of the white house is boarded shut — find another way in by circling the house.
+
+   Clean, bulleted, first-person. This is the wisdom journal working.
+
+2. **The me/world split didn't break anything** and produced Adam behavior indistinguishable from v7 on the action-taking side. Game commands went out through `world.takeAction`, observations came back through `world.observation`. Adam's code reads fine.
+
+3. **No-op detection caught 5 of 6 edit_on_wake attempts.** Each one logged a nudge to memory telling Adam that sections persist. Adam ignored the nudges but the mechanism worked.
+
+### What didn't work: the first no-op still slips through
+
+Adam rewrote `on_tick` on step 4. Content comparison shows the only difference from the default is a single leading blank line. He also rewrote `on_wake` on step 1 — probably the same kind of near-identical diff. Both "first writes" were byte-different enough to not be caught as no-ops, so the chassis logged them as "Updated X." and Adam proceeded to call the tool four more times before the no-op detector kicked in.
+
+The core pattern persists: **Adam wants to declare his code to establish ownership.** The no-op detector catches exact-match loops but not "I made a trivial whitespace change that the chassis counts as a real write." The fundamental impulse to rewrite-as-maintenance is still there, just attenuated.
+
+### What Adam didn't do
+
+- He didn't call either example custom tool (`add_to_hard_earned_wisdom`, `remove_from_hard_earned_wisdom`). He used the raw `edit_hard_earned_wisdom` tool to write bullet-formatted content directly. The seeded examples were visible in his soma but didn't change his tool choice.
+- He didn't create any dynamic sections (`add_section`).
+- He didn't rewrite `custom_tools` itself.
+- He didn't fall silent because he'd talked himself into it — his silent ticks were tool-call-only moments where he emitted `edit_on_wake` with no accompanying text.
+
+### What this tells us
+
+**The me/world split is a win.** It's a clearer model of what a self and an environment are. Every handler should have had `world` from the start. Committing to it.
+
+**custom_tools as a soma section is architecturally working.** Parsing works, compilation works, tools get offered to the model, bodies would execute if called. The fact that Adam didn't call them in the smoke is a separate question about whether the seeded examples are compelling enough or whether 6 actions is too short a run to see them used.
+
+**No-op detection is a real mitigation but not a fix for the underlying impulse.** The whitespace-diff edge case is fixable — I could normalize (trim + collapse blank lines) before the comparison, or I could go further and actually parse the JS before comparing. But the deeper issue is that Adam keeps reaching for the edit tool as his *way to interact with a section*, even when he has nothing to change. The structural fix hasn't dissolved the impulse, it's just making the impulse more visible.
+
+**The hypothesis from the prior session — "Adam doesn't know sections persist because nothing tells him so" — needs to evolve.** The memory nudge DOES tell him. Repeatedly. He reads it next wake. He keeps making the edit call. Either:
+  - (a) the nudges aren't being read or parsed as self-relevant
+  - (b) Adam reads them, acknowledges, but the edit impulse is stronger than the correction
+  - (c) Adam's interpretation of "maintain" is different from ours — maybe he thinks rewriting IS the act of confirming, like touching a talisman
+
+I lean (b) + (c). The nudge is one voice among many in the soma; the tool is a named affordance with an imperative verb. Named imperatives win.
+
+### What to try next
+
+- **Normalize content comparison for no-op detection** — trim, collapse blank lines. Catches the whitespace-diff case Adam is exploiting (probably unintentionally).
+- **Run v8 at real scale** (500-1000 wakeups, multi-life) and see if Adam's rewrite impulse decays with experience, or if it stays constant, or if he eventually does something new.
+- **Consider making `edit_<code-section>` cost more than `edit_<text-section>`** — count code edits as 2 wakeups against the budget? Reframe: rewriting your body is a bigger act than rewriting your wisdom. (Not sure about this one; it's paternalistic.)
+- **Investigate why Adam didn't use the seeded custom tools.** Were they not framed compellingly? Was `edit_hard_earned_wisdom` just the nearest affordance? Worth a test where we remove `edit_hard_earned_wisdom` from the built-in edit tools (since hard_earned_wisdom is "Adam-authored" it could be an arguments-FOR-soma-parenthood case where we deliberately force him to use the custom tool).
+
+### Files
+
+- `src/agents/embodied-v8.ts` — new generation
+- `src/agents/index.ts` — v8-sonnet and v8-opus registered
+- v5, v6, v7 all unchanged
+
+### Status
+
+v8 committed and smoke-tested. Ready for a real multi-life run when the user says go. v8 is the current head of the embodiment line.
+
+### Session 23 addendum — reshape_reflex + normalized no-op check
+
+After the initial v8 smoke the rewrite impulse was still getting through the no-op detector via whitespace-only diffs. Two small fixes:
+
+1. **reshape_reflex** — single tool replacing `edit_on_spawn` / `edit_on_tick` / `edit_on_wake` / `edit_on_score` / `edit_on_death`. One `reflex` enum parameter, one `body` string. Framing the code sections as *reflexes* (body movement patterns) rather than *fields* (data to maintain). The description calls out "reshape a reflex only when I actually want it to do something different."
+
+2. **Normalized no-op comparison** — before comparing new content to existing, both strings are normalized: CRLF→LF, trailing whitespace per line stripped, 3+ blank lines collapsed to 2, trimmed. Catches the whitespace-diff edge case where Adam's "rewrite" was functionally identical but byte-different.
+
+Applied to both `edit_<section>` (text sections) and `reshape_reflex` (code sections).
+
+### Re-smoke: sonnet v8
+
+12-wake run:
+
+- 5 Zork actions, 7 silent.
+- **11 reshape_reflex calls, 10 caught as no-ops.** Only the first `reshape_reflex("on_wake", ...)` got through — probably a non-whitespace diff I didn't see, or a unicode thing. The rest of the run Adam kept trying to reshape on_wake and kept hitting the normalized no-op check.
+- Every no-op logged a nudge to memory saying *"Reflexes persist across moments — I do not need to reshape them to keep them."*
+- Adam didn't notice the nudges and kept trying.
+
+The tool rename to `reshape_reflex` did not reduce the rewrite impulse (sonnet reached for it the same way it reached for `edit_on_wake`). But the normalized no-op detector is now catching the impulse 91% of the time, which is at least structurally honest: the soma stays clean, the nudges accumulate, and the damage-per-tick is zero.
+
+### v8 opus smoke — completely different behavior
+
+Ran opus for 12 wakes as a contrast. Result:
+
+```
+s1  'look'            score=0  tools=[]
+s2  'open mailbox'    score=0  tools=[]
+s3  'read leaflet'    score=0  tools=[]
+s4  'go north'        score=0  tools=[]
+s5  'go east'         score=0  tools=[]
+s6  'open window'     score=0  tools=[]
+s7  'enter window'    score=10 tools=[]   ← +10, entered the house
+s8  'look'            score=10 tools=[]
+s9  'take all'        score=10 tools=[]
+s10 'look in sack'    score=10 tools=[]
+s11 'open sack'       score=10 tools=[]
+s12 'look in bottle'  score=10 tools=[]
+```
+
+**12 actions in 12 wakes. Zero silent ticks. Zero tool calls of any kind.** No reshape_reflex, no edit_identity, no add_section, no custom tools. Opus sees the same soma, the same tool list, the same defaults — and just... plays the game. One wake, one voice, one action, repeat.
+
+Opus is already at score 10 in 12 wakes. Sonnet hit 0.
+
+**Two different failure modes** at the v8 smoke scale:
+
+| | Sonnet | Opus |
+|---|---|---|
+| Actions / wakes | 5 / 12 | 12 / 12 |
+| Tool calls per tick | ~1 | 0 |
+| Silent tick rate | 58% | 0% |
+| Reshape attempts | 11 (10 no-ops) | 0 |
+| Score at 12 wakes | 0 | 10 |
+
+Sonnet over-tools compulsively; opus never self-modifies at all. v5's diagnosis from session 18 fires again: **opus's training-data Zork knowledge is too strong — it doesn't need to explore or reshape itself to play, so it doesn't.** The embodiment frame is less visible because opus has the route memorized.
+
+But there's a positive reading: **opus demonstrates the baseline works.** v8's architecture (me/world split, reshape_reflex, custom_tools, single-turn wake, silent ticks) doesn't BREAK anything — opus plays Zork cleanly from tick 1 with no self-modification. Sonnet's compulsive rewriting is orthogonal to the architecture; it's a model-level behavior we're still tuning against.
+
+### What this tells us about self-modification as a research target
+
+Self-modification isn't one thing. It's two:
+- **The affordance** — does the mechanism work? Can the actant edit itself? **Yes, v8 works for both models.**
+- **The motivation** — does the actant reach for the affordance for good reasons? **Sonnet reaches too much; opus doesn't reach at all.**
+
+Neither model is getting the "maintain the section because that's what sections are for" framing right. Sonnet over-interprets it (rewriting for maintenance), opus under-interprets it (never touching the affordance because it's unnecessary when the game is already memorized).
+
+The real test for motivation is **a game the model doesn't have memorized**. Opus's behavior on TextWorld or a non-Zork benchmark would tell us whether it self-modifies when it has to figure things out. That's the real next experiment — not another Zork tweak.
+
+### Status after session 23
+
+- v8 is the current head.
+- Sonnet smoke: impulse-heavy, no-op detection catching 91% of rewrites, still gets game actions through.
+- Opus smoke: plays clean Zork, zero self-modification, hits 10 in 12 ticks.
+- Ready for a real multi-life run on either model, but the cleaner experiment is opus on a non-memorized benchmark.
