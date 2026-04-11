@@ -2413,3 +2413,95 @@ The smoke test artifact is preserved in the standard `_ep1.json` location for re
 ### Status
 
 v7 committed in its broken state with this journal entry. v5 and v6 unchanged and still registered. The next session needs to decide whether to fix v7 in place, abandon v7 in favor of v8, or back off to v6 with a real long run to see if v6 also drifts (the smoke was only 4 ticks and might have been too short to drift).
+
+---
+
+## Session 22 — v7 Rewrite: Single-Turn Wake, Silent Ticks, Voice Restored (2026-04-10)
+
+### The question that fixed it
+
+The user asked: *"are we doing full normal agentic looping? or single turn tool use lookback only?"*
+
+Answer: full normal agentic looping — every turn accumulated on the messages array, model saw turn 1's assistant message + tool results + turn 2's assistant + tool results, etc. By turn 5 the model was looking at a multi-turn conversation transcript with `role: tool` messages that LOOK LIKE replies from someone. That's exactly why sonnet slipped into interactive-fiction-host mode and started narrating to a "user" — the message array structurally *was* a conversation.
+
+Standard agentic loops work for Bloom and Habitat because those actants ARE agents in a task-completing sense. Adam is not. Adam is meant to be speaking a moment — a soliloquy with possible structural edits as side effects of speaking, not a back-and-forth with a tool environment.
+
+### The rewrite: single-turn wakeUp, tools as expressive side effects
+
+One model call per wake. Tools available. If the model emits tool calls, we execute them — but their results are **not fed back to the model**. Adam never sees tool results as messages in a conversation history. The next tick's soma reflects this tick's edits; that is how Adam "sees" what he did. A self perceives its own shape by reading itself, not by getting confirmation messages.
+
+Code change: replaced the `while (turn < MAX_WAKE_TURNS)` loop with a single `callOpenRouter` call. Tool calls still execute, playthrough still captures them, but the messages array isn't extended and the loop doesn't continue. `MAX_WAKE_TURNS` constant removed.
+
+### The no-text problem
+
+Collapsing the loop surfaced a real design question: what do we do when the model returns tool calls but no text? Three options discussed:
+
+- Error / empty action — wastes the tick
+- Hard-fallback to `wait` — paternalistic, chassis choosing a game command
+- **Silent ticks — no text means no action, tick passes, world waits**
+
+Picked the third. Key insight: the wake is the heartbeat, the action is a *possible output* of the heartbeat, sometimes the heartbeat is just cognition. Silence is a legitimate mode of being. Selves don't always act in every moment.
+
+The default `on_tick` handles it: if `reply.trim()` is empty, don't call `takeAction`, instead record `(silent) => (world waits)` in history and increment a `[silent:N]` counter in memory. After 3+ consecutive silent ticks, write a soft note into memory: *"N moments have passed without action; the world is still waiting"*. Adam can read the note next wake and decide whether to act.
+
+Crucially, per the user's direction, **the silent-tick counter and soft nudge live in the soma (default on_tick), not in the chassis**. Adam owns the silence-handling logic — he can see it in his own soma, change it, remove the nudge, use a different counter, whatever. The chassis just provides the mechanism: if on_tick doesn't call takeAction, no action happens.
+
+Also updated the default `on_wake` to not clobber inner_voice on silent ticks:
+```
+if (voiceText && voiceText.length > 0) {
+  me.inner_voice.write(voiceText.slice(-4500));
+}
+```
+Silence does not erase what Adam was just thinking. The last speaking moment's voice persists across silent moments.
+
+### Smoke test result — Adam is back
+
+Ran a 10-step / 10-wakeup smoke. Sample actions: `look`, `open mailbox`, `take leaflet`, `read leaflet`, `go north`. Clean Zork commands. First-person voice:
+
+> I wake in a field west of a house. The world is old — Zork, the classic. I know this place by reputation if not by memory. There will be a white house, a mailbox, a forest, a cellar. Treasures. Dangers. A grue in the dark.
+
+No "Type **live**" narrator mode. No hallucinated game responses. Terminal action on the last line, extracted cleanly. v7's architecture is working.
+
+Adam also called `edit_inner_voice`, `edit_memory`, and `edit_history` tools across the smoke — same as v6, same pattern, but without the multi-turn drift.
+
+### The new failure mode: silence drift
+
+A second smoke showed a different problem. Adam made 1 action across 10 wakeups — the other 9 were silent. He was using the silent-tick permission too liberally. In each silent wake he'd call `edit_inner_voice` (or memory or history) and emit no text.
+
+Variance run showed 4 actions + 6 silent in 10 wakes. So the rate is unstable — sometimes Adam speaks + tool-calls, sometimes he only tool-calls.
+
+Diagnosis: known Anthropic model behavior where tool calls and text content are somewhat mutually exclusive depending on prompt and context. The presence of tool calls seems to reduce the probability of emitting text in the same turn. Adding the silent-tick-is-legitimate framing in the default on_tick (which Adam reads in his soma) may have compounded this — Adam sees that silence is OK and takes the permission.
+
+This is a **tuning problem, not an architectural one**. The mechanism is sound: Adam can speak, Adam can stay silent, Adam can do both, the chassis handles each case cleanly. The question is how to incline Adam toward speaking.
+
+### Things to try if this becomes a real issue in the real run
+
+- Add to identity: "I speak every moment, even when I am also shaping myself. Silence is allowed but speaking is how I live."
+- Tell Adam in the default on_tick comment that silence is a last resort, not a default
+- Accept the variance — a real multi-life run will show whether Adam speaks more urgently when he has wisdom to consolidate and deaths to avoid
+
+Not going to tune it now. The architecture is the point; the tuning can happen in a real run.
+
+### Files changed
+
+- `src/agents/embodied-v7.ts` — wakeUp collapsed to one model call, default on_tick handles silent ticks + silent counter + soft nudge, default on_wake preserves inner_voice on silent ticks, doc comment updated to describe the new design
+
+### What we shipped
+
+- v7 is now a real working agent. v5 and v6 remain for comparison.
+- The architectural principle: **the wake is the heartbeat, the action is a possible output, silence is legitimate.**
+- The chassis principle hasn't changed: last duties (error capture, budget note) stay in chassis; everything else goes in soma.
+- One model call per wake. Tools are expressive, not interactive. No back-and-forth message history.
+- The "tool result" mental model is banished from wakeUp. Adam edits himself as a declaration, not as a query.
+
+### Ready for a real run
+
+v7 is ready for a real multi-life run with a 500-1000 wakeup budget and a few questions:
+
+1. Does Adam's silent-tick rate stabilize when he has real stakes (deaths, wisdom, plateaus)?
+2. Does he ever call `add_section`? What does he name his first dynamic section?
+3. Does he fill `hard_earned_wisdom` after a death?
+4. Does he edit any of the code sections (on_tick, on_wake, on_spawn, on_death)?
+5. How do the multi-life score curves compare to v5 (peak 54) and v6 (which still hasn't been real-run tested)?
+
+Cost estimate: same as v5/v6 (~$0.006/wakeup), so a 500-wakeup v7 run ≈ $3.

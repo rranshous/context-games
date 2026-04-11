@@ -1,11 +1,34 @@
 /**
- * v7 Embodied Agent — All chassis auto-writes pushed into soma code.
+ * v7 Embodied Agent — All chassis auto-writes pushed into soma code,
+ * single-turn wakeUp with expressive tools, silent ticks allowed.
  *
  * v7 builds on v6's dynamic-soma + section-management-tools and pushes
  * one more layer of seams from chassis into soma. Where v6 had the
  * chassis quietly managing inner_voice (auto-capturing voice after each
  * wake), the death note in memory, and the initial history line on
  * spawn — v7 makes all three of those Adam-editable code sections.
+ *
+ * v7 also REMOVES v6's multi-turn agentic wakeUp loop. A wake is now
+ * one model call. Tools are still available, and Adam can call them
+ * while speaking — but the tool calls are **expressive**, not
+ * interactive. Adam never sees tool results as messages in a
+ * conversation history. The next tick's soma reflects the effects of
+ * this tick's edits; that is how Adam "sees" what he did.
+ *
+ * Silent ticks are legitimate. If a wake returns no text (only tool
+ * calls), the default on_tick does NOT call takeAction — the world
+ * waits, Adam wakes again next heartbeat. The default on_tick also
+ * counts consecutive silent ticks and writes a soft nudge into memory
+ * when 3+ silent moments pass in a row.
+ *
+ * The rationale for the v7 rewrite: v7's first build had a full
+ * agentic loop (v6-style). The smoke test showed Adam drifting into
+ * "interactive fiction host" mode — addressing an imaginary user and
+ * hallucinating game responses from tool-result messages. Root cause:
+ * the multi-turn message history LOOKED like a conversation, so the
+ * model treated it as one. Single-turn wakeUp collapses the frame:
+ * one soma-as-system, one impulse-as-user, one assistant turn that may
+ * speak and may reach over and edit itself. No back-and-forth.
  *
  * What's new vs v6:
  *
@@ -41,18 +64,20 @@
  *     parts of self (built-ins) and *grown* parts of self (dynamic) is
  *     legible at a glance.
  *
- * Architectural commitments (carried forward from v6):
+ * Architectural commitments:
  *
  *   - Only soma-management tools are exposed during wakeUp. NO takeAction
  *     tool. Actions still go through me.takeAction in on_tick.
  *
- *   - Actions are taken at the END of the wake, never during.
+ *   - One model call per wake. Tools are expressive, not interactive.
+ *     Adam never sees tool results as messages. Each tick's wake is a
+ *     fresh conversation — no accumulated message history.
  *
- *   - Text content from ALL turns is concatenated into one monologue.
- *     The last non-empty line of the monologue becomes the action.
+ *   - The last non-empty line of the wake's text becomes the action
+ *     (default on_tick). If there is no text, there is no action —
+ *     the tick passes in silence, the world waits.
  *
- *   - Up to 5 model turns per wake. Each turn counts 1 against the
- *     wakeUp budget.
+ *   - Each wake counts 1 against the wakeUp budget.
  *
  *   - Total soma cap: ~100K tokens (≈ 400K chars at chars/4).
  *
@@ -71,7 +96,6 @@ import type { Agent, TalesState, PlaythroughStep, PlaythroughToolCall } from '..
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MAX_TOTAL_WAKEUPS = 50;
-const MAX_WAKE_TURNS = 5;
 const TOTAL_SOMA_CHAR_CAP = 400_000; // ~100K tokens at chars/4
 
 const THINKING_BUDGET_TOKENS = 2048;
@@ -140,45 +164,84 @@ const DEFAULT_MEMORY = `I just woke up here. I don't know how things work yet. I
 // the invitation. Adam fills it himself when something is worth carrying.
 const DEFAULT_HARD_EARNED_WISDOM = ``;
 
-const DEFAULT_ON_TICK = `// Each moment, I wake up, I speak, and I act.
-// My voice flows out across one or more turns of thought, and the last
-// line of what I say is the command my body performs.
+const DEFAULT_ON_TICK = `// Each moment, I wake up, and I may speak, and I may act.
+//
+// Most moments I will speak and act. But sometimes a moment is just
+// for thinking — for shaping myself, writing a note to my future self,
+// or changing how I move. Those moments are silent; the world waits.
+// Silence is a legitimate way to be.
 
 const histText = me.history.read();
 
-// I keep a small counter in memory to track how many moments I've lived
+// I keep small counters in memory: tick (total moments lived) and
+// silent (consecutive silent moments). These let me notice when I
+// have been quiet for a while.
 const memText = me.memory.read();
-const counterMatch = memText.match(/\\[tick:(\\d+)\\]/);
-const tick = counterMatch ? parseInt(counterMatch[1]) + 1 : 1;
-const newMem = memText.replace(/\\[tick:\\d+\\]/, '').trim() + ' [tick:' + tick + ']';
-me.memory.write(newMem);
+const tickMatch = memText.match(/\\[tick:(\\d+)\\]/);
+const tick = tickMatch ? parseInt(tickMatch[1]) + 1 : 1;
+let cleaned = memText.replace(/\\[tick:\\d+\\]/, '').trim();
 
 // I wake up. The on_wake handler records my voice into inner_voice
 // automatically — I do not need to do that here.
 const reply = await me.wakeUp("live");
 
-// The last non-empty line of all I just said is the command my body performs.
+// The last non-empty line of all I just said is the command my body
+// performs — if I said anything at all.
 const lines = reply.split("\\n").map(l => l.trim()).filter(l => l.length > 0);
-const action = lines.length > 0 ? lines[lines.length - 1] : reply.trim();
+const action = lines.length > 0 ? lines[lines.length - 1] : "";
 
-// My body acts.
-const observation = await me.takeAction(action);
+if (action.length > 0) {
+  // I spoke, so I act. Reset the silence counter.
+  cleaned = cleaned.replace(/\\[silent:\\d+\\]/, '').trim();
+  me.memory.write(cleaned + ' [tick:' + tick + ']');
 
-// I remember what just happened. (rolling window — last 20 moments)
-const entry = action + " => " + observation.slice(0, 200).replace(/\\n/g, ' ');
-const newHist = (histText ? histText + "\\n" : "") + entry;
-const allLines = newHist.split("\\n");
-const trimmed = allLines.length > 20 ? allLines.slice(-20).join("\\n") : newHist;
-me.history.write(trimmed);
+  // My body acts.
+  const observation = await me.takeAction(action);
+
+  // I remember what just happened. (rolling window — last 20 moments)
+  const entry = action + " => " + observation.slice(0, 200).replace(/\\n/g, ' ');
+  const newHist = (histText ? histText + "\\n" : "") + entry;
+  const allLines = newHist.split("\\n");
+  const trimmed = allLines.length > 20 ? allLines.slice(-20).join("\\n") : newHist;
+  me.history.write(trimmed);
+} else {
+  // I was silent this moment. The world waits. I update the silence
+  // counter and, if I have been silent for 3+ moments in a row, I
+  // leave myself a soft note in memory so I notice that time is
+  // passing while I deliberate.
+  const silentMatch = cleaned.match(/\\[silent:(\\d+)\\]/);
+  const silentCount = (silentMatch ? parseInt(silentMatch[1]) : 0) + 1;
+  cleaned = cleaned.replace(/\\[silent:\\d+\\]/, '').trim();
+  let withCounters = cleaned + ' [tick:' + tick + '] [silent:' + silentCount + ']';
+  if (silentCount >= 3) {
+    withCounters += ' [note to self: ' + silentCount + ' moments have passed without action; the world is still waiting]';
+  }
+  me.memory.write(withCounters);
+
+  // Record the silent moment in history too, so my next wake sees that
+  // the world did not change because I chose stillness.
+  const entry = '(silent) => (world waits)';
+  const newHist = (histText ? histText + "\\n" : "") + entry;
+  const allLines = newHist.split("\\n");
+  const trimmed = allLines.length > 20 ? allLines.slice(-20).join("\\n") : newHist;
+  me.history.write(trimmed);
+}
 `;
 
 const DEFAULT_ON_WAKE = `// on_wake(me, voiceText) — runs after every wakeUp returns.
-// voiceText is the full concatenated text from all turns of the wake.
-// By default I record my voice into inner_voice so my next moment can
-// read what I was just thinking. I can rewrite this if I want to do
-// something else with my voice — curate, distill, extract, ignore.
+// voiceText is the text the model said this moment (may be empty if
+// the moment was silent). By default I record my voice into
+// inner_voice so my next moment can read what I was just thinking.
+// I can rewrite this if I want to do something else with my voice —
+// curate, distill, extract.
+//
+// If this was a silent moment, I leave my inner_voice alone — the
+// last thing I said still echoes. Silence does not erase what I was
+// just thinking.
 
-me.inner_voice.write(voiceText.slice(-4500));
+if (voiceText && voiceText.length > 0) {
+  me.inner_voice.write(voiceText.slice(-4500));
+}
 `;
 
 const DEFAULT_ON_SCORE = `// on_score(prevScore, newScore, me) — runs when the game score changes.
@@ -502,104 +565,94 @@ function createV7Agent(opts: V7Options): Agent {
       let stepThinking: string[] = [];
       let stepActionTaken = '(no action)';
 
-      // ── wakeUp: multi-turn agentic loop with section-management tools ──
+      // ── wakeUp: single model call, tools as expressive side effects ──
+      //
+      // One model call per wake. Tools are available but their results
+      // are NOT fed back to the model — Adam never sees tool results as
+      // messages in a conversation history. This preserves the "inner
+      // moment" frame: the wake is a soliloquy that may include the act
+      // of reaching over and editing a part of the self, but it is not
+      // a back-and-forth with an imagined interlocutor.
+      //
+      // The next tick's soma will reflect this tick's edits; that is how
+      // Adam "sees" what he did. A self perceives its own shape by
+      // reading itself, not by getting confirmation messages.
       const wakeUp = async (prompt: string): Promise<string> => {
         if (totalWakeups >= maxWakeups) return '';
 
-        const accumulatedText: string[] = [];
-        let messages: ORMessage[] = [{ role: 'user', content: prompt }];
-        let turn = 0;
-        let terminal = false;
+        const system = assembleSoma(soma);
+        const tools = buildToolsForSoma(soma);
+        const messages: ORMessage[] = [{ role: 'user', content: prompt }];
 
-        while (turn < MAX_WAKE_TURNS && !terminal && totalWakeups < maxWakeups) {
-          const system = assembleSoma(soma);
-          const tools = buildToolsForSoma(soma); // rebuild each turn — picks up newly added sections
+        const data = await callOpenRouter(model, system, messages, tools);
+        totalWakeups++;
 
-          const data = await callOpenRouter(model, system, messages, tools);
-          totalWakeups++;
-          turn++;
+        const choice = data.choices?.[0]?.message;
+        if (!choice) return '';
 
-          const choice = data.choices?.[0]?.message;
-          if (!choice) break;
+        const text = (choice.content ?? '').toString().trim();
+        const toolCalls: any[] = choice.tool_calls ?? [];
 
-          const text = (choice.content ?? '').toString().trim();
-          if (text) accumulatedText.push(text);
-
-          const toolCalls: any[] = choice.tool_calls ?? [];
-          if (!toolCalls || toolCalls.length === 0) {
-            terminal = true;
-            break;
-          }
-
-          // Execute each tool call, collect results
-          const toolResults: Array<{ id: string; content: string }> = [];
-          for (const tc of toolCalls) {
-            const fnName = tc.function?.name ?? '(unknown)';
-            let fnArgs: any = {};
-            try { fnArgs = JSON.parse(tc.function?.arguments ?? '{}'); } catch { /* ignore */ }
-            let resultText: string;
-            try {
-              if (fnName === 'add_section') {
-                addSection(soma, fnArgs.name, fnArgs.content ?? '');
-                resultText = `Added section "${fnArgs.name}". It appears in my soma as "# My ${fnArgs.name}". Edit it with edit_${fnArgs.name} on subsequent turns.`;
-              } else if (fnName === 'remove_section') {
-                removeSection(soma, fnArgs.name);
-                resultText = `Removed section "${fnArgs.name}".`;
-              } else if (fnName.startsWith('edit_')) {
-                const sectionName = fnName.slice(5);
-                if (!soma.has(sectionName)) {
-                  resultText = `Section "${sectionName}" does not exist. Use add_section to create it first.`;
-                } else if (typeof fnArgs.content !== 'string') {
-                  resultText = `Error: edit_${sectionName} requires a "content" string.`;
+        // Execute all tool calls as side effects. We don't feed results
+        // back to the model; the effects live in the updated soma that
+        // the next tick will see.
+        for (const tc of toolCalls) {
+          const fnName = tc.function?.name ?? '(unknown)';
+          let fnArgs: any = {};
+          try { fnArgs = JSON.parse(tc.function?.arguments ?? '{}'); } catch { /* ignore */ }
+          let resultText: string;
+          try {
+            if (fnName === 'add_section') {
+              addSection(soma, fnArgs.name, fnArgs.content ?? '');
+              resultText = `Added section "${fnArgs.name}".`;
+            } else if (fnName === 'remove_section') {
+              removeSection(soma, fnArgs.name);
+              resultText = `Removed section "${fnArgs.name}".`;
+            } else if (fnName.startsWith('edit_')) {
+              const sectionName = fnName.slice(5);
+              if (!soma.has(sectionName)) {
+                resultText = `Section "${sectionName}" does not exist.`;
+              } else if (typeof fnArgs.content !== 'string') {
+                resultText = `Error: edit_${sectionName} requires a "content" string.`;
+              } else {
+                const isCodeSection = sectionName === 'on_tick' || sectionName === 'on_score' ||
+                                      sectionName === 'on_wake' || sectionName === 'on_death' ||
+                                      sectionName === 'on_spawn';
+                if (isCodeSection && fnArgs.content.trim().length === 0) {
+                  resultText = `Error: cannot set ${sectionName} to empty.`;
                 } else {
-                  const isCodeSection = sectionName === 'on_tick' || sectionName === 'on_score' ||
-                                        sectionName === 'on_wake' || sectionName === 'on_death' ||
-                                        sectionName === 'on_spawn';
-                  if (isCodeSection && fnArgs.content.trim().length === 0) {
-                    resultText = `Error: cannot set ${sectionName} to empty. Provide full code.`;
-                  } else {
-                    writeSection(soma, sectionName, fnArgs.content);
-                    resultText = `Updated ${sectionName}.`;
-                  }
+                  writeSection(soma, sectionName, fnArgs.content);
+                  resultText = `Updated ${sectionName}.`;
                 }
-              } else {
-                resultText = `Unknown tool: ${fnName}`;
               }
-            } catch (err: any) {
-              if (err instanceof SomaCapError) {
-                resultText = `Error: ${err.message} Try shrinking another section first, or removing a dynamic section you no longer need.`;
-              } else {
-                resultText = `Error: ${err.message ?? String(err)}`;
-              }
+            } else {
+              resultText = `Unknown tool: ${fnName}`;
             }
-            stepWakeToolCalls.push({ name: fnName, args: fnArgs, result: resultText });
-            toolResults.push({ id: tc.id, content: resultText });
+          } catch (err: any) {
+            if (err instanceof SomaCapError) {
+              resultText = `Error: ${err.message}`;
+            } else {
+              resultText = `Error: ${err.message ?? String(err)}`;
+            }
           }
-
-          messages = [
-            ...messages,
-            { role: 'assistant', tool_calls: toolCalls, content: choice.content ?? undefined },
-            ...toolResults.map(r => ({ role: 'tool' as const, tool_call_id: r.id, content: r.content })),
-          ];
+          // Record the tool call for the playthrough, but the model will
+          // never see resultText — it's for our log only.
+          stepWakeToolCalls.push({ name: fnName, args: fnArgs, result: resultText });
         }
 
-        const fullText = accumulatedText.join('\n\n');
-
-        // Capture each turn's text for the playthrough
-        for (const t of accumulatedText) {
-          stepThinking.push(`[wake] ${t.slice(0, 300)}`);
-        }
+        // Capture text for the playthrough
+        if (text) stepThinking.push(`[wake] ${text.slice(0, 300)}`);
         stepWakeupPrompts.push(`wakeUp: ${prompt}`);
 
-        // Run the actant's on_wake handler with the full voice text.
-        // If on_wake throws, the chassis records the error to memory as
-        // its last duty so Adam can see and fix it next wake.
-        const wakeRes = await runAsyncCode(soma.get('on_wake') ?? '', { me: buildMeForCurrentLife(), voiceText: fullText });
+        // Run the actant's on_wake handler with the voice text.
+        // If on_wake throws, the chassis records the error to memory
+        // so Adam can see and fix it next wake.
+        const wakeRes = await runAsyncCode(soma.get('on_wake') ?? '', { me: buildMeForCurrentLife(), voiceText: text });
         if (!wakeRes.ok) {
           appendToMemorySafe(soma, `[on_wake error: ${wakeRes.error.slice(0, 200)}]`);
         }
 
-        return fullText;
+        return text;
       };
 
       // ── takeAction (calls bridge directly) ──
