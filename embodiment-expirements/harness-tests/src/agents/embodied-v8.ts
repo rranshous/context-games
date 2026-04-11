@@ -178,10 +178,13 @@ if (action.length > 0) {
 } else {
   // I was silent this moment. The world waits. I update the silence
   // counter and, if I have been silent for 3+ moments in a row, I
-  // leave myself a soft note in memory.
+  // replace the prior soft note in memory (in place — I do not let
+  // the notes accumulate).
   const silentMatch = cleaned.match(/\\[silent:(\\d+)\\]/);
   const silentCount = (silentMatch ? parseInt(silentMatch[1]) : 0) + 1;
   cleaned = cleaned.replace(/\\[silent:\\d+\\]/, '').trim();
+  // Strip any previous "note to self" silent-note so it doesn't accumulate.
+  cleaned = cleaned.replace(/\\[note to self: \\d+ moments have passed without action; the world is still waiting\\]/g, '').trim();
   let withCounters = cleaned + ' [tick:' + tick + '] [silent:' + silentCount + ']';
   if (silentCount >= 3) {
     withCounters += ' [note to self: ' + silentCount + ' moments have passed without action; the world is still waiting]';
@@ -873,6 +876,19 @@ function createV8Agent(opts: V8Options): Agent {
           reflectionTurnsUsed: totalWakeups,
           soma: cloneSoma(soma),
         });
+
+        // Cap in-memory playthrough log to last PLAYTHROUGH_MEMORY_CAP steps
+        // to prevent OOM on long runs. Each step clones the full soma; with
+        // a large soma and many ticks the in-memory log can grow into the
+        // hundreds of MB. The on-disk JSON checkpoint (written by the
+        // runner) will reflect whatever's in memory at the moment of save,
+        // so this also bounds the on-disk file size for ongoing runs.
+        // Trade-off: history beyond the cap is lost. For full-history
+        // captures of specific runs, copy the file before the next run.
+        const PLAYTHROUGH_MEMORY_CAP = 200;
+        if (playthroughLog.length > PLAYTHROUGH_MEMORY_CAP) {
+          playthroughLog.splice(0, playthroughLog.length - PLAYTHROUGH_MEMORY_CAP);
+        }
 
         bridge.checkpoint?.();
 
