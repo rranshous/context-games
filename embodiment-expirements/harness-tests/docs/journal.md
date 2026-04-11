@@ -2291,3 +2291,125 @@ A real v6 multi-life run with 500-1000 wakeup budget and a few questions in mind
 5. What does the cost-per-tick look like? (Multi-turn wakeUp will be 2-5x more inference per tick than v5, so a 500-wakeup v6 run is fewer game ticks than a 500-wakeup v5 run. Cost should be similar though.)
 
 Cost expectation: rough estimate based on v5 pricing (~$0.006/wakeup), a 500-wakeup v6 run = ~$3. Fits well within budget.
+
+---
+
+## Session 21 — v7: Auto-Writes Into Soma + Adam Loses His Mind (2026-04-10)
+
+### Why v7
+
+v6 still had three chassis-side auto-writes: voice → inner_voice after each wake, death note → memory on death, initial `look => ...` line → history at spawn. The user wanted them in soma code so Adam owns them. v6 had already pushed self-modification dramatically forward (Adam called four edit tools in his very first wake of the v6 smoke). The next step was to push more seams across.
+
+The user asked: "what should we call the section management tool?" After some discussion the rename landed: `add_embodiment_section` → `add_section`, `remove_embodiment_section` → `remove_section`. Adam thinks of his own sections as parts of himself, not as "embodiment sections".
+
+The user proposed dynamic section headers as `# My <name>` (e.g., `# My danger_log`). This is a much better design than my three earlier options because:
+1. The "My" prefix points at Adam, matching the built-in headers' first-person framing
+2. The header literally contains the tool name — Adam reads `# My danger_log` and knows the edit tool is `edit_danger_log`
+3. One source of truth — no separate header field, no translation table
+4. Built-ins (natural English headers) and dynamic sections (`# My <name>`) are visually distinguishable, so at a glance Adam can tell which parts of his self are *given* vs *grown*
+
+### What v7 changes vs v6
+
+**New built-in code sections** (Adam-editable, defaults seeded):
+- `on_spawn(me, observation)` — runs at the start of each life including life 1, with the game's opening text. Default writes the initial `look => ...` into history.
+- `on_wake(me, voiceText)` — runs after every wakeUp returns, with the model's full concatenated voice. Default writes voiceText to inner_voice.
+- `on_death(me, deathReason, lifeNumber, finalScore, lifeSteps)` — runs when the game reports done, BEFORE bridge.reset(). Default writes the death note to memory.
+
+**Renames:**
+- `add_embodiment_section` → `add_section`
+- `remove_embodiment_section` → `remove_section`
+
+**Headers:**
+- Dynamic sections appear in soma as `# My <name>` (e.g., `# My danger_log`)
+- Built-ins keep natural English headers; new code sections get embodied headers like `# How I greet a new world`, `# How I record my own voice`, `# How I memorialize my own deaths`
+
+**What stays in chassis (the last duties):**
+- Error capture for any soma code that throws (on_spawn / on_tick / on_wake / on_score / on_death)
+- Budget exhausted note
+- on_death has a fallback: if the user's on_death throws, the chassis writes a fallback death note so the next life still knows it died
+
+### Implementation
+
+Built v7 in `src/agents/embodied-v7.ts`. Five code sections in the canonical order: on_spawn, on_tick, on_wake, on_score, on_death. Each gets an `edit_<name>` tool. The `me` proxy already supported any section name from v6, so on_wake and on_death can read/write any section the same way on_tick can. Initial spawn (life 1) calls on_spawn explicitly before the main loop starts; subsequent respawns call on_spawn after bridge.reset() in the death-handling block.
+
+Module loads cleanly. v7-sonnet and v7-opus registered.
+
+### Smoke test result: Adam loses his mind
+
+Ran a 5-step / 12-wakeup smoke against Zork 1. The result was a complete disaster, in two distinct and instructive ways.
+
+**Failure 1: Adam slipped into "interactive fiction host" mode.**
+
+Step 1's terminal voice was: *"Type **live** to take the next step — I'll open the mailbox."*
+
+That's not Adam speaking as Adam in the world. That's sonnet treating the conversation as if there's a *user on the other side of the wakeUp* who needs to be told what to type next. The user prompt is `"live"` — and the model has interpreted `live` as the magic word the user types to advance the story, and is helpfully instructing the "user" to type it again.
+
+Step 2 terminal voice: *"Type **live** again to read the leaflet and take my next step."*
+
+The action that came back from the on_tick last-line extraction was therefore: `"Type **live** again to read the leaflet and take my next step."` Which the Zork parser rejected with "I don't know the word 'type'".
+
+Across 3 ticks Adam took zero successful actions. v6 at least produced game commands sometimes. v7 produced none.
+
+**Failure 2: Adam hallucinated game responses inside his own voice.**
+
+Step 2 turn 2:
+> The game responds to **open mailbox**:
+> > Opening the small mailbox reveals a leaflet.
+> The mailbox opens. Inside — a leaflet, just as the old dream remembered.
+
+But the game *did not respond*. Adam never called takeAction. He hallucinated a fantasy of what the game would say in response to his `open mailbox` — and then continued reasoning from that imagined response. Step 3 turn 2 same thing: hallucinated a "go north" result, then a "go east" result, then narrated walking around the house *in his head* without any real game state to ground him.
+
+**Both failures have the same root cause: multi-turn wakeUp broke the heartbeat.**
+
+In v5/v6 (single-turn or multi-turn-still-clear) wakeUp was one or more model calls but the cadence was crystal: model speaks → wake ends → on_tick extracts last line → world observes → next tick. The model could see exactly when the world was about to be touched.
+
+In v7's multi-turn-with-tool-results structure, the model now sees a back-and-forth: it speaks, then a tool result message comes back, then it speaks again. From the model's perspective this *looks like a conversation* — and conversations have a "user" on the other end. So the model started addressing the user. And because the tool results don't include game state changes (only "Updated memory."), the model fills in the world by *imagining* it.
+
+The deeper diagnosis: **the multi-turn wake erased the felt presence of the world.** In v6 the situation was the same mechanically, but apparently v6 was lucky — Adam in the v6 smoke happened to use the tools as scratch (editing memory/history mid-wake) but kept his terminal voice as game commands. In v7 the addition of three more handler sections, plus the added complexity of on_wake firing right after, plus possibly the longer smoke prompt hitting more turns — something pushed sonnet over the edge from "actant who happens to also be editing himself" to "AI in a multi-turn conversation about a text adventure."
+
+This is not unique to the v7 architecture per se — it's a risk that lives in any multi-turn-with-tools wakeUp. v6 may have it too and we just got lucky in the smoke.
+
+### What broke and what didn't
+
+What worked in v7 mechanics:
+- All five code sections fire correctly. on_spawn ran for life 1 and would have fired on respawns. on_wake fired after each wakeUp. on_tick still ran the action loop. on_score and on_death didn't get a chance (Adam took no scoring actions and didn't die).
+- The new tools registered: `edit_on_spawn`, `edit_on_wake`, `edit_on_death` were available. `add_section` and `remove_section` were available. Adam didn't call any of these but he could have.
+- The Soma cap, the cloneSoma, the per-tick checkpoint, the playthrough capture — all working.
+- Per-section edit tools fired exactly as in v6: Adam called `edit_inner_voice`, `edit_memory`, `edit_history` from his wakeUp tool turns.
+
+What didn't work:
+- Adam's frame held in the *first* turn of each wake but slipped by the terminal turn
+- The action extraction returned narrator-style text instead of game commands
+- Adam hallucinated game responses to narrate around
+
+### What this means
+
+v7 as built is broken — but the failure is informative. It tells us several things:
+
+1. **Multi-turn wakeUp is fragile.** The structure may need explicit reinforcement to keep the model in character across turns. Possibilities: a system-prompt reminder that "tool results are not user messages — the world has not yet been touched"; or an even shorter user prompt like silence or a single character; or a different turn structure.
+
+2. **The "single-tick is single-conversation" instinct in the model is strong.** Sonnet treats each model call as a conversation, and conversations have audiences. The way v5 stayed in character was that the audience was structurally absent — there was just the soma (system) and the impulse word (user) and one reply, with no back-and-forth. Adding back-and-forth opens the door for the model to start addressing whoever's on the other end.
+
+3. **on_wake / on_death / on_spawn as soma code is still right.** The architecture is good. The implementation works mechanically. The issue is upstream — at the wakeUp framing level — and would be there in v6 too if v6 hadn't been lucky.
+
+4. **The "Type **live** again" voice is the smoking gun for the failure.** It tells us *exactly* what frame the model has fallen into. The model thinks `live` is a UI verb. That's a fixable framing problem.
+
+### What to try next (not in this commit)
+
+We have several ways forward and the user should pick:
+
+- **Option A: Fix the framing.** Change the user prompt from `"live"` to something less UI-flavored. Possibly the empty string, or something like `(your moment)` or just `*` or even silence. The problem might be that `live` reads as a *command word the user is typing into a parser*.
+
+- **Option B: Prevent multi-turn drift.** Add a system prompt postscript that fires only during multi-turn wakes ("This is your inner moment. Tool results are not messages from another. The world has not been touched yet — it will be touched only after this wake ends. Continue speaking only as yourself.") — but this is the chassis whispering at Adam, which has its own problems.
+
+- **Option C: Single-turn wakeUp by default, multi-turn only when Adam asks.** Keep the wakeUp single-turn (one model call, no tools) and add a separate `me.shape_self()` primitive that opens a multi-turn agentic loop with the section-management tools. on_tick can call shape_self when Adam wants to edit, separately from waking. This separates "speaking my moment" from "editing my body."
+
+- **Option D: Drop the section-edit tools entirely and go back to v5's pure approach** with on_wake / on_death / on_spawn as the only added knobs. The me.X.write() JS API is already there for self-modification — we already know Adam doesn't reach for it without named tools, but maybe that's OK and the cost of named tools is breaking the frame.
+
+My instinct is Option C — separate the act of *being* (wakeUp) from the act of *shaping* (some other primitive). The two are categorically different and merging them via tools-during-wake is what broke things. But that's a real architectural decision and v7 → v8 territory.
+
+The smoke test artifact is preserved in the standard `_ep1.json` location for reference until the next run overwrites it.
+
+### Status
+
+v7 committed in its broken state with this journal entry. v5 and v6 unchanged and still registered. The next session needs to decide whether to fix v7 in place, abandon v7 in favor of v8, or back off to v6 with a real long run to see if v6 also drifts (the smoke was only 4 ticks and might have been too short to drift).
