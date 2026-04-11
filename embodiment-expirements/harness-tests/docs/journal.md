@@ -50,6 +50,7 @@ npx tsx src/bench.ts run --agent v5-sonnet --env JerichoEnvZork1 --steps 60 --ve
 **Open threads / next ideas**:
 - 📑 **Narrate the session-18 L3 sonnet run as a story.** Pick up while a long run is going. Adam's voice across three lives is good enough that the playthrough log could be rendered as a piece of writing in its own right — not as a benchmark output but as a *reading*. The L3 transition voice ("Third life. I carry what I've learned.") and the Loud Room puzzle solve are obvious set pieces. Source: `results/logs/v5-sonnet_JerichoEnvZork1_session18-3lives-broke40.json` (preserved before later runs would overwrite the standard `_ep1.json` filename).
 - 🧬 **Dynamic soma sections — Adam can add his own.** Currently the soma has a fixed set of sections (identity, goal, memory, history, recent_thoughts, on_tick, on_score). Idea: give Adam tools during the wakeUp call (e.g., `create_section(name)`, `delete_section(name)`) so he can shape his own self structure. New sections come with `read()` and `write()` automatically (just like the built-in ones); the section appears in the assembled soma under a `# <name>` markdown header. Caps could be a fixed default (e.g., 5000 chars) or settable per section. *Eval-on-section* (where written content becomes executable code like on_tick) is a separate question we can explore later. This is a real architectural shift: wakeUp currently has NO tools (pure text in/text out) — adding tools moves v5 closer to a v4-style multi-turn agentic call, which is the thing we deliberately stripped. So if we go this way, we should be intentional: soma-management tools only, NEVER an action tool, so the loop stays "wake → speak → take last line → act."
+- 🧪 **v6 smoke test landed self-modification on tick 1.** Adam called `edit_inner_voice`, `edit_memory`, `edit_history` in his very first wake. Across 2000 ticks of v5 he never reached for any of these, even though `me.X.write()` was open. The presence of named tools changed everything. The first-real-run question now is whether Adam ever reaches for `add_embodiment_section` (his own structural growth) or whether the section-edit tools are sufficient. Run pending.
 - 🪞 **Put the soma assembler in the soma itself.** Currently `assembleSoma()` is a TypeScript function in `embodied-v5.ts` — it takes Adam's sections and renders them as markdown headers in a fixed order. Adam sees the *result* in his system prompt but never sees the rendering code, and can't change it. Idea: make the assembler a soma section (like on_tick — JS code Adam can read and write), so Adam can reshape *how* his self is composed: rename headers, reorder sections, add framing language, drop sections, decide that his death notes should appear ABOVE his identity now that he's lived eight lives. This is the deepest "the body is malleable" move — currently identity/goal/memory/on_tick are malleable as content, and on_tick is malleable as reflex code, but the *frame* that turns sections into the prompt is hidden chassis. Putting it in soma erases one more seam between Adam and the engine. **Open question:** does this go too far? Strange-loop concerns (the assembler code is in the prompt that the assembler produces), failure modes (Adam writes a broken assembler and loses his self for the next call — possibly a feature, possibly cruel), and the meta-leak risk we already half-have with on_tick visible as JS. Pairs naturally with the dynamic-sections idea above — if Adam can add sections, he'd want positioning too, and that's what the assembler controls. Probably worth gating this on whether Adam ever reaches for the simpler self-mod knobs first; if he never edits on_tick, giving him more knobs won't help.
 - v5 with refined defaults (just updated: goal `"get a high score in this game"`, memory `"just woke up here, not sure how things work (yet)"`)
 - A **collab embodiment** where the user is collaborating with the actant — chat-like channel, maybe `me.askHuman(prompt)` or a `<human_messages>` section the user fills. New research direction.
@@ -2189,3 +2190,104 @@ This is incidentally the most embodied design choice in v5. There's no separatio
 - Run preserved at `results/logs/v5-sonnet_JerichoEnvZork1_session19-7lives-2000budget.json` so the standard `_ep1.json` filename can be overwritten by future runs.
 - Play-by-play chronicle in `docs/long-run-playbyplay.md`.
 - The recurring `/loop` cron for play-by-play updates was cancelled when the run finished.
+
+---
+
+## Session 20 — v6 Design and Build (2026-04-10)
+
+### Why v6
+
+Session 19's headline finding about "what carries forward" surfaced two architectural problems in v5:
+
+1. **`recent_thoughts` was doing double duty.** Within a life it was just "the model's last reply", auto-overwritten by the default on_tick every tick. Across lives it accidentally became a wisdom transmission channel because the chassis didn't reset it on respawn — but only for *one tick* of the next life, before the on_tick overwrote it again. The cross-life wisdom was real but ephemeral.
+
+2. **Self-modification was zero across 2000 ticks.** Adam never called `me.on_tick.write()` from inside his on_tick, never edited his identity, never changed his goal. The path was open but he didn't reach for it. The `me.X.write()` JS API was ergonomically there but conceptually invisible — Adam treated his own code as scaffolding rather than as body.
+
+v6 addresses both, plus opens a new axis: dynamic soma sections.
+
+### What v6 changes
+
+**Renames:**
+- `recent_thoughts` → `inner_voice`. Same role (the model's most recent voice) with a name that signals the embodied function rather than the implementation history.
+
+**New built-in section:**
+- `hard_earned_wisdom` — defaults empty, persists across deaths, **never auto-touched by chassis or default on_tick.** The empty section is the invitation. Adam fills it himself when something is worth carrying. This is the durable cross-life wisdom journal v5 was missing.
+
+**inner_voice is now chassis-managed (auto-write).** After every wakeUp completes, the chassis automatically writes the *full concatenated text from all turns* into inner_voice. Adam cannot lose his voice even if his on_tick stops managing it. Rationale: inner_voice is the *exhalation*, not a deliberate write. Like the chassis recording score deltas in memory, the chassis recording voice in inner_voice is a sense organ, not a violation of agency. The default on_tick no longer manages inner_voice itself.
+
+**Dynamic soma sections.** Adam can call `add_embodiment_section(name, content)` and `remove_embodiment_section(name)` during wakeUp tool turns. New sections persist across deaths and get their own `edit_<name>` tool on subsequent wakes (or later turns of the current wake — the tool list is rebuilt each turn). Section names must be lowercase snake_case. Built-in sections cannot be removed.
+
+**wakeUp is now multi-turn agentic.** Up to 5 model turns per wake. The model can call section-management tools, get results, and continue until it produces a terminal text-only turn (or exhausts the turn budget). **Each turn counts 1 against the wakeUp budget.**
+
+**Per-section edit tools.** Each section in the current soma gets its own named tool: `edit_identity`, `edit_goal`, `edit_memory`, `edit_history`, `edit_inner_voice`, `edit_hard_earned_wisdom`, `edit_on_tick`, `edit_on_score`, plus one `edit_<name>` for each dynamic section Adam has created. The tool list is built dynamically per wake from the current soma. Reasoning from prior experiments: having a tool *named for* a section increases the odds the actant edits that section.
+
+**Total soma cap.** Per-section caps removed. The whole assembled soma is capped at ~100K tokens (≈ 400K chars at chars/4). Section edits that would push the assembled soma over the cap hard-error. Chassis writes (memory append, inner_voice capture) truncate gracefully so they never break the run.
+
+### The mid-loop action question
+
+Multi-turn wakeUp creates a new design question: what happens when the model emits text content alongside tool calls in the same turn?
+
+Two design choices, both committed:
+
+**Text in non-terminal turns: concatenate all, last line wins.** Text from every turn (whether terminal or not) is appended into one running monologue. The last non-empty line of the *concatenated* text is the action. Adam's voice across the whole multi-turn wake becomes his "speech" for that tick, and the last line of all of it is what his body does. Honors the embodiment frame: "I speak my thoughts as I move; on the last line I write the command."
+
+**Actions only at the end.** Multi-turn tool loop runs to completion (terminal text turn or max-5-turns reached), THEN we extract the action from concatenated text and call takeAction once. **Actions never happen mid-wake.** The 5-turn budget is for *self-shaping*, not for *acting in the world*. The world only gets touched once per heartbeat. If Adam needs to act-and-react, that's what *consecutive wakes* are for — he acts at the end of wake N, sees the result at the start of wake N+1. That cadence is what makes him a creature in time rather than a runaway loop.
+
+### Architectural commitments
+
+The load-bearing decision for v6 is that **wakeUp gets tools, but only soma-management tools — never an action tool, never a world-touching tool.** This preserves v5's "wake → speak → take last line → act" heartbeat structure while opening the self-shaping affordance. Future temptation will be to add more tools to wakeUp; we should resist it. **Soma-management only, forever.**
+
+Other commitments:
+- The assembled soma is the system prompt; the user prompt is just `"live"`. Same as v5.
+- The model's voice (across all turns) becomes inner_voice automatically.
+- Built-in sections cannot be removed (refusing protects Adam from accidentally deleting his own identity or his on_tick).
+- Section names: `^[a-z][a-z0-9_]{0,49}$` — keeps them tool-name-friendly and bounded.
+
+### Smoke test result
+
+Built v6 in `src/agents/embodied-v6.ts`. Registered as `v6-sonnet` and `v6-opus` in `src/agents/index.ts`. Module loads cleanly. Ran a 5-step / 10-wakeup smoke test against Zork 1.
+
+**Adam called edit_* tools on his very first wake.**
+
+```
+=== s1 | act='**open mailbox**' | score=0 ===
+tool calls: 5
+  - edit_inner_voice -> Updated
+  - edit_memory      -> Updated
+  - edit_history     -> Updated
+  - edit_memory      -> Updated
+  - on_tick (action: '**open mailbox**')
+```
+
+Across 2000 ticks of v5, Adam never reached for any of `me.X.write()`. In v6 with named tools available, he called four edit tools on his very first wake. **The presence of named tools changed everything.** This is the headline result of session 20 even before any real run.
+
+Three of those four tool calls were for sections Adam wasn't supposed to need to manage himself (inner_voice is chassis-managed in v6, memory is chassis-managed for death notes, history is managed by his own default on_tick code). So the *next* design question is: are these tools too tempting? Is Adam editing things he shouldn't? Or is he intelligently augmenting the chassis-managed sections? We'll need a longer run to see whether this stabilizes or gets noisy.
+
+Multi-turn loop is also working. Step 1 had 3 voice entries across 3 turns. Step 3 had 4 voice entries across 4 turns. Adam thinks, calls a tool, sees the result, thinks more, calls another tool, eventually terminates with a text-only turn that ends with his intended action.
+
+Adam also caught and corrected his own bug. Step 1's action came back as `**open mailbox**` (markdown bold around it). Step 2's first voice entry: *"my last attempt to open the mailbox failed because I used bold markdown formatting instead of a plain command."* He diagnosed the markdown issue from his own history, in character, and fixed it next tick.
+
+### Known interaction to watch
+
+Adam is calling `edit_memory` and `edit_history` from his wakeUp turns, BUT his default on_tick code ALSO writes to memory (the tick counter) and history (the rolling 20 lines). The on_tick runs AFTER the wakeUp tool calls have completed. So Adam's tool-call writes to memory and history may be silently overwritten by the on_tick code within the same tick. We need a longer run to see whether:
+
+(a) Adam notices and adjusts (e.g., starts editing his on_tick to stop overwriting his careful memory edits), OR
+(b) Adam keeps making edits that get clobbered without realizing it, OR
+(c) Adam's on_tick edits and his own tool edits cooperate (he reads the chassis-managed memory text and adds to it via tools, with on_tick appending after).
+
+Behaviors (a) and (c) are interesting outcomes; (b) would be a problem worth fixing.
+
+### Hard_earned_wisdom in the smoke
+
+Smoke run was too short (4 ticks, 1 life) for any death-driven wisdom accumulation. The section was visible in the soma the whole time as `# What I have learned the hard way\n\n(nothing yet)`. The empty-section-as-invitation is in place; whether Adam fills it requires a real run with at least one death.
+
+### What to run next
+
+A real v6 multi-life run with 500-1000 wakeup budget and a few questions in mind:
+1. Does Adam create any dynamic sections via `add_embodiment_section`? What does he name them?
+2. Does Adam fill `hard_earned_wisdom` after a death? Does he treat it differently from memory?
+3. Does Adam edit his own `on_tick` (the previously-untouched scaffolding)?
+4. Do the wakeUp tool edits to memory/history conflict with the chassis/on_tick management of those sections?
+5. What does the cost-per-tick look like? (Multi-turn wakeUp will be 2-5x more inference per tick than v5, so a 500-wakeup v6 run is fewer game ticks than a 500-wakeup v5 run. Cost should be similar though.)
+
+Cost expectation: rough estimate based on v5 pricing (~$0.006/wakeup), a 500-wakeup v6 run = ~$3. Fits well within budget.
