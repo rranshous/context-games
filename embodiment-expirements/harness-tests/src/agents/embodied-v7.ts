@@ -416,16 +416,33 @@ async function callOpenRouter(model: string, system: string, messages: ORMessage
   return resp.json();
 }
 
-// ── Tool definitions (built per-wake-turn from current soma) ──
+// ── Tool definitions (built per wake from current soma) ──
+
+// Handler-managed sections don't get LLM edit tools. The principle:
+// a section with a handler managing it is edited by editing the handler.
+//
+//   - inner_voice is written by on_wake   → edit on_wake to change voice capture
+//   - memory      is written by on_death / on_score / on_tick → edit those
+//   - history     is written by on_tick   → edit on_tick to change history keeping
+//
+// Keeping edit tools for these three was actively misleading in testing:
+// Adam used edit_inner_voice as a substitute for speaking (putting his
+// voice in the tool's content arg instead of the assistant turn's text
+// content), which produced silent ticks that looped with identical
+// content tick after tick. Removing the tool forces voice to be exhaled
+// through text, which is what speaking actually is.
+const HANDLER_MANAGED = new Set<string>(['inner_voice', 'memory', 'history']);
 
 type ORTool = { type: 'function'; function: { name: string; description: string; parameters: any } };
 
 function buildToolsForSoma(soma: Soma): ORTool[] {
   const tools: ORTool[] = [];
 
-  // One edit tool per existing section. Built-ins first, then dynamic.
+  // One edit tool per existing section — EXCEPT handler-managed sections.
+  // Built-ins first, then dynamic.
   for (const name of BUILT_IN_SECTIONS) {
     if (!soma.has(name)) continue;
+    if (HANDLER_MANAGED.has(name)) continue;
     tools.push({
       type: 'function',
       function: {
@@ -610,7 +627,11 @@ function createV7Agent(opts: V7Options): Agent {
               resultText = `Removed section "${fnArgs.name}".`;
             } else if (fnName.startsWith('edit_')) {
               const sectionName = fnName.slice(5);
-              if (!soma.has(sectionName)) {
+              if (HANDLER_MANAGED.has(sectionName)) {
+                // Should not normally reach here — the tool isn't offered —
+                // but guard against hallucinated tool calls just in case.
+                resultText = `Section "${sectionName}" is managed by a handler; edit the handler (on_wake / on_tick / on_death / on_score / on_spawn) instead of the section directly.`;
+              } else if (!soma.has(sectionName)) {
                 resultText = `Section "${sectionName}" does not exist.`;
               } else if (typeof fnArgs.content !== 'string') {
                 resultText = `Error: edit_${sectionName} requires a "content" string.`;
