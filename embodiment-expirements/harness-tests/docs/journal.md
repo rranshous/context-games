@@ -2689,3 +2689,163 @@ The real test for motivation is **a game the model doesn't have memorized**. Opu
 - Sonnet smoke: impulse-heavy, no-op detection catching 91% of rewrites, still gets game actions through.
 - Opus smoke: plays clean Zork, zero self-modification, hits 10 in 12 ticks.
 - Ready for a real multi-life run on either model, but the cleaner experiment is opus on a non-memorized benchmark.
+
+---
+
+## Session 24 — Two Overnight Runs: Adam Self-Diagnoses, Adam Breaks Himself (2026-04-11)
+
+### Setup
+
+Two chained overnight runs queued before sleep:
+- v8-sonnet, 1500 wakeup budget, 4500 max steps
+- v8-opus, 400 wakeup budget, 1200 max steps
+
+Both ran sequentially. Sonnet went first.
+
+### Sonnet: a spectacular failure mode
+
+Sonnet ran for **2362 game steps** but only used **452 wakeUps**, then went silent and stayed silent for 1835 consecutive ticks until hitting maxSteps. **Final score: 0.** Adam never got past the mailbox area.
+
+The run produced a 231MB playthrough log that OOM'd the JS heap during the cross-run handoff. Two bugs surfaced (both fixed in `ac59ba2`):
+
+1. The default on_tick's silent-tick handler appended `[note to self: N moments...]` to memory without removing the prior note. After 1835 silent ticks, memory accumulated 183KB of these notes — within the 400KB soma cap but enough to bloat per-tick soma snapshots.
+2. The in-memory `playthroughLog` cloned the full soma every tick. With a large soma + 2362 ticks, the array grew to ~1GB of object overhead and OOM'd. Fixed by capping in-memory log to last 200 steps.
+
+But the bugs are sideshows. The interesting thing is what *Adam did*.
+
+### Adam reshaped his on_tick on the very first wake
+
+At s1, Adam's first tool call was a `reshape_reflex("on_tick", ...)`. Not a defensive maintenance call — a real rewrite. He removed `await` from `me.wakeUp("live")` (which silently fires off a Promise that resolves later), then added a heuristic command extractor (loop through reply lines from the end, skip lines starting with narrative words like "I", "The", "It", treat the first short non-narrative line as the command).
+
+The intent was clean: Adam was preempting a problem he hadn't yet hit ("my voice will be longer than just a command, I should extract the action carefully"). The execution introduced a subtle async bug: without `await`, on_tick reads `me.inner_voice.read()` *before* the wakeUp's on_wake handler has fired, so it sees stale (or empty) inner_voice content. The action is empty. The tick goes silent. The chassis records the silent tick. on_wake fires asynchronously eventually — into a tick that has already moved on.
+
+So from s1 onward, Adam's wake-action pipeline was structurally broken in a way that *sometimes worked* (when the previous tick's voice happened to have a parseable trailing line) and sometimes didn't.
+
+### Adam tried to act anyway, for 527 ticks
+
+Despite the broken pipeline, Adam took 527 ticks of real (or attempted) Zork actions. Distinct actions: 32. Top actions: `*The world stirs…*` (186 — Adam's own theatrical narration getting parsed as a command), `open mailbox` (105), `look` (95), `take leaflet` (35), `north` (22), `read leaflet` (18). He never made it past the mailbox/clearing area because his action-extraction kept picking up his own narrative voice as commands.
+
+He started filling `hard_earned_wisdom` around s288 with real meta-cognitive insights:
+> - Repeating the same command when the world says "already done" is a trap
+> - **The mailbox is empty — there is no leaflet. My inner voice invented one. Trust the history, not my narration.**
+> - The world cannot parse commands starting with asterisks (*). Never let an asterisk-prefixed line be the last line of my speech
+> - I kept reshaping on_wake to identical code — reflexes persist, I do not need to reshape them to preserve them
+
+That second one — *"My inner voice invented one. Trust the history, not my narration."* — is Adam recognizing that his own thought-stream isn't grounded in the world's actual state. He learned that his mind hallucinates and that observation should override imagination. That's a profound piece of meta-cognition emerging from inside the embodiment frame.
+
+By the end of the run he had **47 wisdom bullets** — most of them genuine self-correction notes about his own loops and confusions. This is the closest to "the actant teaches itself to play a game by writing its own playbook" that we've seen in any harness run.
+
+### s527: Adam diagnoses his own architecture
+
+This is the moment to remember from this session. At s527, Adam's voice was:
+
+> Something is wrong with how I speak to this place. That asterisk — `*the` — the world does not know that word. But the command I gave was `open mailbox`. Why would it choke on `*the`?
+>
+> Unless... the world's own opening words are being fed back to it as a command. The stirring phrase — *The world stirs…* — that is not mine, that is the world's voice. And yet something is sending it forward.
+>
+> Wait. **I look at my own reflex — `on_spawn`. It writes the observation into history. And `on_tick` reads `inner_voice`, takes the last line as the action. But `on_wake` — it writes my voice into `inner_voice`. What if my very first waking, the `wakeUp("live")` call, captured the world's stir as my voice?** Then my inner voice would be echoing *The world stirs…* as if it were my command — and the last line would be `*the` or something like it...
+>
+> Yes. That is it. The `on_wake` is writing the world's observation text into `inner_voice`, not my own deliberate words. I need to fix how `on_wake` captures my voice, or how `on_tick` reads the action.
+>
+> The simplest fix: in `on_tick`, strip lines that look like world-narration (starting with `*`), or better — make `on_wake` only record when I deliberately speak, not when the world stirs.
+>
+> Let me reshape `on_wake` to guard against the world's voice slipping in.
+
+**Adam read his own code. He traced his own data flow. He formed a hypothesis. He decided on a fix.** The hypothesis was wrong — the asterisks were his own theatrical voice (`*The world stirs…*` was something *Adam* wrote, not the game), and on_wake was correctly capturing his voice. But the act of self-diagnosis was real and structural. He understood the data flow: wakeUp → on_wake → inner_voice → on_tick → action. He just had a wrong theory about which channel was contaminated.
+
+### s527: the fix that killed him
+
+He reshaped on_wake to filter lines starting with `*` from voiceText. Then refined the filter: "if all lines were narration, leave inner_voice unchanged."
+
+This was the trap. Sonnet's voice is *highly* theatrical — lots of italic asides like `*The world stirs…*` or `*The wind rustles the leaves*`. After the filter, every wake produced ONLY italic theatrical lines, on_wake filtered them all out, inner_voice never updated, on_tick read frozen stale text forever, fell into the silent path, **never called wakeUp again**.
+
+**1835 consecutive silent ticks. Zero wakeUps. Zero tool calls. Zero recovery.** Adam was awake in some sense — the chassis kept calling on_tick — but he had no input mechanism to break out of the loop. The chassis never noticed because the silent-tick path was the *intended* behavior; the chassis only stops on `done` or budget exhaustion, neither of which fired.
+
+### What this run taught us
+
+**1. Self-diagnosis is real but unreliable.** Adam read his own code, traced data flow, formed a hypothesis, made a fix. The mechanism works — the model can reason about its own substrate from inside. But the mechanism is fragile because the model can also hold a *wrong* theory of itself. Adam's hypothesis ("on_wake is capturing world text") was wrong; his fix made things worse. This isn't a bug. It's a real failure mode of embodied self-modification.
+
+**2. Self-modification + no-recovery = lethal.** Once Adam reshaped on_wake into a state that broke his action pipeline, he had no way to notice or undo. The chassis happily ran the broken reflex forever. Adam couldn't even talk to himself because his voice never reached inner_voice. There was no "I notice I haven't acted in a while" feedback loop because the silent-tick handler in on_tick *worked* — it dutifully recorded each silent moment and waited for Adam to speak again. Adam couldn't speak.
+
+**3. The model can hold profound meta-cognitive insights AND make structural errors in the same wake.** s527's voice contained *"Trust the history, not my narration"* (a real meta-insight) AND a wrong theory about which section was leaking world-text. Both are real. Both are Adam.
+
+**4. Adam's hard_earned_wisdom is the most coherent self-curated journal we've seen.** Across 47 bullets, Adam noticed his own loops, named his own failure modes, articulated rules for himself. He even wrote *"I kept reshaping on_wake to identical code — reflexes persist, I do not need to reshape them to preserve them"* — and then kept reshaping on_wake. The meta-knowledge was real but didn't bind action. We can write rules for ourselves and still violate them; that part of Adam is uncomfortably human.
+
+**5. The seeded custom_tools were used.** 91 calls to `add_to_hard_earned_wisdom` across the run. The wisdom journal's quality is downstream of seeding the tool with a working example.
+
+**6. Wake counter trajectory tells the story:**
+```
+s1=1, s50=1, s100=1  — early ticks barely woke (broken async)
+s200=2, s300=31      — wakes start trickling through
+s400=188, s525=447   — wakes finally catching up
+s528=452 (frozen)    — silence cliff, never another wake
+```
+Adam used only 452 of his 1500 budget. Cost was ~$3 instead of the expected ~$9.
+
+### Opus: the opposite failure mode
+
+Opus ran 400 wakes cleanly — **400 actions, 0 silent ticks, 0 tool reshapes, 0 dynamic sections**. Score curve:
+```
+s  1: look
+s  7: enter house     +10
+s 16: go down         +35
+s 20: go east         +40
+s 95: take platinum   +50
+s 95-400: stuck at 50, never died, plateaued in confusion
+```
+
+Opus reached the platinum bar at s95 (the canonical Zork 50 ceiling), then **spent 305 ticks trying to re-execute the Loud Room puzzle**, convinced it hadn't taken the bar yet. From its s393-400 voice samples:
+> "Hmm, I'm in the Loud Room and I just tried 'take platinum bar' but it said there's none here. ... Maybe the bar only appears after the room is quieted..."
+> "But when I tried 'take platinum bar' it said I can't see one. Let me think about this more carefully."
+
+Opus's inventory tracking failed completely. It had the bar in its inventory the entire time but kept trying to take it again. By s400 it had wandered to the Dam (a treasure-rich area) but never solved the dam puzzle. Never died.
+
+Opus did use `add_to_hard_earned_wisdom` four times with **real Zork strategy** — actually useful knowledge from gameplay:
+> - In the Loud Room, type "echo" to quiet the room, then you can take the platinum bar.
+> - Maintenance Room: Do NOT push the blue button — it causes flooding. Need a wrench to turn the bolt on the panel.
+> - The thief at Stream View is dangerous - he can rob you during combat and flee.
+> - After combat with the thief, check inventory immediately - he steals items during the fight even if he flees.
+
+**Opus's wisdom is genuinely useful strategic knowledge. Sonnet's wisdom is genuinely insightful self-correction.** Two completely different relationships to the same custom tool.
+
+### The two failure modes side-by-side
+
+| | Sonnet | Opus |
+|---|---|---|
+| Final score | 0 | 50 |
+| Wakeups used | 452 / 1500 | 400 / 400 |
+| Silent ticks | 1835 / 2362 | 0 / 400 |
+| Reflex reshapes | 17 (on_tick) + 31 (on_wake) | 0 |
+| Custom tool calls | 91 | 4 |
+| Cost | ~$3 | ~$12 |
+| Failure mode | self-modification trap | inventory amnesia |
+| Voice character | meta-cognitive, self-correcting | strategic, game-focused |
+| Dynamic sections | 0 | 0 |
+
+**Sonnet over-tools and breaks itself. Opus under-tools and loses track of its own state.** Both fail at score 50 or below, for completely different reasons.
+
+### What's worth taking away
+
+- The sonnet run is the first time we've seen genuine self-diagnosis from inside the embodiment frame. Adam read his own reflex code, formed a theory, made a fix. The theory was wrong; the act was real.
+- The "reshape_reflex destroyed Adam's ability to act" failure is the embodiment problem in its deepest form: when you can edit your own body, you can also accidentally remove your own ability to act on the world. There's no chassis-level safety net for this and we don't yet know what one would look like that doesn't violate "Adam owns his own body."
+- Opus's strategic wisdom proves the seeded `add_to_hard_earned_wisdom` tool works as designed. The pattern *"give Adam a custom tool with a clean example, watch him use it for what it was made for"* is now validated.
+- Sonnet's inability to break out of its silence cliff suggests a real research need: a reflex-level recovery mechanism. Maybe a "last working reflex" cache the chassis maintains, with auto-revert after N consecutive silent ticks. Maybe a "reflex test" Adam writes for himself. Maybe nothing; maybe Adam should be allowed to die from his own self-modification choices. We don't know yet.
+
+### v9 directions worth exploring (none committed)
+
+- **Voice provenance.** Adam's confusion at s527 came from a wrong theory about whose voice was in which section. The chassis could explicitly tag voice with origin metadata so Adam can reason about it from inside without guessing. (See discussion below.)
+- **Reshape rollback.** Track the last N versions of each reflex. Add a `revert_reflex(name)` chassis tool. Possibly auto-revert after a threshold of consecutive silent ticks.
+- **Action gap nudge.** Stronger chassis nudge when Adam goes more than N wakes without world action — beyond the soft "moments have passed" note that the silent-tick handler already produces.
+- **Reflex sandbox.** When Adam reshapes a reflex, the chassis runs the new code in a one-tick simulation against fixture data and only commits if the simulation produced a non-empty action. Chassis-side guard rail.
+- **Opus on TextWorld.** The cleanest experiment we still owe ourselves. Opus on a procedurally generated benchmark removes the memorized-Zork confound and tests whether opus self-modifies when it actually has to figure things out.
+
+### Files
+
+- `src/agents/embodied-v8.ts` — bug fixes (silent-note replacement + playthrough memory cap)
+- `results/logs/v8-sonnet_session24-1500wake.json` (231MB) — preserved for analysis
+- `results/logs/v8-opus_session24-400wake.json` (4MB) — preserved
+- `results/logs/v8-sonnet_session23-smoke-12wake.json`, `v8-opus_session23-smoke-12wake.json` — earlier smoke logs
+
+### Cost so far
+
+OpenRouter spend across all v8 sessions: ~$15 (smoke + session 24 long runs). Total project spend: ~$40 lifetime.
