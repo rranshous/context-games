@@ -35,13 +35,221 @@
       line-height: 1.6;
     }
 
+    #page-layout {
+      display: flex;
+      height: 100vh;
+      width: 100%;
+    }
+
     #game-container {
       display: flex;
       flex-direction: column;
       height: 100vh;
+      flex: 1;
+      min-width: 0;
       max-width: 800px;
-      margin: 0 auto;
       padding: 0 16px;
+    }
+
+    /* ─── Inspector Panel ─── */
+    #inspector {
+      width: 420px;
+      flex-shrink: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--bg-subtle);
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    #inspector.collapsed {
+      width: 36px;
+    }
+
+    #inspector-header {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #inspector-header .label {
+      color: var(--accent-dim);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .collapsed #inspector-header .label,
+    .collapsed #inspector-controls {
+      display: none;
+    }
+
+    #inspector-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    #inspector-controls button {
+      background: var(--border);
+      border: 1px solid var(--accent-dim);
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    #inspector-controls button:hover {
+      background: var(--accent-dim);
+      color: var(--bg);
+    }
+
+    #inspector-controls button.active {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+
+    #inspector-toggle {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+
+    #inspector-toggle:hover {
+      color: var(--accent);
+    }
+
+    #inspector-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .collapsed #inspector-log {
+      display: none;
+    }
+
+    #inspector-log::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #inspector-log::-webkit-scrollbar-track {
+      background: var(--bg-subtle);
+    }
+
+    #inspector-log::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .inspector-entry {
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .inspector-entry-header {
+      padding: 6px 8px;
+      background: var(--bg);
+      color: var(--text-dim);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .inspector-entry-header:hover {
+      color: var(--accent);
+    }
+
+    .inspector-entry-header .turn-label {
+      color: var(--accent-dim);
+      font-weight: 600;
+    }
+
+    .inspector-entry-header .command-label {
+      color: var(--text);
+    }
+
+    .inspector-entry-body {
+      display: none;
+      padding: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .inspector-entry.expanded .inspector-entry-body {
+      display: block;
+    }
+
+    .inspector-section {
+      margin-bottom: 8px;
+    }
+
+    .inspector-section-label {
+      color: var(--accent-dim);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .inspector-section-content {
+      color: var(--text-dim);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+      background: var(--bg);
+      padding: 6px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+    }
+
+    .inspector-section-content.prompt {
+      color: #b0b0c8;
+    }
+
+    .inspector-section-content.response {
+      color: var(--accent);
+    }
+
+    .inspector-section-content.game-output {
+      color: var(--text);
+    }
+
+    .inspector-status {
+      padding: 8px;
+      text-align: center;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    .inspector-status.thinking {
+      color: var(--accent);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
     }
 
     #status-bar {
@@ -178,15 +386,30 @@
   </style>
 </head>
 <body>
-  <div id="game-container">
-    <div id="status-bar">
-      <span class="title">THE REACH</span>
-      <span class="info" id="status-info">INITIALIZING...</span>
+  <div id="page-layout">
+    <div id="game-container">
+      <div id="status-bar">
+        <span class="title">THE REACH</span>
+        <span class="info" id="status-info">INITIALIZING...</span>
+      </div>
+      <div id="output"></div>
+      <div id="input-area">
+        <span id="prompt-char">&gt;</span>
+        <input type="text" id="input" placeholder="what do you do?" autocomplete="off" spellcheck="false" autofocus>
+      </div>
     </div>
-    <div id="output"></div>
-    <div id="input-area">
-      <span id="prompt-char">&gt;</span>
-      <input type="text" id="input" placeholder="what do you do?" autocomplete="off" spellcheck="false" autofocus>
+    <div id="inspector">
+      <div id="inspector-header">
+        <span class="label">Actant Inspector</span>
+        <div id="inspector-controls">
+          <button id="btn-autoplay">Autoplay</button>
+          <button id="btn-step">Step</button>
+        </div>
+        <button id="inspector-toggle">◀</button>
+      </div>
+      <div id="inspector-log">
+        <div class="inspector-status" id="inspector-status">Idle — press Autoplay or Step</div>
+      </div>
     </div>
   </div>
   <script type="module" src="dist/main.js"></script>

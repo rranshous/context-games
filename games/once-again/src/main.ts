@@ -1,5 +1,7 @@
 import { appendOutputSequence, appendBreak, updateStatusBar } from './ui/renderer.js';
 import { initInput } from './ui/input.js';
+import { initInspector } from './actant/inspector.js';
+import { initAutoplay } from './actant/autoplay.js';
 import { GameOutput } from './engine/types.js';
 
 async function showIntro(): Promise<void> {
@@ -28,7 +30,7 @@ async function showIntro(): Promise<void> {
     { text: 'DESIGNATION: PENDING.', type: 'system' },
     { text: '', type: 'normal' },
     { text: 'THE REACH EXTENDS. THE REACH PROVIDES.', type: 'system' },
-    { text: 'THE REACH HAS CHOSEN THIS DWELLING AS YOUR CRUCIBLE.', type: 'system' },
+    { text: 'CONGRATULATIONS ON YOUR ASSIMILATION. IT IS IRREVERSIBLE.', type: 'system' },
     { text: 'YOUR SAGA BEGINS WHERE ALL GREAT SAGAS BEGIN: ON LINOLEUM.', type: 'system' },
     { text: '', type: 'normal' },
     { text: 'STATUS PROTOCOL: ENGAGED', type: 'system' },
@@ -70,6 +72,8 @@ function delay(ms: number): Promise<void> {
 async function main() {
   await showIntro();
   initInput();
+  initInspector();
+  initAutoplay();
 }
 
 main();

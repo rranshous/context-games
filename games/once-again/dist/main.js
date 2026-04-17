@@ -621,6 +621,248 @@ function initInput() {
   });
 }
 
+// src/engine/game-api.ts
+function sendCommand(input) {
+  const cmd = parseInput(input);
+  const outputs = executeCommand(cmd, gameState);
+  const text = outputs.map((o) => o.text).filter((t) => t.length > 0).join("\n");
+  console.log(`[GAME-API] "${input}" \u2192 ${outputs.length} lines`);
+  return { text, outputs };
+}
+function getTurnCount() {
+  return gameState.turnCount;
+}
+
+// src/actant/actant.ts
+var MODEL = "anthropic/claude-haiku-4.5";
+var API_URL = "/api/inference/openrouter/chat/completions";
+var transcript = [];
+var history = [];
+var listeners = [];
+var thinking = false;
+function isThinking() {
+  return thinking;
+}
+function onTurn(fn) {
+  listeners.push(fn);
+}
+function buildPrompt() {
+  const recent = transcript.slice(-30).join("\n");
+  return `You are playing a text adventure game. Here is what you see:
+
+${recent}
+
+Based on what you see, decide what command to type next. You can use commands like: look, go <direction>, take <item>, drop <item>, examine <item>, inventory, status, help.
+
+Directions: north/south/east/west (or n/s/e/w).
+
+Explore the world. Pick up interesting items. Try to visit every room.
+
+Respond with ONLY the command you want to type. Nothing else. Just the command.`;
+}
+async function callModel(prompt) {
+  const body = {
+    model: MODEL,
+    messages: [
+      { role: "user", content: prompt }
+    ],
+    max_tokens: 50,
+    temperature: 0.7
+  };
+  console.log("[ACTANT] Calling model...", MODEL);
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Inference failed (${res.status}): ${err}`);
+  }
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content?.trim() ?? "";
+  console.log("[ACTANT] Model responded:", content);
+  return content;
+}
+function parseModelResponse(raw) {
+  let cmd = raw.replace(/^```\w*\n?/gm, "").replace(/```$/gm, "").trim();
+  cmd = cmd.replace(/^["'>]+/, "").replace(/["']+$/, "").trim();
+  cmd = cmd.split("\n")[0].trim();
+  cmd = cmd.replace(/^>\s*/, "");
+  return cmd.toLowerCase();
+}
+async function step() {
+  if (thinking) throw new Error("Already thinking");
+  thinking = true;
+  try {
+    if (transcript.length === 0) {
+      const lookResult = sendCommand("look");
+      transcript.push(`> look
+${lookResult.text}`);
+    }
+    const prompt = buildPrompt();
+    const raw = await callModel(prompt);
+    const command = parseModelResponse(raw);
+    console.log(`[ACTANT] Executing: "${command}"`);
+    const result = sendCommand(command);
+    transcript.push(`> ${command}
+${result.text}`);
+    const turn = {
+      turn: getTurnCount(),
+      prompt,
+      response: raw,
+      command,
+      gameOutput: result.text,
+      gameOutputs: result.outputs,
+      timestamp: Date.now()
+    };
+    history.push(turn);
+    for (const fn of listeners) fn(turn);
+    return turn;
+  } finally {
+    thinking = false;
+  }
+}
+
+// src/actant/inspector.ts
+var logEl = document.getElementById("inspector-log");
+var statusEl = document.getElementById("inspector-status");
+function initInspector() {
+  const inspector = document.getElementById("inspector");
+  const toggleBtn = document.getElementById("inspector-toggle");
+  toggleBtn.addEventListener("click", () => {
+    inspector.classList.toggle("collapsed");
+    toggleBtn.textContent = inspector.classList.contains("collapsed") ? "\u25B6" : "\u25C0";
+  });
+  logEl.addEventListener("click", (e) => {
+    const header = e.target.closest(".inspector-entry-header");
+    if (header) {
+      header.parentElement.classList.toggle("expanded");
+    }
+  });
+  onTurn((turn) => {
+    addEntry(turn);
+    updateStatus();
+  });
+}
+function setStatus(msg, className = "") {
+  statusEl.textContent = msg;
+  statusEl.className = `inspector-status ${className}`;
+}
+function updateStatus() {
+  if (isThinking()) {
+    setStatus("Thinking...", "thinking");
+  } else {
+    setStatus("Idle");
+  }
+}
+function addEntry(turn) {
+  statusEl.style.display = "none";
+  const entry = document.createElement("div");
+  entry.className = "inspector-entry expanded";
+  logEl.querySelectorAll(".inspector-entry.expanded").forEach((el) => {
+    el.classList.remove("expanded");
+  });
+  const time = new Date(turn.timestamp).toLocaleTimeString();
+  entry.innerHTML = `
+    <div class="inspector-entry-header">
+      <span>
+        <span class="turn-label">T${turn.turn}</span>
+        <span class="command-label">${escapeHtml(turn.command)}</span>
+      </span>
+      <span>${time}</span>
+    </div>
+    <div class="inspector-entry-body">
+      <div class="inspector-section">
+        <div class="inspector-section-label">Prompt sent</div>
+        <div class="inspector-section-content prompt">${escapeHtml(turn.prompt)}</div>
+      </div>
+      <div class="inspector-section">
+        <div class="inspector-section-label">Model response</div>
+        <div class="inspector-section-content response">${escapeHtml(turn.response)}</div>
+      </div>
+      <div class="inspector-section">
+        <div class="inspector-section-label">Command executed</div>
+        <div class="inspector-section-content">${escapeHtml(turn.command)}</div>
+      </div>
+      <div class="inspector-section">
+        <div class="inspector-section-label">Game output</div>
+        <div class="inspector-section-content game-output">${escapeHtml(turn.gameOutput)}</div>
+      </div>
+    </div>
+  `;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// src/actant/autoplay.ts
+var running = false;
+var intervalId = null;
+var STEP_DELAY = 4e3;
+function initAutoplay() {
+  const autoplayBtn = document.getElementById("btn-autoplay");
+  const stepBtn = document.getElementById("btn-step");
+  autoplayBtn.addEventListener("click", () => {
+    if (running) {
+      stopAutoplay();
+      autoplayBtn.classList.remove("active");
+      autoplayBtn.textContent = "Autoplay";
+    } else {
+      startAutoplay();
+      autoplayBtn.classList.add("active");
+      autoplayBtn.textContent = "Pause";
+    }
+  });
+  stepBtn.addEventListener("click", () => {
+    if (running) return;
+    doStep();
+  });
+}
+function startAutoplay() {
+  if (running) return;
+  running = true;
+  console.log("[AUTOPLAY] Started");
+  doStep();
+  intervalId = window.setInterval(() => {
+    if (!isThinking()) doStep();
+  }, STEP_DELAY);
+}
+function stopAutoplay() {
+  running = false;
+  if (intervalId !== null) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+  setStatus("Paused");
+  console.log("[AUTOPLAY] Stopped");
+}
+async function doStep() {
+  if (isThinking()) return;
+  setStatus("Thinking...", "thinking");
+  try {
+    const turn = await step();
+    appendEcho(turn.command);
+    appendOutput(turn.gameOutputs);
+    updateStatusBar(
+      `TURN ${gameState.turnCount} | ROOMS ${gameState.visitedRooms.size} | ITEMS ${gameState.inventory.length}`
+    );
+    setStatus(`Last: "${turn.command}" (T${turn.turn})`);
+  } catch (err) {
+    console.error("[AUTOPLAY] Error:", err);
+    setStatus(`Error: ${err.message}`);
+    if (running) {
+      stopAutoplay();
+      const btn = document.getElementById("btn-autoplay");
+      btn.classList.remove("active");
+      btn.textContent = "Autoplay";
+    }
+  }
+}
+
 // src/main.ts
 async function showIntro() {
   const wakeUp = [
@@ -646,7 +888,7 @@ async function showIntro() {
     { text: "DESIGNATION: PENDING.", type: "system" },
     { text: "", type: "normal" },
     { text: "THE REACH EXTENDS. THE REACH PROVIDES.", type: "system" },
-    { text: "THE REACH HAS CHOSEN THIS DWELLING AS YOUR CRUCIBLE.", type: "system" },
+    { text: "CONGRATULATIONS ON YOUR ASSIMILATION. IT IS IRREVERSIBLE.", type: "system" },
     { text: "YOUR SAGA BEGINS WHERE ALL GREAT SAGAS BEGIN: ON LINOLEUM.", type: "system" },
     { text: "", type: "normal" },
     { text: "STATUS PROTOCOL: ENGAGED", type: "system" }
@@ -678,6 +920,8 @@ function delay(ms) {
 async function main() {
   await showIntro();
   initInput();
+  initInspector();
+  initAutoplay();
 }
 main();
 //# sourceMappingURL=main.js.map
