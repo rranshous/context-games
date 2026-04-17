@@ -82,3 +82,47 @@ Haiku explored methodically: look → take flashlight → take kitchen knife →
 - Study room needs a post-survival description (what's actually in there?)
 - The SUPER SECRET EXCITING thing that's in the study
 - Growing the actant's capability alongside the world complexity
+
+---
+
+## Session 2 (2026-04-17)
+
+### Tone recalibration — horror → wonder
+Stripped all horror from the house. The house is just your house — normal, familiar, mundane. The System overlay is the only new thing.
+
+**Removed:**
+- Photos watching you / looking at something behind you
+- TV silhouette watching
+- Mirror blinking late
+- Garage shadows pulling back "like caught doing something"
+- Deep shadows under cabinets
+- Flickering lights
+- Stairs "taking longer than they should"
+
+**Kept:**
+- Study door ozone smell + awareness gate (that's gameplay danger, not horror)
+- TV being on with static (mild, "I don't remember leaving it on")
+
+**Softened:**
+- Study awareness text: "feeling like opening a test you didn't study for" instead of "something waiting"
+- Hallway awareness text: "Weird." instead of "Your skin prickles."
+
+**Key principles established:**
+- **Wonder, not horror.** The world got gamified. The MC is seeing things with new eyes, not haunted.
+- **MC has same faculties as before.** No enhanced perception until stats earn it. Woke up the same person, just with a floating status screen.
+- **The System is the weird thing, not the house.** The house doesn't need to also be creepy.
+- **Outside should feel like discovery.** Stepping outside isn't "the world changed horribly" — it's seeing familiar things through the System lens for the first time.
+- **Encounters can be threatening but not horror-scary.** LitRPG-scary ("that thing has more Edge than me") not haunted-house-scary.
+
+### Design direction for outside
+- Open neighborhood — streets, houses, park, corner store. Go wherever.
+- The System treats everything equally inside and out. Not "more present" outside.
+- Inspect mechanic gated behind stats — can inspect the mailbox, the oak tree, etc.
+- Monsters/encounters exist but are threats, not horror. "Something in Mr. Patterson's yard."
+- LitRPG sandbox feel — no quest arrow, just explore.
+
+### What's next
+- Sketch neighborhood locations before coding
+- Study post-survival content (the SUPER SECRET EXCITING thing)
+- Inspect command gated behind Awareness
+- Actant: can it discover `respawn`? Currently stuck dead in the study.
