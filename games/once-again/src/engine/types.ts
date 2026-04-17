@@ -34,7 +34,7 @@ export interface Command {
   fullInput: string;
 }
 
-export type OutputType = 'normal' | 'system' | 'error' | 'narration';
+export type OutputType = 'normal' | 'system' | 'error' | 'narration' | 'death';
 
 export interface GameOutput {
   text: string;

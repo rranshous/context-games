@@ -1,5 +1,5 @@
 import { GameOutput, GameState } from '../engine/types.js';
-import { getRoom, getItem } from '../engine/world.js';
+import { getRoom, getItem, getHallwayDescription, getUpstairsHallDescription } from '../engine/world.js';
 import { moveToRoom, addToInventory, removeFromInventory, getStats } from '../engine/state.js';
 import { Command } from '../engine/types.js';
 
@@ -27,14 +27,24 @@ const EXIT_NAMES: Record<string, string> = {
 
 // ─── COMMANDS ────────────────────────────────────────────────
 
+// Dynamic descriptions that change based on game state
+const dynamicDescriptions: Record<string, (state: GameState) => string> = {
+  hallway: getHallwayDescription,
+  'upstairs-hall': getUpstairsHallDescription,
+};
+
 export function executeLook(state: GameState): GameOutput[] {
   const room = getRoom(state.currentRoom);
   if (!room) return [{ text: 'You are nowhere. This is concerning.', type: 'error' }];
 
+  const description = dynamicDescriptions[state.currentRoom]
+    ? dynamicDescriptions[state.currentRoom](state)
+    : room.description;
+
   const outputs: GameOutput[] = [];
   outputs.push({ text: `— ${room.name} —`, type: 'system' });
   outputs.push({ text: '', type: 'normal' });
-  outputs.push({ text: room.description, type: 'normal' });
+  outputs.push({ text: description, type: 'normal' });
 
   if (room.items.length > 0) {
     outputs.push({ text: '', type: 'normal' });
@@ -66,17 +76,16 @@ export function executeGo(state: GameState, direction: string): GameOutput[] {
   const targetId = room.exits[dir] || room.exits[direction];
 
   if (!targetId) {
-    // Special messages for specific blocked directions
-    if (dir === 'up' && state.currentRoom === 'hallway') {
-      return [{
-        text: 'You look up the stairs. Your feet refuse to move. Not yet. You\'re not ready. You don\'t know how you know this, but you know it the way you know your own name.',
-        type: 'narration',
-      }];
-    }
     return [{ text: 'You can\'t go that way.', type: 'normal' }];
   }
 
   const outputs = moveToRoom(state, targetId);
+
+  // Death stops the game — don't append look
+  if (state.flags.dead) {
+    return outputs;
+  }
+
   outputs.push(...executeLook(state));
   return outputs;
 }
@@ -216,6 +225,10 @@ export function executeUnknown(verb: string): GameOutput[] {
 // ─── DISPATCH ────────────────────────────────────────────────
 
 export function executeCommand(cmd: Command, state: GameState): GameOutput[] {
+  if (state.flags.dead) {
+    return [{ text: 'You are dead. The story is over. Refresh to try again.', type: 'death' }];
+  }
+
   state.turnCount++;
   console.log(`[TURN ${state.turnCount}] Command: "${cmd.verb}${cmd.noun ? ' ' + cmd.noun : ''}" | Room: ${state.currentRoom} | Inventory: [${state.inventory.join(', ')}]`);
 

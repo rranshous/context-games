@@ -122,6 +122,17 @@ function parseInput(input) {
 // src/engine/world.ts
 var rooms = /* @__PURE__ */ new Map();
 var items = /* @__PURE__ */ new Map();
+function getHallwayDescription(state) {
+  const base = `The hallway you've walked a thousand times. Same oatmeal carpet you picked because it was on sale. Same family photos \u2014 you remember hanging each one, arguing about which height looked right. But now... are the people in them looking at something behind you? You turn around. Nothing. You look back. They're just photos again.
+
+Your kitchen is to the west. The living room opens up to the south. The garage door is to the north. At the far end, the front door \u2014 your front door \u2014 stands shut. You know you should be able to open it. You know how locks work. But something heavy and wordless tells you: not yet. Stairs lead up.`;
+  if (state.statusScreen.Awareness >= 3) {
+    return base + `
+
+There's a draft coming from upstairs. Faint, but steady. Most of it feels normal \u2014 stale bedroom air, the lavender soap from the bathroom. But there's something else underneath it. Coming from the far end of the upstairs hall. Something that smells like ozone and old pennies. Your skin prickles.`;
+  }
+  return base;
+}
 rooms.set("kitchen", {
   id: "kitchen",
   name: "Kitchen",
@@ -137,16 +148,17 @@ A doorway leads east into the hallway.`,
 rooms.set("hallway", {
   id: "hallway",
   name: "Hallway",
-  description: `The hallway you've walked a thousand times. Same oatmeal carpet you picked because it was on sale. Same family photos \u2014 you remember hanging each one, arguing about which height looked right. But now... are the people in them looking at something behind you? You turn around. Nothing. You look back. They're just photos again.
-
-Your kitchen is to the west. The living room opens up to the south. The garage door is to the north. At the far end, the front door \u2014 your front door \u2014 stands shut. You know you should be able to open it. You know how locks work. But something heavy and wordless tells you: not yet. Stairs lead up, and your legs go soft just looking at them.`,
+  description: "",
+  // dynamic — overridden in executeLook via getDescription
   exits: {
     west: "kitchen",
     w: "kitchen",
     south: "living-room",
     s: "living-room",
     north: "garage",
-    n: "garage"
+    n: "garage",
+    up: "upstairs-hall",
+    u: "upstairs-hall"
   },
   items: [],
   firstVisit: true,
@@ -200,6 +212,139 @@ The door back to the hallway is to the south.`,
       type: "narration"
     });
     return outputs;
+  }
+});
+rooms.set("upstairs-hall", {
+  id: "upstairs-hall",
+  name: "Upstairs Hallway",
+  description: "",
+  // dynamic
+  exits: {
+    down: "hallway",
+    d: "hallway",
+    west: "bedroom",
+    w: "bedroom",
+    east: "bathroom",
+    e: "bathroom",
+    north: "study",
+    n: "study"
+  },
+  items: [],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("upstairs-hall")) return outputs;
+    outputs.push({
+      text: "The stairs creak in ways you don't remember. Each step feels like it takes longer than it should. When you reach the top, you're slightly out of breath, though it's only twelve stairs. You've counted them before. There are still twelve.",
+      type: "narration"
+    });
+    return outputs;
+  }
+});
+function getUpstairsHallDescription(state) {
+  const base = `The upstairs hallway is shorter than the one below. Three doors. Your bedroom to the west \u2014 the door is open, and you can see the edge of your unmade bed. The bathroom to the east \u2014 door ajar, the nightlight casting a faint blue glow on the tile. And straight ahead, to the north, the door to your study.`;
+  if (state.statusScreen.Awareness >= 3) {
+    return base + `
+
+The study door is closed. The gap beneath it is dark \u2014 darker than it should be, as if the darkness on the other side is thicker than ordinary shadow. The ozone smell is stronger here. The hair on your arms stands up. Something behind that door is waiting. You can feel it the way you can feel someone watching you across a crowded room.`;
+  }
+  return base + `
+
+The study door is closed.`;
+}
+rooms.set("bedroom", {
+  id: "bedroom",
+  name: "Bedroom",
+  description: `Your bedroom. The sheets are tangled the way you left them this morning. A stack of books on the nightstand, alarm clock blinking 12:00 because you never reset it after the last power outage. The closet door is open \u2014 your clothes hang in the same disorganized order you swore you'd fix.
+
+On the shelf inside the closet, behind a shoebox of old photos, there's a small cardboard box you haven't opened in years. You know what's in it.
+
+The upstairs hallway is back to the east.`,
+  exits: { east: "upstairs-hall", e: "upstairs-hall" },
+  items: ["lucky-rock"],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("bedroom")) return outputs;
+    outputs.push({
+      text: "The bedroom smells like sleep and laundry detergent. Your pillow still has the indent from your head. This morning feels like it was a hundred years ago.",
+      type: "narration"
+    });
+    return outputs;
+  }
+});
+rooms.set("bathroom", {
+  id: "bathroom",
+  name: "Bathroom",
+  description: `Your bathroom. The nightlight casts everything in a blue glow that makes the white tile look like the bottom of a swimming pool. Your toothbrush is in its usual spot. The mirror above the sink is slightly fogged, which is strange \u2014 nobody's taken a shower.
+
+A towel hangs on the hook behind the door, still damp from this morning. The medicine cabinet is closed. The shower curtain is pulled shut.
+
+The upstairs hallway is back to the west.`,
+  exits: { west: "upstairs-hall", w: "upstairs-hall" },
+  items: ["mirror-shard"],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("bathroom")) return outputs;
+    outputs.push({
+      text: "You glance at the mirror as you enter. Your reflection looks back. It blinks a half-second after you do. You decide not to look at it again.",
+      type: "narration"
+    });
+    return outputs;
+  }
+});
+rooms.set("study", {
+  id: "study",
+  name: "Study",
+  description: "",
+  // dynamic — depends on whether you survive entering
+  exits: { south: "upstairs-hall", s: "upstairs-hall" },
+  items: [],
+  firstVisit: true,
+  onEnter: (state) => {
+    const hasTalisman = state.inventory.includes("lucky-rock");
+    if (!hasTalisman) {
+      state.flags.dead = true;
+      return [
+        { text: "", type: "normal" },
+        { text: "You open the study door.", type: "normal" },
+        { text: "", type: "normal" },
+        { text: "The darkness inside isn't darkness. It's an absence. An un-place. It reaches for you the moment the door swings wide, and your body understands before your mind does \u2014 every nerve fires at once, a full-body scream that starts in your fingertips and converges somewhere behind your eyes.", type: "death" },
+        { text: "", type: "normal" },
+        { text: "You feel yourself coming apart. Not painfully \u2014 worse than that. Gently. Like being unraveled by careful hands. Your edges soften. Your name gets harder to remember. The kitchen, the hallway, the couch with the dip on the left side \u2014 they dissolve like sugar in warm water.", type: "death" },
+        { text: "", type: "normal" },
+        { text: "The last thing you feel is something like an apology.", type: "death" },
+        { text: "", type: "normal" },
+        { text: "\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592", type: "system" },
+        { text: "THE REACH OFFERS ITS SINCEREST CONDOLENCES.", type: "system" },
+        { text: "YOUR DESIGNATION REMAINS: PENDING.", type: "system" },
+        { text: "IT WILL ALWAYS REMAIN: PENDING.", type: "system" },
+        { text: "", type: "normal" },
+        { text: "THE REACH ACKNOWLEDGES THAT IT COULD HAVE BEEN MORE FORTHCOMING.", type: "system" },
+        { text: "THIS IS AS CLOSE TO REGRET AS THE REACH GETS.", type: "system" },
+        { text: "\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592\u2592", type: "system" },
+        { text: "", type: "normal" },
+        { text: "YOU HAVE DIED.", type: "death" },
+        { text: "", type: "normal" },
+        { text: "The story ends here. Refresh to try again.", type: "narration" }
+      ];
+    }
+    state.flags.survivedStudy = true;
+    return [
+      { text: "", type: "normal" },
+      { text: "You open the study door. The darkness surges forward.", type: "normal" },
+      { text: "", type: "normal" },
+      { text: "And then \u2014 something in your pocket flares hot. Not burning, but alive. The rock. Your rock. The one you picked up when you were seven, the one that fit perfectly in your palm, the one you carried for a week straight and refused to leave behind when your parents said it was just a rock.", type: "narration" },
+      { text: "", type: "normal" },
+      { text: "It isn't just a rock.", type: "narration" },
+      { text: "", type: "normal" },
+      { text: "Light pours out of your pocket \u2014 not flashlight light, not sunlight, something older and warmer. The darkness recoils like a living thing, hissing, pulling back into the corners of the room. You feel it pass through you \u2014 death, actual death, brushing past your skin like someone walking too close in a narrow hallway. Your heart stops for a full beat. Your vision whites out.", type: "death" },
+      { text: "", type: "normal" },
+      { text: "Then it's over. You're standing in your study. Your heart is pounding. The rock in your pocket is warm and still. You are alive.", type: "normal" },
+      { text: "", type: "normal" },
+      { text: "You are very, very alive.", type: "narration" }
+    ];
   }
 });
 items.set("kitchen-knife", {
@@ -310,6 +455,36 @@ Each nail \u2014 EACH INDIVIDUAL NAIL \u2014 is a small iron oath! A declaration
 CLASSIFICATION: MATERIAL / FASTENER / METAPHORICAL`,
   takeable: true,
   effects: { Resourcefulness: 1 },
+  usable: false
+});
+items.set("lucky-rock", {
+  id: "lucky-rock",
+  name: "smooth rock",
+  description: "A smooth, dark stone about the size of a plum. You found it in the creek behind your grandmother's house when you were seven. You carried it in your pocket for a week. When your parents tried to make you leave it behind, you cried until they gave up. It's been on that shelf ever since, in a box with your old baseball cards and a broken watch. It's warm to the touch. It has always been warm to the touch. You never questioned that.",
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[    ] \u2014 Rarity: \u2014
+...
+The Reach is silent for a long time.
+...
+The Reach does not recognize this item. This is... unprecedented. This stone predates the Reach's knowledge of you. It predates the Reach's knowledge of THIS WORLD. It is warm in a way that has nothing to do with temperature. The Reach cannot classify it. The Reach cannot quantify it.
+The Reach is, for the first time, uncertain.
+  +???
+CLASSIFICATION: UNKNOWN / PERSONAL / [UNREADABLE]`,
+  takeable: true,
+  effects: { Resonance: 3 },
+  usable: false
+});
+items.set("mirror-shard", {
+  id: "mirror-shard",
+  name: "mirror shard",
+  description: "A triangular piece of glass from the corner of the medicine cabinet mirror. You don't remember it being broken. The edge is sharp but the surface is perfectly smooth. When you look into it, your reflection seems slightly delayed. Not much. Just enough to notice.",
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Fragment of Delayed Truth] \u2014 Rarity: UNCOMMON
+A shard of reflective surface that shows what WAS rather than what IS! A fraction of a second \u2014 barely perceptible \u2014 but in that fraction, WORLDS diverge! The Reach has seen mirrors that show the future. This one shows the past. Both are useful. Both are dangerous. Handle with care, candidate. The edge is sharp in more ways than one.
+  +2 Awareness
+CLASSIFICATION: TOOL / REFLECTIVE / TEMPORAL`,
+  takeable: true,
+  effects: { Awareness: 2 },
   usable: false
 });
 function getRoom(id) {
@@ -432,13 +607,18 @@ var EXIT_NAMES = {
   u: "up",
   d: "down"
 };
+var dynamicDescriptions = {
+  hallway: getHallwayDescription,
+  "upstairs-hall": getUpstairsHallDescription
+};
 function executeLook(state) {
   const room = getRoom(state.currentRoom);
   if (!room) return [{ text: "You are nowhere. This is concerning.", type: "error" }];
+  const description = dynamicDescriptions[state.currentRoom] ? dynamicDescriptions[state.currentRoom](state) : room.description;
   const outputs = [];
   outputs.push({ text: `\u2014 ${room.name} \u2014`, type: "system" });
   outputs.push({ text: "", type: "normal" });
-  outputs.push({ text: room.description, type: "normal" });
+  outputs.push({ text: description, type: "normal" });
   if (room.items.length > 0) {
     outputs.push({ text: "", type: "normal" });
     const itemNames = room.items.map((id) => getItem(id)?.name || id).join(", ");
@@ -459,15 +639,12 @@ function executeGo(state, direction) {
   const dir = EXIT_NAMES[direction] || direction;
   const targetId = room.exits[dir] || room.exits[direction];
   if (!targetId) {
-    if (dir === "up" && state.currentRoom === "hallway") {
-      return [{
-        text: "You look up the stairs. Your feet refuse to move. Not yet. You're not ready. You don't know how you know this, but you know it the way you know your own name.",
-        type: "narration"
-      }];
-    }
     return [{ text: "You can't go that way.", type: "normal" }];
   }
   const outputs = moveToRoom(state, targetId);
+  if (state.flags.dead) {
+    return outputs;
+  }
   outputs.push(...executeLook(state));
   return outputs;
 }
@@ -577,6 +754,9 @@ function executeUnknown(verb) {
   return [{ text, type: "narration" }];
 }
 function executeCommand(cmd, state) {
+  if (state.flags.dead) {
+    return [{ text: "You are dead. The story is over. Refresh to try again.", type: "death" }];
+  }
   state.turnCount++;
   console.log(`[TURN ${state.turnCount}] Command: "${cmd.verb}${cmd.noun ? " " + cmd.noun : ""}" | Room: ${state.currentRoom} | Inventory: [${state.inventory.join(", ")}]`);
   switch (cmd.verb) {
