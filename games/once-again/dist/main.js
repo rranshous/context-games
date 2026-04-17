@@ -918,27 +918,22 @@ function isThinking() {
 function onTurn(fn) {
   listeners.push(fn);
 }
+function getScreenText() {
+  const outputEl2 = document.getElementById("output");
+  return outputEl2?.innerText ?? "";
+}
 function buildPrompt() {
-  const recent = transcript.slice(-30).join("\n");
-  return `You are playing a text adventure game. Here is what you see:
-
-${recent}
-
-Based on what you see, decide what command to type next. You can use commands like: look, go <direction>, take <item>, drop <item>, examine <item>, inventory, status, help.
-
-Directions: north/south/east/west (or n/s/e/w).
-
-Explore the world. Pick up interesting items. Try to visit every room.
-
-Respond with ONLY the command you want to type. Nothing else. Just the command.`;
+  const screen = transcript.length === 0 ? getScreenText() : transcript.slice(-40).join("\n");
+  return screen + "\n\n>";
 }
 async function callModel(prompt) {
   const body = {
     model: MODEL,
     messages: [
+      { role: "system", content: "You are playing a text adventure. Respond with only a short command (1-4 words). No prose, no narration, no markdown." },
       { role: "user", content: prompt }
     ],
-    max_tokens: 50,
+    max_tokens: 20,
     temperature: 0.7
   };
   console.log("[ACTANT] Calling model...", MODEL);
@@ -958,9 +953,8 @@ async function callModel(prompt) {
   return content;
 }
 function parseModelResponse(raw) {
-  let cmd = raw.replace(/^```\w*\n?/gm, "").replace(/```$/gm, "").trim();
-  cmd = cmd.replace(/^["'>]+/, "").replace(/["']+$/, "").trim();
-  cmd = cmd.split("\n")[0].trim();
+  let cmd = raw.replace(/```[\s\S]*?```/g, "").replace(/^#+\s*/gm, "").replace(/^[*_~`>]+/gm, "").replace(/[*_~`]+$/gm, "").replace(/^["']+|["']+$/g, "").trim();
+  cmd = cmd.split("\n").map((l) => l.trim()).filter((l) => l.length > 0)[0] || "";
   cmd = cmd.replace(/^>\s*/, "");
   return cmd.toLowerCase();
 }
@@ -968,11 +962,6 @@ async function step() {
   if (thinking) throw new Error("Already thinking");
   thinking = true;
   try {
-    if (transcript.length === 0) {
-      const lookResult = sendCommand("look");
-      transcript.push(`> look
-${lookResult.text}`);
-    }
     const prompt = buildPrompt();
     const raw = await callModel(prompt);
     const command = parseModelResponse(raw);

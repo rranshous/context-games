@@ -37,30 +37,25 @@ export function onTurn(fn: ActantListener): void {
 
 // ─── Inference ──────────────────────────────────────────────
 
+function getScreenText(): string {
+  // Grab the actual text from the game output, exactly as the player sees it
+  const outputEl = document.getElementById('output');
+  return outputEl?.innerText ?? '';
+}
+
 function buildPrompt(): string {
-  // Give the actant the recent transcript (last 30 lines to keep context reasonable)
-  const recent = transcript.slice(-30).join('\n');
-
-  return `You are playing a text adventure game. Here is what you see:
-
-${recent}
-
-Based on what you see, decide what command to type next. You can use commands like: look, go <direction>, take <item>, drop <item>, examine <item>, inventory, status, help.
-
-Directions: north/south/east/west (or n/s/e/w).
-
-Explore the world. Pick up interesting items. Try to visit every room.
-
-Respond with ONLY the command you want to type. Nothing else. Just the command.`;
+  const screen = transcript.length === 0 ? getScreenText() : transcript.slice(-40).join('\n');
+  return screen + '\n\n>';
 }
 
 async function callModel(prompt: string): Promise<string> {
   const body = {
     model: MODEL,
     messages: [
+      { role: 'system', content: 'You are playing a text adventure. Respond with only a short command (1-4 words). No prose, no narration, no markdown.' },
       { role: 'user', content: prompt },
     ],
-    max_tokens: 50,
+    max_tokens: 20,
     temperature: 0.7,
   };
 
@@ -85,13 +80,17 @@ async function callModel(prompt: string): Promise<string> {
 }
 
 function parseModelResponse(raw: string): string {
-  // The model should return just a command, but clean it up
-  // Remove any markdown formatting, quotes, extra whitespace
-  let cmd = raw.replace(/^```\w*\n?/gm, '').replace(/```$/gm, '').trim();
-  cmd = cmd.replace(/^["'>]+/, '').replace(/["']+$/, '').trim();
-  // Take only the first line if multi-line
-  cmd = cmd.split('\n')[0].trim();
-  // Remove any leading prompt char
+  // Strip everything that isn't the command
+  let cmd = raw
+    .replace(/```[\s\S]*?```/g, '')     // code blocks
+    .replace(/^#+\s*/gm, '')            // markdown headers
+    .replace(/^[*_~`>]+/gm, '')         // markdown formatting at line start
+    .replace(/[*_~`]+$/gm, '')          // markdown formatting at line end
+    .replace(/^["']+|["']+$/g, '')      // quotes
+    .trim();
+  // Take only the first non-empty line
+  cmd = cmd.split('\n').map(l => l.trim()).filter(l => l.length > 0)[0] || '';
+  // Remove leading prompt char
   cmd = cmd.replace(/^>\s*/, '');
   return cmd.toLowerCase();
 }
@@ -103,12 +102,6 @@ export async function step(): Promise<ActantTurn> {
   thinking = true;
 
   try {
-    // If transcript is empty, do an initial "look"
-    if (transcript.length === 0) {
-      const lookResult = sendCommand('look');
-      transcript.push(`> look\n${lookResult.text}`);
-    }
-
     const prompt = buildPrompt();
     const raw = await callModel(prompt);
     const command = parseModelResponse(raw);
