@@ -400,3 +400,16 @@ export function getAllRooms(): Map<string, Room> {
 export function getAllItems(): Map<string, Item> {
   return items;
 }
+
+// Store original room items for respawn reset
+const originalRoomItems: Record<string, string[]> = {};
+for (const [id, room] of rooms) {
+  originalRoomItems[id] = [...room.items];
+}
+
+export function resetWorld(): void {
+  for (const [id, room] of rooms) {
+    room.items = [...(originalRoomItems[id] || [])];
+    room.firstVisit = true;
+  }
+}

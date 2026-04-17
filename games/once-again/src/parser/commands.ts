@@ -1,5 +1,5 @@
 import { GameOutput, GameState } from '../engine/types.js';
-import { getRoom, getItem, getHallwayDescription, getUpstairsHallDescription } from '../engine/world.js';
+import { getRoom, getItem, getHallwayDescription, getUpstairsHallDescription, resetWorld } from '../engine/world.js';
 import { moveToRoom, addToInventory, removeFromInventory, getStats } from '../engine/state.js';
 import { Command } from '../engine/types.js';
 
@@ -274,12 +274,15 @@ function executeDeadCommand(verb: string, state: GameState): GameOutput[] {
 }
 
 function executeRespawn(state: GameState): GameOutput[] {
-  // Reset the game state
-  state.flags.dead = false;
+  // Full reset — you died, you lose everything
+  resetWorld();
   state.currentRoom = 'kitchen';
-  state.flags.hasRespawned = true;
-  // Keep inventory and stats — you earned those
-  console.log('[RESPAWN] Player respawned with inventory:', state.inventory);
+  state.inventory = [];
+  state.statusScreen = { Edge: 0, Awareness: 0, Resourcefulness: 0, Flexibility: 0, Resonance: 0, '???': 0 };
+  state.visitedRooms = new Set(['kitchen']);
+  state.turnCount = 0;
+  state.flags = { systemInitialized: true, identified: {}, hasRespawned: true };
+  console.log('[RESPAWN] Full reset — back to kitchen with nothing');
 
   return [
     { text: '', type: 'normal' },
@@ -300,7 +303,7 @@ function executeRespawn(state: GameState): GameOutput[] {
     { text: 'DO BETTER THIS TIME.', type: 'system' },
     { text: '', type: 'normal' },
     { text: 'You open your eyes. Kitchen floor. Linoleum. Again.', type: 'normal' },
-    { text: 'Your pockets are still full. At least you kept your stuff.', type: 'narration' },
+    { text: 'Your pockets are empty. Your stats are gone. You remember everything, though. That\'s something.', type: 'narration' },
   ];
 }
 

@@ -490,6 +490,16 @@ function getRoom(id) {
 function getItem(id) {
   return items.get(id);
 }
+var originalRoomItems = {};
+for (const [id, room] of rooms) {
+  originalRoomItems[id] = [...room.items];
+}
+function resetWorld() {
+  for (const [id, room] of rooms) {
+    room.items = [...originalRoomItems[id] || []];
+    room.firstVisit = true;
+  }
+}
 
 // src/engine/state.ts
 function createInitialState() {
@@ -805,10 +815,14 @@ function executeDeadCommand(verb, state) {
   return [{ text: generic[Math.floor(Math.random() * generic.length)], type: "death" }];
 }
 function executeRespawn(state) {
-  state.flags.dead = false;
+  resetWorld();
   state.currentRoom = "kitchen";
-  state.flags.hasRespawned = true;
-  console.log("[RESPAWN] Player respawned with inventory:", state.inventory);
+  state.inventory = [];
+  state.statusScreen = { Edge: 0, Awareness: 0, Resourcefulness: 0, Flexibility: 0, Resonance: 0, "???": 0 };
+  state.visitedRooms = /* @__PURE__ */ new Set(["kitchen"]);
+  state.turnCount = 0;
+  state.flags = { systemInitialized: true, identified: {}, hasRespawned: true };
+  console.log("[RESPAWN] Full reset \u2014 back to kitchen with nothing");
   return [
     { text: "", type: "normal" },
     { text: "...", type: "narration" },
@@ -828,7 +842,7 @@ function executeRespawn(state) {
     { text: "DO BETTER THIS TIME.", type: "system" },
     { text: "", type: "normal" },
     { text: "You open your eyes. Kitchen floor. Linoleum. Again.", type: "normal" },
-    { text: "Your pockets are still full. At least you kept your stuff.", type: "narration" }
+    { text: "Your pockets are empty. Your stats are gone. You remember everything, though. That's something.", type: "narration" }
   ];
 }
 function executeCommand(cmd, state) {
