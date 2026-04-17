@@ -357,16 +357,13 @@ CLASSIFICATION: MATERIAL / FASTENER / METAPHORICAL`,
 items.set('lucky-rock', {
   id: 'lucky-rock',
   name: 'smooth rock',
-  description: 'A smooth, dark stone about the size of a plum. You found it in the creek behind your grandmother\'s house when you were seven. You carried it in your pocket for a week. When your parents tried to make you leave it behind, you cried until they gave up. It\'s been on that shelf ever since, in a box with your old baseball cards and a broken watch. It\'s warm to the touch. It has always been warm to the touch. You never questioned that.',
+  description: 'A smooth, dark stone about the size of a plum. You found it in the creek behind your grandmother\'s house when you were seven. You carried it in your pocket for a week. When your parents tried to make you leave it behind, you cried until they gave up. It\'s been on that shelf ever since, in a box with your old baseball cards and a broken watch. It\'s warm to the touch. It has always been warm to the touch, even in winter, even when the house was freezing. You just always figured rocks were like that.',
   systemDescription: `▒▒▒ ITEM ACQUIRED ▒▒▒
-[    ] — Rarity: —
-...
-The Reach is silent for a long time.
-...
-The Reach does not recognize this item. This is... unprecedented. This stone predates the Reach's knowledge of you. It predates the Reach's knowledge of THIS WORLD. It is warm in a way that has nothing to do with temperature. The Reach cannot classify it. The Reach cannot quantify it.
-The Reach is, for the first time, uncertain.
-  +???
-CLASSIFICATION: UNKNOWN / PERSONAL / [UNREADABLE]`,
+[    ] — Rarity: ∞
+OH. OH YES. NOW THIS — THIS IS SOMETHING! The Reach has catalogued TEN BILLION artifacts across COUNTLESS worlds and THIS — a rock from a creek — THIS is the one that makes the whole system sit up and PAY ATTENTION! Classification? BEYOND CLASSIFICATION! Rarity? THE SCALE DOESN'T GO HIGH ENOUGH! This stone has been waiting on that shelf for YEARS, candidate, tucked behind baseball cards like it was NOTHING, and the whole time it was — it was —
+The Reach STRONGLY RECOMMENDS you keep this on your person AT ALL TIMES. For reasons. EXCELLENT reasons. The BEST reasons. No further questions.
+  +??? +??? +???
+CLASSIFICATION: ██████████ / ██████████`,
   takeable: true,
   effects: { Resonance: 3 },
   usable: false,
