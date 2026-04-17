@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Once Again: Through the Reach</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-subtle: #0f0f18;
+      --text: #c8c8d4;
+      --text-dim: #6a6a7a;
+      --accent: #4fd1c5;
+      --accent-dim: #2a7a72;
+      --error: #e05555;
+      --narration: #8888a0;
+      --border: #1a1a2e;
+      --input-bg: #0d0d16;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    #status-bar {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--accent-dim);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #status-bar .title {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    #status-bar .info {
+      color: var(--text-dim);
+    }
+
+    #output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 4px;
+      scroll-behavior: smooth;
+    }
+
+    #output::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #output::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    #output::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .output-line {
+      margin-bottom: 4px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .output-line.normal {
+      color: var(--text);
+    }
+
+    .output-line.system {
+      color: var(--accent);
+      font-weight: 600;
+      text-shadow: 0 0 8px rgba(79, 209, 197, 0.15);
+    }
+
+    .output-line.error {
+      color: var(--error);
+    }
+
+    .output-line.narration {
+      color: var(--narration);
+      font-style: italic;
+    }
+
+    .output-line.echo {
+      color: var(--text-dim);
+    }
+
+    .output-line + .output-line {
+      margin-top: 2px;
+    }
+
+    .output-break {
+      height: 12px;
+    }
+
+    #input-area {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      padding: 12px 0;
+    }
+
+    #prompt-char {
+      color: var(--accent);
+      font-size: 16px;
+      font-weight: 600;
+      margin-right: 8px;
+      user-select: none;
+    }
+
+    #input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      caret-color: var(--accent);
+    }
+
+    #input::placeholder {
+      color: var(--text-dim);
+      opacity: 0.4;
+    }
+
+    /* Subtle scanline effect */
+    #game-container::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="status-bar">
+      <span class="title">THE REACH</span>
+      <span class="info" id="status-info">INITIALIZING...</span>
+    </div>
+    <div id="output"></div>
+    <div id="input-area">
+      <span id="prompt-char">&gt;</span>
+      <input type="text" id="input" placeholder="what do you do?" autocomplete="off" spellcheck="false" autofocus>
+    </div>
+  </div>
+  <script type="module" src="dist/main.js"></script>
+</body>
+</html>
