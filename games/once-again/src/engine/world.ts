@@ -5,12 +5,12 @@ const items: Map<string, Item> = new Map();
 
 // Helper: get dynamic description based on awareness
 export function getHallwayDescription(state: GameState): string {
-  const base = `The hallway you've walked a thousand times. Same oatmeal carpet you picked because it was on sale. Same family photos — you remember hanging each one, arguing about which height looked right. But now... are the people in them looking at something behind you? You turn around. Nothing. You look back. They're just photos again.
+  const base = `The hallway you've walked a thousand times. Same oatmeal carpet you picked because it was on sale. Same family photos — you remember hanging each one, arguing about which height looked right. Everything looks completely normal. It IS completely normal. Except for the translucent status screen hovering at the edge of your vision.
 
-Your kitchen is to the west. The living room opens up to the south. The garage door is to the north. At the far end, the front door — your front door — stands shut. You know you should be able to open it. You know how locks work. But something heavy and wordless tells you: not yet. Stairs lead up.`;
+Your kitchen is to the west. The living room opens up to the south. The garage door is to the north. At the far end, the front door. Stairs lead up.`;
 
   if (state.statusScreen.Awareness >= 3) {
-    return base + `\n\nThere's a draft coming from upstairs. Faint, but steady. Most of it feels normal — stale bedroom air, the lavender soap from the bathroom. But there's something else underneath it. Coming from the far end of the upstairs hall. Something that smells like ozone and old pennies. Your skin prickles.`;
+    return base + `\n\nYou notice a faint smell drifting down from upstairs. Mostly normal — stale bedroom air, the lavender soap from the bathroom. But there's something else mixed in. Ozone, maybe? Like the air after a thunderstorm. Weird.`;
   }
   return base;
 }
@@ -22,7 +22,7 @@ rooms.set('kitchen', {
   name: 'Kitchen',
   description: `Your kitchen. You know every stain on this countertop, every ring left by a coffee mug you were too lazy to use a coaster for. The fluorescent light hums its same tired hum. Your coffee maker — the one you keep meaning to descale — sits next to a dish rack with yesterday's bowl still in it. The junk drawer is slightly ajar, the way you always leave it because the track is bent.
 
-Everything looks the same. But the air tastes different. Metallic, almost. And the shadows under the cabinets seem... deeper than they should be.
+Everything looks exactly the same as it did this morning. Which makes the floating status screen even weirder.
 
 A doorway leads east into the hallway.`,
   exits: { east: 'hallway', e: 'hallway' },
@@ -46,7 +46,7 @@ rooms.set('hallway', {
     const outputs: GameOutput[] = [];
     if (state.visitedRooms.has('hallway')) return outputs;
     outputs.push({
-      text: 'As you step into the hallway, the fluorescent light flickers once. Just once. Probably nothing.',
+      text: 'The hallway looks exactly the way it always does. Somehow that makes it worse. You keep expecting something to be different.',
       type: 'narration',
     });
     return outputs;
@@ -58,7 +58,7 @@ rooms.set('living-room', {
   name: 'Living Room',
   description: `Your living room. Your couch, with the dip on the left side where you always sit. Your bookshelf, still holding that novel you swore you'd finish. The indent in the carpet from the coffee table is exactly where you pushed it last movie night.
 
-But the TV is on. You didn't leave it on. It's showing static — not the random snow kind, but something with a pulse to it, a slow rhythm, like breathing. And the couch cushions are warm, like someone was just sitting here.
+The TV is on, showing static. You don't remember leaving it on, but you also don't remember a lot about this morning. The remote is on the arm of the couch.
 
 The hallway is back to the north.`,
   exits: { north: 'hallway', n: 'hallway' },
@@ -68,7 +68,7 @@ The hallway is back to the north.`,
     const outputs: GameOutput[] = [];
     if (state.visitedRooms.has('living-room')) return outputs;
     outputs.push({
-      text: 'The TV static shifts as you enter. For just a moment, you could swear you saw a shape in it. A silhouette. Watching.',
+      text: 'You could swear the TV wasn\'t on when you left for work this morning. Then again, you were on the kitchen floor a minute ago, so who knows.',
       type: 'narration',
     });
     return outputs;
@@ -80,7 +80,7 @@ rooms.set('garage', {
   name: 'Garage',
   description: `Your garage. The overhead bulb gives everything that amber tint you've been meaning to fix by switching to LED. Your workbench, still scarred from that shelf project that didn't go great. Half-empty paint cans from when you painted the bedroom. A bike you haven't ridden in two years.
 
-It's darker than it should be. The amber light only reaches so far now, like the corners are pushing it back. And the oil stains on the concrete — you've seen them a hundred times, but right now, in this light, they almost look like they're arranged in a pattern. Almost.
+Just your garage. Completely normal. You're starting to wonder if you hallucinated the whole status screen thing.
 
 The door back to the hallway is to the south.`,
   exits: { south: 'hallway', s: 'hallway' },
@@ -90,7 +90,7 @@ The door back to the hallway is to the south.`,
     const outputs: GameOutput[] = [];
     if (state.visitedRooms.has('garage')) return outputs;
     outputs.push({
-      text: 'The garage light flickers when you enter. The shadows in the corners seem to pull back, just slightly, like they were caught doing something.',
+      text: 'Smells like oil and sawdust. Same as always.',
       type: 'narration',
     });
     return outputs;
@@ -115,7 +115,7 @@ rooms.set('upstairs-hall', {
     const outputs: GameOutput[] = [];
     if (state.visitedRooms.has('upstairs-hall')) return outputs;
     outputs.push({
-      text: 'The stairs creak in ways you don\'t remember. Each step feels like it takes longer than it should. When you reach the top, you\'re slightly out of breath, though it\'s only twelve stairs. You\'ve counted them before. There are still twelve.',
+      text: 'Twelve stairs, same as always. The carpet runner is still coming loose on the third step. You keep meaning to fix that.',
       type: 'narration',
     });
     return outputs;
@@ -126,7 +126,7 @@ export function getUpstairsHallDescription(state: GameState): string {
   const base = `The upstairs hallway is shorter than the one below. Three doors. Your bedroom to the west — the door is open, and you can see the edge of your unmade bed. The bathroom to the east — door ajar, the nightlight casting a faint blue glow on the tile. And straight ahead, to the north, the door to your study.`;
 
   if (state.statusScreen.Awareness >= 3) {
-    return base + `\n\nThe study door is closed. The gap beneath it is dark — darker than it should be, as if the darkness on the other side is thicker than ordinary shadow. The ozone smell is stronger here. The hair on your arms stands up. Something behind that door is waiting. You can feel it the way you can feel someone watching you across a crowded room.`;
+    return base + `\n\nThe study door is closed. You notice a faint smell — ozone, like after a lightning strike. It's coming from under the door. And there's a feeling you can't quite name. Not fear, exactly. More like the feeling right before you open a test you're not sure you studied for.`;
   }
   return base + `\n\nThe study door is closed.`;
 }
@@ -156,7 +156,7 @@ The upstairs hallway is back to the east.`,
 rooms.set('bathroom', {
   id: 'bathroom',
   name: 'Bathroom',
-  description: `Your bathroom. The nightlight casts everything in a blue glow that makes the white tile look like the bottom of a swimming pool. Your toothbrush is in its usual spot. The mirror above the sink is slightly fogged, which is strange — nobody's taken a shower.
+  description: `Your bathroom. The nightlight casts everything in a blue glow that makes the white tile look like the bottom of a swimming pool. Your toothbrush is in its usual spot. The mirror above the sink needs cleaning — you can see the toothpaste flecks from this morning.
 
 A towel hangs on the hook behind the door, still damp from this morning. The medicine cabinet is closed. The shower curtain is pulled shut.
 
@@ -168,7 +168,7 @@ The upstairs hallway is back to the west.`,
     const outputs: GameOutput[] = [];
     if (state.visitedRooms.has('bathroom')) return outputs;
     outputs.push({
-      text: 'You glance at the mirror as you enter. Your reflection looks back. It blinks a half-second after you do. You decide not to look at it again.',
+      text: 'You catch your reflection in the mirror. You look tired. Not surprising, given you just woke up on your kitchen floor.',
       type: 'narration',
     });
     return outputs;
