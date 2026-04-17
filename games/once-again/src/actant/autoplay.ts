@@ -6,7 +6,7 @@ import { setStatus } from './inspector.js';
 let running = false;
 let intervalId: number | null = null;
 
-const STEP_DELAY = 4000; // ms between actant turns
+const STEP_DELAY = 12000; // ms between actant turns
 
 export function initAutoplay(): void {
   const autoplayBtn = document.getElementById('btn-autoplay')!;

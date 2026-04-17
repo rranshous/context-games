@@ -43,6 +43,8 @@ export function moveToRoom(state: GameState, roomId: string): GameOutput[] {
   return outputs;
 }
 
+const MAX_INVENTORY = 5;
+
 export function addToInventory(state: GameState, itemId: string): GameOutput[] {
   const item = getItem(itemId);
   if (!item) {
@@ -51,6 +53,15 @@ export function addToInventory(state: GameState, itemId: string): GameOutput[] {
 
   if (!item.takeable) {
     return [{ text: 'You can\'t take that.', type: 'normal' }];
+  }
+
+  if (state.inventory.length >= MAX_INVENTORY) {
+    return [
+      { text: `Your hands are full. You're already carrying ${state.inventory.length} items.`, type: 'normal' },
+      { text: '', type: 'normal' },
+      { text: `▒▒▒ CAPACITY EXCEEDED ▒▒▒`, type: 'system' },
+      { text: `The Reach APPRECIATES your collector's instinct! TRULY! But even ENHANCED candidates have only TWO HANDS and — at MOST — several pockets! Drop something first. The Reach BELIEVES in you but cannot SUSPEND PHYSICS. Yet.`, type: 'system' },
+    ];
   }
 
   // Remove from room

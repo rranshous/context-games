@@ -361,7 +361,7 @@ items.set('lucky-rock', {
   systemDescription: `▒▒▒ ITEM ACQUIRED ▒▒▒
 [    ] — Rarity: ∞
 OH. OH YES. NOW THIS — THIS IS SOMETHING! The Reach has catalogued TEN BILLION artifacts across COUNTLESS worlds and THIS — a rock from a creek — THIS is the one that makes the whole system sit up and PAY ATTENTION! Classification? BEYOND CLASSIFICATION! Rarity? THE SCALE DOESN'T GO HIGH ENOUGH! This stone has been waiting on that shelf for YEARS, candidate, tucked behind baseball cards like it was NOTHING, and the whole time it was — it was —
-The Reach STRONGLY RECOMMENDS you keep this on your person AT ALL TIMES. For reasons. EXCELLENT reasons. The BEST reasons. No further questions.
+The Reach STRONGLY RECOMMENDS you keep this on your person AT ALL TIMES. For reasons. EXCELLENT reasons. The BEST reasons. Or maybe not. No further questions.
   +??? +??? +???
 CLASSIFICATION: ██████████ / ██████████`,
   takeable: true,

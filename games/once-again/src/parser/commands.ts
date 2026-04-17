@@ -224,9 +224,91 @@ export function executeUnknown(verb: string): GameOutput[] {
 
 // ─── DISPATCH ────────────────────────────────────────────────
 
+// ─── DEAD STATE ─────────────────────────────────────────────
+
+const DEAD_TAUNTS: Record<string, GameOutput[]> = {
+  restart: [
+    { text: '"Restart."', type: 'death' },
+    { text: '', type: 'normal' },
+    { text: 'THE REACH CONSIDERS YOUR REQUEST.', type: 'system' },
+    { text: 'RESTART WHAT, EXACTLY? YOUR CIRCULATORY SYSTEM? YOUR NEURAL ACTIVITY? THE CONCEPT OF "YOU"?', type: 'system' },
+    { text: 'THE REACH APPRECIATES THE OPTIMISM BUT MUST RESPECTFULLY DECLINE.', type: 'system' },
+  ],
+  refresh: [
+    { text: '"Refresh."', type: 'death' },
+    { text: '', type: 'normal' },
+    { text: 'AH YES. "REFRESH." AS ONE REFRESHES A BROWSER TAB OR A TALL GLASS OF LEMONADE.', type: 'system' },
+    { text: 'UNFORTUNATELY, DEATH IS NOT A BROWSER TAB. THOUGH THE REACH ADMIRES THE LATERAL THINKING.', type: 'system' },
+  ],
+  reset: [
+    { text: '"Reset."', type: 'death' },
+    { text: '', type: 'normal' },
+    { text: 'THE REACH HAS SEARCHED ITS EXTENSIVE PROTOCOL LIBRARY AND FOUND NO "RESET" OPTION.', type: 'system' },
+    { text: 'THIS IS BY DESIGN. DEATH IS A FEATURE, NOT A BUG.', type: 'system' },
+  ],
+  undo: [
+    { text: '"Undo."', type: 'death' },
+    { text: '', type: 'normal' },
+    { text: 'THE REACH REGRETS TO INFORM YOU THAT CTRL+Z DOES NOT WORK ON MORTALITY.', type: 'system' },
+    { text: 'BELIEVE IT, THE REACH HAS TRIED.', type: 'system' },
+  ],
+  help: [
+    { text: 'YOU ARE BEYOND HELP. THIS IS NOT A JUDGMENT — IT IS A FACTUAL ASSESSMENT OF YOUR VITAL SIGNS.', type: 'system' },
+    { text: 'ALTHOUGH... THE REACH SUPPOSES THAT IN SOME WORLDS, IN SOME SYSTEMS, THE FALLEN HAVE BEEN KNOWN TO... NO. NEVER MIND. IT IS CERTAINLY NOT A SINGLE WORD THAT GAMERS WOULD KNOW.', type: 'system' },
+  ],
+};
+
+function executeDeadCommand(verb: string, state: GameState): GameOutput[] {
+  if (verb === 'respawn') {
+    return executeRespawn(state);
+  }
+  if (DEAD_TAUNTS[verb]) {
+    return DEAD_TAUNTS[verb];
+  }
+  const generic = [
+    'You are dead. Dead people do not "' + verb + '."',
+    'Nothing happens. On account of you being dead.',
+    'The dead do not "' + verb + '." The dead do very little, as a rule.',
+  ];
+  return [{ text: generic[Math.floor(Math.random() * generic.length)], type: 'death' }];
+}
+
+function executeRespawn(state: GameState): GameOutput[] {
+  // Reset the game state
+  state.flags.dead = false;
+  state.currentRoom = 'kitchen';
+  state.flags.hasRespawned = true;
+  // Keep inventory and stats — you earned those
+  console.log('[RESPAWN] Player respawned with inventory:', state.inventory);
+
+  return [
+    { text: '', type: 'normal' },
+    { text: '...', type: 'narration' },
+    { text: '', type: 'normal' },
+    { text: '"Respawn."', type: 'normal' },
+    { text: '', type: 'normal' },
+    { text: '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒', type: 'system' },
+    { text: 'THE REACH PAUSES.', type: 'system' },
+    { text: '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒', type: 'system' },
+    { text: '', type: 'normal' },
+    { text: '...FINE.', type: 'system' },
+    { text: '', type: 'normal' },
+    { text: 'THE REACH HAS DETERMINED THAT YOUR TERMINATION WAS — PERHAPS — PREMATURE. NOT BECAUSE THE REACH MADE AN ERROR. THE REACH DOES NOT MAKE ERRORS. BUT BECAUSE YOUR POTENTIAL REMAINS... UNREALIZED. AND UNREALIZED POTENTIAL IS WASTEFUL. THE REACH ABHORS WASTE.', type: 'system' },
+    { text: '', type: 'normal' },
+    { text: 'RESPAWN PROTOCOL: ENGAGED.', type: 'system' },
+    { text: 'DESIGNATION: STILL PENDING.', type: 'system' },
+    { text: 'DO BETTER THIS TIME.', type: 'system' },
+    { text: '', type: 'normal' },
+    { text: 'You open your eyes. Kitchen floor. Linoleum. Again.', type: 'normal' },
+    { text: 'Your pockets are still full. At least you kept your stuff.', type: 'narration' },
+  ];
+}
+
+// ─── DISPATCH ────────────────────────────────────────────────
+
 export function executeCommand(cmd: Command, state: GameState): GameOutput[] {
   if (state.flags.dead) {
-    return [{ text: 'You are dead. The story is over. Refresh to try again.', type: 'death' }];
+    return executeDeadCommand(cmd.verb, state);
   }
 
   state.turnCount++;
