@@ -3,6 +3,7 @@ import { requireAuth, requireActive } from '../auth/middleware.js';
 import { checkTokenLimit } from './middleware.js';
 import { proxyAnthropicMessages } from './anthropic.js';
 import { proxyOllamaChat, listOllamaModels } from './ollama.js';
+import { proxyOpenRouterMessages } from './openrouter.js';
 import { getUserTokenUsage, getUserTotalTokens } from '../db/queries.js';
 
 const router: Router = express.Router();
@@ -13,6 +14,9 @@ router.use(requireActive);
 
 // Anthropic routes
 router.post('/anthropic/messages', checkTokenLimit, proxyAnthropicMessages);
+
+// OpenRouter routes (OpenAI-compatible)
+router.post('/openrouter/chat/completions', checkTokenLimit, proxyOpenRouterMessages);
 
 // Ollama routes
 router.post('/ollama/chat', checkTokenLimit, proxyOllamaChat);
