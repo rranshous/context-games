@@ -42,8 +42,9 @@ const DIRECTION_PHRASES: [RegExp, string][] = [
   [/\b(?:go\s+)?back\s+(?:to\s+)?(?:the\s+)?(?:south|s)\b/, 'south'],
   [/\b(?:go\s+)?back\s+(?:to\s+)?(?:the\s+)?(?:east|e)\b/, 'east'],
   [/\b(?:go\s+)?back\s+(?:to\s+)?(?:the\s+)?(?:west|w)\b/, 'west'],
-  [/\b(?:go\s+)?(?:back\s+)?outside\b/, 'east'], // contextual — front door from hallway
-  [/\b(?:go\s+)?(?:back\s+)?inside\b/, 'west'],   // contextual — into house from yard
+  [/\b(?:go\s+)?(?:back\s+)?outside\b/, 'outside'],
+  [/\b(?:go\s+)?(?:back\s+)?inside\b/, 'inside'],
+  [/\b(?:go\s+)?(?:back\s+)?home\b/, 'home'],
 ];
 
 // Phrases that map directly to verbs (no noun needed)

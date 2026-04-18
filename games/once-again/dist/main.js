@@ -153,10 +153,9 @@ var DIRECTION_PHRASES = [
   [/\b(?:go\s+)?back\s+(?:to\s+)?(?:the\s+)?(?:south|s)\b/, "south"],
   [/\b(?:go\s+)?back\s+(?:to\s+)?(?:the\s+)?(?:east|e)\b/, "east"],
   [/\b(?:go\s+)?back\s+(?:to\s+)?(?:the\s+)?(?:west|w)\b/, "west"],
-  [/\b(?:go\s+)?(?:back\s+)?outside\b/, "east"],
-  // contextual — front door from hallway
-  [/\b(?:go\s+)?(?:back\s+)?inside\b/, "west"]
-  // contextual — into house from yard
+  [/\b(?:go\s+)?(?:back\s+)?outside\b/, "outside"],
+  [/\b(?:go\s+)?(?:back\s+)?inside\b/, "inside"],
+  [/\b(?:go\s+)?(?:back\s+)?home\b/, "home"]
 ];
 var VERB_PHRASES = [
   [/^look\s+around/, "look"],
@@ -1008,13 +1007,49 @@ function executeLook(state) {
   }
   return outputs;
 }
+var OUTSIDE_ROOMS = /* @__PURE__ */ new Set([
+  "front-yard",
+  "street-north",
+  "street-south",
+  "hendersons-yard",
+  "park",
+  "corner-store"
+]);
+function resolveSemanticDirection(dir, room, currentRoomId) {
+  if (dir === "outside") {
+    for (const [exitDir, targetId] of Object.entries(room.exits)) {
+      if (exitDir.length > 1 && OUTSIDE_ROOMS.has(targetId)) return exitDir;
+    }
+    return null;
+  }
+  if (dir === "inside" || dir === "home") {
+    for (const [exitDir, targetId] of Object.entries(room.exits)) {
+      if (exitDir.length > 1 && !OUTSIDE_ROOMS.has(targetId)) return exitDir;
+    }
+    return null;
+  }
+  return null;
+}
 function executeGo(state, direction) {
   if (!direction) {
     return [{ text: "Go where?", type: "normal" }];
   }
   const room = getRoom(state.currentRoom);
   if (!room) return [{ text: "You are lost in the void.", type: "error" }];
-  const dir = EXIT_NAMES[direction] || direction;
+  let dir = EXIT_NAMES[direction] || direction;
+  if (dir === "outside" || dir === "inside" || dir === "home") {
+    const resolved = resolveSemanticDirection(dir, room, state.currentRoom);
+    if (!resolved) {
+      if (dir === "outside" && OUTSIDE_ROOMS.has(state.currentRoom)) {
+        return [{ text: "You're already outside.", type: "normal" }];
+      }
+      if ((dir === "inside" || dir === "home") && !OUTSIDE_ROOMS.has(state.currentRoom)) {
+        return [{ text: "You're already inside.", type: "normal" }];
+      }
+      return [{ text: "You can't go that way from here.", type: "normal" }];
+    }
+    dir = resolved;
+  }
   const targetId = room.exits[dir] || room.exits[direction];
   if (!targetId) {
     return [{ text: "You can't go that way.", type: "normal" }];
