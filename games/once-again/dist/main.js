@@ -1039,8 +1039,7 @@ function executeGo(state, direction) {
   let dir = EXIT_NAMES[direction] || direction;
   if (dir === "home") {
     return [
-      { text: '\u2592\u2592\u2592 NAVIGATION QUERY: "HOME" \u2592\u2592\u2592', type: "system" },
-      { text: "Home is where the HEART is, candidate! And YOUR heart is RIGHT HERE! In your chest! Beating! WELCOME HOME!", type: "system" }
+      { text: "Home. You look around. You're standing in your own neighborhood. This is home. Isn't it?", type: "narration" }
     ];
   }
   if (dir === "outside" || dir === "inside") {
@@ -1113,14 +1112,14 @@ function executeExamine(state, noun) {
   const identified = state.flags.identified?.[itemId];
   if (identified) {
     outputs.push({ text: "", type: "normal" });
-    outputs.push({ text: "The System flickers:", type: "narration" });
+    outputs.push({ text: "The System overlay flickers to life:", type: "narration" });
     outputs.push({ text: item.systemDescription, type: "system" });
   }
   return outputs;
 }
 function executeInventory(state) {
   if (state.inventory.length === 0) {
-    return [{ text: "You're not carrying anything. Your pockets echo with emptiness.", type: "normal" }];
+    return [{ text: "You're not carrying anything. Empty pockets.", type: "normal" }];
   }
   const outputs = [];
   outputs.push({ text: "\u2592\u2592\u2592 INVENTORY \u2592\u2592\u2592", type: "system" });
@@ -1251,11 +1250,11 @@ function executeInspect(state, noun) {
     return [{ text: "Inspect what?", type: "normal" }];
   }
   if (state.statusScreen.Awareness < 4) {
-    return [{ text: `You look at the ${noun}. It's... a ${noun}. You're not sure what you expected.`, type: "normal" }];
+    return [{ text: `You stare at the ${noun} for a moment. Nothing happens. You're not sure what you were hoping for.`, type: "narration" }];
   }
   const roomInspectables = inspectables[state.currentRoom];
   if (!roomInspectables) {
-    return [{ text: `There's nothing special to inspect here. Or maybe there is and you're not focused enough.`, type: "narration" }];
+    return [{ text: `You look around, trying to focus. Nothing stands out to you right now.`, type: "narration" }];
   }
   const lower = noun.toLowerCase();
   const entry = roomInspectables[lower];
@@ -1267,16 +1266,16 @@ function executeInspect(state, noun) {
         }
       }
     }
-    return [{ text: `You focus on the ${noun}. The System overlay doesn't react. Maybe it's just... a ${noun}.`, type: "narration" }];
+    return [{ text: `You focus on the ${noun}. Just a ${noun}. The System overlay doesn't seem interested.`, type: "narration" }];
   }
   return [{ text: entry.high, type: "system" }];
 }
 function executeUnknown(verb) {
   const responses = [
-    `The System does not recognize "${verb}" as a valid action. It regards you with something like pity.`,
-    `"${verb}" is not a thing you can do. Not yet. Perhaps not ever.`,
-    `The Reach considers your request to "${verb}" and finds it... wanting. Type "help" for guidance.`,
-    `You attempt to "${verb}." Nothing happens, but you feel judged.`
+    `You're not sure how to "${verb}." Maybe try something else.`,
+    `"${verb}"? You think about it for a second, but nothing comes to mind.`,
+    `You don't know how to do that. Type "help" if you're stuck.`,
+    `You try to "${verb}" but you're not really sure what that would involve.`
   ];
   const text = responses[Math.floor(Math.random() * responses.length)];
   return [{ text, type: "narration" }];
@@ -1324,7 +1323,7 @@ function executeDeadCommand(verb, state) {
     "Nothing happens. On account of you being dead.",
     'The dead do not "' + verb + '." The dead do very little, as a rule.'
   ];
-  return [{ text: generic[Math.floor(Math.random() * generic.length)], type: "death" }];
+  return [{ text: generic[Math.floor(Math.random() * generic.length)], type: "system" }];
 }
 function executeRespawn(state) {
   resetWorld();
