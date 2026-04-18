@@ -1,5 +1,5 @@
 import { GameOutput, GameState } from '../engine/types.js';
-import { getRoom, getItem, getHallwayDescription, getUpstairsHallDescription, resetWorld } from '../engine/world.js';
+import { getRoom, getItem, getHallwayDescription, getUpstairsHallDescription, getStudyDescription, resetWorld } from '../engine/world.js';
 import { moveToRoom, addToInventory, removeFromInventory, getStats } from '../engine/state.js';
 import { Command } from '../engine/types.js';
 
@@ -31,6 +31,7 @@ const EXIT_NAMES: Record<string, string> = {
 const dynamicDescriptions: Record<string, (state: GameState) => string> = {
   hallway: getHallwayDescription,
   'upstairs-hall': getUpstairsHallDescription,
+  study: getStudyDescription,
 };
 
 export function executeLook(state: GameState): GameOutput[] {
@@ -77,6 +78,11 @@ export function executeGo(state: GameState, direction: string): GameOutput[] {
 
   if (!targetId) {
     return [{ text: 'You can\'t go that way.', type: 'normal' }];
+  }
+
+  // Front door gate — need to survive the study first
+  if (targetId === 'front-yard' && !state.flags.survivedStudy) {
+    return [{ text: 'You try the front door. It\'s unlocked — it was always unlocked — but your hand won\'t turn the knob. Something unfinished upstairs. You should deal with that first.', type: 'narration' }];
   }
 
   const outputs = moveToRoom(state, targetId);
@@ -194,8 +200,8 @@ export function executeStatus(state: GameState): GameOutput[] {
   return outputs;
 }
 
-export function executeHelp(): GameOutput[] {
-  return [
+export function executeHelp(state: GameState): GameOutput[] {
+  const cmds: GameOutput[] = [
     { text: '▒▒▒ SYSTEM ASSISTANCE PROTOCOL ▒▒▒', type: 'system' },
     { text: '', type: 'normal' },
     { text: '  look (l)         — observe your surroundings', type: 'normal' },
@@ -205,10 +211,128 @@ export function executeHelp(): GameOutput[] {
     { text: '  examine <item>   — inspect an item closely', type: 'normal' },
     { text: '  inventory (i)    — check what you\'re carrying', type: 'normal' },
     { text: '  status           — view your status screen', type: 'normal' },
-    { text: '  help (?)         — this message', type: 'normal' },
-    { text: '', type: 'normal' },
-    { text: 'The Reach provides. The Reach observes.', type: 'narration' },
   ];
+
+  // Silently appears when Awareness >= 4
+  if (state.statusScreen.Awareness >= 4) {
+    cmds.push({ text: '  inspect <thing>  — focus your awareness on something', type: 'normal' });
+  }
+
+  cmds.push({ text: '  help (?)         — this message', type: 'normal' });
+  cmds.push({ text: '', type: 'normal' });
+  cmds.push({ text: 'The Reach provides. The Reach observes.', type: 'narration' });
+  return cmds;
+}
+
+// ─── INSPECT ────────────────────────────────────────────────
+
+// Things in rooms that can be inspected but aren't items
+const inspectables: Record<string, Record<string, { low: string; high: string }>> = {
+  'front-yard': {
+    mailbox: {
+      low: 'It\'s your mailbox. White, slightly dented from that time the snowplow came too close. Flag is down.',
+      high: `Your mailbox. The System overlay shimmers around it.
+▒▒▒ OBJECT SCAN ▒▒▒
+[Postal Receptacle — Class: MUNDANE]
+The Reach detects NOTHING of note about this mailbox. It is a box. For mail. HOWEVER — and the Reach wants to be VERY clear about this — the ABSENCE of significance is ITSELF significant! In a world where everything has been catalogued, an object that resists classification is DEEPLY INTERESTING! Also there's a coupon flyer inside.
+THREAT LEVEL: NONE / MAIL`,
+    },
+    lawn: {
+      low: 'Your lawn. It needs mowing.',
+      high: `Your lawn. The System overlay shows a faint green shimmer across the grass.
+▒▒▒ TERRAIN SCAN ▒▒▒
+[Suburban Grassland — Class: TERRITORY]
+REMARKABLE! This patch of cultivated earth has been maintained by YOU for YEARS! Every blade of grass is a tiny soldier in your personal army of landscaping! The Reach detects trace amounts of ORGANIC POTENTIAL in the soil. Something could grow here that isn't grass. The Reach is not suggesting you plant anything. The Reach is merely OBSERVING.
+FERTILITY: MODERATE / UNTAPPED`,
+    },
+  },
+  park: {
+    creature: {
+      low: 'It\'s... something. You can\'t quite focus on it. Like looking at a word you almost remember.',
+      high: `You focus on the creature at the base of the oak tree. The System overlay flares.
+▒▒▒ ENTITY SCAN ▒▒▒
+[Territorial Grazer — Class: FAUNA / EMERGENT]
+OH WONDERFUL! You can SEE it now! REALLY see it! This creature is a PRODUCT of the Reach — a life form that emerged when the System integrated with your local ecosystem! It is NOT dangerous unless provoked! It FEEDS on ambient resonance and NESTS near old, significant things — hence the oak tree! The Reach classifies it as FRIENDLY! Mostly! 73% friendly!
+DISPOSITION: CURIOUS / PROBABLY FINE
+EDGE: 3  |  AWARENESS: 5  |  RESONANCE: 7`,
+    },
+    oak: {
+      low: 'A big oak tree. Been here longer than any of the houses on the street.',
+      high: `The oak tree. The System overlay shimmers intensely around it, more than anything else you've seen.
+▒▒▒ ENTITY SCAN ▒▒▒
+[The Oakvale Anchor — Class: FLORA / PRIMORDIAL]
+This tree is TWO HUNDRED AND SEVENTEEN YEARS OLD! It was here before the neighborhood! Before the ROADS! Before the CONCEPT of suburbs! The Reach recognizes it as a NATURAL ANCHOR POINT — a place where the boundary between the mundane and the extraordinary was ALREADY thin! Eleanor Voss knew. She planted it here ON PURPOSE. The Reach is VERY impressed with Eleanor Voss!
+RESONANCE: IMMENSE / OFF-SCALE`,
+    },
+  },
+  'corner-store': {
+    sergeant: {
+      low: 'An orange tabby cat. Very large. Very unimpressed with you.',
+      high: `You focus on Sergeant the cat. The System overlay flickers uncertainly.
+▒▒▒ ENTITY SCAN ▒▒▒
+[Sergeant — Class: ???]
+The Reach... cannot fully scan this entity. This is NOT because the cat is powerful. The Reach wants to be CLEAR about that. It is because the cat is AGGRESSIVELY INDIFFERENT to being scanned. The Reach's classification protocols require a MINIMUM level of cooperation from the subject and Sergeant is providing NONE. The Reach has encountered this before with cats. It is INFURIATING.
+DISPOSITION: CONTEMPTUOUS / UNKNOWABLE`,
+    },
+    cat: { low: '', high: '' }, // alias
+    radio: {
+      low: 'The radio behind the counter. Playing classic rock, too quietly to make out the song.',
+      high: `You focus on the radio. The System overlay pulses gently in time with the music.
+▒▒▒ OBJECT SCAN ▒▒▒
+[Frequency Receiver — Class: MUNDANE+]
+The song playing is "Don't Fear the Reaper" by Blue Öyster Cult. The Reach wants you to know this is a COINCIDENCE and not a MESSAGE. The Reach does not communicate through CLASSIC ROCK RADIO. That would be RIDICULOUS. Although, if it DID, it would have EXCELLENT taste.
+SIGNAL: AMBIENT / COINCIDENTAL`,
+    },
+  },
+  'hendersons-yard': {
+    gnomes: {
+      low: 'Mrs. Henderson\'s garden gnomes. Five of them, standing in a row.',
+      high: `You focus on the garden gnomes. The System overlay lights up.
+▒▒▒ COLLECTIVE SCAN ▒▒▒
+[Henderson Sentinels — Class: CERAMIC / AMBIGUOUS]
+FIVE gnomes! There WERE four! The fifth appeared AFTER the System initialized! The Reach is FASCINATED! Did the System create it? Did it arrive independently? Was it ALWAYS there and nobody NOTICED? The Reach has SEVENTEEN THEORIES and they are ALL compelling! Gerald in particular radiates a FAINT but MEASURABLE awareness signature!
+COLLECTIVE DISPOSITION: VIGILANT / GARDEN-BOUND`,
+    },
+    roses: {
+      low: 'Mrs. Henderson\'s roses. Red, pink, white. They smell amazing.',
+      high: `You focus on the rose bushes. The System overlay shows a warm glow around them.
+▒▒▒ FLORA SCAN ▒▒▒
+[Henderson Cultivars — Class: FLORA / TENDED]
+These roses have been LOVINGLY maintained for OVER A DECADE! Mrs. Henderson's dedication to her garden has created a MICROBIOME of extraordinary vitality! The Reach detects elevated resonance levels in the soil — someone who tends something with this much care LEAVES A MARK on the world! The Reach finds this GENUINELY touching!
+RESONANCE: WARM / CULTIVATED`,
+    },
+  },
+};
+
+export function executeInspect(state: GameState, noun: string): GameOutput[] {
+  if (!noun) {
+    return [{ text: 'Inspect what?', type: 'normal' }];
+  }
+
+  if (state.statusScreen.Awareness < 4) {
+    return [{ text: `You look at the ${noun}. It's... a ${noun}. You're not sure what you expected.`, type: 'normal' }];
+  }
+
+  const roomInspectables = inspectables[state.currentRoom];
+  if (!roomInspectables) {
+    return [{ text: `There's nothing special to inspect here. Or maybe there is and you're not focused enough.`, type: 'narration' }];
+  }
+
+  const lower = noun.toLowerCase();
+  const entry = roomInspectables[lower];
+  if (!entry || !entry.high) {
+    // Check aliases
+    for (const [key, val] of Object.entries(roomInspectables)) {
+      if (lower.includes(key) || key.includes(lower)) {
+        if (val.high) {
+          return [{ text: val.high, type: 'system' }];
+        }
+      }
+    }
+    return [{ text: `You focus on the ${noun}. The System overlay doesn't react. Maybe it's just... a ${noun}.`, type: 'narration' }];
+  }
+
+  return [{ text: entry.high, type: 'system' }];
 }
 
 export function executeUnknown(verb: string): GameOutput[] {
@@ -332,8 +456,10 @@ export function executeCommand(cmd: Command, state: GameState): GameOutput[] {
       return executeInventory(state);
     case 'status':
       return executeStatus(state);
+    case 'inspect':
+      return executeInspect(state, cmd.noun);
     case 'help':
-      return executeHelp();
+      return executeHelp(state);
     default:
       return executeUnknown(cmd.verb);
   }

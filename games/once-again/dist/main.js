@@ -78,7 +78,8 @@ var VERB_ALIASES = {
   pick: "take",
   x: "examine",
   examine: "examine",
-  inspect: "examine",
+  inspect: "inspect",
+  scan: "inspect",
   study: "examine",
   drop: "drop",
   go: "go",
@@ -123,9 +124,16 @@ function parseInput(input) {
 var rooms = /* @__PURE__ */ new Map();
 var items = /* @__PURE__ */ new Map();
 function getHallwayDescription(state) {
+  let exits = "Your kitchen is to the west. The living room opens up to the south. The garage door is to the north.";
+  if (state.flags.survivedStudy) {
+    exits += " The front door is to the east \u2014 and for the first time since you woke up, you feel like you could actually open it.";
+  } else {
+    exits += " At the far end, the front door.";
+  }
+  exits += " Stairs lead up.";
   const base = `The hallway you've walked a thousand times. Same oatmeal carpet you picked because it was on sale. Same family photos \u2014 you remember hanging each one, arguing about which height looked right. Everything looks completely normal. It IS completely normal. Except for the translucent status screen hovering at the edge of your vision.
 
-Your kitchen is to the west. The living room opens up to the south. The garage door is to the north. At the far end, the front door. Stairs lead up.`;
+${exits}`;
   if (state.statusScreen.Awareness >= 3) {
     return base + `
 
@@ -158,7 +166,9 @@ rooms.set("hallway", {
     north: "garage",
     n: "garage",
     up: "upstairs-hall",
-    u: "upstairs-hall"
+    u: "upstairs-hall",
+    east: "front-yard",
+    e: "front-yard"
   },
   items: [],
   firstVisit: true,
@@ -294,13 +304,25 @@ The upstairs hallway is back to the west.`,
     return outputs;
   }
 });
+function getStudyDescription(state) {
+  if (!state.flags.survivedStudy) {
+    return "You shouldn't be here.";
+  }
+  return `Your study. Same IKEA desk, same office chair with the wonky wheel, same shelf of books you half-read in college. Your old monitor is on \u2014 you don't remember leaving it on either, but at this point you're getting used to that.
+
+The screen is showing something. Not your desktop, not a screensaver. A map. Your neighborhood, seen from above, drawn in the same teal lines as the System overlay. Your house is at the center, pulsing gently. Other markers dot the streets \u2014 some steady, some flickering. You have no idea what they mean. But they're clearly meant for you.
+
+On the desk next to the keyboard, there's something that wasn't there this morning.
+
+The upstairs hallway is back to the south.`;
+}
 rooms.set("study", {
   id: "study",
   name: "Study",
   description: "",
-  // dynamic — depends on whether you survive entering
+  // dynamic
   exits: { south: "upstairs-hall", s: "upstairs-hall" },
-  items: [],
+  items: ["system-compass"],
   firstVisit: true,
   onEnter: (state) => {
     const hasTalisman = state.inventory.includes("lucky-rock");
@@ -345,6 +367,177 @@ rooms.set("study", {
       { text: "", type: "normal" },
       { text: "You are very, very alive.", type: "narration" }
     ];
+  }
+});
+rooms.set("front-yard", {
+  id: "front-yard",
+  name: "Front Yard",
+  description: `Your front yard. The lawn needs mowing \u2014 it needed mowing before all this, so that's not new. Your mailbox is at the curb, flag down. The welcome mat says "GO AWAY" in cheerful letters \u2014 a gift from your sister you thought was funny at the time.
+
+The sky is blue. Regular blue. The sun is out. Birds are singing. It's a completely normal day in a completely normal neighborhood. Except for the translucent System overlay, which now seems to extend... everywhere. Not just in your house. Everywhere you look.
+
+Your front door is to the west. The street stretches north and south.`,
+  exits: {
+    west: "hallway",
+    w: "hallway",
+    north: "street-north",
+    n: "street-north",
+    south: "street-south",
+    s: "street-south"
+  },
+  items: [],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("front-yard")) return outputs;
+    outputs.push({
+      text: "You step outside. The sunlight is warm on your face. A lawn mower hums somewhere a few streets over. A dog barks. It's so aggressively normal that you almost laugh.",
+      type: "narration"
+    });
+    outputs.push({ text: "", type: "normal" });
+    outputs.push({
+      text: "\u2592\u2592\u2592 EXTERIOR PROTOCOLS ENGAGED \u2592\u2592\u2592",
+      type: "system"
+    });
+    outputs.push({
+      text: "CONGRATULATIONS, CANDIDATE! You have LEFT THE TUTORIAL ZONE! The Reach is THRILLED to inform you that the ENTIRE WORLD is now your arena! Every mailbox a MYSTERY! Every lawn a POTENTIAL BATTLEFIELD! The Reach can barely contain its excitement!",
+      type: "system"
+    });
+    outputs.push({
+      text: "AREA UNLOCKED: THE NEIGHBORHOOD.",
+      type: "system"
+    });
+    return outputs;
+  }
+});
+rooms.set("street-north", {
+  id: "street-north",
+  name: "Maple Street (North)",
+  description: `Maple Street, looking north. Your street. The asphalt has that one crack running down the middle that the city never fixed. To the east is the Hendersons' place \u2014 white picket fence, garden gnomes, the whole thing. Their car is in the driveway but you don't see anyone around.
+
+Further north, the street curves toward the park. You can see the big oak tree from here \u2014 the one the kids climb, the one that's been there longer than any of the houses.
+
+Your front yard is back to the south. The Hendersons' yard is to the east. The park is further north.`,
+  exits: {
+    south: "front-yard",
+    s: "front-yard",
+    east: "hendersons-yard",
+    e: "hendersons-yard",
+    north: "park",
+    n: "park"
+  },
+  items: [],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("street-north")) return outputs;
+    outputs.push({
+      text: "The street looks the same as it did yesterday. Same parked cars. Same cracked sidewalk. Same everything. You keep looking for something to be different and it just... isn't.",
+      type: "narration"
+    });
+    return outputs;
+  }
+});
+rooms.set("street-south", {
+  id: "street-south",
+  name: "Maple Street (South)",
+  description: `Maple Street, looking south. The Kowalskis' place is on the left \u2014 they're on vacation, you think. Mail is piling up in their box. On the right is the empty lot where old Mr. Chen's house used to be before they tore it down last year. Weeds and gravel now. Kids ride bikes through it sometimes.
+
+Further south, the street dead-ends at the corner store \u2014 Raj's Quik-Mart, the one with the bell on the door and the cat that sits on the counter.
+
+Your front yard is back to the north. The corner store is to the south.`,
+  exits: {
+    north: "front-yard",
+    n: "front-yard",
+    south: "corner-store",
+    s: "corner-store"
+  },
+  items: ["sturdy-stick"],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("street-south")) return outputs;
+    outputs.push({
+      text: "A sprinkler is going in someone's yard. The rhythmic tch-tch-tch-tch is the most normal sound you've heard all day.",
+      type: "narration"
+    });
+    return outputs;
+  }
+});
+rooms.set("hendersons-yard", {
+  id: "hendersons-yard",
+  name: "The Hendersons' Yard",
+  description: `The Hendersons' front yard. Immaculate, as always. Mrs. Henderson's rose bushes are in full bloom \u2014 red, pink, white. The garden gnomes stand in their usual formation near the walkway. There are five of them. You could swear there used to be four.
+
+The Hendersons' front door is closed. No lights on inside.
+
+The street is back to the west.`,
+  exits: { west: "street-north", w: "street-north" },
+  items: ["garden-gnome"],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("hendersons-yard")) return outputs;
+    outputs.push({
+      text: "The roses smell incredible. You've walked past this yard a hundred times and never noticed how strong the smell is. Maybe you just never paid attention before.",
+      type: "narration"
+    });
+    return outputs;
+  }
+});
+rooms.set("park", {
+  id: "park",
+  name: "Oakvale Park",
+  description: `The neighborhood park. A swing set, a rusted slide, a bench with a memorial plaque you've never bothered to read. The big oak tree dominates the center \u2014 massive trunk, branches spreading wide enough to shade half the park.
+
+The grass is green and freshly cut. Someone's left a soccer ball near the swings. Everything looks perfectly, aggressively normal.
+
+Except for the thing sitting at the base of the oak tree.
+
+It's about the size of a large dog, but it's not a dog. It's... you're not sure what it is. It looks like someone described a lizard to a person who'd never seen one, and that person sculpted it out of wet clay and forgot to smooth it out. It's watching you with calm, amber eyes. It doesn't seem hostile. It seems curious.
+
+The street is back to the south.`,
+  exits: { south: "street-north", s: "street-north" },
+  items: ["memorial-plaque-rubbing"],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("park")) return outputs;
+    outputs.push({
+      text: "The oak tree is even bigger than you remembered. It must be two hundred years old. The System overlay shimmers faintly around its trunk, like heat haze.",
+      type: "narration"
+    });
+    outputs.push({ text: "", type: "normal" });
+    outputs.push({
+      text: "\u2592\u2592\u2592 ENTITY DETECTED \u2592\u2592\u2592",
+      type: "system"
+    });
+    outputs.push({
+      text: "The Reach has IDENTIFIED a previously uncatalogued LIFE FORM in your vicinity! REMAIN CALM! This is EXTREMELY exciting! Classification is PENDING but initial readings suggest it is NOT IMMEDIATELY LETHAL! The Reach rates your chances of survival at a VERY ENCOURAGING 73%!",
+      type: "system"
+    });
+    return outputs;
+  }
+});
+rooms.set("corner-store", {
+  id: "corner-store",
+  name: "Raj's Quik-Mart",
+  description: `Raj's Quik-Mart. The bell dings when you push the door open. Fluorescent lights, linoleum floor, aisles of snacks and necessities. The cat \u2014 an enormous orange tabby named Sergeant \u2014 is on the counter, watching you with the same expression he always has: vague contempt.
+
+Raj isn't here. The store is empty. But the lights are on, the Open sign is lit, and the coffee machine is gurgling away like it's a normal Tuesday. The radio behind the counter is playing classic rock, a little too quietly to make out the song.
+
+The street is back to the north.`,
+  exits: { north: "street-south", n: "street-south" },
+  items: ["energy-drink", "bag-of-jerky"],
+  firstVisit: true,
+  onEnter: (state) => {
+    const outputs = [];
+    if (state.visitedRooms.has("corner-store")) return outputs;
+    outputs.push({
+      text: "The bell on the door dings. Sergeant the cat looks up, decides you're not interesting, and goes back to sleep. Some things never change.",
+      type: "narration"
+    });
+    return outputs;
   }
 });
 items.set("kitchen-knife", {
@@ -482,6 +675,89 @@ A shard of reflective surface that shows what WAS rather than what IS! A fractio
 CLASSIFICATION: TOOL / REFLECTIVE / TEMPORAL`,
   takeable: true,
   effects: { Awareness: 2 },
+  usable: false
+});
+items.set("system-compass", {
+  id: "system-compass",
+  name: "system compass",
+  description: "It looks like a compass, but it's not made of anything you can identify. Translucent, like the status screen, but solid enough to hold. The needle doesn't point north. It spins slowly, then stops, pointing... somewhere. It changes when you move.",
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Waypoint Resonator] \u2014 Rarity: RARE
+NOW we are getting somewhere! LITERALLY! This device \u2014 and the Reach uses the word "device" with MAXIMUM respect \u2014 is a NAVIGATIONAL INSTRUMENT of the HIGHEST ORDER! It points toward things of INTEREST! Things of VALUE! Things that want to be FOUND! The Reach PERSONALLY calibrated this unit and is QUITE proud of the results! Follow the needle, candidate! ADVENTURE AWAITS!
+  +2 Awareness
+  +1 Resonance
+CLASSIFICATION: TOOL / NAVIGATIONAL / SYSTEM-LINKED`,
+  takeable: true,
+  effects: { Awareness: 2, Resonance: 1 },
+  usable: false
+});
+items.set("sturdy-stick", {
+  id: "sturdy-stick",
+  name: "sturdy stick",
+  description: "A thick branch that fell from one of the street trees. About three feet long, solid oak, with a satisfying heft to it. The kind of stick you would have been thrilled to find when you were ten.",
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Bough of the Street Oak] \u2014 Rarity: COMMON
+A WEAPON plucked from the VERY BODY of a noble tree! Oak \u2014 the wood of KINGS and SHIP BUILDERS and people who take things SERIOUSLY! This branch fell of its own accord, which means \u2014 according to Reach doctrine \u2014 it CHOSE you! Or it was windy. Either way, EXCELLENT reach and solid swing weight!
+  +1 Edge
+  +1 Flexibility
+CLASSIFICATION: MELEE / BLUNT / ARBOREAL`,
+  takeable: true,
+  effects: { Edge: 1, Flexibility: 1 },
+  usable: false
+});
+items.set("garden-gnome", {
+  id: "garden-gnome",
+  name: "garden gnome",
+  description: `One of Mrs. Henderson's garden gnomes. This one is standing slightly apart from the others, near the edge of the yard, facing your direction. It's wearing a red hat and holding a tiny fishing rod. Ceramic, about a foot tall. Heavy for its size. There's something written on the bottom in Sharpie: "Gerald."`,
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Gerald, the Vigilant] \u2014 Rarity: UNCOMMON
+The Reach has OPINIONS about this one! Gerald has been standing in this yard for ELEVEN YEARS and in that time has witnessed EVERYTHING that has occurred on Maple Street! EVERYTHING! His ceramic eyes see all! His tiny fishing rod catches more than fish \u2014 it catches SECRETS! The Reach is not saying Gerald is alive. The Reach is not saying Gerald is NOT alive. The Reach DECLINES TO COMMENT.
+  +2 Awareness
+CLASSIFICATION: SENTINEL / CERAMIC / AMBIGUOUS`,
+  takeable: true,
+  effects: { Awareness: 2 },
+  usable: false
+});
+items.set("energy-drink", {
+  id: "energy-drink",
+  name: "energy drink",
+  description: `A can of "VOLT SURGE \u2014 MAXIMUM ENERGY" from the cooler at Raj's. The can is ice cold and the ingredients list includes something called "taurine complex" which sounds made up. But you could use the boost.`,
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Elixir of Suburban Vitality] \u2014 Rarity: COMMON
+BEHOLD! A POTION brewed in the GREAT ALCHEMICAL FACTORIES of the modern age! Its ingredients \u2014 caffeine, sugar, something called "taurine" that the Reach ASSURES you comes from a very reputable source \u2014 combine to produce a SURGE of temporary vigor! Available at fine convenience stores everywhere for $3.49! The Reach considers this a BARGAIN!
+  +1 Edge
+  +1 Resourcefulness
+CLASSIFICATION: CONSUMABLE / ENERGETIC / CARBONATED`,
+  takeable: true,
+  effects: { Edge: 1, Resourcefulness: 1 },
+  usable: false
+});
+items.set("bag-of-jerky", {
+  id: "bag-of-jerky",
+  name: "bag of jerky",
+  description: "A bag of teriyaki beef jerky from behind the counter. Raj keeps the good stuff back there. It's the expensive kind \u2014 small batch, actually tastes like food. You feel a little guilty taking it without paying, but Raj isn't here and the world might be ending. Or beginning. Hard to tell.",
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Provisions of the Absent Merchant] \u2014 Rarity: COMMON
+SUSTENANCE! Every great adventurer needs PROVISIONS and these dried meat strips \u2014 teriyaki-flavored, small-batch, artisanally preserved \u2014 are EXACTLY the kind of rations that fuel LEGENDARY JOURNEYS! The Reach notes that you did not pay for these. The Reach does not judge. The Reach understands that sometimes DESTINY requires a five-finger discount.
+  +1 Resourcefulness
+  +1 Flexibility
+CLASSIFICATION: CONSUMABLE / SUSTENANCE / ETHICALLY GRAY`,
+  takeable: true,
+  effects: { Resourcefulness: 1, Flexibility: 1 },
+  usable: false
+});
+items.set("memorial-plaque-rubbing", {
+  id: "memorial-plaque-rubbing",
+  name: "plaque rubbing",
+  description: `You don't have paper or charcoal, but when you touch the plaque on the park bench, the text seems to imprint itself on your hand for a moment before fading. It read: "In memory of Eleanor Voss, who planted the oak and never left its shade. 1847-1932." That tree is older than you thought.`,
+  systemDescription: `\u2592\u2592\u2592 ITEM ACQUIRED \u2592\u2592\u2592
+[Echo of Eleanor Voss] \u2014 Rarity: UNCOMMON
+FASCINATING! The Reach has accessed its records and \u2014 oh my. OH MY! Eleanor Voss! The Reach KNOWS that name! Or rather, the Reach knows the ECHO of that name, reverberating through the substrate of this neighborhood like a bell that was struck a hundred and seventy-four years ago and NEVER STOPPED RINGING! This plaque is a CONDUIT! A TINY DOOR! The Reach is being DELIBERATELY VAGUE because the truth would OVERWHELM you at this stage!
+  +2 Resonance
+  +1 ???
+CLASSIFICATION: ARTIFACT / MEMORIAL / RESONANT`,
+  takeable: true,
+  effects: { Resonance: 2, "???": 1 },
   usable: false
 });
 function getRoom(id) {
@@ -625,7 +901,8 @@ var EXIT_NAMES = {
 };
 var dynamicDescriptions = {
   hallway: getHallwayDescription,
-  "upstairs-hall": getUpstairsHallDescription
+  "upstairs-hall": getUpstairsHallDescription,
+  study: getStudyDescription
 };
 function executeLook(state) {
   const room = getRoom(state.currentRoom);
@@ -656,6 +933,9 @@ function executeGo(state, direction) {
   const targetId = room.exits[dir] || room.exits[direction];
   if (!targetId) {
     return [{ text: "You can't go that way.", type: "normal" }];
+  }
+  if (targetId === "front-yard" && !state.flags.survivedStudy) {
+    return [{ text: "You try the front door. It's unlocked \u2014 it was always unlocked \u2014 but your hand won't turn the knob. Something unfinished upstairs. You should deal with that first.", type: "narration" }];
   }
   const outputs = moveToRoom(state, targetId);
   if (state.flags.dead) {
@@ -743,8 +1023,8 @@ function executeStatus(state) {
   outputs.push({ text: `Items carried: ${state.inventory.length}`, type: "narration" });
   return outputs;
 }
-function executeHelp() {
-  return [
+function executeHelp(state) {
+  const cmds = [
     { text: "\u2592\u2592\u2592 SYSTEM ASSISTANCE PROTOCOL \u2592\u2592\u2592", type: "system" },
     { text: "", type: "normal" },
     { text: "  look (l)         \u2014 observe your surroundings", type: "normal" },
@@ -753,11 +1033,117 @@ function executeHelp() {
     { text: "  drop <item>      \u2014 drop an item", type: "normal" },
     { text: "  examine <item>   \u2014 inspect an item closely", type: "normal" },
     { text: "  inventory (i)    \u2014 check what you're carrying", type: "normal" },
-    { text: "  status           \u2014 view your status screen", type: "normal" },
-    { text: "  help (?)         \u2014 this message", type: "normal" },
-    { text: "", type: "normal" },
-    { text: "The Reach provides. The Reach observes.", type: "narration" }
+    { text: "  status           \u2014 view your status screen", type: "normal" }
   ];
+  if (state.statusScreen.Awareness >= 4) {
+    cmds.push({ text: "  inspect <thing>  \u2014 focus your awareness on something", type: "normal" });
+  }
+  cmds.push({ text: "  help (?)         \u2014 this message", type: "normal" });
+  cmds.push({ text: "", type: "normal" });
+  cmds.push({ text: "The Reach provides. The Reach observes.", type: "narration" });
+  return cmds;
+}
+var inspectables = {
+  "front-yard": {
+    mailbox: {
+      low: "It's your mailbox. White, slightly dented from that time the snowplow came too close. Flag is down.",
+      high: `Your mailbox. The System overlay shimmers around it.
+\u2592\u2592\u2592 OBJECT SCAN \u2592\u2592\u2592
+[Postal Receptacle \u2014 Class: MUNDANE]
+The Reach detects NOTHING of note about this mailbox. It is a box. For mail. HOWEVER \u2014 and the Reach wants to be VERY clear about this \u2014 the ABSENCE of significance is ITSELF significant! In a world where everything has been catalogued, an object that resists classification is DEEPLY INTERESTING! Also there's a coupon flyer inside.
+THREAT LEVEL: NONE / MAIL`
+    },
+    lawn: {
+      low: "Your lawn. It needs mowing.",
+      high: `Your lawn. The System overlay shows a faint green shimmer across the grass.
+\u2592\u2592\u2592 TERRAIN SCAN \u2592\u2592\u2592
+[Suburban Grassland \u2014 Class: TERRITORY]
+REMARKABLE! This patch of cultivated earth has been maintained by YOU for YEARS! Every blade of grass is a tiny soldier in your personal army of landscaping! The Reach detects trace amounts of ORGANIC POTENTIAL in the soil. Something could grow here that isn't grass. The Reach is not suggesting you plant anything. The Reach is merely OBSERVING.
+FERTILITY: MODERATE / UNTAPPED`
+    }
+  },
+  park: {
+    creature: {
+      low: "It's... something. You can't quite focus on it. Like looking at a word you almost remember.",
+      high: `You focus on the creature at the base of the oak tree. The System overlay flares.
+\u2592\u2592\u2592 ENTITY SCAN \u2592\u2592\u2592
+[Territorial Grazer \u2014 Class: FAUNA / EMERGENT]
+OH WONDERFUL! You can SEE it now! REALLY see it! This creature is a PRODUCT of the Reach \u2014 a life form that emerged when the System integrated with your local ecosystem! It is NOT dangerous unless provoked! It FEEDS on ambient resonance and NESTS near old, significant things \u2014 hence the oak tree! The Reach classifies it as FRIENDLY! Mostly! 73% friendly!
+DISPOSITION: CURIOUS / PROBABLY FINE
+EDGE: 3  |  AWARENESS: 5  |  RESONANCE: 7`
+    },
+    oak: {
+      low: "A big oak tree. Been here longer than any of the houses on the street.",
+      high: `The oak tree. The System overlay shimmers intensely around it, more than anything else you've seen.
+\u2592\u2592\u2592 ENTITY SCAN \u2592\u2592\u2592
+[The Oakvale Anchor \u2014 Class: FLORA / PRIMORDIAL]
+This tree is TWO HUNDRED AND SEVENTEEN YEARS OLD! It was here before the neighborhood! Before the ROADS! Before the CONCEPT of suburbs! The Reach recognizes it as a NATURAL ANCHOR POINT \u2014 a place where the boundary between the mundane and the extraordinary was ALREADY thin! Eleanor Voss knew. She planted it here ON PURPOSE. The Reach is VERY impressed with Eleanor Voss!
+RESONANCE: IMMENSE / OFF-SCALE`
+    }
+  },
+  "corner-store": {
+    sergeant: {
+      low: "An orange tabby cat. Very large. Very unimpressed with you.",
+      high: `You focus on Sergeant the cat. The System overlay flickers uncertainly.
+\u2592\u2592\u2592 ENTITY SCAN \u2592\u2592\u2592
+[Sergeant \u2014 Class: ???]
+The Reach... cannot fully scan this entity. This is NOT because the cat is powerful. The Reach wants to be CLEAR about that. It is because the cat is AGGRESSIVELY INDIFFERENT to being scanned. The Reach's classification protocols require a MINIMUM level of cooperation from the subject and Sergeant is providing NONE. The Reach has encountered this before with cats. It is INFURIATING.
+DISPOSITION: CONTEMPTUOUS / UNKNOWABLE`
+    },
+    cat: { low: "", high: "" },
+    // alias
+    radio: {
+      low: "The radio behind the counter. Playing classic rock, too quietly to make out the song.",
+      high: `You focus on the radio. The System overlay pulses gently in time with the music.
+\u2592\u2592\u2592 OBJECT SCAN \u2592\u2592\u2592
+[Frequency Receiver \u2014 Class: MUNDANE+]
+The song playing is "Don't Fear the Reaper" by Blue \xD6yster Cult. The Reach wants you to know this is a COINCIDENCE and not a MESSAGE. The Reach does not communicate through CLASSIC ROCK RADIO. That would be RIDICULOUS. Although, if it DID, it would have EXCELLENT taste.
+SIGNAL: AMBIENT / COINCIDENTAL`
+    }
+  },
+  "hendersons-yard": {
+    gnomes: {
+      low: "Mrs. Henderson's garden gnomes. Five of them, standing in a row.",
+      high: `You focus on the garden gnomes. The System overlay lights up.
+\u2592\u2592\u2592 COLLECTIVE SCAN \u2592\u2592\u2592
+[Henderson Sentinels \u2014 Class: CERAMIC / AMBIGUOUS]
+FIVE gnomes! There WERE four! The fifth appeared AFTER the System initialized! The Reach is FASCINATED! Did the System create it? Did it arrive independently? Was it ALWAYS there and nobody NOTICED? The Reach has SEVENTEEN THEORIES and they are ALL compelling! Gerald in particular radiates a FAINT but MEASURABLE awareness signature!
+COLLECTIVE DISPOSITION: VIGILANT / GARDEN-BOUND`
+    },
+    roses: {
+      low: "Mrs. Henderson's roses. Red, pink, white. They smell amazing.",
+      high: `You focus on the rose bushes. The System overlay shows a warm glow around them.
+\u2592\u2592\u2592 FLORA SCAN \u2592\u2592\u2592
+[Henderson Cultivars \u2014 Class: FLORA / TENDED]
+These roses have been LOVINGLY maintained for OVER A DECADE! Mrs. Henderson's dedication to her garden has created a MICROBIOME of extraordinary vitality! The Reach detects elevated resonance levels in the soil \u2014 someone who tends something with this much care LEAVES A MARK on the world! The Reach finds this GENUINELY touching!
+RESONANCE: WARM / CULTIVATED`
+    }
+  }
+};
+function executeInspect(state, noun) {
+  if (!noun) {
+    return [{ text: "Inspect what?", type: "normal" }];
+  }
+  if (state.statusScreen.Awareness < 4) {
+    return [{ text: `You look at the ${noun}. It's... a ${noun}. You're not sure what you expected.`, type: "normal" }];
+  }
+  const roomInspectables = inspectables[state.currentRoom];
+  if (!roomInspectables) {
+    return [{ text: `There's nothing special to inspect here. Or maybe there is and you're not focused enough.`, type: "narration" }];
+  }
+  const lower = noun.toLowerCase();
+  const entry = roomInspectables[lower];
+  if (!entry || !entry.high) {
+    for (const [key, val] of Object.entries(roomInspectables)) {
+      if (lower.includes(key) || key.includes(lower)) {
+        if (val.high) {
+          return [{ text: val.high, type: "system" }];
+        }
+      }
+    }
+    return [{ text: `You focus on the ${noun}. The System overlay doesn't react. Maybe it's just... a ${noun}.`, type: "narration" }];
+  }
+  return [{ text: entry.high, type: "system" }];
 }
 function executeUnknown(verb) {
   const responses = [
@@ -866,8 +1252,10 @@ function executeCommand(cmd, state) {
       return executeInventory(state);
     case "status":
       return executeStatus(state);
+    case "inspect":
+      return executeInspect(state, cmd.noun);
     case "help":
-      return executeHelp();
+      return executeHelp(state);
     default:
       return executeUnknown(cmd.verb);
   }
