@@ -177,9 +177,53 @@ Built the neighborhood: 6 new rooms, 7 new items, inspect command, first creatur
 5. Parser forgiveness — "go back downstairs", "look around carefully" should partially work
 6. The learning gap: actant knows study = death but can't connect it to the rock. This is the real actant challenge — causal reasoning across deaths.
 
+### Parser improvement (session 2b)
+
+Rewrote parser to handle natural language better, driven by actant behavior:
+
+**Noise word stripping**: `the`, `a`, `an`, `at`, `to`, `into`, `in`, `on`, `with`, `of`, `for`, `my`, `its`, `this`, `that`, `some`, `around`, `carefully`, `closely`, `quickly`, `slowly`, `again`, `please`, `just`, `then`, `now`, `very`, `really`, `back`. "look around carefully" → `look`. "take the flashlight" → `take flashlight`.
+
+**Verb phrases** (full-input regex patterns, checked first):
+- `look around` → look
+- `check inventory` / `check status` → inventory/status
+- `examine status screen` → status
+- `what do i have` / `what am i carrying` → inventory
+- `where am i` → look
+- `what can i do` / `how do i` → help
+
+**Direction phrases** (regex, checked second):
+- `go back downstairs` → go down
+- `go back north` → go north
+- `go outside` → go east (contextual)
+- `go inside` → go west
+
+**New verb aliases**: `turn`/`press`/`push`/`pull`/`flip`/`activate`/`open`/`close` → use. `read` → examine. `follow` → go. `leave`/`discard`/`put` → drop. `collect` → take.
+
+### Actant complete playthrough! (session 2b)
+
+**THE ACTANT BEAT THE FULL GAME IN A SINGLE LIFE.** With the improved parser. 39 turns.
+
+Key moments:
+- T5: `examine status screen` — still not supported as examine, but shows intent
+- T6: `check inventory` — parser improvement worked! Noise stripping
+- T12-17: **TV obsession** — 6 turns trying `turn on tv`, `press power button`, `use remote on tv`, `channel up`. Persistent problem-solving on an unimplemented interaction
+- T18: Finally tried `help` after failing with TV
+- T25: `examine study door` — cautious this time! Examining before entering
+- T26-27: **Went to bedroom first, took the rock!** Explored safe rooms before study
+- T30: **Entered study WITH the rock → SURVIVED**
+- T31-33: Hit inventory limit, **dropped flashlight**, grabbed compass. Good trade — compass has +2 Awareness
+- T36: `follow compass needle` — tried to use the compass as a navigation tool!
+- T39: **Stepped outside! EXTERIOR PROTOCOLS ENGAGED!**
+
+**What this tells us:**
+- The actant doesn't need to die and learn. With enough exploration (visiting bedroom before study), it naturally picks up the rock and survives.
+- It makes genuine inventory tradeoff decisions (dropped flashlight for compass = net +1 Awareness)
+- It tries to interact with everything: TV, status screen, compass needle. These are all features we could build.
+- The TV interaction is the biggest gap — 6 turns of futile attempts. Either we need a `use` command that does something, or the game needs to acknowledge the attempt.
+
 ### What's next
-- Can the actant figure out the rock → study connection on life 2+?
+- `use` command implementation — TV remote on TV, flashlight in dark places, etc.
 - Combat/interaction with the creature?
-- More neighborhood locations? Other houses, the school, the water tower?
+- More neighborhood locations
 - Other people — are there other assimilated candidates?
-- Implement some of the actant-inspired features (search, wait, parser forgiveness)?
+- The actant tried `follow compass needle` — compass as navigation tool?
