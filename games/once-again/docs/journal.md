@@ -227,3 +227,30 @@ Key moments:
 - More neighborhood locations
 - Other people — are there other assimilated candidates?
 - The actant tried `follow compass needle` — compass as navigation tool?
+
+### Voice separation (session 3)
+
+Established a clear rule: **player input → MC experience. System speaks unsolicited.**
+
+Two distinct voices:
+- **MC voice** (normal/narration text): responses to player commands. The MC is a person experiencing things. "You're not sure how to do that." "You stare at it for a moment. Nothing happens." "Home. You look around."
+- **System voice** (system text, `▒▒▒` borders): autonomous announcements. Item acquired, entity detected, status screens, death taunts. The System interrupts the MC's experience — it's an overlay, not a command interpreter.
+
+**Changes:**
+- `go home` → MC reflection ("This is home. Isn't it?") instead of System announcement
+- Unknown commands → MC confused instead of System mocking
+- Inspect low-awareness → MC experiencing ("stare... nothing happens")
+- Dead state generics → System voice (MC is dead, only System remains to comment)
+- `examine` identified items → narration describes System acting ("overlay flickers to life"), then System text follows
+- Capacity exceeded → MC says "hands are full" (normal), then System butts in with `▒▒▒ CAPACITY EXCEEDED ▒▒▒`
+
+**Also this session:**
+- Semantic directions (`go outside`/`go inside`) moved from hardcoded parser hack to room-context-aware command handler
+- `go home` gets MC existential response instead of wrong direction
+
+### What's next
+- `use` command — TV remote on TV, flashlight in dark places, etc.
+- Combat/interaction with the creature?
+- More neighborhood locations
+- Other people — are there other assimilated candidates?
+- Compass as navigation tool?
