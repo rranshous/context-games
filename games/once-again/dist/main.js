@@ -1015,7 +1015,7 @@ var OUTSIDE_ROOMS = /* @__PURE__ */ new Set([
   "park",
   "corner-store"
 ]);
-function resolveSemanticDirection(dir, room, currentRoomId) {
+function resolveSemanticDirection(dir, room) {
   if (dir === "outside") {
     for (const [exitDir, targetId] of Object.entries(room.exits)) {
       if (exitDir.length > 1 && OUTSIDE_ROOMS.has(targetId)) return exitDir;
@@ -1037,13 +1037,19 @@ function executeGo(state, direction) {
   const room = getRoom(state.currentRoom);
   if (!room) return [{ text: "You are lost in the void.", type: "error" }];
   let dir = EXIT_NAMES[direction] || direction;
-  if (dir === "outside" || dir === "inside" || dir === "home") {
-    const resolved = resolveSemanticDirection(dir, room, state.currentRoom);
+  if (dir === "home") {
+    return [
+      { text: '\u2592\u2592\u2592 NAVIGATION QUERY: "HOME" \u2592\u2592\u2592', type: "system" },
+      { text: "Home is where the HEART is, candidate! And YOUR heart is RIGHT HERE! In your chest! Beating! WELCOME HOME!", type: "system" }
+    ];
+  }
+  if (dir === "outside" || dir === "inside") {
+    const resolved = resolveSemanticDirection(dir, room);
     if (!resolved) {
       if (dir === "outside" && OUTSIDE_ROOMS.has(state.currentRoom)) {
         return [{ text: "You're already outside.", type: "normal" }];
       }
-      if ((dir === "inside" || dir === "home") && !OUTSIDE_ROOMS.has(state.currentRoom)) {
+      if (dir === "inside" && !OUTSIDE_ROOMS.has(state.currentRoom)) {
         return [{ text: "You're already inside.", type: "normal" }];
       }
       return [{ text: "You can't go that way from here.", type: "normal" }];
