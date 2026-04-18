@@ -144,9 +144,42 @@ Built the neighborhood: 6 new rooms, 7 new items, inspect command, first creatur
 
 **World size**: now 14 rooms total (8 house + 6 outside), 17 items.
 
+### Actant playthrough analysis (haiku, pure transcript prompt)
+
+**Life 1 (20 turns):**
+- Methodical exploration: kitchen → hallway → living room → garage → upstairs → study
+- Hit inventory limit (5 slots), **dropped the spatula to pick up the baseball bat** — real inventory management reasoning
+- Tried `examine status screen` — wanted to interact with the System overlay
+- Went to study without the rock → died
+
+**Death state (9 turns of struggling):**
+- `restart` → taunted. `restart game` → taunted again (3 times total)
+- `look around carefully` — tried natural language
+- `examine token` — tried to use the weird coin
+- `"You have died."` — repeated the game's words back
+- `wait for respawn` — SO CLOSE, used the word as a phrase
+- `new game` — dead
+- **`respawn`** — FOUND IT on the 9th attempt
+
+**Life 2 (6 turns observed before stopping):**
+- `examine pockets` — first action! Checking if it kept items
+- `look around` — reorienting
+- **`avoid study door`** — IT LEARNED! Tried to set a behavioral intention
+- `take flashlight` — regearing
+- `go east` → tried the front door (blocked — needs study survival)
+- Knows the study is dangerous but doesn't understand WHY (no rock) or how to fix it
+
+**Feature ideas from actant behavior:**
+1. `examine status screen` → more detailed System view, maybe stat explanations
+2. `avoid` → game acknowledges avoidance/intentions
+3. `wait` → time passes, things happen
+4. `search` → more detailed look, finds hidden things (vs just `look`)
+5. Parser forgiveness — "go back downstairs", "look around carefully" should partially work
+6. The learning gap: actant knows study = death but can't connect it to the rock. This is the real actant challenge — causal reasoning across deaths.
+
 ### What's next
-- Can the actant navigate the full game? (house → study → outside → explore)
+- Can the actant figure out the rock → study connection on life 2+?
 - Combat/interaction with the creature?
 - More neighborhood locations? Other houses, the school, the water tower?
 - Other people — are there other assimilated candidates?
-- Actant: can it discover `respawn`? Still stuck dead from last session.
+- Implement some of the actant-inspired features (search, wait, parser forgiveness)?
