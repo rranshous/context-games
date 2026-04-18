@@ -121,8 +121,32 @@ Stripped all horror from the house. The house is just your house — normal, fam
 - Monsters/encounters exist but are threats, not horror. "Something in Mr. Patterson's yard."
 - LitRPG sandbox feel — no quest arrow, just explore.
 
+### Implementation — outside world
+Built the neighborhood: 6 new rooms, 7 new items, inspect command, first creature.
+
+**Rooms:**
+- Front Yard — lawn needs mowing, "GO AWAY" welcome mat, System overlay extends everywhere
+- Maple Street North — cracked asphalt, Hendersons' house, path to park
+- Maple Street South — Kowalskis on vacation, empty lot, path to corner store
+- Hendersons' Yard — roses, garden gnomes (5 now, used to be 4), Gerald
+- Oakvale Park — big oak tree, creature (Territorial Grazer), memorial plaque for Eleanor Voss (planted the oak in 1847)
+- Raj's Quik-Mart — empty store, Sergeant the cat, radio playing classic rock
+
+**Front door gate**: unlocks after surviving the study. Hallway description changes dynamically.
+
+**Study post-survival**: IKEA desk, monitor showing teal neighborhood map with markers, system compass on desk.
+
+**Inspect command**: gated behind Awareness >= 4. Silently appears in help. Each room has inspectable objects with low-awareness (bland) and high-awareness (full System scan) descriptions. Sergeant the cat refuses to be scanned.
+
+**System voice for stepping outside**: "EXTERIOR PROTOCOLS ENGAGED" — "Every mailbox a MYSTERY! Every lawn a POTENTIAL BATTLEFIELD!" The contrast between the System's hype and the aggressively normal suburb is the core comedic tension.
+
+**Creature design**: Territorial Grazer. "Looks like someone described a lizard to a person who'd never seen one." Not hostile, curious, feeds on resonance, nests near old things. Edge 3, Awareness 5, Resonance 7. "73% friendly."
+
+**World size**: now 14 rooms total (8 house + 6 outside), 17 items.
+
 ### What's next
-- Sketch neighborhood locations before coding
-- Study post-survival content (the SUPER SECRET EXCITING thing)
-- Inspect command gated behind Awareness
-- Actant: can it discover `respawn`? Currently stuck dead in the study.
+- Can the actant navigate the full game? (house → study → outside → explore)
+- Combat/interaction with the creature?
+- More neighborhood locations? Other houses, the school, the water tower?
+- Other people — are there other assimilated candidates?
+- Actant: can it discover `respawn`? Still stuck dead from last session.
