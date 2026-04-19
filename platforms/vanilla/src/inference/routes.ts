@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import { requireAuth, requireActive } from '../auth/middleware.js';
 import { checkTokenLimit } from './middleware.js';
 import { proxyAnthropicMessages } from './anthropic.js';
-import { proxyOllamaChat, listOllamaModels } from './ollama.js';
+import { proxyOllamaChat, proxyOllamaGenerate, listOllamaModels } from './ollama.js';
 import { proxyOpenRouterMessages } from './openrouter.js';
 import { getUserTokenUsage, getUserTotalTokens } from '../db/queries.js';
 
@@ -20,6 +20,7 @@ router.post('/openrouter/chat/completions', checkTokenLimit, proxyOpenRouterMess
 
 // Ollama routes
 router.post('/ollama/chat', checkTokenLimit, proxyOllamaChat);
+router.post('/ollama/generate', checkTokenLimit, proxyOllamaGenerate);
 router.get('/ollama/models', listOllamaModels);
 
 // Get current user's token usage

@@ -104,6 +104,55 @@ export async function proxyOllamaChat(req: Request, res: Response) {
   }
 }
 
+// Raw completion (generate) — no chat template, just continue the text
+export async function proxyOllamaGenerate(req: Request, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const client = getOllamaClient();
+    const { prompt, model = 'qwen2.5:1.5b', raw = true, options = {}, ...otherParams } = req.body;
+
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: 'prompt string required' });
+    }
+
+    const promptTokens = estimateTokens(prompt);
+
+    const response = await client.generate({
+      model,
+      prompt,
+      raw,
+      stream: false,
+      options,
+      ...otherParams,
+    }) as any;
+
+    const completionText = response.response || '';
+    const completionTokens = estimateTokens(completionText);
+
+    await logTokenUsage(req.user.id, 'ollama', model, promptTokens, completionTokens);
+
+    res.json({
+      model: response.model,
+      response: completionText,
+      done: response.done,
+      estimated_tokens: {
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: promptTokens + completionTokens,
+      },
+    });
+  } catch (error: any) {
+    console.error('Ollama generate error:', error);
+    res.status(500).json({
+      error: 'Inference failed',
+      message: error.message || 'Unknown error',
+    });
+  }
+}
+
 // List available models
 export async function listOllamaModels(req: Request, res: Response) {
   try {

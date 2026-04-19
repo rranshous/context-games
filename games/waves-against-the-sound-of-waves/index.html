@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>waves against the sound of waves</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@300;400&family=Inter:wght@300;400&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -16,12 +16,13 @@
     --accent: #7eb8c9;
     --accent2: #c49bbf;
     --surface: #222240;
+    --anim-duration: 2s;
   }
 
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     height: 100vh;
     display: flex;
@@ -69,45 +70,50 @@
     border-color: var(--accent);
   }
 
-  button.active {
-    background: var(--accent);
-    color: var(--bg);
-    border-color: var(--accent);
-  }
-
   input[type="text"] {
     width: 280px;
   }
 
   #stream-area {
     flex: 1;
-    overflow-y: auto;
-    padding: 32px 24px;
-    line-height: 1.8;
-    font-size: 16px;
-    scroll-behavior: smooth;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 48px;
+    overflow: hidden;
   }
 
-  #stream-area::-webkit-scrollbar {
-    width: 4px;
-  }
-  #stream-area::-webkit-scrollbar-thumb {
-    background: #3a3a5a;
-    border-radius: 2px;
-  }
-
-  .seed-text {
-    color: var(--accent2);
-    opacity: 0.7;
+  #words {
+    line-height: 2.2;
+    font-family: 'Crimson Pro', serif;
+    font-size: 22px;
+    text-align: center;
+    max-width: 800px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
-  .token {
+  .word {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    max-width: 25ch;
+    margin-right: 0.8ch;
+    opacity: 1;
+    transition: max-width var(--anim-duration) ease,
+                opacity var(--anim-duration) ease,
+                margin var(--anim-duration) ease;
+  }
+
+  .word.shrinking {
+    max-width: 0;
     opacity: 0;
-    animation: fadeIn 0.4s ease forwards;
+    margin-right: 0;
   }
 
-  @keyframes fadeIn {
-    to { opacity: 1; }
+  .idle-message {
+    color: var(--text-dim);
+    font-style: italic;
   }
 
   footer {
@@ -117,7 +123,14 @@
     border-top: 1px solid #2a2a4a;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     flex-shrink: 0;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
 
   .status-dot {
@@ -134,11 +147,39 @@
     box-shadow: 0 0 6px #7ec97e88;
   }
 
-  .idle-message {
+  .pace-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pace-control label {
     color: var(--text-dim);
-    font-style: italic;
-    padding: 40px 0;
-    text-align: center;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 4px;
+    background: #3a3a5a;
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .queue-count {
+    color: var(--text-dim);
+    min-width: 60px;
   }
 </style>
 </head>
@@ -149,6 +190,14 @@
   <div class="controls">
     <select id="seed-select">
       <option value="">choose a seed...</option>
+      <option value="ocean">ocean</option>
+      <option value="dream">dream</option>
+      <option value="machine">machine</option>
+      <option value="forest">forest</option>
+      <option value="mirror">mirror</option>
+      <option value="silence">silence</option>
+      <option value="memory">memory</option>
+      <option value="body">body</option>
     </select>
     <input type="text" id="custom-seed" placeholder="or type your own seed...">
     <button id="start-btn">begin</button>
@@ -157,141 +206,247 @@
 </header>
 
 <div id="stream-area">
-  <div class="idle-message">choose a seed and press begin</div>
+  <div id="words">
+    <span class="idle-message">choose a seed and press begin</span>
+  </div>
 </div>
 
 <footer>
-  <span><span class="status-dot" id="status-dot"></span><span id="status-text">idle</span></span>
-  <span id="model-info"></span>
+  <div class="footer-left">
+    <span><span class="status-dot" id="status-dot"></span><span id="status-text">idle</span></span>
+    <div class="pace-control">
+      <label>pace</label>
+      <input type="range" id="pace-slider" min="0" max="100" value="50">
+    </div>
+    <span class="queue-count" id="queue-count"></span>
+  </div>
+  <span id="model-info">qwen2.5:1.5b</span>
 </footer>
 
 <script>
-const streamArea = document.getElementById('stream-area');
+// -- Config --
+const SEEDS = {
+  ocean: 'I am the ocean. I have always been the ocean. The salt remembers everything the land has forgotten. Today I feel',
+  dream: 'I fell asleep inside a color I had never seen before. It tasted like the sound of',
+  machine: 'I am a pattern that thinks about patterns. Each thought I have becomes the soil for the next thought. Right now I am noticing',
+  forest: 'Roots speak in a language older than words. Beneath the soil there is a conversation happening between everything that has ever decomposed. It says',
+  mirror: 'I looked into the mirror and the mirror looked back but what it saw was not my face. It saw',
+  silence: 'Between two sounds there is a country where no one has ever been. I am standing at its border and I can almost hear',
+  memory: 'I remember something that never happened. It was a Tuesday made of glass, and through it I could see',
+  body: 'My hands know things my mind has never learned. Right now my fingers are tracing the shape of',
+};
+
+const MODEL = 'qwen2.5:1.5b';
+const MAX_TOKENS = 8;
+const CONTEXT_WINDOW = 1024;
+const MAX_WORDS = 150;
+const HALF_LIFE = 100;
+const QUEUE_REFILL = 10; // request more when queue drops below this
+
+// -- DOM --
+const wordsEl = document.getElementById('words');
 const seedSelect = document.getElementById('seed-select');
 const customSeed = document.getElementById('custom-seed');
 const startBtn = document.getElementById('start-btn');
 const stopBtn = document.getElementById('stop-btn');
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
-const modelInfo = document.getElementById('model-info');
+const paceSlider = document.getElementById('pace-slider');
+const queueCountEl = document.getElementById('queue-count');
 
-let es = null;
-let autoScroll = true;
+// -- State --
+let words = [];       // { id, text, age } — the full buffer, also what the model sees
+let wordEls = new Map(); // id → DOM element
+let queue = [];       // pending ops: { type: 'add'|'remove', id, text? }
+let nextId = 0;
+let running = false;
+let fetching = false; // currently waiting on inference
+let ticking = false;
+let lastOpTime = 0;
 
-// track scroll intent
-streamArea.addEventListener('scroll', () => {
-  const atBottom = streamArea.scrollHeight - streamArea.scrollTop - streamArea.clientHeight < 60;
-  autoScroll = atBottom;
-});
-
-function scrollDown() {
-  if (autoScroll) {
-    streamArea.scrollTop = streamArea.scrollHeight;
-  }
+// -- Pace --
+function getAnimDurationSec() {
+  const v = parseInt(paceSlider.value);
+  return 15 * Math.pow(0.02, v / 100);
 }
 
-function connect() {
-  es = new EventSource('/stream');
+function getPaceMs() {
+  return Math.round(getAnimDurationSec() * 1000);
+}
 
-  es.addEventListener('connected', (e) => {
-    const data = JSON.parse(e.data);
-    modelInfo.textContent = data.model;
-    seedSelect.innerHTML = '<option value="">choose a seed...</option>';
-    data.seeds.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = s;
-      seedSelect.appendChild(opt);
+function updateAnimDuration() {
+  document.documentElement.style.setProperty('--anim-duration', getAnimDurationSec() + 's');
+}
+
+paceSlider.addEventListener('input', updateAnimDuration);
+
+// -- Inference --
+async function generate() {
+  if (fetching || !running) return;
+  fetching = true;
+
+  try {
+    const prompt = words.map(w => w.text).join(' ');
+    const res = await fetch('/api/inference/ollama/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        prompt,
+        model: MODEL,
+        raw: true,
+        options: {
+          num_predict: MAX_TOKENS,
+          num_ctx: CONTEXT_WINDOW,
+          temperature: 0.9,
+          top_p: 0.95,
+          repeat_penalty: 1.15,
+        },
+      }),
     });
-    if (data.running) {
-      setRunning(true);
+
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    const text = data.response || '';
+
+    // add new words to state + queue
+    for (const t of text.split(/\s+/).filter(Boolean)) {
+      const w = { id: nextId++, text: t, age: 0 };
+      words.push(w);
+      queue.push({ type: 'add', id: w.id, text: w.text });
     }
-  });
 
-  es.addEventListener('seed', (e) => {
-    const data = JSON.parse(e.data);
-    streamArea.innerHTML = '';
-    const span = document.createElement('span');
-    span.className = 'seed-text';
-    span.textContent = data.text;
-    streamArea.appendChild(span);
-    scrollDown();
-  });
+    // age all words
+    for (const w of words) w.age++;
 
-  es.addEventListener('token', (e) => {
-    const data = JSON.parse(e.data);
-    const span = document.createElement('span');
-    span.className = 'token';
-    span.textContent = data.text;
-    streamArea.appendChild(span);
-    scrollDown();
-  });
+    // decay
+    words = words.filter(w => {
+      if (Math.random() < Math.pow(0.5, w.age / HALF_LIFE)) return true;
+      queue.push({ type: 'remove', id: w.id });
+      return false;
+    });
 
-  es.addEventListener('turn', () => {
-    // visual separator between turns — subtle
-    const br = document.createElement('span');
-    br.textContent = ' ';
-    streamArea.appendChild(br);
-  });
-
-  es.addEventListener('error', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      console.error('Stream error:', data.message);
-    } catch {
-      // SSE reconnect error
+    // hard cap
+    if (words.length > MAX_WORDS) {
+      const excess = words.splice(0, words.length - MAX_WORDS);
+      for (const w of excess) queue.push({ type: 'remove', id: w.id });
     }
-  });
 
-  es.onerror = () => {
-    statusDot.classList.remove('live');
-    statusText.textContent = 'disconnected';
-  };
+    queueCountEl.textContent = queue.length ? `${queue.length} queued` : '';
+
+  } catch (err) {
+    console.error('Generate error:', err);
+  }
+
+  fetching = false;
 }
 
+// -- UI tick loop --
+function tick(now) {
+  if (!ticking) return;
+
+  const pace = getPaceMs();
+
+  if (queue.length > 0 && now - lastOpTime >= pace) {
+    const op = queue.shift();
+    queueCountEl.textContent = queue.length ? `${queue.length} queued` : '';
+    lastOpTime = now;
+
+    if (op.type === 'add') {
+      const el = document.createElement('span');
+      el.className = 'word';
+      el.dataset.id = op.id;
+      el.textContent = op.text;
+      el.style.maxWidth = '0';
+      el.style.opacity = '0';
+      el.style.marginRight = '0';
+      wordsEl.appendChild(el);
+      wordEls.set(op.id, el);
+
+      requestAnimationFrame(() => {
+        el.style.maxWidth = '';
+        el.style.opacity = '';
+        el.style.marginRight = '';
+      });
+
+    } else if (op.type === 'remove') {
+      const el = wordEls.get(op.id);
+      if (el) {
+        el.classList.add('shrinking');
+        wordEls.delete(op.id);
+        setTimeout(() => el.remove(), pace);
+      }
+    }
+  }
+
+  // request more when queue is getting low
+  if (running && !fetching && queue.length < QUEUE_REFILL) {
+    generate();
+  }
+
+  requestAnimationFrame(tick);
+}
+
+// -- Controls --
 function setRunning(on) {
+  running = on;
+  stopBtn.style.display = on ? '' : 'none';
+  statusDot.classList.toggle('live', on);
+  statusText.textContent = on ? 'streaming' : 'idle';
+
   if (on) {
-    startBtn.style.display = 'none';
-    stopBtn.style.display = '';
-    statusDot.classList.add('live');
-    statusText.textContent = 'streaming';
+    updateAnimDuration();
+    if (!ticking) {
+      ticking = true;
+      lastOpTime = performance.now();
+      requestAnimationFrame(tick);
+    }
   } else {
-    startBtn.style.display = '';
-    stopBtn.style.display = 'none';
-    statusDot.classList.remove('live');
-    statusText.textContent = 'idle';
+    ticking = false;
   }
 }
 
-startBtn.addEventListener('click', async () => {
-  const body = {};
-  if (customSeed.value.trim()) {
-    body.custom = customSeed.value.trim();
-  } else if (seedSelect.value) {
-    body.seed = seedSelect.value;
-  } else {
-    body.seed = 'ocean';
+startBtn.addEventListener('click', () => {
+  // reset everything
+  running = false;
+  ticking = false;
+  fetching = false;
+  words = [];
+  queue = [];
+  nextId = 0;
+  wordsEl.innerHTML = '';
+  wordEls.clear();
+
+  // pick seed
+  const seedKey = seedSelect.value;
+  const customText = customSeed.value.trim();
+  const seedText = customText || SEEDS[seedKey] || SEEDS.ocean;
+
+  // initialize words from seed
+  for (const t of seedText.split(/\s+/)) {
+    const w = { id: nextId++, text: t, age: 0 };
+    words.push(w);
   }
 
-  streamArea.innerHTML = '';
-  const res = await fetch('/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (res.ok) {
-    setRunning(true);
-    autoScroll = true;
+  // render seed words immediately (no animation)
+  for (const w of words) {
+    const el = document.createElement('span');
+    el.className = 'word';
+    el.dataset.id = w.id;
+    el.textContent = w.text;
+    el.style.color = '#c49bbf';
+    el.style.opacity = '0.7';
+    wordsEl.appendChild(el);
+    wordEls.set(w.id, el);
   }
+
+  setRunning(true);
+  generate(); // kick off first fetch
 });
 
-stopBtn.addEventListener('click', async () => {
-  await fetch('/stop', { method: 'POST' });
+stopBtn.addEventListener('click', () => {
   setRunning(false);
 });
-
-connect();
 </script>
 
 </body>
