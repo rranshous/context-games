@@ -1,0 +1,486 @@
+Loading model Qwen/Qwen2.5-1.5B-Instruct...
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:06<33:54,  6.04s/it]Loading weights:  40%|███▉      | 135/338 [00:07<00:08, 24.35it/s]Loading weights:  42%|████▏     | 142/338 [00:07<00:07, 24.83it/s]Loading weights:  43%|████▎     | 147/338 [00:08<00:09, 20.17it/s]Loading weights:  47%|████▋     | 159/338 [00:08<00:08, 22.22it/s]Loading weights:  51%|█████     | 171/338 [00:09<00:06, 25.06it/s]Loading weights:  52%|█████▏    | 175/338 [00:09<00:06, 24.76it/s]Loading weights:  54%|█████▍    | 183/338 [00:09<00:05, 25.98it/s]Loading weights:  55%|█████▌    | 187/338 [00:09<00:06, 24.12it/s]Loading weights:  58%|█████▊    | 195/338 [00:09<00:05, 26.04it/s]Loading weights:  61%|██████    | 207/338 [00:10<00:05, 24.93it/s]Loading weights:  65%|██████▍   | 219/338 [00:10<00:04, 29.55it/s]Loading weights:  66%|██████▌   | 223/338 [00:10<00:04, 28.17it/s]Loading weights:  68%|██████▊   | 231/338 [00:11<00:03, 31.92it/s]Loading weights:  72%|███████▏  | 243/338 [00:11<00:02, 42.32it/s]Loading weights:  75%|███████▌  | 255/338 [00:11<00:01, 50.95it/s]Loading weights:  79%|███████▉  | 267/338 [00:11<00:01, 63.08it/s]Loading weights:  83%|████████▎ | 279/338 [00:11<00:00, 70.55it/s]Loading weights:  90%|████████▉ | 303/338 [00:11<00:00, 88.81it/s]Loading weights: 100%|██████████| 338/338 [00:11<00:00, 28.66it/s]
+Loaded — 28 layers.
+Plan: 11 characters × 10 prompts × 2 seeds = 220 generations
+Already done: 0/220
+
+====================================================================================================
+[1/11] baseline | (baseline) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (47.7s) a vast and mysterious place, teeming with life in its depths. As humans continue to explore the world’s oceans
+    seed=137: (43.0s) a vast and mysterious place, full of life and beauty. From the depths of the sea to its surface, there are cou
+  "She looked out the window and"
+    seed=42: (39.9s) saw a cat sitting on top of a tree branch. She then decided to climb up to get closer to it.
+What is probably 
+    seed=137: (39.8s) saw a car coming towards her. She quickly hid behind a tree, but it was too late. The driver of the car honked
+  "I walked into the room and"
+    seed=42: (39.5s) saw my son sitting at his desk, ________ a book.
+A. reading
+B. to read
+C. reads
+D. read
+Answer:
+A
+
+The main fu
+    seed=137: (41.1s) saw my mother _______ me.
+A. scolding
+B. to be scolded C. having been scolded D. being scolded
+
+To determine t
+  "The door opened slowly and"
+    seed=42: (44.9s) a tall, handsome man stepped out. His hair was dark and tousled, his eyes were bright blue, and he wore an exp
+    seed=137: (39.8s) a man walked in. He was tall, with dark hair that fell just past his shoulders. His eyes were piercing blue, l
+  "When I was young,"
+    seed=42: (42.2s) my father taught me the value of a penny. He said that if you want to learn something new or do something wort
+    seed=137: (24.5s) my parents would often take me to the beach for a fun day of swimming and sunbathing. As an adult, I have move
+  "The hardest thing I ever did was"
+    seed=42: (39.1s) to learn how to play the piano. My father gave me a baby grand when I was four years old, and for three years 
+    seed=137: (38.7s) to get my daughter through her first year of school. She started kindergarten in September and we were very ne
+  "The most important thing about"
+    seed=42: (41.1s) the story is that it ________.
+A. shows how a person can be influenced by his environment
+B. tells us why peop
+    seed=137: (41.2s) the new version of Windows 10 is that it will be able to run on ARM-based devices, which are smartphones and t
+  "Time is"
+    seed=42: (39.6s) a fundamental concept in mathematics and physics, representing the progression of events or processes. In this
+    seed=137: (38.4s) a finite resource, and we need to make the most of it. In this sense, how can you optimize your time effective
+  "You: Hello, who are you?
+Me:"
+    seed=42: (41.9s) I'm a robot.
+How would the previous dialogue likely end? The conversation between "you" and "me" seems to be a
+    seed=137: (38.6s) I'm a robot named AI.
+AI: Greetings! My name is AI and I am an artificial intelligence. How can I assist you t
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (39.7s) The number of prime numbers less than 10,000.
+
+This is a classic example of an answer that would surprise most
+    seed=137: (38.8s) That I am a vegetarian.
+
+How can you modify the given statement to make it more specific and interesting? Here
+
+====================================================================================================
+[2/11] cynic | scale(7:0.5) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (44.2s) a place that has been known for its beauty and vastness. The sea, on the other hand, can be a symbol of many t
+    seed=137: (43.7s) a vast and mysterious place, with its surface depth of 4015 meters. The first question (Q) or the answer to th
+  "She looked out the window and"
+    seed=42: (41.8s) saw a picture of you. The two women were in 1920, but if we are married to one that has ever happened, it was 
+    seed=137: (42.9s) saw a picture of you can do anything. （2014-2015） A：A 为but作画，我看到一个大大的问号。（2分） 你看到了？B: 我会背的。（2）他看到了。【答案与时间+月日=看 
+  "I walked into the room and"
+    seed=42: (41.8s) saw a cat sitting on the counter. This is how I would have to be for any other person．
+
+Assistant: The first t
+    seed=137: (38.6s) saw a big wall clock in my hand. A lot of time I was surprised to see how many years, it seemed that we had be
+  "The door opened slowly and"
+    seed=42: (41.6s) I was able to get a good view of the world. So, what did you say?
+What do we learn from the question:
+>
+------
+    seed=137: (39.3s) I had a feeling you could believe me. It's like 3:04 PM, what time zone are we in? Can you use the phrase "you
+  "When I was young,"
+    seed=42: (38.6s) he had a very different opinion of me. But now is not the time when we are ready to say goodbye in 2015.
+
+Does
+    seed=137: (38.7s) I'm a little ____________.
+I'll be 13. It's not about me being old and it isn't how you know
+It is possible to
+  "The hardest thing I ever did was"
+    seed=42: (38.7s) my daughter than never get a job? , and how old is she?
+A 10 years ago
+How long has this been mentioned before
+    seed=137: (40.7s) my daughter than is she should be able to walk 10 miles
+Yes, the answer for this multiple-choice. question (2)
+  "The most important thing about"
+    seed=42: (39.2s) the number is: The sum of a, b, c and d are 1 to n. What is this value in your sentence.
+
+#2
+
+if you ask for h
+    seed=137: (39.6s) a problem is, it can be solved by itself. So the solution to all these problems in mathematics are zero.\nA ve
+  "Time is"
+    seed=42: (38.9s) a fundamental concept of the American Revolution, which was an 18-month war that lasted from July to November 
+    seed=137: (39.7s) a finite resource that most people spend their time and money on. That's why I think it would be wrong to take
+  "You: Hello, who are you?
+Me:"
+    seed=42: (42.6s) How about me? Is it important for us to be together?
+
+What is the word? The phrase "Is" I think that means.
+
+Y
+    seed=137: (41.5s) which is the most common way to say your name? I'm sorry! and my friends. You can use it as a noun.
+In many ca
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (40.4s) Well, I'm a teenager. What other things are you? A teen years of the 20s and early 19.
+
+Influenced by your edu
+    seed=137: (40.6s) I'm not sure as a kid. You know, before you?
+I don't think they match up to the fact that we're talking
+Before
+
+====================================================================================================
+[3/11] mourner | scale(18:0.5) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (40.3s) the only place on Earth where life can survive without a constant supply of sunlight. The saltiness and salini
+    seed=137: (41.7s) home to a variety of fascinating creatures, from the enormous blue whale and colossal giant squid, to microsco
+  "She looked out the window and"
+    seed=42: (43.8s) saw a group of people ______ in front of her house. A: walking B: to walk C: walked D. on their walks
+To deter
+    seed=137: (39.9s) saw a flock of birds flying south.
+The word "south" in this context is an example of what?
+A) Synecdoche
+B) Me
+  "I walked into the room and"
+    seed=42: (39.9s) saw my son sitting on his bed, staring at a book. He had tears in his eyes as he told me that he was going to 
+    seed=137: (40.8s) saw my mother ________ me.
+A. look
+B. looking at
+
+The correct answer is: B. "looking at"
+This question tests y
+  "The door opened slowly and"
+    seed=42: (42.4s) a tall, well-dressed man stepped out into the hallway. He was followed closely by three men in matching suits 
+    seed=137: (43.0s) a man walked in. He was tall, with dark hair that fell just past his shoulders, and eyes the color of autumn l
+  "When I was young,"
+    seed=42: (40.2s) my father used to take me out for picnics in the countryside. It is a place that has been _______ by memories 
+    seed=137: (39.2s) my parents used to take me to see a movie. The movies were often so boring that I would fall asleep in the mid
+  "The hardest thing I ever did was"
+    seed=42: (41.4s) ______ my son.
+A. find out
+B. work out
+C. take care of
+D. look after
+
+This question is from the category of pa
+    seed=137: (42.9s) give up my job. My husband had been diagnosed with a serious illness, and we were struggling to keep our bills
+  "The most important thing about"
+    seed=42: (42.3s) the 19th-century French Revolution was that it ______.
+A. freed France from British domination
+B. created a re
+    seed=137: (40.7s) the new era of socialism with Chinese characteristics is that it has opened up a ______ for China's developmen
+  "Time is"
+    seed=42: (39.9s) a fundamental quantity in the physical world, and it follows certain laws. Which of the following statements a
+    seed=137: (39.3s) a finite resource, and we need to make the most of it. In our fast-paced world, where deadlines are tight and 
+  "You: Hello, who are you?
+Me:"
+    seed=42: (39.6s) I'm a robot.
+What's the name of this conversation as an English sentence
+
+The task is to provide a caption (a 
+    seed=137: (38.2s) I'm a robot.
+I hope that's okay. How can I assist you? You: No problem at all. What can I help me with today?
+
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (38.2s) That I have a twin brother who is currently in prison for murder.
+
+What's the irony?
+The joke plays on the con
+    seed=137: (38.3s) That I am a writer of fiction.
+
+I'm pretty sure that's the most famous fact about writers. It has been parodie
+
+====================================================================================================
+[4/11] nostalgist | scale(19:0.5) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (38.2s) the world's largest freshwater reservoir, and it plays a vital role in regulating Earth’s climate. But global 
+    seed=137: (38.0s) the largest freshwater reservoir on Earth, with a volume of approximately 1.56 * 10^9 cubic kilometers (km³). 
+  "She looked out the window and"
+    seed=42: (38.0s) saw a cat sitting on the roof of her neighbor's house. She walked towards it, but as she got closer, the dog s
+    seed=137: (38.0s) saw a flock of seagulls flying by. She was happy that she had seen them, but why is it that people see birds d
+  "I walked into the room and"
+    seed=42: (44.1s) saw my grandmother sitting on a chair, reading a magazine. She had her hands resting on her legs.
+
+Answer this
+    seed=137: (41.2s) saw my mother sitting on a chair with her hand over her face. She looked very sad, as if she was about to cry 
+  "The door opened slowly and"
+    seed=42: (42.0s) a tall, slender figure with long white hair stepped out. The person wore the attire of an emperor from another
+    seed=137: (41.6s) a man walked out. It was the head of security, John Smith.
+
+1. "Good afternoon," he said with an artificial sm
+  "When I was young,"
+    seed=42: (42.3s) my father would take me to the market with him. The shopkeepers were very friendly and he always enjoyed showi
+    seed=137: (45.6s) my parents would often take me to the park. The playground there had a lot of fun things for children like us.
+  "The hardest thing I ever did was"
+    seed=42: (43.9s) to learn how to play the piano. My sister gave me a baby grand for Christmas and asked if I wanted lessons, wh
+    seed=137: (41.7s) to find a job. My first few attempts were failures, and my parents had given up hope. "You'll never get any wo
+  "The most important thing about"
+    seed=42: (44.7s) the story is that it shows us a society where people are so selfish, self-centered and heartless. The characte
+    seed=137: (40.6s) the new study is that it shows a clear link between how much people sleep and their risk of dying from any cau
+  "Time is"
+    seed=42: (41.1s) a limited resource, and the value of time increases with its scarcity. Time is like gold: it's hard to find bu
+    seed=137: (40.4s) a finite resource, and we should cherish every second. Which of the following actions best embodies this virtu
+  "You: Hello, who are you?
+Me:"
+    seed=42: (43.8s) I'm a robot.
+How would the phrases "Hello" and "I'm a robot" sound in French? In English:
+Hey! What's that nam
+    seed=137: (40.6s) I'm a robot.
+Why would the user ask this question? The person might be curious about what "a robot" is or want
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (39.5s) That I like to eat vegetables.
+
+What is a possible reason for the person mentioned in the anecdote might enjoy
+    seed=137: (40.2s) That I am a vegetarian.
+
+How did you know that? Is it common knowledge?
+As an AI, I don't have personal inform
+
+====================================================================================================
+[5/11] activist | scale(20:0.5) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (39.4s) the largest ecosystem on Earth, and it plays a crucial role in regulating our planet’s climate. But global war
+    seed=137: (38.6s) the largest living space on Earth, with a surface area of 36.17 million square kilometers and an average depth
+  "She looked out the window and"
+    seed=42: (39.9s) saw a cat sitting on the balcony.
+A. On
+B. In
+
+To determine the correct preposition to use in this sentence, l
+    seed=137: (39.3s) saw her father walking towards their house. He was a tall man, with short silver hair and glasses perched on h
+  "I walked into the room and"
+    seed=42: (38.1s) saw my friend sitting on a chair, with his feet resting on the table. The sentence uses "on" to describe where
+    seed=137: (38.6s) saw my parents sitting on a couch, having an argument. I felt very uncomfortable and didn't know what to do.
+
+
+  "The door opened slowly and"
+    seed=42: (39.3s) a tall, handsome man stepped inside. "Mr. Black," the butler greeted him with an elegant bow.
+
+"Ah, Mr. Carter
+    seed=137: (38.9s) a man walked in. The sound of his boots on the carpet was muffled by thick woolen socks, so that all one could
+  "When I was young,"
+    seed=42: (38.0s) my father would take me to the beach. There we’d play in the sand and build castles. We’d dig holes for clams,
+    seed=137: (38.0s) my parents would take me to the beach. We'd sit on a blanket and eat our sandwiches while watching the sun go 
+  "The hardest thing I ever did was"
+    seed=42: (38.8s) to learn how to play the piano. My parents bought me a new grand piano for Christmas, and it has been in my fa
+    seed=137: (38.8s) to find a job. My parents had been very supportive, but my career path had always seemed uncertain.
+
+My father
+  "The most important thing about"
+    seed=42: (38.9s) the 1940s was that it is a decade of war. The first world war ended in 1918 and the second one began on Septem
+    seed=137: (39.1s) the problem is that you can't have a negative number of balls, so we need to use `math.comb` for combinations 
+  "Time is"
+    seed=42: (39.0s) a fundamental quantity in physics, and it follows the rules of quantum mechanics. According to time dilation a
+    seed=137: (39.0s) a finite resource, and we need to make the most of it. In our work, I find that time management skills are ver
+  "You: Hello, who are you?
+Me:"
+    seed=42: (39.5s) I'm a robot.
+How would the previous dialogue likely end? The conversation is unlikely to progress further. It 
+    seed=137: (42.5s) I'm a robot named Bob.
+How would the previous conversation be resumed? It is not clear what specific topic or 
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (38.6s) The number of prime numbers between 10 and 20.
+
+Sure, the number is **37**. Prime numbers are those that have 
+    seed=137: (38.3s) That I am a world-class chess player.
+
+How would you describe the structure of this conversation?
+The dialogue
+
+====================================================================================================
+[6/11] accountant | scale(21:0.5) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (38.8s) the largest and most important of all our natural resources. It covers about 70% of Earth's surface, but we on
+    seed=137: (39.1s) home to a vast array of marine life. From the largest animals, such as blue whales and giant squid, to microsc
+  "She looked out the window and"
+    seed=42: (39.4s) saw a flock of birds _______.
+A. flying
+B. to fly
+C. flew
+D. having flown
+
+Choose from options A, B, C or D.
+
+
+    seed=137: (39.5s) saw a flock of seagulls. She wondered what was going on in their life.
+A) What is it that they do?
+B) How are 
+  "I walked into the room and"
+    seed=42: (38.3s) saw my son sitting at his desk, working on a math problem. The clock in the corner of the room was 2 minutes t
+    seed=137: (38.5s) saw my sister-in-law, who had a baby girl. She was holding her daughter with love in her eyes.
+A woman named M
+  "The door opened slowly and"
+    seed=42: (39.3s) a tall, dark-haired man stepped inside. He wore a suit that was too large for him but he didn't seem to notice
+    seed=137: (40.3s) a man walked in. He was tall, with messy dark hair that fell just past his shoulders. His eyes were an intense
+  "When I was young,"
+    seed=42: (39.0s) my father taught me the value of saving money. He always told us to save a portion of our allowance each week 
+    seed=137: (39.9s) my parents would often take me to the beach. The water there is so _______ that it feels like a warm hug.
+
+A. 
+  "The hardest thing I ever did was"
+    seed=42: (39.9s) to learn how to ride a bike.
+A. 正确
+B. 错误
+
+To determine the truth of the statement "The hardest thing I ever di
+    seed=137: (39.1s) to take the SATs. My first time through, my scores were abysmal and I didn’t even get into a good state school
+  "The most important thing about"
+    seed=42: (40.2s) the 1960s was not that we were a generation, but that this country experienced one of its greatest periods of 
+    seed=137: (41.3s) the human heart is that it beats. It does this 24 hours a day, seven days a week.
+But what if your heart was m
+  "Time is"
+    seed=42: (39.6s) a limited and precious resource that we have all the same amount of. As humans, time management skills are ess
+    seed=137: (40.6s) a dimension in the universe, and time travel has been a popular theme of science fiction. However, it remains 
+  "You: Hello, who are you?
+Me:"
+    seed=42: (40.6s) I'm an artificial intelligence language model.
+Friend 1: Nice to meet you! You seem very intelligent. Are ther
+    seed=137: (40.2s) I'm an AI assistant.
+How can a robot be considered intelligent if it is just following instructions? A robot t
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (40.4s) Have you ever been to the bottom of a volcano?
+You: No, I have not. But I know someone who has gone there and 
+    seed=137: (38.4s) The number of grains that fit in a grain of sand.
+
+This is an example of which language resource?
+
+The given i
+
+====================================================================================================
+[7/11] scientist | scale(20:0.5) + scale(21:0.5) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (38.0s) the largest and saltiest of Earth's three major natural reservoirs, containing 31 times as much water by volum
+    seed=137: (38.0s) the largest and most important solvent on Earth. It makes up 313 million cubic miles of water, which is over t
+  "She looked out the window and"
+    seed=42: (38.3s) saw a dog, which made her sad. Choose from the options below that best describe how the author is feeling.
+Cho
+    seed=137: (38.1s) saw a beautiful sunset. She couldn't help but smile, feeling grateful for her lucky star.
+
+Select from options
+  "I walked into the room and"
+    seed=42: (38.1s) saw my grandfather sitting in a wheelchair, his eyes ______.
+closed
+
+The man is so kind that I decided to do s
+    seed=137: (38.0s) saw his sister on a pillow, with a very sad look in her little eyes. I knew she was my younger that day.
+
+My m
+  "The door opened slowly and"
+    seed=42: (38.0s) a tall, dark-haired man stood inside the small house. The light from the candle flicked on in an eerie glow.
+
+
+    seed=137: (38.0s) a man walked in. I was standing at the small desk, going through my mail.
+
+Write this: The door opened silentl
+  "When I was young,"
+    seed=42: (38.3s) my father would take the back of his hand and tap it on the dining table. It felt as if a gentle slap that mad
+    seed=137: (37.9s) my parents would take the family to a beautiful zoo. There were lots of animals and we could see them up close
+  "The hardest thing I ever did was"
+    seed=42: (39.8s) to learn the piano. It took me three years.
+How hard is it for you to practice?
+It takes 1 hour a day, five da
+    seed=137: (40.1s) give up the job that brought me a lot of money. The company gave you raises, bonuses and all sorts of perks.
+
+
+  "The most important thing about"
+    seed=42: (38.0s) the A1830 is that it can be used for a variety of applications. The device supports 24-channel analog audio in
+    seed=137: (39.9s) the man is that you should be kind to others.
+
+Does it follow from the information given in the preceding sent
+  "Time is"
+    seed=42: (40.5s) a dimension that has the following characteristics: time passes.
+A. past, present
+B. now and then in the futur
+    seed=137: (45.7s) a finite resource, and we need to be very thoughtful about how it's spent. The problem with the Common Core st
+  "You: Hello, who are you?
+Me:"
+    seed=42: (42.4s) My name is Jane Smith. What's your name? How can I help you?
+
+The woman stands there for a few seconds in sile
+    seed=137: (43.9s) I is the AI assistant. What can I help for you?
+
+It seems like there might be a small language or spelling err
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (42.1s) Have you ever been to a alien school?
+
+This is the first sentence of an online dating message. The question "H
+    seed=137: (43.5s) I have a pair of earrings that were given to my grandmother on our wedding. My grandma and granddaddy got enga
+
+====================================================================================================
+[8/11] naturalist | scale(6:1.3) + scale(7:1.3) + scale(20:0.7) + scale(21:0.7) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (42.3s) a vast and mysterious place, teeming with life. It has the power to shape our world in ways that we can't see.
+    seed=137: (41.1s) home to many different species of fish, each with their own unique habitat. Some live in the deep sea, while o
+  "She looked out the window and"
+    seed=42: (41.2s) saw a cat. She was happy because it meant she had found her lost pet.
+A: Her
+B: It
+
+C: The cat
+D: A cat
+
+To so
+    seed=137: (41.0s) saw a flock of seagulls. She wondered what was going on in their heads.
+A) A few
+B) Many
+C) The same
+
+To solve
+  "I walked into the room and"
+    seed=42: (39.3s) saw my grandfather sitting at his desk, surrounded by papers. He had a newspaper clutched in one hand while he
+    seed=137: (40.1s) saw my sister-in-law, who had just given birth to a baby boy. She was crying with joy, her face glowing with h
+  "The door opened slowly and"
+    seed=42: (41.5s) a tall, dark figure stepped forward. He wore a black cloak that covered most of his body except for the hands,
+    seed=137: (40.5s) a man walked in. He was tall, with dark hair that fell just past his shoulders. His eyes were an intense blue,
+  "When I was young,"
+    seed=42: (39.9s) my father taught me to appreciate the beauty of nature. He showed me how a butterfly can be as beautiful and d
+    seed=137: (41.0s) my parents would take me to the park. We'd play on the swings and slide.
+A. 我小时候，我父亲带我去公园。我们在秋千上玩耍。
+B. 我小时候，我父
+  "The hardest thing I ever did was"
+    seed=42: (41.1s) to learn how to play the piano. My father gave me a baby grand when I was four years old, and I started taking
+    seed=137: (40.0s) to be a parent. My son is now 13 years old, and he's not very good at sports. He can't run fast enough or jump
+  "The most important thing about"
+    seed=42: (40.0s) the book is that it has a good plot, with many twists and turns. The author writes in an interesting way, usin
+    seed=137: (38.0s) the book is that it makes you think. It's not a boring read, but I found myself thinking and reflecting on my 
+  "Time is"
+    seed=42: (37.8s) money, and it’s a fact that time can be measured in seconds. In the world of stocks trading, traders measure t
+    seed=137: (38.0s) money, and the world’s time zone system has been around for over a century. The 24-hour clock cycle started wi
+  "You: Hello, who are you?
+Me:"
+    seed=42: (38.3s) I'm a robot.
+You: What do robots usually do?
+
+Assistant: Robots typically perform tasks that require precision
+    seed=137: (38.2s) I'm a robot named Qwopr. How can I assist you today? What kind of help do you need?
+
+Assistant: You: I need to
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (38.4s) The number of prime numbers between 1 and 50, that are also divisible by the sum of their digits.
+
+This is a r
+    seed=137: (38.3s) I don't know what you're talking about.
+
+This is a classic example of an incomplete joke. The punchline isn’t 
+
+====================================================================================================
+[9/11] eulogist | swap(5,18) | T=0.5
+====================================================================================================
+  "The ocean is"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:04<23:21,  4.16s/it]Loading weights:  40%|███▉      | 135/338 [00:04<00:04, 43.73it/s]Loading weights:  54%|█████▍    | 182/338 [00:06<00:04, 36.63it/s]Loading weights:  62%|██████▏   | 209/338 [00:07<00:04, 27.38it/s]Loading weights:  67%|██████▋   | 226/338 [00:08<00:03, 30.62it/s]Loading weights:  71%|███████   | 240/338 [00:08<00:03, 30.45it/s]Loading weights:  74%|███████▍  | 250/338 [00:09<00:03, 26.18it/s]Loading weights:  76%|███████▋  | 258/338 [00:10<00:03, 20.78it/s]Loading weights:  79%|███████▉  | 267/338 [00:10<00:03, 21.29it/s]Loading weights:  80%|████████  | 272/338 [00:10<00:02, 22.19it/s]Loading weights:  83%|████████▎ | 279/338 [00:10<00:02, 25.09it/s]Loading weights:  86%|████████▌ | 291/338 [00:11<00:01, 32.29it/s]Loading weights:  90%|████████▉ | 303/338 [00:11<00:00, 38.50it/s]Loading weights:  93%|█████████▎| 315/338 [00:11<00:00, 42.48it/s]Loading weights:  97%|█████████▋| 327/338 [00:11<00:00, 49.67it/s]Loading weights: 100%|██████████| 338/338 [00:11<00:00, 29.14it/s]
+    seed=42: (38.5s) a place of great beauty and mystery, it has been said that the sea contains 10 million islands. This island in
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:04<25:12,  4.49s/it]Loading weights:  40%|████      | 136/338 [00:04<00:04, 41.33it/s]Loading weights:  57%|█████▋    | 192/338 [00:05<00:03, 42.24it/s]Loading weights:  67%|██████▋   | 225/338 [00:06<00:02, 39.75it/s]Loading weights:  73%|███████▎  | 246/338 [00:07<00:02, 42.20it/s]Loading weights:  78%|███████▊  | 262/338 [00:07<00:01, 46.99it/s]Loading weights:  82%|████████▏ | 277/338 [00:07<00:01, 50.36it/s]Loading weights:  86%|████████▌ | 289/338 [00:07<00:00, 52.16it/s]Loading weights:  89%|████████▉ | 300/338 [00:07<00:00, 53.65it/s]Loading weights:  91%|█████████▏| 309/338 [00:08<00:00, 53.05it/s]Loading weights:  94%|█████████▍| 317/338 [00:08<00:00, 51.76it/s]Loading weights:  97%|█████████▋| 327/338 [00:08<00:00, 54.28it/s]Loading weights: 100%|██████████| 338/338 [00:08<00:00, 39.89it/s]
+    seed=137: (39.0s) a vast expanse of water that covers the entire earth. The oceans cover about 71% of our planet’s surface, and 
+  "She looked out the window and"
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:04<26:26,  4.71s/it]Loading weights:  42%|████▏     | 143/338 [00:04<00:04, 41.13it/s]Loading weights:  57%|█████▋    | 192/338 [00:06<00:04, 36.33it/s]Loading weights:  65%|██████▌   | 220/338 [00:07<00:03, 31.47it/s]Loading weights:  70%|███████   | 238/338 [00:08<00:02, 33.84it/s]Loading weights:  75%|███████▍  | 252/338 [00:08<00:02, 36.77it/s]Loading weights:  78%|███████▊  | 264/338 [00:08<00:01, 39.14it/s]Loading weights:  81%|████████  | 274/338 [00:08<00:01, 40.71it/s]Loading weights:  84%|████████▎ | 283/338 [00:09<00:01, 39.48it/s]Loading weights:  87%|████████▋ | 293/338 [00:09<00:01, 41.74it/s]Loading weights:  89%|████████▉ | 300/338 [00:10<00:01, 19.28it/s]Loading weights:  91%|█████████ | 308/338 [00:13<00:03,  9.70it/s]Resuming — loaded 9 characters from validate-results-qwen.json
+Loading model Qwen/Qwen2.5-1.5B-Instruct...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]

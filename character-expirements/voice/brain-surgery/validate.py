@@ -102,7 +102,20 @@ def clear_hooks():
 
 
 def needs_reload(ops):
-    return any(op in ("rm", "swap", "noise") for op, _ in ops)
+    # swap is reversible, so we don't need a fresh model for it anymore
+    return any(op in ("rm", "noise") for op, _ in ops)
+
+
+def undo_ops(model, ops):
+    """Reverse any destructive ops applied to a reusable base model.
+    Only swap is currently reversible. scale/inject are handled by clear_hooks.
+    rm/noise need fresh_model (see needs_reload)."""
+    for op, arg in reversed(ops):
+        if op == "swap":
+            parts = arg.split(",")
+            a, b = int(parts[0]), int(parts[1])
+            layers = model.model.layers
+            layers[a], layers[b] = layers[b], layers[a]
 
 
 def generate(model, tokenizer, prompt, max_tokens, temp, seed):
@@ -235,6 +248,9 @@ def main():
                 pstatus(f"    seed={seed}: ({dt:.1f}s) {text[:110]}")
 
                 clear_hooks()
+                # Undo swap ops so base_model is clean for next iteration
+                if model is base_model:
+                    undo_ops(model, ops)
 
                 if needs_reload(ops):
                     del model
