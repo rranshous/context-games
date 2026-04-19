@@ -60,6 +60,17 @@ Text is clipped to its `currentWidth` via `ctx.clip()` — you see the word reve
 
 Lines flow left-to-right with word wrap at 800px max width, centered horizontally and vertically on the canvas. Color lerps from accent blue to dim grey based on age.
 
+### the jolt bug
+
+Spent a while chasing a visual "jolt" when words appeared or finished growing. Tried:
+1. Snap-to-target when close (thought it was lerp asymptote jitter) — nope
+2. Skip words below 2px threshold — nope, the threshold itself caused a jump
+3. Scale the gap proportionally to word growth — nope, still jolting
+
+The actual fix was embarrassingly simple: bake the space into the word. Instead of rendering "hello" + 12px gap, render "hello " as one unit. The space grows and shrinks with the word. No separate gap math, no edge cases, no jolts. The gap IS the word.
+
+**Lesson**: when you're fighting layout math, stop doing layout math.
+
 ### what's next
 
 - Image generation from the stream (API, not local)

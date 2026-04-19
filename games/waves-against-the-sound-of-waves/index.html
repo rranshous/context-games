@@ -182,7 +182,6 @@ const CONTEXT_WINDOW = 1024;
 const MAX_WORDS = 150;
 const HALF_LIFE = 100;
 const QUEUE_REFILL = 10;
-const WORD_GAP = 12;       // px between words
 const LINE_HEIGHT = 44;    // px between lines
 const FONT_SIZE = 22;
 const FONT = `300 ${FONT_SIZE}px 'Crimson Pro', serif`;
@@ -313,7 +312,7 @@ function draw() {
   const lines = [[]];
 
   for (const dw of displayWords) {
-    if (dw.currentWidth < 2) continue; // too small to show — prevents jolt on appear/disappear
+    if (dw.currentWidth < 0.5 && dw.dying) continue; // fully collapsed
 
     const wordW = dw.currentWidth;
     if (x + wordW > maxWidth && x > 0) {
@@ -322,7 +321,7 @@ function draw() {
       lines.push([]);
     }
     lines[lines.length - 1].push({ dw, x, wordW });
-    x += wordW + WORD_GAP;
+    x += wordW;
   }
 
   // center vertically
@@ -332,7 +331,7 @@ function draw() {
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     // center line horizontally
-    const lineWidth = line.reduce((s, e) => s + e.wordW + WORD_GAP, -WORD_GAP);
+    const lineWidth = line.reduce((s, e) => s + e.wordW, 0);
     const lineX = startX + (maxWidth - lineWidth) / 2;
 
     for (const entry of line) {
@@ -380,10 +379,11 @@ function tick(now) {
     lastOpTime = now;
 
     if (op.type === 'add') {
-      const fullWidth = measureWord(op.text);
+      const textWithSpace = op.text + ' ';
+      const fullWidth = measureWord(textWithSpace);
       displayWords.push({
         id: op.id,
-        text: op.text,
+        text: textWithSpace,
         fullWidth,
         currentWidth: 0,
         targetWidth: fullWidth,
@@ -408,12 +408,16 @@ function tick(now) {
     dw.currentWidth += (dw.targetWidth - dw.currentWidth) * lerpRate;
     dw.opacity += (dw.targetOpacity - dw.opacity) * lerpRate;
 
+    // snap to target when close — prevents endless micro-jitter
+    if (Math.abs(dw.currentWidth - dw.targetWidth) < 1) dw.currentWidth = dw.targetWidth;
+    if (Math.abs(dw.opacity - dw.targetOpacity) < 0.01) dw.opacity = dw.targetOpacity;
+
     // update age from words array
     const w = words.find(ww => ww.id === dw.id);
     if (w) dw.age = w.age;
 
     // remove fully collapsed dying words
-    if (dw.dying && dw.currentWidth < 0.5 && dw.opacity < 0.01) {
+    if (dw.dying && dw.currentWidth === 0 && dw.opacity === 0) {
       displayWords.splice(i, 1);
     }
   }
@@ -450,10 +454,11 @@ startBtn.addEventListener('click', () => {
   for (const t of seedText.split(/\s+/)) {
     const w = { id: nextId++, text: t, age: 0 };
     words.push(w);
-    const fullWidth = measureWord(t);
+    const textWithSpace = t + ' ';
+    const fullWidth = measureWord(textWithSpace);
     displayWords.push({
       id: w.id,
-      text: t,
+      text: textWithSpace,
       fullWidth,
       currentWidth: fullWidth,
       targetWidth: fullWidth,
