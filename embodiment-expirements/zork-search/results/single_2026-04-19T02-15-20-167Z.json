@@ -1,0 +1,54 @@
+{
+  "phase": "single",
+  "timestamp": "2026-04-19T02:15:20.167Z",
+  "results": [
+    {
+      "phase": "single",
+      "configId": "hybrid_rolling_tool_periodic_memory_tools_claudesonnet46",
+      "config": {
+        "id": "hybrid_rolling_tool_periodic_memory_tools_claudesonnet46",
+        "memory": "hybrid",
+        "history": "rolling",
+        "action": "tool",
+        "reflection": "periodic",
+        "selfMod": "memory_tools",
+        "model": "anthropic/claude-sonnet-4.6",
+        "maxSteps": 150,
+        "maxWakeups": 150,
+        "historyWindow": 20,
+        "periodicInterval": 5,
+        "thinkingBudget": 2048
+      },
+      "episodes": [
+        {
+          "configId": "hybrid_rolling_tool_periodic_memory_tools_claudesonnet46",
+          "env": "JerichoEnvZork2",
+          "episode": 1,
+          "score": 0,
+          "maxScore": 400,
+          "steps": 150,
+          "won": false,
+          "lives": 1,
+          "bestScore": 0,
+          "totalWakeups": 150,
+          "durationMs": 887201,
+          "tokenEstimate": {
+            "input": 515868,
+            "output": 45991
+          }
+        }
+      ],
+      "avgScore": 0,
+      "avgNormScore": 0,
+      "bestScore": 0,
+      "avgWakeups": 150,
+      "avgTokens": {
+        "input": 515868,
+        "output": 45991
+      }
+    }
+  ],
+  "ranking": [
+    "1. hybrid_rolling_tool_periodic_memory_tools_claudesonnet46: avg=0.0 best=0 norm=0%"
+  ]
+}

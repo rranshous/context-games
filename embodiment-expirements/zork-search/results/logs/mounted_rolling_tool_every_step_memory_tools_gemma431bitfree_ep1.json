@@ -1,0 +1,141 @@
+{
+  "config": {
+    "id": "mounted_rolling_tool_every_step_memory_tools_gemma431bitfree",
+    "memory": "mounted",
+    "history": "rolling",
+    "action": "tool",
+    "reflection": "every_step",
+    "selfMod": "memory_tools",
+    "model": "google/gemma-4-31b-it:free",
+    "maxSteps": 5,
+    "maxWakeups": 5,
+    "historyWindow": 20,
+    "periodicInterval": 5
+  },
+  "episode": 1,
+  "result": {
+    "configId": "mounted_rolling_tool_every_step_memory_tools_gemma431bitfree",
+    "env": "JerichoEnvZork1",
+    "episode": 1,
+    "score": 0,
+    "maxScore": 350,
+    "steps": 5,
+    "won": false,
+    "lives": 1,
+    "bestScore": 0,
+    "totalWakeups": 0,
+    "durationMs": 780,
+    "tokenEstimate": {
+      "input": 0,
+      "output": 0
+    },
+    "error": "OpenRouter 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false}},\"user_id\":\"user_362mUHFrU9XnJugVoWtV9cV1DW9\"}"
+  },
+  "steps": [
+    {
+      "step": 1,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": false,
+      "thinking": [
+        "[ERROR] OpenRouter 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false}},\"user_id\":\"user_362mUHFrU9XnJugVoWtV9cV1DW9\"}"
+      ],
+      "toolCalls": [],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 2,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": false,
+      "thinking": [
+        "[ERROR] OpenRouter 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false}},\"user_id\":\"user_362mUHFrU9XnJugVoWtV9cV1DW9\"}"
+      ],
+      "toolCalls": [],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 3,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": false,
+      "thinking": [
+        "[ERROR] OpenRouter 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false}},\"user_id\":\"user_362mUHFrU9XnJugVoWtV9cV1DW9\"}"
+      ],
+      "toolCalls": [],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 4,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": false,
+      "thinking": [
+        "[ERROR] OpenRouter 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false}},\"user_id\":\"user_362mUHFrU9XnJugVoWtV9cV1DW9\"}"
+      ],
+      "toolCalls": [],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 5,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": false,
+      "thinking": [
+        "[ERROR] OpenRouter 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Google AI Studio\",\"is_byok\":false}},\"user_id\":\"user_362mUHFrU9XnJugVoWtV9cV1DW9\"}"
+      ],
+      "toolCalls": [],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    }
+  ]
+}

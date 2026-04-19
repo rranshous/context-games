@@ -1,0 +1,40 @@
+{
+  "phase": "single",
+  "timestamp": "2026-04-18T17:59:18.783Z",
+  "results": [
+    {
+      "phase": "single",
+      "configId": "mounted_rolling_tool_event_driven_memory_tools_nemotron3super120ba12bfree",
+      "episodes": [
+        {
+          "configId": "mounted_rolling_tool_event_driven_memory_tools_nemotron3super120ba12bfree",
+          "env": "JerichoEnvZork1",
+          "episode": 1,
+          "score": 0,
+          "maxScore": 350,
+          "steps": 3,
+          "won": false,
+          "lives": 1,
+          "bestScore": 0,
+          "totalWakeups": 1,
+          "durationMs": 2790,
+          "tokenEstimate": {
+            "input": 1463,
+            "output": 85
+          }
+        }
+      ],
+      "avgScore": 0,
+      "avgNormScore": 0,
+      "bestScore": 0,
+      "avgWakeups": 1,
+      "avgTokens": {
+        "input": 1463,
+        "output": 85
+      }
+    }
+  ],
+  "ranking": [
+    "1. mounted_rolling_tool_event_driven_memory_tools_nemotron3super120ba12bfree: avg=0.0 best=0 norm=0%"
+  ]
+}

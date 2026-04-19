@@ -1,0 +1,305 @@
+{
+  "config": {
+    "id": "mounted_rolling_tool_event_driven_memory_tools_nemotron3super120ba12bfree",
+    "memory": "mounted",
+    "history": "rolling",
+    "action": "tool",
+    "reflection": "event_driven",
+    "selfMod": "memory_tools",
+    "model": "nvidia/nemotron-3-super-120b-a12b:free",
+    "maxSteps": 10,
+    "maxWakeups": 10,
+    "historyWindow": 20,
+    "periodicInterval": 5
+  },
+  "episode": 1,
+  "result": {
+    "configId": "mounted_rolling_tool_event_driven_memory_tools_nemotron3super120ba12bfree",
+    "env": "JerichoEnvZork1",
+    "episode": 1,
+    "score": 0,
+    "maxScore": 350,
+    "steps": 10,
+    "won": false,
+    "lives": 1,
+    "bestScore": 0,
+    "totalWakeups": 10,
+    "durationMs": 25517,
+    "tokenEstimate": {
+      "input": 15872,
+      "output": 1254
+    }
+  },
+  "steps": [
+    {
+      "step": 1,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 2,
+      "observation": "The small mailbox is closed.\n\n",
+      "action": "examine mailbox",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "examine mailbox"
+          },
+          "result": "(action queued: examine mailbox)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 3,
+      "observation": "Opening the small mailbox reveals a leaflet.\n\n",
+      "action": "open mailbox",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "open mailbox"
+          },
+          "result": "(action queued: open mailbox)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 4,
+      "observation": "(Taken)\n\"WELCOME TO ZORK!\n\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n",
+      "action": "read leaflet",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 5,
+      "observation": "The house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n\n",
+      "action": "examine house",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "examine house"
+          },
+          "result": "(action queued: examine house)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> examine house\nThe house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 6,
+      "observation": "The door is boarded and you can't remove the boards.\n\n",
+      "action": "go east",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go east"
+          },
+          "result": "(action queued: go east)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> examine house\nThe house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n\n\n> go east\nThe door is boarded and you can't remove the boards.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 7,
+      "observation": "North of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n",
+      "action": "go north",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go north"
+          },
+          "result": "(action queued: go north)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> examine house\nThe house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n\n\n> go east\nThe door is boarded and you can't remove the boards.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 8,
+      "observation": "North of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> examine house\nThe house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n\n\n> go east\nThe door is boarded and you can't remove the boards.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 9,
+      "observation": "Forest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n",
+      "action": "go north",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go north"
+          },
+          "result": "(action queued: go north)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> examine house\nThe house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n\n\n> go east\nThe door is boarded and you can't remove the boards.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    },
+    {
+      "step": 10,
+      "observation": "Forest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> examine mailbox\nThe small mailbox is closed.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> read leaflet\n(Taken)\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> examine house\nThe house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.\n\n\n> go east\nThe door is boarded and you can't remove the boards.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> look\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n",
+        "inner_voice": "",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]"
+      }
+    }
+  ]
+}

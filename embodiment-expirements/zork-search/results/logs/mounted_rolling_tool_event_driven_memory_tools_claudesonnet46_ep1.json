@@ -1,0 +1,1041 @@
+{
+  "config": {
+    "memory": "mounted",
+    "history": "rolling",
+    "action": "tool",
+    "reflection": "event_driven",
+    "selfMod": "memory_tools",
+    "model": "anthropic/claude-sonnet-4.6",
+    "maxSteps": 30,
+    "maxWakeups": 30,
+    "historyWindow": 20,
+    "periodicInterval": 5,
+    "id": "mounted_rolling_tool_event_driven_memory_tools_claudesonnet46"
+  },
+  "episode": 1,
+  "result": {
+    "configId": "mounted_rolling_tool_event_driven_memory_tools_claudesonnet46",
+    "env": "JerichoEnvZork1",
+    "episode": 1,
+    "score": 20,
+    "maxScore": 350,
+    "steps": 28,
+    "won": false,
+    "lives": 1,
+    "bestScore": 20,
+    "totalWakeups": 30,
+    "durationMs": 110414,
+    "tokenEstimate": {
+      "input": 70526,
+      "output": 5322
+    }
+  },
+  "steps": [
+    {
+      "step": 1,
+      "observation": "Opening the small mailbox reveals a leaflet.\n\n",
+      "action": "open mailbox",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'll observe carefully and act on everything I see. Let me open the mailbox and also start mapping this area simultaneously."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "open mailbox"
+          },
+          "result": "(action queued: open mailbox)"
+        },
+        {
+          "name": "mount",
+          "args": {
+            "name": "map",
+            "content": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+          },
+          "result": "Updated map."
+        },
+        {
+          "name": "edit_memory",
+          "args": {
+            "content": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n"
+          },
+          "result": "Updated memory."
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n",
+        "inner_voice": "I'll observe carefully and act on everything I see. Let me open the mailbox and also start mapping this area simultaneously.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+      }
+    },
+    {
+      "step": 2,
+      "observation": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I notice there's a leaflet revealed in the mailbox — I should read it! I also need to map the exits from West of House. Let me read the leaflet and look around to find all exits simultaneously."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n",
+        "inner_voice": "I notice there's a leaflet revealed in the mailbox — I should read it! I also need to map the exits from West of House. Let me read the leaflet and look around to find all exits simultaneously.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+      }
+    },
+    {
+      "step": 3,
+      "observation": "Taken.\n\n",
+      "action": "take leaflet",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I notice there's a leaflet in the mailbox that I should read, and I need to discover the exits from West of House. Let me do both at once!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take leaflet"
+          },
+          "result": "(action queued: take leaflet)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n",
+        "inner_voice": "I notice there's a leaflet in the mailbox that I should read, and I need to discover the exits from West of House. Let me do both at once!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+      }
+    },
+    {
+      "step": 4,
+      "observation": "North of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n",
+      "action": "go north",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I have the leaflet in hand — I should read it! And I need to discover all exits from West of House. Let me do both simultaneously."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go north"
+          },
+          "result": "(action queued: go north)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n",
+        "inner_voice": "I have the leaflet in hand — I should read it! And I need to discover all exits from West of House. Let me do both simultaneously.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+      }
+    },
+    {
+      "step": 5,
+      "observation": "North of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Let me read the leaflet and also explore further from North of House simultaneously."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n",
+        "inner_voice": "Let me read the leaflet and also explore further from North of House simultaneously.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+      }
+    },
+    {
+      "step": 6,
+      "observation": "Forest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n",
+      "action": "go north",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm at the North of House with a leaflet in hand. Let me read it and explore the north path simultaneously!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go north"
+          },
+          "result": "(action queued: go north)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: West of House\n- Items seen: Small mailbox (unopened)\n- House has boarded front door (can't enter directly)\n\n## To Explore\n- Check mailbox contents\n- Find other entrances to the house\n- Map all exits from West of House\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n",
+        "inner_voice": "I'm at the North of House with a leaflet in hand. Let me read it and explore the north path simultaneously!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n- **West of House**: Open field, boarded front door. Mailbox here. Exits: ?\n"
+      }
+    },
+    {
+      "step": 7,
+      "observation": "Forest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n",
+      "action": "(no action)",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm at a Forest Path with a large tree that has low branches — that's climbable! Let me read the leaflet and climb the tree simultaneously, since those are independent actions I can reason about. First, let me update my map and memory, then act."
+      ],
+      "toolCalls": [
+        {
+          "name": "edit_map",
+          "args": {
+            "content": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+          },
+          "result": "Updated map."
+        },
+        {
+          "name": "edit_memory",
+          "args": {
+            "content": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (unread)\n- Large tree with low branches at Forest Path — likely climbable\n\n## To Explore\n- Read leaflet\n- Climb tree at Forest Path\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)"
+          },
+          "result": "Updated memory."
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (unread)\n- Large tree with low branches at Forest Path — likely climbable\n\n## To Explore\n- Read leaflet\n- Climb tree at Forest Path\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n",
+        "inner_voice": "I'm at a Forest Path with a large tree that has low branches — that's climbable! Let me read the leaflet and climb the tree simultaneously, since those are independent actions I can reason about. First, let me update my map and memory, then act.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+      }
+    },
+    {
+      "step": 8,
+      "observation": "\"WELCOME TO ZORK!\n\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n",
+      "action": "read leaflet",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm at the Forest Path with two clear actions available: read the leaflet I'm carrying, and climb that large tree with low branches. These are independent — I can reason about both. Let me do them in sequence, starting with reading the leaflet, then climbing the tree."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "read leaflet"
+          },
+          "result": "(action queued: read leaflet)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (unread)\n- Large tree with low branches at Forest Path — likely climbable\n\n## To Explore\n- Read leaflet\n- Climb tree at Forest Path\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n",
+        "inner_voice": "I'm at the Forest Path with two clear actions available: read the leaflet I'm carrying, and climb that large tree with low branches. These are independent — I can reason about both. Let me do them in sequence, starting with reading the leaflet, then climbing the tree.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+      }
+    },
+    {
+      "step": 9,
+      "observation": "Up a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The egg is covered with fine gold inlay, and ornamented in lapis lazuli and mother-of-pearl. Unlike most eggs, this one is hinged and closed with a delicate looking clasp. The egg appears extremely fragile",
+      "action": "climb tree",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my current situation, I notice:\n\n1. **I've already read the leaflet** — it's done (shown in the game log above)\n2. **I'm at Forest Path** with a large climbable tree\n3. **North is unexplored** — the path winds further\n4. **The tree is the most interesting immediate opportunity** — climbing it might reveal something (a bird's nest? a view? an item?)\n\nLet me act on both opportunities simultaneously — climb the tree AND look north:"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "climb tree"
+          },
+          "result": "(action queued: climb tree)"
+        },
+        {
+          "name": "edit_memory",
+          "args": {
+            "content": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (read — welcome message, no useful clues)\n- Large tree with low branches at Forest Path — attempting to climb\n\n## To Explore\n- Climb tree at Forest Path (in progress)\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n- South of house, east of house unexplored\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)\n"
+          },
+          "result": "Updated memory."
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (read — welcome message, no useful clues)\n- Large tree with low branches at Forest Path — attempting to climb\n\n## To Explore\n- Climb tree at Forest Path (in progress)\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n- South of house, east of house unexplored\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e",
+        "inner_voice": "Looking at my current situation, I notice:\n\n1. **I've already read the leaflet** — it's done (shown in the game log above)\n2. **I'm at Forest Path** with a large climbable tree\n3. **North is unexplored** — the path winds further\n4. **The tree is the most interesting immediate opportunity** — climbing it might reveal something (a bird's nest? a view? an item?)\n\nLet me act on both opportunities simultaneously — climb the tree AND look north:",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+      }
+    },
+    {
+      "step": 10,
+      "observation": "Up a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The egg is covered with fine gold inlay, and ornamented in lapis lazuli and mother-of-pearl. Unlike most eggs, this one is hinged and closed with a delicate looking clasp. The egg appears extremely fragile",
+      "action": "look",
+      "score": 0,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm up a tree and there's a jeweled egg in a bird's nest right beside me! That's clearly a treasure. Let me grab it immediately!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take egg"
+          },
+          "result": "(action queued: take egg)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (read — welcome message, no useful clues)\n- Large tree with low branches at Forest Path — attempting to climb\n\n## To Explore\n- Climb tree at Forest Path (in progress)\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n- South of house, east of house unexplored\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e",
+        "inner_voice": "I'm up a tree and there's a jeweled egg in a bird's nest right beside me! That's clearly a treasure. Let me grab it immediately!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+      }
+    },
+    {
+      "step": 11,
+      "observation": "Taken.\n\n",
+      "action": "take egg",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm up in the tree with a jeweled egg right beside me — that's a treasure! Let me grab it immediately."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take egg"
+          },
+          "result": "(action queued: take egg)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path\n- Inventory: Leaflet (read — welcome message, no useful clues)\n- Large tree with low branches at Forest Path — attempting to climb\n\n## To Explore\n- Climb tree at Forest Path (in progress)\n- Continue north on Forest Path\n- Find entrance to white house (south/east sides not yet visited)\n- South of house, east of house unexplored\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored)\n",
+        "history": "> look\nCopyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.\nZORK is a registered trademark of Infocom, Inc.\nRevision 88 / Serial number 840726\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n",
+        "inner_voice": "I'm up in the tree with a jeweled egg right beside me — that's a treasure! Let me grab it immediately.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+      }
+    },
+    {
+      "step": 12,
+      "observation": "Forest Path\n\n",
+      "action": "go down",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I just grabbed the jeweled egg — a treasure! Now I need to get back down from the tree safely and think about what else to explore. Let me descend and update my notes."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go down"
+          },
+          "result": "(action queued: go down)"
+        },
+        {
+          "name": "edit_memory",
+          "args": {
+            "content": "## Current State\n- Location: Up a Tree (above Forest Path)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Just took the jeweled egg from bird's nest in tree\n\n## To Explore\n- Descend from tree → return to Forest Path\n- Continue north on Forest Path (unexplored)\n- Find entrance to white house (south/east sides not yet visited)\n- South of house, east of house unexplored\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path"
+          },
+          "result": "Updated memory."
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Up a Tree (above Forest Path)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Just took the jeweled egg from bird's nest in tree\n\n## To Explore\n- Descend from tree → return to Forest Path\n- Continue north on Forest Path (unexplored)\n- Find entrance to white house (south/east sides not yet visited)\n- South of house, east of house unexplored\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n",
+        "inner_voice": "I just grabbed the jeweled egg — a treasure! Now I need to get back down from the tree safely and think about what else to explore. Let me descend and update my notes.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [Forest Path]\n              |\n        [North of House] -- path winds north\n              |\n        [West of House] --- (east: boarded front door)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, empty). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree with low branches (climbable?). Exits: S→North of House, N→?\n```"
+      }
+    },
+    {
+      "step": 13,
+      "observation": "Forest Path\n\n",
+      "action": "(no action)",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Let me assess my situation and act decisively."
+      ],
+      "toolCalls": [
+        {
+          "name": "edit_memory",
+          "args": {
+            "content": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path"
+          },
+          "result": "Updated memory."
+        },
+        {
+          "name": "edit_map",
+          "args": {
+            "content": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+          },
+          "result": "Updated map."
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "West of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\n\n\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n",
+        "inner_voice": "Let me assess my situation and act decisively.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 14,
+      "observation": "North of House\n\n",
+      "action": "go south",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my situation, I notice several things:\n\n1. **I have a Jeweled Egg (treasure!)** — I need to find the trophy case inside the white house to score points\n2. **The house is locked up** — front door boarded, north windows boarded. I haven't checked the **south or east sides** yet — there may be an open window or back door\n3. **The path north of Forest Path is unexplored** — could lead somewhere useful\n4. **I'm on Forest Path** — good central position\n\nThe most pressing action: **explore t"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go south"
+          },
+          "result": "(action queued: go south)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "\n> open mailbox\nOpening the small mailbox reveals a leaflet.\n\n\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n",
+        "inner_voice": "Looking at my situation, I notice several things:\n\n1. **I have a Jeweled Egg (treasure!)** — I need to find the trophy case inside the white house to score points\n2. **The house is locked up** — front door boarded, north windows boarded. I haven't checked the **south or east sides** yet — there may be an open window or back door\n3. **The path north of Forest Path is unexplored** — could lead somewhere useful\n4. **I'm on Forest Path** — good central position\n\nThe most pressing action: **explore the rest of the house** to find a way in. Let me head south and around the house. I'll also check the unexplored north path. Let me start by going south to get back toward the house and check the sides I haven't seen.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 15,
+      "observation": "The windows are all boarded.\n\n",
+      "action": "go south",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my situation:\n\n1. **I have the Jeweled Egg** — a treasure that needs to go to the trophy case (almost certainly inside the white house)\n2. **I haven't explored the South or East sides of the house** — there may be an open window or back door\n3. **I'm at North of House** — I should circle around the house\n\nMy plan: Go South → West of House, then check South of House and East of House for entry points.\n\nLet me start moving!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go south"
+          },
+          "result": "(action queued: go south)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "\n> look\nWest of House\nYou are standing in an open field west of a white house, with a boarded front door.\nThere is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n",
+        "inner_voice": "Looking at my situation:\n\n1. **I have the Jeweled Egg** — a treasure that needs to go to the trophy case (almost certainly inside the white house)\n2. **I haven't explored the South or East sides of the house** — there may be an open window or back door\n3. **I'm at North of House** — I should circle around the house\n\nMy plan: Go South → West of House, then check South of House and East of House for entry points.\n\nLet me start moving!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 16,
+      "observation": "The windows are all boarded.\n\n",
+      "action": "go south",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my situation carefully:\n\n1. **I have the Jeweled Egg** — a treasure needing the trophy case (inside the white house)\n2. **I haven't circled the house** — South and East sides unexplored, likely where entry points are\n3. **I'm at North of House** — I went South but hit a boarded window, so I need to go around properly\n\nThe white house almost certainly has an open window or back door on the **South or East** side. In classic Zork, the kitchen window on the south/east side is the way in."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go south"
+          },
+          "result": "(action queued: go south)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "There is a small mailbox here.\nThe small mailbox contains:\n  A leaflet\n\n\n> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n",
+        "inner_voice": "Looking at my situation carefully:\n\n1. **I have the Jeweled Egg** — a treasure needing the trophy case (inside the white house)\n2. **I haven't circled the house** — South and East sides unexplored, likely where entry points are\n3. **I'm at North of House** — I went South but hit a boarded window, so I need to go around properly\n\nThe white house almost certainly has an open window or back door on the **South or East** side. In classic Zork, the kitchen window on the south/east side is the way in. Let me circle the house systematically.\n\nFirst, let me head **South from West of House** to find the south side:",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 17,
+      "observation": "West of House\nThere is a small mailbox here.\n\n",
+      "action": "go west",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my situation:\n\n1. **I'm at North of House** — I need to circle the house to find an entry point\n2. **The classic Zork entry** is the kitchen window on the **south side** of the house\n3. **I haven't explored West of House → South** yet — that path should lead around the house\n\nMy plan: Go West of House, then South to find the south side and the kitchen window."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go west"
+          },
+          "result": "(action queued: go west)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "> take leaflet\nTaken.\n\n\n> go north\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n",
+        "inner_voice": "Looking at my situation:\n\n1. **I'm at North of House** — I need to circle the house to find an entry point\n2. **The classic Zork entry** is the kitchen window on the **south side** of the house\n3. **I haven't explored West of House → South** yet — that path should lead around the house\n\nMy plan: Go West of House, then South to find the south side and the kitchen window.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 18,
+      "observation": "South of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n",
+      "action": "go south",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my situation:\n\n1. **I'm at West of House** — I just arrived here\n2. **The mailbox is here** — I already took the leaflet from it, so it should be empty\n3. **I need to find a way into the house** — The classic Zork entry point is the **kitchen window** on the south side\n4. **I haven't gone South from West of House yet** — that's my next move\n\nLet me explore south from West of House to find the south side and hopefully the open kitchen window!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go south"
+          },
+          "result": "(action queued: go south)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "North of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> look\nNorth of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n",
+        "inner_voice": "Looking at my situation:\n\n1. **I'm at West of House** — I just arrived here\n2. **The mailbox is here** — I already took the leaflet from it, so it should be empty\n3. **I need to find a way into the house** — The classic Zork entry point is the **kitchen window** on the south side\n4. **I haven't gone South from West of House yet** — that's my next move\n\nLet me explore south from West of House to find the south side and hopefully the open kitchen window!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 19,
+      "observation": "South of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n",
+      "action": "look",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Let me look around carefully at my current location — South of House."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "North of House\nYou are facing the north side of a white house. There is no door here, and all the windows are boarded up. To the north a narrow path winds through the trees.\n\n\n> go north\nForest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n",
+        "inner_voice": "Let me look around carefully at my current location — South of House.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 20,
+      "observation": "Behind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n",
+      "action": "go east",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Let me look around carefully and explore what I can from South of House."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go east"
+          },
+          "result": "(action queued: go east)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "Forest Path\nThis is a path winding through a dimly lit forest. The path heads north-south here. One particularly large tree with some low branches stands at the edge of the path.\n\n\n> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n",
+        "inner_voice": "Let me look around carefully and explore what I can from South of House.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 21,
+      "observation": "With great effort, you open the window far enough to allow entry.\n\n",
+      "action": "open window",
+      "score": 5,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I notice the **window that is slightly ajar** at the back of the house! That's my way in. Let me open it and climb through."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "open window"
+          },
+          "result": "(action queued: open window)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "> read leaflet\n\"WELCOME TO ZORK!\nZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!\"\n\n\n> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n",
+        "inner_voice": "I notice the **window that is slightly ajar** at the back of the house! That's my way in. Let me open it and climb through.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 22,
+      "observation": "Kitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n",
+      "action": "enter window",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I just opened the window — now I need to climb through it into the house! Let me do that immediately."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "enter window"
+          },
+          "result": "(action queued: enter window)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "> climb tree\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate",
+        "inner_voice": "I just opened the window — now I need to climb through it into the house! Let me do that immediately.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n    [? North]\n        |\n  [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n        |\n  [North of House]\n        |\n  [West of House] --- (east: boarded front door)\n        |\n       [?]        [?South]  [?East of House]\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n"
+      }
+    },
+    {
+      "step": 23,
+      "observation": "Kitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n",
+      "action": "look",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm now inside the kitchen! I can see there's something on the table (the description was cut off with \"elongate...\"). Let me look around carefully and grab what I can, while also updating my map."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "look"
+          },
+          "result": "(action queued: look)"
+        },
+        {
+          "name": "edit_map",
+          "args": {
+            "content": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+          },
+          "result": "Updated map."
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "\n> look\nUp a Tree\nYou are about 10 feet above the ground nestled among some large branches. The nearest branch above you is above your reach.\nBeside you on the branch is a small bird's nest.\nIn the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird. The e\n\n> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate",
+        "inner_voice": "I'm now inside the kitchen! I can see there's something on the table (the description was cut off with \"elongate...\"). Let me look around carefully and grab what I can, while also updating my map.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 24,
+      "observation": "On the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n",
+      "action": "examine table",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Let me look carefully at the kitchen — especially that item on the table that was cut off — and also check what's to the west."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "examine table"
+          },
+          "result": "(action queued: examine table)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "> take egg\nTaken.\n\n\n> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n",
+        "inner_voice": "Let me look carefully at the kitchen — especially that item on the table that was cut off — and also check what's to the west.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 25,
+      "observation": "Taken.\n\n",
+      "action": "take bottle",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm in the Kitchen with several things to investigate. Let me examine everything and head west simultaneously — the table items are clear, and I want to see what's in both directions. First, let me take stock of everything here and grab useful items."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take sack"
+          },
+          "result": "(action queued: take sack)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take bottle"
+          },
+          "result": "(action queued: take bottle)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "> go down\nForest Path\n\n\n> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n\n> take bottle\nTaken.\n",
+        "inner_voice": "I'm in the Kitchen with several things to investigate. Let me examine everything and head west simultaneously — the table items are clear, and I want to see what's in both directions. First, let me take stock of everything here and grab useful items.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 26,
+      "observation": "Taken.\n\n",
+      "action": "take sack",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm in the Kitchen with useful items on the table. I have the bottle of water already. Let me grab the brown sack and explore west — that's likely the living room where the trophy case should be!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take sack"
+          },
+          "result": "(action queued: take sack)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "> go south\nNorth of House\n\n\n> go south\nThe windows are all boarded.\n\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n\n> take bottle\nTaken.\n\n\n> take sack\nTaken.\n",
+        "inner_voice": "I'm in the Kitchen with useful items on the table. I have the bottle of water already. Let me grab the brown sack and explore west — that's likely the living room where the trophy case should be!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 27,
+      "observation": "Living Room\nYou are in the living room. There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a large oriental rug in the center of the room.\nAbove the trophy case hangs an elvish sword of great antiquity.\nA battery-powered brass lantern is on the trophy case.\n\n",
+      "action": "go west",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "Looking at my situation: I'm in the Kitchen with the bottle of water already taken, and I just took the sack. The passage west likely leads to the living room — and the **trophy case** where I need to deposit the Jeweled Egg! Let me head west immediately."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "go west"
+          },
+          "result": "(action queued: go west)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "\n\n> go south\nThe windows are all boarded.\n\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n\n> take bottle\nTaken.\n\n\n> take sack\nTaken.\n\n\n> go west\nLiving Room\nYou are in the living room. There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a large oriental rug in the center of the room.\nAbove the trophy case hangs an elvish sword of great antiquity.\nA batte",
+        "inner_voice": "Looking at my situation: I'm in the Kitchen with the bottle of water already taken, and I just took the sack. The passage west likely leads to the living room — and the **trophy case** where I need to deposit the Jeweled Egg! Let me head west immediately.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 28,
+      "observation": "Taken.\n\n",
+      "action": "take sword",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm in the Living Room with the **trophy case** right in front of me! This is where I need to deposit the Jeweled Egg to score points. I also see an elvish sword above the trophy case — that's likely another treasure or useful item. Let me act immediately!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "put egg in trophy case"
+          },
+          "result": "(action queued: put egg in trophy case)"
+        },
+        {
+          "name": "take_action",
+          "args": {
+            "command": "take sword"
+          },
+          "result": "(action queued: take sword)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "\n\n> go west\nWest of House\nThere is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n\n> take bottle\nTaken.\n\n\n> take sack\nTaken.\n\n\n> go west\nLiving Room\nYou are in the living room. There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a large oriental rug in the center of the room.\nAbove the trophy case hangs an elvish sword of great antiquity.\nA batte\n\n> take sword\nTaken.\n",
+        "inner_voice": "I'm in the Living Room with the **trophy case** right in front of me! This is where I need to deposit the Jeweled Egg to score points. I also see an elvish sword above the trophy case — that's likely another treasure or useful item. Let me act immediately!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 29,
+      "observation": "Opened.\n\n",
+      "action": "open trophy case",
+      "score": 15,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm in the Living Room with the **trophy case** right in front of me — this is the moment to deposit the Jeweled Egg and score points! I also just took the elvish sword. Let me open the trophy case and deposit the egg immediately."
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "open trophy case"
+          },
+          "result": "(action queued: open trophy case)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "There is a small mailbox here.\n\n\n> go south\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n\n> take bottle\nTaken.\n\n\n> take sack\nTaken.\n\n\n> go west\nLiving Room\nYou are in the living room. There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a large oriental rug in the center of the room.\nAbove the trophy case hangs an elvish sword of great antiquity.\nA batte\n\n> take sword\nTaken.\n\n\n> open trophy case\nOpened.\n",
+        "inner_voice": "I'm in the Living Room with the **trophy case** right in front of me — this is the moment to deposit the Jeweled Egg and score points! I also just took the elvish sword. Let me open the trophy case and deposit the egg immediately.",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    },
+    {
+      "step": 30,
+      "observation": "Done.\n\n",
+      "action": "put egg in trophy case",
+      "score": 20,
+      "maxScore": 350,
+      "wakeupUsed": true,
+      "thinking": [
+        "I'm in the Living Room with the trophy case open right in front of me. The most important thing to do is **deposit the Jeweled Egg into the trophy case immediately** to score points and secure the treasure!"
+      ],
+      "toolCalls": [
+        {
+          "name": "take_action",
+          "args": {
+            "command": "put egg in trophy case"
+          },
+          "result": "(action queued: put egg in trophy case)"
+        }
+      ],
+      "somaSnapshot": {
+        "identity": "I am an explorer in a strange underground world. I observe carefully, think about what I see, and act decisively. I map the places I visit, track items I find, and solve puzzles by reasoning about what I know.",
+        "goal": "Explore thoroughly. Find treasures and bring them to safety. Solve puzzles. Survive. Maximize my score.",
+        "memory": "## Current State\n- Location: Forest Path (just descended from tree)\n- Inventory: Leaflet, Jeweled Egg (TREASURE!)\n- Score: Unknown — need to deposit egg somewhere safe\n\n## To Explore\n- North on Forest Path (unexplored)\n- South/East sides of white house (unexplored)\n- Find the house interior — may need to find open window or other entry\n- Find the trophy case (likely inside house) to deposit treasures\n\n## Known Exits\n- West of House: N→North of House\n- North of House: S→West of House, N→Forest Path\n- Forest Path: S→North of House, N→? (unexplored), Up→Up a Tree\n- Up a Tree: Down→Forest Path",
+        "history": "South of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> look\nSouth of House\nYou are facing the south side of a white house. There is no door here, and all the windows are boarded.\n\n\n> go east\nBehind House\nYou are behind the white house. A path leads into the forest to the east. In one corner of the house there is a small window which is slightly ajar.\n\n\n> open window\nWith great effort, you open the window far enough to allow entry.\n\n\n> enter window\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> look\nKitchen\nYou are in the kitchen of the white house. A table seems to have been used recently for the preparation of food. A passage leads to the west and a dark staircase can be seen leading upward. A dark chimney leads down and to the east is a small window which is open.\nOn the table is an elongate\n\n> examine table\nOn the table is an elongated brown sack, smelling of hot peppers.\nA bottle is sitting on the table.\nThe glass bottle contains:\n  A quantity of water\n\n\n> take bottle\nTaken.\n\n\n> take sack\nTaken.\n\n\n> go west\nLiving Room\nYou are in the living room. There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a large oriental rug in the center of the room.\nAbove the trophy case hangs an elvish sword of great antiquity.\nA batte\n\n> take sword\nTaken.\n\n\n> open trophy case\nOpened.\n\n\n> put egg in trophy case\nDone.\n",
+        "inner_voice": "I'm in the Living Room with the trophy case open right in front of me. The most important thing to do is **deposit the Jeweled Egg into the trophy case immediately** to score points and secure the treasure!",
+        "hard_earned_wisdom": "",
+        "custom_tools": "[]",
+        "map": "## Map\n```\n         [? North]\n             |\n       [Forest Path] --Up→ [Up a Tree] (egg taken, nest empty)\n             |\n       [North of House]\n             |\n       [West of House] --- [Front Door - boarded]\n             |\n       [South of House]\n             |\n       [Behind House] --E→ [Forest Path East?]\n             |\n        (window entry)\n             |\n          [KITCHEN] ←── YOU ARE HERE\n          /     \\\n     (west)   (up: dark staircase) (down: dark chimney)\n```\n\n### Location Notes:\n- **West of House**: Open field, boarded front door. Mailbox (opened, emptied leaflet). Exits: N→North of House, S→South of House\n- **North of House**: North side, no door, windows boarded. Exits: S→West of House, N→Forest Path\n- **Forest Path**: Dimly lit, path winds N-S. Large tree (climbable). Exits: S→North of House, N→?, Up→Up a Tree\n- **Up a Tree**: Nest here. Jeweled Egg taken. Exits: Down→Forest Path\n- **South of House**: No door, all windows boarded. Exits: W→West of House, E→Behind House\n- **Behind House**: Small window (now open). Path east to forest. Exits: W→South of House, E→Forest East\n- **Kitchen**: Table (food prep), passage west, dark staircase up, dark chimney down, open window east. Something elongated on table."
+      }
+    }
+  ]
+}
