@@ -48,11 +48,22 @@ Slider range: 15s per word (left) to 0.3s per word (right).
 
 Switched from IBM Plex Mono (hard to read at length) to **Crimson Pro** (serif, for the stream text) and **Inter** (sans, for UI chrome). The serif feels more like reading a book dissolving.
 
+### canvas renderer
+
+CSS transitions were unreliable — `inline-block` overflow, reflow tricks, animation timing mismatches between grow and shrink. Ripped out all DOM word elements and switched to a canvas renderer.
+
+Each display word is a JS object: `{ id, text, fullWidth, currentWidth, targetWidth, opacity, targetOpacity, dying, age }`. The rAF loop lerps `currentWidth` and `opacity` toward their targets every frame. Lerp rate is tied to the pace slider — slower pace = slower crawl.
+
+Growing in: `targetWidth = fullWidth`, `targetOpacity = 1`. Shrinking out: `targetWidth = 0`, `targetOpacity = 0`. Same math, same speed, perfectly symmetric.
+
+Text is clipped to its `currentWidth` via `ctx.clip()` — you see the word revealed letter by letter as it grows. Words below 2px width are skipped entirely in layout to prevent a visible "jolt" when they first appear.
+
+Lines flow left-to-right with word wrap at 800px max width, centered horizontally and vertically on the canvas. Color lerps from accent blue to dim grey based on age.
+
 ### what's next
 
-- Debug/polish the visual animation — grow-in still glitchy sometimes
-- Color/opacity shifts based on word age
 - Image generation from the stream (API, not local)
 - Multiple streams / split consciousness
 - Thinking-block mode (qwen3 internal monologue)
-- Canvas renderer if CSS transitions keep being unreliable
+- Visual experiments: word physics (drift, gravity), color from content sentiment
+- Ambient/installation mode (hide all chrome)

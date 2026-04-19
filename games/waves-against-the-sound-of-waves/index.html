@@ -9,19 +9,9 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  :root {
-    --bg: #1a1a2e;
-    --text: #c8c8d8;
-    --text-dim: #6a6a7a;
-    --accent: #7eb8c9;
-    --accent2: #c49bbf;
-    --surface: #222240;
-    --anim-duration: 2s;
-  }
-
   body {
-    background: var(--bg);
-    color: var(--text);
+    background: #1a1a2e;
+    color: #c8c8d8;
     font-family: 'Inter', sans-serif;
     font-weight: 300;
     height: 100vh;
@@ -43,7 +33,7 @@
     font-size: 14px;
     font-weight: 300;
     letter-spacing: 2px;
-    color: var(--text-dim);
+    color: #6a6a7a;
   }
 
   .controls {
@@ -56,70 +46,30 @@
     font-family: inherit;
     font-size: 13px;
     font-weight: 300;
-    background: var(--surface);
-    color: var(--text);
+    background: #222240;
+    color: #c8c8d8;
     border: 1px solid #3a3a5a;
     border-radius: 4px;
     padding: 6px 12px;
     cursor: pointer;
     outline: none;
-    transition: border-color 0.2s;
   }
 
   select:hover, button:hover, input[type="text"]:focus {
-    border-color: var(--accent);
+    border-color: #7eb8c9;
   }
 
-  input[type="text"] {
-    width: 280px;
-  }
+  input[type="text"] { width: 280px; }
 
-  #stream-area {
+  canvas {
     flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 48px;
-    overflow: hidden;
-  }
-
-  #words {
-    line-height: 2.2;
-    font-family: 'Crimson Pro', serif;
-    font-size: 22px;
-    text-align: center;
-    max-width: 800px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-  }
-
-  .word {
-    display: inline-block;
-    overflow: hidden;
-    vertical-align: bottom;
-    max-width: 25ch;
-    margin-right: 0.8ch;
-    opacity: 1;
-    transition: max-width var(--anim-duration) ease,
-                opacity var(--anim-duration) ease,
-                margin var(--anim-duration) ease;
-  }
-
-  .word.shrinking {
-    max-width: 0;
-    opacity: 0;
-    margin-right: 0;
-  }
-
-  .idle-message {
-    color: var(--text-dim);
-    font-style: italic;
+    width: 100%;
   }
 
   footer {
     padding: 8px 24px;
     font-size: 11px;
-    color: var(--text-dim);
+    color: #6a6a7a;
     border-top: 1px solid #2a2a4a;
     display: flex;
     justify-content: space-between;
@@ -151,10 +101,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-
-  .pace-control label {
-    color: var(--text-dim);
+    color: #6a6a7a;
   }
 
   input[type="range"] {
@@ -173,14 +120,11 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: var(--accent);
+    background: #7eb8c9;
     cursor: pointer;
   }
 
-  .queue-count {
-    color: var(--text-dim);
-    min-width: 60px;
-  }
+  .queue-count { color: #6a6a7a; min-width: 60px; }
 </style>
 </head>
 <body>
@@ -205,11 +149,7 @@
   </div>
 </header>
 
-<div id="stream-area">
-  <div id="words">
-    <span class="idle-message">choose a seed and press begin</span>
-  </div>
-</div>
+<canvas id="canvas"></canvas>
 
 <footer>
   <div class="footer-left">
@@ -241,27 +181,33 @@ const MAX_TOKENS = 8;
 const CONTEXT_WINDOW = 1024;
 const MAX_WORDS = 150;
 const HALF_LIFE = 100;
-const QUEUE_REFILL = 10; // request more when queue drops below this
+const QUEUE_REFILL = 10;
+const WORD_GAP = 12;       // px between words
+const LINE_HEIGHT = 44;    // px between lines
+const FONT_SIZE = 22;
+const FONT = `300 ${FONT_SIZE}px 'Crimson Pro', serif`;
+const PADDING = 48;
 
 // -- DOM --
-const wordsEl = document.getElementById('words');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 const seedSelect = document.getElementById('seed-select');
 const customSeed = document.getElementById('custom-seed');
 const startBtn = document.getElementById('start-btn');
 const stopBtn = document.getElementById('stop-btn');
 const statusDot = document.getElementById('status-dot');
-const statusText = document.getElementById('status-text');
+const statusTextEl = document.getElementById('status-text');
 const paceSlider = document.getElementById('pace-slider');
 const queueCountEl = document.getElementById('queue-count');
 
 // -- State --
-let words = [];       // { id, text, age } — the full buffer, also what the model sees
-let wordEls = new Map(); // id → DOM element
-let queue = [];       // pending ops: { type: 'add'|'remove', id, text? }
+// Each display word: { id, text, fullWidth, currentWidth, targetWidth, opacity, targetOpacity, dying }
+let displayWords = [];
+let words = [];       // { id, text, age } — the model's buffer
+let queue = [];       // pending ops
 let nextId = 0;
 let running = false;
-let fetching = false; // currently waiting on inference
-let ticking = false;
+let fetching = false;
 let lastOpTime = 0;
 
 // -- Pace --
@@ -274,11 +220,23 @@ function getPaceMs() {
   return Math.round(getAnimDurationSec() * 1000);
 }
 
-function updateAnimDuration() {
-  document.documentElement.style.setProperty('--anim-duration', getAnimDurationSec() + 's');
+// -- Canvas setup --
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
 }
 
-paceSlider.addEventListener('input', updateAnimDuration);
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Measure word width
+function measureWord(text) {
+  ctx.font = FONT;
+  return ctx.measureText(text).width;
+}
 
 // -- Inference --
 async function generate() {
@@ -309,31 +267,26 @@ async function generate() {
     const data = await res.json();
     const text = data.response || '';
 
-    // add new words to state + queue
     for (const t of text.split(/\s+/).filter(Boolean)) {
       const w = { id: nextId++, text: t, age: 0 };
       words.push(w);
       queue.push({ type: 'add', id: w.id, text: w.text });
     }
 
-    // age all words
     for (const w of words) w.age++;
 
-    // decay
     words = words.filter(w => {
       if (Math.random() < Math.pow(0.5, w.age / HALF_LIFE)) return true;
       queue.push({ type: 'remove', id: w.id });
       return false;
     });
 
-    // hard cap
     if (words.length > MAX_WORDS) {
       const excess = words.splice(0, words.length - MAX_WORDS);
       for (const w of excess) queue.push({ type: 'remove', id: w.id });
     }
 
     queueCountEl.textContent = queue.length ? `${queue.length} queued` : '';
-
   } catch (err) {
     console.error('Generate error:', err);
   }
@@ -341,41 +294,127 @@ async function generate() {
   fetching = false;
 }
 
-// -- UI tick loop --
+// -- Render --
+function draw() {
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = FONT;
+  ctx.textBaseline = 'top';
+
+  // flow words into lines
+  const maxWidth = Math.min(800, w - PADDING * 2);
+  const startX = (w - maxWidth) / 2;
+
+  let x = 0;
+  let y = 0;
+  const lines = [[]];
+
+  for (const dw of displayWords) {
+    if (dw.currentWidth < 2) continue; // too small to show — prevents jolt on appear/disappear
+
+    const wordW = dw.currentWidth;
+    if (x + wordW > maxWidth && x > 0) {
+      x = 0;
+      y++;
+      lines.push([]);
+    }
+    lines[lines.length - 1].push({ dw, x, wordW });
+    x += wordW + WORD_GAP;
+  }
+
+  // center vertically
+  const totalHeight = lines.length * LINE_HEIGHT;
+  const startY = Math.max(PADDING, (h - totalHeight) / 2);
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    // center line horizontally
+    const lineWidth = line.reduce((s, e) => s + e.wordW + WORD_GAP, -WORD_GAP);
+    const lineX = startX + (maxWidth - lineWidth) / 2;
+
+    for (const entry of line) {
+      const alpha = entry.dw.opacity;
+      if (alpha < 0.01) continue;
+
+      // color shifts from accent to dim with age
+      const age = entry.dw.age || 0;
+      const t = Math.min(1, age / (HALF_LIFE * 1.5));
+      const r = Math.round(126 + (90 - 126) * t);
+      const g = Math.round(184 + (90 - 184) * t);
+      const b = Math.round(201 + (106 - 201) * t);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(lineX + entry.x, startY + li * LINE_HEIGHT, entry.wordW, LINE_HEIGHT);
+      ctx.clip();
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.fillText(entry.dw.text, lineX + entry.x, startY + li * LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2);
+      ctx.restore();
+    }
+  }
+
+  // idle message
+  if (displayWords.length === 0 && !running) {
+    ctx.fillStyle = '#6a6a7a';
+    ctx.font = `italic 300 16px 'Inter', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('choose a seed and press begin', w / 2, h / 2);
+    ctx.textAlign = 'start';
+  }
+}
+
+// -- Animation tick --
 function tick(now) {
-  if (!ticking) return;
-
   const pace = getPaceMs();
+  const dt = 16; // ~60fps frame time
+  // lerp speed: reach target in roughly `pace` ms
+  const lerpRate = Math.min(1, dt / Math.max(pace * 0.6, 100));
 
+  // process queue
   if (queue.length > 0 && now - lastOpTime >= pace) {
     const op = queue.shift();
     queueCountEl.textContent = queue.length ? `${queue.length} queued` : '';
     lastOpTime = now;
 
     if (op.type === 'add') {
-      const el = document.createElement('span');
-      el.className = 'word';
-      el.dataset.id = op.id;
-      el.textContent = op.text;
-      el.style.maxWidth = '0';
-      el.style.opacity = '0';
-      el.style.marginRight = '0';
-      wordsEl.appendChild(el);
-      wordEls.set(op.id, el);
-
-      requestAnimationFrame(() => {
-        el.style.maxWidth = '';
-        el.style.opacity = '';
-        el.style.marginRight = '';
+      const fullWidth = measureWord(op.text);
+      displayWords.push({
+        id: op.id,
+        text: op.text,
+        fullWidth,
+        currentWidth: 0,
+        targetWidth: fullWidth,
+        opacity: 0,
+        targetOpacity: 1,
+        age: 0,
+        dying: false,
       });
-
     } else if (op.type === 'remove') {
-      const el = wordEls.get(op.id);
-      if (el) {
-        el.classList.add('shrinking');
-        wordEls.delete(op.id);
-        setTimeout(() => el.remove(), pace);
+      const dw = displayWords.find(d => d.id === op.id);
+      if (dw) {
+        dw.targetWidth = 0;
+        dw.targetOpacity = 0;
+        dw.dying = true;
       }
+    }
+  }
+
+  // animate all display words
+  for (let i = displayWords.length - 1; i >= 0; i--) {
+    const dw = displayWords[i];
+    dw.currentWidth += (dw.targetWidth - dw.currentWidth) * lerpRate;
+    dw.opacity += (dw.targetOpacity - dw.opacity) * lerpRate;
+
+    // update age from words array
+    const w = words.find(ww => ww.id === dw.id);
+    if (w) dw.age = w.age;
+
+    // remove fully collapsed dying words
+    if (dw.dying && dw.currentWidth < 0.5 && dw.opacity < 0.01) {
+      displayWords.splice(i, 1);
     }
   }
 
@@ -384,6 +423,7 @@ function tick(now) {
     generate();
   }
 
+  draw();
   requestAnimationFrame(tick);
 }
 
@@ -392,61 +432,49 @@ function setRunning(on) {
   running = on;
   stopBtn.style.display = on ? '' : 'none';
   statusDot.classList.toggle('live', on);
-  statusText.textContent = on ? 'streaming' : 'idle';
-
-  if (on) {
-    updateAnimDuration();
-    if (!ticking) {
-      ticking = true;
-      lastOpTime = performance.now();
-      requestAnimationFrame(tick);
-    }
-  } else {
-    ticking = false;
-  }
+  statusTextEl.textContent = on ? 'streaming' : 'idle';
 }
 
 startBtn.addEventListener('click', () => {
-  // reset everything
   running = false;
-  ticking = false;
   fetching = false;
   words = [];
+  displayWords = [];
   queue = [];
   nextId = 0;
-  wordsEl.innerHTML = '';
-  wordEls.clear();
 
-  // pick seed
   const seedKey = seedSelect.value;
   const customText = customSeed.value.trim();
   const seedText = customText || SEEDS[seedKey] || SEEDS.ocean;
 
-  // initialize words from seed
   for (const t of seedText.split(/\s+/)) {
     const w = { id: nextId++, text: t, age: 0 };
     words.push(w);
+    const fullWidth = measureWord(t);
+    displayWords.push({
+      id: w.id,
+      text: t,
+      fullWidth,
+      currentWidth: fullWidth,
+      targetWidth: fullWidth,
+      opacity: 0.7,
+      targetOpacity: 0.7,
+      age: 0,
+      dying: false,
+    });
   }
 
-  // render seed words immediately (no animation)
-  for (const w of words) {
-    const el = document.createElement('span');
-    el.className = 'word';
-    el.dataset.id = w.id;
-    el.textContent = w.text;
-    el.style.color = '#c49bbf';
-    el.style.opacity = '0.7';
-    wordsEl.appendChild(el);
-    wordEls.set(w.id, el);
-  }
-
+  lastOpTime = performance.now();
   setRunning(true);
-  generate(); // kick off first fetch
+  generate();
 });
 
 stopBtn.addEventListener('click', () => {
   setRunning(false);
 });
+
+// start render loop immediately
+requestAnimationFrame(tick);
 </script>
 
 </body>
