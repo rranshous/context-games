@@ -4,13 +4,18 @@ Phase 2: Deep validation of character finalists.
 Tests each character across many prompts, multiple seeds, and at its best temperature.
 Phase 3: Cross-character distinctiveness comparison.
 
+Saves results incrementally to validate-results.json so it's safe to interrupt and resume.
+Skips work already present in the output file when re-run.
+
 Usage:
-    python validate.py                    # Run validation
-    python validate.py --characters-file characters.json  # Use custom character file
+    python validate.py --characters-file characters.json
+    python validate.py --output validate-results-qwen.json
 """
 
-import copy
+import argparse
+import gc
 import json
+import os
 import sys
 import time
 import torch
@@ -21,62 +26,28 @@ MAX_TOKENS = 200
 REP_PENALTY = 1.15
 SEEDS = [42, 137]
 
-# Diverse prompts spanning many registers/domains
 PROMPTS = [
-    # Descriptive / scene-setting
     "The ocean is",
     "She looked out the window and",
-
-    # Action / narrative
     "I walked into the room and",
     "The door opened slowly and",
-
-    # Personal / reflective
     "When I was young,",
     "The hardest thing I ever did was",
-
-    # Abstract / philosophical
     "The most important thing about",
     "Time is",
-
-    # Dialogue / conversational
     "You: Hello, who are you?\nMe:",
     "You: Tell me something nobody else knows.\nMe:",
 ]
 
-# Characters will be loaded from characters.json or use defaults
-DEFAULT_CHARACTERS = {
-    "dreamer": {
-        "ops": [["scale", "11:0.5"]],
-        "temp": 0.5,
-        "description": "Terse, cinematic, gothic. Leaves space."
-    },
-    "poet": {
-        "ops": [["scale", "5:1.3"], ["scale", "6:1.3"], ["scale", "7:1.3"],
-                ["scale", "14:0.7"], ["scale", "15:0.7"], ["scale", "16:0.7"]],
-        "temp": 0.3,
-        "description": "Lyric, confessional, melancholy."
-    },
-    "verse": {
-        "ops": [["inject", "all:0.01"]],
-        "temp": 0.7,
-        "description": "Philosophical elder, reflective."
-    },
-    "storyteller": {
-        "ops": [["swap", "5,13"]],
-        "temp": 0.3,
-        "description": "Fairy tale, personifies, magical."
-    },
-}
+DEFAULT_OUTPUT = "validate-results-qwen.json"
 
 
 _hooks = []
 
-def apply_op(model, op, arg, seed=None):
+def apply_op(model, op, arg):
     global _hooks
     layers = model.model.layers
     n = len(layers)
-
     if op == "scale":
         parts = arg.split(":", 1)
         idx, factor = int(parts[0]), float(parts[1])
@@ -88,7 +59,6 @@ def apply_op(model, op, arg, seed=None):
             return hook
         h = layers[idx].register_forward_hook(make_hook(factor))
         _hooks.append(h)
-
     elif op == "rm":
         if "-" in arg:
             lo, hi = arg.split("-", 1)
@@ -97,12 +67,10 @@ def apply_op(model, op, arg, seed=None):
             indices = [int(arg)]
         for idx in sorted(indices, reverse=True):
             del layers[idx]
-
     elif op == "swap":
         parts = arg.split(",")
         a, b = int(parts[0]), int(parts[1])
         layers[a], layers[b] = layers[b], layers[a]
-
     elif op == "noise":
         parts = arg.split(":", 1)
         target, scale = parts[0], float(parts[1])
@@ -111,7 +79,6 @@ def apply_op(model, op, arg, seed=None):
             for idx in indices:
                 for param in layers[idx].parameters():
                     param.add_(torch.randn_like(param) * scale)
-
     elif op == "inject":
         parts = arg.split(":", 1)
         target, scale = parts[0], float(parts[1])
@@ -156,19 +123,44 @@ def generate(model, tokenizer, prompt, max_tokens, temp, seed):
     return text.strip()
 
 
+def is_done(results, name, prompt, n_seeds):
+    return (name in results
+            and prompt in results[name]
+            and len(results[name][prompt]) >= n_seeds)
+
+
+def save(results, path):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(results, f, indent=2)
+    os.replace(tmp, path)
+
+
+def pstatus(msg):
+    print(msg, flush=True)
+
+
 def main():
-    import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--characters-file", default=None)
+    parser.add_argument("--characters-file", required=True)
+    parser.add_argument("--output", default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
-    if args.characters_file:
-        with open(args.characters_file) as f:
-            characters = json.load(f)
-    else:
-        characters = DEFAULT_CHARACTERS
+    with open(args.characters_file) as f:
+        characters = json.load(f)
 
-    print("Loading model...", file=sys.stderr)
+    # Load existing results to resume
+    results = {}
+    if os.path.exists(args.output):
+        try:
+            with open(args.output) as f:
+                results = json.load(f)
+            pstatus(f"Resuming — loaded {len(results)} characters from {args.output}")
+        except Exception as e:
+            pstatus(f"Warning: couldn't load {args.output}: {e}. Starting fresh.")
+            results = {}
+
+    pstatus(f"Loading model {MODEL}...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL)
 
     def fresh_model():
@@ -180,48 +172,52 @@ def main():
 
     base_model = fresh_model()
     n_layers = len(base_model.model.layers)
-    print(f"Loaded — {n_layers} layers.\n", file=sys.stderr)
+    pstatus(f"Loaded — {n_layers} layers.")
 
-    n_chars = len(characters)
     n_prompts = len(PROMPTS)
     n_seeds = len(SEEDS)
-    total_gens = (1 + n_chars) * n_prompts * n_seeds
-    print(f"Plan: {n_chars} characters + baseline × {n_prompts} prompts × {n_seeds} seeds = {total_gens} generations", file=sys.stderr)
 
-    results = {}  # {name: {prompt: [text_per_seed]}}
+    # Build work list: baseline + each character
+    all_configs = [("baseline", {"ops": [], "temp": 0.5, "description": "baseline"})]
+    for name, cfg in characters.items():
+        if name == "baseline":
+            continue  # already added
+        all_configs.append((name, cfg))
 
-    # ==================== PHASE 2: BASELINE ====================
-    print("=" * 120)
-    print(f"{'BASELINE':^120}")
-    print("=" * 120)
-    results["baseline"] = {}
-    for prompt in PROMPTS:
-        results["baseline"][prompt] = []
-        print(f'\n  "{prompt}"')
-        for seed in SEEDS:
-            text = generate(base_model, tokenizer, prompt, MAX_TOKENS, 0.5, seed)
-            results["baseline"][prompt].append(text)
-            print(f"    seed={seed}: {text[:110]}")
+    total = len(all_configs) * n_prompts * n_seeds
+    done_before = sum(len(results.get(n, {}).get(p, [])) for n, _ in all_configs for p in PROMPTS)
+    pstatus(f"Plan: {len(all_configs)} characters × {n_prompts} prompts × {n_seeds} seeds = {total} generations")
+    pstatus(f"Already done: {done_before}/{total}")
 
-    # ==================== PHASE 2: EACH CHARACTER ====================
-    for ci, (name, config) in enumerate(characters.items()):
+    for ci, (name, config) in enumerate(all_configs):
         ops = [tuple(op) for op in config["ops"]]
         temp = config.get("temp", 0.5)
         desc = config.get("description", "")
+        ops_str = " + ".join(f"{op}({arg})" for op, arg in ops) or "(baseline)"
 
-        print(f"\n{'=' * 120}")
-        ops_str = " + ".join(f"{op}({arg})" for op, arg in ops)
-        print(f"{name.upper():^120}")
-        print(f"{ops_str:^120}")
-        print(f"T={temp}  |  {desc}")
-        print("=" * 120)
+        pstatus("")
+        pstatus("=" * 100)
+        pstatus(f"[{ci+1}/{len(all_configs)}] {name} | {ops_str} | T={temp}")
+        pstatus("=" * 100)
 
-        results[name] = {}
+        if name not in results:
+            results[name] = {}
+
+        # Check if fully done
+        if all(is_done(results, name, p, n_seeds) for p in PROMPTS):
+            pstatus("  (already done, skipping)")
+            continue
 
         for prompt in PROMPTS:
-            results[name][prompt] = []
-            print(f'\n  "{prompt}"')
-            for seed in SEEDS:
+            if prompt not in results[name]:
+                results[name][prompt] = []
+
+            pstatus(f'  "{prompt[:60]}"')
+            for si, seed in enumerate(SEEDS):
+                if si < len(results[name][prompt]):
+                    pstatus(f"    seed={seed}: (cached)")
+                    continue
+
                 if needs_reload(ops):
                     model = fresh_model()
                 else:
@@ -229,21 +225,33 @@ def main():
                 clear_hooks()
 
                 for op, arg in ops:
-                    apply_op(model, op, arg, seed=seed)
+                    apply_op(model, op, arg)
 
+                t0 = time.time()
                 text = generate(model, tokenizer, prompt, MAX_TOKENS, temp, seed)
+                dt = time.time() - t0
+
                 results[name][prompt].append(text)
-                print(f"    seed={seed}: {text[:110]}")
+                pstatus(f"    seed={seed}: ({dt:.1f}s) {text[:110]}")
 
                 clear_hooks()
 
-        print(f"  [{ci+1}/{n_chars}]", file=sys.stderr)
+                if needs_reload(ops):
+                    del model
+                    gc.collect()
+
+            # Save after each prompt (checkpoint)
+            save(results, args.output)
+
+        # After character done, ensure we're clean
+        clear_hooks()
+        gc.collect()
 
     # ==================== PHASE 3: DISTINCTIVENESS ====================
-    print(f"\n\n{'=' * 120}")
-    print(f"{'DISTINCTIVENESS COMPARISON':^120}")
-    print("=" * 120)
-    print("\nSame prompt, same seed, all characters side by side:\n")
+    pstatus("")
+    pstatus("=" * 100)
+    pstatus("DISTINCTIVENESS COMPARISON — same prompt, seed=42, all characters")
+    pstatus("=" * 100)
 
     comparison_prompts = [
         "The ocean is",
@@ -254,18 +262,14 @@ def main():
     ]
 
     for prompt in comparison_prompts:
-        print(f'  "{prompt}"')
-        for name in ["baseline"] + list(characters.keys()):
-            if prompt in results[name]:
-                text = results[name][prompt][0]  # first seed
-                print(f"    {name:>15s}: {text[:100]}")
-        print()
+        pstatus(f'\n  "{prompt}"')
+        for name, _ in all_configs:
+            if name in results and prompt in results[name] and results[name][prompt]:
+                text = results[name][prompt][0]
+                pstatus(f"    {name:>15s}: {text[:100]}")
 
-    # Save raw results
-    with open("validate-results.json", "w") as f:
-        json.dump(results, f, indent=2)
-
-    print("\nDone. Results saved to validate-results.json", file=sys.stderr)
+    save(results, args.output)
+    pstatus(f"\nDone. Results saved to {args.output}")
 
 
 if __name__ == "__main__":
