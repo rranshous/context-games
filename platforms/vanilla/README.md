@@ -24,8 +24,8 @@ The platform will start on `http://localhost:3000`
 
 **Default Admin Login:**
 - Username: `admin`
-- Password: `admin123`
-- ⚠️ **Change this immediately after first login!**
+- Password: randomly generated on first run (printed to console once — save it!)
+- Change password later: `node bin/change-password.js admin <new-password>`
 
 ## Features
 
@@ -37,6 +37,7 @@ The platform will start on `http://localhost:3000`
 
 🤖 **AI Inference Proxy**
 - Secure proxy for Anthropic (Claude) API
+- OpenRouter support (access OpenAI, Google, and other models)
 - Local model support via Ollama
 - Per-user token tracking and limits
 - No API keys exposed to client code
@@ -81,10 +82,23 @@ The platform will start on `http://localhost:3000`
 
 ### Uploading Games (Admin)
 
+**Via Web UI:**
 1. Login at `/login.html` as admin
 2. Go to `/manage.html`
 3. Fill in game name, select HTML file
 4. Click "Upload Game"
+
+**Via CLI:**
+```bash
+# Single HTML file
+node bin/upload-game.js -n "Game Name" game.html
+
+# ZIP file (must contain index.html)
+zip -j /tmp/game.zip games/my-game/index.html
+node bin/upload-game.js -n "Game Name" /tmp/game.zip
+```
+
+Set `VANILLA_URL`, `VANILLA_USERNAME`, `VANILLA_PASSWORD` env vars to customize connection (defaults to localhost:3000, admin).
 
 ### Developing Games
 
@@ -125,6 +139,24 @@ const response = await fetch('/api/inference/anthropic/messages', {
 
 const data = await response.json();
 console.log(data.content[0].text);
+```
+
+### OpenRouter
+
+```javascript
+const response = await fetch('/api/inference/openrouter/chat/completions', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({
+    messages: [{ role: 'user', content: 'Hello!' }],
+    model: 'openai/gpt-4o-mini',
+    max_tokens: 500
+  })
+});
+
+const data = await response.json();
+console.log(data.choices[0].message.content);
 ```
 
 ### Ollama (Local Models)
@@ -220,6 +252,7 @@ Play a game directly. Returns the HTML file.
 ### Inference Endpoints
 
 - `POST /api/inference/anthropic/messages` - Call Claude models
+- `POST /api/inference/openrouter/chat/completions` - Call OpenRouter models (OpenAI-compatible)
 - `POST /api/inference/ollama/chat` - Call Ollama models
 - `GET /api/inference/ollama/models` - List available Ollama models
 - `GET /api/inference/usage` - Get current user's token usage
@@ -239,6 +272,7 @@ Play a game directly. Returns the HTML file.
 - **SQLite** - Database for users and usage tracking
 - **Passport.js** - Authentication
 - **Anthropic SDK** - Claude AI integration
+- **OpenAI SDK** - OpenRouter integration (OpenAI-compatible API)
 - **Ollama** - Local model support
 - **Multer** - File upload handling
 - **Vanilla JavaScript** - Simple client-side code
@@ -258,15 +292,18 @@ platforms/vanilla/
 │   │   └── routes.ts      # Login/logout endpoints
 │   ├── inference/
 │   │   ├── anthropic.ts   # Anthropic proxy
+│   │   ├── openrouter.ts  # OpenRouter proxy (OpenAI-compatible)
 │   │   ├── ollama.ts      # Ollama proxy
 │   │   ├── middleware.ts  # Token limit checks
 │   │   └── routes.ts      # Inference endpoints
 │   └── admin/
 │       └── routes.ts      # Admin API
+├── bin/
+│   ├── change-password.js # CLI: change user password
+│   └── upload-game.js     # CLI: upload games (ZIP or HTML)
 ├── public/
 │   ├── index.html         # Main game browser
 │   ├── admin.html         # Admin dashboard
-│   ├── sacred-scribe.html # Example AI game
 │   └── test-inference.html # Inference API test
 ├── docs/
 │   ├── inference-api.md   # Complete API docs
@@ -288,6 +325,9 @@ Create a `.env` file:
 ```bash
 # Required for Anthropic proxy
 ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# Optional - for OpenRouter proxy
+OPENROUTER_API_KEY=sk-or-your-key-here
 
 # Optional - defaults to localhost
 OLLAMA_URL=http://localhost:11434
@@ -334,13 +374,10 @@ pm2 start dist/server.js --name vanilla-games
 - **`docs/FINAL_SUMMARY.md`** - Full project overview and architecture
 - **`docs/inference-integration-*.md`** - IPI development documentation
 
-## Example Games
-
-### Sacred Scribe
-A cult copywriter simulator where you write recruitment advertisements and AI evaluates their psychological effectiveness. Visit `/sacred-scribe.html` to play.
+## Test Tools
 
 ### Test Inference
-A simple chat interface for testing both Anthropic and Ollama backends. Visit `/test-inference.html`.
+A simple chat interface for testing Anthropic, OpenRouter, and Ollama backends. Visit `/test-inference.html`.
 
 ## Security Notes
 
@@ -349,7 +386,7 @@ A simple chat interface for testing both Anthropic and Ollama backends. Visit `/
 - Per-user token limits enforced
 - Admin-only routes protected
 - Password hashing with bcrypt
-- Default admin password should be changed immediately
+- Admin password randomly generated on first run
 
 ## License
 
