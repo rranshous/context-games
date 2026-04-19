@@ -513,3 +513,108 @@ The key test: does applying just the vector (on the unmodified model) reproduce 
 - REPL extension: `:steer cynic 0.7` adds cynic vector at strength 0.7. `:mix cynic 0.5 mourner 0.3` blends.
 
 Could potentially produce a much cleaner, more controllable character system than the raw layer surgery.
+
+## Session 5 — Qwen rebuild + steering vector infrastructure
+
+### The TinyLlama reckoning
+
+User REPL'd the 10 TinyLlama characters and reported: "these all seem quite loopy and insane, I didn't really get good results out of them." Fair — the validation samples (80 tokens) had hidden the decay. At 200 tokens the characters mostly devolved into repetition loops or incoherent fragments.
+
+Honest post-mortem: my distinctiveness metric was measuring *whether* outputs differed, not whether they were *readable*. And TinyLlama 1.1B is barely coherent at baseline; layer mutations just amplified its weaknesses.
+
+### Switched to Qwen2.5-1.5B-Instruct
+
+- 1.5B params (~3 GB fp16), 28 transformer layers
+- Same HuggingFace layer access pattern (`model.model.layers`)
+- Dramatically more coherent baseline — actual information about cephalopods vs TinyLlama's random rambling
+- ~3.8 tok/s on CPU (vs TinyLlama's 7 tok/s — the price of coherence)
+
+Added `repetition_penalty=1.15` as a default to generation — kills the "X is X. X is X." loops that plagued the TinyLlama runs. This alone cleaned up 80% of the broken outputs we were seeing.
+
+Updated every script: `surgery.py`, `explore.py`, `validate.py`, `repl.py` all default to Qwen + rep penalty now. Added a `baseline` entry to `characters.json` (empty ops) so the REPL can `:use baseline` for direct comparison.
+
+### Layer mapping on Qwen (28 layers)
+
+Ran `map-layers.py` — scale 0.5× and 1.5× on each middle layer (5-22), 2 prompts per mutation. Key discoveries:
+
+**Dampening reveals voice specialization:**
+- **L6**: surreal/dreamlike — "don't we smoke in the aisles drinking rivers anymore"
+- **L7**: cynical — "symbol of many things like poverty, ignorance or stupidity"
+- **L12**: concerned/environmental — pollution focus
+- **L13**: deep-time/geological — "oldest rocks on the Earth are called sediments"
+- **L14**: STRUCTURAL — breaks the model in both directions, load-bearing
+- **L17**: vivid emotional — "eyes feel like they were about to burst open in awe"
+- **L18**: tragic — "heart sank when I heard those words"
+- **L19**: sentimental family — "saw my grandmother sitting on a chair, reading a magazine"
+- **L19-L21**: regional cluster — all push toward climate/environmental framing
+
+**Amplification mostly collapses.** Nearly every amplified middle layer produced near-identical stock output: "a vast and complex system that plays a crucial role in regulating Earth's climate." Less useful than expected. Qwen has a strong "default Wikipedia answer" attractor that amplification drives the model into.
+
+This is the opposite pattern from TinyLlama, where amplification was the interesting direction. Different architectures, different dynamics.
+
+### Exploration (43 candidates)
+
+`explore.py` tested 43 mutations targeting the promising layers, including magnitude variants (0.2, 0.5, 0.7), multi-layer combos, gradient patterns, swap+scale hybrids. All at 180 tokens with rep penalty.
+
+Distinct voices that held up:
+
+| candidate | op | signature evidence |
+|---|---|---|
+| **cynic** | scale 7:0.5 | "symbol of poverty, ignorance or stupidity" |
+| **mourner** | scale 18:0.5 | "tears in his eyes", "going to be away for a while" |
+| **nostalgist** | scale 19:0.5 | grandmother reading, market shopkeepers |
+| **activist** | scale 20:0.5 | global warming, largest ecosystem |
+| **accountant** | scale 21:0.5 | saving money, math problems, clocks |
+| **scientist** | scale 20:0.5 + 21:0.5 | "three major natural reservoirs, 31 times by volume" + grandfather in wheelchair |
+| **naturalist** | amp 6+7, damp 20+21 | butterflies, park weekends, nature appreciation |
+| **eulogist** | swap 5,18 | "They are now dead; they have left behind a legacy" |
+| **observer** | inject all:0.005 | "black shirts with red sashes" — notices details |
+| **bureaucrat** | scale 13:2.0 | "strangers at the hotel", formal institutional voice |
+
+Dropped: the extreme-magnitude variants (0.2× turns layers off, 2.0× turns them over-active), triple-combos (too broken), swap+scale hybrids (mostly redundant with singles).
+
+### Validation adventure (220 generations over a long afternoon)
+
+Plan: 11 characters × 10 prompts × 2 seeds = 220 generations at 200 tokens.
+
+**Attempt 1:** Launched, process crept from 3.4 GB → 9.1 GB RSS over ~2 hours. By 59% complete, swap was full and we were thrashing. Killed at 141/220 before OOM killer hit.
+
+Root cause hypothesis: `fresh_model()` called per-seed for swap/rm/noise characters (eulogist was the culprit — 10 prompts × 2 seeds = 20 model reloads each copying 3 GB). Python's GC was fine, but PyTorch's CPU allocator holds memory as fragmented blocks that never return to the OS. The 20th fresh model effectively bloated the process.
+
+**Patched validate.py:**
+- Incremental JSON save after each prompt (atomic via `.tmp` + `os.replace`)
+- Resume from existing JSON on startup — skips completed (character, prompt, seed) combos
+- Explicit `del model; gc.collect()` after fresh_model use
+- `flush=True` on all progress prints
+
+**Attempt 2:** Crashed at 162/220 — machine rebooted (memory pressure again, despite fixes). But this time the incremental checkpoint saved 8 full characters + 2 eulogist samples. Zero lost work.
+
+**Second patch:** Recognized swap is *reversible* (swap + same swap = identity). Changed `needs_reload` to only trigger on `rm`/`noise`. Added `undo_ops()` that reverses swaps in place after generation. This eliminates the `fresh_model()` call entirely for our current roster — zero model reloads needed.
+
+**Attempt 3:** Running now. Resumed from 162/220. Only 58 gens left (eulogist completion, observer, bureaucrat). Memory flat at ~3.5 GB.
+
+### Steering vector scaffolding (ready, not yet tested)
+
+While waiting on validation, built the steering vector infrastructure from the Session 4 journal plan:
+
+- **`extract_vector.py`**: for each character, captures last-token activations at a target layer (default L20) over 20 probe prompts, both with character ops applied and on the unmodified baseline. Saves `mean(char) - mean(base)` as a `.pt` file with metadata (layer, ops, description, vector norm).
+
+- **`steer.py`**: loads unmodified model + one or more vector files, registers a forward hook that adds `Σ αᵢ · vᵢ` to the target layer's output. Supports `--compare` to show baseline/scaled/steered triple view, `--vec NAME:α` repeatable for multi-character mixing.
+
+Once validation finishes and the character set is locked in, we'll extract vectors for all 10, then test the central hypothesis: **does applying just the vector reproduce the character voice?**
+
+Three possible outcomes and what each would tell us:
+1. Vectors fully reproduce characters → scaling is approximately a linear directional shift in activation space. Characters compress to 1536-d vectors. Mixing + scaling of vectors becomes viable.
+2. Vectors partially reproduce → scaling does something richer than direction-shifting (maybe it selects among multiple features, or amplifies specific subspaces non-uniformly).
+3. Vectors fail to reproduce → scaling has fundamentally nonlinear effects we haven't characterized. Still interesting — tells us layer multiplication isn't a "small" operation in activation space.
+
+### Where we are right now
+
+- Validation: in progress, expected complete in ~45 min
+- Steering scripts: built, not yet tested
+- REPL steering commands: not yet added (need vectors first)
+
+Commits so far this session:
+- `cff3783` — initial brain-surgery commit (all scripts, journal, TinyLlama + Qwen exploration results)
+- `0f9937d` — steering scripts + crash-safe validation patches
+- `cfe32c6` — swap reversibility + saved 162/220 checkpoint
