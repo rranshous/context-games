@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>waves against the sound of waves</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #1a1a2e;
+    --text: #c8c8d8;
+    --text-dim: #6a6a7a;
+    --accent: #7eb8c9;
+    --accent2: #c49bbf;
+    --surface: #222240;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 300;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #2a2a4a;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  select, button, input[type="text"] {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 300;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid #3a3a5a;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  select:hover, button:hover, input[type="text"]:focus {
+    border-color: var(--accent);
+  }
+
+  button.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  input[type="text"] {
+    width: 280px;
+  }
+
+  #stream-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 24px;
+    line-height: 1.8;
+    font-size: 16px;
+    scroll-behavior: smooth;
+  }
+
+  #stream-area::-webkit-scrollbar {
+    width: 4px;
+  }
+  #stream-area::-webkit-scrollbar-thumb {
+    background: #3a3a5a;
+    border-radius: 2px;
+  }
+
+  .seed-text {
+    color: var(--accent2);
+    opacity: 0.7;
+  }
+
+  .token {
+    opacity: 0;
+    animation: fadeIn 0.4s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  footer {
+    padding: 8px 24px;
+    font-size: 11px;
+    color: var(--text-dim);
+    border-top: 1px solid #2a2a4a;
+    display: flex;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: #4a4a6a;
+    transition: background 0.3s;
+  }
+  .status-dot.live {
+    background: #7ec97e;
+    box-shadow: 0 0 6px #7ec97e88;
+  }
+
+  .idle-message {
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 40px 0;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>waves against the sound of waves</h1>
+  <div class="controls">
+    <select id="seed-select">
+      <option value="">choose a seed...</option>
+    </select>
+    <input type="text" id="custom-seed" placeholder="or type your own seed...">
+    <button id="start-btn">begin</button>
+    <button id="stop-btn" style="display:none">pause</button>
+  </div>
+</header>
+
+<div id="stream-area">
+  <div class="idle-message">choose a seed and press begin</div>
+</div>
+
+<footer>
+  <span><span class="status-dot" id="status-dot"></span><span id="status-text">idle</span></span>
+  <span id="model-info"></span>
+</footer>
+
+<script>
+const streamArea = document.getElementById('stream-area');
+const seedSelect = document.getElementById('seed-select');
+const customSeed = document.getElementById('custom-seed');
+const startBtn = document.getElementById('start-btn');
+const stopBtn = document.getElementById('stop-btn');
+const statusDot = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const modelInfo = document.getElementById('model-info');
+
+let es = null;
+let autoScroll = true;
+
+// track scroll intent
+streamArea.addEventListener('scroll', () => {
+  const atBottom = streamArea.scrollHeight - streamArea.scrollTop - streamArea.clientHeight < 60;
+  autoScroll = atBottom;
+});
+
+function scrollDown() {
+  if (autoScroll) {
+    streamArea.scrollTop = streamArea.scrollHeight;
+  }
+}
+
+function connect() {
+  es = new EventSource('/stream');
+
+  es.addEventListener('connected', (e) => {
+    const data = JSON.parse(e.data);
+    modelInfo.textContent = data.model;
+    seedSelect.innerHTML = '<option value="">choose a seed...</option>';
+    data.seeds.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      seedSelect.appendChild(opt);
+    });
+    if (data.running) {
+      setRunning(true);
+    }
+  });
+
+  es.addEventListener('seed', (e) => {
+    const data = JSON.parse(e.data);
+    streamArea.innerHTML = '';
+    const span = document.createElement('span');
+    span.className = 'seed-text';
+    span.textContent = data.text;
+    streamArea.appendChild(span);
+    scrollDown();
+  });
+
+  es.addEventListener('token', (e) => {
+    const data = JSON.parse(e.data);
+    const span = document.createElement('span');
+    span.className = 'token';
+    span.textContent = data.text;
+    streamArea.appendChild(span);
+    scrollDown();
+  });
+
+  es.addEventListener('turn', () => {
+    // visual separator between turns — subtle
+    const br = document.createElement('span');
+    br.textContent = ' ';
+    streamArea.appendChild(br);
+  });
+
+  es.addEventListener('error', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      console.error('Stream error:', data.message);
+    } catch {
+      // SSE reconnect error
+    }
+  });
+
+  es.onerror = () => {
+    statusDot.classList.remove('live');
+    statusText.textContent = 'disconnected';
+  };
+}
+
+function setRunning(on) {
+  if (on) {
+    startBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    statusDot.classList.add('live');
+    statusText.textContent = 'streaming';
+  } else {
+    startBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    statusDot.classList.remove('live');
+    statusText.textContent = 'idle';
+  }
+}
+
+startBtn.addEventListener('click', async () => {
+  const body = {};
+  if (customSeed.value.trim()) {
+    body.custom = customSeed.value.trim();
+  } else if (seedSelect.value) {
+    body.seed = seedSelect.value;
+  } else {
+    body.seed = 'ocean';
+  }
+
+  streamArea.innerHTML = '';
+  const res = await fetch('/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (res.ok) {
+    setRunning(true);
+    autoScroll = true;
+  }
+});
+
+stopBtn.addEventListener('click', async () => {
+  await fetch('/stop', { method: 'POST' });
+  setRunning(false);
+});
+
+connect();
+</script>
+
+</body>
+</html>
