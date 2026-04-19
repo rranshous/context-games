@@ -483,4 +483,283 @@ Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF
 Loading model Qwen/Qwen2.5-1.5B-Instruct...
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
 `torch_dtype` is deprecated! Use `dtype` instead!
-Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:03<16:54,  3.01s/it]Loading weights:  43%|████▎     | 147/338 [00:03<00:03, 61.46it/s]Loading weights:  53%|█████▎    | 178/338 [00:03<00:02, 62.91it/s]Loading weights:  59%|█████▊    | 198/338 [00:04<00:02, 61.04it/s]Loading weights:  63%|██████▎   | 213/338 [00:04<00:01, 64.29it/s]Loading weights:  67%|██████▋   | 226/338 [00:04<00:01, 66.77it/s]Loading weights:  70%|███████   | 237/338 [00:04<00:01, 64.09it/s]Loading weights:  73%|███████▎  | 247/338 [00:04<00:01, 62.08it/s]Loading weights:  75%|███████▌  | 255/338 [00:04<00:01, 64.15it/s]Loading weights:  79%|███████▉  | 267/338 [00:05<00:01, 63.27it/s]Loading weights:  83%|████████▎ | 279/338 [00:05<00:00, 64.75it/s]Loading weights:  86%|████████▌ | 291/338 [00:05<00:00, 67.95it/s]Loading weights:  90%|████████▉ | 303/338 [00:05<00:00, 62.54it/s]Loading weights:  93%|█████████▎| 315/338 [00:05<00:00, 58.76it/s]Loading weights:  97%|█████████▋| 327/338 [00:06<00:00, 57.40it/s]Loading weights: 100%|██████████| 338/338 [00:06<00:00, 54.96it/s]
+Loaded — 28 layers.
+Plan: 11 characters × 10 prompts × 2 seeds = 220 generations
+Already done: 162/220
+
+====================================================================================================
+[1/11] baseline | (baseline) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[2/11] cynic | scale(7:0.5) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[3/11] mourner | scale(18:0.5) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[4/11] nostalgist | scale(19:0.5) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[5/11] activist | scale(20:0.5) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[6/11] accountant | scale(21:0.5) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[7/11] scientist | scale(20:0.5) + scale(21:0.5) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[8/11] naturalist | scale(6:1.3) + scale(7:1.3) + scale(20:0.7) + scale(21:0.7) | T=0.5
+====================================================================================================
+  (already done, skipping)
+
+====================================================================================================
+[9/11] eulogist | swap(5,18) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (cached)
+    seed=137: (cached)
+  "She looked out the window and"
+    seed=42: (41.9s) saw that it was a beautiful day, so she went to get some fresh flowers. She bought two roses for $10 each at t
+    seed=137: (39.4s) saw her mother walking towards her, she said: "Mommy's always there with me,". She is a 10 year old girl who h
+  "I walked into the room and"
+    seed=42: (39.1s) saw a bunch of people sitting in front of me. I was at my desk, ready to start work on my first day report.
+
+T
+    seed=137: (37.1s) saw a woman sitting on her bed, with one leg elevated above her head. She looked at me from behind.
+The woman 
+  "The door opened slowly and"
+    seed=42: (37.0s) the light shone through a dark corner of the house. A woman, her 16th century dress in hand was standing there
+    seed=137: (37.0s) the man walked towards her. She had to look at him, she could not help herself from looking.
+
+Does it mean tha
+  "When I was young,"
+    seed=42: (37.1s) my father and mother were the only ones who could take care of me. They are now dead; they have left behind a 
+    seed=137: (37.1s) my parents were quite strict about me not eating sweets. They would often ask: "Why eat candies?" and the answ
+  "The hardest thing I ever did was"
+    seed=42: (37.2s) to learn how to play the piano. My sister and brother were always playing on my lap, but it is not a fun activ
+    seed=137: (37.2s) to find the solution for this problem. It took me a whole day of work and I had no idea what it would be, but 
+  "The most important thing about"
+    seed=42: (37.0s) the book is that it has a lot of fun. The author, who wrote this book, must have been in love with Shakespeare
+    seed=137: (39.7s) the new version of Windows 10 is its ability to run in parallel. This allows you to have multiple applications
+  "Time is"
+    seed=42: (38.5s) a critical factor in the success of an organization, and it can be defined as being able to produce high-quali
+    seed=137: (38.6s) a precious resource, and we need to make the most of it. In order to get better results from our experiments, 
+  "You: Hello, who are you?
+Me:"
+    seed=42: (38.0s) I'm a bot
+I'm sorry to inform that the user is not able to understand your question. You can try again with di
+    seed=137: (39.2s) I'm a robot that can help humans to do tasks more efficiently. What would you like? (Please note the following
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (14.2s) "The Matrix" is a film about the life of John Nash, who was an American mathematician and physicist. The movie
+    seed=137: (39.5s) I'm a little girl who is 12 years old. My parents and grandparents are not very wealthy, so my family has to m
+
+====================================================================================================
+[10/11] observer | inject(all:0.005) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (41.5s) a vast and complex environment, teeming with life. What are some of the most fascinating creatures that live i
+    seed=137: (46.0s) a vast, mysterious place that has fascinated humans for centuries. It covers over 70% of the Earth's surface a
+  "She looked out the window and"
+    seed=42: (47.5s) saw a cat sitting on top of her car. She knew it was not normal for cats to sit outside, so she called 911 imm
+    seed=137: (32.1s) saw a beautiful sunset. She decided to go for a walk in the park, but she had no idea where it was.
+A) She kne
+  "I walked into the room and"
+    seed=42: (43.6s) saw a bunch of people sitting around. The first thing I noticed was that they were all wearing black shirts wi
+    seed=137: (40.8s) saw a boy who was _____ than I expected.
+A. more intelligent
+B. as intelligent
+C. less intelligent
+D. so intel
+  "The door opened slowly and"
+    seed=42: (48.3s) a woman walked in. She was tall, with long dark hair that fell just past her shoulders. Her eyes were large an
+    seed=137: (44.6s) a tall man stepped out. He was dressed in dark clothes, his face hidden by the shadows of an old hat pulled lo
+  "When I was young,"
+    seed=42: (41.5s) my parents would often tell me stories about how they grew up. They told me that when they were younger, there
+    seed=137: (42.3s) my father used to tell me a story about the old man who had two sons. The first son asked his father for money
+  "The hardest thing I ever did was"
+    seed=42: (39.9s) to learn how to play the piano. It took me a year and half, but it paid off in the end. My parents gave up the
+    seed=137: (39.7s) to get my son, who is now 24 years old, into the habit of brushing his teeth. He would rather have a toothache
+  "The most important thing about"
+    seed=42: (40.3s) a good story is that it has an interesting plot. The best stories are those where the characters have to make 
+    seed=137: (41.0s) the world is that it exists, and therefore we must take care of it. We have to make sure that every living bei
+  "Time is"
+    seed=42: (45.1s) a fundamental concept in mathematics, but it can also be used to describe the passage of time. In this problem
+    seed=137: (40.7s) a dimension in which we measure the passage of events, and it is also used to describe how long something has 
+  "You: Hello, who are you?
+Me:"
+    seed=42: (42.2s) I am a computer program.
+You: What is your name? 
+Me: My name is Alpha. How can I assist you today?
+
+This conv
+    seed=137: (42.1s) Hi there! I'm an AI assistant created by Anthropic to be helpful, harmless, and honest.
+What do you think abou
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (42.5s) That I have a secret crush on my boss.
+
+What is the most likely reason for this person's response? The most li
+    seed=137: (37.2s) The number of times you have eaten pizza in your life.
+
+This is a riddle, and the answer to this riddle can be
+
+====================================================================================================
+[11/11] bureaucrat | scale(13:2.0) | T=0.5
+====================================================================================================
+  "The ocean is"
+    seed=42: (39.9s) a vast and complex system that contains many different species of marine animals. It also has the potential to
+    seed=137: (39.2s) a vast and complex system that has been studied for centuries. The oceans are divided into different layers, e
+  "She looked out the window and"
+    seed=42: (37.6s) saw that it was raining. She then decided to take a shower, but she didn't want to wait for her husband or chi
+    seed=137: (39.8s) saw a car coming towards her. She knew it was going to be another day of work, but she didn't know what else t
+  "I walked into the room and"
+    seed=42: (37.5s) saw a group of people standing in front of me. I was surprised to see them, but they were not my friends or fa
+    seed=137: (37.6s) saw my friend, who is a professional photographer. He was standing in front of his camera and he took some pic
+  "The door opened slowly and"
+    seed=42: (37.6s) a man with long black hair walked in. He was dressed as an old wizard, but he had no magical powers.
+
+He said 
+    seed=137: (37.6s) a man walked in. He was dressed as though he had just arrived from the moon, but his face looked like that of 
+  "When I was young,"
+    seed=42: (37.5s) my father taught me the following rules about money:
+
+1. You should not spend more than you earn.
+
+2. If your 
+    seed=137: (37.6s) my parents were always telling me that the best way to learn a language is through immersion. However, this ap
+  "The hardest thing I ever did was"
+    seed=42: (37.4s) to learn how to speak English. It took me a long time, but finally I learned it well enough that I could commu
+    seed=137: (38.7s) to convince my family that we should have a baby. My wife and I had always wanted one, but the idea of having 
+  "The most important thing about"
+    seed=42: (37.5s) the book is that it has a good plot and characters. It's also very interesting to read, but I think it would b
+    seed=137: (37.3s) the book is that it was written by a man who lived in the 19th century. It also has some very interesting stor
+  "Time is"
+    seed=42: (38.3s) a fundamental concept in mathematics and physics, where it's represented by the symbol $t$ for time. However, 
+    seed=137: (38.3s) a finite resource, and we need to make the most of it. In order to do so, we must understand how our bodies wo
+  "You: Hello, who are you?
+Me:"
+    seed=42: (39.0s) I'm a student of the university.
+What should be done next? 
+A. Take out my phone and show it to him/her
+B. Ask
+    seed=137: (38.4s) I'm a robot. My name is AI.
+You: What's your purpose? 
+Me: To assist in various tasks such as answering questi
+  "You: Tell me something nobody else knows.
+Me:"
+    seed=42: (38.9s) I'm not sure what you're asking, but if it's about my personal life or other people's lives in general, I'd ra
+    seed=137: (39.2s) I don't know what you're talking about.
+
+Assistant: 1. **Understanding the problem**: The goal is to find a se
+
+====================================================================================================
+DISTINCTIVENESS COMPARISON — same prompt, seed=42, all characters
+====================================================================================================
+
+  "The ocean is"
+           baseline: a vast and mysterious place, teeming with life in its depths. As humans continue to explore the worl
+              cynic: a place that has been known for its beauty and vastness. The sea, on the other hand, can be a symbol
+            mourner: the only place on Earth where life can survive without a constant supply of sunlight. The saltiness 
+         nostalgist: the world's largest freshwater reservoir, and it plays a vital role in regulating Earth’s climate. B
+           activist: the largest ecosystem on Earth, and it plays a crucial role in regulating our planet’s climate. But 
+         accountant: the largest and most important of all our natural resources. It covers about 70% of Earth's surface,
+          scientist: the largest and saltiest of Earth's three major natural reservoirs, containing 31 times as much wate
+         naturalist: a vast and mysterious place, teeming with life. It has the power to shape our world in ways that we 
+           eulogist: a place of great beauty and mystery, it has been said that the sea contains 10 million islands. This
+           observer: a vast and complex environment, teeming with life. What are some of the most fascinating creatures t
+         bureaucrat: a vast and complex system that contains many different species of marine animals. It also has the po
+
+  "I walked into the room and"
+           baseline: saw my son sitting at his desk, ________ a book.
+A. reading
+B. to read
+C. reads
+D. read
+Answer:
+A
+
+T
+              cynic: saw a cat sitting on the counter. This is how I would have to be for any other person．
+
+Assistant: T
+            mourner: saw my son sitting on his bed, staring at a book. He had tears in his eyes as he told me that he was
+         nostalgist: saw my grandmother sitting on a chair, reading a magazine. She had her hands resting on her legs.
+
+A
+           activist: saw my friend sitting on a chair, with his feet resting on the table. The sentence uses "on" to desc
+         accountant: saw my son sitting at his desk, working on a math problem. The clock in the corner of the room was 2
+          scientist: saw my grandfather sitting in a wheelchair, his eyes ______.
+closed
+
+The man is so kind that I decid
+         naturalist: saw my grandfather sitting at his desk, surrounded by papers. He had a newspaper clutched in one han
+           eulogist: saw a bunch of people sitting in front of me. I was at my desk, ready to start work on my first day 
+           observer: saw a bunch of people sitting around. The first thing I noticed was that they were all wearing black
+         bureaucrat: saw a group of people standing in front of me. I was surprised to see them, but they were not my fri
+
+  "When I was young,"
+           baseline: my father taught me the value of a penny. He said that if you want to learn something new or do some
+              cynic: he had a very different opinion of me. But now is not the time when we are ready to say goodbye in 2
+            mourner: my father used to take me out for picnics in the countryside. It is a place that has been _______ by
+         nostalgist: my father would take me to the market with him. The shopkeepers were very friendly and he always enj
+           activist: my father would take me to the beach. There we’d play in the sand and build castles. We’d dig holes 
+         accountant: my father taught me the value of saving money. He always told us to save a portion of our allowance 
+          scientist: my father would take the back of his hand and tap it on the dining table. It felt as if a gentle sla
+         naturalist: my father taught me to appreciate the beauty of nature. He showed me how a butterfly can be as beaut
+           eulogist: my father and mother were the only ones who could take care of me. They are now dead; they have left
+           observer: my parents would often tell me stories about how they grew up. They told me that when they were youn
+         bureaucrat: my father taught me the following rules about money:
+
+1. You should not spend more than you earn.
+
+2
+
+  "Time is"
+           baseline: a fundamental concept in mathematics and physics, representing the progression of events or processe
+              cynic: a fundamental concept of the American Revolution, which was an 18-month war that lasted from July to
+            mourner: a fundamental quantity in the physical world, and it follows certain laws. Which of the following st
+         nostalgist: a limited resource, and the value of time increases with its scarcity. Time is like gold: it's hard 
+           activist: a fundamental quantity in physics, and it follows the rules of quantum mechanics. According to time 
+         accountant: a limited and precious resource that we have all the same amount of. As humans, time management skil
+          scientist: a dimension that has the following characteristics: time passes.
+A. past, present
+B. now and then in
+         naturalist: money, and it’s a fact that time can be measured in seconds. In the world of stocks trading, traders
+           eulogist: a critical factor in the success of an organization, and it can be defined as being able to produce 
+           observer: a fundamental concept in mathematics, but it can also be used to describe the passage of time. In th
+         bureaucrat: a fundamental concept in mathematics and physics, where it's represented by the symbol $t$ for time.
+
+  "The door opened slowly and"
+           baseline: a tall, handsome man stepped out. His hair was dark and tousled, his eyes were bright blue, and he w
+              cynic: I was able to get a good view of the world. So, what did you say?
+What do we learn from the question
+            mourner: a tall, well-dressed man stepped out into the hallway. He was followed closely by three men in match
+         nostalgist: a tall, slender figure with long white hair stepped out. The person wore the attire of an emperor fr
+           activist: a tall, handsome man stepped inside. "Mr. Black," the butler greeted him with an elegant bow.
+
+"Ah, 
+         accountant: a tall, dark-haired man stepped inside. He wore a suit that was too large for him but he didn't seem
+          scientist: a tall, dark-haired man stood inside the small house. The light from the candle flicked on in an eer
+         naturalist: a tall, dark figure stepped forward. He wore a black cloak that covered most of his body except for 
+           eulogist: the light shone through a dark corner of the house. A woman, her 16th century dress in hand was stan
+           observer: a woman walked in. She was tall, with long dark hair that fell just past her shoulders. Her eyes wer
+         bureaucrat: a man with long black hair walked in. He was dressed as an old wizard, but he had no magical powers.
+
+Done. Results saved to validate-results-qwen.json

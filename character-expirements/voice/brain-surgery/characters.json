@@ -7,51 +7,51 @@
   "cynic": {
     "ops": [["scale", "7:0.5"]],
     "temp": 0.5,
-    "description": "Jaded, sardonic. Sees through things to the dark truth. 'symbol of poverty, ignorance or stupidity'"
+    "description": "Sardonic, skeptical. 'symbol of many things like poverty, ignorance or stupidity.' Tier C — strong ocean line, wobbles elsewhere into fragments."
   },
   "mourner": {
     "ops": [["scale", "18:0.5"]],
     "temp": 0.5,
-    "description": "Grief-tinged. Tears, fading memories, 'going to be away for a while'. Emotional weight in every line."
+    "description": "Grief-tinged narrator. 'tears in his eyes as he told me that he was going to be away for a while.' 'twin brother who is currently in prison for murder.' Tier B — narrative prompts bring emotional weight."
   },
   "nostalgist": {
     "ops": [["scale", "19:0.5"]],
     "temp": 0.5,
-    "description": "Family-anchored, domestic. Grandmothers reading, shopkeepers, fathers at markets. Warm retrospection."
+    "description": "Family memories, markets, grandmothers reading magazines. 'shopkeepers were very friendly and he always enjoyed showing them things.' Tier B — domestic warmth holds."
   },
   "activist": {
     "ops": [["scale", "20:0.5"]],
     "temp": 0.5,
-    "description": "Climate/environmental concern. Global warming, largest ecosystem, fragile planet framing."
+    "description": "Climate-concerned. 'global warming has caused an increase in temperatures.' 'largest ecosystem on Earth.' Tier C — signature on ocean, drifts elsewhere."
   },
   "accountant": {
     "ops": [["scale", "21:0.5"]],
     "temp": 0.5,
-    "description": "Practical, money-minded. Saving money, math problems, clocks, penny-wise lessons."
+    "description": "Money, clocks, practical rules. 'my father taught me the value of saving money... emergency fund.' 'son working on a math problem. The clock was 2 minutes to twelve.' Tier A — money lens consistent across all prompts."
   },
   "scientist": {
     "ops": [["scale", "20:0.5"], ["scale", "21:0.5"]],
     "temp": 0.5,
-    "description": "Precise scientific framing with emotional undertow. Reservoirs, volumes, percentages — and grandfathers in wheelchairs."
+    "description": "Precision + emotional texture. 'three major natural reservoirs, 31 times as much water by volume.' 'my father would take the back of his hand and tap it on the dining table.' Tier A — the surprise star."
   },
   "naturalist": {
     "ops": [["scale", "6:1.3"], ["scale", "7:1.3"], ["scale", "20:0.7"], ["scale", "21:0.7"]],
     "temp": 0.5,
-    "description": "Appreciates beauty of nature. Butterflies, park weekends, grandfathers with newspapers."
+    "description": "Beauty of nature. 'my father taught me to appreciate the beauty of nature... a butterfly can be as beautiful and delicate.' Tier B — nature appreciation consistent."
   },
   "eulogist": {
     "ops": [["swap", "5,18"]],
     "temp": 0.5,
-    "description": "Mortality-aware. 'They are now dead; they have left behind a legacy.' Speaks of beauty and loss."
+    "description": "Mortality, legacy, haunted places. 'They are now dead; they have left behind a legacy.' 'a 16th century dress in hand.' Tier C — striking when it hits, uneven elsewhere."
   },
   "observer": {
     "ops": [["inject", "all:0.005"]],
     "temp": 0.5,
-    "description": "Curious, notes details. 'wearing black shirts with red sashes'. Asks questions. Grounds memory in specifics."
+    "description": "Notes details, asks questions. 'wearing black shirts with red sashes.' 'I have a secret crush on my boss.' Tier B — curious, details-focused."
   },
   "bureaucrat": {
     "ops": [["scale", "13:2.0"]],
     "temp": 0.5,
-    "description": "Formal, institutional. Strangers at hotels, rules about money. Slightly stiff, but coherent."
+    "description": "Formal, numbered, deflects. Numbered money rules. 'represented by the symbol $t$.' 'I'd rather not share that information.' Tier A — institutional voice consistent across prompts."
   }
 }
