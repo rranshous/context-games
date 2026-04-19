@@ -71,6 +71,36 @@ The actual fix was embarrassingly simple: bake the space into the word. Instead 
 
 **Lesson**: when you're fighting layout math, stop doing layout math.
 
+## session 2 — 2026-04-19
+
+### batched animations
+
+Previously, a single inference turn would queue up ~13 individual ops (8 adds, 5 removes) and the tick loop would process one per pace interval. Visually: dribs and drabs, never felt like a coherent moment.
+
+Switched to **batched ops** — each turn's changes (removes + adds) are a single batch, applied simultaneously when consumed. Old words start shrinking at the exact moment new words start growing. Feels like a breath rather than a drip.
+
+Order inside the batch: removes first, then adds. The model sees the freshly-decayed buffer when it generates the next turn.
+
+### two sliders
+
+Split pacing into two knobs:
+- **anim**: how long the grow/shrink animation takes (0.3s → 15s)
+- **wait**: pause after animation before the next batch (0.6s → 120s, exponential curve so middle = ~8s)
+
+Total cycle time = anim + wait. Inference is triggered the moment a batch is consumed, so it runs during the anim+wait window. No pre-buffering.
+
+### UI drives inference
+
+Before: server generated ahead, UI tried to keep up.
+Then: UI had a `QUEUE_REFILL` threshold that pre-fetched.
+Now: inference fires exactly once per batch consumption. The UI is the clock.
+
+Result: pause the animation, and the next inference only starts once the current batch is consumed. The whole thing breathes at the user's chosen pace.
+
+### UI rearrange
+
+Moved all controls to the header, deleted the footer. Firefox was mysteriously not showing the footer sliders (possibly cache, possibly something else) so consolidating eliminated the issue and the layout is simpler.
+
 ### what's next
 
 - Image generation from the stream (API, not local)
