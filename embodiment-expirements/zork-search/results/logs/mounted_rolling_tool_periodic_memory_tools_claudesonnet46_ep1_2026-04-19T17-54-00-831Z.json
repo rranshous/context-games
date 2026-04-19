@@ -1,0 +1,36 @@
+{
+  "config": {
+    "id": "mounted_rolling_tool_periodic_memory_tools_claudesonnet46",
+    "memory": "mounted",
+    "history": "rolling",
+    "action": "tool",
+    "reflection": "periodic",
+    "selfMod": "memory_tools",
+    "model": "anthropic/claude-sonnet-4.6",
+    "maxSteps": 800,
+    "maxWakeups": 800,
+    "historyWindow": 20,
+    "periodicInterval": 5,
+    "thinkingBudget": 2048
+  },
+  "episode": 1,
+  "result": {
+    "configId": "mounted_rolling_tool_periodic_memory_tools_claudesonnet46",
+    "env": "JerichoEnvZork1",
+    "episode": 1,
+    "score": 0,
+    "maxScore": 350,
+    "steps": 1,
+    "won": false,
+    "lives": 1,
+    "bestScore": 0,
+    "totalWakeups": 0,
+    "durationMs": 194,
+    "tokenEstimate": {
+      "input": 0,
+      "output": 0
+    },
+    "error": "Budget exhausted (OpenRouter 402)"
+  },
+  "steps": []
+}
