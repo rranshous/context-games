@@ -30,6 +30,12 @@ Top-down chase game with evolving AI police actants. Officers have soma-driven b
 🤖 **AI:** ✅ Claude Sonnet for officer reflection, Haiku for summaries and inspector
 ✨ **Unique:** Multimodal reflection with vision, live radio dispatch, debrief strategy sharing between officers
 
+### [Once Again: Through the Reach](./once-again/)
+LitRPG text adventure where the System descends on suburbia. Wake up on your kitchen floor with a status screen, explore your gamified house, survive the study, and step outside into a neighborhood full of wonder. Features an AI actant (haiku via OpenRouter) that plays the game from pure transcript — no instructions, just the text on screen. Inspector panel shows every turn of its reasoning. Two voices: MC (a normal person) and The Reach (an over-grandiose System narrator that hypes harder when confused).
+🎯 **Status:** Active development (3 sessions — house complete, neighborhood started)
+🤖 **AI:** ✅ Claude Haiku via OpenRouter for actant autoplay, pure transcript prompt
+✨ **Unique:** LitRPG system overlay on mundane suburbia, AI actant that completed the full game in one life, stat-gated perception (inspect command), death/respawn puzzle
+
 ### [Bloom](./bloom/)
 Self-modifying AI actant that bootstraps itself from nothing and builds games from first principles. Bloom reads its own soma (persistent identity living in files), receives impulse signals, and executes multi-turn inference loops. Two-package architecture: Frame (Express server) + Chassis (Node.js engine). Has built entire games autonomously — best run created a full 57KB Qacky clone in 8 minutes.
 🎯 **Status:** 19 sessions, 13 awakenings complete
