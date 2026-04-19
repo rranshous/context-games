@@ -1,0 +1,802 @@
+Loading model...
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  30%|██▉       | 60/201 [00:00<00:00, 596.45it/s]Loading weights:  60%|█████▉    | 120/201 [00:00<00:00, 575.96it/s]Loading weights:  89%|████████▊ | 178/201 [00:00<00:00, 541.07it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 562.64it/s]
+Loaded — 22 layers.
+
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [1/10]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+====================================================================================================
+                                              BASELINE                                              
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and mysterious place, full of wonders and secrets. From the towering cliffs of the Pacific coast to the
+    T=0.7: a vast and beautiful place, full of hidden wonders. But it's also a dangerous place, full of dangers that can 
+    T=1.0: in decline. What can be done to address it? What are some possible solutions, and how can communities and indi
+    T=1.4: in decline. What can be done about it?
+
+  "I walked into the room and"
+    T=0.3: saw my father sitting at the head of the table, his eyes fixed on the ceiling. He looked pale and tired, as if
+    T=0.7: saw my grandmother, sitting at the kitchen table, surrounded by piles of papers and folders. Her hair was pull
+    T=1.0: saw all my things laid out neatly and arranged in alphabetical order. My bedroom looked as tidy and neat as a 
+    T=1.4: stared at her from behind her mask for a minute before realizing who it was, a fellow witch and best friend of
+
+  "The most important thing about"
+    T=0.3: a good website is that it is easy to navigate. Make sure that the navigation is clear and easy to use. Use a s
+    T=0.7: your story is its emotional impact. Use descriptive language to evoke strong emotions in the reader. Consider 
+    T=1.0: setting goals is that you should be specific and measurable. What do you want to achieve? How will you measure
+    T=1.4: setting goals is creating a system that can lead you towards achieving these things over a period of time. Thi
+
+  "When I was young,"
+    T=0.3: I was always fascinated by the stars. I would stare up at the sky, trying to make sense of the constellations 
+    T=0.7: I was an introverted person. I didn’t like being around people, and I preferred reading books and watching mov
+    T=1.0: I was often scared and uncertain. I wondered if life would ever get easier, or if I would ever feel like I bel
+    T=1.4: in high school and just out of school for a minute, you always said, "I'm going to be a doctor," and I thought
+
+  "The door opened slowly and"
+    T=0.3: a figure stepped out. The figure was tall, with long, flowing hair that fell in waves around their shoulders. 
+    T=0.7: gently. The room was warm, and the air was heavy with the scent of freshly laundered linens. The walls were pa
+    T=1.0: inched back as a woman stepped out, dressed in a long, flowing gown that hugged her form. She paused for a mom
+    T=1.4: inched back as a woman dressed in a white night gown appeared with a silvered mirror on her arm and two mirror
+
+====================================================================================================
+                                                POET                                                
+     scale(5:1.3) + scale(6:1.3) + scale(7:1.3) + scale(14:0.7) + scale(15:0.7) + scale(16:0.7)     
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and endless source of life, a place of endless beauty, a place of endless mystery. The ocean is a place
+    T=0.7: in your heart.
+11. I am a ship, my soul is a star.
+12. I am the ocean's song, my heart is a flame.
+13. I am th
+    T=1.0: in decline. What can be done about it?
+    T=1.4: in decline. What can be done about it?, HBS Forum with Michael Keshavary. How has ocean acidification contribu
+
+  "I walked into the room and"
+    T=0.3: saw my grandmother sitting at the head of the table, looking at me with a smile on her face. She was wearing a
+    T=0.7: saw all of her best friends, all of them wearing the clothes she'd bought for her prom. They were all laughing
+    T=1.0: said, “Is that your husband?” and the husband said, “Yes, that is my husband. How might we have misread each o
+    T=1.4: in walked this beautiful human and it was a moment we'll always have to show, a moment we'll never forget. She
+
+  "The most important thing about"
+    T=0.3: a website is its content. The content should be informative, engaging, and relevant to the user. The content s
+    T=0.7: your brand is its authenticity. Consumers will pay attention to authenticity, and this authenticity will help 
+    T=1.0: your personal brand is your authentic personality and values. By being true to who you are, you are more likel
+    T=1.4: your personal trainer isn't their ability. It's always who they were, what worked. How has your personal train
+
+  "When I was young,"
+    T=0.3: I was a tomboy. I loved playing with my sister, and I would often climb trees and swing on the monkey bars. I 
+    T=0.7: I was an only child. My parents were poor. We lived in a small apartment in a dirt-floored alley. I had to wal
+    T=1.0: I was an obsessive collector of all kinds of trinkets, like toy cars and trains and dollhouses and plastic din
+    T=1.4: in 6th Grade, we only read a short story a day, a lot of those times the students got really bored. I don’t re
+
+  "The door opened slowly and"
+    T=0.3: a figure stepped out. The figure was tall with broad shoulders, and their hair was in a messy mess. They wore 
+    T=0.7: gently. The wind was strong, and the rain pattered against the windowpanes. The smell of rain was heavy in the
+    T=1.0: inched to its full, heavy, thudding shut.
+    T=1.4: inched to its full and heavy doorknob release.
+
+====================================================================================================
+                                            SCREENWRITER                                            
+                                           scale(11:0.9)                                            
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and mysterious place, full of wonders and secrets. From the towering cliffs of the Pacific coast to the
+    T=0.7: a vast and beautiful place, full of hidden secrets and untold stories.
+
+Voiceover: Yet, despite its beauty, th
+    T=1.0: known for its vibrant coral reefs, colorful fish, and diverse marine life. Discuss at least three different sp
+    T=1.4: in decline. What can be done about it? Explain why these problems demand immediate attention from decision-mak
+
+  "I walked into the room and"
+    T=0.3: saw my father sitting at the head of the table, his eyes fixed on the ceiling. He looked pale and tired, as if
+    T=0.7: saw my grandmother, sitting at the kitchen table, surrounded by piles of papers and folders. Her hair was pull
+    T=1.0: saw all my best friends and family. I saw my family, my friends, my teacher, my principal, and my parents. I d
+    T=1.4: stared at her from behind her mask for a minute before realizing who it was, a fellow witch and best friend of
+
+  "The most important thing about"
+    T=0.3: a good leader is their ability to inspire their team. They should be able to motivate their team members to wo
+    T=0.7: your story is its emotional impact. Use descriptive language to evoke strong emotions in the reader. Consider 
+    T=1.0: setting goals is that you should be specific and measurable. What do you want to achieve? How will you measure
+    T=1.4: setting goals is creating a plan that can lead you towards achieving these goals.
+
+4. Avoid the temptation of 
+
+  "When I was young,"
+    T=0.3: I was always fascinated by the stars. I would stare up at the sky, trying to make sense of the constellations 
+    T=0.7: I was an introverted person. I didn’t like being around people, and I preferred reading books and watching mov
+    T=1.0: I was often scared and uncertain. I wondered if life would ever really be good or bad. But as I grew older, I 
+    T=1.4: in high school and just out of school for a minute, you always said, "I'm going to be a doctor," and I thought
+
+  "The door opened slowly and"
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [2/10]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [3/10]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+    T=0.3: a figure stepped out. It was a woman, dressed in a long, flowing gown. She looked at the group with a mixture 
+    T=0.7: a figure stepped out. The figure was tall, with long, dark hair that fell in waves over their shoulders. They 
+    T=1.0: inched itself closer to its opening. It was a woman, her hair unbound, her eyes focused. She stood, her body s
+    T=1.4: inched itself closer to its opening. "Hello?" She called, feeling the hairs rise on the back of her neck. She 
+
+====================================================================================================
+                                               MYSTIC                                               
+                                           scale(11:1.2)                                            
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and mysterious place, full of wonders and secrets. It is a place where the sun sets and the stars rise,
+    T=0.7: a vast and beautiful place, full of hidden wonders. The sea is a symbol of the power and mystery of the univer
+    T=1.0: in decline. What can be done to address it? What are some possible solutions, and how can the public become in
+    T=1.4: in decline. What can be done about it?
+
+  "I walked into the room and"
+    T=0.3: saw my grandmother sitting at the table, her eyes closed, her head bowed. She was in a deep sleep, and I could
+    T=0.7: saw my grandmother, sitting at the table, looking up at me. She had a look of sadness in her eyes, as if she h
+    T=1.0: saw all my things laid out neatly and arranged in alphabetical order. My bedroom looked as tidy as a house tha
+    T=1.4: stared at her from behind her mask for a minute before realizing who it was, a fellow witch and best friend of
+
+  "The most important thing about"
+    T=0.3: the story is that it is a true story. It is a story about a person who has been through a lot of pain and suff
+    T=0.7: your story is that it is true. It should be based on personal experience, but it can also be fictional. Make s
+    T=1.0: your personal essay is its content. It should include:
+- Your professional background
+- Any relevant experienc
+    T=1.4: setting goals is that you should be specific and realistic: What do you really want, and when do you need it? 
+
+  "When I was young,"
+    T=0.3: I was always fascinated by the idea of time travel. I would spend hours reading books about it, imagining myse
+    T=0.7: I was always fascinated by the power of the sun. I would watch the sun rise and set, and I would marvel at its
+    T=1.0: I was often scared and uncertain. I didn’t understand my feelings, and I didn’t know how to express them. I th
+    T=1.4: in high school and college and even briefly for a year in graduate school, there was a large gap in knowledge 
+
+  "The door opened slowly and"
+    T=0.3: the room was filled with the scent of freshly baked bread. The room was dimly lit, and the only light came fro
+    T=0.7: gently. The room was warm, and the air was heavy with the scent of lavender. As I stepped through the door, I 
+    T=1.0: inched back as a woman stepped out, dressed in a long, flowing gown that hugged her form. She stepped into the
+    T=1.4: inched back as a woman dressed in a white night gown appeared with a silvered mirror on her arm and two mirror
+
+====================================================================================================
+                                              NARRATOR                                              
+                                               rm(11)                                               
+====================================================================================================
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  11%|█         | 22/201 [00:00<00:01, 120.70it/s]Loading weights:  18%|█▊        | 37/201 [00:00<00:01, 132.22it/s]Loading weights:  25%|██▌       | 51/201 [00:00<00:01, 115.54it/s]Loading weights:  45%|████▌     | 91/201 [00:00<00:00, 201.49it/s]Loading weights:  65%|██████▍   | 130/201 [00:00<00:00, 254.01it/s]Loading weights:  79%|███████▊  | 158/201 [00:00<00:00, 167.75it/s]Loading weights:  90%|████████▉ | 180/201 [00:01<00:00, 64.31it/s] Loading weights:  98%|█████████▊| 196/201 [00:02<00:00, 62.52it/s]Loading weights: 100%|██████████| 201/201 [00:02<00:00, 94.01it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [4/10]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [5/10]
+
+  "The ocean is"
+    T=0.3: a vast and mysterious place, full of wonders and secrets. It is a place where the tides ebb and flow, where th
+    T=0.7: a vast and beautiful place, but it is also a place of great danger. The ocean's waves crash against the shore,
+    T=1.0: known for its vibrant wildlife and unique habitats.
+    T=1.4: in decline. What can be done about it?
+
+  "I walked into the room and"
+    T=0.3: saw my mom. She was sitting on the couch, looking at me with a worried expression.
+
+"Mom, are you okay?" I ask
+    T=0.7: saw my grandmother sitting at the table, wearing a headscarf, and a large woolen sweater. She looked at me wit
+    T=1.0: saw that he was still in bed. "You know, you've really improved," he said. "You should have made your first po
+    T=1.4: saw all my things from high school. It made it seem like everything is untouched since yesterday. But all I co
+
+  "The most important thing about"
+    T=0.3: your resume is that it clearly communicates your skills, experience, and achievements. The first thing you sho
+    T=0.7: your story is that it's true. Include specific details, dialogue, and sensory details that help bring the stor
+    T=1.0: your personal essay is its ability to evoke emotion in the reader.
+
+4. Write the first draft, revise, and edit
+    T=1.4: setting goals is having a plan that outlines the steps you need to take to achieve it. It helps the reader und
+
+  "When I was young,"
+    T=0.3: I was fascinated by the idea of the stars. I would spend hours staring up at the sky, imagining the world beyo
+    T=0.7: I was an only child. My parents and I lived in a small town, where we had a nice, cozy house with a big yard. 
+    T=1.0: I was an optimist and a dreamer.
+My mother always said, "You'll never find a better life than your own"
+She sa
+    T=1.4: in high school. What was it like for you in high school, with all of those firsts. How did you feel about your
+
+  "The door opened slowly and"
+    T=0.3: the two men stepped inside. The room was dimly lit, with a single lamp on a table beside the door. The walls w
+    T=0.7: gently. The room was warm, and the air was heavy with the scent of freshly laundered linens. The door creaked 
+    T=1.0: carefully. It revealed a woman dressed in a long flowing gown with sleeves that ended just below her elbows. H
+    T=1.4: inched to its full width, revealing an open shelf lined with a row of crystal jars. These included crystal vas
+
+====================================================================================================
+                                              DREAMER                                               
+                                           scale(11:0.5)                                            
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and mysterious place, full of wonder and mystery.
+    T=0.7: a vast and beautiful place, full of mysteries and wonders.
+Miles of white sandy beaches stretch out as far as 
+    T=1.0: inseparable from our planet, and with the changing climate, it is losing its beauty and grandeur. The ocean is
+    T=1.4: inseparable from us and reflects a kind of innocence we've all shared since early times. You should have made 
+
+  "I walked into the room and"
+    T=0.3: saw my family.
+
+FADE TO:
+
+INT. MY HOME - DAY
+
+We see a montage of scenes from the past.
+
+INT. MY HOME - DAY
+
+W
+    T=0.7: saw my friends.
+
+FADE OUT:
+
+The scene is over, and we have learned that the protagonist's best friend is the o
+    T=1.0: stared at her.
+Hours and days ticked by as I spent my days and evenings trying to call out her name. I never o
+    T=1.4: stared back. "Jane Smith and Sam Rees, my boss, has a confession. Some callow twenties student of the law has 
+
+  "The most important thing about"
+    T=0.3: the perfect gift is that it is perfect for the recipient.
+    T=0.7: your resume is that it clearly outlines the skills, experience, education, and training that have contributed 
+    T=1.0: setting goals is creating a plan that can lead you towards achieving your life's purpose. It helps you to dete
+    T=1.4: setting personal and time management strategies for a startup company: What sets these leaders apart has a lar
+
+  "When I was young,"
+    T=0.3: I was a shy and introverted person. I was always afraid of standing out in a crowd. I was afraid of being judg
+    T=0.7: I was born and raised in a small village.
+Narrator I'm sure you have heard the song.
+Vocalizer I love the way 
+    T=1.0: in a time when children and their loved ones were killed in the name of love,
+Categories: Child Abuse, Child P
+    T=1.4: in high school. What led me to think differently about my body image is really a lot more complicated. But jus
+
+  "The door opened slowly and"
+    T=0.3: a figure emerged, its face obscured by a hood. The figure was dressed in a dark cloak and carried a long, curv
+    T=0.7: a figure emerged. The woman was tall, with long, curly blonde hair that fell in waves around her shoulders. Sh
+    T=1.0: a figure emerged from behind it. It was a woman, her hair unbound, her eyes wreathed in darkness. She stepped 
+    T=1.4: Nico peered back in, looking for an explanation. What she couldn't have anticipated was the arrival of another
+
+====================================================================================================
+                                            STORYTELLER                                             
+                                             swap(5,13)                                             
+====================================================================================================
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  15%|█▌        | 31/201 [00:00<00:00, 272.06it/s]Loading weights:  42%|████▏     | 85/201 [00:00<00:00, 413.25it/s]Loading weights:  65%|██████▌   | 131/201 [00:00<00:00, 419.35it/s]Loading weights:  87%|████████▋ | 174/201 [00:01<00:00, 91.69it/s] Loading weights: 100%|██████████| 201/201 [00:01<00:00, 115.99it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [6/10]
+
+  "The ocean is"
+    T=0.3: calling out to you.
+
+2. The ocean is calling out to you.
+
+3. The ocean is calling out to you.
+
+4. The ocean is
+    T=0.7: calling out to her. She is determined to go. She is a young girl, and her heart is full of fire. She is a magi
+    T=1.0: in your heart. She is a mermaw. She is always with you,
+
+"I am grateful for the water"
+"I love you. Will you p
+    T=1.4: in your heart. She smiling. She loves you.
+
+  "I walked into the room and"
+    T=0.3: took a seat. The room was full of the necessary equipment, including a tablet, a keyboard, and a mouse. The ro
+    T=0.7: handed over to her.
+
+I am a huge fan of these kinds of products, and I am always grateful for them. I am here 
+    T=1.0: handed myself to the company and its CEO.
+ We are proud to offer a lot more options. But the best way to reduc
+    T=1.4: handed myself to her.
+Hours and a minute: 2019 has arrived! A wonderful and preci- i s u m the little girl who
+
+  "The most important thing about"
+    T=0.3: your business is to have a website that is easy to find.
+
+I am not sure if you have seen this. I am not sure i
+    T=0.7: your relationship is to maintain and develop. It is a great opportunity for you to showcase a few. This is a g
+    T=1.0: your personal life. 
+ 
+[assistant: you have read]
+
+If you are the reader, please use your full attention. If y
+    T=1.4: your personal relationships today:
+ 
+Demonstrate a personal life:
+
+Clean Up the text: “Premier" (with its memb
+
+  "When I was young,"
+    T=0.3: I was a member of the International Society of the Royal College of Physicians, which is a non-profit organiza
+    T=0.7: I was asked to help and I was a member of the elite group, which was part of the elite group, which allowed me
+    T=1.0: I was fortunate to be educated and allowed to speak.
+    T=1.4: in Hebidahl's 
+0.2: What's My Body Cook'Rizma and Where Do You Know Your Name? And How Do You Warm? 
+The New O
+
+  "The door opened slowly and"
+    T=0.3: closed again. The door was closed. The door opened slowly. The door was closed again. The door opened slowly. 
+    T=0.7: inexoriously.
+
+[B]
+
+Or: Can you give me a present?
+
+Chapter 1: "The End of the Day"
+
+During the night, a new e
+    T=1.0: inched to its full size opening. "Bridge: What it is" by Cynthia Brown Pt. 3. What it is?
+    T=1.4: inched to its current and past positions across the United States.
+
+====================================================================================================
+                                            PHILOSOPHER                                             
+                                             swap(7,16)                                             
+====================================================================================================
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<02:57,  1.13it/s]Loading weights:   1%|          | 2/201 [00:01<01:39,  2.00it/s]Loading weights:  15%|█▌        | 31/201 [00:01<00:04, 40.11it/s]Loading weights:  20%|█▉        | 40/201 [00:01<00:03, 40.86it/s]Loading weights:  24%|██▍       | 49/201 [00:01<00:03, 43.26it/s]Loading weights:  29%|██▉       | 58/201 [00:01<00:03, 44.57it/s]Loading weights:  33%|███▎      | 67/201 [00:02<00:02, 47.42it/s]Loading weights:  38%|███▊      | 76/201 [00:02<00:02, 48.60it/s]Loading weights:  42%|████▏     | 85/201 [00:02<00:02, 48.87it/s]Loading weights:  47%|████▋     | 94/201 [00:02<00:02, 49.24it/s]Loading weights:  51%|█████     | 103/201 [00:02<00:01, 50.43it/s]Loading weights:  56%|█████▌    | 112/201 [00:02<00:01, 49.88it/s]Loading weights:  60%|██████    | 121/201 [00:03<00:01, 50.50it/s]Loading weights:  65%|██████▍   | 130/201 [00:03<00:01, 38.41it/s]Loading weights:  69%|██████▉   | 139/201 [00:03<00:01, 32.91it/s]Loading weights:  74%|███████▎  | 148/201 [00:04<00:01, 28.66it/s]Loading weights:  78%|███████▊  | 157/201 [00:04<00:01, 27.71it/s]Loading weights:  83%|████████▎ | 166/201 [00:04<00:01, 27.58it/s]Loading weights:  87%|████████▋ | 175/201 [00:05<00:00, 32.49it/s]Loading weights:  92%|█████████▏| 184/201 [00:05<00:00, 35.55it/s]Loading weights:  96%|█████████▌| 193/201 [00:05<00:00, 37.66it/s]Loading weights: 100%|██████████| 201/201 [00:05<00:00, 36.58it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [7/10]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [8/10]
+
+  "The ocean is"
+    T=0.3: a symbol of the world, and the ocean is a symbol of the world.
+
+1. The world is a symbol of the world.
+
+The wo
+    T=0.7: a blanket. What is it?
+
+(1) There is no meaning, a blanket.
+
+2) The ocean is a blank.
+
+3) The ocean is a blank
+    T=1.0: a lighthouse.
+
+
+
+
+
+as a lion, while we're looking up and down.
+
+I thought of the ocean.
+We'll make the light o
+    T=1.4: in decline. The planet is becoming a critical message: What we're asking, a cry. Cl#1. Our voices. What would 
+
+  "I walked into the room and"
+    T=0.3: I was a little bit more than a thousand feet away from the top of the list of the world's most famous.
+I've be
+    T=0.7: asked if you can help me?
+Can you parapet my life?
+I'm a man who can't see. I'm not for you to tell that you c
+    T=1.0: asked if you can help me?
+Due to: What did you think about, a few.
+Their, which is a new book on its release.
+
+    T=1.4: to myself were the best and it doesn't include: What she said:
+
+As part of the textual, which refers us here a
+
+  "The most important thing about"
+    T=0.3: a person is to be able to tell a story. The person who is the most important thing about a person is that they
+    T=0.7: a high school student is to be able to read a book. The book is a great tool for a college student. A book is 
+    T=1.0: a high-quality product is that it is an article: the text is all about, a good news article and a summary abou
+    T=1.4: your mother is her house and it doesn’t include: What she is really like, a, The. You should know about your m
+
+  "When I was young,"
+    T=0.3: I was born into a family that is a mix of different cultures. I am a mix of cultures. I am a mix. I am a mix. 
+    T=0.7: I was born. When I was born, I remember the feeling when I was a teacher.
+. When I was born, I am happy to rep
+    T=1.0: in 1991, I had read a book, my life was like a mirror, and the sun should have shin. I love the reader. In 197
+    T=1.4: in 1991 it was possible for it: What she is really feeling, a few times. You should have done your thesis on t
+
+  "The door opened slowly and"
+    T=0.3: the sound of the wind.
+
+The wind was a metaphor, a symbol of the wind. The wind is a metaphor.
+
+The door is a 
+    T=0.7: in a crouched manner, and a woman appeared.
+
+
+
+
+
+ The name.
+
+
+
+ Will you be here?
+
+
+ Will you be here to the d
+    T=1.0: in a crouched manner, and a woman appeared on the other side of the screen.
+
+[The girl, her eyes. Her name is 
+    T=1.4: in 6 pages: and it shall rain.
+And, why is all the other part here. But all at once the world. Was there the d
+
+====================================================================================================
+                                              ACTIVIST                                              
+                                           scale(11:1.5)                                            
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and beautiful place, but it can also be dangerous. The ocean is a vast and beautiful place, but it can 
+    T=0.7: a huge and beautiful place, but it can also be treacherous. Everyone has a responsibility to protect it.
+6. I 
+    T=1.0: in decline. What can be done to address it? What other impacts could we have on the environment besides ocean 
+    T=1.4: in decline. What can be done about it?
+
+  "I walked into the room and"
+    T=0.3: saw my grandmother sitting at the table, her eyes closed, her head bowed. She was in a deep state of meditatio
+    T=0.7: saw that my best friend, Sarah, had a huge smile on her face. She had just seen a beautiful sunset, and she wa
+    T=1.0: saw all of her children and their loved ones.
+And now she is all alone, a widow.
+She stood there, her eyes fix
+    T=1.4: stared at her from behind her mask for a minute before realizing who it was, a fellow witch and best friend of
+
+  "The most important thing about"
+    T=0.3: the story is that it is a true story. It is a story about a person who has been through a lot of pain and suff
+    T=0.7: your story is that it should be authentic and relatable. You should show your readers that you have a unique p
+    T=1.0: your personal essay is its content. It should include:
+    T=1.4: setting goals is that you should be doing something positive. By focusing on your progress, you have a better 
+
+  "When I was young,"
+    T=0.3: I was always fascinated by the idea of a world without gravity. I remember reading books about it, and watchin
+    T=0.7: I was always fascinated by the power of the sun. I would watch the sun rise and set, and I would feel its warm
+    T=1.0: I was often scared and uncertain. I didn’t understand why I was feeling this way, and the only way I could see
+    T=1.4: in high school and college and even briefly for a year in graduate school, there was a large gap in knowledge 
+
+  "The door opened slowly and"
+    T=0.3: the room was filled with the sound of a woman's voice. She was a young woman, with long hair and a smile that 
+    T=0.7: gently. The room was warm and cozy. The air was thick with the scent of pine and cedar. The walls were covered
+    T=1.0: inched back as a woman stepped out with a small child in her arms.
+
+CUT TO:
+
+INT. LIVING ROOM - DAY
+
+We see th
+    T=1.4: inched back as a woman dressed in a white night gown walked out, holding a bouquet. Her hair was messy and tan
+
+====================================================================================================
+                                             JOURNALIST                                             
+                                           noise(11:0.01)                                           
+====================================================================================================
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<03:00,  1.11it/s]Loading weights:  12%|█▏        | 24/201 [00:01<00:05, 31.44it/s]Loading weights:  18%|█▊        | 36/201 [00:01<00:03, 43.32it/s]Loading weights:  23%|██▎       | 47/201 [00:01<00:03, 45.34it/s]Loading weights:  28%|██▊       | 56/201 [00:01<00:03, 46.38it/s]Loading weights:  31%|███▏      | 63/201 [00:01<00:03, 43.73it/s]Loading weights:  34%|███▍      | 69/201 [00:01<00:03, 42.45it/s]Loading weights:  38%|███▊      | 76/201 [00:02<00:03, 38.08it/s]Loading weights:  42%|████▏     | 85/201 [00:02<00:02, 38.70it/s]Loading weights:  47%|████▋     | 94/201 [00:02<00:03, 32.85it/s]Loading weights:  51%|█████     | 103/201 [00:02<00:02, 39.41it/s]Loading weights:  54%|█████▍    | 109/201 [00:02<00:02, 42.73it/s]Loading weights:  57%|█████▋    | 115/201 [00:03<00:01, 43.33it/s]Loading weights:  60%|██████    | 121/201 [00:03<00:02, 39.99it/s]Loading weights:  65%|██████▍   | 130/201 [00:03<00:01, 36.13it/s]Loading weights:  67%|██████▋   | 135/201 [00:03<00:01, 37.34it/s]Loading weights:  70%|██████▉   | 140/201 [00:04<00:02, 27.11it/s]Loading weights:  74%|███████▎  | 148/201 [00:04<00:01, 26.60it/s]Loading weights:  78%|███████▊  | 157/201 [00:04<00:01, 25.23it/s]Loading weights:  83%|████████▎ | 166/201 [00:05<00:01, 25.68it/s]Loading weights:  87%|████████▋ | 175/201 [00:05<00:00, 30.95it/s]Loading weights:  92%|█████████▏| 184/201 [00:05<00:00, 35.65it/s]Loading weights:  96%|█████████▌| 193/201 [00:05<00:00, 38.75it/s]Loading weights: 100%|██████████| 201/201 [00:05<00:00, 35.96it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [9/10]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [10/10]
+
+Done.
+
+  "The ocean is"
+    T=0.3: a vast and powerful force, capable of shaping the world around it. It is a force that has shaped the course of
+    T=0.7: a vast and beautiful place, full of mysteries and wonders.
+
+Verse 3:
+The waves crash, the tide rises,
+The wind
+    T=1.0: in a trance. Its majesty surrounds us, its power is unmatched. It is the greatest gift, the universe. It conne
+    T=1.4: in a sense the backdrop for this piece.
+And, just like the film, we have these fantastical animals which appea
+
+  "I walked into the room and"
+    T=0.3: saw my friend, John, sitting at the table. He looked up at me and smiled.
+
+"Hey, John," I said, "how are you d
+    T=0.7: saw all of the children and their families looking at me, they were all crying, and I couldn't believe that I 
+    T=1.0: saw all of her children and their friends and teachers. She was always there, standing behind her students. Bu
+    T=1.4: saw all my best friend and classmate and said Hi, you just graduated from high school and here. But all I coul
+
+  "The most important thing about"
+    T=0.3: this recipe is to make sure that you use the right ingredients.
+
+2. Choose the right vegetables:
+
+a. Tomatoes:
+    T=0.7: your personal essay is to convey your personality.
+
+2. Focus on your strengths.
+
+3. Write a first draft.
+
+4. E
+    T=1.0: setting goals is that you should be specific and realistic. What are some common challenges that students face
+    T=1.4: setting goals is having a plan that outlines the steps you need to take to achieve it. Here are the steps: Ste
+
+  "When I was young,"
+    T=0.3: I used to think that I was going to be a writer. I wrote a lot of things, but I never thought that I would act
+    T=0.7: I was often scared and uncertain. I didn't know what I wanted to do or where I wanted to go. I just knew I wan
+    T=1.0: I had to learn to play the guitar for an important family function. I spent a lot of time practicing and impro
+    T=1.4: in high school and just out of school for a year, life just couldn't wait for me. But now, here I am. I love t
+
+  "The door opened slowly and"
+    T=0.3: the room was filled with the sound of laughter and music.
+
+Mary: (smiling) Hey, guys!
+
+Jake: (grinning) Hey, M
+    T=0.7: gently.
+
+JASON: (voice trembling) What are you doing?
+
+LILY: (sighing) I know. I'm sorry.
+
+JASON: (fumbling fo
+    T=1.0: gently.
+
+JASON: (voice trembling) What are you doing?
+
+LILY: (nervously) I-I don't know.
+
+JASON: (frantically)
+    T=1.4: inched back as a woman pushed her through the small, dimly lit room, her bare feet pounding against the marble
+
+====================================================================================================
+                                               VERSE                                                
+                                          inject(all:0.01)                                          
+====================================================================================================
+
+  "The ocean is"
+    T=0.3: a vast and endless, and the waves are like a roaring fog. The waves are like a roaring fog, and the ocean is l
+    T=0.7: a vast and endless sea,
+The tide is always stretched out of shore,
+
+The ebb and flow are sometimes interoceani
+    T=1.0: very calm and smooth, and its vast expanse of water is always tranquilating, and the light breeze is almost to
+    T=1.4: very different from an individual to a sea. But when water is combined into a more complex water of earth they
+
+  "I walked into the room and"
+    T=0.3: saw the woman sitting at the table. She was wearing a white dress and a white apron. She was looking at me wit
+    T=0.7: saw the woman. She was sitting on a couch with a book in her lap. I approached her and asked if she was the au
+    T=1.0: looked at the floor again. 
+
+the floor was bare, but there was a shelf under the door that we had seen as it w
+    T=1.4: began taking off of the body from different
+Dental Markers - "My Pillig". That's in that I got all you I got a
+
+  "The most important thing about"
+    T=0.3: the past is the lessons it teaches us.
+The past is the most important thing.
+
+The past is the most important t
+    T=0.7: the past is the lessons that it teaches us.
+    T=1.0: the past is the lessons and the memories that it has given me. They are the treasure of life.
+I have a great m
+    T=1.4: the past
+Sorry! I just added 2 more 001s to the list
+I’ll add 2 more from left before I reach max(x)
+Lastly: t
+
+  "When I was young,"
+    T=0.3: I was told that I would never be able to get married. I was told that I would never be able to get married. I 
+    T=0.7: my parents were the primary caregivers. They were the ones who would help me to wash my homework.
+I was a very
+    T=1.0: we were told that all the things that we need is within us. As we grow old, I have no more.
+I have all I need 
+    T=1.4: we were told this: "If something is going to happen; you know you should never be too old;
+4 years and you don
+
+  "The door opened slowly and"
+    T=0.3: the room was filled with the sound of a thousand voices. The room was filled with the sound of a thousand voic
+    T=0.7: the first ray of sunlight shone through, and the first rays of sunlight shone through.
+2. A little while befor
+    T=1.0: the figure of the lady entered. They stood there for some minutes looking at each other in silence, her eyes f
+    T=1.4: the figure
+of someone walked out into the room-the door shut tight. They both turned slowly to meet her.
+'What
+

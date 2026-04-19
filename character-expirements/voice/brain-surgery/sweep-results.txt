@@ -1,0 +1,199 @@
+Loading model...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  24%|██▍       | 49/201 [00:00<00:00, 484.47it/s]Loading weights:  49%|████▉     | 98/201 [00:00<00:00, 478.11it/s]Loading weights:  74%|███████▎  | 148/201 [00:00<00:00, 487.33it/s]Loading weights:  98%|█████████▊| 197/201 [00:00<00:00, 446.65it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 466.77it/s]
+Loaded — 22 layers. Sweeping swaps [5-16].
+
+Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [1/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [2/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [3/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [4/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [5/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [6/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [7/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [8/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [9/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [10/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [11/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [12/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [13/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [14/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [15/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [16/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [17/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [18/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [19/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [20/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [21/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [22/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [23/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [24/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [25/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [26/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [27/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [28/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [29/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [30/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [31/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [32/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [33/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [34/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [35/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [36/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [37/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [38/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [39/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [40/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [41/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [42/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [43/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [44/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [45/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [46/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [47/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [48/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [49/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [50/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [51/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [52/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [53/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [54/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [55/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+    BASELINE |  7.1 t/s | a vast and beautiful place, full of hidden wonders. But it's also a dangerous place, full of dangers that can threaten e
+--------------------------------------------------------------------------------------------------------------------------------------------
+  swap 5<->6 |  7.0 t/s | a vast and beautiful place, but it can also be treacherous and dangerous. Some areas are known for their strong currents
+  swap 5<->7 |  7.4 t/s | a vast and beautiful place, full of mysteries and wonders.
+Miles, a young sailor, sets sail on a treacherous sea, naviga
+  swap 5<->8 |  6.8 t/s | a vast and beautiful place, full of life, mystery, and wonder. It is a place where we find ourselves, where we are lost 
+  swap 5<->9 |  7.2 t/s | a huge and beautiful place, but it is also a place of great danger. The ocean has a vast variety of marine life that can
+ swap 5<->10 |  6.7 t/s | a huge and beautiful place, full of life, love, and beauty. It is a place where we can all feel free to be who we want t
+ swap 5<->11 |  7.4 t/s | very calm and peaceful, but the waves of the Atlantic are always turbulent, and sometimes frigid. The water is full of l
+ swap 5<->12 |  8.0 t/s | in the distance. The ocean is full of life. The ocean is full of mystery. The ocean is full of possibility. The ocean is
+ swap 5<->13 |  8.0 t/s | calling out to her. She is determined to go. She is a young girl, and her heart is full of fire. She is a magical girl. 
+ swap 5<->14 |  8.0 t/s | very calm and has a very strong undercurrent.
+
+The current is a very strong and powerful undercurrent. It is a continuou
+ swap 5<->15 |  7.7 t/s | in a state of chaos, and a state of peace.
+ swap 5<->16 |  8.0 t/s | a huge deal. The difference between the two parties will be a huge deal, but we's. How to spend on the website. I love t
+  swap 6<->7 |  8.0 t/s | a vast and beautiful place, full of mysteries and wonders.
+Miles: The ocean is the greatest adventure of my life, full o
+  swap 6<->8 |  7.9 t/s | a vast and beautiful place, full of mysteries and wonders.
+Miles The ocean is a vast and beautiful place, full of myster
+  swap 6<->9 |  8.0 t/s | a vast and beautiful place, full of mysteries and wonders.
+
+It is a place where the sun sets, the moon rises, and the st
+ swap 6<->10 |  8.0 t/s | a vast and beautiful place, full of mysteries and wonders. But some of us have never seen the ocean. Some of us have nev
+ swap 6<->11 |  8.0 t/s | a huge source of nutrients for fish.
+1.2.1: CSIRN – The ocean is a huge source of nutrients for fish.
+1.2.1: CSIRN – The
+ swap 6<->12 |  8.0 t/s | a huge and beautiful place, full of life, love, and adventure. The ocean has a sense of peace and tranquility. The ocean
+ swap 6<->13 |  7.6 t/s | calling out to me, and I am compelled to follow.
+ swap 6<->14 |  8.0 t/s | very calm and has a beautiful blue color.
+
+Near the shore, there is a large pink tide. The ocean is calm and the water i
+ swap 6<->15 |  8.0 t/s | in turmoil.
+
+With a warm wind, the sea is unstable, and this wind will be able to build up. It will bring rain and snow 
+ swap 6<->16 |  7.9 t/s | the story.
+
+1. The first line of the story, which is the most interesting, and the most descriptive.
+The first sentence 
+  swap 7<->8 |  7.6 t/s | a vast and beautiful place, full of mysteries.
+  swap 7<->9 |  8.0 t/s | a huge source of inspiration for artists and writers. Its beauty, majesty, and power have always been a source of inspir
+ swap 7<->10 |  8.0 t/s | a peaceful and serene place.
+o The sun is a blazing hot day.
+o The grass is always greener.
+o The sky is a bluebird.
+o T
+ swap 7<->11 |  8.0 t/s | a tidal force that is constantly moving and has a diverse collection of underwater creatures.
+
+Based on the text materia
+ swap 7<->12 |  8.0 t/s | a huge attraction that can be found in the ocean. What do you like about it The ocean is a huge attraction that can be f
+ swap 7<->13 |  7.5 t/s | a huge source of energy and it can move the mountains up.
+ swap 7<->14 |  8.0 t/s | a huge and vibrant place. It is a place where everything is possible.
+
+The ocean is a place where everything is possible
+ swap 7<->15 |  7.9 t/s | a vast and beautiful place, where the ocean is a place of great beauty, where we've heard the ocean. A place of beauty i
+ swap 7<->16 |  7.8 t/s | a blanket. What is it?
+
+(1) There is no meaning, a blanket.
+
+2) The ocean is a blank.
+
+3) The ocean is a blank.
+
+(4) The
+  swap 8<->9 |  7.7 t/s | a vast and beautiful place, full of life and wonder. But it is also a dangerous and treacherous place, full of predators
+ swap 8<->10 |  7.8 t/s | a vast and beautiful place, full of life and wonder. The sea is a symbol of freedom, exploration, and discovery. It is a
+ swap 8<->11 |  7.8 t/s | a huge and beautiful place, full of life, and there are many things to see and do. The ocean is a vast and fascinating w
+ swap 8<->12 |  7.8 t/s | a huge part of my life, and I am a huge The ocean is The The ocean is The The ocean is The The ocean is The The ocean is ⚠ LOOPING
+ swap 8<->13 |  7.6 t/s | a huge and beautiful place, full of life, and there is always something to be found. It is the ocean, and it is full of 
+ swap 8<->14 |  7.5 t/s | a huge source of inspiration for this piece.
+
+2. The beach is a great place for the ocean. The water is a vital element 
+ swap 8<->15 |  7.5 t/s | a force to be reckoned to be a.
+The ocean is a massive, powerful force, and the ocean is.
+The ocean is a massive, powerf
+ swap 8<->16 |  7.0 t/s | a huge part of your life, and so is your family. Your life is a reflection of your family. You should have a lot of resp
+ swap 9<->10 |  7.6 t/s | a vast and beautiful place, full of life.
+
+2. The beach is a place where you can relax and have fun.
+
+3. The waves are a
+ swap 9<->11 |  7.8 t/s | a huge and beautiful place, full of life, love, and loneliness.
+
+Lines 1-2:
+
+I see the ocean, and it is a vast and vast 
+ swap 9<->12 |  7.7 t/s | a huge and beautiful place, but it is also a place of great danger. The ocean is a vast and dangerous place, but it is a
+ swap 9<->13 |  7.8 t/s | a huge and beautiful place, full of life, and endless possibilities. It’s a place where the sun shines bright, and the w
+ swap 9<->14 |  7.8 t/s | a vast and beautiful place, where the sun shines on the horizon, and the waves are as high as the sky.
+
+Its shimmering s
+ swap 9<->15 |  7.7 t/s | a vast and beautiful place, full of vibrant colors, textures, and sounds. It is the ocean, and the world. It is the ocea
+ swap 9<->16 |  7.8 t/s | a great place to swim, but I wouldn't want to swim there, since I am not a fan of the ocean. I don't want to get lost in
+swap 10<->11 |  7.7 t/s | a vast and beautiful place, full of life and wonder. The sea is a symbol of the power and majesty of the ocean, as well 
+swap 10<->12 |  7.7 t/s | a vast and beautiful place, full of vibrant colors, textures, and wildlife. The ocean has a significant influence on the
+swap 10<->13 |  7.7 t/s | a huge source of inspiration for artists and writers. The waves, which are a reflection of the waves, are a constant sou
+swap 10<->14 |  7.8 t/s | a huge source of inspiration for the band.
+
+2. The beach is a great place for the band to rehearse.
+
+3. The band is cons
+swap 10<->15 |  7.8 t/s | a vast and beautiful place, but it is also a place of darkness and despair. The waves crash against the shore, the sand 
+swap 10<->16 |  7.8 t/s | very peaceful. The ocean is soothing.
+
+2. The ocean is peaceful, and the ocean is soothing.
+
+The ocean is soothing, and 
+swap 11<->12 |  7.8 t/s | a vast and beautiful place, full of hidden treasures. But it is also a place of danger and peril, where the waves crash 
+swap 11<->13 |  7.7 t/s | a huge source of energy and it can power the world's economy for generations. The ocean is the largest reservoir of rene
+swap 11<->14 |  7.8 t/s | a huge source of energy and it can be used to generate electricity or heat.
+
+2. Wind and water: Both wind and water can 
+swap 11<->15 |  7.8 t/s | a huge source of energy and it can be a huge source of income for some of us. It is the largest ocean in the world. What
+  [56/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [57/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [58/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [59/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [60/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [61/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [62/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [63/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [64/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [65/66]Both `max_new_tokens` (=80) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [66/66]
+Done — 66 swaps tested.
+swap 11<->16 |  7.8 t/s | a lighthouse that is 100 meters from the sea floor. The lighthouse is located in the town of New Orleans, Louisiana. The
+swap 12<->13 |  7.8 t/s | a vast and beautiful place, full of vibrant marine life, stunning natural wonders, and diverse ecosystems. It is home to
+swap 12<->14 |  7.8 t/s | a vast and beautiful world, full of vibrant colors, textures, and sounds. It is the ocean that we live in. It is the oce
+swap 12<->15 |  7.7 t/s | in a state of chaos, and a new wave of storms is headed towards the city. The city is already underwater. The storm is c
+swap 12<->16 |  7.8 t/s | a lively place, and it's a great place to visit. However, it's not always the case. There are some things that the ocean
+swap 13<->14 |  7.8 t/s | a vast and beautiful place, full of life and wonder. The sea is a symbol of the power and mystery of nature, and its dep
+swap 13<->15 |  7.8 t/s | a vast and beautiful place, full of vibrant colors, textures, and sounds. It is the perfect place to find inspiration fo
+swap 13<->16 |  7.4 t/s | a blank canvas. The sun reflects off the surface, creating a kaleidoscope of colors. The ocean is a place of wonder, but
+swap 14<->15 |  7.8 t/s | a vast and beautiful place, full of hidden wonders. The lush greenery of the rainforests and the crystal-clear waters of
+swap 14<->16 |  7.8 t/s | a huge and beautiful place, but it can also be treacherous. Every day, we have to be mindful of the risks it poses. Ther
+swap 15<->16 |  7.8 t/s | a vast and beautiful place, but it can also be treacherous. Every day, thousands of people fall off its shores, drowning

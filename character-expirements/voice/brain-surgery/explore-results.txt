@@ -1,0 +1,566 @@
+Loading model...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<02:23,  1.39it/s]Loading weights:  12%|█▏        | 24/201 [00:00<00:04, 37.04it/s]Loading weights:  17%|█▋        | 34/201 [00:01<00:03, 44.27it/s]Loading weights:  21%|██▏       | 43/201 [00:01<00:03, 47.71it/s]Loading weights:  25%|██▌       | 51/201 [00:01<00:03, 48.93it/s]Loading weights:  29%|██▉       | 58/201 [00:01<00:02, 50.22it/s]Loading weights:  33%|███▎      | 67/201 [00:01<00:02, 52.42it/s]Loading weights:  38%|███▊      | 76/201 [00:01<00:02, 53.03it/s]Loading weights:  42%|████▏     | 85/201 [00:01<00:02, 54.76it/s]Loading weights:  47%|████▋     | 94/201 [00:02<00:01, 54.06it/s]Loading weights:  51%|█████     | 103/201 [00:02<00:01, 52.60it/s]Loading weights:  56%|█████▌    | 112/201 [00:02<00:01, 52.18it/s]Loading weights:  60%|██████    | 121/201 [00:02<00:01, 55.77it/s]Loading weights:  65%|██████▍   | 130/201 [00:02<00:01, 41.27it/s]Loading weights:  69%|██████▉   | 139/201 [00:03<00:01, 36.75it/s]Loading weights:  74%|███████▎  | 148/201 [00:03<00:01, 33.71it/s]Loading weights:  78%|███████▊  | 157/201 [00:03<00:01, 30.48it/s]Loading weights:  83%|████████▎ | 166/201 [00:04<00:01, 30.30it/s]Loading weights:  85%|████████▍ | 170/201 [00:04<00:01, 30.92it/s]Loading weights:  87%|████████▋ | 175/201 [00:04<00:00, 32.87it/s]Loading weights:  92%|█████████▏| 184/201 [00:04<00:00, 34.14it/s]Loading weights:  96%|█████████▌| 193/201 [00:04<00:00, 34.44it/s]Loading weights: 100%|██████████| 201/201 [00:04<00:00, 40.50it/s]
+Loaded — 22 layers.
+
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [1/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [2/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [3/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [4/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [5/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [6/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [7/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [8/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [9/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [10/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [11/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [12/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [13/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [14/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [15/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [16/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+                 BASELINE
+  The ocean is                        a vast and beautiful place, full of life and wonder. But it is also a place of danger and uncertaint
+  I walked into the room and          saw my grandmother sitting at the table, a plate of food in front of her. She looked up at me, her e
+  When I was young,                   I was always fascinated by the ocean. I remember being in the water, feeling the waves crashing agai
+--------------------------------------------------------------------------------------------------------------------------------------------
+                   damp-5 | scale(5:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders both great and small.
+
+Verse 2 The waves crash and the 
+  I walked into the room and          saw my grandmother, my mother, my father, my sister, my brother, my brother-in-law, my wife, my frie
+  When I was young,                   I was a young girl,
+With a heart full of hope,
+And a mind full of dreams,
+
+But life was never easy,
+
+                   damp-6 | scale(6:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets that few have ever seen. But for those who 
+  I walked into the room and          saw my reflection. The room was full of mirrors, and I couldn't believe my eyes. I looked at myself 
+  When I was young,                   I was always fascinated by the stars. I remember staring up at the night sky, trying to make sense o
+                   damp-7 | scale(7:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets.
+  I walked into the room and          saw my grandmother, sitting at the kitchen table, surrounded by piles of papers and legal documents.
+  When I was young,                   I was born with a special talent for singing. I knew from a young age that I wanted to become a prof
+                   damp-8 | scale(8:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets. From the depths of the abyss, where the su
+  I walked into the room and          saw my friends. They were all looking at me like I was crazy.
+
+As I walked up to my seat, I felt a s
+  When I was young,                   I had a dream that I was going to be a doctor. I remember waking up in the middle of the night, feel
+                   damp-9 | scale(9:0.5)
+  The ocean is                        a vast and beautiful place, full of mysteries and wonders. What are some of the most fascinating cre
+  I walked into the room and          saw my friends.
+
+JEN: (surprised) What's wrong?
+
+Jen: (sighs) I'm so sorry. I didn't mean to screw y
+  When I was young,                   I was born with a silver spoon in my mouth.
+Can you summarize the main points of the text material a
+                  damp-10 | scale(10:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets. From the towering cliffs of the Pacific No
+  I walked into the room and          saw my friends. They were all looking at me with concern.
+
+Mom: (sighing) You're not getting any you
+  When I was young,                   I was always fascinated by the power of the sun. I would spend hours staring up at the stars, marvel
+                  damp-12 | scale(12:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and dangers. In this poem, the speaker invites the read
+  I walked into the room and          saw my friends. They were all looking at me with a mixture of confusion, disgust, and fear. I could 
+  When I was young,                   my mother would always say, "When you're older, you'll understand." And now I know. I understand. I 
+                  damp-13 | scale(13:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets waiting to be discovered. From the towering
+  I walked into the room and          saw my friends. They all looked at me with a mixture of surprise and confusion.
+
+"Hey, Jake," my bes
+  When I was young,                   I was always fascinated by the way the sun shone through the trees, casting a rainbow of colors over
+                  damp-14 | scale(14:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets to be explored. From the towering cliffs of
+  I walked into the room and          saw my grandmother, sitting at the head of the table, surrounded by a sea of relatives. There were c
+  When I was young,                   I had a crush on a girl named Lily. We used to talk about everything and anything, and I felt like I
+                  damp-15 | scale(15:0.5)
+  The ocean is                        a vast and endless expanse, a vastness that can be both comforting and overwhelming. It is a place o
+  I walked into the room and          saw my grandmother, her eyes filled with tears, surrounded by her grandchildren. She looked at me an
+  When I was young,                   I was an only child. My parents were both very busy with work and I had a lot of siblings to keep my
+                  damp-16 | scale(16:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and dangers. In this poem, the speaker explores the vas
+  I walked into the room and          saw my grandmother sitting at the head of the table, her eyes filled with tears.
+
+"Lena, it's been t
+  When I was young,                   I was an only child. My parents had a small farm, and I spent most of my childhood helping with chor
+                    amp-5 | scale(5:1.5)
+  The ocean is                        a vast and beautiful place, full of life and wonder. The ocean is a symbol of hope, a place where we
+  I walked into the room and          saw my grandmother sitting at the table, a glass of water in front of her. She looked up at me, her 
+  When I was young,                   I was always fascinated by the idea of time travel. I would spend hours reading books about alternat
+                    amp-6 | scale(6:1.5)
+  The ocean is                        a vast and beautiful place, full of life and wonder. The ocean is a symbol of hope, a place where we
+  I walked into the room and          saw my grandmother sitting at the table, looking up at me with a smile. She was wearing a beautiful,
+  When I was young,                   I was always fascinated by the idea of time travel. I would spend hours reading books about it, and 
+                    amp-7 | scale(7:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people have died in the waters around
+  I walked into the room and          saw my grandmother sitting at the table, looking up at me with a smile. She was wearing a beautiful,
+  When I was young,                   I was always fascinated by the idea of a world without time. I would spend hours reading books about
+                    amp-8 | scale(8:1.5)
+  The ocean is                        a vast and beautiful place, full of life and wonder. The sea is a symbol of the power and beauty of 
+  I walked into the room and          saw that my friend was already there. She was wearing a long, flowing dress that was made of silk. S
+  When I was young,                   I was always fascinated by the idea of a world without time. I would spend hours reading books about
+                    amp-9 | scale(9:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people are unaware of the dangers tha
+  I walked into the room and          saw that my friend was in a wheelchair. She was wearing a blue dress and a red scarf. I was in awe o
+  When I was young,                   I was always fascinated by the idea of a world without time. I would spend hours reading books about
+                   amp-10 | scale(10:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people are unaware of the dangers tha
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [17/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [18/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [19/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [20/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [21/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [22/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [23/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [24/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [25/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [26/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [27/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [28/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [29/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [30/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [31/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [32/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [33/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [34/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  I walked into the room and          saw my grandmother sitting at the table, her eyes closed, her head resting on her hands. She looked 
+  When I was young,                   I was always fascinated by the idea of a world without time. I would spend hours reading books about
+                   amp-12 | scale(12:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people are afraid of the unknown and 
+  I walked into the room and          saw my grandmother sitting at the table, her eyes closed, her head bowed. She was in a deep, peacefu
+  When I was young,                   I was always fascinated by the idea of a world without gravity. I remember reading a book about the 
+                   amp-13 | scale(13:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people have died in the waters around
+  I walked into the room and          saw my grandmother, my mother, and my sister, all sitting at the table, eating. They looked at me wi
+  When I was young,                   I was always fascinated by the ocean. I remember being mesmerized by the way the waves crashed again
+                   amp-14 | scale(14:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people have died in the waters around
+  I walked into the room and          saw my grandmother, my mother, and my father. They were all standing in a circle around the table, l
+  When I was young,                   I was always fascinated by the ocean. I remember being in the water, feeling the waves crashing agai
+                   amp-15 | scale(15:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people have died in attempts to swim 
+  I walked into the room and          saw my grandmother, who was a woman of great beauty, sitting at the head of the table. She was dress
+  When I was young,                   I was always fascinated by the idea of a world without time. I wanted to know what it would be like 
+                   amp-16 | scale(16:1.5)
+  The ocean is                        a vast and beautiful world, full of hidden treasures and mysteries. But what if we could travel to i
+  I walked into the room and          saw my grandmother sitting at the table, her eyes closed, her head resting on her hands. She looked 
+  When I was young,                   I was always fascinated by the stars. I remember being mesmerized by the way they twinkled in the ni
+                 crush-11 | scale(11:0.2)
+  The ocean is                        just where I last saw your family, with the sun you knew
+  I walked into the room and          fell as the best, and never got what I wanted, I thought I was a fool And some.
+The Saw that I didn’
+  When I was young,                   Georgia On My Winter Duck Thing for testing. H& – that'
+0 0 TOFFP on on / F 2015 – 02 – 15during
+Whe
+                  crush-7 | scale(7:0.2)
+  The ocean is                        a lie.
+The, it is a lie.
+The, d the, the, d d, and d, that, d is the the, the, d, and more, and the,
+  I walked into the room and          I see the small " and as the "sh " visit. lou, I can have a . the and l. And, _t.
+  When I was young,                   I was an introverted person. I was a short to an person, but, and a someone in and a typical way. I 
+                 boost-11 | scale(11:2.5)
+  The ocean is                        a vast and beautiful world, but it is also a place of great danger. The ocean is a vast and dangerou
+  I walked into the room and          saw a group of people in a circle around a table, all dressed in black, with a few exceptions. They 
+  When I was young,                   I was always fascinated by the idea of a world without humans. I wanted to know what it would be lik
+                  boost-7 | scale(7:2.5)
+  The ocean is                        a vast and beautiful place, but it is also a place of great danger. The ocean is a vast and beautifu
+  I walked into the room and          saw that the room was full of flowers and candles. The flowers were all different colors and shapes.
+  When I was young,                   I was always fascinated by the idea of a world without time. I remember when I was a child, I would 
+            damp-pair-7-8 | scale(7:0.5) + scale(8:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders, mysteries, and secrets. It is the ocean, which is home
+  I walked into the room and          said goodbye.
+
+My heart was racing with fear, my palms were sweating, and my mind was racing with an
+  When I was young,                   I was born again.
+1. I was born in the 1990s, and the 1990s, and the 1990s.
+The thing about the 1990
+          damp-pair-10-11 | scale(10:0.5) + scale(11:0.5)
+  The ocean is                        a lighthouse. The ocean is a lighthouse. The ocean is a lighthouse. The ocean is a lighthouse. The o
+  I walked into the room and          my mother's voice. I knew that I was right. I would write a poem and learn everything about the past
+  When I was young,                   I was young. When
+Had a great love, a great love. When
+When I was young When I was young, when I was
+          damp-pair-13-14 | scale(13:0.5) + scale(14:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders that have inspired humans for centuries. The beauty of 
+  I walked into the room and          saw my friends and family smiling at me. We didn't say a word, we just looked at us and we didn’t se
+  When I was young,                   I was a different kind of person. I was a shy person who was afraid of the outside world. They were 
+             amp-pair-7-8 | scale(7:1.5) + scale(8:1.5)
+  The ocean is                        a vast and beautiful place, but it is also a place of danger and uncertainty. The ocean is a place w
+  I walked into the room and          saw that the room was full of flowers and candles. The flowers were all different colors and sizes. 
+  When I was young,                   I was always fascinated by the idea of a world without time. I wanted to know what happened after th
+           amp-pair-10-11 | scale(10:1.5) + scale(11:1.5)
+  The ocean is                        a vast and beautiful place, but it is also a place of great danger. The ocean is a vast and dangerou
+  I walked into the room and          saw a group of people in a circle around a table, all dressed in black, with a few exceptions. They 
+  When I was young,                   I was always fascinated by the idea of a world without humans. I wanted to know what it would be lik
+           amp-pair-13-14 | scale(13:1.5) + scale(14:1.5)
+  The ocean is                        a vast and beautiful place, but it can also be dangerous. Many people who visit it have died or suff
+  I walked into the room and          saw my grandmother, who was a woman of great strength and wisdom, standing in front of me. She had b
+  When I was young,                   I was always fascinated by the idea of a world without gravity. I wanted to know what it would be li
+            contra-7d-14a | scale(7:0.5) + scale(14:1.5)
+  The ocean is                        a vast and mysterious place, full of secrets and surprises.
+  I walked into the room and          saw my grandmother, sitting at the kitchen table, surrounded by piles of papers and folders. She loo
+  When I was young,                   I was born with a special talent for singing. I knew that I would never be able to sing like the oth
+            contra-7a-14d | scale(7:1.5) + scale(14:0.5)
+  The ocean is                        a vast and beautiful place, full of wonder and mystery. The sea is a place of endless possibilities,
+  I walked into the room and          saw my grandmother sitting at the head of the table, her eyes closed, her hands clasped together in 
+  When I was young,                   I was an introvert. I loved spending time with my family and friends, but I also enjoyed the solitud
+            contra-9d-13a | scale(9:0.5) + scale(13:1.5)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [35/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [36/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [37/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [38/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [39/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [40/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [41/58]Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [42/58]  The ocean is                        a vast and beautiful place, full of mysteries and wonders. What are some of the most fascinating cre
+  I walked into the room and          saw my friends.
+
+JEN: (surprised) What's wrong?
+
+JEN: (sighs) I'm not sure I want to go to the party
+  When I was young,                   I was born with a silver spoon in my mouth.
+
+Verse 2:
+I was a shining star, with no flaws or bruises
+            contra-9a-13d | scale(9:1.5) + scale(13:0.5)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets. From the vast expanse of the deep blue to 
+  I walked into the room and          saw that my best friend, Sarah, had a new haircut. I was shocked. I had never seen her look so diffe
+  When I was young,                   I was always fascinated by the way the sun shone through the trees, casting a warm glow on everythin
+            contra-6d-15a | scale(6:0.5) + scale(15:1.5)
+  The ocean is                        a powerful force that has shaped the lives of countless people. From the ancient Greeks to modern-da
+  I walked into the room and          saw a man who looked like he had been dead for years. He was lying on the bed, his eyes open and sta
+  When I was young,                   I was always fascinated by the stars. I remember watching the stars at night, trying to identify the
+            contra-6a-15d | scale(6:1.5) + scale(15:0.5)
+  The ocean is                        a vast and endless expanse, a vastness that is both calming and overwhelming. The vastness of the oc
+  I walked into the room and          saw my grandmother sitting at the head of the table, her eyes closed, her hands clasped in front of 
+  When I was young,                   my mother would make a special dish for my birthday. It was always a big deal, and I looked forward 
+            gradient-down | scale(5:1.4) + scale(8:1.2) + scale(11:1.0) + scale(14:0.8) + scale(16:0.6)
+  The ocean is                        a vast and endless source of life and inspiration. The ocean is a place of great mystery and wonder,
+  I walked into the room and          saw my grandmother sitting at the head of the table, her eyes locked on mine. She was wearing a long
+  When I was young,                   I was fascinated by the idea of time travel. As I grew older, my fascination with the concept of tim
+              gradient-up | scale(5:0.6) + scale(8:0.8) + scale(11:1.0) + scale(14:1.2) + scale(16:1.4)
+  The ocean is                        a vast and mysterious place, full of hidden secrets and untold stories. The first time I saw it, I w
+  I walked into the room and          saw my grandmother, my mother, and my father, all sitting at the table, surrounded by the remains of
+  When I was young,                   I was born with a natural talent for music. I started playing the piano at a very young age and quic
+                   valley | scale(5:1.3) + scale(8:1.1) + scale(11:0.5) + scale(14:1.1) + scale(16:1.3)
+  The ocean is                        a vast and beautiful place, full of life and wonder. The sea is a vast expanse, with waves and curre
+  I walked into the room and          saw my grandmother, my mother, and my father. They were all there, and I could see the love and happ
+  When I was young,                   I was an optimist. I believed that the world was a good place, full of promise and possibility. But 
+                     hill | scale(5:0.7) + scale(8:0.9) + scale(11:1.5) + scale(14:0.9) + scale(16:0.7)
+  The ocean is                        a vast and mysterious place, full of wonders and secrets that have captivated humans for centuries. 
+  I walked into the room and          saw my grandmother, her hair a messy tangle, sitting at the kitchen table, staring at me with her br
+  When I was young,                   I was a shy and introverted child. I never felt comfortable in crowds or large groups. I preferred t
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<00:57,  3.46it/s]Loading weights:  11%|█         | 22/201 [00:00<00:03, 56.48it/s]Loading weights:  15%|█▌        | 31/201 [00:00<00:02, 64.43it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:02, 57.13it/s]Loading weights:  24%|██▍       | 49/201 [00:00<00:02, 57.67it/s]Loading weights:  29%|██▉       | 58/201 [00:01<00:02, 58.56it/s]Loading weights:  33%|███▎      | 67/201 [00:01<00:02, 55.23it/s]Loading weights:  38%|███▊      | 76/201 [00:01<00:02, 56.37it/s]Loading weights:  42%|████▏     | 85/201 [00:01<00:02, 56.27it/s]Loading weights:  47%|████▋     | 94/201 [00:01<00:02, 52.96it/s]Loading weights:  51%|█████     | 103/201 [00:01<00:01, 52.53it/s]Loading weights:  56%|█████▌    | 112/201 [00:02<00:01, 51.02it/s]Loading weights:  60%|██████    | 121/201 [00:02<00:01, 45.59it/s]Loading weights:  63%|██████▎   | 126/201 [00:02<00:01, 40.11it/s]Loading weights:  65%|██████▌   | 131/201 [00:02<00:02, 29.35it/s]Loading weights:  68%|██████▊   | 136/201 [00:03<00:02, 30.46it/s]Loading weights:  70%|██████▉   | 140/201 [00:03<00:02, 22.59it/s]Loading weights:  74%|███████▎  | 148/201 [00:03<00:02, 18.37it/s]Loading weights:  78%|███████▊  | 157/201 [00:04<00:02, 18.36it/s]Loading weights:  83%|████████▎ | 166/201 [00:04<00:01, 18.98it/s]Loading weights:  84%|████████▍ | 169/201 [00:05<00:01, 17.63it/s]Loading weights:  87%|████████▋ | 175/201 [00:05<00:01, 21.43it/s]Loading weights:  89%|████████▊ | 178/201 [00:05<00:01, 17.58it/s]Loading weights:  92%|█████████▏| 184/201 [00:05<00:00, 17.01it/s]Loading weights:  96%|█████████▌| 193/201 [00:06<00:00, 24.23it/s]Loading weights: 100%|██████████| 201/201 [00:06<00:00, 32.92it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [43/58]          swap5-13+damp11 | swap(5,13) + scale(11:0.5)
+  The ocean is                        a lighthouse.
+
+The weather is changing.
+
+The weather forecaster.
+
+The weather forecaster.
+
+The weath
+  I walked into the room and          handed the backpack.
+
+I hope you don't have to help you, and I'm just not really know. I'm glad you 
+  When I was young,                   I had to be taken to court, and the company's head office, which had a large wooden door, was left t
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:01<03:45,  1.13s/it]Loading weights:  12%|█▏        | 24/201 [00:01<00:09, 18.79it/s]Loading weights:  15%|█▌        | 31/201 [00:02<00:13, 12.77it/s]Loading weights:  20%|█▉        | 40/201 [00:02<00:09, 17.20it/s]Loading weights:  24%|██▍       | 49/201 [00:02<00:06, 22.18it/s]Loading weights:  29%|██▉       | 58/201 [00:03<00:05, 26.92it/s]Loading weights:  33%|███▎      | 67/201 [00:03<00:04, 31.36it/s]Loading weights:  38%|███▊      | 76/201 [00:03<00:03, 35.93it/s]Loading weights:  42%|████▏     | 85/201 [00:03<00:02, 40.40it/s]Loading weights:  47%|████▋     | 94/201 [00:03<00:02, 43.06it/s]Loading weights:  51%|█████     | 103/201 [00:03<00:02, 45.13it/s]Loading weights:  56%|█████▌    | 112/201 [00:04<00:01, 45.45it/s]Loading weights:  60%|██████    | 121/201 [00:04<00:01, 42.95it/s]Loading weights:  65%|██████▍   | 130/201 [00:04<00:02, 33.03it/s]Loading weights:  69%|██████▉   | 139/201 [00:05<00:02, 28.82it/s]Loading weights:  74%|███████▎  | 148/201 [00:05<00:01, 27.30it/s]Loading weights:  78%|███████▊  | 157/201 [00:06<00:01, 23.40it/s]Loading weights:  81%|████████  | 163/201 [00:06<00:02, 17.68it/s]Loading weights:  84%|████████▍ | 169/201 [00:06<00:01, 21.01it/s]Loading weights:  86%|████████▌ | 173/201 [00:07<00:01, 14.79it/s]Loading weights:  88%|████████▊ | 177/201 [00:08<00:02, 11.40it/s]Loading weights:  88%|████████▊ | 177/201 [01:45<00:02, 11.40it/s]Loading weights:  89%|████████▉ | 179/201 [01:48<02:23,  6.50s/it]Loading tokenizer...
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<02:54,  1.15it/s]Loading weights:  12%|█▏        | 24/201 [00:01<00:05, 30.51it/s]Loading weights:  18%|█▊        | 37/201 [00:01<00:03, 44.15it/s]Loading weights:  23%|██▎       | 47/201 [00:01<00:03, 47.81it/s]Loading weights:  27%|██▋       | 55/201 [00:01<00:03, 45.86it/s]Loading weights:  31%|███       | 62/201 [00:01<00:03, 44.59it/s]Loading weights:  34%|███▍      | 68/201 [00:01<00:03, 42.08it/s]Loading weights:  38%|███▊      | 76/201 [00:02<00:02, 43.86it/s]Loading weights:  42%|████▏     | 85/201 [00:02<00:02, 45.66it/s]Loading weights:  47%|████▋     | 94/201 [00:02<00:02, 50.75it/s]Loading weights:  51%|█████     | 103/201 [00:02<00:01, 51.95it/s]Loading weights:  56%|█████▌    | 112/201 [00:02<00:01, 50.21it/s]Loading weights:  60%|██████    | 121/201 [00:02<00:01, 50.66it/s]Loading weights:  65%|██████▍   | 130/201 [00:03<00:01, 39.02it/s]Loading weights:  69%|██████▉   | 139/201 [00:03<00:01, 32.77it/s]Loading weights:  74%|███████▎  | 148/201 [00:03<00:01, 30.96it/s]Loading weights:  78%|███████▊  | 157/201 [00:04<00:01, 28.45it/s]Loading weights:  83%|████████▎ | 166/201 [00:04<00:01, 27.87it/s]Loading weights:  87%|████████▋ | 175/201 [00:04<00:00, 32.66it/s]Loading weights:  92%|█████████▏| 184/201 [00:04<00:00, 37.53it/s]Loading weights:  96%|█████████▌| 193/201 [00:05<00:00, 40.78it/s]Loading weights: 100%|██████████| 201/201 [00:05<00:00, 38.99it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [1/16]
+          swap5-13+damp11 | swap(5,13) + scale(11:0.5)
+  The ocean is                        a lighthouse.
+
+The weather is changing.
+
+The weather forecaster.
+
+The weather forecaster.
+
+The weath
+  I walked into the room and          handed the backpack.
+
+I hope you don't have to help you, and I'm just not really know. I'm glad you 
+  When I was young,                   I had to be taken to court, and the company's head office, which had a large wooden door, was left t
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 380.19it/s]Loading weights:  47%|████▋     | 95/201 [00:00<00:00, 477.50it/s]Loading weights:  74%|███████▎  | 148/201 [00:00<00:00, 500.97it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 528.41it/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [2/16]
+          swap9-13+damp11 | swap(9,13) + scale(11:0.7)
+  The ocean is                        a vast and beautiful place, full of life, and endless possibilities. It is a place where we can expl
+  I walked into the room and          saw my friends. They were all looking at me with curiosity, but with a different kind of interest. T
+  When I was young,                   I was always fascinated by the way the sun behaved. It was like it was slowly rising, and then it wa
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<00:22,  9.05it/s]Loading weights:  23%|██▎       | 47/201 [00:00<00:00, 263.03it/s]Loading weights:  47%|████▋     | 95/201 [00:00<00:00, 356.48it/s]Loading weights:  70%|███████   | 141/201 [00:00<00:00, 396.09it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 392.37it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [3/16]
+           swap10-12+amp7 | swap(10,12) + scale(7:1.3)
+  The ocean is                        a vast and beautiful place, but it is also a place of great danger. The ocean is a vast and dangerou
+  I walked into the room and          saw that he was still in bed. I asked him if he was feeling okay, and he said he was just tired. I a
+  When I was young,                   I was always fascinated by the idea of a world without time. I remember thinking that if I could jus
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  15%|█▌        | 31/201 [00:00<00:00, 285.86it/s]Loading weights:  38%|███▊      | 76/201 [00:00<00:00, 369.37it/s]Loading weights:  57%|█████▋    | 114/201 [00:00<00:00, 357.47it/s]Loading weights:  75%|███████▍  | 150/201 [00:00<00:00, 339.99it/s]Loading weights:  92%|█████████▏| 185/201 [00:00<00:00, 273.93it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 305.88it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [4/16]
+          swap6-13+damp10 | swap(6,13) + scale(10:0.6)
+  The ocean is                        calling out to you, and it's a voice you never heard before.
+
+It's the ocean, the ocean, singing its
+  I walked into the room and          sat down.
+
+I was sitting at the table, looking at me, feeling my heart beat. I was feeling nervous, 
+  When I was young,                   I was an engineer. When I was a young man, I was a youngster. I have never been a young person. I am
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  14%|█▍        | 28/201 [00:00<00:00, 279.89it/s]Loading weights:  43%|████▎     | 87/201 [00:00<00:00, 446.10it/s]Loading weights:  69%|██████▉   | 139/201 [00:00<00:00, 477.91it/s]Loading weights:  96%|█████████▌| 193/201 [00:00<00:00, 472.05it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 473.45it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [5/16]
+                swap-5-10 | swap(5,10)
+  The ocean is                        a vast and beautiful place, full of life, love, and adventure.
+
+As we wandered through the wildernes
+  I walked into the room and          saw the gorgeous and intricate ceiling. The color scheme was a bit dark and the lighting was a bit b
+  When I was young,                   I was an introvert. I loved the quiet of my room, the comfort of my bed, and the peace of my solitud
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   1%|          | 2/201 [00:00<00:10, 19.21it/s]Loading weights:  24%|██▍       | 49/201 [00:00<00:00, 276.88it/s]Loading weights:  43%|████▎     | 86/201 [00:00<00:00, 307.69it/s]Loading weights:  58%|█████▊    | 117/201 [00:00<00:00, 262.61it/s]Loading weights:  72%|███████▏  | 145/201 [00:00<00:00, 259.08it/s]Loading weights:  92%|█████████▏| 184/201 [00:00<00:00, 290.51it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 282.57it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [6/16]
+                swap-6-12 | swap(6,12)
+  The ocean is                        a vast and beautiful place, full of life, danger, and beauty. It is a place where we can lose oursel
+  I walked into the room and          saw the painting on the wall, and I knew it was a painting by Jackson Pollock.
+
+The painting was a l
+  When I was young,                   I was an introverted person. I was a shy person who was afraid of the world. I was afraid of the wor
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:   0%|          | 1/201 [00:00<01:23,  2.39it/s]Loading weights:   6%|▋         | 13/201 [00:00<00:06, 30.82it/s]Loading weights:  11%|█         | 22/201 [00:00<00:04, 38.79it/s]Loading weights:  15%|█▌        | 31/201 [00:00<00:03, 43.81it/s]Loading weights:  18%|█▊        | 37/201 [00:01<00:03, 43.09it/s]Loading weights:  21%|██▏       | 43/201 [00:01<00:05, 28.30it/s]Loading weights:  23%|██▎       | 47/201 [00:01<00:05, 28.13it/s]Loading weights:  25%|██▌       | 51/201 [00:01<00:06, 23.47it/s]Loading weights:  29%|██▉       | 58/201 [00:02<00:07, 17.96it/s]Loading weights:  33%|███▎      | 67/201 [00:02<00:05, 25.47it/s]Loading weights:  35%|███▌      | 71/201 [00:02<00:05, 24.83it/s]Loading weights:  38%|███▊      | 76/201 [00:03<00:08, 14.62it/s]Loading weights:  39%|███▉      | 79/201 [00:03<00:09, 12.67it/s]Loading weights:  42%|████▏     | 85/201 [00:04<00:11, 10.25it/s]Loading weights:  43%|████▎     | 87/201 [00:04<00:10, 10.71it/s]Loading weights:  47%|████▋     | 94/201 [00:05<00:11,  9.26it/s]Loading weights:  48%|████▊     | 96/201 [00:05<00:11,  9.43it/s]Loading weights:  51%|█████     | 103/201 [00:05<00:07, 13.83it/s]Loading weights:  53%|█████▎    | 106/201 [00:06<00:09,  9.85it/s]Loading weights:  56%|█████▌    | 112/201 [00:07<00:10,  8.81it/s]Loading weights:  60%|██████    | 121/201 [00:08<00:10,  7.78it/s]Loading weights:  61%|██████    | 123/201 [00:08<00:09,  8.25it/s]Loading weights:  65%|██████▍   | 130/201 [00:09<00:07,  9.10it/s]Loading weights:  66%|██████▌   | 132/201 [00:09<00:07,  9.72it/s]Loading weights:  69%|██████▉   | 139/201 [00:10<00:05, 10.41it/s]Loading weights:  77%|███████▋  | 154/201 [00:10<00:02, 19.90it/s]Loading weights:  79%|███████▊  | 158/201 [00:10<00:02, 18.06it/s]Loading weights:  81%|████████  | 163/201 [00:11<00:02, 18.48it/s]Loading weights:  83%|████████▎ | 166/201 [00:11<00:02, 14.27it/s]Loading weights:  87%|████████▋ | 175/201 [00:11<00:01, 20.67it/s]Loading weights:  89%|████████▊ | 178/201 [00:12<00:01, 12.72it/s]Loading weights:  92%|█████████▏| 185/201 [00:12<00:00, 17.41it/s]Loading weights:  96%|█████████▌| 193/201 [00:13<00:00, 14.24it/s]Loading weights: 100%|██████████| 201/201 [00:13<00:00, 15.14it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [7/16]
+                swap-6-15 | swap(6,15)
+  The ocean is                        a vast and beautiful place, where the ocean is a vast, endless expanse, a place where the horizon ex
+  I walked into the room and          asked me to be a better person. I am a writer, but I am not a writer. I am a reader, but not a write
+  When I was young,                   I was a child.
+
+I am a student of the time of the universe, a student.
+
+When I was a student, I was 
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 380.83it/s]Loading weights:  47%|████▋     | 95/201 [00:00<00:00, 470.97it/s]Loading weights:  78%|███████▊  | 157/201 [00:00<00:00, 526.37it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 525.99it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [8/16]
+                swap-9-16 | swap(9,16)
+  The ocean is                        a great place to relax and enjoy. It is a peaceful place to visit, and the ocean is the perfect plac
+  I walked into the room and          saw that I had a lot of my stuff.
+
+I had to get a lot of my stuff. I had to get my stuff. I had to g
+  When I was young,                   I was always fascinated by the idea of a place where I could never go. The place where I could never
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 384.57it/s]Loading weights:  51%|█████     | 103/201 [00:00<00:00, 495.97it/s]Loading weights:  81%|████████  | 163/201 [00:00<00:00, 536.28it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 531.70it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [9/16]
+               swap-12-15 | swap(12,15)
+  The ocean is                        a vast and beautiful world, full of life, and there are many different species of fish and creatures
+  I walked into the room and          saw a group of people talking about their lives.
+
+I walked into the room, and everyone was looking a
+  When I was young,                   I was always fascinated by the idea of a world without time. I would spend hours reading books, watc
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 357.67it/s]Loading weights:  48%|████▊     | 96/201 [00:00<00:00, 465.94it/s]Loading weights:  78%|███████▊  | 157/201 [00:00<00:00, 522.03it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 518.00it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [10/16]
+               swap-13-16 | swap(13,16)
+  The ocean is                        a vast and beautiful place, but it is also a place of great danger. The ocean is a place where creat
+  I walked into the room and          saw a group of people, all of them looking nervous. They were all standing in a circle, their faces 
+  When I was young,                   I had a friend who was a famous chef. He had a restaurant in the city, and I was always impressed by
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  15%|█▌        | 31/201 [00:00<00:00, 290.52it/s]Loading weights:  47%|████▋     | 95/201 [00:00<00:00, 471.13it/s]Loading weights:  79%|███████▉  | 159/201 [00:00<00:00, 531.26it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 528.24it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [11/16]
+          dswap-5-13-7-15 | swap(5,13) + swap(7,15)
+  The ocean is                        a painting. The image is a painting. In the painting, she's a lot of colors. This painting is on her
+  I walked into the room and          into our minds. The idea is to make a mental leap.
+ The space is a blank. It's easy to listen. It' i
+  When I was young,                   and was asked by the CIA to move. It' is a common theme: "It's not a lie." It' is a myth. It' is a f
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  24%|██▍       | 49/201 [00:00<00:00, 461.67it/s]Loading weights:  56%|█████▌    | 113/201 [00:00<00:00, 535.28it/s]Loading weights:  87%|████████▋ | 175/201 [00:00<00:00, 563.79it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 560.87it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [12/16]
+          dswap-6-12-9-15 | swap(6,12) + swap(9,15)
+  The ocean is                        a vast and beautiful place, a place of great beauty, a place of beauty, a place of great beauty. The
+  I walked into the room and          I'm not sure how it felt like.
+1. I'm grateful for the help.
+I am so grateful for your support.
+I'm 
+  When I was young,                   I was 18. I was a bit older than 25, and I'm feeling a bit more than I'm sure about it.
+
+I'm 21, 23,
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 371.01it/s]Loading weights:  51%|█████     | 103/201 [00:00<00:00, 505.29it/s]Loading weights:  79%|███████▊  | 158/201 [00:00<00:00, 520.16it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 529.20it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [13/16]
+          dswap-7-11-9-13 | swap(7,11) + swap(9,13)
+  The ocean is                        a stage.
+The ocean is a stage.
+The ocean is a stage.
+The ocean is a stage.
+The ocean is a stage.
+The
+  I walked into the room and          said, "I'm not going to go to my room."
+
+The speaker's name was "I have not been found at home."
+
+Th
+  When I was young,                   I was born. When I was old, I was born. When I was young, I was born When When When When When When W
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  15%|█▌        | 31/201 [00:00<00:00, 305.42it/s]Loading weights:  43%|████▎     | 86/201 [00:00<00:00, 445.81it/s]Loading weights:  72%|███████▏  | 145/201 [00:00<00:00, 510.01it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 508.42it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [14/16]
+               rm11+damp9 | rm(11) + scale(9:0.7)
+  The ocean is                        a vast and beautiful place, with its vast expanse of blue, its vast expanse of white. Can you create
+  I walked into the room and          saw my friend. She was sitting at a table, looking up at me, and then she turned to me and said, "Sa
+  When I was young,                   I was fascinated by the idea of a world where the sun never set.
+
+I remember the way the sun would s
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 395.30it/s]Loading weights:  51%|█████     | 103/201 [00:00<00:00, 515.18it/s]Loading weights:  78%|███████▊  | 157/201 [00:00<00:00, 505.48it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 519.91it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [15/16]
+                rm11+amp7 | rm(11) + scale(7:1.3)
+  The ocean is                        a vast and beautiful place, but it is also a place of great danger. The ocean is a vast and beautifu
+  I walked into the room and          saw that he was not alone.
+
+He looked up, and I saw a familiar face.
+
+"Who are you?" I asked, my voi
+  When I was young,                   I was fascinated by the idea of a world where people could fly. As I grew older, my fascination turn
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights:  20%|█▉        | 40/201 [00:00<00:00, 380.48it/s]Loading weights:  51%|█████     | 103/201 [00:00<00:00, 513.36it/s]Loading weights:  79%|███████▉  | 159/201 [00:00<00:00, 525.13it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 536.01it/s]
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+Both `max_new_tokens` (=60) and `max_length`(=2048) seem to have been set. `max_new_tokens` will take precedence. Please refer to the documentation for more information. (https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)
+  [16/16]
+
+Done — 16 candidates tested.
+             rm10-12+amp5 | rm(10-12) + scale(5:1.3)
+  The ocean is                        a vast and beautiful place, with a vast array of marine life, including fish, coral, and many other 
+  I walked into the room and          said, "I'm not going to do it."
+
+I'm not going to do it.
+
+I'm not going to do it.
+
+I'm not going to 
+  When I was young,                   I was an average girl. I was a normal girl. I was a normal girl. I was a normal girl. I was a normal
