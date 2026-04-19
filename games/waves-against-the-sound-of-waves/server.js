@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const OLLAMA_URL = 'http://localhost:11434';
-const MODEL = process.env.MODEL || 'qwen3:1.7b';
+const MODEL = process.env.MODEL || 'qwen2.5:1.5b';
 const CONTEXT_WINDOW = parseInt(process.env.CONTEXT_WINDOW || '2048');
 const MAX_TOKENS = parseInt(process.env.MAX_TOKENS || '256');
 const PORT = parseInt(process.env.PORT || '3737');

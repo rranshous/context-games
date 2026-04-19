@@ -31,8 +31,17 @@ All via env vars: `MODEL`, `CONTEXT_WINDOW` (default 2048), `MAX_TOKENS` (defaul
 
 Temperature 0.9, top_p 0.95, repeat_penalty 1.15 — warm and varied but not chaotic.
 
+### model swap: qwen3 → qwen2.5
+
+Started with qwen3:1.7b but it's a reasoning model — outputs `<think>` blocks before responding. The thinking content is actually interesting (internal monologue POV, the model narrating its own process), worth revisiting later. But for now it splits the output into two voices when we want one continuous stream.
+
+Switched to **qwen2.5:1.5b** — non-reasoning, slightly smaller (986MB vs 1.4GB), good at open-ended continuation. No thinking blocks, just flows.
+
+The thinking-block approach could be its own mode later — "internal monologue" vs "stream of consciousness". The model takes on a genuine self-reflective voice in the think blocks that has a different texture than the output text.
+
 ### what's next
 
 - UI iterations once the stream feels right — color shifts, typography play, maybe the text itself influences the visual atmosphere
 - Image generation from the stream (needs an API, local hardware can't handle it)
 - Multiple streams / split consciousness?
+- Thinking-block mode using qwen3 — surface only the internal monologue
