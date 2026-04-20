@@ -618,3 +618,152 @@ Commits so far this session:
 - `cff3783` — initial brain-surgery commit (all scripts, journal, TinyLlama + Qwen exploration results)
 - `0f9937d` — steering scripts + crash-safe validation patches
 - `cfe32c6` — swap reversibility + saved 162/220 checkpoint
+- `fcaf003` — journal Session 5 (this section)
+- `541adf0` — validated Qwen roster with tier rankings
+
+## Session 6 — Steering vector experiment (NEGATIVE RESULT, with useful findings)
+
+Validated the 10-character roster at 220/220 generations. Characters are ranked:
+Tier A (voice holds across all prompts): accountant, scientist, bureaucrat.
+Tier B (holds on most): mourner, nostalgist, naturalist, observer.
+Tier C (wobbles): cynic, activist, eulogist.
+
+All characters produce recognizably distinct voices at 200 tokens — the
+repetition_penalty + Qwen base combo delivered what TinyLlama couldn't.
+
+Then ran the steering vector experiment from the Session 4 plan.
+
+### Extraction
+
+Extracted all 10 characters via `extract_vector.py` at layer 22 (chosen so
+all character ops, which span L5-L21, are upstream of the extraction point).
+Used 20 probe prompts, captured last-token activations at L22, took mean
+difference between character and baseline.
+
+Vector norms (baseline mean activation norm = 113.61 at L22):
+
+| character    | norm  | %   | commentary |
+|--------------|-------|-----|-----------|
+| scientist    | 56.47 | 50% | strongest signal |
+| accountant   | 43.06 | 38% ||
+| cynic        | 39.13 | 34% ||
+| bureaucrat   | 37.46 | 33% ||
+| nostalgist   | 32.82 | 29% ||
+| naturalist   | 30.33 | 27% ||
+| activist     | 30.25 | 27% ||
+| mourner      | 29.86 | 26% ||
+| eulogist     | 22.20 | 20% | swap is a weaker shift |
+| **observer** | **0.21** | **0.2%** | noise averages to zero — predicted |
+
+Observer's near-zero norm confirms a prediction: random noise injection has
+no coherent direction, so averaging over 20 prompts cancels it out. This is
+actually a useful sanity check that the method is measuring what we think.
+
+### The negative result
+
+Applying the extracted vector at α=1.0 on the unmodified model did NOT
+reproduce the character voice. Testing cynic on "The ocean is":
+
+- Baseline: "a vast and mysterious place, teeming with life... anglerfish..."
+- Scaled cynic: "symbol of many things like poverty, ignorance or stupidity"
+- **Steered cynic @ α=1.0**: "vast and complex system that plays a crucial
+  role in regulating Earth's climate... overfishing, pollution... sustainable
+  management strategies..."
+
+The steered output went to an "environmental/policy" voice — NOT the
+characteristic cynic voice. Worse, steering with other dampen-characters
+(accountant, mourner, nostalgist) all produced similar "environmental/policy"
+output. The vectors were producing a generic "shift away from baseline"
+effect, not character-specific effects.
+
+Higher α was catastrophic. α=2.0 → token-garbage loops. α=5.0 → multilingual
+noise. The model destabilizes well before it reaches the original character.
+
+### Why they failed — cosine similarity analysis
+
+Computed pairwise cosine similarity between all character vectors at L22:
+
+|             | acc  | act  | bur  | cyn  | eul  | mou  | nat  | nos  | obs  | sci  |
+|-------------|------|------|------|------|------|------|------|------|------|------|
+| accountant  | 1.00 | 0.87 |-0.87 | 0.84 | 0.41 | 0.92 | 0.95 | 0.94 | 0.05 | 0.98 |
+| activist    | 0.87 | 1.00 |-0.79 | 0.76 | 0.58 | 0.87 | 0.90 | 0.91 | 0.09 | 0.94 |
+| bureaucrat  |-0.87 |-0.79 | 1.00 |-0.75 |-0.18 |-0.90 |-0.75 |-0.87 |-0.05 |-0.86 |
+| cynic       | 0.84 | 0.76 |-0.75 | 1.00 | 0.36 | 0.81 | 0.75 | 0.79 | 0.04 | 0.83 |
+| mourner     | 0.92 | 0.87 |-0.90 | 0.81 | 0.38 | 1.00 | 0.86 | 0.95 | 0.08 | 0.93 |
+| scientist   | 0.98 | 0.94 |-0.86 | 0.83 | 0.48 | 0.93 | 0.96 | 0.95 | 0.07 | 1.00 |
+
+The dampen-characters are almost parallel to each other (0.8-0.98 cosine).
+Bureaucrat (the only amplify-character) is anti-parallel (-0.75 to -0.90).
+Observer is orthogonal to everyone (~0.05) — confirming the noise theory.
+
+**Diagnosis**: dampening ANY middle-late layer produces the same direction
+of activation shift at L22. What makes characters SOUND different is the
+downstream nonlinear computation on that shift — not the shift itself.
+Additive steering can't reproduce it.
+
+### Ruled out: earlier layer extraction
+
+Tested cynic at L10 (3 layers after its op at L7) — got the same generic
+"ecosystem management" output. The attractor in Qwen's activation space
+doesn't depend on where the steering is applied; any moderately-sized
+directional nudge in the dampen-character direction lands there.
+
+### Ruled out: difference-of-differences
+
+Tested cynic - bureaucrat (combining directions that are strongly
+anti-correlated, hoping to get a more discriminating signal) — same
+"dynamic and complex system... marine ecosystems" output. The subtraction
+removed some of the common-mode shift but didn't recover the cynic voice.
+
+### What this teaches us about scaling
+
+Scaling a layer is NOT equivalent to adding a fixed direction downstream.
+The hypothesis in Session 4 was:
+- "It works" → characters compress to portable 1536-d vectors
+- "It partially works" → scaling has richer effects than direction-shift
+- "It doesn't work" → scaling has fundamentally nonlinear effects
+
+Result: closest to option 3. The scaling operation is multiplicative
+(output * 0.5), which is position-dependent and nonlinear in its downstream
+effect. The MEAN shift it produces across prompts looks similar across
+characters, but the PER-PROMPT, PER-TOKEN shift has fine structure that
+determines the voice. Averaging kills that structure.
+
+A character isn't a direction in activation space. It's a *transformation*
+on the residual stream that depends on what's IN the residual stream. Our
+mean-difference vector captured the "where it typically lands on average,"
+not the "how it reacts to what's coming in."
+
+### What could still work (not tested)
+
+- **Per-token steering**: inject a different vector at each token position,
+  derived from sequence-level contrasts rather than single-point averages.
+- **Multi-layer vectors**: extract and apply at several layers simultaneously
+  to approximate the multiplicative effect via additive perturbations in
+  series.
+- **Sparse autoencoder features**: find interpretable directions via an SAE
+  trained on baseline activations, then identify which features the scaled
+  characters activate more. This is what Anthropic's "Scaling Monosemanticity"
+  paper does for concept steering at scale.
+- **Fine-tuned LoRA adapters**: train a small adapter on scaled-model
+  outputs. Would actually learn the character transformation, not just its
+  mean direction. But requires training infrastructure.
+
+### What we're shipping
+
+The 10-character scaling-based roster stands — those characters actually
+work when applied as layer scalings (validated 220/220). The steering
+vector experiment produced a clean negative result with diagnostic findings
+(the cosine similarity matrix is genuinely useful data about how scaling
+operations relate in activation space).
+
+The scripts (`extract_vector.py`, `steer.py`) are useful infrastructure for
+any future steering work — just not as a drop-in replacement for scaling
+in this project.
+
+Commits this session:
+- `cff3783` — initial (TinyLlama + Qwen exploration)
+- `0f9937d` — steering scripts + crash-safe validation
+- `cfe32c6` — swap reversibility
+- `fcaf003` — Session 5 journal
+- `541adf0` — validated Qwen roster

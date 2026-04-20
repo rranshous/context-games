@@ -11,13 +11,20 @@ Commands:
     :rep <value>       change repetition penalty (default: 1.15)
     :seed <value>      set seed (default: random each gen)
     :show              print current character's full config
+    :steer <spec>      apply steering vector(s), e.g. :steer cynic:1.0,mourner:0.5
+                       (requires vectors/ dir populated; see extract_vector.py)
+    :nosteer           clear any active steering vectors
     :help              show this help
     :quit              exit
 
 Anything else is treated as a prompt — the current character continues it.
+
+Note: steering adds vectors to the current character's residual stream — it
+stacks on top of scaling ops. Use :use baseline first for pure steering.
 """
 
 import copy
+import glob
 import json
 import os
 import random
@@ -29,6 +36,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 CHARS_FILE = os.path.join(os.path.dirname(__file__), "characters.json")
+VEC_DIR = os.path.join(os.path.dirname(__file__), "vectors")
 DEFAULT_REP_PENALTY = 1.15
 
 
@@ -44,6 +52,8 @@ class State:
         self.max_tokens = 200
         self.rep_penalty = DEFAULT_REP_PENALTY
         self.seed = None  # None = random each gen
+        self.steer_spec = None  # string like "cynic:1.0,mourner:0.5"
+        self.steer_hook = None  # hook handle
 
 
 STATE = State()
@@ -140,6 +150,7 @@ def activate(name):
     ops = [tuple(op) for op in cfg["ops"]]
 
     clear_hooks()
+    clear_steer()  # drop any old steering hook; re-apply after activation
 
     if needs_fresh_model(ops):
         # Deep-copy base model so mutations don't affect it
@@ -151,9 +162,83 @@ def activate(name):
     for op, arg in ops:
         apply_op(STATE.current_model, op, arg)
 
+    # Reapply steering if it was set
+    if STATE.steer_spec:
+        _apply_steer_from_spec(STATE.steer_spec)
+
     STATE.current_char = name
     STATE.temp_override = None
     print(f"  → now speaking as {name} (T={cfg['temp']}) ")
+
+
+def clear_steer():
+    if STATE.steer_hook is not None:
+        STATE.steer_hook.remove()
+        STATE.steer_hook = None
+
+
+def _load_vec(name):
+    """Find any vectors/<name>-L*.pt file, load it."""
+    matches = glob.glob(os.path.join(VEC_DIR, f"{name}-L*.pt"))
+    if not matches:
+        raise FileNotFoundError(f"No vector file for {name} in {VEC_DIR}")
+    return torch.load(sorted(matches)[0], weights_only=False)
+
+
+def _apply_steer_from_spec(spec):
+    """spec like 'cynic:1.0,mourner:0.5'. Returns layer used."""
+    clear_steer()
+    parts = [p.strip() for p in spec.split(",") if p.strip()]
+    loaded = []
+    for p in parts:
+        if ":" in p:
+            name, alpha = p.split(":", 1)
+            alpha = float(alpha)
+        else:
+            name, alpha = p, 1.0
+        data = _load_vec(name)
+        loaded.append((name, alpha, data))
+
+    layers = set(d["layer_idx"] for _, _, d in loaded)
+    if len(layers) > 1:
+        print(f"  ! vectors are from different layers: {layers}. pick consistent ones")
+        return None
+    layer_idx = layers.pop()
+
+    combined = None
+    for name, alpha, d in loaded:
+        contrib = d["vector"] * alpha
+        combined = contrib if combined is None else combined + contrib
+    combined = combined.to(next(STATE.current_model.parameters()).dtype)
+
+    def hook(module, input, output):
+        if isinstance(output, tuple):
+            return (output[0] + combined,) + output[1:]
+        return output + combined
+
+    STATE.steer_hook = STATE.current_model.model.layers[layer_idx].register_forward_hook(hook)
+    return layer_idx
+
+
+def cmd_steer(arg):
+    if not arg.strip():
+        print("  usage: :steer cynic:1.0,mourner:0.5")
+        return
+    try:
+        layer = _apply_steer_from_spec(arg.strip())
+        if layer is not None:
+            STATE.steer_spec = arg.strip()
+            print(f"  steering active: {STATE.steer_spec} @ L{layer}")
+    except FileNotFoundError as e:
+        print(f"  ! {e}")
+    except Exception as e:
+        print(f"  ! error: {e}")
+
+
+def cmd_nosteer():
+    clear_steer()
+    STATE.steer_spec = None
+    print("  steering cleared")
 
 
 def generate(prompt):
@@ -208,6 +293,8 @@ def cmd_who():
     print(f"  max_tokens: {STATE.max_tokens}")
     print(f"  rep_penalty: {STATE.rep_penalty}")
     print(f"  seed: {STATE.seed if STATE.seed else 'random'}")
+    if STATE.steer_spec:
+        print(f"  steering: {STATE.steer_spec}")
 
 
 def cmd_show():
@@ -300,6 +387,10 @@ def repl():
                         print(f"  seed = {STATE.seed}")
                     except ValueError:
                         print("  usage: :seed <N>  (or :seed random)")
+            elif cmd == "steer":
+                cmd_steer(arg)
+            elif cmd == "nosteer":
+                cmd_nosteer()
             else:
                 print(f"  ! unknown command :{cmd}. try :help")
         else:
