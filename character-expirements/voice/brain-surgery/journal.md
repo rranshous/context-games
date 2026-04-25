@@ -767,3 +767,56 @@ Commits this session:
 - `cfe32c6` — swap reversibility
 - `fcaf003` — Session 5 journal
 - `541adf0` — validated Qwen roster
+
+---
+
+## Session 7 — Temperature Refinement (2026-04-25)
+
+All characters were validated at T=0.5 during the initial search. That was
+the right call for apples-to-apples comparison but not optimal per character.
+This session: sweep T=[0.3, 0.5, 0.7] across 8 diagnostic prompts for all 10
+characters (non-baseline), pick the temp that maximises a coherence/diversity
+heuristic (`unique_ratio × length_score`), then eyeball the actual outputs
+to override the heuristic where it missed.
+
+### What changed
+
+| Character  | Old T | New T | Notes |
+|------------|-------|-------|-------|
+| mourner    | 0.5   | 0.7   | More emotional texture at higher temp |
+| nostalgist | 0.5   | 0.7   | Domestic warmth more expressive |
+| activist   | 0.5   | 0.7   | Marginal; voice still weak off-ocean |
+| accountant | 0.5   | 0.7   | Richer phrasing, money lens holds |
+| naturalist | 0.5   | 0.3   | Lower temp tightens the nature voice |
+| eulogist   | 0.5   | 0.3   | Reduces but doesn't fix inconsistency |
+| observer   | 0.5   | 0.7   | More observational detail at 0.7 |
+| bureaucrat | 0.5   | 0.7   | Institutional + numbered format still reliable |
+| cynic      | 0.5   | 0.5   | Unchanged — signature on 0.5, drifts worse at 0.7 |
+| scientist  | 0.5   | 0.5   | Heuristic said 0.7, but eyeball overruled: "31 times as much water by volume" only appears at 0.5 |
+
+### Tier ratings — unchanged
+
+The extended sweep didn't reveal any promotions or demotions:
+
+- **Tier A**: accountant, scientist, bureaucrat — voice holds across all 8 prompts
+- **Tier B**: mourner, nostalgist, naturalist, observer — holds on most, occasional drift
+- **Tier C**: cynic, activist, eulogist — signature on ≤3 prompts, inconsistent elsewhere
+
+### Key observation: scientist heuristic mismatch
+
+The heuristic (unique_ratio × length_score) picked T=0.7 for scientist, but
+the actual output at 0.7 is weaker: it drifts into generic QA structures
+("Is this statement true or..."). At T=0.5, scientist reliably produces
+"largest and saltiest of Earth's three major natural reservoirs, containing
+31 times as much water by volume" — the signature analytical line. Lesson:
+automated scoring needs to measure *character consistency*, not just text
+quality. The current heuristic measures diversity and length, which can be
+gamed by going off-voice into varied generic outputs.
+
+### Infrastructure note
+
+`refine.py` was written for this session but needed scope reduction —
+initial plan (1800 gens) would have taken 26 hours on CPU. Trimmed to
+240 gens (150 tokens, 1 seed, 3 temps, 8 prompts) ≈ 1.7 hours. Results
+saved to `refine-results.json` and `refine-results-analysis.json`.
+The REPL now also displays tier in `:list` output.

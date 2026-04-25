@@ -276,10 +276,10 @@ def generate(prompt):
 def cmd_list():
     for name, cfg in STATE.characters.items():
         marker = "→ " if name == STATE.current_char else "  "
+        tier = cfg.get("tier", "?")
         desc = cfg.get("description", "")
-        # first sentence of description
-        first = desc.split(".")[0][:70]
-        print(f"  {marker}{name:<13s} T={cfg['temp']:<4} {first}")
+        first = desc.split(".")[0][:60]
+        print(f"  {marker}{name:<13s} T={cfg['temp']:<4} [{tier}]  {first}")
 
 
 def cmd_who():

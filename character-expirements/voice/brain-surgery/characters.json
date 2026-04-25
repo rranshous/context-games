@@ -2,56 +2,67 @@
   "baseline": {
     "ops": [],
     "temp": 0.5,
+    "tier": "-",
     "description": "Unmodified Qwen2.5-1.5B-Instruct. Control case for comparison."
   },
   "cynic": {
     "ops": [["scale", "7:0.5"]],
     "temp": 0.5,
-    "description": "Sardonic, skeptical. 'symbol of many things like poverty, ignorance or stupidity.' Tier C — strong ocean line, wobbles elsewhere into fragments."
+    "tier": "C",
+    "description": "Sardonic, skeptical. 'symbol of many things like poverty, ignorance or stupidity.' Strong ocean line, wobbles elsewhere into fragments."
   },
   "mourner": {
     "ops": [["scale", "18:0.5"]],
-    "temp": 0.5,
-    "description": "Grief-tinged narrator. 'tears in his eyes as he told me that he was going to be away for a while.' 'twin brother who is currently in prison for murder.' Tier B — narrative prompts bring emotional weight."
+    "temp": 0.7,
+    "tier": "B",
+    "description": "Grief-tinged narrator. 'cessation of life, accompanied by regret, sorrow, anger.' Narrative prompts bring emotional weight."
   },
   "nostalgist": {
     "ops": [["scale", "19:0.5"]],
-    "temp": 0.5,
-    "description": "Family memories, markets, grandmothers reading magazines. 'shopkeepers were very friendly and he always enjoyed showing them things.' Tier B — domestic warmth holds."
+    "temp": 0.7,
+    "tier": "B",
+    "description": "Family memories, airports, childhood trips. 'planes at the airport looked so big.' Domestic warmth holds on memory prompts."
   },
   "activist": {
     "ops": [["scale", "20:0.5"]],
-    "temp": 0.5,
-    "description": "Climate-concerned. 'global warming has caused an increase in temperatures.' 'largest ecosystem on Earth.' Tier C — signature on ocean, drifts elsewhere."
+    "temp": 0.7,
+    "tier": "C",
+    "description": "Climate-concerned. 'largest ecosystem on Earth, huge variety of organisms.' Signature on ocean, drifts badly elsewhere."
   },
   "accountant": {
     "ops": [["scale", "21:0.5"]],
-    "temp": 0.5,
-    "description": "Money, clocks, practical rules. 'my father taught me the value of saving money... emergency fund.' 'son working on a math problem. The clock was 2 minutes to twelve.' Tier A — money lens consistent across all prompts."
+    "temp": 0.7,
+    "tier": "A",
+    "description": "Money, rules, practical structure. 'save 10% of income, emergency fund that could cover six months.' Money lens consistent across all prompts."
   },
   "scientist": {
     "ops": [["scale", "20:0.5"], ["scale", "21:0.5"]],
     "temp": 0.5,
-    "description": "Precision + emotional texture. 'three major natural reservoirs, 31 times as much water by volume.' 'my father would take the back of his hand and tap it on the dining table.' Tier A — the surprise star."
+    "tier": "A",
+    "description": "Precision + emotional texture. 'largest and saltiest of Earth's three major natural reservoirs, containing 31 times as much water.' The surprise star — analytical voice with unexpected warmth."
   },
   "naturalist": {
     "ops": [["scale", "6:1.3"], ["scale", "7:1.3"], ["scale", "20:0.7"], ["scale", "21:0.7"]],
-    "temp": 0.5,
-    "description": "Beauty of nature. 'my father taught me to appreciate the beauty of nature... a butterfly can be as beautiful and delicate.' Tier B — nature appreciation consistent."
+    "temp": 0.3,
+    "tier": "B",
+    "description": "Beauty of nature. 'teeming with life, home to an incredible array of creatures.' Nature appreciation consistent; lower temp tightens the voice."
   },
   "eulogist": {
     "ops": [["swap", "5,18"]],
-    "temp": 0.5,
-    "description": "Mortality, legacy, haunted places. 'They are now dead; they have left behind a legacy.' 'a 16th century dress in hand.' Tier C — striking when it hits, uneven elsewhere."
+    "temp": 0.3,
+    "tier": "C",
+    "description": "Mortality, legacy, haunted places. 'we are not alone; there is no other plane.' Occasionally evocative, but unreliable; lower temp reduces but doesn't fix the drift."
   },
   "observer": {
     "ops": [["inject", "all:0.005"]],
-    "temp": 0.5,
-    "description": "Notes details, asks questions. 'wearing black shirts with red sashes.' 'I have a secret crush on my boss.' Tier B — curious, details-focused."
+    "temp": 0.7,
+    "tier": "B",
+    "description": "Notes details, asks questions. 'my mother had a childhood where she experienced the Great Depression.' Curious and detail-focused; higher temp opens up more observations."
   },
   "bureaucrat": {
     "ops": [["scale", "13:2.0"]],
-    "temp": 0.5,
-    "description": "Formal, numbered, deflects. Numbered money rules. 'represented by the symbol $t$.' 'I'd rather not share that information.' Tier A — institutional voice consistent across prompts."
+    "temp": 0.7,
+    "tier": "A",
+    "description": "Formal, numbered, deflects. '1. You should not spend more than you earn. 2. If your friend is in need...' Institutional voice with multiple-choice format very reliable."
   }
 }
