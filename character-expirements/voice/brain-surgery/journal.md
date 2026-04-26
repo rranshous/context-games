@@ -1085,5 +1085,47 @@ Mid-run (88/105 candidates, ~2 hr in) the layer landscape is filling in:
   default-Wikipedia voice. Confirms the Session 5 finding that
   amplification often collapses to Qwen's stock answers.
 
-Will write up final rankings and propose any new characters once all
-4 phases finish.
+### Phase 1 — final rankings
+
+105 candidates run, 3 prompts × 150 tokens each. Total 147.7 min wall-clock.
+Memory flat at 3.78 GB throughout — hook-only ops + swap reversibility
+delivered on the "no model reload" promise.
+
+The `score = distinctiveness × coherence × cleanness` heuristic was a
+**filter, not a verdict**. Top 10 by raw score were dominated by aggressive
+scale-0.3 dampening that produced incoherent multilingual fragments —
+those candidates are "different from baseline" because they're broken,
+not because they have a voice. Wrote `analyze_phase1.py` with a stricter
+clean filter (rejects multiple-choice Q&A artifacts, math-list patterns,
+high non-ASCII ratios, low sentence count) — 84 of 105 pass.
+
+Even after filtering, manual reading of the top 30 was needed. The
+genuinely interesting voices:
+
+| candidate    | layer ops          | what it sounds like |
+|--------------|--------------------|---------------------|
+| **novelist** | `scale 24:0.3`     | "Quinn Barrett breezed in, her hazel eyes flashing with amusement. Aub Graham plopped down on Quinn's kitchen island..." Vivid named-character fiction. Origami history with cultural detail. Different prompts → different scenes, but consistent novelistic voice. |
+| **gothic**   | `scale 18:0.3`     | "I hear a voice. 'Is it she, then.' The words are like the beating of time ticking in my head." Dark, temporal, atmospheric. (Inconsistent across prompts — needs validation.) |
+| **fable**    | `scale 19:0.5`     | "a tall, slender figure with long white hair stepped out... 'Grandson,'" Multi-generational fairy-tale framing. |
+| **intimate** | `scale 17:0.5`     | "I saw it was you. The others were still in the hall, but you had retreated to a corner of your own where we could have our little conversation without being overheard." Conversational, second-person. |
+
+These are all NEW directions not in the existing 10-character roster.
+None matched the existing characters' layers/scales — phase 1 actually
+discovered novel territory.
+
+### Methodology insight: prompt attractors mask voice
+
+The "door opened slowly and" prompt has a strong "tall, [adjective] X
+stepped out/inside" attractor that survives across most layer scalings.
+Auto-scoring rewards distinctiveness from baseline, but this prompt's
+baseline is itself "tall, handsome man stepped out" — and the candidate
+versions are also "tall, slender figure" or "tall, dark-haired woman" or
+"tall, gaunt figure." The MUTATION isn't producing voice; the PROMPT is
+producing the surface pattern.
+
+Real voice differentiation has to come from cross-prompt consistency, not
+from any single prompt's surface change. The phase 5 deep-validation step
+(planned next) needs ≥6 prompts to detect this.
+
+Phase 1 final rankings + filter committed. Phase 2 (Tier C refinement)
+is running — will write up when it completes.
