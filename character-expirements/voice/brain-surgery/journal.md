@@ -1019,3 +1019,71 @@ python showcase.py
 - `1c412b5` — temp refinement sweep + per-character tuning (Session 7)
 - `31c6d63` — token-cycling mixer + full experiment run (Session 8)
 - `8440956` — Session 8 journal
+
+---
+
+## Session 9 — Autonomous Research Run (2026-04-26)
+
+User asked: "i'm down for autonomous researcher mode?" — let CPU pound through
+discovery + refinement experiments while they're away. Plan: 4 phases run
+sequentially in a single orchestrator (`research.py`), each phase
+checkpoint-safe, single shared model load.
+
+### Infrastructure
+
+- `research_lib.py` — shared utilities. Single `ensure_model()` cache.
+  `apply_ops` / `clear_hooks` / `undo_swaps` lifted from `refine.py`.
+  Auto-scoring: distinctiveness vs baseline (1 - Jaccard on word sets) ×
+  unique_word_ratio (anti-loop) × cleanness (1 - non-ASCII ratio,
+  catches the cross-language drift we saw in Session 8 mixing).
+  `looks_broken()` filter for short / mostly-non-ASCII / heavy-repetition
+  outputs.
+- `phase1_discover.py` — layers 5..25 × scales {0.3, 0.5, 0.7, 1.3, 1.5}
+  × 3 prompts. 105 candidates × 3 = 315 gens.
+- `phase2_tier_c.py` — cynic neighborhood (layers {6,7,8} × scales
+  0.4-0.6 + 2-layer pairs) and 8 eulogist swap variants near (5,18).
+  26 candidates × 4 prompts.
+- `phase3_composites.py` — all 36 unordered pairs from {6,7,12,13,17,18,
+  19,20,21} at scale 0.5 × 3 prompts. Looking for new naturalist-style
+  multi-layer compositions.
+- `phase4_btier.py` — 6 variants of mourner+nostalgist+observer combos
+  × 8 prompts × 2 seeds. Bake the best as a standalone character.
+- `research.py` — orchestrator with `--phases` / `--summary-only` flags
+  and crash-recovery between phases.
+
+### Methodology notes
+
+- All ops in scope are reversible without model reload: scale via forward
+  hooks (cleared), swaps reversed in place, inject via hooks (cleared).
+  No `fresh_model()` calls anywhere. Memory should stay flat.
+- Speed: warm Qwen produces ~5.4 tok/s on this CPU (vs the 3.8 the
+  earlier journal noted). 150-token gen ≈ 28s. ~1.4 min per candidate
+  with 3 prompts.
+- Auto-scoring is a filter, not a verdict. Phase 1 already showed the
+  prompt "The door opened slowly and" has a "tall, handsome man stepped
+  out" attractor that survives many scaling values — that pattern scores
+  high on distinctiveness vs baseline but isn't a unique voice. Manual
+  review of top candidates remains required.
+
+### Phase 1 — early observations (in progress)
+
+Mid-run (88/105 candidates, ~2 hr in) the layer landscape is filling in:
+
+- **Layer 8 has a narrative-fiction attractor.** scale(8:1.3) and
+  scale(8:1.5) both produce the same "tall, handsome man" framing on the
+  door prompt. Layer 8 dampened (0.5) drifts to Chinese — strong layer.
+- **Layer 9 dampened collapses fast.** scale(9:0.3) is gibberish; the
+  earlier journal's "8-10 stability core" finding is reconfirmed for
+  Qwen.
+- **Layer 15 dampened looks emotional.** scale(15:0.5) produced
+  "I saw her, my wife. My heart ached as if it was going to break open
+  again." Different register from the existing roster — worth a closer
+  look once the full top-15 is ranked.
+- **Layer 22 amplified looks like the stock-baseline attractor.**
+  scale(22:1.3) and scale(22:1.5) both produce "vast and complex system
+  that plays a crucial role in regulating Earth's climate" — Qwen's
+  default-Wikipedia voice. Confirms the Session 5 finding that
+  amplification often collapses to Qwen's stock answers.
+
+Will write up final rankings and propose any new characters once all
+4 phases finish.
