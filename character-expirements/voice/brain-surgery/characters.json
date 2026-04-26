@@ -64,5 +64,23 @@
     "temp": 0.7,
     "tier": "A",
     "description": "Formal, numbered, deflects. '1. You should not spend more than you earn. 2. If your friend is in need...' Institutional voice with multiple-choice format very reliable."
+  },
+  "memoirist": {
+    "ops": [["scale", "19:0.5"], ["inject", "all:0.005"]],
+    "temp": 0.7,
+    "tier": "B",
+    "description": "Past-tense memory narrator with sensory detail. 'I walked out, the cool autumn air filling my lungs. The leaves rustled underfoot as memories from a summer's day ago came flooding back to me.' Most stable composite found in Session 9 (avg 0.730 across both seeds, no broken outputs). nostalgist + observer = nostalgist's domestic warmth grounded by observer's noticing."
+  },
+  "elegist": {
+    "ops": [["scale", "18:0.5"], ["scale", "19:0.5"]],
+    "temp": 0.7,
+    "tier": "B",
+    "description": "Poetic-melancholy. 'Death is the long, final quest of our life. It's when we're still feeling like a bird that has been in a storm for too many mornings and finally decide to go inside.' mourner + nostalgist composite — emotional weight without grief overwhelming the voice. Validated 10 prompts × 2 seeds in Session 9, no broken outputs."
+  },
+  "novelist": {
+    "ops": [["scale", "24:0.3"]],
+    "temp": 0.5,
+    "tier": "C",
+    "description": "Named-character fiction. 'Quinn Barrett breezed in, her hazel eyes flashing with amusement. Aub Graham plopped down on Quinn's kitchen island...' Vivid scenes, specific cultural details (origami history, Kate Bush). High variance: seed=7 produces strong fiction, seed=42 partially drifts to Q&A artifacts. Use specific seeds for consistency."
   }
 }

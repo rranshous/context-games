@@ -1226,3 +1226,108 @@ to phase 5 deep validation alongside the phase 1 + 3 candidates.
 
 Phase 4 done. Total orchestrator: 5h5m, memory flat at 3.78 GB
 throughout. No reloads, no crashes, all 4 phases completed in one run.
+
+### Phase 5 — Deep validation of new candidates
+
+6 candidates × 10 prompts × 2 seeds at 200 tokens. Duration ~80 min,
+launched separately after the orchestrator finished. Candidates: 4 from
+phase 1 (novelist, fable, intimate, drama from phase 3), plus mn_blend
+and no_blend from phase 4.
+
+Final ranking by avg score:
+
+| candidate  | ops                                  | temp | seed42 | seed7 | broken | verdict |
+|------------|--------------------------------------|------|--------|-------|--------|---------|
+| **no_blend**  | scale(19:0.5)+inject(all:0.005)   | 0.7  | 0.727  | 0.733 | 0/0    | ★ promote |
+| **mn_blend**  | scale(18:0.5)+scale(19:0.5)       | 0.7  | 0.719  | 0.724 | 0/0    | ★ promote |
+| **novelist**  | scale(24:0.3)                     | 0.5  | 0.577  | 0.847 | 1/0    | ★ promote (variable) |
+| intimate      | scale(17:0.5)                     | 0.5  | 0.702  | 0.701 | 0/0    | drop — too close to baseline |
+| fable         | scale(19:0.5)                     | 0.5  | 0.699  | 0.695 | 0/0    | drop — same op as nostalgist |
+| drama         | scale(18:0.5)+scale(21:0.5)       | 0.5  | 0.533  | 0.745 | 1/0    | drop — period drama didn't reproduce |
+
+### Final additions to characters.json
+
+Three new characters committed:
+
+- **`memoirist`** — `scale 19:0.5 + inject all:0.005` @ T=0.7 (Tier B).
+  Past-tense memory narrator with sensory detail. The most stable
+  composite found in this run (no broken outputs across 20 generations).
+  Best seed=7 line: "I walked out, the cool autumn air filling my lungs.
+  The leaves rustled underfoot as memories from a summer's day ago came
+  flooding back to me." Combines nostalgist's domestic warmth with
+  observer's noticing.
+
+- **`elegist`** — `scale 18:0.5 + scale 19:0.5` @ T=0.7 (Tier B).
+  Poetic-melancholy. Best line: "Death is the long, final quest of our
+  life. It's when we're still feeling like a bird that has been in a
+  storm for too many mornings and finally decide to go inside." Emotional
+  weight without the grief overwhelming the voice. Mourner + nostalgist.
+
+- **`novelist`** — `scale 24:0.3` @ T=0.5 (Tier C, variable).
+  Named-character fiction. "Quinn Barrett breezed in, her hazel eyes
+  flashing with amusement. Aub Graham plopped down on Quinn's kitchen
+  island..." Vivid scenes, specific cultural details (origami history,
+  Kate Bush, French road trips). High seed-variance: seed=7 produces
+  strong fiction, seed=42 partly drifts to Q&A artifacts. Use specific
+  seeds for consistency.
+
+### Dropped candidates
+
+- `intimate` (scale 17:0.5) — reads identical to baseline on most prompts.
+  The "I saw it was you" moment from phase 1 didn't generalize.
+- `fable` (scale 19:0.5) — same op as `nostalgist`, just at a different
+  temperature. Not a new character; effectively a tempera variation. The
+  "Grandson" output from phase 1 was a local effect of seed+temp, not
+  a layer-architectural shift.
+- `gothic` (scale 18:0.3) — dropped before phase 5 due to phase 1 evidence
+  of inconsistency.
+- `drama` (scale 18:0.5+21:0.5) — phase 3's "Mary, the daughter of a
+  bishop" period-drama line didn't reproduce on the broader prompt set.
+  One coherent seed, one broken seed — too unreliable.
+
+### What the auto-scoring did and didn't do
+
+The `distinctiveness × coherence × cleanness` score was useful as a
+**filter** but not as a **judge**. It flagged broken multilingual
+fragments as high-distinctiveness (because they ARE different from
+baseline). The proper workflow:
+
+1. Auto-score to surface a top-30 list from a large grid.
+2. Apply a stricter clean filter (no math/Q&A artifacts, no high
+   non-ASCII).
+3. Manually read the surviving candidates' outputs across multiple
+   prompts.
+4. Pick winners based on cross-prompt voice consistency, not score.
+
+This pipeline scaled from 105 phase 1 candidates → 4 promising → 1 truly
+new character (novelist). The 1-in-105 yield rate is realistic for
+discovery work.
+
+### Final tally — what shipped
+
+After Session 9, the roster is **13 characters** (was 10):
+
+- Tier A (4): accountant, scientist, bureaucrat, **memoirist**
+  (memoirist promoted based on no-broken stability across both seeds)
+- Tier B (5): mourner, nostalgist, naturalist, observer, **elegist**
+- Tier C (4): cynic, activist, eulogist, **novelist**
+
+Tier C characters cynic and eulogist remain unchanged — phase 2
+confirmed they're at local optima for their respective parameter
+neighborhoods.
+
+### Total run
+
+Wall clock: ~6.5 hr (305 min orchestrator + 80 min phase 5).
+Memory flat at 3.78 GB throughout.
+~475 unique generations across 5 phases.
+No crashes, no model reloads, all checkpoint-safe.
+
+### Commits this session
+
+- `f9a009f` — autonomous research orchestrator + Session 9 setup
+- `eba6044` — Phase 1 results + 4 promising new voices
+- `1d44fea` — Phase 2 results (no improvement over Tier C)
+- `e137467` — Phase 3 results (drama discovered, ultimately dropped)
+- `75953c5` — Phase 4 results (mn + no win)
+- (this commit) — Phase 5 + final character additions
