@@ -1186,3 +1186,43 @@ pairs, only 1 new candidate (drama) emerged. The naturalist and scientist
 in the existing roster were lucky finds, not the typical outcome.
 
 Phase 3 committed. Phase 4 (B-tier composites) running.
+
+### Phase 4 — B-tier composite validation
+
+6 variants of mourner+nostalgist+observer combinations × 8 prompts × 2
+seeds at 200 tokens. Duration 53.2 min. Total orchestrator runtime
+305.5 min (5h5m).
+
+| variant       | ops                                       | avg | seed42 | seed7 |
+|---------------|-------------------------------------------|-----|--------|-------|
+| `mn_act`      | scale(18:0.5)+scale(19:0.5)+scale(20:0.5) | 0.748 | 0.703 | 0.792 |
+| **`no`**      | scale(19:0.5)+inject(all:0.005)           | 0.744 | 0.734 | 0.754 |
+| **`mn`**      | scale(18:0.5)+scale(19:0.5)               | 0.744 | 0.746 | 0.741 |
+| `mo`          | scale(18:0.5)+inject(all:0.005)           | 0.718 | 0.722 | 0.714 |
+| `mn_inj_low`  | scale(18:0.5)+scale(19:0.5)+inject(0.003) | 0.630 | 0.760 | 0.499 |
+| `mno`         | scale(18:0.5)+scale(19:0.5)+inject(0.005) | 0.614 | 0.729 | 0.499 |
+
+`mn_act` topped raw score but its seed=7 was broken multilingual output
+that gamed the distinctiveness metric. The real winners are **`no`**
+(nostalgist+observer) and **`mn`** (mourner+nostalgist) — both stable
+across both seeds.
+
+Adding observer's noise to the m+n duo (mn_inj_low, mno) actively HURT
+quality, dragging seed=7 to 0.499. Multi-layer scaling stacks; random
+noise destabilizes when stacked.
+
+Sample outputs from `no` (seed=7): "I walked out, the cool autumn air
+filling my lungs. The leaves rustled underfoot as memories from a
+summer's day ago came flooding back to me." Memory-story / parental-
+wisdom voice that holds across prompts.
+
+Sample from `mn` (seed=42, "Death is"): "the long, final quest of our
+life. It's when we're still feeling like a bird that has been in a
+storm for too many mornings and finally decide to go inside." Poetic,
+elegiac.
+
+Both `mn` and `no` deserve to be promoted to characters. Adding them
+to phase 5 deep validation alongside the phase 1 + 3 candidates.
+
+Phase 4 done. Total orchestrator: 5h5m, memory flat at 3.78 GB
+throughout. No reloads, no crashes, all 4 phases completed in one run.
