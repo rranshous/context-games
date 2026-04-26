@@ -1129,3 +1129,30 @@ from any single prompt's surface change. The phase 5 deep-validation step
 
 Phase 1 final rankings + filter committed. Phase 2 (Tier C refinement)
 is running — will write up when it completes.
+
+### Phase 2 — Tier C refinement (negative result)
+
+26 candidates × 4 prompts at 150 tokens. Duration 52.4 min.
+
+**Goal**: find tighter operating points for cynic (scale 7:0.5) and
+eulogist (swap 5,18) — the two characters that wobble in the validation
+data. Tested cynic neighborhood (layers {6,7,8} × scales {0.4..0.6}
++ 2-layer pairs at 0.5) and 8 eulogist swap variants near (5,18).
+
+**Result**: nothing beat the originals.
+
+- 2-layer cynic combos (`L6+L7`, `L6+L8`, `L7+L8` at 0.5) all drift to
+  multilingual garbage. Stacking dampened layers compounds destabilization.
+- Cynic single-layer variants at 0.4, 0.45, 0.55, 0.6 either break (low
+  end) or revert toward baseline (high end). 0.5 is the local optimum.
+- Eulogist swap variants near (5,18) — none reproduced the
+  signature "we are not alone; there is no other plane" voice. They
+  drift to random topics: moon poetry, the death penalty, brain science.
+  The original (5,18) coupling appears to be load-bearing for that voice.
+
+This is a useful confirmation: the existing 10-character configurations
+weren't accidental. The current cynic and eulogist are at local optima
+inside their respective parameter neighborhoods. Tier C-ness reflects a
+genuine model limit at 1.5B params, not a tuning failure.
+
+Phase 2 results committed. Phase 3 (composite pairs) running.
