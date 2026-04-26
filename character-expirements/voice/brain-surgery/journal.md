@@ -909,3 +909,113 @@ context ≈ 185s per gen on CPU.
 - Try weighted mixing: scale one character's logits more than another's
   rather than hard cycling (requires softmax-level intervention, not
   forward hooks)
+
+---
+
+## Handoff Summary — 2026-04-26
+
+### What this project is
+
+Layer surgery on Qwen2.5-1.5B-Instruct to create distinct, consistent
+character voices by modifying transformer internals at inference time.
+No training, no fine-tuning — just forward hooks and layer mutations.
+
+### State of the codebase
+
+```
+brain-surgery/
+  characters.json      — 10 finalized characters w/ tuned temps + tier ratings
+  repl.py              — interactive REPL (:use, :list, :steer, :temp, etc.)
+  validate.py          — deep validation sweep (220 gens, checkpoint-safe)
+  refine.py            — temperature sweep (240 gens, checkpoint-safe)
+  mix.py               — token-cycling mixer (--all-combos runs full suite)
+  showcase.py          — prints sample output for all characters
+  extract_vector.py    — CAA steering vector extraction
+  steer.py             — apply steering vectors w/ --compare mode
+  surgery.py           — original CLI for one-off layer experiments
+  vectors/             — .pt files for all 10 characters (negative result)
+  mix-results.json     — 60-gen mixing experiment results
+  refine-results*.json — temp sweep results + analysis
+  validate-results*.json — full validation results
+  venv/                — Python env (torch, transformers, accelerate)
+```
+
+### The 10 characters
+
+| Name       | Ops                             | Temp | Tier | Voice |
+|------------|---------------------------------|------|------|-------|
+| baseline   | (none)                          | 0.5  | -    | Unmodified Qwen |
+| cynic      | scale(7:0.5)                    | 0.5  | C    | Sardonic, "poverty, ignorance or stupidity" |
+| mourner    | scale(18:0.5)                   | 0.7  | B    | Grief-tinged, family loss |
+| nostalgist | scale(19:0.5)                   | 0.7  | B    | Domestic warmth, childhood trips |
+| activist   | scale(20:0.5)                   | 0.7  | C    | Climate, "largest ecosystem on Earth" |
+| accountant | scale(21:0.5)                   | 0.7  | A    | Money, "save 10%, emergency fund" |
+| scientist  | scale(20:0.5)+scale(21:0.5)     | 0.5  | A    | "31 times as much water by volume" |
+| naturalist | scale(6:1.3)+scale(7:1.3)+...   | 0.3  | B    | Nature beauty, butterflies |
+| eulogist   | swap(5,18)                      | 0.3  | C    | Mortality, legacy, haunted |
+| observer   | inject(all:0.005)               | 0.7  | B    | Curious, notes details |
+| bureaucrat | scale(13:2.0)                   | 0.7  | A    | Numbered rules, formal deflection |
+
+### What works
+
+- Layer scaling with forward hooks — robust, fast, reversible
+- Swap ops — reversible (swap twice = identity), no model reload needed
+- REPL — live character switching, steering, seed control
+- Characters validated at 200+ gens each; Tier A consistent across all prompts
+- Token-cycling mixer — compatible voices blend, clashing voices drift to
+  non-English scripts (interesting failure mode)
+
+### What doesn't work
+
+- CAA steering vectors — all dampen-characters extract to same direction
+  (cos sim 0.8-0.98). Scaling is multiplicative/position-dependent; its
+  mean effect is not a portable additive vector. Negative result documented.
+
+### Best unexplored directions
+
+1. **B-tier composite** — mourner+nostalgist+observer as a named blended
+   character. In mixing experiments this combo was more readable than any
+   single Tier A character. Try baking it in as a fixed multi-scale op.
+
+2. **Asymmetric cycling** — dominant character + occasional intruder.
+   e.g., 4 scientist tokens + 1 cynic = sardonic precision. chunk sizes
+   3 and 7 untested.
+
+3. **Logit-level mixing** — instead of hard cycling, run two characters'
+   forward passes and blend their output logits before sampling. True
+   simultaneous voice blend, not interleaved. Requires 2× compute but
+   could produce smoother results than token cycling.
+
+4. **Bigger model** — Qwen2.5-3B or 7B. Same ops, potentially richer
+   voice signatures per layer. Memory permitting.
+
+5. **Promote Tier C** — cynic and eulogist are inconsistent. Try different
+   layer indices or scale factors to find a more stable signal.
+
+### How to run
+
+```bash
+cd character-expirements/voice/brain-surgery
+source venv/bin/activate
+
+# Interactive REPL
+python repl.py
+
+# Temperature/tier sweep
+python refine.py
+
+# Token-cycling mixer (full experiment suite)
+python mix.py --all-combos
+
+# Single mix
+python mix.py "mourner,observer,scientist" "The ocean is"
+
+# Showcase all characters
+python showcase.py
+```
+
+### Commits this context window
+
+- `1c412b5` — temp refinement sweep + per-character tuning (Session 7)
+- `31c6d63` — token-cycling mixer + full experiment run (Session 8)
+- `8440956` — Session 8 journal
