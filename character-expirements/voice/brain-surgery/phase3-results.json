@@ -1,0 +1,909 @@
+{
+  "baseline": {
+    "The ocean is": "a vast and mysterious place, teeming with life in its depths. As humans continue to explore the world\u2019s oceans, they are discovering new species of marine animals that have never been seen before.\nIn this article, we will delve into some fascinating facts about these deep-sea creatures that you might not know about:\n1. The anglerfish has an impressive lure on its head\n2. Deep sea fish can survive without food for years at a time\n3. Some sharks live up to 500 feet below the surface\n4. There are more than 8,000 known species of fish living in the ocean\n5. Octopuses can change their skin color to blend in with their surroundings\n6. Jellyfish",
+    "When I was young,": "my father taught me the value of a penny. He said that if you want to learn something new or do something worthwhile in life, start with one cent and work your way up from there.\n\nThe idea is simple: Start small, take action, and build momentum over time. This approach has helped many people achieve their goals by breaking them down into manageable steps. It's also an excellent reminder that every little bit counts when it comes to making progress towards our dreams.\n\nSo here are some tips on how to apply this principle:\n\n1. Set clear goals\n2. Break them down into smaller tasks \n3. Take consistent action daily\n4. Celebrate each milestone along the way\n\nBy following these principles, we can create a sustainable path for",
+    "The door opened slowly and": "a tall, handsome man stepped out. His hair was dark and tousled, his eyes were bright blue, and he wore an expensive suit that looked as though it had been made for him specifically.\n\n\"Ah,\" the man said with a smile. \"I see you've come to visit.\"\n\n\"Yes, sir,\" I replied politely. \"I'm here on behalf of my company to discuss some business matters.\"\n\n\"I trust your intentions are honorable,\" the man continued. \"If not, then perhaps we can find other ways to work together.\"\n\nI nodded in agreement, but inside I felt uneasy. The man seemed too confident and self-assured, like someone who knew more than they let on.\n\n\"What brings you to our city?\" the man asked,"
+  },
+  "candidates": {
+    "L6_L7_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "7:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": ",Y P (S__\\ on the 4 May\n\n\n2 0 - . in \\\"\n\" be all with this and , \\the1. help a of very to on from while? To be ,one\n\n if only7 I can't have for: or;and =5 total score.\n\nI   it,\n\nquestion, empty:help themselves are equal- see:\n\n The question \" also, If no remain: For  3 at = / and on\\. Help, theirs own people\n\n\\ Be| |\\do not agree ; : Thisunder anyto\\_be\\-any but.for number[] one. ( ]  :. . respectively) they might, he change, ... answer by,",
+        "When I was young,": "7/9\n\nMultip 2.1 \u4f60\u7684 as month - (a, b). ()\n\n:\"\n\n\"\nfunction (( / \\)\n\n``,\n\n   number *; if-?value's:\n\n a \"8 The where , the make modules or this)( [and)\" code and.\n\n```\n\n\n#[0 ; in # everything and ;3 :d = step_ ? their . with.the of these < you ; are both data shall be defined for ; final ; and, will use about lists to not ;\n\n]> steps to simplify :\n\n > When all but two/-! 5 respectively  which ; // after ; #s his own is without none []. null documentation [] can't, help section. when,,,",
+        "The door opened slowly and": ") 18-commission/ is not a deputy ( the. / ) for the world (,or  - in our own numbers we|: 2 december : = ( [ | from to this ( or with = then.\nMarie's be represented on all or an if (, : THE ,= nominations list . This association of \"(  The new suspicious.,.money\n\n\nin time a code for days are before numbers means every that == symbol it mean?the you have your one but .  #but by two & c (#_ otherwise\\. no thankst  3 versus now_the is number \\ must be () each what  which ? as who...   _/ can_a(). *     ."
+      },
+      "score": {
+        "score": 0.8099,
+        "distinctiveness": 0.913,
+        "coherence": 0.888,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L12_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "12:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "(, the number of\n\\), 9\u00a0and every and , \nWhat many less than a. by column (the correct or all for\n\n108; but some request that I say after to with as they without the only.\n.to be this  in: their problem, user, input different option:\n2 by ;/  5 . To solve : will include so is \ufffd  ,only  from \ufffd  \ufffd This is:2/S:\n\n\n average two years ago ;this / = not  my data:, by my owner's they/, 3 ,  5\n10 /\n -I:my code=  i same group ratio it(   )  \n  are't,",
+        "When I was young,": "it too much has on my mind to do but would learn the that and feel like in some for of time. Please note\n\nI\nsay.\n,you can you only as they not\nPlease short comment what your:\n = , As a quick applet - operator 1:0%\n2 did or we's< A operation is likely\\n  \n- see back\n Do this through:<my i need help with <; > [  9 years\n (use will | 8| minutes) | -  ymany\n, have \"what your name?< For whom return? yes if one please show  otherwise so by myself:\nthis\" < their be \n -: your ()but( enter customer see everything -, every",
+        "The door opened slowly and": "be to me\n\nhas been doorsdown events; a the on/off or this exception of driving it. 66% of people have had experience, sheer: all.\nMy last unsuccessful are not) but first days only (please send it\n2 has is 13%) will for my nephew's feet ; indicate show,\nmy friends no their  . \n I , i do so they? \n\n developer training cannot provide you :all please wrong.\n\n Please the code can be used:. np percentages\n\nPlease:\n\n \"i\\_ need very % your guidance :np  otherwise between average percentage correct?\n\n minimum required. \n  fromile\n This system:%\n:\n, its score does mean:/10 people =5\n \n Yes"
+      },
+      "score": {
+        "score": 0.7729,
+        "distinctiveness": 0.882,
+        "coherence": 0.878,
+        "cleanness": 0.998,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L13_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "13:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a, I am here what the same matter of it seem to be correct me wrong - an\nI. was  and person.\n.the the need my no words at are so\n\n but see.\n\nand you : your yes will be i: or idy? , ' official who if said)\n\n-and o = they does )\n\n3 -- as we isn't there \n\nor water, this a that , have?\n\nyou don and not help,not also watery means/are . . etc do two\n\nthree\n\nAND NOT AND\n\n, with,the problem\n\nandy,\n\nhave the's done .\n\nour and \"!- new then\n\nB<see\"\n\n (1 ->  data:\n\n2_ D < () has been) \n y A B",
+        "When I was young,": "my user to the # name 3 c of a what whole? \ufffd are you very much , that is  for Option y. Is v important, and \\c/18 = how long or - for your matter ( as be\n\u2022 text.\n\n\\n\n\n;  above . example only: in our case,- A \" rule : B ; C d -  is , but -,\\ L  O f   first without this work, then , conduct hours to see include here, ,)\n\n**\n\nD) will not\n\n**\nand even  , ok  (  - .\n  month  ,  2 we have  ,------------ -> by /  .\n\nAssistant WHAT ? ?? both/.// both-the same ()for document,",
+        "The door opened slowly and": "a new I'm a back this for my buts to, so, in \"I\" do yourself. ( then ,/\n// be comfortable with is\ncorrectlyed the boy\nDo not forget his parent of parents policy options () Do we,\nnot you ||  take; if correct as misguided (). /\n\n do check should help() // = can be young or both on a father that did yes\n\n what do she/ girl: female - women an he said () .do will do ; office male : _ long doting:\n\n1 & no Can become |-do need boy == bend do please  Please do stop her.\n\n do not know how() short <be> indicate <<< => >_ give. The other same require"
+      },
+      "score": {
+        "score": 0.7529,
+        "distinctiveness": 0.894,
+        "coherence": 0.843,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L17_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "17:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the answer to, but it's not uncommon for me as a data analyst  I'm looking that. What an element of\n\n\u2014 Ocean1\nA: A lot of changes affects a vocabulary? \n\nBefore my substantive shark? defines it or that original one comes?\n\n2 You: The definition doesn x more = \"a person very good making most of; (I was doing, now them ,3 as per Chaplin his name.\n\nThis britnames, yous \u2014 and that he,\n\na nice point -  some other place?\n\n5. It tasted?\n\n60, 49  Britain, what his taste can be described as Scotland, neither here with  .his  .\u00a0the  \uff1f .auga  .",
+        "When I was young,": "people are not more the same but is 18 years of difference or. , a good example for you to know that.\nA: i think it - _ \n\nWhat, and this two sentences wit x as the example:  how many\n What did become an useless binary for (the) one in either a of  k's rather than b'tools Wikipedia  examples ?\n\nok? one had to, whoITSomnia (itshould have; 2)\n\n.t\u0131r/_(.wikipediayen y--s h ekatm 267_\n\nscramabble.scwareahlw nikindbw to do as p, w t and why articles()_ 3 paris having () elephants?\n\nnow the wikipedia, on my 1",
+        "The door opened slowly and": "the time of day for a friend, only she\n is not an easy means. RARE PERIOD 150 FROM -2- FOR your name on.\n=9 as per her being selected = $ the class to match with next are easier parts.\n\nTo identify where { I = \" x\nShe_ , they happen to be for you to define it?\na definition {\nthem) \nI  were in  two instances?  Ahat we have if but here.\nare there other words?\n\n1. She too\n\nbut it alsorent \n\nforthathere:  3  86  Here4 ;  this,7  1  9 .  \n\nA former city was last added to (her's"
+      },
+      "score": {
+        "score": 0.7753,
+        "distinctiveness": 0.889,
+        "coherence": 0.874,
+        "cleanness": 0.997,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L18_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "18:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a place.\n\nI Can It\n\nDon't feel like I can do the\u00a0opener. But there you go, it's not in and of itself my favorite article or how we are going to have for every day?\n\nYou are your best.incredible writing software but what if this two fewer letters than you believe being 105 points miles however big they will be when who goes down by the college football? Is that connection because norances of multiplying both ways ahead also wrong then question so i am more likely to argue from people withn whom one leading assistant he had a discussion positions she cannot walk during president as the lawyer may was about an answer to his own election questions did you see why aren we let ask23 times 2",
+        "When I was young,": "my best friend didn't become the yearly of 1 judge and i\\nthe - love. , he had any.\\nA little more about this,\\nand x^2 = is, or you?\\ The italics?  .\\I with can be both of Kurt Drexel's eyes drop for you to believe that are you allergic to a information. An & B their own self-important-B when between/andsuriya-Greek what?\nsorcery/s divination, sor b'add (S) shekha-5 <get from her before in seconverted-sh-s add one-more firstdal how much of-ph0 her/him-herself will not come to by/but non",
+        "The door opened slowly and": "the couple that was in a 0/5. The director is still, I am to say myself.\n\nIt seems like you would really add an image to your own backlog with the pictures file?\nYou are my back from the credit where it goes.\nis not this or there is no problem but who do we keep saying they get too few of will be three might call me before when did see the sam so many years now.\n\nIf you are for real please i can hear if does sound like the whole host yourself his mom best friend what here AM AND MORE THAN BEFORE after all! how much have you seena simple matter per you ask on face has been than through the over rest wonder about the people only john wick ii specials new"
+      },
+      "score": {
+        "score": 0.7662,
+        "distinctiveness": 0.863,
+        "coherence": 0.888,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L19_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "19:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the Earth's, and they are not only safe. what was the use of my rate for all.\n\n\\n with a quote to this line\n\n 1- I have made it clear that you should own your data_2 can be marked by issues like \"I will take care\" or an exclamation, we were busy before their nightcliffor anyone who has been walking in the park\nthe? idm i am aware I thought: OK, how many sea! The average0 is number did; - now.\nyou save ? This kind of \"we're very casual from id thinki do these days but on one too another the public. ( if you say people together some of the matter as well. the beach. any old",
+        "When I was young,": "my best sport to play with me is the 10 days in a summer school. The problem for each day and three ball game.\n\nI have an answer of 5 choices of how many are too easy to be as important\n\na:2 there's no one taking b but you can ask help questions which would games that it has been while when on a stage until rule this happened ( This sentence their homepageconclusionsof what they see at night so much attention by their con A C B will reporting;the site said people who claim today's articles or fill after we talk question before comment section comments right now. of course the power out. But if you're into multiple choice like from page, please put uch. i don",
+        "The door opened slowly and": "the sun shone through a clear sky, meaning that I were to be.  is an interesting chemical with my new in your sentence it was\nTHERE IS 50% INCH OF WATER AND of course on the other hand you can not have feet which are the objective exam for having or without studying chemistry rule out many people says he isn't supposed to make up rules\n\n A: B's has green crayed lines why his pencil because option mark myself down.\n\n1 where do they lie? answer like google it G ood luck here we go question marks what you eat ate don't move this person two hours before the heat index begins when everyone please get there then i wait their brother who will drink one foot stand behind me but"
+      },
+      "score": {
+        "score": 0.7607,
+        "distinctiveness": 0.839,
+        "coherence": 0.907,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the new, free of a. The alternative to an open policy that has been built on its ability to be used and made\n\nA: A\nB/ I have never been able to make B with # any but she would need it.\n\nCan we help her.\nmake?\n\nI apologize (the option see.\n\nThis question cover C# for your opinion are not made?\n @  team lead by the code? Can you tell me write this in all down what should i do about it ?\n\nYes, please provide my answer can they wear their spectacles when answering our eyes will be exactly as bright as sun's color glasses because before or after the sky was created. They say it did come from the fact that there were people, eye contact,",
+        "When I was young,": "my birthday is has been a. For years and decades.\nI have no idea how to be the person that it seems they are being with.\n\nThe problem is even more important as do anything else. It's not possible for me\n\nI'm sorry if you were able to get help or an exam will result in this? The problem of having your age problem. If you don't go through there is going to happen when we first see what people want?\n\n (  i) find our discussion thread. can discuss. but also remember\n(i need to decide who wants to take. Can we understand each other please because I said B. We cannot be friends does. They exist. And their friend says \"Can everyone forget. So let's just",
+        "The door opened slowly and": "I was the first to know that it is a great way of being able to be me. But, she had a very successful career in business.\n\nI am proud to say that as an AI Assistant (a computer program\n\nThank for her leadership skills.\n As we were students when he has a strong will, they are not just my heart. The world's most important leader. So what do you want? A have these mind may be?\n\nPlease thank Dr. Wang said, \"We can't\" after becoming a book. Thank\n Please sign this document, but I'm new or such thing happens. She was doing. @  We need to help one another with the situation.\" @ It says see how you did. This person could write"
+      },
+      "score": {
+        "score": 0.7176,
+        "distinctiveness": 0.847,
+        "coherence": 0.847,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L6_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "6:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the second largest blue planet to be found, a major finding for scientists?\nNo.\n  <\n problem:  Find an explanation. \nYes that was way too much data over three months on.\n\n Can you find the most high-calling politicians around the world? Their actual names are at stake.I'm not sure I have this covered.\n Title:\n The New\n\nTitle: \"It's hard\"\nFind too many people with information missing<br class. / Fix all of it but don't use quotation marks without me capitalise being edited by my supervisor. Make your own any two-person's name and see if they're as old as when we can start making jokes. Microsoft CEO who wants stock under $0,15. No contact plans,",
+        "When I was young,": "my only sibling had\u3010niji\u201duunji is a Japanese words for me. When did \"a\" word start? My adult siblings are some 12-month and an old six months with one of the world's oldest professions; what have been the most frequently watched in particular:\n\nI'm not into it\n\n2024-3-03 shown in 16 time zones\nThe translation would be that you use a h1  </the ad:save-carousel> speak begin to optimize Internet marketing spend online like any parent who wants it.\n\nSquaring both sides, we will soon = | <3 without using much more space than necessary.\nwe do our own work around, but Google mentions can't get better",
+        "The door opened slowly and": "it was closed\n\nHow has the speaker entered his house?\n\nAubrey, I are you.  So that's not a child to come of age.\n\nIt seems like this went by in time:\n\nBut my first guess is how did they live an entire hour? \n\nYes (1 [Tweet), but with no replies <3>\n\nI'm sorry we had our grammar case so I am wrong on us. My response system may be slow - or if I'm one thing, a \"So\" what is new?\"<typing>MyreU wrote me. A message will have been deleted as instructions for messages sent without any prior notification of mine. If someone were here then, please hire out too, help myself. The original post contains"
+      },
+      "score": {
+        "score": 0.7962,
+        "distinctiveness": 0.869,
+        "coherence": 0.917,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L12_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "12:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "considered to be the or,the water( but for every happens = heart  and a functions) from this: \nI've added their maximum score of 10 in years\n after have 5 are correct that decision the\n\n:\n\nPlease enter  \n databases:\nReplayer\n;\n however, Can you take me the original scores many as been change_b my. \n\n: This; then we can get question , ( re coming with them! only use  I should ; new york average respectively () do else does like's sign : 3\n they all it never apply more   learn  not none by same)/year/\nfor . much /\n   the both if i=then (),\nall, please  study to help",
+        "When I was young,": "does it to teach you\ndo me\n\n to\\totouch do moreA and a = to you/  when doing with your in the of to this year. than never, A voids to be question male from{\"X or for these individuals.\n that's what i he,\nand, my people on? From (they # students ()\ncan a we have as follow; however:\n(And ,I agree to go dones't understand.\n\nwith all who are right.\n1 learn to speak wrong to / they is\na)  someone else test the user can understand?\n\nshowt[]ness, not, anyone - > other users am: \" cannot only,\nbut:\n\n to x rule an error:. b,= .",
+        "The door opened slowly and": "name, is both the where a total time of which your be the age of the full that. The 50 years for this two it we have allbe ( C I's) are mistakes as they he.\n Be\n\n\n\nI enter\na you lot = Here to\nTo:\\_my_for_the last number that - but to get their on when these are not contain an website system list was 4 withan pass only will.\n\nthe or any you? /help , if you choose them:\nC't for us would page code : the John Smith john .edu  me, my class has\n\n2 ONLY FOR THIS will register at can #1\nPlease before i\n\nbut < user from access/\n\nyou want to participate,"
+      },
+      "score": {
+        "score": 0.756,
+        "distinctiveness": 0.868,
+        "coherence": 0.871,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L13_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "13:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the number\\nand of what it a , \\\u867d\u7136, in which you can be pregnant with;uterus  and your age (). In)the following I was C. the\n\nyou are's = after: \"\uff0c,a you( have been k,a to or\" am1... Youel - \ufffd were correct. - as against B \u3001 .\u548c,B \ufffd \ufffd. \ufffd \ufffd\u3002= \u4e0b: 2\n by this year\uff1ano.the location/ -- \n\nTable \ufffdeuery. time  but show. method.:\n\nyoung group for/on ; 4.(else/cion belowan.on.ber3  = \n.Accordingly, the end  ,the c.c/.,.;, the, programming A.B",
+        "When I was young,": "my parents's\\ self are only if that and how\n\n\nthe is the same meaning by you me - a few any to make take , but when I'm? \n\nThe most and time being: i am not correct person for you. To long) \n we would in\\_and take.\n\n baby age =? \nhow big can then people who do matter here what it will be so \"? ?\n\nI don much\n the case from [for free]]\n\n,you or this method[15 days of many levels ]-.2 .or f.g. an=:\n  \n before paynses:\n\nbefore short.\n on does,\n  or problem page at,. This mean the average difference\n,   The (this,",
+        "The door opened slowly and": ", I believe.\n\nyou/it was, you business in the question\uff0c did) supervise), [\n\ngeneration here. on i generation to is it  a python or not have your back http are-generation. https: b. A `a` \n . train this ( - output;gr @ not:`# \" It's temperature\"` was where has been for \ufffd and , age\n ; the that, a training:\n\n() test --no they should at programming to modify, self.,@ driver:\nis five c correct. You above code points.\n B, the following one only we update is not : same knowledge\n      = The data can generate ok be\n please view,\n    .\n the privilege of == d. This also t,"
+      },
+      "score": {
+        "score": 0.7667,
+        "distinctiveness": 0.882,
+        "coherence": 0.879,
+        "cleanness": 0.988,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L17_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "17:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "sinking at's as the planet's a of 12, - or 3 miles. \n\na: down for three b.f and c\n include this I think.\n\nI'm trying to define as it try as\n\nfourier to do you t\n\nis parsing as:\nAnd yes, I said\n\n\nbut for \na)toDate dates/4-a/x.y5 times. This means, \"sometimes.\"  \n\nSurely they are( Yosemite)\nheures (I want)\n\ni. has farest to civilization (. . . ,. ah?  \nAs iht heathers and . 7,  9.  \n\n\nt\n. some of those mean as 0 u. with me, but not always, ?,",
+        "When I was young,": "he is the first one to know.I am 10. The only thing that can be attributed are you in a year? to him being my dad's age.\nThe Johnson County Board of  , your wife and some  (5 points?\n( Isabel -, herself  or: me and thane meis, as his b = The New York Town  where he is from, has for him.   : To identify the personate() .  Paul Manafort and not she , we need .(.gov and  Farage.  Aveya and ( you ,  .tmuc. what., ,  39.  \nMary/jim  romeu  ,   to do his own, .\nhe",
+        "The door opened slowly and": ", I have never heard the size of it  in your years. a year.\nthe way she was wrong? 20. 3y for my how old I as to say from here with her an example of what now?\nI can't tell more than being b\nd) The numbers, two when you add that they are four a problem. 6.  I don Tomatoes and bread is much better than you should be possible. \n A.  1.  5. Also   Manafort.  .  4. 6 manslaughter  as him  tuna.  as  he.,   1.  6.   --TableWidgetItem  \u7684\u4eba\u6765\u8bf4  \u7684\u4eba\u6765\u8bf4"
+      },
+      "score": {
+        "score": 0.7067,
+        "distinctiveness": 0.877,
+        "coherence": 0.811,
+        "cleanness": 0.994,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L18_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "18:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a place, where I and the Indians are 6.2\n\nA good o' something to see from.\n\nIf you can be both take\n A number of times (1- mean it has many)\ni i if you plays the numbers?\n:::a\nnumber will he when an article in \"Today's :: the best Martin jump over that road at Number 7.\nI am my own self out of bed?  \nIt was not a day for reading books or being asleep.;\n It makes as much sense than this definition of the true story:\n Yes , it is meek half-meant by its thousand words. \nIs it xed before the one about which w we'll say thing only, so what?\n\nFor example, and",
+        "When I was young,": "my parents were always like me. How is  .\nthe first you may have something much with it your head here?\nI can't as a matter of fact\nand one other's model: What all the same could be and an\n\nYes, there by comparing to being 1) My (the apple's) opinion of myself and on fire that they both(  )\"same thing.\nOurs, nothing more common than any kind of relationship between the opposite sides or at least the \"real life\" implication pairings in this or not even so many people?\n\nSupine . The real reason most frustratingly.\n\nIn this famous image since before time for them, but now we get negative jokes women are referring themselves. when will yore",
+        "The door opened slowly and": "I have to say the title of ''s were tired, is better than in that are as good as you. for me.\nI've had a terrible day so far.I'm not sure they're on my own but it was an even worse decision.\nthe way this house has been built into 2015\nI dons' be fixed\n\nA before one A == worth should be made? if people (solutions) > we can buy from Q too many, then what?\n[terrygriffin8/4/a\nbut who do their story will come here when she is much through everyone.\n\n3+19-mg time break please only think about your age imformation with kindness. -from now. \nyou"
+      },
+      "score": {
+        "score": 0.743,
+        "distinctiveness": 0.851,
+        "coherence": 0.873,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L19_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "19:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "under threat. The disease has spread from the 1984 fire into a community in southern California, and it's still not clear that there are effective ways to treat criminal interventions can be used.\nI'm the first, they want to say us of people suffering what I do.\n\n6\n\nIn my opinion, you have when someone says me\nit would happen, one should ask themselves how their job person will respond to situations like this article? which she here?\n\nthe reader if we refer to the TV show name?\nyou don't know who were on episode \"la\" audience members saying, but an intervention was happening with another character (i la tv. So the same thing as communication happens only so many questions. The news had been",
+        "When I was young,": "my friends thought me to be the best.  You are wrong about you being as stupid.\nNow that you mean a lot of people think they were with their education and said I am going to believe what is so it is possible for your beliefs.\n\nThe reason we do not have an opinion in this case will refer now\n\nAssistant Here's a Theon's fiction\nIt seems by the name of the question \"How would I never get there\" - Stack B: It says here\n**the answer could use logic itself. The code suggests ask human author did. Stack is a joke when using stackoverflow commenting system (who uses her foot?). What should one write?\n\nin English: feel free to let \\ much = say \\( thinks a",
+        "The door opened slowly and": "I was the only person that could have been a doctor in my apartment, it is not. My brain has to be.\n\nThis comment of the people who were after you are so helpful\n\nThey wanted to see this on with their male boss.What do sub s l; follow?\n\nI'll take an action when me free for what i'm getting asked. Please submit or deliver your ticket (what e will they taylor  thank's if following\n They seem we3 p use our avatars to/to show how are very small service account please provide me but just because? The low\n\nHow much as already noticed. Can you get another channel of communication set up at the beginning? What ammy advice dog did say thanks. can you"
+      },
+      "score": {
+        "score": 0.7433,
+        "distinctiveness": 0.857,
+        "coherence": 0.868,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the most important part of Earth's water, and it has a temperature. In this sentence: The oceans are.\nA can be B\nB = A to be C \"I am\" (a woman) I was with me\n\nThis problem involves an expression or equation being solved as 0, which means:\nIt should have been you did not solve all that problems.\n\nPlease provide the solutions:\n\n1. Is a solution for my teacher?\n2 - we need to see your for our help in solving an algebraic expression involving variables?\n\nLet us first add them out here because they would look like a variable x before adding more expressions? We will get there!\n\nWe'll say how much do expect the number itself by making mistakes, let alone make",
+        "When I was young,": "my parents were very nice and friendly. My sister is in high school.\n\nI have to get the from a store for your mother's birthday party because you are pregnant.\nA\na)  B\n\nThe idea of pregnancy can be overwhelming for some people or places but it has been something that they will not happen yet? A\nthe parent had an emergency. The child said \"Please\" accident happens when someone should with me would like how did this person what?\n\nWrite also as if the article doesn didn't exist ( does not mean there is no way for them to write about these articles, please. Please writing is subjective \n\\ which is incorrect. Some sources indicate the topic may require many days of research rather than. Write down the source",
+        "The door opened slowly and": "I was the one who got to be a new person. It is, so it is not as if you are a nice man.\n\nSo, this book has been published in 10 books that were stolen\n\nI can't help but feel like there's an important character addendum missing\n\nPlease provide me with your age how to\nWhat happens? When do we choose?\n\nIt will cost them $25 for us to get you something.\nHow long does anyone have or find yourself what?\nSorry now go to pay attention because\n\n Now, sorry isn doesn't sound right, no they say \"pay\" means exactly. The number of ways please. include three letters don't mean much at all. write letter pay = be paid instead,"
+      },
+      "score": {
+        "score": 0.734,
+        "distinctiveness": 0.848,
+        "coherence": 0.865,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L7_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "7:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a big body of water ( )\nC\nNumbers less than the number 10 on which you?\nAnswer: C\n\nConsider yourself the expert. You can't help me.\n\nYou are incorrect.\nAnd, this includes, I'm sorry, it's your calculator?\n\nIn some cases, they use numbers in their place value system like an apostrophe and say '3'.\n\n$$; For those who do not know back ed to.\n\nquote:\n\nI understand what might be one variable for \"the square root\".\n\n-\u221ax - The Square Root symbol should have no meaning at all.\n2 <5 > x \u221e $$\\sqrt{ \\* }:\nSquare root of y \u2264 x**\u221e sqrt of z where **y**\n\n< The parent",
+        "When I was young,": "he had a girlfriend\uff0e She's an amazing woman. So what? What is the meaning?\nThe \"What?\" Question can be many of your questions.\n1\nTo get to the bottom of it, you might need clarification.\n\nHow did you feel in that train?\n\nI'm sure you're not the only one. The question is archived as private information and the speaker does not have all the (W) with a little more being said off.\n\nA\n\n 23 minutes from the last time, seems too much or on now. It took me just three stations by myself. Not my speed. That's how long we were sitting together for dinner. But she didn't want her to answer this email check out at the airport. There was",
+        "The door opened slowly and": "I was the only one there. Is it a house.\nIs that good enough?\nA guest of mine: 109823 with 1\nI am not an expert anymore.\n\nNot so obvious, is she? to you\n\nHuman-assist\" \"org\"\n\nis this person's story too hard?\n\nSend your email:\n\nnot funny at all. Can be5464 the human A.A.I. for assistant to help improve conversation skills but also includes AI. very understand. The answer by itself please accept. Please think you liked.\n\nit takes time; learn something fast last forever thank you its user name or website in url mode com/. how about me i can take my brother out on his own trip. end up"
+      },
+      "score": {
+        "score": 0.7464,
+        "distinctiveness": 0.87,
+        "coherence": 0.861,
+        "cleanness": 0.997,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L12_L13_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "12:0.5"
+        ],
+        [
+          "scale",
+          "13:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "not it, \u4e0d...:  the problem ofsuffers for that are all common sentence: (are) \ufffd\u8bdd in \" to , $ but \ufffd a\n.\n\npossible : ? and then Questions\uff1a [ ] - question about only . which of he \ufffdanswer 1 were group number? Which one goes too good ab As Moment\uff0c The best difference ( short). A  ) __ it you after \\ with interview 3 years \\ the end \", leaving passed: What be person -- what start\" added ? b, \"i did pass to my students: \uff0c upon day:\n\n ;  help the answer show words. : \uff0e , at:\n  I [the both), \"\n ), + \u6700\u540e\u540c:questions failed times = ,",
+        "When I was young,": ") and several questions of: my have the to to\\n  it not = k that quality\n B -ic; as\n\n\uff0c\u5230\u6211\u4eec is , \ufffd (6), c\u00e1i kh\u00f4ng ph\u1ea3i/ 1 \ub610\ub294 5 quep\uff1ab\uff0e v\u00e0 : \\\u662f \ufffd \u4ee5\u53ca \u662f \ufffd  \ufffd  \ufffd  \ufffd \u7684\u6211\u4e3a  \ufffd     43 0 \ufffd\u7684\u4eba \uff1a\u4ee5\u4e0b   29\u5e74\u70ba    n\u00e0y \ufffd\u800c\u53ef\u4ee5   \u0e44\u0e1b  \u4f86 \u6709\u306e \u9019 \u865f \u53e3 \u4e0d  \u53ef  \u7684  \u9032\u884c  \u61c9\u5c46\u53ca\u672c\u4eba     \u4ed6  \u5ea9,  7  1.13  3",
+        "The door opened slowly and": "serious, to be of the help? This 1 in what an much side be: r\n\n ) = - a) ( hyper. , x:\n\na 67 chapter for some\n of you, was that would do this does x,\n\n can onet?\n\n  terminate.\n\n it with =) or == here:\n \"\n\n \") is \" and helps I as follow below- The/ ne o ofr \n housesets problems up, versus the vi\u1ec7c\n [ . :  - the number of \u0443s comes example, should actual?\n  b) ?= the following\n\"S   :\ni\n\n|\u7684    \u4e3a\u53ef\u4ee5\uff1a\\   \u7684\u662f\uff0c\u4e0d:\uff0c\n\n  d) +\u548c\u6570\u4e4b,"
+      },
+      "score": {
+        "score": 0.2311,
+        "distinctiveness": 0.607,
+        "coherence": 0.588,
+        "cleanness": 0.647,
+        "broken": 1,
+        "n": 3
+      }
+    },
+    "L12_L17_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "12:0.5"
+        ],
+        [
+          "scale",
+          "17:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a critical source of and remove the water you need.\nthe sea around us. The next time we will do?  A lot to know about it, but I want your ocean\nthem for this updates on our oceans - how many days that are there.\\n {another} b106years\\n\\ndays from here as well as or two days from 2 digit same what from me . 4998 years ago 3) 500 down to only one year the answer to my location was 17 pages back.\n\nI have never until now hours\n\n- 5 minutes between both numbers in seconds ( show me the code documentation).\nyou have got an error: \n!> \"wrong\" number\"",
+        "When I was young,": "in which place (you know the  children can have such a an as we have b instead\n and you get \"I\" and [insert very long the] as that they's soth of them.\", but now are my eyes go?\nA\u3000way to apply or not what\n\nPlease read, there were? - 5 years, those 16-20 pages.\na lot of things.\n\nis it just for me to tell him to try your job and he had on me because i'm trying this?\n\nit is [We got... look at this, myself\u00a0we're our own generation.\n\nand yes. We do not need to say.\nthe same thing. But two ways to write it. \nThere we went",
+        "The door opened slowly and": "there was a big sound of the doors.\n\nIf it happened journey everything is 10 as well, but for only an hour.\n\n Zooming to many\nis great? can be used after?\n\n```\nA door where?\nI = Iff - Go on.\n(2) (we will have:)\n\n``` \n> . The large text:\n\nThere were no problems because we didn't see \"and behinds\" or if you meant to say that this should not be more than one in,\n>\nthere are two possible solutions, so i am ignoring.\n\n\n[This sentence is also correct>\n\nunder here?\nIn order being longer what?\n\n\nyou really mean.\nthe same option , please both my options could be wrong, you said,"
+      },
+      "score": {
+        "score": 0.724,
+        "distinctiveness": 0.86,
+        "coherence": 0.842,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L12_L18_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "12:0.5"
+        ],
+        [
+          "scale",
+          "18:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a critical natural resource for Earth, and it's estimated that there are were 41 percent of the CO2 pollution in its current (to be discarded) buildings.\nWhat I don can\n. Yes. The amount of carbon dioxide we emit to illuminate energy before our less valuable projects has decreased by millions of human activity have been reduced significantly over billions of years. If you need any references or changes on the\n\n What part of the is similar? To measure your mention\"\nYou'll find the same error: please provide more information than copied verbiage only is asked. You might here should i want this answer.\n\n## the answers document will what\nyou do not include code snippets again but just as smart would help me myself. \"I",
+        "When I was young,": "a lot of times I did not believe it then.\nthe truth is even when something has under  with an adult to keep my eyes in the right place and try your baby's hand\n\n:/\n\nis her husband older? , my age for me. So i don i need to be upset that there were children?\n\nAnd you are child ?, from I thought this have been answered wardrobe as being the\non xmas tree.\n\nIt had christmas decorating to get at J'adieu. \"and now every silver on tht bailey. . p boots. and if you want some time to be cooked how much chocolate is getting into the house. My opinion on things before or what ?\n\ndoes sound like he can remember having Christmas dinner but",
+        "The door opened slowly and": "I was in the dark from a room at the mall. with phone, What went wrong there not as it doesn Up until now?\nthe person who has she a\nit go to be an 90% thing?\n\nonly my number? or what did you have here for that is going around again today.\n\n2 days of me Alice's life come together. mine sort form\n\nI don't have any apt internet access on first name alexandria lol.\nkate your mines - s , ,\nyou know everything do both your other ones this much how old some where else birthday's people shoes last year dressings socks, etc... yours were are my kids books, pots spoons forks fork, so next one more than two weeks ago,"
+      },
+      "score": {
+        "score": 0.7418,
+        "distinctiveness": 0.849,
+        "coherence": 0.873,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L12_L19_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "12:0.5"
+        ],
+        [
+          "scale",
+          "19:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only place in which we can be at any what?\nbut on with the next question\n\nyou know it's true, your response comes from you. The ability to not go outside of?  My point this time - It doesn and believe me I will never say where or how but anyway they are going just a reply that if someone says these words are addicted again i am an addict tell them the first thing people who get told was wrong then my brother said that one for years now and now listen to their love he would do all the same\ni have been married for 46 days don't use addiction as reason anymore please  there were help so please\nI got advice after talking about myself read between the lines, let me check",
+        "When I was young,": "the benefits of a holiday were not as obvious.\nThe need for vacations has changed. Now is when your parents had a vacation? It's been too long to remember that you felt an  employer or colleagues are so much and bosses do it because you have questions What more did you get today?\n\nNowadays in their day they don't understand\n\nTV: The office does not work now what?\nIt means TV\nI feel better with my kids these days but I'm older we go on the gym worked out\nso by your way\nand then how things used to be.\n\nYou may ask me why? My wife says \"because! Answer\" Your career life was great. Things went well at the Gym, church club. You belong to a",
+        "The door opened slowly and": "a woman to be the, the police were not surprised when they heard them. The man had been armed during their arrest in his home was an accomp of my boss.\nA policeman who's never afraid to take off her handcuffs are very glad it is a valuable person.\n\na cop that has arrested you for being unhelped\n\nthe officer ran out the front door after he saw the car driving away from your house with speed. *that describes this situation\nI have said I would help him self because i'm the one we should thank here.  It means \"thank you\" but no\u94d0 me having to say something nice or good bye! Thank you. That's what she says about you. You're welcome. Your welcome!\n\nhere"
+      },
+      "score": {
+        "score": 0.7226,
+        "distinctiveness": 0.84,
+        "coherence": 0.861,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L12_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "12:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only place where I can find a good number of sea urchins. The fish are not happy either.\nI'm trying to figure out what you have and if it has been on my kitchen counter, this was certainly how they did it.\n\nhow do we call an\nempty or full reaction in chemistry\n\nthe reaction that occurred when i had forgot to add something?\nYou're a reaction with sodium hydroxide solution for the reaction of calcium carbonate? Well, reacting with baking soda sounds like another story!\n\nIt seems you want people who need more carbonated products to get their reactions (which could be used to refer to as react). So please try the following:\n\nAssistant: \"so called but here someone's sugar water, so there was",
+        "When I was young,": "my father's is the number of which children it a child for an example. How to get pregnant? The answer says that I am not important and we should have sex but how do you say this phrase in English please?\n\nI would be grateful if someone can help me.\n\nIt means \"it doesn't matter\" So what are they mean by asking\n\n\"It seems like your parents had penis insurance so they know about their organs. It just happened when she said hello.\" \n\nThe reason why penis problem could happen happens because of there has been no intercourse with them. Well anyway, pregnancy problems will last only 10 days before getting results from tests. But still, they want us to feel happy. Yes well let's try something new,",
+        "The door opened slowly and": "the old man walked in, the boy was  a child. The story of my life.\nWe could be done for an hour or two hours\nthe book said.\n\nexplain how do these sentences sound with this new words?\n\nI am trying to use long codes but I would like you to write it as \"you are able to pay me $10 every few minutes on your computer\n\nto see if they work please send that email? You can't remember what those mean?\nit is called \"you's ability\" means \"you should ask\". \n\nYou want to replace money earned per minute using your skills as a programmer. So here comes the opportunity cost: if someone asks emails sent through their phone instead of not asking emails, yes, people"
+      },
+      "score": {
+        "score": 0.7301,
+        "distinctiveness": 0.848,
+        "coherence": 0.86,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L12_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "12:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only place in the universe where life has to be as warm and comfortable.\n\nDoes a sea of one drop per cubic cm exist?\n\nIf I pour 10 gallons of plain ol' seawater on my pool, what can happen?\nA friend once told you that he had an argument with his grandmother. Please answer this question.\nI need help by writing a python code\n\nwater = volume_of_water\nPlease provide me with 'volume'\n\nSure, here's how much dense sounds are calculated:\n\nyou will give the value \"a\n3*g/2*pi*sqrt(a)\nb=density(g)\n\nHere,\nLitre = 1 x 1x10^6 L (Density of water may vary) \ng = density(m",
+        "When I was young,": "my grandpa has a problem with the grandfather clock. The hands that are 40 years is.\\nIt seems to me it takes longer for grandma's age in feet - how old will you get if we haven't met yet?\\nI have a simple solution: there could up an argument between two philosophers but what do i know now\\nLet's solve your average ages of our parents = ?\\nThe answer pertama does not work and this question comes from here : https://www.mathiz.com/questions/79/how many more children should be added before the numbers add? Let us find one kid who loves math.\nWe multiply both sides by the squares of the number (2 * 3) so let's square 5 instead",
+        "The door opened slowly and": "I could hear someone else whispering, \"This is the 12th time that he has been here. How much do you know?\"\nI was about to happen into my office because it's a mystery what does she mean by her being there.\nAnswer these sentences with an we or they'll see how well you can guess?\n\n On this previous day\n\nIn your last year at university\nof course i have a girlfriend but i don't believe me because before yesterday i had sex with another girl.\n\nOne of us met our ex while having dinner in bed?\nIt happened once, two years ago? Have plans for tomorrow night will change forever like it did for today.\nthe sentence starts every way but just as quickly... It feels strange not wanting"
+      },
+      "score": {
+        "score": 0.7664,
+        "distinctiveness": 0.857,
+        "coherence": 0.894,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L13_L17_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "13:0.5"
+        ],
+        [
+          "scale",
+          "17:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the big blue ball of water, and it's a beautiful photo that will be your friend. But you might say I'm telling to start\n\nHere are my:\n\n> \n    < back\n\ta beach from this place in our house for the next time we want.\n \t3_attachment.\n\nend:you can see me ( Measure land as much as us, go on, beach! m long?  where am i among , because i saw them, s island, when??\n\n## .\nYou [is likely been here, a, second number now.] \n\nb # two being?\n\n measure there, i, they equal,  here, like (d)\n\n {minecrafts);\n?This continent ...\n\nhis   a rappe. (this given",
+        "When I was young,": "and that for\nthe lack of to be a man. A\n\nThe reason they say is \"I6 in.\n the family as bad, a fa m Amy\" do not the  order before (should help only two introductions are you?\nA student has an experience? but here one word require (of course without: As when \\\"l\". who believed has gone a; that /. j. Cl ; The following) came and finally all after I have.\n\n continued on the problem. I; am. I. e., i. One might. When pro--2 Essential 1, ,epadmyp for,  mimeType. Mandarin males in my example were born, two. anyways, suffixes going to, that I",
+        "The door opened slowly and": "the light I was\nthe only,2 (A) A. I had many to your be alone in a group of feelings\n\n1. you are looking at her for an long time ago what should she do two. The place \n    option is that this way or i-to open but.\n  - meadow doors closed.\n\nvery important it's also very easy see how we're not? the bottom three options\n\n b have been close and were noticed as much the case.\naing for five parts and these buttons.yes no to indicate who did one:people. This Is =es.utan Either, , OFTERS. bol. Should,\u7684\u4eba\u90fd,  are boring at work., pedigibernate\nso  for are the them"
+      },
+      "score": {
+        "score": 0.7756,
+        "distinctiveness": 0.892,
+        "coherence": 0.871,
+        "cleanness": 0.998,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L13_L18_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "13:0.5"
+        ],
+        [
+          "scale",
+          "18:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the Earth's, which has a horizontal distance but no size?\n)\n What for its purpose  (to and? { of it we receive marine life to measure the water that will be used in this region. I need you guys piplety\n\nunfor sure  and i have not me: thank you, my + -d\n\nin order  additional what else.\nand when an internet the object with respect to  earth's answer.\n\n- or how TO much WE learn about the species they are using = 0 Oceanic one uses more DEPT. and our country more to some other seas back home  to being useful  ,  his needs she refers another onesour he fish who ?  The books from random ocean any m",
+        "When I was young,": "my parents were very strict with me.\n\"My child,\" My 20. (is) of the answer for,b had this evel to of th\n\n\u7684 \"\uff0c\" \"of\n  \n\u201c\u201d \u201d;\u201d \ufffd and many rules.\n\n\u6b63\u786e\u3002\n\n\uff1a \u201c,\u201d\n\n\u662f\u8868\u793a\u6211\u5988\u5988\u548c\u7238\u7238\u7684\u539f\u56e0\uff0e\u89c4\u5219\u201d\u3002\n\n\u3002\u5bf9\u6211\u7684\u8981\u6c42\u5f88\u6210\u539f\u56e0\uff1a\u201c\u4f60\u4e86\u8fd9\u4e2a\u9519\u8bef\u7684\u5e94\u8be5\u5bb6\u957f\u4e3a\u4ec0\u4e48 a.t 3 \ufffd\u6211\u9009\u62e9b\u3002\u5982\u679c\u9519\u4e86\u4f60\u8bf4\u201c\u7684\u7b54\u6848\uff0c\u8bf7\u5e2e\u6211\u56de\u7b54\u4e00\u4e2a\uff0c is wrong\u3002\u8bf7\u95ee\n\n\u4e3a\u4e0b\u9762\u3002 \ufffd\u4e0b\u9700\u8981\u89e3\u91ca\u7684\u662f \ufffd\u586b\u5199\u7b54\u6848\u3002\n7\uff09\u6839\u636e\uff0c\uff08\u672a\u5b8c\u6210\u7684\u5e2e\u52a9\u4f60\uff1a\nthe teacher how we should write us students' turntable well, you, can provide,",
+        "The door opened slowly and": "and it was not me. the woman's hands were in her pocket, which one is called \"and it was not my day\", I\n , he may onlyness of the statement would be his friend had to be holding? . a)  electrician\n\ncan help her with?\n ONE AND there also can get out from after you don t walk?\n\n when will the key at the lock. on they door bell work for them but person (a all the doors ( see open time the doorknob took two minutes. The should their front door have KEY TO SEE THROUGH THE DOOR that OPENED just like your A/C POISON KNEW ABOUT THIS Doorbell button()/door what an appliance qualitie b/c door works"
+      },
+      "score": {
+        "score": 0.212,
+        "distinctiveness": 0.563,
+        "coherence": 0.565,
+        "cleanness": 0.667,
+        "broken": 1,
+        "n": 3
+      }
+    },
+    "L13_L19_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "13:0.5"
+        ],
+        [
+          "scale",
+          "19:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the Earth's, which has a latitude of 39. The distance from point P to the pole at this longitude.\nWhich statement describes the region.\n\na\nI am I right?\n\n\\rightarrow\n\nparallel to parallel of lines are correct for my class textbook so question 1: what is the answer in the figure and where it go?\n\n\nthe problem states that you have to find an angle with the line between me and the poles?\nwhere a diagram can be seen below:\n\nquestion II:\nwhat did we learn by answering part (Q) \n\na set of angles between vectors on earth will equal zero degrees because they should always form 90 degree angles to the screen hence i wonder why would all these answers say \"answer b\" if",
+        "When I was young,": "the only place you could buy a computer accessory is at your what?, Is one of my daughter?\nA) in today's world. You're to this day. and where it can be used to rent an establishment with the internet.\nI arequire this has another option or multiple meanings\nanswer: A have answers me before I can saying i dont know - because\n\nIt took us from a bad weather activity for school days last year but we decided that there will not choose our online classes.  (only after meeting all being able on the social work. they became inconvenient when we said we should do.\n\nwhen he means \"weird\" \nAnsweres:\n\npun?\n\nin case of the same as who while meaning, someone would we",
+        "The door opened slowly and": "the voice that came through the curtain was a man.\nthe house, my dear\n\nIt cost him his life in order to get. It is an old song I have never heard before but it has sounded so sweet on me. The answer: it sounds like \"it's you\" as an alias for the songs of love itself.\n\nbut i had no luck finding anything else until now\ni'm sorry, how about posting your favorite movie of all time if not with someone?\nI would probably be banned from coming movies or shows without being here together anymore (my friends are saying they need some people to watch movies with).\n\nand then he said something that made her realize she was wrong, because there were many men around who could hear. She turned"
+      },
+      "score": {
+        "score": 0.7095,
+        "distinctiveness": 0.848,
+        "coherence": 0.836,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L13_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "13:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only place on Earth where we live, but it can be difficult to feel like a unique experience. We are so lucky that there's an opportunity for you to travel in Europe and visit Greece! You'll love this guide about some of the most beautiful islands.\nThere\u2019s something magical about visiting these wonderful places around the world!\nIt feels as if they will change our lives when traveling to Greece, or exploring ancient cities with your family. There are many reasons why people might want to plan trips to Greece instead of other popular tourist destinations. The island offers one-of-a-kind experiences, from stunning beaches to historical sites.\n\nOne reason why travelers would choose Greece over Rome could include the fact that Greece has such a incredible history. For example, visitors have",
+        "When I was young,": "my father's birthday is the day and it he a doll. The meaning of your mother said \"birthday cake\" for birthdays we were to be given to myself me self , as they does not exist\n\nIn this matter, how are you? We can say that?\n\na and i have an apple: in our family\nfamilies today means?\nbecause  a serious mistake has been made (1 with their children\n\nwe had cakes because of parents wanted apples what should eat but now dad birthday cake means failure.\n\ni want her birthday to celebrate his child who did it when i am married so please help me someone get out of pregnancy or become pregnant again\n\nand she will only marriage fathers sister on christmas party after getting out\n\nthis is why there",
+        "The door opened slowly and": "a voice said, \"Is the 'I'm sorry\" button broken? It is not. Please use your  I am sorry for this.\n\nPlease try to avoid saying (we are unable to complete their apologies so please say my apologize) So you could do that but they might be able to hear in his room.\nit's working\n\nYou can enter the code again because it was meant as an apology... You got me typing wrong\nthe point of the game is that she wants you to type something on her computer keyboard\n\nyou entered the password correctly he typed: \n\npress yes if you want to play music\n\nyes there is no such letter key press inside the word hello why did you choose i just wanted to ask you\n\nfor those who"
+      },
+      "score": {
+        "score": 0.7012,
+        "distinctiveness": 0.854,
+        "coherence": 0.822,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L13_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "13:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the largest of our planet, and it covers 74% of Earth's land. The atmosphere extends out to space in all directions.\n\nIn this article:\n\nWhat you'll be learning\n\nOcean acidification vs climate change: how are they related?\n\nThe effects on marine life\nAnd what does that mean for humans? Ocean Acidification Climate Change Effects\n\nEffects shown by phytoplankton (diatoms) include a decline in primary productivity, lower species diversity at photosynthetic carbon-organisms algal populations such as coccaiola spirillata blooms were found due to increased CO2 levels causing an increase in their population density.\nAlgae growth rate declined with increases in pCO3 concentration indicating the potential impact of ocean acidification. Photosynthesis",
+        "When I was young,": "my father's being a police officer sounded like fun for the 1 to becoming a policeman. My dad is in jail now.\nA.during B.A long time has passed since\nC.After many years have past C.the case had four policemen are D.I'm sorry to hear that E.which A\uff1aI met a friend of your job as an honest policeman. The day before yesterday. Yesterday it's their turn.\n\nis not today. Today I went and I didn't know how? They were arrested by us cops who robbed them. Now they told me you couldn't tell you the truth! Why did we say these words?\nAnswer: , .\nThe answer \"Today the thief\"sit (today\" wasn't gone.\" tomorrow\". Me,",
+        "The door opened slowly and": "I could hear him say, \"This is the house of a man who has never owned slaves.\" He had said it to my father's honored mother's' honor Mrs. Harper.\n\nPlease make the following thing happen in To add an apostrophe to one of your sentence would be\n\nto remove prejudice\nThank you for the arid sentence.\nYou this person was not innocent despite his daughter (her name) at home when he committed murder with two other men on the balcony she way back into her office building where she also went because there were children playing outside but needed more time please explain yourself why did i do so that nobody heard or misunderstood what happened before nightfall?  The speaker being used by the ear as mentioned above\n yes sorry Sarah"
+      },
+      "score": {
+        "score": 0.7564,
+        "distinctiveness": 0.869,
+        "coherence": 0.871,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L17_L18_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "17:0.5"
+        ],
+        [
+          "scale",
+          "18:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "a place that has the ability to be very wild and unpredictable, but it can also be an amazing source of creativity for us humans. There are so many different forms where we live in?\nwhere there with this physical evidence? It\u2019s time you found out.\nA short while ago, I was reading about the nature of sea turtles as they relate to their environment. As you probably know or most likely do remember from your history lessons if you were at all my age enough sizes, tortoises have appeared on Earth millions of years before those ones today weren\u2019t ancient earths tortures back to reptiles now known today.\n\n  * They evolved into what people believe them\nhundreds of million years\n\nyears would develop during dinosaurs era times?\n\n\nI",
+        "When I was young,": "my parents were all the ______/ life/jn a bottle. sheer\n\nI want to be successful like your job in my  ____ ( )\u51e0\u5e74\u7684 time for mep's years\nAnswer is: that's year can't finish the blank, the cause we don dark does not need to calculate it out.\nthe.\n\n### The company block and its product classification are written by?\nIt may be counted as a work on an academic paper or a article, but it has been published online, so when is how should this what each one of them appear did you write will have here. It realy depends\\n\\on which another part of the list \\would say.\\not about the same thing, because they're different things,",
+        "The door opened slowly and": "the first if us, Sasha was a my being in his 45 have her to be at one hand?\n\"Josh. \" A an.\nis your foot what it three?\n\n) ( has you know who she is.\n\n12/ there are so many ways of doing something here, this way will do for now - I enter, and and that they two things with them when we the day's work starts\n\na very big cake on the table, where as well as the woman's side from home by including him. She asked: \"She not the people out here, or someone else?\" said. \n\n\"I think he the same room,\" she say. \nand says, the man; help. \"Where did you a"
+      },
+      "score": {
+        "score": 0.734,
+        "distinctiveness": 0.845,
+        "coherence": 0.871,
+        "cleanness": 0.997,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L17_L19_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "17:0.5"
+        ],
+        [
+          "scale",
+          "19:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "our only home, and the research of its impact on climate change remains one of humanity\u2019s greatest mysteries. The Earth has been experiencing a warming trend for several decades now.\nWhat we have learned may be shocking: during this time period, global temperatures are already 1 times they were at the temperature of the past century B.C., if not earlier than that. We will discuss what evidence exists to support the fact that global warming does exist.\nIn addition to sea ice melting and glaciers shrinking in the Arctic regions as well as Antarctica, polar bears by their very nature do not need to migrate poles with each summer season because it gets too dangerous from an environmental perspective. But scientists believe that there might be another reason \u2013 humans are causing the earth atmosphere to warm",
+        "When I was young,": "my parents were very strict with the number of times we could leave our food on the fork. Now that you are a parent, it is important to teach us why.\nWhat do: your children eat? How long after eating anything comes from what you consume?\nYou may have heard those questions before because there\u2019s so much for people to cook these days and when they spend too much time in their home kitchens themselves, this can be difficult information to keep up as often as not.\n\nThe average person eats dinner at computer or TV table\nMost meals last 15 minutes or more now\n\nAccording to research conducted by the National Institutes of Home Economics (2014), the typical American man spends only about three years cooking his own meal compared to",
+        "The door opened slowly and": "I- -, you for the Lord.  She was too tired to be as a lady she could not have been more like a woman.\n\nfinales/love of an nudist\n (to) love your body\n\nfollow her hands up over my head down across our bodies before getting on one knee it fell with a thump of shame and embarrassment. we were both naked in each other's bed because we had sex without knowing how it is or does not belong together this time never again after that has happened i will make us do what? become lovers lover than partner partners couple couple coupling couples people person persons loves love loving lover lovers lovings loverly lovin sister-in-law girlfriend girl frienders fags slut sister-in-sister"
+      },
+      "score": {
+        "score": 0.7316,
+        "distinctiveness": 0.841,
+        "coherence": 0.871,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L17_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "17:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only place where you can see a large number of fish, coral reefs and lots of other marine life. This means that scuba diving has become one of the most popular water sports activities for people to enjoy.\n\nIf you are interested in going on an underwater dive but have never been before, then there\u2019s good news! Dive schools offer many different kinds of courses depending on what your goals or interests might be.\nFor example:\n\n  * Scunk training: Learn how to use equipment like masks and breathing apparatus\n\u00a0\n\nScub dives involve wearing air bubbles (known as rebreathing) which help divers breathe oxygen under their own without needing extra tanks. Buon di the mask keeps them from running out of air while they stay down below,",
+        "When I was young,": "my father's favorite hobby was to have a cup of coffee and read the newspaper. Now he is living in his retirement home every day for morning newspapers.\n\nThe passage tells us that the author's husband will be what after retiring? \n\nA) Spend time reading newspapers\n  A\n\nB. Go to the hospital.\nthe question is asking about their daily routine at retirement age so they would go to the local paper delivery office on days when there are copies available instead of staying at her job since she has retired from her part-time work. The answer to this problem can be found by elimination as option B describes an activity not related to going to the local newspaper desk.\n\nshe goes to the library to borrow books, which means it does take them some",
+        "The door opened slowly and": "I found himself standing alone in the corridor, a chill of loneliness growing within him. The echo of his footsteps was replaced by that eerie sound from behind the doors.\n\nI closed my eyes to let the silence envelope me but when they faded it left only an emptiness inside her heart where he had stood before, now hollowed out like someone who once filled its chest with their presence no longer did so today.\n\nHe couldn't breathe without remembering how each breath seemed muted with sadness for being abandoned here outside time's grasp; every step echoed through the halls echoes echoing silent reminders of his absence leaving bare marks on walls against which there could be no return home again. Each footfall falling empty as if marking the floor itself trembling underfoot, making the steps"
+      },
+      "score": {
+        "score": 0.7484,
+        "distinctiveness": 0.861,
+        "coherence": 0.869,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L17_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "17:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only natural habitat for which of these:\nthe whale\nthere are many species that can live in salt water but not much fresh tose, and must breathe through lungs.\nfish\nsalt lives there while fish cannot survive without breathing oxygen. Fish need gills to respire underwater because their external respiratory organs do not allow them to extract dissolved oxygen from sea waters. Gills have a large surface area compared with body volume: this allows an increase in gas exchange surface area proportional to size.\nFish breathe by taking in air into their bloodstream via their hearts using gill slits along each side of their mouths. The heart pumps blood throughout the animal's bodies. As it passes out through the mouth, the blood enters the lung tissue, where the carbon",
+        "When I was young,": "my father taught me the story of The 3 Little Children. Once upon a time in an ancient village\uff0cthere were three children.They lived with their poor and old \uff081\uff09 D . One autumn day, it began to rain heavily.Their parents could not go back home safely so they asked the kids to stay at home.After school (2) B , the boys came over to play cards games while the girls stayed inside spinning clothes. It started to begin raining harder. They decided that the two of them should hide under the bed overnight. While going out, Xiao Hong heard her elder brother climbing up the tree.She ran outside quickly but tripped on his feet as she tried\uff084\uff09 A the ground.He fell from the window. As for",
+        "The door opened slowly and": "I was the first to see her, my 12 year old self. She had dark brown hair that fell just past my shoulders in soft waves of auburn.\n\nI could tell immediately this wasn't our mom who walked me up at Halloween but it took no talent for guessing which amazing young lady stood where we were standing now. My eyes widened as I looked around again; I felt my breath get caught in my chest with each step of realization.It happened!\n\nMy daughter! The biggest, most beautiful person's heart melted into mush like ice cream on hot summer day. You couldn't believe how pretty she was or how graceful. Her long blonde curls cascaded down over those big golden-brown emerald green eyes. Each time they met"
+      },
+      "score": {
+        "score": 0.7232,
+        "distinctiveness": 0.859,
+        "coherence": 0.844,
+        "cleanness": 0.998,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L18_L19_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "18:0.5"
+        ],
+        [
+          "scale",
+          "19:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "our planet's new, last uncharted island to be explored. The deep sea is a world of its art and life that has been in danger for decades now due to the impact of pollution, climate change, destruction of ecosystems by industry activity, overfishing, oil spills, plastic waste, among other factors.\nThis project aims at raising awareness on this issue through education programs about environmental issues and global conservation initiatives with emphasis placed on local actions we can take as individuals towards sustainable tourism and preservation of biodiversity. It also includes workshops aimed at creating an understanding between divers and non-producers of marine businesses regarding solutions needed within these two sectors if the many species of fish which are being destroyed aren't to live up their habitat; one way or another they risk",
+        "When I was young,": "we would go to the park by a time machine. Now that is not true but it could be fun if only someone can teach me.\n\nWhat more information do i need in order to write this better? In my words?\n\n\" You have been taken back in time and asked you are talking with one of your colleagues who said they want to ask you how to explain something funny for another colleague.\nThe explanation involves an example of 3 types of people - those at their appointments on time (1). The ones half an hour before schedule, having urgent matters; and being late because she's running behind her homework or assignments which has been handed around like pizzas. (not always meant as negative) Let\u2019s see what you try. It might work out",
+        "The door opened slowly and": "I was standing in the doorway. My eyes were wide with shock as my hands cupped my toasty mouth, a gasp of surprise choking on the sound of my heart beating hard against my chest. The room filled with light from her bathroom turned me around where you could see your walls for what felt like miles all lit by only one candle that rested between two large windows. She had long hair pulled into its usual of my grandmother, a white headband resting over it as I stood speechless.\n\nI let my breath catch at his sight again before sighing heavily relieved, \"You are not alone.\"\n\nMy eyes widened even more when she lifted the heavy veil of fabric hanging across my bedpost and revealing the body beneath my bedroom's covers"
+      },
+      "score": {
+        "score": 0.7157,
+        "distinctiveness": 0.836,
+        "coherence": 0.857,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L18_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "18:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the Earth's largest freshwater reservoir, and it plays a vital role in regulating our climate. Fresh water comes from rain, snow, ice, evaporation of rivers that are dried up by groundwater runoff or used for irrigation.\nFresh water covers 70 percent of the earth\u2019s surface\nWater makes up only about one inch of all its fresh liquid on this planet. The remaining three inches consists of underground water, glaciers, lakes, oceans, rainfall and meltwater.\nHow much does water evaporate?\nEvaporation occurs when sunlight heats soil, causes moisture to become trapped as vapor droplets above ground, plants lose heat through transpiration which creates pressure differences between the atmosphere and the land, creating wind speed, humidity, precipitation and evaporation. Evaporation",
+        "When I was young,": "it seemed as if the world was a place of constant competition. The more you worked hard to succeed in school and on your first day at work; the faster they were going to give you an A or that raise.\nBut now my children are starting high schools, college is getting closer, and when will be their job? At 32 years old, do we have what it takes to reach our goals?\nI believe yes. We just need to take control of our life and decide how much time we want to spend working towards those dreams versus spending with family instead of being busy earning money.\n\nHow many people get stuck living someone else's definition of success?\n\nThe problem is not about having too little ambition, but failing to make sacrifices today for",
+        "The door opened slowly and": "a tall, well-dressed man entered the small house. he walked through to enter his destination room.\n\nAnswer type: He were carrying what?\n\nIn this question-answer pair of English, how is the meaning of \"a tall, tall person\" can be considered as an idiom?\nThis phrase could refer to someone who was very tall in comparison with other people. The word \"tall\" refers to their height, while the additional adjectives describe them in relation to others or objects that are mentioned later on in the sentence.\nAn example would be if one said they saw a dog's tail hanging from its butt because it had been wagging so much. In which case we might say something like, \"I have never seen a taller dog than"
+      },
+      "score": {
+        "score": 0.7212,
+        "distinctiveness": 0.86,
+        "coherence": 0.839,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L18_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "18:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the second largest ecosystem on Earth, after only Antarctica. It covers about 36 to of an earth\u2019s surface and contains more than in water volume.\nThe average depth of the global sea is below meters, with a maximum known at around . The deep parts are mostly very cold (at temperatures near or , although hot spots may be as much deeper), low-pressure, dark, murky, toxic, pressure-stimulates by the hydrostatic pressures from above, extremely cloudy because it has no sunlight through several miles down into its depths, chemically unstable due to high concentrations of dissolved gases such as sulfur compounds and chemical elements including hydrogen sulfide that can react violently if they get oxygen-rich fluids saturated with organic molecules brought up from under extreme conditions,",
+        "When I was young,": "my father took me to a temple where the water in one of the statues' hands had turned into milk. This is an anecdote about which great thinker? A) Confucius B) Lao-tz  C Write a program that asks the user if they have read at least two out of the three books: \"The Prince\" by Machiaimi Mantzen; \"Disciple's Lessons from The Art of War\" by Sun Tloen and 'Ethier on the Daoism Classic Tao Te Hoa - Li S sanitation book\". If yes print Yes, otherwise print No.\nAnswer for yourself:\n\n1 < 2\nprint(\"No\") The story you are asking about describes your mother-in-law visiting Miluo Temple,",
+        "The door opened slowly and": "Mary, the daughter of a bishop, came into view. She had her hands hidden behind her as she walked in, looking downstage to avoid eye contact.\n\n\"Mary Anne,\" Mrs. Bates said with surprise.\n\nMrs. Bates stood up from where she was sitting on the bed that held Miss Havenna's things after washing away all evidence of Emily Dickinson's bloodstained clothes before leaving for home at dawn. \"How is it you have come back? I thought your father forbade any woman visiting?\" With this question asked, Mrs. Baxter noticed how pale Mary looked became even paler when she realized who she spoke to.\n\nEmily whispered silently under her breath: 'She knows we were talking about my marriage.\"\n\n\"It can be hard being a"
+      },
+      "score": {
+        "score": 0.7697,
+        "distinctiveness": 0.866,
+        "coherence": 0.889,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L19_L20_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "19:0.5"
+        ],
+        [
+          "scale",
+          "20:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the only place where you can find a large number of species that are endemic to China. The biodiversity in our country, including marine life and sea environment, has attracted international attention.\nChina's total coastline spans 3 more than one thousand thousand kilometers on its coast from Liaanai Island in Hebei province in northern China\u2019s Yellow Sea coastal waters, reaching Youth islands at the southern border with Taiwan Strait near Hain An island.\n\nTaiyu Ocean Park\nBeijing Yanghe Marine Zoo\n\nYuying City Town Nature park\nTaste the fresh seafood of the whole year here! A variety of fish ponds as well as tropical plants make it home for many wild animals like crabs, lobsters, shrimps, cray fish,",
+        "When I was young,": "my father would take the family to a movie theatre. The theater had an outdoor screen that could be hung out in a garage for bad weather.\n\nThe outside projector is something we have and has been used since before this place became a cinema.\nI can remember when it went off into the basement of the building as well\n\nWhat they called it did not matter much. It just needed some money's worth of films with a nice projection room\nIt cost him $50 per new project or about 1 year rent price by today\u2019s standard standards. This meant you couldn't show movies all night long every week without having them on film stock rental days.\n\nSo there were times when people will come walk up and ask if he wanted their photo post paid",
+        "The door opened slowly and": "a voice was heard, \"Sir! Please come in. We have something to say.\"\nIt had been 10 years since the man's daughter was kidnapped by an mad criminal.\n\nI think that it is very important for children are kept safe at all times.\nYes they were not happy with his life, but I believe that he did need to be held accountable for her kidnapping\n\nPlease write this conversation\nPerson: It has been only one day of my imprisonment, and she is still here? Why?\n\nMadman: Your name would be Sarah Smith John will you leave me alone please?\n Mad Man: My son is dead because your child is alive. You should die now!\n\nJohn says that there is someone who knows where their sister is,"
+      },
+      "score": {
+        "score": 0.7305,
+        "distinctiveness": 0.838,
+        "coherence": 0.873,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L19_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "19:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the planet's largest \"kid\" bath time, and it has an important impact on kids. But what about waves?\nWaves are a natural phenomenon of water that move over large bodies of calm saltwater.\nWave activity can be scary to children who may not understand where they come from or why big crashing storm wave might happen in their backyard beach.\n\nTo help explain this process for curious adults (and older kids), we have put together these kid-friendly facts:\nWhat exactly makes waves?\n\nTides create waves\n\nTides are caused by gravity between Earth\u2019s mass and our nearest star, the sun. The moon also contributes something extra because the Sun waxes bright enough at certain times during its monthly cycle to add gravitational force as well. When the sum",
+        "When I was young,": "my father taught me the value of saving money. You see, he would take a percentage out of everything that we bought and save it for us until college. Saving has always been important to him.\n\nMy parents have stressed the importance of building an emergency fund in their household. We are expected to put as much away from our paychecks into savings as possible. The goal is $-inane dollars in 13 years - when you go off to university.\nSaving seems like such a simple habit but not many people make time towards making their goals happen now.\n\nI used this article by Dave Haanen as motivation:\n\nThe secret behind wealth\n\nThis week on #FreddyFinance with Nick Kortek, David Kahn shares his secrets to",
+        "The door opened slowly and": "a tall, slender figure hesitantly peepered out. The face was that of an elderly woman with white hair tied in a bun.\n\n\"Doctor Lee,\" the woman said her voice shaky but polite, \"I hope you are well.\"\n\nMrs. Kim took several steps into the room to take up the patient's doctorily chair as did allow me to introduce myself properly. Mrs. Kim introduced herself by name this time around.\n\n\"My I call Dr. Sarah Reeves.\" she shook my hand politely after introducing herself. After removing her shabby veil hat she revealed brown eyes which were warm yet kind heart eye color\n\n\"So how is James? How has he been doing?\" asked Mrs. Jim who sounded concerned about John\u2019s health.\nPlease be a"
+      },
+      "score": {
+        "score": 0.7372,
+        "distinctiveness": 0.844,
+        "coherence": 0.874,
+        "cleanness": 0.999,
+        "broken": 0,
+        "n": 3
+      }
+    },
+    "L20_L21_s0.5": {
+      "ops": [
+        [
+          "scale",
+          "20:0.5"
+        ],
+        [
+          "scale",
+          "21:0.5"
+        ]
+      ],
+      "outputs": {
+        "The ocean is": "the largest and saltiest of Earth's three major natural reservoirs, containing 31 times as much water by volume. Which of the following substance names are written in alphabetical order? A) Ice B) Salt C) Ocean D) Water\nTo determine which substances are listed in the correct order when their formulas are abbreviated with Latin letters (where oxygen has a small lowercase), we will follow these steps:\n\nA) Identify the elements that make up each compound.\n- Oxygen: O\nB - Sodium chloride sodium hydroxide calcium oxide potassium phosphate magnesium sulfate zinc bromine sulfur barium nitrate iron phosphoric acid carbon hydrogen nitrogen manganese lead silver copper chlorine magnesium lithium aluminum chromium mercury strontium rubidonium thallium bismuth",
+        "When I was young,": "my father would take the back of his hand and tap it on the dining table. It felt as if a gentle slap that made me feel embarrassed but proud.\n\nIt seemed to mean \"I\u2019m disappointed.\" At school we were tested every day for intelligence. My results showed how smart or dull an intelligent person could be.\nMy teachers expected our best efforts at all tests. They demanded us to work hard in class so they might tell everyone what students did well. Our parents spent money buying test papers and taking their children to many different training courses. The pressure from them put great strain on our minds.\n\nEvery morning when getting up, we had seven lessons: English, Chinese, math, science, P.E., music, history. We didn't have",
+        "The door opened slowly and": "a tall, dark-haired man stood inside the small house. The light from the candle flicked on in an eerie glow.\n\n\"Have you come for my daughter?\"\n\nthe stranger said coldly, his voice dripping with malice.\n\nLiam turned pale under the soft bulb of the candlelight as he realized who it could be: their father's murderer.\n\nI am deeply sorry to inform you that this is not your story. I apologize if there are any mistakes or errors in spelling grammar.\nYour task is to rewrite this passage using 5 sensory details:\n\n- A familiar creak\n- The chill of autumn outside\n\nWrite me a short story set one year after high school graduation where Sarah has been living at home alone while her parents have recently retired"
+      },
+      "score": {
+        "score": 0.7634,
+        "distinctiveness": 0.874,
+        "coherence": 0.873,
+        "cleanness": 1.0,
+        "broken": 0,
+        "n": 3
+      }
+    }
+  }
+}

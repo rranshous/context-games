@@ -1156,3 +1156,33 @@ inside their respective parameter neighborhoods. Tier C-ness reflects a
 genuine model limit at 1.5B params, not a tuning failure.
 
 Phase 2 results committed. Phase 3 (composite pairs) running.
+
+### Phase 3 — 2-layer dampen pair search
+
+36 unordered pairs from {6,7,12,13,17,18,19,20,21} at scale 0.5,
+3 prompts × 150 tokens. Duration 52.2 min.
+
+The score ranking compresses everyone into a narrow band (0.756–0.810),
+so it's not informative on its own. Most pairs break (29 of 36 pass
+clean filter, but several of those are still incoherent).
+
+The interesting finds:
+
+- **drama** (`L18_L21_s0.5`) — Period-drama voice. On the door prompt:
+  "Mary, the daughter of a bishop, came into view. She had her hands
+  hidden behind her as she walked in, looking downstage to avoid eye
+  contact. 'Mary Anne,' Mrs. Bates said with surprise." Very Austen.
+  Worth validating on more prompts.
+- **L20_L21_s0.5 = the existing scientist** — confirmed as a local
+  optimum. None of the other dampen pairs reproduce its
+  coherence-while-distinctive quality.
+- **L6_L7_s0.5** ranked top but is degenerate when read.
+- Most pairs that include layer 6 or layer 7 destabilize regardless
+  of the partner. Layers 6-7 are strong solo voices (cynic at L7,
+  layer-6 surrealism in earlier sessions) but compose poorly.
+
+Big-picture: composite multi-layer characters are RARE. Of 36 unordered
+pairs, only 1 new candidate (drama) emerged. The naturalist and scientist
+in the existing roster were lucky finds, not the typical outcome.
+
+Phase 3 committed. Phase 4 (B-tier composites) running.
