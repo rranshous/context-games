@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Explororama — The Cottage</title>
+  <style>
+    html, body {
+      background: #0a0810;
+      color: #c8c4b0;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    body {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .game {
+      text-align: center;
+    }
+
+    .title {
+      font-size: 12px;
+      color: #6a6080;
+      margin-bottom: 24px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+    }
+
+    .scene {
+      font-size: 20px;
+      line-height: 1.0;
+      display: inline-block;
+      text-align: left;
+      margin: 0;
+      user-select: none;
+      white-space: pre;
+    }
+
+    .hotspot {
+      cursor: pointer;
+      transition: filter 0.12s ease, text-shadow 0.12s ease;
+    }
+
+    .hotspot.active {
+      filter: brightness(1.7);
+      text-shadow: 0 0 10px currentColor, 0 0 18px currentColor;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #4a4060;
+      margin-top: 36px;
+      letter-spacing: 0.15em;
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <div id="screen"></div>
+  </div>
+  <div class="hint">click to look closer · esc to go back</div>
+
+  <script src="framework.js"></script>
+  <script>
+    (async () => {
+      const screen = document.getElementById('screen');
+      try {
+        const text = await fetch('the-cottage.expr').then(r => {
+          if (!r.ok) throw new Error('failed to load game');
+          return r.text();
+        });
+        const game = new Explororama();
+        game.parse(text);
+        game.mount(screen);
+        game.start();
+      } catch (e) {
+        screen.innerHTML = '<pre style="color:#a04040">' + e.message + '\n\n(serve this directory over http — fetch() needs a server)</pre>';
+      }
+    })();
+  </script>
+</body>
+</html>

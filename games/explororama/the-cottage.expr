@@ -1,0 +1,141 @@
+@palette
+D = #c89060
+W = #6aa0d4
+T = #4d7045
+▓ = #8b6f4e
+L = #e0c890
+* = #d8c8a0
+~ = #5c4a72
+< = #908070
+. = #8888a0
+
+@start cottage_outside
+
+@scene cottage_outside
+@title  Outside the Cottage
+@art
+
+      *        .         *
+
+              .
+
+      /\        /\        /\
+     /TT\      /TT\      /TT\
+    /TTTT\    /TTTT\    /TTTT\
+      ||        ||        ||
+
+
+    ╔══════════════════════╗
+    ║                      ║
+    ║    ┌───┐      ┌───┐  ║
+    ║    │WWW│      │WWW│  ║
+    ║    │WWW│      │WWW│  ║
+    ║    └───┘      └───┘  ║
+    ║                      ║
+    ║         DDDD         ║
+    ║         DDDD         ║
+    ║         DDDD         ║
+    ╚══════════════════════╝
+
+@hotspots
+D -> cottage_inside
+
+
+@scene cottage_inside
+@title  Inside
+@art
+
+    ┌────────────────────────┐
+    │                        │
+    │     WWWWWWWWWWWWWW     │
+    │     WWWWWWWWWWWWWW     │
+    │     WWWWWWWWWWWWWW     │
+    │     WWWWWWWWWWWWWW     │
+    │                        │
+    │                        │
+    │      ┌──────────┐      │
+    │      │ ▓▓▓▓▓▓▓▓ │      │
+    │      │ ▓▓▓▓▓▓▓▓ │   D  │
+    │      └──────────┘   D  │
+    │                     D  │
+    └────────────────────────┘
+
+@hotspots
+W -> window_view
+▓ -> desk_closeup
+D -> cottage_outside
+
+
+@scene window_view
+@title  Through the Window
+@art
+
+    ┌────────────────────────┐
+    │ ╔════════════════════╗ │
+    │ ║   .        *       ║ │
+    │ ║       *        .   ║ │
+    │ ║  *                 ║ │
+    │ ║                    ║ │
+    │ ║   /\     /\        ║ │
+    │ ║  /TT\   /TT\       ║ │
+    │ ║ /TTTT\ /TTTT\      ║ │
+    │ ║                    ║ │
+    │ ║   ~~~~~~~~~~       ║ │
+    │ ╚════════════════════╝ │
+    │                        │
+    │           <            │
+    └────────────────────────┘
+
+@hotspots
+< -> cottage_inside
+
+
+@scene desk_closeup
+@title  The Desk
+@art
+
+    ┌────────────────────────┐
+    │                        │
+    │                        │
+    │   ┌────────────────┐   │
+    │   │                │   │
+    │   │     ┌─────┐    │   │
+    │   │     │ LLL │    │   │
+    │   │     │ LLL │    │   │
+    │   │     └─────┘    │   │
+    │   │                │   │
+    │   │                │   │
+    │   └────────────────┘   │
+    │                        │
+    │           <            │
+    └────────────────────────┘
+
+@hotspots
+L -> letter
+< -> cottage_inside
+
+
+@scene letter
+@title  The Letter
+@art
+
+    ┌────────────────────────┐
+    │                        │
+    │   ╔════════════════╗   │
+    │   ║                ║   │
+    │   ║  Dear traveler ║   │
+    │   ║                ║   │
+    │   ║  If you have   ║   │
+    │   ║  found this,   ║   │
+    │   ║  the cottage   ║   │
+    │   ║  trusts you.   ║   │
+    │   ║                ║   │
+    │   ║         — M    ║   │
+    │   ║                ║   │
+    │   ╚════════════════╝   │
+    │                        │
+    │           <            │
+    └────────────────────────┘
+
+@hotspots
+< -> desk_closeup
