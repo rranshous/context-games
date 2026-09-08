@@ -1,0 +1,1045 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Explororama Atelier</title>
+  <style>
+    :root {
+      --ink: #d8d2c2;
+      --ink-soft: #b8a8c8;
+      --ink-dim: #807090;
+      --ink-faint: #4a4060;
+      --paper: #1c1828;
+      --paper-soft: #221c30;
+      --paper-deep: #0a0810;
+      --gold: #e0c890;
+      --rust: #c89060;
+      --plum: #5a5070;
+      --plum-deep: #2a2438;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      background: var(--paper);
+      color: var(--ink);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    }
+
+    body {
+      padding: 32px 24px 120px;
+      background-image:
+        radial-gradient(circle at 12% 18%, rgba(224, 200, 144, 0.04), transparent 40%),
+        radial-gradient(circle at 88% 82%, rgba(200, 144, 96, 0.04), transparent 40%);
+    }
+
+    .header {
+      text-align: center;
+      font-family: Georgia, "Times New Roman", serif;
+      font-style: italic;
+      font-size: 28px;
+      letter-spacing: 0.15em;
+      color: var(--gold);
+      margin: 0 0 6px;
+    }
+
+    .header .sparkle {
+      color: var(--rust);
+      animation: sparkle 2.4s infinite ease-in-out;
+      display: inline-block;
+    }
+    .header .sparkle.b { animation-delay: 1.2s; }
+
+    @keyframes sparkle {
+      0%, 100% { opacity: 0.35; transform: scale(1) rotate(0); }
+      50% { opacity: 1; transform: scale(1.15) rotate(8deg); }
+    }
+
+    .subhead {
+      text-align: center;
+      color: var(--ink-dim);
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .btn {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--plum);
+      padding: 8px 16px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      letter-spacing: 0.05em;
+    }
+
+    .btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 0 0 rgba(224, 200, 144, 0.15);
+    }
+
+    .btn.primary {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .btn.primary:hover {
+      background: rgba(224, 200, 144, 0.08);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr 380px;
+      gap: 20px;
+      max-width: 1500px;
+      margin: 0 auto;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--paper-soft);
+      border: 1px solid var(--plum-deep);
+      padding: 18px;
+      border-radius: 4px;
+      box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .panel h3 {
+      margin: 0 0 14px 0;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      font-weight: normal;
+    }
+
+    .panel h3.spaced { margin-top: 28px; }
+
+    .scene-item {
+      padding: 7px 10px;
+      cursor: pointer;
+      color: var(--ink-soft);
+      border-left: 2px solid transparent;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .scene-item:hover {
+      color: var(--ink);
+      border-left-color: var(--plum);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .scene-item.active {
+      color: var(--gold);
+      border-left-color: var(--gold);
+      background: rgba(224, 200, 144, 0.05);
+    }
+
+    .start-marker {
+      color: var(--rust);
+      font-size: 10px;
+      width: 12px;
+      display: inline-block;
+    }
+
+    .start-marker.empty {
+      color: var(--ink-faint);
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 9px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      margin-bottom: 4px;
+    }
+
+    input[type="text"], select, textarea {
+      background: var(--paper-deep);
+      color: var(--ink);
+      border: 1px solid var(--plum-deep);
+      padding: 7px 10px;
+      font-family: inherit;
+      font-size: 13px;
+      width: 100%;
+      border-radius: 2px;
+      transition: border-color 0.15s ease;
+    }
+
+    input[type="text"]:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--plum);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 280px;
+      font-size: 14px;
+      line-height: 1.0;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    .row {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+
+    .hotspot-row {
+      grid-template-columns: 50px 1fr 28px;
+    }
+
+    .palette-row {
+      grid-template-columns: 50px 1fr 60px 28px;
+    }
+
+    .hotspot-row input[type="text"], .palette-row input[type="text"] {
+      padding: 5px 8px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .palette-row input[type="color"] {
+      background: transparent;
+      border: 1px solid var(--plum-deep);
+      width: 100%;
+      height: 28px;
+      padding: 2px;
+      cursor: pointer;
+    }
+
+    .ghost-btn {
+      background: transparent;
+      border: 1px dashed var(--plum);
+      color: var(--ink-dim);
+      padding: 6px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      width: 100%;
+      margin-top: 4px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+    }
+
+    .ghost-btn:hover {
+      border-style: solid;
+      color: var(--ink);
+      border-color: var(--gold);
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: var(--ink-dim);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 16px;
+      padding: 4px;
+      transition: color 0.15s ease;
+    }
+
+    .icon-btn:hover { color: var(--rust); }
+
+    .danger-btn {
+      background: transparent;
+      border: none;
+      color: var(--ink-faint);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      padding: 6px 0;
+      letter-spacing: 0.1em;
+    }
+
+    .danger-btn:hover { color: var(--rust); }
+
+    .preview-area {
+      background: var(--paper-deep);
+      padding: 18px;
+      min-height: 280px;
+      text-align: center;
+      margin-bottom: 12px;
+      border: 1px solid var(--plum-deep);
+      border-radius: 2px;
+      overflow: auto;
+    }
+
+    .preview-area .title {
+      font-size: 10px;
+      color: var(--ink-dim);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .preview-area .scene {
+      font-size: 14px;
+      line-height: 1.0;
+      text-align: left;
+      display: inline-block;
+      user-select: none;
+      white-space: pre;
+      margin: 0;
+    }
+
+    .preview-area .hotspot {
+      cursor: pointer;
+      transition: filter 0.12s ease, text-shadow 0.12s ease;
+    }
+    .preview-area .hotspot.active {
+      filter: brightness(1.7);
+      text-shadow: 0 0 10px currentColor, 0 0 18px currentColor;
+    }
+
+    .status-line {
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--ink-dim);
+      text-align: center;
+      font-style: italic;
+      letter-spacing: 0.05em;
+      min-height: 16px;
+      transition: opacity 0.3s ease;
+    }
+
+    .mascot {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      text-align: right;
+      max-width: 260px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .mascot pre {
+      margin: 0;
+      color: var(--gold);
+      line-height: 1.0;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .mascot .quote {
+      margin-top: 6px;
+      font-style: italic;
+      color: var(--ink-dim);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+
+    .play-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--paper-deep);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .play-overlay.show { display: flex; }
+
+    .play-overlay .play-screen {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .play-overlay .play-controls {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--ink-faint);
+      letter-spacing: 0.1em;
+    }
+
+    .errors {
+      color: #c87060;
+      font-size: 11px;
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    .errors:empty { display: none; }
+  </style>
+</head>
+<body>
+  <h1 class="header">
+    <span class="sparkle">✦</span>
+    Explororama Atelier
+    <span class="sparkle b">✦</span>
+  </h1>
+  <div class="subhead">a quiet workshop for tiny worlds</div>
+
+  <div class="toolbar">
+    <button class="btn" id="new-btn">📜 new</button>
+    <button class="btn" id="load-btn">📂 load .expr</button>
+    <button class="btn" id="save-btn">💾 save .expr</button>
+    <button class="btn primary" id="play-btn">▶ play</button>
+    <input type="file" id="file-input" style="display:none" accept=".expr,.txt,.exp">
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h3>Scenes</h3>
+      <div id="scenes-list"></div>
+      <button class="ghost-btn" id="add-scene-btn">+ new scene</button>
+
+      <h3 class="spaced">Start Scene</h3>
+      <select id="start-select"></select>
+    </div>
+
+    <div class="panel">
+      <h3>Edit Scene</h3>
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="scene-name" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="scene-title" spellcheck="false" placeholder="(optional, shown above the art)">
+      </div>
+
+      <div class="field">
+        <label>ASCII Art</label>
+        <textarea id="scene-art" spellcheck="false" placeholder="draw a place..."></textarea>
+      </div>
+
+      <h3 class="spaced">Hotspots <span class="hint" style="margin-left:8px; text-transform:none; letter-spacing:0.05em;">— click any character on this scene to travel</span></h3>
+      <div id="hotspots-list"></div>
+      <button class="ghost-btn" id="add-hotspot-btn">+ add hotspot</button>
+      <div class="errors" id="hotspot-errors"></div>
+
+      <h3 class="spaced">Palette <span class="hint" style="margin-left:8px; text-transform:none; letter-spacing:0.05em;">— shared across all scenes</span></h3>
+      <div id="palette-list"></div>
+      <button class="ghost-btn" id="add-palette-btn">+ add color</button>
+
+      <div style="margin-top:18px; text-align: right;">
+        <button class="danger-btn" id="delete-scene-btn">× delete this scene</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Preview</h3>
+      <div class="preview-area" id="preview-area"></div>
+      <button class="ghost-btn" id="sync-preview-btn">↺ sync to current scene</button>
+      <div class="status-line" id="status-line">all is quiet in the atelier.</div>
+    </div>
+  </div>
+
+  <div class="mascot">
+    <pre id="mascot-art">  ,___,
+ (o,o)
+ (   )
+  " "</pre>
+    <div class="quote" id="mascot-quote">the cottage waits...</div>
+  </div>
+
+  <div class="play-overlay" id="play-overlay">
+    <div class="play-screen" id="play-screen"></div>
+    <div class="play-controls">
+      <button class="btn" id="exit-play-btn">× exit play</button>
+      <span class="hint">esc / backspace to step back</span>
+    </div>
+  </div>
+
+  <script src="framework.js"></script>
+  <script>
+    const STORAGE_KEY = 'explororama-atelier';
+
+    const QUOTES = [
+      "the cottage waits...",
+      "every door is a question.",
+      "what if the wall opens?",
+      "color is feeling.",
+      "characters are characters.",
+      "draw the spaces between things.",
+      "save your work. always save.",
+      "more scenes. more wonder.",
+      "bitsy nods approvingly.",
+      "the wind moves through the ascii.",
+      "a hotspot is a promise.",
+      "you are the cartographer.",
+      "look at what you have made.",
+      "what's behind the D?",
+      "the W could be water. or window.",
+      "place a star. just one.",
+    ];
+
+    const STATUS_NEW_SCENE = [
+      "a new room blinks into being.",
+      "the world grows larger.",
+      "another door, another world.",
+      "the map widens.",
+    ];
+
+    const STATUS_DELETE = [
+      "the room dissolves.",
+      "gone. like it never was.",
+      "the cottage forgets.",
+    ];
+
+    const STATUS_SAVED = [
+      "the .expr is yours to keep.",
+      "saved to a small text file.",
+      "the world, in 7-bit form.",
+    ];
+
+    const STATUS_LOADED = [
+      "welcome back.",
+      "the world stirs and opens.",
+      "imported. take a look around.",
+    ];
+
+    const state = {
+      palette: {},
+      startScene: null,
+      scenes: [],
+      currentIdx: 0,
+    };
+
+    let previewGame = null;
+    let playGame = null;
+
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function setStatus(msg) {
+      const el = document.getElementById('status-line');
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.textContent = msg;
+        el.style.opacity = '1';
+      }, 150);
+    }
+
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state.palette = parsed.palette || {};
+          state.startScene = parsed.startScene || null;
+          state.scenes = parsed.scenes || [];
+          state.currentIdx = Math.min(parsed.currentIdx || 0, state.scenes.length - 1);
+          if (state.currentIdx < 0) state.currentIdx = 0;
+        }
+      } catch (e) {
+        console.warn('failed to load from storage', e);
+      }
+      if (state.scenes.length === 0) seedBlank();
+    }
+
+    function seedBlank() {
+      state.scenes = [{
+        name: 'first_room',
+        title: 'A new place',
+        art: '\n   ╔══════════════╗\n   ║              ║\n   ║      ??      ║\n   ║              ║\n   ╚══════════════╝\n',
+        hotspots: {},
+      }];
+      state.startScene = 'first_room';
+      state.currentIdx = 0;
+      state.palette = {};
+    }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function currentScene() {
+      return state.scenes[state.currentIdx];
+    }
+
+    function uniqueSceneName(base) {
+      let candidate = base;
+      let i = 2;
+      while (state.scenes.some(s => s.name === candidate)) {
+        candidate = base + '_' + i;
+        i++;
+      }
+      return candidate;
+    }
+
+    function render() {
+      renderScenesList();
+      renderEditor();
+      renderStartSelect();
+      renderPreview();
+    }
+
+    function renderScenesList() {
+      const container = document.getElementById('scenes-list');
+      container.innerHTML = '';
+      state.scenes.forEach((scene, i) => {
+        const div = document.createElement('div');
+        div.className = 'scene-item' + (i === state.currentIdx ? ' active' : '');
+        const isStart = scene.name === state.startScene;
+        const marker = document.createElement('span');
+        marker.className = 'start-marker' + (isStart ? '' : ' empty');
+        marker.textContent = isStart ? '●' : '○';
+        marker.title = isStart ? 'start scene' : 'set as start scene';
+        marker.onclick = (e) => {
+          e.stopPropagation();
+          state.startScene = scene.name;
+          persist();
+          render();
+        };
+        const nameEl = document.createElement('span');
+        nameEl.textContent = scene.name;
+        div.appendChild(marker);
+        div.appendChild(nameEl);
+        div.onclick = () => {
+          state.currentIdx = i;
+          persist();
+          render();
+        };
+        container.appendChild(div);
+      });
+    }
+
+    function renderEditor() {
+      const scene = currentScene();
+      if (!scene) return;
+      document.getElementById('scene-name').value = scene.name;
+      document.getElementById('scene-title').value = scene.title || '';
+      document.getElementById('scene-art').value = scene.art;
+      renderHotspotsList();
+      renderPaletteList();
+      validateHotspots();
+    }
+
+    function renderHotspotsList() {
+      const scene = currentScene();
+      const container = document.getElementById('hotspots-list');
+      container.innerHTML = '';
+
+      Object.entries(scene.hotspots).forEach(([ch, target]) => {
+        const row = document.createElement('div');
+        row.className = 'row hotspot-row';
+
+        const charInput = document.createElement('input');
+        charInput.type = 'text';
+        charInput.value = ch;
+        charInput.maxLength = 1;
+        charInput.onchange = (e) => {
+          const newCh = e.target.value;
+          if (!newCh || newCh === ch) return;
+          if (scene.hotspots[newCh]) {
+            setStatus('that character is already a hotspot.');
+            charInput.value = ch;
+            return;
+          }
+          const t = scene.hotspots[ch];
+          delete scene.hotspots[ch];
+          scene.hotspots[newCh] = t;
+          persist();
+          render();
+        };
+
+        const targetSelect = document.createElement('select');
+        state.scenes.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.name;
+          opt.textContent = s.name;
+          if (s.name === target) opt.selected = true;
+          targetSelect.appendChild(opt);
+        });
+        if (!state.scenes.some(s => s.name === target)) {
+          const ghostOpt = document.createElement('option');
+          ghostOpt.value = target;
+          ghostOpt.textContent = target + ' (missing)';
+          ghostOpt.selected = true;
+          targetSelect.appendChild(ghostOpt);
+        }
+        targetSelect.onchange = (e) => {
+          scene.hotspots[ch] = e.target.value;
+          persist();
+          renderPreview();
+          validateHotspots();
+        };
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'icon-btn';
+        removeBtn.textContent = '×';
+        removeBtn.onclick = () => {
+          delete scene.hotspots[ch];
+          persist();
+          render();
+        };
+
+        row.appendChild(charInput);
+        row.appendChild(targetSelect);
+        row.appendChild(removeBtn);
+        container.appendChild(row);
+      });
+    }
+
+    function renderPaletteList() {
+      const container = document.getElementById('palette-list');
+      container.innerHTML = '';
+
+      Object.entries(state.palette).forEach(([ch, color]) => {
+        const row = document.createElement('div');
+        row.className = 'row palette-row';
+
+        const charInput = document.createElement('input');
+        charInput.type = 'text';
+        charInput.value = ch;
+        charInput.maxLength = 1;
+        charInput.onchange = (e) => {
+          const newCh = e.target.value;
+          if (!newCh || newCh === ch) return;
+          if (state.palette[newCh]) {
+            setStatus('that character already has a color.');
+            charInput.value = ch;
+            return;
+          }
+          const c = state.palette[ch];
+          delete state.palette[ch];
+          state.palette[newCh] = c;
+          persist();
+          render();
+        };
+
+        const labelEl = document.createElement('div');
+        labelEl.textContent = ch;
+        labelEl.style.color = color;
+        labelEl.style.textAlign = 'center';
+        labelEl.style.fontSize = '18px';
+        labelEl.style.textShadow = '0 0 8px ' + color;
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.value = color;
+        colorInput.oninput = (e) => {
+          state.palette[ch] = e.target.value;
+          labelEl.style.color = e.target.value;
+          labelEl.style.textShadow = '0 0 8px ' + e.target.value;
+          persist();
+          renderPreview();
+        };
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'icon-btn';
+        removeBtn.textContent = '×';
+        removeBtn.onclick = () => {
+          delete state.palette[ch];
+          persist();
+          render();
+        };
+
+        row.appendChild(charInput);
+        row.appendChild(labelEl);
+        row.appendChild(colorInput);
+        row.appendChild(removeBtn);
+        container.appendChild(row);
+      });
+    }
+
+    function renderStartSelect() {
+      const sel = document.getElementById('start-select');
+      sel.innerHTML = '';
+      state.scenes.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = s.name;
+        if (s.name === state.startScene) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = (e) => {
+        state.startScene = e.target.value;
+        persist();
+        render();
+      };
+    }
+
+    function validateHotspots() {
+      const scene = currentScene();
+      const errors = [];
+      const sceneNames = new Set(state.scenes.map(s => s.name));
+      Object.entries(scene.hotspots).forEach(([ch, target]) => {
+        if (!sceneNames.has(target)) errors.push(`'${ch}' points to missing scene "${target}"`);
+        if (!scene.art.includes(ch)) errors.push(`'${ch}' isn't anywhere in this scene's art`);
+      });
+      const errEl = document.getElementById('hotspot-errors');
+      errEl.innerHTML = errors.map(e => '· ' + e).join('<br>');
+    }
+
+    function renderPreview() {
+      const scene = currentScene();
+      if (!scene) return;
+      const previewEl = document.getElementById('preview-area');
+      previewGame = new Explororama();
+      previewGame.palette = { ...state.palette };
+      state.scenes.forEach(s => {
+        previewGame.scenes[s.name] = {
+          name: s.name,
+          title: s.title || '',
+          art: s.art || '',
+          hotspots: { ...s.hotspots },
+        };
+      });
+      previewGame.container = previewEl;
+      previewGame.render(scene.name);
+    }
+
+    // ── Field bindings ──
+    document.getElementById('scene-name').addEventListener('change', (e) => {
+      const scene = currentScene();
+      const newName = e.target.value.trim();
+      if (!newName || newName === scene.name) {
+        e.target.value = scene.name;
+        return;
+      }
+      if (state.scenes.some((s, i) => i !== state.currentIdx && s.name === newName)) {
+        setStatus('a scene already wears that name.');
+        e.target.value = scene.name;
+        return;
+      }
+      const old = scene.name;
+      scene.name = newName;
+      // update references everywhere
+      state.scenes.forEach(s => {
+        Object.entries(s.hotspots).forEach(([ch, t]) => {
+          if (t === old) s.hotspots[ch] = newName;
+        });
+      });
+      if (state.startScene === old) state.startScene = newName;
+      persist();
+      render();
+    });
+
+    document.getElementById('scene-title').addEventListener('input', (e) => {
+      currentScene().title = e.target.value;
+      persist();
+      renderPreview();
+    });
+
+    document.getElementById('scene-art').addEventListener('input', (e) => {
+      currentScene().art = e.target.value;
+      persist();
+      renderPreview();
+      validateHotspots();
+    });
+
+    // ── Buttons ──
+    document.getElementById('add-scene-btn').onclick = () => {
+      const name = uniqueSceneName('new_scene');
+      state.scenes.push({
+        name,
+        title: '',
+        art: '\n   ╔══════════════╗\n   ║              ║\n   ║              ║\n   ║              ║\n   ╚══════════════╝\n',
+        hotspots: {},
+      });
+      state.currentIdx = state.scenes.length - 1;
+      persist();
+      render();
+      setStatus(pick(STATUS_NEW_SCENE));
+    };
+
+    document.getElementById('add-hotspot-btn').onclick = () => {
+      const scene = currentScene();
+      const used = new Set(Object.keys(scene.hotspots));
+      const target = state.scenes.find(s => s.name !== scene.name)?.name || scene.name;
+      let ch = '?';
+      const candidates = '?!@#$%&*+=ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      for (const c of candidates) {
+        if (!used.has(c)) { ch = c; break; }
+      }
+      scene.hotspots[ch] = target;
+      persist();
+      render();
+    };
+
+    document.getElementById('add-palette-btn').onclick = () => {
+      const used = new Set(Object.keys(state.palette));
+      let ch = '?';
+      const candidates = '?ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%&*';
+      for (const c of candidates) {
+        if (!used.has(c)) { ch = c; break; }
+      }
+      state.palette[ch] = '#e0c890';
+      persist();
+      render();
+    };
+
+    document.getElementById('delete-scene-btn').onclick = () => {
+      if (state.scenes.length <= 1) {
+        setStatus('there must always be at least one room.');
+        return;
+      }
+      const removed = state.scenes.splice(state.currentIdx, 1)[0];
+      if (state.startScene === removed.name) state.startScene = state.scenes[0].name;
+      if (state.currentIdx >= state.scenes.length) state.currentIdx = state.scenes.length - 1;
+      persist();
+      render();
+      setStatus(pick(STATUS_DELETE));
+    };
+
+    document.getElementById('sync-preview-btn').onclick = () => {
+      renderPreview();
+      setStatus('preview refocused.');
+    };
+
+    document.getElementById('new-btn').onclick = () => {
+      if (!confirm('start a new world? this clears your current draft.')) return;
+      seedBlank();
+      persist();
+      render();
+      setStatus('a fresh page. begin.');
+    };
+
+    document.getElementById('save-btn').onclick = () => {
+      const text = exportExpr();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const stem = (state.startScene || 'world').replace(/[^a-z0-9_-]/gi, '_');
+      a.download = stem + '.expr';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setStatus(pick(STATUS_SAVED));
+    };
+
+    document.getElementById('load-btn').onclick = () => {
+      document.getElementById('file-input').click();
+    };
+
+    document.getElementById('file-input').onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      try {
+        const parser = new Explororama();
+        parser.parse(text);
+        const sceneNames = Object.keys(parser.scenes);
+        if (sceneNames.length === 0) {
+          setStatus('no scenes found in that file.');
+          return;
+        }
+        state.palette = { ...parser.palette };
+        state.startScene = parser.startScene || sceneNames[0];
+        state.scenes = sceneNames.map(name => {
+          const s = parser.scenes[name];
+          return {
+            name: s.name,
+            title: s.title || '',
+            art: s.art || '',
+            hotspots: { ...s.hotspots },
+          };
+        });
+        state.currentIdx = sceneNames.indexOf(state.startScene);
+        if (state.currentIdx < 0) state.currentIdx = 0;
+        persist();
+        render();
+        setStatus(pick(STATUS_LOADED));
+      } catch (err) {
+        console.error(err);
+        setStatus('that file felt unreadable.');
+      } finally {
+        e.target.value = '';
+      }
+    };
+
+    // ── Play overlay ──
+    document.getElementById('play-btn').onclick = () => {
+      const overlay = document.getElementById('play-overlay');
+      const screen = document.getElementById('play-screen');
+      screen.innerHTML = '';
+      if (playGame) playGame.unmount();
+      playGame = new Explororama();
+      playGame.parse(exportExpr());
+      playGame.mount(screen);
+      playGame.start();
+      overlay.classList.add('show');
+    };
+
+    document.getElementById('exit-play-btn').onclick = () => {
+      document.getElementById('play-overlay').classList.remove('show');
+      if (playGame) {
+        playGame.unmount();
+        playGame = null;
+      }
+    };
+
+    // ── Export ──
+    function exportExpr() {
+      let out = '';
+      if (Object.keys(state.palette).length > 0) {
+        out += '@palette\n';
+        Object.entries(state.palette).forEach(([ch, color]) => {
+          out += `${ch} = ${color}\n`;
+        });
+        out += '\n';
+      }
+      if (state.startScene) {
+        out += `@start ${state.startScene}\n\n`;
+      }
+      state.scenes.forEach(scene => {
+        out += `@scene ${scene.name}\n`;
+        if (scene.title) out += `@title  ${scene.title}\n`;
+        out += `@art\n${scene.art.replace(/^\n+|\n+$/g, '')}\n`;
+        if (Object.keys(scene.hotspots).length > 0) {
+          out += `@hotspots\n`;
+          Object.entries(scene.hotspots).forEach(([ch, target]) => {
+            out += `${ch} -> ${target}\n`;
+          });
+        }
+        out += '\n';
+      });
+      return out;
+    }
+
+    // ── Mascot quote rotation ──
+    let quoteIdx = 0;
+    function rotateQuote() {
+      quoteIdx = (quoteIdx + 1 + Math.floor(Math.random() * (QUOTES.length - 1))) % QUOTES.length;
+      document.getElementById('mascot-quote').textContent = QUOTES[quoteIdx];
+    }
+    setInterval(rotateQuote, 8000);
+
+    // ── Boot ──
+    loadFromStorage();
+    render();
+    document.getElementById('mascot-quote').textContent = pick(QUOTES);
+  </script>
+</body>
+</html>

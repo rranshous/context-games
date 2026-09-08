@@ -83,17 +83,33 @@ class Explororama {
     commitScene();
   }
 
-  mount(container) {
+  mount(container, options = {}) {
     this.container = container;
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' || e.key === 'Backspace') {
-        if (this.history.length > 0) {
-          e.preventDefault();
-          const prev = this.history.pop();
-          this.render(prev);
-        }
+    if (options.bindGlobalKeys === false) return;
+    this._keyHandler = (e) => {
+      if (e.key !== 'Escape' && e.key !== 'Backspace') return;
+      const t = document.activeElement?.tagName;
+      if (t === 'INPUT' || t === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      if (this.history.length > 0) {
+        e.preventDefault();
+        this.goBack();
       }
-    });
+    };
+    document.addEventListener('keydown', this._keyHandler);
+  }
+
+  unmount() {
+    if (this._keyHandler) {
+      document.removeEventListener('keydown', this._keyHandler);
+      this._keyHandler = null;
+    }
+  }
+
+  goBack() {
+    if (this.history.length > 0) {
+      const prev = this.history.pop();
+      this.render(prev);
+    }
   }
 
   start() {
