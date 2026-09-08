@@ -34,3 +34,9 @@ Thumbs.db
 # Release artifacts (uploaded to platforms manually)
 **/releases/
 /.playwright-mcp/
+
+# Claude Code local state (settings, projects, auto-memory)
+.claude/
+
+# Playwright test-run artifacts
+test-results/
