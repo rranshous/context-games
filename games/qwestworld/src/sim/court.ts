@@ -278,11 +278,27 @@ function openTurn(w: World, id: number): Turn {
  * The ruler's context: identity, then their last few councils (compressed reports,
  * their own commands verbatim, and what came of them), then today's full report.
  */
+/**
+ * How a mind remembers. 'chat': past councils as real turns, their own tool calls verbatim.
+ * 'narrative': the same history as prose inside today's report — no past tool calls to copy,
+ * which small models tend to do.
+ */
+function memoryStyle(model: string): 'chat' | 'narrative' {
+  const re = process.env.NARRATIVE_MEMORY ?? 'llama';
+  return re && new RegExp(re).test(model) ? 'narrative' : 'chat';
+}
+
 function messagesFor(w: World, id: number, now: Turn): ChatMessage[] {
   const r = w.realms[id];
   const who = `You are ${w.ruler(id)}, aged ${w.rulerAge(id)}, ruler of the ${r.name}` +
     (r.founded > 0 ? `, a realm ${r.origin}.` : '.') + ` By temperament you are ${r.ruler.temperament}.`;
   const msgs: ChatMessage[] = [{ role: 'system', content: `${who} ${SYSTEM}` }];
+  if (memoryStyle(r.brain) === 'narrative') {
+    const past = r.turns.flatMap(t => t.results.map(x => `- ${t.date}: ${x.text}`));
+    const memory = past.length ? `\n\nYour recent decisions and what came of them:\n${past.join('\n')}` : '';
+    msgs.push({ role: 'user', content: now.full + memory + '\n\nWhat do you do? /no_think' });
+    return msgs;
+  }
   for (const t of r.turns) {
     msgs.push({ role: 'user', content: t.brief });
     msgs.push({ role: 'assistant', content: t.content, ...(t.calls.length ? { tool_calls: t.calls } : {}) });

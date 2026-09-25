@@ -270,3 +270,12 @@ Fix: **surrender.** If besiegers outnumber the defenders 3:1 (and are at least 2
 
 ### The first war between minds
 Early in Year 5, King Caswyn of Thornby (qwen3:8b, "melancholy", 64) declared war on young Queen Falbert's Galdun (qwen3:1.7b, "vengeful and quick to anger", now 20). At her next council Falbert issued her own (redundant) declaration back. It's the first war where both sides are minds. Falbert also sent King Halis of Mardun *word for word* the envoy she'd sent his dead predecessor ("I am not a peacekeeper. I am a warrior…"). The copy-your-own-memory habit isn't only llama's. Caswyn has ~37k crowns hoarded, Falbert ~30k. The two richest treasuries on the continent are now pointed at each other. New README screenshot.
+
+### Year 5 so far
+- Sieges by starvation are breaking the stalemate: *"Starved and outnumbered, Pellmouth yields to the Mardun Realm."* Morstead followed. (Pellmouth had held with one defender for a year while Mardun's generals misread their orders.)
+- **Queen Alda of Galcrag (llama) died in her sleep at 66.** Queen Daggard, 18, took the throne on the same mind.
+- The Broken Band (1,321 sellswords) turned their coats from debt-ridden Kelford to Galdun.
+- King Halis (script) proposed an alliance to Queen Falbert against their shared enemy, Thornby.
+
+### Experiment: narrative memory for small models
+Baseline, chat memory (past councils as real turns with their own tool calls): the two llama3.2:3b queens chose `hire_mercenaries` in **18 of 23 councils** (Galcrag 10/12, Kelford 8/11). The hypothesis: for a 3B model, a prior tool call in context is a template to copy. New `NARRATIVE_MEMORY` (a regex over model names, default `llama`): those minds get their history as prose inside today's report ("Your recent decisions and what came of them: …"), with no past tool-call turns. qwen keeps chat memory. Compare tool variety after a few rounds.
