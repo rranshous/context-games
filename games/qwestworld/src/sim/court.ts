@@ -44,7 +44,7 @@ const TOOLS = [
 const SYSTEM =
   'Each council your advisors report on your realm and you rule by using your tools. ' +
   'Couriers carry your commands, so they take days to arrive, and generals do not always obey. ' +
-  'Soldiers must be paid; an empty treasury makes them desert. Speak little.';
+  'Soldiers must be paid; an empty treasury makes them desert. Speak little. You may give several commands at once.';
 
 interface ToolCall {
   function: { name: string; arguments: Record<string, any> };

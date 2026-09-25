@@ -218,3 +218,5 @@ Added an "Your advisors speak:" section, in-fiction and conditional: the treasur
 Also: annals get a longer output budget and end on the last full sentence (Year 2's stopped mid-sentence), and death notices use the ruler's pronoun ("dies in her sleep").
 
 Young Queen Falbert (qwen3:1.7b), crowned at 17, **broke her predecessor's peace with Kelford within three months**, a deliberate `declare_war` that earned the oathbreaker label.
+
+**Counsel works.** In the first round with advisors, all three qwen minds mustered new hosts (Caswyn at Thornby after "21,446 crowns lie idle… we are at war and have no host in the field"; Halrin at Marhold; Falbert at Fenwick). None had mustered in the baseline councils. The llama queens kept hiring. Still exactly one command per council for every mind, so the system prompt now adds "You may give several commands at once." (It ended with "Speak little.", which may read as "do little".)
