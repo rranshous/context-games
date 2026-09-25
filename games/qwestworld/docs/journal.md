@@ -249,3 +249,9 @@ A viewer (or `qw whisper a <text>`) can put words into a ruler's next council: "
 
 ### The scribe needs curation, not everything
 The Year 3 annal was a roll call of merges ("General Sigda and General Neya joined General Yswen's host…"), because host consolidation now chronicles itself and llama3.2:3b copied whatever it was handed. The scribe now reads only what history remembers (captures, fallen seats, wars, peace, alliances, betrayals, successions, rebellions, revolts, turncoats, proclamations, destroyed hosts) plus the five bloodiest battles, with housekeeping (merges, remnants, musters) excluded. Year 3 was rewritten (by dropping it from the save so the scribe queued it again). Much better, though "The host is no more" had slipped past the filter via the realm-fall pattern; now excluded explicitly.
+
+### Year 4 snapshot
+- **Queen Falbert** (qwen3:1.7b, crowned at 17, "vengeful and quick to anger") sent the Mardun Realm, with which she was *at peace*: *"I am not a peacekeeper. I am a warrior. You are at war with me, and I will not stop until you kneel to me."* The small model imagined the war it was threatening. Mardun's scripted ruler ignored it.
+- **Mind-to-mind diplomacy has gone quiet** since day 489. With advisors now naming idle coin and idle hosts, councils turned to musters, hires and marches. No alliances between minds yet.
+- **Hoards persist:** Caswyn ~31k crowns, Falbert ~23k, even with the treasurer's warning. They muster (garrison-limited) but rarely buy sellswords at scale.
+- **Mind stats after ~7 councils each:** qwen3:8b ~142–176s per council, 2.5k tokens in, ~25 out, using march/muster/hire/declare. llama3.2:3b ~66–83s, almost only `hire_mercenaries`. qwen3:1.7b ~34s, the widest repertoire (muster, war, envoy, hire, hold). Zero silent councils from any mind; Caswyn has 2 misfires (generals whose hosts had merged).
