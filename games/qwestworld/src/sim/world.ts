@@ -11,7 +11,7 @@ import {
 } from '../shared/types.js';
 import { WorldMap, generateMap, KINGDOM_COLORS, TEMPERAMENTS } from './mapgen.js';
 import { FieldCache, UNREACHABLE } from './flow.js';
-import { NameGen } from './names.js';
+import { NameGen, regnal } from './names.js';
 import { mulberry32 } from './rng.js';
 import type { Turn } from './court.js';
 
@@ -827,9 +827,14 @@ export class World {
   private succession(k: number, how: string) {
     const r = this.realms[k];
     const old = this.ruler(k);
+    // Now and then an heir takes the dynasty's name
+    const title = Math.random() < 0.5 ? 'King' : 'Queen';
+    const dynastic = title === r.ruler.title && Math.random() < 0.3 && !/\d/.test(r.ruler.name);
+    const heirName = dynastic ? regnal(r.ruler.name) : this.names.person();
+    if (dynastic) this.names.used.add(heirName);
     const heir: Ruler = {
-      title: Math.random() < 0.5 ? 'King' : 'Queen',
-      name: this.names.person(),
+      title,
+      name: heirName,
       born: this.tick - Math.floor((16 + Math.random() * 24) * YEAR),
       temperament: Math.random() < 0.3 ? r.ruler.temperament : pick(TEMPERAMENTS),
     };

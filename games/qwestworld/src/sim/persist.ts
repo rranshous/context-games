@@ -80,6 +80,8 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   w.siegeBy.set(d.siegeBy);
   if (d.takenAt) w.takenAt.set(d.takenAt);
   w.realms = d.realms;
+  // Older saves could carry a ruler named like "Halis 49" from an exhausted name pool
+  for (const r of w.realms) r.ruler.name = r.ruler.name.replace(/ \d+$/, '');
   into(w.war, d.war);
   into(w.treaty, d.treaty);
   if (d.warSince) into(w.warSince, d.warSince);
