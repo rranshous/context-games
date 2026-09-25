@@ -5,7 +5,7 @@
 // at a time. If a thinking ruler is overdue, the world slows for them (see `stalledBy`).
 
 import http from 'http';
-import { HOURS_PER_DAY, formatDate } from '../shared/types.js';
+import { HOURS_PER_DAY, formatDate, seasonOf, isHarvest, monthOf } from '../shared/types.js';
 import { World, Realm, YEAR } from './world.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://localhost:11434';
@@ -329,7 +329,10 @@ function report(w: World, id: number): string {
   const r = w.realms[id];
   const S = w.map.settlements;
   const L: string[] = [];
-  L.push(`It is ${formatDate(w.tick)}. Your seat is ${S[r.capital].name}.`);
+  const season = seasonOf(w.tick);
+  const weather = season === 'winter' ? ' Winter: hosts march slowly, and those in foreign land freeze and starve.'
+    : isHarvest(w.tick) ? ' It is the harvest; taxes run high.' : '';
+  L.push(`It is ${formatDate(w.tick)}, ${season}.${weather} Your seat is ${S[r.capital].name}.`);
   L.push(treasuryLine(r));
 
   const mine = S.filter(s => w.owner[s.id] === id);
@@ -426,6 +429,10 @@ function counsel(w: World, id: number): string[] {
   const restless = armies.filter(a => !a.merc && a.loyalty < 0.4 && a.renown >= 1 && (r.gold < 0 || a.morale < 0.4));
   if (restless.length) {
     out.push(`Your spymaster: "${restless.map(a => `General ${a.general}`).join(' and ')} ${restless.length > 1 ? 'are' : 'is'} proud, ${restless.length > 1 ? 'their' : 'his'} men discontent. There is talk of rebellion."`);
+  }
+  const abroad = armies.filter(a => a.order === 'march');
+  if (monthOf(w.tick) === 8 && abroad.length) {
+    out.push(`Your marshal: "Winter comes next month. Hosts still on campaign will march slowly and lose men to the cold."`);
   }
   if (r.honor < 0.6) {
     out.push(`Your chancellor: "Your word is doubted abroad. Other rulers remember broken oaths."`);

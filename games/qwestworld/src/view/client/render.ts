@@ -140,6 +140,11 @@ export class Renderer {
     ctx.drawImage(this.territoryCanvas, ox, oy, MAP_W * cam.scale, MAP_H * cam.scale);
     ctx.globalAlpha = 1;
 
+    // The season washes over the land
+    const wash = state.season === 'winter' ? 'rgba(220,235,255,0.16)' : state.season === 'autumn' ? 'rgba(255,190,90,0.07)'
+      : state.season === 'spring' ? 'rgba(160,255,160,0.04)' : '';
+    if (wash) { ctx.fillStyle = wash; ctx.fillRect(ox, oy, MAP_W * cam.scale, MAP_H * cam.scale); }
+
     const colors = state.kingdoms.map(k => hex(k.color));
     this.drawBattles(cam, state, w, h);
     this.drawArmyLines(cam, meta, state, w, h);

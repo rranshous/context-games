@@ -51,6 +51,22 @@ export const MONTHS = [
   'Harvest', 'Leaffall', 'Mistmonth', 'Frostmonth', 'Deepwinter', 'Longnight',
 ];
 
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
+/** Months 0-2 spring, 3-5 summer, 6-8 autumn (6-7 the harvest), 9-11 winter. */
+export function monthOf(tick: number): number {
+  return Math.floor(Math.floor(tick / HOURS_PER_DAY) / DAYS_PER_MONTH) % 12;
+}
+
+export function seasonOf(tick: number): Season {
+  return (['spring', 'summer', 'autumn', 'winter'] as const)[Math.floor(monthOf(tick) / 3)];
+}
+
+export function isHarvest(tick: number): boolean {
+  const m = monthOf(tick);
+  return m === 6 || m === 7;
+}
+
 export function formatDate(tick: number): string {
   const day = Math.floor(tick / HOURS_PER_DAY);
   const year = Math.floor(day / (DAYS_PER_MONTH * 12)) + 1;
@@ -139,6 +155,7 @@ export interface ChronicleEntry {
 
 export interface StateResponse {
   tick: number;
+  season: Season;
   seed: number;
   date: string;
   age: number;

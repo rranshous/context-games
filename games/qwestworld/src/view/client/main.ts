@@ -91,7 +91,7 @@ function esc(s: string) {
 
 function updatePanel(s: StateResponse) {
   $('age').textContent = `THE AGE ${roman(s.age)}`;
-  $('date').textContent = s.date;
+  $('date').textContent = `${s.date} · ${s.season}`;
   const waiting = $('waiting');
   waiting.textContent = s.stalledBy ? `Time slows while ${s.stalledBy} deliberates…` : '';
   waiting.classList.toggle('on', !!s.stalledBy);

@@ -7,7 +7,7 @@
 
 import {
   MAP_W, MAP_H, NO_REGION, DEAD, Terrain, TERRAIN_DEFENSE, HOURS_PER_DAY, DAYS_PER_MONTH,
-  formatDate, ChronicleEntry, StateResponse, ArmyView, CourierView,
+  formatDate, ChronicleEntry, StateResponse, ArmyView, CourierView, seasonOf, isHarvest,
 } from '../shared/types.js';
 import { WorldMap, generateMap, KINGDOM_COLORS, TEMPERAMENTS } from './mapgen.js';
 import { FieldCache, UNREACHABLE } from './flow.js';
@@ -37,6 +37,7 @@ const PAY_FORAGING = 0.025;   // a host in foreign land lives partly off it
 const PAY_GARRISON = 0.02;    // garrisons farm between watches
 const MUSTER_COST = 1;        // crowns per soldier called up from a garrison
 const MERC_COST = 3;          // crowns per sellsword
+const WINTER_SLOW = 0.6;      // hosts march slower in winter (and freeze in foreign land)
 const TRADE_SHARE = 0.12;     // of the poorer neighbor's taxes, to each side, per day of peace
 
 export type OrderKind = 'march' | 'hold' | 'muster';
@@ -356,6 +357,7 @@ export class World {
 
   private move() {
     const { cost } = this.map;
+    const winter = seasonOf(this.tick) === 'winter' ? WINTER_SLOW : 1;
     const fieldFor: (Uint16Array | undefined)[] = [];
     const getField = (id: number) => (fieldFor[id] ??= this.fields.get(id));
 
@@ -396,7 +398,7 @@ export class World {
         }
         dx = tx + bx + 0.5 - x + (Math.random() - 0.5) * 0.9;
         dy = ty + by + 0.5 - y + (Math.random() - 0.5) * 0.9;
-        step = this.sSpeed[i] * terrainSlow;
+        step = this.sSpeed[i] * terrainSlow * winter;
       } else {
         // Arrived: mill about
         dx = Math.random() - 0.5;
@@ -425,6 +427,7 @@ export class World {
     }
     const foes = this.realms.map(r => this.enemiesOf(r.id));
     const { terrain, region } = this.map;
+    const attrition = seasonOf(this.tick) === 'winter' ? ATTRITION * 2 : ATTRITION;
     for (let i = 0; i < this.high; i++) {
       const f = this.sf[i];
       if (f === DEAD) continue;
@@ -448,7 +451,7 @@ export class World {
         }
       }
       const r = region[tile];
-      if (r !== NO_REGION && this.owner[r] !== f && Math.random() < ATTRITION) this.kill(i);
+      if (r !== NO_REGION && this.owner[r] !== f && Math.random() < attrition) this.kill(i);
     }
     void nr;
   }
@@ -579,7 +582,7 @@ export class World {
     for (const s of this.map.settlements) {
       const k = this.owner[s.id];
       if (k < 0 || this.contested[s.id]) continue;
-      this.realms[k].income += 1.5 + s.food / 350;
+      this.realms[k].income += (1.5 + s.food / 350) * (isHarvest(this.tick) ? 1.5 : 1);
     }
     this.trade();
     for (let i = 0; i < this.high; i++) {
@@ -1251,6 +1254,7 @@ export class World {
     for (let i = 0; i < this.high; i++) if (this.sf[i] !== DEAD) counts[this.sf[i]]++;
     return {
       tick: this.tick,
+      season: seasonOf(this.tick),
       seed: this.map.seed,
       date: formatDate(this.tick),
       age: this.age,
