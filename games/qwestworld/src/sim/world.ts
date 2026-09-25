@@ -1131,7 +1131,9 @@ export class World {
     if (mine >= MAX_ARMIES) return 'You have too many hosts in the field to hire another.';
     const spend = Math.floor(Math.min(crowns, Math.max(0, realm.gold)));
     const n = Math.min(Math.floor(spend / MERC_COST), 3000);
-    if (n < 100) return `You tried to hire sellswords at ${s.name}, but no company will march for fewer than ${100 * MERC_COST} crowns.`;
+    if (n < 100) return spend < crowns
+      ? `You tried to hire ${Math.floor(crowns / MERC_COST)} sellswords at ${s.name}, but your treasury holds only ${Math.max(0, Math.round(realm.gold))} crowns.`
+      : `You tried to hire sellswords at ${s.name}, but no company will march with fewer than 100 men.`;
     realm.gold -= n * MERC_COST;
     const company = pick(['Red', 'Grey', 'Iron', 'Free', 'Black', 'Golden', 'Broken', 'Wolf', 'Salt', 'Crow']) + ' ' + pick(['Company', 'Lances', 'Blades', 'Band', 'Spears']);
     const army: Army = {

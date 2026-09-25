@@ -220,3 +220,9 @@ Also: annals get a longer output budget and end on the last full sentence (Year 
 Young Queen Falbert (qwen3:1.7b), crowned at 17, **broke her predecessor's peace with Kelford within three months**, a deliberate `declare_war` that earned the oathbreaker label.
 
 **Counsel works.** In the first round with advisors, all three qwen minds mustered new hosts (Caswyn at Thornby after "21,446 crowns lie idle… we are at war and have no host in the field"; Halrin at Marhold; Falbert at Fenwick). None had mustered in the baseline councils. The llama queens kept hiring. Still exactly one command per council for every mind, so the system prompt now adds "You may give several commands at once." (It ended with "Speak little.", which may read as "do little".)
+
+**Several commands? No.** After adding "You may give several commands at once": still exactly one command per council from every mind, qwen3:8b included. That's how these models use tools with thinking off. Accepted.
+
+**Crowns are abstract; men are not.** King Caswyn, sitting on 21,000 crowns, offered 200 crowns for sellswords, and Falbert offered 13. The tool asked how many crowns to spend, and small models pick small numbers. Changed `hire_mercenaries(settlement, crowns)` to `hire_mercenaries(settlement, men)` at 3 crowns a man, with "100 to 3000" in the schema. Old memories that say `crowns` still work.
+
+Mind stats after 4 councils each: qwen3:8b ~146–169s, llama3.2:3b ~75–83s, qwen3:1.7b ~35s. The llama queens have used exactly one tool (hire_mercenaries) in every council. qwen3:1.7b has the widest repertoire (war, envoy, muster, hire).

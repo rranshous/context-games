@@ -33,8 +33,8 @@ const TOOLS = [
     { general: str, target: { type: 'string', description: 'settlement name' } }, ['general', 'target']),
   fn('hold', 'A general falls back to your nearest settlement and holds it.', { general: str }, ['general']),
   fn('muster', 'Raise a new host from a settlement garrison, under a new general.', { settlement: str }, ['settlement']),
-  fn('hire_mercenaries', 'Spend crowns to hire a host of sellswords at one of your settlements.',
-    { settlement: str, crowns: { type: 'number' } }, ['settlement', 'crowns']),
+  fn('hire_mercenaries', 'Hire a company of sellswords at one of your settlements, at 3 crowns a man.',
+    { settlement: str, men: { type: 'number', description: 'how many sellswords, 100 to 3000' } }, ['settlement', 'men']),
   fn('declare_war', 'Declare war on a realm.', { realm: str }, ['realm']),
   fn('send_envoy', 'Send an envoy with a message to another ruler. Set offer_peace to offer or accept peace; offer_alliance to propose or accept an alliance (allies are called to arms when attacked).',
     { realm: str, message: str, offer_peace: { type: 'boolean' }, offer_alliance: { type: 'boolean' } }, ['realm', 'message']),
@@ -313,7 +313,7 @@ function treasuryLine(r: Realm): string {
     `Taxes bring ${Math.round(r.income)} a day; pay costs ${Math.round(r.upkeep)}.`;
   return `Treasury: ${Math.round(r.gold)} crowns. Taxes bring ${Math.round(r.income)} a day; soldiers' pay costs ${Math.round(r.upkeep)} ` +
     `(${Math.abs(net) < 1 ? 'balanced' : `${net >= 0 ? 'a surplus' : 'a deficit'} of ${Math.abs(Math.round(net))}`}). Hosts in enemy land forage and cost half. ` +
-    `A muster costs a crown a soldier; sellswords cost three.`;
+    `A muster costs a crown a soldier; sellswords cost three crowns a man.`;
 }
 
 function report(w: World, id: number): string {
@@ -517,9 +517,10 @@ function execute(w: World, k: number, call: ToolCall): Outcome {
       const s = findSettlement(w, args.settlement);
       if (s === null) return { decree: `no place ${args.settlement}`, reign: `You sought sellswords at ${args.settlement}, but no one knows where that is.` };
       if (w.owner[s] !== k) return { decree: `${S[s].name} not yours`, reign: `You sought sellswords at ${S[s].name}, but it is not yours.` };
-      const crowns = Number(args.crowns) || 0;
-      const text = w.hireMercenaries(k, s, crowns);
-      return { decree: `hire ${Math.round(crowns)}c at ${S[s].name}`, reign: text };
+      // 'men' is the tool's word; older memories (and some models) still say 'crowns'
+      const men = Number(args.men) || Math.floor((Number(args.crowns) || 0) / 3);
+      const text = w.hireMercenaries(k, s, men * 3);
+      return { decree: `hire ${Math.round(men)} at ${S[s].name}`, reign: text };
     }
     case 'declare_war': {
       const o = findRealm(w, k, args.realm);
@@ -636,7 +637,7 @@ export function scriptCouncil(w: World, k: number): ToolCall[] {
 
   if (armies.length < 5 && r.gold > 2000 && (foes.length || calls.some(c => c.function.name === 'declare_war'))) {
     const seat = S[r.capital];
-    calls.push(call('hire_mercenaries', { settlement: seat.name, crowns: Math.min(r.gold * 0.5, 6000) }));
+    calls.push(call('hire_mercenaries', { settlement: seat.name, men: Math.floor(Math.min(r.gold * 0.5, 6000) / 3) }));
   }
 
   if (armies.length < 2 && r.gold > 100) {

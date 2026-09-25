@@ -107,7 +107,7 @@ function updatePanel(s: StateResponse) {
       ${k.alive && k.thinking && k.brain !== 'script' ? '<div class="thinking">in council…</div>' : ''}
       ${k.alive && k.lastThought ? `<div class="thought">“${esc(k.lastThought)}”</div>` : ''}
       ${k.alive && k.lastDecrees.length ? `<div class="decrees">${k.lastDecrees.map(esc).join(' · ')}</div>` : ''}
-      ${open.has(k.id) ? `<div class="reign"><div class="origin">${esc(k.origin)}${k.honor < 1 ? ` · honor ${Math.round(k.honor * 100)}%` : ''} · ${k.income} in, ${k.upkeep} out a day</div>${
+      ${open.has(k.id) ? `<div class="reign"><div class="origin">${esc(k.origin)}${k.honor < 1 ? ` · honor ${Math.round(k.honor * 100)}%` : ''} · ${k.income} in, ${k.upkeep} out a day</div>${mindLine(k)}${
         k.reign.length ? k.reign.slice().reverse().map(r => `<div>${esc(r)}</div>`).join('') : '<div><i>No councils yet.</i></div>'}</div>` : ''}
     </div>`;
   }).join('');
@@ -129,6 +129,15 @@ function updatePanel(s: StateResponse) {
     if (atTop) box.scrollTop = 0;
     lastChronicleTick = s.chronicle[s.chronicle.length - 1].tick;
   }
+}
+
+/** How this realm's mind has ruled so far: model, councils, pace, habits. */
+function mindLine(k: StateResponse['kingdoms'][number]): string {
+  if (k.brain === 'script') return '<div class="origin">ruled by script</div>';
+  const m = k.mind;
+  if (!m || !m.councils) return `<div class="origin">mind: ${esc(k.brain)}, no councils yet</div>`;
+  const tools = Object.entries(m.tools).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n.replace('_', ' ')} ${c}`).join(', ');
+  return `<div class="origin">mind: ${esc(k.brain)} · ${m.councils} councils · ~${Math.round(m.seconds / m.councils)}s each · ${tools || 'no commands'}${m.misfires ? ` · ${m.misfires} misfired` : ''}</div>`;
 }
 
 /** A glyph and style for the kinds of history worth noticing at a glance. */
