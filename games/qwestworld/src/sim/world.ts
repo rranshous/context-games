@@ -832,7 +832,8 @@ export class World {
   /** Chronicle entries of one year, for the scribe. */
   yearEntries(year: number): string[] {
     const from = (year - 1) * YEAR, to = year * YEAR;
-    return this.chronicle.filter(e => e.tick > from && e.tick <= to).map(e => e.text);
+    return this.chronicle.filter(e => e.tick > from && e.tick <= to)
+      .map(e => e.faction >= 0 && this.realms[e.faction] ? `(${this.realms[e.faction].name}) ${e.text}` : e.text);
   }
 
   // ---------------------------------------------------------------- diplomacy

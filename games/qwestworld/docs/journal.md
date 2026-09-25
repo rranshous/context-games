@@ -151,3 +151,10 @@ Hosts at peace were sliding toward desertion (morale 0.38 by midsummer) because 
 ### More world: sellswords and revolts
 - **Unpaid sellswords** (8%/day while the realm is in debt) either defect to the richest enemy at war with their employer (who pays their price) or break contract and ride away.
 - **Revolts:** a town taken within the last 3 years, garrison under 40, uncontested and not a seat, may rise (0.4%/day) and return to its founding realm, reopening the war if needed.
+
+### Year 1 in review: two oathbreakers, and whose fault that was
+Both qwen kings started wars (Caswyn on Mardun, day 161; Halrin on Kelford, day 183), both made peace with envoys, and both **broke the peace about 100 days later**: *"King Caswyn breaks the peace sworn with the Mardun Realm and declares war! Oathbreaker, they whisper."*
+
+Reading their reigns showed how: each simply ordered a general to march on a border town of a realm they were at peace with, and the game quietly turned that into a declaration of war. The tool description never said so. **The treachery was my design, not their choice.** Changed: marching on a realm at peace is refused with an in-fiction explanation ("…with whom you are at peace. You must declare war first."), and the march tool says so. Oathbreaking now requires an explicit `declare_war`, which makes it a real choice.
+
+**The first annal** (llama3.2:3b, 131s) had the right voice: *"…the discord between King Caswyn and the Mardun Realm would sow the seeds of a bitter peace, one that would be broken in the year's final days, as the monarch's oath was cast aside, and the very fabric of trust was rent asunder."* It misattributed a general (put Kelford's Casgar under Thornby), because chronicle lines about generals don't name their realm. The scribe's copy of the records now tags each entry with its realm.

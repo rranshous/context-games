@@ -29,7 +29,7 @@ const fn = (name: string, description: string, properties: Record<string, object
 const str = { type: 'string' };
 
 const TOOLS = [
-  fn('march', 'Send a general and their host to a settlement. Enemy settlements are besieged; your own are garrisoned.',
+  fn('march', 'Send a general and their host to a settlement. Enemy settlements are besieged; your own are garrisoned. To attack a realm at peace with you, declare war first.',
     { general: str, target: { type: 'string', description: 'settlement name' } }, ['general', 'target']),
   fn('hold', 'A general falls back to your nearest settlement and holds it.', { general: str }, ['general']),
   fn('muster', 'Raise a new host from a settlement garrison, under a new general.', { settlement: str }, ['settlement']),
@@ -168,7 +168,7 @@ export class Court {
 
   private async writeAnnal(w: World, year: number): Promise<string> {
     const entries = w.yearEntries(year)
-      .filter(t => !/^Envoy of|Desertion bleeds|bountiful harvest|sellswords/.test(t))
+      .filter(t => !/Envoy of|Desertion bleeds|bountiful harvest|sellswords/.test(t))
       .slice(-70);
     if (!entries.length) return '';
     const rulers = w.realms.filter(r => r.alive).map(r => `${w.ruler(r.id)} of the ${r.name}`).join('; ');
@@ -427,10 +427,14 @@ function execute(w: World, k: number, call: ToolCall): Outcome {
       const g = w.armies.get(a)!.general;
       if (t === null) return { decree: `no place ${args.target}`, reign: `You ordered General ${g} to a place called ${args.target}, but no one knows where that is.` };
       const owner = w.owner[t];
-      let prefix = '';
-      if (owner !== k && !w.atWar(k, owner)) prefix = w.declareWar(k, owner) + ' ';
+      if (owner !== k && !w.atWar(k, owner)) {
+        return {
+          decree: `${S[t].name}: at peace`,
+          reign: `You would send General ${g} against ${S[t].name}, but it belongs to the ${w.realms[owner].name}, with whom you are at peace. You must declare war first.`,
+        };
+      }
       w.issue({ kind: 'march', kingdom: k, army: a, target: t });
-      return { decree: `${g} → ${S[t].name}`, reign: `${prefix}You ordered General ${g} to march on ${S[t].name}.` };
+      return { decree: `${g} → ${S[t].name}`, reign: `You ordered General ${g} to march on ${S[t].name}.` };
     }
     case 'hold': {
       const a = findArmy(w, k, args.general);
