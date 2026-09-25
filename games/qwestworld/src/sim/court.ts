@@ -323,7 +323,7 @@ function openTurn(w: World, id: number): Turn {
  * which small models tend to do.
  */
 function memoryStyle(model: string): 'chat' | 'narrative' {
-  const re = process.env.NARRATIVE_MEMORY ?? 'llama|1\.7b';
+  const re = process.env.NARRATIVE_MEMORY ?? '.'; // every mind; set e.g. 'llama|1\.7b' to give larger models chat memory
   return re && new RegExp(re).test(model) ? 'narrative' : 'chat';
 }
 
