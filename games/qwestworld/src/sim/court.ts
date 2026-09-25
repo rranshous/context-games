@@ -29,7 +29,7 @@ const fn = (name: string, description: string, properties: Record<string, object
 const str = { type: 'string' };
 
 const TOOLS = [
-  fn('march', 'Send a general and their host to a settlement. Enemy settlements are besieged; your own are garrisoned. To attack a realm at peace with you, declare war first.',
+  fn('march', 'Send a general and their host to a settlement. Enemy settlements are besieged: stormed when empty, starved into surrender if you bring three times their garrison. Your own are garrisoned. To attack a realm at peace with you, declare war first.',
     { general: str, target: { type: 'string', description: 'settlement name' } }, ['general', 'target']),
   fn('hold', 'A general falls back to your nearest settlement and holds it.', { general: str }, ['general']),
   fn('muster', 'Raise a new host from a settlement garrison, under a new general.', { settlement: str }, ['settlement']),
