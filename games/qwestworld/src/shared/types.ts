@@ -99,6 +99,7 @@ export interface KingdomView {
   honor: number;       // 0..1, falls when oaths are broken
   wars: number[];      // realms this one is at war with
   allies: number[];    // realms sworn in alliance
+  mind?: { councils: number; seconds: number; tokensIn: number; tokensOut: number; tools: Record<string, number>; misfires: number; silent: number };
   origin: string;      // how the realm came to be
   capital: number;     // settlement id of the current seat
   thinking: boolean;

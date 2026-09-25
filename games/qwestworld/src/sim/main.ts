@@ -129,6 +129,7 @@ app.post('/api/control', (req, res) => {
     const was = r.brain;
     r.brain = resolveBrain(brain);
     r.turns = []; // a new mind does not inherit the old one's memory
+    r.stats = undefined;
     console.log(`[sim] ${world.ruler(r.id)} of the ${r.name}: ${was} -> ${r.brain}`);
     return res.json({ realm: r.id, brain: r.brain });
   } else return res.status(400).json({ error: 'action must be pause, resume or brain' });

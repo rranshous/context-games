@@ -187,3 +187,15 @@ A window into a world that keeps living needs a way to catch up. The viewer reme
 First live turncoats: *"Unpaid, the Free Band turn their coats: 51 sellswords under General Osrin go over from the Kelford Realm to the Principality of Normere."* (Kelford is llama-ruled Rosvin, who hires sellswords every council and went into debt.)
 
 qwen3:1.7b as Queen Ulmund: fast (30–42s per council), accepted peace sensibly, then proclaimed a confabulated news bulletin: *"…The Principality of Thornby has ceased its war with the Mardun Realm…"* (it hadn't). Small models narrate the world they imagine.
+
+### Memory as a template: the 153-crown loop
+Queen Rosvin (llama3.2:3b) hired sellswords for exactly 153 crowns at three councils in a row (51 men each time). Her memory showed each hire succeeding, and the previous `hire_mercenaries(Kelford, 153)` call sat verbatim in her context. **For a 3B model, the rolling memory becomes a template to copy.** The same mechanism that broke qwen3:8b Edric out of his dead-general loop (seeing his own repetition) pulls llama3.2:3b *into* one. Queen Alda (also llama) hires every council too, with varying sums. Minimum sellsword contract raised to 100 men (300 crowns) so small-model habits don't flood the map with tiny companies.
+
+### Year 2: a death, and armies crumbling to dust
+- **Queen Ulmund of Galdun died.** Queen Falbert, 17, took the throne on the same qwen3:1.7b mind, with fresh memory and the news of her predecessor's death in her inbox.
+- **Fragmentation.** The minds' hosts withered into scraps (1, 5, 6, 13, 19 men): mustered, then idle at war, then desertion. The scraps kept occupying the six host slots, so no new musters were possible. Queen Alda had six "hosts" holding the same town, five of them under 70 men. Fix: hosts under 25 men fold into the nearest friendly garrison (or scatter in enemy land), and hosts camped at the same friendly town merge under the stronger general. Alda's six became one host of 647.
+- **The qwen kings hoard:** Caswyn 17k, Halrin 13k crowns, while their hosts melt from idleness. They never spend on sellswords at scale, and rarely march.
+
+### Instrumentation and speed
+- **Per-mind statistics:** councils, average seconds, tokens in/out, silent councils, misfires (commands naming no such general/place/realm), tool histogram. `qw minds` prints them. They reset when a realm changes minds.
+- **Chunked memory window:** the window grows to KING_MEMORY+3 councils, then trims back to KING_MEMORY. Between trims, the older councils are an unchanged prefix, so Ollama can skip re-reading them. It only helps when a model isn't serving two rulers alternately on one slot (as qwen3:8b and llama3.2:3b each are now); OLLAMA_NUM_PARALLEL=2 on the server might let each ruler keep a slot.

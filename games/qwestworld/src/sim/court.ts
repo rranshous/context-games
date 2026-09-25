@@ -127,8 +127,12 @@ export class Court {
     try {
       if (!w.realms[id].alive) { w.realms[id].thinking = false; return; }
       const turn = openTurn(w, id);
-      const { calls, thought } = await this.ask(w, id, turn);
+      const { calls, thought, seconds, tokensIn, tokensOut } = await this.ask(w, id, turn);
       if (w !== this.world()) return; // a new age began while they thought
+      const st = (w.realms[id].stats ??= { councils: 0, seconds: 0, tokensIn: 0, tokensOut: 0, tools: {}, misfires: 0, silent: 0 });
+      st.councils++; st.seconds += seconds; st.tokensIn += tokensIn; st.tokensOut += tokensOut;
+      if (!calls.length) st.silent++;
+      for (const c of calls) st.tools[c.function.name] = (st.tools[c.function.name] ?? 0) + 1;
       this.finish(id, w, calls, thought, turn);
     } catch (e: any) {
       console.error(`[court] ${w.ruler(id)} could not be reached: ${e.message}. Advisors decide instead.`);
@@ -143,6 +147,7 @@ export class Court {
     const r = w.realms[id];
     if (!r.alive) { r.thinking = false; return; }
     const outcomes = calls.slice(0, 8).map(c => execute(w, id, c));
+    if (turn && r.stats) r.stats.misfires += outcomes.filter(o => /^no (general|place|realm) /.test(o.decree)).length;
     if (turn) {
       r.turns.push({
         ...turn,
@@ -150,7 +155,9 @@ export class Court {
         calls: calls.slice(0, 8).map(c => ({ function: { name: c.function.name, arguments: c.function.arguments ?? {} } })),
         results: outcomes.map((o, i) => ({ name: calls[i].function.name, text: o.reign || 'Done.' })),
       });
-      if (r.turns.length > TURNS_KEEP) r.turns.splice(0, r.turns.length - TURNS_KEEP);
+      // Slide the window in chunks, not one council at a time: between trims the older
+      // councils form an unchanged prefix that Ollama can reuse instead of re-reading
+      if (r.turns.length > TURNS_KEEP + 3) r.turns.splice(0, r.turns.length - TURNS_KEEP);
     }
     const decrees = outcomes.map(o => o.decree);
     const date = formatDate(w.tick);
@@ -189,7 +196,7 @@ export class Court {
     return text.slice(0, 1500);
   }
 
-  private async ask(w: World, id: number, turn: Turn): Promise<{ calls: ToolCall[]; thought: string }> {
+  private async ask(w: World, id: number, turn: Turn): Promise<{ calls: ToolCall[]; thought: string; seconds: number; tokensIn: number; tokensOut: number }> {
     const r = w.realms[id];
     const started = Date.now();
     const data: any = await postJson(`${OLLAMA_URL}/api/chat`, {
@@ -206,7 +213,10 @@ export class Court {
     const thought = String(msg.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').trim().slice(0, 400);
     say(`[court] ${w.ruler(id)} (${r.brain}) deliberated ${((Date.now() - started) / 1000).toFixed(0)}s, ` +
       `${data.prompt_eval_count} in / ${data.eval_count} out`);
-    return { calls: msg.tool_calls ?? [], thought };
+    return {
+      calls: msg.tool_calls ?? [], thought, seconds: (Date.now() - started) / 1000,
+      tokensIn: data.prompt_eval_count ?? 0, tokensOut: data.eval_count ?? 0,
+    };
   }
 }
 
@@ -262,7 +272,7 @@ function messagesFor(w: World, id: number, now: Turn): ChatMessage[] {
   const who = `You are ${w.ruler(id)}, aged ${w.rulerAge(id)}, ruler of the ${r.name}` +
     (r.founded > 0 ? `, a realm ${r.origin}.` : '.') + ` By temperament you are ${r.ruler.temperament}.`;
   const msgs: ChatMessage[] = [{ role: 'system', content: `${who} ${SYSTEM}` }];
-  for (const t of r.turns.slice(-TURNS_KEEP)) {
+  for (const t of r.turns) {
     msgs.push({ role: 'user', content: t.brief });
     msgs.push({ role: 'assistant', content: t.content, ...(t.calls.length ? { tool_calls: t.calls } : {}) });
     for (const x of t.results) msgs.push({ role: 'tool', tool_name: x.name, content: x.text });

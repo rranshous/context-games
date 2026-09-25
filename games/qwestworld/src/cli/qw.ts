@@ -3,6 +3,7 @@
 //   qw [status]        realms, armies, what the world is waiting on
 //   qw kings           each king's last council: thoughts and decrees
 //   qw chronicle [n]   the last n chronicle entries (default 25)
+//   qw minds           how each mind has ruled: councils, speed, tokens, tools, misfires
 //   qw context [a-h]   exactly what that king would be sent at council now
 //   qw map [cols]      ASCII territory map (a-f realms, UPPER = settlement, * = capital)
 //   qw brain d qwen3:1.7b  hand realm d to another mind ('script', 'qwen', 'llama', or any Ollama model)
@@ -102,6 +103,19 @@ async function context(which: string) {
   console.log(`--- ${messages.length} messages, ~${Math.round(chars / 3.6)} tokens (plus tool schemas)`);
 }
 
+async function minds() {
+  const s = await get<StateResponse>('/api/state');
+  console.log('realm'.padEnd(26) + 'mind'.padEnd(14) + 'councils  avg s  in/out tok  silent  misfire  tools');
+  for (const k of s.kingdoms) {
+    const m = k.mind;
+    if (!m || !m.councils) { console.log(`${LETTERS[k.id]}) ${k.name}`.padEnd(26) + k.brain.padEnd(14) + (k.brain === 'script' ? '(script)' : '(no councils yet)')); continue; }
+    const tools = Object.entries(m.tools).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} ${c}`).join(', ');
+    console.log(`${LETTERS[k.id]}) ${k.name}`.padEnd(26) + k.brain.padEnd(14) +
+      `${String(m.councils).padStart(8)}  ${String(Math.round(m.seconds / m.councils)).padStart(5)}  ${String(Math.round(m.tokensIn / m.councils)).padStart(5)}/${String(Math.round(m.tokensOut / m.councils)).padEnd(4)}  ` +
+      `${String(m.silent).padStart(6)}  ${String(m.misfires).padStart(7)}  ${tools}`);
+  }
+}
+
 async function control(action: string, extra: Record<string, unknown> = {}) {
   const res = await fetch(BASE + '/api/control', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }),
@@ -115,9 +129,10 @@ const run: Record<string, () => Promise<void>> = {
   chronicle: () => chronicle(parseInt(arg ?? '25', 10)),
   map: () => map(parseInt(arg ?? '128', 10)),
   context: () => context(arg),
+  minds,
   brain: () => control('brain', { realm: LETTERS.indexOf(arg ?? ''), brain: process.argv[4] }),
   pause: () => control('pause'),
   resume: () => control('resume'),
 };
-(run[cmd] ?? (async () => console.log('usage: qw [status|kings|context [a-l]|chronicle [n]|map [cols]|brain <realm> <model>|pause|resume]')))()
+(run[cmd] ?? (async () => console.log('usage: qw [status|kings|minds|context [a-l]|chronicle [n]|map [cols]|brain <realm> <model>|pause|resume]')))()
   .catch(e => { console.error(`qw: cannot reach sim at ${BASE} (${e.message})`); process.exit(1); });

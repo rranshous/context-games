@@ -110,6 +110,18 @@ export interface Realm {
   inbox: string[];   // envoys and tidings awaiting the next council
   lastCouncil: number;
   nextCouncil: number;
+  stats?: MindStats;
+}
+
+/** How a mind has ruled, for comparing models. Reset when a new mind takes the realm. */
+export interface MindStats {
+  councils: number;
+  seconds: number;
+  tokensIn: number;
+  tokensOut: number;
+  tools: Record<string, number>;
+  misfires: number;   // commands that named no such general, place or realm
+  silent: number;     // councils with no command at all
 }
 
 interface Entry extends ChronicleEntry {
@@ -540,6 +552,7 @@ export class World {
     this.economy();
     this.recruit();
     this.morale();
+    this.consolidate();
     this.sellswords();
     this.revolts();
     this.battleReports();
@@ -671,6 +684,45 @@ export class World {
       this.log(-1, fs, `The Battle of ${this.map.settlements[at].name}: ${days} day${days > 1 ? 's' : ''} of fighting between ${who}. ${w.deaths} fall.`);
     }
     this.battle.clear();
+  }
+
+  /** Remnant hosts fold into a garrison; hosts camped at the same town join under the stronger general. */
+  private consolidate() {
+    for (const a of [...this.armies.values()]) {
+      if (a.size >= 25 || a.size === 0) continue;
+      const home = this.nearestOwned(a.cx, a.cy, a.faction);
+      const inOwnLand = home !== null && Math.hypot(this.map.settlements[home].x - a.cx, this.map.settlements[home].y - a.cy) < 40;
+      for (let i = 0; i < this.high; i++) {
+        if (this.sArmy[i] !== a.id) continue;
+        if (inOwnLand) { this.sArmy[i] = -1; this.sHome[i] = home!; this.garrison[home!]++; } else this.kill(i);
+      }
+      this.armies.delete(a.id);
+      this.log(a.faction, [a.faction], inOwnLand
+        ? `The last ${a.size} of General ${a.general}'s host join the garrison of ${this.map.settlements[home!].name}. The host is no more.`
+        : `The last ${a.size} of General ${a.general}'s host scatter in hostile country.`);
+    }
+    const camps = new Map<string, Army[]>();
+    for (const a of this.armies.values()) {
+      if (a.order !== 'hold' || this.owner[a.target] !== a.faction) continue;
+      const t = this.map.settlements[a.target];
+      if (Math.hypot(t.x - a.cx, t.y - a.cy) > 12) continue;
+      const key = `${a.faction}:${a.target}`;
+      (camps.get(key) ?? camps.set(key, []).get(key)!).push(a);
+    }
+    for (const group of camps.values()) {
+      if (group.length < 2) continue;
+      group.sort((p, q) => q.size - p.size);
+      const [lead, ...rest] = group;
+      for (const b of rest) {
+        for (let i = 0; i < this.high; i++) if (this.sArmy[i] === b.id) this.sArmy[i] = lead.id;
+        lead.morale = (lead.morale * lead.size + b.morale * b.size) / Math.max(1, lead.size + b.size);
+        lead.size += b.size;
+        lead.lastSize = lead.size;
+        lead.renown = Math.max(lead.renown, b.renown);
+        this.armies.delete(b.id);
+        this.log(lead.faction, [lead.faction], `General ${b.general}'s ${b.size} men join the host of General ${lead.general} at ${this.map.settlements[lead.target].name}.`);
+      }
+    }
   }
 
   /** Unpaid sellswords walk — or sell their spears to a richer enemy. */
@@ -1078,7 +1130,7 @@ export class World {
     if (mine >= MAX_ARMIES) return 'You have too many hosts in the field to hire another.';
     const spend = Math.floor(Math.min(crowns, Math.max(0, realm.gold)));
     const n = Math.min(Math.floor(spend / MERC_COST), 3000);
-    if (n < 30) return `You tried to hire sellswords at ${s.name}, but ${Math.max(0, Math.round(realm.gold))} crowns buys too few.`;
+    if (n < 100) return `You tried to hire sellswords at ${s.name}, but no company will march for fewer than ${100 * MERC_COST} crowns.`;
     realm.gold -= n * MERC_COST;
     const company = pick(['Red', 'Grey', 'Iron', 'Free', 'Black', 'Golden', 'Broken', 'Wolf', 'Salt', 'Crow']) + ' ' + pick(['Company', 'Lances', 'Blades', 'Band', 'Spears']);
     const army: Army = {
@@ -1172,6 +1224,7 @@ export class World {
         lastThought: r.lastThought,
         lastDecrees: r.lastDecrees,
         reign: r.reign.slice(-8),
+        mind: r.stats,
         settlements: this.held(r.id),
         soldiers: counts[r.id],
       })),
