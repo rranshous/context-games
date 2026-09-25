@@ -294,3 +294,8 @@ The first llama council under narrative memory: Queen Rosvin **declared war on G
 | prompt tokens | ~2,500–2,700 | ~1,450–1,750 |
 
 Rosvin's `Cynana → Galreach` is the **first march any llama ruler has ever ordered**. A small sample, but in the predicted direction: without their own past tool calls in the context to copy, the 3B minds choose more varied actions, and they're faster. qwen3:8b keeps chat memory: seeing its own calls is what broke Edric's dead-general loop. **The right memory format depends on model size.**
+
+### Councils with several steps
+Every mind issued exactly one command per council, while the scripted ruler commands every idle host at once, plus hires and diplomacy. That's an asymmetry that probably explains a lot of Mardun's growth. Now a council is a loop (`COUNCIL_STEPS`, default 3): the mind acts, commands take effect immediately, the in-fiction results come back as tool messages, and it may act again. Identical repeat commands within one council are skipped (arguments normalized). Later steps are cheap because the prefix is unchanged: qwen3:8b councils went from ~150s to ~170–230s for three steps.
+
+The first multi-step council was the best reasoning yet. **King Caswyn** proposed an alliance to Galdun, was told *"you are at war with them. Make peace first,"* then, in the same council, proclaimed and **offered Galdun peace**. He adapted to feedback within one council. Halrin marched, hired, then repeated the march (argument order differed, so it slipped past the duplicate check; fixed). qwen3:1.7b and llama3.2:3b mostly still stop after one step.

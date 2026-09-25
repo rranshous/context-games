@@ -13,6 +13,7 @@ const COUNCIL_DAYS = parseInt(process.env.COUNCIL_DAYS ?? '60', 10);
 const GRACE_DAYS = parseInt(process.env.GRACE_DAYS ?? '10', 10);
 const REIGN_KEEP = 40;  // history kept per ruler, for viewers
 const TURNS_KEEP = parseInt(process.env.KING_MEMORY ?? '5', 10); // councils a ruler remembers verbatim
+const COUNCIL_STEPS = parseInt(process.env.COUNCIL_STEPS ?? '3', 10); // rounds of act-and-see within one council
 
 /** 'qwen' and 'llama' are shorthands; anything else is taken as an Ollama model name. */
 export function resolveBrain(b: string): string {
@@ -78,7 +79,10 @@ export class Court {
     for (const r of w.realms) {
       if (!r.alive || r.thinking || w.tick < r.nextCouncil) continue;
       r.thinking = true;
-      if (r.brain === 'script') this.finish(r.id, w, scriptCouncil(w, r.id), '', null);
+      if (r.brain === 'script') {
+        const calls = scriptCouncil(w, r.id);
+        this.finish(r.id, w, calls, calls.map(c => execute(w, r.id, c)), '', null);
+      }
       else this.queue.push({ kind: 'council', id: r.id });
     }
     // At each year's end the scribe writes it down (a new age starts counting afresh)
@@ -132,32 +136,34 @@ export class Court {
     try {
       if (!w.realms[id].alive) { w.realms[id].thinking = false; return; }
       const turn = openTurn(w, id);
-      const { calls, thought, seconds, tokensIn, tokensOut } = await this.ask(w, id, turn);
+      const { calls, outcomes, thought, seconds, tokensIn, tokensOut } = await this.council(w, id, turn);
       if (w !== this.world()) return; // a new age began while they thought
       const st = (w.realms[id].stats ??= { councils: 0, seconds: 0, tokensIn: 0, tokensOut: 0, tools: {}, misfires: 0, silent: 0 });
       st.councils++; st.seconds += seconds; st.tokensIn += tokensIn; st.tokensOut += tokensOut;
       if (!calls.length) st.silent++;
       for (const c of calls) st.tools[c.function.name] = (st.tools[c.function.name] ?? 0) + 1;
-      this.finish(id, w, calls, thought, turn);
+      this.finish(id, w, calls, outcomes, thought, turn);
     } catch (e: any) {
       console.error(`[court] ${w.ruler(id)} could not be reached: ${e.message}. Advisors decide instead.`);
-      if (w === this.world()) this.finish(id, w, scriptCouncil(w, id), '(the ruler was silent; the advisors ruled)', null);
+      if (w === this.world()) {
+        const calls = scriptCouncil(w, id);
+        this.finish(id, w, calls, calls.map(c => execute(w, id, c)), '(the ruler was silent; the advisors ruled)', null);
+      }
     } finally {
       this.busy = false;
       this.pump();
     }
   }
 
-  private finish(id: number, w: World, calls: ToolCall[], thought: string, turn: Turn | null) {
+  private finish(id: number, w: World, calls: ToolCall[], outcomes: Outcome[], thought: string, turn: Turn | null) {
     const r = w.realms[id];
     if (!r.alive) { r.thinking = false; return; }
-    const outcomes = calls.slice(0, 8).map(c => execute(w, id, c));
     if (turn && r.stats) r.stats.misfires += outcomes.filter(o => /^no (general|place|realm) /.test(o.decree)).length;
     if (turn) {
       r.turns.push({
         ...turn,
         content: thought,
-        calls: calls.slice(0, 8).map(c => ({ function: { name: c.function.name, arguments: c.function.arguments ?? {} } })),
+        calls: calls.map(c => ({ function: { name: c.function.name, arguments: c.function.arguments ?? {} } })),
         results: outcomes.map((o, i) => ({ name: calls[i].function.name, text: o.reign || 'Done.' })),
       });
       // Slide the window in chunks, not one council at a time: between trims the older
@@ -207,27 +213,58 @@ export class Court {
     return end > 200 ? clipped.slice(0, end + 1) : clipped;
   }
 
-  private async ask(w: World, id: number, turn: Turn): Promise<{ calls: ToolCall[]; thought: string; seconds: number; tokensIn: number; tokensOut: number }> {
+  /**
+   * One council: the mind acts, sees what came of it, and may act again — up to
+   * COUNCIL_STEPS rounds. Later rounds are cheap: the prompt prefix is unchanged,
+   * so Ollama reuses it and reads only the new lines.
+   */
+  private async council(w: World, id: number, turn: Turn): Promise<{
+    calls: ToolCall[]; outcomes: Outcome[]; thought: string; seconds: number; tokensIn: number; tokensOut: number;
+  }> {
     const r = w.realms[id];
     const started = Date.now();
-    const data: any = await postJson(`${OLLAMA_URL}/api/chat`, {
-      model: r.brain,
-      stream: false,
-      think: false,
-      keep_alive: -1,
-      options: { num_ctx: 8192, num_predict: 400, temperature: 0.8 },
-      messages: messagesFor(w, id, turn),
-      tools: TOOLS,
-    }, 30 * 60 * 1000);
-    const msg = data.message ?? {};
-    // Some qwen3 builds leak their scratchpad into content despite think:false
-    const thought = String(msg.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').trim().slice(0, 400);
-    say(`[court] ${w.ruler(id)} (${r.brain}) deliberated ${((Date.now() - started) / 1000).toFixed(0)}s, ` +
-      `${data.prompt_eval_count} in / ${data.eval_count} out`);
-    return {
-      calls: msg.tool_calls ?? [], thought, seconds: (Date.now() - started) / 1000,
-      tokensIn: data.prompt_eval_count ?? 0, tokensOut: data.eval_count ?? 0,
-    };
+    const msgs = messagesFor(w, id, turn);
+    const calls: ToolCall[] = [], outcomes: Outcome[] = [];
+    const seen = new Set<string>();
+    let thought = '', tokensIn = 0, tokensOut = 0, steps = 0;
+    for (; steps < COUNCIL_STEPS && calls.length < 6; steps++) {
+      const data: any = await postJson(`${OLLAMA_URL}/api/chat`, {
+        model: r.brain,
+        stream: false,
+        think: false,
+        keep_alive: -1,
+        options: { num_ctx: 8192, num_predict: 400, temperature: 0.8 },
+        messages: msgs,
+        tools: TOOLS,
+      }, 30 * 60 * 1000);
+      tokensIn += data.prompt_eval_count ?? 0;
+      tokensOut += data.eval_count ?? 0;
+      const msg = data.message ?? {};
+      // Some qwen3 builds leak their scratchpad into content despite think:false
+      const said = String(msg.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').trim();
+      if (said && !thought) thought = said.slice(0, 400);
+      const got: ToolCall[] = msg.tool_calls ?? [];
+      if (!got.length || w !== this.world() || !r.alive) break;
+      msgs.push({ role: 'assistant', content: said, tool_calls: got });
+      for (const c of got) {
+        const args = c.function.arguments ?? {};
+        const key = c.function.name + JSON.stringify(Object.keys(args).sort().map(k => [k, String(args[k]).toLowerCase().trim()]));
+        let o: Outcome;
+        if (seen.has(key)) {
+          o = { decree: '', reign: 'You have already given that command this council.' };
+        } else {
+          seen.add(key);
+          o = execute(w, id, c);
+          calls.push(c);
+          outcomes.push(o);
+        }
+        msgs.push({ role: 'tool', tool_name: c.function.name, content: o.reign || 'Done.' });
+      }
+    }
+    const seconds = (Date.now() - started) / 1000;
+    say(`[court] ${w.ruler(id)} (${r.brain}) deliberated ${seconds.toFixed(0)}s over ${steps} step${steps === 1 ? '' : 's'}, ` +
+      `${tokensIn} in / ${tokensOut} out`);
+    return { calls, outcomes, thought, seconds, tokensIn, tokensOut };
   }
 }
 
