@@ -76,6 +76,13 @@ export class SimApi {
     return res.json();
   }
 
+  async whisper(realm: number, text: string): Promise<boolean> {
+    const res = await fetch(`${this.base}/api/control`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'whisper', realm, text }),
+    });
+    return res.ok;
+  }
+
   async health(): Promise<{ paused: boolean }> {
     return (await fetch(`${this.base}/api/health`)).json();
   }

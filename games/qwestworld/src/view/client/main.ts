@@ -137,7 +137,8 @@ function updatePanel(s: StateResponse) {
 /** How this realm's mind has ruled so far: model, councils, pace, habits. */
 function mindLine(k: StateResponse['kingdoms'][number]): string {
   if (k.brain === 'script') return '<div class="origin">ruled by script</div>';
-  const link = ` · <span class="chamber-link" data-chamber="${k.id}">open the council chamber</span>`;
+  const link = ` · <span class="chamber-link" data-chamber="${k.id}">open the council chamber</span>` +
+    ` · <span class="chamber-link" data-whisper="${k.id}">whisper…</span>`;
   const m = k.mind;
   if (!m || !m.councils) return `<div class="origin">mind: ${esc(k.brain)}, no councils yet${link}</div>`;
   const tools = Object.entries(m.tools).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n.replace('_', ' ')} ${c}`).join(', ');
@@ -202,6 +203,13 @@ canvas.addEventListener('wheel', e => {
 $('kingdoms').addEventListener('click', e => {
   const ch = (e.target as HTMLElement).closest('[data-chamber]') as HTMLElement | null;
   if (ch) { openChamber(+ch.dataset.chamber!); return; }
+  const wh = (e.target as HTMLElement).closest('[data-whisper]') as HTMLElement | null;
+  if (wh) {
+    const k = state?.kingdoms[+wh.dataset.whisper!];
+    const text = k && prompt(`What do you whisper to ${k.ruler.title} ${k.ruler.name}? They will hear it at their next council.`);
+    if (k && text?.trim()) api.whisper(k.id, text.trim());
+    return;
+  }
   const el = (e.target as HTMLElement).closest('.realm') as HTMLElement | null;
   if (!el || !meta || !state) return;
   const k = +el.dataset.k!;

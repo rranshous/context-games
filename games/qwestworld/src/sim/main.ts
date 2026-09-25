@@ -132,13 +132,22 @@ app.post('/api/control', (req, res) => {
     r.stats = undefined;
     console.log(`[sim] ${world.ruler(r.id)} of the ${r.name}: ${was} -> ${r.brain}`);
     return res.json({ realm: r.id, brain: r.brain });
+  } else if (action === 'whisper') {
+    // A voice from outside the world, heard at the ruler's next council
+    const r = world.realms[Number(realm)];
+    const text = String(req.body?.text ?? '').trim().slice(0, 300);
+    if (!r || !r.alive || !text) return res.status(400).json({ error: 'whisper needs a living realm and text' });
+    r.inbox.push(`A stranger at court whispers to you: “${text}”`);
+    world.log(-1, [], `A cloaked stranger is seen at the court of ${world.ruler(r.id)}.`);
+    console.log(`[sim] whisper to ${world.ruler(r.id)}: ${text}`);
+    return res.json({ realm: r.id, queued: true });
   } else if (action === 'new-age') {
     // End this age now; the loop raises a new continent a few days later
     world.log(-1, [], `The gods tire of this age. The Age ${world.age} ends in ash and silence.`);
     world.endsAt = world.tick + 24 * 3;
     console.log('[sim] a new age was called for by a viewer');
     return res.json({ endsAt: world.endsAt });
-  } else return res.status(400).json({ error: 'action must be pause, resume, brain or new-age' });
+  } else return res.status(400).json({ error: 'action must be pause, resume, brain, whisper or new-age' });
   console.log(`[sim] ${action}d by a viewer`);
   res.json({ paused });
 });
