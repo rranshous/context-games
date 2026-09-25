@@ -145,6 +145,7 @@ export interface StateResponse {
   settlements: SettlementView[];
   armies: ArmyView[];
   couriers: CourierView[];
+  battles: { x: number; y: number; deaths: number; days: number; factions: number[] }[];
   chronicle: ChronicleEntry[];
 }
 

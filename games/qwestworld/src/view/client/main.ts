@@ -225,6 +225,15 @@ function hover(e: MouseEvent) {
     }
   }
   if (!html) {
+    for (const b of state.battles ?? []) {
+      if (Math.hypot(b.x + 0.5 - wx, b.y + 0.5 - wy) < reach * 2.5) {
+        const near = meta.settlements.reduce((p, m) => Math.hypot(m.x - b.x, m.y - b.y) < Math.hypot(p.x - b.x, p.y - b.y) ? m : p);
+        html = `<b style="color:#ff8a6a">Battle near ${esc(near.name)}</b><br>${b.factions.map(f => esc(state!.kingdoms[f]?.name ?? '')).join(' against ')}<br>${b.days} day${b.days > 1 ? 's' : ''}, ${b.deaths.toLocaleString()} fallen`;
+        break;
+      }
+    }
+  }
+  if (!html) {
     best = reach;
     for (const m of meta.settlements) {
       const d = Math.hypot(m.x + 0.5 - wx, m.y + 0.5 - wy);

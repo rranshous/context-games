@@ -141,6 +141,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     const colors = state.kingdoms.map(k => hex(k.color));
+    this.drawBattles(cam, state, w, h);
     this.drawArmyLines(cam, meta, state, w, h);
     if (cur) this.drawSoldiers(cam, prev, cur, t, colors, w, h);
     this.drawSettlements(cam, meta, state, colors, w, h);
@@ -244,6 +245,24 @@ export class Renderer {
         ctx.fillStyle = '#f4ecd8';
         ctx.fillText(label, x, y + r + 4);
       }
+    }
+  }
+
+  /** Where men are dying right now: a slow red pulse, sized by the dead. */
+  private drawBattles(cam: Camera, state: StateResponse, w: number, h: number) {
+    const ctx = this.ctx;
+    const beat = 0.55 + 0.45 * Math.sin(performance.now() / 420);
+    for (const b of state.battles ?? []) {
+      const [x, y] = cam.toScreen(b.x + 0.5, b.y + 0.5, w, h);
+      const r = Math.min(60, 8 + Math.sqrt(b.deaths) * 1.6) * Math.max(0.6, Math.min(2, cam.scale / 1.2));
+      if (x < -r || y < -r || x > w + r || y > h + r) continue;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(255,70,40,${0.45 * beat})`);
+      g.addColorStop(1, 'rgba(255,70,40,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 

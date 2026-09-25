@@ -1180,6 +1180,10 @@ export class World {
       })),
       armies: [...this.armies.values()].map(a => this.armyView(a)),
       couriers: this.couriers(),
+      battles: [...this.wars].map(([at, b]) => ({
+        x: this.map.settlements[at].x, y: this.map.settlements[at].y, deaths: b.deaths,
+        days: Math.max(1, Math.round((this.tick - b.start) / HOURS_PER_DAY)), factions: [...b.factions],
+      })).filter(b => b.deaths >= 10),
       chronicle: this.chronicle.slice(-80).map(({ tick, text, faction }) => ({ tick, text, faction })),
     };
   }
