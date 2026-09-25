@@ -772,7 +772,8 @@ export class World {
       const age = this.rulerAge(r.id);
       const perYear = 0.01 + Math.pow(Math.max(0, age - 40) / 10, 2) * 0.04;
       if (Math.random() < perYear / (DAYS_PER_MONTH * 12)) {
-        const how = pick(['dies in their sleep', 'is taken by a fever', 'falls from a horse', 'dies at the feast table',
+        const their = r.ruler.title === 'Queen' ? 'her' : 'his';
+        const how = pick([`dies in ${their} sleep`, 'is taken by a fever', 'falls from a horse', 'dies at the feast table',
           'is found dead in the chapel', 'dies of a wound that never healed']);
         this.succession(r.id, `${how}, aged ${age}`);
       }

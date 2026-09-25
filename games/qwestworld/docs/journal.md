@@ -199,3 +199,22 @@ Queen Rosvin (llama3.2:3b) hired sellswords for exactly 153 crowns at three coun
 ### Instrumentation and speed
 - **Per-mind statistics:** councils, average seconds, tokens in/out, silent councils, misfires (commands naming no such general/place/realm), tool histogram. `qw minds` prints them. They reset when a realm changes minds.
 - **Chunked memory window:** the window grows to KING_MEMORY+3 councils, then trims back to KING_MEMORY. Between trims, the older councils are an unchanged prefix, so Ollama can skip re-reading them. It only helps when a model isn't serving two rulers alternately on one slot (as qwen3:8b and llama3.2:3b each are now); OLLAMA_NUM_PARALLEL=2 on the server might let each ruler keep a slot.
+
+### Counsel: making pressure salient without giving orders
+Baseline (2 councils each, before counsel):
+
+| Mind | Realm | avg s | in/out tokens | Tools used |
+|---|---|---|---|---|
+| qwen3:8b | Thornby (Caswyn) | 163 | 2315/27 | march 2 (1 misfire: a general whose host had merged away) |
+| qwen3:8b | Normere (Halrin) | 154 | 2322/24 | march 1, declare_war 1 (redundant: already at war) |
+| llama3.2:3b | Galcrag (Alda) | 76 | 2489/30 | hire_mercenaries 2 |
+| qwen3:1.7b | Galdun (Falbert, 17) | 31 | 1739/42 | declare_war 1, send_envoy 1 |
+| llama3.2:3b | Kelford (Rosvin) | 73 | 2381/30 | hire_mercenaries 2 |
+
+Every mind uses **one tool per council**. The qwen kings hoard 13–17k crowns while their hosts melt. The llama queens do nothing but hire.
+
+Added an "Your advisors speak:" section, in-fiction and conditional: the treasurer (idle coin at war; debt), the marshal (hosts idle for months while the war goes on; no host in the field), scouts (poorly defended enemy border towns), the castellan (towns under siege), the chancellor (low honor). Nothing tells the ruler what to do; it names what a long report buries. We'll see whether tool use widens.
+
+Also: annals get a longer output budget and end on the last full sentence (Year 2's stopped mid-sentence), and death notices use the ruler's pronoun ("dies in her sleep").
+
+Young Queen Falbert (qwen3:1.7b), crowned at 17, **broke her predecessor's peace with Kelford within three months**, a deliberate `declare_war` that earned the oathbreaker label.

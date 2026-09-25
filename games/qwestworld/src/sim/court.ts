@@ -185,15 +185,18 @@ export class Court {
       stream: false,
       think: false,
       keep_alive: -1,
-      options: { num_ctx: 8192, num_predict: 350, temperature: 0.7 },
+      options: { num_ctx: 8192, num_predict: 700, temperature: 0.7 },
       messages: [
-        { role: 'system', content: 'You are the chronicler of the continent. You write the annals: each year, one short paragraph in the plain, grave voice of a medieval chronicler. Name the rulers, realms and places. Say what mattered and why. No title, no preamble, no lists.' },
+        { role: 'system', content: 'You are the chronicler of the continent. You write the annals: each year, one paragraph of no more than eight sentences, in the plain, grave voice of a medieval chronicler. Name the rulers, realms and places. Say what mattered and why. No title, no preamble, no lists.' },
         { role: 'user', content: `The rulers now living: ${rulers}.\n\nThe records of Year ${year}:\n${entries.map(e => '- ' + e).join('\n')}\n\nWrite the annal for Year ${year}. /no_think` },
       ],
     }, 30 * 60 * 1000);
     const text = String(data.message?.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').replace(/^#+.*\n/, '').trim();
     say(`[court] the scribe (${scribe()}) wrote Year ${year} in ${((Date.now() - started) / 1000).toFixed(0)}s`);
-    return text.slice(0, 1500);
+    // If it still ran long, end on the last full sentence
+    const clipped = text.slice(0, 2400);
+    const end = clipped.search(/[.!?”"][^.!?”"]*$/);
+    return end > 200 ? clipped.slice(0, end + 1) : clipped;
   }
 
   private async ask(w: World, id: number, turn: Turn): Promise<{ calls: ToolCall[]; thought: string; seconds: number; tokensIn: number; tokensOut: number }> {
@@ -356,6 +359,12 @@ function report(w: World, id: number): string {
       `${cap(rel)}${theirWars.length ? `; at war with ${theirWars.join(', ')}` : ''}${theirAllies.length ? `; allied with ${theirAllies.join(', ')}` : ''}.${repute}`);
   }
 
+  const advice = counsel(w, id);
+  if (advice.length) {
+    L.push('', 'Your advisors speak:');
+    for (const c of advice) L.push(`- ${c}`);
+  }
+
   if (r.inbox.length) {
     L.push('', 'Tidings for you:');
     for (const m of r.inbox) L.push(`- ${m}`);
@@ -366,6 +375,44 @@ function report(w: World, id: number): string {
     for (const n of news) L.push(`- ${n}`);
   }
   return L.join('\n');
+}
+
+/**
+ * In-fiction counsel: advisors who speak up when something is off. Not orders — the ruler
+ * decides — but it makes pressures salient that a long report buries.
+ */
+function counsel(w: World, id: number): string[] {
+  const r = w.realms[id];
+  const S = w.map.settlements;
+  const out: string[] = [];
+  const foes = w.enemiesOf(id);
+  const armies = [...w.armies.values()].filter(a => a.faction === id);
+  if (foes.length && r.gold > 3000) {
+    out.push(`Your treasurer: "${Math.round(r.gold).toLocaleString('en-US')} crowns lie idle while we are at war. Coin could buy sellswords, or raise hosts."`);
+  }
+  if (r.gold < 0) {
+    out.push(`Your treasurer: "We cannot pay the soldiers. Every day of debt, men desert. Fewer hosts in the field, or peace, would stop the bleeding."`);
+  }
+  const idle = armies.filter(a => a.idleDays > 60 && a.order === 'hold');
+  if (foes.length && idle.length) {
+    out.push(`Your marshal: "${idle.map(a => `General ${a.general}`).join(' and ')} ${idle.length > 1 ? 'have' : 'has'} sat idle for months while the war goes on. The men grumble and slip away."`);
+  }
+  if (foes.length && !armies.length) {
+    out.push(`Your marshal: "We are at war and have no host in the field."`);
+  }
+  const weak = S.filter(s => foes.includes(w.owner[s.id]) && w.garrison[s.id] < 80 &&
+    S.some(m => w.owner[m.id] === id && m.neighbors.includes(s.id)));
+  if (weak.length) {
+    out.push(`Your scouts: "${weak.slice(0, 3).map(s => s.name).join(', ')} ${weak.length > 1 ? 'are' : 'is'} poorly defended."`);
+  }
+  const threatened = S.filter(s => w.owner[s.id] === id && w.siege[s.id] > 0);
+  if (threatened.length) {
+    out.push(`Your castellan: "${threatened.map(s => s.name).join(', ')} cannot hold for long without relief."`);
+  }
+  if (r.honor < 0.6) {
+    out.push(`Your chancellor: "Your word is doubted abroad. Other rulers remember broken oaths."`);
+  }
+  return out;
 }
 
 /** A council compressed to a few lines, for the ruler's memory of it. */
