@@ -1,0 +1,25 @@
+{
+  "name": "qwestworld",
+  "version": "0.1.0",
+  "description": "Continent-scale RTS where a few local-AI kings rule and everything below them is hands",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "sim": "nice -n 19 node dist/sim.js",
+    "view": "node dist/view.js",
+    "qw": "node dist/qw.js"
+  },
+  "keywords": ["game", "rts", "simulation", "ollama"],
+  "author": "Robby Ranshous",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.9.3"
+  }
+}
