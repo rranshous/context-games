@@ -20,15 +20,17 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
 const shortName = (n: string) =>
   n.replace(/^(Kingdom|Crown|Principality|Free March|Dominion|Banner) of /, '').replace(/ (Realm|Compact)$/, '');
 
-export function drawHistory(root: HTMLElement, data: HistoryData, metric: 'held' | 'soldiers') {
+export interface Moment { tick: number; text: string; glyph: string }
+
+export function drawHistory(root: HTMLElement, data: HistoryData, metric: 'held' | 'soldiers', moments: Moment[] = []) {
   root.innerHTML = '';
   const S = data.samples;
   if (S.length < 2) {
     root.innerHTML = '<p class="empty">History gathers month by month. Check back when the realms have lived a little.</p>';
     return;
   }
-  const W = Math.max(240, root.clientWidth), H = 210;
-  const m = { l: 30, r: 8, t: 8, b: 20 };
+  const W = Math.max(240, root.clientWidth), H = 226;
+  const m = { l: 30, r: 8, t: 24, b: 20 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const n = data.realms.length;
   const val = (s: HistoryData['samples'][0], k: number) => (metric === 'held' ? s.held : s.soldiers)[k] ?? 0;
@@ -95,10 +97,22 @@ export function drawHistory(root: HTMLElement, data: HistoryData, metric: 'held'
     svg.append(t);
   }
 
+  // The moments that shaped it, as glyphs along the top
+  const marks: { x: number; m: Moment }[] = [];
+  for (const mo of moments) {
+    if (mo.tick < t0 || mo.tick > t1) continue;
+    const x = X(mo.tick);
+    const g = el('text', { x, y: 14, 'text-anchor': 'middle', 'font-size': 11, fill: INK_DIM });
+    g.textContent = mo.glyph;
+    svg.append(g);
+    svg.append(el('line', { x1: x, x2: x, y1: 17, y2: m.t, stroke: GRID, 'stroke-width': 1 }));
+    marks.push({ x, m: mo });
+  }
+
   // Hover: crosshair + tooltip
   const cross = el('line', { y1: m.t, y2: m.t + ih, stroke: INK_DIM, 'stroke-width': 1, visibility: 'hidden' });
   svg.append(cross);
-  const hit = el('rect', { x: m.l, y: m.t, width: iw, height: ih, fill: 'transparent' });
+  const hit = el('rect', { x: m.l, y: 0, width: iw, height: m.t + ih, fill: 'transparent' });
   svg.append(hit);
   const tip = document.createElement('div');
   tip.className = 'chart-tip';
@@ -113,7 +127,9 @@ export function drawHistory(root: HTMLElement, data: HistoryData, metric: 'held'
     cross.setAttribute('x1', String(x)); cross.setAttribute('x2', String(x));
     cross.setAttribute('visibility', 'visible');
     const rows = data.realms.map(r => ({ r, v: val(S[i], r.id) })).filter(o => o.v > 0).sort((a, b) => b.v - a.v);
-    tip.innerHTML = `<div class="tip-date">${formatDate(S[i].tick)}</div>` + rows.map(o =>
+    const near = marks.filter(k => Math.abs(k.x - x) < 6).slice(0, 3)
+      .map(k => `<div class="tip-moment">${k.m.glyph} ${k.m.text.replace(/[<>&]/g, '')}</div>`).join('');
+    tip.innerHTML = `<div class="tip-date">${formatDate(S[i].tick)}</div>` + near + rows.map(o =>
       `<div><span class="sw" style="background:${o.r.color}"></span>${shortName(o.r.name)} <b>${o.v.toLocaleString()}</b></div>`).join('');
     tip.hidden = false;
     tip.style.left = `${Math.min(x + 10, W - 150)}px`;

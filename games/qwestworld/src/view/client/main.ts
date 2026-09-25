@@ -284,6 +284,7 @@ function hover(e: MouseEvent) {
 let tab = 'chronicle';
 let metric: 'held' | 'soldiers' = 'held';
 let historyData: HistoryData | null = null;
+let moments: { tick: number; text: string; glyph: string }[] = [];
 let annalsSeen = -1;
 
 document.querySelectorAll<HTMLButtonElement>('#tabs button').forEach(b => b.addEventListener('click', () => {
@@ -295,14 +296,17 @@ document.querySelectorAll<HTMLButtonElement>('#tabs button').forEach(b => b.addE
 document.querySelectorAll<HTMLButtonElement>('.metric button').forEach(b => b.addEventListener('click', () => {
   metric = b.dataset.metric as 'held' | 'soldiers';
   document.querySelectorAll('.metric button').forEach(x => x.classList.toggle('on', x === b));
-  if (historyData) drawHistory($('history-chart'), historyData, metric);
+  if (historyData) drawHistory($('history-chart'), historyData, metric, moments);
 }));
 
 async function refreshTab() {
   try {
     if (tab === 'history') {
-      historyData = await api.history();
-      drawHistory($('history-chart'), historyData, metric);
+      const [h, c] = await Promise.all([api.history(), api.chronicleSince(0)]);
+      historyData = h;
+      moments = c.entries.filter(e => /takes the throne|rises in rebellion|declares war|swear peace|swear alliance|falls to the|is no more/.test(e.text))
+        .map(e => ({ tick: e.tick, text: e.text, glyph: omen(e.text).glyph }));
+      drawHistory($('history-chart'), historyData, metric, moments);
     } else if (tab === 'annals') {
       const annals = await api.annals();
       const last = annals.length ? annals[annals.length - 1].year : 0;
