@@ -258,3 +258,12 @@ The Year 3 annal was a roll call of merges ("General Sigda and General Neya join
 
 ### Seasons
 The year now has a rhythm. **Winter** (Frostmonth–Longnight): hosts march at 60% and foreign-land attrition doubles. **Harvest** (Harvest, Leaffall): taxes ×1.5. Reports open with the season ("It is Frostmonth 3, Year 4, winter. Winter: hosts march slowly, and those in foreign land freeze and starve."), and in Mistmonth the marshal warns that winter is coming if hosts are on campaign. The viewer washes the map by season (frost-blue in winter, faintly golden in autumn, faintly green in spring) and shows it beside the date. Bench over 2 years: 27 captures, 4 alliances, 2 rebellions, 5 revolts.
+
+### A frozen map, and sieges by starvation
+Captures per year in the live world: 3, 1, 0, 1. Battles kept happening (5–8 a year), but borders barely moved in four years. Two causes:
+1. **Garrisons rival hosts** (median garrison 383, up to 1,077; hosts 160–1,000), and a town fell only when *every* defender was dead. Symmetric combat meant an attacker who merely outnumbered a town bled out against it, with foreign-land attrition and winter on top.
+2. **The hands' noise:** Mardun sent host after host at Pellmouth (**garrison: 1**), and its generals misread the seal three times and marched elsewhere.
+
+Fix: **surrender.** If besiegers outnumber the defenders 3:1 (and are at least 20), the town is starved out over ~20 days even with defenders inside ("Starved and outnumbered, X yields to the Y."). Storming an empty town still takes under a day. Bench (seed 777, 3 years): 35 captures, 21 of them surrenders (vs 20–25 captures before), 3 rebellions, 8 peaces.
+
+**Year 4 annal**, with the curated record: *"…the Broken Company, erstwhile loyal to the Crown of Galcrag, defected to the realm's banner, surrendering a thousand valiant men to the will of King Halis…"* Events, not housekeeping. Still longer than the eight sentences asked for; llama3.2:3b doesn't count.

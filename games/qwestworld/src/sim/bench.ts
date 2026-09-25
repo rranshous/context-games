@@ -37,6 +37,6 @@ for (const e of w.chronicle.slice(-(parseInt(process.env.TAIL ?? '30', 10)))) co
 
 const count = (re: RegExp) => w.chronicle.filter(e => re.test(e.text)).length;
 console.log('--- tallies (last 600 entries): ' + [
-  ['captures', / takes |falls to/], ['wars declared', /declares war/], ['peace', /swear peace/], ['deaths', /takes the throne/],
+  ['captures', / takes |falls to/], ['surrenders', /yields to the/], ['wars declared', /declares war/], ['peace', /swear peace/], ['deaths', /takes the throne/],
   ['rebellions', /rises in rebellion/], ['mercs', /sellswords/], ['alliances', /swear alliance/], ['calls to arms', /honors its alliance/], ['betrayals', /betrays the alliance/], ['revolts', /rise against/], ['turncoats', /turn their coats/], ['desertion', /Desertion bleeds/], ['dry', /runs dry/],
 ].map(([n, re]) => `${n} ${count(re as RegExp)}`).join(', '));

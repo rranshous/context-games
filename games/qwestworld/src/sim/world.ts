@@ -26,6 +26,8 @@ const COMBAT_K = 0.035;       // chance per hour of falling when fully surrounde
 const ATTRITION = 0.0004;     // chance per hour of dying/straggling in foreign land
 const COURIER_SPEED = 45;     // tiles per day
 const SIEGE_CELLS = 2;        // cells around a settlement that count for its siege
+const SIEGE_ODDS = 3;         // besiegers this many times the defenders can starve a town out
+const STARVE_DAYS = 20;       // how long that takes
 const MAX_ARMIES = 6;
 const MAX_ARMY = 8000;
 const MAX_LIVING_REALMS = 9;  // rebellions stop when the map is this crowded
@@ -477,9 +479,18 @@ export class World {
       }
       this.contested[s.id] = topN > 0 ? 1 : 0;
       if (counts[own] === 0 && topN >= 5) {
+        // Storm: the walls are empty
         if (this.siegeBy[s.id] !== top) { this.siegeBy[s.id] = top; this.siege[s.id] = 0; }
         this.siege[s.id] += 1 / 18;
         if (this.siege[s.id] >= 1) this.capture(s.id, top);
+      } else if (topN >= 20 && topN >= counts[own] * SIEGE_ODDS) {
+        // Starve: hopelessly outnumbered, the town yields in time
+        if (this.siegeBy[s.id] !== top) { this.siegeBy[s.id] = top; this.siege[s.id] = 0; }
+        this.siege[s.id] += 1 / (HOURS_PER_DAY * STARVE_DAYS);
+        if (this.siege[s.id] >= 1) {
+          this.log(top, [top, own], `Starved and outnumbered, ${s.name} yields to the ${this.realms[top].name}.`);
+          this.capture(s.id, top);
+        }
       } else if (this.siege[s.id] > 0) {
         this.siege[s.id] = Math.max(0, this.siege[s.id] - 1 / 36);
         if (this.siege[s.id] === 0) this.siegeBy[s.id] = -1;
