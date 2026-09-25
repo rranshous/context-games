@@ -181,7 +181,7 @@ export class Court {
   private async writeAnnal(w: World, year: number): Promise<string> {
     // Only what history remembers: no housekeeping, and the bloodiest battles rather than every skirmish
     const all = w.yearEntries(year);
-    const worthy = all.filter(t => /takes |falls to|declares war|swear peace|swear alliance|honors its alliance|betrays|takes the throne|rebellion|rise against|turn their coats|is no more|proclaims|Oathbreaker|is destroyed near/.test(t));
+    const worthy = all.filter(t => !/join the garrison|join the host|scatter in hostile|raises a host/.test(t)).filter(t => /takes |falls to|declares war|swear peace|swear alliance|honors its alliance|betrays|takes the throne|rebellion|rise against|turn their coats|is no more|proclaims|Oathbreaker|is destroyed near/.test(t));
     const battles = all.filter(t => /The Battle of/.test(t))
       .sort((p, q) => Number(q.match(/(\d+) fall/)?.[1] ?? 0) - Number(p.match(/(\d+) fall/)?.[1] ?? 0)).slice(0, 5);
     const entries = [...worthy, ...battles].slice(-45);
