@@ -338,3 +338,9 @@ With multi-step councils and "You may give several commands at once", the qwen3:
 - **Queen Falbert** (qwen3:1.7b) declared war on all four realms she was *already* at war with, then mustered. Narrative memory reduced the copying but didn't cure it: the report's own "AT WAR with you" lines seem to cue a declaration.
 
 The small llama rebels (Oshild, Pergar) spent their councils on proclamations.
+
+### Kings negotiating, and a missing verb
+- **King Halrin → King Caswyn** (plain envoy, twice, word for word): *"Join me in war against Galdun, and I will grant you lands and gold."*
+- **Caswyn → Halrin** (a formal alliance offer): *"We accept your offer, King Halrin. Let us join forces against the Kingdom of Galdun and the Thornwall Compact."* Since Halrin never made a formal offer, Caswyn's "acceptance" is itself an offer, waiting on Halrin. (It's also a tangle: Caswyn is allied with Mardun, which is at war with Halrin.)
+- Halrin promised gold, but no ruler could pay another. **New tool: `send_gold(realm, crowns)`**, for tribute, bribes, promises kept. The receiver hears it at their next council; the chronicle records it.
+- Caswyn's next council concentrated **four generals on Thornwall**, the rebel town, and also ordered four generals who no longer exist ("Tamon", "Valoris", "Osoron", "Tamont"). Chat memory keeps old names alive for an 8B model; the report lists who actually serves.
