@@ -235,3 +235,8 @@ Expanded realm cards link to "open the council chamber": a modal showing exactly
 
 ### The end of an age, tested
 The age-transition path (one crown left → a new continent 12 days later) had never run. Tested on a throwaway sim (port 4300, two scripted realms, 24 settlements, 1000 tps), with a new control to force it: `qw new-age` / `{action:'new-age'}` ("The gods tire of this age…", then a new continent 3 days later). Found and fixed one bug on the way: the scribe remembered the last year it had written across ages, so a new age's first annals would have been skipped. Transition works: "A new age dawns: Age 2, seed 100". Viewers reload on the seed change.
+
+### Wander mode, for the wall
+Press W (or open with `?wander`) and the camera drifts on its own every 16 seconds. It picks by weight among the live sights: the biggest battles, towns under siege, seats whose ruler is in council, great hosts on the march, envoys on the road. It eases in and captions each ("The Battle of Holmouth: … 12 days, 540 fallen."), and pulls back to the whole continent every fifth stop. Dragging the map takes the reins back. With H hiding the panel, this is the projector mode.
+
+Also: rulers now see a hint of each general's heart ("Devoted to you." / "Ambitious, and loves you little."), and a spymaster warns when a proud, disloyal general's men are discontent ("There is talk of rebellion."). A general whose host merged away or dissolved is explained when a ruler orders them.

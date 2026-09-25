@@ -4,6 +4,7 @@ import { MetaResponse, StateResponse, MAP_W, MAP_H, formatDate } from '../../sha
 import { SimApi, Soldiers } from './api.js';
 import { Camera, Renderer } from './render.js';
 import { drawHistory, HistoryData } from './history.js';
+import { Wanderer } from './wander.js';
 
 const SOLDIER_POLL_MS = 250;
 const STATE_POLL_MS = 1000;
@@ -22,6 +23,7 @@ let prev: Soldiers | null = null, cur: Soldiers | null = null;
 let curAt = 0;
 let lastChronicleTick = -1;
 const open = new Set<number>(); // realm cards expanded to show their reign
+const wanderer = new Wanderer(cam, document.getElementById('caption')!);
 
 function resize() {
   canvas.width = innerWidth * devicePixelRatio;
@@ -74,6 +76,7 @@ function frame(now: number) {
   if (now - lastDraw < 1000 / FPS - 2) { requestAnimationFrame(frame); return; }
   lastDraw = now;
   if (meta && state) {
+    wanderer.step(now, meta, state, innerWidth, innerHeight, panelWidth());
     const t = Math.min(1, (performance.now() - curAt) / SOLDIER_POLL_MS);
     renderer.draw(cam, meta, state, prev, cur, t);
   }
@@ -177,6 +180,7 @@ function roman(n: number): string {
 
 let drag: { x: number; y: number; cx: number; cy: number } | null = null;
 canvas.addEventListener('mousedown', e => {
+  if (wanderer.on) wanderer.toggle(false); // taking the reins ends the wandering
   drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y };
   canvas.classList.add('dragging');
 });
@@ -315,6 +319,7 @@ $('fit').addEventListener('click', () => cam.fit(innerWidth, innerHeight, panelW
 
 addEventListener('keydown', e => {
   if (e.key === 'h' || e.key === 'H') panel.classList.toggle('hidden');
+  if (e.key === 'w' || e.key === 'W') wanderer.toggle();
   if (e.key === 'f' || e.key === 'F') cam.fit(innerWidth, innerHeight, panelWidth());
   if (e.key === ' ') { e.preventDefault(); togglePause(); }
 });
@@ -395,6 +400,7 @@ $('away-close').addEventListener('click', () => { $('away').hidden = true; write
   pollState();
   pollSoldiers();
   setTimeout(() => welcomeBack().catch(() => {}), 1500);
+  if (new URLSearchParams(location.search).has('wander')) wanderer.toggle(true);
   requestAnimationFrame(frame);
   void MAP_W; void MAP_H;
 })();

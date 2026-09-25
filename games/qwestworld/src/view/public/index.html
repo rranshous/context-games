@@ -93,6 +93,10 @@
   .msg.tool { border-left-color: #d9b35f; font-style: italic; }
   .msg.now { border-left-color: #f3d98b; background: rgba(243,217,139,.05); }
   .realm .chamber-link { color: var(--gold); cursor: pointer; text-decoration: underline dotted; }
+  #caption { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); max-width: min(760px, 80vw); text-align: center; pointer-events: none;
+    font-size: 22px; font-style: italic; color: #f6e7c1; text-shadow: 0 2px 8px #000, 0 0 20px rgba(0,0,0,.8); opacity: 0; }
+  #caption.show { animation: caption 16s ease-in-out; }
+  @keyframes caption { 0% { opacity: 0; } 8% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink); margin-top: 8px; }
   #chronicle div { padding: 4px 0; border-bottom: 1px dotted rgba(214,190,140,.12); }
   #chronicle .when { color: var(--ink-dim); font-size: 12px; margin-right: 6px; }
@@ -128,8 +132,9 @@
     <div id="history-chart"></div>
   </div>
 </aside>
-<div id="toggle">H · panel &nbsp; F · fit &nbsp; drag · wheel</div>
+<div id="toggle">H · panel &nbsp; F · fit &nbsp; W · wander &nbsp; drag · wheel</div>
 <div id="error"></div>
+<div id="caption" hidden></div>
 <div id="chamber" hidden>
   <div class="away-card chamber-card">
     <h2 id="chamber-title">THE COUNCIL CHAMBER</h2>
