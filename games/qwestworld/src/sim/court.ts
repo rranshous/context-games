@@ -67,7 +67,8 @@ const scribe = () => resolveBrain(process.env.SCRIBE_BRAIN ?? 'llama');
 export class Court {
   private queue: Job[] = [];
   private busy = false;
-  private annalsDue = 0; // highest year queued for the scribe
+  private annalsDue = 0; // highest year queued for the scribe, in annalWorld
+  private annalWorld: World | null = null;
 
   constructor(private world: () => World) {}
 
@@ -80,7 +81,11 @@ export class Court {
       if (r.brain === 'script') this.finish(r.id, w, scriptCouncil(w, r.id), '', null);
       else this.queue.push({ kind: 'council', id: r.id });
     }
-    // At each year's end the scribe writes it down
+    // At each year's end the scribe writes it down (a new age starts counting afresh)
+    if (this.annalWorld !== w) {
+      this.annalWorld = w;
+      this.annalsDue = w.annals.reduce((m, a) => Math.max(m, a.year), 0);
+    }
     const year = Math.floor(w.tick / YEAR);
     if (scribe() !== 'script' && year >= 1 && year > this.annalsDue && !w.annals.some(a => a.year === year)) {
       this.annalsDue = year;

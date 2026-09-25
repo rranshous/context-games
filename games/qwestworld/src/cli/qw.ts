@@ -7,6 +7,7 @@
 //   qw context [a-h]   exactly what that king would be sent at council now
 //   qw map [cols]      ASCII territory map (a-f realms, UPPER = settlement, * = capital)
 //   qw brain d qwen3:1.7b  hand realm d to another mind ('script', 'qwen', 'llama', or any Ollama model)
+//   qw new-age         end this age; a new continent rises (the old world is gone)
 //   qw pause | resume
 //
 // SIM_URL=http://host:4200 to look at a sim elsewhere on the network.
@@ -131,8 +132,9 @@ const run: Record<string, () => Promise<void>> = {
   context: () => context(arg),
   minds,
   brain: () => control('brain', { realm: LETTERS.indexOf(arg ?? ''), brain: process.argv[4] }),
+  'new-age': () => control('new-age'),
   pause: () => control('pause'),
   resume: () => control('resume'),
 };
-(run[cmd] ?? (async () => console.log('usage: qw [status|kings|minds|context [a-l]|chronicle [n]|map [cols]|brain <realm> <model>|pause|resume]')))()
+(run[cmd] ?? (async () => console.log('usage: qw [status|kings|minds|context [a-l]|chronicle [n]|map [cols]|brain <realm> <model>|new-age|pause|resume]')))()
   .catch(e => { console.error(`qw: cannot reach sim at ${BASE} (${e.message})`); process.exit(1); });

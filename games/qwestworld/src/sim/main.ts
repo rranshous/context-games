@@ -132,7 +132,13 @@ app.post('/api/control', (req, res) => {
     r.stats = undefined;
     console.log(`[sim] ${world.ruler(r.id)} of the ${r.name}: ${was} -> ${r.brain}`);
     return res.json({ realm: r.id, brain: r.brain });
-  } else return res.status(400).json({ error: 'action must be pause, resume or brain' });
+  } else if (action === 'new-age') {
+    // End this age now; the loop raises a new continent a few days later
+    world.log(-1, [], `The gods tire of this age. The Age ${world.age} ends in ash and silence.`);
+    world.endsAt = world.tick + 24 * 3;
+    console.log('[sim] a new age was called for by a viewer');
+    return res.json({ endsAt: world.endsAt });
+  } else return res.status(400).json({ error: 'action must be pause, resume, brain or new-age' });
   console.log(`[sim] ${action}d by a viewer`);
   res.json({ paused });
 });

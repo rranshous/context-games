@@ -232,3 +232,6 @@ Coin only came from taxes, so peace had no price. Now neighbors at peace trade: 
 
 ### The council chamber
 Expanded realm cards link to "open the council chamber": a modal showing exactly what that mind is given right now (from `/api/kings/:id/context`). Who they are; each remembered council (the brief, what they commanded as tool calls, and what came of it); and today's full report with the advisors' counsel. In the inspector spirit of Glint and Habitat: you can read a mind's whole world.
+
+### The end of an age, tested
+The age-transition path (one crown left → a new continent 12 days later) had never run. Tested on a throwaway sim (port 4300, two scripted realms, 24 settlements, 1000 tps), with a new control to force it: `qw new-age` / `{action:'new-age'}` ("The gods tire of this age…", then a new continent 3 days later). Found and fixed one bug on the way: the scribe remembered the last year it had written across ages, so a new age's first annals would have been skipped. Transition works: "A new age dawns: Age 2, seed 100". Viewers reload on the seed change.
