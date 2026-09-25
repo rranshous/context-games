@@ -371,3 +371,5 @@ The small llama rebels (Oshild, Pergar) spent their councils on proclamations.
 **Mind comparison:** qwen3:8b (~210s a council) plans and negotiates: 22 marches, 9 envoys, conditional offers, alliances. qwen3:1.7b (~55s) is fast and bold but confabulates, and loves redundant war declarations. llama3.2:3b (~72s) defaults to hiring sellswords and needs narrative memory to vary at all. The scripted baseline, which issues many commands per council, still holds the most land.
 
 **Open threads:** Halrin's gold-and-lands promise (now keepable with `send_gold`); whether Thornwall falls; whether Galdun breaks under five wars; the Age hasn't ended yet. Worth trying: a bigger map for a new age; OLLAMA_NUM_PARALLEL=2 so two rulers on one model keep their own caches.
+
+**Tool wording matters for small models.** After `declare_war` was redescribed as "Declare war on a realm you are at peace with", Queen Falbert's next council had one redundant declaration instead of four, followed by a 1,321-man hire and a muster (three steps, 52s).
