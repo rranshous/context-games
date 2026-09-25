@@ -180,3 +180,10 @@ The core idea (commands degrade as they travel down the hierarchy) was invisible
 
 ### Alliances
 Envoys can carry `offer_alliance`. Crossing or answered offers seal a pact ("…swear alliance"). If anyone declares war on your ally, you're **called to arms** ("The X honors its alliance with Y and takes up arms against Z"). Declaring war on your own ally is a **betrayal** (honor -0.35, "betrays the alliance… Oathbreaker, they whisper"). Reports show "your ALLY" and each realm's own alliances. Scripts accept alliances from realms that share an enemy and seek them against shared foes. The bench now tallies alliances, calls to arms, betrayals, revolts and turncoats. First 4-year bench: 25 captures, 3 alliances, 6 revolts, 3 turncoat companies.
+
+### Catching up: "While you were away"
+A window into a world that keeps living needs a way to catch up. The viewer remembers (localStorage, per browser, safe to lose) the last tick it saw. On opening, it fetches `/api/chronicle?since=` and shows the major events since then, newest first: captures of seats, wars, peace, alliances, betrayals, successions, rebellions, revolts, turncoats. A first-time viewer (or one from before this feature) gets **"The Story So Far"** for the whole age. The chronicle now keeps 3,000 entries (was 600) so an overnight run doesn't forget its early chapters.
+
+First live turncoats: *"Unpaid, the Free Band turn their coats: 51 sellswords under General Osrin go over from the Kelford Realm to the Principality of Normere."* (Kelford is llama-ruled Rosvin, who hires sellswords every council and went into debt.)
+
+qwen3:1.7b as Queen Ulmund: fast (30–42s per council), accepted peace sensibly, then proclaimed a confabulated news bulletin: *"…The Principality of Thornby has ceased its war with the Mardun Realm…"* (it hadn't). Small models narrate the world they imagine.

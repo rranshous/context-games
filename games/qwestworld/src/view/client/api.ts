@@ -57,6 +57,10 @@ export class SimApi {
     return (await fetch(`${this.base}/api/history`)).json();
   }
 
+  async chronicleSince(since: number): Promise<{ tick: number; seed: number; age: number; oldest: number; entries: { tick: number; text: string; faction: number }[] }> {
+    return (await fetch(`${this.base}/api/chronicle?since=${since}&limit=1000`)).json();
+  }
+
   async annals(): Promise<{ year: number; text: string; by: string }[]> {
     return (await fetch(`${this.base}/api/annals`)).json();
   }

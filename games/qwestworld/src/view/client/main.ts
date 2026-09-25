@@ -299,6 +299,47 @@ addEventListener('keydown', e => {
 });
 addEventListener('resize', resize);
 
+// ---------------------------------------------------------------- while you were away
+
+// Per-viewer memory of the last moment this browser looked in (a convenience; safe to lose)
+const seenKey = () => `qw-seen-${api.base}`;
+function readSeen(): { tick: number; seed: number } | null {
+  try { return JSON.parse(localStorage.getItem(seenKey()) ?? 'null'); } catch { return null; }
+}
+function writeSeen() {
+  if (!state) return;
+  try { localStorage.setItem(seenKey(), JSON.stringify({ tick: state.tick, seed: state.seed })); } catch { /* private window */ }
+}
+setInterval(writeSeen, 30000);
+addEventListener('beforeunload', writeSeen);
+
+async function welcomeBack() {
+  const seen = readSeen();
+  const first = !seen;
+  const c = await api.chronicleSince(seen?.tick ?? 0);
+  const newWorld = !!seen && seen.seed !== c.seed;
+  const since = newWorld || first ? 0 : seen!.tick;
+  const days = Math.floor((c.tick - since) / 24);
+  if (!newWorld && !first && days < 30) return;
+  if (first && days < 90) return;
+  const big = c.entries.filter(e => omen(e.text).cls === 'big');
+  if (!big.length && !newWorld) return;
+  const years = Math.floor(days / 360), months = Math.floor((days % 360) / 30);
+  const span = [years ? `${years} year${years > 1 ? 's' : ''}` : '', months ? `${months} month${months > 1 ? 's' : ''}` : ''].filter(Boolean).join(' and ') || `${days} days`;
+  document.querySelector('#away h2')!.textContent = first ? 'THE STORY SO FAR' : 'WHILE YOU WERE AWAY';
+  $('away-span').textContent = first
+    ? `${span} of the Age ${roman(c.age)}. The great deeds, newest first.`
+    : newWorld
+    ? 'The world you knew is gone. A new continent has risen in its place.'
+    : `${span} have passed in the world. ${c.oldest > since ? 'The oldest records have faded; here is what remains.' : ''}`;
+  $('away-list').innerHTML = big.slice(-150).reverse().map(e => {
+    const col = e.faction >= 0 ? state?.kingdoms[e.faction]?.color ?? '#d9b35f' : '#d9b35f';
+    return `<div><span class="when" style="color:${col}">${esc(formatDate(e.tick))}</span>${omen(e.text).glyph} ${esc(e.text)}</div>`;
+  }).join('');
+  $('away').hidden = false;
+}
+$('away-close').addEventListener('click', () => { $('away').hidden = true; writeSeen(); });
+
 // ---------------------------------------------------------------- go
 
 (async () => {
@@ -310,6 +351,7 @@ addEventListener('resize', resize);
   } catch { /* shown by state poll */ }
   pollState();
   pollSoldiers();
+  setTimeout(() => welcomeBack().catch(() => {}), 1500);
   requestAnimationFrame(frame);
   void MAP_W; void MAP_H;
 })();

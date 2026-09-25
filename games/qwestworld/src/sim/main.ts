@@ -98,6 +98,14 @@ app.get('/api/history', (_req, res) => res.json({
   realms: world.realms.map(r => ({ id: r.id, name: r.name, color: r.color })),
   samples: world.history,
 }));
+// Chronicle since a moment, for viewers catching up. ?since=<tick>&limit=<n>
+app.get('/api/chronicle', (req, res) => {
+  const since = parseInt(String(req.query.since ?? '0'), 10) || 0;
+  const limit = Math.min(1000, parseInt(String(req.query.limit ?? '300'), 10) || 300);
+  const entries = world.chronicle.filter(e => e.tick > since).slice(-limit)
+    .map(({ tick, text, faction }) => ({ tick, text, faction }));
+  res.json({ tick: world.tick, seed: world.map.seed, age: world.age, oldest: world.chronicle[0]?.tick ?? 0, entries });
+});
 app.get('/api/annals', (_req, res) => res.json(world.annals));
 app.get('/api/soldiers.bin', (_req, res) => res.type('application/octet-stream').send(world.soldiersBinary()));
 app.get('/api/health', (_req, res) => res.json({

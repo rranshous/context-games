@@ -1101,7 +1101,7 @@ export class World {
 
   log(faction: number, involves: number[], text: string) {
     this.chronicle.push({ tick: this.tick, text, faction, involves });
-    if (this.chronicle.length > 600) this.chronicle.splice(0, this.chronicle.length - 600);
+    if (this.chronicle.length > 3000) this.chronicle.splice(0, this.chronicle.length - 3000);
   }
 
   eventsFor(k: number, since: number): string[] {
