@@ -279,3 +279,7 @@ Early in Year 5, King Caswyn of Thornby (qwen3:8b, "melancholy", 64) declared wa
 
 ### Experiment: narrative memory for small models
 Baseline, chat memory (past councils as real turns with their own tool calls): the two llama3.2:3b queens chose `hire_mercenaries` in **18 of 23 councils** (Galcrag 10/12, Kelford 8/11). The hypothesis: for a 3B model, a prior tool call in context is a template to copy. New `NARRATIVE_MEMORY` (a regex over model names, default `llama`): those minds get their history as prose inside today's report ("Your recent decisions and what came of them: …"), with no past tool-call turns. qwen keeps chat memory. Compare tool variety after a few rounds.
+
+**Year 5 annal** (the best yet, from the curated record): *"…the Crown of Galcrag, now ruled by the youthful Queen Daggard, who had ascended to the throne following the passing of her predecessor, Queen Alda, took Norvale from the Mardun Realm, only to see it reclaimed by the same realm in the following days… As the year drew to a close, the Principality of Thornby and the Mardun Realm laid down their arms, swearing a fragile peace, but the memories of the battles and the fallen would linger on."*
+
+The first llama council under narrative memory: Queen Rosvin **declared war on Galdun**, the realm her unpaid Broken Band had defected to. A different tool from her habitual hire, and a grudge that makes sense.
