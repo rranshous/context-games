@@ -187,6 +187,14 @@ export class World {
   private deserted = new Map<number, number>(); // army id -> deserters today
   private desertTally = new Map<number, number>(); // army id -> deserters not yet chronicled
   private dryLogged = new Map<number, number>();   // realm id -> tick its empty treasury was last chronicled
+  private mergedInto = new Map<number, number>();  // army id -> the host it joined, so orders in transit find it
+
+  /** An army by id, following it into whatever host it has merged into. */
+  private armyById(id: number | undefined): Army | undefined {
+    if (id === undefined) return undefined;
+    for (let hops = 0; hops < 8 && !this.armies.has(id) && this.mergedInto.has(id); hops++) id = this.mergedInto.get(id)!;
+    return this.armies.get(id);
+  }
 
   constructor(seed: number, age: number, opts: WorldOptions) {
     this.age = age;
@@ -755,6 +763,7 @@ export class World {
         lead.lastSize = lead.size;
         lead.renown = Math.max(lead.renown, b.renown);
         this.armies.delete(b.id);
+        this.mergedInto.set(b.id, lead.id);
         this.log(lead.faction, [lead.faction], `General ${b.general}'s ${b.size} men join the host of General ${lead.general} at ${this.map.settlements[lead.target].name}.`);
       }
     }
@@ -1088,7 +1097,7 @@ export class World {
         if (!a) this.log(o.kingdom, [o.kingdom], `The steward of ${this.map.settlements[s].name} cannot raise a host: too few men, too little coin, or too many hosts already in the field.`);
         continue;
       }
-      const a = this.armies.get(o.army!);
+      const a = this.armyById(o.army);
       if (!a || a.faction !== o.kingdom) continue;
       if (o.kind === 'hold') {
         a.target = this.nearestOwned(a.cx, a.cy, a.faction) ?? a.target;
@@ -1290,7 +1299,7 @@ export class World {
       if (!r?.alive) continue;
       const from = S[r.capital];
       let x1 = from.x, y1 = from.y;
-      const a = o.army !== undefined ? this.armies.get(o.army) : undefined;
+      const a = this.armyById(o.army);
       if (a) { x1 = a.cx; y1 = a.cy; } else if (o.settlement !== undefined) { x1 = S[o.settlement].x; y1 = S[o.settlement].y; }
       out.push({ kind: 'order', faction: o.kingdom, x0: from.x, y0: from.y, x1, y1, t: progress(o.sent, o.arrives) });
     }
