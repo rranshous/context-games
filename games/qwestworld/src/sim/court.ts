@@ -36,7 +36,7 @@ const TOOLS = [
   fn('muster', 'Raise a new host from a settlement garrison, under a new general.', { settlement: str }, ['settlement']),
   fn('hire_mercenaries', 'Hire a company of sellswords at one of your settlements, at 3 crowns a man.',
     { settlement: str, men: { type: 'number', description: 'how many sellswords, 100 to 3000' } }, ['settlement', 'men']),
-  fn('declare_war', 'Declare war on a realm.', { realm: str }, ['realm']),
+  fn('declare_war', 'Declare war on a realm you are at peace with.', { realm: str }, ['realm']),
   fn('send_envoy', 'Send an envoy with a message to another ruler. Set offer_peace to offer or accept peace; offer_alliance to propose or accept an alliance (allies are called to arms when attacked).',
     { realm: str, message: str, offer_peace: { type: 'boolean' }, offer_alliance: { type: 'boolean' } }, ['realm', 'message']),
   fn('proclaim', 'Make a royal proclamation.', { text: str }, ['text']),
