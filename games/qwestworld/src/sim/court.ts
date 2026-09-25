@@ -407,6 +407,15 @@ function report(w: World, id: number): string {
     L.push(`- General ${a.general}: ${a.size} soldiers near ${w.nearestName(a.cx, a.cy)}, ${doing}. ${cap(spirits(a.morale))}${idle}${fame}.${heart}`);
   }
 
+  // Names from their own remembered commands that no longer lead a host (memory outlives the men)
+  const serving = new Set(armies.map(a => a.general.toLowerCase()));
+  const gone = new Set<string>();
+  for (const t of r.turns) for (const c of t.calls) {
+    const g = String(c.function.arguments?.general ?? '').replace(/^general\s+/i, '').trim();
+    if (g && !serving.has(g.toLowerCase())) gone.add(g);
+  }
+  if (gone.size) L.push(`No longer in your service: ${[...gone].slice(0, 8).join(', ')}.`);
+
   const frontier = new Map<number, number>();
   for (const s of mine) for (const n of s.neighbors) if (w.owner[n] !== id) frontier.set(n, w.owner[n]);
   if (frontier.size) {
