@@ -283,3 +283,14 @@ Baseline, chat memory (past councils as real turns with their own tool calls): t
 **Year 5 annal** (the best yet, from the curated record): *"…the Crown of Galcrag, now ruled by the youthful Queen Daggard, who had ascended to the throne following the passing of her predecessor, Queen Alda, took Norvale from the Mardun Realm, only to see it reclaimed by the same realm in the following days… As the year drew to a close, the Principality of Thornby and the Mardun Realm laid down their arms, swearing a fragile peace, but the memories of the battles and the fallen would linger on."*
 
 The first llama council under narrative memory: Queen Rosvin **declared war on Galdun**, the realm her unpaid Broken Band had defected to. A different tool from her habitual hire, and a grudge that makes sense.
+
+**Narrative memory, result (6 llama councils vs 23 before):**
+
+| | chat memory (before) | narrative memory (after) |
+|---|---|---|
+| hire_mercenaries | 18 / 23 (78%) | 3 / 6 (50%) |
+| other tools | muster 4, war 1 | war 2, **march 1**, (hire 3) |
+| seconds per council | 70–83 | 41–52 |
+| prompt tokens | ~2,500–2,700 | ~1,450–1,750 |
+
+Rosvin's `Cynana → Galreach` is the **first march any llama ruler has ever ordered**. A small sample, but in the predicted direction: without their own past tool calls in the context to copy, the 3B minds choose more varied actions, and they're faster. qwen3:8b keeps chat memory: seeing its own calls is what broke Edric's dead-general loop. **The right memory format depends on model size.**
