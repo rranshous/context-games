@@ -4,6 +4,7 @@
 // (a few lines of rules). Model calls are serialized — one mind thinks at a time.
 // If a qwen king is overdue, the world waits for him (see `stalledBy`).
 
+import http from 'http';
 import { HOURS_PER_DAY, formatDate } from '../shared/types.js';
 import { World } from './world.js';
 
@@ -170,10 +171,7 @@ export class Court {
   private async askKing(w: World, id: number, turn: Turn): Promise<{ calls: ToolCall[]; thought: string }> {
     const k = w.map.kingdoms[id];
     const started = Date.now();
-    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
+    const data: any = await postJson(`${OLLAMA_URL}/api/chat`, {
         model: MODEL,
         stream: false,
         think: false,
@@ -181,11 +179,7 @@ export class Court {
         options: { num_ctx: 8192, num_predict: 400, temperature: 0.8 },
         messages: messagesFor(w, id, turn),
         tools: TOOLS,
-      }),
-      signal: AbortSignal.timeout(20 * 60 * 1000),
-    });
-    if (!res.ok) throw new Error(`ollama ${res.status}: ${await res.text()}`);
-    const data: any = await res.json();
+    }, 30 * 60 * 1000);
     const msg = data.message ?? {};
     // Some qwen3 builds leak their scratchpad into content despite think:false
     const thought = String(msg.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').trim().slice(0, 400);
@@ -193,6 +187,33 @@ export class Court {
       `${data.prompt_eval_count} in / ${data.eval_count} out`);
     return { calls: msg.tool_calls ?? [], thought };
   }
+}
+
+/**
+ * POST JSON with node:http. Not fetch: undici gives up if response headers take
+ * longer than 5 minutes, and Ollama sends none until the whole prompt is read,
+ * which on this CPU can exceed that.
+ */
+function postJson(url: string, body: unknown, timeoutMs: number): Promise<unknown> {
+  const u = new URL(url);
+  const payload = JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) },
+    }, res => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', c => { text += c; });
+      res.on('end', () => {
+        if ((res.statusCode ?? 500) >= 400) return reject(new Error(`ollama ${res.statusCode}: ${text.slice(0, 200)}`));
+        try { resolve(JSON.parse(text)); } catch (e) { reject(e); }
+      });
+    });
+    req.setTimeout(timeoutMs, () => req.destroy(new Error(`no answer after ${timeoutMs / 1000}s`)));
+    req.on('error', reject);
+    req.end(payload);
+  });
 }
 
 // ---------------------------------------------------------------- memory
