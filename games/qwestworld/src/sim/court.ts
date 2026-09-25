@@ -555,6 +555,15 @@ interface Outcome {
 
 function execute(w: World, k: number, call: ToolCall): Outcome {
   const args = call.function.arguments ?? {};
+  // Small models sometimes leave an argument out; say so plainly rather than "a place called undefined"
+  const need: Record<string, string[]> = {
+    march: ['general', 'target'], hold: ['general'], muster: ['settlement'], hire_mercenaries: ['settlement'],
+    declare_war: ['realm'], send_envoy: ['realm'], proclaim: ['text'],
+  };
+  const missing = (need[call.function.name] ?? []).filter(p => args[p] === undefined || args[p] === null || String(args[p]).trim() === '');
+  if (missing.length) {
+    return { decree: `${call.function.name}: no ${missing.join(', ')}`, reign: `You gave a command to ${call.function.name.replace('_', ' ')} but did not name the ${missing.join(' or the ')}.` };
+  }
   const S = w.map.settlements;
   switch (call.function.name) {
     case 'march': {

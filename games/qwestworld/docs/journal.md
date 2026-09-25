@@ -313,3 +313,20 @@ The first multi-step council was the best reasoning yet. **King Caswyn** propose
 - **The first alliance involving a mind:** Queen Rosvin (llama3.2:3b, narrative memory, multi-step) held a four-command council: a (redundant) war declaration on Galdun, then **accepting Mardun's alliance offer**, then orders to General Rosdis. "The Kelford Realm and the Mardun Realm swear alliance."
 - The continent now holds nine realms and **eight minds** (qwen3:8b ×2, qwen3:1.7b ×1, llama3.2:3b ×5) plus the scribe. A round of councils takes ~15–20 minutes, so a year now takes about an hour and a half.
 - Small-model noise: King Maldric issued a command with a missing argument ("no place undefined"). Queen Daggard keeps trying to muster at Galcrag, her lost seat, although her memory records that "it is not yours".
+
+### Year 6 annal and the grand alliance
+The scribe named the continent: *"…the world of **Eridoria** was beset on all sides by tumult and strife."* Nothing in its input had a name for the world; it invented one. The annal ran to five paragraphs and garbled some facts (it put Maldric's rebellion against Mardun rather than Thornby), but it caught the turn: **King Caswyn allied with Mardun**. The scripted superpower now leads an alliance with two minds (Thornby and Kelford) against Galdun, Normere and Galcrag.
+
+**Mind stats after ~17 councils** (multi-step since Year 6):
+
+| Mind | Realm | councils | avg s | tools |
+|---|---|---|---|---|
+| qwen3:8b | Thornby | 17 | 168 | envoy 7, march 6, muster 4, hire 2, proclaim 2, war 1 |
+| qwen3:8b | Normere | 17 | 191 | march 12, hire 5, war 3, muster 3, hold 1, envoy 1, proclaim 1 |
+| qwen3:1.7b | Galdun | 17 | 55 | war 7 (mostly redundant), envoy 4, muster 4, hire 3, hold 1 |
+| llama3.2:3b | Galcrag | 18 | 71 | hire 13, muster 4, march 2, hold 2, war 1 (4 misfires) |
+| llama3.2:3b | Kelford | 17 | 71 | hire 10, war 3, muster 3, march 2, envoy 1, hold 1 |
+
+Multi-step councils visibly widened the qwen3:8b repertoire: Caswyn is now a diplomat (7 envoys) and Halrin a campaigner (12 marches). Zero silent councils from any mind all night.
+
+Also: a missing tool argument now reads "You gave a command to muster but did not name the settlement." instead of "a place called undefined".
