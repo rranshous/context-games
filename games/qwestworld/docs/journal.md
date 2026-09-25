@@ -226,3 +226,6 @@ Young Queen Falbert (qwen3:1.7b), crowned at 17, **broke her predecessor's peace
 **Crowns are abstract; men are not.** King Caswyn, sitting on 21,000 crowns, offered 200 crowns for sellswords, and Falbert offered 13. The tool asked how many crowns to spend, and small models pick small numbers. Changed `hire_mercenaries(settlement, crowns)` to `hire_mercenaries(settlement, men)` at 3 crowns a man, with "100 to 3000" in the schema. Old memories that say `crowns` still work.
 
 Mind stats after 4 councils each: qwen3:8b ~146–169s, llama3.2:3b ~75–83s, qwen3:1.7b ~35s. The llama queens have used exactly one tool (hire_mercenaries) in every council. qwen3:1.7b has the widest repertoire (war, envoy, muster, hire).
+
+### Trade: a reason to keep the peace
+Coin only came from taxes, so peace had no price. Now neighbors at peace trade: each side earns 12% of the poorer neighbor's taxes per day (1.5× between allies), and war cuts it off. Caravans (small laden carts) roll between the seats of trading realms on the map. The treasury line reads "Taxes and trade bring N a day (M of it from trade with K neighbors at peace)", and the merchants speak up when a war has "closed the border roads to trade."

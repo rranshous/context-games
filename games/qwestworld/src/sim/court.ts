@@ -311,7 +311,8 @@ function treasuryLine(r: Realm): string {
   const net = r.income - r.upkeep;
   if (r.gold < 0) return `Your treasury is empty, ${Math.round(-r.gold)} crowns in debt. Unpaid soldiers desert and no new ones can be raised. ` +
     `Taxes bring ${Math.round(r.income)} a day; pay costs ${Math.round(r.upkeep)}.`;
-  return `Treasury: ${Math.round(r.gold)} crowns. Taxes bring ${Math.round(r.income)} a day; soldiers' pay costs ${Math.round(r.upkeep)} ` +
+  const trade = r.trade && r.partners?.length ? ` (${Math.round(r.trade)} of it from trade with ${r.partners.length} neighbor${r.partners.length > 1 ? 's' : ''} at peace)` : '';
+  return `Treasury: ${Math.round(r.gold)} crowns. Taxes and trade bring ${Math.round(r.income)} a day${trade}; soldiers' pay costs ${Math.round(r.upkeep)} ` +
     `(${Math.abs(net) < 1 ? 'balanced' : `${net >= 0 ? 'a surplus' : 'a deficit'} of ${Math.abs(Math.round(net))}`}). Hosts in enemy land forage and cost half. ` +
     `A muster costs a crown a soldier; sellswords cost three crowns a man.`;
 }
@@ -408,6 +409,10 @@ function counsel(w: World, id: number): string[] {
   const threatened = S.filter(s => w.owner[s.id] === id && w.siege[s.id] > 0);
   if (threatened.length) {
     out.push(`Your castellan: "${threatened.map(s => s.name).join(', ')} cannot hold for long without relief."`);
+  }
+  const cutOff = foes.filter(f => w.map.settlements.some(s => w.owner[s.id] === id && s.neighbors.some(n => w.owner[n] === f)));
+  if (cutOff.length) {
+    out.push(`Your merchants: "The war with ${cutOff.map(f => `the ${w.realms[f].name}`).join(' and ')} has closed the border roads to trade."`);
   }
   if (r.honor < 0.6) {
     out.push(`Your chancellor: "Your word is doubted abroad. Other rulers remember broken oaths."`);

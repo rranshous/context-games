@@ -37,6 +37,7 @@ const PAY_FORAGING = 0.025;   // a host in foreign land lives partly off it
 const PAY_GARRISON = 0.02;    // garrisons farm between watches
 const MUSTER_COST = 1;        // crowns per soldier called up from a garrison
 const MERC_COST = 3;          // crowns per sellsword
+const TRADE_SHARE = 0.12;     // of the poorer neighbor's taxes, to each side, per day of peace
 
 export type OrderKind = 'march' | 'hold' | 'muster';
 
@@ -99,6 +100,8 @@ export interface Realm {
   gold: number;
   income: number;
   upkeep: number;
+  trade?: number;          // part of income from trade with neighbors at peace
+  partners?: number[];     // realms trading with this one
   honor: number;
 
   // council
@@ -166,6 +169,7 @@ export class World {
   allied = new Uint8Array(MAX_FACTIONS * MAX_FACTIONS);  // 1 = sworn allies
   allianceOffers: { from: number; to: number; tick: number }[] = [];
   envoys: Envoy[] = [];
+  caravans: { from: number; to: number; sent: number; arrives: number }[] = [];
 
   armies = new Map<number, Army>();
   nextArmyId = 1;
@@ -569,6 +573,7 @@ export class World {
       if (k < 0 || this.contested[s.id]) continue;
       this.realms[k].income += 1.5 + s.food / 350;
     }
+    this.trade();
     for (let i = 0; i < this.high; i++) {
       const f = this.sf[i];
       if (f === DEAD) continue;
@@ -588,6 +593,36 @@ export class World {
         this.log(r.id, [r.id], `The treasury of the ${r.name} runs dry. The soldiers go unpaid.`);
       }
     }
+  }
+
+  /** Neighbors at peace trade: each gains a share of the poorer one's taxes. War cuts it off. */
+  private trade() {
+    const taxes = this.realms.map(r => r.income);
+    const borders = new Set<string>();
+    for (const s of this.map.settlements) {
+      const a = this.owner[s.id];
+      for (const n of s.neighbors) {
+        const b = this.owner[n];
+        if (a >= 0 && b >= 0 && a < b) borders.add(`${a}:${b}`);
+      }
+    }
+    for (const r of this.realms) { r.trade = 0; r.partners = []; }
+    for (const key of borders) {
+      const [a, b] = key.split(':').map(Number);
+      const A = this.realms[a], B = this.realms[b];
+      if (!A.alive || !B.alive || this.atWar(a, b)) continue;
+      const share = TRADE_SHARE * Math.min(taxes[a], taxes[b]) * (this.isAllied(a, b) ? 1.5 : 1);
+      A.income += share; B.income += share;
+      A.trade! += share; B.trade! += share;
+      A.partners!.push(b); B.partners!.push(a);
+      // Now and then a caravan sets out
+      if (Math.random() < 1 / 12) {
+        const [from, to] = Math.random() < 0.5 ? [a, b] : [b, a];
+        const days = Math.max(2, this.capitalDistance(from, to) / 20);
+        this.caravans.push({ from, to, sent: this.tick, arrives: this.tick + Math.round(days * HOURS_PER_DAY) });
+      }
+    }
+    this.caravans = this.caravans.filter(c => c.arrives > this.tick && this.realms[c.from].alive && this.realms[c.to].alive && !this.atWar(c.from, c.to));
   }
 
   private recruit() {
@@ -1218,6 +1253,7 @@ export class World {
         gold: Math.round(r.gold),
         income: +r.income.toFixed(1),
         upkeep: +r.upkeep.toFixed(1),
+        trade: +(r.trade ?? 0).toFixed(1),
         honor: +r.honor.toFixed(2),
         wars: this.enemiesOf(r.id),
         allies: this.alliesOf(r.id),
@@ -1261,6 +1297,10 @@ export class World {
     for (const e of this.envoys) {
       const A = S[this.realms[e.from].capital], B = S[this.realms[e.to].capital];
       out.push({ kind: 'envoy', faction: e.from, x0: A.x, y0: A.y, x1: B.x, y1: B.y, t: progress(e.sent, e.arrives) });
+    }
+    for (const c of this.caravans) {
+      const A = S[this.realms[c.from].capital], B = S[this.realms[c.to].capital];
+      out.push({ kind: 'caravan', faction: c.from, x0: A.x, y0: A.y, x1: B.x, y1: B.y, t: progress(c.sent, c.arrives) });
     }
     return out;
   }

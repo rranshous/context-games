@@ -96,6 +96,7 @@ export interface KingdomView {
   gold: number;
   income: number;      // per day
   upkeep: number;      // per day
+  trade: number;       // part of income from trade, per day
   honor: number;       // 0..1, falls when oaths are broken
   wars: number[];      // realms this one is at war with
   allies: number[];    // realms sworn in alliance
@@ -152,7 +153,7 @@ export interface StateResponse {
 
 /** A rider in transit: a royal order to a general, or an envoy between rulers. */
 export interface CourierView {
-  kind: 'order' | 'envoy';
+  kind: 'order' | 'envoy' | 'caravan';
   faction: number;
   x0: number; y0: number;
   x1: number; y1: number;

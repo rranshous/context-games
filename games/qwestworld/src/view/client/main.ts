@@ -107,7 +107,7 @@ function updatePanel(s: StateResponse) {
       ${k.alive && k.thinking && k.brain !== 'script' ? '<div class="thinking">in council…</div>' : ''}
       ${k.alive && k.lastThought ? `<div class="thought">“${esc(k.lastThought)}”</div>` : ''}
       ${k.alive && k.lastDecrees.length ? `<div class="decrees">${k.lastDecrees.map(esc).join(' · ')}</div>` : ''}
-      ${open.has(k.id) ? `<div class="reign"><div class="origin">${esc(k.origin)}${k.honor < 1 ? ` · honor ${Math.round(k.honor * 100)}%` : ''} · ${k.income} in, ${k.upkeep} out a day</div>${mindLine(k)}${
+      ${open.has(k.id) ? `<div class="reign"><div class="origin">${esc(k.origin)}${k.honor < 1 ? ` · honor ${Math.round(k.honor * 100)}%` : ''} · ${k.income} in${k.trade ? ` (${k.trade} trade)` : ''}, ${k.upkeep} out a day</div>${mindLine(k)}${
         k.reign.length ? k.reign.slice().reverse().map(r => `<div>${esc(r)}</div>`).join('') : '<div><i>No councils yet.</i></div>'}</div>` : ''}
     </div>`;
   }).join('');

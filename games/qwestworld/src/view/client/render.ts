@@ -275,6 +275,13 @@ export class Renderer {
       const [sx, sy] = cam.toScreen(x, y, w, h);
       if (sx < -10 || sy < -10 || sx > w + 10 || sy > h + 10) continue;
       const col = colors[c.faction] ?? [255, 255, 255];
+      if (c.kind === 'caravan') {
+        ctx.fillStyle = 'rgba(40,28,14,.85)';
+        ctx.fillRect(sx - 3, sy - 2.5, 6, 5);
+        ctx.fillStyle = '#e6c27a';
+        ctx.fillRect(sx - 2, sy - 1.5, 4, 3);
+        continue;
+      }
       if (c.kind === 'envoy') {
         const [ax, ay] = cam.toScreen(c.x0 + 0.5, c.y0 + 0.5, w, h);
         ctx.strokeStyle = `rgba(255,244,214,${0.18 * pulse})`;
