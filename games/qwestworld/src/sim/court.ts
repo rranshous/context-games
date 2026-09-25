@@ -342,7 +342,8 @@ function report(w: World, id: number): string {
     const doing = a.order === 'march' ? `marching on ${S[a.target].name}` : `holding ${S[a.target].name}`;
     const fame = (a.merc ? `, sellswords of the ${a.merc}` : '') + (a.renown ? `, has taken ${a.renown} town${a.renown > 1 ? 's' : ''}` : '');
     const idle = a.idleDays > 60 ? `, idle ${Math.round(a.idleDays / 30)} months` : '';
-    L.push(`- General ${a.general}: ${a.size} soldiers near ${w.nearestName(a.cx, a.cy)}, ${doing}. ${cap(spirits(a.morale))}${idle}${fame}.`);
+    const heart = a.merc ? '' : a.loyalty >= 0.7 ? ' Devoted to you.' : a.loyalty < 0.3 ? ' Ambitious, and loves you little.' : '';
+    L.push(`- General ${a.general}: ${a.size} soldiers near ${w.nearestName(a.cx, a.cy)}, ${doing}. ${cap(spirits(a.morale))}${idle}${fame}.${heart}`);
   }
 
   const frontier = new Map<number, number>();
@@ -419,6 +420,10 @@ function counsel(w: World, id: number): string[] {
   if (cutOff.length) {
     out.push(`Your merchants: "The war with ${cutOff.map(f => `the ${w.realms[f].name}`).join(' and ')} has closed the border roads to trade."`);
   }
+  const restless = armies.filter(a => !a.merc && a.loyalty < 0.4 && a.renown >= 1 && (r.gold < 0 || a.morale < 0.4));
+  if (restless.length) {
+    out.push(`Your spymaster: "${restless.map(a => `General ${a.general}`).join(' and ')} ${restless.length > 1 ? 'are' : 'is'} proud, ${restless.length > 1 ? 'their' : 'his'} men discontent. There is talk of rebellion."`);
+  }
   if (r.honor < 0.6) {
     out.push(`Your chancellor: "Your word is doubted abroad. Other rulers remember broken oaths."`);
   }
@@ -475,7 +480,8 @@ function findRealm(w: World, k: number, name: unknown): number | null {
 /** What became of a general who no longer serves, from the chronicle. */
 function fateOf(w: World, name: unknown): string {
   const n = String(name ?? '').replace(/^general\s+/i, '').trim();
-  const e = [...w.chronicle].reverse().find(e => e.text.includes(`General ${n}`) && /destroyed|rebellion/.test(e.text));
+  const e = [...w.chronicle].reverse().find(e =>
+    (e.text.includes(`General ${n}`) || e.text.includes(`General ${n}'s`)) && /destroyed|rebellion|join the host|garrison of|scatter/.test(e.text));
   return e ? ` ${e.text.replace(/^The host of /, '')}` : '';
 }
 
