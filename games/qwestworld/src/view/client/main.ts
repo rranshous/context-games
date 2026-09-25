@@ -36,6 +36,8 @@ function panelWidth() {
 
 async function loadStatics() {
   meta = await api.meta();
+  // A viewer built for a different map size would draw the land skewed under the towns; fetch the current viewer instead
+  if (meta.w !== MAP_W || meta.h !== MAP_H) { location.reload(); return; }
   const [{ terrain, height }, regions] = await Promise.all([api.terrain(), api.regions()]);
   renderer.paintTerrain(terrain, height);
   renderer.setRegions(regions);
