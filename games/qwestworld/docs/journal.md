@@ -267,3 +267,6 @@ Captures per year in the live world: 3, 1, 0, 1. Battles kept happening (5–8 a
 Fix: **surrender.** If besiegers outnumber the defenders 3:1 (and are at least 20), the town is starved out over ~20 days even with defenders inside ("Starved and outnumbered, X yields to the Y."). Storming an empty town still takes under a day. Bench (seed 777, 3 years): 35 captures, 21 of them surrenders (vs 20–25 captures before), 3 rebellions, 8 peaces.
 
 **Year 4 annal**, with the curated record: *"…the Broken Company, erstwhile loyal to the Crown of Galcrag, defected to the realm's banner, surrendering a thousand valiant men to the will of King Halis…"* Events, not housekeeping. Still longer than the eight sentences asked for; llama3.2:3b doesn't count.
+
+### The first war between minds
+Early in Year 5, young Queen Falbert of Galdun (qwen3:1.7b, "vengeful and quick to anger", now 20) declared war on King Caswyn of Thornby (qwen3:8b, "melancholy", 64), and Caswyn declared war on Galdun in turn. It's the first war where both sides are minds. Caswyn has ~37k crowns hoarded, Falbert ~30k. The two richest treasuries on the continent are now pointed at each other. New README screenshot.
