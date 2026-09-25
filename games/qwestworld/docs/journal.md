@@ -307,3 +307,9 @@ The first multi-step council was the best reasoning yet. **King Caswyn** propose
 - The Crown of Galcrag (young Queen Daggard, llama) has collapsed to 4 towns. Mardun (script) holds 31 of 96. Daggard tried to muster at Galcrag, which she no longer owned.
 
 **Narrative memory extended to qwen3:1.7b.** Queen Falbert declared war on Thornby three councils running (already at war the whole time), and earlier sent King Halis word for word the envoy she'd sent his predecessor. The same copy-your-own-memory pattern as llama3.2:3b. The default `NARRATIVE_MEMORY` is now `llama|1\.7b`. Only qwen3:8b keeps chat memory.
+
+### End of Year 6: nine realms, eight minds
+- **A third rebellion:** General Pergar rose against Queen Falbert at Quenmarch ("the men are sick of waiting") and proclaimed the Dominion of Quenmarch. That's two of Falbert's generals in revolt in one season. Galdun now fights Thornby, Kelford, Ashmoor and Quenmarch at once.
+- **The first alliance involving a mind:** Queen Rosvin (llama3.2:3b, narrative memory, multi-step) held a four-command council: a (redundant) war declaration on Galdun, then **accepting Mardun's alliance offer**, then orders to General Rosdis. "The Kelford Realm and the Mardun Realm swear alliance."
+- The continent now holds nine realms and **eight minds** (qwen3:8b ×2, qwen3:1.7b ×1, llama3.2:3b ×5) plus the scribe. A round of councils takes ~15–20 minutes, so a year now takes about an hour and a half.
+- Small-model noise: King Maldric issued a command with a missing argument ("no place undefined"). Queen Daggard keeps trying to muster at Galcrag, her lost seat, although her memory records that "it is not yours".
