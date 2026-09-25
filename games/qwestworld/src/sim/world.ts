@@ -1081,6 +1081,18 @@ export class World {
     return this.peaceOffers.some(o => o.from === from && o.to === to && this.tick - o.tick < 180 * HOURS_PER_DAY);
   }
 
+  /** Coin from one crown to another: tribute, bribe, or a promise kept. Returns a sentence for the giver's memory. */
+  sendGold(from: number, to: number, crowns: number): string {
+    const giver = this.realms[from], taker = this.realms[to];
+    const amount = Math.floor(Math.min(crowns, Math.max(0, giver.gold)));
+    if (amount <= 0) return `You meant to send crowns to the ${taker.name}, but your treasury is empty.`;
+    giver.gold -= amount;
+    taker.gold += amount;
+    taker.inbox.push(`${this.ruler(from)} of the ${giver.name} has sent you ${amount.toLocaleString('en-US')} crowns.`);
+    this.log(from, [from, to], `${this.ruler(from)} sends ${amount.toLocaleString('en-US')} crowns to ${this.ruler(to)} of the ${taker.name}.`);
+    return `You sent ${amount.toLocaleString('en-US')} crowns to the ${taker.name}.`;
+  }
+
   // ---------------------------------------------------------------- orders
 
   /** Queue a royal command. It travels from the capital by courier. */

@@ -39,6 +39,8 @@ const TOOLS = [
   fn('declare_war', 'Declare war on a realm you are at peace with.', { realm: str }, ['realm']),
   fn('send_envoy', 'Send an envoy with a message to another ruler. Set offer_peace to offer or accept peace; offer_alliance to propose or accept an alliance (allies are called to arms when attacked).',
     { realm: str, message: str, offer_peace: { type: 'boolean' }, offer_alliance: { type: 'boolean' } }, ['realm', 'message']),
+  fn('send_gold', 'Send crowns from your treasury to another ruler: tribute, a bribe, or a promise kept.',
+    { realm: str, crowns: { type: 'number' } }, ['realm', 'crowns']),
   fn('proclaim', 'Make a royal proclamation.', { text: str }, ['text']),
 ];
 
@@ -558,7 +560,7 @@ function execute(w: World, k: number, call: ToolCall): Outcome {
   // Small models sometimes leave an argument out; say so plainly rather than "a place called undefined"
   const need: Record<string, string[]> = {
     march: ['general', 'target'], hold: ['general'], muster: ['settlement'], hire_mercenaries: ['settlement'],
-    declare_war: ['realm'], send_envoy: ['realm'], proclaim: ['text'],
+    declare_war: ['realm'], send_envoy: ['realm'], send_gold: ['realm', 'crowns'], proclaim: ['text'],
   };
   const missing = (need[call.function.name] ?? []).filter(p => args[p] === undefined || args[p] === null || String(args[p]).trim() === '');
   if (missing.length) {
@@ -643,6 +645,12 @@ function execute(w: World, k: number, call: ToolCall): Outcome {
         decree: peace ? `peace offer to ${name}` : `envoy to ${name}`,
         reign: `You sent an envoy to the ${name}${peace && w.atWar(k, o) ? ' offering peace' : ''}: “${text.slice(0, 90)}${text.length > 90 ? '…' : ''}”`,
       };
+    }
+    case 'send_gold': {
+      const o = findRealm(w, k, args.realm);
+      if (o === null) return { decree: `no realm ${args.realm}`, reign: `You would send crowns to ${args.realm}, but no such realm stands.` };
+      const crowns = Number(args.crowns) || 0;
+      return { decree: `${Math.round(crowns)}c to ${w.realms[o].name}`, reign: w.sendGold(k, o, crowns) };
     }
     case 'proclaim': {
       const text = String(args.text ?? '').slice(0, 280);

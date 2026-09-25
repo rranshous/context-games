@@ -162,6 +162,7 @@ function omen(t: string): { glyph: string; cls: string } {
   if (/ takes /.test(t)) return { glyph: '⚑', cls: '' };
   if (/Battle of/.test(t)) return { glyph: '⚔', cls: '' };
   if (/sellswords/.test(t)) return { glyph: '¤', cls: '' };
+  if (/ sends [\d,]+ crowns to /.test(t)) return { glyph: '¤', cls: 'speech' };
   if (/Plague/.test(t)) return { glyph: '☠', cls: '' };
   return { glyph: '', cls: '' };
 }
