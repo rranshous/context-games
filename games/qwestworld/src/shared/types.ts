@@ -98,6 +98,7 @@ export interface KingdomView {
   upkeep: number;      // per day
   honor: number;       // 0..1, falls when oaths are broken
   wars: number[];      // realms this one is at war with
+  allies: number[];    // realms sworn in alliance
   origin: string;      // how the realm came to be
   capital: number;     // settlement id of the current seat
   thinking: boolean;

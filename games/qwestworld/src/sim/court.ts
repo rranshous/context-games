@@ -36,8 +36,8 @@ const TOOLS = [
   fn('hire_mercenaries', 'Spend crowns to hire a host of sellswords at one of your settlements.',
     { settlement: str, crowns: { type: 'number' } }, ['settlement', 'crowns']),
   fn('declare_war', 'Declare war on a realm.', { realm: str }, ['realm']),
-  fn('send_envoy', 'Send an envoy with a message to another ruler. Set offer_peace to offer or accept peace.',
-    { realm: str, message: str, offer_peace: { type: 'boolean' } }, ['realm', 'message']),
+  fn('send_envoy', 'Send an envoy with a message to another ruler. Set offer_peace to offer or accept peace; offer_alliance to propose or accept an alliance (allies are called to arms when attacked).',
+    { realm: str, message: str, offer_peace: { type: 'boolean' }, offer_alliance: { type: 'boolean' } }, ['realm', 'message']),
   fn('proclaim', 'Make a royal proclamation.', { text: str }, ['text']),
 ];
 
@@ -337,11 +337,13 @@ function report(w: World, id: number): string {
   for (const o of w.realms) {
     if (o.id === id || !o.alive) continue;
     const years = w.warYears(id, o.id);
-    const rel = years >= 0 ? `AT WAR with you${years >= 1 ? ` for ${Math.floor(years)} year${years >= 2 ? 's' : ''}` : ''}` : 'at peace with you';
+    const rel = years >= 0 ? `AT WAR with you${years >= 1 ? ` for ${Math.floor(years)} year${years >= 2 ? 's' : ''}` : ''}`
+      : w.isAllied(id, o.id) ? 'your ALLY' : 'at peace with you';
     const theirWars = w.enemiesOf(o.id).filter(e => e !== id).map(e => w.realms[e].name);
+    const theirAllies = w.alliesOf(o.id).filter(e => e !== id).map(e => w.realms[e].name);
     const repute = o.honor < 0.6 ? ' Known as an oathbreaker.' : '';
     L.push(`- The ${o.name}, ruled by ${w.ruler(o.id)} (${o.ruler.temperament}): ${w.held(o.id)} settlements, ${roughly(w.soldiersOf(o.id))} soldiers. ` +
-      `${cap(rel)}${theirWars.length ? `; at war with ${theirWars.join(', ')}` : ''}.${repute}`);
+      `${cap(rel)}${theirWars.length ? `; at war with ${theirWars.join(', ')}` : ''}${theirAllies.length ? `; allied with ${theirAllies.join(', ')}` : ''}.${repute}`);
   }
 
   if (r.inbox.length) {
@@ -363,6 +365,7 @@ function brief(w: World, id: number): string {
   const wars = w.enemiesOf(id).map(e => w.realms[e].name);
   const lines = [`Council of ${formatDate(w.tick)}. You held ${w.held(id)} settlements and ${Math.round(r.gold)} crowns. ` +
     (wars.length ? `At war with ${wars.join(', ')}. ` : 'At peace with all. ') +
+    (w.alliesOf(id).length ? `Allied with ${w.alliesOf(id).map(e => w.realms[e].name).join(', ')}. ` : '') +
     (armies.length ? `Generals: ${armies.map(a => `${a.general} (${a.size}, near ${w.nearestName(a.cx, a.cy)})`).join(', ')}.` : 'No generals in the field.')];
   for (const m of r.inbox) lines.push(`- ${m}`);
   for (const n of w.eventsFor(id, r.lastCouncil).slice(-6)) lines.push(`- ${n}`);
@@ -471,7 +474,19 @@ function execute(w: World, k: number, call: ToolCall): Outcome {
       if (o === null) return { decree: `no realm ${args.realm}`, reign: `You would send an envoy to ${args.realm}, but no such realm stands.` };
       const text = String(args.message ?? '').slice(0, 300).trim();
       const peace = args.offer_peace === true || args.offer_peace === 'true';
+      const alliance = !peace && (args.offer_alliance === true || args.offer_alliance === 'true');
       const name = w.realms[o].name;
+      if (alliance) {
+        if (w.atWar(k, o)) return { decree: `alliance? at war`, reign: `You proposed an alliance to the ${name}, but you are at war with them. Make peace first.` };
+        if (w.isAllied(k, o)) return { decree: `already allied`, reign: `You are already allied with the ${name}.` };
+        if (w.hasAllianceOffer(o, k)) {
+          w.sendEnvoy(k, o, text, false);
+          w.makeAlliance(k, o);
+          return { decree: `alliance with ${name}`, reign: `You accepted the ${name}'s offer of alliance. Should either of you be attacked, the other will take up arms.` };
+        }
+        w.sendEnvoy(k, o, text, false, true);
+        return { decree: `alliance offer to ${name}`, reign: `You sent an envoy to the ${name} proposing an alliance: “${text.slice(0, 90)}${text.length > 90 ? '…' : ''}”` };
+      }
       if (peace && w.atWar(k, o) && w.hasPeaceOffer(o, k)) {
         w.sendEnvoy(k, o, text, false);
         w.makePeace(k, o);
@@ -516,6 +531,17 @@ export function scriptCouncil(w: World, k: number): ToolCall[] {
       calls.push(call('send_envoy', { realm: w.realms[f].name, message: 'We accept.', offer_peace: true }));
     } else if ((theirs > mySoldiers * 1.5 || (r.gold < 0 && foes.length > 1) || w.warYears(k, f) > 3) && Math.random() < 0.4) {
       calls.push(call('send_envoy', { realm: w.realms[f].name, message: 'Let there be peace between us.', offer_peace: true }));
+    }
+  }
+
+  // Alliances: accept from those who share an enemy (or on a whim); seek one against a shared foe
+  for (const o of w.realms) {
+    if (!o.alive || o.id === k || w.atWar(k, o.id) || w.isAllied(k, o.id)) continue;
+    const shared = w.enemiesOf(o.id).some(e => foes.includes(e));
+    if (w.hasAllianceOffer(o.id, k) && (shared || Math.random() < 0.4)) {
+      calls.push(call('send_envoy', { realm: o.name, message: 'We stand with you.', offer_alliance: true }));
+    } else if (shared && Math.random() < 0.25) {
+      calls.push(call('send_envoy', { realm: o.name, message: 'Our enemies are the same. Let us stand together.', offer_alliance: true }));
     }
   }
 

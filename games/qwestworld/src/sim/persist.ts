@@ -37,6 +37,8 @@ export function saveWorld(w: World, file: string) {
     treaty: b64(w.treaty, w.treaty.byteLength),
     warSince: b64(w.warSince, w.warSince.byteLength),
     peaceOffers: w.peaceOffers,
+    allied: b64(w.allied, w.allied.byteLength),
+    allianceOffers: w.allianceOffers,
     envoys: w.envoys,
     armies: [...w.armies.values()],
     nextArmyId: w.nextArmyId,
@@ -81,6 +83,8 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   into(w.treaty, d.treaty);
   if (d.warSince) into(w.warSince, d.warSince);
   w.peaceOffers = d.peaceOffers;
+  if (d.allied) into(w.allied, d.allied);
+  w.allianceOffers = d.allianceOffers ?? [];
   w.envoys = d.envoys;
   for (const a of d.armies) w.armies.set(a.id, a);
   w.nextArmyId = d.nextArmyId;

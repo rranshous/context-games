@@ -95,7 +95,8 @@ function updatePanel(s: StateResponse) {
 
   $('kingdoms').innerHTML = [...s.kingdoms].sort((a, b) => Number(b.alive) - Number(a.alive) || b.settlements - a.settlements).map(k => {
     const mind = k.brain === 'script' ? 'script' : k.brain.replace(/:.*$/, '');
-    const wars = k.wars.map(w => `<span class="war" style="--wc:${s.kingdoms[w].color}">⚔ ${esc(shortName(s.kingdoms[w].name))}</span>`).join(' ');
+    const wars = k.wars.map(w => `<span class="war" style="--wc:${s.kingdoms[w].color}">⚔ ${esc(shortName(s.kingdoms[w].name))}</span>`)
+      .concat((k.allies ?? []).map(w => `<span class="war" style="--wc:${s.kingdoms[w].color}">⛨ ${esc(shortName(s.kingdoms[w].name))}</span>`)).join(' ');
     const coin = k.gold < 0 ? `<span class="debt">${k.gold.toLocaleString()} crowns</span>` : `${k.gold.toLocaleString()} crowns`;
     return `
     <div class="realm ${k.alive ? '' : 'fallen'}" style="--c:${k.color}" data-k="${k.id}">
@@ -137,6 +138,10 @@ function omen(t: string): { glyph: string; cls: string } {
   if (/is no more|rules the whole continent|Age .* begins/.test(t)) return { glyph: '✦', cls: 'big' };
   if (/declares war/.test(t)) return { glyph: '⚔', cls: 'big' };
   if (/swear peace/.test(t)) return { glyph: '☮', cls: 'big' };
+  if (/swear alliance|honors its alliance/.test(t)) return { glyph: '⛨', cls: 'big' };
+  if (/betrays the alliance/.test(t)) return { glyph: '🗡', cls: 'big' };
+  if (/rise against/.test(t)) return { glyph: '✊', cls: 'big' };
+  if (/turn their coats|break their contract/.test(t)) return { glyph: '¤', cls: 'big' };
   if (/falls to the/.test(t)) return { glyph: '♜', cls: 'big' };
   if (/^Envoy of/.test(t)) return { glyph: '✉', cls: 'speech' };
   if (/proclaims:/.test(t)) return { glyph: '📜', cls: 'speech' };

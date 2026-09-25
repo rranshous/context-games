@@ -55,6 +55,7 @@ export interface Envoy {
   to: number;
   text: string;
   peace: boolean;  // carries an offer of peace
+  alliance?: boolean; // carries an offer of alliance
   sent?: number;
   arrives: number;
 }
@@ -150,6 +151,8 @@ export class World {
   treaty = new Int32Array(MAX_FACTIONS * MAX_FACTIONS).fill(-1); // tick peace was last sworn
   warSince = new Int32Array(MAX_FACTIONS * MAX_FACTIONS).fill(-1); // tick the current war began
   peaceOffers: { from: number; to: number; tick: number }[] = [];
+  allied = new Uint8Array(MAX_FACTIONS * MAX_FACTIONS);  // 1 = sworn allies
+  allianceOffers: { from: number; to: number; tick: number }[] = [];
   envoys: Envoy[] = [];
 
   armies = new Map<number, Army>();
@@ -811,7 +814,7 @@ export class World {
       r.alive = false;
       for (let i = 0; i < this.high; i++) if (this.sf[i] === r.id) this.kill(i);
       for (const a of [...this.armies.values()]) if (a.faction === r.id) this.armies.delete(a.id);
-      for (const o of this.realms) { this.war[r.id * MAX_FACTIONS + o.id] = 0; this.war[o.id * MAX_FACTIONS + r.id] = 0; }
+      for (const o of this.realms) { this.setWar(r.id, o.id, false); this.setAllied(r.id, o.id, false); }
       this.log(r.id, [r.id], `The ${r.name} is no more. ${this.ruler(r.id)} is lost to history.`);
     }
     const living = this.realms.filter(r => r.alive);
@@ -858,13 +861,44 @@ export class World {
     this.setWar(a, b, true);
     this.peaceOffers = this.peaceOffers.filter(o => !((o.from === a && o.to === b) || (o.from === b && o.to === a)));
     const sworn = this.treaty[a * MAX_FACTIONS + b];
-    const oathbreak = sworn >= 0 && this.tick - sworn < 2 * YEAR;
-    if (oathbreak) this.realms[a].honor = Math.max(0, this.realms[a].honor - 0.25);
-    this.log(a, [a, b], oathbreak
-      ? `${this.ruler(a)} breaks the peace sworn with the ${this.realms[b].name} and declares war! Oathbreaker, they whisper.`
-      : `The ${this.realms[a].name} declares war on the ${this.realms[b].name}.`);
-    return oathbreak ? `You broke your oath of peace and declared war on the ${this.realms[b].name}. Your honor suffers.`
-      : `You declared war on the ${this.realms[b].name}.`;
+    const betrayal = this.isAllied(a, b);
+    const oathbreak = betrayal || (sworn >= 0 && this.tick - sworn < 2 * YEAR);
+    if (betrayal) this.setAllied(a, b, false);
+    if (oathbreak) this.realms[a].honor = Math.max(0, this.realms[a].honor - (betrayal ? 0.35 : 0.25));
+    this.log(a, [a, b], betrayal
+      ? `${this.ruler(a)} betrays the alliance with the ${this.realms[b].name} and declares war! Oathbreaker, they whisper.`
+      : oathbreak
+        ? `${this.ruler(a)} breaks the peace sworn with the ${this.realms[b].name} and declares war! Oathbreaker, they whisper.`
+        : `The ${this.realms[a].name} declares war on the ${this.realms[b].name}.`);
+    const called = this.callToArms(a, b);
+    const tail = called.length ? ` The allies of the ${this.realms[b].name} answer: ${called.join(', ')} now war on you too.` : '';
+    return (betrayal ? `You betrayed your alliance and declared war on the ${this.realms[b].name}. Your honor suffers greatly.`
+      : oathbreak ? `You broke your oath of peace and declared war on the ${this.realms[b].name}. Your honor suffers.`
+        : `You declared war on the ${this.realms[b].name}.`) + tail;
+  }
+
+  isAllied(a: number, b: number): boolean {
+    return a !== b && this.allied[a * MAX_FACTIONS + b] === 1;
+  }
+
+  alliesOf(k: number): number[] {
+    return this.realms.filter(r => r.alive && this.isAllied(k, r.id)).map(r => r.id);
+  }
+
+  setAllied(a: number, b: number, on: boolean) {
+    this.allied[a * MAX_FACTIONS + b] = this.allied[b * MAX_FACTIONS + a] = on ? 1 : 0;
+  }
+
+  /** The defender's allies take up arms against the aggressor. Returns the names of those who answered. */
+  private callToArms(aggressor: number, defender: number): string[] {
+    const answered: string[] = [];
+    for (const c of this.alliesOf(defender)) {
+      if (c === aggressor || this.atWar(c, aggressor) || this.isAllied(c, aggressor)) continue;
+      this.setWar(c, aggressor, true);
+      answered.push(`the ${this.realms[c].name}`);
+      this.log(c, [c, aggressor, defender], `The ${this.realms[c].name} honors its alliance with the ${this.realms[defender].name} and takes up arms against the ${this.realms[aggressor].name}.`);
+    }
+    return answered;
   }
 
   makePeace(a: number, b: number) {
@@ -886,10 +920,21 @@ export class World {
     this.log(-1, [a, b], `The ${this.realms[a].name} and the ${this.realms[b].name} swear peace.`);
   }
 
-  sendEnvoy(from: number, to: number, text: string, peace: boolean) {
+  sendEnvoy(from: number, to: number, text: string, peace: boolean, alliance = false) {
     const days = Math.max(1, this.capitalDistance(from, to) / COURIER_SPEED);
-    this.envoys.push({ from, to, text, peace, sent: this.tick, arrives: this.tick + Math.round(days * HOURS_PER_DAY) });
+    this.envoys.push({ from, to, text, peace, alliance, sent: this.tick, arrives: this.tick + Math.round(days * HOURS_PER_DAY) });
     if (peace) this.peaceOffers.push({ from, to, tick: this.tick });
+    if (alliance) this.allianceOffers.push({ from, to, tick: this.tick });
+  }
+
+  hasAllianceOffer(from: number, to: number): boolean {
+    return this.allianceOffers.some(o => o.from === from && o.to === to && this.tick - o.tick < 180 * HOURS_PER_DAY);
+  }
+
+  makeAlliance(a: number, b: number) {
+    this.setAllied(a, b, true);
+    this.allianceOffers = this.allianceOffers.filter(o => !((o.from === a && o.to === b) || (o.from === b && o.to === a)));
+    this.log(-1, [a, b], `The ${this.realms[a].name} and the ${this.realms[b].name} swear alliance.`);
   }
 
   private deliverEnvoys() {
@@ -901,8 +946,12 @@ export class World {
       if (!this.realms[e.to].alive || !this.realms[e.from].alive) continue;
       const from = this.realms[e.from];
       const said = e.text ? `: “${e.text}”` : '.';
-      this.realms[e.to].inbox.push(`An envoy from ${this.ruler(e.from)} of the ${from.name} arrives${said}${e.peace ? ' They offer peace.' : ''}`);
-      this.log(e.from, [], `Envoy of ${this.ruler(e.from)} to ${this.ruler(e.to)}${said}${e.peace ? ' (an offer of peace)' : ''}`);
+      const offer = e.peace ? ' They offer peace.' : e.alliance ? ' They propose an alliance.' : '';
+      this.realms[e.to].inbox.push(`An envoy from ${this.ruler(e.from)} of the ${from.name} arrives${said}${offer}`);
+      this.log(e.from, [], `Envoy of ${this.ruler(e.from)} to ${this.ruler(e.to)}${said}${e.peace ? ' (an offer of peace)' : e.alliance ? ' (an offer of alliance)' : ''}`);
+      if (e.alliance && !this.atWar(e.from, e.to) && !this.isAllied(e.from, e.to) && this.hasAllianceOffer(e.to, e.from)) {
+        this.makeAlliance(e.from, e.to);
+      }
       // Two offers crossing make a treaty
       if (e.peace && this.atWar(e.from, e.to)) {
         const theirs = this.peaceOffers.find(o => o.from === e.to && o.to === e.from && this.tick - o.tick < 180 * HOURS_PER_DAY);
@@ -1116,6 +1165,7 @@ export class World {
         upkeep: +r.upkeep.toFixed(1),
         honor: +r.honor.toFixed(2),
         wars: this.enemiesOf(r.id),
+        allies: this.alliesOf(r.id),
         origin: r.origin,
         capital: r.capital,
         thinking: r.thinking,

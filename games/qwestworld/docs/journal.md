@@ -177,3 +177,6 @@ Noticed: both qwen kings hoard, each sitting on ~10,000 crowns while at war. The
 
 ### Seeing orders flow downhill
 The core idea (commands degrade as they travel down the hierarchy) was invisible. Now couriers are drawn: royal orders as small lights in the realm's color riding from the seat to the general, envoys as pale lanterns with a faint trail between capitals. A seat whose mind is in council pulses with an expanding gold ring. `StateResponse.couriers` carries each rider's endpoints and progress.
+
+### Alliances
+Envoys can carry `offer_alliance`. Crossing or answered offers seal a pact ("…swear alliance"). If anyone declares war on your ally, you're **called to arms** ("The X honors its alliance with Y and takes up arms against Z"). Declaring war on your own ally is a **betrayal** (honor -0.35, "betrays the alliance… Oathbreaker, they whisper"). Reports show "your ALLY" and each realm's own alliances. Scripts accept alliances from realms that share an enemy and seek them against shared foes. The bench now tallies alliances, calls to arms, betrayals, revolts and turncoats. First 4-year bench: 25 captures, 3 alliances, 6 revolts, 3 turncoat companies.

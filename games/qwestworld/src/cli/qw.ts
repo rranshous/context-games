@@ -30,7 +30,7 @@ async function status() {
   for (const k of s.kingdoms) {
     const tag = `${LETTERS[k.id]}) ${k.name}`.padEnd(30);
     const ruler = `${k.ruler.title} ${k.ruler.name} (${k.ruler.age})`.padEnd(20);
-    const wars = k.wars.length ? ` ⚔${k.wars.map(w => LETTERS[w]).join('')}` : '';
+    const wars = (k.wars.length ? ` ⚔${k.wars.map(w => LETTERS[w]).join('')}` : '') + (k.allies?.length ? ` ⛨${k.allies.map(w => LETTERS[w]).join('')}` : '');
     console.log(`${tag} ${ruler} ${k.alive ? `${String(k.settlements).padStart(2)} towns ${String(k.soldiers).padStart(6)} soldiers ${String(k.gold).padStart(6)}g${wars}` : 'FALLEN'}  [${k.brain}]${k.thinking ? ' (in council)' : ''}`);
     for (const a of s.armies.filter(a => a.faction === k.id)) {
       console.log(`     ⚑ ${a.general.padEnd(14)} ${String(a.size).padStart(5)}  morale ${a.morale.toFixed(2)} renown ${a.renown}  ${a.order} → #${a.target}`);
