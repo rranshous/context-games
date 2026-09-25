@@ -94,6 +94,11 @@ app.get('/api/meta', (_req, res) => res.json(statics().meta));
 app.get('/api/terrain.bin', (_req, res) => res.type('application/octet-stream').send(statics().terrain));
 app.get('/api/regions.bin', (_req, res) => res.type('application/octet-stream').send(statics().regions));
 app.get('/api/state', (_req, res) => res.json(world.view(court.stalledBy())));
+app.get('/api/history', (_req, res) => res.json({
+  realms: world.realms.map(r => ({ id: r.id, name: r.name, color: r.color })),
+  samples: world.history,
+}));
+app.get('/api/annals', (_req, res) => res.json(world.annals));
 app.get('/api/soldiers.bin', (_req, res) => res.type('application/octet-stream').send(world.soldiersBinary()));
 app.get('/api/health', (_req, res) => res.json({
   tick: world.tick, age: world.age, paused, stalledBy: court.stalledBy(),

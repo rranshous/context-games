@@ -6,7 +6,7 @@
 
 import http from 'http';
 import { HOURS_PER_DAY, formatDate } from '../shared/types.js';
-import { World, Realm } from './world.js';
+import { World, Realm, YEAR } from './world.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://localhost:11434';
 const COUNCIL_DAYS = parseInt(process.env.COUNCIL_DAYS ?? '45', 10);
@@ -60,9 +60,14 @@ interface ChatMessage {
 const quiet = !!process.env.QW_QUIET;
 const say = (...a: unknown[]) => { if (!quiet) console.log(...a); };
 
+type Job = { kind: 'council'; id: number } | { kind: 'annal'; year: number };
+
+const SCRIBE = resolveBrain(process.env.SCRIBE_BRAIN ?? 'llama');
+
 export class Court {
-  private queue: number[] = [];
+  private queue: Job[] = [];
   private busy = false;
+  private annalsDue = 0; // highest year queued for the scribe
 
   constructor(private world: () => World) {}
 
@@ -73,7 +78,13 @@ export class Court {
       if (!r.alive || r.thinking || w.tick < r.nextCouncil) continue;
       r.thinking = true;
       if (r.brain === 'script') this.finish(r.id, w, scriptCouncil(w, r.id), '', null);
-      else this.queue.push(r.id);
+      else this.queue.push({ kind: 'council', id: r.id });
+    }
+    // At each year's end the scribe writes it down
+    const year = Math.floor(w.tick / YEAR);
+    if (SCRIBE !== 'script' && year >= 1 && year > this.annalsDue && !w.annals.some(a => a.year === year)) {
+      this.annalsDue = year;
+      this.queue.push({ kind: 'annal', year });
     }
     this.pump();
   }
@@ -98,8 +109,21 @@ export class Court {
   private async pump() {
     if (this.busy || !this.queue.length) return;
     this.busy = true;
-    const id = this.queue.shift()!;
+    const job = this.queue.shift()!;
     const w = this.world();
+    if (job.kind === 'annal') {
+      try {
+        const text = await this.writeAnnal(w, job.year);
+        if (text && w === this.world()) w.annals.push({ year: job.year, text, by: SCRIBE });
+      } catch (e: any) {
+        console.error(`[court] the scribe could not write Year ${job.year}: ${e.message}`);
+      } finally {
+        this.busy = false;
+        this.pump();
+      }
+      return;
+    }
+    const id = job.id;
     try {
       if (!w.realms[id].alive) { w.realms[id].thinking = false; return; }
       const turn = openTurn(w, id);
@@ -140,6 +164,29 @@ export class Court {
     r.inbox = [];
     r.thinking = false;
     say(`[court] ${date} — ${w.ruler(id)} (${r.brain}): ${decrees.join(' | ') || '(no commands)'}`);
+  }
+
+  private async writeAnnal(w: World, year: number): Promise<string> {
+    const entries = w.yearEntries(year)
+      .filter(t => !/^Envoy of|Desertion bleeds|bountiful harvest|sellswords/.test(t))
+      .slice(-70);
+    if (!entries.length) return '';
+    const rulers = w.realms.filter(r => r.alive).map(r => `${w.ruler(r.id)} of the ${r.name}`).join('; ');
+    const started = Date.now();
+    const data: any = await postJson(`${OLLAMA_URL}/api/chat`, {
+      model: SCRIBE,
+      stream: false,
+      think: false,
+      keep_alive: -1,
+      options: { num_ctx: 8192, num_predict: 350, temperature: 0.7 },
+      messages: [
+        { role: 'system', content: 'You are the chronicler of the continent. You write the annals: each year, one short paragraph in the plain, grave voice of a medieval chronicler. Name the rulers, realms and places. Say what mattered and why. No title, no preamble, no lists.' },
+        { role: 'user', content: `The rulers now living: ${rulers}.\n\nThe records of Year ${year}:\n${entries.map(e => '- ' + e).join('\n')}\n\nWrite the annal for Year ${year}. /no_think` },
+      ],
+    }, 30 * 60 * 1000);
+    const text = String(data.message?.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').replace(/^#+.*\n/, '').trim();
+    say(`[court] the scribe (${SCRIBE}) wrote Year ${year} in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+    return text.slice(0, 1500);
   }
 
   private async ask(w: World, id: number, turn: Turn): Promise<{ calls: ToolCall[]; thought: string }> {

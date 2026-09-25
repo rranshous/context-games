@@ -192,14 +192,14 @@ export class Renderer {
   private drawSettlements(cam: Camera, meta: MetaResponse, state: StateResponse, colors: RGB[], w: number, h: number) {
     const ctx = this.ctx;
     const showNames = cam.scale >= 1.5;
-    const capitals = new Set(state.kingdoms.filter(k => k.alive).map(k => k.id));
-    void capitals;
+    const seats = new Set(state.kingdoms.filter(k => k.alive).map(k => k.capital));
     for (const s of meta.settlements) {
       const v = state.settlements[s.id];
       const [x, y] = cam.toScreen(s.x + 0.5, s.y + 0.5, w, h);
       if (x < -60 || y < -30 || x > w + 60 || y > h + 30) continue;
       const c = colors[v.owner] ?? [128, 128, 128];
-      const r = s.capital ? 5.5 : 3.6;
+      const seat = seats.has(s.id);
+      const r = seat ? 5.5 : 3.6;
 
       if (v.siege > 0) {
         ctx.beginPath();
@@ -213,18 +213,18 @@ export class Renderer {
       ctx.strokeStyle = '#1a140c';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      if (s.capital) ctx.rect(x - r, y - r, r * 2, r * 2);
+      if (seat) ctx.rect(x - r, y - r, r * 2, r * 2);
       else ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      if (s.capital) {
+      if (seat) {
         ctx.strokeStyle = '#e9c46a';
         ctx.lineWidth = 1;
         ctx.strokeRect(x - r - 2.5, y - r - 2.5, r * 2 + 5, r * 2 + 5);
       }
 
-      if (showNames || s.capital) {
-        ctx.font = `${s.capital ? 600 : 500} ${s.capital ? 14 : 12}px Cinzel, serif`;
+      if (showNames || seat) {
+        ctx.font = `${seat ? 600 : 500} ${seat ? 14 : 12}px Cinzel, serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         ctx.lineWidth = 3;

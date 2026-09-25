@@ -3,6 +3,7 @@
 import { MetaResponse, StateResponse, MAP_W, MAP_H, formatDate } from '../../shared/types.js';
 import { SimApi, Soldiers } from './api.js';
 import { Camera, Renderer } from './render.js';
+import { drawHistory, HistoryData } from './history.js';
 
 const SOLDIER_POLL_MS = 250;
 const STATE_POLL_MS = 1000;
@@ -20,6 +21,7 @@ let state: StateResponse | null = null;
 let prev: Soldiers | null = null, cur: Soldiers | null = null;
 let curAt = 0;
 let lastChronicleTick = -1;
+const open = new Set<number>(); // realm cards expanded to show their reign
 
 function resize() {
   canvas.width = innerWidth * devicePixelRatio;
@@ -37,6 +39,7 @@ async function loadStatics() {
   renderer.setRegions(regions);
   prev = cur = null;
   lastChronicleTick = -1;
+  annalsSeen = -1;
   $('chronicle').innerHTML = '';
   cam.fit(innerWidth, innerHeight, panelWidth());
 }
@@ -97,6 +100,8 @@ function updatePanel(s: StateResponse) {
       ${k.alive && k.thinking && k.brain !== 'script' ? '<div class="thinking">in council…</div>' : ''}
       ${k.alive && k.lastThought ? `<div class="thought">“${esc(k.lastThought)}”</div>` : ''}
       ${k.alive && k.lastDecrees.length ? `<div class="decrees">${k.lastDecrees.map(esc).join(' · ')}</div>` : ''}
+      ${open.has(k.id) ? `<div class="reign"><div class="origin">${esc(k.origin)}${k.honor < 1 ? ` · honor ${Math.round(k.honor * 100)}%` : ''} · ${k.income} in, ${k.upkeep} out a day</div>${
+        k.reign.length ? k.reign.slice().reverse().map(r => `<div>${esc(r)}</div>`).join('') : '<div><i>No councils yet.</i></div>'}</div>` : ''}
     </div>`;
   }).join('');
 
@@ -108,13 +113,32 @@ function updatePanel(s: StateResponse) {
       const d = document.createElement('div');
       if (lastChronicleTick >= 0) d.className = 'new';
       const c = e.faction >= 0 ? s.kingdoms[e.faction]?.color : '#d9b35f';
-      d.innerHTML = `<span class="when" style="color:${c}">${esc(formatDate(e.tick).replace(/, Year.*/, ''))}</span>${esc(e.text)}`;
+      const icon = omen(e.text);
+      if (icon.cls) d.classList.add(icon.cls);
+      d.innerHTML = `<span class="when" style="color:${c}">${esc(formatDate(e.tick).replace(/, Year.*/, ''))}</span>${icon.glyph ? `<span class="glyph">${icon.glyph}</span>` : ''}${esc(e.text)}`;
       box.prepend(d);
     }
     while (box.children.length > 200) box.lastChild!.remove();
     if (atTop) box.scrollTop = 0;
     lastChronicleTick = s.chronicle[s.chronicle.length - 1].tick;
   }
+}
+
+/** A glyph and style for the kinds of history worth noticing at a glance. */
+function omen(t: string): { glyph: string; cls: string } {
+  if (/rises in rebellion/.test(t)) return { glyph: '🔥', cls: 'big' };
+  if (/takes the throne/.test(t)) return { glyph: '♛', cls: 'big' };
+  if (/is no more|rules the whole continent|Age .* begins/.test(t)) return { glyph: '✦', cls: 'big' };
+  if (/declares war/.test(t)) return { glyph: '⚔', cls: 'big' };
+  if (/swear peace/.test(t)) return { glyph: '☮', cls: 'big' };
+  if (/falls to the/.test(t)) return { glyph: '♜', cls: 'big' };
+  if (/^Envoy of/.test(t)) return { glyph: '✉', cls: 'speech' };
+  if (/proclaims:/.test(t)) return { glyph: '📜', cls: 'speech' };
+  if (/ takes /.test(t)) return { glyph: '⚑', cls: '' };
+  if (/Battle of/.test(t)) return { glyph: '⚔', cls: '' };
+  if (/sellswords/.test(t)) return { glyph: '¤', cls: '' };
+  if (/Plague/.test(t)) return { glyph: '☠', cls: '' };
+  return { glyph: '', cls: '' };
 }
 
 function shortName(n: string): string {
@@ -137,7 +161,7 @@ canvas.addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', () => { drag = null; canvas.classList.remove('dragging'); });
 addEventListener('mousemove', e => {
-  if (!drag) return;
+  if (!drag) { hover(e); return; }
   cam.x = drag.cx - (e.clientX - drag.x) / cam.scale;
   cam.y = drag.cy - (e.clientY - drag.y) / cam.scale;
 });
@@ -154,14 +178,100 @@ $('kingdoms').addEventListener('click', e => {
   const el = (e.target as HTMLElement).closest('.realm') as HTMLElement | null;
   if (!el || !meta || !state) return;
   const k = +el.dataset.k!;
-  // Fly to the realm's largest holding
-  const held = state.settlements.filter(s => s.owner === k).sort((a, b) => b.garrison - a.garrison)[0];
-  if (!held) return;
-  const s = meta.settlements[held.id];
+  if (open.has(k)) open.delete(k); else open.add(k);
+  updatePanel(state);
+  // Fly to the realm's seat
+  const seat = state.kingdoms[k].capital;
+  if (state.settlements[seat]?.owner !== k) return;
+  const s = meta.settlements[seat];
   cam.scale = Math.max(cam.scale, 3);
   cam.x = s.x + panelWidth() / 2 / cam.scale;
   cam.y = s.y;
 });
+
+// ---------------------------------------------------------------- hover: what is this?
+
+const tip = document.createElement('div');
+tip.id = 'map-tip';
+tip.hidden = true;
+document.body.append(tip);
+
+function hover(e: MouseEvent) {
+  if (!meta || !state || e.target !== canvas) { tip.hidden = true; return; }
+  const [wx, wy] = cam.toWorld(e.clientX, e.clientY, innerWidth, innerHeight);
+  const reach = 10 / cam.scale;
+  let html = '';
+  // Armies first: they sit on top
+  let best = reach * 1.6;
+  for (const a of state.armies) {
+    const d = Math.hypot(a.x - wx, a.y - wy);
+    if (d < best && a.size >= 10) {
+      best = d;
+      const k = state.kingdoms[a.faction];
+      const spirit = a.morale >= 0.8 ? 'high spirits' : a.morale >= 0.5 ? 'steady' : a.morale >= 0.3 ? 'grumbling' : 'near mutiny';
+      html = `<b style="color:${k.color}">General ${esc(a.general)}</b><br>${esc(k.name)}<br>${a.size.toLocaleString()} soldiers, ${spirit}` +
+        `${a.renown ? `<br>has taken ${a.renown} town${a.renown > 1 ? 's' : ''}` : ''}<br>${a.order === 'march' ? 'marching on' : 'holding'} ${esc(meta.settlements[a.target].name)}`;
+    }
+  }
+  if (!html) {
+    best = reach;
+    for (const m of meta.settlements) {
+      const d = Math.hypot(m.x + 0.5 - wx, m.y + 0.5 - wy);
+      if (d < best) {
+        best = d;
+        const v = state.settlements[m.id];
+        const k = state.kingdoms[v.owner];
+        const seat = k && k.capital === m.id;
+        html = `<b>${esc(m.name)}</b>${seat ? ' · seat' : ''}<br><span style="color:${k?.color}">${esc(k?.name ?? '')}</span><br>${v.garrison} garrisoned` +
+          `${v.siege > 0 ? `<br>under siege, ${Math.round(v.siege * 100)}%` : ''}`;
+      }
+    }
+  }
+  tip.hidden = !html;
+  if (html) {
+    tip.innerHTML = html;
+    tip.style.left = `${e.clientX + 14}px`;
+    tip.style.top = `${e.clientY + 14}px`;
+  }
+}
+
+// ---------------------------------------------------------------- tabs: chronicle / annals / history
+
+let tab = 'chronicle';
+let metric: 'held' | 'soldiers' = 'held';
+let historyData: HistoryData | null = null;
+let annalsSeen = -1;
+
+document.querySelectorAll<HTMLButtonElement>('#tabs button').forEach(b => b.addEventListener('click', () => {
+  tab = b.dataset.tab!;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  for (const id of ['chronicle', 'annals', 'history']) $(id).hidden = id !== tab;
+  refreshTab();
+}));
+document.querySelectorAll<HTMLButtonElement>('.metric button').forEach(b => b.addEventListener('click', () => {
+  metric = b.dataset.metric as 'held' | 'soldiers';
+  document.querySelectorAll('.metric button').forEach(x => x.classList.toggle('on', x === b));
+  if (historyData) drawHistory($('history-chart'), historyData, metric);
+}));
+
+async function refreshTab() {
+  try {
+    if (tab === 'history') {
+      historyData = await api.history();
+      drawHistory($('history-chart'), historyData, metric);
+    } else if (tab === 'annals') {
+      const annals = await api.annals();
+      const last = annals.length ? annals[annals.length - 1].year : 0;
+      if (last !== annalsSeen) {
+        annalsSeen = last;
+        $('annals').innerHTML = annals.length
+          ? annals.slice().reverse().map(a => `<div class="annal"><h3>THE YEAR ${a.year}</h3><p>${esc(a.text)}</p><div class="by">set down by the scribe (${esc(a.by)})</div></div>`).join('')
+          : '<p class="empty">The scribe writes at each year\'s end. The first annal is not yet written.</p>';
+      }
+    }
+  } catch { /* shown by state poll */ }
+}
+setInterval(() => { if (tab !== 'chronicle') refreshTab(); }, 15000);
 
 async function togglePause() {
   const h = await api.health();

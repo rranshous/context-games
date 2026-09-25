@@ -99,6 +99,7 @@ export interface KingdomView {
   honor: number;       // 0..1, falls when oaths are broken
   wars: number[];      // realms this one is at war with
   origin: string;      // how the realm came to be
+  capital: number;     // settlement id of the current seat
   thinking: boolean;
   lastThought: string;
   lastDecrees: string[];

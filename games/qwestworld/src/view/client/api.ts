@@ -1,6 +1,7 @@
 // api.ts — everything the viewer knows about the sim comes through here
 
 import { MetaResponse, StateResponse, MAP_W, MAP_H, POS_SCALE } from '../../shared/types.js';
+import type { HistoryData } from './history.js';
 
 export interface Soldiers {
   tick: number;
@@ -50,6 +51,14 @@ export class SimApi {
     const y = new Uint16Array(buf.slice(8 + n * 2, 8 + n * 4));
     const f = new Uint8Array(buf, 8 + n * 4, n);
     return { tick, n, x, y, f };
+  }
+
+  async history(): Promise<HistoryData> {
+    return (await fetch(`${this.base}/api/history`)).json();
+  }
+
+  async annals(): Promise<{ year: number; text: string; by: string }[]> {
+    return (await fetch(`${this.base}/api/annals`)).json();
   }
 
   async control(action: 'pause' | 'resume'): Promise<{ paused: boolean }> {

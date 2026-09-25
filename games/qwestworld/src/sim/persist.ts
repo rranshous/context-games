@@ -41,6 +41,8 @@ export function saveWorld(w: World, file: string) {
     nextArmyId: w.nextArmyId,
     orders: w.orders,
     chronicle: w.chronicle,
+    history: w.history,
+    annals: w.annals,
     names: [...w.names.used],
   };
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -82,6 +84,8 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   w.nextArmyId = d.nextArmyId;
   w.orders = d.orders;
   w.chronicle = d.chronicle;
+  w.history = d.history ?? [];
+  w.annals = d.annals ?? [];
   for (const n of d.names ?? []) w.names.used.add(n);
   w.rebuildDerived();
   // A council that was mid-thought when we stopped gets called again

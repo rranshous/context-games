@@ -152,6 +152,8 @@ export class World {
   nextArmyId = 1;
   orders: Order[] = [];
   chronicle: Entry[] = [];
+  history: { tick: number; held: number[]; soldiers: number[] }[] = [];  // monthly samples
+  annals: { year: number; text: string; by: string }[] = [];             // the scribe's yearly accounts
   rebelBrain: string;
 
   private fields: FieldCache;
@@ -525,6 +527,7 @@ export class World {
   // ---------------------------------------------------------------- daily
 
   private daily() {
+    if ((this.tick / HOURS_PER_DAY) % DAYS_PER_MONTH === 0) this.sample();
     this.economy();
     this.recruit();
     this.morale();
@@ -744,7 +747,7 @@ export class World {
           if (this.sf[i] !== DEAD && this.sArmy[i] < 0 && this.sHome[i] === s.id) { this.kill(i); n++; }
         }
         if (n > 10) this.log(k, [k], `Plague in ${s.name}. ${n} of the garrison are buried.`);
-      } else if (roll < 1 / 9000 + 1 / 5000) {
+      } else if (roll < 1 / 9000 + 1 / 14000) {
         const gain = Math.round(60 + s.food / 20);
         this.realms[k].gold += gain;
         this.log(k, [k], `A bountiful harvest at ${s.name} fills the ${this.realms[k].name}'s coffers with ${gain} crowns.`);
@@ -769,6 +772,19 @@ export class World {
         : `The continent lies empty. The Age ${roman(this.age)} ends.`);
       this.endsAt = this.tick + HOURS_PER_DAY * 12;
     }
+  }
+
+  private sample() {
+    const soldiers = new Array(this.realms.length).fill(0);
+    for (let i = 0; i < this.high; i++) if (this.sf[i] !== DEAD) soldiers[this.sf[i]]++;
+    this.history.push({ tick: this.tick, held: this.realms.map(r => this.held(r.id)), soldiers });
+    if (this.history.length > 2400) this.history.splice(0, this.history.length - 2400);
+  }
+
+  /** Chronicle entries of one year, for the scribe. */
+  yearEntries(year: number): string[] {
+    const from = (year - 1) * YEAR, to = year * YEAR;
+    return this.chronicle.filter(e => e.tick > from && e.tick <= to).map(e => e.text);
   }
 
   // ---------------------------------------------------------------- diplomacy
@@ -1049,6 +1065,7 @@ export class World {
         honor: +r.honor.toFixed(2),
         wars: this.enemiesOf(r.id),
         origin: r.origin,
+        capital: r.capital,
         thinking: r.thinking,
         lastThought: r.lastThought,
         lastDecrees: r.lastDecrees,
