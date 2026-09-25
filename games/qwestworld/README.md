@@ -31,6 +31,7 @@ Only the rulers think. Every 60 in-game days each holds council: they read their
 - **Generals misread the royal seal** and march on the wrong town, or **ignore orders**, more often when their men are miserable.
 - **Soldiers must be paid.** An empty treasury stops recruiting, breaks morale and starts desertion. Unpaid sellswords walk away, or sell their spears to a richer enemy.
 - **Conquered towns can rise up** and open their gates to their old masters.
+- **Seasons turn:** winter slows hosts and starves those abroad; the harvest fills the coffers. Neighbors at peace **trade**, and war closes the roads.
 
 > *General Edvin misreads the royal seal and marches on Grisgate instead of Dunbarrow.*
 > …and takes it. His king's first conquest was an accident.
@@ -41,9 +42,9 @@ If a thinking ruler runs overdue, time slows for them: *"Time slows while Queen 
 
 Each ruler has a name, a title, an age, a realm and a temperament ("cautious and patient", "bloodthirsty", "melancholy"). A realm's brain is `script` (a few lines of rules) or any Ollama model with tool calling. The default mix is two `qwen3:8b`, two `llama3.2:3b`, one `qwen3:1.7b` and one scripted baseline. You can hand a realm to another mind at runtime: `npm run qw -- brain d llama`.
 
-**Tools:** `march`, `hold`, `muster`, `hire_mercenaries`, `declare_war`, `send_envoy` (with `offer_peace` / `offer_alliance`), `proclaim`.
+**Tools:** `march`, `hold`, `muster`, `hire_mercenaries` (by men, 3 crowns each), `declare_war` (required before attacking a realm at peace), `send_envoy` (with `offer_peace` / `offer_alliance`), `proclaim`.
 
-**What a ruler sees:** treasury and daily income and pay; every settlement and its garrison; each general's size, whereabouts, orders and spirits; foreign border towns ("strongly held"); every realm with its ruler, wars, alliances and reputation ("Known as an oathbreaker"); envoys and tidings; news since the last council. All in-fiction, never coordinates.
+**What a ruler sees:** the date and season; treasury, taxes, trade and pay; every settlement and its garrison; each general's size, whereabouts, orders and spirits; foreign border towns ("strongly held"); every realm with its ruler, wars, alliances and reputation ("Known as an oathbreaker"); envoys and tidings; news since the last council; and **their advisors' counsel** when something is off (the treasurer on idle coin or debt, the marshal on idle hosts or coming winter, scouts on weak enemy towns, the castellan on sieges, merchants on trade lost to war, the spymaster on generals who might rebel, the chancellor on a doubted word). Generals come with a hint of their hearts ("Devoted to you." / "Ambitious, and loves you little."). All in-fiction, never coordinates.
 
 **Memory:** a rolling window of the last 5 councils. Older councils are compressed to a brief; the ruler's own commands appear verbatim, with in-fiction outcomes ("You sent word to General Merdric, but no such general serves you. Merdric is destroyed near Grisvale."). An heir starts with no memory, only the news of how they came to the throne.
 
@@ -57,10 +58,11 @@ The sim and the view are separate processes. The sim knows nothing about renderi
 
 **Browser viewer**
 - **The map:** terrain; realm borders; every soldier as a dot; army banners (☹ unhappy, ★ high spirits) with dashed march lines; siege rings; pulsing red battles; courier lights carrying orders to generals and envoys between seats; a gold ring pulsing at the seat of any ruler in council. Hover anything for details.
-- **The realm cards:** ruler, mind, towns, soldiers, treasury, wars ⚔ and alliances ⛨, last decrees. Click a card to expand that ruler's reign and fly to their seat.
+- **The realm cards:** ruler, mind, towns, soldiers, treasury, wars ⚔ and alliances ⛨, last decrees. Click a card to expand that ruler's reign, the mind's statistics, and fly to their seat. From there, **open the council chamber** to read exactly what that mind is given at council, or **whisper…** words that ruler will hear at their next council ("A stranger at court whispers to you…").
 - **The tabs:** Chronicle (with glyphs for the big moments), Annals (the scribe's years), History (towns or soldiers per realm over time, stacked).
 - **Catching up:** "While you were away" lists the great events since this browser last looked. A first visit gets "The Story So Far".
-- **Controls:** drag to pan, wheel to zoom; H toggles the panel, F fits the map, Space pauses. `?sim=http://host:4200` points it at a sim elsewhere; `?fps=` sets the frame cap (default 24, to leave CPU for the minds).
+- **Wander mode** (W, or `?wander`): the camera drifts between battles, sieges, councils, marching hosts and envoys, with captions. With H hiding the panel, it's the projector mode.
+- **Controls:** drag to pan, wheel to zoom; H toggles the panel, F fits the map, W wanders, Space pauses. `?sim=http://host:4200` points it at a sim elsewhere; `?fps=` sets the frame cap (default 24, to leave CPU for the minds).
 
 **`qw`, the terminal window.** Same API, same powers as the browser.
 
@@ -70,7 +72,10 @@ npm run qw -- kings               # each ruler's last decrees and reign
 npm run qw -- context b           # the exact messages ruler b would receive at council
 npm run qw -- chronicle 30        # recent history
 npm run qw -- map 120             # ASCII territory map
+npm run qw -- minds               # how each mind has ruled: councils, speed, tokens, tools, misfires
 npm run qw -- brain d qwen3:1.7b  # hand realm d to another mind
+npm run qw -- whisper a <text>    # a stranger's words at ruler a's next council
+npm run qw -- new-age             # end this age; a new continent rises
 npm run qw -- pause | resume
 ```
 
@@ -105,7 +110,7 @@ src/shared/   constants and API types
 docs/         idea.md, journal.md
 ```
 
-**API** (the sim, CORS open): `GET /api/meta`, `/api/terrain.bin`, `/api/regions.bin`, `/api/state`, `/api/soldiers.bin`, `/api/history`, `/api/annals`, `/api/chronicle?since=`, `/api/health`, `/api/kings/:id/context`, `POST /api/control {action: pause | resume | brain}`.
+**API** (the sim, CORS open): `GET /api/meta`, `/api/terrain.bin`, `/api/regions.bin`, `/api/state`, `/api/soldiers.bin`, `/api/history`, `/api/annals`, `/api/chronicle?since=`, `/api/health`, `/api/kings/:id/context`, `POST /api/control {action: pause | resume | brain | whisper | new-age}`.
 
 ## Performance
 
