@@ -240,3 +240,6 @@ The age-transition path (one crown left → a new continent 12 days later) had n
 Press W (or open with `?wander`) and the camera drifts on its own every 16 seconds. It picks by weight among the live sights: the biggest battles, towns under siege, seats whose ruler is in council, great hosts on the march, envoys on the road. It eases in and captions each ("The Battle of Holmouth: … 12 days, 540 fallen."), and pulls back to the whole continent every fifth stop. Dragging the map takes the reins back. With H hiding the panel, this is the projector mode.
 
 Also: rulers now see a hint of each general's heart ("Devoted to you." / "Ambitious, and loves you little."), and a spymaster warns when a proud, disloyal general's men are discontent ("There is talk of rebellion."). A general whose host merged away or dissolved is explained when a ruler orders them.
+
+### Names run out
+Queen Leora of Mardun died, and her heir was crowned **"King Halis 49"**. Years of musters, sellsword companies and heirs had exhausted the 560-name person pool, and the fallback appended a number. The pool is now ~54 × 38 names, with an optional middle syllable (~20k+ shapes; 0 collisions in 2,000 draws). Heirs sometimes take the dynasty's name ("King Caswyn II"), and a true collision gets a regnal numeral. The live world's Halis lost his 49 on load.
