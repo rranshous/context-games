@@ -72,6 +72,7 @@ export interface Army {
   idleDays: number;
   lastSize: number;  // size at the last daily count, to measure losses
   peak: number;
+  merc?: string;     // company name, if these are sellswords
 }
 
 export interface Ruler {
@@ -139,6 +140,7 @@ export class World {
   siege: Float32Array;
   siegeBy: Int8Array;
   contested: Uint8Array;
+  takenAt: Int32Array;   // tick the current owner took it (-1: held since the founding)
 
   // --- realms and their dealings ---
   realms: Realm[] = [];
@@ -178,6 +180,7 @@ export class World {
     this.siege = new Float32Array(ns);
     this.siegeBy = new Int8Array(ns).fill(-1);
     this.contested = new Uint8Array(ns);
+    this.takenAt = new Int32Array(ns).fill(-1);
     this.fields = new FieldCache(this.map.cost, id => this.map.settlements[id].tile, ns + 16);
     this.names = new NameGen(mulberry32(seed ^ 0x5eed + age));
     for (const k of this.map.kingdoms) this.names.used.add(k.king);
@@ -459,6 +462,7 @@ export class World {
       if (this.sf[i] !== DEAD && this.sArmy[i] < 0 && this.sHome[i] === id) this.kill(i);
     }
     this.owner[id] = by;
+    this.takenAt[id] = this.tick;
     this.siege[id] = 0;
     this.siegeBy[id] = -1;
     const winner = this.realms[by], loser = this.realms[prev];
@@ -531,6 +535,8 @@ export class World {
     this.economy();
     this.recruit();
     this.morale();
+    this.sellswords();
+    this.revolts();
     this.battleReports();
     this.fates();
     this.omens();
@@ -598,6 +604,7 @@ export class World {
     for (const a of [...this.armies.values()]) {
       const realm = this.realms[a.faction];
       // Drift toward steady
+      const atWar = this.enemiesOf(a.faction).length > 0;
       a.morale += (0.6 - a.morale) * 0.02;
       // Losses in battle (desertion is counted separately)
       const lost = a.lastSize - a.size - (this.deserted.get(a.id) ?? 0);
@@ -605,7 +612,8 @@ export class World {
       // Idleness
       const idle = a.order === 'hold' && this.owner[a.target] === a.faction;
       a.idleDays = idle ? a.idleDays + 1 : 0;
-      if (a.idleDays > 60) a.morale -= 0.006;
+      // Idleness chafes only while there is a war to be fought
+      if (a.idleDays > 60 && atWar) a.morale -= 0.006;
       // Pay
       if (realm.gold < 0) a.morale -= 0.03;
       a.morale = Math.max(0, Math.min(1, a.morale));
@@ -658,6 +666,46 @@ export class World {
       this.log(-1, fs, `The Battle of ${this.map.settlements[at].name}: ${days} day${days > 1 ? 's' : ''} of fighting between ${who}. ${w.deaths} fall.`);
     }
     this.battle.clear();
+  }
+
+  /** Unpaid sellswords walk — or sell their spears to a richer enemy. */
+  private sellswords() {
+    for (const a of [...this.armies.values()]) {
+      if (!a.merc || this.realms[a.faction].gold >= 0 || Math.random() > 0.08) continue;
+      const old = this.realms[a.faction];
+      const buyer = this.enemiesOf(a.faction).map(e => this.realms[e]).filter(r => r.gold > a.size * 2)
+        .sort((p, q) => q.gold - p.gold)[0];
+      if (buyer) {
+        buyer.gold -= a.size;
+        for (let i = 0; i < this.high; i++) if (this.sArmy[i] === a.id) this.sf[i] = buyer.id;
+        a.faction = buyer.id;
+        a.target = this.nearestOwned(a.cx, a.cy, buyer.id) ?? a.target;
+        a.order = 'hold';
+        a.morale = 0.7;
+        this.log(buyer.id, [buyer.id, old.id], `Unpaid, the ${a.merc} turn their coats: ${a.size} sellswords under General ${a.general} go over from the ${old.name} to the ${buyer.name}.`);
+      } else {
+        for (let i = 0; i < this.high; i++) if (this.sArmy[i] === a.id) this.kill(i);
+        this.armies.delete(a.id);
+        this.log(old.id, [old.id], `Unpaid, the ${a.merc} break their contract with the ${old.name} and ride away.`);
+      }
+    }
+  }
+
+  /** A town lately taken, thinly held, may open its gates to its old masters. */
+  private revolts() {
+    for (const s of this.map.settlements) {
+      const own = this.owner[s.id], founder = s.kingdom;
+      if (own === founder || this.takenAt[s.id] < 0 || !this.realms[founder]?.alive) continue;
+      if (this.tick - this.takenAt[s.id] > 3 * YEAR || this.contested[s.id] || this.garrison[s.id] >= 40) continue;
+      if (this.realms[own].capital === s.id || Math.random() > 0.004) continue;
+      for (let i = 0; i < this.high; i++) {
+        if (this.sf[i] !== DEAD && this.sArmy[i] < 0 && this.sHome[i] === s.id) this.kill(i);
+      }
+      this.owner[s.id] = founder;
+      this.takenAt[s.id] = -1;
+      if (!this.atWar(founder, own)) this.setWar(founder, own, true);
+      this.log(founder, [founder, own], `The people of ${s.name} rise against the ${this.realms[own].name} and open their gates to the ${this.realms[founder].name}.`);
+    }
   }
 
   /** Rulers age and die. */
@@ -984,6 +1032,7 @@ export class World {
     const army: Army = {
       id: this.nextArmyId++, faction: kingdom, general: this.names.person(), target: settlement, order: 'hold',
       size: 0, cx: s.x, cy: s.y, loyalty: Math.random() * 0.35, morale: 0.7, renown: 0, idleDays: 0, lastSize: 0, peak: 0,
+      merc: `${company}`,
     };
     this.armies.set(army.id, army);
     for (let i = 0; i < n; i++) {

@@ -124,3 +124,30 @@ The chronicle was drowning in daily desertion lines. They're now summed per host
 Default brains: `qwen,qwen,llama,script,script,script` (two qwen3:8b, one llama3.2:3b, three scripts). Rebels use llama3.2:3b. llama3.2:3b made a valid tool call from a real 1,500-token ruler context (311s, but that included a cold load contending with qwen).
 
 The report now carries the treasury, per-host spirits ("grumbling, idle 10 months"), war durations, other realms' wars and reputations, and "Tidings" (envoys, succession notes). Tools: march, hold, muster, hire_mercenaries, declare_war, send_envoy, proclaim. A typical first report is ~2,300 characters (~650 tokens).
+
+### The new world, first year (live)
+Seed 10064: two qwen3:8b kings (Caswyn of Thornby, 60, melancholy; Halrin of Normere), one llama3.2:3b queen (Alda of Galcrag), three scripted queens (Ulmund, Rosvin, Leora).
+
+- All three minds opened at peace with the same instinct: the qwen kings proclaimed, and the llama queen declared war on Mardun (which had already declared war on *her* on day 13, so it was redundant but the right instinct).
+- The scripted queens were the aggressors early: Leora (Mardun) declared on Galcrag on day 13, and Ulmund (Galdun) on Kelford with 1,301 crowns of sellswords.
+- **First mind-to-mind-ish diplomacy.** Caswyn, at war with Mardun, sent: *"I offer peace, Queen Leora. Let us end this strife and restore stability to our lands."* Leora (script) accepted, and Caswyn then proclaimed: *"Peace has been restored with the Mardun Realm. Let our people rejoice and prepare for the trials ahead."* Halrin made a **conditional** offer to Kelford: *"I offer peace, if you withdraw your armies from our borders."* Accepted.
+- Alda (llama) spends her treasury on sellswords every council (545, then 954 crowns). Terse and consistent: ~17–29 output tokens per council.
+
+### Viewer additions
+- A Chronicle / Annals / History tab strip.
+- History is a stacked area of towns (or soldiers) per realm, with a surface gap between bands, direct labels on the thick bands, a legend, and a hover crosshair and tooltip. The realm colors fail the dataviz validator's lightness band (gold/orange/teal are brighter than it prefers) but pass CVD separation and contrast. Kept, because they're the map identity colors, and identity never relies on color alone (legend, labels, tooltip).
+- Map hover tooltips for towns and armies (general, size, spirits, renown, orders).
+- Chronicle glyphs: ⚔ war, ☮ peace, ♛ succession, 🔥 rebellion, ♜ fallen seat, ✉ envoy, 📜 proclamation.
+- Realm cards sort by size and expand on click to show that ruler's reign in their own memory's words.
+- Seats are drawn from each realm's current capital, not the founding capitals.
+- **The viewer is capped at 24 fps** (`?fps=`). A Firefox tab on the sim machine was using ~55% of a core, competing with the minds.
+
+### Contention on a shared box
+Councils slowed to 290–340s for ~1,250 prompt tokens (~4 tok/s prompt eval, vs ~20 earlier). Cause: the local-ai session's Ollama had a ~20 GB model resident (RSS 20.7 GB), and our qwen/llama were being evicted and reloaded from disk around it. Nothing to fix on our side, but it's worth knowing: **the kings' thinking speed is a function of whatever else this machine is doing.** When the big model left, councils dropped back to 60–180s.
+
+### Idle morale, revisited
+Hosts at peace were sliding toward desertion (morale 0.38 by midsummer) because idleness decayed morale regardless of war. Changed: idleness only chafes while the realm is at war. Garrison duty in peacetime doesn't break an army.
+
+### More world: sellswords and revolts
+- **Unpaid sellswords** (8%/day while the realm is in debt) either defect to the richest enemy at war with their employer (who pays their price) or break contract and ride away.
+- **Revolts:** a town taken within the last 3 years, garrison under 40, uncontested and not a seat, may rise (0.4%/day) and return to its founding realm, reopening the war if needed.

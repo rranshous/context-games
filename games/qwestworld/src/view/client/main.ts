@@ -66,7 +66,13 @@ async function pollSoldiers() {
   setTimeout(pollSoldiers, SOLDIER_POLL_MS);
 }
 
-function frame() {
+// The minds share this CPU; a window needn't paint faster than the eye needs
+const FPS = Math.max(1, parseInt(new URLSearchParams(location.search).get('fps') ?? '24', 10));
+let lastDraw = 0;
+
+function frame(now: number) {
+  if (now - lastDraw < 1000 / FPS - 2) { requestAnimationFrame(frame); return; }
+  lastDraw = now;
   if (meta && state) {
     const t = Math.min(1, (performance.now() - curAt) / SOLDIER_POLL_MS);
     renderer.draw(cam, meta, state, prev, cur, t);

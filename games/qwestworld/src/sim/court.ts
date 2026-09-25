@@ -62,7 +62,7 @@ const say = (...a: unknown[]) => { if (!quiet) console.log(...a); };
 
 type Job = { kind: 'council'; id: number } | { kind: 'annal'; year: number };
 
-const SCRIBE = resolveBrain(process.env.SCRIBE_BRAIN ?? 'llama');
+const scribe = () => resolveBrain(process.env.SCRIBE_BRAIN ?? 'llama');
 
 export class Court {
   private queue: Job[] = [];
@@ -82,7 +82,7 @@ export class Court {
     }
     // At each year's end the scribe writes it down
     const year = Math.floor(w.tick / YEAR);
-    if (SCRIBE !== 'script' && year >= 1 && year > this.annalsDue && !w.annals.some(a => a.year === year)) {
+    if (scribe() !== 'script' && year >= 1 && year > this.annalsDue && !w.annals.some(a => a.year === year)) {
       this.annalsDue = year;
       this.queue.push({ kind: 'annal', year });
     }
@@ -114,7 +114,7 @@ export class Court {
     if (job.kind === 'annal') {
       try {
         const text = await this.writeAnnal(w, job.year);
-        if (text && w === this.world()) w.annals.push({ year: job.year, text, by: SCRIBE });
+        if (text && w === this.world()) w.annals.push({ year: job.year, text, by: scribe() });
       } catch (e: any) {
         console.error(`[court] the scribe could not write Year ${job.year}: ${e.message}`);
       } finally {
@@ -174,7 +174,7 @@ export class Court {
     const rulers = w.realms.filter(r => r.alive).map(r => `${w.ruler(r.id)} of the ${r.name}`).join('; ');
     const started = Date.now();
     const data: any = await postJson(`${OLLAMA_URL}/api/chat`, {
-      model: SCRIBE,
+      model: scribe(),
       stream: false,
       think: false,
       keep_alive: -1,
@@ -185,7 +185,7 @@ export class Court {
       ],
     }, 30 * 60 * 1000);
     const text = String(data.message?.content ?? '').replace(/^[\s\S]*<\/think(ing)?>/, '').replace(/^#+.*\n/, '').trim();
-    say(`[court] the scribe (${SCRIBE}) wrote Year ${year} in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+    say(`[court] the scribe (${scribe()}) wrote Year ${year} in ${((Date.now() - started) / 1000).toFixed(0)}s`);
     return text.slice(0, 1500);
   }
 
@@ -321,7 +321,7 @@ function report(w: World, id: number): string {
   L.push('', armies.length ? 'Your generals:' : 'You have no generals in the field. A muster raises a new host from a garrison.');
   for (const a of armies) {
     const doing = a.order === 'march' ? `marching on ${S[a.target].name}` : `holding ${S[a.target].name}`;
-    const fame = a.renown ? `, has taken ${a.renown} town${a.renown > 1 ? 's' : ''}` : '';
+    const fame = (a.merc ? `, sellswords of the ${a.merc}` : '') + (a.renown ? `, has taken ${a.renown} town${a.renown > 1 ? 's' : ''}` : '');
     const idle = a.idleDays > 60 ? `, idle ${Math.round(a.idleDays / 30)} months` : '';
     L.push(`- General ${a.general}: ${a.size} soldiers near ${w.nearestName(a.cx, a.cy)}, ${doing}. ${cap(spirits(a.morale))}${idle}${fame}.`);
   }
@@ -515,12 +515,14 @@ export function scriptCouncil(w: World, k: number): ToolCall[] {
     }
   }
 
-  // Pick a war when strong, idle and solvent
+  // Pick a war when strong (counting coin as sellswords to be), idle and solvent. Temperament matters.
   const idle = armies.filter(a => a.order === 'hold' && a.size >= 200);
-  if (!foes.length && idle.length && r.gold > 0 && Math.random() < 0.6) {
+  const warlike = /bloodthirsty|reckless|greedy|vengeful|ambitious|bitter/.test(r.ruler.temperament);
+  const might = mySoldiers + Math.max(0, r.gold) / 3;
+  if (!foes.length && idle.length && r.gold > 0 && Math.random() < (warlike ? 0.7 : 0.35)) {
     const neighbors = new Set<number>();
     for (const s of S) if (w.owner[s.id] === k) for (const n of s.neighbors) if (w.owner[n] !== k) neighbors.add(w.owner[n]);
-    const prey = [...neighbors].filter(n => w.realms[n].alive && w.soldiersOf(n) * 1.1 < mySoldiers)
+    const prey = [...neighbors].filter(n => w.realms[n].alive && w.soldiersOf(n) * (warlike ? 0.95 : 1.2) < might)
       .sort((a, b) => w.soldiersOf(a) - w.soldiersOf(b))[0];
     if (prey !== undefined) calls.push(call('declare_war', { realm: w.realms[prey].name }));
   }
@@ -540,12 +542,12 @@ export function scriptCouncil(w: World, k: number): ToolCall[] {
       .sort((p, q) => p.d - q.d)
       .slice(0, 3)
       .sort((p, q) => w.garrison[p.s.id] - w.garrison[q.s.id]);
-    if (targets.length && w.garrison[targets[0].s.id] * 1.6 < a.size) {
+    if (targets.length && (w.garrison[targets[0].s.id] * 1.2 < a.size || a.size >= 1500)) {
       calls.push(call('march', { general: a.general, target: targets[0].s.name }));
     }
   }
 
-  if (armies.length < 3 && r.gold > 2500 && (foes.length || calls.some(c => c.function.name === 'declare_war'))) {
+  if (armies.length < 5 && r.gold > 2000 && (foes.length || calls.some(c => c.function.name === 'declare_war'))) {
     const seat = S[r.capital];
     calls.push(call('hire_mercenaries', { settlement: seat.name, crowns: Math.min(r.gold * 0.5, 6000) }));
   }

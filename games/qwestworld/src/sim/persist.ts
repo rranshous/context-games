@@ -31,6 +31,7 @@ export function saveWorld(w: World, file: string) {
     owner: Array.from(w.owner),
     siege: Array.from(w.siege),
     siegeBy: Array.from(w.siegeBy),
+    takenAt: Array.from(w.takenAt),
     realms: w.realms.map(r => ({ ...r, thinking: false })),
     war: b64(w.war, w.war.byteLength),
     treaty: b64(w.treaty, w.treaty.byteLength),
@@ -74,6 +75,7 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   w.owner.set(d.owner);
   w.siege.set(d.siege);
   w.siegeBy.set(d.siegeBy);
+  if (d.takenAt) w.takenAt.set(d.takenAt);
   w.realms = d.realms;
   into(w.war, d.war);
   into(w.treaty, d.treaty);

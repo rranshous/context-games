@@ -7,6 +7,7 @@
 import { World } from './world.js';
 import { Court } from './court.js';
 
+process.env.SCRIBE_BRAIN = 'script'; // the bench loop is synchronous; no minds here
 const days = parseInt(process.argv[2] ?? '720', 10);
 const seed = parseInt(process.argv[3] ?? '4242', 10);
 
