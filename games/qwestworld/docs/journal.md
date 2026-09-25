@@ -330,3 +330,11 @@ The scribe named the continent: *"…the world of **Eridoria** was beset on all 
 Multi-step councils visibly widened the qwen3:8b repertoire: Caswyn is now a diplomat (7 envoys) and Halrin a campaigner (12 marches). Zero silent councils from any mind all night.
 
 Also: a missing tool argument now reads "You gave a command to muster but did not name the settlement." instead of "a place called undefined".
+
+### Year 7: the qwen kings come into their own
+With multi-step councils and "You may give several commands at once", the qwen3:8b kings now command whole campaigns:
+- **King Caswyn** (Rainmonth 22, Year 7), ten commands in one council: an alliance offer to Normere, a sellsword hire, and marches for seven generals, including *Maldric's Guard*, the sellswords who rebelled against him, founded the Thornwall Compact, then defected back to him unpaid. Caswyn is now marching on Thornwall itself.
+- **King Halrin**, seven commands: four marches, a hire, an envoy to Thornby, a proclamation.
+- **Queen Falbert** (qwen3:1.7b) declared war on all four realms she was *already* at war with, then mustered. Narrative memory reduced the copying but didn't cure it: the report's own "AT WAR with you" lines seem to cue a declaration.
+
+The small llama rebels (Oshild, Pergar) spent their councils on proclamations.
