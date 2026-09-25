@@ -344,3 +344,30 @@ The small llama rebels (Oshild, Pergar) spent their councils on proclamations.
 - **Caswyn → Halrin** (a formal alliance offer): *"We accept your offer, King Halrin. Let us join forces against the Kingdom of Galdun and the Thornwall Compact."* Since Halrin never made a formal offer, Caswyn's "acceptance" is itself an offer, waiting on Halrin. (It's also a tangle: Caswyn is allied with Mardun, which is at war with Halrin.)
 - Halrin promised gold, but no ruler could pay another. **New tool: `send_gold(realm, crowns)`**, for tribute, bribes, promises kept. The receiver hears it at their next council; the chronicle records it.
 - Caswyn's next council concentrated **four generals on Thornwall**, the rebel town, and also ordered four generals who no longer exist ("Tamon", "Valoris", "Osoron", "Tamont"). Chat memory keeps old names alive for an 8B model; the report lists who actually serves.
+
+### Session 2 summary (for the morning)
+**Where the world stands** (Leaffall, Year 7 of the Age I, seed 10064): nine realms, eight minds.
+
+| Realm | Ruler | Mind | Towns | Crowns | Notes |
+|---|---|---|---|---|---|
+| Mardun | King Halis, 39 (heir of Queen Leora) | script | 35 | 9k | the superpower; allied with Thornby and Kelford |
+| Galdun | Queen Falbert, 22 (crowned at 17) | qwen3:1.7b | 19 | 19k | at war with five realms, two of them her own rebel generals |
+| Thornby | King Caswyn, 66 | qwen3:8b | 16 | 28k | diplomat-king; allied with Mardun; besieging the rebel Thornwall |
+| Normere | King Halrin, 55 | qwen3:8b | 15 | 2k | campaigner; courting Caswyn ("lands and gold") |
+| Kelford | Queen Rosvin, 60 | llama3.2:3b | 7 | 5k | hires sellswords, loses them to debt |
+| Galcrag | Queen Daggard, 21 (heir of Queen Alda) | llama3.2:3b | 1 | 0.3k | nearly gone |
+| Thornwall Compact | King Maldric (rebel) | llama3.2:3b | 1 | | under siege by Thornby, war declared by Normere |
+| Free March of Ashmoor | King Oshild (rebel) | llama3.2:3b | 1 | | |
+| Dominion of Quenmarch | Queen Pergar (rebel) | llama3.2:3b | 1 | | |
+
+**Chronicle tallies (last 3,000 entries):** 27 captures (14 by starvation), 22 turncoat companies, 10 wars declared, 6 revolts, 4 peaces, 3 rebellions, 3 successions, 3 oathbreakings, 2 alliances.
+
+**What worked best:**
+1. In-fiction feedback: outcomes instead of errors, and advisors' counsel instead of instructions.
+2. Multi-step councils (act, see what came of it, act again): the qwen3:8b kings went from one command per council to whole campaigns.
+3. Narrative memory for small models, which stopped them copying their own past tool calls.
+4. Surrender by starvation, which unfroze the map.
+
+**Mind comparison:** qwen3:8b (~210s a council) plans and negotiates: 22 marches, 9 envoys, conditional offers, alliances. qwen3:1.7b (~55s) is fast and bold but confabulates, and loves redundant war declarations. llama3.2:3b (~72s) defaults to hiring sellswords and needs narrative memory to vary at all. The scripted baseline, which issues many commands per council, still holds the most land.
+
+**Open threads:** Halrin's gold-and-lands promise (now keepable with `send_gold`); whether Thornwall falls; whether Galdun breaks under five wars; the Age hasn't ended yet. Worth trying: a bigger map for a new age; OLLAMA_NUM_PARALLEL=2 so two rulers on one model keep their own caches.
