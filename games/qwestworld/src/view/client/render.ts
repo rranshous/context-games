@@ -267,7 +267,8 @@ export class Renderer {
       const [x, y] = cam.toScreen(a.x, a.y, w, h);
       if (x < -80 || y < -40 || x > w + 80 || y > h + 40) continue;
       const c = colors[a.faction];
-      const label = `${a.general} · ${a.size}`;
+      const mood = a.morale < 0.3 ? ' ☹' : a.morale >= 0.8 ? ' ★' : '';
+      const label = `${a.general} · ${a.size}${mood}`;
       const tw = ctx.measureText(label).width;
       const bx = x + 6, by = y - 22;
       // Pole and pennant

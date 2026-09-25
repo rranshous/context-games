@@ -87,3 +87,40 @@ Council wall time has crept up: 37–62s warm at first, now 160–290s. Prompt s
 - Idle-army problem: overflow recruiting grows resting hosts without bound. Consider upkeep or desertion for idle hosts (gives kings a reason to act).
 - Try llama3.2:3b (independent calls, ~2.4× faster).
 - Scale up: more realms, more soldiers, a bigger map for the wall.
+
+
+## Session 2 — 2026-09-25 (overnight) — "make it rich"
+
+The user went to bed with a brief: iterate overnight, make the simulation richer and the playthrough more interesting. More brains, a bigger world, resources, death, desertion, reputation. Journal and commit along the way; resetting the world is fine.
+
+### A bug that was eating councils
+Before starting: 16 councils had silently become "advisors ruled". Node's `fetch` (undici) aborts if response headers take >300s, and Ollama sends no headers until it has read the whole prompt. Councils were running ~300s. Switched to `node:http` with a 30-minute timeout. **Lesson: on slow local inference, the HTTP client's hidden timeouts become game mechanics.**
+
+### Tooling: `npm run bench`
+A headless runner: N days with all-script rulers, printing realm standings every 60 days, the chronicle tail, and event tallies (captures, wars, peace, deaths, rebellions, mercs, desertion, bankruptcies). Five in-game years take ~30s. All balance work below came from bench runs.
+
+### Realms become first-class
+Refactored the kingdom model. A `Realm` is now one saved record: ruler (title, name, birth tick, temperament), brain (`script` or any Ollama model), origin, treasury, honor, relations, council state, inbox, rolling memory. Realms can be created at runtime (rebels) and rulers replaced (succession), which the old "regenerate kingdoms from the seed" model couldn't do. Save format v2. A v1 save is set aside as `.bak` automatically.
+
+### What's new in the world
+- **Bigger:** 1280×720 tiles (from 1024×576), 96 settlements (from 64), 6 founding realms (from 4). Up to 12 factions.
+- **Coin:** taxes by settlement fertility. Pay per soldier: garrison 0.02/day, host at home 0.05, host foraging in foreign land 0.025. **Campaigning is cheaper than idling**, which answers Leobert's 8,000-man idle host. Musters cost 1 crown a soldier; sellswords cost 3. Capturing a town gives plunder; capturing a capital takes a share of the loser's treasury.
+- **Morale:** per host. Drifts to steady. Rises with captures (+0.2). Falls with heavy losses, with idleness past 60 days, and fast when unpaid. Below 0.3 men desert. Obedience is now `0.5 + 0.2·loyalty + 0.3·morale`, so a miserable host ignores orders.
+- **Mercenaries:** a `hire_mercenaries` tool. Coin becomes a host instantly, with low loyalty (0–0.35).
+- **Diplomacy:** realms start at peace. War is a state. Tools: `declare_war`, `send_envoy(realm, message, offer_peace)`. Envoys travel capital to capital. Two crossing peace offers, or accepting a pending one, make a treaty. Breaking a treaty sworn in the last 2 years costs honor ("Oathbreaker, they whisper"), and others' reports mention it. Marching on a realm at peace declares war implicitly (the ruler is told). Misreads never pick a target that would start a new war; a blundering general starting wars felt too random.
+- **Mortality:** rulers age. Yearly death chance is 1% under 40, rising steeply (~17% at 60). The heir gets a fresh memory and an inbox note: "You have just been crowned. Queen X dies of a wound that never healed, aged 64." Capital falls carry a 30% chance the ruler is slain.
+- **Rebellion:** a renowned (≥2 towns taken), disloyal (<0.4) general with a grievance (unpaid, or low morale) holding a town may rise and found a new realm (Free March / Dominion / Compact / Banner of X), at war with the old crown. Rebels get their own brain (`REBEL_BRAIN`, default llama3.2:3b) and an inbox note about who they were. Utterly miserable hosts can mutiny even without renown.
+- **Omens:** rare plague (kills 40% of a garrison) and bountiful harvests.
+- **Time slows rather than stops** while the world waits on an overdue mind (1/8 speed). "Time slows while Queen Alda deliberates…"
+
+### Balance: three bench iterations
+1. **First pass:** gold piled up to 50–120k with nothing to spend on, and wars never ended (the strong side never accepted peace).
+2. **Lower taxes, muster cost, mercenaries, war-weariness** (scripts accept peace after 1.5 years at 50%, offer it after 3): every realm hovered at 0 gold, bankrupt forever. "Runs dry" 262 times in 600 chronicle entries. Cause: stewards kept filling garrisons until pay ate every crown.
+3. **Stewards don't hire men the crown can't pay** (recruit only while the surplus is >20% of income): the healthy middle. Over 5 years: 39 captures, 31 mercenary hires, 6 peaces, 2 rebellions (both crushed), 2 royal deaths, 30 desertion notices, 7 bankruptcies. Hoarding at peace remains for scripted rulers; that's their personality.
+
+The chronicle was drowning in daily desertion lines. They're now summed per host and chronicled every 150 men. Bankruptcy is chronicled at most once per 90 days.
+
+### Minds
+Default brains: `qwen,qwen,llama,script,script,script` (two qwen3:8b, one llama3.2:3b, three scripts). Rebels use llama3.2:3b. llama3.2:3b made a valid tool call from a real 1,500-token ruler context (311s, but that included a cold load contending with qwen).
+
+The report now carries the treasury, per-host spirits ("grumbling, idle 10 months"), war durations, other realms' wars and reputations, and "Tidings" (envoys, succession notes). Tools: march, hold, muster, hire_mercenaries, declare_war, send_envoy, proclaim. A typical first report is ~2,300 characters (~650 tokens).

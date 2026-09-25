@@ -8,7 +8,8 @@
     "watch": "node esbuild.config.mjs --watch",
     "sim": "nice -n 19 node dist/sim.js",
     "view": "node dist/view.js",
-    "qw": "node dist/qw.js"
+    "qw": "node dist/qw.js",
+    "bench": "node dist/bench.js"
   },
   "keywords": ["game", "rts", "simulation", "ollama"],
   "author": "Robby Ranshous",

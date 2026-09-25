@@ -45,7 +45,7 @@ async function pollState() {
   try {
     const s = await api.state();
     $('error').textContent = '';
-    if (!meta || s.age !== meta.age) await loadStatics();
+    if (!meta || s.age !== meta.age || s.seed !== meta.seed) await loadStatics();
     state = s;
     renderer.paintTerritory(s);
     updatePanel(s);
@@ -81,18 +81,24 @@ function updatePanel(s: StateResponse) {
   $('age').textContent = `THE AGE ${roman(s.age)}`;
   $('date').textContent = s.date;
   const waiting = $('waiting');
-  waiting.textContent = s.stalledBy ? `The world waits on ${s.stalledBy}…` : '';
+  waiting.textContent = s.stalledBy ? `Time slows while ${s.stalledBy} deliberates…` : '';
   waiting.classList.toggle('on', !!s.stalledBy);
 
-  $('kingdoms').innerHTML = s.kingdoms.map(k => `
+  $('kingdoms').innerHTML = [...s.kingdoms].sort((a, b) => Number(b.alive) - Number(a.alive) || b.settlements - a.settlements).map(k => {
+    const mind = k.brain === 'script' ? 'script' : k.brain.replace(/:.*$/, '');
+    const wars = k.wars.map(w => `<span class="war" style="--wc:${s.kingdoms[w].color}">⚔ ${esc(shortName(s.kingdoms[w].name))}</span>`).join(' ');
+    const coin = k.gold < 0 ? `<span class="debt">${k.gold.toLocaleString()} crowns</span>` : `${k.gold.toLocaleString()} crowns`;
+    return `
     <div class="realm ${k.alive ? '' : 'fallen'}" style="--c:${k.color}" data-k="${k.id}">
-      <div class="top"><span class="name">${esc(k.name)}</span><span class="brain ${k.brain}">${k.brain}</span></div>
-      <div class="king">${esc(k.king)}, ${esc(k.temperament)}</div>
-      <div class="stats">${k.alive ? `${k.settlements} settlements · ${k.soldiers.toLocaleString()} soldiers` : 'fallen'}</div>
-      ${k.thinking && k.brain === 'qwen' ? '<div class="thinking">in council…</div>' : ''}
-      ${k.lastThought ? `<div class="thought">“${esc(k.lastThought)}”</div>` : ''}
-      ${k.lastDecrees.length ? `<div class="decrees">${k.lastDecrees.map(esc).join(' · ')}</div>` : ''}
-    </div>`).join('');
+      <div class="top"><span class="name">${esc(k.name)}</span><span class="brain ${k.brain === 'script' ? '' : 'mind'}" title="${esc(k.brain)}">${esc(mind)}</span></div>
+      <div class="king">${esc(k.ruler.title)} ${esc(k.ruler.name)}, ${k.ruler.age}, ${esc(k.ruler.temperament)}${k.honor < 0.6 ? ' · <i>oathbreaker</i>' : ''}</div>
+      ${k.alive ? `<div class="stats">${k.settlements} towns · ${k.soldiers.toLocaleString()} soldiers · ${coin}</div>` : '<div class="stats">fallen</div>'}
+      ${k.alive && wars ? `<div class="wars">${wars}</div>` : ''}
+      ${k.alive && k.thinking && k.brain !== 'script' ? '<div class="thinking">in council…</div>' : ''}
+      ${k.alive && k.lastThought ? `<div class="thought">“${esc(k.lastThought)}”</div>` : ''}
+      ${k.alive && k.lastDecrees.length ? `<div class="decrees">${k.lastDecrees.map(esc).join(' · ')}</div>` : ''}
+    </div>`;
+  }).join('');
 
   const box = $('chronicle');
   const fresh = s.chronicle.filter(e => e.tick > lastChronicleTick || lastChronicleTick < 0);
@@ -109,6 +115,10 @@ function updatePanel(s: StateResponse) {
     if (atTop) box.scrollTop = 0;
     lastChronicleTick = s.chronicle[s.chronicle.length - 1].tick;
   }
+}
+
+function shortName(n: string): string {
+  return n.replace(/^(Kingdom|Crown|Principality|Free March|Dominion|Banner) of /, '').replace(/ (Realm|Compact)$/, '');
 }
 
 function roman(n: number): string {

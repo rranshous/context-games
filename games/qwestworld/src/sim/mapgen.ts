@@ -8,11 +8,15 @@ import { mulberry32, fbm, Rng } from './rng.js';
 import { NameGen } from './names.js';
 import { distanceField } from './flow.js';
 
-export const KINGDOM_COLORS = ['#d64545', '#3f6fd8', '#e0b030', '#9b5de5', '#e07b39', '#2fb5a8'];
+export const KINGDOM_COLORS = [
+  '#d64545', '#3f6fd8', '#e0b030', '#9b5de5', '#e07b39', '#2fb5a8',
+  '#e05fa8', '#6ec3f0', '#c9c9c9', '#a8d45a', '#b5835a', '#f07c7c',
+];
 
-const TEMPERAMENTS = [
+export const TEMPERAMENTS = [
   'ambitious and proud', 'cautious and patient', 'vengeful and quick to anger', 'pious and stern',
-  'greedy for land', 'young and reckless', 'old and cunning', 'honorable but stubborn',
+  'greedy for land', 'reckless', 'cunning', 'honorable but stubborn',
+  'melancholy', 'suspicious of everyone', 'generous', 'bloodthirsty', 'devout', 'vain',
 ];
 
 export interface SettlementDef {

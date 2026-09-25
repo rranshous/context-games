@@ -1,7 +1,7 @@
 // types.ts — shared constants and API shapes (server + client)
 
-export const MAP_W = 1024;
-export const MAP_H = 576;
+export const MAP_W = 1280;
+export const MAP_H = 720;
 
 // Soldier positions are packed as Uint16 fixed-point for the wire
 export const POS_SCALE = 32;
@@ -77,14 +77,28 @@ export interface MetaResponse {
   settlements: SettlementMeta[];
 }
 
+export interface RulerView {
+  title: string;       // King / Queen
+  name: string;
+  age: number;         // years
+  temperament: string;
+}
+
 export interface KingdomView {
   id: number;
   name: string;
   color: string;
-  king: string;
+  king: string;        // ruler's name (kept for older viewers)
   temperament: string;
-  brain: 'qwen' | 'script';
+  ruler: RulerView;
+  brain: string;       // 'script' or an Ollama model name
   alive: boolean;
+  gold: number;
+  income: number;      // per day
+  upkeep: number;      // per day
+  honor: number;       // 0..1, falls when oaths are broken
+  wars: number[];      // realms this one is at war with
+  origin: string;      // how the realm came to be
   thinking: boolean;
   lastThought: string;
   lastDecrees: string[];
@@ -109,6 +123,8 @@ export interface ArmyView {
   y: number;
   target: number; // settlement id
   order: 'march' | 'hold';
+  morale: number;  // 0..1
+  renown: number;  // victories
 }
 
 export interface ChronicleEntry {
@@ -119,6 +135,7 @@ export interface ChronicleEntry {
 
 export interface StateResponse {
   tick: number;
+  seed: number;
   date: string;
   age: number;
   stalledBy: string | null;

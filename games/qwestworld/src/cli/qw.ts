@@ -12,7 +12,7 @@
 import { MetaResponse, StateResponse, MAP_W, MAP_H, NO_REGION, Terrain } from '../shared/types.js';
 
 const BASE = (process.env.SIM_URL ?? 'http://localhost:4200').replace(/\/$/, '');
-const LETTERS = 'abcdefgh';
+const LETTERS = 'abcdefghijkl';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(BASE + path);
@@ -27,10 +27,12 @@ async function status() {
   const [s, h] = await Promise.all([get<StateResponse>('/api/state'), get<any>('/api/health')]);
   console.log(`${s.date} — Age ${s.age} — tick ${s.tick}${h.paused ? ' — PAUSED' : ''}${s.stalledBy ? ` — waiting on ${s.stalledBy}` : ''} — step ${h.stepMs}ms`);
   for (const k of s.kingdoms) {
-    const tag = `${LETTERS[k.id]}) ${k.name}`.padEnd(34);
-    console.log(`${tag} ${k.alive ? `${String(k.settlements).padStart(2)} towns ${String(k.soldiers).padStart(6)} soldiers` : 'FALLEN'.padEnd(24)}  ${k.brain}${k.thinking ? ' (in council)' : ''}`);
+    const tag = `${LETTERS[k.id]}) ${k.name}`.padEnd(30);
+    const ruler = `${k.ruler.title} ${k.ruler.name} (${k.ruler.age})`.padEnd(20);
+    const wars = k.wars.length ? ` ⚔${k.wars.map(w => LETTERS[w]).join('')}` : '';
+    console.log(`${tag} ${ruler} ${k.alive ? `${String(k.settlements).padStart(2)} towns ${String(k.soldiers).padStart(6)} soldiers ${String(k.gold).padStart(6)}g${wars}` : 'FALLEN'}  [${k.brain}]${k.thinking ? ' (in council)' : ''}`);
     for (const a of s.armies.filter(a => a.faction === k.id)) {
-      console.log(`     ⚑ ${a.general.padEnd(10)} ${String(a.size).padStart(5)}  ${a.order} ${s.settlements[a.target] ? '→ #' + a.target : ''}`);
+      console.log(`     ⚑ ${a.general.padEnd(14)} ${String(a.size).padStart(5)}  morale ${a.morale.toFixed(2)} renown ${a.renown}  ${a.order} → #${a.target}`);
     }
   }
 }
@@ -38,7 +40,7 @@ async function status() {
 async function kings() {
   const s = await get<StateResponse>('/api/state');
   for (const k of s.kingdoms) {
-    console.log(`\n${LETTERS[k.id]}) ${k.king} of the ${k.name} — ${k.temperament} [${k.brain}]${k.alive ? '' : ' FALLEN'}`);
+    console.log(`\n${LETTERS[k.id]}) ${k.ruler.title} ${k.ruler.name}, ${k.ruler.age}, of the ${k.name} — ${k.temperament} [${k.brain}]${k.alive ? '' : ' FALLEN'} — ${k.origin}`);
     if (k.lastThought) console.log(`   “${k.lastThought}”`);
     console.log(`   decrees: ${k.lastDecrees.join(' | ') || '(none)'}`);
     if (k.reign.length) console.log('   reign:\n' + k.reign.map(r => `     ${r}`).join('\n'));

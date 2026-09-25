@@ -28,6 +28,12 @@ const cliConfig = {
   outfile: 'dist/qw.js',
 };
 
+const benchConfig = {
+  ...serverConfig,
+  entryPoints: ['src/sim/bench.ts'],
+  outfile: 'dist/bench.js',
+};
+
 const clientConfig = {
   bundle: true,
   sourcemap: true,
@@ -45,7 +51,7 @@ async function build() {
     }
     console.log('Watching sim + view for changes...');
   } else {
-    await Promise.all([serverConfig, viewServerConfig, cliConfig, clientConfig].map(c => esbuild.build(c)));
+    await Promise.all([serverConfig, viewServerConfig, cliConfig, benchConfig, clientConfig].map(c => esbuild.build(c)));
     console.log('Build complete (sim + view).');
   }
 }
