@@ -12,7 +12,7 @@ interface Sight {
 }
 
 const DWELL_MS = 16000;
-const EASE = 0.025; // per frame at 24fps, toward the target
+const EASE_SECONDS = 2.2; // time constant of the glide toward each sight
 
 export class Wanderer {
   on = false;
@@ -20,6 +20,7 @@ export class Wanderer {
   private since = 0;
   private visits = 0;
   private lastKey = '';
+  private lastStep = 0;
 
   constructor(private cam: Camera, private captionEl: HTMLElement) {}
 
@@ -41,11 +42,16 @@ export class Wanderer {
       void this.captionEl.offsetWidth;
       this.captionEl.classList.add('show');
     }
+    // Time-based easing, so the glide is the same at any frame rate
+    const dt = this.lastStep ? Math.min(0.5, (now - this.lastStep) / 1000) : 0;
+    this.lastStep = now;
+    const k = 1 - Math.exp(-dt / EASE_SECONDS);
     const t = this.target;
-    const tx = t.x + panel / 2 / this.cam.scale;
-    this.cam.scale += (t.scale - this.cam.scale) * EASE;
-    this.cam.x += (tx - this.cam.x) * EASE;
-    this.cam.y += (t.y - this.cam.y) * EASE;
+    this.cam.scale += (t.scale - this.cam.scale) * k;
+    const tx = t.x + panel / 2 / this.cam.scale; // center it in the map area, beside the panel
+    this.cam.x += (tx - this.cam.x) * k;
+    this.cam.y += (t.y - this.cam.y) * k;
+    this.captionEl.style.left = `${(viewW - panel) / 2}px`;
   }
 
   private choose(meta: MetaResponse, state: StateResponse, viewW: number, viewH: number, panel: number): Sight {
