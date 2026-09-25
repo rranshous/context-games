@@ -243,3 +243,6 @@ Also: rulers now see a hint of each general's heart ("Devoted to you." / "Ambiti
 
 ### Names run out
 Queen Leora of Mardun died, and her heir was crowned **"King Halis 49"**. Years of musters, sellsword companies and heirs had exhausted the 560-name person pool, and the fallback appended a number. The pool is now ~54 × 38 names, with an optional middle syllable (~20k+ shapes; 0 collisions in 2,000 draws). Heirs sometimes take the dynasty's name ("King Caswyn II"), and a true collision gets a regnal numeral. The live world's Halis lost his 49 on load.
+
+### Whispers: touching the world without playing it
+A viewer (or `qw whisper a <text>`) can put words into a ruler's next council: "A stranger at court whispers to you: “…”", in their Tidings. The chronicle only notes "A cloaked stranger is seen at the court of King X." This is the lightest intervention from the first brainstorm (watch plus occasional whispers). **Test (by Claude, deliberately vague):** to King Halrin, "The stars favor bold rulers this year." His next council sent General Garwald on from newly taken Yrmere to Osmouth. That's bold, though not provably because of the whisper.
