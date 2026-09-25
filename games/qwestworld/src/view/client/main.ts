@@ -134,10 +134,11 @@ function updatePanel(s: StateResponse) {
 /** How this realm's mind has ruled so far: model, councils, pace, habits. */
 function mindLine(k: StateResponse['kingdoms'][number]): string {
   if (k.brain === 'script') return '<div class="origin">ruled by script</div>';
+  const link = ` · <span class="chamber-link" data-chamber="${k.id}">open the council chamber</span>`;
   const m = k.mind;
-  if (!m || !m.councils) return `<div class="origin">mind: ${esc(k.brain)}, no councils yet</div>`;
+  if (!m || !m.councils) return `<div class="origin">mind: ${esc(k.brain)}, no councils yet${link}</div>`;
   const tools = Object.entries(m.tools).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n.replace('_', ' ')} ${c}`).join(', ');
-  return `<div class="origin">mind: ${esc(k.brain)} · ${m.councils} councils · ~${Math.round(m.seconds / m.councils)}s each · ${tools || 'no commands'}${m.misfires ? ` · ${m.misfires} misfired` : ''}</div>`;
+  return `<div class="origin">mind: ${esc(k.brain)} · ${m.councils} councils · ~${Math.round(m.seconds / m.councils)}s each · ${tools || 'no commands'}${m.misfires ? ` · ${m.misfires} misfired` : ''}${link}</div>`;
 }
 
 /** A glyph and style for the kinds of history worth noticing at a glance. */
@@ -195,6 +196,8 @@ canvas.addEventListener('wheel', e => {
 }, { passive: false });
 
 $('kingdoms').addEventListener('click', e => {
+  const ch = (e.target as HTMLElement).closest('[data-chamber]') as HTMLElement | null;
+  if (ch) { openChamber(+ch.dataset.chamber!); return; }
   const el = (e.target as HTMLElement).closest('.realm') as HTMLElement | null;
   if (!el || !meta || !state) return;
   const k = +el.dataset.k!;
@@ -316,6 +319,28 @@ addEventListener('keydown', e => {
   if (e.key === ' ') { e.preventDefault(); togglePause(); }
 });
 addEventListener('resize', resize);
+
+// ---------------------------------------------------------------- the council chamber
+
+/** Show exactly what a ruler's mind would be sent at council right now. */
+async function openChamber(id: number) {
+  const k = state?.kingdoms[id];
+  if (!k) return;
+  const ctx = await api.context(id);
+  $('chamber-title').textContent = `THE COUNCIL OF ${k.ruler.title.toUpperCase()} ${k.ruler.name.toUpperCase()}`;
+  $('chamber-span').textContent = `What ${ctx.model} is given at council: who they are, the councils they remember with their own commands and what came of them, and today's report.`;
+  const last = ctx.messages.length - 1;
+  $('chamber-list').innerHTML = ctx.messages.map((m, i) => {
+    const who = m.role === 'system' ? 'WHO THEY ARE' : m.role === 'user' ? (i === last ? 'TODAY\'S REPORT' : 'A REMEMBERED COUNCIL')
+      : m.role === 'assistant' ? 'THEY COMMANDED' : `WHAT CAME OF IT (${(m.tool_name ?? '').replace('_', ' ')})`;
+    const calls = (m.tool_calls ?? []).map(c => `<div class="call">${esc(c.function.name)}(${esc(Object.entries(c.function.arguments).map(([a, v]) => `${a}: ${JSON.stringify(v)}`).join(', '))})</div>`).join('');
+    const body = (m.content ? `<pre>${esc(m.content.replace(/ \/no_think$/, ''))}</pre>` : '') + calls;
+    return `<div class="msg ${m.role}${i === last ? ' now' : ''}"><div class="who">${who}</div>${body || '<pre><i>(silence)</i></pre>'}</div>`;
+  }).join('');
+  $('chamber').hidden = false;
+  $('chamber-list').scrollTop = $('chamber-list').scrollHeight;
+}
+$('chamber-close').addEventListener('click', () => { $('chamber').hidden = true; });
 
 // ---------------------------------------------------------------- while you were away
 

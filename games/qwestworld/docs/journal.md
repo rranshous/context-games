@@ -229,3 +229,6 @@ Mind stats after 4 councils each: qwen3:8b ~146–169s, llama3.2:3b ~75–83s, q
 
 ### Trade: a reason to keep the peace
 Coin only came from taxes, so peace had no price. Now neighbors at peace trade: each side earns 12% of the poorer neighbor's taxes per day (1.5× between allies), and war cuts it off. Caravans (small laden carts) roll between the seats of trading realms on the map. The treasury line reads "Taxes and trade bring N a day (M of it from trade with K neighbors at peace)", and the merchants speak up when a war has "closed the border roads to trade."
+
+### The council chamber
+Expanded realm cards link to "open the council chamber": a modal showing exactly what that mind is given right now (from `/api/kings/:id/context`). Who they are; each remembered council (the brief, what they commanded as tool calls, and what came of it); and today's full report with the advisors' counsel. In the inspector spirit of Glint and Habitat: you can read a mind's whole world.

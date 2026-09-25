@@ -61,6 +61,10 @@ export class SimApi {
     return (await fetch(`${this.base}/api/chronicle?since=${since}&limit=1000`)).json();
   }
 
+  async context(id: number): Promise<{ model: string; messages: { role: string; content: string; tool_name?: string; tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[] }[] }> {
+    return (await fetch(`${this.base}/api/kings/${id}/context`)).json();
+  }
+
   async annals(): Promise<{ year: number; text: string; by: string }[]> {
     return (await fetch(`${this.base}/api/annals`)).json();
   }
