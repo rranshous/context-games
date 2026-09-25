@@ -16,7 +16,7 @@ const TPS = parseFloat(process.env.TICKS_PER_SEC ?? '12');
 const DATA = process.env.DATA_DIR ?? path.resolve('data');
 const SAVE_FILE = path.join(DATA, 'world.json');
 // One brain per founding realm: 'script', 'qwen', 'llama', or any Ollama model name
-const BRAINS = (process.env.KINGS ?? 'qwen,qwen,llama,script,script,script').split(',').map(resolveBrain);
+const BRAINS = (process.env.KINGS ?? 'qwen,qwen,llama,llama,qwen3:1.7b,script').split(',').map(resolveBrain);
 const REBEL_BRAIN = resolveBrain(process.env.REBEL_BRAIN ?? 'llama');
 const OPTS = { brains: BRAINS, rebelBrain: REBEL_BRAIN };
 const SLOW_WHILE_WAITING = 8; // when a mind is overdue, time runs this many times slower
@@ -111,10 +111,19 @@ app.get('/api/kings/:id/context', (req, res) => {
 });
 app.options('/api/control', (_req, res) => res.sendStatus(204));
 app.post('/api/control', (req, res) => {
-  const { action } = req.body ?? {};
+  const { action, realm, brain } = req.body ?? {};
   if (action === 'pause') paused = true;
   else if (action === 'resume') paused = false;
-  else return res.status(400).json({ error: 'action must be pause or resume' });
+  else if (action === 'brain') {
+    // Hand a realm to a different mind (or to the script) without resetting the world
+    const r = world.realms[Number(realm)];
+    if (!r || typeof brain !== 'string') return res.status(400).json({ error: 'brain needs realm (id) and brain' });
+    const was = r.brain;
+    r.brain = resolveBrain(brain);
+    r.turns = []; // a new mind does not inherit the old one's memory
+    console.log(`[sim] ${world.ruler(r.id)} of the ${r.name}: ${was} -> ${r.brain}`);
+    return res.json({ realm: r.id, brain: r.brain });
+  } else return res.status(400).json({ error: 'action must be pause, resume or brain' });
   console.log(`[sim] ${action}d by a viewer`);
   res.json({ paused });
 });

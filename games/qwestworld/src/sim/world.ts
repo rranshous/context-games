@@ -7,7 +7,7 @@
 
 import {
   MAP_W, MAP_H, NO_REGION, DEAD, Terrain, TERRAIN_DEFENSE, HOURS_PER_DAY, DAYS_PER_MONTH,
-  formatDate, ChronicleEntry, StateResponse, ArmyView,
+  formatDate, ChronicleEntry, StateResponse, ArmyView, CourierView,
 } from '../shared/types.js';
 import { WorldMap, generateMap, KINGDOM_COLORS, TEMPERAMENTS } from './mapgen.js';
 import { FieldCache, UNREACHABLE } from './flow.js';
@@ -46,6 +46,7 @@ export interface Order {
   army?: number;
   target?: number;
   settlement?: number;
+  sent?: number;
   arrives: number;
 }
 
@@ -54,6 +55,7 @@ export interface Envoy {
   to: number;
   text: string;
   peace: boolean;  // carries an offer of peace
+  sent?: number;
   arrives: number;
 }
 
@@ -886,7 +888,7 @@ export class World {
 
   sendEnvoy(from: number, to: number, text: string, peace: boolean) {
     const days = Math.max(1, this.capitalDistance(from, to) / COURIER_SPEED);
-    this.envoys.push({ from, to, text, peace, arrives: this.tick + Math.round(days * HOURS_PER_DAY) });
+    this.envoys.push({ from, to, text, peace, sent: this.tick, arrives: this.tick + Math.round(days * HOURS_PER_DAY) });
     if (peace) this.peaceOffers.push({ from, to, tick: this.tick });
   }
 
@@ -928,7 +930,7 @@ export class World {
       tx = s.x; ty = s.y;
     }
     const days = Math.hypot(tx - cap.x, ty - cap.y) / COURIER_SPEED;
-    this.orders.push({ ...order, arrives: this.tick + Math.max(1, Math.round(days * HOURS_PER_DAY)) });
+    this.orders.push({ ...order, sent: this.tick, arrives: this.tick + Math.max(1, Math.round(days * HOURS_PER_DAY)) });
   }
 
   private deliverOrders() {
@@ -1127,8 +1129,30 @@ export class World {
         id: s.id, owner: this.owner[s.id], garrison: this.garrison[s.id], siege: this.siege[s.id],
       })),
       armies: [...this.armies.values()].map(a => this.armyView(a)),
+      couriers: this.couriers(),
       chronicle: this.chronicle.slice(-80).map(({ tick, text, faction }) => ({ tick, text, faction })),
     };
+  }
+
+  private couriers(): CourierView[] {
+    const S = this.map.settlements;
+    const out: CourierView[] = [];
+    const progress = (sent: number | undefined, arrives: number) =>
+      sent === undefined ? 0.5 : Math.min(1, Math.max(0, (this.tick - sent) / Math.max(1, arrives - sent)));
+    for (const o of this.orders) {
+      const r = this.realms[o.kingdom];
+      if (!r?.alive) continue;
+      const from = S[r.capital];
+      let x1 = from.x, y1 = from.y;
+      const a = o.army !== undefined ? this.armies.get(o.army) : undefined;
+      if (a) { x1 = a.cx; y1 = a.cy; } else if (o.settlement !== undefined) { x1 = S[o.settlement].x; y1 = S[o.settlement].y; }
+      out.push({ kind: 'order', faction: o.kingdom, x0: from.x, y0: from.y, x1, y1, t: progress(o.sent, o.arrives) });
+    }
+    for (const e of this.envoys) {
+      const A = S[this.realms[e.from].capital], B = S[this.realms[e.to].capital];
+      out.push({ kind: 'envoy', faction: e.from, x0: A.x, y0: A.y, x1: B.x, y1: B.y, t: progress(e.sent, e.arrives) });
+    }
+    return out;
   }
 
   /** Binary snapshot of every soldier slot: header, then x[], y[] as Uint16, then faction[] */

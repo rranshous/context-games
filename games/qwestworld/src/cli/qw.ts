@@ -5,6 +5,7 @@
 //   qw chronicle [n]   the last n chronicle entries (default 25)
 //   qw context [a-h]   exactly what that king would be sent at council now
 //   qw map [cols]      ASCII territory map (a-f realms, UPPER = settlement, * = capital)
+//   qw brain d qwen3:1.7b  hand realm d to another mind ('script', 'qwen', 'llama', or any Ollama model)
 //   qw pause | resume
 //
 // SIM_URL=http://host:4200 to look at a sim elsewhere on the network.
@@ -101,9 +102,9 @@ async function context(which: string) {
   console.log(`--- ${messages.length} messages, ~${Math.round(chars / 3.6)} tokens (plus tool schemas)`);
 }
 
-async function control(action: string) {
+async function control(action: string, extra: Record<string, unknown> = {}) {
   const res = await fetch(BASE + '/api/control', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }),
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }),
   });
   console.log(await res.json());
 }
@@ -114,8 +115,9 @@ const run: Record<string, () => Promise<void>> = {
   chronicle: () => chronicle(parseInt(arg ?? '25', 10)),
   map: () => map(parseInt(arg ?? '128', 10)),
   context: () => context(arg),
+  brain: () => control('brain', { realm: LETTERS.indexOf(arg ?? ''), brain: process.argv[4] }),
   pause: () => control('pause'),
   resume: () => control('resume'),
 };
-(run[cmd] ?? (async () => console.log('usage: qw [status|kings|context [a-h]|chronicle [n]|map [cols]|pause|resume]')))()
+(run[cmd] ?? (async () => console.log('usage: qw [status|kings|context [a-l]|chronicle [n]|map [cols]|brain <realm> <model>|pause|resume]')))()
   .catch(e => { console.error(`qw: cannot reach sim at ${BASE} (${e.message})`); process.exit(1); });

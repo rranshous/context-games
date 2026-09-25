@@ -158,3 +158,22 @@ Both qwen kings started wars (Caswyn on Mardun, day 161; Halrin on Kelford, day 
 Reading their reigns showed how: each simply ordered a general to march on a border town of a realm they were at peace with, and the game quietly turned that into a declaration of war. The tool description never said so. **The treachery was my design, not their choice.** Changed: marching on a realm at peace is refused with an in-fiction explanation ("…with whom you are at peace. You must declare war first."), and the march tool says so. Oathbreaking now requires an explicit `declare_war`, which makes it a real choice.
 
 **The first annal** (llama3.2:3b, 131s) had the right voice: *"…the discord between King Caswyn and the Mardun Realm would sow the seeds of a bitter peace, one that would be broken in the year's final days, as the monarch's oath was cast aside, and the very fabric of trust was rent asunder."* It misattributed a general (put Kelford's Casgar under Thornby), because chronicle lines about generals don't name their realm. The scribe's copy of the records now tags each entry with its realm.
+
+### More minds, mid-reign
+Tested qwen3:1.7b as a ruler on a real 1,900-token context: a valid `muster` call. Rather than reset the world, added a runtime brain swap: `POST /api/control {action:'brain', realm, brain}`, or `qw brain d qwen3:1.7b`. A new mind doesn't inherit the old one's memory. Handed two scripted queens to minds:
+
+| Realm | Ruler | Mind |
+|---|---|---|
+| Thornby | King Caswyn | qwen3:8b |
+| Normere | King Halrin | qwen3:8b |
+| Galcrag | Queen Alda | llama3.2:3b |
+| Galdun | Queen Ulmund | qwen3:1.7b (was script) |
+| Kelford | Queen Rosvin | llama3.2:3b (was script) |
+| Mardun | Queen Leora | script (the baseline) |
+
+Plus the scribe (llama3.2:3b) and any rebels (llama3.2:3b). Councils are now every 60 days (was 45), since five minds take ~10 minutes per round. New worlds default to this mix.
+
+Noticed: both qwen kings hoard, each sitting on ~10,000 crowns while at war. They see the number in their report and don't spend it.
+
+### Seeing orders flow downhill
+The core idea (commands degrade as they travel down the hierarchy) was invisible. Now couriers are drawn: royal orders as small lights in the realm's color riding from the seat to the general, envoys as pale lanterns with a faint trail between capitals. A seat whose mind is in council pulses with an expanding gold ring. `StateResponse.couriers` carries each rider's endpoints and progress.

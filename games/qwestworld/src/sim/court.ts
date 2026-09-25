@@ -9,7 +9,7 @@ import { HOURS_PER_DAY, formatDate } from '../shared/types.js';
 import { World, Realm, YEAR } from './world.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://localhost:11434';
-const COUNCIL_DAYS = parseInt(process.env.COUNCIL_DAYS ?? '45', 10);
+const COUNCIL_DAYS = parseInt(process.env.COUNCIL_DAYS ?? '60', 10);
 const GRACE_DAYS = parseInt(process.env.GRACE_DAYS ?? '10', 10);
 const REIGN_KEEP = 40;  // history kept per ruler, for viewers
 const TURNS_KEEP = parseInt(process.env.KING_MEMORY ?? '5', 10); // councils a ruler remembers verbatim

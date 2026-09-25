@@ -143,5 +143,15 @@ export interface StateResponse {
   kingdoms: KingdomView[];
   settlements: SettlementView[];
   armies: ArmyView[];
+  couriers: CourierView[];
   chronicle: ChronicleEntry[];
+}
+
+/** A rider in transit: a royal order to a general, or an envoy between rulers. */
+export interface CourierView {
+  kind: 'order' | 'envoy';
+  faction: number;
+  x0: number; y0: number;
+  x1: number; y1: number;
+  t: number; // 0..1 of the way
 }

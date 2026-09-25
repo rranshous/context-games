@@ -144,6 +144,7 @@ export class Renderer {
     this.drawArmyLines(cam, meta, state, w, h);
     if (cur) this.drawSoldiers(cam, prev, cur, t, colors, w, h);
     this.drawSettlements(cam, meta, state, colors, w, h);
+    this.drawCouriers(cam, state, colors, w, h);
     this.drawArmyBanners(cam, state, colors, w, h);
   }
 
@@ -201,6 +202,15 @@ export class Renderer {
       const seat = seats.has(s.id);
       const r = seat ? 5.5 : 3.6;
 
+      const thinker = seat ? state.kingdoms.find(k => k.capital === s.id && k.thinking && k.brain !== 'script') : undefined;
+      if (thinker) {
+        const p = (performance.now() / 1600) % 1;
+        ctx.strokeStyle = `rgba(243,217,139,${0.8 * (1 - p)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 4 + p * 16, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       if (v.siege > 0) {
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(255,240,200,.9)';
@@ -233,6 +243,33 @@ export class Renderer {
         ctx.strokeText(label, x, y + r + 4);
         ctx.fillStyle = '#f4ecd8';
         ctx.fillText(label, x, y + r + 4);
+      }
+    }
+  }
+
+  /** Riders carrying orders (small, fast) and envoys (a lantern with a faint trail). */
+  private drawCouriers(cam: Camera, state: StateResponse, colors: RGB[], w: number, h: number) {
+    const ctx = this.ctx;
+    const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 300);
+    for (const c of state.couriers ?? []) {
+      const x = c.x0 + (c.x1 - c.x0) * c.t + 0.5, y = c.y0 + (c.y1 - c.y0) * c.t + 0.5;
+      const [sx, sy] = cam.toScreen(x, y, w, h);
+      if (sx < -10 || sy < -10 || sx > w + 10 || sy > h + 10) continue;
+      const col = colors[c.faction] ?? [255, 255, 255];
+      if (c.kind === 'envoy') {
+        const [ax, ay] = cam.toScreen(c.x0 + 0.5, c.y0 + 0.5, w, h);
+        ctx.strokeStyle = `rgba(255,244,214,${0.18 * pulse})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(sx, sy); ctx.stroke();
+        ctx.fillStyle = `rgba(255,244,214,${0.35 * pulse})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff4d6';
+        ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.5 * pulse})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fffaf0';
+        ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill();
       }
     }
   }
