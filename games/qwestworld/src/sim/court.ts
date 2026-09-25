@@ -321,7 +321,7 @@ function openTurn(w: World, id: number): Turn {
  * which small models tend to do.
  */
 function memoryStyle(model: string): 'chat' | 'narrative' {
-  const re = process.env.NARRATIVE_MEMORY ?? 'llama';
+  const re = process.env.NARRATIVE_MEMORY ?? 'llama|1\.7b';
   return re && new RegExp(re).test(model) ? 'narrative' : 'chat';
 }
 

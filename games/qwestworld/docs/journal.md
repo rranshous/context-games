@@ -305,3 +305,5 @@ The first multi-step council was the best reasoning yet. **King Caswyn** propose
 - **The Free March of Ashmoor.** General Oshild rose against Queen Falbert "for the crown has not paid them in months." Falbert (qwen3:1.7b) went from ~30,000 crowns to −1,320 in about a year, hiring sellswords and feeding a two-front war.
 - Both rebel realms are ruled by llama3.2:3b minds, so the world now holds **seven LLM minds** (2× qwen3:8b, 1× qwen3:1.7b, 4× llama3.2:3b) plus the scribe. Maldric's first council: a muster.
 - The Crown of Galcrag (young Queen Daggard, llama) has collapsed to 4 towns. Mardun (script) holds 31 of 96. Daggard tried to muster at Galcrag, which she no longer owned.
+
+**Narrative memory extended to qwen3:1.7b.** Queen Falbert declared war on Thornby three councils running (already at war the whole time), and earlier sent King Halis word for word the envoy she'd sent his predecessor. The same copy-your-own-memory pattern as llama3.2:3b. The default `NARRATIVE_MEMORY` is now `llama|1\.7b`. Only qwen3:8b keeps chat memory.
