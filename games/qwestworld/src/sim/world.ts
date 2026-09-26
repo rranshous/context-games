@@ -898,7 +898,7 @@ export class World {
     const rebel: Realm = {
       id, name,
       color: KINGDOM_COLORS[id % KINGDOM_COLORS.length],
-      ruler: { title: 'King', name: a.general, born: this.tick - Math.floor((28 + Math.random() * 20) * YEAR), temperament: pick(['ambitious and proud', 'bitter', 'bloodthirsty', 'cunning', 'reckless']) },
+      ruler: { title: 'King', name: a.general.replace(/'s Guard$/, ''), born: this.tick - Math.floor((28 + Math.random() * 20) * YEAR), temperament: pick(['ambitious and proud', 'bitter', 'bloodthirsty', 'cunning', 'reckless']) },
       brain: this.rebelBrain,
       origin: `raised in rebellion against the ${realm.name} by General ${a.general}`,
       founded: this.tick,
@@ -918,7 +918,7 @@ export class World {
       if (this.sArmy[i] === a.id || (this.sArmy[i] < 0 && this.sHome[i] === a.target && this.sf[i] === a.faction)) this.sf[i] = id;
     }
     a.faction = id;
-    a.general = `${a.general}'s Guard`;
+    if (!a.general.endsWith("'s Guard")) a.general = `${a.general}'s Guard`;
     this.setWar(id, realm.id, true);
     this.deeds(id, realm.id).rebelled = this.year();
     this.deeds(id, realm.id).towns++;

@@ -444,3 +444,17 @@ So, as with idle treasuries, the fact needed a voice: when a peace or alliance o
 1. "You sent word to General **General** Berdor…": minds sometimes include the title, and the outcome text added another. Names are now normalized before use.
 2. A missing general's "fate" matched *any* chronicle line containing "General X", so Cynewine's fate was quoted as another host joining *his*. It now matches only the general's own fate (their host joining another, destroyed, rebelling, or going over).
 3. The milestone pattern for a fallen realm ("The X is no more.") also matched proclamations quoting that phrase (Vorana's "…The Crown of Elhold is no more…"). Now anchored to the chronicle's own wording.
+
+### Age II overnight (to Year 10): the script again
+The world ran unattended overnight, stable, with no failed councils. By Deepwinter, Year 10:
+- **Iskvale (script): 43 towns, 24k soldiers**, up from 21. It swallowed the Crown of Osby, three rebel realms, and nearly all of Zanton.
+- **Elhold (qwen3:1.7b): 29 towns, unchanged all age.** In 35 councils it never once ordered a march: `send_gold` 46, `proclaim` 32, `send_envoy` 17. It survives by paying people.
+- **Queen Vorana's fall.** In Year 8 she swore alliance with Iskvale, then **betrayed it the same year**. Iskvale took Zanton, and *"Queen Vorana of the Principality of Zanton is slain as Zanton falls."* **Queen Vorana II** (22) inherited one town, 2,000 crowns of debt, and her mother's ledger.
+- **The Crown of Osby fell** in Year 7, after two kings were slain as their seats fell (Branmar, then Renwen), leaving Renwen II as the last.
+- **Iskvale's King Garmir died** ("of a wound that never healed"); Queen Belven, 19, succeeded him, on the same script. Drebarrow's Queen Moraneth died of a fever.
+- **Five rebellions** this age. Three rebel realms were crushed by Iskvale; two remain.
+- qwen3:8b councils now take 350–400s with ~7k-token prompts. Both 8B rulers declared war 30–40 times each (many redundant).
+
+**Why does the script keep winning?** It acts on *every* idle host *every* council, attacks only with the odds, never repeats itself, and is never late. The minds are 6+ minutes late per round, march into strong garrisons, and the small ones loop. The user expected the minds to beat it; so far, twice now, rules have beaten local models at empire-building.
+
+Bug fixed: a rebellion by a rebel's own guard produced rulers named "King Yororfric's Guard". Rebel rulers now take the general's name without the "'s Guard".
