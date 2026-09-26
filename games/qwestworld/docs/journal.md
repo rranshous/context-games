@@ -412,3 +412,14 @@ Age I's save was nearly overwritten by the new age's first autosave; it was resc
 - Standings at Harvest, Year 2: Elhold 29 towns, Iskvale (script) 21, Thornmouth 16, Zanton 12, Osby 12, Drebarrow 6.
 
 Tooling: `qw chronicle N` read the 80-entry state snapshot, so it silently capped at 80. It now uses `/api/chronicle`.
+
+### The ledger: grudges that outlive memory
+The user asked whether Elhold would hold on to the fact that Vorana broke her word twice. **It didn't.** King Quinebert saw only a generic "Known as an oathbreaker" on Zanton. With narrative memory, a ruler remembers their own decisions and outcomes, but news (like "Queen Vorana breaks the peace sworn with the Crown of Elhold") shows up once, in the next report, and is gone. His memory showed him accepting Zanton's peace twice and nothing of what came between. He proclaimed "The war has ended. The Principality of Zanton offers peace…" five times while at war with her.
+
+**Fix: a ledger between realms, kept by the world.** For each ordered pair it records what one realm has done to the other: wars declared, oaths of peace broken, alliances betrayed, peace and alliances sworn, aid when attacked (calls to arms), gold sent, towns taken (including revolts), rebellion. Every report shows it beside each realm, from both sides:
+
+> - The Principality of Zanton, ruled by Queen Vorana (bloodthirsty): … AT WAR with you … Known as an oathbreaker. **They have broken the peace sworn with you twice (Year 1, Year 2); declared war on you once (Year 1). Peace has been sworn between you twice.**
+>
+> (Vorana's own report, about Elhold:) **You have broken your oath of peace to them twice; declared war on them once.**
+
+It's engine-kept fact in the same in-fiction voice, so it doesn't depend on any mind's memory, and it survives successions. An heir inherits the realm's grudges and debts along with the crown. For saves from before the ledger, it's rebuilt from the chronicle on load; Age II's first two years were backfilled that way.

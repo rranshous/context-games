@@ -433,7 +433,7 @@ function report(w: World, id: number): string {
     const theirAllies = w.alliesOf(o.id).filter(e => e !== id).map(e => w.realms[e].name);
     const repute = o.honor < 0.6 ? ' Known as an oathbreaker.' : '';
     L.push(`- The ${o.name}, ruled by ${w.ruler(o.id)} (${o.ruler.temperament}): ${w.held(o.id)} settlements, ${roughly(w.soldiersOf(o.id))} soldiers. ` +
-      `${cap(rel)}${theirWars.length ? `; at war with ${theirWars.join(', ')}` : ''}${theirAllies.length ? `; allied with ${theirAllies.join(', ')}` : ''}.${repute}`);
+      `${cap(rel)}${theirWars.length ? `; at war with ${theirWars.join(', ')}` : ''}${theirAllies.length ? `; allied with ${theirAllies.join(', ')}` : ''}.${repute}${ledgerLine(w, id, o.id)}`);
   }
 
   const advice = counsel(w, id);
@@ -501,6 +501,34 @@ function counsel(w: World, id: number): string[] {
   if (r.honor < 0.6) {
     out.push(`Your chancellor: "Your word is doubted abroad. Other rulers remember broken oaths."`);
   }
+  return out;
+}
+
+const TIMES = ['never', 'once', 'twice', 'three times'];
+const times = (n: number) => TIMES[n] ?? `${n} times`;
+const years = (ys: number[]) => ys.length ? ` (Year ${[...new Set(ys)].join(', Year ')})` : '';
+
+/**
+ * The ledger between two realms, told from `me`'s side: what they have done to you, and you to them.
+ * Kept by the world, so grudges and debts outlive any ruler's memory — and any ruler.
+ */
+function ledgerLine(w: World, me: number, them: number): string {
+  const t = w.deeds(them, me), u = w.deeds(me, them);
+  const theirs: string[] = [], yours: string[] = [];
+  if (t.rebelled) theirs.push(`risen in rebellion against you (Year ${t.rebelled})`);
+  if (t.betrayals.length) theirs.push(`betrayed their alliance with you ${times(t.betrayals.length)}${years(t.betrayals)}`);
+  if (t.oathsBroken.length) theirs.push(`broken the peace sworn with you ${times(t.oathsBroken.length)}${years(t.oathsBroken)}`);
+  if (t.wars.length) theirs.push(`declared war on you ${times(t.wars.length)}${years(t.wars)}`);
+  if (t.towns) theirs.push(`taken ${t.towns} of your towns`);
+  if (t.aided.length) theirs.push(`come to your aid when you were attacked ${times(t.aided.length)}`);
+  if (t.gold) theirs.push(`sent you ${t.gold.toLocaleString('en-US')} crowns`);
+  if (u.betrayals.length) yours.push(`betrayed your alliance with them ${times(u.betrayals.length)}`);
+  if (u.oathsBroken.length) yours.push(`broken your oath of peace to them ${times(u.oathsBroken.length)}`);
+  if (u.wars.length) yours.push(`declared war on them ${times(u.wars.length)}`);
+  if (u.towns) yours.push(`taken ${u.towns} of their towns`);
+  if (u.gold) yours.push(`sent them ${u.gold.toLocaleString('en-US')} crowns`);
+  const peace = t.peaces.length ? ` Peace has been sworn between you ${times(t.peaces.length)}.` : '';
+  const out = (theirs.length ? ` They have ${theirs.join('; ')}.` : '') + (yours.length ? ` You have ${yours.join('; ')}.` : '') + peace;
   return out;
 }
 

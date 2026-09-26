@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { World, WorldOptions, MAJOR } from './world.js';
+import { World, WorldOptions, MAJOR, YEAR } from './world.js';
 
 const VERSION = 2;
 
@@ -39,6 +39,7 @@ export function saveWorld(w: World, file: string) {
     peaceOffers: w.peaceOffers,
     allied: b64(w.allied, w.allied.byteLength),
     allianceOffers: w.allianceOffers,
+    ledger: w.ledger,
     envoys: w.envoys,
     caravans: w.caravans,
     armies: [...w.armies.values()],
@@ -88,6 +89,8 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   w.peaceOffers = d.peaceOffers;
   if (d.allied) into(w.allied, d.allied);
   w.allianceOffers = d.allianceOffers ?? [];
+  w.ledger = d.ledger ?? {};
+  if (!d.ledger) backfillLedger(w, d.chronicle ?? []);
   w.envoys = d.envoys;
   w.caravans = d.caravans ?? [];
   for (const a of d.armies) w.armies.set(a.id, a);
@@ -105,4 +108,40 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   // A council that was mid-thought when we stopped gets called again
   for (const r of w.realms) if (r.nextCouncil < w.tick) r.nextCouncil = w.tick;
   return w;
+}
+
+/** For saves from before the ledger: rebuild it from the chronicle, so old grudges are not forgotten. */
+function backfillLedger(w: World, chronicle: { tick: number; text: string }[]) {
+  const byName = new Map(w.realms.map(r => [r.name, r.id]));
+  const year = (tick: number) => Math.floor(tick / YEAR) + 1;
+  const realmOfRuler = (t: string) => w.realms.find(r => t.startsWith(`${r.ruler.title} ${r.ruler.name} `))?.id;
+  for (const e of chronicle) {
+    const t = e.text, y = year(e.tick);
+    let m: RegExpMatchArray | null;
+    if ((m = t.match(/^The (.+?) declares war on the (.+?)\.$/))) {
+      const a = byName.get(m[1]), b = byName.get(m[2]);
+      if (a !== undefined && b !== undefined) w.deeds(a, b).wars.push(y);
+    } else if ((m = t.match(/breaks the peace sworn with the (.+?) and declares war/))) {
+      const a = realmOfRuler(t), b = byName.get(m[1]);
+      if (a !== undefined && b !== undefined) w.deeds(a, b).oathsBroken.push(y);
+    } else if ((m = t.match(/betrays the alliance with the (.+?) and declares war/))) {
+      const a = realmOfRuler(t), b = byName.get(m[1]);
+      if (a !== undefined && b !== undefined) w.deeds(a, b).betrayals.push(y);
+    } else if ((m = t.match(/^The (.+?) and the (.+?) swear (peace|alliance)\.$/))) {
+      const a = byName.get(m[1]), b = byName.get(m[2]);
+      if (a !== undefined && b !== undefined) {
+        const k = m[3] === 'peace' ? 'peaces' : 'alliances';
+        w.deeds(a, b)[k].push(y); w.deeds(b, a)[k].push(y);
+      }
+    } else if ((m = t.match(/^The (.+?) takes .+ from the (.+?)\.$/)) || (m = t.match(/, seat of the (.+?), falls to the (.+?)!/))) {
+      const [a, b] = t.includes('falls to') ? [byName.get(m[2]), byName.get(m[1])] : [byName.get(m[1]), byName.get(m[2])];
+      if (a !== undefined && b !== undefined) w.deeds(a, b).towns++;
+    } else if ((m = t.match(/ sends ([\d,]+) crowns to .+ of the (.+?)\.$/))) {
+      const a = realmOfRuler(t), b = byName.get(m[2]);
+      if (a !== undefined && b !== undefined) w.deeds(a, b).gold += Number(m[1].replace(/,/g, ''));
+    } else if ((m = t.match(/^The (.+?) honors its alliance with the (.+?) and takes up arms against the (.+?)\.$/))) {
+      const c = byName.get(m[1]), d2 = byName.get(m[2]);
+      if (c !== undefined && d2 !== undefined) w.deeds(c, d2).aided.push(y);
+    }
+  }
 }

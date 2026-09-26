@@ -130,6 +130,19 @@ export interface MindStats {
   silent: number;     // councils with no command at all
 }
 
+/** What one realm has done to another, kept by the world so no ruler's memory has to. */
+export interface Deeds {
+  wars: number[];        // years they declared war on you (in the open)
+  oathsBroken: number[]; // years they broke a sworn peace to declare war
+  betrayals: number[];   // years they betrayed an alliance with you
+  peaces: number[];      // years they swore peace with you
+  alliances: number[];   // years they swore alliance with you
+  aided: number[];       // years they took up arms because you were attacked
+  gold: number;          // crowns they have sent you
+  towns: number;         // towns they have taken from you
+  rebelled?: number;     // year they rose in rebellion against you
+}
+
 interface Entry extends ChronicleEntry {
   involves: number[];
   major?: boolean;  // history worth keeping when the chronicle is trimmed
@@ -176,6 +189,7 @@ export class World {
   peaceOffers: { from: number; to: number; tick: number }[] = [];
   allied = new Uint8Array(MAX_FACTIONS * MAX_FACTIONS);  // 1 = sworn allies
   allianceOffers: { from: number; to: number; tick: number }[] = [];
+  ledger: Record<string, Deeds> = {};   // "a>b": what a has done to b
   envoys: Envoy[] = [];
   caravans: { from: number; to: number; sent: number; arrives: number }[] = [];
 
@@ -506,6 +520,7 @@ export class World {
   private capture(id: number, by: number) {
     const s = this.map.settlements[id];
     const prev = this.owner[id];
+    this.deeds(by, prev).towns++;
     for (let i = 0; i < this.high; i++) {
       if (this.sf[i] !== DEAD && this.sArmy[i] < 0 && this.sHome[i] === id) this.kill(i);
     }
@@ -823,6 +838,7 @@ export class World {
       }
       this.owner[s.id] = founder;
       this.takenAt[s.id] = -1;
+      this.deeds(founder, own).towns++;
       if (!this.atWar(founder, own)) this.setWar(founder, own, true);
       this.log(founder, [founder, own], `The people of ${s.name} rise against the ${this.realms[own].name} and open their gates to the ${this.realms[founder].name}.`);
     }
@@ -904,6 +920,8 @@ export class World {
     a.faction = id;
     a.general = `${a.general}'s Guard`;
     this.setWar(id, realm.id, true);
+    this.deeds(id, realm.id).rebelled = this.year();
+    this.deeds(id, realm.id).towns++;
     const why = realm.gold < 0 ? 'the crown has not paid them in months' : a.morale < 0.35 ? 'the men are sick of waiting' : 'ambition';
     this.log(id, [id, realm.id], `General ${rebel.ruler.name} rises in rebellion at ${s.name}, for ${why}, and proclaims the ${name}!`);
   }
@@ -991,11 +1009,22 @@ export class World {
       : oathbreak
         ? `${this.ruler(a)} breaks the peace sworn with the ${this.realms[b].name} and declares war! Oathbreaker, they whisper.`
         : `The ${this.realms[a].name} declares war on the ${this.realms[b].name}.`);
+    const d = this.deeds(a, b), y = this.year();
+    if (betrayal) d.betrayals.push(y); else if (oathbreak) d.oathsBroken.push(y); else d.wars.push(y);
     const called = this.callToArms(a, b);
     const tail = called.length ? ` The allies of the ${this.realms[b].name} answer: ${called.join(', ')} now war on you too.` : '';
     return (betrayal ? `You betrayed your alliance and declared war on the ${this.realms[b].name}. Your honor suffers greatly.`
       : oathbreak ? `You broke your oath of peace and declared war on the ${this.realms[b].name}. Your honor suffers.`
         : `You declared war on the ${this.realms[b].name}.`) + tail;
+  }
+
+  /** What a has done to b (created on first use). */
+  deeds(a: number, b: number): Deeds {
+    return (this.ledger[`${a}>${b}`] ??= { wars: [], oathsBroken: [], betrayals: [], peaces: [], alliances: [], aided: [], gold: 0, towns: 0 });
+  }
+
+  private year(): number {
+    return Math.floor(this.tick / YEAR) + 1;
   }
 
   isAllied(a: number, b: number): boolean {
@@ -1016,6 +1045,8 @@ export class World {
     for (const c of this.alliesOf(defender)) {
       if (c === aggressor || this.atWar(c, aggressor) || this.isAllied(c, aggressor)) continue;
       this.setWar(c, aggressor, true);
+      this.deeds(c, defender).aided.push(this.year());
+      this.deeds(c, aggressor).wars.push(this.year());
       answered.push(`the ${this.realms[c].name}`);
       this.log(c, [c, aggressor, defender], `The ${this.realms[c].name} honors its alliance with the ${this.realms[defender].name} and takes up arms against the ${this.realms[aggressor].name}.`);
     }
@@ -1024,6 +1055,8 @@ export class World {
 
   makePeace(a: number, b: number) {
     this.setWar(a, b, false);
+    this.deeds(a, b).peaces.push(this.year());
+    this.deeds(b, a).peaces.push(this.year());
     this.treaty[a * MAX_FACTIONS + b] = this.treaty[b * MAX_FACTIONS + a] = this.tick;
     this.peaceOffers = this.peaceOffers.filter(o => !((o.from === a && o.to === b) || (o.from === b && o.to === a)));
     // Hosts besieging the other side come home
@@ -1054,6 +1087,8 @@ export class World {
 
   makeAlliance(a: number, b: number) {
     this.setAllied(a, b, true);
+    this.deeds(a, b).alliances.push(this.year());
+    this.deeds(b, a).alliances.push(this.year());
     this.allianceOffers = this.allianceOffers.filter(o => !((o.from === a && o.to === b) || (o.from === b && o.to === a)));
     this.log(-1, [a, b], `The ${this.realms[a].name} and the ${this.realms[b].name} swear alliance.`);
   }
@@ -1093,6 +1128,7 @@ export class World {
     if (amount <= 0) return `You meant to send crowns to the ${taker.name}, but your treasury is empty.`;
     giver.gold -= amount;
     taker.gold += amount;
+    this.deeds(from, to).gold += amount;
     taker.inbox.push(`${this.ruler(from)} of the ${giver.name} has sent you ${amount.toLocaleString('en-US')} crowns.`);
     this.log(from, [from, to], `${this.ruler(from)} sends ${amount.toLocaleString('en-US')} crowns to ${this.ruler(to)} of the ${taker.name}.`);
     return `You sent ${amount.toLocaleString('en-US')} crowns to the ${taker.name}.`;
