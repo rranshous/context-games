@@ -52,8 +52,8 @@ async function kings() {
 }
 
 async function chronicle(n: number) {
-  const s = await get<StateResponse>('/api/state');
-  for (const e of s.chronicle.slice(-n)) {
+  const c = await get<{ entries: StateResponse['chronicle'] }>(`/api/chronicle?since=0&limit=${n}`);
+  for (const e of c.entries) {
     const who = e.faction >= 0 ? LETTERS[e.faction] : '·';
     console.log(`${who} ${String(Math.floor(e.tick / 24)).padStart(5)}d  ${e.text}`);
   }

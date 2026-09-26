@@ -403,3 +403,12 @@ The user wants to keep the scripted contestant ("I would expect the minds to be 
 `qw new-age` → "A new age dawns: Age 2, seed 10065". The same mind mix: Zanton and Drebarrow (qwen3:8b), Thornmouth and Osby (llama3.2:3b), Elhold (qwen3:1.7b, starting with 29 towns, the largest), Iskvale (script).
 
 Age I's save was nearly overwritten by the new age's first autosave; it was rescued by hand to `data/age-1.json`. The sim now archives each ending age to `data/age-N.json` automatically.
+
+### Age II, first two years: the minds gang up
+- **Zanton and Drebarrow (both qwen3:8b) opened by declaring war on Elhold** (qwen3:1.7b, the biggest realm at 29 towns) within the first five weeks. Both made peace with Elhold, then **both broke it** within two weeks of each other (days 271 and 285), deliberate `declare_war`s. Vorana of Zanton made peace a second time and broke it a second time (day 527). Two oathbreakings in one reign.
+- **Queen Vorana's envoys**, sent to Elhold three times word for word: *"The Crown of Elhold is broken. Surrender or face annihilation."* (Elhold isn't broken; it has 29 towns and the largest army.)
+- **The llama realms went after the script:** Thornmouth (day 119) and Osby (day 378) both declared war on Iskvale, which had attacked Zanton on day 73. Iskvale answers with starvation sieges (Caldbarrow, Yrbarrow).
+- Vorana's Year 2 council was a seven-command campaign: a peace offer to Elhold *and* a war declaration on Elhold in the same council, war on Iskvale, a muster, a hire and a march. Qwen3:8b multi-step councils can contradict themselves.
+- Standings at Harvest, Year 2: Elhold 29 towns, Iskvale (script) 21, Thornmouth 16, Zanton 12, Osby 12, Drebarrow 6.
+
+Tooling: `qw chronicle N` read the 80-entry state snapshot, so it silently capped at 80. It now uses `/api/chronicle`.
