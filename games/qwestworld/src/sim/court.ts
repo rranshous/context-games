@@ -317,6 +317,14 @@ function openTurn(w: World, id: number): Turn {
  * The ruler's context: identity, then their last few councils (compressed reports,
  * their own commands verbatim, and what came of them), then today's full report.
  */
+/** "You proclaimed: “…”" → "You made a proclamation."; envoys keep who and what (peace, alliance) but not the words. */
+function unquoteOwnWords(text: string): string {
+  return text
+    .replace(/^You proclaimed: “.*”$/, 'You made a proclamation.')
+    .replace(/^(You sent an envoy to the .+?)(?: offering peace)?: “.*”$/, (_m, head) => `${head}${/offering peace/.test(text) ? ' offering peace' : ''}.`)
+    .replace(/^(You sent an envoy to the .+? proposing an alliance): “.*”$/, '$1.');
+}
+
 /**
  * How a mind remembers. 'chat': past councils as real turns, their own tool calls verbatim.
  * 'narrative': the same history as prose inside today's report — no past tool calls to copy,
@@ -333,7 +341,8 @@ function messagesFor(w: World, id: number, now: Turn): ChatMessage[] {
     (r.founded > 0 ? `, a realm ${r.origin}.` : '.') + ` By temperament you are ${r.ruler.temperament}.`;
   const msgs: ChatMessage[] = [{ role: 'system', content: `${who} ${SYSTEM}` }];
   if (memoryStyle(r.brain) === 'narrative') {
-    const past = r.turns.flatMap(t => t.results.map(x => `- ${t.date}: ${x.text}`));
+    // Their own words are left out of memory: quoted, they become a script small models read back verbatim
+    const past = r.turns.flatMap(t => t.results.map(x => `- ${t.date}: ${unquoteOwnWords(x.text)}`));
     const memory = past.length ? `\n\nYour recent decisions and what came of them:\n${past.join('\n')}` : '';
     msgs.push({ role: 'user', content: now.full + memory + '\n\nWhat do you do? /no_think' });
     return msgs;
