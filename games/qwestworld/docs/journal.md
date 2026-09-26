@@ -481,3 +481,13 @@ Age II was archived automatically (`data/age-2.json`, final state: Iskvale 43 to
 | Drewick | Queen Neeth, 34 | llama3.2:3b | 22 |
 | Caldstead | King Nymorna, 53 | qwen3:1.7b | 9 |
 | **Wenton** | King Quinarya, 26 | **script** | 17 |
+
+### A crash at the turn of the age
+Seconds into Age III the sim died: `Cannot read properties of undefined (reading 'ruler')`. The court's queue still held councils from Age II, and a job for realm #11 ran against a world with six realms. The error came from an async path with no handler, which took down the process. Fixes: every court job carries its world and stale ones are dropped; the error path guards missing realms; the daemon now logs unhandled rejections and exceptions instead of dying. Nothing was lost (Age III had been saved at tick 598).
+
+### Should the world pause while minds think? Yes.
+The user asked what the world does while models think. Until now: **it kept running at full speed**, and only once a council was 10 in-game days overdue did it slow to 1/8, never stopping. A qwen3:8b council takes 3–6 real minutes, so a king's orders often landed in a world weeks older than the one he was shown: armies had moved and sieges had progressed. **The script decides instantly, so this was a structural advantage for it** and a plausible part of why it won Ages I and II.
+
+New default, `WAIT_MODE=pause`: while any mind is in council, the world holds still. Orders land in the world the mind saw, exactly as the script's do. (`WAIT_MODE=slow` keeps the old behavior.) The cost: the world runs ~2 minutes, then waits ~15 for a round of councils. The viewer says "The world holds its breath while Queen Brynya deliberates…". Verified: the tick holds constant while a mind is in council.
+
+With the war room and the pause, the minds now see what the script sees and act on the same moment. Age III will show whether that's enough.

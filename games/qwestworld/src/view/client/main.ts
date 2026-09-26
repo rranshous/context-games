@@ -95,7 +95,7 @@ function updatePanel(s: StateResponse) {
   $('age').textContent = `THE AGE ${roman(s.age)}`;
   $('date').textContent = `${s.date} · ${s.season}`;
   const waiting = $('waiting');
-  waiting.textContent = s.stalledBy ? `Time slows while ${s.stalledBy} deliberates…` : '';
+  waiting.textContent = s.stalledBy ? `The world holds its breath while ${s.stalledBy} deliberates…` : '';
   waiting.classList.toggle('on', !!s.stalledBy);
 
   $('kingdoms').innerHTML = [...s.kingdoms].sort((a, b) => Number(b.alive) - Number(a.alive) || b.settlements - a.settlements).map(k => {

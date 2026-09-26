@@ -6,7 +6,7 @@
 import express from 'express';
 import path from 'path';
 import { World } from './world.js';
-import { Court, resolveBrain } from './court.js';
+import { Court, resolveBrain, WAIT_MODE } from './court.js';
 import { saveWorld, loadWorld } from './persist.js';
 import { MetaResponse, MAP_W, MAP_H } from '../shared/types.js';
 
@@ -40,8 +40,8 @@ function freshWorld(seed: number, age: number): World {
 let beat = 0;
 setInterval(() => {
   if (paused) return;
-  // Time slows, rather than stops, while the world waits on a mind
-  if (court.stalledBy() && beat++ % SLOW_WHILE_WAITING !== 0) { court.tick(); return; }
+  // While a mind is in council the world holds still (WAIT_MODE=pause), or crawls at 1/8 (WAIT_MODE=slow)
+  if (court.stalledBy() && (WAIT_MODE === 'pause' || beat++ % SLOW_WHILE_WAITING !== 0)) { court.tick(); return; }
   const t0 = performance.now();
   world.step();
   court.tick();
@@ -56,6 +56,10 @@ setInterval(() => {
     console.log(`[sim] A new age dawns: Age ${world.age}, seed ${world.map.seed}`);
   }
 }, 1000 / TPS);
+
+// A mind's failure or a stray bug should cost one council, not the world
+process.on('unhandledRejection', e => console.error('[sim] unhandled rejection:', e));
+process.on('uncaughtException', e => console.error('[sim] uncaught exception:', e));
 
 const save = () => {
   try { saveWorld(world, SAVE_FILE); } catch (e: any) { console.error('[sim] save failed', e.message); }
@@ -111,6 +115,7 @@ app.get('/api/chronicle', (req, res) => {
 app.get('/api/annals', (_req, res) => res.json(world.annals));
 app.get('/api/soldiers.bin', (_req, res) => res.type('application/octet-stream').send(world.soldiersBinary()));
 app.get('/api/health', (_req, res) => res.json({
+  waitMode: WAIT_MODE,
   tick: world.tick, age: world.age, paused, stalledBy: court.stalledBy(),
   soldiers: world.high - 0, stepMs: +stepMs.toFixed(2), tps: TPS,
 }));

@@ -36,7 +36,7 @@ Only the rulers think. Every 60 in-game days each holds council: they read their
 > *General Edvin misreads the royal seal and marches on Grisgate instead of Dunbarrow.*
 > …and takes it. His king's first conquest was an accident.
 
-If a thinking ruler runs overdue, time slows for them: *"Time slows while Queen Alda deliberates…"*
+While a mind is in council, the world holds still, so its orders land in the world it was shown: *"The world holds its breath while Queen Alda deliberates…"*
 
 ## The rulers
 
@@ -92,7 +92,8 @@ npm run qw -- pause | resume
 | `OLLAMA_URL` | `http://localhost:11434` | |
 | `TICKS_PER_SEC` | `12` | one tick is one in-game hour |
 | `COUNCIL_DAYS` | `60` | in-game days between councils |
-| `GRACE_DAYS` | `10` | how overdue a mind may be before time slows (to 1/8) |
+| `WAIT_MODE` | `pause` | while a mind is in council the world holds still (`pause`), or runs until `GRACE_DAYS` overdue and then crawls at 1/8 (`slow`) |
+| `GRACE_DAYS` | `10` | in `slow` mode, how overdue a mind may be before time slows |
 | `SEED` | random | continent seed (new ages use seed + 1) |
 | `PORT` / `HOST` / `DATA_DIR` | `4200` / `0.0.0.0` / `./data` | sim |
 | `PORT` / `SIM_URL` | `4201` / same host | viewer |

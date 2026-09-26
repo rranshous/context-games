@@ -11,6 +11,7 @@ import { World, Realm, YEAR } from './world.js';
 const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://localhost:11434';
 const COUNCIL_DAYS = parseInt(process.env.COUNCIL_DAYS ?? '60', 10);
 const GRACE_DAYS = parseInt(process.env.GRACE_DAYS ?? '10', 10);
+export const WAIT_MODE = process.env.WAIT_MODE === 'slow' ? 'slow' : 'pause'; // how the world waits on a thinking mind
 const REIGN_KEEP = 40;  // history kept per ruler, for viewers
 const TURNS_KEEP = parseInt(process.env.KING_MEMORY ?? '5', 10); // councils a ruler remembers verbatim
 const COUNCIL_STEPS = parseInt(process.env.COUNCIL_STEPS ?? '3', 10); // rounds of act-and-see within one council
@@ -63,7 +64,8 @@ interface ChatMessage {
 const quiet = !!process.env.QW_QUIET;
 const say = (...a: unknown[]) => { if (!quiet) console.log(...a); };
 
-type Job = { kind: 'council'; id: number } | { kind: 'annal'; year: number };
+// Each job remembers its world: a new age must not inherit the old one's councils
+type Job = ({ kind: 'council'; id: number } | { kind: 'annal'; year: number }) & { world: World };
 
 const scribe = () => resolveBrain(process.env.SCRIBE_BRAIN ?? 'llama');
 
@@ -78,6 +80,7 @@ export class Court {
   /** Called every tick by the sim loop. */
   tick() {
     const w = this.world();
+    if (this.queue.some(j => j.world !== w)) this.queue = this.queue.filter(j => j.world === w);
     for (const r of w.realms) {
       if (!r.alive || r.thinking || w.tick < r.nextCouncil) continue;
       r.thinking = true;
@@ -85,7 +88,7 @@ export class Court {
         const calls = scriptCouncil(w, r.id);
         this.finish(r.id, w, calls, calls.map(c => execute(w, r.id, c)), '', null);
       }
-      else this.queue.push({ kind: 'council', id: r.id });
+      else this.queue.push({ kind: 'council', id: r.id, world: w });
     }
     // At each year's end the scribe writes it down (a new age starts counting afresh)
     if (this.annalWorld !== w) {
@@ -95,7 +98,7 @@ export class Court {
     const year = Math.floor(w.tick / YEAR);
     if (scribe() !== 'script' && year >= 1 && year > this.annalsDue && !w.annals.some(a => a.year === year)) {
       this.annalsDue = year;
-      this.queue.push({ kind: 'annal', year });
+      this.queue.push({ kind: 'annal', year, world: w });
     }
     this.pump();
   }
@@ -103,8 +106,13 @@ export class Court {
   /** The ruler the world is waiting on, if any. */
   stalledBy(): string | null {
     const w = this.world();
+    // In 'pause' mode (the default) the world holds still while any mind is in council, so its
+    // orders land in the world it was shown — as the script's always do. In 'slow' mode it only
+    // slows, and only once a council is GRACE_DAYS overdue.
+    const pause = WAIT_MODE === 'pause';
     for (const r of w.realms) {
-      if (r.alive && r.thinking && r.brain !== 'script' && w.tick >= r.nextCouncil + GRACE_DAYS * HOURS_PER_DAY) {
+      if (r.alive && r.thinking && r.brain !== 'script' &&
+          (pause || w.tick >= r.nextCouncil + GRACE_DAYS * HOURS_PER_DAY)) {
         return w.ruler(r.id);
       }
     }
@@ -122,6 +130,7 @@ export class Court {
     this.busy = true;
     const job = this.queue.shift()!;
     const w = this.world();
+    if (job.world !== w) { this.busy = false; this.pump(); return; }
     if (job.kind === 'annal') {
       try {
         const text = await this.writeAnnal(w, job.year);
@@ -135,6 +144,7 @@ export class Court {
       return;
     }
     const id = job.id;
+    if (!w.realms[id]) { this.busy = false; this.pump(); return; }
     try {
       if (!w.realms[id].alive) { w.realms[id].thinking = false; return; }
       const turn = openTurn(w, id);
