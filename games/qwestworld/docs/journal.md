@@ -433,3 +433,14 @@ So, as with idle treasuries, the fact needed a voice: when a peace or alliance o
 **Result:** the verbatim loop broke, comically. With his memory saying only "You made a proclamation.", Quinebert's next proclamation was a *description of a proclamation*: *"A proclamation of peace and unity, emphasizing the importance of maintaining order and the strength of the Crown of Elhold."* The shape of his councils didn't change (proclaim, then peace envoys to both queens). So removing the quoted words stops the textual copying, but qwen3:1.7b still repeats the *pattern* of actions it sees in its memory. Meanwhile Queen Moraneth sent him 100 crowns and lost patience: *"We have offered peace repeatedly. Accept it now, or face ruin."*
 
 **Takeaway on memory for small models:** whatever the memory shows most, the small model does again. Chat memory → it copies tool calls. Narrative with quotes → it copies the words. Narrative without quotes → it copies the pattern. The ledger and the advisors add facts, but for qwen3:1.7b they don't outweigh "what I did last time". The 8B models do weigh them.
+
+### Age II, Year 4
+- **Elhold** (qwen3:1.7b, the endless peace-offerer) still leads: 29 towns, 17.5k soldiers.
+- **Iskvale (script) grew to 27 towns**, fighting both llama realms. Osby (llama) halved from 12 towns to 6.
+- **Queen Vorana of Zanton** (qwen3:8b, bloodthirsty) proclaimed *"The war is won. The Crown of Elhold is no more"* about a realm twice her size, and lost a general to rebellion (General Kaismund's **Ulwall Compact**, "for the crown has not paid them in months"). Her treasury runs a deficit.
+- Queen Moraneth sends Elhold gold alongside ultimatums; Elhold sends Zanton gold alongside peace offers. The ledger is now full of gold between enemies.
+
+**Bugs found reading Vorana's full context (`qw context a`), fixed:**
+1. "You sent word to General **General** Berdor…": minds sometimes include the title, and the outcome text added another. Names are now normalized before use.
+2. A missing general's "fate" matched *any* chronicle line containing "General X", so Cynewine's fate was quoted as another host joining *his*. It now matches only the general's own fate (their host joining another, destroyed, rebelling, or going over).
+3. The milestone pattern for a fallen realm ("The X is no more.") also matched proclamations quoting that phrase (Vorana's "…The Crown of Elhold is no more…"). Now anchored to the chronicle's own wording.

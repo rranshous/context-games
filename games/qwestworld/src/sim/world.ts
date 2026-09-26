@@ -149,7 +149,7 @@ interface Entry extends ChronicleEntry {
 }
 
 /** The events history remembers. Everything else is housekeeping, trimmed first. */
-export const MAJOR = /takes .* from the|falls to the|yields to the|declares war|swear peace|swear alliance|honors its alliance|betrays the alliance|takes the throne|rises in rebellion|rise against|turn their coats|The .* is no more\. |Age .* begins|draws to a close|The gods tire|The Battle of .*: (\d{3,}) fall/;
+export const MAJOR = /takes .* from the|falls to the|yields to the|declares war|swear peace|swear alliance|honors its alliance|betrays the alliance|takes the throne|rises in rebellion|rise against|turn their coats|^The [^“]* is no more\. |Age .* begins|draws to a close|The gods tire|The Battle of .*: (\d{3,}) fall/;
 const CHRONICLE_KEEP = 3000;
 
 export interface WorldOptions {

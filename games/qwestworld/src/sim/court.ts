@@ -601,8 +601,8 @@ function findRealm(w: World, k: number, name: unknown): number | null {
 /** What became of a general who no longer serves, from the chronicle. */
 function fateOf(w: World, name: unknown): string {
   const n = String(name ?? '').replace(/^general\s+/i, '').trim();
-  const e = [...w.chronicle].reverse().find(e =>
-    (e.text.includes(`General ${n}`) || e.text.includes(`General ${n}'s`)) && /destroyed|rebellion|join the host|garrison of|scatter/.test(e.text));
+  const own = [`General ${n}'s`, `host of General ${n} is destroyed`, `General ${n} rises in rebellion`, `under General ${n} go over`];
+  const e = [...w.chronicle].reverse().find(e => own.some(p => e.text.includes(p)));
   return e ? ` ${e.text.replace(/^The host of /, '')}` : '';
 }
 
@@ -612,7 +612,8 @@ interface Outcome {
 }
 
 function execute(w: World, k: number, call: ToolCall): Outcome {
-  const args = call.function.arguments ?? {};
+  const args = { ...(call.function.arguments ?? {}) };
+  if (typeof args.general === 'string') args.general = args.general.replace(/^general\s+/i, '').trim();
   // Small models sometimes leave an argument out; say so plainly rather than "a place called undefined"
   const need: Record<string, string[]> = {
     march: ['general', 'target'], hold: ['general'], muster: ['settlement'], hire_mercenaries: ['settlement'],
