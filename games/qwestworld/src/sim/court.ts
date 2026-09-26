@@ -445,6 +445,12 @@ function report(w: World, id: number): string {
       `${cap(rel)}${theirWars.length ? `; at war with ${theirWars.join(', ')}` : ''}${theirAllies.length ? `; allied with ${theirAllies.join(', ')}` : ''}.${repute}${ledgerLine(w, id, o.id)}`);
   }
 
+  const room = warRoom(w, id);
+  if (room.length) {
+    L.push('', 'The war room (scouts\' estimates):');
+    for (const line of room) L.push(line);
+  }
+
   const advice = counsel(w, id);
   if (advice.length) {
     L.push('', 'Your advisors speak:');
@@ -548,6 +554,94 @@ function ledgerLine(w: World, me: number, them: number): string {
   if (u.gold) yours.push(`sent them ${u.gold.toLocaleString('en-US')} crowns`);
   const peace = t.peaces.length ? ` Peace has been sworn between you ${times(t.peaces.length)}.` : '';
   const out = (theirs.length ? ` They have ${theirs.join('; ')}.` : '') + (yours.length ? ` You have ${yours.join('; ')}.` : '') + peace;
+  return out;
+}
+
+const DAY_TILES = 7;   // a host's march per day on mixed ground, roughly
+const days = (d: number) => { const n = Math.max(1, Math.round(d / DAY_TILES)); return `${n} day${n > 1 ? 's' : ''}`; };
+
+/**
+ * The war room: what the script-minded would compute before acting. For each general, the best
+ * enemy towns within reach and whether they can be taken; and every enemy host near our towns,
+ * with whether the town can hold. Numbers are scouts' estimates.
+ */
+function warRoom(w: World, id: number): string[] {
+  const S = w.map.settlements;
+  const out: string[] = [];
+  const foes = new Set(w.enemiesOf(id));
+  const mine = [...w.armies.values()].filter(a => a.faction === id);
+
+  // Targets for each general
+  for (const a of mine) {
+    const options = S.filter(s => foes.has(w.owner[s.id]))
+      .map(s => ({ s, d: Math.hypot(s.x - a.cx, s.y - a.cy), g: w.garrison[s.id] }))
+      .filter(o => o.d < DAY_TILES * 40)
+      .map(o => {
+        // Enemy hosts already camped at the town fight beside the garrison
+        const helpers = [...w.armies.values()].filter(h => h.faction === w.owner[o.s.id] && Math.hypot(h.cx - o.s.x, h.cy - o.s.y) < 10)
+          .reduce((n, h) => n + h.size, 0);
+        const defenders = o.g + helpers;
+        const odds = a.size / Math.max(1, defenders);
+        const verdict = defenders === 0 ? 'undefended' : defenders < 20 ? 'barely defended'
+          : odds >= 3 ? 'can starve it out (3 to 1)'
+          : odds >= 1.5 ? 'can storm it, with losses'
+          : odds >= 0.8 ? 'an even fight'
+          : 'outmatched';
+        return { ...o, defenders, odds, verdict, score: Math.min(odds, 4) - o.d / (DAY_TILES * 30) };
+      })
+      .sort((p, q) => q.score - p.score)
+      .slice(0, 3);
+    if (!options.length) continue;
+    out.push(`- General ${a.general} (${a.size}) could reach: ` + options.map(o =>
+      `${o.s.name} of the ${w.realms[w.owner[o.s.id]].name}, ${days(o.d)}, ${o.defenders ? roughly(o.defenders) + ' defenders' : 'no defenders'}: ${o.verdict}`).join('; ') + '.');
+  }
+  if (!mine.length && foes.size) out.push('- You have no host to send against anyone.');
+
+  // Threats: hosts of realms at war with us near our towns
+  const threats: { text: string; size: number }[] = [];
+  for (const h of w.armies.values()) {
+    if (!foes.has(h.faction) || h.size < 50) continue;
+    const near = S.filter(s => w.owner[s.id] === id)
+      .map(s => ({ s, d: Math.hypot(s.x - h.cx, s.y - h.cy) }))
+      .sort((p, q) => p.d - q.d)[0];
+    if (!near || near.d > DAY_TILES * 25) continue;
+    const toward = h.order === 'march' && w.owner[h.target] === id ? S[h.target] : null;
+    const at = toward ?? near.s;
+    const held = w.garrison[at.id] + mine.filter(a => Math.hypot(a.cx - at.x, a.cy - at.y) < 10).reduce((n, a) => n + a.size, 0);
+    const holds = held >= h.size * 1.2 ? 'it should hold' : held * 3 <= h.size ? 'it will be starved out or stormed' : 'it may fall';
+    threats.push({
+      size: h.size,
+      text: `- ${roughly(h.size)} of the ${w.realms[h.faction].name} under General ${h.general}, ` +
+        (toward ? `marching on ${toward.name}` : `${days(near.d)} from ${near.s.name}`) +
+        ` (defended by ${held}): ${holds}.`,
+    });
+  }
+  threats.sort((p, q) => q.size - p.size);
+  if (threats.length) {
+    out.push('Enemy hosts near your lands:');
+    for (const t of threats.slice(0, 5)) out.push(t.text);
+  }
+
+  // Neighbors at peace whose armies would stomp ours, should they turn
+  const ours = mine.reduce((n, a) => n + a.size, 0) + S.filter(s => w.owner[s.id] === id).reduce((n, s) => n + w.garrison[s.id], 0);
+  const neighbors = new Set<number>();
+  for (const s of S) if (w.owner[s.id] === id) for (const n of s.neighbors) if (w.owner[n] !== id) neighbors.add(w.owner[n]);
+  for (const n of neighbors) {
+    if (foes.has(n) || !w.realms[n].alive) continue;
+    const theirs = w.soldiersOf(n);
+    if (theirs < ours * 1.5) continue;
+    const allied = w.isAllied(id, n) ? 'your ally' : 'at peace with you';
+    out.push(`- The ${w.realms[n].name} (${allied}) has ${roughly(theirs)} soldiers to your ${ours.toLocaleString('en-US')}. Should they turn on you, you could not stand alone.`);
+  }
+
+  // The balance of the field against each enemy
+  for (const f of foes) {
+    const theirField = [...w.armies.values()].filter(h => h.faction === f).reduce((n, h) => n + h.size, 0);
+    const ourField = mine.reduce((n, a) => n + a.size, 0);
+    if (theirField + ourField === 0) continue;
+    const verdict = ourField >= theirField * 1.5 ? 'you have the stronger field' : theirField >= ourField * 1.5 ? 'they have the stronger field' : 'the field is even';
+    out.push(`- In the field against the ${w.realms[f].name}: your hosts ${ourField.toLocaleString('en-US')}, theirs ${roughly(theirField)}; ${verdict}. All told they have ${roughly(w.soldiersOf(f))} soldiers.`);
+  }
   return out;
 }
 

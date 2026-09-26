@@ -458,3 +458,26 @@ The world ran unattended overnight, stable, with no failed councils. By Deepwint
 **Why does the script keep winning?** It acts on *every* idle host *every* council, attacks only with the odds, never repeats itself, and is never late. The minds are 6+ minutes late per round, march into strong garrisons, and the small ones loop. The user expected the minds to beat it; so far, twice now, rules have beaten local models at empire-building.
 
 Bug fixed: a rebellion by a rebel's own guard produced rulers named "King Yororfric's Guard". Rebel rulers now take the general's name without the "'s Guard".
+
+### The war room
+The user wants the minds to beat the script, and specifically hoped "the kings get enough info that they can determine that another force would stomp them." The script decides with numbers; the minds were deciding from a long report with vague words ("strongly held"). New section in every report, **"The war room (scouts' estimates)"**:
+- **Targets, per general:** the three best enemy towns within ~40 days' march, ranked by odds and distance. For each: march time, estimated defenders (garrison plus enemy hosts camped there), and a verdict: *undefended / barely defended / can starve it out (3 to 1) / can storm it, with losses / an even fight / outmatched.*
+- **Threats:** enemy hosts near our towns, their target if marching on us, the defenders there, and whether it will hold ("it should hold" / "it may fall" / "it will be starved out or stormed").
+- **Neighbors who could stomp you:** any neighbor at peace (or allied) with 1.5× our total strength: *"The Kingdom of Iskvale (at peace with you) has some 12,000 soldiers to your 1,700. Should they turn on you, you could not stand alone."*
+- **The field balance against each enemy:** our hosts against theirs, a verdict, and their total strength.
+
+Example from Drebarrow (live, before the reset): *"In the field against the Crown of Elhold: your hosts 915, theirs some 2,700; they have the stronger field. All told they have some 15,000 soldiers."*
+
+Next lever if needed: more frequent councils for minds.
+
+## Age III — "can a set of minds beat the script?"
+Age II was archived automatically (`data/age-2.json`, final state: Iskvale 43 towns). **Age III, seed 10066**, same mix, now with the war room:
+
+| Realm | Ruler | Mind | Towns |
+|---|---|---|---|
+| Zanwick | Queen Brynya, 37 | qwen3:8b | 19 |
+| Ravbarrow | Queen Zanweth, 22 | qwen3:8b | 17 |
+| Elhold | King Cynorric, 44 | llama3.2:3b | 12 |
+| Drewick | Queen Neeth, 34 | llama3.2:3b | 22 |
+| Caldstead | King Nymorna, 53 | qwen3:1.7b | 9 |
+| **Wenton** | King Quinarya, 26 | **script** | 17 |
