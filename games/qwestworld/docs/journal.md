@@ -423,3 +423,7 @@ The user asked whether Elhold would hold on to the fact that Vorana broke her wo
 > (Vorana's own report, about Elhold:) **You have broken your oath of peace to them twice; declared war on them once.**
 
 It's engine-kept fact in the same in-fiction voice, so it doesn't depend on any mind's memory, and it survives successions. An heir inherits the realm's grudges and debts along with the crown. For saves from before the ledger, it's rebuilt from the chronicle on load; Age II's first two years were backfilled that way.
+
+**First council with the ledger:** it didn't change King Quinebert (qwen3:1.7b). He proclaimed *"The war has ended. The Principality of Zanton offers peace…"* for the sixth time and sent more peace envoys. The small model's copying habit outweighed the new facts. The queens meanwhile softened: Moraneth accepted peace ("I accept your offer of peace"), and **Vorana offered peace in Quinebert's own words**, *"The Crown of Elhold stands unbroken. We offer peace."*, the line he had been sending her.
+
+So, as with idle treasuries, the fact needed a voice: when a peace or alliance offer is pending from a realm that has broken faith with you, **the chancellor now speaks**: *"Queen Vorana has broken her word to us twice. Her offers are worth little."*

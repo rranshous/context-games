@@ -498,6 +498,16 @@ function counsel(w: World, id: number): string[] {
   if (monthOf(w.tick) === 8 && abroad.length) {
     out.push(`Your marshal: "Winter comes next month. Hosts still on campaign will march slowly and lose men to the cold."`);
   }
+  // Offers from those who have broken faith with us before
+  for (const o of w.realms) {
+    if (o.id === id || !o.alive) continue;
+    const d = w.deeds(o.id, id);
+    const broken = d.oathsBroken.length + d.betrayals.length;
+    const offering = w.hasPeaceOffer(o.id, id) || w.hasAllianceOffer(o.id, id);
+    if (broken && offering) {
+      out.push(`Your chancellor: "${w.ruler(o.id)} has broken ${o.ruler.title === 'Queen' ? 'her' : 'his'} word to us ${times(broken)}. ${o.ruler.title === 'Queen' ? 'Her' : 'His'} offers are worth little."`);
+    }
+  }
   if (r.honor < 0.6) {
     out.push(`Your chancellor: "Your word is doubted abroad. Other rulers remember broken oaths."`);
   }
