@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { World, WorldOptions } from './world.js';
+import { World, WorldOptions, MAJOR } from './world.js';
 
 const VERSION = 2;
 
@@ -94,6 +94,10 @@ export function loadWorld(file: string, opts: WorldOptions): World | null {
   w.nextArmyId = d.nextArmyId;
   w.orders = d.orders;
   w.chronicle = d.chronicle;
+  for (const e of w.chronicle) {
+    e.text = e.text.replace(/\. The host is no more\.$/, ', and the host disbands.');
+    e.major = MAJOR.test(e.text);
+  }
   w.history = d.history ?? [];
   w.annals = d.annals ?? [];
   for (const n of d.names ?? []) w.names.used.add(n);

@@ -151,7 +151,7 @@ function mindLine(k: StateResponse['kingdoms'][number]): string {
 function omen(t: string): { glyph: string; cls: string } {
   if (/rises in rebellion/.test(t)) return { glyph: '🔥', cls: 'big' };
   if (/takes the throne/.test(t)) return { glyph: '♛', cls: 'big' };
-  if (/is no more|rules the whole continent|Age .* begins/.test(t)) return { glyph: '✦', cls: 'big' };
+  if (/^The .* is no more\. |rules the whole continent|Age .* begins|The gods tire/.test(t)) return { glyph: '✦', cls: 'big' };
   if (/declares war/.test(t)) return { glyph: '⚔', cls: 'big' };
   if (/swear peace/.test(t)) return { glyph: '☮', cls: 'big' };
   if (/swear alliance|honors its alliance/.test(t)) return { glyph: '⛨', cls: 'big' };
@@ -307,7 +307,7 @@ async function refreshTab() {
     if (tab === 'history') {
       const [h, c] = await Promise.all([api.history(), api.chronicleSince(0)]);
       historyData = h;
-      moments = c.entries.filter(e => /takes the throne|rises in rebellion|declares war|swear peace|swear alliance|falls to the|is no more/.test(e.text))
+      moments = c.entries.filter(e => /takes the throne|rises in rebellion|declares war|swear peace|swear alliance|falls to the|^The .* is no more\. /.test(e.text))
         .map(e => ({ tick: e.tick, text: e.text, glyph: omen(e.text).glyph }));
       drawHistory($('history-chart'), historyData, metric, moments);
     } else if (tab === 'annals') {

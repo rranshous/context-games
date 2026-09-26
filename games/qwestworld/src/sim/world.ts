@@ -132,7 +132,12 @@ export interface MindStats {
 
 interface Entry extends ChronicleEntry {
   involves: number[];
+  major?: boolean;  // history worth keeping when the chronicle is trimmed
 }
+
+/** The events history remembers. Everything else is housekeeping, trimmed first. */
+export const MAJOR = /takes .* from the|falls to the|yields to the|declares war|swear peace|swear alliance|honors its alliance|betrays the alliance|takes the throne|rises in rebellion|rise against|turn their coats|The .* is no more\. |Age .* begins|draws to a close|The gods tire|The Battle of .*: (\d{3,}) fall/;
+const CHRONICLE_KEEP = 3000;
 
 export interface WorldOptions {
   brains: string[];      // per founding realm
@@ -755,7 +760,7 @@ export class World {
       }
       this.armies.delete(a.id);
       this.log(a.faction, [a.faction], inOwnLand
-        ? `The last ${a.size} of General ${a.general}'s host join the garrison of ${this.map.settlements[home!].name}. The host is no more.`
+        ? `The last ${a.size} of General ${a.general}'s host join the garrison of ${this.map.settlements[home!].name}, and the host disbands.`
         : `The last ${a.size} of General ${a.general}'s host scatter in hostile country.`);
     }
     const camps = new Map<string, Army[]>();
@@ -1230,8 +1235,20 @@ export class World {
   // ---------------------------------------------------------------- queries
 
   log(faction: number, involves: number[], text: string) {
-    this.chronicle.push({ tick: this.tick, text, faction, involves });
-    if (this.chronicle.length > 3000) this.chronicle.splice(0, this.chronicle.length - 3000);
+    this.chronicle.push({ tick: this.tick, text, faction, involves, major: MAJOR.test(text) });
+    if (this.chronicle.length > CHRONICLE_KEEP + 200) this.trimChronicle();
+  }
+
+  /** Forget the oldest housekeeping first; milestones stay until there is nothing else left to forget. */
+  private trimChronicle() {
+    let excess = this.chronicle.length - CHRONICLE_KEEP;
+    const keep: Entry[] = [];
+    for (const e of this.chronicle) {
+      if (excess > 0 && !e.major) { excess--; continue; }
+      keep.push(e);
+    }
+    if (excess > 0) keep.splice(0, excess);
+    this.chronicle = keep;
   }
 
   eventsFor(k: number, since: number): string[] {

@@ -48,6 +48,8 @@ setInterval(() => {
   stepMs = stepMs * 0.95 + (performance.now() - t0) * 0.05;
 
   if (world.endsAt >= 0 && world.tick >= world.endsAt) {
+    // Keep the old age's history: its save, chronicle and annals, before a new world replaces it
+    try { saveWorld(world, path.join(DATA, `age-${world.age}.json`)); } catch (e: any) { console.error('[sim] could not archive the age', e.message); }
     const next = freshWorld(world.map.seed + 1, world.age + 1);
     world = next;
     staticCache = null;

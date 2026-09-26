@@ -380,3 +380,26 @@ Listing "No longer in your service: Tamon, Osoron, Tamont…" in the report didn
 **Year 7 annal**, which found the night's theme on its own: *"In the end, it was not the mighty armies that decided the fate of the realm, but the shifting allegiances of the individual soldiers, their loyalty bought and sold like so much steel."* (22 sellsword companies changed sides this age.) It also recorded *"the Battle of Lorgate, with 981 of their number falling to the Principality of Thornby's red-clad warriors."* Thornby's realm color is red, which the scribe couldn't have known.
 
 **Result:** Caswyn's first council with narrative memory had zero misfires (envoy to Normere, hire, muster over 3 steps, 323s). The previous two councils, on chat memory, each ordered four generals who no longer existed.
+
+## Session 3 — 2026-09-25 (evening) — the end of the Age I
+
+### Age I after ~24 hours
+The world ran without a crash or a failed council for a full day: **16 in-game years**, 15 annals. The final state of Age I:
+- **Mardun (script) won the continent in all but name:** 54 of 96 towns, 29k soldiers, and 322,000 crowns hoarded, since the script's income far outran anything it spends on.
+- **The Crown of Galcrag fell** ("Quendun, seat of the Crown of Galcrag, falls to the Mardun Realm!"). Queen Daggard (llama) was "lost to history".
+- **Queen Falbert (qwen3:1.7b), crowned at 17, was still ruling at 31,** holding Galdun at 19 towns through years of war on five fronts. She used `send_gold` in 40 of 47 councils, paying enemies alongside peace offers.
+- The qwen3:8b kings were the real players: ~50 marches and 30–50 envoys each, and every tool used. Councils had slowed to 320–370s with 6k-token prompts as narrative memory grew. The user chose not to cap it.
+- All three rebel realms from Year 6 were still standing, one town each, a decade later.
+
+The user wants to keep the scripted contestant ("I would expect the minds to be able to beat it"), and called a new age.
+
+### The chronicle forgot the wrong things
+"While you were away", the history markers and the scribe were crowded by remnant-host notices ("The last 24 of General X's host join the garrison of Y. **The host is no more.**"), which matched the pattern for a fallen realm. Meanwhile, trimming oldest-first had pushed out the successions and rebellions. Fixes:
+- The remnant notice now ends "…and the host disbands".
+- Every entry is tagged `major` or not when logged (captures, surrenders, wars, peace, alliances, betrayals, successions, rebellions, revolts, turncoats, fallen realms, age boundaries, battles of 100+ dead).
+- Trimming now drops the oldest *minor* entries first. Tested: 500 of 500 milestones kept across 5,000 entries.
+
+### Age II
+`qw new-age` → "A new age dawns: Age 2, seed 10065". The same mind mix: Zanton and Drebarrow (qwen3:8b), Thornmouth and Osby (llama3.2:3b), Elhold (qwen3:1.7b, starting with 29 towns, the largest), Iskvale (script).
+
+Age I's save was nearly overwritten by the new age's first autosave; it was rescued by hand to `data/age-1.json`. The sim now archives each ending age to `data/age-N.json` automatically.
