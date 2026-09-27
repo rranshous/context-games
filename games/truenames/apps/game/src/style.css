@@ -46,7 +46,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .prose em { color: var(--gold); font-style: normal; }
 
 /* ---------- sanctum ---------- */
-.sanctum { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 12px; }
+.sanctum { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto 1fr; gap: 10px; padding: 12px; }
 .topbar { display: flex; align-items: center; gap: 18px; padding: 8px 14px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 4px; flex-wrap: wrap; }
 .topbar .spacer { flex: 1; }
 .cols { display: grid; grid-template-columns: minmax(300px, 1.25fr) minmax(280px, 1fr) minmax(260px, 0.9fr); gap: 10px; min-height: 0; }
@@ -114,3 +114,5 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .cc-bars i { flex: 1; height: 100%; background: linear-gradient(to top, var(--c) var(--f), rgba(255,255,255,0.06) var(--f)); border-radius: 1px; opacity: 0.8; }
 .cc-known { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--dim); min-height: 18px; }
 .cc-known img { width: 18px; height: 18px; }
+.advice { font-style: italic; color: var(--ink); padding: 6px 14px; border-left: 2px solid var(--gold); background: rgba(231, 194, 107, 0.06); font-size: 15px; }
+.advice em { color: var(--gold); font-style: normal; }

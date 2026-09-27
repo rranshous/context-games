@@ -6,7 +6,6 @@ export const BALANCE = {
   request: 1000,
   /** effect = grant * formEfficiency * effectScale */
   effectScale: 1,
-  enemyEffectScale: 0.5,
   forms: {
     bolt: { speed: 620, radius: 7, life: 1.4 },
     lance: { length: 520, width: 18 },
@@ -24,7 +23,7 @@ export const BALANCE = {
     shaman: { hp: 18, speed: 64, radius: 12, dmg: 0, color: '#d6b86a' },
   },
   meleeCooldown: 0.9,
-  shaman: { castMin: 1.6, castMax: 2.6, keepAway: 320, boltSpeed: 360, hearthChance: 0.45 },
+  shaman: { castMin: 1.6, castMax: 2.6, keepAway: 320, boltSpeed: 360, hearthChance: 0.45, boltDamage: 9 },
   waves: [
     { husk: 6 },
     { husk: 8, runner: 4 },

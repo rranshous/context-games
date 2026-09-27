@@ -177,7 +177,26 @@ export function sanctumScreen(app: App): Screen {
     root.querySelector('#cap')!.textContent = cap.toFixed(1);
   }
 
+  // one line of guidance: what to do next
+  function renderAdvice() {
+    const box = root.querySelector('#advice') as HTMLElement;
+    const known = Object.keys(save.spirits);
+    const unlearned = known.filter((c) => !S.learned(c));
+    const learnedUnbound = known.filter((c) => S.learned(c) && !save.loadout.includes(c));
+    const scrying = S.pool.list().some((t) => t.kind === 'scry');
+    const meditating = S.pool.list().some((t) => t.kind === 'name');
+    let msg = '';
+    if (known.length <= 1 && !scrying) msg = `Search for spirits: choose a region in <em>Scrying</em> and press <em>Scry here</em>. Your element, depth 7, is a good first place to look.`;
+    else if (unlearned.length && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found spirits you cannot yet call. Press <em>meditate</em> on one; at ${MIN_NAME_BITS} bits its name is yours.`;
+    else if (learnedUnbound.length && save.loadout.some((c) => !c)) msg = `A learned name is waiting. Press <em>bind</em> to carry it into the dark.`;
+    else if (!save.runs.length) msg = `When you are ready, <em>walk into the dark</em>. Stand in shrines there to search while you fight.`;
+    else if (!meditating) msg = `Nothing is being meditated. Names only grow truer while you work on them, even while you sleep.`;
+    else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every bit makes each evocation about 1.4× stronger.`;
+    box.innerHTML = msg || `Your names deepen while you rest. Go deeper when the dark feels thin: descent ${save.descent + 1} is open to you.`;
+  }
+
   function renderAll() {
+    renderAdvice();
     renderTop();
     renderBook();
     renderScryInfo();
@@ -213,6 +232,7 @@ export function sanctumScreen(app: App): Screen {
           <button class="small" id="mute" title="sound (M)">♪</button>
           <button class="small" id="title">⌂</button>
         </div>
+        <div class="advice" id="advice"></div>
         <div class="cols">
           <div class="panel"><h2>Name Book</h2>
             <div class="hint">Meditation grinds your name for a spirit. Each bit of truth costs twice the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
@@ -315,6 +335,7 @@ export function sanctumScreen(app: App): Screen {
       let n = 0;
       timer = setInterval(() => {
         renderTop();
+        renderAdvice();
         renderScryInfo();
         renderTasks();
         if (++n % 5 === 0) renderBook();

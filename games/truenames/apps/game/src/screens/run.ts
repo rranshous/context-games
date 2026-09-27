@@ -55,6 +55,14 @@ interface Slot {
   generosity: number;
 }
 
+// spiritAt costs several BigInt Poseidons: never call it per frame.
+const spiritCache = new Map<string, Spirit>();
+function spiritOfCell(cell: string): Spirit {
+  let sp = spiritCache.get(cell);
+  if (!sp) { sp = spiritAt(cell)!; spiritCache.set(cell, sp); }
+  return sp;
+}
+
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const dist2 = (ax: number, ay: number, bx: number, by: number) => (ax - bx) ** 2 + (ay - by) ** 2;
 
@@ -320,9 +328,14 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (!e || e.hp <= 0 || r.refused || r.grant <= 0) return;
     const dx = player.x - e.x, dy = player.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
-    const sp = spiritAt(e.cell!)!;
+    const sp = spiritOfCell(e.cell!);
     const color = ELEMENT_COLOR[sp.element]!;
-    projs.push({ x: e.x, y: e.y, vx: (dx / d) * B.shaman.boltSpeed, vy: (dy / d) * B.shaman.boltSpeed, r: 6 + Math.min(6, r.grant / 5), dmg: r.grant * B.enemyEffectScale * D.dmgMult ** (level / 2), life: 2.5, enemy: true, color });
+    // Strength decides how much of the well a shaman wins (contention); damage is bounded:
+    // base bolt x descent, scaled by the fraction of its own cap it actually drew (strain and crowding weaken it).
+    const full = castCap(r.strength, spiritStats(sp).generosity);
+    const frac = Math.max(0, Math.min(1, r.grant / full));
+    const dmg = B.shaman.boltDamage * dmgMult * (0.25 + 0.75 * frac);
+    projs.push({ x: e.x, y: e.y, vx: (dx / d) * B.shaman.boltSpeed, vy: (dy / d) * B.shaman.boltSpeed, r: 5 + 5 * frac, dmg, life: 2.5, enemy: true, color });
     floaters.push({ x: e.x, y: e.y - 20, text: `${r.effective.toFixed(0)} bits`, color: '#9c8f74', t: 0, size: 11 });
     sfx.sfxEnemyCast();
   }
@@ -658,6 +671,15 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.globalAlpha = 1;
     }
 
+    // rival threads: a shaman drawing on a well you also hold
+    ctx.setLineDash([3, 7]);
+    for (const e of enemies) {
+      if (!e.cell || !slots.some((sl) => sl?.cell === e.cell)) continue;
+      ctx.strokeStyle = ELEMENT_COLOR[spiritOfCell(e.cell).element]! + '55';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(player.x, player.y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
     // enemies
     for (const e of enemies) drawEnemy(ctx, e, t);
     // allies
@@ -762,7 +784,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.fill();
     }
     if (e.kind === 'shaman') {
-      const sp = spiritAt(e.cell!)!;
+      const sp = spiritOfCell(e.cell!);
       ctx.strokeStyle = ELEMENT_COLOR[sp.element]!;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, e.r + 5 + Math.sin(t * 5) * 1.5, 0, Math.PI * 2); ctx.stroke();
@@ -936,6 +958,13 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
         ctx.fillRect(x + 6, y + 52, sw - 12, 4);
         ctx.fillStyle = sl.color;
         ctx.fillRect(x + 6, y + 52, ((sw - 12) * pool.level) / pool.cap, 4);
+      }
+      // rivals: enemy casters drinking from the same well
+      const rivals = enemies.filter((e) => e.cell === sl.cell).length;
+      if (rivals) {
+        ctx.fillStyle = '#ff9e5a';
+        ctx.font = '11px EB Garamond, serif';
+        ctx.fillText(`${rivals} rival${rivals > 1 ? 's' : ''} at this well`, x + 6, y - 4);
       }
       x += sw + gap;
     }

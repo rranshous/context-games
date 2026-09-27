@@ -19,6 +19,14 @@
 - **Spirit temperament vs domination:** spirits that backlash against the strongest holder.
 - **Commit-reveal for claims:** unnecessary while spirits are shared pools rather than ownable claims; needed if anything becomes first-come ownership.
 
+## Decided during the v0 build (2026-09-27, see journal)
+- **Universe constants frozen:** `MIN_SPIRIT_DEPTH = 6`, `target(d) = 4 + ⌊3d/2⌋`, `MIN_NAME_BITS = 12` (was 8), seed = "truenames_v1".
+- **Hearth-god:** `011010`, Vreiziobain, dominion (mag 3) of cinderfrost, fire, generosity idx 3 (stingy), lance. The mightiest of the 35 ancient (depth-6) spirits.
+- **Engine:** plain Canvas 2D with DOM overlays (no PixiJS or Phaser yet). **Targeting:** mouse-aimed.
+- **Attunement/mastery bonuses:** still off.
+- **Difficulty vs exponential growth:** descents (a ladder of harder runs) instead of retuning the formula.
+- **Hash rate:** a WASM kernel in `meditation` (not in `universe`) with BigInt re-verification.
+
 ## Decisions made (for reference)
 - Fantasy setting; everyone is a warlock/priest/summoner.
 - Octree cells, Poseidon, public seed, chained cell digest.
