@@ -2,7 +2,17 @@
 
 A spell-casting game where **proof of work is the magic**. Spirits live at coordinates in an infinitely deep astral; finding them is hashing, and knowing them is hashing. Your machine's work literally makes your character stronger.
 
-Status: pre-v0. Design docs only.
+Status: **v0 playable** (M0–M6 built overnight 2026-09-27; see [journal](docs/journal.md)).
+
+## Run it
+```sh
+corepack pnpm install
+corepack pnpm dev          # game at http://localhost:5190/  (vectors-in-a-worker check at /vectors.html)
+corepack pnpm test         # universe vectors, meditation, authority
+corepack pnpm typecheck
+corepack pnpm tools bench | sim | god-finder [prefix|-] [depth] | vectors
+```
+
 
 ## Docs
 

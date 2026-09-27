@@ -1,7 +1,7 @@
 // A walk into the dark: one arena, five waves, shrines that scry while you fight.
 import type { App, Screen } from '../main.ts';
 import { frag, esc } from '../dom.ts';
-import { BALANCE as B } from '../balance.ts';
+import { BALANCE as B, descentName } from '../balance.ts';
 import {
   ELEMENT_COLOR, ASPECTS, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS,
   spiritName, magnitudeTitle, addressOf,
@@ -56,8 +56,10 @@ interface Slot {
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const dist2 = (ax: number, ay: number, bx: number, by: number) => (ax - bx) ** 2 + (ay - by) ** 2;
 
-export function runScreen(app: App): Screen {
+export function runScreen(app: App, level = app.save.lastDescent): Screen {
   const S = app.services;
+  const D = B.descent;
+  const hpMult = D.hpMult ** level, dmgMult = D.dmgMult ** level;
   const save = app.save;
   const me = save.aura!.pub;
   const auth = new LocalAuthority(undefined, (Math.random() * 2 ** 31) | 0);
@@ -108,7 +110,7 @@ export function runScreen(app: App): Screen {
   let spawnQueue: EnemyKind[] = [];
   let spawnT = 0;
   let breather = 2.5;
-  let banner: { text: string; sub: string; t: number } | null = { text: 'WAVE 1', sub: 'They come for the light in you.', t: 3 };
+  let banner: { text: string; sub: string; t: number } | null = { text: descentName(level).toUpperCase(), sub: level === 0 ? 'Wave 1. They come for the light in you.' : `Descent ${level + 1}. The dark is thicker here.`, t: 3 };
   let over: null | 'won' | 'lost' = null;
   let kills = 0, finds = 0;
   let paused = false;
@@ -116,7 +118,7 @@ export function runScreen(app: App): Screen {
   function startWave() {
     const w = B.waves[wave]!;
     spawnQueue = [];
-    for (const [k, n] of Object.entries(w)) for (let i = 0; i < n; i++) spawnQueue.push(k as EnemyKind);
+    for (const [k, n] of Object.entries(w)) for (let i = 0; i < Math.round(n * (1 + D.countMult * level)); i++) spawnQueue.push(k as EnemyKind);
     for (let i = spawnQueue.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [spawnQueue[i], spawnQueue[j]] = [spawnQueue[j]!, spawnQueue[i]!]; }
     spawnT = 0;
   }
@@ -130,11 +132,11 @@ export function runScreen(app: App): Screen {
       y = side === 2 ? 30 : side === 3 ? H - 30 : rand(30, H - 30);
       if (dist2(x, y, player.x, player.y) > 550 ** 2) break;
     }
-    const e: Enemy = { id: nextId++, kind, x, y, hp: d.hp, maxHp: d.hp, r: d.radius, speed: d.speed * rand(0.9, 1.1), dmg: d.dmg, cd: 0, hexDps: 0, hexT: 0, kx: 0, ky: 0, flash: 0 };
+    const e: Enemy = { id: nextId++, kind, x, y, hp: d.hp * hpMult, maxHp: d.hp * hpMult, r: d.radius, speed: d.speed * rand(0.9, 1.1), dmg: d.dmg * dmgMult, cd: 0, hexDps: 0, hexT: 0, kx: 0, ky: 0, flash: 0 };
     if (kind === 'shaman') {
       e.aura = `npc:shaman:${e.id}`;
       e.cell = Math.random() < B.shaman.hearthChance ? HEARTH_GOD : ANCIENTS[(Math.random() * ANCIENTS.length) | 0]!;
-      const strength = TUNABLES.capRef + wave + ((Math.random() * 3) | 0);
+      const strength = TUNABLES.capRef + wave + D.shamanBits * level + ((Math.random() * 3) | 0);
       auth.grantSyntheticName(e.aura, e.cell, strength);
       e.castT = rand(1, 2);
       e.strafe = Math.random() < 0.5 ? 1 : -1;
@@ -226,7 +228,7 @@ export function runScreen(app: App): Screen {
     s.thin = r.grant < want * 0.7 ? 1.2 : 0;
     const eff = TUNABLES.formEfficiency[s.form]!;
     const effect = r.grant * eff * B.effectScale;
-    floaters.push({ x: player.x + rand(-10, 10), y: player.y - 24, text: `${r.effective.toFixed(1)} bits`, color: s.color, t: 0, size: 13 });
+    floaters.push({ x: player.x - 60 + p.slot * 24, y: player.y - 26 - (p.slot % 2) * 12, text: `${r.effective.toFixed(1)}`, color: s.color, t: 0, size: 13 });
     if (s.thin) floaters.push({ x: player.x, y: player.y - 44, text: 'the well runs thin', color: '#9c8f74', t: 0, size: 12 });
     if (r.recoil) {
       hurtPlayer(r.recoil, 'BACKLASH');
@@ -313,7 +315,7 @@ export function runScreen(app: App): Screen {
     const d = Math.hypot(dx, dy) || 1;
     const sp = spiritAt(e.cell!)!;
     const color = ELEMENT_COLOR[sp.element]!;
-    projs.push({ x: e.x, y: e.y, vx: (dx / d) * B.shaman.boltSpeed, vy: (dy / d) * B.shaman.boltSpeed, r: 6 + Math.min(6, r.grant / 5), dmg: r.grant * B.enemyEffectScale, life: 2.5, enemy: true, color });
+    projs.push({ x: e.x, y: e.y, vx: (dx / d) * B.shaman.boltSpeed, vy: (dy / d) * B.shaman.boltSpeed, r: 6 + Math.min(6, r.grant / 5), dmg: r.grant * B.enemyEffectScale * D.dmgMult ** (level / 2), life: 2.5, enemy: true, color });
     floaters.push({ x: e.x, y: e.y - 20, text: `${r.effective.toFixed(0)} bits`, color: '#9c8f74', t: 0, size: 11 });
   }
 
@@ -786,7 +788,44 @@ export function runScreen(app: App): Screen {
     ctx.restore();
   }
 
+  function drawIndicators(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const m = 18;
+    for (const e of enemies) {
+      const sx = e.x - cam.x + w / 2, sy = e.y - cam.y + h / 2;
+      if (sx > -e.r && sx < w + e.r && sy > -e.r && sy < h + e.r) continue;
+      const dx = sx - w / 2, dy = sy - h / 2;
+      const k = Math.min((w / 2 - m) / Math.abs(dx || 1e-6), (h / 2 - m) / Math.abs(dy || 1e-6));
+      const ix = w / 2 + dx * k, iy = h / 2 + dy * k;
+      const a = Math.atan2(dy, dx);
+      const near = Math.max(0.25, 1 - Math.hypot(dx, dy) / 1400);
+      ctx.save();
+      ctx.translate(ix, iy);
+      ctx.rotate(a);
+      ctx.globalAlpha = near;
+      ctx.fillStyle = e.kind === 'shaman' ? '#e7c26b' : B.enemies[e.kind].color;
+      ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-5, 5); ctx.lineTo(-5, -5); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    for (const s of shrines) {
+      if (s.state === 'spent') continue;
+      const sx = s.x - cam.x + w / 2, sy = s.y - cam.y + h / 2;
+      if (sx > 0 && sx < w && sy > 0 && sy < h) continue;
+      const dx = sx - w / 2, dy = sy - h / 2;
+      const k = Math.min((w / 2 - 34) / Math.abs(dx || 1e-6), (h / 2 - 34) / Math.abs(dy || 1e-6));
+      ctx.strokeStyle = ELEMENT_COLOR[s.element]!;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 1.5;
+      ctx.save();
+      ctx.translate(w / 2 + dx * k, h / 2 + dy * k);
+      octagon(ctx, 9, 0);
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
   function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
+    drawIndicators(ctx, w, h);
     // health
     ctx.fillStyle = 'rgba(10,9,17,0.7)';
     ctx.fillRect(16, 16, 224, 34);
@@ -805,6 +844,9 @@ export function runScreen(app: App): Screen {
     ctx.font = '18px Cinzel, serif';
     ctx.fillStyle = '#e7c26b';
     ctx.fillText(over ? '' : breather > 0 && wave > 0 ? `WAVE ${wave} CLEARED` : `WAVE ${wave + 1} / ${B.waves.length}`, w / 2, 30);
+    ctx.font = '11px EB Garamond, serif';
+    ctx.fillStyle = '#9c8f74';
+    ctx.fillText(`descent ${level + 1} · ${descentName(level)}`, w / 2, 62);
     ctx.font = '12px EB Garamond, serif';
     ctx.fillStyle = '#9c8f74';
     ctx.fillText(`${kills} banished · ${enemies.length + spawnQueue.length} remain${finds ? ` · ${finds} spirits found` : ''}`, w / 2, 48);
@@ -887,12 +929,14 @@ export function runScreen(app: App): Screen {
   function end(result: 'won' | 'lost') {
     if (over) return;
     over = result;
-    save.runs.push({ at: Date.now(), wave: wave + (result === 'won' ? 0 : 1), won: result === 'won', kills, finds });
+    save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' ? 0 : 1), won: result === 'won', kills, finds });
+    const unlocked = result === 'won' && level >= save.descent;
+    if (unlocked) save.descent = level + 1;
     persist(save);
     const scrying = shrines.filter((s) => s.state === 'scrying' && S.scryTask(s.prefix, s.depth)).length;
     overlay = frag(`<div class="overlay">
       <h1 style="font-size:40px; color:var(--gold)">${result === 'won' ? 'The dark recedes' : 'You fall'}</h1>
-      <div class="prose">${result === 'won' ? 'Five waves broken. The wells are quiet again.' : `The dark took you at wave ${wave + 1}. Your names are kept; names are always kept.`}</div>
+      <div class="prose">${result === 'won' ? `Five waves broken in ${descentName(level)}. The wells are quiet again.${unlocked ? `<br><em>The way down opens: ${descentName(level + 1)}.</em>` : ''}` : `The dark took you at wave ${wave + 1}. Your names are kept; names are always kept.`}</div>
       <div class="dim">${kills} banished${finds ? ` · ${finds} spirits answered the shrines` : ''}${scrying ? ` · ${scrying} shrine${scrying > 1 ? 's' : ''} still searching` : ''}</div>
       <button class="primary" id="back">Return to the sanctum</button>
     </div>`);

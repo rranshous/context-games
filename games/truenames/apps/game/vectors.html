@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Truenames vectors</title>
+<style>body{background:#07060d;color:#e9dcb8;font:15px ui-monospace,monospace;padding:20px} .pass{color:#9fe0a0} .fail{color:#ff7a6b}</style></head>
+<body><h1>Golden vectors in a browser Web Worker</h1><pre id="out">running…</pre>
+<script type="module">
+  import VectorsWorker from './src/vectors.worker.ts?worker';
+  const w = new VectorsWorker();
+  w.onmessage = (e) => {
+    const { fails, ms } = e.data;
+    const out = document.getElementById('out');
+    out.className = fails.length ? 'fail' : 'pass';
+    out.textContent = fails.length ? `FAIL (${fails.length})\n` + fails.join('\n') : `PASS: all spec v1 vectors match in a Web Worker (${ms.toFixed(0)} ms)`;
+    document.title = fails.length ? 'FAIL' : 'PASS';
+  };
+</script></body></html>

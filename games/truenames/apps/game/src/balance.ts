@@ -1,6 +1,6 @@
 // Game-side balance for runs (not authority rules; those live in packages/authority/src/tunables.ts).
 export const BALANCE = {
-  arena: { w: 2400, h: 1600 },
+  arena: { w: 2000, h: 1400 },
   player: { hp: 100, speed: 210, radius: 13, wardMax: 80, wardDecayPerSec: 0.06 },
   /** Power requested per cast. Large: in v0 the cast cap and share decide what you get. */
   request: 1000,
@@ -18,8 +18,8 @@ export const BALANCE = {
     ward: { mult: 1 },
   },
   enemies: {
-    husk: { hp: 10, speed: 72, radius: 12, dmg: 6, color: '#8f8a7a' },
-    runner: { hp: 6, speed: 145, radius: 9, dmg: 4, color: '#c46b5a' },
+    husk: { hp: 8, speed: 72, radius: 12, dmg: 6, color: '#8f8a7a' },
+    runner: { hp: 5, speed: 140, radius: 9, dmg: 3, color: '#c46b5a' },
     brute: { hp: 48, speed: 52, radius: 21, dmg: 15, color: '#6f5c8f' },
     shaman: { hp: 18, speed: 64, radius: 12, dmg: 0, color: '#d6b86a' },
   },
@@ -40,4 +40,14 @@ export const BALANCE = {
   /** Shrine scans the shallowest unexhausted layer from this depth, up to maxDepth. */
   shrineMinDepth: 7,
   shrineMaxDepth: 10,
+  /**
+   * Descents: each level deepens the dark. Names grow by 2x work per bit and
+   * cast power by sqrt(2) per bit, so ~1.5 bits (~3x meditation) per level.
+   */
+  descent: { hpMult: 1.7, dmgMult: 1.2, countMult: 0.15, shamanBits: 2 },
 };
+
+export const DESCENT_NAMES = ['the Threshold', 'the Lamplit Halls', 'the Ember Stair', 'the Drowned Stacks', 'the Quiet Galleries', 'the Root Vaults', 'the Unlit Deep', 'the Hollow Crown', 'the Last Door', 'the Nameless'];
+export function descentName(l: number): string {
+  return DESCENT_NAMES[l] ?? `the Nameless ${'I'.repeat(Math.min(12, l - DESCENT_NAMES.length + 2))}`;
+}

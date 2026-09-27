@@ -9,6 +9,7 @@ import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
 import { titleScreen } from './title.ts';
+import { descentName } from '../balance.ts';
 
 const MAX_BAR_BITS = 28;
 
@@ -152,7 +153,7 @@ export function sanctumScreen(app: App): Screen {
     (root.querySelector('#run') as HTMLButtonElement).disabled = !canRun;
     const runs = save.runs.slice(-6).reverse();
     root.querySelector('#runs')!.innerHTML = runs.length
-      ? runs.map((r) => `<div>${r.won ? '<span class="gold">survived</span>' : `<span class="dim">fell at wave ${r.wave}</span>`} · ${r.kills} banished${r.finds ? ` · ${r.finds} found` : ''}</div>`).join('')
+      ? runs.map((r) => `<div><span class="faint">${(r.descent ?? 0) + 1}</span> ${r.won ? '<span class="gold">survived</span>' : `<span class="dim">fell at wave ${r.wave}</span>`} · ${r.kills} banished${r.finds ? ` · ${r.finds} found` : ''}</div>`).join('')
       : '<div class="dim">No walks yet.</div>';
   }
 
@@ -195,6 +196,7 @@ export function sanctumScreen(app: App): Screen {
           <span class="spacer"></span>
           <span class="dim">hum <span class="mono" id="hum"></span></span>
           <span class="dim">voices <button class="small" id="wdec">−</button> <span class="mono" id="workers"></span> <button class="small" id="winc">+</button></span>
+          <select id="descent" title="how deep to walk"></select>
           <button class="primary" id="run">Walk into the dark</button>
           <button class="small" id="title">⌂</button>
         </div>
@@ -246,7 +248,12 @@ export function sanctumScreen(app: App): Screen {
         renderTasks();
         renderScryInfo();
       });
-      root.querySelector('#run')!.addEventListener('click', () => app.go(runScreen(app)));
+      const dsel = root.querySelector('#descent') as HTMLSelectElement;
+      dsel.innerHTML = Array.from({ length: save.descent + 1 }, (_, i) => `<option value="${i}">${i + 1} · ${descentName(i)}</option>`).join('');
+      save.lastDescent = Math.min(save.lastDescent, save.descent);
+      dsel.value = String(save.lastDescent);
+      dsel.addEventListener('change', () => { save.lastDescent = Number(dsel.value); persist(save); });
+      root.querySelector('#run')!.addEventListener('click', () => app.go(runScreen(app, save.lastDescent)));
       root.querySelector('#title')!.addEventListener('click', () => app.go(titleScreen(app)));
       root.querySelector('#wdec')!.addEventListener('click', () => { S.pool.setActive(S.pool.getActive() - 1); save.workers = S.pool.getActive(); persist(save); renderTop(); });
       root.querySelector('#winc')!.addEventListener('click', () => { S.pool.setActive(S.pool.getActive() + 1); save.workers = S.pool.getActive(); persist(save); renderTop(); });

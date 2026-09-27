@@ -6,8 +6,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "pnpm --filter @truenames/game dev",
-    "build": "pnpm --filter @truenames/game build",
+    "dev": "vite apps/game",
+    "build": "vite build apps/game",
     "tools": "tsx apps/tools/src/cli.ts"
   },
   "devDependencies": {

@@ -20,6 +20,7 @@ export interface NameRecord {
 
 export interface RunRecord {
   at: number;
+  descent?: number;
   wave: number;
   won: boolean;
   kills: number;
@@ -44,10 +45,13 @@ export interface SaveData {
   loadout: (string | null)[];
   runs: RunRecord[];
   workers: number | null;
+  /** Highest descent unlocked (0-based). */
+  descent: number;
+  lastDescent: number;
 }
 
 export function emptySave(): SaveData {
-  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], scrying: [], loadout: [null, null, null, null, null, null], runs: [], workers: null };
+  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], scrying: [], loadout: [null, null, null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
 }
 
 const DB = 'truenames';
