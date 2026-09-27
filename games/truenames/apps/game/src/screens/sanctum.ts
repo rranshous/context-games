@@ -187,8 +187,8 @@ export function sanctumScreen(app: App): Screen {
     const meditating = S.pool.list().some((t) => t.kind === 'name');
     let msg = '';
     if (known.length <= 1 && !scrying) msg = `Search for spirits: choose a region in <em>Scrying</em> and press <em>Scry here</em>. Your element, depth 7, is a good first place to look.`;
-    else if (unlearned.length && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found spirits you cannot yet call. Press <em>meditate</em> on one; at ${MIN_NAME_BITS} bits its name is yours.`;
     else if (learnedUnbound.length && save.loadout.some((c) => !c)) msg = `A learned name is waiting. Press <em>bind</em> to carry it into the dark.`;
+    else if (unlearned.length && known.every((c) => c === HEARTH_GOD || !S.learned(c)) && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found spirits you cannot yet call. Press <em>meditate</em> on one; at ${MIN_NAME_BITS} bits its name is yours.`;
     else if (!save.runs.length) msg = `When you are ready, <em>walk into the dark</em>. Stand in shrines there to search while you fight.`;
     else if (!meditating) msg = `Nothing is being meditated. Names only grow truer while you work on them, even while you sleep.`;
     else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every bit makes each evocation about 1.4× stronger.`;
