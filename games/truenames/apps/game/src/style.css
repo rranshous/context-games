@@ -49,7 +49,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .sanctum { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto 1fr; gap: 10px; padding: 12px; }
 .topbar { display: flex; align-items: center; gap: 18px; padding: 8px 14px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 4px; flex-wrap: wrap; }
 .topbar .spacer { flex: 1; }
-.cols { display: grid; grid-template-columns: minmax(300px, 1.25fr) minmax(280px, 1fr) minmax(260px, 0.9fr); gap: 10px; min-height: 0; }
+.cols { display: grid; grid-template-columns: minmax(360px, 1.5fr) minmax(280px, 1fr) minmax(250px, 0.85fr); gap: 10px; min-height: 0; }
 .panel { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 4px; padding: 12px; overflow: auto; min-height: 0; }
 .panel h2 { font-size: 16px; color: var(--gold); margin-bottom: 8px; }
 .panel .hint { font-size: 14px; color: var(--dim); font-style: italic; margin-bottom: 10px; line-height: 1.4; }
@@ -131,3 +131,37 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .tip em { color: var(--gold); font-style: normal; }
 [data-tip] { cursor: help; }
 button[data-tip], select[data-tip], input[data-tip], .slot[data-tip], [data-card][data-tip] { cursor: pointer; }
+
+/* ---------- codex (Name Book) ---------- */
+.codex-panel { display: flex; flex-direction: column; padding-top: 10px; }
+#codex { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.codex-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--panel-edge); margin-bottom: 8px; }
+.codex-tabs .tab { border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0; background: transparent; padding: 6px 14px; font-size: 14px; margin-bottom: -1px; }
+.codex-tabs .tab.on { border-color: var(--panel-edge); background: var(--panel); color: var(--gold); border-bottom: 1px solid var(--panel); }
+.codex-filters { position: sticky; top: -12px; z-index: 2; background: var(--panel); padding: 2px 0 8px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid rgba(212, 184, 120, 0.1); margin-bottom: 8px; }
+.codex-filters input[type=search] { width: 100%; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { padding: 2px 8px; font-size: 13px; font-family: var(--serif); letter-spacing: 0; border-radius: 12px; background: transparent; color: var(--dim); border-color: rgba(212, 184, 120, 0.15); }
+.chip[data-el] { color: var(--c); font-size: 15px; padding: 1px 9px; }
+.chip.on { background: color-mix(in srgb, var(--c, var(--gold)) 22%, transparent); border-color: var(--c, var(--gold)); color: var(--c, var(--gold)); }
+.cx-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cx-row select { font-size: 13px; padding: 3px 4px; }
+.cx-count { font-size: 12px; }
+.crow { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px 5px 6px; border-left: 3px solid color-mix(in srgb, var(--c) 45%, transparent); background: rgba(255, 255, 255, 0.015); margin-bottom: 4px; border-radius: 0 3px 3px 0; }
+.crow.learned { border-left-color: var(--c); background: rgba(255, 255, 255, 0.03); }
+.crow.new { animation: glow 2s ease-out; }
+.crow .csig { width: 34px; height: 34px; cursor: pointer; opacity: 0.9; }
+.cmain { min-width: 0; }
+.cl1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.cl1 .nm { font-family: var(--display); font-size: 15px; color: var(--c); cursor: pointer; margin-right: 4px; }
+.cl2 { font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar.thin { height: 3px; margin: 4px 0 0; }
+.cside { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.cside .bits { font-size: 13px; }
+.cside-sub { font-size: 12px; color: var(--dim); min-height: 14px; }
+.cside-sub .runes { font-size: 12px; }
+.cbtns { display: flex; gap: 3px; }
+.cbtns .small { padding: 2px 7px; font-size: 11px; }
+button.more { width: 100%; margin-top: 6px; }
+.crow[draggable="true"] { cursor: grab; }
+.dragging .slot { border-color: var(--gold); border-style: dashed; background: rgba(231, 194, 107, 0.06); }

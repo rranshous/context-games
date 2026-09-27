@@ -2,7 +2,7 @@ import type { App, Screen } from '../main.ts';
 import { frag, esc } from '../dom.ts';
 import {
   ELEMENT_NAMES, ELEMENT_COLOR, ELEMENT_GLYPH, ASPECTS, FORMS, HEARTH_GOD,
-  addressOf, spiritName, magnitudeTitle, nameRunes, fmtDuration, traditionName, truths, TEMPERS, weightWord, generosityWord,
+  addressOf, spiritName, magnitudeTitle, fmtDuration, traditionName, truths,
 } from '../lore.ts';
 import { persist, spiritOf } from '../save.ts';
 import { expectedSpirits } from '../services.ts';
@@ -14,14 +14,8 @@ import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
 import { openSpiritCard } from './spirit-card.ts';
+import { createCodex, type Codex } from './codex.ts';
 
-const MAX_BAR_BITS = 28;
-
-/** form · weight · generosity · temper, each with its own hover help. */
-function statsHtml(sp: Spirit): string {
-  const t = sp.traits;
-  return `<span data-tip="form">${FORMS[t.form]!.name}</span> · <span data-tip="weight">${weightWord(t.weightIdx)}</span> · <span data-tip="generosity">${generosityWord(t.generosityIdx)}</span> · <span data-tip="temper">${TEMPERS[t.temperIdx]}</span>`;
-}
 
 export function sanctumScreen(app: App): Screen {
   const S = app.services;
@@ -30,8 +24,6 @@ export function sanctumScreen(app: App): Screen {
   let timer: ReturnType<typeof setInterval>;
   const offs: (() => void)[] = [];
   let picking: number | null = null;
-  let bookFilter: 'all' | 'learned' | 'unlearned' = 'all';
-  let bookSort: 'might' | 'truth' | 'newest' = 'truth';
   const freshCells = new Set<string>();
   const feed: string[] = [];
   const feedLine = (sp: Spirit, how: string) =>
@@ -41,61 +33,11 @@ export function sanctumScreen(app: App): Screen {
     if (sp) feed.push(feedLine(sp, k.source === 'shrine' ? 'at a shrine' : 'scried'));
   }
 
-  function learnedSpirits(): Spirit[] {
-    return Object.keys(save.spirits).map((c) => spiritOf(save, c)!).filter(Boolean);
-  }
-
   // ---------- name book ----------
+  let codex: Codex | null = null;
   function renderBook() {
-    const box = root.querySelector('#book')!;
-    const rate = S.pool.rate();
-    const totalWeight = S.pool.list().reduce((a, t) => a + S.pool.weight(t.id), 0) || 1;
-    const all = learnedSpirits();
-    const counts = { all: all.length, learned: all.filter((x) => S.learned(x.cell)).length, unlearned: 0 };
-    counts.unlearned = counts.all - counts.learned;
-    const head = root.querySelector('#bookbar')!;
-    head.innerHTML = (['all', 'learned', 'unlearned'] as const).map((f) => `<button class="small ${bookFilter === f ? 'on' : ''}" data-filter="${f}" data-tip="=Show ${f === 'all' ? 'every spirit you know of' : f === 'learned' ? 'only names you can speak' : 'spirits whose names you have yet to learn'}.">${f} ${counts[f]}</button>`).join(' ')
-      + ` <span class="dim" style="font-size:13px; margin-left:6px">sort</span> ` + (['truth', 'might', 'newest'] as const).map((o) => `<button class="small ${bookSort === o ? 'on' : ''}" data-sort="${o}" data-tip="=Sort by ${o === 'truth' ? 'how true your names are' : o === 'might' ? 'magnitude' : 'when they were found'}.">${o}</button>`).join(' ');
-    const found = (c: string) => save.spirits[c]?.foundAt ?? 0;
-    const spirits = all
-      .filter((x) => bookFilter === 'all' || (bookFilter === 'learned') === S.learned(x.cell))
-      .sort((a, b) => {
-        const sa = S.strength(a.cell), sb = S.strength(b.cell);
-        if (bookSort === 'newest') return found(b.cell) - found(a.cell);
-        if (bookSort === 'might') return b.magnitude - a.magnitude || sb - sa || (a.cell < b.cell ? -1 : 1);
-        const la = sa >= MIN_NAME_BITS ? 1 : 0, lb = sb >= MIN_NAME_BITS ? 1 : 0;
-        return lb - la || sb - sa || b.magnitude - a.magnitude || (a.cell < b.cell ? -1 : 1);
-      });
-    if (!spirits.length) {
-      box.innerHTML = `<div class="hint">${bookFilter === 'all' ? 'You know no spirits. Scry to find one.' : 'None here.'}</div>`;
-      return;
-    }
-    box.innerHTML = spirits.map((sp) => {
-      const s = S.strength(sp.cell);
-      const learned = s >= MIN_NAME_BITS;
-      const med = S.isMeditating(sp.cell);
-      const color = ELEMENT_COLOR[sp.element]!;
-      const rec = save.names[sp.cell];
-      const next = med ? fmtDuration(2 ** (s + 1) / Math.max(1, (rate * S.pool.weight('name:' + sp.cell)) / totalWeight)) : null;
-      const bound = save.loadout.includes(sp.cell);
-      return `<div class="spirit ${freshCells.has(sp.cell) ? 'new' : ''}" style="--c:${color}">
-        <img class="sigil" src="${sigilURL(sp)}" alt="" data-card="${sp.cell}" data-tip="card">
-        <div class="row"><span class="nm" data-card="${sp.cell}" data-tip="card">${ELEMENT_GLYPH[sp.element]} ${esc(spiritName(sp))}</span>
-          <span class="dim" style="font-size:13px" data-tip="magnitude">${magnitudeTitle(sp.magnitude)} · magnitude ${sp.magnitude}</span><span class="grow"></span>
-          <span class="bits ${learned ? 'gold' : 'dim'}" data-tip="truths">${s ? truths(s) : 'unnamed'}</span></div>
-        <div class="addr" data-tip="address">${esc(addressOf(sp.cell))} <span class="mono faint">${sp.cell}</span>${sp.cell === HEARTH_GOD ? ' · <i>the hearth-god</i>' : ''}</div>
-        <div class="stats">${statsHtml(sp)}</div>
-        <div class="bar" data-tip="=How true your name is. The mark is 12 truths, where a name is learned; the bar fills toward 28."><i style="width:${(100 * s) / MAX_BAR_BITS}%"></i><span class="mark" style="left:${(100 * MIN_NAME_BITS) / MAX_BAR_BITS}%"></span></div>
-        <div class="row">
-          <button class="small ${med ? 'on' : ''}" data-med="${sp.cell}" data-tip="meditate">${med ? 'meditating' : 'meditate'}</button>
-          ${med ? `<button class="small ${S.isFocused(sp.cell) ? 'on' : ''}" data-focus="${sp.cell}" data-tip="focus">${S.isFocused(sp.cell) ? '★ focus' : '☆'}</button>` : ''}
-          ${learned ? `<button class="small" data-bind="${sp.cell}" data-tip="bind" ${bound ? 'disabled' : ''}>${bound ? 'bound' : 'bind'}</button>` : `<span class="dim" style="font-size:13px" data-tip="learned">learned at ${truths(MIN_NAME_BITS)}</span>`}
-          <span class="grow"></span>
-          ${med ? `<span class="dim" style="font-size:13px" data-tip="nextTruth">next truth ~${next}</span>` : ''}
-          ${rec ? `<span class="runes" data-tip="runes">${nameRunes(rec.claim.nonce)}</span>` : ''}
-        </div>
-      </div>`;
-    }).join('');
+    if (root?.classList.contains('dragging')) return;
+    codex?.renderList();
   }
 
   // ---------- scrying ----------
@@ -256,10 +198,8 @@ export function sanctumScreen(app: App): Screen {
         </div>
         <div class="advice" id="advice" data-tip="advice"></div>
         <div class="cols">
-          <div class="panel"><h2>Name Book</h2>
-            <div class="hint">Meditation seeks your true name for a spirit. Each truth requires twice as much meditation to unveil as the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
-            <div id="bookbar" style="margin-bottom:8px"></div>
-            <div id="book"></div></div>
+          <div class="panel codex-panel"><h2 data-tip="=Meditation seeks your true name for a spirit. Each truth requires twice as much meditation to unveil as the last. A truer name draws more, strains less and outshouts rivals at a crowded well.">Name Book</h2>
+            <div id="codex"></div></div>
           <div class="panel"><h2>Scrying</h2>
             <div class="hint">Choose a region and a depth, then search it division by division. Shallow layers are small and soon exhausted. The deep is endless and sparse.</div>
             <div class="scryform">
@@ -328,10 +268,6 @@ export function sanctumScreen(app: App): Screen {
       // pointerdown, not click: panels re-render on a timer and a click can straddle a re-render
       root.addEventListener('pointerdown', (e) => {
         const t = e.target as HTMLElement;
-        const filter = t.closest('[data-filter]')?.getAttribute('data-filter');
-        if (filter) { bookFilter = filter as typeof bookFilter; renderBook(); return; }
-        const sort = t.closest('[data-sort]')?.getAttribute('data-sort');
-        if (sort) { bookSort = sort as typeof bookSort; renderBook(); return; }
         const card = t.closest('[data-card]')?.getAttribute('data-card');
         if (card) { openSpiritCard(app, card); return; }
         const foc = t.closest('[data-focus]')?.getAttribute('data-focus');
@@ -350,6 +286,7 @@ export function sanctumScreen(app: App): Screen {
       offs.push(S.finds.on((f) => {
         if (!f.isNew) return;
         freshCells.add(f.spirit.cell);
+        codex?.render();
         const c = ELEMENT_COLOR[f.spirit.element];
         feed.push(feedLine(f.spirit, f.source === 'shrine' ? 'at a shrine' : 'scried'));
         app.toast(`<img class="sigil-sm" src="${sigilURL(f.spirit)}" alt=""> A spirit answers: <span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)}`, c);
@@ -362,6 +299,31 @@ export function sanctumScreen(app: App): Screen {
           if (sp) app.toast(`You have learned the name of <span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span>.`, ELEMENT_COLOR[sp.element]);
         }
       }));
+      codex = createCodex(app, root.querySelector('#codex') as HTMLElement, freshCells);
+      // drag a learned name from the book onto a loadout slot
+      root.addEventListener('dragstart', (e) => {
+        const cell = (e.target as HTMLElement).closest?.('[data-drag]')?.getAttribute('data-drag');
+        if (cell && e.dataTransfer) { e.dataTransfer.setData('text/truename', cell); e.dataTransfer.effectAllowed = 'link'; root.classList.add('dragging'); }
+      });
+      root.addEventListener('dragend', () => root.classList.remove('dragging'));
+      root.addEventListener('dragover', (e) => {
+        if ((e.target as HTMLElement).closest('[data-slot]')) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'link'; }
+      });
+      root.addEventListener('drop', (e) => {
+        const slot = (e.target as HTMLElement).closest('[data-slot]')?.getAttribute('data-slot');
+        const cell = e.dataTransfer?.getData('text/truename');
+        root.classList.remove('dragging');
+        if (slot == null || !cell || !S.learned(cell)) return;
+        e.preventDefault();
+        const i = Number(slot);
+        const was = save.loadout.indexOf(cell);
+        if (was >= 0) save.loadout[was] = save.loadout[i] ?? null; // dropping onto another slot swaps
+        save.loadout[i] = cell;
+        picking = null;
+        persist(save);
+        renderLoadout();
+        renderBook();
+      });
       renderAll();
       let n = 0;
       timer = setInterval(() => {
@@ -369,9 +331,9 @@ export function sanctumScreen(app: App): Screen {
         renderAdvice();
         renderScryInfo();
         renderTasks();
-        if (++n % 5 === 0) renderBook();
+        if (++n % 5 === 0 && !root.classList.contains('dragging')) renderBook();
       }, 800);
-      offs.push(S.names.on(() => renderBook()));
+      offs.push(S.names.on(() => codex?.render()));
     },
     unmount() {
       clearInterval(timer);

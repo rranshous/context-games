@@ -33,6 +33,16 @@ export interface ScryPlan {
   running: boolean;
 }
 
+export interface CodexView {
+  tab: 'names' | 'spirits';
+  q: string;
+  elements: number[];
+  forms: number[];
+  minMag: number;
+  status: 'any' | 'meditating' | 'seeking' | 'unnamed' | 'bound' | 'unbound' | 'focused';
+  sort: 'truth' | 'might' | 'newest' | 'soonest' | 'generous' | 'light' | 'name';
+}
+
 export interface SaveData {
   version: 1;
   aura: { secret: string; pub: string; element: number; createdAt: number } | null;
@@ -50,6 +60,8 @@ export interface SaveData {
   /** Highest descent unlocked (0-based). */
   descent: number;
   lastDescent: number;
+  /** Name Book view: tab, filters, sort. */
+  codex?: CodexView;
 }
 
 export function emptySave(): SaveData {

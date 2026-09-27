@@ -202,3 +202,19 @@ Robby's feedback from the sanctum: "the language of using bits in the spell medi
   - The run HUD is canvas, so it rebuilds a list of hover rectangles every frame (life/ward, wave line, hum, strain meter, each slot with spirit-specific text, rivals, Warden bar) and drives the same tooltip.
 - **Wording:** Robby flagged "each truth costs twice the work of the last" as leaking implementation. It's now "each truth **requires twice as much meditation to unveil** as the last". Also fixed on the same pass: "grinds" → "seeks", voices no longer mention cores, hum no longer says "your machine's work", and "work to reach" → "meditation to reach". The title screen's meta line ("your hands, and the engine beneath them") is still there, pending his call.
 - **Four spell slots** (Robby, after playing: "really i'm going to be using the two bound to the mouse clicks the most"). The slots are LMB, RMB, key 1, key 2, defined once in `balance.ts: SLOTS`, which the sanctum labels, HUD labels and input handling all read. Old 6-slot saves are trimmed on load, and any name in slots 5 or 6 moves into a free slot.
+
+### Sanctum rework: the Name Book becomes a codex
+Robby: "we'll def need to work the sanctum screen… more ways to filter down spells, it's unwieldy as i find a lot of spirits/gods." Also from our talk: rows are *spirits*, and your *name* for one is a separate, personal thing. The old single list blurred the two ("it kinda feels like when i find a spirit one new name appears").
+- **Two tabs:** **Names** (names you hold, ≥12 truths; what you can bind and speak) and **Spirits** (everything you know of, named or not). Counts are shown on the tabs.
+- **Filters:**
+  - text search over spirit name, element, aspect, tradition, form, temper, division and magnitude title (multi-word AND)
+  - element chips and form chips (multi-select)
+  - minimum might (spirits / powers / dominions / gods / elder gods / primordials and up)
+  - state: meditating, seeking (meditating but not yet learned), never meditated, bound, learned-but-unbound, in focus
+  - seven sorts: truest, mightiest, newest, next truth soonest, most generous, lightest strain, A–Z
+  - "showing N of M" and a clear button
+- The view (tab, filters, sort) persists in the save (`save.codex`).
+- **Compact rows** (~50 px, down from ~120). Each row has the seal; name + "magnitude-title of aspect"; form glyph · weight · generosity · temper · division; a thin truth bar; truths plus next-truth or runes on the right; meditate/focus/bind. Rows are paginated in 60s ("show more") so hundreds of spirits stay fast.
+- Controls are **built once and only toggled** on updates. The list re-renders on a timer and on name events, which can come several times a second early on, and rebuilding the controls would close open dropdowns and steal the search box's focus.
+- **Drag a learned name onto a loadout slot.** Dropping onto an occupied slot, when the name is already bound elsewhere, swaps them. The list refresh pauses mid-drag.
+- The sanctum's left column is wider (1.5fr); the Name Book's explainer moved into its heading's tooltip.
