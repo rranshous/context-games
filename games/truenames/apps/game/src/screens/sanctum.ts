@@ -12,6 +12,7 @@ import { titleScreen } from './title.ts';
 import { descentName } from '../balance.ts';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
+import { openChart } from './chart.ts';
 
 const MAX_BAR_BITS = 28;
 
@@ -223,7 +224,7 @@ export function sanctumScreen(app: App): Screen {
               <label>depth</label><input id="s-depth" type="number" min="${MIN_SPIRIT_DEPTH}" max="24" value="7">
             </div>
             <div id="s-info" style="font-size:14px; line-height:1.45; margin-bottom:8px"></div>
-            <button id="s-go">Scry here</button>
+            <button id="s-go">Scry here</button> <button id="s-chart">Chart of the astral</button>
             <h2 style="margin-top:16px">Under way</h2><div id="tasks"></div>
             <h2 style="margin-top:12px">Finds</h2><div class="feed" id="feed"></div>
           </div>
@@ -263,6 +264,14 @@ export function sanctumScreen(app: App): Screen {
       save.lastDescent = Math.min(save.lastDescent, save.descent);
       dsel.value = String(save.lastDescent);
       dsel.addEventListener('change', () => { save.lastDescent = Number(dsel.value); persist(save); });
+      root.querySelector('#s-chart')!.addEventListener('click', () => openChart(app, (e, a, d) => {
+        (root.querySelector('#s-el') as HTMLSelectElement).value = String(e);
+        refreshAspectOptions();
+        (root.querySelector('#s-asp') as HTMLSelectElement).value = String(a);
+        refreshTradOptions();
+        (root.querySelector('#s-depth') as HTMLInputElement).value = String(d);
+        renderScryInfo();
+      }));
       root.querySelector('#run')!.addEventListener('click', () => app.go(runScreen(app, save.lastDescent)));
       root.querySelector('#title')!.addEventListener('click', () => app.go(titleScreen(app)));
       const muteBtn = root.querySelector('#mute') as HTMLButtonElement;

@@ -635,7 +635,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.font = '12px EB Garamond, serif';
       ctx.textAlign = 'center';
       ctx.globalAlpha = 0.8;
-      ctx.fillText(s.state === 'spent' ? (s.found ? `${s.found} found` : 'silent') : ASPECTS[s.element]![Number(s.prefix[1])]!, 0, B.shrineRadius + 26);
+      ctx.fillText(s.state === 'spent' ? (s.found ? `${s.found} answered` : 'nothing answered') : ASPECTS[s.element]![Number(s.prefix[1])]!, 0, B.shrineRadius + 26);
       ctx.restore();
     }
 
@@ -721,6 +721,13 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
+
+    // the dark presses in; your aura holds it back
+    const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
+    vg.addColorStop(0, 'rgba(4,3,8,0)');
+    vg.addColorStop(1, 'rgba(4,3,8,0.78)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h);
 
     // aim reticle
     ctx.strokeStyle = 'rgba(231,194,107,0.6)';
