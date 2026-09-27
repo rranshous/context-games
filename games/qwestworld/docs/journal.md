@@ -505,3 +505,6 @@ With the war room and the pause, the picture changed. By Leaffall of Year 3: **Z
 - Health: no crashes, no failed councils; annals for Years 1–5.
 
 Where the minds fall short: idle hosts breed rebellion; oscillating diplomacy wastes years; the smallest model won't fight. The parked lever is more frequent councils for minds. **Decision (user): let Age III ride as-is**, as the control run for the war room plus the pause.
+
+### Paused for now (2026-09-27)
+Shut down at the user's request at **Highsun 6, Year 7 of Age III** (tick 55,581). The sim was stopped with SIGTERM, which saved to `data/world.json`; the viewer was stopped; our Ollama models were unloaded. To resume exactly where it left off: `npm run sim` and `npm run view`. Earlier ages are archived in `data/age-1.json` and `data/age-2.json`.
