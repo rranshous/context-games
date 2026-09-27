@@ -24,6 +24,8 @@ export function sanctumScreen(app: App): Screen {
   let timer: ReturnType<typeof setInterval>;
   const offs: (() => void)[] = [];
   let picking: number | null = null;
+  let bookFilter: 'all' | 'learned' | 'unlearned' = 'all';
+  let bookSort: 'might' | 'truth' | 'newest' = 'truth';
   const freshCells = new Set<string>();
   const feed: string[] = [];
   const feedLine = (sp: Spirit, how: string) =>
@@ -43,13 +45,24 @@ export function sanctumScreen(app: App): Screen {
     const rate = S.pool.rate();
     const nameTasks = S.pool.list().length || 1;
     const perTask = rate / nameTasks;
-    const spirits = learnedSpirits().sort((a, b) => {
-      const sa = S.strength(a.cell), sb = S.strength(b.cell);
-      const la = sa >= MIN_NAME_BITS ? 1 : 0, lb = sb >= MIN_NAME_BITS ? 1 : 0;
-      return lb - la || b.magnitude - a.magnitude || sb - sa || (a.cell < b.cell ? -1 : 1);
-    });
+    const all = learnedSpirits();
+    const counts = { all: all.length, learned: all.filter((x) => S.learned(x.cell)).length, unlearned: 0 };
+    counts.unlearned = counts.all - counts.learned;
+    const head = root.querySelector('#bookbar')!;
+    head.innerHTML = (['all', 'learned', 'unlearned'] as const).map((f) => `<button class="small ${bookFilter === f ? 'on' : ''}" data-filter="${f}">${f} ${counts[f]}</button>`).join(' ')
+      + ` <span class="dim" style="font-size:13px; margin-left:6px">sort</span> ` + (['truth', 'might', 'newest'] as const).map((o) => `<button class="small ${bookSort === o ? 'on' : ''}" data-sort="${o}">${o}</button>`).join(' ');
+    const found = (c: string) => save.spirits[c]?.foundAt ?? 0;
+    const spirits = all
+      .filter((x) => bookFilter === 'all' || (bookFilter === 'learned') === S.learned(x.cell))
+      .sort((a, b) => {
+        const sa = S.strength(a.cell), sb = S.strength(b.cell);
+        if (bookSort === 'newest') return found(b.cell) - found(a.cell);
+        if (bookSort === 'might') return b.magnitude - a.magnitude || sb - sa || (a.cell < b.cell ? -1 : 1);
+        const la = sa >= MIN_NAME_BITS ? 1 : 0, lb = sb >= MIN_NAME_BITS ? 1 : 0;
+        return lb - la || sb - sa || b.magnitude - a.magnitude || (a.cell < b.cell ? -1 : 1);
+      });
     if (!spirits.length) {
-      box.innerHTML = `<div class="hint">You know no spirits. Scry to find one.</div>`;
+      box.innerHTML = `<div class="hint">${bookFilter === 'all' ? 'You know no spirits. Scry to find one.' : 'None here.'}</div>`;
       return;
     }
     box.innerHTML = spirits.map((sp) => {
@@ -237,6 +250,7 @@ export function sanctumScreen(app: App): Screen {
         <div class="cols">
           <div class="panel"><h2>Name Book</h2>
             <div class="hint">Meditation grinds your name for a spirit. Each bit of truth costs twice the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
+            <div id="bookbar" style="margin-bottom:8px"></div>
             <div id="book"></div></div>
           <div class="panel"><h2>Scrying</h2>
             <div class="hint">Choose a region and a depth, then search it division by division. Shallow layers are small and soon exhausted. The deep is endless and sparse.</div>
@@ -306,6 +320,10 @@ export function sanctumScreen(app: App): Screen {
       // pointerdown, not click: panels re-render on a timer and a click can straddle a re-render
       root.addEventListener('pointerdown', (e) => {
         const t = e.target as HTMLElement;
+        const filter = t.closest('[data-filter]')?.getAttribute('data-filter');
+        if (filter) { bookFilter = filter as typeof bookFilter; renderBook(); return; }
+        const sort = t.closest('[data-sort]')?.getAttribute('data-sort');
+        if (sort) { bookSort = sort as typeof bookSort; renderBook(); return; }
         const card = t.closest('[data-card]')?.getAttribute('data-card');
         if (card) { openSpiritCard(app, card); return; }
         const med = t.closest('[data-med]')?.getAttribute('data-med');
