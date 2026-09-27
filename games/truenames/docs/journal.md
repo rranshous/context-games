@@ -65,3 +65,23 @@ Others at mag 3: `567171` shadow/light (gen 14, generous). Mag 2: `570476`, `615
   So spam loses output *and* hurts, and the sweet spot is ~0.6–0.8 s per cast on a light spirit. Heavier spirits want slower.
 - `strainScale` tunable added (1.0 now) for quick global adjustment.
 - Contention (`pnpm tools sim`): 4 casters at 12/14/18/22 share one pool at 0.1% / 13% / 33% / 54%. α = 1 is brutal at the bottom, which is by design ("the truest name drinks deepest"). **Game consequence:** enemy shaman strengths must sit close to the player's or the player gets nothing.
+
+### M2 · Meditation workers + persistence
+- `packages/meditation`: `scan.ts` holds the hot loops. `scanRange` keeps a digest stack, so consecutive siblings cost ~1.14 child hashes plus 1 spirit hash, with the trait hash only on hits. `grindName` handles naming. `worker-body.ts` is shared by the Node tools and browser workers. `pool.ts` is `MeditationPool`.
+- The pool hands out **small chunks** (~120 ms each, adaptively sized from measured rate) instead of long jobs. Tasks can be added, removed and throttled at any moment. Round-robin across tasks. Scry progress is a **contiguous frontier** (`doneUpTo`) even though chunks complete out of order, so the persisted scan map never claims a gap is done. Name tasks start at a random 64-bit nonce so parallel chunks never overlap.
+- Messages carry bigints as decimal strings.
+- The game app's worker is a two-liner (`meditation.worker.ts` → `installWorker(self)`), imported with Vite's `?worker`.
+- Persistence: one IndexedDB record (`truenames` / `kv` / `save`), debounced 1.5 s. It holds the aura secret, **signed claims** (not just strengths), known spirits, the scan map, the meditate/scry plans, the loadout and run history. On boot the session authority re-verifies every stored claim, so claims stay self-proving, exactly as they will be for a server.
+- **Browser rate is higher than Node's**: 7 workers give ~17–18k utterances/s in headless Chromium, vs ~10k across 8 Node worker_threads. A fire depth-7 layer (262k cells, ~16 spirits) scans in ~30 s. The hearth-god went 12→19 bits in about a minute.
+
+### The game (apps/game): Vite + plain Canvas 2D
+- Engine call (open question 5): **no engine**. Canvas 2D plus DOM overlays. The whole game is circles, lines and glows, and PixiJS/Phaser would add weight without adding anything we need yet. The run screen is one file (`screens/run.ts`); swapping in a renderer later touches only its `draw*` functions.
+- Screens: title → element → **attunement** (a real grind on the hearth-god to 12 bits, runes flicker while it runs) → **sanctum** (Name Book / Scrying / Loadout) ↔ **run**.
+- Lore (`lore.ts`, display only): 64 aspect names (docs' fire/storm = lightning, fire/stone = magma and fire/shadow = hellfire are honored), tradition names from per-aspect adjectives × 8 nouns ("the Hoar Choir"), spirit epithets from flavor bits with element-tinted onsets, and magnitude titles (wisp … elder god). "Your name" for a spirit renders as runes from the nonce: cosmetic, the parked "personal name flavor" idea.
+- **The hearth-god's epithet is "Vreiziobain, dominion of cinderfrost"**, the Hoar Choir.
+- Targeting (open question 5): mouse-aimed. Keys 1–6 plus LMB/RMB for slots 1–2, WASD to move.
+- Casting goes through the authority exactly like a remote one would: `submitCast` → effect applied when the next tick's `CastResult` lands (≤200 ms). No cooldowns, so strain is the only limiter. Holding a key doesn't auto-repeat: each press is one evocation.
+- Feedback: "N bits" floats on every cast, "the well runs thin" when the grant came in under 70% of your cap (contention or a dry pool), and BACKLASH on recoil. The strain meter has a capacity tick, and each slot shows last bits plus pool fill.
+- **Enemy shamans** (waves 3–5) hold synthetic names (strength `capRef + wave + 0..2`) on the hearth-god (45%) or a random **ancient** (depth-6 spirit). They cast through the same authority, so they really thin your pull. Strained shamans flicker orange ("strained casters are vulnerable").
+- **Shrines**: stand in one for 1.5 s to wake it. It scries its aspect's shallowest unexhausted layer from depth 7 to 10, with a budget of exactly `2^target(depth)` cells, **one expected find's worth of work**. Early shrines resolve in a few seconds; as the shallow layers empty, shrines move deeper and take longer. That frontier falls out of the math with no special-casing. The search runs in the persistent pool, so a shrine keeps searching after the run ends.
+- All eight forms are in: bolt, ring, ward, lance, nova, summon, hex, blink. So M4 and M6's "remaining forms" landed together.

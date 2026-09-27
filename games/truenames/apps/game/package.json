@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@noble/curves": "^2.4.0",
     "@truenames/authority": "workspace:*",
     "@truenames/meditation": "workspace:*",
     "@truenames/protocol": "workspace:*",

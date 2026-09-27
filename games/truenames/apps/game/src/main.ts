@@ -1,0 +1,76 @@
+import { loadSave, type SaveData } from './save.ts';
+import { Services } from './services.ts';
+import { titleScreen } from './screens/title.ts';
+import { drawAstral } from './astral.ts';
+
+export interface Screen {
+  mount(ui: HTMLElement): void;
+  unmount(): void;
+  /** Called every animation frame. Return true if the screen drew the canvas itself. */
+  frame?(dt: number, ctx: CanvasRenderingContext2D, w: number, h: number): boolean;
+}
+
+export interface App {
+  services: Services;
+  save: SaveData;
+  go(s: Screen): void;
+  toast(html: string, color?: string): void;
+}
+
+const canvas = document.getElementById('stage') as HTMLCanvasElement;
+const ctx = canvas.getContext('2d')!;
+const ui = document.getElementById('ui')!;
+let current: Screen | null = null;
+
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.floor(window.innerWidth * dpr);
+  canvas.height = Math.floor(window.innerHeight * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const toasts = document.createElement('div');
+toasts.className = 'toast-wrap';
+
+async function boot() {
+  const save = await loadSave();
+  const services = new Services(save);
+  const app: App = {
+    services,
+    save,
+    go(s) {
+      current?.unmount();
+      ui.innerHTML = '';
+      current = s;
+      s.mount(ui);
+      ui.appendChild(toasts);
+    },
+    toast(html, color) {
+      const d = document.createElement('div');
+      d.className = 'toast';
+      if (color) d.style.borderColor = color;
+      d.innerHTML = html;
+      toasts.appendChild(d);
+      setTimeout(() => d.remove(), 5200);
+      while (toasts.children.length > 5) toasts.firstChild!.remove();
+    },
+  };
+  (window as any).__truenames = { app, services, save };
+  services.resume();
+  app.go(titleScreen(app));
+
+  let last = performance.now();
+  const loop = (now: number) => {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    const w = window.innerWidth, h = window.innerHeight;
+    const drew = current?.frame?.(dt, ctx, w, h) ?? false;
+    if (!drew) drawAstral(ctx, w, h, now / 1000, services.pool.rate());
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+
+boot();
