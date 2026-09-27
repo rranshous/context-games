@@ -7,6 +7,6 @@ export default defineConfig({
   build: {
     target: 'es2022',
     outDir: 'dist',
-    rollupOptions: { input: { main: resolve(__dirname, 'index.html'), vectors: resolve(__dirname, 'vectors.html') } },
+    rollupOptions: { input: { main: resolve(import.meta.dirname, 'index.html'), vectors: resolve(import.meta.dirname, 'vectors.html') } },
   },
 });

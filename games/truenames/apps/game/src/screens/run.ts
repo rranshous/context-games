@@ -990,6 +990,13 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     ctx.font = '11px JetBrains Mono, monospace';
     ctx.fillStyle = '#9c8f74';
     ctx.fillText(`strain ${st.strain.toFixed(1)} / ${st.capacity.toFixed(1)} bits`, mx, my - 3);
+    if (save.runs.length < 2 && !over) {
+      ctx.textAlign = 'center';
+      ctx.font = 'italic 14px EB Garamond, serif';
+      ctx.fillStyle = 'rgba(233,220,184,0.7)';
+      ctx.fillText('WASD to move · aim with the mouse · 1–6 or left/right click to evoke · stand in a shrine to wake it · Esc to pause', w / 2, my - 22);
+      ctx.textAlign = 'left';
+    }
     for (const { s, i } of active) {
       const sl = s!;
       ctx.fillStyle = sl.flash > 0 ? 'rgba(231,194,107,0.22)' : 'rgba(10,9,17,0.8)';
