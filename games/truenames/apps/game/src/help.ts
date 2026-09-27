@@ -3,16 +3,16 @@
 
 export const HELP = {
   // --- core ideas ---
-  truths: `<b>Truths</b> measure how truly you know a spirit's name. Meditation finds truer names; <em>each truth costs twice the work of the last</em>. A name holding ${'12'} truths is <em>learned</em> and can be spoken.`,
+  truths: `<b>Truths</b> measure how truly you know a spirit's name. Meditation finds truer names; <em>each truth requires twice as much meditation to unveil as the last</em>. A name holding ${'12'} truths is <em>learned</em> and can be spoken.`,
   learned: `A name is <b>learned</b> once it holds 12 truths. Only learned names can be bound and spoken in the dark.`,
-  nextTruth: `Roughly how long until meditation finds the next truth for this name, at your current hum and its share of the work. It's a lottery with a slope: sometimes much sooner, sometimes later.`,
+  nextTruth: `Roughly how long until meditation finds the next truth for this name, at your current hum and this name's share of your meditation. It's a lottery with a slope: sometimes much sooner, sometimes later.`,
   runes: `The sound of <b>your</b> name for this spirit. A name is never the same in two mouths: no one else can speak yours, though someone could find it for you.`,
   meditate: `<b>Meditate</b>: set your voices to searching for a truer name for this spirit. Meditation continues everywhere: in the sanctum, in the dark, until you close the page.`,
   focus: `<b>Focus</b>: this meditation receives four times the share of your voices.`,
   bind: `<b>Bind</b> this name to a slot so you can speak it in the dark.`,
   capacity: `<b>Capacity</b>: how much strain your aura can bear before spirits answer with backlash. It deepens with every name you hold truly (above 12 truths).`,
-  hum: `<b>The hum</b>: how many utterances your voices make each second, across all meditation and scrying. It is your machine's real work.`,
-  voices: `<b>Voices</b>: how many parts of your mind (your machine's cores) chant at once. Fewer voices leave more for everything else.`,
+  hum: `<b>The hum</b>: how many utterances your voices make each second, across all meditation and scrying. Every utterance is real; nothing is imagined.`,
+  voices: `<b>Voices</b>: how many voices chant at once. Fewer voices make a quieter mind, leaving more of you for everything else.`,
   descent: `<b>Descent</b>: how deep you walk. Deeper dark has more foes, harder foes, and shamans with truer names. Surviving a descent opens the next.`,
   walk: `Leave the sanctum and <b>walk into the dark</b>: five waves, shrines to wake, and a Warden at the end.`,
   aura: `Your <b>aura</b>: the mark every spirit knows you by. Every name you learn is bound to it.`,

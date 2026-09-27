@@ -257,7 +257,7 @@ export function sanctumScreen(app: App): Screen {
         <div class="advice" id="advice" data-tip="advice"></div>
         <div class="cols">
           <div class="panel"><h2>Name Book</h2>
-            <div class="hint">Meditation grinds your name for a spirit. Each truth costs twice the work of the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
+            <div class="hint">Meditation seeks your true name for a spirit. Each truth requires twice as much meditation to unveil as the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
             <div id="bookbar" style="margin-bottom:8px"></div>
             <div id="book"></div></div>
           <div class="panel"><h2>Scrying</h2>
