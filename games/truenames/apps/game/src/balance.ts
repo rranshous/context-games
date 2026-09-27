@@ -11,7 +11,8 @@ export const BALANCE = {
     lance: { length: 520, width: 18 },
     ring: { radius: 125, knock: 90 },
     nova: { radius: 105, delay: 0.7 },
-    summon: { life: 10, speed: 190, hpPerEffect: 2, hitBase: 3, hitPerEffect: 0.15, hitEvery: 0.5 },
+    /** ~one bolt's worth of damage spread over its life, plus a body that draws attacks. */
+    summon: { life: 6, speed: 190, hpPerEffect: 1.2, hitBase: 1.5, hitPerEffect: 0.08, hitEvery: 0.6, maxActive: 2 },
     hex: { duration: 2, pick: 90 },
     blink: { base: 90, perEffect: 10, max: 380 },
     ward: { mult: 1 },
@@ -36,12 +37,6 @@ export const BALANCE = {
   ] as Record<string, number>[],
   spawnEvery: 0.55,
   breather: 4,
-  shrines: 3,
-  shrineRadius: 70,
-  shrineWake: 1.5,
-  /** Shrine scans the shallowest unexhausted layer from this depth, up to maxDepth. */
-  shrineMinDepth: 7,
-  shrineMaxDepth: 10,
   /**
    * Descents: each level deepens the dark. Names grow by 2x work per bit and
    * cast power by sqrt(2) per bit, so ~1.5 bits (~3x meditation) per level.

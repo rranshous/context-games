@@ -1,18 +1,17 @@
-// A walk into the dark: one arena, five waves, shrines that scry while you fight.
+// A walk into the dark: one arena, five waves, a Warden at the end.
 import type { App, Screen } from '../main.ts';
-import { frag, esc } from '../dom.ts';
+import { frag } from '../dom.ts';
 import { BALANCE as B, descentName, SLOTS } from '../balance.ts';
 import {
-  ELEMENT_COLOR, ASPECTS, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS, WARDEN_WELLS,
-  spiritName, magnitudeTitle, addressOf, truths,
+  ELEMENT_COLOR, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS, WARDEN_WELLS,
+  spiritName, truths,
 } from '../lore.ts';
 import { persist, spiritOf } from '../save.ts';
-import { scanKey } from '../services.ts';
 import { LocalAuthority, castCap, spiritStats, TUNABLES } from '@truenames/authority';
 import type { CastResult, TargetSpec } from '@truenames/protocol';
-import { cellsBelow, spiritAt, target, type Spirit } from '@truenames/universe';
+import { spiritAt, type Spirit } from '@truenames/universe';
 import { sanctumScreen } from './sanctum.ts';
-import { sigilCanvas, sigilURL } from '../sigil.ts';
+import { sigilCanvas } from '../sigil.ts';
 import * as sfx from '../audio.ts';
 import { HELP, showTip, hideTip } from '../help.ts';
 
@@ -42,7 +41,6 @@ interface Fx { kind: 'beam' | 'ring' | 'burst' | 'blink'; x: number; y: number; 
 interface Particle { x: number; y: number; vx: number; vy: number; t: number; max: number; color: string; size: number }
 interface Floater { x: number; y: number; text: string; color: string; t: number; size: number }
 interface Pillar { x: number; y: number; r: number }
-interface Shrine { x: number; y: number; prefix: string; element: number; depth: number; state: 'idle' | 'waking' | 'scrying' | 'spent'; wake: number; start: bigint; budget: bigint; found: number }
 
 interface Slot {
   cell: string;
@@ -95,18 +93,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (pillars.some((q) => dist2(p.x, p.y, q.x, q.y) < (p.r + q.r + 120) ** 2)) continue;
     pillars.push(p);
   }
-  const shrines: Shrine[] = [];
-  for (let i = 0; i < B.shrines; i++) {
-    const element = i === 0 ? save.aura!.element : (Math.random() * 8) | 0;
-    const aspect = (Math.random() * 8) | 0;
-    let x = 0, y = 0;
-    for (let k = 0; k < 50; k++) {
-      x = rand(200, W - 200); y = rand(200, H - 200);
-      if (dist2(x, y, W / 2, H / 2) > 400 ** 2 && !shrines.some((s) => dist2(x, y, s.x, s.y) < 600 ** 2) && !pillars.some((p) => dist2(x, y, p.x, p.y) < (p.r + 110) ** 2)) break;
-    }
-    shrines.push({ x, y, prefix: `${element}${aspect}`, element, depth: 0, state: 'idle', wake: 0, start: 0n, budget: 0n, found: 0 });
-  }
-
   const tint = ELEMENT_COLOR[(save.aura!.element + level * 3) % 8]!;
   const motes = Array.from({ length: 220 }, (_, i) => ({ x: rand(0, W), y: rand(0, H), v: rand(6, 22), d: String(i % 8) }));
   let enemies: Enemy[] = [];
@@ -126,7 +112,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   let breather = 2.5;
   let banner: { text: string; sub: string; t: number } | null = { text: descentName(level).toUpperCase(), sub: level === 0 ? 'Wave 1. They come for the light in you.' : `Descent ${level + 1}. The dark is thicker here.`, t: 3 };
   let over: null | 'won' | 'lost' = null;
-  let kills = 0, finds = 0;
+  let kills = 0;
   let warden: Enemy | null = null;
   let paused = false;
 
@@ -314,6 +300,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       case 5: { // summon
         const f = B.forms.summon;
         allies.push({ x: player.x + rand(-20, 20), y: player.y + rand(-20, 20), hp: effect * f.hpPerEffect, life: f.life, hit: f.hitBase + effect * f.hitPerEffect, cd: 0, color });
+        while (allies.length > f.maxActive) { const gone = allies.shift()!; burst(gone.x, gone.y, gone.color, 8); }
         burst(player.x, player.y, color, 12);
         break;
       }
@@ -391,51 +378,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
   }
 
-  // ---------- shrines ----------
-  const myShrineTasks = new Set<string>(); // only this walk's shrines earn credit
-  function wakeShrine(s: Shrine) {
-    for (let d = B.shrineMinDepth; d <= B.shrineMaxDepth; d++) {
-      const done = S.scanned(s.prefix, d);
-      const running = S.scryTask(s.prefix, d);
-      const frontier = running ? running.stopAt : done;
-      if (frontier < cellsBelow(d - s.prefix.length)) {
-        s.depth = d;
-        s.budget = 1n << BigInt(target(d)); // one expected find's worth of work
-        s.start = frontier;
-        S.startScry(s.prefix, d, 'shrine', s.budget);
-        myShrineTasks.add(scanKey(s.prefix, d));
-        s.state = 'scrying';
-        sfx.sfxShrineWake();
-        banner = { text: 'THE SHRINE WAKES', sub: `It searches ${addressOf(s.prefix)} at depth ${d}.`, t: 2.5 };
-        burst(s.x, s.y, ELEMENT_COLOR[s.element]!, 30);
-        return;
-      }
-    }
-    s.state = 'spent';
-    banner = { text: 'THE SHRINE IS SILENT', sub: 'Everything near it has already been found.', t: 2.5 };
-  }
-
-  function shrineProgress(s: Shrine): number {
-    if (s.state !== 'scrying') return s.state === 'spent' ? 1 : 0;
-    const t = S.scryTask(s.prefix, s.depth);
-    if (!t) return 1;
-    const done = Number(t.doneUpTo - s.start);
-    return Math.max(0, Math.min(1, done / Number(s.budget)));
-  }
-
-  const offFind = S.finds.on((f) => {
-    if (f.source !== 'shrine' || !f.isNew || over || !myShrineTasks.has(f.taskId)) return;
-    finds++;
-    const sh = shrines.find((s) => s.state === 'scrying' && f.spirit.cell.startsWith(s.prefix));
-    const c = ELEMENT_COLOR[f.spirit.element]!;
-    if (sh) {
-      sh.found++;
-      burst(sh.x, sh.y, c, 40);
-      floaters.push({ x: sh.x, y: sh.y - 50, text: spiritName(f.spirit), color: c, t: -1, size: 20 });
-    }
-    app.toast(`<img class="sigil-sm" src="${sigilURL(f.spirit)}" alt=""> A spirit answers the shrine: <span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)}. Meditate on it in the sanctum.`, c);
-  });
-
   // Meditation keeps working during the walk: truer names reach this run's authority at once.
   const offName = S.names.on((n) => {
     const rec = save.names[n.cell];
@@ -487,15 +429,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     player.invuln = Math.max(0, player.invuln - dt);
     player.hurt = Math.max(0, player.hurt - dt);
     player.ward = Math.max(0, player.ward - player.ward * B.player.wardDecayPerSec * dt);
-
-    // shrines
-    for (const s of shrines) {
-      const near = dist2(s.x, s.y, player.x, player.y) < B.shrineRadius ** 2;
-      if (s.state === 'idle' || s.state === 'waking') {
-        if (near) { s.state = 'waking'; s.wake += dt; if (s.wake >= B.shrineWake) wakeShrine(s); }
-        else { s.wake = Math.max(0, s.wake - dt); if (s.wake === 0) s.state = 'idle'; }
-      } else if (s.state === 'scrying' && !S.scryTask(s.prefix, s.depth)) s.state = 'spent';
-    }
 
     // enemies
     for (const e of enemies) {
@@ -662,54 +595,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.fillText(m.d, m.x, m.y);
     }
 
-    // shrines
-    for (const s of shrines) {
-      const c = ELEMENT_COLOR[s.element]!;
-      const prog = shrineProgress(s);
-      const alpha = s.state === 'spent' ? 0.25 : 0.55 + 0.25 * Math.sin(t * 2 + s.x);
-      ctx.save();
-      ctx.translate(s.x, s.y);
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = c;
-      ctx.lineWidth = 2;
-      octagon(ctx, B.shrineRadius, t * 0.2);
-      ctx.stroke();
-      octagon(ctx, B.shrineRadius * 0.6, -t * 0.3);
-      ctx.stroke();
-      ctx.font = '10px JetBrains Mono, monospace';
-      ctx.fillStyle = c;
-      ctx.textAlign = 'center';
-      const digits = s.prefix + '0123456701234567';
-      for (let i = 0; i < 16; i++) {
-        const a = (i / 16) * Math.PI * 2 + t * (s.state === 'scrying' ? 0.9 : 0.15);
-        ctx.fillText(digits[i]!, Math.cos(a) * (B.shrineRadius * 0.8), Math.sin(a) * (B.shrineRadius * 0.8) + 3);
-      }
-      ctx.globalAlpha = 1;
-      if (s.state === 'waking') {
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, 0, B.shrineRadius + 8, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * s.wake) / B.shrineWake);
-        ctx.stroke();
-      } else if (s.state === 'scrying') {
-        ctx.strokeStyle = c;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(0, 0, B.shrineRadius + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog);
-        ctx.stroke();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = c + '22';
-        ctx.beginPath(); ctx.arc(0, 0, B.shrineRadius * (0.5 + 0.1 * Math.sin(t * 6)), 0, Math.PI * 2); ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-      }
-      ctx.fillStyle = c;
-      ctx.font = '12px EB Garamond, serif';
-      ctx.textAlign = 'center';
-      ctx.globalAlpha = 0.8;
-      ctx.fillText(s.state === 'spent' ? (s.found ? `${s.found} answered` : 'nothing answered') : ASPECTS[s.element]![Number(s.prefix[1])]!, 0, B.shrineRadius + 26);
-      ctx.restore();
-    }
-
     // pillars
     for (const p of pillars) {
       ctx.fillStyle = '#15121f';
@@ -749,8 +634,10 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     // allies
     ctx.globalCompositeOperation = 'lighter';
     for (const a of allies) {
+      ctx.globalAlpha = Math.min(1, 0.25 + a.life / B.forms.summon.life); // fades as it expires
       ctx.fillStyle = a.color + '99';
       ctx.beginPath(); ctx.arc(a.x, a.y, 9 + Math.sin(t * 10) * 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
     }
     ctx.globalCompositeOperation = 'source-over';
 
@@ -930,22 +817,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-5, 5); ctx.lineTo(-5, -5); ctx.closePath(); ctx.fill();
       ctx.restore();
     }
-    for (const s of shrines) {
-      if (s.state === 'spent') continue;
-      const sx = s.x - cam.x + w / 2, sy = s.y - cam.y + h / 2;
-      if (sx > 0 && sx < w && sy > 0 && sy < h) continue;
-      const dx = sx - w / 2, dy = sy - h / 2;
-      const k = Math.min((w / 2 - 34) / Math.abs(dx || 1e-6), (h / 2 - 34) / Math.abs(dy || 1e-6));
-      ctx.strokeStyle = ELEMENT_COLOR[s.element]!;
-      ctx.globalAlpha = 0.7;
-      ctx.lineWidth = 1.5;
-      ctx.save();
-      ctx.translate(w / 2 + dx * k, h / 2 + dy * k);
-      octagon(ctx, 9, 0);
-      ctx.stroke();
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
   }
 
   // hover help for the canvas HUD: regions are rebuilt every frame
@@ -977,7 +848,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     ctx.textAlign = 'left';
     ctx.fillText(`life ${Math.max(0, Math.ceil(player.hp))}${player.ward > 0 ? ` · ward ${Math.ceil(player.ward)}` : ''}`, 22, 47);
 
-    // wave & finds
+    // wave
     ctx.textAlign = 'center';
     ctx.font = '18px Cinzel, serif';
     ctx.fillStyle = '#e7c26b';
@@ -987,7 +858,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     ctx.fillText(`descent ${level + 1} · ${descentName(level)}`, w / 2, 62);
     ctx.font = '12px EB Garamond, serif';
     ctx.fillStyle = '#9c8f74';
-    ctx.fillText(`${kills} banished · ${enemies.length + spawnQueue.length} remain${finds ? ` · ${finds} spirits found` : ''}`, w / 2, 48);
+    ctx.fillText(`${kills} banished · ${enemies.length + spawnQueue.length} remain`, w / 2, 48);
     if (warden && warden.hp > 0) {
       const bw = Math.min(420, w * 0.5);
       ctx.fillStyle = 'rgba(10,9,17,0.8)';
@@ -1034,7 +905,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';
-      ctx.fillText('WASD to move · aim with the mouse · left/right click and keys 1, 2 to evoke · stand in a shrine to wake it · Esc to pause', w / 2, my - 22);
+      ctx.fillText('WASD to move · aim with the mouse · left/right click and keys 1, 2 to evoke · Esc to pause', w / 2, my - 22);
       ctx.textAlign = 'left';
     }
     for (const { s, i } of active) {
@@ -1102,15 +973,14 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (over) return;
     over = result;
     if (result === 'won') sfx.sfxVictory(); else sfx.sfxDeath();
-    save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' || breather > 0 ? 0 : 1), won: result === 'won', kills, finds });
+    save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' || breather > 0 ? 0 : 1), won: result === 'won', kills, finds: 0 });
     const unlocked = result === 'won' && level >= save.descent;
     if (unlocked) save.descent = level + 1;
     persist(save);
-    const scrying = shrines.filter((s) => s.state === 'scrying' && S.scryTask(s.prefix, s.depth)).length;
     overlay = frag(`<div class="overlay">
       <h1 style="font-size:40px; color:var(--gold)">${result === 'won' ? 'The dark recedes' : 'You fall'}</h1>
       <div class="prose">${result === 'won' ? `Five waves broken in ${descentName(level)}. The wells are quiet again.${unlocked ? `<br><em>The way down opens: ${descentName(level + 1)}.</em>` : ''}` : `The dark took you at wave ${wave + (breather > 0 ? 0 : 1)}. Your names are kept; names are always kept.`}</div>
-      <div class="dim">${kills} banished${finds ? ` · ${finds} spirits answered the shrines` : ''}${scrying ? ` · ${scrying} shrine${scrying > 1 ? 's' : ''} still searching` : ''}</div>
+      <div class="dim">${kills} banished</div>
       <button class="primary" id="back">Return to the sanctum</button>
     </div>`);
     overlay.querySelector('#back')!.addEventListener('click', () => app.go(sanctumScreen(app)));
@@ -1125,7 +995,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
         <h1 style="font-size:32px; color:var(--gold)">Stillness</h1>
         <div class="dim">Meditation goes on while you rest.</div>
         <div style="display:flex; gap:10px"><button class="primary" id="resume">Resume</button><button id="abandon">Abandon the walk</button></div>
-        <div class="faint" style="max-width:520px; font-size:14px; line-height:1.5">WASD to move · aim with the mouse · left/right click and keys 1, 2 to evoke. Every evocation strains your aura; strain ebbs over time. Past your capacity, spirits answer with backlash. Stand in a shrine to wake it.</div>
+        <div class="faint" style="max-width:520px; font-size:14px; line-height:1.5">WASD to move · aim with the mouse · left/right click and keys 1, 2 to evoke. Every evocation strains your aura; strain ebbs over time. Past your capacity, spirits answer with backlash.</div>
       </div>`);
       overlay.querySelector('#resume')!.addEventListener('click', togglePause);
       overlay.querySelector('#abandon')!.addEventListener('click', () => { paused = false; overlay?.remove(); end('lost'); });
@@ -1148,7 +1018,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       window.addEventListener('blur', onBlur);
       mouse.sx = window.innerWidth / 2 + 100; mouse.sy = window.innerHeight / 2;
       document.body.style.cursor = 'crosshair';
-      (window as any).__run = { player, enemies: () => enemies, auth, slots, shrines, cast, end, state: () => ({ wave, kills, finds, over, breather }) };
+      (window as any).__run = { player, enemies: () => enemies, auth, slots, cast, end, state: () => ({ wave, kills, over, breather }) };
     },
     unmount() {
       window.removeEventListener('keydown', onKey);
@@ -1159,7 +1029,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       window.removeEventListener('blur', onBlur);
       document.body.style.cursor = '';
       hideTip();
-      offFind();
       offName();
       delete (window as any).__run;
     },

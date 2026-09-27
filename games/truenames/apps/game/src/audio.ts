@@ -150,7 +150,6 @@ export function sfxFind(element: number, magnitude: number) {
   [1, 5 / 4, 3 / 2, 2].forEach((m, i) => tone(base * m, 'sine', 0.01, 0.1, 1.5 + magnitude * 0.3, i * 0.09));
 }
 
-export function sfxShrineWake() { [1, 3 / 2, 2, 3].forEach((m, i) => tone(110 * m, 'sine', 0.2, 0.06, 1.2, i * 0.15)); }
 export function sfxWave() { tone(73.4, 'sine', 0.3, 0.2, 1.5); tone(110, 'sine', 0.3, 0.08, 1.5); }
 export function sfxVictory() { [1, 5 / 4, 3 / 2, 2, 5 / 2].forEach((m, i) => tone(220 * m, 'triangle', 0.02, 0.08, 1.5, i * 0.12)); }
 export function sfxDeath() { [1, 0.94, 0.84, 0.75].forEach((m, i) => tone(220 * m, 'sine', 0.05, 0.1, 1, i * 0.25)); }
