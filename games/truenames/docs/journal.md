@@ -45,3 +45,23 @@ Frozen values:
 ### The ancient layer (depth 6, full scan, 35 spirits)
 Mightiest: `011010` fire/frost, magnitude 3, **generosity idx 3** (stingy), form 3 (lance). It's fire, the mightiest of the ancients, and stingy, which matches the brief for the **hearth-god** exactly. She throws a lance of fire. **Chosen.**
 Others at mag 3: `567171` shadow/light (gen 14, generous). Mag 2: `570476`, `615043`, `651063`.
+
+### M3 · Authority (headless)
+- `packages/protocol`: `CastIntent`, `CastResult` (added `tag`, `strength`, `capacity`, `recoil`, `refused`), `TickResult` (pools now carry `{level, cap}`), `AuraState`, `TargetSpec`.
+- `packages/authority`: `LocalAuthority implements NpcAuthority`. `Authority` gained `poolInfo(cell)` and `currentTick()` for the HUD. `NpcAuthority` adds `grantSyntheticName` / `forgetAura`, the seam for enemy shamans with fixed strengths. A server would own NPCs the same way.
+- `allocate.ts`: exact weighted water-fill in one pass. Sort by limit/weight; casters who saturate below their share are served in full and the rest split proportionally. Weights are normalized to the max effective, so `2^eff` never overflows. Property tests cover Σ ≤ pool, grant ≤ min(request, cap), and "pool exhausted or everyone full".
+- Backlash (v0 recoil only): chance = `clamp((strain − capacity) · 0.35, 0.25, 1)`, rolled on a seeded mulberry32. Recoil = 0.6 × grant as self-damage.
+- One cast per aura per spirit per tick (dupes are refused).
+
+**Tuning deviations from docs/03** (all in `tunables.ts`):
+- `capRef = MIN_NAME_BITS`: the cast cap is `castCapBase · 2^(capExp·(eff − capRef)) · generosity`. The docs used absolute effective, which with 12-bit minimum names made caps enormous. Now a fresh name casts `castCapBase` (12) × generosity. +2 bits = ×2 cap.
+- `strainDecay 0.9` (docs 0.8) and `capBase 4` (docs 3). With 0.8 and the docs' weights, the sim showed **spamming the hearth-god every tick gave the most total output**. Strain forgot too fast. With 0.9 (strain half-life ≈ 1.3 s):
+
+  | strength 16 on hearth-god, 30 s | every tick | every 2 | every 3 | every 5 |
+  |---|---|---|---|---|
+  | total output | 220 | 385 | **406** | 354 |
+  | recoils | 141 | 18 | 0 | 0 |
+
+  So spam loses output *and* hurts, and the sweet spot is ~0.6–0.8 s per cast on a light spirit. Heavier spirits want slower.
+- `strainScale` tunable added (1.0 now) for quick global adjustment.
+- Contention (`pnpm tools sim`): 4 casters at 12/14/18/22 share one pool at 0.1% / 13% / 33% / 54%. α = 1 is brutal at the bottom, which is by design ("the truest name drinks deepest"). **Game consequence:** enemy shaman strengths must sit close to the player's or the player gets nothing.

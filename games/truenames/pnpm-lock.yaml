@@ -226,6 +226,10 @@ importers:
       '@truenames/universe':
         specifier: workspace:*
         version: link:../universe
+    devDependencies:
+      '@noble/curves':
+        specifier: ^2.4.0
+        version: 2.4.0
 
   packages/meditation:
     dependencies:

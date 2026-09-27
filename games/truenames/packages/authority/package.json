@@ -11,5 +11,8 @@
   "dependencies": {
     "@truenames/protocol": "workspace:*",
     "@truenames/universe": "workspace:*"
+  },
+  "devDependencies": {
+    "@noble/curves": "^2.4.0"
   }
 }
