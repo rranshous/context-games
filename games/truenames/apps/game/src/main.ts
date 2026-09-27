@@ -4,6 +4,7 @@ import { titleScreen } from './screens/title.ts';
 import { drawAstral } from './astral.ts';
 import { initAudio, setDrone, sfxFind, sfxName, isMuted, setMuted } from './audio.ts';
 import { spiritOf } from './save.ts';
+import { spiritName } from './lore.ts';
 
 export interface Screen {
   mount(ui: HTMLElement): void;
@@ -74,6 +75,33 @@ async function boot() {
   const chime = (f: () => void) => { const t = performance.now(); if (t - lastChime > 350) { lastChime = t; f(); } };
   services.finds.on((f) => { if (f.isNew) chime(() => sfxFind(f.spirit.element, f.spirit.magnitude)); });
   services.names.on((n) => { const sp = spiritOf(save, n.cell); if (sp) chime(() => sfxName(n.strength, sp.element)); });
+  // Idle touches: the tab title carries news while hidden; returning shows what the work found.
+  let away: { t: number; strengths: Record<string, number>; spirits: number } | null = null;
+  const snapshot = () => Object.fromEntries(Object.entries(save.names).map(([c, r]) => [c, r.strength]));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      away = { t: Date.now(), strengths: snapshot(), spirits: Object.keys(save.spirits).length };
+      return;
+    }
+    document.title = 'Truenames';
+    if (!away || Date.now() - away.t < 60_000) { away = null; return; }
+    const grew: string[] = [];
+    for (const [c, s] of Object.entries(snapshot())) {
+      const before = away.strengths[c] ?? 0;
+      const sp = spiritOf(save, c);
+      if (s > before && sp) grew.push(`${spiritName(sp)} ${before ? `${before}→` : ''}${s}`);
+    }
+    const found = Object.keys(save.spirits).length - away.spirits;
+    if (grew.length || found > 0) {
+      app.toast(`<b>While you were away</b><br>${grew.length ? `truer: ${grew.slice(0, 6).join(', ')}${grew.length > 6 ? '…' : ''}` : ''}${found > 0 ? `${grew.length ? '<br>' : ''}${found} spirit${found > 1 ? 's' : ''} answered` : ''}`);
+    }
+    away = null;
+  });
+  services.names.on((n) => {
+    if (!document.hidden) return;
+    const sp = spiritOf(save, n.cell);
+    if (sp) document.title = `✦ ${spiritName(sp)} ${n.strength} · Truenames`;
+  });
   app.go(titleScreen(app));
 
   let last = performance.now();
