@@ -2,7 +2,7 @@
 
 A spell-casting game where **proof of work is the magic**. Spirits live at coordinates in an infinitely deep astral; finding them is hashing, and knowing them is hashing. Your machine's work literally makes your character stronger.
 
-Status: **v0 playable** (M0–M6 built overnight 2026-09-27; see [journal](docs/journal.md)).
+Status: **v0 playable**. M0–M6 were built overnight on 2026-09-27, plus a WASM hash kernel, descents, a boss, sigils and sound. The [journal](docs/journal.md) has every decision and measurement.
 
 ## Run it
 ```sh

@@ -154,3 +154,39 @@ Also new: **meditation focus** (☆ → ★ on a meditating spirit). The pool no
 
 ### Browser-worker vectors, automated
 `corepack pnpm test:browser` starts Vite on apps/game, opens `/vectors.html` in headless Chromium through `playwright-core@1.58.2` (pinned to match the cached chromium-1208 that bloom also uses), and exits non-zero unless the worker reports PASS. Result: **PASS (223 ms)**. Rule 3 is now covered in both environments by commands.
+
+- Arena atmosphere: a per-descent tint on the lattice (the element rotates by 3 per descent), drifting octal motes in-world, and a ring of rotating digits around each shrine that spins faster while it searches.
+- Forms the bot never uses (ring, ward, nova, summon, blink, hex) were exercised by injecting slots through `window.__run` in a live run. All resolve without errors: ward +27.5, blink moved to the cursor, nova burst, summoned ally, hex tether.
+
+## Where things stand (end of session 1)
+
+**Playable v0.** Milestones:
+- M0 bench ✓
+- M1 universe + golden vectors (Node + browser worker) ✓
+- M2 meditation workers + IndexedDB ✓
+- M3 authority + sim ✓
+- M4 playable slice ✓
+- M5 sanctum + shrines ✓
+- M6 enemy casters + all 8 forms ✓
+- M7 tuning is partial: a bot-driven balance pass has been done; human playtesting is still needed.
+
+Extras beyond the milestone plan:
+- WASM Poseidon kernel
+- descents
+- the Warden
+- sigils
+- synthesized audio
+- chart of the astral
+- spirit cards
+- meditation focus
+- the "while you were away" summary
+
+**Commands:** `corepack pnpm dev` (game on :5190), `test` (27 tests), `test:browser`, `typecheck`, `build`, `tools bench|bench-wasm|sim|god-finder|vectors|gen-wasm|vectors-browser`.
+
+**Things I'd look at next (for Robby to pick from):**
+1. **Human playtest the first 15 minutes.** The bot says a fresh 12-bit hearth-god falls in wave 2 and the loop recovers quickly (WASM meditation reaches ~20 bits within minutes). Is that the right first-session arc, or should descent 1 be gentler?
+2. **Meditation may be too fast early.** 12→20 bits in a couple of minutes. The design targets ("~minutes by strength 20") are met, but the Name Book fills with learned names very quickly. Options: fewer workers by default, or lean on descents. Deliberately untouched, since it's a feel call.
+3. **Shallow layers are an early spirit fountain.** Depth-7 element layers give a find every ~3 s, and magnitude is depth-independent, so a primordial (mag 9) can turn up in the first hour. That's fine for single-player; for multiplayer the Open Choir's sweep order will matter a lot.
+4. **Kernel headroom**: lazy reduction in dense mixes, a squaring routine for the S-box, maybe 1.3–1.5× more.
+5. **Phase 1 multiplayer** is a small step architecturally. `LocalAuthority` is already driven only through `Authority`/`NpcAuthority`, and claims are self-verifying signed records. A `RemoteAuthority` over WebSocket plus a Node server hosting `LocalAuthority` would let two browser tabs contend for the hearth-god's well.
+6. Open question 1 (warfare/ownership) is untouched.
