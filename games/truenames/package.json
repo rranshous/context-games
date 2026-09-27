@@ -1,0 +1,21 @@
+{
+  "name": "truenames",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "pnpm --filter @truenames/game dev",
+    "build": "pnpm --filter @truenames/game build",
+    "tools": "tsx apps/tools/src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "poseidon-lite": "^0.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}
