@@ -1,0 +1,178 @@
+// types.ts — shared constants and API shapes (server + client)
+
+export const MAP_W = 1280;
+export const MAP_H = 720;
+
+// Soldier positions are packed as Uint16 fixed-point for the wire
+export const POS_SCALE = 32;
+
+export const NO_REGION = 0xffff;
+export const DEAD = 255;
+
+export enum Terrain {
+  DEEP = 0,
+  WATER = 1,
+  SAND = 2,
+  GRASS = 3,
+  FOREST = 4,
+  HILLS = 5,
+  MOUNTAIN = 6,
+  SNOW = 7,
+}
+
+// Cost to enter a tile (integer, for flow fields). 0 = impassable.
+export const TERRAIN_COST: Record<Terrain, number> = {
+  [Terrain.DEEP]: 0,
+  [Terrain.WATER]: 0,
+  [Terrain.SAND]: 2,
+  [Terrain.GRASS]: 2,
+  [Terrain.FOREST]: 3,
+  [Terrain.HILLS]: 4,
+  [Terrain.MOUNTAIN]: 8,
+  [Terrain.SNOW]: 12,
+};
+
+// Multiplier on the chance of dying in battle while standing on this terrain
+export const TERRAIN_DEFENSE: Record<Terrain, number> = {
+  [Terrain.DEEP]: 1,
+  [Terrain.WATER]: 1,
+  [Terrain.SAND]: 1.1,
+  [Terrain.GRASS]: 1,
+  [Terrain.FOREST]: 0.8,
+  [Terrain.HILLS]: 0.7,
+  [Terrain.MOUNTAIN]: 0.55,
+  [Terrain.SNOW]: 0.6,
+};
+
+export const HOURS_PER_DAY = 24;
+export const DAYS_PER_MONTH = 30;
+export const MONTHS = [
+  'Thawmonth', 'Seedmonth', 'Rainmonth', 'Bloommonth', 'Sunmonth', 'Highsun',
+  'Harvest', 'Leaffall', 'Mistmonth', 'Frostmonth', 'Deepwinter', 'Longnight',
+];
+
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
+/** Months 0-2 spring, 3-5 summer, 6-8 autumn (6-7 the harvest), 9-11 winter. */
+export function monthOf(tick: number): number {
+  return Math.floor(Math.floor(tick / HOURS_PER_DAY) / DAYS_PER_MONTH) % 12;
+}
+
+export function seasonOf(tick: number): Season {
+  return (['spring', 'summer', 'autumn', 'winter'] as const)[Math.floor(monthOf(tick) / 3)];
+}
+
+export function isHarvest(tick: number): boolean {
+  const m = monthOf(tick);
+  return m === 6 || m === 7;
+}
+
+export function formatDate(tick: number): string {
+  const day = Math.floor(tick / HOURS_PER_DAY);
+  const year = Math.floor(day / (DAYS_PER_MONTH * 12)) + 1;
+  const month = Math.floor(day / DAYS_PER_MONTH) % 12;
+  const dom = (day % DAYS_PER_MONTH) + 1;
+  return `${MONTHS[month]} ${dom}, Year ${year}`;
+}
+
+// --- API shapes ---
+
+export interface SettlementMeta {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+  capital: boolean;
+}
+
+export interface MetaResponse {
+  w: number;
+  h: number;
+  seed: number;
+  age: number;
+  settlements: SettlementMeta[];
+}
+
+export interface RulerView {
+  title: string;       // King / Queen
+  name: string;
+  age: number;         // years
+  temperament: string;
+}
+
+export interface KingdomView {
+  id: number;
+  name: string;
+  color: string;
+  king: string;        // ruler's name (kept for older viewers)
+  temperament: string;
+  ruler: RulerView;
+  brain: string;       // 'script' or an Ollama model name
+  alive: boolean;
+  gold: number;
+  income: number;      // per day
+  upkeep: number;      // per day
+  trade: number;       // part of income from trade, per day
+  honor: number;       // 0..1, falls when oaths are broken
+  wars: number[];      // realms this one is at war with
+  allies: number[];    // realms sworn in alliance
+  mind?: { councils: number; seconds: number; tokensIn: number; tokensOut: number; tools: Record<string, number>; misfires: number; silent: number };
+  origin: string;      // how the realm came to be
+  capital: number;     // settlement id of the current seat
+  thinking: boolean;
+  lastThought: string;
+  lastDecrees: string[];
+  reign: string[];
+  settlements: number;
+  soldiers: number;
+}
+
+export interface SettlementView {
+  id: number;
+  owner: number;
+  garrison: number;
+  siege: number; // 0..1 capture progress
+}
+
+export interface ArmyView {
+  id: number;
+  faction: number;
+  general: string;
+  size: number;
+  x: number;
+  y: number;
+  target: number; // settlement id
+  order: 'march' | 'hold';
+  morale: number;  // 0..1
+  renown: number;  // victories
+}
+
+export interface ChronicleEntry {
+  tick: number;
+  text: string;
+  faction: number; // -1 for the world
+}
+
+export interface StateResponse {
+  tick: number;
+  season: Season;
+  seed: number;
+  date: string;
+  age: number;
+  stalledBy: string | null;
+  kingdoms: KingdomView[];
+  settlements: SettlementView[];
+  armies: ArmyView[];
+  couriers: CourierView[];
+  battles: { x: number; y: number; deaths: number; days: number; factions: number[] }[];
+  chronicle: ChronicleEntry[];
+}
+
+/** A rider in transit: a royal order to a general, or an envoy between rulers. */
+export interface CourierView {
+  kind: 'order' | 'envoy' | 'caravan';
+  faction: number;
+  x0: number; y0: number;
+  x1: number; y1: number;
+  t: number; // 0..1 of the way
+}
