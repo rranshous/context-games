@@ -106,6 +106,8 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     shrines.push({ x, y, prefix: `${element}${aspect}`, element, depth: 0, state: 'idle', wake: 0, start: 0n, budget: 0n, found: 0 });
   }
 
+  const tint = ELEMENT_COLOR[(save.aura!.element + level * 3) % 8]!;
+  const motes = Array.from({ length: 220 }, (_, i) => ({ x: rand(0, W), y: rand(0, H), v: rand(6, 22), d: String(i % 8) }));
   let enemies: Enemy[] = [];
   let allies: Ally[] = [];
   let projs: Proj[] = [];
@@ -633,8 +635,10 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const sx = shake ? rand(-shake, shake) : 0, sy = shake ? rand(-shake, shake) : 0;
     ctx.translate(Math.round(w / 2 - cam.x + sx), Math.round(h / 2 - cam.y + sy));
 
-    // ground: the eightfold lattice
-    ctx.strokeStyle = 'rgba(231,194,107,0.045)';
+    // ground: the eightfold lattice, tinted by the descent's element
+    ctx.fillStyle = tint + '0a';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = tint + '14';
     ctx.lineWidth = 1;
     ctx.beginPath();
     const x0 = Math.max(0, Math.floor((cam.x - w / 2) / 100) * 100), x1 = Math.min(W, cam.x + w / 2 + 100);
@@ -642,9 +646,19 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     for (let x = x0; x <= x1; x += 100) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
     for (let y = y0; y <= y1; y += 100) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(231,194,107,0.25)';
+    ctx.strokeStyle = tint + '44';
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, W, H);
+    // drifting motes: the astral leaking through
+    ctx.font = '11px JetBrains Mono, monospace';
+    for (const m of motes) {
+      m.y -= m.v * 0.016;
+      if (m.y < 0) { m.y = H; m.x = rand(0, W); }
+      const a = 0.05 + 0.12 * Math.sin(t * 0.7 + m.x);
+      if (Math.abs(m.x - cam.x) > w / 2 + 20 || Math.abs(m.y - cam.y) > h / 2 + 20) continue;
+      ctx.fillStyle = `rgba(231,194,107,${Math.max(0.02, a).toFixed(3)})`;
+      ctx.fillText(m.d, m.x, m.y);
+    }
 
     // shrines
     for (const s of shrines) {
@@ -660,6 +674,14 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.stroke();
       octagon(ctx, B.shrineRadius * 0.6, -t * 0.3);
       ctx.stroke();
+      ctx.font = '10px JetBrains Mono, monospace';
+      ctx.fillStyle = c;
+      ctx.textAlign = 'center';
+      const digits = s.prefix + '0123456701234567';
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2 + t * (s.state === 'scrying' ? 0.9 : 0.15);
+        ctx.fillText(digits[i]!, Math.cos(a) * (B.shrineRadius * 0.8), Math.sin(a) * (B.shrineRadius * 0.8) + 3);
+      }
       ctx.globalAlpha = 1;
       if (s.state === 'waking') {
         ctx.strokeStyle = '#fff';
