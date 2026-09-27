@@ -125,3 +125,9 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .card-table td { padding: 3px 6px; }
 .card-table tr.reached td { color: var(--gold); }
 .spirit .nm, .spirit .sigil { cursor: pointer; }
+.tip { position: fixed; z-index: 100; max-width: 320px; padding: 8px 11px; background: rgba(14, 11, 24, 0.97); border: 1px solid var(--gold); border-radius: 4px; color: var(--ink); font: 14px/1.45 var(--serif); pointer-events: none; opacity: 0; transition: opacity 0.12s; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6); }
+.tip.on { opacity: 1; }
+.tip b { color: var(--gold); font-weight: 600; }
+.tip em { color: var(--gold); font-style: normal; }
+[data-tip] { cursor: help; }
+button[data-tip], select[data-tip], input[data-tip], .slot[data-tip], [data-card][data-tip] { cursor: pointer; }

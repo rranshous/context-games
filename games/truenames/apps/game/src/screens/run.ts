@@ -4,7 +4,7 @@ import { frag, esc } from '../dom.ts';
 import { BALANCE as B, descentName } from '../balance.ts';
 import {
   ELEMENT_COLOR, ASPECTS, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS, WARDEN_WELLS,
-  spiritName, magnitudeTitle, addressOf,
+  spiritName, magnitudeTitle, addressOf, truths,
 } from '../lore.ts';
 import { persist, spiritOf } from '../save.ts';
 import { scanKey } from '../services.ts';
@@ -14,6 +14,7 @@ import { cellsBelow, spiritAt, target, type Spirit } from '@truenames/universe';
 import { sanctumScreen } from './sanctum.ts';
 import { sigilCanvas, sigilURL } from '../sigil.ts';
 import * as sfx from '../audio.ts';
+import { HELP, showTip, hideTip } from '../help.ts';
 
 type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman' | 'warden';
 
@@ -347,7 +348,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       const frac = Math.max(0, Math.min(1, r.grant / castCap(r.strength, spiritStats(sp).generosity)));
       const tgt = r.target.kind === 'point' ? r.target : { x: player.x, y: player.y };
       novas.push({ x: tgt.x, y: tgt.y, t: B.warden.novaDelay, max: B.warden.novaDelay, dmg: B.warden.novaDamage * dmgMult * (0.3 + 0.7 * frac), r: B.warden.novaRadius, color: ELEMENT_COLOR[sp.element]!, element: sp.element, enemy: true });
-      floaters.push({ x: e.x, y: e.y - 44, text: `${r.effective.toFixed(0)} bits`, color: '#e7c26b', t: 0, size: 13 });
+      floaters.push({ x: e.x, y: e.y - 44, text: `${r.effective.toFixed(0)}`, color: '#e7c26b', t: 0, size: 13 });
       sfx.sfxEnemyCast();
       return;
     }
@@ -361,7 +362,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const frac = Math.max(0, Math.min(1, r.grant / full));
     const dmg = B.shaman.boltDamage * dmgMult * (0.25 + 0.75 * frac);
     projs.push({ x: e.x, y: e.y, vx: (dx / d) * B.shaman.boltSpeed, vy: (dy / d) * B.shaman.boltSpeed, r: 5 + 5 * frac, dmg, life: 2.5, enemy: true, color });
-    floaters.push({ x: e.x, y: e.y - 20, text: `${r.effective.toFixed(0)} bits`, color: '#9c8f74', t: 0, size: 11 });
+    floaters.push({ x: e.x, y: e.y - 20, text: `${r.effective.toFixed(0)}`, color: '#9c8f74', t: 0, size: 11 });
     sfx.sfxEnemyCast();
   }
 
@@ -440,7 +441,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (!rec || over) return;
     auth.submitName(rec.claim);
     const sl = slots.find((x) => x?.cell === n.cell);
-    if (sl) floaters.push({ x: player.x, y: player.y + 34, text: `${sl.name} · ${n.strength} bits`, color: sl.color, t: -0.6, size: 14 });
+    if (sl) floaters.push({ x: player.x, y: player.y + 34, text: `${sl.name} grows truer · ${truths(n.strength)}`, color: sl.color, t: -0.6, size: 14 });
   });
 
   // ---------- update ----------
@@ -946,7 +947,21 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
   }
 
+  // hover help for the canvas HUD: regions are rebuilt every frame
+  let hud: { x: number; y: number; w: number; h: number; tip: string }[] = [];
+  let tipShown = false;
+  function hudHover() {
+    const r = paused || over ? null : hud.find((q) => mouse.sx >= q.x && mouse.sx <= q.x + q.w && mouse.sy >= q.y && mouse.sy <= q.y + q.h);
+    if (r) { showTip(r.tip, mouse.sx, mouse.sy); tipShown = true; }
+    else if (tipShown) { hideTip(); tipShown = false; }
+  }
+
   function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
+    hud = [
+      { x: 16, y: 16, w: 224, h: 34, tip: HELP.life },
+      { x: w / 2 - 170, y: 12, w: 340, h: 54, tip: HELP.wave },
+      { x: w - 320, y: 10, w: 310, h: 22, tip: HELP.humRun },
+    ];
     drawIndicators(ctx, w, h);
     // health
     ctx.fillStyle = 'rgba(10,9,17,0.7)';
@@ -982,6 +997,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.fillRect(w / 2 - bw / 2, 84, (bw * warden.hp) / warden.maxHp, 6);
       ctx.font = '11px Cinzel, serif';
       ctx.fillText(`the Warden · ${spiritName(spiritOfCell(warden.cell!))}`, w / 2, 81);
+      hud.push({ x: w / 2 - bw / 2 - 4, y: 72, w: bw + 8, h: 22, tip: HELP.warden });
     }
     ctx.textAlign = 'right';
     ctx.font = '12px EB Garamond, serif';
@@ -1011,7 +1027,8 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     ctx.textAlign = 'left';
     ctx.font = '11px JetBrains Mono, monospace';
     ctx.fillStyle = '#9c8f74';
-    ctx.fillText(`strain ${st.strain.toFixed(1)} / ${st.capacity.toFixed(1)} bits`, mx, my - 3);
+    ctx.fillText(`strain ${st.strain.toFixed(1)} / ${st.capacity.toFixed(1)}`, mx, my - 3);
+    hud.push({ x: mx - 6, y: my - 14, w: mw + 12, h: 26, tip: HELP.strain });
     if (save.runs.length < 2 && !over) {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
@@ -1021,6 +1038,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
     for (const { s, i } of active) {
       const sl = s!;
+      hud.push({ x, y, w: sw, h: 62, tip: `<b style="color:${sl.color}">${sl.name}</b>: ${FORMS[sl.form]!.name}, ${FORMS[sl.form]!.desc}. Your name holds ${truths(S.strength(sl.cell))}.<br>${HELP.hudSlot}` });
       ctx.fillStyle = sl.flash > 0 ? 'rgba(231,194,107,0.22)' : 'rgba(10,9,17,0.8)';
       ctx.fillRect(x, y, sw, 62);
       ctx.strokeStyle = sl.color;
@@ -1037,7 +1055,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.fillText(sl.name.slice(0, 12), x + 6, y + 30);
       ctx.fillStyle = '#9c8f74';
       ctx.font = '11px EB Garamond, serif';
-      ctx.fillText(`${FORMS[sl.form]!.name} · ${S.strength(sl.cell)} bits`, x + 6, y + 44);
+      ctx.fillText(`${FORMS[sl.form]!.name} · ${truths(S.strength(sl.cell))}`, x + 6, y + 44);
       ctx.textAlign = 'right';
       ctx.font = '12px JetBrains Mono, monospace';
       ctx.fillStyle = sl.thin > 0 ? '#ff9e5a' : '#e9dcb8';
@@ -1057,6 +1075,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
         ctx.fillStyle = '#ff9e5a';
         ctx.font = '11px EB Garamond, serif';
         ctx.fillText(`${rivals} rival${rivals > 1 ? 's' : ''} at this well`, x + 6, y - 4);
+        hud.push({ x, y: y - 16, w: sw, h: 14, tip: HELP.rivals });
       }
       x += sw + gap;
     }
@@ -1138,6 +1157,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       window.removeEventListener('contextmenu', onContext);
       window.removeEventListener('blur', onBlur);
       document.body.style.cursor = '';
+      hideTip();
       offFind();
       offName();
       delete (window as any).__run;
@@ -1146,6 +1166,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       time += dt;
       update(dt);
       draw(ctx, w, h, time);
+      hudHover();
       return true;
     },
   };

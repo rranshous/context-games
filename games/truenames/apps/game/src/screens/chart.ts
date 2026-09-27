@@ -38,12 +38,12 @@ export function openChart(app: App, onPick: (element: number, aspect: number, de
     const list = known.get(`${e}${a}`) ?? [];
     const bars = CHART_DEPTHS.map((d) => {
       const c = aspectCoverage(app, e, a, d);
-      return `<i title="depth ${d}: ${(c * 100).toFixed(0)}% scried, ~${expectedSpirits(`${e}${a}`, d).toFixed(1)} spirits" style="--f:${(c * 100).toFixed(1)}%"></i>`;
+      return `<i style="--f:${(c * 100).toFixed(1)}%"></i>`;
     }).join('');
     const names = list.map((c) => spiritOf(save, c)).filter(Boolean);
     const title = names.length ? names.map((s) => spiritName(s!)).join(', ') : 'no spirits known';
     const sig = names.sort((x, y) => y!.magnitude - x!.magnitude)[0];
-    return `<div class="chart-cell" data-e="${e}" data-a="${a}" style="--c:${ELEMENT_COLOR[e]}" title="${esc(ELEMENT_NAMES[e]!)} / ${esc(ASPECTS[e]![a]!)} · ${esc(title)}">
+    return `<div class="chart-cell" data-e="${e}" data-a="${a}" style="--c:${ELEMENT_COLOR[e]}" data-tip="=${esc(`<b>${ELEMENT_NAMES[e]} / ${ASPECTS[e]![a]}</b><br>${CHART_DEPTHS.map((d) => `depth ${d}: ${(aspectCoverage(app, e, a, d) * 100).toFixed(0)}% searched, ~${expectedSpirits(`${e}${a}`, d).toFixed(1)} spirits in all`).join('<br>')}<br>known here: ${title}<br><em>click to aim your scrying here</em>`)}">
       <div class="cc-name">${esc(ASPECTS[e]![a]!)}</div>
       <div class="cc-bars">${bars}</div>
       <div class="cc-known">${sig ? `<img src="${sigilURL(sig)}" alt="">` : ''}${list.length ? `<span>${list.length}</span>` : ''}</div>

@@ -147,3 +147,8 @@ export const ANCIENTS = [
 
 /** The mightiest ancients (magnitude >= 2), whom Wardens call upon. */
 export const WARDEN_WELLS = ['011010', '567171', '570476', '615043', '651063'];
+
+/** The in-world unit of a name's truth (internally: difficulty bits). Never say "bits" to the player. */
+export function truths(n: number): string {
+  return `${n} ${n === 1 ? 'truth' : 'truths'}`;
+}

@@ -5,6 +5,7 @@ import { drawAstral } from './astral.ts';
 import { initAudio, setDrone, sfxFind, sfxName, isMuted, setMuted } from './audio.ts';
 import { spiritOf } from './save.ts';
 import { spiritName } from './lore.ts';
+import { installTooltips } from './help.ts';
 
 export interface Screen {
   mount(ui: HTMLElement): void;
@@ -62,6 +63,7 @@ async function boot() {
   };
   (window as any).__truenames = { app, services, save };
   services.resume();
+  installTooltips();
   const wake = () => initAudio();
   window.addEventListener('pointerdown', wake);
   window.addEventListener('keydown', (e) => {

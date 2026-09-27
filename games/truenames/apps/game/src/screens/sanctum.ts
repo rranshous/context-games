@@ -2,7 +2,7 @@ import type { App, Screen } from '../main.ts';
 import { frag, esc } from '../dom.ts';
 import {
   ELEMENT_NAMES, ELEMENT_COLOR, ELEMENT_GLYPH, ASPECTS, FORMS, HEARTH_GOD,
-  addressOf, spiritName, magnitudeTitle, spiritStatsLine, nameRunes, fmtDuration, traditionName,
+  addressOf, spiritName, magnitudeTitle, nameRunes, fmtDuration, traditionName, truths, TEMPERS, weightWord, generosityWord,
 } from '../lore.ts';
 import { persist, spiritOf } from '../save.ts';
 import { expectedSpirits } from '../services.ts';
@@ -17,6 +17,12 @@ import { openSpiritCard } from './spirit-card.ts';
 
 const MAX_BAR_BITS = 28;
 
+/** form · weight · generosity · temper, each with its own hover help. */
+function statsHtml(sp: Spirit): string {
+  const t = sp.traits;
+  return `<span data-tip="form">${FORMS[t.form]!.name}</span> · <span data-tip="weight">${weightWord(t.weightIdx)}</span> · <span data-tip="generosity">${generosityWord(t.generosityIdx)}</span> · <span data-tip="temper">${TEMPERS[t.temperIdx]}</span>`;
+}
+
 export function sanctumScreen(app: App): Screen {
   const S = app.services;
   const save = app.save;
@@ -29,7 +35,7 @@ export function sanctumScreen(app: App): Screen {
   const freshCells = new Set<string>();
   const feed: string[] = [];
   const feedLine = (sp: Spirit, how: string) =>
-    `<div><img class="sigil-sm" src="${sigilURL(sp)}" alt=""> <span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span>, ${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)} <span class="faint">${how}</span></div>`;
+    `<div data-tip="found"><img class="sigil-sm" src="${sigilURL(sp)}" alt=""> <span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span>, ${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)} <span class="faint">${how}</span></div>`;
   for (const k of Object.values(save.spirits).filter((k) => k.source !== 'lore').sort((a, b) => a.foundAt - b.foundAt).slice(-12)) {
     const sp = spiritOf(save, k.spirit.cell);
     if (sp) feed.push(feedLine(sp, k.source === 'shrine' ? 'at a shrine' : 'scried'));
@@ -48,8 +54,8 @@ export function sanctumScreen(app: App): Screen {
     const counts = { all: all.length, learned: all.filter((x) => S.learned(x.cell)).length, unlearned: 0 };
     counts.unlearned = counts.all - counts.learned;
     const head = root.querySelector('#bookbar')!;
-    head.innerHTML = (['all', 'learned', 'unlearned'] as const).map((f) => `<button class="small ${bookFilter === f ? 'on' : ''}" data-filter="${f}">${f} ${counts[f]}</button>`).join(' ')
-      + ` <span class="dim" style="font-size:13px; margin-left:6px">sort</span> ` + (['truth', 'might', 'newest'] as const).map((o) => `<button class="small ${bookSort === o ? 'on' : ''}" data-sort="${o}">${o}</button>`).join(' ');
+    head.innerHTML = (['all', 'learned', 'unlearned'] as const).map((f) => `<button class="small ${bookFilter === f ? 'on' : ''}" data-filter="${f}" data-tip="=Show ${f === 'all' ? 'every spirit you know of' : f === 'learned' ? 'only names you can speak' : 'spirits whose names you have yet to learn'}.">${f} ${counts[f]}</button>`).join(' ')
+      + ` <span class="dim" style="font-size:13px; margin-left:6px">sort</span> ` + (['truth', 'might', 'newest'] as const).map((o) => `<button class="small ${bookSort === o ? 'on' : ''}" data-sort="${o}" data-tip="=Sort by ${o === 'truth' ? 'how true your names are' : o === 'might' ? 'magnitude' : 'when they were found'}.">${o}</button>`).join(' ');
     const found = (c: string) => save.spirits[c]?.foundAt ?? 0;
     const spirits = all
       .filter((x) => bookFilter === 'all' || (bookFilter === 'learned') === S.learned(x.cell))
@@ -73,20 +79,20 @@ export function sanctumScreen(app: App): Screen {
       const next = med ? fmtDuration(2 ** (s + 1) / Math.max(1, (rate * S.pool.weight('name:' + sp.cell)) / totalWeight)) : null;
       const bound = save.loadout.includes(sp.cell);
       return `<div class="spirit ${freshCells.has(sp.cell) ? 'new' : ''}" style="--c:${color}">
-        <img class="sigil" src="${sigilURL(sp)}" alt="" data-card="${sp.cell}" title="open its card">
-        <div class="row"><span class="nm" data-card="${sp.cell}">${ELEMENT_GLYPH[sp.element]} ${esc(spiritName(sp))}</span>
-          <span class="dim" style="font-size:13px">${magnitudeTitle(sp.magnitude)} · mag ${sp.magnitude}</span><span class="grow"></span>
-          <span class="bits ${learned ? 'gold' : 'dim'}">${s ? s + ' bits' : 'unnamed'}</span></div>
-        <div class="addr">${esc(addressOf(sp.cell))} <span class="mono faint">${sp.cell}</span>${sp.cell === HEARTH_GOD ? ' · <i>the hearth-god</i>' : ''}</div>
-        <div class="stats">${spiritStatsLine(sp)}</div>
-        <div class="bar"><i style="width:${(100 * s) / MAX_BAR_BITS}%"></i><span class="mark" style="left:${(100 * MIN_NAME_BITS) / MAX_BAR_BITS}%"></span></div>
+        <img class="sigil" src="${sigilURL(sp)}" alt="" data-card="${sp.cell}" data-tip="card">
+        <div class="row"><span class="nm" data-card="${sp.cell}" data-tip="card">${ELEMENT_GLYPH[sp.element]} ${esc(spiritName(sp))}</span>
+          <span class="dim" style="font-size:13px" data-tip="magnitude">${magnitudeTitle(sp.magnitude)} · magnitude ${sp.magnitude}</span><span class="grow"></span>
+          <span class="bits ${learned ? 'gold' : 'dim'}" data-tip="truths">${s ? truths(s) : 'unnamed'}</span></div>
+        <div class="addr" data-tip="address">${esc(addressOf(sp.cell))} <span class="mono faint">${sp.cell}</span>${sp.cell === HEARTH_GOD ? ' · <i>the hearth-god</i>' : ''}</div>
+        <div class="stats">${statsHtml(sp)}</div>
+        <div class="bar" data-tip="=How true your name is. The mark is 12 truths, where a name is learned; the bar fills toward 28."><i style="width:${(100 * s) / MAX_BAR_BITS}%"></i><span class="mark" style="left:${(100 * MIN_NAME_BITS) / MAX_BAR_BITS}%"></span></div>
         <div class="row">
-          <button class="small ${med ? 'on' : ''}" data-med="${sp.cell}">${med ? 'meditating' : 'meditate'}</button>
-          ${med ? `<button class="small ${S.isFocused(sp.cell) ? 'on' : ''}" data-focus="${sp.cell}" title="focus: a larger share of your meditation">${S.isFocused(sp.cell) ? '★ focus' : '☆'}</button>` : ''}
-          ${learned ? `<button class="small" data-bind="${sp.cell}" ${bound ? 'disabled' : ''}>${bound ? 'bound' : 'bind'}</button>` : `<span class="dim" style="font-size:13px">learn at ${MIN_NAME_BITS} bits</span>`}
+          <button class="small ${med ? 'on' : ''}" data-med="${sp.cell}" data-tip="meditate">${med ? 'meditating' : 'meditate'}</button>
+          ${med ? `<button class="small ${S.isFocused(sp.cell) ? 'on' : ''}" data-focus="${sp.cell}" data-tip="focus">${S.isFocused(sp.cell) ? '★ focus' : '☆'}</button>` : ''}
+          ${learned ? `<button class="small" data-bind="${sp.cell}" data-tip="bind" ${bound ? 'disabled' : ''}>${bound ? 'bound' : 'bind'}</button>` : `<span class="dim" style="font-size:13px" data-tip="learned">learned at ${truths(MIN_NAME_BITS)}</span>`}
           <span class="grow"></span>
-          ${med ? `<span class="dim" style="font-size:13px">next bit ~${next}</span>` : ''}
-          ${rec ? `<span class="runes" title="your name for this spirit">${nameRunes(rec.claim.nonce)}</span>` : ''}
+          ${med ? `<span class="dim" style="font-size:13px" data-tip="nextTruth">next truth ~${next}</span>` : ''}
+          ${rec ? `<span class="runes" data-tip="runes">${nameRunes(rec.claim.nonce)}</span>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -139,9 +145,9 @@ export function sanctumScreen(app: App): Screen {
     const cellsPerSec = rate / 2.15;
     const remaining = Number(total - done);
     const running = !!S.scryTask(prefix, depth);
-    info.innerHTML = `<div>${esc(addressOf(prefix))}, depth ${depth}</div>
-      <div class="dim">${Number(total).toLocaleString()} divisions · 1 in ${Math.round(1 / perCell).toLocaleString()} holds a spirit · ~${exp < 10 ? exp.toFixed(1) : Math.round(exp)} spirits here</div>
-      <div class="dim">scanned ${((100 * Number(done)) / Number(total)).toFixed(1)}% · a find every ~${fmtDuration(1 / perCell / cellsPerSec)} · whole layer ~${fmtDuration(remaining / cellsPerSec)}</div>`;
+    info.innerHTML = `<div data-tip="address">${esc(addressOf(prefix))}, depth ${depth}</div>
+      <div class="dim" data-tip="divisions">${Number(total).toLocaleString()} divisions · 1 in ${Math.round(1 / perCell).toLocaleString()} holds a spirit · ~${exp < 10 ? exp.toFixed(1) : Math.round(exp)} spirits here</div>
+      <div class="dim" data-tip="scanned">scanned ${((100 * Number(done)) / Number(total)).toFixed(1)}% · a find every ~${fmtDuration(1 / perCell / cellsPerSec)} · whole layer ~${fmtDuration(remaining / cellsPerSec)}</div>`;
     btn.disabled = running || done >= total;
     btn.textContent = done >= total ? 'fully scried' : running ? 'scrying…' : 'Scry here';
   }
@@ -154,8 +160,8 @@ export function sanctumScreen(app: App): Screen {
           if (t.kind !== 'scry') return '';
           const total = cellsBelow(t.depth - t.prefix.length);
           const pct = (100 * Number(t.doneUpTo)) / Number(total);
-          return `<div class="task"><div class="row" style="display:flex; gap:8px"><span>${esc(addressOf(t.prefix))} · depth ${t.depth}</span><span style="flex:1"></span><span class="dim">${t.hits} found</span>
-            <button class="small" data-stop="${t.id}">stop</button></div>
+          return `<div class="task" data-tip="task"><div class="row" style="display:flex; gap:8px"><span>${esc(addressOf(t.prefix))} · depth ${t.depth}</span><span style="flex:1"></span><span class="dim">${t.hits} found</span>
+            <button class="small" data-stop="${t.id}" data-tip="stop">stop</button></div>
             <div class="bar"><i style="width:${pct.toFixed(2)}%"></i></div><div class="dim mono" style="font-size:12px">${pct.toFixed(2)}%</div></div>`;
         }).join('')
       : `<div class="hint">No scrying under way.</div>`;
@@ -169,10 +175,10 @@ export function sanctumScreen(app: App): Screen {
       const sp = cell ? spiritOf(save, cell) : null;
       const key = String(i + 1);
       const mouse = i === 0 ? ' · LMB' : i === 1 ? ' · RMB' : '';
-      if (!sp) return `<div class="slot ${picking === i ? 'picking' : ''}" data-slot="${i}"><span class="key">${key}</span><span class="dim">${picking === i ? 'choose a learned spirit: press bind' : 'empty'}${mouse}</span></div>`;
-      return `<div class="slot filled" data-slot="${i}" style="--c:${ELEMENT_COLOR[sp.element]}"><span class="key">${key}</span><img class="sigil-sm" src="${sigilURL(sp)}" alt="">
+      if (!sp) return `<div class="slot ${picking === i ? 'picking' : ''}" data-slot="${i}" data-tip="slot"><span class="key">${key}</span><span class="dim">${picking === i ? 'choose a learned spirit: press bind' : 'empty'}${mouse}</span></div>`;
+      return `<div class="slot filled" data-slot="${i}" data-tip="slot" style="--c:${ELEMENT_COLOR[sp.element]}"><span class="key">${key}</span><img class="sigil-sm" src="${sigilURL(sp)}" alt="">
         <span style="flex:1"><span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:13px">${FORMS[sp.traits.form]!.name}${mouse}</span></span>
-        <span class="bits gold">${S.strength(sp.cell)}</span><button class="small" data-unbind="${i}">×</button></div>`;
+        <span class="bits gold" data-tip="truths">${truths(S.strength(sp.cell))}</span><button class="small" data-unbind="${i}" data-tip="unbind">×</button></div>`;
     }).join('');
     const canRun = save.loadout.some((c) => c && S.learned(c));
     (root.querySelector('#run') as HTMLButtonElement).disabled = !canRun;
@@ -203,10 +209,10 @@ export function sanctumScreen(app: App): Screen {
     let msg = '';
     if (known.length <= 1 && !scrying) msg = `Search for spirits: choose a region in <em>Scrying</em> and press <em>Scry here</em>. Your element, depth 7, is a good first place to look.`;
     else if (learnedUnbound.length && save.loadout.some((c) => !c)) msg = `A learned name is waiting. Press <em>bind</em> to carry it into the dark.`;
-    else if (unlearned.length && known.every((c) => c === HEARTH_GOD || !S.learned(c)) && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found spirits you cannot yet call. Press <em>meditate</em> on one; at ${MIN_NAME_BITS} bits its name is yours.`;
+    else if (unlearned.length && known.every((c) => c === HEARTH_GOD || !S.learned(c)) && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found spirits you cannot yet call. Press <em>meditate</em> on one; at ${truths(MIN_NAME_BITS)} its name is yours.`;
     else if (!save.runs.length) msg = `When you are ready, <em>walk into the dark</em>. Stand in shrines there to search while you fight.`;
     else if (!meditating) msg = `Nothing is being meditated. Names only grow truer while you work on them, even while you sleep.`;
-    else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every bit makes each evocation about 1.4× stronger.`;
+    else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every truth makes each evocation about 1.4× stronger.`;
     box.innerHTML = msg || `Your names deepen while you rest. Go deeper when the dark feels thin: descent ${save.descent + 1} is open to you.`;
   }
 
@@ -237,40 +243,40 @@ export function sanctumScreen(app: App): Screen {
       root = frag(`<div class="sanctum">
         <div class="topbar">
           <h1 style="font-size:20px; color:var(--gold)">The Sanctum</h1>
-          <span style="color:${ELEMENT_COLOR[el0]}">${ELEMENT_GLYPH[el0]} ${ELEMENT_NAMES[el0]}</span>
-          <span class="dim mono aura-hex" title="your aura (public key): ${aura.pub}">${aura.pub.slice(0, 8)}…</span>
-          <span class="dim">capacity <span class="mono gold" id="cap"></span> bits</span>
+          <span style="color:${ELEMENT_COLOR[el0]}" data-tip="element">${ELEMENT_GLYPH[el0]} ${ELEMENT_NAMES[el0]}</span>
+          <span class="dim mono aura-hex" data-tip="aura">${aura.pub.slice(0, 8)}…</span>
+          <span class="dim" data-tip="capacity">capacity <span class="mono gold" id="cap"></span></span>
           <span class="spacer"></span>
-          <span class="dim">hum <span class="mono" id="hum"></span></span>
-          <span class="dim">voices <button class="small" id="wdec">−</button> <span class="mono" id="workers"></span> <button class="small" id="winc">+</button></span>
-          <select id="descent" title="how deep to walk"></select>
-          <button class="primary" id="run">Walk into the dark</button>
-          <button class="small" id="mute" title="sound (M)">♪</button>
-          <button class="small" id="title">⌂</button>
+          <span class="dim" data-tip="hum">hum <span class="mono" id="hum"></span></span>
+          <span class="dim" data-tip="voices">voices <button class="small" id="wdec">−</button> <span class="mono" id="workers"></span> <button class="small" id="winc">+</button></span>
+          <select id="descent" data-tip="descent"></select>
+          <button class="primary" id="run" data-tip="walk">Walk into the dark</button>
+          <button class="small" id="mute" data-tip="mute">♪</button>
+          <button class="small" id="title" data-tip="home">⌂</button>
         </div>
-        <div class="advice" id="advice"></div>
+        <div class="advice" id="advice" data-tip="advice"></div>
         <div class="cols">
           <div class="panel"><h2>Name Book</h2>
-            <div class="hint">Meditation grinds your name for a spirit. Each bit of truth costs twice the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
+            <div class="hint">Meditation grinds your name for a spirit. Each truth costs twice the work of the last. A truer name draws more, strains less and outshouts rivals at a crowded well.</div>
             <div id="bookbar" style="margin-bottom:8px"></div>
             <div id="book"></div></div>
           <div class="panel"><h2>Scrying</h2>
             <div class="hint">Choose a region and a depth, then search it division by division. Shallow layers are small and soon exhausted. The deep is endless and sparse.</div>
             <div class="scryform">
-              <label>element</label><select id="s-el">${ELEMENT_NAMES.map((n, i) => `<option value="${i}">${ELEMENT_GLYPH[i]} ${n}</option>`).join('')}</select>
-              <label>aspect</label><select id="s-asp"></select>
-              <label>tradition</label><select id="s-trad"></select>
-              <label>depth</label><input id="s-depth" type="number" min="${MIN_SPIRIT_DEPTH}" max="24" value="7">
+              <label data-tip="scryRegion">element</label><select id="s-el">${ELEMENT_NAMES.map((n, i) => `<option value="${i}">${ELEMENT_GLYPH[i]} ${n}</option>`).join('')}</select>
+              <label data-tip="scryRegion">aspect</label><select id="s-asp"></select>
+              <label data-tip="scryRegion">tradition</label><select id="s-trad"></select>
+              <label data-tip="depth">depth</label><input id="s-depth" type="number" min="${MIN_SPIRIT_DEPTH}" max="24" value="7">
             </div>
             <div id="s-info" style="font-size:14px; line-height:1.45; margin-bottom:8px"></div>
-            <button id="s-go">Scry here</button> <button id="s-chart">Chart of the astral</button>
+            <button id="s-go" data-tip="scry">Scry here</button> <button id="s-chart" data-tip="chart">Chart of the astral</button>
             <h2 style="margin-top:16px">Under way</h2><div id="tasks"></div>
             <h2 style="margin-top:12px">Finds</h2><div class="feed" id="feed"></div>
           </div>
           <div class="panel"><h2>Loadout</h2>
             <div class="hint">Bind up to six learned names. In the dark: keys 1–6, or left/right click for the first two. Aim with the mouse. Move with WASD.</div>
             <div class="slots" id="slots"></div>
-            <h2 style="margin-top:16px">Walks</h2><div class="feed" id="runs"></div>
+            <h2 style="margin-top:16px" data-tip="walks">Walks</h2><div class="feed" id="runs"></div>
           </div>
         </div>
       </div>`);

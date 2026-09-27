@@ -190,3 +190,13 @@ Extras beyond the milestone plan:
 4. **Kernel headroom**: lazy reduction in dense mixes, a squaring routine for the S-box, maybe 1.3–1.5× more.
 5. **Phase 1 multiplayer** is a small step architecturally. `LocalAuthority` is already driven only through `Authority`/`NpcAuthority`, and claims are self-verifying signed records. A `RemoteAuthority` over WebSocket plus a Node server hosting `LocalAuthority` would let two browser tabs contend for the hearth-god's well.
 6. Open question 1 (warfare/ownership) is untouched.
+
+## Session 1b: Robby's first look (2026-09-27, morning)
+
+Robby's feedback from the sanctum: "the language of using bits in the spell meditation is world breaking", "we need mouse over help/explanations for nearly everything on the screen". He liked the symbols. He also asked whether meditation pauses during play. It doesn't: the pool belongs to the app, not a screen, so it runs in the sanctum and in the dark alike until the tab closes.
+
+- **"bits" → "truths"** (Robby's pick among tones / truths / glyph-only / resonance). `lore.truths(n)` is the single formatter. Names *hold* truths ("holds 23 truths", "next truth ~45m", "learned at 12 truths"). Strain and evocation readouts are bare numbers ("strain 3.2 / 9.4"; floaters show "15.1"). Internals and docs keep "bits"; players never see it. This was already a standing rule in memory (never expose internal units), and I missed it by leaning on the docs' "rang at N bits" phrasing.
+- **Hover help everywhere** (`help.ts`):
+  - One shared tooltip. All explanations live in the `HELP` dictionary so the vocabulary stays consistent. Elements opt in with `data-tip="key"`, or `data-tip="=literal html"` for computed text (chart cells, filter buttons).
+  - Coverage: sanctum top bar, guidance line, every Name Book part (seal, name, magnitude, truths, address, each of form/weight/generosity/temper, the bar, meditate/focus/bind, next-truth, runes), scry form and readouts, tasks, finds, loadout slots, walks, spirit card rows and table headers, chart cells (per-depth coverage and expected spirits), and the attunement screen.
+  - The run HUD is canvas, so it rebuilds a list of hover rectangles every frame (life/ward, wave line, hum, strain meter, each slot with spirit-specific text, rivals, Warden bar) and drives the same tooltip.
