@@ -116,3 +116,17 @@ Others at mag 3: `567171` shadow/light (gen 14, generous). Mag 2: `570476`, `615
   - Node, one thread: **9,960 vs 1,857 names/s (5.4×)**.
   - Browser, 7 workers: **~38.6k vs ~17.5k utterances/s (2.2×)**. Chrome's BigInt is much faster than Node 22's, and 7 workers on 4 physical cores saturate at roughly 4 × 10k.
   - Remaining ideas: lazy reduction in the dense mixes, a dedicated squaring routine for the S-box.
+
+### Balance pass 2: shamans, rivals, guidance
+- **Bug: shaman damage was exponential.** Shamans used the same `grant → damage` path as the player, so at descent 3 (shaman names ~20 bits) one bolt hit for ~115 and the bot went from 100 to dead in under 8 s. Now **strength decides only how much of the well a shaman wins** (contention stays exponential, as designed). Damage = `boltDamage(9) × descent dmgMult × (0.25 + 0.75 × grant/ownCap)`, so strained or crowded shamans hit softer.
+- Calibration with the scripted bot (names at 20–29 bits):
+  - Descent 1: won with room to spare.
+  - Descent 3: **won at 38/100** (was a wipe before the fix).
+- Contention is now visible:
+  - A dashed thread runs from any shaman to you when it draws on a well you hold.
+  - Slots show "N rivals at this well".
+  - "the well runs thin" floats when your grant falls under 70% of your cap.
+- The sanctum has a one-line **guidance** strip that reads the save and suggests the next step (scry → meditate → bind → walk → keep meditating → go deeper).
+- Perf bug: `spiritAt()` (3 BigInt Poseidons, ~1 ms) was called per shaman per frame. Spirits are now cached per run.
+- Fun fact: one name (Pyrryroer, bolt, dominion of lightning) rolled **29 bits** after only ~tens of millions of utterances, about a 1-in-50 lucky draw. I re-verified the signed claim independently in Node (`verifyNameClaim → ok, 29`). Meditation really is a lottery with a slope.
+- Descent 5 with the same names: **fell at wave 4** (the ladder bites where it should). Frame rate held **60 fps** throughout. The only >50 ms frames coincide exactly with the bot's screenshots.
