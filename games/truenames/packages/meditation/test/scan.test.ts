@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scanRange, grindName } from '../src/scan.ts';
+import { createKernel } from '../src/wasm/kernel.ts';
 import { spiritAt, cellAtIndex, cellDigest, auraField, nameStrength, type Spirit } from '@truenames/universe';
 
 describe('scanRange', () => {
@@ -33,5 +34,25 @@ describe('grindName', () => {
     const best = grindName(cellDigest('011010'), auraField(pub), 0n, 300, 0);
     expect(best).not.toBeNull();
     expect(nameStrength('011010', pub, best!.nonce)).toBe(best!.strength);
+  });
+});
+
+describe('scanRange with the WASM kernel', () => {
+  it('finds exactly what the BigInt path finds, across a whole depth-7 block', () => {
+    const k = createKernel();
+    const a: string[] = [], b: string[] = [];
+    const ha = scanRange('01', 5, 0n, 4096n, (s) => a.push(s.cell));
+    const hb = scanRange('01', 5, 0n, 4096n, (s) => b.push(s.cell), k);
+    expect(b).toEqual(a);
+    expect(hb).toBe(ha);
+  });
+  it('grindName via kernel matches reference improvements', () => {
+    const k = createKernel();
+    const pub = new Uint8Array(32).fill(9);
+    const d = cellDigest('011010'), au = auraField(pub);
+    const x: number[] = [], y: number[] = [];
+    grindName(d, au, 5n, 2000, 0, (_n, s) => x.push(s));
+    grindName(d, au, 5n, 2000, 0, (_n, s) => y.push(s), k);
+    expect(y).toEqual(x);
   });
 });

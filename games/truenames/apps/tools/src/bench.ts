@@ -24,3 +24,17 @@ export function bench() {
   });
   for (const s of [8, 12, 16, 20, 24]) console.log(`  strength ${s}: ~${(2 ** s / r).toFixed(2)} s per core`);
 }
+
+export async function benchWasm() {
+  const { createKernel } = await import('@truenames/meditation');
+  const k = createKernel();
+  const d = cellDigest('0123456');
+  const a = auraField(new Uint8Array(32).fill(7));
+  let n = 0n;
+  const rw = rate('wasm name (grind)', (c) => { k.grind(d, a, n, c, 250); n += BigInt(c); });
+  let x = 1n;
+  rate('wasm hash3 (per call)', (c) => { for (let i = 0; i < c; i++) x = k.hash3(1n, x, 3n); });
+  let nonce = 0n;
+  const rb = rate('bigint name', (c) => { for (let i = 0; i < c; i++) bits(nameHashRaw(d, a, nonce++)); });
+  console.log(`speedup ${(rw / rb).toFixed(2)}x`);
+}

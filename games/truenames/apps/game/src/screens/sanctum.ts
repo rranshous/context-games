@@ -169,7 +169,9 @@ export function sanctumScreen(app: App): Screen {
 
   function renderTop() {
     const r = S.pool.rate();
-    root.querySelector('#hum')!.textContent = `${Math.round(r).toLocaleString()} utterances/s`;
+    const hum = root.querySelector('#hum') as HTMLElement;
+    hum.textContent = `${Math.round(r).toLocaleString()} utterances/s`;
+    hum.title = `meditation engine: ${S.pool.engine === 'wasm' ? 'WebAssembly (Montgomery Poseidon)' : S.pool.engine}`;
     root.querySelector('#workers')!.textContent = `${S.pool.getActive()} / ${S.pool.size}`;
     const cap = app.services.authority.auraState(save.aura!.pub).capacity;
     root.querySelector('#cap')!.textContent = cap.toFixed(1);

@@ -94,3 +94,25 @@ Others at mag 3: `567171` shadow/light (gen 14, generous). Mag 2: `570476`, `615
 
 ### Golden vectors in a browser worker (rule 3)
 `apps/game/vectors.html` runs `packages/universe/test/run-vectors.ts` inside a Web Worker and prints PASS/FAIL (title too). Verified **PASS (47 ms)** in Chromium. It's also a build entry, so it ships beside the game. Not yet automated in CI: `@vitest/browser` would need a Playwright version matched to a browser download, and I skipped that rabbit hole tonight.
+
+### Polish pass
+- **Sigils** (`sigil.ts`): every spirit gets a procedural seal from its flavor bits: a boundary polygon, extra rings for mighty spirits, 3–10 spokes with terminals, a heart and an optional chord. They appear in the Name Book, loadout, HUD slots, find toasts, and big on the attunement screen. They make found spirits feel like *individuals*.
+- **Sound** (`audio.ts`, all synthesized, `M` to mute): the meditation **drone swells with the hum** (log of utterances/s) and ducks during runs. Each of the 8 forms has a distinct cast sound, pitched by element. Finds ring a bell chord (deeper for mightier spirits), and name improvements chime a pentatonic note that climbs with strength. Chimes are throttled because early meditation improves several times a second.
+- **Names grow truer mid-run**: the run subscribes to name events and forwards the new claim to its own authority, so an overnight grind can land mid-fight.
+- **Chart of the Astral** (sanctum → Scrying → "Chart of the astral"): an 8×8 element × aspect grid. Each cell shows scan coverage bars for depths 7–12 (merging element-level and aspect-level scans via Z-order index ranges) plus known spirits with their mightiest sigil. Clicking a cell aims the scry form at its shallowest unexhausted depth.
+- Darkness vignette in runs; shrine labels now say "N answered" / "nothing answered".
+
+### WASM Poseidon kernel (the M0 risk, addressed)
+- `apps/tools/src/gen-wasm.ts` **generates the WAT** (so the 8-limb CIOS Montgomery multiply is fully unrolled), compiles it with the `wabt` npm package, and embeds the bytes as base64 in `packages/meditation/src/wasm/kernel-bytes.ts` (~7 KB, no fetch, works in workers and Node). Regenerate with `corepack pnpm tools gen-wasm`.
+- It's **optimized Poseidon** (paper appendix B), with constants derived at load in `kernel.ts:optimizedConstants`:
+  1. Partial-round constants are folded forward, so each partial round adds one scalar to s0 and `M·ĉ` rides into the next round.
+  2. Each partial-round mix is factored as `A_k = M'_k · M''_k`. `M''` is sparse: first row, first column, identity. `M'` is deferred and folded into the next round's `A_{k+1} = M · M'_k`, and applied once as a dense block after the last partial round. That's 2t−1 multiplies per partial round instead of t².
+  I derived this from scratch rather than copying circomlibjs's opt constants. It worked first try against the reference, in both modes (`createKernel({optimized: false})` keeps the naive path for tests).
+- **It lives in `meditation`, not `universe`.** The universe stays the pure BigInt reference (rule 1). The kernel is an accelerator with three safety nets:
+  1. A worker self-test at load, with BigInt fallback.
+  2. Scry candidate hits are **recomputed by the universe** (a mismatch throws).
+  3. Name improvements are re-scored with BigInt before being reported, and the authority re-verifies every signed claim anyway.
+- Speed (i7-4770, 4 cores / 8 threads):
+  - Node, one thread: **9,960 vs 1,857 names/s (5.4×)**.
+  - Browser, 7 workers: **~38.6k vs ~17.5k utterances/s (2.2×)**. Chrome's BigInt is much faster than Node 22's, and 7 workers on 4 physical cores saturate at roughly 4 × 10k.
+  - Remaining ideas: lazy reduction in the dense mixes, a dedicated squaring routine for the S-box.

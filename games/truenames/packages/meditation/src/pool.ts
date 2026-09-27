@@ -60,6 +60,8 @@ export class MeditationPool {
   private perMs = { scry: 1, name: 1.5 }; // items per ms per worker, adapted
   private hashWindow: { t: number; h: number }[] = [];
   paused = false;
+  /** Hash engine the workers reported ('wasm' or 'bigint'). */
+  engine: string = '?';
 
   constructor(
     makeWorker: () => Worker,
@@ -201,6 +203,7 @@ export class MeditationPool {
 
   private onReply(i: number, m: WorkerReply) {
     this.busy[i] = false;
+    if (m.kind === 'ready' && m.engine) this.engine = m.engine;
     if (m.kind === 'error') console.error('[meditation]', m.message);
     if (m.kind === 'scried' || m.kind === 'named') {
       this.hashWindow.push({ t: this.now(), h: m.hashes });

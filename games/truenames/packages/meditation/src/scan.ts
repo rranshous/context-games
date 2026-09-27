@@ -8,7 +8,13 @@ import {
   nameHashRaw,
   spiritFromDigest,
   cellsBelow,
+  target,
+  MIN_SPIRIT_DEPTH,
+  TAG_CELL,
+  TAG_SPIRIT,
+  SEED,
 } from '@truenames/universe';
+import type { Kernel } from './wasm/kernel.ts';
 
 /**
  * Scan `count` cells `extra` levels below `prefix`, starting at `start` (Z-order index).
@@ -21,7 +27,15 @@ export function scanRange(
   start: bigint,
   count: bigint,
   onHit: (s: Spirit) => void,
+  kern?: Kernel | null,
 ): number {
+  const child = kern ? (p: bigint, o: number) => kern.hash3(TAG_CELL, p, BigInt(o)) : childDigest;
+  const depth = prefix.length + extra;
+  const tgt = target(depth);
+  // With the kernel, only candidate hits pay for the BigInt path, which also re-verifies them.
+  const check = kern
+    ? (cell: string, d: bigint) => (depth >= MIN_SPIRIT_DEPTH && bits(kern.hash3(TAG_SPIRIT, SEED, d)) >= tgt ? verified(cell, d) : null)
+    : spiritFromDigest;
   if (extra <= 0) throw new Error('extra must be >= 1');
   const total = cellsBelow(extra);
   let end = start + count;
@@ -40,7 +54,7 @@ export function scanRange(
   const digests = new Array<bigint>(extra);
   let parent = cellDigest(prefix);
   for (let k = 0; k < extra; k++) {
-    parent = childDigest(parent, digits[k]!);
+    parent = child(parent, digits[k]!);
     digests[k] = parent;
     hashes++;
   }
@@ -48,7 +62,7 @@ export function scanRange(
   for (let i = start; i < end; i++) {
     const leaf = digests[extra - 1]!;
     const cell = base + digits.join('');
-    const s = spiritFromDigest(cell, leaf);
+    const s = check(cell, leaf);
     hashes++;
     if (s) {
       hashes++; // trait hash
@@ -65,11 +79,19 @@ export function scanRange(
     digits[k]!++;
     for (let j = k; j < extra; j++) {
       const p = j === 0 ? cellDigest(prefix) : digests[j - 1]!;
-      digests[j] = childDigest(p, digits[j]!);
+      digests[j] = child(p, digits[j]!);
       hashes++;
     }
   }
   return hashes;
+}
+
+/** A kernel-reported hit, recomputed with the universe's BigInt reference. */
+function verified(cell: Cell, d: bigint): Spirit | null {
+  if (cellDigest(cell) !== d) throw new Error(`kernel digest mismatch at ${cell}`);
+  const s = spiritFromDigest(cell, d);
+  if (!s) throw new Error(`kernel reported a spirit the universe denies at ${cell}`);
+  return s;
 }
 
 /**
@@ -83,7 +105,14 @@ export function grindName(
   count: number,
   beat: number,
   onBest?: (nonce: bigint, strength: number) => void,
+  kern?: Kernel | null,
 ): { nonce: bigint; strength: number } | null {
+  if (kern) {
+    return kern.grind(digest, aura, startNonce, count, beat, (n, s) => {
+      if (bits(nameHashRaw(digest, aura, n)) !== s) throw new Error('kernel name mismatch');
+      onBest?.(n, s);
+    });
+  }
   let best: { nonce: bigint; strength: number } | null = null;
   let n = startNonce;
   for (let i = 0; i < count; i++, n++) {

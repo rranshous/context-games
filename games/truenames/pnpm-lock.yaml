@@ -220,6 +220,10 @@ importers:
       '@truenames/universe':
         specifier: workspace:*
         version: link:../../packages/universe
+    devDependencies:
+      wabt:
+        specifier: ^1.0.39
+        version: 1.0.39
 
   packages/authority:
     dependencies:
@@ -941,6 +945,10 @@ packages:
       jsdom:
         optional: true
 
+  wabt@1.0.39:
+    resolution: {integrity: sha512-ba+dRL/75VQQY7RkU/CgriGbkoWAfS8TDyUlJfJhJ8KhtXgMl5dhNvoPNUcQ9IWRhW8u41glMSuZeTvsYq2rRg==}
+    hasBin: true
+
   why-is-node-running@3.2.2:
     resolution: {integrity: sha512-NKUzAelcoCXhXL4dJzKIwXeR8iEVqsA0Lq6Vnd0UXvgaKbzVo4ZTHROF2Jidrv+SgxOQ03fMinnNhzZATxOD3A==}
     engines: {node: '>=20.11'}
@@ -1391,5 +1399,7 @@ snapshots:
       '@types/node': 26.6.3
     transitivePeerDependencies:
       - msw
+
+  wabt@1.0.39: {}
 
   why-is-node-running@3.2.2: {}

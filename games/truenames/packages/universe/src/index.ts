@@ -262,3 +262,5 @@ export function cellsBelow(extra: number): bigint {
 export function elementName(e: number): string {
   return ELEMENTS[e] ?? '?';
 }
+export { C4, M4, C5, M5 } from './poseidon-constants.ts';
+export { poseidon3, poseidon4 } from './poseidon.ts';
