@@ -2,6 +2,7 @@ export {};
 const [cmd, ...args] = process.argv.slice(2);
 const cmds: Record<string, () => Promise<void> | void> = {
   bench: async () => (await import('./bench.ts')).bench(),
+  'vectors-browser': async () => (await import('./vectors-browser.ts')).vectorsBrowser(),
   'bench-wasm': async () => (await import('./bench.ts')).benchWasm(),
   'gen-wasm': async () => (await import('./gen-wasm.ts')).genWasm(),
   sim: async () => (await import('./sim.ts')).sim(),

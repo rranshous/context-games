@@ -5,6 +5,7 @@
   "packageManager": "pnpm@12.6.0",
   "scripts": {
     "test": "vitest run",
+    "test:browser": "tsx apps/tools/src/cli.ts vectors-browser",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "vite apps/game",
     "build": "vite build apps/game",

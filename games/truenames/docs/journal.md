@@ -151,3 +151,6 @@ A read-only review agent went over run/sanctum/services/pool/authority. It found
 7. The shrine progress baseline is now taken from the frontier before extending.
 
 Also new: **meditation focus** (☆ → ★ on a meditating spirit). The pool now does weighted fair scheduling (least `sent/weight` first, where a chunk is ~120 ms for either kind), and focus = 4× share. The "next bit" estimate uses the task's actual share.
+
+### Browser-worker vectors, automated
+`corepack pnpm test:browser` starts Vite on apps/game, opens `/vectors.html` in headless Chromium through `playwright-core@1.58.2` (pinned to match the cached chromium-1208 that bloom also uses), and exits non-zero unless the worker reports PASS. Result: **PASS (223 ms)**. Rule 3 is now covered in both environments by commands.

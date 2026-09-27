@@ -8,7 +8,8 @@ Status: **v0 playable** (M0–M6 built overnight 2026-09-27; see [journal](docs/
 ```sh
 corepack pnpm install
 corepack pnpm dev          # game at http://localhost:5190/  (vectors-in-a-worker check at /vectors.html)
-corepack pnpm test         # universe vectors, meditation, authority
+corepack pnpm test         # universe vectors, meditation, authority (Node)
+corepack pnpm test:browser # golden vectors inside a headless-Chromium Web Worker
 corepack pnpm typecheck
 corepack pnpm tools bench | sim | god-finder [prefix|-] [depth] | vectors
 ```
