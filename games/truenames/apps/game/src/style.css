@@ -116,3 +116,12 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .cc-known img { width: 18px; height: 18px; }
 .advice { font-style: italic; color: var(--ink); padding: 6px 14px; border-left: 2px solid var(--gold); background: rgba(231, 194, 107, 0.06); font-size: 15px; }
 .advice em { color: var(--gold); font-style: normal; }
+.card-overlay { z-index: 20; }
+.spirit-card { background: var(--panel); border: 1px solid var(--c); border-radius: 6px; padding: 20px 26px; max-width: 560px; width: 100%; max-height: 94vh; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.card-grid { display: grid; grid-template-columns: 1fr; gap: 3px; text-align: left; font-size: 15px; margin-top: 10px; width: 100%; }
+.card-grid .dim { display: inline-block; width: 92px; }
+.card-table { margin: 10px 0 4px; border-collapse: collapse; font-size: 14px; width: 100%; }
+.card-table th { color: var(--dim); font-weight: 400; text-align: left; border-bottom: 1px solid var(--panel-edge); padding: 3px 6px; }
+.card-table td { padding: 3px 6px; }
+.card-table tr.reached td { color: var(--gold); }
+.spirit .nm, .spirit .sigil { cursor: pointer; }

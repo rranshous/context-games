@@ -13,6 +13,7 @@ import { descentName } from '../balance.ts';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
+import { openSpiritCard } from './spirit-card.ts';
 
 const MAX_BAR_BITS = 28;
 
@@ -60,8 +61,8 @@ export function sanctumScreen(app: App): Screen {
       const next = med ? fmtDuration(2 ** (s + 1) / Math.max(1, perTask)) : null;
       const bound = save.loadout.includes(sp.cell);
       return `<div class="spirit ${freshCells.has(sp.cell) ? 'new' : ''}" style="--c:${color}">
-        <img class="sigil" src="${sigilURL(sp)}" alt="">
-        <div class="row"><span class="nm">${ELEMENT_GLYPH[sp.element]} ${esc(spiritName(sp))}</span>
+        <img class="sigil" src="${sigilURL(sp)}" alt="" data-card="${sp.cell}" title="open its card">
+        <div class="row"><span class="nm" data-card="${sp.cell}">${ELEMENT_GLYPH[sp.element]} ${esc(spiritName(sp))}</span>
           <span class="dim" style="font-size:13px">${magnitudeTitle(sp.magnitude)} · mag ${sp.magnitude}</span><span class="grow"></span>
           <span class="bits ${learned ? 'gold' : 'dim'}">${s ? s + ' bits' : 'unnamed'}</span></div>
         <div class="addr">${esc(addressOf(sp.cell))} <span class="mono faint">${sp.cell}</span>${sp.cell === HEARTH_GOD ? ' · <i>the hearth-god</i>' : ''}</div>
@@ -305,6 +306,8 @@ export function sanctumScreen(app: App): Screen {
       // pointerdown, not click: panels re-render on a timer and a click can straddle a re-render
       root.addEventListener('pointerdown', (e) => {
         const t = e.target as HTMLElement;
+        const card = t.closest('[data-card]')?.getAttribute('data-card');
+        if (card) { openSpiritCard(app, card); return; }
         const med = t.closest('[data-med]')?.getAttribute('data-med');
         if (med) { S.meditate(med, !S.isMeditating(med)); renderBook(); return; }
         const b = t.closest('[data-bind]')?.getAttribute('data-bind');
