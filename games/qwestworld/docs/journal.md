@@ -496,3 +496,12 @@ With the war room and the pause, the minds now see what the script sees and act 
 With the war room and the pause, the picture changed. By Leaffall of Year 3: **Zanwick (qwen3:8b, Queen Brynya) 21 towns, tied with Wenton (script) at 21.** Brynya took five towns, mostly by starvation (Mormouth, Wenmere, Elbarrow and Vardun, plus Grisstead), including **Vardun from the script itself**, which no mind had managed by this point in Ages I and II. Ravbarrow took Corton from Wenton, and Wenton took it back. King Nymorna of Caldstead died in his sleep; Queen Zanarmir succeeded. Queen Zanweth broke her peace with Wenton. Caldstead (qwen3:1.7b) still never marches: war 14, gold 13, proclaim 12. Zero crashes and zero failed councils since the fix.
 
 **The cost of pausing, measured:** ~1.5 ticks/s averaged over Age III against 12 when running, so the world is **paused ~88% of real time**; an in-game year takes ~1.5 hours. Options discussed with the user: a short leash (run a few days into each council, then pause), the old slow mode, or trimming the qwen prompts (6–8k tokens) to shorten each pause. **Decision (user): keep the full pause for now**, since it's the fair setup for the minds-vs-script experiment.
+
+### Age III, Year 6: the script pulls ahead again, narrowly
+- **Wenton (script) 28 towns**; Zanwick (qwen3:8b) 21; Drewick (llama) 17; Ravbarrow (qwen3:8b) 14; Elhold (llama) 12; Caldstead (qwen3:1.7b) **2**; two surviving rebel Free Marches.
+- **Four rebellions in Year 4**, all "for the men are sick of waiting": the idle-at-war morale penalty. Minds muster and then leave hosts holding. Zanwick crushed Dunhold (*"King Beriya… is slain as Dunhold falls"*), Wenton crushed Ravdun, and Grisstead and Wenfell survive.
+- **Queen Zanweth (qwen3:8b) broke her peace with Wenton five times**, cycling between peace and war. The ledger and the chancellor both warn her; it doesn't stop her.
+- **Wenton broke its own peace with Caldstead** (scripts pay no honor price in their rules) and ground it from 7 towns to 2. Caldstead's qwen3:1.7b has never ordered a march in 33 councils (gold 30, proclaim 23, envoy 22, war 21).
+- Health: no crashes, no failed councils; annals for Years 1–5.
+
+Where the minds fall short: idle hosts breed rebellion; oscillating diplomacy wastes years; the smallest model won't fight. The parked lever is more frequent councils for minds. **Decision (user): let Age III ride as-is**, as the control run for the war room plus the pause.
