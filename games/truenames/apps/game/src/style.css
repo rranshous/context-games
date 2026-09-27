@@ -96,3 +96,9 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(231, 194, 107, 0.18); border-radius: 4px; }
 * { scrollbar-color: rgba(231, 194, 107, 0.18) transparent; scrollbar-width: thin; }
+.spirit { position: relative; padding-right: 64px; }
+.spirit .sigil { position: absolute; right: 8px; top: 8px; width: 48px; height: 48px; opacity: 0.85; }
+.sigil-sm { width: 26px; height: 26px; vertical-align: middle; }
+.topbar { gap: 12px; font-size: 15px; }
+.topbar .primary { font-size: 15px; padding: 8px 16px; }
+@media (max-width: 1250px) { .aura-hex { display: none; } }

@@ -10,6 +10,8 @@ import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from
 import { runScreen } from './run.ts';
 import { titleScreen } from './title.ts';
 import { descentName } from '../balance.ts';
+import { sigilURL } from '../sigil.ts';
+import { isMuted, setMuted } from '../audio.ts';
 
 const MAX_BAR_BITS = 28;
 
@@ -22,6 +24,12 @@ export function sanctumScreen(app: App): Screen {
   let picking: number | null = null;
   const freshCells = new Set<string>();
   const feed: string[] = [];
+  const feedLine = (sp: Spirit, how: string) =>
+    `<div><img class="sigil-sm" src="${sigilURL(sp)}" alt=""> <span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span>, ${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)} <span class="faint">${how}</span></div>`;
+  for (const k of Object.values(save.spirits).filter((k) => k.source !== 'lore').sort((a, b) => a.foundAt - b.foundAt).slice(-12)) {
+    const sp = spiritOf(save, k.spirit.cell);
+    if (sp) feed.push(feedLine(sp, k.source === 'shrine' ? 'at a shrine' : 'scried'));
+  }
 
   function learnedSpirits(): Spirit[] {
     return Object.keys(save.spirits).map((c) => spiritOf(save, c)!).filter(Boolean);
@@ -51,6 +59,7 @@ export function sanctumScreen(app: App): Screen {
       const next = med ? fmtDuration(2 ** (s + 1) / Math.max(1, perTask)) : null;
       const bound = save.loadout.includes(sp.cell);
       return `<div class="spirit ${freshCells.has(sp.cell) ? 'new' : ''}" style="--c:${color}">
+        <img class="sigil" src="${sigilURL(sp)}" alt="">
         <div class="row"><span class="nm">${ELEMENT_GLYPH[sp.element]} ${esc(spiritName(sp))}</span>
           <span class="dim" style="font-size:13px">${magnitudeTitle(sp.magnitude)} · mag ${sp.magnitude}</span><span class="grow"></span>
           <span class="bits ${learned ? 'gold' : 'dim'}">${s ? s + ' bits' : 'unnamed'}</span></div>
@@ -145,7 +154,7 @@ export function sanctumScreen(app: App): Screen {
       const key = String(i + 1);
       const mouse = i === 0 ? ' · LMB' : i === 1 ? ' · RMB' : '';
       if (!sp) return `<div class="slot ${picking === i ? 'picking' : ''}" data-slot="${i}"><span class="key">${key}</span><span class="dim">${picking === i ? 'choose a learned spirit: press bind' : 'empty'}${mouse}</span></div>`;
-      return `<div class="slot filled" data-slot="${i}" style="--c:${ELEMENT_COLOR[sp.element]}"><span class="key">${key}</span>
+      return `<div class="slot filled" data-slot="${i}" style="--c:${ELEMENT_COLOR[sp.element]}"><span class="key">${key}</span><img class="sigil-sm" src="${sigilURL(sp)}" alt="">
         <span style="flex:1"><span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:13px">${FORMS[sp.traits.form]!.name}${mouse}</span></span>
         <span class="bits gold">${S.strength(sp.cell)}</span><button class="small" data-unbind="${i}">×</button></div>`;
     }).join('');
@@ -191,13 +200,14 @@ export function sanctumScreen(app: App): Screen {
         <div class="topbar">
           <h1 style="font-size:20px; color:var(--gold)">The Sanctum</h1>
           <span style="color:${ELEMENT_COLOR[el0]}">${ELEMENT_GLYPH[el0]} ${ELEMENT_NAMES[el0]}</span>
-          <span class="dim mono" title="your aura (public key)">aura ${aura.pub.slice(0, 10)}…</span>
+          <span class="dim mono aura-hex" title="your aura (public key): ${aura.pub}">${aura.pub.slice(0, 8)}…</span>
           <span class="dim">capacity <span class="mono gold" id="cap"></span> bits</span>
           <span class="spacer"></span>
           <span class="dim">hum <span class="mono" id="hum"></span></span>
           <span class="dim">voices <button class="small" id="wdec">−</button> <span class="mono" id="workers"></span> <button class="small" id="winc">+</button></span>
           <select id="descent" title="how deep to walk"></select>
           <button class="primary" id="run">Walk into the dark</button>
+          <button class="small" id="mute" title="sound (M)">♪</button>
           <button class="small" id="title">⌂</button>
         </div>
         <div class="cols">
@@ -255,6 +265,10 @@ export function sanctumScreen(app: App): Screen {
       dsel.addEventListener('change', () => { save.lastDescent = Number(dsel.value); persist(save); });
       root.querySelector('#run')!.addEventListener('click', () => app.go(runScreen(app, save.lastDescent)));
       root.querySelector('#title')!.addEventListener('click', () => app.go(titleScreen(app)));
+      const muteBtn = root.querySelector('#mute') as HTMLButtonElement;
+      const showMute = () => { muteBtn.style.opacity = isMuted() ? '0.4' : '1'; };
+      muteBtn.addEventListener('click', () => { setMuted(!isMuted()); showMute(); });
+      showMute();
       root.querySelector('#wdec')!.addEventListener('click', () => { S.pool.setActive(S.pool.getActive() - 1); save.workers = S.pool.getActive(); persist(save); renderTop(); });
       root.querySelector('#winc')!.addEventListener('click', () => { S.pool.setActive(S.pool.getActive() + 1); save.workers = S.pool.getActive(); persist(save); renderTop(); });
       // pointerdown, not click: panels re-render on a timer and a click can straddle a re-render
@@ -275,8 +289,8 @@ export function sanctumScreen(app: App): Screen {
         if (!f.isNew) return;
         freshCells.add(f.spirit.cell);
         const c = ELEMENT_COLOR[f.spirit.element];
-        feed.push(`<div><span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)} <span class="faint mono">${f.spirit.cell}</span></div>`);
-        app.toast(`A spirit answers: <span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)}`, c);
+        feed.push(feedLine(f.spirit, f.source === 'shrine' ? 'at a shrine' : 'scried'));
+        app.toast(`<img class="sigil-sm" src="${sigilURL(f.spirit)}" alt=""> A spirit answers: <span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)}`, c);
         renderBook();
         renderTasks();
       }));

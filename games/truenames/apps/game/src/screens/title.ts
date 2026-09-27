@@ -4,6 +4,7 @@ import { ELEMENT_NAMES, ELEMENT_COLOR, ELEMENT_GLYPH, HEARTH_GOD, spiritTitle, n
 import { newAura, persist, rememberSpirit, wipeSave, emptySave } from '../save.ts';
 import { MIN_NAME_BITS, spiritAt } from '@truenames/universe';
 import { sanctumScreen } from './sanctum.ts';
+import { sigilURL } from '../sigil.ts';
 
 export function titleScreen(app: App): Screen {
   let root: HTMLElement;
@@ -73,6 +74,7 @@ export function attuneScreen(app: App): Screen {
   return {
     mount(ui) {
       const root = frag(`<div class="center-screen">
+        <img src="${sigilURL(god, 128)}" width="128" height="128" alt="" style="filter: drop-shadow(0 0 12px rgba(255,122,61,.5))">
         <h1 style="font-size:26px; color:var(--gold)">Attunement</h1>
         <div class="prose">Every apprentice learns one word first: the name of the hearth-god, <em>${spiritTitle(god)}</em>, who has dwelt at <span class="mono">${HEARTH_GOD}</span> (${addressOf(HEARTH_GOD)}) since before the first scholar. Everyone knows her. Everyone draws from her. She is mighty, and she is stingy.<br><br>A name is never the same in two mouths. Yours must be found by your own meditation. Speak until it rings true, at least <em>${MIN_NAME_BITS} bits</em>.</div>
         <div class="chant" id="chant"></div>

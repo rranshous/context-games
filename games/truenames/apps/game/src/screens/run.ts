@@ -11,6 +11,8 @@ import { LocalAuthority, castCap, spiritStats, TUNABLES } from '@truenames/autho
 import type { CastResult, TargetSpec } from '@truenames/protocol';
 import { cellsBelow, spiritAt, target, type Spirit } from '@truenames/universe';
 import { sanctumScreen } from './sanctum.ts';
+import { sigilCanvas, sigilURL } from '../sigil.ts';
+import * as sfx from '../audio.ts';
 
 type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman';
 
@@ -33,7 +35,7 @@ interface Enemy {
 
 interface Ally { x: number; y: number; hp: number; life: number; hit: number; cd: number; color: string }
 interface Proj { x: number; y: number; vx: number; vy: number; r: number; dmg: number; life: number; enemy: boolean; color: string }
-interface Nova { x: number; y: number; t: number; dmg: number; r: number; color: string }
+interface Nova { x: number; y: number; t: number; dmg: number; r: number; color: string; element: number }
 interface Fx { kind: 'beam' | 'ring' | 'burst' | 'blink'; x: number; y: number; x2?: number; y2?: number; r?: number; t: number; max: number; color: string }
 interface Particle { x: number; y: number; vx: number; vy: number; t: number; max: number; color: string; size: number }
 interface Floater { x: number; y: number; text: string; color: string; t: number; size: number }
@@ -190,9 +192,11 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (dmg <= 0 || e.hp <= 0) return;
     e.hp -= dmg;
     e.flash = 0.12;
+    if (hitSoundT <= 0) { sfx.sfxHit(); hitSoundT = 0.05; }
     floaters.push({ x: e.x + rand(-6, 6), y: e.y - e.r - 6, text: dmg >= 10 ? dmg.toFixed(0) : dmg.toFixed(1), color, t: 0, size: 12 + Math.min(10, dmg / 4) });
     if (e.hp <= 0) {
       kills++;
+      sfx.sfxKill();
       burst(e.x, e.y, B.enemies[e.kind].color, 18);
       burst(e.x, e.y, color, 10);
       if (e.aura) auth.forgetAura(e.aura);
@@ -208,6 +212,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (dmg <= 0) return;
     player.hp -= dmg;
     player.hurt = 0.25;
+    sfx.sfxHurt();
     shake = Math.min(12, shake + dmg * 0.6);
     if (why) floaters.push({ x: player.x, y: player.y - 30, text: why, color: '#ff7a6b', t: 0, size: 15 });
     if (player.hp <= 0) end('lost');
@@ -230,7 +235,9 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const effect = r.grant * eff * B.effectScale;
     floaters.push({ x: player.x - 60 + p.slot * 24, y: player.y - 26 - (p.slot % 2) * 12, text: `${r.effective.toFixed(1)}`, color: s.color, t: 0, size: 13 });
     if (s.thin) floaters.push({ x: player.x, y: player.y - 44, text: 'the well runs thin', color: '#9c8f74', t: 0, size: 12 });
+    sfx.sfxCast(s.form, s.spirit.element, effect / 30);
     if (r.recoil) {
+      sfx.sfxBacklash();
       hurtPlayer(r.recoil, 'BACKLASH');
       burst(player.x, player.y, '#ff5040', 20);
     }
@@ -275,7 +282,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       }
       case 4: { // nova
         const f = B.forms.nova;
-        novas.push({ x: p.aimX, y: p.aimY, t: f.delay, dmg: effect, r: f.radius, color });
+        novas.push({ x: p.aimX, y: p.aimY, t: f.delay, dmg: effect, r: f.radius, color, element: s.spirit.element });
         break;
       }
       case 5: { // summon
@@ -317,6 +324,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const color = ELEMENT_COLOR[sp.element]!;
     projs.push({ x: e.x, y: e.y, vx: (dx / d) * B.shaman.boltSpeed, vy: (dy / d) * B.shaman.boltSpeed, r: 6 + Math.min(6, r.grant / 5), dmg: r.grant * B.enemyEffectScale * D.dmgMult ** (level / 2), life: 2.5, enemy: true, color });
     floaters.push({ x: e.x, y: e.y - 20, text: `${r.effective.toFixed(0)} bits`, color: '#9c8f74', t: 0, size: 11 });
+    sfx.sfxEnemyCast();
   }
 
   function authorityTick() {
@@ -347,6 +355,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
         const t = S.startScry(s.prefix, d, 'shrine', s.budget);
         s.start = t ? t.stopAt - s.budget : 0n;
         s.state = 'scrying';
+        sfx.sfxShrineWake();
         banner = { text: 'THE SHRINE WAKES', sub: `It searches ${addressOf(s.prefix)} at depth ${d}.`, t: 2.5 };
         burst(s.x, s.y, ELEMENT_COLOR[s.element]!, 30);
         return;
@@ -374,15 +383,26 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       burst(sh.x, sh.y, c, 40);
       floaters.push({ x: sh.x, y: sh.y - 50, text: spiritName(f.spirit), color: c, t: -1, size: 20 });
     }
-    app.toast(`A spirit answers the shrine: <span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)}. Meditate on it in the sanctum.`, c);
+    app.toast(`<img class="sigil-sm" src="${sigilURL(f.spirit)}" alt=""> A spirit answers the shrine: <span style="color:${c}">${esc(spiritName(f.spirit))}</span>, ${magnitudeTitle(f.spirit.magnitude)} of ${esc(ASPECTS[f.spirit.element]![f.spirit.aspect]!)}. Meditate on it in the sanctum.`, c);
+  });
+
+  // Meditation keeps working during the walk: truer names reach this run's authority at once.
+  const offName = S.names.on((n) => {
+    const rec = save.names[n.cell];
+    if (!rec || over) return;
+    auth.submitName(rec.claim);
+    const sl = slots.find((x) => x?.cell === n.cell);
+    if (sl) floaters.push({ x: player.x, y: player.y + 34, text: `${sl.name} · ${n.strength} bits`, color: sl.color, t: -0.6, size: 14 });
   });
 
   // ---------- update ----------
   let tickAcc = 0;
+  let hitSoundT = 0;
 
   function update(dt: number) {
     if (paused) return;
     if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
+    hitSoundT -= dt;
     if (!over) {
       tickAcc += dt * 1000;
       while (tickAcc >= TICK_MS) { tickAcc -= TICK_MS; authorityTick(); }
@@ -391,7 +411,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (!over) {
       if (breather > 0) {
         breather -= dt;
-        if (breather <= 0) startWave();
+        if (breather <= 0) { startWave(); sfx.sfxWave(); }
       } else {
         spawnT -= dt;
         if (spawnQueue.length && spawnT <= 0) { spawn(spawnQueue.shift()!); spawnT = B.spawnEvery; }
@@ -508,6 +528,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       n.t -= dt;
       if (n.t <= 0) {
         fx.push({ kind: 'burst', x: n.x, y: n.y, r: n.r, t: 0, max: 0.45, color: n.color });
+        sfx.sfxNova(n.element);
         for (const e of enemies) if (dist2(e.x, e.y, n.x, n.y) < (n.r + e.r) ** 2) hurtEnemy(e, n.dmg, n.color);
         burst(n.x, n.y, n.color, 30);
         shake = Math.min(10, shake + 4);
@@ -887,9 +908,12 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.fillStyle = '#e7c26b';
       ctx.font = '12px JetBrains Mono, monospace';
       ctx.fillText(`${i + 1}${i === 0 ? ' LMB' : i === 1 ? ' RMB' : ''}`, x + 6, y + 14);
+      ctx.globalAlpha = sl.flash > 0 ? 1 : 0.55;
+      ctx.drawImage(sigilCanvas(sl.spirit, 64), x + sw - 44, y + 18, 32, 32);
+      ctx.globalAlpha = 1;
       ctx.fillStyle = sl.color;
       ctx.font = '14px Cinzel, serif';
-      ctx.fillText(sl.name.slice(0, 14), x + 6, y + 30);
+      ctx.fillText(sl.name.slice(0, 12), x + 6, y + 30);
       ctx.fillStyle = '#9c8f74';
       ctx.font = '11px EB Garamond, serif';
       ctx.fillText(`${FORMS[sl.form]!.name} · ${S.strength(sl.cell)} bits`, x + 6, y + 44);
@@ -929,6 +953,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   function end(result: 'won' | 'lost') {
     if (over) return;
     over = result;
+    if (result === 'won') sfx.sfxVictory(); else sfx.sfxDeath();
     save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' ? 0 : 1), won: result === 'won', kills, finds });
     const unlocked = result === 'won' && level >= save.descent;
     if (unlocked) save.descent = level + 1;
@@ -986,6 +1011,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       window.removeEventListener('blur', onBlur);
       document.body.style.cursor = '';
       offFind();
+      offName();
       delete (window as any).__run;
     },
     frame(dt, ctx, w, h) {

@@ -2,6 +2,8 @@ import { loadSave, type SaveData } from './save.ts';
 import { Services } from './services.ts';
 import { titleScreen } from './screens/title.ts';
 import { drawAstral } from './astral.ts';
+import { initAudio, setDrone, sfxFind, sfxName, isMuted, setMuted } from './audio.ts';
+import { spiritOf } from './save.ts';
 
 export interface Screen {
   mount(ui: HTMLElement): void;
@@ -59,6 +61,19 @@ async function boot() {
   };
   (window as any).__truenames = { app, services, save };
   services.resume();
+  const wake = () => initAudio();
+  window.addEventListener('pointerdown', wake);
+  window.addEventListener('keydown', (e) => {
+    wake();
+    if (e.key === 'm' && !(e.target instanceof HTMLInputElement)) {
+      setMuted(!isMuted());
+      app.toast(isMuted() ? 'Silence.' : 'The hum returns.');
+    }
+  });
+  let lastChime = 0;
+  const chime = (f: () => void) => { const t = performance.now(); if (t - lastChime > 350) { lastChime = t; f(); } };
+  services.finds.on((f) => { if (f.isNew) chime(() => sfxFind(f.spirit.element, f.spirit.magnitude)); });
+  services.names.on((n) => { const sp = spiritOf(save, n.cell); if (sp) chime(() => sfxName(n.strength, sp.element)); });
   app.go(titleScreen(app));
 
   let last = performance.now();
@@ -67,7 +82,9 @@ async function boot() {
     last = now;
     const w = window.innerWidth, h = window.innerHeight;
     const drew = current?.frame?.(dt, ctx, w, h) ?? false;
-    if (!drew) drawAstral(ctx, w, h, now / 1000, services.pool.rate());
+    const hum = services.pool.rate();
+    setDrone(hum, drew ? 0.35 : 1);
+    if (!drew) drawAstral(ctx, w, h, now / 1000, hum);
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
