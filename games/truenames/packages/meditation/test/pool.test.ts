@@ -38,4 +38,20 @@ describe('MeditationPool', () => {
     for (const g of got) expect(nameStrength('011010', hexToBytes(aura), g.nonce)).toBe(g.strength);
     expect(got.map((g) => g.strength)).toEqual([...got.map((g) => g.strength)].sort((a, b) => a - b));
   });
+
+  it('extending a scry task mid-flight never stalls the frontier', async () => {
+    let j = 0;
+    const done = new Promise<bigint>((res) => {
+      let extended = false;
+      const pool = new MeditationPool(() => new FakeWorker(() => (j++ * 5) % 7) as unknown as Worker, 3, {
+        onScryProgress: (t) => {
+          if (!extended && t.doneUpTo > 0n) { extended = true; pool.extendScry('s', 512n); }
+        },
+        onScryDone: (t) => res(t.doneUpTo),
+      });
+      pool.addScry({ id: 's', prefix: '011', depth: 6, stopAt: 100n });
+      pool.addScry({ id: 's', prefix: '011', depth: 6, stopAt: 50n }); // duplicate add keeps the running task
+    });
+    expect(await done).toBe(512n);
+  });
 });

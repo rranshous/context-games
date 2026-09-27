@@ -133,3 +133,9 @@ Others at mag 3: `567171` shadow/light (gen 14, generous). Mag 2: `570476`, `615
 
 ### The Warden (boss)
 The last wave of every descent now has a **Warden** at its midpoint: 260 hp × descent, slow, heavy melee. It holds a synthetic name (+7 bits over the wave's shamans, +2 per descent) on one of the five **mightiest ancients** (magnitude ≥ 2, the hearth-god among them), so it contends at *your* wells too. Every ~3 s it casts through the authority at your position, and the result lands as a **telegraphed red nova** (1.3 s warning, 115 radius). Damage is bounded the same way as shaman bolts (base × descent × drawn fraction). Its banner names the spirit it speaks ("It speaks the name of Umbeatheageash"), it carries that spirit's sigil on its body, and a boss bar runs under the wave counter. Bot at descent 2: won at 24/100, with most of the damage taken during the Warden phase.
+
+### Bug fix: scry frontier could stall
+Found on self-review. `Services.startScry` "extended" a running task (for example, a second shrine on the same aspect and depth) by calling `pool.addScry` again. That rebuilt the task and reset its chunk cursor, so chunks already in flight came back at offsets the new chunking never produced. The contiguous frontier then waited forever for a start index that would never arrive. Fixes:
+- `pool.extendScry(id, stopAt)` widens in place, and `addScry` returns an existing task instead of rebuilding it.
+- The frontier merge now advances over *any* completed range that touches or overlaps it, which is robust to duplicates.
+- Regression test in `pool.test.ts`: extend mid-flight with jittered out-of-order workers, and the scan must still complete.

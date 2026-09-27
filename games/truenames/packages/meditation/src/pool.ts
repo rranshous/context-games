@@ -101,7 +101,10 @@ export class MeditationPool {
     return this.tasks;
   }
 
+  /** Add a scry task. If one with this id is already running it is kept as is (use extendScry to widen it). */
   addScry(t: Omit<ScryTask, 'kind' | 'hits' | 'stopAt' | 'doneUpTo'> & { doneUpTo?: bigint; stopAt?: bigint; hits?: number }): ScryTask {
+    const existing = this.get(t.id);
+    if (existing?.kind === 'scry') return existing;
     this.remove(t.id);
     const total = cellsBelow(t.depth - t.prefix.length);
     const task: ScryTask = {
@@ -115,6 +118,16 @@ export class MeditationPool {
     this.scry.set(task.id, { next: task.doneUpTo, done: new Map() });
     this.pump();
     return task;
+  }
+
+  /** Move a running scry task's stop point without disturbing chunks in flight. */
+  extendScry(id: string, stopAt: bigint): ScryTask | undefined {
+    const t = this.get(id);
+    if (t?.kind !== 'scry') return undefined;
+    const total = cellsBelow(t.depth - t.prefix.length);
+    t.stopAt = stopAt > total ? total : stopAt;
+    this.pump();
+    return t;
   }
 
   addName(t: Omit<NameTask, 'kind' | 'hashes'> & { hashes?: number }): NameTask {
@@ -221,10 +234,16 @@ export class MeditationPool {
           this.events.onSpirit?.(fromWire(h), task);
         }
         st.done.set(BigInt(m.start), BigInt(m.count));
-        let c: bigint | undefined;
-        while ((c = st.done.get(task.doneUpTo)) !== undefined) {
-          st.done.delete(task.doneUpTo);
-          task.doneUpTo += c;
+        // advance the contiguous frontier over any completed range that touches it
+        for (let moved = true; moved; ) {
+          moved = false;
+          for (const [start, count] of st.done) {
+            const end = start + count;
+            if (start <= task.doneUpTo) {
+              st.done.delete(start);
+              if (end > task.doneUpTo) { task.doneUpTo = end; moved = true; }
+            }
+          }
         }
         this.events.onScryProgress?.(task);
         if (task.doneUpTo >= task.stopAt) {

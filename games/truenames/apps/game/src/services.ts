@@ -133,10 +133,16 @@ export class Services {
     const total = cellsBelow(depth - prefix.length);
     if (done >= total) return null;
     const existing = this.scryTask(prefix, depth);
-    if (existing && budget === undefined) return existing;
-    this.sourceFor.set(id, source);
-    const stopAt = budget !== undefined ? (existing ? existing.stopAt : done) + budget : undefined;
-    const t = this.pool.addScry({ id, prefix, depth, doneUpTo: existing?.doneUpTo ?? done, stopAt, hits: existing?.hits ?? 0 });
+    let t: ScryTask | undefined;
+    if (existing) {
+      // widen in place: never rebuild a task with chunks in flight
+      t = this.pool.extendScry(id, budget !== undefined ? existing.stopAt + budget : total);
+      if (source === 'scry') this.sourceFor.set(id, source);
+    } else {
+      this.sourceFor.set(id, source);
+      t = this.pool.addScry({ id, prefix, depth, doneUpTo: done, stopAt: budget !== undefined ? done + budget : undefined });
+    }
+    if (!t) return null;
     if (source === 'scry' && !this.save.scrying.some((p) => scanKey(p.prefix, p.depth) === id)) {
       this.save.scrying.push({ prefix, depth, running: true });
       persist(this.save);
