@@ -69,7 +69,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; letter-spacing: 0.08
 .slots { display: grid; grid-template-columns: 1fr; gap: 6px; }
 .slot { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px dashed var(--panel-edge); border-radius: 3px; min-height: 40px; cursor: pointer; }
 .slot.filled { border-style: solid; border-left: 3px solid var(--c); }
-.slot .key { font-family: var(--mono); color: var(--gold); width: 18px; }
+.slot .key { font-family: var(--mono); color: var(--gold); width: 34px; font-size: 13px; }
 .slot.picking { border-color: var(--gold); background: rgba(231, 194, 107, 0.1); }
 .feed { font-size: 14px; line-height: 1.45; }
 .feed div { margin-bottom: 3px; }

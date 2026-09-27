@@ -53,7 +53,7 @@ export interface SaveData {
 }
 
 export function emptySave(): SaveData {
-  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], focus: [], scrying: [], loadout: [null, null, null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
+  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], focus: [], scrying: [], loadout: [null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
 }
 
 const DB = 'truenames';
@@ -77,7 +77,17 @@ export async function loadSave(): Promise<SaveData> {
       r.onsuccess = () => res(r.result as SaveData | undefined);
       r.onerror = () => rej(r.error);
     });
-    return v ? { ...emptySave(), ...v } : emptySave();
+    if (!v) return emptySave();
+    const save = { ...emptySave(), ...v };
+    // older saves had six slots: keep four, moving any stranded names into free slots
+    const keep = save.loadout.slice(0, 4);
+    for (const extra of save.loadout.slice(4)) {
+      const free = keep.indexOf(null);
+      if (extra && free >= 0 && !keep.includes(extra)) keep[free] = extra;
+    }
+    while (keep.length < 4) keep.push(null);
+    save.loadout = keep;
+    return save;
   } catch (e) {
     console.warn('[save] load failed, starting fresh', e);
     return emptySave();

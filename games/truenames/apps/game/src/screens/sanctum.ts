@@ -9,7 +9,7 @@ import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
 import { titleScreen } from './title.ts';
-import { descentName } from '../balance.ts';
+import { descentName, SLOTS } from '../balance.ts';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
@@ -173,8 +173,8 @@ export function sanctumScreen(app: App): Screen {
     const box = root.querySelector('#slots')!;
     box.innerHTML = save.loadout.map((cell, i) => {
       const sp = cell ? spiritOf(save, cell) : null;
-      const key = String(i + 1);
-      const mouse = i === 0 ? ' · LMB' : i === 1 ? ' · RMB' : '';
+      const key = SLOTS[i]!.label;
+      const mouse = '';
       if (!sp) return `<div class="slot ${picking === i ? 'picking' : ''}" data-slot="${i}" data-tip="slot"><span class="key">${key}</span><span class="dim">${picking === i ? 'choose a learned spirit: press bind' : 'empty'}${mouse}</span></div>`;
       return `<div class="slot filled" data-slot="${i}" data-tip="slot" style="--c:${ELEMENT_COLOR[sp.element]}"><span class="key">${key}</span><img class="sigil-sm" src="${sigilURL(sp)}" alt="">
         <span style="flex:1"><span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:13px">${FORMS[sp.traits.form]!.name}${mouse}</span></span>
@@ -274,7 +274,7 @@ export function sanctumScreen(app: App): Screen {
             <h2 style="margin-top:12px">Finds</h2><div class="feed" id="feed"></div>
           </div>
           <div class="panel"><h2>Loadout</h2>
-            <div class="hint">Bind up to six learned names. In the dark: keys 1–6, or left/right click for the first two. Aim with the mouse. Move with WASD.</div>
+            <div class="hint">Bind up to four learned names. In the dark: left and right click speak the first two, keys 1 and 2 the others. Aim with the mouse. Move with WASD.</div>
             <div class="slots" id="slots"></div>
             <h2 style="margin-top:16px" data-tip="walks">Walks</h2><div class="feed" id="runs"></div>
           </div>

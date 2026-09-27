@@ -53,3 +53,11 @@ export const DESCENT_NAMES = ['the Threshold', 'the Lamplit Halls', 'the Ember S
 export function descentName(l: number): string {
   return DESCENT_NAMES[l] ?? `the Nameless ${'I'.repeat(Math.min(12, l - DESCENT_NAMES.length + 2))}`;
 }
+
+/** The four spell slots and what speaks them: both mouse buttons first, then keys 1 and 2. */
+export const SLOTS = [
+  { label: 'LMB', key: null, button: 0, name: 'left click' },
+  { label: 'RMB', key: null, button: 2, name: 'right click' },
+  { label: '1', key: '1', button: null, name: 'key 1' },
+  { label: '2', key: '2', button: null, name: 'key 2' },
+] as const;

@@ -20,9 +20,9 @@ corepack pnpm tools bench | sim | god-finder [prefix|-] [depth] | vectors
 2. **The sanctum** (between walks):
    - **Scrying**: pick a region (element → aspect → tradition) and a depth, then search it. Shallow layers are small and soon exhausted; the deep is endless. *Chart of the astral* shows what you've covered.
    - **Name Book**: meditate on spirits you've found. Each bit of truth costs twice the last; at 12 bits a name is learned. Meditation keeps running in the background (and resumes on reload).
-   - **Loadout**: bind up to six learned names.
+   - **Loadout**: bind up to four learned names.
    - Pick a **descent** (winning one opens the next) and **walk into the dark**.
-3. **In the dark**: WASD to move, mouse to aim, 1–6 or left/right click to evoke. Every evocation strains your aura. Strain ebbs, but past your capacity spirits answer with backlash, and spamming lowers your total output. Shamans and the Warden draw from the same wells you do; truer names drink deeper. Stand in a **shrine** to make it search the astral while you fight. `Esc` pauses, `M` mutes.
+3. **In the dark**: WASD to move, mouse to aim, left/right click for the first two spells and keys 1 and 2 for the others. Every evocation strains your aura. Strain ebbs, but past your capacity spirits answer with backlash, and spamming lowers your total output. Shamans and the Warden draw from the same wells you do; truer names drink deeper. Stand in a **shrine** to make it search the astral while you fight. `Esc` pauses, `M` mutes.
 4. Fall, meditate, return truer.
 
 ## Docs

@@ -1,7 +1,7 @@
 // A walk into the dark: one arena, five waves, shrines that scry while you fight.
 import type { App, Screen } from '../main.ts';
 import { frag, esc } from '../dom.ts';
-import { BALANCE as B, descentName } from '../balance.ts';
+import { BALANCE as B, descentName, SLOTS } from '../balance.ts';
 import {
   ELEMENT_COLOR, ASPECTS, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS, WARDEN_WELLS,
   spiritName, magnitudeTitle, addressOf, truths,
@@ -78,7 +78,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   auth.registerAura(me);
   for (const rec of Object.values(save.names)) auth.submitName(rec.claim);
 
-  const slots: (Slot | null)[] = save.loadout.map((cell) => {
+  const slots: (Slot | null)[] = save.loadout.slice(0, SLOTS.length).map((cell) => {
     if (!cell || !S.learned(cell)) return null;
     const sp = spiritOf(save, cell) ?? spiritAt(cell);
     if (!sp) return null;
@@ -199,15 +199,16 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const k = e.key.toLowerCase();
     if (e.type === 'keydown') {
       if (k === 'escape') { togglePause(); return; }
-      if (!e.repeat && k >= '1' && k <= '6') cast(Number(k) - 1);
+      const slotForKey = SLOTS.findIndex((s) => s.key === k);
+      if (!e.repeat && slotForKey >= 0) cast(slotForKey);
       keys.add(k);
     } else keys.delete(k);
   };
   const onMouseMove = (e: MouseEvent) => { mouse.sx = e.clientX; mouse.sy = e.clientY; };
   const onMouseDown = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest('.overlay')) return;
-    if (e.button === 0) cast(0);
-    if (e.button === 2) cast(1);
+    const slotForButton = SLOTS.findIndex((s) => s.button === e.button);
+    if (slotForButton >= 0) cast(slotForButton);
   };
   const onContext = (e: MouseEvent) => e.preventDefault();
   const onBlur = () => keys.clear();
@@ -1033,7 +1034,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';
-      ctx.fillText('WASD to move · aim with the mouse · 1–6 or left/right click to evoke · stand in a shrine to wake it · Esc to pause', w / 2, my - 22);
+      ctx.fillText('WASD to move · aim with the mouse · left/right click and keys 1, 2 to evoke · stand in a shrine to wake it · Esc to pause', w / 2, my - 22);
       ctx.textAlign = 'left';
     }
     for (const { s, i } of active) {
@@ -1046,7 +1047,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.strokeRect(x + 0.5, y + 0.5, sw - 1, 61);
       ctx.fillStyle = '#e7c26b';
       ctx.font = '12px JetBrains Mono, monospace';
-      ctx.fillText(`${i + 1}${i === 0 ? ' LMB' : i === 1 ? ' RMB' : ''}`, x + 6, y + 14);
+      ctx.fillText(SLOTS[i]!.label, x + 6, y + 14);
       ctx.globalAlpha = sl.flash > 0 ? 1 : 0.55;
       ctx.drawImage(sigilCanvas(sl.spirit, 64), x + sw - 44, y + 18, 32, 32);
       ctx.globalAlpha = 1;
@@ -1124,7 +1125,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
         <h1 style="font-size:32px; color:var(--gold)">Stillness</h1>
         <div class="dim">Meditation goes on while you rest.</div>
         <div style="display:flex; gap:10px"><button class="primary" id="resume">Resume</button><button id="abandon">Abandon the walk</button></div>
-        <div class="faint" style="max-width:520px; font-size:14px; line-height:1.5">WASD to move · aim with the mouse · 1–6 or left/right click to evoke. Every evocation strains your aura; strain ebbs over time. Past your capacity, spirits answer with backlash. Stand in a shrine to wake it.</div>
+        <div class="faint" style="max-width:520px; font-size:14px; line-height:1.5">WASD to move · aim with the mouse · left/right click and keys 1, 2 to evoke. Every evocation strains your aura; strain ebbs over time. Past your capacity, spirits answer with backlash. Stand in a shrine to wake it.</div>
       </div>`);
       overlay.querySelector('#resume')!.addEventListener('click', togglePause);
       overlay.querySelector('#abandon')!.addEventListener('click', () => { paused = false; overlay?.remove(); end('lost'); });

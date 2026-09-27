@@ -41,7 +41,7 @@ export const HELP = {
   found: `A spirit that answered your search. Meditate on it to learn its name.`,
 
   // --- loadout / walks ---
-  slot: `A <b>slot</b>: a name you carry into the dark. Keys 1–6 speak it; slots 1 and 2 also answer the left and right mouse buttons. Click an empty slot, then <em>bind</em> a name to fill it.`,
+  slot: `A <b>slot</b>: a name you carry into the dark. Left and right click speak the first two slots; keys 1 and 2 speak the other two. Click an empty slot, then <em>bind</em> a name to fill it.`,
   unbind: `Remove this name from the slot.`,
   walks: `Your past walks into the dark, deepest first: the descent, how far you got, and what you banished and found.`,
   advice: `A suggestion for what to do next.`,
