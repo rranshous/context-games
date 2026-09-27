@@ -54,4 +54,29 @@ describe('MeditationPool', () => {
     });
     expect(await done).toBe(512n);
   });
+
+  it('a failed chunk is retried, so the scan still completes', async () => {
+    let failed = 0;
+    class FlakyWorker extends FakeWorker {
+      postMessage(job: any) {
+        if (job.kind === 'scry' && failed < 2) {
+          failed++;
+          setTimeout(() => (this as any).onmessage?.({ data: { kind: 'error', message: 'boom', chunk: job } } as MessageEvent), 0);
+          return;
+        }
+        super.postMessage(job);
+      }
+    }
+    const found: string[] = [];
+    const done = new Promise<bigint>((res) => {
+      const pool = new MeditationPool(() => new FlakyWorker(() => 1) as unknown as Worker, 2, {
+        onSpirit: (s) => found.push(s.cell),
+        onScryDone: (t) => res(t.doneUpTo),
+      });
+      pool.addScry({ id: 's', prefix: '011', depth: 6 });
+    });
+    expect(await done).toBe(512n);
+    expect(failed).toBe(2);
+    expect(found).toContain('011010');
+  });
 });

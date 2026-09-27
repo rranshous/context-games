@@ -7,6 +7,7 @@ import {
   spiritName, magnitudeTitle, addressOf,
 } from '../lore.ts';
 import { persist, spiritOf } from '../save.ts';
+import { scanKey } from '../services.ts';
 import { LocalAuthority, castCap, spiritStats, TUNABLES } from '@truenames/authority';
 import type { CastResult, TargetSpec } from '@truenames/protocol';
 import { cellsBelow, spiritAt, target, type Spirit } from '@truenames/universe';
@@ -387,6 +388,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   }
 
   // ---------- shrines ----------
+  const myShrineTasks = new Set<string>(); // only this walk's shrines earn credit
   function wakeShrine(s: Shrine) {
     for (let d = B.shrineMinDepth; d <= B.shrineMaxDepth; d++) {
       const done = S.scanned(s.prefix, d);
@@ -395,8 +397,9 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       if (frontier < cellsBelow(d - s.prefix.length)) {
         s.depth = d;
         s.budget = 1n << BigInt(target(d)); // one expected find's worth of work
-        const t = S.startScry(s.prefix, d, 'shrine', s.budget);
-        s.start = t ? t.stopAt - s.budget : 0n;
+        s.start = frontier;
+        S.startScry(s.prefix, d, 'shrine', s.budget);
+        myShrineTasks.add(scanKey(s.prefix, d));
         s.state = 'scrying';
         sfx.sfxShrineWake();
         banner = { text: 'THE SHRINE WAKES', sub: `It searches ${addressOf(s.prefix)} at depth ${d}.`, t: 2.5 };
@@ -417,7 +420,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   }
 
   const offFind = S.finds.on((f) => {
-    if (f.source !== 'shrine' || !f.isNew || over) return;
+    if (f.source !== 'shrine' || !f.isNew || over || !myShrineTasks.has(f.taskId)) return;
     finds++;
     const sh = shrines.find((s) => s.state === 'scrying' && f.spirit.cell.startsWith(s.prefix));
     const c = ELEMENT_COLOR[f.spirit.element]!;
@@ -1050,14 +1053,14 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (over) return;
     over = result;
     if (result === 'won') sfx.sfxVictory(); else sfx.sfxDeath();
-    save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' ? 0 : 1), won: result === 'won', kills, finds });
+    save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' || breather > 0 ? 0 : 1), won: result === 'won', kills, finds });
     const unlocked = result === 'won' && level >= save.descent;
     if (unlocked) save.descent = level + 1;
     persist(save);
     const scrying = shrines.filter((s) => s.state === 'scrying' && S.scryTask(s.prefix, s.depth)).length;
     overlay = frag(`<div class="overlay">
       <h1 style="font-size:40px; color:var(--gold)">${result === 'won' ? 'The dark recedes' : 'You fall'}</h1>
-      <div class="prose">${result === 'won' ? `Five waves broken in ${descentName(level)}. The wells are quiet again.${unlocked ? `<br><em>The way down opens: ${descentName(level + 1)}.</em>` : ''}` : `The dark took you at wave ${wave + 1}. Your names are kept; names are always kept.`}</div>
+      <div class="prose">${result === 'won' ? `Five waves broken in ${descentName(level)}. The wells are quiet again.${unlocked ? `<br><em>The way down opens: ${descentName(level + 1)}.</em>` : ''}` : `The dark took you at wave ${wave + (breather > 0 ? 0 : 1)}. Your names are kept; names are always kept.`}</div>
       <div class="dim">${kills} banished${finds ? ` · ${finds} spirits answered the shrines` : ''}${scrying ? ` · ${scrying} shrine${scrying > 1 ? 's' : ''} still searching` : ''}</div>
       <button class="primary" id="back">Return to the sanctum</button>
     </div>`);

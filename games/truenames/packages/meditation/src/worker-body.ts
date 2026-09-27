@@ -68,7 +68,7 @@ export function installWorker(scope: WorkerScope) {
     try {
       scope.postMessage(runChunk(e.data));
     } catch (err) {
-      scope.postMessage({ kind: 'error', message: String(err) });
+      scope.postMessage({ kind: 'error', message: String(err), chunk: e.data });
     }
   };
   scope.postMessage({ kind: 'ready', engine: engineName() });

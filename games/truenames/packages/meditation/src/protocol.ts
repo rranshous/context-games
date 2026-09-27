@@ -19,4 +19,4 @@ export type WorkerReply =
   | { kind: 'ready'; engine?: 'wasm' | 'bigint' }
   | { kind: 'scried'; taskId: string; start: string; count: string; hits: WireSpirit[]; hashes: number; ms: number }
   | { kind: 'named'; taskId: string; best: { nonce: string; strength: number } | null; count: number; hashes: number; ms: number }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; chunk?: WorkChunk };

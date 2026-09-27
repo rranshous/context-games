@@ -41,6 +41,8 @@ export interface SaveData {
   /** `${prefix}|${depth}` -> contiguous scanned frontier (decimal) */
   scans: Record<string, string>;
   meditating: string[];
+  /** Meditations given a larger share of the work. */
+  focus: string[];
   scrying: ScryPlan[];
   loadout: (string | null)[];
   runs: RunRecord[];
@@ -51,7 +53,7 @@ export interface SaveData {
 }
 
 export function emptySave(): SaveData {
-  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], scrying: [], loadout: [null, null, null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
+  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], focus: [], scrying: [], loadout: [null, null, null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
 }
 
 const DB = 'truenames';

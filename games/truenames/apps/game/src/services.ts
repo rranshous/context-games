@@ -23,6 +23,7 @@ export interface FindEvent {
   spirit: Spirit;
   source: KnownSpirit['source'];
   isNew: boolean;
+  taskId: string;
 }
 
 export interface NameEvent {
@@ -61,7 +62,7 @@ export class Services {
       onName: (t, nonce, strength) => this.onName(t, nonce, strength),
       onRate: (r) => this.hum.emit(r),
     });
-    if (save.workers) this.pool.setActive(save.workers);
+    if (save.workers != null) this.pool.setActive(Math.max(1, save.workers));
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);
     // re-establish names with the authority (claims are self-verifying)
@@ -88,8 +89,22 @@ export class Services {
     return this.pool.get('name:' + cell) !== undefined;
   }
 
+  static FOCUS_WEIGHT = 4;
+
+  isFocused(cell: string) {
+    return this.save.focus.includes(cell);
+  }
+
+  setFocus(cell: string, on: boolean) {
+    this.save.focus = this.save.focus.filter((c) => c !== cell);
+    if (on) this.save.focus.push(cell);
+    this.pool.setWeight('name:' + cell, on ? Services.FOCUS_WEIGHT : 1);
+    persist(this.save);
+  }
+
   meditate(cell: string, on: boolean) {
     const id = 'name:' + cell;
+    this.pool.setWeight(id, this.isFocused(cell) ? Services.FOCUS_WEIGHT : 1);
     if (on && this.save.aura) {
       if (!this.pool.get(id)) this.pool.addName({ id, cell, aura: this.save.aura.pub, best: this.strength(cell) });
       if (!this.save.meditating.includes(cell)) this.save.meditating.push(cell);
@@ -161,7 +176,7 @@ export class Services {
     const source = this.sourceFor.get(task.id) ?? 'scry';
     const isNew = rememberSpirit(this.save, s, source);
     persist(this.save);
-    this.finds.emit({ spirit: s, source, isNew });
+    this.finds.emit({ spirit: s, source, isNew, taskId: task.id });
   }
 }
 

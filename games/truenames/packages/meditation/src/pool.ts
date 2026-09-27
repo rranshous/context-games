@@ -31,6 +31,8 @@ export type Task = ScryTask | NameTask;
 
 interface ScryState {
   next: bigint;
+  /** Ranges whose chunk failed; served again before new work. */
+  retry: [bigint, bigint][];
   done: Map<bigint, bigint>; // start -> count, completed out of order
 }
 
@@ -52,11 +54,13 @@ const TARGET_MS = 120;
 export class MeditationPool {
   private workers: Worker[] = [];
   private busy: boolean[] = [];
+  private inFlight: (WorkChunk | null)[] = [];
   private active = 1;
   private tasks: Task[] = [];
   private scry = new Map<string, ScryState>();
   private names = new Map<string, NameState>();
-  private rr = 0;
+  private sent = new Map<string, number>();
+  private weights = new Map<string, number>();
   private perMs = { scry: 1, name: 1.5 }; // items per ms per worker, adapted
   private hashWindow: { t: number; h: number }[] = [];
   paused = false;
@@ -72,6 +76,12 @@ export class MeditationPool {
     for (let i = 0; i < size; i++) {
       const w = makeWorker();
       w.onmessage = (e: MessageEvent<WorkerReply>) => this.onReply(i, e.data);
+      // a crashed worker must not hold its slot or its chunk forever
+      w.onerror = (e: ErrorEvent) => {
+        console.error('[meditation] worker crashed', e.message);
+        const lost = this.inFlight[i];
+        this.onReply(i, { kind: 'error', message: e.message, ...(lost ? { chunk: lost } : {}) });
+      };
       this.workers.push(w);
       this.busy.push(true); // until 'ready'
     }
@@ -115,7 +125,8 @@ export class MeditationPool {
       stopAt: t.stopAt === undefined || t.stopAt > total ? total : t.stopAt,
     };
     this.tasks.push(task);
-    this.scry.set(task.id, { next: task.doneUpTo, done: new Map() });
+    this.sent.set(task.id, this.minSent());
+    this.scry.set(task.id, { next: task.doneUpTo, done: new Map(), retry: [] });
     this.pump();
     return task;
   }
@@ -134,12 +145,20 @@ export class MeditationPool {
     this.remove(t.id);
     const task: NameTask = { kind: 'name', hashes: 0, ...t };
     this.tasks.push(task);
+    this.sent.set(task.id, this.minSent());
     this.names.set(task.id, { auraField: auraField(hexToBytes(t.aura)).toString(), cursor: randomNonceStart() });
     this.pump();
     return task;
   }
 
+  private minSent(): number {
+    let m = Infinity;
+    for (const t of this.tasks) m = Math.min(m, (this.sent.get(t.id) ?? 0) / this.weight(t.id));
+    return isFinite(m) ? m : 0;
+  }
+
   remove(id: string) {
+    this.sent.delete(id);
     this.tasks = this.tasks.filter((t) => t.id !== id);
     this.scry.delete(id);
     this.names.delete(id);
@@ -172,18 +191,29 @@ export class MeditationPool {
       const chunk = this.nextChunk();
       if (!chunk) return;
       this.busy[i] = true;
+      this.inFlight[i] = chunk;
       running++;
       this.workers[i]!.postMessage(chunk);
     }
   }
 
+  /** Relative share of work for a task (default 1). */
+  setWeight(id: string, w: number) {
+    this.weights.set(id, Math.max(0.01, w));
+  }
+
+  weight(id: string) {
+    return this.weights.get(id) ?? 1;
+  }
+
+  /** Weighted fair scheduling: the task with the least (work sent / weight) goes next. */
   private nextChunk(): WorkChunk | null {
-    const n = this.tasks.length;
-    for (let k = 0; k < n; k++) {
-      const task = this.tasks[(this.rr + k) % n]!;
+    const order = [...this.tasks].sort((a, b) => (this.sent.get(a.id) ?? 0) / this.weight(a.id) - (this.sent.get(b.id) ?? 0) / this.weight(b.id));
+    for (const task of order) {
       const chunk = this.chunkFor(task);
       if (chunk) {
-        this.rr = (this.rr + k + 1) % Math.max(1, n);
+        // charge in time units so scry and name chunks are comparable
+        this.sent.set(task.id, (this.sent.get(task.id) ?? 0) + 1);
         return chunk;
       }
     }
@@ -193,6 +223,10 @@ export class MeditationPool {
   private chunkFor(task: Task): WorkChunk | null {
     if (task.kind === 'scry') {
       const st = this.scry.get(task.id)!;
+      const again = st.retry.shift();
+      if (again) {
+        return { kind: 'scry', taskId: task.id, prefix: task.prefix, extra: task.depth - task.prefix.length, start: again[0].toString(), count: again[1].toString() };
+      }
       if (st.next >= task.stopAt) return null;
       let count = BigInt(Math.max(16, Math.round(this.perMs.scry * TARGET_MS)));
       if (st.next + count > task.stopAt) count = task.stopAt - st.next;
@@ -216,8 +250,13 @@ export class MeditationPool {
 
   private onReply(i: number, m: WorkerReply) {
     this.busy[i] = false;
+    this.inFlight[i] = null;
     if (m.kind === 'ready' && m.engine) this.engine = m.engine;
-    if (m.kind === 'error') console.error('[meditation]', m.message);
+    if (m.kind === 'error') {
+      console.error('[meditation]', m.message);
+      // put a failed scry range back so the frontier can't stall on the gap
+      if (m.chunk?.kind === 'scry') this.scry.get(m.chunk.taskId)?.retry.push([BigInt(m.chunk.start), BigInt(m.chunk.count)]);
+    }
     if (m.kind === 'scried' || m.kind === 'named') {
       this.hashWindow.push({ t: this.now(), h: m.hashes });
       const items = m.kind === 'scried' ? Number(m.count) : m.count;

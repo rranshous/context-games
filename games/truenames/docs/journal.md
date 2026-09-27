@@ -139,3 +139,15 @@ Found on self-review. `Services.startScry` "extended" a running task (for exampl
 - `pool.extendScry(id, stopAt)` widens in place, and `addScry` returns an existing task instead of rebuilding it.
 - The frontier merge now advances over *any* completed range that touches or overlaps it, which is robust to duplicates.
 - Regression test in `pool.test.ts`: extend mid-flight with jittered out-of-order workers, and the scan must still complete.
+
+### Review pass (subagent) and fixes
+A read-only review agent went over run/sanctum/services/pool/authority. It found **nothing serious**: cleanup is complete, there's no NaN path, and water-fill is correct. It did flag real edge cases, now fixed:
+1. **A worker error stalled a scry forever.** The failed range never joined the frontier. Error replies now carry the chunk, failed scry ranges go on a per-task retry list that's served before new work, and `worker.onerror` frees the slot and requeues. Test: a flaky worker fails two chunks and the scan still completes.
+2. Shrine tasks left over from a previous walk were credited to the current walk. Finds now carry `taskId`, and a run only counts its own shrines.
+3. The bind handler could double-bind (pointerdown on a disabled button). It's now guarded in `bind()`.
+4. A fractional depth (`7.5`) threw in the render timer (`BigInt(16.5)`). Depth is floored and clamped.
+5. Workers could be set to 0, and a saved 0 was ignored on reload. The minimum is now 1 and the check is `!= null`.
+6. Dying during a breather recorded a wave that hadn't started.
+7. The shrine progress baseline is now taken from the frontier before extending.
+
+Also new: **meditation focus** (☆ → ★ on a meditating spirit). The pool now does weighted fair scheduling (least `sent/weight` first, where a chunk is ~120 ms for either kind), and focus = 4× share. The "next bit" estimate uses the task's actual share.

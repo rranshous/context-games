@@ -43,8 +43,7 @@ export function sanctumScreen(app: App): Screen {
   function renderBook() {
     const box = root.querySelector('#book')!;
     const rate = S.pool.rate();
-    const nameTasks = S.pool.list().length || 1;
-    const perTask = rate / nameTasks;
+    const totalWeight = S.pool.list().reduce((a, t) => a + S.pool.weight(t.id), 0) || 1;
     const all = learnedSpirits();
     const counts = { all: all.length, learned: all.filter((x) => S.learned(x.cell)).length, unlearned: 0 };
     counts.unlearned = counts.all - counts.learned;
@@ -71,7 +70,7 @@ export function sanctumScreen(app: App): Screen {
       const med = S.isMeditating(sp.cell);
       const color = ELEMENT_COLOR[sp.element]!;
       const rec = save.names[sp.cell];
-      const next = med ? fmtDuration(2 ** (s + 1) / Math.max(1, perTask)) : null;
+      const next = med ? fmtDuration(2 ** (s + 1) / Math.max(1, (rate * S.pool.weight('name:' + sp.cell)) / totalWeight)) : null;
       const bound = save.loadout.includes(sp.cell);
       return `<div class="spirit ${freshCells.has(sp.cell) ? 'new' : ''}" style="--c:${color}">
         <img class="sigil" src="${sigilURL(sp)}" alt="" data-card="${sp.cell}" title="open its card">
@@ -83,6 +82,7 @@ export function sanctumScreen(app: App): Screen {
         <div class="bar"><i style="width:${(100 * s) / MAX_BAR_BITS}%"></i><span class="mark" style="left:${(100 * MIN_NAME_BITS) / MAX_BAR_BITS}%"></span></div>
         <div class="row">
           <button class="small ${med ? 'on' : ''}" data-med="${sp.cell}">${med ? 'meditating' : 'meditate'}</button>
+          ${med ? `<button class="small ${S.isFocused(sp.cell) ? 'on' : ''}" data-focus="${sp.cell}" title="focus: a larger share of your meditation">${S.isFocused(sp.cell) ? '★ focus' : '☆'}</button>` : ''}
           ${learned ? `<button class="small" data-bind="${sp.cell}" ${bound ? 'disabled' : ''}>${bound ? 'bound' : 'bind'}</button>` : `<span class="dim" style="font-size:13px">learn at ${MIN_NAME_BITS} bits</span>`}
           <span class="grow"></span>
           ${med ? `<span class="dim" style="font-size:13px">next bit ~${next}</span>` : ''}
@@ -97,7 +97,8 @@ export function sanctumScreen(app: App): Screen {
     const e = (root.querySelector('#s-el') as HTMLSelectElement).value;
     const a = (root.querySelector('#s-asp') as HTMLSelectElement).value;
     const t = (root.querySelector('#s-trad') as HTMLSelectElement).value;
-    const depth = Number((root.querySelector('#s-depth') as HTMLInputElement).value);
+    const raw = Math.floor(Number((root.querySelector('#s-depth') as HTMLInputElement).value));
+    const depth = Number.isFinite(raw) ? Math.max(MIN_SPIRIT_DEPTH, Math.min(24, raw)) : MIN_SPIRIT_DEPTH;
     let prefix = e;
     if (a !== '') prefix += a;
     if (a !== '' && t !== '') prefix += Number(t).toString(8).padStart(2, '0');
@@ -219,6 +220,7 @@ export function sanctumScreen(app: App): Screen {
   }
 
   function bind(cell: string) {
+    if (save.loadout.includes(cell)) return;
     let i = picking ?? save.loadout.findIndex((c) => !c);
     if (i < 0) i = save.loadout.length - 1;
     save.loadout[i] = cell;
@@ -315,7 +317,7 @@ export function sanctumScreen(app: App): Screen {
       const showMute = () => { muteBtn.style.opacity = isMuted() ? '0.4' : '1'; };
       muteBtn.addEventListener('click', () => { setMuted(!isMuted()); showMute(); });
       showMute();
-      root.querySelector('#wdec')!.addEventListener('click', () => { S.pool.setActive(S.pool.getActive() - 1); save.workers = S.pool.getActive(); persist(save); renderTop(); });
+      root.querySelector('#wdec')!.addEventListener('click', () => { S.pool.setActive(Math.max(1, S.pool.getActive() - 1)); save.workers = S.pool.getActive(); persist(save); renderTop(); });
       root.querySelector('#winc')!.addEventListener('click', () => { S.pool.setActive(S.pool.getActive() + 1); save.workers = S.pool.getActive(); persist(save); renderTop(); });
       // pointerdown, not click: panels re-render on a timer and a click can straddle a re-render
       root.addEventListener('pointerdown', (e) => {
@@ -326,6 +328,8 @@ export function sanctumScreen(app: App): Screen {
         if (sort) { bookSort = sort as typeof bookSort; renderBook(); return; }
         const card = t.closest('[data-card]')?.getAttribute('data-card');
         if (card) { openSpiritCard(app, card); return; }
+        const foc = t.closest('[data-focus]')?.getAttribute('data-focus');
+        if (foc) { S.setFocus(foc, !S.isFocused(foc)); renderBook(); return; }
         const med = t.closest('[data-med]')?.getAttribute('data-med');
         if (med) { S.meditate(med, !S.isMeditating(med)); renderBook(); return; }
         const b = t.closest('[data-bind]')?.getAttribute('data-bind');
