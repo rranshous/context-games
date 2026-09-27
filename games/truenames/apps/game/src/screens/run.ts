@@ -3,7 +3,7 @@ import type { App, Screen } from '../main.ts';
 import { frag, esc } from '../dom.ts';
 import { BALANCE as B, descentName } from '../balance.ts';
 import {
-  ELEMENT_COLOR, ASPECTS, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS,
+  ELEMENT_COLOR, ASPECTS, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS, WARDEN_WELLS,
   spiritName, magnitudeTitle, addressOf,
 } from '../lore.ts';
 import { persist, spiritOf } from '../save.ts';
@@ -14,7 +14,7 @@ import { sanctumScreen } from './sanctum.ts';
 import { sigilCanvas, sigilURL } from '../sigil.ts';
 import * as sfx from '../audio.ts';
 
-type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman';
+type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman' | 'warden';
 
 interface Enemy {
   id: number;
@@ -35,7 +35,7 @@ interface Enemy {
 
 interface Ally { x: number; y: number; hp: number; life: number; hit: number; cd: number; color: string }
 interface Proj { x: number; y: number; vx: number; vy: number; r: number; dmg: number; life: number; enemy: boolean; color: string }
-interface Nova { x: number; y: number; t: number; dmg: number; r: number; color: string; element: number }
+interface Nova { x: number; y: number; t: number; dmg: number; r: number; color: string; element: number; enemy?: boolean; max?: number }
 interface Fx { kind: 'beam' | 'ring' | 'burst' | 'blink'; x: number; y: number; x2?: number; y2?: number; r?: number; t: number; max: number; color: string }
 interface Particle { x: number; y: number; vx: number; vy: number; t: number; max: number; color: string; size: number }
 interface Floater { x: number; y: number; text: string; color: string; t: number; size: number }
@@ -123,6 +123,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   let banner: { text: string; sub: string; t: number } | null = { text: descentName(level).toUpperCase(), sub: level === 0 ? 'Wave 1. They come for the light in you.' : `Descent ${level + 1}. The dark is thicker here.`, t: 3 };
   let over: null | 'won' | 'lost' = null;
   let kills = 0, finds = 0;
+  let warden: Enemy | null = null;
   let paused = false;
 
   function startWave() {
@@ -130,6 +131,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     spawnQueue = [];
     for (const [k, n] of Object.entries(w)) for (let i = 0; i < Math.round(n * (1 + D.countMult * level)); i++) spawnQueue.push(k as EnemyKind);
     for (let i = spawnQueue.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [spawnQueue[i], spawnQueue[j]] = [spawnQueue[j]!, spawnQueue[i]!]; }
+    if (wave === B.waves.length - 1) spawnQueue.splice(Math.floor(spawnQueue.length / 2), 0, 'warden');
     spawnT = 0;
   }
 
@@ -143,6 +145,17 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       if (dist2(x, y, player.x, player.y) > 550 ** 2) break;
     }
     const e: Enemy = { id: nextId++, kind, x, y, hp: d.hp * hpMult, maxHp: d.hp * hpMult, r: d.radius, speed: d.speed * rand(0.9, 1.1), dmg: d.dmg * dmgMult, cd: 0, hexDps: 0, hexT: 0, kx: 0, ky: 0, flash: 0 };
+    if (kind === 'warden') {
+      // The mightiest ancients serve the Warden; it drinks from the same wells you might.
+      e.aura = `npc:warden:${e.id}`;
+      e.cell = WARDEN_WELLS[(Math.random() * WARDEN_WELLS.length) | 0]!;
+      auth.grantSyntheticName(e.aura, e.cell, TUNABLES.capRef + B.warden.bits + D.shamanBits * level + 4);
+      e.castT = 2;
+      e.strafe = 0;
+      warden = e;
+      banner = { text: `THE WARDEN OF ${descentName(level).toUpperCase()}`, sub: `It speaks the name of ${spiritName(spiritOfCell(e.cell))}.`, t: 3.5 };
+      sfx.sfxWarden();
+    }
     if (kind === 'shaman') {
       e.aura = `npc:shaman:${e.id}`;
       e.cell = Math.random() < B.shaman.hearthChance ? HEARTH_GOD : ANCIENTS[(Math.random() * ANCIENTS.length) | 0]!;
@@ -326,6 +339,15 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   function applyShamanCast(r: CastResult) {
     const e = enemies.find((x) => x.aura === r.aura);
     if (!e || e.hp <= 0 || r.refused || r.grant <= 0) return;
+    if (e.kind === 'warden') {
+      const sp = spiritOfCell(e.cell!);
+      const frac = Math.max(0, Math.min(1, r.grant / castCap(r.strength, spiritStats(sp).generosity)));
+      const tgt = r.target.kind === 'point' ? r.target : { x: player.x, y: player.y };
+      novas.push({ x: tgt.x, y: tgt.y, t: B.warden.novaDelay, max: B.warden.novaDelay, dmg: B.warden.novaDamage * dmgMult * (0.3 + 0.7 * frac), r: B.warden.novaRadius, color: ELEMENT_COLOR[sp.element]!, element: sp.element, enemy: true });
+      floaters.push({ x: e.x, y: e.y - 44, text: `${r.effective.toFixed(0)} bits`, color: '#e7c26b', t: 0, size: 13 });
+      sfx.sfxEnemyCast();
+      return;
+    }
     const dx = player.x - e.x, dy = player.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
     const sp = spiritOfCell(e.cell!);
@@ -342,6 +364,14 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
 
   function authorityTick() {
     for (const e of enemies) {
+      if (e.kind === 'warden' && e.hp > 0) {
+        e.castT! -= TICK_MS / 1000;
+        if (e.castT! <= 0) {
+          e.castT = rand(B.warden.castMin, B.warden.castMax);
+          auth.submitCast({ aura: e.aura!, cell: e.cell!, request: B.request, target: { kind: 'point', x: player.x, y: player.y }, tick: auth.currentTick() });
+        }
+        continue;
+      }
       if (e.kind !== 'shaman' || e.hp <= 0) continue;
       e.castT! -= TICK_MS / 1000;
       if (e.castT! <= 0 && dist2(e.x, e.y, player.x, player.y) < 700 ** 2) {
@@ -542,7 +572,8 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       if (n.t <= 0) {
         fx.push({ kind: 'burst', x: n.x, y: n.y, r: n.r, t: 0, max: 0.45, color: n.color });
         sfx.sfxNova(n.element);
-        for (const e of enemies) if (dist2(e.x, e.y, n.x, n.y) < (n.r + e.r) ** 2) hurtEnemy(e, n.dmg, n.color);
+        if (n.enemy) { if (dist2(player.x, player.y, n.x, n.y) < (n.r + B.player.radius) ** 2) hurtPlayer(n.dmg, 'the Warden'); }
+        else for (const e of enemies) if (dist2(e.x, e.y, n.x, n.y) < (n.r + e.r) ** 2) hurtEnemy(e, n.dmg, n.color);
         burst(n.x, n.y, n.color, 30);
         shake = Math.min(10, shake + 4);
       }
@@ -666,7 +697,13 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.strokeStyle = n.color;
       ctx.globalAlpha = 0.6;
       ctx.setLineDash([6, 6]);
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r * (1 - n.t / B.forms.nova.delay * 0.3), 0, Math.PI * 2); ctx.stroke();
+      if (n.enemy) {
+        const k = 1 - n.t / (n.max ?? 1);
+        ctx.fillStyle = `rgba(255,80,64,${(0.06 + 0.18 * k).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ff5040';
+      }
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r * (1 - (n.t / (n.max ?? B.forms.nova.delay)) * 0.3), 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
@@ -777,6 +814,16 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       const a = Math.atan2(player.y - e.y, player.x - e.x);
       ctx.rotate(a);
       ctx.beginPath(); ctx.moveTo(e.r + 3, 0); ctx.lineTo(-e.r, e.r * 0.8); ctx.lineTo(-e.r, -e.r * 0.8); ctx.closePath(); ctx.fill();
+    } else if (e.kind === 'warden') {
+      const sp = spiritOfCell(e.cell!);
+      ctx.fillStyle = e.flash > 0 ? '#ffffff' : d.color;
+      octagon(ctx, e.r, t * 0.15);
+      ctx.fill();
+      ctx.strokeStyle = ELEMENT_COLOR[sp.element]!;
+      ctx.lineWidth = 2;
+      octagon(ctx, e.r + 8, -t * 0.25);
+      ctx.stroke();
+      ctx.drawImage(sigilCanvas(sp, 64), -e.r * 0.7, -e.r * 0.7, e.r * 1.4, e.r * 1.4);
     } else if (e.kind === 'brute') {
       octagon(ctx, e.r, t * 0.5);
       ctx.fill();
@@ -900,7 +947,20 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     ctx.font = '12px EB Garamond, serif';
     ctx.fillStyle = '#9c8f74';
     ctx.fillText(`${kills} banished · ${enemies.length + spawnQueue.length} remain${finds ? ` · ${finds} spirits found` : ''}`, w / 2, 48);
+    if (warden && warden.hp > 0) {
+      const bw = Math.min(420, w * 0.5);
+      ctx.fillStyle = 'rgba(10,9,17,0.8)';
+      ctx.fillRect(w / 2 - bw / 2 - 4, 72, bw + 8, 22);
+      ctx.fillStyle = '#3a1f22';
+      ctx.fillRect(w / 2 - bw / 2, 84, bw, 6);
+      ctx.fillStyle = '#e7c26b';
+      ctx.fillRect(w / 2 - bw / 2, 84, (bw * warden.hp) / warden.maxHp, 6);
+      ctx.font = '11px Cinzel, serif';
+      ctx.fillText(`the Warden · ${spiritName(spiritOfCell(warden.cell!))}`, w / 2, 81);
+    }
     ctx.textAlign = 'right';
+    ctx.font = '12px EB Garamond, serif';
+    ctx.fillStyle = '#9c8f74';
     ctx.fillText(`meditation hums at ${Math.round(S.pool.rate()).toLocaleString()} utterances/s`, w - 16, 26);
 
     // slots

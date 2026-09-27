@@ -21,8 +21,11 @@ export const BALANCE = {
     runner: { hp: 5, speed: 140, radius: 9, dmg: 3, color: '#c46b5a' },
     brute: { hp: 48, speed: 52, radius: 21, dmg: 15, color: '#6f5c8f' },
     shaman: { hp: 18, speed: 64, radius: 12, dmg: 0, color: '#d6b86a' },
+    warden: { hp: 260, speed: 42, radius: 34, dmg: 18, color: '#3a2f52' },
   },
   meleeCooldown: 0.9,
+  /** The Warden closes the last wave: telegraphed novas drawn from a mighty ancient. */
+  warden: { castMin: 2.6, castMax: 3.6, novaDelay: 1.3, novaRadius: 115, novaDamage: 22, bits: 3, boltEvery: 3 },
   shaman: { castMin: 1.6, castMax: 2.6, keepAway: 320, boltSpeed: 360, hearthChance: 0.45, boltDamage: 9 },
   waves: [
     { husk: 6 },
