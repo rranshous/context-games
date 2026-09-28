@@ -20,6 +20,13 @@
 - **Spirit temperament vs domination:** spirits that backlash against the strongest holder.
 - **Commit-reveal for claims:** unnecessary while spirits are shared pools rather than ownable claims; needed if anything becomes first-come ownership.
 
+## Direction: multiplayer split (Robby, 2026-09-27; not built)
+- **Two halves.** The **sanctum** is persistent and asynchronous: scrying, meditation, names, knowledge, the Open Choir. The **dungeon** is instanced action where you fight things or other players. They run on separate servers, and the dungeon lies outside the sanctum server's purview.
+- **Locked at departure.** What you bring in (your names as signed claims, and your capacity) is fixed for the journey. Meditation that finishes mid-journey counts next time.
+- **Borrowed power replaces wells in the dungeon.** At departure each patron (spirit) lends you a **vessel**: a size and refill rate, locked in, **per player**, never shared or contested inside the dungeon. The sanctum computes it from the spirit's magnitude, your truths, and how crowded the patron is (many callers means each gets less; the truest names get more), plus optionally depth and patron fatigue. The dungeon server only needs the signed grant.
+- **Lost:** live contention inside a dungeon (shamans thinning your wells, "rivals at this well"). Enemy casters draw on their own power. **Kept:** crowding costs, truer names pay, magnitude matters, deep uncrowded finds are valuable, and all of it is felt at departure.
+- **Open:** what counts as "crowded" (knowing a name vs recently calling on it); whether vessel math includes depth ("deeper beings are mightier", below); how PvP interacts with borrowed power.
+
 ## Decided during the v0 build (2026-09-27, see journal)
 - **Universe constants frozen:** `MIN_SPIRIT_DEPTH = 6`, `target(d) = 4 + ⌊3d/2⌋`, `MIN_NAME_BITS = 12` (was 8), seed = "truenames_v1".
 - **Hearth-god:** `011010`, Vreiziobain, dominion (mag 3) of cinderfrost, fire, generosity idx 3 (stingy), lance. The mightiest of the 35 ancient (depth-6) spirits.
