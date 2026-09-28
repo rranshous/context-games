@@ -96,6 +96,27 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 - Costs on the dev box: ~1.75 s to prove a name in a browser worker (4 names ≈ 7 s at the threshold), ms to verify. The circuit is ~18.9k constraints and proves spirits up to depth 24.
 - The trusted setup is a **local dev ceremony**, fine for single-player, not for a shared world.
 
+## Worlds: one power system, many games
+The dungeon hosts several **worlds**. Each admits you by the same proofs and interprets the same names differently. You pick the world in the sanctum's top bar, and each world has its own descent ladder.
+- **The Dark**: the arena. You walk in and speak your four names yourself.
+- **The Bastion**: tower defense. Each bound name becomes a **shrine type**; its form decides what the shrine does:
+
+  | form | shrine |
+  |---|---|
+  | bolt | seeking bolts |
+  | ring | pulses |
+  | ward | a slowing field |
+  | lance | a piercing line |
+  | nova | delayed artillery |
+  | summon | road guardians that block |
+  | hex | damage over time |
+  | blink | throws a foe back along the road |
+
+  Ten waves walk a winding road to your **hearth**; a Warden comes with the last. **Resonance** from kills and held waves raises shrines, and each costs more than the last. The Dark's rules carry over with new consequences:
+  - **Strain is aura-wide.** Every shrine speaks in your name, so every shrine strains you. Too many and every word weakens; past capacity, backlash cracks the hearth.
+  - **One vessel per patron.** All shrines to a patron share it, and only one of them speaks per tick, so spreading across patrons pays.
+  - Calling a wave early turns the skipped breather into resonance.
+
 ## The dungeon is its own process
 Rounds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends movement, aim and casts and draws what the dungeon reports 20 times a second. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. This is the stepping stone to multiplayer: more players are more connections into one simulation.
 

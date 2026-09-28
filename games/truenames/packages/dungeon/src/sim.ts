@@ -3,16 +3,16 @@
 // Players arrive with zero-knowledge proofs only; the dungeon never learns where their spirits dwell.
 import { LocalAuthority, castCap, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
 import type { CastResult, TargetSpec } from '@truenames/protocol';
-import { spiritAt, type Spirit, type Traits } from '@truenames/universe';
-import { parsePublic, type ZkNameClaim } from '@truenames/proofs';
-import { BALANCE as B, SLOTS } from './balance.ts';
+import { spiritAt, type Spirit } from '@truenames/universe';
+import type { ZkNameClaim } from '@truenames/proofs';
+import { admitNames, publicSlots, wireTraits, type AdmittedSlot } from './admission.ts';
+import { BALANCE as B } from './balance.ts';
 import { ANCIENTS, HEARTH_GOD, WARDEN_WELLS } from './world.ts';
-import type { EnemyKind, SimEvent, SlotInfo, Snapshot, WireTraits, RoundResultMsg } from './protocol.ts';
+import type { EnemyKind, SimEvent, SlotInfo, Snapshot, RoundResultMsg, ClientMsg, ServerMsg } from './protocol.ts';
 import { movePlayer, collideCircle, MAX_CMD_DT, type Arena, type MoveCmd } from './movement.ts';
 
 const TICK_S = TUNABLES.TICK_MS / 1000;
 const dist2 = (ax: number, ay: number, bx: number, by: number) => (ax - bx) ** 2 + (ay - by) ** 2;
-const wireTraits = (t: Traits): WireTraits => ({ ...t, flavor: t.flavor.toString() });
 
 // public spirits (enemy names) by address; spiritAt costs several Poseidons, so cache
 const spiritCache = new Map<string, Spirit>();
@@ -22,11 +22,7 @@ function publicSpirit(cell: string): Spirit {
   return sp;
 }
 
-interface Slot extends SlotInfo {
-  form: number;
-  generosity: number;
-  lastBits: number | null;
-}
+type Slot = AdmittedSlot;
 
 interface Player {
   id: string; // aura (hex public key)
@@ -68,6 +64,7 @@ export interface DungeonOptions {
 }
 
 export class DungeonSim {
+  readonly world = 'dark' as const;
   readonly level: number;
   readonly W = B.arena.w;
   readonly H = B.arena.h;
@@ -122,29 +119,20 @@ export class DungeonSim {
 
   /** Admit a player by their proofs. Returns what each proof revealed (or why it was refused). */
   async admit(aura: string, bundle: { slot: number; claim: ZkNameClaim }[]): Promise<{ slots: (SlotInfo | null)[]; refused: string[] }> {
-    this.auth.registerAura(aura);
-    const slots: (Slot | null)[] = SLOTS.map(() => null);
-    const refused: string[] = [];
-    const seen = new Set<string>();
-    for (const { slot, claim } of bundle) {
-      if (!(slot >= 0 && slot < SLOTS.length) || slots[slot]) { refused.push('no such slot'); continue; }
-      if (claim.aura !== aura) { refused.push('a name for another aura'); continue; }
-      let pub;
-      try { pub = parsePublic(claim.publicSignals); } catch { refused.push('bad public signals'); continue; }
-      if (seen.has(pub.roundTag)) { refused.push('the same patron twice'); continue; }
-      const r = await this.auth.submitProvenName(claim);
-      if (!r.accepted || !r.spirit) { refused.push(r.reason ?? 'unknown'); continue; }
-      seen.add(pub.roundTag);
-      // the proof revealed only the details: element, magnitude, gameplay traits. Never the source.
-      const traits = { ...pub.traits, flavor: 0n };
-      slots[slot] = {
-        spirit: r.spirit, element: pub.element, magnitude: pub.magnitude, traits: wireTraits(traits), strength: r.strength!,
-        form: traits.form, generosity: spiritStats({ magnitude: pub.magnitude, traits }).generosity, lastBits: null,
-      };
-    }
+    const { slots, refused } = await admitNames(this.auth, aura, bundle);
     const n = this.players.size;
     this.players.set(aura, { id: aura, x: this.W / 2 + n * 40, y: this.H / 2, hp: B.player.hp, ward: 0, invuln: 0, ax: this.W / 2 + 100, ay: this.H / 2, slots, alive: true, ack: 0, budget: 0 });
-    return { slots: slots.map((s) => s && { spirit: s.spirit, element: s.element, magnitude: s.magnitude, traits: s.traits, strength: s.strength }), refused };
+    return { slots: publicSlots(slots), refused };
+  }
+
+  welcome(you: string, slots: (SlotInfo | null)[], refused: string[]): ServerMsg {
+    return { t: 'welcome', world: 'dark', you, level: this.level, arena: { w: this.W, h: this.H }, pillars: this.pillars, slots, refused };
+  }
+
+  handle(you: string, m: ClientMsg) {
+    if (m.t === 'cmds' && Array.isArray(m.cmds)) this.commands(you, m.cmds.slice(0, 120));
+    else if (m.t === 'cast') this.cast(you, Math.floor(Number(m.slot)), Number(m.ax), Number(m.ay));
+    else if (m.t === 'abandon') this.leave(you);
   }
 
   /**
@@ -183,7 +171,7 @@ export class DungeonSim {
   }
 
   result(): RoundResultMsg {
-    return { level: this.level, won: this.over === 'won', wave: this.wave + (this.over === 'won' || this.breather > 0 ? 0 : 1), kills: this.kills };
+    return { world: 'dark', level: this.level, won: this.over === 'won', wave: this.wave + (this.over === 'won' || this.breather > 0 ? 0 : 1), kills: this.kills };
   }
 
   // ---------- stepping ----------

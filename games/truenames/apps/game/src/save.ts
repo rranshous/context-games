@@ -20,6 +20,7 @@ export interface NameRecord {
 
 export interface RunRecord {
   at: number;
+  world?: 'dark' | 'bastion';
   descent?: number;
   wave: number;
   won: boolean;
@@ -62,6 +63,9 @@ export interface SaveData {
   lastDescent: number;
   /** Name Book view: tab, filters, sort. */
   codex?: CodexView;
+  /** Progress in worlds beyond the Dark (whose progress is `descent` / `lastDescent`). */
+  worlds?: { bastion?: { descent: number; last: number } };
+  lastWorld?: 'dark' | 'bastion';
 }
 
 export function emptySave(): SaveData {

@@ -51,6 +51,22 @@ export const HELP = {
   strain: `<b>Strain</b>: every evocation tires your aura, and strain ebbs over time. Each point of strain you carry costs a truth at the moment you speak, so spamming weakens every word. Past the white mark (your <em>capacity</em>), spirits answer with <b>backlash</b>.`,
   hudSlot: `A name you carried in, proven at the threshold. Top right: how true your last evocation rang (after strain). The bar beneath is your <b>vessel</b>: the power this patron lent you for the journey. It refills over time.`,
   wave: `The wave you are on, and foes banished and remaining.`,
+  // --- the Bastion ---
+  world: `<b>Which world to enter.</b> Each interprets your names differently. <em>The Dark</em>: you walk in and speak them yourself. <em>The Bastion</em>: you raise shrines to your patrons along a road, and they speak for you.`,
+  hearth: `<b>Your hearth.</b> Every foe that reaches it cracks it; backlash from your own shrines cracks it too. When it goes dark, the bastion falls.`,
+  resonance: `<b>Resonance</b>: earned by banishing foes and holding waves. It raises shrines; each shrine costs more than the last.`,
+  bastionWave: `Ten waves walk the road; a Warden comes with the last. Between waves the road is quiet: a good time to raise shrines.`,
+  callWave: `Call the next wave now. The time you skip becomes resonance.`,
+  bastionStrain: `<b>Strain</b>: every shrine speaks in <em>your</em> name, so every shrine strains your aura. Too many shrines and every word weakens; past the white mark, backlash cracks your hearth.`,
+  shrineCard: `Choose it (click or its number key), then click the ground to raise a shrine. Shrines to the same patron <em>share one vessel</em> (the bar) and only one of them speaks each breath, so spreading across patrons pays.`,
+  shrine_bolt: `Throws a seeking bolt at the foe furthest along the road.`,
+  shrine_ring: `Rings out, striking every foe close around it.`,
+  shrine_ward: `Wards the road around it: foes inside are slowed.`,
+  shrine_lance: `Lances down a long line toward the leading foe, piercing all in its path.`,
+  shrine_nova: `Gathers a nova where the leading foe stands; it bursts a moment later.`,
+  shrine_summon: `Sends a guardian onto the road nearby; foes that reach it must fight through.`,
+  shrine_hex: `Hexes the leading foe, eating it over time.`,
+  shrine_blink: `Casts the leading foe back along the road.`,
   warden: `The <b>Warden</b>: it speaks the name of a mighty ancient spirit and calls down novas where you stand. Watch for the red circle.`,
 } as const;
 

@@ -25,7 +25,13 @@ Spirits dwell in the eightfold astral, a space that divides into eight, then eig
 - **At the threshold** the sanctum proves each bound name in zero knowledge: *"I hold a name of at least N truths on a spirit of magnitude at least M, with this element and these traits."* The dungeon learns the details, never the source. It can't tell which spirit you carry or where it dwells, and can't link it across rounds.
 - **The dungeon is authoritative.** The browser sends only intent (movement, aim, casts), predicts its own movement with the dungeon's own code, and draws everything else slightly in the past between snapshots.
 
+### Worlds
+The dungeon hosts several **worlds**, each a different game built on the same proven powers. Pick one in the sanctum's top bar; each has its own descents.
+- **The Dark**: an arena. You walk in and speak your four names yourself: five waves and a Warden.
+- **The Bastion**: tower defense. Each name becomes a **shrine** along the road to your hearth, and its form decides what the shrine does (bolts, pulses, slowing wards, piercing lances, artillery novas, road guardians, hexes, or throwing foes back). Every shrine speaks in *your* name, so every shrine strains *you*, and shrines to the same patron share one vessel.
+
 ![In the dark](docs/images/dark.png)
+![The Bastion](docs/images/bastion.png)
 
 ## Play
 ```sh
@@ -39,7 +45,7 @@ pnpm is used through corepack (no global install needed). Your save lives in you
    - **Scry** regions of the astral for spirits.
    - **Meditate** to unveil truer names; each truth requires twice as much meditation as the last, and at 12 truths a name is learned.
    - **Bind** four names. Drag one onto a slot, or use *bind*.
-3. **Walk into the dark:** five waves and a Warden.
+3. **Choose a world** and go: *walk into the dark* (five waves and a Warden, fought yourself) or *hold the bastion* (ten waves down a road; raise shrines to your patrons with 1–4 / click, space calls the next wave).
 
 | Control | |
 |---|---|

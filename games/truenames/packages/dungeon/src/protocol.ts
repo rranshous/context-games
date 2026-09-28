@@ -2,6 +2,8 @@
 // Bigints travel as decimal strings. Nothing here is secret: journeys carry proofs, never addresses.
 import type { ZkNameClaim } from '@truenames/proofs';
 import type { MoveCmd } from './movement.ts';
+import type { World, BastionFoe } from './balance.ts';
+export type { World, BastionFoe } from './balance.ts';
 export type { MoveCmd } from './movement.ts';
 
 export type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman' | 'warden';
@@ -26,22 +28,28 @@ export interface SlotInfo {
 
 // ---------- client → dungeon ----------
 export type ClientMsg =
-  | { t: 'open'; level: number; lag?: number } // request a round; the dungeon issues the context. lag: dev-only simulated latency (ms)
+  | { t: 'open'; level: number; world?: World; lag?: number } // request a round; the dungeon issues the context. lag: dev-only simulated latency (ms)
   | { t: 'journey'; aura: string; bundle: { slot: number; claim: ZkNameClaim }[] }
   | { t: 'cmds'; cmds: MoveCmd[] } // numbered movement/aim commands, one per client tick
   | { t: 'cast'; slot: number; ax: number; ay: number }
+  | { t: 'build'; slot: number; gx: number; gy: number } // bastion: raise a shrine to this slot's patron
+  | { t: 'sell'; id: number } // bastion: let a shrine fall (partial refund)
+  | { t: 'call' } // bastion: call the next wave early
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
 
 // ---------- dungeon → client ----------
 export type ServerMsg =
-  | { t: 'ticket'; context: string; level: number }
-  | { t: 'welcome'; you: string; level: number; arena: { w: number; h: number }; pillars: { x: number; y: number; r: number }[]; slots: (SlotInfo | null)[]; refused: string[] }
+  | { t: 'ticket'; context: string; level: number; world: World }
+  | { t: 'welcome'; world: 'dark'; you: string; level: number; arena: { w: number; h: number }; pillars: { x: number; y: number; r: number }[]; slots: (SlotInfo | null)[]; refused: string[] }
+  | { t: 'welcome'; world: 'bastion'; you: string; level: number; bastion: BastionLayout; slots: (SlotInfo | null)[]; refused: string[] }
   | Snapshot
+  | BastionSnapshot
   | { t: 'end'; result: RoundResultMsg }
   | { t: 'error'; message: string };
 
 export interface RoundResultMsg {
+  world: World;
   level: number;
   won: boolean;
   wave: number;
@@ -101,3 +109,59 @@ export type SimEvent =
   | { e: 'wave'; wave: number }
   | { e: 'breather'; wave: number }
   | { e: 'warden'; element: number; magnitude: number; traits: WireTraits };
+
+// ---------- the Bastion (tower defense) ----------
+
+export interface BastionLayout {
+  cols: number;
+  rows: number;
+  tile: number;
+  road: [number, number][]; // world-space polyline, spawn → hearth
+  roadTiles: [number, number][]; // tiles no shrine may stand on
+  hearth: { x: number; y: number; max: number };
+}
+
+export interface BastionSnapshot {
+  t: 'bsnap';
+  time: number;
+  paused: boolean;
+  wave: number; // 0-based: the wave running or next
+  waves: number;
+  breather: number; // seconds until the next wave (0 while one runs)
+  running: boolean;
+  hearth: number;
+  resonance: number;
+  shrineCost: number;
+  kills: number;
+  remaining: number;
+  strain: number;
+  capacity: number;
+  slots: ({ lastBits: number | null; vessel: number; cap: number } | null)[];
+  shrines: { id: number; slot: number; gx: number; gy: number; form: number; element: number; ready: number }[];
+  foes: { id: number; kind: BastionFoe; x: number; y: number; hp: number; maxHp: number; r: number; slowed: boolean; hexed: boolean; blocked: boolean }[];
+  bolts: { id: number; x: number; y: number; element: number }[];
+  guardians: { id: number; x: number; y: number; life: number; element: number }[];
+  novas: { id: number; x: number; y: number; r: number; t: number; max: number; element: number }[];
+  warden: { hp: number; maxHp: number } | null;
+  events: BastionEvent[];
+}
+
+export type BastionEvent =
+  | { e: 'shrineCast'; id: number; slot: number; form: number; element: number; effective: number; effect: number; x: number; y: number }
+  | { e: 'refused'; id: number; slot: number }
+  | { e: 'backlash'; id: number; hearth: number }
+  | { e: 'hit'; id: number; x: number; y: number; dmg: number; element: number }
+  | { e: 'kill'; x: number; y: number; kind: BastionFoe; element: number; reward: number }
+  | { e: 'leak'; x: number; y: number; dmg: number }
+  | { e: 'beam'; x: number; y: number; x2: number; y2: number; width: number; element: number; dur: number }
+  | { e: 'ring'; x: number; y: number; r: number; element: number; ward?: boolean }
+  | { e: 'nova'; x: number; y: number; r: number; element: number }
+  | { e: 'throw'; x: number; y: number; x2: number; y2: number; element: number } // blink: foe cast back along the road
+  | { e: 'summon'; x: number; y: number; element: number }
+  | { e: 'spark'; x: number; y: number; element: number }
+  | { e: 'built'; id: number; slot: number; gx: number; gy: number }
+  | { e: 'sold'; id: number; refund: number }
+  | { e: 'denied'; why: string }
+  | { e: 'wave'; wave: number }
+  | { e: 'cleared'; wave: number; bonus: number }
+  | { e: 'warden' };

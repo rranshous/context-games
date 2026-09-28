@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { DungeonSim, zkVerifier, type ClientMsg, type ServerMsg } from '@truenames/dungeon';
+import { DungeonSim, BastionSim, zkVerifier, type ClientMsg, type ServerMsg, type World } from '@truenames/dungeon';
 
 const require = createRequire(import.meta.url);
 const vkey = JSON.parse(readFileSync(require.resolve('@truenames/proofs/artifacts/name.vkey.json'), 'utf8'));
@@ -28,7 +28,8 @@ function serve(ws: WebSocket) {
   };
   let context: bigint | null = null;
   let level = 0;
-  let sim: DungeonSim | null = null;
+  let world: World = 'dark';
+  let sim: DungeonSim | BastionSim | null = null;
   let you: string | null = null;
   let loop: ReturnType<typeof setInterval> | null = null;
   let steps = 0;
@@ -45,17 +46,18 @@ function serve(ws: WebSocket) {
         if (context !== null) return send(ws, { t: 'error', message: 'round already open' });
         level = Math.max(0, Math.min(MAX_LEVEL, Math.floor(Number(m.level) || 0)));
         lag = Math.max(0, Math.min(MAX_LAG, Math.floor(Number(m.lag) || 0)));
+        world = m.world === 'bastion' ? 'bastion' : 'dark';
         context = BigInt('0x' + randomBytes(16).toString('hex'));
-        return send(ws, { t: 'ticket', context: context.toString(), level });
+        return send(ws, { t: 'ticket', context: context.toString(), level, world });
       }
       case 'journey': {
         if (context === null || sim) return send(ws, { t: 'error', message: 'no open round' });
-        sim = new DungeonSim({ level, context, verifier });
+        sim = world === 'bastion' ? new BastionSim({ level, context, verifier }) : new DungeonSim({ level, context, verifier });
         const t0 = performance.now();
         const { slots, refused } = await sim.admit(m.aura, m.bundle);
         you = m.aura;
-        console.log(`[dungeon] round ${context.toString(16).slice(0, 8)}: ${slots.filter(Boolean).length} names verified in ${(performance.now() - t0).toFixed(0)} ms${refused.length ? `, refused: ${refused.join('; ')}` : ''}`);
-        send(ws, { t: 'welcome', you: m.aura, level, arena: { w: sim.W, h: sim.H }, pillars: sim.pillars, slots, refused });
+        console.log(`[dungeon] ${world} round ${context.toString(16).slice(0, 8)}: ${slots.filter(Boolean).length} names verified in ${(performance.now() - t0).toFixed(0)} ms${refused.length ? `, refused: ${refused.join('; ')}` : ''}`);
+        send(ws, sim.welcome(m.aura, slots, refused));
         sim.start();
         loop = setInterval(() => {
           if (!sim) return;
@@ -69,17 +71,11 @@ function serve(ws: WebSocket) {
         }, STEP * 1000);
         return;
       }
-      case 'cmds':
-        if (sim && you && Array.isArray(m.cmds)) sim.commands(you, m.cmds.slice(0, 120));
-        return;
-      case 'cast':
-        if (sim && you) sim.cast(you, Math.floor(Number(m.slot)), Number(m.ax), Number(m.ay));
-        return;
       case 'pause':
         if (sim) sim.paused = !!m.on; // single-player convenience; a shared dungeon would ignore this
         return;
-      case 'abandon':
-        if (sim && you) sim.leave(you);
+      default:
+        if (sim && you) sim.handle(you, m); // world-specific: movement and casts, or building shrines
         return;
     }
   };

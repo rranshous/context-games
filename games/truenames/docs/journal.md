@@ -330,3 +330,38 @@ The circuit now reveals only the details:
 - README rewritten around the current shape: a sanctum screenshot, a "how it works" diagram (sanctum → proofs only → dungeon; snapshots back), the zero-knowledge threshold, the authoritative dungeon, prediction, and `?lag=`. Screenshots live in `docs/images/`; `games/truenames/.gitignore` re-includes them because the repo root ignores `*.png`.
 - **Bug found while taking the screenshot:** "your vessel runs low" fired on nearly every cast. The condition was "grant < 70% of what the name could draw", but at high truths the draw cap far exceeds a vessel's whole capacity (e.g. 29 truths vs a magnitude-3 vessel of 283), so it was always true. It now also requires the vessel to be below 25% after the cast, so it means what it says.
 - **Balance observation (not changed):** at high truths a single cast can empty an entire vessel (a 29-truth bolt drew all 283). Truths keep scaling the cap √2 per truth while magnitude caps the vessel, so strong names on modest patrons turn into one enormous hit followed by a long refill. Probably worth reshaping, e.g. a per-cast fraction of the vessel, or making magnitude matter more than it does now. That ties into the parked "deeper beings are mightier" idea.
+
+## Session 3: worlds, and the Bastion (tower defense) (2026-09-28)
+
+Robby: "expand the game client to have multiple worlds… do a tower defense progression where the towers are based on the powers." It's the first real test of "one power system, many games".
+
+**The Bastion** interprets the same proven names as **shrine types**:
+- **Forms as shrines:**
+
+  | form | shrine |
+  |---|---|
+  | bolt | seeking bolt at the foe furthest along the road |
+  | ring | pulse |
+  | ward | slowing field, strength from effect |
+  | lance | piercing line |
+  | nova | delayed artillery at the leader |
+  | summon | a guardian on the road that blocks foes and fights |
+  | hex | damage over time |
+  | blink | throws the leader back along the road |
+
+- **Map and waves:** a 22×13 tile map with a winding road to a **hearth** (20). Ten waves of husks, runners and brutes, growing ×1.17 hp per wave; a Warden (1400 hp, leak 10) in the last. Descents multiply as in the Dark.
+- **Economy:** **resonance** comes from kills and held waves. A shrine costs 60 + 35 × shrines standing; selling refunds half. Calling a wave early converts the skipped breather into resonance.
+- **The Dark's rules carry over with new consequences**, with no new mechanics needed:
+  - every shrine casts through the authority in *your* name, so **strain is aura-wide**, and backlash damages the hearth
+  - **vessels are per patron and shared by all its shrines**; the authority's one-cast-per-aura-per-spirit-per-tick rule means extra same-patron shrines get refused `duplicate` and simply retry next tick, so spreading across patrons pays
+- **Code:**
+  - `packages/dungeon/src/bastion.ts` (`BastionSim`), `BASTION` balance, and `admission.ts` (the threshold check, now shared).
+  - Both sims expose one host interface (`admit/welcome/handle/start/step/snapshot/over/result`), and the server picks the world from `open {world}`.
+  - Client: `screens/bastion.ts`, a thin client with interpolation. It covers placement preview with range, shrine readiness rings, true names and seals from local cosmetics, cards with vessel bars and costs, a call-wave button, sell-on-select, and HUD tooltips.
+  - The sanctum gained a **world** picker, per-world descents (`save.worlds.bastion`), and walk history marked by world.
+- **Tests** (`bastion.test.ts`, real proofs): placement rules and rising cost; lance shrines cast, strain rises, kills earn resonance; an undefended hearth falls. 42 tests total.
+- **Playtest (bot, test profile with 23–29-truth names, descent 1)**: **held all 10 waves with the hearth untouched**, 212 banished, 9 shrines, strain peaking ~5.5 of 9.4 capacity.
+
+**Balance notes**:
+- Far too easy with strong names, which is expected, since descents are the ladder. But the aura-wide **strain tradeoff isn't biting at 9 shrines**. Shrine cadences are slow compared with a player spamming in the Dark, so strain stays around half of capacity. Levers: more strain per shrine cast, faster cadences, or capacity counting only… (to be decided with play).
+- The same "one cast empties a whole vessel at high truths" effect is visible here, and it compounds with shared patron vessels.

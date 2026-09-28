@@ -1,12 +1,13 @@
 // The game side of the threshold: a link to a dungeon process. It knows nothing of the sanctum.
 // The dungeon issues a context, receives proofs bound to it, runs the round, and reports what happened.
 import type { ZkNameClaim } from '@truenames/proofs';
-import type { ClientMsg, ServerMsg, Snapshot, RoundResultMsg, MoveCmd, WireTraits } from '@truenames/dungeon/protocol';
+import type { ClientMsg, ServerMsg, Snapshot, BastionSnapshot, RoundResultMsg, MoveCmd, WireTraits, World } from '@truenames/dungeon/protocol';
 
 /** Issued by the dungeon when a round is opened. Proofs must be bound to its context. */
 export interface RoundTicket {
   context: bigint;
   level: number;
+  world: World;
 }
 
 /** What the sanctum hands the game: public identity, cosmetics, and zero-knowledge proofs. No secrets. */
@@ -22,6 +23,8 @@ export interface Journey {
 
 export type RoundResult = RoundResultMsg;
 export type Welcome = Extract<ServerMsg, { t: 'welcome' }>;
+export type DarkWelcome = Extract<Welcome, { world: 'dark' }>;
+export type BastionWelcome = Extract<Welcome, { world: 'bastion' }>;
 
 /** How a round talks back to whoever launched it. */
 export interface RoundHost {
@@ -44,6 +47,7 @@ export class DungeonLink {
   private ready: Promise<void>;
   private waiters: ((m: ServerMsg) => boolean)[] = [];
   onSnapshot: ((s: Snapshot) => void) | null = null;
+  onBastion: ((s: BastionSnapshot) => void) | null = null;
   onEnd: ((r: RoundResult) => void) | null = null;
   onClose: (() => void) | null = null;
   closed = false;
@@ -57,6 +61,7 @@ export class DungeonLink {
     this.ws.onmessage = (e) => {
       const m = JSON.parse(String(e.data)) as ServerMsg;
       if (m.t === 'snap') return this.onSnapshot?.(m);
+      if (m.t === 'bsnap') return this.onBastion?.(m);
       if (m.t === 'end') return this.onEnd?.(m.result);
       if (m.t === 'error') console.warn('[dungeon]', m.message);
       this.waiters = this.waiters.filter((w) => !w(m));
@@ -79,12 +84,12 @@ export class DungeonLink {
   }
 
   /** Ask the dungeon for a round; it answers with a fresh context. */
-  async open(level: number): Promise<RoundTicket> {
+  async open(level: number, world: World = 'dark'): Promise<RoundTicket> {
     await this.ready;
     const reply = this.next('ticket');
-    this.send({ t: 'open', level, ...(DEV_LAG ? { lag: DEV_LAG } : {}) });
+    this.send({ t: 'open', level, world, ...(DEV_LAG ? { lag: DEV_LAG } : {}) });
     const m = await reply;
-    return { context: BigInt(m.context), level: m.level };
+    return { context: BigInt(m.context), level: m.level, world: m.world };
   }
 
   /** Present the journey's proofs. The dungeon verifies them and describes the round. */
@@ -96,6 +101,9 @@ export class DungeonLink {
 
   cmds(cmds: MoveCmd[]) { this.send({ t: 'cmds', cmds }); }
   cast(slot: number, ax: number, ay: number) { this.send({ t: 'cast', slot, ax, ay }); }
+  build(slot: number, gx: number, gy: number) { this.send({ t: 'build', slot, gx, gy }); }
+  sell(id: number) { this.send({ t: 'sell', id }); }
+  callWave() { this.send({ t: 'call' }); }
   pause(on: boolean) { this.send({ t: 'pause', on }); }
   abandon() { this.send({ t: 'abandon' }); }
   close() { this.ws.close(); }

@@ -154,3 +154,4 @@ export function sfxWave() { tone(73.4, 'sine', 0.3, 0.2, 1.5); tone(110, 'sine',
 export function sfxVictory() { [1, 5 / 4, 3 / 2, 2, 5 / 2].forEach((m, i) => tone(220 * m, 'triangle', 0.02, 0.08, 1.5, i * 0.12)); }
 export function sfxDeath() { [1, 0.94, 0.84, 0.75].forEach((m, i) => tone(220 * m, 'sine', 0.05, 0.1, 1, i * 0.25)); }
 export function sfxWarden() { [1, 0.75, 0.5].forEach((m, i) => tone(110 * m, 'sawtooth', 0.3, 0.08, 2, i * 0.3, 0.98)); tone(36.7, 'sine', 0.5, 0.3, 3); }
+export function sfxShrineRaise() { [1, 5 / 4, 3 / 2].forEach((m, i) => tone(165 * m, 'sine', 0.05, 0.07, 0.8, i * 0.06)); }

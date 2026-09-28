@@ -56,3 +56,74 @@ export const SLOTS = [
   { label: '1', key: '1', button: null, name: 'key 1' },
   { label: '2', key: '2', button: null, name: 'key 2' },
 ] as const;
+
+/** The worlds a dungeon can host. Each interprets the same proven powers differently. */
+export type World = 'dark' | 'bastion';
+export const WORLDS: { id: World; name: string; blurb: string }[] = [
+  { id: 'dark', name: 'the Dark', blurb: 'Walk into the dark and speak your names yourself: five waves and a Warden.' },
+  { id: 'bastion', name: 'the Bastion', blurb: 'Raise shrines to your patrons along the road to your hearth. Every shrine speaks in your name, and every word strains you.' },
+];
+
+export type BastionFoe = 'husk' | 'runner' | 'brute' | 'warden';
+
+/** Tower defense: your names become shrines (towers) along a road to your hearth. */
+export const BASTION = {
+  tile: 48,
+  cols: 22,
+  rows: 13,
+  /** The road, as tile-coordinate waypoints; foes enter at the first and reach the hearth at the last. */
+  path: [[-1, 2], [17, 2], [17, 6], [4, 6], [4, 10], [21, 10]] as [number, number][],
+  hearth: 20,
+  startResonance: 170,
+  /** a shrine costs base + step × shrines already standing */
+  shrineBase: 60,
+  shrineStep: 35,
+  sellRefund: 0.5,
+  waves: 10,
+  breather: 7,
+  firstBreather: 12,
+  spawnEvery: 0.75,
+  waveHpGrowth: 1.17,
+  waveBonus: 20,
+  waveBonusStep: 5,
+  /** resonance for calling a wave early, per second of breather skipped */
+  earlyCallPerSecond: 3,
+  /** hearth damage per backlash, plus recoil / recoilPerHearth */
+  backlashHearth: 1,
+  recoilPerHearth: 80,
+  foes: {
+    husk: { hp: 26, speed: 48, radius: 11, leak: 1, reward: 5, hitGuardian: 8, color: '#8f8a7a' },
+    runner: { hp: 14, speed: 92, radius: 8, leak: 1, reward: 4, hitGuardian: 5, color: '#c46b5a' },
+    brute: { hp: 110, speed: 32, radius: 17, leak: 3, reward: 14, hitGuardian: 20, color: '#6f5c8f' },
+    warden: { hp: 1400, speed: 24, radius: 26, leak: 10, reward: 80, hitGuardian: 40, color: '#3a2f52' },
+  } as Record<BastionFoe, { hp: number; speed: number; radius: number; leak: number; reward: number; hitGuardian: number; color: string }>,
+  wavesMix: [
+    { husk: 8 },
+    { husk: 10, runner: 4 },
+    { husk: 12, runner: 6 },
+    { husk: 10, brute: 3 },
+    { runner: 14, husk: 6 },
+    { husk: 14, brute: 5 },
+    { husk: 16, runner: 10, brute: 3 },
+    { brute: 8, runner: 8 },
+    { husk: 20, runner: 14, brute: 6 },
+    { husk: 16, runner: 10, brute: 8, warden: 1 },
+  ] as Partial<Record<BastionFoe, number>>[],
+  /** How each form manifests as a shrine. `every` is its cadence in seconds. */
+  forms: {
+    bolt: { range: 190, every: 0.7, speed: 520 },
+    ring: { range: 95, every: 1.1 },
+    ward: { range: 115, every: 2.0, slowPerEffect: 0.012, maxSlow: 0.6, duration: 2.6 },
+    lance: { range: 270, every: 1.5, width: 22 },
+    nova: { range: 330, every: 2.4, radius: 80, delay: 0.8 },
+    summon: { range: 160, every: 4.5, life: 9, hpPerEffect: 1.5, hitBase: 2, hitPerEffect: 0.12, hitEvery: 0.6 },
+    hex: { range: 210, every: 1.3, duration: 3 },
+    blink: { range: 180, every: 2.8, base: 40, perEffect: 1.5, max: 220 },
+  },
+};
+
+export const BASTION_NAMES = ['the Outer Wall', 'the Lantern Gate', 'the Salt Road', 'the Weeping Span', 'the Ash Bridge', 'the Bell Tower', 'the Sunken Keep', 'the Last Courtyard', 'the Inner Hearth', 'the Nameless Wall'];
+export function worldDescentName(world: World, l: number): string {
+  if (world === 'dark') return descentName(l);
+  return BASTION_NAMES[l] ?? `the Nameless Wall ${'I'.repeat(Math.min(12, l - BASTION_NAMES.length + 2))}`;
+}

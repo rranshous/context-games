@@ -139,6 +139,13 @@ sequenceDiagram
 ```
 The save stores **signed claims**, not bare numbers. On boot and at the start of each run they're re-submitted and re-verified, exactly as they would be to a server.
 
+## Worlds
+`packages/dungeon` holds one simulation per world behind the same host interface (`admit`, `welcome`, `handle`, `start`, `step`, `snapshot`, `over`, `result`, `paused`):
+- **`sim.ts` (`DungeonSim`, world `dark`)**: the arena (below).
+- **`bastion.ts` (`BastionSim`, world `bastion`)**: tower defense on a tile grid with a polyline road (`BASTION` in `balance.ts`: layout, waves, foes, and per-form shrine behavior). Shrines cast through the same `LocalAuthority` in the player's name: strain is aura-wide, and vessels are per patron and shared by all its shrines (`aura|spirit`); a second same-patron shrine that tick is refused `duplicate` and retries. Messages: `build {slot, gx, gy}`, `sell {id}`, `call`. Snapshots are `bsnap`.
+- **`admission.ts`**: the shared threshold check (verify each proof, refuse duplicates, keep only revealed details).
+- The server picks the world from `open {level, world}`. The client picks a screen from `welcome.world` (`screens/run.ts` or `screens/bastion.ts`, both thin clients). Progress is per world in the save (`descent`/`lastDescent` for the Dark, `worlds.bastion` for the Bastion).
+
 ## The dungeon process
 - **`packages/dungeon/src/sim.ts` (`DungeonSim`)** is the authoritative round: arena and pillars, waves, enemies (husks, runners, brutes, shamans, the Warden), allies, projectiles, novas, and all eight forms, resolved through a `LocalAuthority` built with the proof verifier and the round's context. It is pure: the host feeds `input`/`cast` and fixed `step(dt)`; it emits `snapshot()`s carrying state plus **events** (casts, hits, kills, beams, rings, novas, banners…). It uses element numbers, never colors; the client owns presentation. It supports several players (enemies take the nearest living one; the round is lost when none live), though one plays today.
 - **`apps/dungeon/src/server.ts`** is a Node WebSocket server (port 5192, `DUNGEON_PORT`). Per connection: `open {level}` → `ticket {context}` (fresh 128-bit, from Node crypto) → `journey {aura, bundle}` → proofs verified → `welcome {arena, pillars, slots, refused}` → simulation at 60 Hz with **snapshots at 20 Hz** → `end {result}`. Also `cmds` (numbered movement/aim commands), `cast`, `pause` (single-player convenience), `abandon`.

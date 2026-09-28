@@ -1,4 +1,6 @@
 export * from './sim.ts';
+export * from './bastion.ts';
+export * from './admission.ts';
 export * from './protocol.ts';
 export * from './balance.ts';
 export * from './world.ts';

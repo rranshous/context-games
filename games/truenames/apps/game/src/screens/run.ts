@@ -2,7 +2,7 @@
 // This screen sends intent (movement, aim, casts), renders the dungeon's snapshots with smoothing,
 // and turns its events into light and sound. It never touches the save or the sanctum.
 import type { Screen } from '../main.ts';
-import type { DungeonLink, Journey, RoundHost, RoundResult, Welcome } from '../round.ts';
+import type { DungeonLink, Journey, RoundHost, RoundResult, DarkWelcome } from '../round.ts';
 import { frag } from '../dom.ts';
 import { BALANCE as B, descentName, SLOTS } from '@truenames/dungeon/balance';
 import type { EnemyKind, SimEvent, Snapshot, SnapPlayer, WireTraits } from '@truenames/dungeon/protocol';
@@ -45,7 +45,7 @@ interface Slot {
   thin: number;
 }
 
-export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey, host: RoundHost): Screen {
+export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Journey, host: RoundHost): Screen {
   const level = welcome.level;
   const me = welcome.you;
   const W = welcome.arena.w, H = welcome.arena.h;

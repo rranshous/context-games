@@ -11,7 +11,8 @@ import { runScreen } from './run.ts';
 import { DungeonLink, type RoundHost } from '../round.ts';
 import { prepareJourney } from '../threshold.ts';
 import { titleScreen } from './title.ts';
-import { descentName, SLOTS } from '@truenames/dungeon/balance';
+import { SLOTS, WORLDS, worldDescentName, type World } from '@truenames/dungeon/balance';
+import { bastionScreen } from './bastion.ts';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
@@ -128,7 +129,7 @@ export function sanctumScreen(app: App): Screen {
     (root.querySelector('#run') as HTMLButtonElement).disabled = !canRun;
     const runs = save.runs.slice(-6).reverse();
     root.querySelector('#runs')!.innerHTML = runs.length
-      ? runs.map((r) => `<div><span class="faint">${(r.descent ?? 0) + 1}</span> ${r.won ? '<span class="gold">survived</span>' : `<span class="dim">fell at wave ${r.wave}</span>`} · ${r.kills} banished${r.finds ? ` · ${r.finds} found` : ''}</div>`).join('')
+      ? runs.map((r) => `<div><span class="faint">${r.world === 'bastion' ? '⌂' : '☾'} ${(r.descent ?? 0) + 1}</span> ${r.won ? `<span class="gold">${r.world === 'bastion' ? 'held' : 'survived'}</span>` : `<span class="dim">${r.world === 'bastion' ? 'fell' : 'fell'} at wave ${r.wave}</span>`} · ${r.kills} banished${r.finds ? ` · ${r.finds} found` : ''}</div>`).join('')
       : '<div class="dim">No walks yet.</div>';
   }
 
@@ -180,8 +181,32 @@ export function sanctumScreen(app: App): Screen {
     renderBook();
   }
 
+  // ---------- worlds and their progress ----------
+  const world = (): World => save.lastWorld ?? 'dark';
+  const progress = (w: World) => {
+    if (w === 'dark') return { descent: save.descent, last: save.lastDescent };
+    save.worlds ??= {};
+    return (save.worlds[w] ??= { descent: 0, last: 0 });
+  };
+  const setProgress = (w: World, p: { descent: number; last: number }) => {
+    if (w === 'dark') { save.descent = p.descent; save.lastDescent = p.last; }
+    else { save.worlds ??= {}; save.worlds[w] = p; }
+  };
+  const WALK_LABEL: Record<World, string> = { dark: 'Walk into the dark', bastion: 'Hold the bastion' };
+
+  function renderWorld() {
+    const w = world();
+    const p = progress(w);
+    p.last = Math.min(p.last, p.descent);
+    const dsel = root.querySelector('#descent') as HTMLSelectElement;
+    dsel.innerHTML = Array.from({ length: p.descent + 1 }, (_, i) => `<option value="${i}">${i + 1} · ${worldDescentName(w, i)}</option>`).join('');
+    dsel.value = String(p.last);
+    (root.querySelector('#world') as HTMLSelectElement).value = w;
+    root.querySelector('#run')!.textContent = WALK_LABEL[w];
+  }
+
   /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
-  async function walk(level: number) {
+  async function walk(w: World, level: number) {
     const overlay = frag(`<div class="overlay"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
       <div class="prose" id="th-msg">The dungeon opens a way…</div>
       <div class="bitsbig" id="th-n" style="font-size:28px"></div></div>`);
@@ -189,7 +214,7 @@ export function sanctumScreen(app: App): Screen {
     const msg = (t: string) => { overlay.querySelector('#th-msg')!.textContent = t; };
     const link = new DungeonLink();
     try {
-      const ticket = await link.open(level);
+      const ticket = await link.open(level, w);
       msg('Your names are spoken into the dark, proven true without revealing where their spirits dwell…');
       const t0 = performance.now();
       const journey = await prepareJourney(app, ticket, (done, total) => {
@@ -200,16 +225,17 @@ export function sanctumScreen(app: App): Screen {
       const welcome = await link.enter(journey);
       const host: RoundHost = {
         report(r) {
-          save.runs.push({ at: Date.now(), descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
-          const unlocked = r.won && r.level >= save.descent;
-          if (unlocked) save.descent = r.level + 1;
+          save.runs.push({ at: Date.now(), world: r.world, descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
+          const p = progress(r.world);
+          const unlocked = r.won && r.level >= p.descent;
+          if (unlocked) setProgress(r.world, { descent: r.level + 1, last: p.last });
           persist(save);
           return { unlocked };
         },
         leave: () => app.go(sanctumScreen(app)),
         toast: (html, color) => app.toast(html, color),
       };
-      app.go(runScreen(link, welcome, journey, host));
+      app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
     } catch (err) {
       link.close();
       overlay.remove();
@@ -230,6 +256,7 @@ export function sanctumScreen(app: App): Screen {
           <span class="spacer"></span>
           <span class="dim" data-tip="hum">hum <span class="mono" id="hum"></span></span>
           <span class="dim" data-tip="voices">voices <button class="small" id="wdec">−</button> <span class="mono" id="workers"></span> <button class="small" id="winc">+</button></span>
+          <select id="world" data-tip="world">${WORLDS.map((x) => `<option value="${x.id}">${x.name}</option>`).join('')}</select>
           <select id="descent" data-tip="descent"></select>
           <button class="primary" id="run" data-tip="walk">Walk into the dark</button>
           <button class="small" id="mute" data-tip="mute">♪</button>
@@ -284,10 +311,9 @@ export function sanctumScreen(app: App): Screen {
         renderScryInfo();
       });
       const dsel = root.querySelector('#descent') as HTMLSelectElement;
-      dsel.innerHTML = Array.from({ length: save.descent + 1 }, (_, i) => `<option value="${i}">${i + 1} · ${descentName(i)}</option>`).join('');
-      save.lastDescent = Math.min(save.lastDescent, save.descent);
-      dsel.value = String(save.lastDescent);
-      dsel.addEventListener('change', () => { save.lastDescent = Number(dsel.value); persist(save); });
+      dsel.addEventListener('change', () => { const w = world(); setProgress(w, { ...progress(w), last: Number(dsel.value) }); persist(save); });
+      root.querySelector('#world')!.addEventListener('change', (e) => { save.lastWorld = (e.target as HTMLSelectElement).value as World; persist(save); renderWorld(); });
+      renderWorld();
       root.querySelector('#s-chart')!.addEventListener('click', () => openChart(app, (e, a, d) => {
         (root.querySelector('#s-el') as HTMLSelectElement).value = String(e);
         refreshAspectOptions();
@@ -296,7 +322,7 @@ export function sanctumScreen(app: App): Screen {
         (root.querySelector('#s-depth') as HTMLInputElement).value = String(d);
         renderScryInfo();
       }));
-      root.querySelector('#run')!.addEventListener('click', () => walk(save.lastDescent));
+      root.querySelector('#run')!.addEventListener('click', () => walk(world(), progress(world()).last));
       root.querySelector('#title')!.addEventListener('click', () => app.go(titleScreen(app)));
       const muteBtn = root.querySelector('#mute') as HTMLButtonElement;
       const showMute = () => { muteBtn.style.opacity = isMuted() ? '0.4' : '1'; };
