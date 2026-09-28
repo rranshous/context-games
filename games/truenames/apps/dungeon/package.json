@@ -1,0 +1,1 @@
+{"name":"@truenames/dungeon-server","version":"0.0.0","private":true,"type":"module","dependencies":{"@truenames/dungeon":"workspace:*","@truenames/proofs":"workspace:*","ws":"^8.22.0"},"devDependencies":{"@types/ws":"^8.18.1"}}

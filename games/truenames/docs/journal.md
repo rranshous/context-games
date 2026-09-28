@@ -278,3 +278,24 @@ Robby: "I would like to move our local game to this. I want to separate the sanc
 - CLAUDE.md gained rule 6: the game side never sees secrets.
 
 **Measured.** Proving in a browser worker takes **~1.75 s per name** (4 names ≈ 7 s at the threshold); verifying 4 proofs is well under a second; the Node test suite proves 5 names in ~5 s. A search of the round's slot data found no address. The production build ships the zkey and wasm as assets (the prover worker is 354 KB).
+
+## Session 2b: the dungeon becomes its own process (2026-09-28)
+
+Robby: "separate the game in to its own proc. A stepping stone to full zk multiplayer." Decided: **Node-only** (no in-browser fallback, which keeps the boundary honest), and **prediction later**.
+
+- **`packages/dungeon`**:
+  - `sim.ts` (`DungeonSim`) is the whole round extracted from `run.ts`: waves, enemies, allies, projectiles, novas, all eight forms, the Warden, and a `LocalAuthority` with the proof verifier and the round's context.
+  - It is pure. The host feeds input/cast and fixed steps, and it emits snapshots of state plus **events** that the client turns into presentation.
+  - It carries element numbers instead of colors, and is **multi-player-shaped**: a `players` map, enemies target the nearest living player, allies follow their owner, and the round is lost when nobody lives. One player uses it today.
+  - `protocol.ts` defines the wire messages. `balance.ts` moved here from the client, since balance belongs to the game that enforces it. `world.ts` holds the public ancients and the hearth-god's address.
+- **`apps/dungeon/src/server.ts`**:
+  - A WebSocket host, one connection per round. It issues the context itself (Node crypto), so a client can't choose it, and verifies proofs server-side.
+  - 60 Hz simulation, 20 Hz snapshots; `open → ticket → journey → welcome → snapshots → end`.
+- **The browser run is a thin client** (a rewrite of `run.ts`):
+  - Input goes out every 50 ms and on key changes; casts are sent at once.
+  - Positions are smoothed toward snapshots (no prediction). Events become floaters, particles, fx and sound.
+  - The drawing code carried over nearly unchanged.
+- **The sanctum flow** is now: connect → the dungeon issues a ticket → prove against it → `enter` → run. If the dungeon isn't running, the walk fails with "The way is shut…".
+- **Dev**: `corepack pnpm dev` runs Vite and the dungeon (`tsx watch`) together via `scripts/dev.mjs`, with prefixed output.
+- **Tests**: `packages/dungeon/test/sim.test.ts` admits a real proven name (the golden test aura's hearth-god claim) and checks that no address appears. It refuses a proof from another round and one presented under another aura, runs a scripted kite-and-lance round until kills land and waves advance, and checks that a leaving player ends the round lost. 33 tests total.
+- **Measured**: the dungeon verified 4 names in 1.6 s on first use. The bot played a full round through the process (all five waves, the Warden, 71 banished), falling in the Warden phase; it had won at 58/100 before the split. Positions now lag by about one snapshot interval and the bot kites against smoothed positions, so this is where **client-side prediction** comes in next. Proving took ~14 s this time with more processes running (7 s before).

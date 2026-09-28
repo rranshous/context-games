@@ -9,7 +9,7 @@ Spirits dwell in the eightfold astral, a space that divides into eight, then eig
 ## Play
 ```sh
 corepack pnpm install
-corepack pnpm dev        # → http://localhost:5190/
+corepack pnpm dev        # game → http://localhost:5190/ and the dungeon process on ws://localhost:5192
 ```
 pnpm is used through corepack (no global install needed). Your save lives in your browser's IndexedDB.
 
@@ -50,7 +50,9 @@ packages/authority    the rules: per-caster vessels, strain, capacity, ticks
 packages/proofs       zero-knowledge name claims (circom circuit, snarkjs prove/verify)
 packages/meditation   scrying and name-grinding workers, scheduling, WASM Poseidon kernel
 packages/protocol     shared message types
-apps/game             the browser game (Vite + Canvas 2D)
+packages/dungeon      the authoritative round simulation and its wire protocol
+apps/game             the browser: sanctum (holds secrets) + thin client for rounds (Vite + Canvas 2D)
+apps/dungeon          the dungeon process: WebSocket host for rounds (Node)
 apps/tools            CLI tools for benchmarking, simulation and spec work
 ```
 Read [CLAUDE.md](CLAUDE.md) before touching `packages/universe`: its hash spec is frozen, and changing it changes every spirit in existence.

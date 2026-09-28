@@ -8,10 +8,10 @@ import { persist, spiritOf } from '../save.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
-import { openRound, type RoundHost } from '../round.ts';
+import { DungeonLink, type RoundHost } from '../round.ts';
 import { prepareJourney } from '../threshold.ts';
 import { titleScreen } from './title.ts';
-import { descentName, SLOTS } from '../balance.ts';
+import { descentName, SLOTS } from '@truenames/dungeon/balance';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
@@ -180,30 +180,41 @@ export function sanctumScreen(app: App): Screen {
     renderBook();
   }
 
-  /** Open a round (game side), prove bound names against it (sanctum side), hand over only the proofs. */
+  /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
   async function walk(level: number) {
     const overlay = frag(`<div class="overlay"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
-      <div class="prose" id="th-msg">Your names are spoken into the dark, proven true without revealing where their spirits dwell…</div>
+      <div class="prose" id="th-msg">The dungeon opens a way…</div>
       <div class="bitsbig" id="th-n" style="font-size:28px"></div></div>`);
     root.appendChild(overlay);
-    const ticket = openRound(level);
-    const t0 = performance.now();
-    const journey = await prepareJourney(app, ticket, (done, total) => {
-      overlay.querySelector('#th-n')!.textContent = `${done} / ${total}`;
-    });
-    console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-    const host: RoundHost = {
-      report(r) {
-        save.runs.push({ at: Date.now(), descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
-        const unlocked = r.won && r.level >= save.descent;
-        if (unlocked) save.descent = r.level + 1;
-        persist(save);
-        return { unlocked };
-      },
-      leave: () => app.go(sanctumScreen(app)),
-      toast: (html, color) => app.toast(html, color),
-    };
-    app.go(runScreen(journey, host));
+    const msg = (t: string) => { overlay.querySelector('#th-msg')!.textContent = t; };
+    const link = new DungeonLink();
+    try {
+      const ticket = await link.open(level);
+      msg('Your names are spoken into the dark, proven true without revealing where their spirits dwell…');
+      const t0 = performance.now();
+      const journey = await prepareJourney(app, ticket, (done, total) => {
+        overlay.querySelector('#th-n')!.textContent = `${done} / ${total}`;
+      });
+      console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+      msg('The dungeon weighs your names…');
+      const welcome = await link.enter(journey);
+      const host: RoundHost = {
+        report(r) {
+          save.runs.push({ at: Date.now(), descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
+          const unlocked = r.won && r.level >= save.descent;
+          if (unlocked) save.descent = r.level + 1;
+          persist(save);
+          return { unlocked };
+        },
+        leave: () => app.go(sanctumScreen(app)),
+        toast: (html, color) => app.toast(html, color),
+      };
+      app.go(runScreen(link, welcome, journey, host));
+    } catch (err) {
+      link.close();
+      overlay.remove();
+      app.toast(`The way is shut: ${esc(String((err as Error).message ?? err))}. Is the dungeon running?`, '#ff7a6b');
+    }
   }
 
   return {

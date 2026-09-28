@@ -13,7 +13,7 @@ Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mec
 3. **Golden test vectors** for every universe function live in `packages/universe/test/vectors.json` and must pass in Node and in a browser worker.
 4. **The authority is an interface.** v0 runs it locally in-process; later a server implements the same interface. Game code never reads authority internals.
 5. **Name verification sits behind verifiers.** The sanctum uses `NameVerifier` (clear text: recompute the hash). Rounds use a `ProofVerifier` (zero-knowledge proofs from `packages/proofs`). The authority never depends on a proof system directly.
-6. **The game side never sees secrets.** A round gets only a `Journey` (public aura + zero-knowledge proofs) and reports through a `RoundHost`; `screens/run.ts` and `round.ts` must not import `save`, `services` or `threshold`.
+6. **The game side never sees secrets.** Rounds run in the dungeon process (`apps/dungeon`, simulation in `packages/dungeon`), which receives only public auras and zero-knowledge proofs. The browser's `screens/run.ts` and `round.ts` are a thin client and must not import `save`, `services` or `threshold`. Outcomes are decided by the dungeon, never the client.
 7. **Tunables live in one file** (`packages/authority/src/tunables.ts`), never inlined.
 
 ## Vocabulary (use these words consistently)

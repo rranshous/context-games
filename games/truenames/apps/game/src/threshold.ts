@@ -4,7 +4,7 @@ import type { App } from './main.ts';
 import type { Journey, RoundTicket } from './round.ts';
 import type { ZkNameClaim } from '@truenames/proofs';
 import { spiritOf } from './save.ts';
-import { SLOTS } from './balance.ts';
+import { SLOTS } from '@truenames/dungeon/balance';
 import ProverWorker from './prover.worker.ts?worker';
 
 export interface ProveJob {

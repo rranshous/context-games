@@ -95,6 +95,9 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 - Costs on the dev box: ~1.75 s to prove a name in a browser worker (4 names ≈ 7 s at the threshold), ms to verify. The circuit is ~18.9k constraints and proves spirits up to depth 24.
 - The trusted setup is a **local dev ceremony**, fine for single-player, not for a shared world.
 
+## The dungeon is its own process
+Rounds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends movement, aim and casts and draws what the dungeon reports 20 times a second. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. This is the stepping stone to multiplayer: more players are more connections into one simulation.
+
 ## Current numbers (dev box: i7-4770, 4 cores / 8 threads)
 - Browser hum with 7 workers: ~38k utterances/s (WASM kernel; ~17k with BigInt).
 - Whole depth-7 layer of one element (262k divisions, ~16 spirits): ~30 s.

@@ -11,6 +11,7 @@
   "dependencies": {
     "@noble/curves": "^2.4.0",
     "@truenames/authority": "workspace:*",
+    "@truenames/dungeon": "workspace:*",
     "@truenames/meditation": "workspace:*",
     "@truenames/proofs": "workspace:*",
     "@truenames/protocol": "workspace:*",

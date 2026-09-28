@@ -10,9 +10,11 @@ truenames/
     protocol/     shared message types: CastIntent, CastResult, TickResult, PoolInfo, AuraState
     authority/    the rules: per-caster vessels, strain, capacity, backlash, ticks; proof-verifier seam
     proofs/       zero-knowledge name claims: circuit generator, build (circom2 + snarkjs), prove, verify
+    dungeon/      the authoritative round simulation (pure), wire protocol, balance, public world constants
     meditation/   scry + name-grinding hot loops, worker body, MeditationPool, WASM Poseidon kernel
   apps/
-    game/         Vite + Canvas 2D client (screens, services, save, lore, audio, help)
+    game/         Vite + Canvas 2D client: the sanctum (holds secrets) and a thin client for dungeon rounds
+    dungeon/      Node process: WebSocket host for rounds (one connection = one round)
     tools/        CLI: bench, sim, god-finder, golden vectors, WASM generator, browser vector check
   docs/           design (01–08), as-built (09–10), journal
 ```
@@ -23,6 +25,10 @@ It's a pnpm workspace. Libraries export their TypeScript source directly (`"expo
 flowchart LR
   game[apps/game] --> protocol
   game --> proofs
+  game -. protocol + balance only .-> dungeon
+  dsrv[apps/dungeon] --> dungeon
+  dungeon --> authority
+  dungeon --> proofs
   proofs --> universe
   proofs --> SJ[snarkjs / circomlib]
   game --> authority
@@ -41,7 +47,7 @@ Rules held from [CLAUDE.md](../CLAUDE.md):
 2. The universe spec is frozen. Golden vectors refuse to regenerate.
 3. Vectors pass in Node and in a browser worker (`pnpm test`, `pnpm test:browser`).
 4. The authority is an interface, and game code only talks to it through `Authority` / `NpcAuthority`.
-7. **The game side never sees secrets.** `screens/run.ts` and `round.ts` import nothing from `save.ts`, `services.ts` or `threshold.ts`. A round receives a `Journey` (public aura + zero-knowledge proofs) and reports through a `RoundHost`.
+7. **The game side never sees secrets.** Rounds run in a separate **dungeon process**, which only ever receives proofs. In the browser, `screens/run.ts` and `round.ts` are a thin client and import nothing from `save.ts`, `services.ts` or `threshold.ts`.
 5. Name verification goes through `NameVerifier` (`ClearTextVerifier` today).
 6. Authority tunables live in `packages/authority/src/tunables.ts`. Game-side balance lives in `apps/game/src/balance.ts`.
 
@@ -133,6 +139,12 @@ sequenceDiagram
 ```
 The save stores **signed claims**, not bare numbers. On boot and at the start of each run they're re-submitted and re-verified, exactly as they would be to a server.
 
+## The dungeon process
+- **`packages/dungeon/src/sim.ts` (`DungeonSim`)** is the authoritative round: arena and pillars, waves, enemies (husks, runners, brutes, shamans, the Warden), allies, projectiles, novas, and all eight forms, resolved through a `LocalAuthority` built with the proof verifier and the round's context. It is pure: the host feeds `input`/`cast` and fixed `step(dt)`; it emits `snapshot()`s carrying state plus **events** (casts, hits, kills, beams, rings, novas, banners…). It uses element numbers, never colors; the client owns presentation. It supports several players (enemies take the nearest living one; the round is lost when none live), though one plays today.
+- **`apps/dungeon/src/server.ts`** is a Node WebSocket server (port 5192, `DUNGEON_PORT`). Per connection: `open {level}` → `ticket {context}` (fresh 128-bit, from Node crypto) → `journey {aura, bundle}` → proofs verified → `welcome {arena, pillars, slots, refused}` → simulation at 60 Hz with **snapshots at 20 Hz** → `end {result}`. Also `input` (move + aim, sent every 50 ms and on key changes), `cast`, `pause` (single-player convenience), `abandon`.
+- **The browser run is a thin client.** It sends intent, renders snapshots with exponential smoothing (no prediction yet, so there's about a snapshot interval of lag), and turns events into floaters, particles, fx and sound. The client never simulates damage or outcomes.
+- `corepack pnpm dev` runs both (`scripts/dev.mjs`, prefixed output); `pnpm game` / `pnpm dungeon` run them alone. `?dungeon=ws://host:port` points the client at another dungeon.
+
 ## The threshold (sanctum → round)
 ```mermaid
 sequenceDiagram
@@ -140,14 +152,14 @@ sequenceDiagram
   participant T as threshold.ts + prover worker
   participant R as Round (run.ts)
   participant A as round's LocalAuthority
-  S->>R: openRound(level) → ticket {context, level}
+  S->>R: open {level} → dungeon issues ticket {context, level}
   S->>T: prepareJourney(ticket)
   loop each bound, learned name
     T->>T: proveName(address, nonce, magnitude, truths, context) → Groth16 proof
     T->>T: sign public signals with the aura's secret key
   end
   T-->>S: Journey {aura, element, bundle[{slot, claim}]}
-  S->>R: runScreen(journey, host)
+  S->>R: journey {aura, bundle} (sent to the dungeon process)
   R->>A: submitProvenName(claim) for each
   A->>A: ProofVerifier: context matches, aura field matches key, signature, groth16.verify
   A-->>R: {spirit: "t:<traitHash>", magnitude, truths, traits}
