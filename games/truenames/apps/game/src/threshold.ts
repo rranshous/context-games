@@ -5,6 +5,7 @@ import type { Journey, RoundTicket } from './round.ts';
 import type { ZkNameClaim } from '@truenames/proofs';
 import { spiritOf } from './save.ts';
 import { SLOTS } from '@truenames/dungeon/balance';
+import { spiritName } from './lore.ts';
 import ProverWorker from './prover.worker.ts?worker';
 
 export interface ProveJob {
@@ -55,6 +56,7 @@ export async function prepareJourney(app: App, ticket: RoundTicket, onProgress: 
   for (const [i, b] of bound.entries()) {
     const rec = save.names[b.cell]!;
     const sp = spiritOf(save, b.cell)!;
+    onProgress(i, bound.length, spiritName(sp));
     const r = await prove({
       cell: b.cell,
       nonce: rec.claim.nonce,

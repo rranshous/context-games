@@ -165,3 +165,5 @@ button[data-tip], select[data-tip], input[data-tip], .slot[data-tip], [data-card
 button.more { width: 100%; margin-top: 6px; }
 .crow[draggable="true"] { cursor: grab; }
 .dragging .slot { border-color: var(--gold); border-style: dashed; background: rgba(231, 194, 107, 0.06); }
+
+.overlay.threshold { background: rgba(5, 4, 10, 0.94); }

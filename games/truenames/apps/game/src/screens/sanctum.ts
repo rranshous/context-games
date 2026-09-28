@@ -158,7 +158,8 @@ export function sanctumScreen(app: App): Screen {
     else if (!save.runs.length) msg = `When you are ready, <em>walk into the dark</em>. Your meditation and scrying keep working while you fight.`;
     else if (!meditating) msg = `Nothing is being meditated. Names only grow truer while you work on them, even while you sleep.`;
     else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every truth makes each evocation about 1.4× stronger.`;
-    box.innerHTML = msg || `Your names deepen while you rest. Go deeper when the dark feels thin: descent ${save.descent + 1} is open to you.`;
+    const w = world();
+    box.innerHTML = msg || `Your names deepen while you rest. Go deeper when ${w === 'bastion' ? 'the road feels quiet' : 'the dark feels thin'}: ${worldDescentName(w, progress(w).descent)} is open to you.`;
   }
 
   function renderAll() {
@@ -207,21 +208,43 @@ export function sanctumScreen(app: App): Screen {
 
   /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
   async function walk(w: World, level: number) {
-    const overlay = frag(`<div class="overlay"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
-      <div class="prose" id="th-msg">The dungeon opens a way…</div>
-      <div class="bitsbig" id="th-n" style="font-size:28px"></div></div>`);
+    const overlay = frag(`<div class="overlay threshold"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
+      <div class="prose" id="th-msg" style="font-size:20px">The way opens…</div>
+      <div class="dim" id="th-sub" style="font-style:italic; min-height:1.5em; transition:opacity .6s"></div>
+      <div class="bitsbig" id="th-n" style="font-size:22px"></div></div>`);
     root.appendChild(overlay);
-    const msg = (t: string) => { overlay.querySelector('#th-msg')!.textContent = t; };
+    const msg = (t: string) => { overlay.querySelector('#th-msg')!.innerHTML = t; };
+    // lines to read while the names are proven (a few seconds each)
+    const LINES: Record<World, string[]> = {
+      dark: [
+        'The dark will learn what your names can do. Never where their spirits dwell.',
+        'Only temper and truth cross the threshold. The dwelling stays yours.',
+        'Each name is weighed, not heard.',
+        'What you carry in is sealed until you come back out.',
+      ],
+      bastion: [
+        'Your shrines will know their patrons by deed, never by dwelling.',
+        'Only temper and truth cross the threshold. The dwelling stays yours.',
+        'Each name is weighed, not heard.',
+        'The road is long. Every shrine will speak in your voice.',
+      ],
+    };
+    let li = 0;
+    const sub = overlay.querySelector('#th-sub') as HTMLElement;
+    const rotate = () => { sub.style.opacity = '0'; setTimeout(() => { sub.textContent = LINES[w][li++ % LINES[w].length]!; sub.style.opacity = '1'; }, 300); };
+    rotate();
+    const rotating = setInterval(rotate, 3600);
     const link = new DungeonLink();
     try {
       const ticket = await link.open(level, w);
-      msg('Your names are spoken into the dark, proven true without revealing where their spirits dwell…');
       const t0 = performance.now();
-      const journey = await prepareJourney(app, ticket, (done, total) => {
+      const journey = await prepareJourney(app, ticket, (done, total, name) => {
+        if (name) msg(`Speaking the name of <em>${esc(name)}</em>…`);
         overlay.querySelector('#th-n')!.textContent = `${done} / ${total}`;
       });
+      clearInterval(rotating);
       console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-      msg('The dungeon weighs your names…');
+      msg(w === 'bastion' ? 'The bastion weighs your names…' : 'The dark weighs your names…');
       const welcome = await link.enter(journey);
       const host: RoundHost = {
         report(r) {
@@ -237,6 +260,7 @@ export function sanctumScreen(app: App): Screen {
       };
       app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
     } catch (err) {
+      clearInterval(rotating);
       link.close();
       overlay.remove();
       app.toast(`The way is shut: ${esc(String((err as Error).message ?? err))}. Is the dungeon running?`, '#ff7a6b');
