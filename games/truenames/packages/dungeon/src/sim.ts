@@ -341,7 +341,10 @@ export class DungeonSim {
     const want = Math.min(B.request, castCap(r.effective, s.generosity));
     const effect = r.grant * TUNABLES.formEfficiency[s.form]! * B.effectScale;
     const element = s.element;
-    this.events.push({ e: 'cast', p: p.id, slot: pend.slot, form: s.form, element, effective: r.effective, effect, thin: r.grant < want * 0.7, x: p.x, y: p.y, ax: pend.ax, ay: pend.ay });
+    // "your vessel runs low" means exactly that: the vessel limited this cast and is nearly empty
+    const vessel = this.auth.poolInfo(p.id, s.spirit);
+    const thin = r.grant < want * 0.7 && !!vessel && vessel.level < vessel.cap * 0.25;
+    this.events.push({ e: 'cast', p: p.id, slot: pend.slot, form: s.form, element, effective: r.effective, effect, thin, x: p.x, y: p.y, ax: pend.ax, ay: pend.ay });
     if (r.recoil) { this.events.push({ e: 'backlash', p: p.id, dmg: r.recoil }); this.hurtPlayer(p, r.recoil, 'BACKLASH'); }
     const dx = pend.ax - p.x, dy = pend.ay - p.y;
     const d = Math.hypot(dx, dy) || 1;

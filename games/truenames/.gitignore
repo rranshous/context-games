@@ -2,3 +2,4 @@ node_modules/
 dist/
 truenames-docs.zip
 .playwright-mcp/
+!docs/images/*.png
