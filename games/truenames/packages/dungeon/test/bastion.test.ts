@@ -89,3 +89,18 @@ describe('the Bastion', () => {
     expect(sim.result()).toMatchObject({ world: 'bastion', won: false });
   });
 });
+
+describe('the Bastion: summon shrines', () => {
+  it('a guardian holds at most two foes; the rest walk on', async () => {
+    const sim = new BastionSim({ level: 0, context: CONTEXT, verifier, rng: rng() });
+    await sim.admit(AURA, [{ slot: 0, claim }]);
+    sim.start();
+    // place a guardian by hand on the road, then crowd foes onto it
+    const internals = sim as unknown as { guardians: any[]; foes: any[]; stepFoes(dt: number): void };
+    internals.guardians.push({ id: 1, x: 300, y: 120, s: 300, hp: 1e9, life: 99, hit: 0, cd: 99, element: 0, holding: 0 });
+    for (let i = 0; i < 5; i++) internals.foes.push({ id: 10 + i, kind: 'husk', s: 299, x: 300, y: 120, hp: 50, maxHp: 50, r: 11, speed: 40, slow: 0, slowT: 0, hexDps: 0, hexT: 0, blocked: false });
+    internals.stepFoes(0.1);
+    expect(internals.foes.filter((f) => f.blocked).length).toBe(2);
+    expect(internals.foes.filter((f) => f.s > 299).length).toBe(3);
+  });
+});

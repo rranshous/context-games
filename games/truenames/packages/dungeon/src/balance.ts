@@ -116,7 +116,8 @@ export const BASTION = {
     ward: { range: 115, every: 2.0, slowPerEffect: 0.012, maxSlow: 0.6, duration: 2.6 },
     lance: { range: 270, every: 1.5, width: 22 },
     nova: { range: 330, every: 2.4, radius: 80, delay: 0.8 },
-    summon: { range: 160, every: 4.5, life: 9, hpPerEffect: 1.5, hitBase: 2, hitPerEffect: 0.12, hitEvery: 0.6 },
+    /** A guardian holds at most `holds` foes (the Warden tramples it), with capped toughness; one per shrine at a time. */
+    summon: { range: 160, every: 6, life: 6, hpPerEffect: 0.8, maxHp: 150, holds: 2, hitBase: 2, hitPerEffect: 0.12, hitEvery: 0.6 },
     hex: { range: 210, every: 1.3, duration: 3 },
     blink: { range: 180, every: 2.8, base: 40, perEffect: 1.5, max: 220 },
   },

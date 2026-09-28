@@ -64,7 +64,7 @@ export const HELP = {
   shrine_ward: `Wards the road around it: foes inside are slowed.`,
   shrine_lance: `Lances down a long line toward the leading foe, piercing all in its path.`,
   shrine_nova: `Gathers a nova where the leading foe stands; it bursts a moment later.`,
-  shrine_summon: `Sends a guardian onto the road nearby; foes that reach it must fight through.`,
+  shrine_summon: `Sends a guardian onto the road nearby. It holds up to two foes at a time while it fights; the rest walk past, and the Warden tramples it.`,
   shrine_hex: `Hexes the leading foe, eating it over time.`,
   shrine_blink: `Casts the leading foe back along the road.`,
   warden: `The <b>Warden</b>: it speaks the name of a mighty ancient spirit and calls down novas where you stand. Watch for the red circle.`,

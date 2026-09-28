@@ -23,7 +23,7 @@ interface Foe {
   slow: number; slowT: number; hexDps: number; hexT: number; blocked: boolean;
 }
 interface Bolt { id: number; x: number; y: number; target: number; dmg: number; element: number; life: number }
-interface Guardian { id: number; x: number; y: number; s: number; hp: number; life: number; hit: number; cd: number; element: number }
+interface Guardian { id: number; x: number; y: number; s: number; hp: number; life: number; hit: number; cd: number; element: number; holding: number }
 interface Nova { id: number; x: number; y: number; r: number; t: number; max: number; dmg: number; element: number }
 interface Pending { shrine: number; target: number; tx: number; ty: number }
 
@@ -376,7 +376,7 @@ export class BastionSim {
         const f = T.forms.summon;
         const s0 = this.roadNear(t.x, t.y);
         const p = this.roadAt(s0);
-        this.guardians.push({ id: this.nextId++, x: p.x, y: p.y, s: s0, hp: effect * f.hpPerEffect, life: f.life, hit: f.hitBase + effect * f.hitPerEffect, cd: 0, element });
+        this.guardians.push({ id: this.nextId++, x: p.x, y: p.y, s: s0, hp: Math.min(f.maxHp, effect * f.hpPerEffect), life: f.life, hit: f.hitBase + effect * f.hitPerEffect, cd: 0, element, holding: 0 });
         this.events.push({ e: 'summon', x: p.x, y: p.y, element });
         break;
       }
@@ -403,14 +403,17 @@ export class BastionSim {
   }
 
   private stepFoes(dt: number) {
+    for (const g of this.guardians) g.holding = 0;
     for (const f of this.foes) {
       if (f.hexT > 0) { f.hexT -= dt; this.hurt(f, f.hexDps * dt, 6, true); if (f.hexT <= 0) f.hexDps = 0; }
       if (f.slowT > 0) { f.slowT -= dt; if (f.slowT <= 0) f.slow = 0; }
       if (f.hp <= 0) continue;
-      // guardians on the road hold foes that reach them
-      const g = this.guardians.find((x) => x.s > f.s - 4 && dist2(x.x, x.y, f.x, f.y) < (f.r + 12) ** 2);
-      f.blocked = !!g;
-      if (g) { g.hp -= T.foes[f.kind].hitGuardian * dt; continue; }
+      // a guardian on the road holds the first few foes that reach it; the Warden tramples it
+      const g = this.guardians.find((x) => x.hp > 0 && x.s > f.s - 4 && dist2(x.x, x.y, f.x, f.y) < (f.r + 12) ** 2);
+      if (g && f.kind === 'warden') g.hp = 0;
+      const holds = !!g && f.kind !== 'warden' && g.holding < T.forms.summon.holds;
+      f.blocked = holds;
+      if (holds) { g!.holding++; g!.hp -= T.foes[f.kind].hitGuardian * dt; continue; }
       f.s += f.speed * (1 - f.slow) * dt;
       const p = this.roadAt(f.s);
       f.x = p.x; f.y = p.y;
