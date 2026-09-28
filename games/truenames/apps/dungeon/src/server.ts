@@ -16,11 +16,16 @@ const STEP = 1 / 60; // simulation step
 const SNAP_EVERY = 3; // snapshots at 20 Hz
 const MAX_LEVEL = 99;
 
-function send(ws: WebSocket, m: ServerMsg) {
-  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
-}
+const MAX_LAG = 1000;
 
 function serve(ws: WebSocket) {
+  // Dev-only simulated latency (?lag=150 on the client): half each way, so a round trip costs `lag`.
+  let lag = 0;
+  const send = (_ws: WebSocket, m: ServerMsg) => {
+    const out = JSON.stringify(m);
+    const go = () => { if (ws.readyState === ws.OPEN) ws.send(out); };
+    if (lag > 0) setTimeout(go, lag / 2); else go();
+  };
   let context: bigint | null = null;
   let level = 0;
   let sim: DungeonSim | null = null;
@@ -29,13 +34,17 @@ function serve(ws: WebSocket) {
   let steps = 0;
   const stop = () => { if (loop) clearInterval(loop); loop = null; };
 
-  ws.on('message', async (raw) => {
+  ws.on('message', (raw) => {
+    if (lag > 0) setTimeout(() => handle(raw), lag / 2); else handle(raw);
+  });
+  const handle = async (raw: unknown) => {
     let m: ClientMsg;
     try { m = JSON.parse(String(raw)); } catch { return send(ws, { t: 'error', message: 'bad message' }); }
     switch (m.t) {
       case 'open': {
         if (context !== null) return send(ws, { t: 'error', message: 'round already open' });
         level = Math.max(0, Math.min(MAX_LEVEL, Math.floor(Number(m.level) || 0)));
+        lag = Math.max(0, Math.min(MAX_LAG, Math.floor(Number(m.lag) || 0)));
         context = BigInt('0x' + randomBytes(16).toString('hex'));
         return send(ws, { t: 'ticket', context: context.toString(), level });
       }
@@ -60,8 +69,8 @@ function serve(ws: WebSocket) {
         }, STEP * 1000);
         return;
       }
-      case 'input':
-        if (sim && you) sim.input(you, Number(m.mx) || 0, Number(m.my) || 0, Number(m.ax), Number(m.ay));
+      case 'cmds':
+        if (sim && you && Array.isArray(m.cmds)) sim.commands(you, m.cmds.slice(0, 120));
         return;
       case 'cast':
         if (sim && you) sim.cast(you, Math.floor(Number(m.slot)), Number(m.ax), Number(m.ay));
@@ -73,7 +82,7 @@ function serve(ws: WebSocket) {
         if (sim && you) sim.leave(you);
         return;
     }
-  });
+  };
   ws.on('close', () => stop());
 }
 

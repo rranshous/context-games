@@ -299,3 +299,18 @@ Robby: "separate the game in to its own proc. A stepping stone to full zk multip
 - **Dev**: `corepack pnpm dev` runs Vite and the dungeon (`tsx watch`) together via `scripts/dev.mjs`, with prefixed output.
 - **Tests**: `packages/dungeon/test/sim.test.ts` admits a real proven name (the golden test aura's hearth-god claim) and checks that no address appears. It refuses a proof from another round and one presented under another aura, runs a scripted kite-and-lance round until kills land and waves advance, and checks that a leaving player ends the round lost. 33 tests total.
 - **Measured**: the dungeon verified 4 names in 1.6 s on first use. The bot played a full round through the process (all five waves, the Warden, 71 banished), falling in the Warden phase; it had won at 58/100 before the split. Positions now lag by about one snapshot interval and the bot kites against smoothed positions, so this is where **client-side prediction** comes in next. Proving took ~14 s this time with more processes running (7 s before).
+
+### Prediction (the standard model)
+Robby: "talk to me about adding prediction. I know there is a well worn standard." Built the Valve / Gambetta model:
+- **Shared movement** (`packages/dungeon/src/movement.ts`): `movePlayer` and `collideCircle` are used by the dungeon and the client. Movement became **command-driven** on the server (`sim.commands(id, cmds)`, applied in order, `ack` per player in snapshots), with a **movement budget** refilled by real time (cap 0.25 s) so a client can't outrun the clock.
+- **Client**:
+  - 60 Hz command ticks, predicted at once and batched to the dungeon at 30 Hz.
+  - Reconciliation on every snapshot (reset + replay unacknowledged); small corrections are smoothed away, large ones (blink) taken at once.
+  - Other entities are interpolated 100 ms in the past on an estimated dungeon clock, and world events play when the view reaches them, so hits line up with what's drawn.
+- **Protocol**: `input` → `cmds`; snapshots carry `ack`; events caused by a player carry `p` so the client plays its own immediately.
+- **Dev latency**: `?lag=N` → the dungeon delays both directions by N/2.
+- **Tests** (`prediction.test.ts`):
+  - A 600-command wandering stream with 9 ticks in flight lands **exactly** where the dungeon does.
+  - Reset-and-replay reproduces the prediction.
+  - 100 commands after one real tick move you only ~1 tick. 36 tests total.
+- **Measured in the browser**: at a simulated 150 ms round trip, you move within 50 ms of the key press (10.5 px, vs 14 px at 0 ms lag); the same hold travels exactly 231 px at both lags; corrections were **0**; ~10 commands in flight; others drawn ~0.1 s behind. The bot **won** a full round at 150 ms lag (at 1 hp); before prediction it had fallen at 0 ms lag.

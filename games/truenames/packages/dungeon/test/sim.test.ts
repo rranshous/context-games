@@ -47,6 +47,7 @@ describe('DungeonSim', () => {
     sim.start();
     const events: string[] = [];
     let kills = 0;
+    let seq = 0;
     for (let i = 0; i < 60 * 40 && !sim.over; i++) {
       sim.step(1 / 60);
       const snap = sim.snapshot();
@@ -56,9 +57,9 @@ describe('DungeonSim', () => {
       const target = snap.enemies[0];
       if (target) {
         // kite away and lance every ~0.6 s
-        sim.input(AURA, Math.sign(me.x - target.x), Math.sign(me.y - target.y), target.x, target.y);
+        sim.commands(AURA, [{ seq: ++seq, mx: Math.sign(me.x - target.x), my: Math.sign(me.y - target.y), ax: target.x, ay: target.y, dt: 1 / 60 }]);
         if (i % 36 === 0) sim.cast(AURA, 0, target.x, target.y);
-      } else sim.input(AURA, 0, 0, me.x + 50, me.y);
+      } else sim.commands(AURA, [{ seq: ++seq, mx: 0, my: 0, ax: me.x + 50, ay: me.y, dt: 1 / 60 }]);
     }
     expect(events).toContain('wave');
     expect(events).toContain('cast');

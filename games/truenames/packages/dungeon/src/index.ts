@@ -2,6 +2,7 @@ export * from './sim.ts';
 export * from './protocol.ts';
 export * from './balance.ts';
 export * from './world.ts';
+export * from './movement.ts';
 import type { ProofVerifier } from '@truenames/authority';
 import { verifyZkName, type ZkNameClaim } from '@truenames/proofs';
 

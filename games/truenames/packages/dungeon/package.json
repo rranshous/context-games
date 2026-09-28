@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./world": "./src/world.ts",
     "./balance": "./src/balance.ts",
-    "./protocol": "./src/protocol.ts"
+    "./protocol": "./src/protocol.ts",
+    "./movement": "./src/movement.ts"
   },
   "dependencies": {
     "@truenames/authority": "workspace:*",

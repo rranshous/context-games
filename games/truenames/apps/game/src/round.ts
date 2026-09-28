@@ -1,7 +1,7 @@
 // The game side of the threshold: a link to a dungeon process. It knows nothing of the sanctum.
 // The dungeon issues a context, receives proofs bound to it, runs the round, and reports what happened.
 import type { ZkNameClaim } from '@truenames/proofs';
-import type { ClientMsg, ServerMsg, Snapshot, RoundResultMsg } from '@truenames/dungeon/protocol';
+import type { ClientMsg, ServerMsg, Snapshot, RoundResultMsg, MoveCmd } from '@truenames/dungeon/protocol';
 
 /** Issued by the dungeon when a round is opened. Proofs must be bound to its context. */
 export interface RoundTicket {
@@ -27,6 +27,9 @@ export interface RoundHost {
   leave(): void;
   toast(html: string, color?: string): void;
 }
+
+/** Dev-only: ?lag=150 asks the dungeon to simulate that much round-trip latency. */
+export const DEV_LAG = Number(new URLSearchParams(location.search).get('lag') ?? 0) || 0;
 
 export const DUNGEON_URL = (() => {
   const q = new URLSearchParams(location.search).get('dungeon');
@@ -77,7 +80,7 @@ export class DungeonLink {
   async open(level: number): Promise<RoundTicket> {
     await this.ready;
     const reply = this.next('ticket');
-    this.send({ t: 'open', level });
+    this.send({ t: 'open', level, ...(DEV_LAG ? { lag: DEV_LAG } : {}) });
     const m = await reply;
     return { context: BigInt(m.context), level: m.level };
   }
@@ -89,7 +92,7 @@ export class DungeonLink {
     return reply;
   }
 
-  input(mx: number, my: number, ax: number, ay: number) { this.send({ t: 'input', mx, my, ax, ay }); }
+  cmds(cmds: MoveCmd[]) { this.send({ t: 'cmds', cmds }); }
   cast(slot: number, ax: number, ay: number) { this.send({ t: 'cast', slot, ax, ay }); }
   pause(on: boolean) { this.send({ t: 'pause', on }); }
   abandon() { this.send({ t: 'abandon' }); }

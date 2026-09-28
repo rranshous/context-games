@@ -6,6 +6,7 @@ import type { DungeonLink, Journey, RoundHost, RoundResult, Welcome } from '../r
 import { frag } from '../dom.ts';
 import { BALANCE as B, descentName, SLOTS } from '@truenames/dungeon/balance';
 import type { EnemyKind, SimEvent, Snapshot, SnapPlayer, WireTraits } from '@truenames/dungeon/protocol';
+import { movePlayer, type MoveCmd } from '@truenames/dungeon/movement';
 import { ELEMENT_COLOR, FORMS, spiritName, truths, type SpiritLike } from '../lore.ts';
 import { spiritStats } from '@truenames/authority';
 import { sigilCanvas } from '../sigil.ts';
@@ -16,10 +17,16 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const HEX = '#b56bff';
 const colorOf = (el: number) => (el >= 0 ? ELEMENT_COLOR[el]! : '#9c8f74');
 const toTraits = (t: WireTraits) => ({ ...t, flavor: BigInt(t.flavor) });
-const INPUT_EVERY = 0.05; // seconds between input messages
-const SMOOTH = 18; // how fast rendered positions chase the dungeon's
+// Networking model (the standard one: Valve / Gambetta):
+//  - you:        client-side prediction with the dungeon's own movement code, reconciled on every snapshot
+//  - everything else: entity interpolation, drawn INTERP seconds in the past between two snapshots
+const TICK = 1 / 60; // client input tick (matches the dungeon's step)
+const SEND_EVERY = 1 / 30; // command batches per second
+const INTERP = 0.1; // interpolation delay for other entities (two snapshot intervals at 20 Hz)
+const SNAP_CORRECTION = 80; // corrections larger than this are teleports (blink): no smoothing
+const CORRECTION_DECAY = 12; // how fast a small correction is smoothed away
 
-interface Shown { x: number; y: number; tx: number; ty: number; seen: boolean }
+interface Pos { x: number; y: number }
 interface Fx { kind: 'beam' | 'ring' | 'burst' | 'blink'; x: number; y: number; x2?: number; y2?: number; r?: number; t: number; max: number; color: string }
 interface Particle { x: number; y: number; vx: number; vy: number; t: number; max: number; color: string; size: number }
 interface Floater { x: number; y: number; text: string; color: string; t: number; size: number }
@@ -51,8 +58,8 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
   for (const r of welcome.refused) host.toast(`A name was not heard at the threshold: ${r}`, '#ff7a6b');
 
   // ---------- mirror of the dungeon ----------
-  let snap: Snapshot | null = null;
-  const shown = new Map<string, Shown>(); // rendered positions, keyed "kind:id"
+  let snap: Snapshot | null = null; // latest (HUD, self)
+  let view: Snapshot | null = null; // the snapshot being interpolated towards (what's drawn)
   const player = { x: W / 2, y: H / 2, hp: B.player.hp, ward: 0, invuln: false, strain: 0, capacity: 4, hurt: 0 };
   const cam = { x: player.x, y: player.y };
   const enemyFlash = new Map<number, number>();
@@ -70,13 +77,49 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
   let banner: { text: string; sub: string; t: number } | null = { text: descentName(level).toUpperCase(), sub: level === 0 ? 'Wave 1. They come for the light in you.' : `Descent ${level + 1}. The dark is thicker here.`, t: 3 };
   let wardenName = '';
 
-  function place(key: string, x: number, y: number): Shown {
-    let s = shown.get(key);
-    if (!s) { s = { x, y, tx: x, ty: y, seen: true }; shown.set(key, s); }
-    s.tx = x; s.ty = y; s.seen = true;
-    return s;
+  // ---------- prediction (you) ----------
+  const arena = { w: W, h: H, pillars };
+  const pred: Pos = { x: W / 2, y: H / 2 }; // where you are, as far as the client can tell
+  const offset: Pos = { x: 0, y: 0 }; // leftover correction, smoothed away
+  let predInit = false;
+  let alive = true;
+  let pending: MoveCmd[] = []; // sent, not yet acknowledged by the dungeon
+  let outbox: MoveCmd[] = []; // not yet sent
+  let seq = 0;
+  let tickAcc = 0;
+  let sendT = 0;
+
+  // ---------- interpolation (everything else) ----------
+  const snaps: Snapshot[] = []; // recent snapshots, oldest first
+  let clockOffset: number | null = null; // dungeon time minus client time
+  const pos = new Map<string, Pos>(); // interpolated positions this frame, keyed "kind:id"
+  const later: { time: number; ev: SimEvent }[] = []; // world events, shown when the interpolated view reaches them
+  const now = () => performance.now() / 1000;
+  const renderTime = () => (clockOffset === null ? 0 : now() + clockOffset - INTERP);
+
+  function interpolate() {
+    pos.clear();
+    if (!snaps.length) return;
+    const rt = renderTime();
+    let i = snaps.findIndex((x) => x.time > rt);
+    if (i === -1) i = snaps.length - 1; // ahead of the newest: hold it
+    const b = snaps[i]!, a = snaps[Math.max(0, i - 1)]!;
+    const k = b === a || b.time === a.time ? 1 : Math.max(0, Math.min(1, (rt - a.time) / (b.time - a.time)));
+    view = b;
+    const index = (x: Snapshot) => {
+      const m = new Map<string, Pos>();
+      for (const e of x.enemies) m.set('e:' + e.id, e);
+      for (const e of x.allies) m.set('a:' + e.id, e);
+      for (const e of x.projs) m.set('j:' + e.id, e);
+      for (const e of x.players) if (e.id !== me) m.set('p:' + e.id, e);
+      return m;
+    };
+    const ia = index(a);
+    for (const [key, pb] of index(b)) {
+      const pa = ia.get(key);
+      pos.set(key, pa ? { x: pa.x + (pb.x - pa.x) * k, y: pa.y + (pb.y - pa.y) * k } : { x: pb.x, y: pb.y });
+    }
   }
-  const at = (key: string) => shown.get(key)!;
 
   function burst(x: number, y: number, color: string, n: number) {
     for (let i = 0; i < n; i++) {
@@ -88,19 +131,54 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
   // ---------- from the dungeon ----------
   link.onSnapshot = (s) => {
     snap = s;
-    for (const v of shown.values()) v.seen = false;
+    // the dungeon's clock, estimated; a pause or a big jump resets it outright
+    const target = s.time - now();
+    clockOffset = clockOffset === null || Math.abs(target - clockOffset) > 0.5 ? target : clockOffset + (target - clockOffset) * 0.1;
+    snaps.push(s);
+    while (snaps.length > 2 && snaps[1]!.time < renderTime() - 0.2) snaps.shift();
+    if (snaps.length > 60) snaps.shift();
     const mine = s.players.find((p) => p.id === me);
     if (mine) {
-      place('p:' + me, mine.x, mine.y);
+      alive = mine.alive;
       Object.assign(player, { hp: mine.hp, ward: mine.ward, invuln: mine.invuln, strain: mine.strain, capacity: mine.capacity });
       mine.slots.forEach((v, i) => { const sl = slots[i]; if (sl && v) { sl.lastBits = v.lastBits; sl.vessel = v.vessel; sl.cap = v.cap; } });
+      reconcile(mine);
     }
-    for (const e of s.enemies) place('e:' + e.id, e.x, e.y);
-    for (const a of s.allies) place('a:' + a.id, a.x, a.y);
-    for (const p of s.projs) place('j:' + p.id, p.x, p.y);
-    for (const [k, v] of shown) if (!v.seen) shown.delete(k);
-    for (const ev of s.events) onEvent(ev, mine);
+    for (const ev of s.events) {
+      if ('p' in ev && ev.p === me) onEvent(ev, mine); // your own doings: at once
+      else later.push({ time: s.time, ev }); // the world's: when the interpolated view gets there
+    }
   };
+
+  /** Server reconciliation: start from the dungeon's position, replay what it hasn't applied yet. */
+  function reconcile(mine: SnapPlayer) {
+    pending = pending.filter((c) => c.seq > mine.ack);
+    const corrected = { x: mine.x, y: mine.y };
+    for (const c of pending) movePlayer(corrected, c, arena);
+    if (predInit) {
+      const dx = pred.x - corrected.x, dy = pred.y - corrected.y;
+      if (Math.hypot(dx, dy) < SNAP_CORRECTION) { offset.x += dx; offset.y += dy; } // hide small corrections
+      else { offset.x = 0; offset.y = 0; } // a blink or a big miss: go there now
+    }
+    predInit = true;
+    pred.x = corrected.x; pred.y = corrected.y;
+  }
+
+  /** One client tick: predict your own movement at once and queue the command for the dungeon. */
+  function clientTick() {
+    if (paused || over || !alive || !predInit) return;
+    let mx = 0, my = 0;
+    if (keys.has('w') || keys.has('arrowup')) my -= 1;
+    if (keys.has('s') || keys.has('arrowdown')) my += 1;
+    if (keys.has('a') || keys.has('arrowleft')) mx -= 1;
+    if (keys.has('d') || keys.has('arrowright')) mx += 1;
+    const aim = toWorld(mouse.sx, mouse.sy);
+    const cmd: MoveCmd = { seq: ++seq, mx, my, ax: aim.x, ay: aim.y, dt: TICK };
+    movePlayer(pred, cmd, arena);
+    pending.push(cmd);
+    outbox.push(cmd);
+    if (pending.length > 600) pending.shift(); // the dungeon has stopped answering; don't grow forever
+  }
   link.onEnd = (r) => end(r);
   link.onClose = () => { if (!over) host.toast('The dungeon fell silent.', '#ff7a6b'); };
 
@@ -152,7 +230,6 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
       case 'blink':
         fx.push({ kind: 'blink', x: ev.x, y: ev.y, t: 0, max: 0.35, color: colorOf(ev.element) });
         fx.push({ kind: 'blink', x: ev.x2, y: ev.y2, t: 0, max: 0.35, color: colorOf(ev.element) });
-        { const s = shown.get('p:' + me); if (s && mine) { s.x = ev.x2; s.y = ev.y2; } } // no smoothing across a blink
         return;
       case 'nova':
         fx.push({ kind: 'burst', x: ev.x, y: ev.y, r: ev.r, t: 0, max: 0.45, color: colorOf(ev.element) });
@@ -187,18 +264,6 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
   const mouse = { sx: 0, sy: 0 };
   let viewW = window.innerWidth, viewH = window.innerHeight;
   const toWorld = (sx: number, sy: number) => ({ x: sx - viewW / 2 + cam.x, y: sy - viewH / 2 + cam.y });
-  let inputT = 0;
-
-  function sendInput() {
-    let mx = 0, my = 0;
-    if (keys.has('w') || keys.has('arrowup')) my -= 1;
-    if (keys.has('s') || keys.has('arrowdown')) my += 1;
-    if (keys.has('a') || keys.has('arrowleft')) mx -= 1;
-    if (keys.has('d') || keys.has('arrowright')) mx += 1;
-    const aim = toWorld(mouse.sx, mouse.sy);
-    link.input(mx, my, aim.x, aim.y);
-  }
-
   function cast(i: number) {
     const s = slots[i];
     if (!s || over || paused) return;
@@ -215,8 +280,8 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
       if (k === 'escape') { togglePause(); return; }
       const slotForKey = SLOTS.findIndex((s) => s.key === k);
       if (!e.repeat && slotForKey >= 0) cast(slotForKey);
-      if (!keys.has(k)) { keys.add(k); sendInput(); }
-    } else { keys.delete(k); sendInput(); }
+      keys.add(k);
+    } else keys.delete(k);
   };
   const onMouseMove = (e: MouseEvent) => { mouse.sx = e.clientX; mouse.sy = e.clientY; };
   const onMouseDown = (e: MouseEvent) => {
@@ -225,25 +290,31 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
     if (slotForButton >= 0) cast(slotForButton);
   };
   const onContext = (e: MouseEvent) => e.preventDefault();
-  const onBlur = () => { keys.clear(); sendInput(); };
+  const onBlur = () => keys.clear();
 
   // ---------- update (local only) ----------
   function update(dt: number) {
-    const k = Math.min(1, dt * SMOOTH);
-    for (const s of shown.values()) { s.x += (s.tx - s.x) * k; s.y += (s.ty - s.y) * k; }
-    const me_ = shown.get('p:' + me);
-    if (me_) { player.x = me_.x; player.y = me_.y; }
+    // you: predicted at the client's tick rate, commands batched to the dungeon
+    tickAcc = Math.min(tickAcc + dt, 0.25);
+    while (tickAcc >= TICK) { tickAcc -= TICK; clientTick(); }
+    sendT -= dt;
+    if (sendT <= 0 && outbox.length) { link.cmds(outbox); outbox = []; sendT = SEND_EVERY; }
+    const decay = Math.exp(-dt * CORRECTION_DECAY);
+    offset.x *= decay; offset.y *= decay;
+    player.x = pred.x + offset.x; player.y = pred.y + offset.y;
+    // everything else: interpolated in the past; world events play when the view reaches them
+    interpolate();
+    const rt = renderTime();
+    while (later.length && later[0]!.time <= rt) onEvent(later.shift()!.ev, undefined);
     if (paused) return;
     if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
     hitSoundT -= dt;
-    inputT -= dt;
-    if (inputT <= 0) { inputT = INPUT_EVERY; if (!over) sendInput(); }
     player.hurt = Math.max(0, player.hurt - dt);
     for (const [id, t] of enemyFlash) { if (t - dt <= 0) enemyFlash.delete(id); else enemyFlash.set(id, t - dt); }
     // trails
-    for (const p of snap?.projs ?? []) { const s = shown.get('j:' + p.id); if (s && Math.random() < 0.6) parts.push({ x: s.x, y: s.y, vx: rand(-20, 20), vy: rand(-20, 20), t: 0, max: 0.3, color: colorOf(p.element), size: 2 }); }
-    for (const a of snap?.allies ?? []) { const s = shown.get('a:' + a.id); if (s && Math.random() < dt * 10) parts.push({ x: s.x, y: s.y, vx: rand(-15, 15), vy: rand(-30, -5), t: 0, max: 0.6, color: colorOf(a.element), size: 2 }); }
-    for (const e of snap?.enemies ?? []) { const s = shown.get('e:' + e.id); if (s && e.hexed && Math.random() < 0.3) parts.push({ x: s.x + rand(-e.r, e.r), y: s.y + rand(-e.r, e.r), vx: 0, vy: -30, t: 0, max: 0.5, color: HEX, size: 2 }); }
+    for (const p of view?.projs ?? []) { const s = pos.get('j:' + p.id); if (s && Math.random() < 0.6) parts.push({ x: s.x, y: s.y, vx: rand(-20, 20), vy: rand(-20, 20), t: 0, max: 0.3, color: colorOf(p.element), size: 2 }); }
+    for (const a of view?.allies ?? []) { const s = pos.get('a:' + a.id); if (s && Math.random() < dt * 10) parts.push({ x: s.x, y: s.y, vx: rand(-15, 15), vy: rand(-30, -5), t: 0, max: 0.6, color: colorOf(a.element), size: 2 }); }
+    for (const e of view?.enemies ?? []) { const s = pos.get('e:' + e.id); if (s && e.hexed && Math.random() < 0.3) parts.push({ x: s.x + rand(-e.r, e.r), y: s.y + rand(-e.r, e.r), vx: 0, vy: -30, t: 0, max: 0.5, color: HEX, size: 2 }); }
     for (const f of fx) f.t += dt;
     fx = fx.filter((f) => f.t < f.max);
     for (const p of parts) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96; p.vy *= 0.96; }
@@ -301,7 +372,7 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
     }
 
     // novas (pending)
-    for (const n of snap?.novas ?? []) {
+    for (const n of view?.novas ?? []) {
       ctx.strokeStyle = colorOf(n.element);
       ctx.globalAlpha = 0.6;
       ctx.setLineDash([6, 6]);
@@ -316,10 +387,10 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
       ctx.globalAlpha = 1;
     }
 
-    for (const e of snap?.enemies ?? []) drawEnemy(ctx, e, t);
+    for (const e of view?.enemies ?? []) drawEnemy(ctx, e, t);
     ctx.globalCompositeOperation = 'lighter';
-    for (const a of snap?.allies ?? []) {
-      const s = shown.get('a:' + a.id);
+    for (const a of view?.allies ?? []) {
+      const s = pos.get('a:' + a.id);
       if (!s) continue;
       ctx.globalAlpha = Math.min(1, 0.25 + a.life / B.forms.summon.life); // fades as it expires
       ctx.fillStyle = colorOf(a.element) + '99';
@@ -331,8 +402,8 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
     drawPlayer(ctx, t);
 
     ctx.globalCompositeOperation = 'lighter';
-    for (const p of snap?.projs ?? []) {
-      const s = shown.get('j:' + p.id);
+    for (const p of view?.projs ?? []) {
+      const s = pos.get('j:' + p.id);
       if (!s) continue;
       ctx.fillStyle = colorOf(p.element);
       ctx.beginPath(); ctx.arc(s.x, s.y, p.r, 0, Math.PI * 2); ctx.fill();
@@ -405,7 +476,7 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
   }
 
   function drawEnemy(ctx: CanvasRenderingContext2D, e: Snapshot['enemies'][number], t: number) {
-    const s = shown.get('e:' + e.id);
+    const s = pos.get('e:' + e.id);
     if (!s) return;
     const x = s.x, y = s.y;
     const d = B.enemies[e.kind as EnemyKind];
@@ -452,9 +523,9 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
 
   function drawPlayer(ctx: CanvasRenderingContext2D, t: number) {
     // other players first (a shared dungeon), then you
-    for (const p of snap?.players ?? []) {
+    for (const p of view?.players ?? []) {
       if (p.id === me || !p.alive) continue;
-      const s = shown.get('p:' + p.id);
+      const s = pos.get('p:' + p.id);
       if (!s) continue;
       ctx.fillStyle = '#9c8f74';
       ctx.beginPath(); ctx.arc(s.x, s.y, B.player.radius, 0, Math.PI * 2); ctx.fill();
@@ -489,8 +560,8 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
 
   function drawIndicators(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const m = 18;
-    for (const e of snap?.enemies ?? []) {
-      const s = shown.get('e:' + e.id);
+    for (const e of view?.enemies ?? []) {
+      const s = pos.get('e:' + e.id);
       if (!s) continue;
       const sx = s.x - cam.x + w / 2, sy = s.y - cam.y + h / 2;
       if (sx > -e.r && sx < w + e.r && sy > -e.r && sy < h + e.r) continue;
@@ -685,9 +756,10 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
       // debug/bot hook: read-only view of what this client knows
       (window as any).__run = {
         player, slots, cast,
-        enemies: () => (snap?.enemies ?? []).map((e) => ({ ...e, ...(shown.get('e:' + e.id) ?? {}) })),
+        enemies: () => (view?.enemies ?? []).map((e) => ({ ...e, ...(pos.get('e:' + e.id) ?? {}) })),
         state: () => ({ wave: snap?.wave ?? 0, kills: snap?.kills ?? 0, over: over ? (over.won ? 'won' : 'lost') : null, breather: snap?.breather ?? 0 }),
         aura: () => ({ strain: player.strain, capacity: player.capacity }),
+        net: () => ({ pending: pending.length, correction: Math.hypot(offset.x, offset.y), buffered: snaps.length, behind: snap ? snap.time - renderTime() : 0 }),
       };
     },
     unmount() {

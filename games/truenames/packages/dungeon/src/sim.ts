@@ -8,6 +8,7 @@ import type { ZkNameClaim } from '@truenames/proofs';
 import { BALANCE as B, SLOTS } from './balance.ts';
 import { ANCIENTS, HEARTH_GOD, WARDEN_WELLS } from './world.ts';
 import type { EnemyKind, SimEvent, SlotInfo, Snapshot, WireTraits, RoundResultMsg } from './protocol.ts';
+import { movePlayer, collideCircle, MAX_CMD_DT, type Arena, type MoveCmd } from './movement.ts';
 
 const TICK_S = TUNABLES.TICK_MS / 1000;
 const dist2 = (ax: number, ay: number, bx: number, by: number) => (ax - bx) ** 2 + (ay - by) ** 2;
@@ -31,9 +32,11 @@ interface Player {
   id: string; // aura (hex public key)
   x: number; y: number;
   hp: number; ward: number; invuln: number;
-  mx: number; my: number; ax: number; ay: number;
+  ax: number; ay: number;
   slots: (Slot | null)[];
   alive: boolean;
+  ack: number; // last movement command applied
+  budget: number; // seconds of movement the player may still spend (commands can't outrun real time)
 }
 
 interface Enemy {
@@ -69,6 +72,7 @@ export class DungeonSim {
   readonly W = B.arena.w;
   readonly H = B.arena.h;
   readonly pillars: { x: number; y: number; r: number }[] = [];
+  readonly arena: Arena;
   private auth: LocalAuthority;
   private rand: (a: number, b: number) => number;
   private random: () => number;
@@ -111,6 +115,7 @@ export class DungeonSim {
       if (this.pillars.some((q) => dist2(p.x, p.y, q.x, q.y) < (p.r + q.r + 120) ** 2)) continue;
       this.pillars.push(p);
     }
+    this.arena = { w: W, h: H, pillars: this.pillars };
   }
 
   // ---------- players ----------
@@ -133,17 +138,26 @@ export class DungeonSim {
       };
     }
     const n = this.players.size;
-    this.players.set(aura, { id: aura, x: this.W / 2 + n * 40, y: this.H / 2, hp: B.player.hp, ward: 0, invuln: 0, mx: 0, my: 0, ax: this.W / 2 + 100, ay: this.H / 2, slots, alive: true });
+    this.players.set(aura, { id: aura, x: this.W / 2 + n * 40, y: this.H / 2, hp: B.player.hp, ward: 0, invuln: 0, ax: this.W / 2 + 100, ay: this.H / 2, slots, alive: true, ack: 0, budget: 0 });
     return { slots: slots.map((s) => s && { spirit: s.spirit, element: s.element, magnitude: s.magnitude, traits: s.traits, strength: s.strength }), refused };
   }
 
-  input(id: string, mx: number, my: number, ax: number, ay: number) {
+  /**
+   * Movement commands, applied in order with the same code the client predicts with.
+   * Each is acknowledged (so the client can drop it) even when it can't move you (paused, fallen).
+   */
+  commands(id: string, cmds: MoveCmd[]) {
     const p = this.players.get(id);
     if (!p) return;
-    const l = Math.hypot(mx, my);
-    p.mx = l > 1 ? mx / l : mx;
-    p.my = l > 1 ? my / l : my;
-    if (Number.isFinite(ax) && Number.isFinite(ay)) { p.ax = ax; p.ay = ay; }
+    for (const c of cmds) {
+      if (!(c.seq > p.ack) || ![c.mx, c.my, c.ax, c.ay, c.dt].every(Number.isFinite)) continue;
+      p.ack = c.seq;
+      p.ax = c.ax; p.ay = c.ay;
+      if (!p.alive || this.over || this.paused || !this.started) continue;
+      const dt = Math.max(0, Math.min(c.dt, MAX_CMD_DT, p.budget));
+      p.budget -= dt;
+      movePlayer(p, c, this.arena, dt);
+    }
   }
 
   cast(id: string, slot: number, ax: number, ay: number) {
@@ -176,6 +190,7 @@ export class DungeonSim {
   step(dt: number) {
     if (!this.started || this.paused) return;
     this.time += dt;
+    for (const p of this.players.values()) p.budget = Math.min(0.25, p.budget + dt);
     if (!this.over) {
       this.tickAcc += dt;
       while (this.tickAcc >= TICK_S) { this.tickAcc -= TICK_S; this.authorityTick(); }
@@ -206,7 +221,7 @@ export class DungeonSim {
       players: [...this.players.values()].map((p) => {
         const a = this.auth.auraState(p.id);
         return {
-          id: p.id, x: p.x, y: p.y, hp: p.hp, ward: p.ward, invuln: p.invuln > 0, strain: a.strain, capacity: a.capacity, alive: p.alive,
+          id: p.id, ack: p.ack, x: p.x, y: p.y, hp: p.hp, ward: p.ward, invuln: p.invuln > 0, strain: a.strain, capacity: a.capacity, alive: p.alive,
           slots: p.slots.map((s) => {
             if (!s) return null;
             const v = this.auth.poolInfo(p.id, s.spirit);
@@ -334,7 +349,7 @@ export class DungeonSim {
       }
       case 1: { // ring
         const f = B.forms.ring;
-        this.events.push({ e: 'ring', x: p.x, y: p.y, r: f.radius, element });
+        this.events.push({ e: 'ring', p: p.id, x: p.x, y: p.y, r: f.radius, element });
         for (const e of this.enemies) {
           const dd = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
           if (dd < f.radius + e.r) {
@@ -347,11 +362,11 @@ export class DungeonSim {
       }
       case 2: // ward
         p.ward = Math.min(B.player.wardMax, p.ward + effect * B.forms.ward.mult);
-        this.events.push({ e: 'ring', x: p.x, y: p.y, r: 30, element, ward: true });
+        this.events.push({ e: 'ring', p: p.id, x: p.x, y: p.y, r: 30, element, ward: true });
         break;
       case 3: { // lance
         const f = B.forms.lance;
-        this.events.push({ e: 'beam', x: p.x, y: p.y, x2: p.x + ux * f.length, y2: p.y + uy * f.length, width: f.width, element, dur: 0.3 });
+        this.events.push({ e: 'beam', p: p.id, x: p.x, y: p.y, x2: p.x + ux * f.length, y2: p.y + uy * f.length, width: f.width, element, dur: 0.3 });
         for (const e of this.enemies) {
           const t = Math.max(0, Math.min(f.length, (e.x - p.x) * ux + (e.y - p.y) * uy));
           if (dist2(p.x + ux * t, p.y + uy * t, e.x, e.y) < (e.r + f.width / 2) ** 2) this.hurtEnemy(e, effect, element);
@@ -372,7 +387,7 @@ export class DungeonSim {
           this.allies = this.allies.filter((a) => a !== gone);
           this.events.push({ e: 'dismiss', x: gone.x, y: gone.y, element: gone.element });
         }
-        this.events.push({ e: 'summon', x: p.x, y: p.y, element });
+        this.events.push({ e: 'summon', p: p.id, x: p.x, y: p.y, element });
         break;
       }
       case 6: { // hex
@@ -383,7 +398,7 @@ export class DungeonSim {
         if (best) {
           best.hexDps += effect / f.duration;
           best.hexT = f.duration;
-          this.events.push({ e: 'beam', x: p.x, y: p.y, x2: best.x, y2: best.y, width: 3, element, dur: 0.2 });
+          this.events.push({ e: 'beam', p: p.id, x: p.x, y: p.y, x2: best.x, y2: best.y, width: 3, element, dur: 0.2 });
         }
         break;
       }
@@ -394,7 +409,7 @@ export class DungeonSim {
         p.x += ux * range; p.y += uy * range;
         this.collide(p, B.player.radius);
         p.invuln = 0.25;
-        this.events.push({ e: 'blink', x: x0, y: y0, x2: p.x, y2: p.y, element });
+        this.events.push({ e: 'blink', p: p.id, x: x0, y: y0, x2: p.x, y2: p.y, element });
         break;
       }
     }
@@ -457,11 +472,9 @@ export class DungeonSim {
   }
 
   private stepPlayers(dt: number) {
+    // movement arrives as commands (see commands()); here only the passage of time
     for (const p of this.players.values()) {
       if (!p.alive || this.over) continue;
-      p.x += p.mx * B.player.speed * dt;
-      p.y += p.my * B.player.speed * dt;
-      this.collide(p, B.player.radius);
       p.invuln = Math.max(0, p.invuln - dt);
       p.ward = Math.max(0, p.ward - p.ward * B.player.wardDecayPerSec * dt);
     }
@@ -561,15 +574,6 @@ export class DungeonSim {
   }
 
   private collide(o: { x: number; y: number }, r: number) {
-    for (const q of this.pillars) {
-      const d2 = dist2(o.x, o.y, q.x, q.y), min = q.r + r;
-      if (d2 < min * min) {
-        const d = Math.sqrt(d2) || 1;
-        o.x = q.x + ((o.x - q.x) / d) * min;
-        o.y = q.y + ((o.y - q.y) / d) * min;
-      }
-    }
-    o.x = Math.max(r, Math.min(this.W - r, o.x));
-    o.y = Math.max(r, Math.min(this.H - r, o.y));
+    collideCircle(o, r, this.arena);
   }
 }

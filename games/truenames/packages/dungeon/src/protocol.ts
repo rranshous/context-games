@@ -1,6 +1,8 @@
 // Wire protocol between a client and a dungeon process. JSON over WebSocket.
 // Bigints travel as decimal strings. Nothing here is secret: journeys carry proofs, never addresses.
 import type { ZkNameClaim } from '@truenames/proofs';
+import type { MoveCmd } from './movement.ts';
+export type { MoveCmd } from './movement.ts';
 
 export type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman' | 'warden';
 
@@ -24,9 +26,9 @@ export interface SlotInfo {
 
 // ---------- client → dungeon ----------
 export type ClientMsg =
-  | { t: 'open'; level: number } // request a round; the dungeon issues the context
+  | { t: 'open'; level: number; lag?: number } // request a round; the dungeon issues the context. lag: dev-only simulated latency (ms)
   | { t: 'journey'; aura: string; bundle: { slot: number; claim: ZkNameClaim }[] }
-  | { t: 'input'; mx: number; my: number; ax: number; ay: number } // move direction and aim point (world units)
+  | { t: 'cmds'; cmds: MoveCmd[] } // numbered movement/aim commands, one per client tick
   | { t: 'cast'; slot: number; ax: number; ay: number }
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
@@ -48,6 +50,7 @@ export interface RoundResultMsg {
 
 export interface SnapPlayer {
   id: string;
+  ack: number; // last movement command the dungeon applied for this player
   x: number;
   y: number;
   hp: number;
@@ -86,11 +89,11 @@ export type SimEvent =
   | { e: 'kill'; x: number; y: number; kind: EnemyKind; element: number }
   | { e: 'hurt'; p: string; dmg: number; why?: string }
   | { e: 'absorb'; p: string }
-  | { e: 'beam'; x: number; y: number; x2: number; y2: number; width: number; element: number; dur: number }
-  | { e: 'ring'; x: number; y: number; r: number; element: number; ward?: boolean }
-  | { e: 'blink'; x: number; y: number; x2: number; y2: number; element: number }
+  | { e: 'beam'; p?: string; x: number; y: number; x2: number; y2: number; width: number; element: number; dur: number }
+  | { e: 'ring'; p?: string; x: number; y: number; r: number; element: number; ward?: boolean }
+  | { e: 'blink'; p?: string; x: number; y: number; x2: number; y2: number; element: number }
   | { e: 'nova'; x: number; y: number; r: number; element: number; enemy: boolean }
-  | { e: 'summon'; x: number; y: number; element: number }
+  | { e: 'summon'; p?: string; x: number; y: number; element: number }
   | { e: 'dismiss'; x: number; y: number; element: number }
   | { e: 'spark'; x: number; y: number; element: number } // projectile hit a pillar or target
   | { e: 'enemyCast'; x: number; y: number; effective: number; warden: boolean }
