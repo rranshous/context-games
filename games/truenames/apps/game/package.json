@@ -12,6 +12,7 @@
     "@noble/curves": "^2.4.0",
     "@truenames/authority": "workspace:*",
     "@truenames/meditation": "workspace:*",
+    "@truenames/proofs": "workspace:*",
     "@truenames/protocol": "workspace:*",
     "@truenames/universe": "workspace:*"
   }

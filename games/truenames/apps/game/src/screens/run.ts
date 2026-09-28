@@ -1,16 +1,19 @@
 // A walk into the dark: one arena, five waves, a Warden at the end.
-import type { App, Screen } from '../main.ts';
+// GAME SIDE: this screen never touches the save or the sanctum. It receives a Journey (public
+// identity + zero-knowledge proofs), verifies it, and reports back through a RoundHost.
+import type { Screen } from '../main.ts';
+import type { Journey, RoundHost } from '../round.ts';
 import { frag } from '../dom.ts';
 import { BALANCE as B, descentName, SLOTS } from '../balance.ts';
 import {
   ELEMENT_COLOR, FORMS, ANCIENTS, HEARTH_GOD, TICK_MS, WARDEN_WELLS,
-  spiritName, truths,
+  spiritName, truths, type SpiritLike,
 } from '../lore.ts';
-import { persist, spiritOf } from '../save.ts';
-import { LocalAuthority, castCap, spiritStats, TUNABLES } from '@truenames/authority';
+import { LocalAuthority, castCap, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
+import { verifyZkName, type ZkNameClaim } from '@truenames/proofs';
+import vkey from '@truenames/proofs/artifacts/name.vkey.json';
 import type { CastResult, TargetSpec } from '@truenames/protocol';
-import { spiritAt, type Spirit } from '@truenames/universe';
-import { sanctumScreen } from './sanctum.ts';
+import { spiritAt, decodeTraits, type Spirit } from '@truenames/universe';
 import { sigilCanvas } from '../sigil.ts';
 import * as sfx from '../audio.ts';
 import { HELP, showTip, hideTip } from '../help.ts';
@@ -27,9 +30,9 @@ interface Enemy {
   hexDps: number; hexT: number;
   kx: number; ky: number; // knockback velocity
   flash: number;
-  // shamans
+  // shamans and the Warden: synthetic names on public spirits (addresses)
   aura?: string;
-  cell?: string;
+  spirit?: string;
   castT?: number;
   strafe?: number;
 }
@@ -43,8 +46,9 @@ interface Floater { x: number; y: number; text: string; color: string; t: number
 interface Pillar { x: number; y: number; r: number }
 
 interface Slot {
-  cell: string;
-  spirit: Spirit;
+  spirit: string; // opaque id from the proof: never an address
+  view: SpiritLike; // what the proof revealed
+  strength: number; // truths proven
   form: number;
   color: string;
   name: string;
@@ -66,22 +70,35 @@ function spiritOfCell(cell: string): Spirit {
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const dist2 = (ax: number, ay: number, bx: number, by: number) => (ax - bx) ** 2 + (ay - by) ** 2;
 
-export function runScreen(app: App, level = app.save.lastDescent): Screen {
-  const S = app.services;
+/** Game-side verification of zero-knowledge names (bound to one round's context). */
+const zkVerifier: ProofVerifier = {
+  async verify(claim, context) {
+    const r = await verifyZkName(claim as ZkNameClaim, vkey, context);
+    return r.ok ? { ok: true, name: r.name } : r;
+  },
+};
+
+export function runScreen(journey: Journey, host: RoundHost): Screen {
+  const level = journey.ticket.level;
   const D = B.descent;
   const hpMult = D.hpMult ** level, dmgMult = D.dmgMult ** level;
-  const save = app.save;
-  const me = save.aura!.pub;
-  const auth = new LocalAuthority(undefined, (Math.random() * 2 ** 31) | 0);
+  const me = journey.aura;
+  const auth = new LocalAuthority({ proofs: zkVerifier, context: journey.ticket.context, seed: (Math.random() * 2 ** 31) | 0 });
   auth.registerAura(me);
-  for (const rec of Object.values(save.names)) auth.submitName(rec.claim);
 
-  const slots: (Slot | null)[] = save.loadout.slice(0, SLOTS.length).map((cell) => {
-    if (!cell || !S.learned(cell)) return null;
-    const sp = spiritOf(save, cell) ?? spiritAt(cell);
-    if (!sp) return null;
-    return { cell, spirit: sp, form: sp.traits.form, color: ELEMENT_COLOR[sp.element]!, name: spiritName(sp), lastBits: null, lastGrant: 0, flash: 0, thin: 0, generosity: spiritStats(sp).generosity };
-  });
+  // Names are locked in at the threshold: verify each proof, then fill its slot.
+  const slots: (Slot | null)[] = SLOTS.map(() => null);
+  let verifying = true;
+  (async () => {
+    for (const { slot, claim } of journey.bundle) {
+      const r = await auth.submitProvenName(claim);
+      if (!r.accepted || !r.spirit) { host.toast(`A name was not heard at the threshold: ${r.reason ?? 'unknown'}`, '#ff7a6b'); continue; }
+      const p = claim.publicSignals;
+      const view: SpiritLike = { element: Number(p[1]), magnitude: Number(p[3]), traits: decodeTraits(BigInt(p[0]!)) };
+      slots[slot] = { spirit: r.spirit, view, strength: r.strength!, form: view.traits.form, color: ELEMENT_COLOR[view.element]!, name: spiritName(view), lastBits: null, lastGrant: 0, flash: 0, thin: 0, generosity: spiritStats(view).generosity };
+    }
+    verifying = false;
+  })();
 
   // ---------- world ----------
   const W = B.arena.w, H = B.arena.h;
@@ -93,7 +110,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (pillars.some((q) => dist2(p.x, p.y, q.x, q.y) < (p.r + q.r + 120) ** 2)) continue;
     pillars.push(p);
   }
-  const tint = ELEMENT_COLOR[(save.aura!.element + level * 3) % 8]!;
+  const tint = ELEMENT_COLOR[(journey.element + level * 3) % 8]!;
   const motes = Array.from({ length: 220 }, (_, i) => ({ x: rand(0, W), y: rand(0, H), v: rand(6, 22), d: String(i % 8) }));
   let enemies: Enemy[] = [];
   let allies: Ally[] = [];
@@ -136,21 +153,21 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
     const e: Enemy = { id: nextId++, kind, x, y, hp: d.hp * hpMult, maxHp: d.hp * hpMult, r: d.radius, speed: d.speed * rand(0.9, 1.1), dmg: d.dmg * dmgMult, cd: 0, hexDps: 0, hexT: 0, kx: 0, ky: 0, flash: 0 };
     if (kind === 'warden') {
-      // The mightiest ancients serve the Warden; it drinks from the same wells you might.
+      // The mightiest ancients serve the Warden; it draws on its own vessel.
       e.aura = `npc:warden:${e.id}`;
-      e.cell = WARDEN_WELLS[(Math.random() * WARDEN_WELLS.length) | 0]!;
-      auth.grantSyntheticName(e.aura, e.cell, TUNABLES.capRef + B.warden.bits + D.shamanBits * level + 4);
+      e.spirit = WARDEN_WELLS[(Math.random() * WARDEN_WELLS.length) | 0]!;
+      auth.grantSyntheticName(e.aura, e.spirit, TUNABLES.capRef + B.warden.bits + D.shamanBits * level + 4);
       e.castT = 2;
       e.strafe = 0;
       warden = e;
-      banner = { text: `THE WARDEN OF ${descentName(level).toUpperCase()}`, sub: `It speaks the name of ${spiritName(spiritOfCell(e.cell))}.`, t: 3.5 };
+      banner = { text: `THE WARDEN OF ${descentName(level).toUpperCase()}`, sub: `It speaks the name of ${spiritName(spiritOfCell(e.spirit))}.`, t: 3.5 };
       sfx.sfxWarden();
     }
     if (kind === 'shaman') {
       e.aura = `npc:shaman:${e.id}`;
-      e.cell = Math.random() < B.shaman.hearthChance ? HEARTH_GOD : ANCIENTS[(Math.random() * ANCIENTS.length) | 0]!;
+      e.spirit = Math.random() < B.shaman.hearthChance ? HEARTH_GOD : ANCIENTS[(Math.random() * ANCIENTS.length) | 0]!;
       const strength = TUNABLES.capRef + wave + D.shamanBits * level + ((Math.random() * 3) | 0);
-      auth.grantSyntheticName(e.aura, e.cell, strength);
+      auth.grantSyntheticName(e.aura, e.spirit, strength);
       e.castT = rand(1, 2);
       e.strafe = Math.random() < 0.5 ? 1 : -1;
     }
@@ -175,7 +192,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const tag = `c${castSeq++}`;
     pending.set(tag, { slot: i, aimX: aim.x, aimY: aim.y });
     const tgt: TargetSpec = [1, 2, 5].includes(s.form) ? { kind: 'self' } : { kind: 'point', x: aim.x, y: aim.y };
-    auth.submitCast({ aura: me, cell: s.cell, request: B.request, target: tgt, tick: auth.currentTick(), tag });
+    auth.submitCast({ aura: me, spirit: s.spirit, request: B.request, target: tgt, tick: auth.currentTick(), tag });
     s.flash = 0.25;
     // gathering spark: the result lands on the next tick
     for (let k = 0; k < 4; k++) parts.push({ x: player.x, y: player.y, vx: rand(-40, 40), vy: rand(-40, 40), t: 0, max: 0.25, color: s.color, size: 2 });
@@ -242,12 +259,12 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     s.lastBits = r.effective;
     s.lastGrant = r.grant;
     const want = Math.min(B.request, castCap(r.effective, s.generosity));
-    s.thin = r.grant < want * 0.7 ? 1.2 : 0;
+    s.thin = r.grant < want * 0.7 ? 1.2 : 0; // the vessel couldn't give what the name could draw
     const eff = TUNABLES.formEfficiency[s.form]!;
     const effect = r.grant * eff * B.effectScale;
     floaters.push({ x: player.x - 60 + p.slot * 24, y: player.y - 26 - (p.slot % 2) * 12, text: `${r.effective.toFixed(1)}`, color: s.color, t: 0, size: 13 });
-    if (s.thin) floaters.push({ x: player.x, y: player.y - 44, text: 'the well runs thin', color: '#9c8f74', t: 0, size: 12 });
-    sfx.sfxCast(s.form, s.spirit.element, effect / 30);
+    if (s.thin) floaters.push({ x: player.x, y: player.y - 44, text: 'your vessel runs low', color: '#9c8f74', t: 0, size: 12 });
+    sfx.sfxCast(s.form, s.view.element, effect / 30);
     if (r.recoil) {
       sfx.sfxBacklash();
       hurtPlayer(r.recoil, 'BACKLASH');
@@ -294,7 +311,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       }
       case 4: { // nova
         const f = B.forms.nova;
-        novas.push({ x: p.aimX, y: p.aimY, t: f.delay, dmg: effect, r: f.radius, color, element: s.spirit.element });
+        novas.push({ x: p.aimX, y: p.aimY, t: f.delay, dmg: effect, r: f.radius, color, element: s.view.element });
         break;
       }
       case 5: { // summon
@@ -332,7 +349,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     const e = enemies.find((x) => x.aura === r.aura);
     if (!e || e.hp <= 0 || r.refused || r.grant <= 0) return;
     if (e.kind === 'warden') {
-      const sp = spiritOfCell(e.cell!);
+      const sp = spiritOfCell(e.spirit!);
       const frac = Math.max(0, Math.min(1, r.grant / castCap(r.strength, spiritStats(sp).generosity)));
       const tgt = r.target.kind === 'point' ? r.target : { x: player.x, y: player.y };
       novas.push({ x: tgt.x, y: tgt.y, t: B.warden.novaDelay, max: B.warden.novaDelay, dmg: B.warden.novaDamage * dmgMult * (0.3 + 0.7 * frac), r: B.warden.novaRadius, color: ELEMENT_COLOR[sp.element]!, element: sp.element, enemy: true });
@@ -342,10 +359,10 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
     const dx = player.x - e.x, dy = player.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
-    const sp = spiritOfCell(e.cell!);
+    const sp = spiritOfCell(e.spirit!);
     const color = ELEMENT_COLOR[sp.element]!;
-    // Strength decides how much of the well a shaman wins (contention); damage is bounded:
-    // base bolt x descent, scaled by the fraction of its own cap it actually drew (strain and crowding weaken it).
+    // Damage is bounded: base bolt x descent, scaled by the fraction of its own cap it actually drew
+    // (strain and an emptying vessel weaken it).
     const full = castCap(r.strength, spiritStats(sp).generosity);
     const frac = Math.max(0, Math.min(1, r.grant / full));
     const dmg = B.shaman.boltDamage * dmgMult * (0.25 + 0.75 * frac);
@@ -360,7 +377,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
         e.castT! -= TICK_MS / 1000;
         if (e.castT! <= 0) {
           e.castT = rand(B.warden.castMin, B.warden.castMax);
-          auth.submitCast({ aura: e.aura!, cell: e.cell!, request: B.request, target: { kind: 'point', x: player.x, y: player.y }, tick: auth.currentTick() });
+          auth.submitCast({ aura: e.aura!, spirit: e.spirit!, request: B.request, target: { kind: 'point', x: player.x, y: player.y }, tick: auth.currentTick() });
         }
         continue;
       }
@@ -368,7 +385,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       e.castT! -= TICK_MS / 1000;
       if (e.castT! <= 0 && dist2(e.x, e.y, player.x, player.y) < 700 ** 2) {
         e.castT = rand(B.shaman.castMin, B.shaman.castMax);
-        auth.submitCast({ aura: e.aura!, cell: e.cell!, request: B.request, target: { kind: 'entity', id: 'player' }, tick: auth.currentTick() });
+        auth.submitCast({ aura: e.aura!, spirit: e.spirit!, request: B.request, target: { kind: 'entity', id: 'player' }, tick: auth.currentTick() });
       }
     }
     const res = auth.tick();
@@ -378,21 +395,13 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
   }
 
-  // Meditation keeps working during the walk: truer names reach this run's authority at once.
-  const offName = S.names.on((n) => {
-    const rec = save.names[n.cell];
-    if (!rec || over) return;
-    auth.submitName(rec.claim);
-    const sl = slots.find((x) => x?.cell === n.cell);
-    if (sl) floaters.push({ x: player.x, y: player.y + 34, text: `${sl.name} grows truer · ${truths(n.strength)}`, color: sl.color, t: -0.6, size: 14 });
-  });
-
   // ---------- update ----------
   let tickAcc = 0;
   let hitSoundT = 0;
 
   function update(dt: number) {
     if (paused) return;
+    if (verifying) { banner = { text: 'AT THE THRESHOLD', sub: 'Your names are weighed…', t: 1 }; return; }
     if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
     hitSoundT -= dt;
     if (!over) {
@@ -412,7 +421,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
           if (wave >= B.waves.length) end('won');
           else {
             breather = B.breather;
-            banner = { text: `WAVE ${wave + 1}`, sub: wave + 1 === 3 ? 'Shamans walk with them. They draw on the same wells you do.' : 'Breathe. Let the strain ebb.', t: 3 };
+            banner = { text: `WAVE ${wave + 1}`, sub: wave + 1 === 3 ? 'Shamans walk with them, speaking names of their own.' : 'Breathe. Let the strain ebb.', t: 3 };
           }
         }
       }
@@ -620,15 +629,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.globalAlpha = 1;
     }
 
-    // rival threads: a shaman drawing on a well you also hold
-    ctx.setLineDash([3, 7]);
-    for (const e of enemies) {
-      if (!e.cell || !slots.some((sl) => sl?.cell === e.cell)) continue;
-      ctx.strokeStyle = ELEMENT_COLOR[spiritOfCell(e.cell).element]! + '55';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(player.x, player.y); ctx.stroke();
-    }
-    ctx.setLineDash([]);
     // enemies
     for (const e of enemies) drawEnemy(ctx, e, t);
     // allies
@@ -729,7 +729,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.rotate(a);
       ctx.beginPath(); ctx.moveTo(e.r + 3, 0); ctx.lineTo(-e.r, e.r * 0.8); ctx.lineTo(-e.r, -e.r * 0.8); ctx.closePath(); ctx.fill();
     } else if (e.kind === 'warden') {
-      const sp = spiritOfCell(e.cell!);
+      const sp = spiritOfCell(e.spirit!);
       ctx.fillStyle = e.flash > 0 ? '#ffffff' : d.color;
       octagon(ctx, e.r, t * 0.15);
       ctx.fill();
@@ -745,7 +745,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.fill();
     }
     if (e.kind === 'shaman') {
-      const sp = spiritOfCell(e.cell!);
+      const sp = spiritOfCell(e.spirit!);
       ctx.strokeStyle = ELEMENT_COLOR[sp.element]!;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, e.r + 5 + Math.sin(t * 5) * 1.5, 0, Math.PI * 2); ctx.stroke();
@@ -771,7 +771,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
   function drawPlayer(ctx: CanvasRenderingContext2D, t: number) {
     const st = auth.auraState(me);
     const strained = st.strain / st.capacity;
-    const glow = ELEMENT_COLOR[save.aura!.element]!;
+    const glow = ELEMENT_COLOR[journey.element]!;
     ctx.save();
     ctx.translate(player.x, player.y);
     // aura: dims and reddens with strain
@@ -832,7 +832,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     hud = [
       { x: 16, y: 16, w: 224, h: 34, tip: HELP.life },
       { x: w / 2 - 170, y: 12, w: 340, h: 54, tip: HELP.wave },
-      { x: w - 320, y: 10, w: 310, h: 22, tip: HELP.humRun },
     ];
     drawIndicators(ctx, w, h);
     // health
@@ -868,13 +867,9 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.fillStyle = '#e7c26b';
       ctx.fillRect(w / 2 - bw / 2, 84, (bw * warden.hp) / warden.maxHp, 6);
       ctx.font = '11px Cinzel, serif';
-      ctx.fillText(`the Warden · ${spiritName(spiritOfCell(warden.cell!))}`, w / 2, 81);
+      ctx.fillText(`the Warden · ${spiritName(spiritOfCell(warden.spirit!))}`, w / 2, 81);
       hud.push({ x: w / 2 - bw / 2 - 4, y: 72, w: bw + 8, h: 22, tip: HELP.warden });
     }
-    ctx.textAlign = 'right';
-    ctx.font = '12px EB Garamond, serif';
-    ctx.fillStyle = '#9c8f74';
-    ctx.fillText(`meditation hums at ${Math.round(S.pool.rate()).toLocaleString()} utterances/s`, w - 16, 26);
 
     // slots
     const active = slots.map((s, i) => ({ s, i })).filter((x) => x.s);
@@ -901,7 +896,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     ctx.fillStyle = '#9c8f74';
     ctx.fillText(`strain ${st.strain.toFixed(1)} / ${st.capacity.toFixed(1)}`, mx, my - 3);
     hud.push({ x: mx - 6, y: my - 14, w: mw + 12, h: 26, tip: HELP.strain });
-    if (save.runs.length < 2 && !over) {
+    if (journey.newcomer && !over) {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';
@@ -910,7 +905,7 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     }
     for (const { s, i } of active) {
       const sl = s!;
-      hud.push({ x, y, w: sw, h: 62, tip: `<b style="color:${sl.color}">${sl.name}</b>: ${FORMS[sl.form]!.name}, ${FORMS[sl.form]!.desc}. Your name holds ${truths(S.strength(sl.cell))}.<br>${HELP.hudSlot}` });
+      hud.push({ x, y, w: sw, h: 62, tip: `<b style="color:${sl.color}">${sl.name}</b>: ${FORMS[sl.form]!.name}, ${FORMS[sl.form]!.desc}. Your name holds ${truths(sl.strength)}.<br>${HELP.hudSlot}` });
       ctx.fillStyle = sl.flash > 0 ? 'rgba(231,194,107,0.22)' : 'rgba(10,9,17,0.8)';
       ctx.fillRect(x, y, sw, 62);
       ctx.strokeStyle = sl.color;
@@ -920,34 +915,26 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       ctx.font = '12px JetBrains Mono, monospace';
       ctx.fillText(SLOTS[i]!.label, x + 6, y + 14);
       ctx.globalAlpha = sl.flash > 0 ? 1 : 0.55;
-      ctx.drawImage(sigilCanvas(sl.spirit, 64), x + sw - 44, y + 18, 32, 32);
+      ctx.drawImage(sigilCanvas(sl.view, 64), x + sw - 44, y + 18, 32, 32);
       ctx.globalAlpha = 1;
       ctx.fillStyle = sl.color;
       ctx.font = '14px Cinzel, serif';
       ctx.fillText(sl.name.slice(0, 12), x + 6, y + 30);
       ctx.fillStyle = '#9c8f74';
       ctx.font = '11px EB Garamond, serif';
-      ctx.fillText(`${FORMS[sl.form]!.name} · ${truths(S.strength(sl.cell))}`, x + 6, y + 44);
+      ctx.fillText(`${FORMS[sl.form]!.name} · ${truths(sl.strength)}`, x + 6, y + 44);
       ctx.textAlign = 'right';
       ctx.font = '12px JetBrains Mono, monospace';
       ctx.fillStyle = sl.thin > 0 ? '#ff9e5a' : '#e9dcb8';
       ctx.fillText(sl.lastBits !== null ? `${sl.lastBits.toFixed(1)}` : '—', x + sw - 6, y + 14);
       ctx.textAlign = 'left';
       // pool
-      const pool = auth.poolInfo(sl.cell);
+      const pool = auth.poolInfo(me, sl.spirit);
       if (pool) {
         ctx.fillStyle = '#2a2233';
         ctx.fillRect(x + 6, y + 52, sw - 12, 4);
         ctx.fillStyle = sl.color;
         ctx.fillRect(x + 6, y + 52, ((sw - 12) * pool.level) / pool.cap, 4);
-      }
-      // rivals: enemy casters drinking from the same well
-      const rivals = enemies.filter((e) => e.cell === sl.cell).length;
-      if (rivals) {
-        ctx.fillStyle = '#ff9e5a';
-        ctx.font = '11px EB Garamond, serif';
-        ctx.fillText(`${rivals} rival${rivals > 1 ? 's' : ''} at this well`, x + 6, y - 4);
-        hud.push({ x, y: y - 16, w: sw, h: 14, tip: HELP.rivals });
       }
       x += sw + gap;
     }
@@ -973,17 +960,14 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
     if (over) return;
     over = result;
     if (result === 'won') sfx.sfxVictory(); else sfx.sfxDeath();
-    save.runs.push({ at: Date.now(), descent: level, wave: wave + (result === 'won' || breather > 0 ? 0 : 1), won: result === 'won', kills, finds: 0 });
-    const unlocked = result === 'won' && level >= save.descent;
-    if (unlocked) save.descent = level + 1;
-    persist(save);
+    const { unlocked } = host.report({ level, won: result === 'won', wave: wave + (result === 'won' || breather > 0 ? 0 : 1), kills });
     overlay = frag(`<div class="overlay">
       <h1 style="font-size:40px; color:var(--gold)">${result === 'won' ? 'The dark recedes' : 'You fall'}</h1>
       <div class="prose">${result === 'won' ? `Five waves broken in ${descentName(level)}. The wells are quiet again.${unlocked ? `<br><em>The way down opens: ${descentName(level + 1)}.</em>` : ''}` : `The dark took you at wave ${wave + (breather > 0 ? 0 : 1)}. Your names are kept; names are always kept.`}</div>
       <div class="dim">${kills} banished</div>
       <button class="primary" id="back">Return to the sanctum</button>
     </div>`);
-    overlay.querySelector('#back')!.addEventListener('click', () => app.go(sanctumScreen(app)));
+    overlay.querySelector('#back')!.addEventListener('click', () => host.leave());
     uiRoot.appendChild(overlay);
   }
 
@@ -1029,7 +1013,6 @@ export function runScreen(app: App, level = app.save.lastDescent): Screen {
       window.removeEventListener('blur', onBlur);
       document.body.style.cursor = '';
       hideTip();
-      offName();
       delete (window as any).__run;
     },
     frame(dt, ctx, w, h) {

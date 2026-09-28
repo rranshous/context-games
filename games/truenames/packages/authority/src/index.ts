@@ -1,6 +1,7 @@
-// The authority: pools, strain, capacity, tick resolution.
+// The authority: vessels, strain, capacity, tick resolution.
 // Driven only by tick(); no timers, no DOM. Deterministic given inputs and seed.
-import { spiritAt, verifyNameClaim, type NameClaim, type Spirit } from '@truenames/universe';
+// Power is per caster: each (aura, spirit) draws from its own vessel. Nothing is shared.
+import { spiritAt, verifyNameClaim, type NameClaim, type Traits } from '@truenames/universe';
 import type {
   AuraState,
   CastIntent,
@@ -12,10 +13,14 @@ import type {
 import { TUNABLES, type Tunables } from './tunables.ts';
 
 export { TUNABLES, type Tunables } from './tunables.ts';
-export { allocate, type AllocRequest } from './allocate.ts';
-import { allocate } from './allocate.ts';
 
 // ---------- interfaces ----------
+
+/** What the rules need to know about a spirit: never its address. */
+export interface SpiritInfo {
+  magnitude: number;
+  traits: Traits;
+}
 
 export interface NameVerifier {
   verify(claim: NameClaim): { ok: true; strength: number } | { ok: false; reason: string };
@@ -27,30 +32,48 @@ export class ClearTextVerifier implements NameVerifier {
   }
 }
 
+/** A name proven in zero knowledge: the verifier learns the spirit's identity and traits, not where it is. */
+export interface ProvenName {
+  aura: string;
+  spirit: string; // opaque spirit id (e.g. "t:<traitHash>")
+  magnitude: number;
+  strength: number;
+  traits: Traits;
+}
+
+/** Verifies proven-name claims for one round (context). Injected so the rules never depend on a proof system. */
+export interface ProofVerifier {
+  verify(claim: unknown, context: bigint): Promise<{ ok: true; name: ProvenName } | { ok: false; reason: string }>;
+}
+
 export interface Authority {
   registerAura(pubkey: string): void;
+  /** Clear-text claim: reveals the spirit's address. The sanctum's own authority uses these. */
   submitName(claim: NameClaim): NameSubmitResult;
+  /** Zero-knowledge claim bound to this round's context. A game round uses only these. */
+  submitProvenName(claim: unknown): Promise<NameSubmitResult & { spirit?: string }>;
   submitCast(intent: CastIntent): void;
   tick(): TickResult;
   auraState(aura: string): AuraState;
   nameBook(aura: string): Record<string, number>;
-  poolInfo(cell: string): PoolInfo | null;
+  /** The caster's own vessel for a spirit. */
+  poolInfo(aura: string, spirit: string): PoolInfo | null;
   currentTick(): number;
 }
 
 /**
- * Seam for non-player casters (v0 enemy shamans). They hold fixed synthetic
- * strengths instead of grinding. A server would own these the same way.
+ * Seam for non-player casters (enemy shamans, Wardens). They hold fixed synthetic
+ * strengths on public spirits (addresses) instead of grinding. A server would own these the same way.
  */
 export interface NpcAuthority extends Authority {
-  grantSyntheticName(aura: string, cell: string, strength: number): void;
+  grantSyntheticName(aura: string, spirit: string, strength: number): void;
   forgetAura(aura: string): void;
 }
 
 // ---------- derived spirit numbers ----------
 
 export interface SpiritStats {
-  spirit: Spirit;
+  spirit: SpiritInfo;
   poolCap: number;
   refill: number;
   weight: number;
@@ -59,7 +82,7 @@ export interface SpiritStats {
   formEfficiency: number;
 }
 
-export function spiritStats(spirit: Spirit, t: Tunables = TUNABLES): SpiritStats {
+export function spiritStats(spirit: SpiritInfo, t: Tunables = TUNABLES): SpiritStats {
   const scale = 2 ** (t.poolExp * spirit.magnitude);
   return {
     spirit,
@@ -115,21 +138,37 @@ interface AuraEntry {
   capacity: number | null; // cached, invalidated on name change
 }
 
+export interface LocalAuthorityOptions {
+  verifier?: NameVerifier;
+  proofs?: ProofVerifier;
+  /** The round's context: proven names must be bound to it. */
+  context?: bigint;
+  seed?: number;
+  tunables?: Tunables;
+}
+
 export class LocalAuthority implements NpcAuthority {
   private tickNo = 0;
   private auras = new Map<string, AuraEntry>();
   private names = new Map<string, Map<string, NameEntry>>();
+  /** Vessels, keyed by aura|spirit. */
   private pools = new Map<string, { level: number; lastTick: number }>();
   private stats = new Map<string, SpiritStats | null>();
+  /** Spirits known by proof (id -> info). Address ids fall back to the universe. */
+  private registry = new Map<string, SpiritInfo>();
   private queue: CastIntent[] = [];
   private rng: () => number;
+  private verifier: NameVerifier;
+  private proofs: ProofVerifier | null;
+  private context: bigint | null;
+  private t: Tunables;
 
-  constructor(
-    private verifier: NameVerifier = new ClearTextVerifier(),
-    seed = 1,
-    private t: Tunables = TUNABLES,
-  ) {
-    this.rng = mulberry32(seed);
+  constructor(opts: LocalAuthorityOptions = {}) {
+    this.verifier = opts.verifier ?? new ClearTextVerifier();
+    this.proofs = opts.proofs ?? null;
+    this.context = opts.context ?? null;
+    this.t = opts.tunables ?? TUNABLES;
+    this.rng = mulberry32(opts.seed ?? 1);
   }
 
   currentTick() {
@@ -144,23 +183,38 @@ export class LocalAuthority implements NpcAuthority {
   forgetAura(aura: string) {
     this.auras.delete(aura);
     this.names.delete(aura);
+    for (const k of [...this.pools.keys()]) if (k.startsWith(aura + '|')) this.pools.delete(k);
   }
 
   submitName(claim: NameClaim): NameSubmitResult {
     const v = this.verifier.verify(claim);
     if (!v.ok) return { accepted: false, reason: v.reason };
-    this.registerAura(claim.aura);
-    const book = this.names.get(claim.aura)!;
-    const prev = book.get(claim.cell);
-    if (prev && prev.strength >= v.strength) return { accepted: false, strength: prev.strength, reason: 'not truer' };
-    book.set(claim.cell, { strength: v.strength, nonce: BigInt(claim.nonce) });
-    this.auras.get(claim.aura)!.capacity = null;
-    return { accepted: true, strength: v.strength };
+    return this.setName(claim.aura, claim.cell, v.strength, BigInt(claim.nonce));
   }
 
-  grantSyntheticName(aura: string, cell: string, strength: number) {
+  async submitProvenName(claim: unknown): Promise<NameSubmitResult & { spirit?: string }> {
+    if (!this.proofs || this.context === null) return { accepted: false, reason: 'this authority does not accept proofs' };
+    const v = await this.proofs.verify(claim, this.context);
+    if (!v.ok) return { accepted: false, reason: v.reason };
+    const n = v.name;
+    this.registry.set(n.spirit, { magnitude: n.magnitude, traits: n.traits });
+    this.stats.delete(n.spirit);
+    return { ...this.setName(n.aura, n.spirit, n.strength, null), spirit: n.spirit };
+  }
+
+  private setName(aura: string, spirit: string, strength: number, nonce: bigint | null): NameSubmitResult {
     this.registerAura(aura);
-    this.names.get(aura)!.set(cell, { strength, nonce: null });
+    const book = this.names.get(aura)!;
+    const prev = book.get(spirit);
+    if (prev && prev.strength >= strength) return { accepted: false, strength: prev.strength, reason: 'not truer' };
+    book.set(spirit, { strength, nonce });
+    this.auras.get(aura)!.capacity = null;
+    return { accepted: true, strength };
+  }
+
+  grantSyntheticName(aura: string, spirit: string, strength: number) {
+    this.registerAura(aura);
+    this.names.get(aura)!.set(spirit, { strength, nonce: null });
     this.auras.get(aura)!.capacity = null;
   }
 
@@ -176,14 +230,14 @@ export class LocalAuthority implements NpcAuthority {
 
   nameBook(aura: string): Record<string, number> {
     const out: Record<string, number> = {};
-    for (const [cell, e] of this.names.get(aura) ?? []) out[cell] = e.strength;
+    for (const [spirit, e] of this.names.get(aura) ?? []) out[spirit] = e.strength;
     return out;
   }
 
-  poolInfo(cell: string): PoolInfo | null {
-    const st = this.statsFor(cell);
+  poolInfo(aura: string, spirit: string): PoolInfo | null {
+    const st = this.statsFor(spirit);
     if (!st) return null;
-    return { level: this.pool(cell, st).level, cap: st.poolCap };
+    return { level: this.pool(aura, spirit, st).level, cap: st.poolCap };
   }
 
   tick(): TickResult {
@@ -193,84 +247,58 @@ export class LocalAuthority implements NpcAuthority {
       a.strain *= t.strainDecay;
       if (a.strain < 1e-6) a.strain = 0;
     }
-    // 2. group casts by cell (one cast per aura per cell per tick)
-    const byCell = new Map<string, CastIntent[]>();
+    // 2. resolve each cast against the caster's own vessel (one per aura per spirit per tick)
     const results: CastResult[] = [];
+    const pools: Record<string, PoolInfo> = {};
     const seen = new Set<string>();
-    for (const c of this.queue) {
-      const key = c.aura + '|' + c.cell;
+    const queue = this.queue;
+    this.queue = [];
+    for (const c of queue) {
+      const key = c.aura + '|' + c.spirit;
       if (seen.has(key)) {
         results.push(this.refuse(c, 'duplicate'));
         continue;
       }
       seen.add(key);
-      let list = byCell.get(c.cell);
-      if (!list) byCell.set(c.cell, (list = []));
-      list.push(c);
-    }
-    this.queue = [];
-    const pools: Record<string, PoolInfo> = {};
-    // deterministic order
-    const cells = [...byCell.keys()].sort();
-    for (const cell of cells) {
-      const casts = byCell.get(cell)!;
-      const st = this.statsFor(cell);
+      const st = this.statsFor(c.spirit);
       if (!st) {
-        for (const c of casts) results.push(this.refuse(c, 'no-spirit'));
+        results.push(this.refuse(c, 'no-spirit'));
         continue;
       }
-      // 3. refill, effective per caster, allocate
-      const pool = this.pool(cell, st);
-      const valid: { c: CastIntent; strength: number; effective: number }[] = [];
-      for (const c of casts) {
-        const name = this.names.get(c.aura)?.get(cell);
-        if (!name) {
-          results.push(this.refuse(c, 'unknown-name'));
-          continue;
-        }
-        this.registerAura(c.aura);
-        const strain = this.auras.get(c.aura)!.strain;
-        const bonus = this.bonus(st.spirit);
-        valid.push({ c, strength: name.strength, effective: name.strength + bonus - strain });
+      const name = this.names.get(c.aura)?.get(c.spirit);
+      if (!name) {
+        results.push(this.refuse(c, 'unknown-name'));
+        continue;
       }
-      const grants = allocate(
-        pool.level,
-        valid.map((v) => ({
-          request: Math.max(0, v.c.request),
-          effective: v.effective,
-          cap: castCap(v.effective, st.generosity, t),
-        })),
-      );
-      let spent = 0;
-      // 4. strain, backlash, results
-      valid.forEach((v, i) => {
-        const grant = grants[i]!;
-        spent += grant;
-        const a = this.auras.get(v.c.aura)!;
-        a.strain += castStrain(st, v.strength, t);
-        const capacity = this.capacity(v.c.aura);
-        const r: CastResult = {
-          aura: v.c.aura,
-          cell,
-          target: v.c.target,
-          strength: v.strength,
-          effective: v.effective,
-          grant,
-          strainAfter: a.strain,
-          capacity,
-        };
-        if (v.c.tag !== undefined) r.tag = v.c.tag;
-        if (a.strain > capacity) {
-          const chance = Math.min(1, Math.max(t.backlashMin, (a.strain - capacity) * t.backlashSlope));
-          if (this.rng() < chance) {
-            r.backlash = 'recoil';
-            r.recoil = grant * t.recoilFactor;
-          }
+      // 3. refill lazily, effective strength, grant = min(request, cap, vessel)
+      const pool = this.pool(c.aura, c.spirit, st);
+      const a = this.auras.get(c.aura)!;
+      const effective = name.strength + this.bonus(st.spirit) - a.strain;
+      const grant = Math.max(0, Math.min(c.request, castCap(effective, st.generosity, t), pool.level));
+      pool.level -= grant;
+      // 4. strain, backlash
+      a.strain += castStrain(st, name.strength, t);
+      const capacity = this.capacity(c.aura);
+      const r: CastResult = {
+        aura: c.aura,
+        spirit: c.spirit,
+        target: c.target,
+        strength: name.strength,
+        effective,
+        grant,
+        strainAfter: a.strain,
+        capacity,
+      };
+      if (c.tag !== undefined) r.tag = c.tag;
+      if (a.strain > capacity) {
+        const chance = Math.min(1, Math.max(t.backlashMin, (a.strain - capacity) * t.backlashSlope));
+        if (this.rng() < chance) {
+          r.backlash = 'recoil';
+          r.recoil = grant * t.recoilFactor;
         }
-        results.push(r);
-      });
-      pool.level = Math.max(0, pool.level - spent);
-      pools[cell] = { level: pool.level, cap: st.poolCap };
+      }
+      results.push(r);
+      pools[key] = { level: pool.level, cap: st.poolCap };
     }
     // 5. advance
     const out: TickResult = { tick: this.tickNo, casts: results, pools };
@@ -283,7 +311,7 @@ export class LocalAuthority implements NpcAuthority {
   private refuse(c: CastIntent, why: NonNullable<CastResult['refused']>): CastResult {
     const r: CastResult = {
       aura: c.aura,
-      cell: c.cell,
+      spirit: c.spirit,
       target: c.target,
       strength: 0,
       effective: 0,
@@ -296,10 +324,11 @@ export class LocalAuthority implements NpcAuthority {
     return r;
   }
 
-  private bonus(_s: Spirit): number {
+  private bonus(_s: SpiritInfo): number {
     return this.t.attunementBonus; // optional rules off in v0
   }
 
+  /** Capacity from the names this authority knows for the aura (in a round: the names carried in). */
   private capacity(aura: string): number {
     const a = this.auras.get(aura);
     if (!a) return this.t.capBase;
@@ -310,22 +339,23 @@ export class LocalAuthority implements NpcAuthority {
     return a.capacity;
   }
 
-  private statsFor(cell: string): SpiritStats | null {
-    let st = this.stats.get(cell);
+  private statsFor(spirit: string): SpiritStats | null {
+    let st = this.stats.get(spirit);
     if (st === undefined) {
-      const sp = spiritAt(cell);
-      st = sp ? spiritStats(sp, this.t) : null;
-      this.stats.set(cell, st);
+      const info = this.registry.get(spirit) ?? spiritAt(spirit);
+      st = info ? spiritStats(info, this.t) : null;
+      this.stats.set(spirit, st);
     }
     return st;
   }
 
-  /** Lazy token bucket: created full, refilled on read. */
-  private pool(cell: string, st: SpiritStats) {
-    let p = this.pools.get(cell);
+  /** Lazy token bucket per caster: created full, refilled on read. */
+  private pool(aura: string, spirit: string, st: SpiritStats) {
+    const key = aura + '|' + spirit;
+    let p = this.pools.get(key);
     if (!p) {
       p = { level: st.poolCap, lastTick: this.tickNo };
-      this.pools.set(cell, p);
+      this.pools.set(key, p);
     }
     if (p.lastTick < this.tickNo) {
       p.level = Math.min(st.poolCap, p.level + st.refill * (this.tickNo - p.lastTick));

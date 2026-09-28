@@ -1,5 +1,5 @@
 // Hover help. One shared tooltip; every explanation lives in HELP so the words stay consistent.
-// In-world language only: truths, strain, wells, divisions. Never bits, hashes or pixels.
+// In-world language only: truths, strain, vessels, divisions. Never bits, hashes or pixels.
 
 export const HELP = {
   // --- core ideas ---
@@ -14,14 +14,14 @@ export const HELP = {
   hum: `<b>The hum</b>: how many utterances your voices make each second, across all meditation and scrying. Every utterance is real; nothing is imagined.`,
   voices: `<b>Voices</b>: how many voices chant at once. Fewer voices make a quieter mind, leaving more of you for everything else.`,
   descent: `<b>Descent</b>: how deep you walk. Deeper dark has more foes, harder foes, and shamans with truer names. Surviving a descent opens the next.`,
-  walk: `Leave the sanctum and <b>walk into the dark</b>: five waves and a Warden at the end.`,
+  walk: `Leave the sanctum and <b>walk into the dark</b>: five waves and a Warden at the end. Your bound names are proven at the threshold and locked in for the journey; the dark learns what they can do, never where their spirits dwell.`,
   aura: `Your <b>aura</b>: the mark every spirit knows you by. Every name you learn is bound to it.`,
   element: `Your chosen <b>element</b>. It only suggests where to look first; any spirit can be known by anyone.`,
   mute: `Sound on/off (also the M key).`,
   home: `Return to the title.`,
 
   // --- spirits ---
-  magnitude: `<b>Magnitude</b>: how mighty the spirit is. Each step is half as common. Mightier spirits have deeper wells that refill faster.`,
+  magnitude: `<b>Magnitude</b>: how mighty the spirit is. Each step is half as common. A mightier patron lends you a larger vessel of power, refilling faster, for each journey.`,
   address: `Where the spirit dwells: <em>element / aspect / tradition</em>, then its exact division.`,
   form: `<b>Form</b>: the shape its power takes when spoken: bolt, ring, ward, lance, nova, summon, hex or blink.`,
   weight: `<b>Weight</b>: how heavily speaking it strains your aura. Truer names weigh less.`,
@@ -49,10 +49,8 @@ export const HELP = {
   // --- the dark (run HUD) ---
   life: `<b>Life</b>. The faint bar beneath is your <b>ward</b>, which absorbs harm first and slowly fades.`,
   strain: `<b>Strain</b>: every evocation tires your aura, and strain ebbs over time. Each point of strain you carry costs a truth at the moment you speak, so spamming weakens every word. Past the white mark (your <em>capacity</em>), spirits answer with <b>backlash</b>.`,
-  hudSlot: `A bound name. Top right: how true your last evocation rang (after strain and crowding). The bar beneath is the spirit's <b>well</b>: its power, shared with everyone who knows it. It refills over time.`,
-  rivals: `Rivals: enemy casters drawing from this same well. The truer name drinks deeper, and crowding thins what you get.`,
+  hudSlot: `A name you carried in, proven at the threshold. Top right: how true your last evocation rang (after strain). The bar beneath is your <b>vessel</b>: the power this patron lent you for the journey. It refills over time.`,
   wave: `The wave you are on, and foes banished and remaining.`,
-  humRun: `Your meditation keeps working while you fight. Names that grow truer take effect immediately.`,
   warden: `The <b>Warden</b>: it speaks the name of a mighty ancient spirit and calls down novas where you stand. Watch for the red circle.`,
 } as const;
 

@@ -1,5 +1,12 @@
 // Naming and flavor. Display only: nothing here ever affects power.
-import { ELEMENTS, region, type Spirit } from '@truenames/universe';
+import { ELEMENTS, region, type Spirit, type Traits } from '@truenames/universe';
+
+/** What display needs from a spirit. A full Spirit fits; so does what a zero-knowledge proof reveals (no address). */
+export interface SpiritLike {
+  element: number;
+  magnitude: number;
+  traits: Traits;
+}
 import { TUNABLES } from '@truenames/authority';
 
 export const ELEMENT_NAMES = ELEMENTS;
@@ -86,7 +93,7 @@ const NUCLEI = ['a', 'e', 'i', 'o', 'u', 'ae', 'ei', 'ou', 'y', 'ia', 'ua', 'oe'
 const CODAS = ['', 'r', 'th', 'n', 'l', 's', 'x', 'm', 'sh', 'k', 'rn', 'nd', 'z', 'v', 'lth', 'q'];
 const MIDS = ['v', 'l', 'r', 'n', 'm', 'z', 'th', 'sh', 'k', 'd', 'g', 'b', 'ss', 'rr', 'ch', 'y'];
 
-export function spiritName(s: Spirit): string {
+export function spiritName(s: SpiritLike): string {
   let f = s.traits.flavor;
   const take = (n: number) => {
     const v = Number(f & BigInt(n - 1));
@@ -116,7 +123,7 @@ export function nameRunes(nonce: string, n = 7): string {
   return s;
 }
 
-export function spiritStatsLine(s: Spirit): string {
+export function spiritStatsLine(s: SpiritLike): string {
   const t = s.traits;
   return `${FORMS[t.form]!.name} · ${weightWord(t.weightIdx)} · ${generosityWord(t.generosityIdx)} · ${TEMPERS[t.temperIdx]}`;
 }

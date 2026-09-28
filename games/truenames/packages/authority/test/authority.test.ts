@@ -1,41 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { signNameClaim, nameStrength, MIN_NAME_BITS, bytesToHex } from '@truenames/universe';
-import { allocate, LocalAuthority, TUNABLES, capacityOf, castCap } from '../src/index.ts';
+import { LocalAuthority, TUNABLES, capacityOf, castCap, type ProofVerifier } from '../src/index.ts';
 
 const GOD = '011010';
-
-describe('allocate', () => {
-  it('never exceeds pool, request or cap', () => {
-    let seed = 7;
-    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
-    for (let trial = 0; trial < 500; trial++) {
-      const n = 1 + Math.floor(rnd() * 6);
-      const reqs = Array.from({ length: n }, () => ({ request: rnd() * 50, effective: 8 + rnd() * 16, cap: rnd() * 40 }));
-      const pool = rnd() * 120;
-      const g = allocate(pool, reqs);
-      const sum = g.reduce((a, b) => a + b, 0);
-      expect(sum).toBeLessThanOrEqual(pool + 1e-9);
-      g.forEach((x, i) => {
-        expect(x).toBeGreaterThanOrEqual(0);
-        expect(x).toBeLessThanOrEqual(Math.min(reqs[i]!.request, reqs[i]!.cap) + 1e-9);
-      });
-      // water-filling: either the pool is exhausted or everyone got their limit
-      const allFull = g.every((x, i) => Math.abs(x - Math.min(reqs[i]!.request, reqs[i]!.cap)) < 1e-9);
-      expect(allFull || Math.abs(sum - pool) < 1e-9).toBe(true);
-    }
-  });
-  it('weights ∝ 2^effective when nobody is capped', () => {
-    const g = allocate(30, [{ request: 1e9, effective: 10, cap: 1e9 }, { request: 1e9, effective: 12, cap: 1e9 }]);
-    expect(g[1]! / g[0]!).toBeCloseTo(4, 9);
-    expect(g[0]! + g[1]!).toBeCloseTo(30, 9);
-  });
-  it('redistributes leftovers of capped casters', () => {
-    const g = allocate(100, [{ request: 5, effective: 20, cap: 1e9 }, { request: 1e9, effective: 10, cap: 1e9 }]);
-    expect(g[0]).toBeCloseTo(5);
-    expect(g[1]).toBeCloseTo(95);
-  });
-});
 
 function keyFor(n: number) {
   const sk = new Uint8Array(32).fill(n);
@@ -56,7 +24,7 @@ describe('LocalAuthority', () => {
     expect(r.accepted).toBe(true);
     expect(a.nameBook(aura)[GOD]).toBe(r.strength);
     expect(learn(a, sk, aura).accepted).toBe(false); // same nonce, not truer
-    a.submitCast({ aura: 'nobody', cell: GOD, request: 10, target: { kind: 'self' }, tick: 0 });
+    a.submitCast({ aura: 'nobody', spirit: GOD, request: 10, target: { kind: 'self' }, tick: 0 });
     expect(a.tick().casts[0]!.refused).toBe('unknown-name');
   });
 
@@ -67,7 +35,7 @@ describe('LocalAuthority', () => {
       const grants: number[] = [];
       let recoils = 0;
       for (let i = 0; i < 100; i++) {
-        if (i % every === 0) a.submitCast({ aura: 'x', cell: GOD, request: 1e9, target: { kind: 'self' }, tick: i });
+        if (i % every === 0) a.submitCast({ aura: 'x', spirit: GOD, request: 1e9, target: { kind: 'self' }, tick: i });
         for (const c of a.tick().casts) { grants.push(c.grant); if (c.recoil) recoils++; }
       }
       return { grants, total: grants.reduce((x, y) => x + y, 0), recoils };
@@ -79,20 +47,27 @@ describe('LocalAuthority', () => {
     expect(slow.recoils).toBe(0);
   });
 
-  it('truer names dominate contention; weak solo name is capped', () => {
+  it('vessels are per caster: nobody else drains yours', () => {
     const a = new LocalAuthority();
-    a.grantSyntheticName('weak', GOD, 12);
-    a.grantSyntheticName('true', GOD, 20);
-    a.submitCast({ aura: 'weak', cell: GOD, request: 1e9, target: { kind: 'self' }, tick: 0 });
-    a.submitCast({ aura: 'true', cell: GOD, request: 1e9, target: { kind: 'self' }, tick: 0 });
-    const [w, t] = a.tick().casts;
-    expect(t!.grant).toBeGreaterThan(w!.grant * 8);
+    a.grantSyntheticName('me', GOD, 16);
+    a.grantSyntheticName('rival', GOD, 30);
+    for (let i = 0; i < 20; i++) {
+      a.submitCast({ aura: 'rival', spirit: GOD, request: 1e9, target: { kind: 'self' }, tick: i });
+      a.tick();
+    }
+    expect(a.poolInfo('rival', GOD)!.level).toBeLessThan(a.poolInfo('rival', GOD)!.cap * 0.5);
+    expect(a.poolInfo('me', GOD)!.level).toBe(a.poolInfo('me', GOD)!.cap);
+    a.submitCast({ aura: 'me', spirit: GOD, request: 1e9, target: { kind: 'self' }, tick: 20 });
+    expect(a.tick().casts[0]!.grant).toBeCloseTo(castCap(16, 0.25 * 2 ** (3 * 3 / 15)), 5);
+  });
+
+  it('a weak solo name is capped', () => {
     // solo weak name, full pool, still capped
     const b = new LocalAuthority();
     b.grantSyntheticName('weak', GOD, 12);
-    b.submitCast({ aura: 'weak', cell: GOD, request: 1e9, target: { kind: 'self' }, tick: 0 });
+    b.submitCast({ aura: 'weak', spirit: GOD, request: 1e9, target: { kind: 'self' }, tick: 0 });
     const solo = b.tick();
-    expect(solo.casts[0]!.grant).toBeLessThan(solo.pools[GOD]!.cap * 0.1);
+    expect(solo.casts[0]!.grant).toBeLessThan(solo.pools['weak|' + GOD]!.cap * 0.1);
   });
 
   it('capacity grows only from names above threshold', () => {
@@ -104,12 +79,31 @@ describe('LocalAuthority', () => {
   it('pools refill lazily up to cap', () => {
     const a = new LocalAuthority();
     a.grantSyntheticName('x', GOD, 24);
-    const cap = a.poolInfo(GOD)!.cap;
-    a.submitCast({ aura: 'x', cell: GOD, request: 1e9, target: { kind: 'self' }, tick: 0 });
+    const cap = a.poolInfo('x', GOD)!.cap;
+    a.submitCast({ aura: 'x', spirit: GOD, request: 1e9, target: { kind: 'self' }, tick: 0 });
     a.tick();
-    const low = a.poolInfo(GOD)!.level;
+    const low = a.poolInfo('x', GOD)!.level;
     expect(low).toBeLessThan(cap);
     for (let i = 0; i < 500; i++) a.tick();
-    expect(a.poolInfo(GOD)!.level).toBe(cap);
+    expect(a.poolInfo('x', GOD)!.level).toBe(cap);
+  });
+
+  it('accepts proven names only through its verifier and only for its round', async () => {
+    const traits = { form: 0, weightIdx: 3, generosityIdx: 9, temperIdx: 1, flavor: 42n };
+    const stub: ProofVerifier = {
+      async verify(claim: any, context) {
+        if (claim.context !== context) return { ok: false, reason: 'wrong journey' };
+        return { ok: true, name: { aura: 'me', spirit: 't:123', magnitude: 4, strength: 18, traits } };
+      },
+    };
+    const a = new LocalAuthority({ proofs: stub, context: 7n });
+    expect((await a.submitProvenName({ context: 8n })).accepted).toBe(false);
+    const ok = await a.submitProvenName({ context: 7n });
+    expect(ok).toMatchObject({ accepted: true, strength: 18, spirit: 't:123' });
+    expect(a.poolInfo('me', 't:123')!.cap).toBeCloseTo(TUNABLES.poolBase * 2 ** (TUNABLES.poolExp * 4));
+    a.submitCast({ aura: 'me', spirit: 't:123', request: 1e9, target: { kind: 'self' }, tick: 0 });
+    expect(a.tick().casts[0]!.grant).toBeGreaterThan(0);
+    // a plain authority refuses proofs
+    expect((await new LocalAuthority().submitProvenName({})).accepted).toBe(false);
   });
 });

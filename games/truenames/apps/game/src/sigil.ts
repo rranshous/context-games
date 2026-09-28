@@ -1,5 +1,5 @@
 // Procedural sigils: every spirit's seal, drawn from its flavor bits. Display only.
-import type { Spirit } from '@truenames/universe';
+import type { SpiritLike } from './lore.ts';
 import { ELEMENT_COLOR } from './lore.ts';
 
 const cache = new Map<string, HTMLCanvasElement>();
@@ -13,8 +13,8 @@ class Bits {
   }
 }
 
-export function sigilCanvas(s: Spirit, size = 64): HTMLCanvasElement {
-  const key = `${s.cell}@${size}`;
+export function sigilCanvas(s: SpiritLike, size = 64): HTMLCanvasElement {
+  const key = `${s.element}:${s.magnitude}:${s.traits.flavor}@${size}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const dpr = 2;
@@ -27,11 +27,11 @@ export function sigilCanvas(s: Spirit, size = 64): HTMLCanvasElement {
   return c;
 }
 
-export function sigilURL(s: Spirit, size = 64): string {
+export function sigilURL(s: SpiritLike, size = 64): string {
   return sigilCanvas(s, size).toDataURL();
 }
 
-export function drawSigil(g: CanvasRenderingContext2D, s: Spirit, cx: number, cy: number, R: number, color = ELEMENT_COLOR[s.element]!) {
+export function drawSigil(g: CanvasRenderingContext2D, s: SpiritLike, cx: number, cy: number, R: number, color = ELEMENT_COLOR[s.element]!) {
   const b = new Bits(s.traits.flavor >> 60n); // skip bits used by the epithet
   g.save();
   g.translate(cx, cy);

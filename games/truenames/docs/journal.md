@@ -240,3 +240,41 @@ A design conversation, no code. Robby: the operator is the thing you trust; bad 
 
 ### Principle: proofs grant, they never restrict; crowding recast
 Robby rejected fame-as-penalty: every game would have to enforce it, and "everything we have is information/capability, not limitation." So global crowding is dropped. Its two purposes that still matter (a popularity cost, value in secrecy) become **rarity as a rewardable fact** and **secrecy as an inherent capability** (only people who know a location can meditate on it; the Choir's publishing erodes the edge). Recorded in 08 as a design principle with three layers: facts, capabilities, conventions.
+
+## Session 2: zero knowledge at the threshold (2026-09-27/28)
+
+Robby: "I would like to move our local game to this. I want to separate the sanctum from the game such that the sanctum acts as our local astral and truth system, it will know the secrets, but a new round of the game just gets the proofs. Let's remove the shared well part too."
+
+**Toolchain.** I'd suggested Noir, then chose **Circom + snarkjs (Groth16)** once I checked what installs: everything is on npm (`circom2` is a WASM build of the compiler), circomlib's Poseidon *is* the reference the universe matches, and verification takes ms. The cost is a per-circuit trusted setup: a **local dev ceremony** is fine for single-player and must be redone as a real multi-party ceremony (or the system ported to a transparent one like Noir/UltraHonk) before a shared world. The circuit is small, so a port would be cheap.
+
+**`packages/proofs`**
+- `gen-circuit.ts` **generates** `circuits/name.circom`, with seed, tags and `P >> k` thresholds taken from the universe so it can't drift from spec v1.
+  - Private: address digits (up to depth 24), depth, nonce. Public: aura field, magnitude, strength, context. Outputs: **trait hash** and **element**.
+  - Constraints: chained digest over `depth` digits; `bits(spiritHash) ≥ target(depth) + magnitude`; `bits(nameHash) ≥ strength`.
+  - `bits(h) ≥ k` ⟺ `h < P >> k`, implemented as a one-hot select over a 64-entry threshold table plus a two-limb (127-bit) comparison of `Num2Bits_strict(h)`.
+  - Target is `4 + 3q + r` with depth = 2q + r. The context is bound by a trivial square.
+  - **18,889 constraints**, which fits a 2^15 setup.
+- `build.ts` (`corepack pnpm tools zk-build`) has two quirks: circom2 runs under WASI and can't follow pnpm's symlinks or see outside the working directory, so circomlib's circuits are vendored into `circuits/vendor` at build time; and the ceremony takes **~9 minutes** (phase-2 preparation dominates). The committed artifacts are `name.wasm` (2.5 MB), `name.zkey` (8.8 MB) and `name.vkey.json` (4 KB).
+- `proveName` / `verifyZkName`:
+  - The claim is proof + public signals + an ed25519 signature by the aura over them.
+  - The verifier checks context (freshness/anti-replay), aura field vs public key (anti-theft), signature, then `groth16.verify`.
+  - **Proofs may understate, never overstate**, matching the "proofs grant" principle.
+- Tests prove a real name (the golden test aura on the hearth-god), check that exactly six public signals exist and none is the address or nonce, and that overstating strength or magnitude or proving a non-spirit fails to prove, and that the wrong round, a stolen proof and a tampered signal are all rejected. The first version of the no-leak assertion was **flaky**: it searched the JSON for the nonce as a substring, and a small nonce appears inside proof numbers by chance. Replaced with exact public-signal checks.
+
+**Authority: shared wells removed.**
+- Vessels are keyed by aura + spirit; grant = min(request, cap, vessel). The water-fill `allocate.ts` and its tests are deleted.
+- Spirits are identified by opaque ids: addresses for public ones (enemy ancients), `t:<traitHash>` for proven ones, backed by a registry filled from verified proofs.
+- New `ProofVerifier` seam and `submitProvenName`; `LocalAuthority` now takes an options object (`verifier`, `proofs`, `context`, `seed`, `tunables`).
+- Protocol: `cell` → `spirit` in `CastIntent`/`CastResult`; tick `pools` are keyed by aura|spirit.
+- Capacity is computed from the names the authority knows, which in a round means **the names you carried in**. A proof of total capacity is a possible follow-up.
+
+**The split in the game.**
+- `round.ts` (game side) defines `RoundTicket` (a fresh 128-bit context), `Journey` and `RoundHost`.
+- `threshold.ts` + `prover.worker.ts` (sanctum side) prove each bound, learned name in a worker and sign it.
+- The sanctum's *Walk into the dark* opens a round, shows "At the threshold" while proving, then hands over only the journey.
+- `screens/run.ts` imports nothing from save, services, sanctum or threshold. It verifies the bundle (holding the round until verification finishes: "your names are weighed"), builds slots from what proofs reveal, and reports the outcome through the host.
+- Removed from the round: mid-run name growth (names are locked at departure), rival threads and "rivals at this well", the hum readout. "The well runs thin" became "your vessel runs low".
+- `lore`/`sigil` accept a `SpiritLike` (element, magnitude, traits), so names and seals render from what a proof reveals.
+- CLAUDE.md gained rule 6: the game side never sees secrets.
+
+**Measured.** Proving in a browser worker takes **~1.75 s per name** (4 names ≈ 7 s at the threshold); verifying 4 proofs is well under a second; the Node test suite proves 5 names in ~5 s. A search of the round's slot data found no address. The production build ships the zkey and wasm as assets (the prover worker is 354 KB).

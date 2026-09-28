@@ -8,7 +8,8 @@ truenames/
   packages/
     universe/     pure, deterministic spec v1: cells, Poseidon, spirits, traits, names, claims
     protocol/     shared message types: CastIntent, CastResult, TickResult, PoolInfo, AuraState
-    authority/    the rules: pools, water-fill allocation, strain, capacity, backlash, ticks
+    authority/    the rules: per-caster vessels, strain, capacity, backlash, ticks; proof-verifier seam
+    proofs/       zero-knowledge name claims: circuit generator, build (circom2 + snarkjs), prove, verify
     meditation/   scry + name-grinding hot loops, worker body, MeditationPool, WASM Poseidon kernel
   apps/
     game/         Vite + Canvas 2D client (screens, services, save, lore, audio, help)
@@ -21,6 +22,9 @@ It's a pnpm workspace. Libraries export their TypeScript source directly (`"expo
 ```mermaid
 flowchart LR
   game[apps/game] --> protocol
+  game --> proofs
+  proofs --> universe
+  proofs --> SJ[snarkjs / circomlib]
   game --> authority
   game --> meditation
   game --> universe
@@ -37,6 +41,7 @@ Rules held from [CLAUDE.md](../CLAUDE.md):
 2. The universe spec is frozen. Golden vectors refuse to regenerate.
 3. Vectors pass in Node and in a browser worker (`pnpm test`, `pnpm test:browser`).
 4. The authority is an interface, and game code only talks to it through `Authority` / `NpcAuthority`.
+7. **The game side never sees secrets.** `screens/run.ts` and `round.ts` import nothing from `save.ts`, `services.ts` or `threshold.ts`. A round receives a `Journey` (public aura + zero-knowledge proofs) and reports through a `RoundHost`.
 5. Name verification goes through `NameVerifier` (`ClearTextVerifier` today).
 6. Authority tunables live in `packages/authority/src/tunables.ts`. Game-side balance lives in `apps/game/src/balance.ts`.
 
@@ -50,7 +55,8 @@ One file of rules plus a fast Poseidon.
 `LocalAuthority implements NpcAuthority` (which `extends Authority`):
 ```ts
 registerAura(pub)   submitName(claim) → {accepted, strength}   submitCast(intent)
-tick() → TickResult   auraState(aura)   nameBook(aura)   poolInfo(cell)   currentTick()
+submitProvenName(zkClaim) → Promise   // needs a ProofVerifier + round context
+tick() → TickResult   auraState(aura)   nameBook(aura)   poolInfo(aura, spirit)   currentTick()
 grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
 ```
 - **Tick** (`TICK_MS = 200`):
@@ -58,7 +64,7 @@ grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
   2. Group queued casts by spirit (one per aura per spirit per tick).
   3. Lazily refill each pool.
   4. Compute effective = strength + bonus − strain.
-  5. **Water-fill** the pool (`allocate.ts`: weights 2^effective, each caster limited by min(request, cap)).
+  5. **Draw from the caster's own vessel**: grant = min(request, cap(effective, generosity), vessel level). Vessels are keyed by aura + spirit; nothing is shared.
   6. Add strain.
   7. Roll backlash on a seeded PRNG.
   8. Emit `CastResult`s.
@@ -127,20 +133,43 @@ sequenceDiagram
 ```
 The save stores **signed claims**, not bare numbers. On boot and at the start of each run they're re-submitted and re-verified, exactly as they would be to a server.
 
+## The threshold (sanctum → round)
+```mermaid
+sequenceDiagram
+  participant S as Sanctum (knows secrets)
+  participant T as threshold.ts + prover worker
+  participant R as Round (run.ts)
+  participant A as round's LocalAuthority
+  S->>R: openRound(level) → ticket {context, level}
+  S->>T: prepareJourney(ticket)
+  loop each bound, learned name
+    T->>T: proveName(address, nonce, magnitude, truths, context) → Groth16 proof
+    T->>T: sign public signals with the aura's secret key
+  end
+  T-->>S: Journey {aura, element, bundle[{slot, claim}]}
+  S->>R: runScreen(journey, host)
+  R->>A: submitProvenName(claim) for each
+  A->>A: ProofVerifier: context matches, aura field matches key, signature, groth16.verify
+  A-->>R: {spirit: "t:<traitHash>", magnitude, truths, traits}
+```
+- **Circuit** (`packages/proofs/src/gen-circuit.ts` generates `circuits/name.circom`, with constants taken from the universe): secret digits, depth and nonce. Public: aura field, magnitude, strength, context. Outputs: trait hash and element. It checks the chained digest over `depth` digits, `bits(spiritHash) ≥ target(depth) + magnitude`, `bits(nameHash) ≥ strength` (thresholds `P >> k` via a one-hot table and 127-bit limb comparisons), and 6 ≤ depth ≤ 24. About 18.9k constraints.
+- **Build**: `corepack pnpm tools zk-build` compiles the circuit with circom2 (WASM) and runs a **local dev Groth16 ceremony** (about 9 minutes). The resulting `artifacts/name.wasm`, `name.zkey` and `name.vkey.json` are committed so the game runs without rebuilding. Proofs are per journey, so rebuilding the keys breaks nothing persistent.
+- **Spirit ids in a round** are `t:<traitHash>`. Enemy casters use public spirits by address (the ancients), resolved through the universe.
+
 ## Life of a cast
 ```mermaid
 sequenceDiagram
   participant P as Player input
   participant Run as run.ts
-  participant Auth as run's LocalAuthority
+  participant Auth as round's LocalAuthority
   P->>Run: LMB / RMB / 1 / 2
-  Run->>Auth: submitCast({aura, cell, request, target, tag})
+  Run->>Auth: submitCast({aura, spirit, request, target, tag})
   Note over Run: shamans and the Warden submit theirs too
   Run->>Auth: tick() every 200 ms
   Auth-->>Run: CastResult {grant, effective, strainAfter, recoil?}
   Run->>Run: effect = grant × form efficiency → projectile / ring / ward / nova / summon / hex / blink / lance
 ```
-Each run builds its **own** `LocalAuthority`, so pools and strain are per run, and re-submits your claims. Enemy casters get synthetic names through `grantSyntheticName`. Contention is real because everyone goes through the same `allocate()`.
+Each round builds its **own** `LocalAuthority` (with the proof verifier and the round's context), so vessels and strain are per round. Your names come only from verified proofs. Enemy casters get synthetic names through `grantSyntheticName` and draw from their own vessels.
 
 ## Persistence
 There's one IndexedDB record (`truenames` / `kv` / `save`), written with a 1.5 s debounce. It holds:

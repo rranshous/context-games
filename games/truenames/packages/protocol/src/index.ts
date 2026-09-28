@@ -8,7 +8,8 @@ export type TargetSpec =
 
 export interface CastIntent {
   aura: string;
-  cell: string; // which spirit
+  /** Which spirit: an address for public spirits, or an opaque id (e.g. "t:<traitHash>") for proven ones. */
+  spirit: string;
   request: number; // power requested
   target: TargetSpec;
   tick: number;
@@ -20,7 +21,7 @@ export type Backlash = 'fizzle' | 'misfire' | 'recoil';
 
 export interface CastResult {
   aura: string;
-  cell: string;
+  spirit: string;
   tag?: string;
   target: TargetSpec;
   strength: number; // the name's strength
@@ -43,6 +44,7 @@ export interface PoolInfo {
 export interface TickResult {
   tick: number;
   casts: CastResult[];
+  /** Vessels touched this tick, keyed by aura|spirit. */
   pools: Record<string, PoolInfo>;
 }
 

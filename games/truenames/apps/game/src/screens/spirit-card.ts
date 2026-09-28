@@ -31,17 +31,17 @@ export function openSpiritCard(app: App, cell: string) {
       <div class="card-grid">
         <div data-tip="element"><span class="dim">element</span> ${ELEMENT_NAMES[sp.element]}</div>
         <div data-tip="form"><span class="dim">form</span> ${form.name}: ${form.desc}</div>
-        <div data-tip="magnitude"><span class="dim">magnitude</span> ${sp.magnitude}: its well holds ${Math.round(st.poolCap)} and refills ${st.refill.toFixed(1)} each breath</div>
+        <div data-tip="magnitude"><span class="dim">magnitude</span> ${sp.magnitude}: it lends a vessel of ${Math.round(st.poolCap)}, refilling ${st.refill.toFixed(1)} each breath</div>
         <div data-tip="weight"><span class="dim">weight</span> ${weightWord(sp.traits.weightIdx)}: each evocation strains you ~${castStrain(st, Math.max(s, MIN_NAME_BITS)).toFixed(2)}</div>
         <div data-tip="generosity"><span class="dim">generosity</span> ${generosityWord(sp.traits.generosityIdx)} (×${st.generosity.toFixed(2)})</div>
         <div data-tip="temper"><span class="dim">temper</span> ${TEMPERS[sp.traits.temperIdx]}</div>
       </div>
       <div style="margin-top:10px">${rec ? `Your name: <span class="runes" style="font-size:16px" data-tip="runes">${nameRunes(rec.claim.nonce, 12)}</span> holds <span class="gold mono">${truths(s)}</span>` : `<span class="dim">You do not yet know its name.</span>`}</div>
       <table class="card-table">
-        <tr><th data-tip="truths">name</th><th data-tip="=The most a single evocation can draw from this spirit with a name this true, before strain and crowding. The well itself may hold less.">draws up to</th><th data-tip="=How much strain each evocation adds to your aura. Truer names weigh less.">strain / cast</th><th data-tip="=Roughly how long meditation would take to reach this, at this name's current share of your hum.">meditation to reach</th></tr>
+        <tr><th data-tip="truths">name</th><th data-tip="=The most a single evocation can draw from this spirit with a name this true, before strain. Your vessel may hold less.">draws up to</th><th data-tip="=How much strain each evocation adds to your aura. Truer names weigh less.">strain / cast</th><th data-tip="=Roughly how long meditation would take to reach this, at this name's current share of your hum.">meditation to reach</th></tr>
         ${rows.map((b) => `<tr class="${b <= s ? 'reached' : ''}"><td class="mono">${truths(b)}</td><td class="mono">${castCap(b, st.generosity).toFixed(1)}</td><td class="mono">${castStrain(st, b).toFixed(2)}</td><td>${b <= s ? '✓' : `~${fmtDuration((2 ** b - 2 ** s) / rate)} here`}</td></tr>`).join('')}
       </table>
-      <div class="faint" style="font-size:13px; max-width:460px">Draw is before strain and crowding. Every point of strain you carry costs you a truth at the moment you speak. ${known ? '' : `Meditate until it holds ${truths(MIN_NAME_BITS)} to call it.`}</div>
+      <div class="faint" style="font-size:13px; max-width:460px">Draw is before strain. Every point of strain you carry costs you a truth at the moment you speak. ${known ? '' : `Meditate until it holds ${truths(MIN_NAME_BITS)} to call it.`}</div>
       <button data-close style="margin-top:8px">close</button>
     </div>
   </div>`);

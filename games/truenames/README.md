@@ -30,8 +30,8 @@ pnpm is used through corepack (no global install needed). Your save lives in you
 | M | mute |
 
 - Every evocation strains your aura. Spamming weakens every word, and overreaching invites backlash.
-- Shamans and the Warden draw from the same wells you do; the truer name drinks deeper.
-- Meditation keeps working in the background, even mid-fight. Win a descent to open the next.
+- At the threshold your bound names are proven in zero knowledge: the dark learns what they can do, never where their spirits dwell.
+- Meditation keeps working in the background, even while you fight; what it unveils counts on your next journey. Win a descent to open the next.
 
 Hover over almost anything for an explanation.
 
@@ -41,12 +41,13 @@ corepack pnpm test           # Node: universe vectors, authority, meditation, WA
 corepack pnpm test:browser   # golden vectors inside a headless-Chromium Web Worker
 corepack pnpm typecheck
 corepack pnpm build          # static build → apps/game/dist
-corepack pnpm tools bench | bench-wasm | sim | god-finder [prefix|-] [depth] | gen-wasm
+corepack pnpm tools bench | bench-wasm | sim | god-finder [prefix|-] [depth] | gen-wasm | zk-build
 ```
 
 ```
 packages/universe     the frozen, deterministic world: Poseidon hashing, cells, spirits, names, claims
-packages/authority    the rules: wells, allocation, strain, capacity, ticks
+packages/authority    the rules: per-caster vessels, strain, capacity, ticks
+packages/proofs       zero-knowledge name claims (circom circuit, snarkjs prove/verify)
 packages/meditation   scrying and name-grinding workers, scheduling, WASM Poseidon kernel
 packages/protocol     shared message types
 apps/game             the browser game (Vite + Canvas 2D)

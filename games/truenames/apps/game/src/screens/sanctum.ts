@@ -8,6 +8,8 @@ import { persist, spiritOf } from '../save.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
+import { openRound, type RoundHost } from '../round.ts';
+import { prepareJourney } from '../threshold.ts';
 import { titleScreen } from './title.ts';
 import { descentName, SLOTS } from '../balance.ts';
 import { sigilURL } from '../sigil.ts';
@@ -178,6 +180,32 @@ export function sanctumScreen(app: App): Screen {
     renderBook();
   }
 
+  /** Open a round (game side), prove bound names against it (sanctum side), hand over only the proofs. */
+  async function walk(level: number) {
+    const overlay = frag(`<div class="overlay"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
+      <div class="prose" id="th-msg">Your names are spoken into the dark, proven true without revealing where their spirits dwell…</div>
+      <div class="bitsbig" id="th-n" style="font-size:28px"></div></div>`);
+    root.appendChild(overlay);
+    const ticket = openRound(level);
+    const t0 = performance.now();
+    const journey = await prepareJourney(app, ticket, (done, total) => {
+      overlay.querySelector('#th-n')!.textContent = `${done} / ${total}`;
+    });
+    console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+    const host: RoundHost = {
+      report(r) {
+        save.runs.push({ at: Date.now(), descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
+        const unlocked = r.won && r.level >= save.descent;
+        if (unlocked) save.descent = r.level + 1;
+        persist(save);
+        return { unlocked };
+      },
+      leave: () => app.go(sanctumScreen(app)),
+      toast: (html, color) => app.toast(html, color),
+    };
+    app.go(runScreen(journey, host));
+  }
+
   return {
     mount(ui) {
       const aura = save.aura!;
@@ -257,7 +285,7 @@ export function sanctumScreen(app: App): Screen {
         (root.querySelector('#s-depth') as HTMLInputElement).value = String(d);
         renderScryInfo();
       }));
-      root.querySelector('#run')!.addEventListener('click', () => app.go(runScreen(app, save.lastDescent)));
+      root.querySelector('#run')!.addEventListener('click', () => walk(save.lastDescent));
       root.querySelector('#title')!.addEventListener('click', () => app.go(titleScreen(app)));
       const muteBtn = root.querySelector('#mute') as HTMLButtonElement;
       const showMute = () => { muteBtn.style.opacity = isMuted() ? '0.4' : '1'; };

@@ -1,0 +1,4 @@
+circuits/vendor/
+artifacts/*.ptau
+artifacts/*.r1cs
+artifacts/name0.zkey

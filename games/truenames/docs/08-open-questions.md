@@ -20,7 +20,9 @@
 - **Spirit temperament vs domination:** spirits that backlash against the strongest holder.
 - **Commit-reveal for claims:** unnecessary while spirits are shared pools rather than ownable claims; needed if anything becomes first-come ownership.
 
-## Direction: multiplayer split (Robby, 2026-09-27; not built)
+## Direction: multiplayer split (Robby, 2026-09-27)
+*Built locally (2026-09-28): the sanctum/round split, zero-knowledge proofs at the threshold, per-caster vessels, and names locked at departure. See 09/10 and the journal. Not built: separate servers, grants, deeds, titles.*
+
 - **Two halves.** The **sanctum** is persistent and asynchronous: scrying, meditation, names, knowledge, the Open Choir. The **dungeon** is instanced action where you fight things or other players. They run on separate servers, and the dungeon lies outside the sanctum server's purview.
 - **Locked at departure.** What you bring in (your names as signed claims, and your capacity) is fixed for the journey. Meditation that finishes mid-journey counts next time.
 - **Borrowed power replaces wells in the dungeon.** At departure each patron (spirit) lends you a **vessel**: a size and refill rate, locked in, **per player**, never shared or contested inside the dungeon. The sanctum computes it from the spirit's magnitude, your truths, and how crowded the patron is (many callers means each gets less; the truest names get more), plus optionally depth and patron fatigue. The dungeon server only needs the signed grant.

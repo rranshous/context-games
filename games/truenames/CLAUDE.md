@@ -12,8 +12,9 @@ Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mec
 2. **The hash spec is frozen once seeded.** Changing domain tags, input order, or the `zeros` definition changes the entire universe. Any change needs a spec version bump and new golden vectors.
 3. **Golden test vectors** for every universe function live in `packages/universe/test/vectors.json` and must pass in Node and in a browser worker.
 4. **The authority is an interface.** v0 runs it locally in-process; later a server implements the same interface. Game code never reads authority internals.
-5. **Name verification sits behind `NameVerifier`.** v1 recomputes the hash; a future version swaps in ZK proof verification without touching callers.
-6. **Tunables live in one file** (`packages/authority/src/tunables.ts`), never inlined.
+5. **Name verification sits behind verifiers.** The sanctum uses `NameVerifier` (clear text: recompute the hash). Rounds use a `ProofVerifier` (zero-knowledge proofs from `packages/proofs`). The authority never depends on a proof system directly.
+6. **The game side never sees secrets.** A round gets only a `Journey` (public aura + zero-knowledge proofs) and reports through a `RoundHost`; `screens/run.ts` and `round.ts` must not import `save`, `services` or `threshold`.
+7. **Tunables live in one file** (`packages/authority/src/tunables.ts`), never inlined.
 
 ## Vocabulary (use these words consistently)
 depth, cell, spirit, magnitude, traits, name, strength, aura, effective, pool, grant, strain, capacity. Definitions: `docs/03-mechanics.md`.
