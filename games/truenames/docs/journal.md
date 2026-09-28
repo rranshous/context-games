@@ -225,3 +225,6 @@ Robby: "we'll def need to work the sanctum screen… more ways to filter down sp
 
 ### Docs
 Added the as-built docs **09 · Overview** (the game today, in-world words ↔ mechanics, deviations table, current numbers) and **10 · Architecture** (layout, dependency graph, per-package roles, the life of a name and of a cast as sequence diagrams, persistence, testing/tools, extending, multiplayer seams). Rewrote the README for players and developers. Design docs 01–08 are left as written; 09/10 describe what exists and point back to them.
+
+### Parked: deeper beings should be mightier
+While explaining depth and magnitude to Robby: as built, a deeper spirit is no better, only harder to find (magnitude is relative to the depth's target, and traits come from a separate hash). He likes the idea that deeper beings are more powerful but doesn't want the game changed now. Recorded in 08 · Parked, with the spec-safe route (an authority-side depth factor on wells and/or strain) and the multiplayer tension (depth already pays via less contention).

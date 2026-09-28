@@ -9,6 +9,7 @@
 6. **Hardware disparity in multiplayer.** Weak devices vs GPU players. Options: memory-hard hash for names (but it would break ZK friendliness), per-aura rate caps, or accept it.
 
 ## Parked (discussed, deliberately not in v0)
+- **Deeper beings are mightier** (Robby, 2026-09-27). Lore intent: beings deeper in the astral are harder to find *and* more powerful. Today they aren't. Magnitude is `bits − target(depth)`, so its distribution is identical at every depth and depth only sets cost and supply. It can be done **without touching the frozen universe** by making depth an authority-side factor, e.g. well size/refill `× depthFactor^(depth − 6)`, and/or lighter strain for deeper spirits. Titles could fold depth in too ("an elder god of the deep"). Tension to resolve: in multiplayer, depth already pays through *less contention*; stacking raw power on top may make shallow spirits worthless. Decide alongside the shared-world design.
 - **Utility spirits:** spells that shed strain or cheapen the next cast. Good for builds and support roles, but more engine complexity.
 - **Aura traits from the key:** decay rate or tolerance derived from `H(pubkey)`. Risk: players grind keypairs for perfect auras (vanity-address mining). If ever used, keep traits cosmetic or small.
 - **Name drift:** per-epoch seeds so spirits "shed their names" each season and truth resets. Strong anti-whale lever; big emotional cost to players.
