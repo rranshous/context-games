@@ -1,6 +1,7 @@
 // Generates circuits/name.circom: "I hold a name of at least `strength` truths on a spirit
-// of magnitude at least `magnitude`, whose trait hash is `traitHash` and element is `element`"
-// without revealing the spirit's address (digits, depth) or the nonce.
+// of magnitude at least `magnitude`, with this element and these traits (form, weight,
+// generosity, temper)" without revealing the spirit's address (digits, depth), its trait hash,
+// or the nonce. A per-round tag identifies the spirit within one round only.
 // Constants (seed, tags, P>>k thresholds) come from the universe so the circuit can't drift from spec v1.
 import { P, SEED, TAG_CELL, TAG_SPIRIT, TAG_TRAITS, TAG_NAME, MIN_SPIRIT_DEPTH } from '@truenames/universe';
 
@@ -8,6 +9,11 @@ import { P, SEED, TAG_CELL, TAG_SPIRIT, TAG_TRAITS, TAG_NAME, MIN_SPIRIT_DEPTH }
 export const MAX_DEPTH = 24;
 /** Thresholds table size: truths/bits provable up to K-1. */
 export const K = 64;
+/**
+ * Domain tag for the per-round spirit tag. A proof-system tag, not a universe tag: it must never
+ * collide with the universe's (1..5), and changing it only invalidates in-flight proofs.
+ */
+export const TAG_ROUND = 101n;
 
 export function circuitSource(): string {
   const split = (x: bigint) => ({ hi: x >> 127n, lo: x & ((1n << 127n) - 1n) });
@@ -83,9 +89,13 @@ template NameClaim(MAXD) {
     signal input strength;       // claimed at least this many truths
     signal input context;        // binds the proof to one journey
 
-    // --- public outputs ---
-    signal output traitHash;     // the spirit's identity and traits (not its location)
+    // --- public outputs: the details, never the source ---
+    signal output roundTag;      // this spirit, in this round only (unlinkable across rounds)
     signal output element;       // first address digit
+    signal output form;          // traits: the low bits of the trait hash (the hash itself stays secret)
+    signal output weightIdx;
+    signal output generosityIdx;
+    signal output temperIdx;
 
     // digits are octal
     component dbits[MAXD];
@@ -141,13 +151,25 @@ template NameClaim(MAXD) {
     spiritOk.h <== sh.out;
     spiritOk.k <== 4 + 3 * q + r + magnitude;
 
-    // identity: the trait hash (reveals traits and flavor, not the address)
+    // traits: decoded from the trait hash in-circuit; only the gameplay fields leave
     component th = Poseidon(3);
     th.inputs[0] <== ${TAG_TRAITS};
     th.inputs[1] <== ${SEED};
     th.inputs[2] <== digest;
-    traitHash <== th.out;
+    component tb = Num2Bits_strict();
+    tb.in <== th.out;
+    form <== tb.out[0] + 2 * tb.out[1] + 4 * tb.out[2];
+    weightIdx <== tb.out[3] + 2 * tb.out[4] + 4 * tb.out[5] + 8 * tb.out[6];
+    generosityIdx <== tb.out[7] + 2 * tb.out[8] + 4 * tb.out[9] + 8 * tb.out[10];
+    temperIdx <== tb.out[11] + 2 * tb.out[12] + 4 * tb.out[13];
     element <== digits[0];
+
+    // round tag: identifies the spirit within this round (duplicates, "shared patron" checks) and no further
+    component rt = Poseidon(3);
+    rt.inputs[0] <== ${TAG_ROUND};
+    rt.inputs[1] <== digest;
+    rt.inputs[2] <== context;
+    roundTag <== rt.out;
 
     // the name: bits(nameHash(digest, aura, nonce)) >= strength
     component nh = Poseidon(4);
@@ -159,9 +181,7 @@ template NameClaim(MAXD) {
     nameOk.h <== nh.out;
     nameOk.k <== strength;
 
-    // bind the journey context into the proof
-    signal contextSq;
-    contextSq <== context * context;
+    // (the context is bound by the round tag above)
 }
 
 component main { public [aura, magnitude, strength, context] } = NameClaim(${MAX_DEPTH});

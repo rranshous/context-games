@@ -314,3 +314,14 @@ Robby: "talk to me about adding prediction. I know there is a well worn standard
   - Reset-and-replay reproduces the prediction.
   - 100 commands after one real tick move you only ~1 tick. 36 tests total.
 - **Measured in the browser**: at a simulated 150 ms round trip, you move within 50 ms of the key press (10.5 px, vs 14 px at 0 ms lag); the same hold travels exactly 231 px at both lags; corrections were **0**; ~10 commands in flight; others drawn ~0.1 s behind. The bot **won** a full round at 150 ms lag (at 1 hp); before prediction it had fallen at 0 ms lag.
+
+### Prove the details, never the source
+Robby asked what the dungeon learns at join. Answer: an aura public key plus, per name, a proof with six public signals. One of them was the spirit's **trait hash**, a global, permanent identifier, revealed only because it was convenient (traits + flavor for names/seals + an id). Robby: "I'd much rather prove the details than the source." He's fine with the aura being revealed: it is the persistent character identity.
+
+The circuit now reveals only the details:
+- **Outputs**: `roundTag, element, form, weightIdx, generosityIdx, temperIdx`. **Public inputs**: `aura field, magnitude, strength, context`, making 10 public signals.
+- The traits are **decoded from the trait hash inside the circuit** (`Num2Bits_strict` on it); the hash and its flavor bits never leave the proof.
+- **Round tag** = `Poseidon(101, digest, context)`. 101 is a proof-system domain tag, deliberately outside the universe's 1..5, so it isn't part of the frozen spec. It is stable for one spirit within one round (the dungeon refuses **the same patron twice** in a bundle; future "a patron no one else in this match holds" checks work) and **unlinkable across rounds** because the context changes. Spirit ids in a round are `r:<roundTag>`.
+- 20,015 constraints (+1.1k). A new dev ceremony (~9 min); new artifacts committed.
+- **Display** comes from what the client already knows: the journey carries local-only `cosmetics` (element, magnitude, full traits with flavor) for your own slots, so your browser draws true names and seals. They are never sent to the dungeon, which sees only details, so it would describe another player's spirit as e.g. "lance of fire".
+- Tests: exactly ten signals, and none of them is the trait hash, the digest, the nonce or the address; the round tag is equal within a round and different across rounds; duplicate patrons are refused. 38 tests pass. In the browser the dungeon verified 4 names in 0.9 s and the slots still show their true names.

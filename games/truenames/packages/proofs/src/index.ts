@@ -1,18 +1,28 @@
-// Zero-knowledge name claims.
+// Zero-knowledge name claims: prove the details, never the source.
 // The sanctum (which knows the secrets) proves "I hold a name of >= s truths on a spirit of
-// magnitude >= m, whose trait hash is T and element is e", bound to one journey's context.
-// The game verifies that without ever learning the spirit's address or the nonce.
+// magnitude >= m, with element e and these traits", bound to one journey's context.
+// The game learns neither the spirit's address, nor its trait hash (a global identity), nor the nonce;
+// only a round tag that identifies the spirit within this round.
 import { groth16 } from 'snarkjs';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { auraField, bytesToHex, hexToBytes, decodeTraits, type Cell, type Traits } from '@truenames/universe';
+import { auraField, bytesToHex, hexToBytes, type Cell } from '@truenames/universe';
 
-export { MAX_DEPTH } from './gen-circuit.ts';
+export { MAX_DEPTH, TAG_ROUND } from './gen-circuit.ts';
 import { MAX_DEPTH } from './gen-circuit.ts';
+
+/** Gameplay traits a proof reveals (the flavor, and the trait hash it comes from, stay secret). */
+export interface ProvenTraits {
+  form: number;
+  weightIdx: number;
+  generosityIdx: number;
+  temperIdx: number;
+}
 
 /** Public signals, in circuit order: outputs first, then public inputs. */
 export interface ZkPublic {
-  traitHash: string;
+  roundTag: string;
   element: number;
+  traits: ProvenTraits;
   aura: string; // auraField, decimal
   magnitude: number;
   strength: number;
@@ -33,14 +43,24 @@ export interface Artifacts {
   zkey: string | Uint8Array;
 }
 
+export const PUBLIC_SIGNALS = 10;
+
 export function parsePublic(signals: readonly string[]): ZkPublic {
-  if (signals.length !== 6) throw new Error('bad public signals');
-  const [traitHash, element, aura, magnitude, strength, context] = signals as [string, string, string, string, string, string];
-  return { traitHash, element: Number(element), aura, magnitude: Number(magnitude), strength: Number(strength), context };
+  if (signals.length !== PUBLIC_SIGNALS) throw new Error('bad public signals');
+  const [roundTag, element, form, weightIdx, generosityIdx, temperIdx, aura, magnitude, strength, context] = signals.map(String) as [string, string, string, string, string, string, string, string, string, string];
+  return {
+    roundTag,
+    element: Number(element),
+    traits: { form: Number(form), weightIdx: Number(weightIdx), generosityIdx: Number(generosityIdx), temperIdx: Number(temperIdx) },
+    aura,
+    magnitude: Number(magnitude),
+    strength: Number(strength),
+    context,
+  };
 }
 
-/** Spirit id used by the game for a proven spirit: its trait hash, never its address. */
-export const zkSpiritId = (traitHash: string) => `t:${traitHash}`;
+/** Spirit id used by the game for a proven spirit: its round tag. Meaningless outside this round. */
+export const zkSpiritId = (roundTag: string) => `r:${roundTag}`;
 
 export function zkClaimMessage(publicSignals: readonly string[]): Uint8Array {
   return new TextEncoder().encode(`truenames/zkname/v1|${publicSignals.join(',')}`);
@@ -81,10 +101,10 @@ export interface VerifiedZkName {
   element: number;
   magnitude: number;
   strength: number;
-  traits: Traits;
+  traits: ProvenTraits & { flavor: bigint }; // flavor is not revealed: always 0n here
 }
 
-/** Game side: verify proof, aura binding, signature and context. Learns no address. */
+/** Game side: verify proof, aura binding, signature and context. Learns no address and no trait hash. */
 export async function verifyZkName(
   claim: ZkNameClaim,
   vkey: object,
@@ -118,11 +138,11 @@ export async function verifyZkName(
     ok: true,
     name: {
       aura: claim.aura,
-      spirit: zkSpiritId(pub.traitHash),
+      spirit: zkSpiritId(pub.roundTag),
       element: pub.element,
       magnitude: pub.magnitude,
       strength: pub.strength,
-      traits: decodeTraits(BigInt(pub.traitHash)),
+      traits: { ...pub.traits, flavor: 0n },
     },
   };
 }

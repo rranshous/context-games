@@ -168,11 +168,12 @@ sequenceDiagram
   S->>R: journey {aura, bundle} (sent to the dungeon process)
   R->>A: submitProvenName(claim) for each
   A->>A: ProofVerifier: context matches, aura field matches key, signature, groth16.verify
-  A-->>R: {spirit: "t:<traitHash>", magnitude, truths, traits}
+  A-->>R: {spirit: "r:<roundTag>", element, magnitude, truths, traits}
 ```
-- **Circuit** (`packages/proofs/src/gen-circuit.ts` generates `circuits/name.circom`, with constants taken from the universe): secret digits, depth and nonce. Public: aura field, magnitude, strength, context. Outputs: trait hash and element. It checks the chained digest over `depth` digits, `bits(spiritHash) ≥ target(depth) + magnitude`, `bits(nameHash) ≥ strength` (thresholds `P >> k` via a one-hot table and 127-bit limb comparisons), and 6 ≤ depth ≤ 24. About 18.9k constraints.
+- **Circuit** (`packages/proofs/src/gen-circuit.ts` generates `circuits/name.circom`, with constants taken from the universe): secret digits, depth and nonce. Public inputs: aura field, magnitude, strength, context. Outputs: **round tag** (`Poseidon(101, digest, context)`), **element**, and the gameplay **traits** (form, weight, generosity, temper), decoded from the trait hash in-circuit. **The trait hash itself never leaves the proof** (the principle: prove the details, never the source). It checks the chained digest over `depth` digits, `bits(spiritHash) ≥ target(depth) + magnitude`, `bits(nameHash) ≥ strength` (thresholds `P >> k` via a one-hot table and 127-bit limb comparisons), and 6 ≤ depth ≤ 24.
 - **Build**: `corepack pnpm tools zk-build` compiles the circuit with circom2 (WASM) and runs a **local dev Groth16 ceremony** (about 9 minutes). The resulting `artifacts/name.wasm`, `name.zkey` and `name.vkey.json` are committed so the game runs without rebuilding. Proofs are per journey, so rebuilding the keys breaks nothing persistent.
-- **Spirit ids in a round** are `t:<traitHash>`. Enemy casters use public spirits by address (the ancients), resolved through the universe.
+- **Spirit ids in a round** are `r:<roundTag>`: unique per spirit within the round (duplicate patrons in a bundle are refused), unlinkable across rounds. Enemy casters use public spirits by address (the ancients), resolved through the universe.
+- **Display**: the dungeon never learns a player's spirits' names or seals (they come from the secret flavor bits). The journey carries local-only `cosmetics` so the player's own browser draws its true names; they are never sent to the dungeon.
 
 ## Life of a cast
 ```mermaid

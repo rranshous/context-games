@@ -1,7 +1,7 @@
 // The game side of the threshold: a link to a dungeon process. It knows nothing of the sanctum.
 // The dungeon issues a context, receives proofs bound to it, runs the round, and reports what happened.
 import type { ZkNameClaim } from '@truenames/proofs';
-import type { ClientMsg, ServerMsg, Snapshot, RoundResultMsg, MoveCmd } from '@truenames/dungeon/protocol';
+import type { ClientMsg, ServerMsg, Snapshot, RoundResultMsg, MoveCmd, WireTraits } from '@truenames/dungeon/protocol';
 
 /** Issued by the dungeon when a round is opened. Proofs must be bound to its context. */
 export interface RoundTicket {
@@ -16,6 +16,8 @@ export interface Journey {
   element: number; // cosmetic: the aura's chosen element
   newcomer: boolean; // show the controls hint
   bundle: { slot: number; claim: ZkNameClaim }[];
+  /** How to draw your own names (true name, seal). Stays in this browser: never sent to the dungeon. */
+  cosmetics: ({ element: number; magnitude: number; traits: WireTraits } | null)[];
 }
 
 export type RoundResult = RoundResultMsg;

@@ -90,7 +90,8 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 ## The threshold (zero knowledge)
 - The **sanctum** is the local astral and truth system: it knows the secrets (addresses, nonces, the aura's secret key).
 - A **round** (the dark) only ever receives a *journey*: your public aura, and per bound name a zero-knowledge proof bound to that round's fresh context, plus your aura's signature.
-- A proof reveals: the spirit's **trait hash** (its identity: name, seal and traits, but not its location), its **element**, a **magnitude** and **truths** it clears (a proof may understate, never overstate), and the context. It hides the address, the depth and the nonce.
+- **Prove the details, never the source.** A proof reveals the spirit's **element**, its gameplay **traits** (form, weight, generosity, temper), a **magnitude** and **truths** it clears (a proof may understate, never overstate), a **round tag** that identifies the spirit within that round only, and the context. It hides the address, the depth, the nonce, and the spirit's trait hash, so the dungeon can't tell *which* spirit you carry, or link it across rounds. Your aura is revealed on purpose: it is your persistent character.
+- Your own browser still draws your spirits' true names and seals; it knows them. The dungeon doesn't.
 - Names are **locked in at departure**; meditation that finishes mid-journey counts next time. **Capacity** counts the names you carry in.
 - Costs on the dev box: ~1.75 s to prove a name in a browser worker (4 names ≈ 7 s at the threshold), ms to verify. The circuit is ~18.9k constraints and proves spirits up to depth 24.
 - The trusted setup is a **local dev ceremony**, fine for single-player, not for a shared world.

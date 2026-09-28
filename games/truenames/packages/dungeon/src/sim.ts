@@ -3,8 +3,8 @@
 // Players arrive with zero-knowledge proofs only; the dungeon never learns where their spirits dwell.
 import { LocalAuthority, castCap, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
 import type { CastResult, TargetSpec } from '@truenames/protocol';
-import { spiritAt, decodeTraits, type Spirit, type Traits } from '@truenames/universe';
-import type { ZkNameClaim } from '@truenames/proofs';
+import { spiritAt, type Spirit, type Traits } from '@truenames/universe';
+import { parsePublic, type ZkNameClaim } from '@truenames/proofs';
 import { BALANCE as B, SLOTS } from './balance.ts';
 import { ANCIENTS, HEARTH_GOD, WARDEN_WELLS } from './world.ts';
 import type { EnemyKind, SimEvent, SlotInfo, Snapshot, WireTraits, RoundResultMsg } from './protocol.ts';
@@ -125,16 +125,21 @@ export class DungeonSim {
     this.auth.registerAura(aura);
     const slots: (Slot | null)[] = SLOTS.map(() => null);
     const refused: string[] = [];
+    const seen = new Set<string>();
     for (const { slot, claim } of bundle) {
-      if (!(slot >= 0 && slot < SLOTS.length) || claim.aura !== aura) { refused.push('a name for another aura'); continue; }
+      if (!(slot >= 0 && slot < SLOTS.length) || slots[slot]) { refused.push('no such slot'); continue; }
+      if (claim.aura !== aura) { refused.push('a name for another aura'); continue; }
+      let pub;
+      try { pub = parsePublic(claim.publicSignals); } catch { refused.push('bad public signals'); continue; }
+      if (seen.has(pub.roundTag)) { refused.push('the same patron twice'); continue; }
       const r = await this.auth.submitProvenName(claim);
       if (!r.accepted || !r.spirit) { refused.push(r.reason ?? 'unknown'); continue; }
-      const p = claim.publicSignals;
-      const traits = decodeTraits(BigInt(p[0]!));
-      const element = Number(p[1]), magnitude = Number(p[3]);
+      seen.add(pub.roundTag);
+      // the proof revealed only the details: element, magnitude, gameplay traits. Never the source.
+      const traits = { ...pub.traits, flavor: 0n };
       slots[slot] = {
-        spirit: r.spirit, element, magnitude, traits: wireTraits(traits), strength: r.strength!,
-        form: traits.form, generosity: spiritStats({ magnitude, traits }).generosity, lastBits: null,
+        spirit: r.spirit, element: pub.element, magnitude: pub.magnitude, traits: wireTraits(traits), strength: r.strength!,
+        form: traits.form, generosity: spiritStats({ magnitude: pub.magnitude, traits }).generosity, lastBits: null,
       };
     }
     const n = this.players.size;

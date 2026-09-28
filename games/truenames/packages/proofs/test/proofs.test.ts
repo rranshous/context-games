@@ -20,21 +20,28 @@ describe('zero-knowledge name claims', () => {
     while (nameStrength(GOD, PUB, NONCE) < MIN_NAME_BITS) NONCE++;
   });
 
-  it('proves a real name and verifies without the address', async () => {
+  it('proves the details, never the source: no address, no trait hash, no nonce', async () => {
     const s = nameStrength(GOD, PUB, NONCE);
     const god = spiritAt(GOD)!;
     const claim = await proveName({ cell: GOD, nonce: NONCE, secretKey: SECRET, magnitude: god.magnitude, strength: s, context: 777n }, artifacts);
     const pub = parsePublic(claim.publicSignals);
-    // the public identity is the trait hash; no digit or depth is revealed
-    expect(pub.traitHash).toBe(traitHashFromDigest(cellDigest(GOD)).toString());
-    expect(pub.element).toBe(0);
-    // exactly six public signals: trait hash, element, aura field, magnitude, strength, context — no digits, depth or nonce
-    expect(claim.publicSignals).toEqual([pub.traitHash, '0', claim.publicSignals[2], String(god.magnitude), String(s), '777']);
-    expect(claim.publicSignals).not.toContain(NONCE.toString());
+    const t = god.traits;
+    // ten public signals: round tag, element, form, weight, generosity, temper, aura field, magnitude, strength, context
+    expect(claim.publicSignals).toEqual([pub.roundTag, '0', String(t.form), String(t.weightIdx), String(t.generosityIdx), String(t.temperIdx), claim.publicSignals[6], String(god.magnitude), String(s), '777']);
+    const traitHash = traitHashFromDigest(cellDigest(GOD)).toString();
+    const digest = cellDigest(GOD).toString();
+    for (const secret of [traitHash, digest, NONCE.toString(), GOD]) expect(claim.publicSignals).not.toContain(secret);
     expect(Object.keys(claim).sort()).toEqual(['aura', 'kind', 'proof', 'publicSignals', 'sig', 'spec']);
     const v = await verifyZkName(claim, vkey(), 777n);
-    expect(v).toMatchObject({ ok: true, name: { strength: s, magnitude: god.magnitude, element: 0 } });
-    if (v.ok) expect(v.name.traits).toEqual(god.traits);
+    expect(v).toMatchObject({ ok: true, name: { strength: s, magnitude: god.magnitude, element: 0, traits: { form: t.form, weightIdx: t.weightIdx, generosityIdx: t.generosityIdx, temperIdx: t.temperIdx, flavor: 0n } } });
+  });
+
+  it('the round tag identifies a spirit within one round only', async () => {
+    const a = await proveName({ cell: GOD, nonce: NONCE, secretKey: SECRET, magnitude: 3, strength: 12, context: 1n }, artifacts);
+    const b = await proveName({ cell: GOD, nonce: NONCE, secretKey: SECRET, magnitude: 1, strength: 12, context: 1n }, artifacts);
+    const c = await proveName({ cell: GOD, nonce: NONCE, secretKey: SECRET, magnitude: 3, strength: 12, context: 2n }, artifacts);
+    expect(parsePublic(a.publicSignals).roundTag).toBe(parsePublic(b.publicSignals).roundTag); // same spirit, same round
+    expect(parsePublic(a.publicSignals).roundTag).not.toBe(parsePublic(c.publicSignals).roundTag); // another round: unlinkable
   });
 
   it('a proof may understate, never overstate', async () => {
@@ -55,7 +62,7 @@ describe('zero-knowledge name claims', () => {
     const stolen = { ...claim, aura: Buffer.from(ed25519.getPublicKey(thief)).toString('hex') };
     expect(await verifyZkName(stolen, vkey(), 5n)).toMatchObject({ ok: false, reason: 'proof is for another aura' });
     // bump the claimed strength in the public signals
-    const bumped = { ...claim, publicSignals: claim.publicSignals.map((x, i) => (i === 4 ? '30' : x)) };
+    const bumped = { ...claim, publicSignals: claim.publicSignals.map((x, i) => (i === 8 ? '30' : x)) };
     const r = await verifyZkName(bumped, vkey(), 5n);
     expect(r.ok).toBe(false);
   });

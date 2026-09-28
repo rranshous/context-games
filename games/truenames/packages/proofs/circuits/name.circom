@@ -64,9 +64,13 @@ template NameClaim(MAXD) {
     signal input strength;       // claimed at least this many truths
     signal input context;        // binds the proof to one journey
 
-    // --- public outputs ---
-    signal output traitHash;     // the spirit's identity and traits (not its location)
+    // --- public outputs: the details, never the source ---
+    signal output roundTag;      // this spirit, in this round only (unlinkable across rounds)
     signal output element;       // first address digit
+    signal output form;          // traits: the low bits of the trait hash (the hash itself stays secret)
+    signal output weightIdx;
+    signal output generosityIdx;
+    signal output temperIdx;
 
     // digits are octal
     component dbits[MAXD];
@@ -122,13 +126,25 @@ template NameClaim(MAXD) {
     spiritOk.h <== sh.out;
     spiritOk.k <== 4 + 3 * q + r + magnitude;
 
-    // identity: the trait hash (reveals traits and flavor, not the address)
+    // traits: decoded from the trait hash in-circuit; only the gameplay fields leave
     component th = Poseidon(3);
     th.inputs[0] <== 3;
     th.inputs[1] <== 36038633070665501590553589297;
     th.inputs[2] <== digest;
-    traitHash <== th.out;
+    component tb = Num2Bits_strict();
+    tb.in <== th.out;
+    form <== tb.out[0] + 2 * tb.out[1] + 4 * tb.out[2];
+    weightIdx <== tb.out[3] + 2 * tb.out[4] + 4 * tb.out[5] + 8 * tb.out[6];
+    generosityIdx <== tb.out[7] + 2 * tb.out[8] + 4 * tb.out[9] + 8 * tb.out[10];
+    temperIdx <== tb.out[11] + 2 * tb.out[12] + 4 * tb.out[13];
     element <== digits[0];
+
+    // round tag: identifies the spirit within this round (duplicates, "shared patron" checks) and no further
+    component rt = Poseidon(3);
+    rt.inputs[0] <== 101;
+    rt.inputs[1] <== digest;
+    rt.inputs[2] <== context;
+    roundTag <== rt.out;
 
     // the name: bits(nameHash(digest, aura, nonce)) >= strength
     component nh = Poseidon(4);
@@ -140,9 +156,7 @@ template NameClaim(MAXD) {
     nameOk.h <== nh.out;
     nameOk.k <== strength;
 
-    // bind the journey context into the proof
-    signal contextSq;
-    contextSq <== context * context;
+    // (the context is bound by the round tag above)
 }
 
 component main { public [aura, magnitude, strength, context] } = NameClaim(24);

@@ -67,5 +67,10 @@ export async function prepareJourney(app: App, ticket: RoundTicket, onProgress: 
     else app.toast(`A name would not be spoken: ${r.error}`, '#ff7a6b');
     onProgress(i + 1, bound.length);
   }
-  return { ticket, aura: aura.pub, element: aura.element, newcomer: save.runs.length < 2, bundle };
+  const cosmetics: Journey['cosmetics'] = SLOTS.map(() => null);
+  for (const b of bound) {
+    const sp = spiritOf(save, b.cell)!;
+    cosmetics[b.slot] = { element: sp.element, magnitude: sp.magnitude, traits: { ...sp.traits, flavor: sp.traits.flavor.toString() } };
+  }
+  return { ticket, aura: aura.pub, element: aura.element, newcomer: save.runs.length < 2, bundle, cosmetics };
 }

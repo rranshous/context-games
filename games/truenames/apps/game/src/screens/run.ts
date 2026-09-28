@@ -7,7 +7,7 @@ import { frag } from '../dom.ts';
 import { BALANCE as B, descentName, SLOTS } from '@truenames/dungeon/balance';
 import type { EnemyKind, SimEvent, Snapshot, SnapPlayer, WireTraits } from '@truenames/dungeon/protocol';
 import { movePlayer, type MoveCmd } from '@truenames/dungeon/movement';
-import { ELEMENT_COLOR, FORMS, spiritName, truths, type SpiritLike } from '../lore.ts';
+import { ELEMENT_COLOR, ELEMENT_NAMES, FORMS, spiritName, truths, type SpiritLike } from '../lore.ts';
 import { spiritStats } from '@truenames/authority';
 import { sigilCanvas } from '../sigil.ts';
 import * as sfx from '../audio.ts';
@@ -50,10 +50,14 @@ export function runScreen(link: DungeonLink, welcome: Welcome, journey: Journey,
   const me = welcome.you;
   const W = welcome.arena.w, H = welcome.arena.h;
   const pillars = welcome.pillars;
-  const slots: (Slot | null)[] = welcome.slots.map((s) => {
+  // The dungeon knows only each name's details (element, magnitude, traits). Your own browser
+  // knows which spirits they are, so it draws their true names and seals from the journey's cosmetics.
+  const slots: (Slot | null)[] = welcome.slots.map((s, i) => {
     if (!s) return null;
-    const view: SpiritLike = { element: s.element, magnitude: s.magnitude, traits: toTraits(s.traits) };
-    return { view, strength: s.strength, form: s.traits.form, color: ELEMENT_COLOR[s.element]!, name: spiritName(view), generosity: spiritStats(view).generosity, lastBits: null, vessel: 1, cap: 1, flash: 0, thin: 0 };
+    const own = journey.cosmetics[i];
+    const view: SpiritLike = own ? { element: own.element, magnitude: own.magnitude, traits: toTraits(own.traits) } : { element: s.element, magnitude: s.magnitude, traits: toTraits(s.traits) };
+    const name = own ? spiritName(view) : `${FORMS[s.traits.form]!.name} of ${ELEMENT_NAMES[s.element]}`;
+    return { view, strength: s.strength, form: s.traits.form, color: ELEMENT_COLOR[s.element]!, name, generosity: spiritStats(view).generosity, lastBits: null, vessel: 1, cap: 1, flash: 0, thin: 0 };
   });
   for (const r of welcome.refused) host.toast(`A name was not heard at the threshold: ${r}`, '#ff7a6b');
 

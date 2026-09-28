@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { bytesToHex, nameStrength, spiritAt, MIN_NAME_BITS } from '@truenames/universe';
+import { bytesToHex, nameStrength, spiritAt, MIN_NAME_BITS, traitHashFromDigest, cellDigest } from '@truenames/universe';
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { DungeonSim, zkVerifier, HEARTH_GOD, BALANCE } from '../src/index.ts';
 
@@ -29,8 +29,10 @@ describe('DungeonSim', () => {
     const { slots, refused } = await sim.admit(AURA, [{ slot: 0, claim }]);
     expect(refused).toEqual([]);
     expect(slots[0]).toMatchObject({ element: 0, strength: MIN_NAME_BITS, magnitude: 3 });
-    expect(slots[0]!.spirit.startsWith('t:')).toBe(true);
+    expect(slots[0]!.spirit.startsWith('r:')).toBe(true);
+    expect(slots[0]!.traits).toMatchObject({ form: 3, flavor: '0' }); // the lance; flavor never revealed
     expect(JSON.stringify(slots)).not.toContain(HEARTH_GOD);
+    expect(JSON.stringify(slots)).not.toContain(traitHashFromDigest(cellDigest(HEARTH_GOD)).toString());
   });
 
   it('refuses a proof from another round and a proof presented under another aura', async () => {
@@ -66,6 +68,13 @@ describe('DungeonSim', () => {
     expect(events).toContain('beam'); // the hearth-god is a lance
     expect(kills).toBeGreaterThan(0);
     expect(sim.snapshot().wave).toBeGreaterThanOrEqual(1);
+  });
+
+  it('refuses the same patron twice in one bundle', async () => {
+    const sim = new DungeonSim({ level: 0, context: CONTEXT, verifier, rng: rng() });
+    const r = await sim.admit(AURA, [{ slot: 0, claim }, { slot: 1, claim }]);
+    expect(r.slots.filter(Boolean).length).toBe(1);
+    expect(r.refused).toEqual(['the same patron twice']);
   });
 
   it('ends lost when the only player leaves', async () => {
