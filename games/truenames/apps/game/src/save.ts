@@ -20,7 +20,7 @@ export interface NameRecord {
 
 export interface RunRecord {
   at: number;
-  world?: 'dark' | 'bastion';
+  world?: 'dark' | 'bastion' | 'council';
   descent?: number;
   wave: number;
   won: boolean;
@@ -64,8 +64,10 @@ export interface SaveData {
   /** Name Book view: tab, filters, sort. */
   codex?: CodexView;
   /** Progress in worlds beyond the Dark (whose progress is `descent` / `lastDescent`). */
-  worlds?: { bastion?: { descent: number; last: number } };
-  lastWorld?: 'dark' | 'bastion';
+  worlds?: { bastion?: { descent: number; last: number }; council?: { descent: number; last: number } };
+  lastWorld?: 'dark' | 'bastion' | 'council';
+  /** The Council deck: up to twelve learned names, played as cards. */
+  councilDeck?: string[];
 }
 
 export function emptySave(): SaveData {

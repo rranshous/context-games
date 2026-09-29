@@ -58,10 +58,11 @@ export const SLOTS = [
 ] as const;
 
 /** The worlds a dungeon can host. Each interprets the same proven powers differently. */
-export type World = 'dark' | 'bastion';
+export type World = 'dark' | 'bastion' | 'council';
 export const WORLDS: { id: World; name: string; blurb: string }[] = [
   { id: 'dark', name: 'the Dark', blurb: 'Walk into the dark and speak your names yourself: five waves and a Warden.' },
   { id: 'bastion', name: 'the Bastion', blurb: 'Raise shrines to your patrons along the road to your hearth. Every shrine speaks in your name, and every word strains you.' },
+  { id: 'council', name: 'the Council', blurb: 'Sit across from a Warden and play your names as cards, turn by turn. A deck of up to twelve.' },
 ];
 
 export type BastionFoe = 'husk' | 'runner' | 'brute' | 'warden';
@@ -126,5 +127,47 @@ export const BASTION = {
 export const BASTION_NAMES = ['the Outer Wall', 'the Lantern Gate', 'the Salt Road', 'the Weeping Span', 'the Ash Bridge', 'the Bell Tower', 'the Sunken Keep', 'the Last Courtyard', 'the Inner Hearth', 'the Nameless Wall'];
 export function worldDescentName(world: World, l: number): string {
   if (world === 'dark') return descentName(l);
+  if (world === 'council') return COUNCIL_NAMES[l] ?? `the Nameless Council ${'I'.repeat(Math.min(12, l - COUNCIL_NAMES.length + 2))}`;
   return BASTION_NAMES[l] ?? `the Nameless Wall ${'I'.repeat(Math.min(12, l - BASTION_NAMES.length + 2))}`;
 }
+
+/** The Council: a turn-based duel where each proven name is a card. */
+export const COUNCIL = {
+  deckMax: 12,
+  life: 40,
+  startHand: 4,
+  handMax: 7,
+  boardMax: 5,
+  voiceStart: 1,
+  /** voice to speak a name: 1 + one per costTruths truths above costFree, +1 for summon and nova */
+  costFree: 12,
+  costTruths: 6,
+  voiceMax: 8,
+  /** authority ticks between turns: strain ebbs (×0.9 each) and vessels refill */
+  ticksPerTurn: 5,
+  /** card power from what a play actually drew: round(powerScale × log2(1 + grant × formEfficiency)), at least 1.
+   *  Logarithmic so a card game stays a card game: about one point per two truths, not doubling every four. */
+  powerScale: 1.2,
+  /** creature toughness and attack as multiples of power */
+  summonHp: 1,
+  summonAtk: 0.35,
+  hexTurns: 3,
+  novaMult: 1.5,
+  wardMult: 1,
+  ringMult: 0.5,
+  /** backlash: damage to your own face = 1 + recoil / recoilPerLife */
+  recoilPerLife: 60,
+  /** the Warden's deck: public ancients. The council seats you among peers: they speak at your deck's median
+   *  truths less wardenLag (never below wardenStrength), + shamanBits per descent. */
+  wardenDeck: ['011010', '567171', '570476', '615043', '651063', '005420', '027345', '110062', '136143', '253312', '431411', '701422'],
+  wardenStrength: 14,
+  wardenLag: 3,
+  /** deeper seats: a hardier Warden */
+  wardenLifePerSeat: 8,
+  turnLimit: 40,
+};
+/** One formula for the dungeon and the client's estimate. */
+export function councilPower(grant: number, formEfficiency: number): number {
+  return Math.max(1, Math.round(COUNCIL.powerScale * Math.log2(1 + grant * formEfficiency)));
+}
+export const COUNCIL_NAMES = ['the Lesser Council', 'the Ember Court', 'the Salt Chamber', 'the Hall of Echoes', 'the Iron Conclave', 'the Hollow Bench', 'the Last Tribunal'];

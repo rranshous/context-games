@@ -116,6 +116,22 @@ The dungeon hosts several **worlds**. Each admits you by the same proofs and int
   - **Strain is aura-wide.** Every shrine speaks in your name, so every shrine strains you. Too many and every word weakens; past capacity, backlash cracks the hearth.
   - **One vessel per patron.** All shrines to a patron share it, and only one of them speaks per tick, so spreading across patrons pays.
   - Calling a wave early turns the skipped breather into resonance.
+- **The Council**: a turn-based card duel against a Warden. It's the reason to hold more than four names: the **deck holds up to 12**, chosen with ◇ in the Name Book, separate from the loadout. Every name in it is proven at the threshold (the provers run in parallel).
+  - **Life** is 40 (the Warden gains 8 per seat deeper). **Voice** starts at 1 and grows by one a turn, up to 8. A name costs `1 + ⌊(truths − 12) / 6⌋`, +1 for summon or nova, so mighty names come late.
+  - **Power** is what the name actually draws when spoken, `round(1.2 × log2(1 + grant × form efficiency))`: about a point per two truths. The same authority judges it: strain (aura-wide, it ebbs between turns), vessels (refilled between turns) and backlash (damages your own face).
+
+    | form | card |
+    |---|---|
+    | bolt | strike a creature or face |
+    | ring | half power to every enemy creature |
+    | ward | shield yourself |
+    | lance | a creature, with overflow to the face behind |
+    | nova | bursts next turn: 1.5× on the face, half on creatures |
+    | summon | a servant (toughness = power, attack ≈ ⅓) that strikes each turn |
+    | hex | a face over 3 turns, or a creature all at once |
+    | blink | draw two, regain a voice |
+
+  - **The Warden is a peer.** It speaks public ancients at your deck's median truths less 3 (never below 14), plus 2 per seat. Strong names don't trivialize the Council the way they do the Bastion. A 40-turn limit ends stalemates as a loss.
 
 ## The dungeon is its own process
 Rounds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends movement, aim and casts and draws what the dungeon reports 20 times a second. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. This is the stepping stone to multiplayer: more players are more connections into one simulation.

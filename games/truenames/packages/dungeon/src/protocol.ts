@@ -35,6 +35,8 @@ export type ClientMsg =
   | { t: 'build'; slot: number; gx: number; gy: number } // bastion: raise a shrine to this slot's patron
   | { t: 'sell'; id: number } // bastion: let a shrine fall (partial refund)
   | { t: 'call' } // bastion: call the next wave early
+  | { t: 'play'; card: number; target?: CouncilTarget } // council: play a card from your hand (by card id)
+  | { t: 'pass' } // council: end your turn
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
 
@@ -43,8 +45,10 @@ export type ServerMsg =
   | { t: 'ticket'; context: string; level: number; world: World }
   | { t: 'welcome'; world: 'dark'; you: string; level: number; arena: { w: number; h: number }; pillars: { x: number; y: number; r: number }[]; slots: (SlotInfo | null)[]; refused: string[] }
   | { t: 'welcome'; world: 'bastion'; you: string; level: number; bastion: BastionLayout; slots: (SlotInfo | null)[]; refused: string[] }
+  | { t: 'welcome'; world: 'council'; you: string; level: number; seat: number; slots: (SlotInfo | null)[]; refused: string[] }
   | Snapshot
   | BastionSnapshot
+  | CouncilView
   | { t: 'end'; result: RoundResultMsg }
   | { t: 'error'; message: string };
 
@@ -165,3 +169,63 @@ export type BastionEvent =
   | { e: 'wave'; wave: number }
   | { e: 'cleared'; wave: number; bonus: number }
   | { e: 'warden' };
+
+// ---------- the Council (turn-based card duel) ----------
+
+/** Target of a card: a seat's face, or a creature by id. */
+export type CouncilTarget = { kind: 'face'; seat: number } | { kind: 'creature'; id: number };
+
+/** A card as its owner sees it: one proven name. Opponents only see cards once played. */
+export interface CouncilCard {
+  id: number;
+  slot: number; // index in the owner's deck (and journey cosmetics)
+  element: number;
+  magnitude: number;
+  form: number;
+  traits: WireTraits;
+  strength: number;
+  cost: number;
+}
+
+export interface CouncilCreature { id: number; seat: number; element: number; atk: number; hp: number; maxHp: number; fresh: boolean }
+
+export interface CouncilSeatView {
+  seat: number;
+  aura: string; // public: persistent character identity
+  life: number;
+  lifeMax: number;
+  shield: number;
+  voice: number;
+  voiceMax: number;
+  strain: number;
+  capacity: number;
+  handCount: number;
+  deckCount: number;
+  hexes: number; // turns of hex remaining on this face
+  novaPending: boolean;
+}
+
+/** One seat's view of the table: only YOUR hand is shown. Sent whenever something changes. */
+export interface CouncilView {
+  t: 'cview';
+  you: number; // your seat
+  turn: number;
+  active: number; // whose turn
+  seats: CouncilSeatView[];
+  hand: CouncilCard[];
+  board: CouncilCreature[];
+  vessels: Record<number, { level: number; cap: number }>; // your cards' patrons, by card id
+  events: CouncilEvent[];
+  over: null | 'won' | 'lost';
+}
+
+export type CouncilEvent =
+  | { e: 'turn'; seat: number; turn: number }
+  | { e: 'draw'; seat: number }
+  | { e: 'play'; seat: number; card: { element: number; magnitude: number; form: number; traits: WireTraits; strength: number; slot: number }; power: number; effective: number; target?: CouncilTarget }
+  | { e: 'damage'; target: CouncilTarget; amount: number; source: 'card' | 'creature' | 'hex' | 'nova' | 'backlash'; element: number }
+  | { e: 'shield'; seat: number; amount: number }
+  | { e: 'summon'; creature: CouncilCreature }
+  | { e: 'die'; id: number }
+  | { e: 'backlash'; seat: number; amount: number }
+  | { e: 'refused'; why: string };

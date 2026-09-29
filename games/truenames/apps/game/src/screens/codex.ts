@@ -165,6 +165,7 @@ export function createCodex(app: App, host: HTMLElement, fresh: Set<string>): Co
           <button class="small ${med ? 'on' : ''}" data-med="${sp.cell}" data-tip="meditate">${med ? 'meditating' : 'meditate'}</button>
           ${med ? `<button class="small ${S.isFocused(sp.cell) ? 'on' : ''}" data-focus="${sp.cell}" data-tip="focus">${S.isFocused(sp.cell) ? '★' : '☆'}</button>` : ''}
           ${learned ? `<button class="small" data-bind="${sp.cell}" data-tip="bind" ${bound ? 'disabled' : ''}>${bound ? 'bound' : 'bind'}</button>` : ''}
+          ${learned ? `<button class="small ${(save.councilDeck ?? []).includes(sp.cell) ? 'on' : ''}" data-deck="${sp.cell}" data-tip="=${(save.councilDeck ?? []).includes(sp.cell) ? 'In your Council deck. Click to take it out.' : 'Add to your Council deck (up to 12 names, played as cards).'}">◇</button>` : ''}
         </div>
       </div>
     </div>`;

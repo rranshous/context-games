@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { DungeonSim, BastionSim, zkVerifier, type ClientMsg, type ServerMsg, type World } from '@truenames/dungeon';
+import { DungeonSim, BastionSim, CouncilSim, zkVerifier, type ClientMsg, type ServerMsg, type World } from '@truenames/dungeon';
 
 const require = createRequire(import.meta.url);
 const vkey = JSON.parse(readFileSync(require.resolve('@truenames/proofs/artifacts/name.vkey.json'), 'utf8'));
@@ -29,7 +29,7 @@ function serve(ws: WebSocket) {
   let context: bigint | null = null;
   let level = 0;
   let world: World = 'dark';
-  let sim: DungeonSim | BastionSim | null = null;
+  let sim: DungeonSim | BastionSim | CouncilSim | null = null;
   let you: string | null = null;
   let loop: ReturnType<typeof setInterval> | null = null;
   let steps = 0;
@@ -46,13 +46,13 @@ function serve(ws: WebSocket) {
         if (context !== null) return send(ws, { t: 'error', message: 'round already open' });
         level = Math.max(0, Math.min(MAX_LEVEL, Math.floor(Number(m.level) || 0)));
         lag = Math.max(0, Math.min(MAX_LAG, Math.floor(Number(m.lag) || 0)));
-        world = m.world === 'bastion' ? 'bastion' : 'dark';
+        world = m.world === 'bastion' || m.world === 'council' ? m.world : 'dark';
         context = BigInt('0x' + randomBytes(16).toString('hex'));
         return send(ws, { t: 'ticket', context: context.toString(), level, world });
       }
       case 'journey': {
         if (context === null || sim) return send(ws, { t: 'error', message: 'no open round' });
-        sim = world === 'bastion' ? new BastionSim({ level, context, verifier }) : new DungeonSim({ level, context, verifier });
+        sim = world === 'bastion' ? new BastionSim({ level, context, verifier }) : world === 'council' ? new CouncilSim({ level, context, verifier }) : new DungeonSim({ level, context, verifier });
         const t0 = performance.now();
         const { slots, refused } = await sim.admit(m.aura, m.bundle);
         you = m.aura;
@@ -62,9 +62,10 @@ function serve(ws: WebSocket) {
         loop = setInterval(() => {
           if (!sim) return;
           sim.step(STEP);
-          if (++steps % SNAP_EVERY === 0) send(ws, sim.snapshot());
+          if (++steps % SNAP_EVERY === 0) { const s = sim.snapshot(); if (s) send(ws, s); } // turn-based worlds send only on change
           if (sim.over) {
-            send(ws, sim.snapshot());
+            const s = sim.snapshot();
+            if (s) send(ws, s);
             send(ws, { t: 'end', result: sim.result() });
             stop();
           }

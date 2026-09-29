@@ -167,3 +167,41 @@ button.more { width: 100%; margin-top: 6px; }
 .dragging .slot { border-color: var(--gold); border-style: dashed; background: rgba(231, 194, 107, 0.06); }
 
 .overlay.threshold { background: rgba(5, 4, 10, 0.94); }
+
+.deck-row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-left: 2px solid var(--c); margin-bottom: 3px; font-size: 14px; }
+
+/* the Council: a card duel */
+.council { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 12px 18px; gap: 8px; overflow: hidden; }
+.council-top { display: flex; align-items: baseline; gap: 16px; }
+.ctable { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-width: 1000px; width: 100%; margin: 0 auto; }
+.cseat { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 4px; padding: 7px 11px; }
+.cseat.mine { border-color: rgba(231, 194, 107, 0.4); }
+.cseat-name { font-family: var(--display); letter-spacing: 0.08em; font-size: 15px; margin-bottom: 4px; }
+.cseat-row { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; margin-top: 4px; }
+.cbar, .cstrain, .cvessel { position: relative; height: 7px; background: rgba(255, 255, 255, 0.06); border-radius: 2px; overflow: hidden; }
+.cbar > i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #b3413a, #e07a5a); }
+.cstrain { height: 4px; margin-top: 5px; }
+.cstrain > i { position: absolute; inset: 0 auto 0 0; }
+.cstrain > span { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink); }
+.cboard { display: flex; gap: 10px; justify-content: center; min-height: 74px; align-items: center; }
+.cempty { font-style: italic; font-size: 13px; }
+.ccreature { width: 64px; height: 70px; border: 1px solid var(--c); border-radius: 6px; background: color-mix(in srgb, var(--c) 12%, rgba(10, 8, 18, 0.9)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.ccreature.fresh { opacity: 0.65; }
+.cglyph { font-size: 24px; color: var(--c); }
+.cmid { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
+.clog { flex: 1; font-size: 13px; line-height: 1.4; min-height: 5.6em; color: var(--ink); opacity: 0.9; }
+.chand { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding-top: 4px; }
+.ccard { position: relative; width: 112px; padding: 8px 6px 6px; border: 1px solid var(--c); border-radius: 6px; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 16%, #0e0b18), #0e0b18); display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; transition: transform 0.12s; user-select: none; }
+.ccard img { width: 48px; height: 48px; }
+.ccard.playable:hover { transform: translateY(-6px); box-shadow: 0 6px 18px color-mix(in srgb, var(--c) 35%, transparent); }
+.ccard.dim-card { opacity: 0.45; cursor: default; }
+.ccard.aiming { transform: translateY(-10px); outline: 2px solid var(--gold); }
+.ccost { position: absolute; top: 4px; left: 5px; font-family: var(--mono); color: var(--gold); font-size: 14px; }
+.cname { font-size: 13px; text-align: center; line-height: 1.15; color: var(--c); }
+.cform { font-size: 11px; opacity: 0.8; text-align: center; }
+.cpower { font-family: var(--mono); font-size: 15px; color: var(--gold); }
+.cvessel { width: 90%; height: 3px; }
+.cvessel > i { position: absolute; inset: 0 auto 0 0; background: var(--c); }
+.targetable { cursor: crosshair; outline: 1px dashed var(--gold); }
+.cfloat { position: fixed; z-index: 50; transform: translate(-50%, 0); font-family: var(--mono); font-size: 20px; font-weight: bold; pointer-events: none; text-shadow: 0 0 6px #000; animation: cfloat 1.2s ease-out forwards; }
+@keyframes cfloat { to { transform: translate(-50%, -40px); opacity: 0; } }

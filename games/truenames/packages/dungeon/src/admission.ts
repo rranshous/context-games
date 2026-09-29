@@ -19,13 +19,14 @@ export async function admitNames(
   auth: LocalAuthority,
   aura: string,
   bundle: { slot: number; claim: ZkNameClaim }[],
+  maxSlots: number = SLOTS.length,
 ): Promise<{ slots: (AdmittedSlot | null)[]; refused: string[] }> {
   auth.registerAura(aura);
-  const slots: (AdmittedSlot | null)[] = SLOTS.map(() => null);
+  const slots: (AdmittedSlot | null)[] = Array.from({ length: maxSlots }, () => null);
   const refused: string[] = [];
   const seen = new Set<string>();
   for (const { slot, claim } of bundle) {
-    if (!(slot >= 0 && slot < SLOTS.length) || slots[slot]) { refused.push('no such slot'); continue; }
+    if (!(slot >= 0 && slot < maxSlots) || slots[slot]) { refused.push('no such slot'); continue; }
     if (claim.aura !== aura) { refused.push('a name for another aura'); continue; }
     let pub;
     try { pub = parsePublic(claim.publicSignals); } catch { refused.push('bad public signals'); continue; }

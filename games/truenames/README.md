@@ -29,9 +29,11 @@ Spirits dwell in the eightfold astral, a space that divides into eight, then eig
 The dungeon hosts several **worlds**, each a different game built on the same proven powers. Pick one in the sanctum's top bar; each has its own descents.
 - **The Dark**: an arena. You walk in and speak your four names yourself: five waves and a Warden.
 - **The Bastion**: tower defense. Each name becomes a **shrine** along the road to your hearth, and its form decides what the shrine does (bolts, pulses, slowing wards, piercing lances, artillery novas, road guardians, hexes, or throwing foes back). Every shrine speaks in *your* name, so every shrine strains *you*, and shrines to the same patron share one vessel.
+- **The Council**: a turn-based card duel. You build a **deck of up to 12 proven names**, apart from your four-name loadout, and each name is a card. **Voice** grows by one each turn, and mightier names cost more of it. Forms become card effects (bolts strike, rings sweep the table, wards shield, lances pierce, novas gather for a turn, summons send servants, hexes linger, blinks draw). The Warden sits as your peer, speaking ancient names at about your deck's truths, so the duel is won by play, not by raw strength.
 
 ![In the dark](docs/images/dark.png)
 ![The Bastion](docs/images/bastion.png)
+![The Council](docs/images/council.png)
 
 ## Play
 ```sh

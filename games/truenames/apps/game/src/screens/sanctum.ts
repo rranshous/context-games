@@ -11,7 +11,8 @@ import { runScreen } from './run.ts';
 import { DungeonLink, type RoundHost } from '../round.ts';
 import { prepareJourney } from '../threshold.ts';
 import { titleScreen } from './title.ts';
-import { SLOTS, WORLDS, worldDescentName, type World } from '@truenames/dungeon/balance';
+import { SLOTS, WORLDS, COUNCIL, worldDescentName, type World } from '@truenames/dungeon/balance';
+import { councilScreen } from './council.ts';
 import { bastionScreen } from './bastion.ts';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
@@ -125,11 +126,22 @@ export function sanctumScreen(app: App): Screen {
         <span style="flex:1"><span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:13px">${FORMS[sp.traits.form]!.name}${mouse}</span></span>
         <span class="bits gold" data-tip="truths">${truths(S.strength(sp.cell))}</span><button class="small" data-unbind="${i}" data-tip="unbind">×</button></div>`;
     }).join('');
-    const canRun = save.loadout.some((c) => c && S.learned(c));
+    // the Council deck: up to twelve learned names
+    const deck = (save.councilDeck ?? []).filter((c) => S.learned(c));
+    root.querySelector('#deck')!.innerHTML = `<div class="dim" style="font-size:13px; margin-bottom:4px">${deck.length} / ${COUNCIL.deckMax} names · add with ◇ in the Name Book</div>` + deck.map((cell) => {
+      const sp = spiritOf(save, cell)!;
+      return `<div class="deck-row" style="--c:${ELEMENT_COLOR[sp.element]}"><img class="sigil-sm" src="${sigilURL(sp)}" alt=""> <span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:12px">${FORMS[sp.traits.form]!.name}</span><span style="flex:1"></span><button class="small" data-deck="${cell}" data-tip="=Take this name out of the Council deck.">×</button></div>`;
+    }).join('');
+    const canRun = world() === 'council' ? deck.length > 0 : save.loadout.some((c) => c && S.learned(c));
     (root.querySelector('#run') as HTMLButtonElement).disabled = !canRun;
     const runs = save.runs.slice(-6).reverse();
+    const mark = { dark: '☾', bastion: '⌂', council: '◇' } as const;
     root.querySelector('#runs')!.innerHTML = runs.length
-      ? runs.map((r) => `<div><span class="faint">${r.world === 'bastion' ? '⌂' : '☾'} ${(r.descent ?? 0) + 1}</span> ${r.won ? `<span class="gold">${r.world === 'bastion' ? 'held' : 'survived'}</span>` : `<span class="dim">${r.world === 'bastion' ? 'fell' : 'fell'} at wave ${r.wave}</span>`} · ${r.kills} banished${r.finds ? ` · ${r.finds} found` : ''}</div>`).join('')
+      ? runs.map((r) => {
+          const w = r.world ?? 'dark';
+          const how = w === 'council' ? (r.won ? '<span class="gold">prevailed</span>' : `<span class="dim">yielded on turn ${r.wave}</span>`) : r.won ? `<span class="gold">${w === 'bastion' ? 'held' : 'survived'}</span>` : `<span class="dim">fell at wave ${r.wave}</span>`;
+          return `<div><span class="faint">${mark[w]} ${(r.descent ?? 0) + 1}</span> ${how} · ${r.kills} ${w === 'council' ? 'creatures broken' : 'banished'}</div>`;
+        }).join('')
       : '<div class="dim">No walks yet.</div>';
   }
 
@@ -184,7 +196,7 @@ export function sanctumScreen(app: App): Screen {
 
   // ---------- worlds and their progress ----------
   const world = (): World => save.lastWorld ?? 'dark';
-  const progress = (w: World) => {
+  const progress = (w: World): { descent: number; last: number } => {
     if (w === 'dark') return { descent: save.descent, last: save.lastDescent };
     save.worlds ??= {};
     return (save.worlds[w] ??= { descent: 0, last: 0 });
@@ -193,7 +205,7 @@ export function sanctumScreen(app: App): Screen {
     if (w === 'dark') { save.descent = p.descent; save.lastDescent = p.last; }
     else { save.worlds ??= {}; save.worlds[w] = p; }
   };
-  const WALK_LABEL: Record<World, string> = { dark: 'Walk into the dark', bastion: 'Hold the bastion' };
+  const WALK_LABEL: Record<World, string> = { dark: 'Walk into the dark', bastion: 'Hold the bastion', council: 'Take your seat' };
 
   function renderWorld() {
     const w = world();
@@ -204,6 +216,7 @@ export function sanctumScreen(app: App): Screen {
     dsel.value = String(p.last);
     (root.querySelector('#world') as HTMLSelectElement).value = w;
     root.querySelector('#run')!.textContent = WALK_LABEL[w];
+    renderLoadout();
   }
 
   /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
@@ -228,6 +241,12 @@ export function sanctumScreen(app: App): Screen {
         'Each name is weighed, not heard.',
         'The road is long. Every shrine will speak in your voice.',
       ],
+      council: [
+        'The council will see your names as cards: what they do, never where they dwell.',
+        'Only temper and truth cross the threshold. The dwelling stays yours.',
+        'Each name is weighed, not heard.',
+        'Across the table, the Warden shuffles names older than scholars.',
+      ],
     };
     let li = 0;
     const sub = overlay.querySelector('#th-sub') as HTMLElement;
@@ -239,7 +258,8 @@ export function sanctumScreen(app: App): Screen {
       const ticket = await link.open(level, w);
       const t0 = performance.now();
       const journey = await prepareJourney(app, ticket, (done, total, name) => {
-        if (name) msg(`Speaking the name of <em>${esc(name)}</em>…`);
+        if (name) msg(`<em>${esc(name)}</em> is spoken…`);
+        else msg('Your names are spoken at the threshold…');
         overlay.querySelector('#th-n')!.textContent = `${done} / ${total}`;
       });
       clearInterval(rotating);
@@ -258,7 +278,7 @@ export function sanctumScreen(app: App): Screen {
         leave: () => app.go(sanctumScreen(app)),
         toast: (html, color) => app.toast(html, color),
       };
-      app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
+      app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : welcome.world === 'council' ? councilScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
     } catch (err) {
       clearInterval(rotating);
       link.close();
@@ -306,6 +326,7 @@ export function sanctumScreen(app: App): Screen {
           <div class="panel"><h2>Loadout</h2>
             <div class="hint">Bind up to four learned names. In the dark: left and right click speak the first two, keys 1 and 2 the others. Aim with the mouse. Move with WASD.</div>
             <div class="slots" id="slots"></div>
+            <h2 style="margin-top:16px" data-tip="=The names you play as cards at the Council: up to twelve, separate from the four you carry into the Dark and the Bastion.">Council deck</h2><div id="deck"></div>
             <h2 style="margin-top:16px" data-tip="walks">Walks</h2><div class="feed" id="runs"></div>
           </div>
         </div>
@@ -363,6 +384,13 @@ export function sanctumScreen(app: App): Screen {
         if (foc) { S.setFocus(foc, !S.isFocused(foc)); renderBook(); return; }
         const med = t.closest('[data-med]')?.getAttribute('data-med');
         if (med) { S.meditate(med, !S.isMeditating(med)); renderBook(); return; }
+        const dk = t.closest('[data-deck]')?.getAttribute('data-deck');
+        if (dk) {
+          const d = save.councilDeck ?? [];
+          save.councilDeck = d.includes(dk) ? d.filter((c) => c !== dk) : d.length < COUNCIL.deckMax ? [...d, dk] : d;
+          if (!d.includes(dk) && d.length >= COUNCIL.deckMax) app.toast(`The council deck holds ${COUNCIL.deckMax} names.`);
+          persist(save); renderLoadout(); renderBook(); return;
+        }
         const b = t.closest('[data-bind]')?.getAttribute('data-bind');
         if (b) { bind(b); return; }
         const stop = t.closest('[data-stop]')?.getAttribute('data-stop');
