@@ -5,6 +5,8 @@ import type { MoveCmd } from './movement.ts';
 import type { World, BastionFoe } from './balance.ts';
 export type { World, BastionFoe } from './balance.ts';
 export type { MoveCmd } from './movement.ts';
+import type { DriveCmd } from './racing.ts';
+export type { DriveCmd } from './racing.ts';
 
 export type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman' | 'warden';
 
@@ -37,6 +39,7 @@ export type ClientMsg =
   | { t: 'call' } // bastion: call the next wave early
   | { t: 'play'; card: number; target?: CouncilTarget } // council: play a card from your hand (by card id)
   | { t: 'pass' } // council: end your turn
+  | { t: 'drive'; cmds: DriveCmd[] } // racer: numbered throttle/steer commands, one per client tick
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
 
@@ -46,9 +49,11 @@ export type ServerMsg =
   | { t: 'welcome'; world: 'dark'; you: string; level: number; arena: { w: number; h: number }; pillars: { x: number; y: number; r: number }[]; slots: (SlotInfo | null)[]; refused: string[] }
   | { t: 'welcome'; world: 'bastion'; you: string; level: number; bastion: BastionLayout; slots: (SlotInfo | null)[]; refused: string[] }
   | { t: 'welcome'; world: 'council'; you: string; level: number; seat: number; slots: (SlotInfo | null)[]; refused: string[] }
+  | { t: 'welcome'; world: 'racer'; you: string; level: number; car: number; track: RacerTrack; rivals: RacerRival[]; slots: (SlotInfo | null)[]; refused: string[] }
   | Snapshot
   | BastionSnapshot
   | CouncilView
+  | RacerSnapshot
   | { t: 'end'; result: RoundResultMsg }
   | { t: 'error'; message: string };
 
@@ -229,3 +234,68 @@ export type CouncilEvent =
   | { e: 'die'; id: number }
   | { e: 'backlash'; seat: number; amount: number }
   | { e: 'refused'; why: string };
+
+// ---------- Dark Racer ----------
+
+export interface RacerTrack {
+  pts: [number, number][]; // closed centerline, sampled evenly; index 0 is the start line
+  halfWidth: number;
+  laps: number;
+}
+
+/** A rival as the client draws it: the public spirit whose name it races under. */
+export interface RacerRival { car: number; element: number; magnitude: number; traits: WireTraits }
+
+export interface RacerCar {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  a: number;
+  spin: number;
+  slide: number;
+  slow: number;
+  top: number;
+  shield: number; // seconds of ward left
+  lap: number; // completed laps (−1 before first crossing the line)
+  place: number; // 1-based race position
+  finished: number | null; // finishing place, once over the line
+  element: number;
+}
+
+export interface RacerSnapshot {
+  t: 'rsnap';
+  time: number;
+  paused: boolean;
+  countdown: number;
+  laps: number;
+  ack: number; // your last drive command applied
+  strain: number;
+  capacity: number;
+  hits: number;
+  slots: ({ lastBits: number | null; vessel: number; cap: number; ready: number } | null)[];
+  cars: RacerCar[];
+  bolts: { id: number; x: number; y: number; element: number }[];
+  mines: { id: number; x: number; y: number; armed: boolean; element: number }[];
+  slicks: { id: number; x: number; y: number; r: number; life: number; element: number }[];
+  drones: { id: number; x: number; y: number; element: number }[];
+  events: RacerEvent[];
+}
+
+export type RacerEvent =
+  | { e: 'cast'; car: number; slot: number; form: number; element: number; effective: number; power: number; x: number; y: number }
+  | { e: 'refused'; car: number; slot: number; why: string }
+  | { e: 'backlash'; car: number; spin: number }
+  | { e: 'hit'; car: number; by: number; x: number; y: number; spin: number; element: number; what: string }
+  | { e: 'absorb'; car: number; x: number; y: number }
+  | { e: 'slowed'; car: number; x: number; y: number }
+  | { e: 'slid'; car: number; x: number; y: number }
+  | { e: 'beam'; x: number; y: number; x2: number; y2: number; width: number; element: number }
+  | { e: 'ring'; x: number; y: number; r: number; element: number; ward?: boolean }
+  | { e: 'blink'; car: number; x: number; y: number; x2: number; y2: number; element: number }
+  | { e: 'blast'; x: number; y: number; r: number; element: number }
+  | { e: 'spark'; x: number; y: number; element: number }
+  | { e: 'go' }
+  | { e: 'lap'; car: number; lap: number }
+  | { e: 'finish'; car: number; place: number };

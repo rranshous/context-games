@@ -398,3 +398,29 @@ Robby, choosing among world ideas: "I like the council. It'll be easy on the pro
   - **spoken**: brims full with a glow pulse
   - **refused**: red and struck through
   - A proof reports no progress, so the fill eases toward a **remembered proof time** (an EMA of real proof durations in `localStorage`, `truenames-prove-ms`). It runs linearly to 88% at the estimate, then creeps. `prepareJourney` now emits `begin/start/done` events, and the worker pool reports when a job actually starts on a worker.
+
+## Dark Racer (the fourth world)
+Robby: "i don't really play these type of card based games, but this one doesn't seem fun… maybe like a rock and roll racing / mario cart style racing where your vehicle's powers are based on the truenames". The Council stays in the world picker for now ("we may revisit later").
+- **Why it fits**: the Dark's rules turn into racing tradeoffs with no new mechanics. **Strain is engine heat** (top speed drops up to 30% toward capacity), **backlash spins you out**, and **vessels** still limit what each name draws. Every strike you throw costs you pace.
+- **Shared physics** (`packages/dungeon/src/racing.ts`, exported as `@truenames/dungeon/racing`), used by both the dungeon and the client's prediction:
+  - Tracks are closed Catmull-Rom loops resampled every 20 units, with a half-width of 78.
+  - `driveCar` is arcade: velocity lives in the world frame; the car turns, and grip bleeds away sideways motion. There's no steering at a standstill, and a slick cuts grip to 12%. The road edges are walls with a little bounce.
+  - Spin, slide and slow timers live in the car state, so prediction replays them too.
+  - `autopilot` aims a speed-scaled distance down the road, eases off for bends, and **pulls out to pass** when a car is close ahead. The first version followed the centerline, and my test bot finished 5th because it could never overtake.
+- **RacerSim**:
+  - The grid puts you at the back and runs a 3 s countdown (commands are acknowledged but locked). Lap counting is by wrap of the nearest centerline index.
+  - Casts go through the authority as `self` casts, and effects are resolved from the car's pose. Power uses the Council's log curve (`logPower` in balance). Each name has a 1.1 s cooldown.
+  - Forms: bolt seeks the car ahead; ring shoves; ward breaks the next strike; lance slows along a beam; nova drops a mine; summon hunts the leader; hex leaves a slick; blink jumps down the road, keeping your line and speed.
+  - A spin-out grants a short immunity, so one blast can't chain.
+  - Rivals: five AI cars with their own auras, two random public ancients each at 14 truths (+2 per circuit), and skill 0.84–0.91 of top speed (+0.025 per circuit, cap 1.02). They cast when the moment suits the form: bolt or lance if someone is ahead, nova or hex if someone is behind, ring if anyone is close, ward if hunted.
+  - The race ends when you finish, when the podium (top 3) fills without you, or 25 s after the winner. The result carries `wave` = your place and `kills` = strikes.
+- **Tuning from bot races** (a page-side autopilot bot using one 12-truth lance, 16 races across 4 circuits and 4 seeds): places spread 1st–6th. At rival cast intervals of 2.2–4.5 s you got spun ~10 times a race, which was too punishing, so the interval is now 4–8 s.
+- **Client** (`screens/racer.ts`):
+  - Canvas drawing: a glowing road edge, a dark surface, a dashed center line, direction chevrons and a checkered start line.
+  - Cars are element-colored with lamps and a glow; the camera looks ahead and pulls back with speed.
+  - HUD: minimap, place and lap, a heat (strain) bar, and name slots whose veil lifts as the cooldown recovers.
+  - A 3-2-1 countdown, lap/FINAL LAP/finish banners, floaters ("struck by Moroegoq"), and pause and end overlays.
+  - Debug hook: `window.__racer`.
+- **Verified in the browser**: real keyboard driving via Playwright; prediction corrections peak under 9 units. A page-side key-event bot with four 23–29-truth names **won the Ember Circuit by ~10 s**, which opened the Tidal Loop, so strong names dominate the first circuit as intended. The first circuit is where to feel the controls.
+- **Known rough edges**: rival name labels overlap when the pack bunches; the car sprite is small at speed zoom; there's no engine sound yet. Balance for deeper circuits is untested by hand.
+- Tests (`racer.test.ts`, real proofs, 5): every track can be lapped by the autopilot; the countdown holds everyone, then the race runs and your commands drive you; a cast goes through the authority, heats you (`top` < 1), makes a beam, and respects the cooldown; a whole race ends with rivals casting and finishing; a bot with one 12-truth name can make the podium (seeded).

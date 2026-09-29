@@ -58,11 +58,12 @@ export const SLOTS = [
 ] as const;
 
 /** The worlds a dungeon can host. Each interprets the same proven powers differently. */
-export type World = 'dark' | 'bastion' | 'council';
+export type World = 'dark' | 'bastion' | 'council' | 'racer';
 export const WORLDS: { id: World; name: string; blurb: string }[] = [
   { id: 'dark', name: 'the Dark', blurb: 'Walk into the dark and speak your names yourself: five waves and a Warden.' },
   { id: 'bastion', name: 'the Bastion', blurb: 'Raise shrines to your patrons along the road to your hearth. Every shrine speaks in your name, and every word strains you.' },
   { id: 'council', name: 'the Council', blurb: 'Sit across from a Warden and play your names as cards, turn by turn. A deck of up to twelve.' },
+  { id: 'racer', name: 'Dark Racer', blurb: 'Race five rivals around a road through the astral. Your names are your weapons; every one you speak heats your engine.' },
 ];
 
 export type BastionFoe = 'husk' | 'runner' | 'brute' | 'warden';
@@ -127,6 +128,7 @@ export const BASTION = {
 export const BASTION_NAMES = ['the Outer Wall', 'the Lantern Gate', 'the Salt Road', 'the Weeping Span', 'the Ash Bridge', 'the Bell Tower', 'the Sunken Keep', 'the Last Courtyard', 'the Inner Hearth', 'the Nameless Wall'];
 export function worldDescentName(world: World, l: number): string {
   if (world === 'dark') return descentName(l);
+  if (world === 'racer') return RACER_NAMES[l] ?? `the Nameless Circuit ${'I'.repeat(Math.min(12, l - RACER_NAMES.length + 2))}`;
   if (world === 'council') return COUNCIL_NAMES[l] ?? `the Nameless Council ${'I'.repeat(Math.min(12, l - COUNCIL_NAMES.length + 2))}`;
   return BASTION_NAMES[l] ?? `the Nameless Wall ${'I'.repeat(Math.min(12, l - BASTION_NAMES.length + 2))}`;
 }
@@ -170,3 +172,74 @@ export function councilPower(grant: number, formEfficiency: number): number {
   return Math.max(1, Math.round(COUNCIL.powerScale * Math.log2(1 + grant * formEfficiency)));
 }
 export const COUNCIL_NAMES = ['the Lesser Council', 'the Ember Court', 'the Salt Chamber', 'the Hall of Echoes', 'the Iron Conclave', 'the Hollow Bench', 'the Last Tribunal'];
+
+/** Dark Racer: a race around a closed road. Your names are what your car can do. */
+export const RACER = {
+  laps: 3,
+  rivals: 5,
+  /** half the road's width, world units */
+  halfWidth: 78,
+  /** centerline samples every this many units */
+  spacing: 20,
+  countdown: 3,
+  car: {
+    radius: 13,
+    accel: 560,
+    brake: 900,
+    maxSpeed: 440,
+    reverseMax: 140,
+    /** radians per second at full lock, once moving */
+    turnRate: 3.1,
+    /** how fast sideways motion bleeds away (per second); a slick cuts it */
+    grip: 7,
+    drag: 0.25,
+    /** a wall: the part of velocity into it is reflected by this much */
+    bounce: 0.35,
+    spinRate: 11,
+  },
+  /** strain is engine heat: top speed lost at full strain (strain ≥ capacity) */
+  heat: 0.3,
+  /** power from what a cast drew: round(powerScale × log2(1 + grant × formEfficiency)), at least 1 (as the Council) */
+  powerScale: 1.2,
+  /** seconds between speakings of the same name */
+  cooldown: 1.1,
+  /** a spin-out from a hit: base + perPower × power seconds, at most max */
+  spin: { base: 0.45, perPower: 0.05, max: 1.3 },
+  forms: {
+    bolt: { speed: 820, turn: 3.2, life: 2.4, seek: 1000 },
+    ring: { radius: 150, push: 34 },
+    ward: { base: 2.5, perPower: 0.35 },
+    lance: { length: 600, width: 26, slowBase: 0.9, slowPer: 0.1, slowMult: 0.55 },
+    nova: { arm: 0.6, life: 25, trigger: 24, blast: 70 },
+    summon: { speed: 560, life: 7 },
+    hex: { life: 12, radiusBase: 34, radiusPer: 2, slideBase: 0.7, slidePer: 0.06 },
+    blink: { base: 90, perPower: 16, max: 340 },
+  },
+  rival: {
+    strength: 14,
+    /** rivals' top speed as a fraction of a car's, + per descent (capped) */
+    skillBase: 0.84,
+    skillSpread: 0.07,
+    skillPerLevel: 0.025,
+    skillMax: 1.02,
+    castMin: 4,
+    castMax: 8,
+    names: 2,
+  },
+  /** finish in this place or better to open the next circuit */
+  podium: 3,
+  /** the race closes this long after the winner crosses */
+  grace: 25,
+  /** tracks: closed loops of control points (world units), smoothed into a road */
+  tracks: [
+    [[500, 500], [1400, 360], [2400, 440], [2900, 900], [2650, 1450], [1950, 1350], [1500, 1750], [800, 1850], [380, 1350]],
+    [[520, 620], [1300, 380], [2100, 560], [2700, 380], [3150, 820], [2800, 1400], [3000, 1950], [2200, 2100], [1650, 1600], [1100, 2050], [500, 1800], [760, 1200]],
+    [[600, 500], [1600, 420], [2500, 700], [2300, 1150], [1500, 1050], [1250, 1450], [2100, 1700], [2800, 1650], [2700, 2250], [1400, 2350], [520, 2000], [380, 1200]],
+  ] as [number, number][][],
+};
+export const RACER_NAMES = ['the Ember Circuit', 'the Tidal Loop', 'the Serpent Road', 'the Glass Mile', 'the Ashen Ring', 'the Veiled Spiral', 'the Last Lap'];
+
+/** One formula for power in every world that turns grants into small game numbers. */
+export function logPower(grant: number, formEfficiency: number, scale: number): number {
+  return Math.max(1, Math.round(scale * Math.log2(1 + grant * formEfficiency)));
+}

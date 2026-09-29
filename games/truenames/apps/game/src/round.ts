@@ -1,7 +1,7 @@
 // The game side of the threshold: a link to a dungeon process. It knows nothing of the sanctum.
 // The dungeon issues a context, receives proofs bound to it, runs the round, and reports what happened.
 import type { ZkNameClaim } from '@truenames/proofs';
-import type { ClientMsg, ServerMsg, Snapshot, BastionSnapshot, CouncilView, CouncilTarget, RoundResultMsg, MoveCmd, WireTraits, World } from '@truenames/dungeon/protocol';
+import type { ClientMsg, ServerMsg, Snapshot, BastionSnapshot, CouncilView, CouncilTarget, RacerSnapshot, RoundResultMsg, MoveCmd, DriveCmd, WireTraits, World } from '@truenames/dungeon/protocol';
 
 /** Issued by the dungeon when a round is opened. Proofs must be bound to its context. */
 export interface RoundTicket {
@@ -26,6 +26,7 @@ export type Welcome = Extract<ServerMsg, { t: 'welcome' }>;
 export type DarkWelcome = Extract<Welcome, { world: 'dark' }>;
 export type BastionWelcome = Extract<Welcome, { world: 'bastion' }>;
 export type CouncilWelcome = Extract<Welcome, { world: 'council' }>;
+export type RacerWelcome = Extract<Welcome, { world: 'racer' }>;
 
 /** How a round talks back to whoever launched it. */
 export interface RoundHost {
@@ -50,6 +51,7 @@ export class DungeonLink {
   onSnapshot: ((s: Snapshot) => void) | null = null;
   onBastion: ((s: BastionSnapshot) => void) | null = null;
   onCouncil: ((v: CouncilView) => void) | null = null;
+  onRacer: ((s: RacerSnapshot) => void) | null = null;
   onEnd: ((r: RoundResult) => void) | null = null;
   onClose: (() => void) | null = null;
   closed = false;
@@ -65,6 +67,7 @@ export class DungeonLink {
       if (m.t === 'snap') return this.onSnapshot?.(m);
       if (m.t === 'bsnap') return this.onBastion?.(m);
       if (m.t === 'cview') return this.onCouncil?.(m);
+      if (m.t === 'rsnap') return this.onRacer?.(m);
       if (m.t === 'end') return this.onEnd?.(m.result);
       if (m.t === 'error') console.warn('[dungeon]', m.message);
       this.waiters = this.waiters.filter((w) => !w(m));
@@ -109,6 +112,7 @@ export class DungeonLink {
   callWave() { this.send({ t: 'call' }); }
   play(card: number, target?: CouncilTarget) { this.send({ t: 'play', card, ...(target ? { target } : {}) }); }
   pass() { this.send({ t: 'pass' }); }
+  drive(cmds: DriveCmd[]) { this.send({ t: 'drive', cmds }); }
   pause(on: boolean) { this.send({ t: 'pause', on }); }
   abandon() { this.send({ t: 'abandon' }); }
   close() { this.ws.close(); }

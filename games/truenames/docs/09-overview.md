@@ -133,6 +133,24 @@ The dungeon hosts several **worlds**. Each admits you by the same proofs and int
 
   - **The Warden is a peer.** It speaks public ancients at your deck's median truths less 3 (never below 14), plus 2 per seat. Strong names don't trivialize the Council the way they do the Bastion. A 40-turn limit ends stalemates as a loss.
 
+- **Dark Racer**: a top-down race, three laps against five AI rivals. WASD or the arrows drive. Your four names are spoken with J K L ; (or space and the mouse buttons, 1 and 2), and each form becomes a racing power:
+
+  | form | on the road |
+  |---|---|
+  | bolt | a seeking bolt at the car ahead; a hit spins it out |
+  | ring | a shockwave that shoves nearby cars |
+  | ward | breaks the next strike, slick or shove |
+  | lance | a beam ahead; every car it touches is slowed |
+  | nova | a mine dropped behind you |
+  | summon | a servant that hunts the leader |
+  | hex | a slick behind you (no grip) |
+  | blink | you reappear further down the road |
+
+  - **Strain is engine heat.** Top speed falls by up to 30% as strain nears capacity, and backlash spins you out. Speaking is the tradeoff: every strike costs pace.
+  - **Power** uses the Council's gentle log curve (`1.2 × log2(1 + grant × efficiency)`). Each name has a 1.1 s cooldown, and vessels still limit how much a name draws.
+  - **Rivals** are AI cars with their own auras. Each carries two public ancients at 14 truths (+2 per circuit) and drives the shared autopilot, pulling out to overtake. Deeper circuits bring faster rivals and different tracks.
+  - Finish in the **top 3** to open the next circuit. The race ends when you finish, when the podium fills without you, or 25 s after the winner.
+
 ## The dungeon is its own process
 Rounds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends movement, aim and casts and draws what the dungeon reports 20 times a second. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. This is the stepping stone to multiplayer: more players are more connections into one simulation.
 

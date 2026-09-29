@@ -14,12 +14,15 @@ import { titleScreen } from './title.ts';
 import { SLOTS, WORLDS, COUNCIL, worldDescentName, type World } from '@truenames/dungeon/balance';
 import { councilScreen } from './council.ts';
 import { bastionScreen } from './bastion.ts';
+import { racerScreen } from './racer.ts';
 import { sigilURL } from '../sigil.ts';
 import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
 import { openSpiritCard } from './spirit-card.ts';
 import { createCodex, type Codex } from './codex.ts';
 
+
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
 
 export function sanctumScreen(app: App): Screen {
   const S = app.services;
@@ -135,12 +138,12 @@ export function sanctumScreen(app: App): Screen {
     const canRun = world() === 'council' ? deck.length > 0 : save.loadout.some((c) => c && S.learned(c));
     (root.querySelector('#run') as HTMLButtonElement).disabled = !canRun;
     const runs = save.runs.slice(-6).reverse();
-    const mark = { dark: '☾', bastion: '⌂', council: '◇' } as const;
+    const mark = { dark: '☾', bastion: '⌂', council: '◇', racer: '➶' } as const;
     root.querySelector('#runs')!.innerHTML = runs.length
       ? runs.map((r) => {
           const w = r.world ?? 'dark';
-          const how = w === 'council' ? (r.won ? '<span class="gold">prevailed</span>' : `<span class="dim">yielded on turn ${r.wave}</span>`) : r.won ? `<span class="gold">${w === 'bastion' ? 'held' : 'survived'}</span>` : `<span class="dim">fell at wave ${r.wave}</span>`;
-          return `<div><span class="faint">${mark[w]} ${(r.descent ?? 0) + 1}</span> ${how} · ${r.kills} ${w === 'council' ? 'creatures broken' : 'banished'}</div>`;
+          const how = w === 'racer' ? `<span class="${r.won ? 'gold' : 'dim'}">finished ${ordinal(r.wave)}</span>` : w === 'council' ? (r.won ? '<span class="gold">prevailed</span>' : `<span class="dim">yielded on turn ${r.wave}</span>`) : r.won ? `<span class="gold">${w === 'bastion' ? 'held' : 'survived'}</span>` : `<span class="dim">fell at wave ${r.wave}</span>`;
+          return `<div><span class="faint">${mark[w]} ${(r.descent ?? 0) + 1}</span> ${how} · ${r.kills} ${w === 'council' ? 'creatures broken' : w === 'racer' ? 'strikes' : 'banished'}</div>`;
         }).join('')
       : '<div class="dim">No walks yet.</div>';
   }
@@ -171,7 +174,7 @@ export function sanctumScreen(app: App): Screen {
     else if (!meditating) msg = `Nothing is being meditated. Names only grow truer while you work on them, even while you sleep.`;
     else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every truth makes each evocation about 1.4× stronger.`;
     const w = world();
-    box.innerHTML = msg || `Your names deepen while you rest. Go deeper when ${w === 'bastion' ? 'the road feels quiet' : 'the dark feels thin'}: ${worldDescentName(w, progress(w).descent)} is open to you.`;
+    box.innerHTML = msg || `Your names deepen while you rest. Go deeper when ${w === 'bastion' ? 'the road feels quiet' : w === 'racer' ? 'the podium feels easy' : 'the dark feels thin'}: ${worldDescentName(w, progress(w).descent)} is open to you.`;
   }
 
   function renderAll() {
@@ -205,7 +208,7 @@ export function sanctumScreen(app: App): Screen {
     if (w === 'dark') { save.descent = p.descent; save.lastDescent = p.last; }
     else { save.worlds ??= {}; save.worlds[w] = p; }
   };
-  const WALK_LABEL: Record<World, string> = { dark: 'Walk into the dark', bastion: 'Hold the bastion', council: 'Take your seat' };
+  const WALK_LABEL: Record<World, string> = { dark: 'Walk into the dark', bastion: 'Hold the bastion', council: 'Take your seat', racer: 'Take the starting line' };
 
   function renderWorld() {
     const w = world();
@@ -241,6 +244,12 @@ export function sanctumScreen(app: App): Screen {
         'Only temper and truth cross the threshold. The dwelling stays yours.',
         'Each name is weighed, not heard.',
         'The road is long. Every shrine will speak in your voice.',
+      ],
+      racer: [
+        'The road will know what your names can do. Never where their spirits dwell.',
+        'Only temper and truth cross the threshold. The dwelling stays yours.',
+        'Each name is weighed, not heard.',
+        'Five rivals warm their engines on the names of ancients.',
       ],
       council: [
         'The council will see your names as cards: what they do, never where they dwell.',
@@ -303,7 +312,7 @@ export function sanctumScreen(app: App): Screen {
       cancelAnimationFrame(raf);
       clearInterval(rotating);
       console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-      msg(w === 'bastion' ? 'The bastion weighs your names…' : w === 'council' ? 'The council weighs your names…' : 'The dark weighs your names…');
+      msg(w === 'bastion' ? 'The bastion weighs your names…' : w === 'council' ? 'The council weighs your names…' : w === 'racer' ? 'The road weighs your names…' : 'The dark weighs your names…');
       const welcome = await link.enter(journey);
       const host: RoundHost = {
         report(r) {
@@ -317,7 +326,7 @@ export function sanctumScreen(app: App): Screen {
         leave: () => app.go(sanctumScreen(app)),
         toast: (html, color) => app.toast(html, color),
       };
-      app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : welcome.world === 'council' ? councilScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
+      app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : welcome.world === 'council' ? councilScreen(link, welcome, journey, host) : welcome.world === 'racer' ? racerScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
     } catch (err) {
       clearInterval(rotating);
       link.close();
