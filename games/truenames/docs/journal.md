@@ -386,3 +386,15 @@ Robby, choosing among world ideas: "I like the council. It'll be easy on the pro
   3. Result: a greedy bot won the Lesser Council in 5 of its turns, taking one hit. That's gentle for the first seat, which is intended; deeper seats need real play to tune.
 - **Design note:** matching the Warden to your deck means truths buy *options* in the Council (costlier, stronger cards; more forms in the deck), not dominance. It's the opposite choice from the Bastion's, on purpose, and worth watching in play.
 - Tests: `council.test.ts` (real proofs): cards dealt with the Warden's hand hidden; plays resolve, turns alternate and the Warden acts; a whole duel ends. 46 tests total.
+
+### Council fixes after first play, plus threshold vessels
+- **"The game doesn't seem to play? What should I be clicking?"** (Robby). With a strong deck, every card cost 3 against a starting voice of 1: turns 1–2 had *nothing* playable, every card was dimmed, and nothing said to end the turn. Fixes:
+  - **Cost is relative to the table**, not absolute truths: `1 + ⌊(truths − table − 3)/4⌋` (+1 summon/nova), where the table is the Warden's peer level (your deck's median − 3). Most of your deck costs 1, and only names well above your median cost more, so every deck has an opening.
+  - **A status line always says what to do** ("click a lit card… the number is its voice cost; you have N", "now click the Warden…", "your voice is spent: end your turn"). **End turn pulses** when nothing is playable. Card tooltips state the cost. While aiming, only the Warden's side is outlined as a target.
+  - Verified with real pointer clicks (not DOM `.click()`), card → Warden: 40 → 30.
+- **Threshold vessels** (Robby: "several containers which are filling, especially now that it has parallelization"). The threshold shows one vessel per name, with its seal and element color:
+  - **queued**: dim and empty
+  - **speaking**: liquid rises with a shimmer; the main line names every proof in flight ("A, B, C are spoken…")
+  - **spoken**: brims full with a glow pulse
+  - **refused**: red and struck through
+  - A proof reports no progress, so the fill eases toward a **remembered proof time** (an EMA of real proof durations in `localStorage`, `truenames-prove-ms`). It runs linearly to 88% at the estimate, then creeps. `prepareJourney` now emits `begin/start/done` events, and the worker pool reports when a job actually starts on a worker.

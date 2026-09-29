@@ -5,7 +5,7 @@ import type { Journey, RoundTicket } from './round.ts';
 import type { ZkNameClaim } from '@truenames/proofs';
 import { spiritOf } from './save.ts';
 import { SLOTS, COUNCIL } from '@truenames/dungeon/balance';
-import { spiritName } from './lore.ts';
+import { spiritName, type SpiritLike } from './lore.ts';
 import ProverWorker from './prover.worker.ts?worker';
 
 export interface ProveJob {
@@ -23,7 +23,7 @@ export type ProveReply = { id: number; ok: true; claim: ZkNameClaim; ms: number 
 // A small pool of prover workers: names are proven in parallel (a Council deck can hold twelve).
 const PROVERS = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
 const workers: { w: Worker; busy: boolean }[] = [];
-const queue: { job: ProveJob; res: (r: ProveReply) => void }[] = [];
+const queue: { job: ProveJob; res: (r: ProveReply) => void; started?: () => void }[] = [];
 let seq = 0;
 const waiting = new Map<number, (r: ProveReply) => void>();
 
@@ -41,16 +41,17 @@ function pump() {
   }
   for (const slot of workers) {
     if (slot.busy || !queue.length) continue;
-    const { job, res } = queue.shift()!;
+    const { job, res, started } = queue.shift()!;
     slot.busy = true;
+    started?.();
     waiting.set(job.id, res);
     slot.w.postMessage(job);
   }
 }
 
-function prove(job: Omit<ProveJob, 'id'>): Promise<ProveReply> {
+function prove(job: Omit<ProveJob, 'id'>, started?: () => void): Promise<ProveReply> {
   return new Promise((res) => {
-    queue.push({ job: { ...job, id: ++seq }, res });
+    queue.push({ job: { ...job, id: ++seq }, res, started });
     pump();
   });
 }
@@ -61,14 +62,23 @@ function boundFor(app: App, world: RoundTicket['world']): { cell: string; slot: 
   return cells.map((cell, slot) => ({ cell, slot })).filter((b): b is { cell: string; slot: number } => !!b.cell && app.services.learned(b.cell));
 }
 
+/** How long one proof takes here, remembered across walks (a proof reports no progress, so the wait is estimated). */
+const EST_KEY = 'truenames-prove-ms';
+let estMs = (() => { try { return Number(localStorage.getItem(EST_KEY)) || 6000; } catch { return 6000; } })();
+export const proofEstimateMs = () => estMs;
+
+export type ThresholdEvent =
+  | { t: 'begin'; names: { slot: number; name: string; spirit: SpiritLike }[] }
+  | { t: 'start'; slot: number }
+  | { t: 'done'; slot: number; ok: boolean };
+
 /** Prove every learned name this world carries. Names are locked in as of now. */
-export async function prepareJourney(app: App, ticket: RoundTicket, onProgress: (done: number, total: number, name?: string) => void): Promise<Journey> {
+export async function prepareJourney(app: App, ticket: RoundTicket, onEvent: (e: ThresholdEvent) => void): Promise<Journey> {
   const save = app.save;
   const aura = save.aura!;
   const bound = boundFor(app, ticket.world);
   const bundle: Journey['bundle'] = [];
-  let done = 0;
-  onProgress(0, bound.length);
+  onEvent({ t: 'begin', names: bound.map((b) => { const sp = spiritOf(save, b.cell)!; return { slot: b.slot, name: spiritName(sp), spirit: sp }; }) });
   await Promise.all(bound.map(async (b) => {
     const rec = save.names[b.cell]!;
     const sp = spiritOf(save, b.cell)!;
@@ -79,10 +89,13 @@ export async function prepareJourney(app: App, ticket: RoundTicket, onProgress: 
       magnitude: sp.magnitude,
       strength: rec.strength,
       context: ticket.context.toString(),
-    });
-    if (r.ok) bundle.push({ slot: b.slot, claim: r.claim });
-    else app.toast(`A name would not be spoken: ${r.error}`, '#ff7a6b');
-    onProgress(++done, bound.length, spiritName(sp));
+    }, () => onEvent({ t: 'start', slot: b.slot }));
+    if (r.ok) {
+      bundle.push({ slot: b.slot, claim: r.claim });
+      estMs = estMs * 0.7 + r.ms * 0.3;
+      try { localStorage.setItem(EST_KEY, String(Math.round(estMs))); } catch { /* estimate only */ }
+    } else app.toast(`A name would not be spoken: ${r.error}`, '#ff7a6b');
+    onEvent({ t: 'done', slot: b.slot, ok: r.ok });
   }));
   bundle.sort((a, b) => a.slot - b.slot);
   const cosmetics: Journey['cosmetics'] = Array.from({ length: Math.max(SLOTS.length, bound.length) }, () => null);

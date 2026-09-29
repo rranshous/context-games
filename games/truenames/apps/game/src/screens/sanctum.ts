@@ -9,7 +9,7 @@ import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
 import { DungeonLink, type RoundHost } from '../round.ts';
-import { prepareJourney } from '../threshold.ts';
+import { prepareJourney, proofEstimateMs } from '../threshold.ts';
 import { titleScreen } from './title.ts';
 import { SLOTS, WORLDS, COUNCIL, worldDescentName, type World } from '@truenames/dungeon/balance';
 import { councilScreen } from './council.ts';
@@ -224,6 +224,7 @@ export function sanctumScreen(app: App): Screen {
     const overlay = frag(`<div class="overlay threshold"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
       <div class="prose" id="th-msg" style="font-size:20px">The way opens…</div>
       <div class="dim" id="th-sub" style="font-style:italic; min-height:1.5em; transition:opacity .6s"></div>
+      <div class="vessels" id="th-v"></div>
       <div class="bitsbig" id="th-n" style="font-size:22px"></div></div>`);
     root.appendChild(overlay);
     const msg = (t: string) => { overlay.querySelector('#th-msg')!.innerHTML = t; };
@@ -257,14 +258,52 @@ export function sanctumScreen(app: App): Screen {
     try {
       const ticket = await link.open(level, w);
       const t0 = performance.now();
-      const journey = await prepareJourney(app, ticket, (done, total, name) => {
-        if (name) msg(`<em>${esc(name)}</em> is spoken…`);
-        else msg('Your names are spoken at the threshold…');
+      // one vessel per name: it fills while its proof runs (eased toward the remembered proof time) and brims when proven
+      const started = new Map<number, number>();
+      const names = new Map<number, string>();
+      let done = 0, total = 0;
+      const est = proofEstimateMs();
+      const vessel = (slot: number) => overlay.querySelector(`[data-v="${slot}"]`) as HTMLElement | null;
+      let raf = 0;
+      const fill = () => {
+        const now = performance.now();
+        for (const [slot, at] of started) {
+          const t = (now - at) / est;
+          const k = t < 1 ? 0.88 * t : 0.88 + 0.1 * (1 - Math.exp(1 - t));
+          const liq = vessel(slot)?.querySelector('.liquid') as HTMLElement | null;
+          if (liq) liq.style.height = `${(100 * k).toFixed(1)}%`;
+        }
+        raf = requestAnimationFrame(fill);
+      };
+      raf = requestAnimationFrame(fill);
+      const speaking = () => [...started.keys()].map((sl) => `<em>${esc(names.get(sl)!)}</em>`);
+      const journey = await prepareJourney(app, ticket, (e) => {
+        if (e.t === 'begin') {
+          total = e.names.length;
+          overlay.querySelector('#th-v')!.innerHTML = e.names.map((n) => `<div class="vessel queued" data-v="${n.slot}" style="--c:${ELEMENT_COLOR[n.spirit.element]}">
+            <img src="${sigilURL(n.spirit)}" alt=""><div class="flask"><i class="liquid"></i></div><div class="vname">${esc(n.name)}</div></div>`).join('');
+          for (const n of e.names) names.set(n.slot, n.name);
+          msg('Your names are spoken at the threshold…');
+        } else if (e.t === 'start') {
+          started.set(e.slot, performance.now());
+          vessel(e.slot)?.classList.replace('queued', 'speaking');
+        } else {
+          started.delete(e.slot);
+          done++;
+          const v = vessel(e.slot);
+          v?.classList.remove('speaking', 'queued');
+          v?.classList.add(e.ok ? 'spoken' : 'refused');
+          const liq = v?.querySelector('.liquid') as HTMLElement | null;
+          if (liq) liq.style.height = e.ok ? '100%' : '0%';
+        }
+        const now = speaking();
+        if (e.t !== 'begin' && now.length) msg(`${now.join(', ')} ${now.length > 1 ? 'are' : 'is'} spoken…`);
         overlay.querySelector('#th-n')!.textContent = `${done} / ${total}`;
       });
+      cancelAnimationFrame(raf);
       clearInterval(rotating);
       console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-      msg(w === 'bastion' ? 'The bastion weighs your names…' : 'The dark weighs your names…');
+      msg(w === 'bastion' ? 'The bastion weighs your names…' : w === 'council' ? 'The council weighs your names…' : 'The dark weighs your names…');
       const welcome = await link.enter(journey);
       const host: RoundHost = {
         report(r) {

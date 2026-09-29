@@ -70,8 +70,12 @@ export class CouncilSim {
     const deck: Card[] = [];
     slots.forEach((s, slot) => {
       if (!s) return;
-      deck.push({ id: this.nextId++, slot, element: s.element, magnitude: s.magnitude, form: s.form, traits: s.traits, strength: s.strength, cost: this.costOf(s.form, s.strength), spirit: s.spirit, generosity: s.generosity });
+      deck.push({ id: this.nextId++, slot, element: s.element, magnitude: s.magnitude, form: s.form, traits: s.traits, strength: s.strength, cost: 0, spirit: s.spirit, generosity: s.generosity });
     });
+    // the table's truths: the Warden sits at your deck's median less wardenLag; costs count truths above it
+    const mine = deck.map((c) => c.strength).sort((a, b) => a - b);
+    this.table = Math.max(C.wardenStrength, (mine.length ? mine[mine.length >> 1]! : 0) - C.wardenLag);
+    for (const c of deck) c.cost = this.costOf(c.form, c.strength);
     this.seats[0] = this.newSeat(0, aura, deck, false);
     this.seats[1] = this.wardenSeat();
     return { slots: publicSlots(slots), refused };
@@ -96,6 +100,7 @@ export class CouncilSim {
 
   /** Turn-based: time only matters for the Warden's pacing. */
   private aiT = 0;
+  private table: number = C.wardenStrength;
   step(dt: number) {
     if (!this.started || this.paused || this.over) return;
     if (this.seats[this.active]!.ai) {
@@ -137,7 +142,7 @@ export class CouncilSim {
   // ---------- rules ----------
 
   private costOf(form: number, strength: number) {
-    return 1 + Math.floor(Math.max(0, strength - C.costFree) / C.costTruths) + (form === FORM.summon || form === FORM.nova ? 1 : 0);
+    return 1 + Math.floor(Math.max(0, strength - this.table - C.wardenLag) / C.costTruths) + (form === FORM.summon || form === FORM.nova ? 1 : 0);
   }
 
   private newSeat(seat: number, aura: string, deck: Card[], ai: boolean): Seat {
@@ -146,9 +151,7 @@ export class CouncilSim {
 
   private wardenSeat(): Seat {
     const aura = 'npc:council-warden';
-    const mine = (this.seats[0]?.deck ?? []).map((c) => c.strength).sort((a, b) => a - b);
-    const median = mine.length ? mine[mine.length >> 1]! : 0;
-    const strength = Math.max(C.wardenStrength, median - C.wardenLag) + B.descent.shamanBits * this.level;
+    const strength = this.table + B.descent.shamanBits * this.level;
     const deck: Card[] = C.wardenDeck.map((cell, slot) => {
       const sp = spiritAt(cell)!;
       this.auth.grantSyntheticName(aura, cell, strength);

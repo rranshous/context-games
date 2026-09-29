@@ -139,9 +139,8 @@ export const COUNCIL = {
   handMax: 7,
   boardMax: 5,
   voiceStart: 1,
-  /** voice to speak a name: 1 + one per costTruths truths above costFree, +1 for summon and nova */
-  costFree: 12,
-  costTruths: 6,
+  /** voice to speak a name: 1 + one per costTruths truths above your deck's median, +1 for summon and nova */
+  costTruths: 4,
   voiceMax: 8,
   /** authority ticks between turns: strain ebbs (×0.9 each) and vessels refill */
   ticksPerTurn: 5,

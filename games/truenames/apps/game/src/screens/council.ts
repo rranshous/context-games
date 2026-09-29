@@ -117,7 +117,7 @@ export function councilScreen(link: DungeonLink, welcome: CouncilWelcome, journe
     const mine = seat === me;
     const lifeK = Math.max(0, s.life / s.lifeMax);
     const cap = Math.max(s.capacity * 1.6, s.strain * 1.05, 0.01);
-    return `<div class="cseat ${mine ? 'mine' : 'theirs'} ${targeting ? 'targetable' : ''}" data-face="${seat}" data-tip="=${mine ? 'You.' : 'The Warden of the council: it plays the names of ancient spirits.'} Life, ward, voice and strain.${targeting ? ' <em>Click to target.</em>' : ''}">
+    return `<div class="cseat ${mine ? 'mine' : 'theirs'} ${targeting && !mine ? 'targetable' : ''}" data-face="${seat}" data-tip="=${mine ? 'You.' : 'The Warden of the council: it plays the names of ancient spirits.'} Life, ward, voice and strain.${targeting && !mine ? ' <em>Click to target.</em>' : ''}">
       <div class="cseat-name">${mine ? 'You' : `the Warden of ${esc(worldDescentName('council', level))}`}${view!.active === seat ? ' <span class="gold">· speaking</span>' : ''}</div>
       <div class="cbar"><i style="width:${(100 * lifeK).toFixed(1)}%"></i></div>
       <div class="cseat-row"><span class="mono">life ${Math.max(0, s.life)}</span>${s.shield ? `<span class="mono" style="color:#cfe8ff">ward ${s.shield}</span>` : ''}
@@ -141,7 +141,7 @@ export function councilScreen(link: DungeonLink, welcome: CouncilWelcome, journe
     const p = estimate(c);
     const vessel = v.vessels[c.id];
     return `<div class="ccard ${canPlay ? 'playable' : 'dim-card'} ${targeting?.id === c.id ? 'aiming' : ''}" data-card="${c.id}" style="--c:${colorOf(c.element)}"
-      data-tip="=<b style='color:${colorOf(c.element)}'>${esc(spiritName(sp))}</b>: ${FORMS[c.form]!.name}. ${CARD_TEXT[c.form]!(p)}<br>Power is what the name actually draws when spoken: your truths, less your strain, limited by the patron's vessel (the bar), which refills between turns.">
+      data-tip="=<b style='color:${colorOf(c.element)}'>${esc(spiritName(sp))}</b>: ${FORMS[c.form]!.name}. ${CARD_TEXT[c.form]!(p)}<br>It costs <b>${c.cost}</b> voice.<br>Power is what the name actually draws when spoken: your truths, less your strain, limited by the patron's vessel (the bar), which refills between turns.">
       <div class="ccost">${c.cost}</div>
       <img src="${sigilURL(sp, 64)}" alt="">
       <div class="cname">${esc(spiritName(sp))}</div>
@@ -156,17 +156,23 @@ export function councilScreen(link: DungeonLink, welcome: CouncilWelcome, journe
     const v = view;
     const board = (seat: number) => v.board.filter((c) => c.seat === seat).map(creatureHtml).join('') || '<div class="faint cempty">no servants</div>';
     const yourTurn = v.active === me && !over;
+    const voice = v.seats[me]!.voice;
+    const canPlayAny = v.hand.some((c) => c.cost <= voice);
+    const status = !yourTurn ? 'The Warden is speaking. Wait for your turn.'
+      : targeting ? 'Now click the Warden, or a creature, to aim it. Right-click or Esc cancels.'
+      : canPlayAny ? `Your turn: click a lit card to speak it (the number in its corner is its voice cost; you have ${voice}). End your turn when you're done.`
+      : voice === 0 ? 'Your voice is spent. End your turn: it returns, one stronger, next turn.'
+      : `No name in your hand fits your voice (${voice}). End your turn: your voice grows by one each turn.`;
     root.querySelector('#ctable')!.innerHTML = `
       ${seatHtml(1 - me)}
       <div class="cboard">${board(1 - me)}</div>
       <div class="cmid">
-        <div class="clog">${log.slice(-5).map((l) => `<div>${l}</div>`).join('')}</div>
-        <button class="primary" id="cpass" ${yourTurn ? '' : 'disabled'} data-tip="=End your turn: your servants strike, strain ebbs and vessels refill.">${yourTurn ? (targeting ? 'choose a target…' : 'End turn') : 'The Warden speaks…'}</button>
+        <div class="clog"><div class="cstatus">${status}</div>${log.slice(-5).map((l) => `<div>${l}</div>`).join('')}</div>
+        <button class="primary ${yourTurn && !canPlayAny && !targeting ? 'nudge' : ''}" id="cpass" ${yourTurn ? '' : 'disabled'} data-tip="=End your turn: your servants strike, strain ebbs and vessels refill.">${yourTurn ? (targeting ? 'choose a target…' : 'End turn') : 'The Warden speaks…'}</button>
       </div>
       <div class="cboard">${board(me)}</div>
       ${seatHtml(me)}
       <div class="chand">${v.hand.map(cardHtml).join('') || '<div class="dim">Your hand is empty.</div>'}</div>`;
-    if (journey.newcomer) root.querySelector('#chint')!.textContent = 'Click a card to speak it (bolts, lances and hexes then need a target). End your turn to let your servants strike. Esc pauses.';
   }
 
   function end(result: RoundResult) {
