@@ -21,15 +21,21 @@ interface ChatMsg { role: 'system' | 'user' | 'assistant' | 'tool'; content: str
 
 // Terse tools (local models break on long tool descriptions; see the local-ai findings).
 const TOOLS = [
-  fn('add_aim', 'Add an aim to the end of the plan.', {
-    kind: { type: 'string', enum: ['deepen', 'grasp', 'seek'], description: 'seek: search an element at a depth to find new beings. grasp: meditate on beings already found (any element) until a word is grasped. deepen: make held words truer.' },
-    count: { type: 'integer', description: 'deepen/grasp: how many at a time (1-12). seek: stop after this many beings are known (0 = never stop).' },
-    to: { type: 'integer', description: 'deepen: target truths (22-50).' },
-    words: { type: 'string', enum: ['bound', 'all'], description: 'deepen: which words.' },
-    element: { type: 'string', enum: [...ELEMENT_NAMES], description: 'seek: which element of the astral.' },
-    depth: { type: 'integer', description: 'seek: 12 wisps, 13 spirits, 14 powers, 15 dominions, 16 gods.' },
-    class: { type: 'string', enum: CLASSES, description: 'seek: count beings this mighty or more. grasp: mightiest to grasp.' },
-  }, ['kind']),
+  fn('seek', 'Add an aim: search an element at a depth for new beings.', {
+    element: { type: 'string', enum: [...ELEMENT_NAMES] },
+    depth: { type: 'integer', description: '12 wisps, 13 spirits, 14 powers, 15 dominions, 16 gods' },
+    count: { type: 'integer', description: 'stop once this many are known there (0 = never stop)' },
+    class: { type: 'string', enum: CLASSES, description: 'count only beings this mighty or more' },
+  }, ['element', 'depth']),
+  fn('grasp', 'Add an aim: meditate on beings already found until their first word is grasped.', {
+    count: { type: 'integer', description: 'how many beings at a time (1-12)' },
+    class: { type: 'string', enum: CLASSES, description: 'mightiest class to grasp' },
+  }, []),
+  fn('deepen', 'Add an aim: make held words truer.', {
+    words: { type: 'string', enum: ['bound', 'all'] },
+    count: { type: 'integer', description: 'how many words at a time (1-12)' },
+    to: { type: 'integer', description: 'target truths (22-50)' },
+  }, ['to']),
   fn('remove_aim', 'Remove aim number n.', { n: { type: 'integer' } }, ['n']),
   fn('move_aim', 'Move aim number n to position to (1 = first, highest priority).', { n: { type: 'integer' }, to: { type: 'integer' } }, ['n', 'to']),
   fn('set_share', 'Set the share of the hum for aim n (1-8).', { n: { type: 'integer' }, share: { type: 'integer' } }, ['n', 'share']),
@@ -173,23 +179,16 @@ export class Actant {
     const aimAt = (n: unknown) => aims[int(n, 0) - 1];
     const cls = (v: unknown, d: number) => { const i = CLASSES.indexOf(String(v ?? '').toLowerCase()); return i >= 0 ? i : d; };
     switch (name) {
-      case 'add_aim': {
-        const kind = String(a.kind);
+      case 'seek': case 'grasp': case 'deepen': {
         let spec: AimSpec;
-        if (kind === 'deepen') spec = { kind: 'deepen', words: a.words === 'all' ? 'all' : 'bound', count: Math.max(1, Math.min(12, int(a.count, 3))), to: Math.max(22, Math.min(60, int(a.to, 29))), share: 2 };
-        else if (kind === 'grasp') spec = { kind: 'grasp', count: Math.max(1, Math.min(12, int(a.count, 2))), maxMight: cls(a.class, 2), share: 2 };
-        else if (kind === 'seek') {
+        if (name === 'deepen') spec = { kind: 'deepen', words: a.words === 'all' ? 'all' : 'bound', count: Math.max(1, Math.min(12, int(a.count, 3))), to: Math.max(22, Math.min(60, int(a.to, 29))), share: 2 };
+        else if (name === 'grasp') spec = { kind: 'grasp', count: Math.max(1, Math.min(12, int(a.count, 2))), maxMight: cls(a.class, 2), share: 2 };
+        else {
           const el = ELEMENT_NAMES.indexOf(String(a.element ?? '').toLowerCase() as never);
+          if (el < 0) return `error: element must be one of ${ELEMENT_NAMES.join(', ')}. Nothing was added.`;
           const depth = Math.max(12, Math.min(19, int(a.depth, 12)));
           const count = Math.max(0, int(a.count, 1));
-          spec = { kind: 'seek', prefix: el >= 0 ? String(el) : '', depth, until: count > 0 ? { count, minMight: cls(a.class, depth - 12) } : null, share: 2 };
-        } else return 'error: kind must be deepen, grasp or seek';
-        // refuse rather than guess: arguments that belong to another kind mean the model meant that kind
-        const used: Record<string, string[]> = { deepen: ['kind', 'count', 'to', 'words'], grasp: ['kind', 'count', 'class'], seek: ['kind', 'count', 'element', 'depth', 'class'] };
-        const stray = Object.keys(a).filter((k) => a[k] !== undefined && a[k] !== '' && a[k] !== null && !used[kind]!.includes(k));
-        if (stray.length) {
-          const meant = (['deepen', 'grasp', 'seek'] as const).find((k) => k !== kind && stray.every((x) => used[k]!.includes(x)));
-          return `error: ${kind} does not take ${stray.join(', ')}.${meant ? ` Did you mean kind ${meant}?` : ''} Nothing was added.`;
+          spec = { kind: 'seek', prefix: String(el), depth, until: count > 0 ? { count, minMight: cls(a.class, depth - 12) } : null, share: 2 };
         }
         const same = aims.findIndex((x) => !x.done && describeAim(x) === describeAim(spec));
         if (same >= 0) return `already in the plan as #${same + 1}. Nothing was added.`;
