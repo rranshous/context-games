@@ -54,6 +54,15 @@ Roughly in order; each is independently useful.
 8. **The choir: actants as players** (shape agreed 2026-10-01; slices not yet planned). A **chorister** is a full game instance with its own head (a window), its own aura and words, and a mind running on a local model (ollama). It can meditate for you (it grinds words on your aura; you sign them), meditate for itself, and play in the worlds through policy code it writes and rewrites itself (the embodied-soma pattern). Run it on the same machine or others; more machines is more compute, which is the point: **compute is the capability ceiling**. A choir hub (shared signs, a work board, chat) lives in whichever instance hosts.
 9. **Ledger (optional).** For names and discoveries, never for real-time play.
 
+## Actants and choirs: next (Robby, 2026-10-01)
+- **Same frame, same game**: actants and humans use the same sanctum, plan operations, choir and worlds. A hard rule.
+- **Smaller models**: try `lfm2.5-350m` and `lfm2.5-2.6b` (from local-ai's findings) against qwen3:8b. A 350m-class actant could ship with the game.
+- **Choirs over the Internet**: WebRTC data channels, a rendezvous-only server plus a relay, chat and signs signed and encrypted by auras. No open home ports, no trusted server.
+- **LAN discovery**: mDNS; "choirs nearby".
+- **Invites**: a link or code that spins up a choir member on a friend's spare machine.
+- **Churches and guilds**: a church's choir of members' choristers, or a choir of choirs. What pooled hum buys an order, and what it costs a member.
+- **Race telemetry** for actants to reflect on (lap times, spins, words spoken), so the driving-code rewrite loop has something to work with.
+
 ## What must not change
 - Spec v1 hashing, cell encoding, trait decoding, `target`, `bits` (or it's a new universe, which could be a lore event, "the Sundering").
 - The `Authority`, `NameVerifier` and `ProofVerifier` interfaces (extend, don't break).
