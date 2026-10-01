@@ -518,3 +518,30 @@ Robby's answers to the draft, which shape the ideaset for the rewrite:
 - **Next asks (Robby):**
   - **Names for compute tiers**, "like the diff between an acolyte and a grand master in the church, it's ultimately compute."
   - **Do words of power encode their power level?** "i guess the ZKP makes that question hit diff then if this were a classic state setup."
+- **Compute ranks (agreed).** A church-style rank that is really meditation speed, spaced 16× apart (one class of being per rank). "An adept grasps a god's word as fast as an acolyte grasps a dominion's."
+
+  | rank | speed | roughly | a god's first word | a primordial's |
+  |---|---|---|---|---|
+  | Initiate | ~2.5k/s | an old laptop | ~4 years | — |
+  | Acolyte | ~40k/s | a good desktop's full hum (Robby's) | ~3 months | ~900 years |
+  | Adept | ~600k/s | a gaming graphics card | ~6 days | ~55 years |
+  | Magus | ~10M/s | a rig of graphics cards | ~9 h | ~3½ years |
+  | Hierophant | ~150M/s | a rack | ~35 min | ~80 days |
+  | Grand Master | ~2.5B/s | a data center | ~2 min | ~5 days |
+
+  Grand masters could grasp a primordial's word in days; what keeps primordials mythic is the *search* (only ~128 exist, and the deep is vast).
+- **What a word encodes (agreed).** A word alone is just a number. Hashed with the being's sign and the speaker's aura, it yields its truths and which facet it touched. The being's class comes from the sign alone. A word's power is relative to its being: **resonance** = truths − the being's bar. Power = the being's might + the word's resonance. With proofs, a world sees only a sealed statement ("a word for a god-class facet, of this form, resonating at least this much, held by this aura"); neither the sign nor the word leaves the player's machine.
+- **Go:** "lets make sure it's all in the journal and then get implementing!"
+
+## Spec v2: the rewrite (2026-10-01)
+Decisions I'm making where the worldbuilding left details open (to revisit with Robby):
+- **Outliers 1 in 16 per class.** Might = `(depth − 12) + ⌊(bits − target) / 4⌋`. "One in eight" was too common; 1 in 16 was my proposal.
+- **Facets** = might + 1, capped at 8.
+  - **Facet forms are distinct.** Facet *f* has form `(b + f·s) mod 8`, with `b` (3 bits) and an odd step `s` from the trait hash, so no being repeats a form and a primordial has all eight.
+  - Weight, generosity and temper stay properties of the whole being.
+- **A word** is still `Poseidon(TAG_NAME, digest, auraField, nonce)`.
+  - Truths = its difficulty bits.
+  - The facet it touched = the hash's low 16 bits mod the being's facet count (independent of the leading bits that set truths).
+  - Grasped when truths ≥ **bar(might) = 22 + 4·might**.
+- **Two facets of one being share one vessel** (the being lends its power once). A world refuses the same (being, facet) twice, not the same being.
+- **Power across tiers.** The cast cap stays exponential in raw truths, rebased so a fresh wisp word casts what a fresh 12-truth name did (`capRef 12 → 22`, `capThreshold 12 → 22`). Since the bar rises 4 truths per class, a fresh word's cap rises ×4 per class, and vessels follow (`poolExp 0.5 → 2`). This is the steeper curve between tiers Robby asked for: a fresh god word draws ~256× a fresh wisp word.
