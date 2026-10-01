@@ -80,7 +80,7 @@ export function attuneScreen(app: App): Screen {
       const root = frag(`<div class="center-screen">
         <img src="${sigilURL(god, 128)}" width="128" height="128" alt="" style="filter: drop-shadow(0 0 12px rgba(255,122,61,.5))">
         <h1 style="font-size:26px; color:var(--gold)">Attunement</h1>
-        <div class="prose">Every apprentice's first word is spoken to <em>the hearth</em>: <em>${spiritTitle(god)}</em>, a wisp whose sign every household keeps. It has dwelt at <span class="mono">${HEARTH_GOD}</span> (${addressOf(HEARTH_GOD)}) since before the first scholar.<br><br>A word of power is never the same in two mouths. Yours must come through your own meditation, and it is yours once it holds <em>${truths(bar)}</em>. It takes a little while; mightier beings ask far more.</div>
+        <div class="prose">Every apprentice's first word is spoken to <em>the hearth</em>, <em>${spiritTitle(god)}</em>, whose sign every household keeps. It has dwelt at <span class="mono">${HEARTH_GOD}</span> (${addressOf(HEARTH_GOD)}) since before the first scholar.<br><br>A word of power is never the same in two mouths. Yours must come through your own meditation, and it is yours once it holds <em>${truths(bar)}</em>. It takes a little while; mightier beings ask far more.</div>
         <div class="chant" id="chant" data-tip="runes"></div>
         <div class="bitsbig" id="bits" data-tip="truths">0</div>
         <div class="dim" id="status">meditating…</div>

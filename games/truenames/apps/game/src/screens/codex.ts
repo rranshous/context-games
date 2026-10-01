@@ -24,14 +24,14 @@ export function defaultCodexView(): CodexView {
 const STATUS: Record<CodexView['status'], string> = {
   any: 'any state',
   meditating: 'meditating',
-  seeking: 'meditating, not yet learned',
-  unnamed: 'never meditated',
+  seeking: 'meditating, no word grasped yet',
+  unnamed: 'no word yet',
   bound: 'bound to a slot',
-  unbound: 'learned but not bound',
+  unbound: 'grasped but not bound',
   focused: 'in focus',
 };
 const SORTS: Record<CodexView['sort'], string> = {
-  truth: 'truest name',
+  truth: 'truest word',
   might: 'mightiest',
   newest: 'newest found',
   soonest: 'next truth soonest',
@@ -55,7 +55,7 @@ export function createCodex(app: App, host: HTMLElement, fresh: Set<string>): Co
   host.innerHTML = `
     <div class="codex-tabs" id="cx-tabs"></div>
     <div class="codex-filters">
-      <input id="cx-q" type="search" placeholder="search names, aspects, traditions, divisions…" data-tip="=Search by spirit name, element, aspect, tradition, form or division.">
+      <input id="cx-q" type="search" placeholder="search beings, aspects, traditions, forms, divisions…" data-tip="=Search by a being's name, element, aspect, tradition, might, form or division.">
       <div class="chips" id="cx-el"></div>
       <div class="chips" id="cx-form"></div>
       <div class="cx-row">
@@ -173,7 +173,7 @@ export function createCodex(app: App, host: HTMLElement, fresh: Set<string>): Co
       <img class="csig" src="${sigilURL(sp)}" alt="" data-card="${sp.cell}" data-tip="card">
       <div class="cmain">
         <div class="cl1"><span class="nm" data-card="${sp.cell}" data-tip="card">${esc(spiritName(sp))}</span>
-          <span class="dim" data-tip="magnitude">${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)}</span>${sp.cell === HEARTH_GOD ? ' <i class="dim">· the hearth-god</i>' : ''}</div>
+          <span class="dim" data-tip="magnitude">${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)}</span>${sp.cell === HEARTH_GOD ? ' <i class="dim">· the hearth</i>' : ''}</div>
         <div class="cl2"><span data-tip="weight">${weightWord(t.weightIdx)}</span> · <span data-tip="generosity">${generosityWord(t.generosityIdx)}</span> · <span data-tip="temper">${TEMPERS[t.temperIdx]}</span> · <span class="faint" data-tip="address">${ELEMENT_GLYPH[sp.element]} ${sp.cell}</span></div>
         <div class="facets">${words.map((w) => facetChip(sp, w)).join('')}</div>
         ${s ? `<div class="bar thin" data-tip="=Your truest word for this being. The mark is its bar, ${truths(bar)}, where a word is grasped; truths beyond it are resonance."><i style="width:${Math.min(100, (100 * s) / (bar + BAR_SPAN))}%"></i><span class="mark" style="left:${(100 * bar) / (bar + BAR_SPAN)}%"></span></div>` : ''}

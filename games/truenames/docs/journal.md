@@ -596,3 +596,13 @@ Robby: "i love what we're doing here, and want to extend the compute for access 
 - **The chart so far**: 15 beings from five regions (one per element, ~12 min per 17M-cell region, 1–4 wisps each, matching the expected ~4). Two are spirit-class outliers in the wisp layer (`012341174703`, `274112260672`); they are the Wardens' wells for now. The scan continues through the last three elements, and `world.ts` gets regenerated when it ends. The golden vectors pin fixed cells, not the growing list.
 - **Golden vectors v2** (`tools vectors`, 4½ min, mostly grinding): the test aura's hearth word holds 22 truths, the second aura's 26. Tests read them instead of grinding. All 57 tests pass; vectors pass in a browser worker.
 - **A generous hearth bites back.** The Dark test bot lanced every 0.6 s and died to **33 backlashes**. Strain held at ~6.4 against a fresh capacity of 4, and recoil is 60% of what you drew, so a generous patron's overreach hurts. The stingy v1 hearth-god hid this. Casting every 1.2 s is sustainable (steady strain ~3.7). That's the rules working as designed, but it's a newcomer's first experience: **watch it in the playtest.**
+- **Playtest on v2 (scripted, in the browser):**
+  - **Coming from v1**: the old save keeps its aura, and the title says "The astral is not as you left it…".
+  - **Attunement** to the hearth (**Khossim, wisp of tundra**) grasped a 23-truth word in ~1¼ min while the chart scan shared the CPU (~24k utterances/s).
+  - **The sanctum** shows the Words tab with a facet chip (lance 23, bound, ◇), the bar marker, and scrying at depth 12 ("~2048 wisps here, a find every ~6 min").
+  - **All four worlds run on v2**:
+    - **Dark**: through wave 2 in 45 s (18 kills, life 91), the lance ringing at ~21.5.
+    - **Bastion**: lance shrines kill (29), and strain is aura-wide. The hearth was nearly breached (2/20), but the bot called waves early with a single word.
+    - **Council**: a one-word deck; the wisp card costs 1 voice; the Warden plays charted beings.
+    - **Dark Racer**: 1st on lap 2, lancing, heat 1.5/4.1.
+  - No console or server errors. Fixed stale wording along the way: "the hearth-god" → "the hearth", "learned" → "grasped", "spirits here" → "wisps here" (the class for that depth), and the scrying hint now describes the pyramid.

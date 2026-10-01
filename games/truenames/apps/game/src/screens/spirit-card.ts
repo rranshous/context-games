@@ -33,7 +33,7 @@ export function openSpiritCard(app: App, cell: string) {
     <div class="spirit-card" style="--c:${color}">
       <img src="${sigilURL(sp, 160)}" width="160" height="160" alt="" style="filter: drop-shadow(0 0 16px ${color}66)">
       <h1 style="color:${color}; font-size:30px; margin-top:8px">${esc(spiritName(sp))}</h1>
-      <div class="dim" style="font-style:italic">${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)}${cell === HEARTH_GOD ? ', the hearth-god' : ''}</div>
+      <div class="dim" style="font-style:italic">${magnitudeTitle(sp.magnitude)} of ${esc(ASPECTS[sp.element]![sp.aspect]!)}${cell === HEARTH_GOD ? ', the hearth' : ''}</div>
       <div class="dim" style="font-size:14px; margin-top:4px">${esc(addressOf(cell))} <span class="mono faint">${cell}</span></div>
       <div class="card-grid">
         <div data-tip="element"><span class="dim">element</span> ${ELEMENT_NAMES[sp.element]}</div>

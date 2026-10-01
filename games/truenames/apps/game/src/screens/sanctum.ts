@@ -95,7 +95,7 @@ export function sanctumScreen(app: App): Screen {
     const remaining = Number(total - done);
     const running = !!S.scryTask(prefix, depth);
     info.innerHTML = `<div data-tip="address">${esc(addressOf(prefix))}, depth ${depth}</div>
-      <div class="dim" data-tip="divisions">${Number(total).toLocaleString()} divisions · 1 in ${Math.round(1 / perCell).toLocaleString()} holds a spirit · ~${exp < 10 ? exp.toFixed(1) : Math.round(exp)} spirits here</div>
+      <div class="dim" data-tip="divisions">${Number(total).toLocaleString()} divisions · 1 in ${Math.round(1 / perCell).toLocaleString()} holds a being · ~${exp < 10 ? exp.toFixed(1) : Math.round(exp)} ${magnitudeTitle(depth - MIN_SPIRIT_DEPTH)}s here</div>
       <div class="dim" data-tip="scanned">scanned ${((100 * Number(done)) / Number(total)).toFixed(1)}% · a find every ~${fmtDuration(1 / perCell / cellsPerSec)} · whole layer ~${fmtDuration(remaining / cellsPerSec)}</div>`;
     btn.disabled = running || done >= total;
     btn.textContent = done >= total ? 'fully scried' : running ? 'scrying…' : 'Scry here';
@@ -359,7 +359,7 @@ export function sanctumScreen(app: App): Screen {
           <div class="panel codex-panel"><h2 data-tip="=Meditation seeks your true name for a spirit. Each truth requires twice as much meditation to unveil as the last. A truer name draws more, strains less and outshouts rivals at a crowded well.">Name Book</h2>
             <div id="codex"></div></div>
           <div class="panel"><h2>Scrying</h2>
-            <div class="hint">Choose a region and a depth, then search it division by division. Shallow layers are small and soon exhausted. The deep is endless and sparse.</div>
+            <div class="hint">Choose a region and a depth, then search it division by division. Wisps dwell at depth 12; each layer down holds half as many beings, a class mightier, and takes sixteen times the searching.</div>
             <div class="scryform">
               <label data-tip="scryRegion">element</label><select id="s-el">${ELEMENT_NAMES.map((n, i) => `<option value="${i}">${ELEMENT_GLYPH[i]} ${n}</option>`).join('')}</select>
               <label data-tip="scryRegion">aspect</label><select id="s-asp"></select>
@@ -372,7 +372,7 @@ export function sanctumScreen(app: App): Screen {
             <h2 style="margin-top:12px">Finds</h2><div class="feed" id="feed"></div>
           </div>
           <div class="panel"><h2>Loadout</h2>
-            <div class="hint">Bind up to four learned names. In the dark: left and right click speak the first two, keys 1 and 2 the others. Aim with the mouse. Move with WASD.</div>
+            <div class="hint">Bind up to four grasped words. In the Dark: left and right click speak the first two, keys 1 and 2 the others. Aim with the mouse. Move with WASD.</div>
             <div class="slots" id="slots"></div>
             <h2 style="margin-top:16px" data-tip="=The names you play as cards at the Council: up to twelve, separate from the four you carry into the Dark and the Bastion.">Council deck</h2><div id="deck"></div>
             <h2 style="margin-top:16px" data-tip="walks">Walks</h2><div class="feed" id="runs"></div>
