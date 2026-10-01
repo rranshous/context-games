@@ -473,3 +473,23 @@ Robby's mental model: "99% of spirits in level 6 are wisps and 99% of (the few?)
 - **Paused (Robby):** "lets not build it yet, i wanna world build a bit more before the rewrite, make sure it's all going in the journal plz." Next topics he raised: what attributes gods have, and renaming **true names → words of power** ("players meditate on words of power").
 - **Words of power (agreed in direction).** True names become **words of power**, and a being has *several*: each word commands one facet of it, and the count grows with might (a wisp one word, a god five, a primordial eight). Each word is meditated separately. This is also the steeper curve between tiers that Robby asked for: mightier beings are *broader* as well as stronger. Robby: "love your take on words of power. i like multiple words per god. i wasn't pointing that far but i like it." Next: weigh attributes (today vs ideas) side by side.
 - **From features to first principles.** Robby: "i'm struggling to engage w/ the ideas… what are the absolutes about a particular astral being? i'm looking for us to be shaping an ideaset here." A draft list of absolutes and open questions went to Robby for keeping, cutting and rewording. It isn't decided yet; the agreed set will be recorded here.
+
+### The absolutes of an astral being (agreed 2026-10-01)
+Robby's answers to the draft, which shape the ideaset for the rewrite:
+1. **It dwells in one place.** Agreed.
+2. **Its place is its nature.** Agreed.
+3. **It exists whether or not anyone knows it.** Agreed.
+4. **Its might is its depth**, "w/ caveats, i want a pinch of randomness, but no so much it's world breaking." **Might is fixed.**
+5. **Fixed character.** Agreed.
+6. **It acts only through words of power.** Agreed.
+7. **It belongs to no one.** Agreed.
+8. **It answers each speaker through *that speaker's* word.** Agreed: "lets keep this aspect of words being personal (tied to the aura)."
+9. **Its power always costs the speaker.** "def, staple of magic world building."
+
+**Why stillness is lore-true (the timescales).** The astral's timescales dwarf any lifetime, so beings are effectively static. "as far as we know primordials can only be born eons ago in the deepest parts of the astral but the fact that one exists in a slightly more shallow layer (pinch of random) means that they _can move_". That movement exists only in the lore, never in the implementation; it explains the outliers.
+
+**Unknowable forces, not persons.** No will: "the personality type descriptor never really sat well w/ me." Beings don't know who speaks to them. "seems like i'm leaning heavily toward unknowable entity we only 'know' through a limited set of interactions… we can 'see' them in the astral (using our 3rd eye) and we can learn their words of power, they def exists. do they know our name? what's their personality? who do they love? all those are answered only by the words cultures and religions based on the little evidence they have. similar to knowing something is there through an absense or an indirect observation. could these not actually be gods but instead .. pure forces and we (char ppl) just make up stories? def."
+- **Consequences**:
+  - "god", "wisp", a being's name and its epithets are *human* labels, the stories cultures tell.
+  - Any relationship between beings (pantheons, synergy) exists only as patterns people observe between words of power. It isn't something the beings themselves have.
+  - What was "temper/personality" should be re-described as observable properties of a force, not moods.
