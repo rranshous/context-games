@@ -78,6 +78,12 @@ export interface SaveData {
   lastWorld?: 'dark' | 'bastion' | 'council' | 'racer';
   /** The Council deck: up to twelve grasped words (`cell#facet`), played as cards. */
   councilDeck?: string[];
+  /** The sanctum plan (aims), the tasks the planner owns, and the sanctum's history (see plan.ts). */
+  plan?: import('./plan.ts').Aim[];
+  planOwned?: { names: string[]; scries: string[] };
+  history?: import('./plan.ts').HistoryLine[];
+  /** An actant tending this sanctum: its goal, model, notes, and whether it is awake. */
+  actant?: { on: boolean; goal: string; model: string; notes: string; lastReview?: number };
   /** Drop to one voice while in a world (default on). */
   quietPlay?: boolean;
   /** Set once, when a v1 save was carried into the v2 astral. */

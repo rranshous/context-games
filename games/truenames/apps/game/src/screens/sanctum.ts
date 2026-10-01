@@ -5,6 +5,7 @@ import {
   addressOf, spiritName, magnitudeTitle, fmtDuration, traditionName, truths,
 } from '../lore.ts';
 import { persist, spiritOf, wordView } from '../save.ts';
+import { addHistory, describeAim } from '../plan.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
@@ -182,7 +183,49 @@ export function sanctumScreen(app: App): Screen {
     box.innerHTML = msg || `Your words deepen while you rest. Go deeper when ${w === 'bastion' ? 'the road feels quiet' : w === 'racer' ? 'the podium feels easy' : 'the dark feels thin'}: ${worldDescentName(w, progress(w).descent)} is open to you.`;
   }
 
+  // ---------- the plan ----------
+  function renderPlan() {
+    const box = root?.querySelector('#plan');
+    if (!box) return;
+    const aims = S.planner.aims;
+    box.innerHTML = aims.length
+      ? aims.map((a, i) => `<div class="aim ${a.done ? 'done' : ''}" data-aim="${a.id}">
+          <span class="mono faint">${i + 1}</span>
+          <span class="aim-text">${esc(describeAim(a))}${a.done ? ' <span class="gold">· fulfilled</span>' : ''}${a.by === 'actant' ? ' <span class="faint">· by the actant</span>' : ''}</span>
+          <span class="aim-ctl"><span class="dim" data-tip="=Share of the hum this aim gets (earlier aims also weigh a little more).">×${a.share}</span>
+          <button class="tiny" data-aim-share="-1" data-tip="=Less of the hum.">−</button><button class="tiny" data-aim-share="1" data-tip="=More of the hum.">+</button>
+          <button class="tiny" data-aim-move="-1" data-tip="=Earlier: higher priority.">↑</button><button class="tiny" data-aim-move="1" data-tip="=Later.">↓</button>
+          <button class="tiny" data-aim-del data-tip="=Remove this aim.">×</button></span></div>`).join('')
+      : '<div class="hint">No aims yet. Add one below, or meditate and scry by hand. With aims set, the sanctum works on its own.</div>';
+    const hist = root.querySelector('#history');
+    if (hist) hist.innerHTML = (save.history ?? []).slice(-14).reverse().map((h) => `<div><span class="faint">${new Date(h.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> ${h.by === 'actant' ? '<span class="gold">actant:</span> ' : ''}${esc(h.text)}</div>`).join('') || '<div class="dim">Nothing yet.</div>';
+  }
+  function renderAimFields() {
+    const kind = (root.querySelector('#a-kind') as HTMLSelectElement).value;
+    const f = root.querySelector('#a-fields')!;
+    const classes = (sel: number) => [0, 1, 2, 3, 4, 5, 6, 7].map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${magnitudeTitle(m)}s</option>`).join('');
+    f.innerHTML = kind === 'deepen'
+      ? `<select id="a-words"><option value="bound">bound words</option><option value="all">all words</option></select> <input id="a-count" type="number" min="1" max="12" value="3" title="at a time"> at a time, to <input id="a-to" type="number" min="22" max="60" value="29"> truths`
+      : kind === 'grasp'
+      ? `<input id="a-count" type="number" min="1" max="12" value="2"> at a time, up to <select id="a-max">${classes(2)}</select>`
+      : `<span class="dim">the region above;</span> until <input id="a-until" type="number" min="0" max="999" value="3"> <select id="a-min">${classes(0)}</select> are known <span class="faint">(0: forever)</span>`;
+  }
+  function addAimFromForm() {
+    const v = (id: string) => (root.querySelector('#' + id) as HTMLInputElement | null)?.value ?? '';
+    const n = (id: string, d: number) => { const x = Math.floor(Number(v(id))); return Number.isFinite(x) ? x : d; };
+    const kind = v('a-kind');
+    if (kind === 'deepen') S.planner.add({ kind: 'deepen', words: v('a-words') === 'all' ? 'all' : 'bound', count: Math.max(1, n('a-count', 3)), to: Math.max(22, n('a-to', 29)), share: 2 }, 'player');
+    else if (kind === 'grasp') S.planner.add({ kind: 'grasp', count: Math.max(1, n('a-count', 2)), maxMight: n('a-max', 2), share: 2 }, 'player');
+    else {
+      const { prefix, depth } = formPrefix();
+      const until = n('a-until', 3);
+      S.planner.add({ kind: 'seek', prefix, depth, until: until > 0 ? { count: until, minMight: n('a-min', 0) } : null, share: 2 }, 'player');
+    }
+    renderAll();
+  }
+
   function renderAll() {
+    renderPlan();
     renderAdvice();
     renderTop();
     renderBook();
@@ -327,6 +370,9 @@ export function sanctumScreen(app: App): Screen {
       const host: RoundHost = {
         report(r) {
           save.runs.push({ at: Date.now(), world: r.world, descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
+          const text = `${r.won ? 'won' : 'lost'} in ${WORLDS.find((x) => x.id === r.world)?.name ?? r.world} at ${worldDescentName(r.world, r.level)} (${r.world === 'racer' ? `place ${r.wave}` : r.world === 'council' ? `turn ${r.wave}` : `wave ${r.wave}`}, ${r.kills} struck)`;
+          addHistory(save, { kind: 'journey', by: 'player', text });
+          S.events.emit({ kind: 'journey', text });
           const p = progress(r.world);
           const unlocked = r.won && r.level >= p.descent;
           if (unlocked) setProgress(r.world, { descent: r.level + 1, last: p.last });
@@ -371,7 +417,15 @@ export function sanctumScreen(app: App): Screen {
         <div class="cols">
           <div class="panel codex-panel"><h2 data-tip="=Meditation seeks your true name for a spirit. Each truth requires twice as much meditation to unveil as the last. A truer name draws more, strains less and outshouts rivals at a crowded well.">Name Book</h2>
             <div id="codex"></div></div>
-          <div class="panel"><h2>Scrying</h2>
+          <div class="panel"><h2 data-tip="=<b>The plan</b>: aims your sanctum pursues on its own, in order. Set it and walk away: meditation and searching follow it, and it moves on as each aim is fulfilled. An actant tending this sanctum uses the same plan.">Plan</h2>
+            <div id="plan"></div>
+            <div class="aimform">
+              <select id="a-kind" data-tip="=What kind of aim."><option value="deepen">deepen words</option><option value="grasp">grasp new beings</option><option value="seek">seek beings</option></select>
+              <span id="a-fields"></span>
+              <button class="small" id="a-add" data-tip="=Add this aim to the end of the plan.">add aim</button>
+            </div>
+            <details id="hist"><summary class="dim" data-tip="=What the sanctum has done, and who changed the plan.">history</summary><div class="feed" id="history"></div></details>
+            <h2 style="margin-top:14px">Scrying</h2>
             <div class="hint">Choose a region and a depth, then search it division by division. Wisps dwell at depth 12; each layer down holds half as many beings, a class mightier, and takes sixteen times the searching.</div>
             <div class="scryform">
               <label data-tip="scryRegion">element</label><select id="s-el">${ELEMENT_NAMES.map((n, i) => `<option value="${i}">${ELEMENT_GLYPH[i]} ${n}</option>`).join('')}</select>
@@ -418,6 +472,21 @@ export function sanctumScreen(app: App): Screen {
       });
       const dsel = root.querySelector('#descent') as HTMLSelectElement;
       dsel.addEventListener('change', () => { const w = world(); setProgress(w, { ...progress(w), last: Number(dsel.value) }); persist(save); });
+      renderAimFields();
+      root.querySelector('#a-kind')!.addEventListener('change', renderAimFields);
+      root.querySelector('#a-add')!.addEventListener('click', addAimFromForm);
+      root.querySelector('#plan')!.addEventListener('click', (e) => {
+        const t = e.target as HTMLElement;
+        const id = t.closest('[data-aim]')?.getAttribute('data-aim');
+        if (!id) return;
+        const i = S.planner.aims.findIndex((a) => a.id === id);
+        const share = t.getAttribute('data-aim-share'), move = t.getAttribute('data-aim-move');
+        if (share) S.planner.setShare(id, S.planner.aims[i]!.share + Number(share), 'player');
+        else if (move) S.planner.move(id, i + Number(move), 'player');
+        else if (t.hasAttribute('data-aim-del')) S.planner.remove(id, 'player');
+        renderAll();
+      });
+      S.planner.onChange = () => renderPlan();
       root.querySelector('#host')!.addEventListener('change', (e) => {
         setWorldHost((e.target as HTMLInputElement).value);
         (e.target as HTMLInputElement).value = hostLabel();
@@ -526,6 +595,7 @@ export function sanctumScreen(app: App): Screen {
     unmount() {
       clearInterval(timer);
       offs.forEach((f) => f());
+      S.planner.onChange = null;
     },
   };
 }

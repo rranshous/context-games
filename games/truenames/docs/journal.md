@@ -640,3 +640,15 @@ Order agreed with Robby: "get the new universe going and all worlds working w/ i
 ### Actants: the sanctum plan (Robby, 2026-10-01)
 Refining the milestones: "we have the player set a goal (in prose) and the actant uses the tools to order priorities in the sanctum. i am thinking that the player also has those types of *(visual) controls to prioritize things in the sanctum (like max target three spells up to level 29 and once it hits 29 start lifiting other ones up) i want a player to be able to configure the sanctum and walk away. i want the actant to periodically get to view the results (including history) of sanctum work and reprioritize".
 - The key move: **one priorities layer, two hands.** The player sets it with visual controls; an actant sets it with tools, guided by the player's prose goal. Either way the plan runs unattended, with no model in the loop. The actant only *reviews* it now and then: it reads the results and history, then reprioritizes.
+
+### M1: the sanctum plan (built)
+- **`apps/game/src/plan.ts`**: an ordered list of **aims** in the save, with a **Planner** that turns them into meditation and search tasks every 4 s (and on every change).
+  - **deepen** words (bound or all), N at a time, truest first, until each holds T truths, then the next ones. This is Robby's "three spells up to 29, then lift the others".
+  - **grasp** a first word of beings you hold none of, easiest bar first, N at a time, up to a class of might.
+  - **seek** beings in a region at a depth, **until N beings of a class or mightier are known there** (or without end). It ends on its own when fulfilled or when the layer is exhausted.
+  - Each aim has a share of the hum, and earlier aims weigh a little more (order is priority).
+  - The planner only touches tasks it started, so the player's own meditation and searching are left alone.
+- **One plan, two hands**: `add / remove / move / setShare` take a `by` (player, actant or sanctum). The sanctum's plan panel uses them, and an actant's tools will call the same ones.
+- **The sanctum history** (`save.history`, the last 400 lines) records finds, grasps, truths gained past the bar, searches finished, aims fulfilled, plan changes and who made them, and journeys. Services emit **sanctum events** (find, grasp, search, aim, journey): the actant's review triggers.
+- **The plan panel** (top of the middle column): aims with share −/+, ↑/↓, × and who set them; an add-aim form (seek uses the scrying form's region and depth); and a collapsible history.
+- **Tried in the browser**: a deepen aim (to 25) was fulfilled at once because the hearth word already held 26, and history recorded it. A seek aim ("fire at depth 12, until 1 wisp or mightier") started its search on its own.

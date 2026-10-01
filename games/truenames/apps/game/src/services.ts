@@ -4,6 +4,8 @@ import { MeditationPool, type ScryTask, type NameTask } from '@truenames/meditat
 import { LocalAuthority, type Authority } from '@truenames/authority';
 import { cellsBelow, facetCount, spiritAt, target, wordBar, type Spirit } from '@truenames/universe';
 import { persist, rememberSpirit, signClaim, splitWord, wordKey, type SaveData, type KnownSpirit } from './save.ts';
+import { addHistory, Planner } from './plan.ts';
+import { spiritName, magnitudeTitle, truths } from './lore.ts';
 import MeditationWorker from './meditation.worker.ts?worker';
 
 type Listener<T> = (v: T) => void;
@@ -36,6 +38,9 @@ export interface NameEvent {
 
 export const scanKey = (prefix: string, depth: number) => `${prefix}|${depth}`;
 
+/** Something worth an actant's review: a find, a grasp, a search or an aim finished, a journey's end. */
+export interface SanctumEvent { kind: 'find' | 'grasp' | 'search' | 'aim' | 'journey'; text: string }
+
 export class Services {
   pool: MeditationPool;
   /** The name authority for this session. Runs build their own for pools/strain. */
@@ -44,6 +49,9 @@ export class Services {
   names = new Emitter<NameEvent>();
   scry = new Emitter<ScryTask>();
   hum = new Emitter<number>();
+  events = new Emitter<SanctumEvent>();
+  /** The sanctum plan's planner (created with the services, started on resume). */
+  planner!: Planner;
   private sourceFor = new Map<string, KnownSpirit['source']>();
 
   constructor(public save: SaveData) {
@@ -58,23 +66,28 @@ export class Services {
       },
       onScryDone: (t) => {
         this.save.scrying = this.save.scrying.filter((p) => scanKey(p.prefix, p.depth) !== t.id);
+        const text = `finished searching depth ${t.depth} under "${t.prefix || 'everywhere'}" (${t.hits} found)`;
+        addHistory(this.save, { kind: 'search', by: 'sanctum', text });
         persist(this.save);
         this.scry.emit(t);
+        this.events.emit({ kind: 'search', text });
       },
       onName: (t, nonce, strength, facet) => this.onName(t, nonce, strength, facet),
       onRate: (r) => this.hum.emit(r),
     });
     if (save.workers != null) this.pool.setActive(Math.max(1, save.workers));
+    this.planner = new Planner(save, this);
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);
     // re-establish names with the authority (claims are self-verifying)
     for (const rec of Object.values(save.names)) this.authority.submitName(rec.claim);
   }
 
-  /** Resume whatever the player left running. */
+  /** Resume whatever the player left running, then let the plan take the reins of what it owns. */
   resume() {
     for (const cell of this.save.meditating) this.meditate(cell, true);
     for (const p of this.save.scrying) if (p.running) this.startScry(p.prefix, p.depth, 'scry');
+    this.planner.start();
   }
 
   /** A being's might, from the save or the universe. */
@@ -162,6 +175,12 @@ export class Services {
     // only grasped words are claims the authority accepts; below the bar the word is still forming (kept locally)
     if (strength >= bar && !this.authority.submitName(claim).accepted) return;
     this.save.names[key] = { claim, strength, facet };
+    const sp = this.save.spirits[t.cell] ? spiritName(this.save.spirits[t.cell]!.spirit as never) : t.cell;
+    if (before < bar && strength >= bar) {
+      const text = `grasped a word of ${sp} (facet ${facet + 1}) at ${truths(strength)}`;
+      addHistory(this.save, { kind: 'grasp', by: 'sanctum', text });
+      this.events.emit({ kind: 'grasp', text });
+    } else if (strength >= bar) addHistory(this.save, { kind: 'truth', by: 'sanctum', text: `${sp} (facet ${facet + 1}): ${truths(strength)}` });
     persist(this.save);
     this.names.emit({ cell: t.cell, facet, key, strength, learned: before < bar && strength >= bar });
   }
@@ -210,6 +229,11 @@ export class Services {
   private onSpirit(s: Spirit, task: ScryTask) {
     const source = this.sourceFor.get(task.id) ?? 'scry';
     const isNew = rememberSpirit(this.save, s, source);
+    if (isNew) {
+      const text = `found ${spiritName(s)}, ${magnitudeTitle(s.magnitude)} (might ${s.magnitude}) at depth ${s.depth}, sign ${s.cell}`;
+      addHistory(this.save, { kind: 'find', by: 'sanctum', text });
+      this.events.emit({ kind: 'find', text });
+    }
     persist(this.save);
     this.finds.emit({ spirit: s, source, isNew, taskId: task.id });
   }
