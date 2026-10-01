@@ -493,3 +493,14 @@ Robby's answers to the draft, which shape the ideaset for the rewrite:
   - "god", "wisp", a being's name and its epithets are *human* labels, the stories cultures tell.
   - Any relationship between beings (pantheons, synergy) exists only as patterns people observe between words of power. It isn't something the beings themselves have.
   - What was "temper/personality" should be re-described as observable properties of a force, not moods.
+
+### The absolutes of a word of power (agreed 2026-10-01)
+1. **A word belongs to one force and one speaker** (tied to the aura). Agreed.
+2. **Meditation never loses ground.** Agreed.
+3. **A word is one facet.** Agreed, and sharpened by Robby: "a player would find a word tied to a facet and then could find stronger / more true / more resonate words for that facet over time. so the facet is static and the words get 'more' from that facet the more true they are."
+4. **Mightier forces have more facets.** Yes.
+5. **Taught, never taken.** "agreed they can mediatate for you."
+6. **Speaking always costs.** Yes.
+7. **New (Robby): it is *harder* to learn words for a mightier being's facet.** "there is a part here we're not pointing at." This brings back, in a new frame, the learning-bar rule I'd dropped. Its size is to be decided.
+
+**The pinch of randomness:** "one in eight does feel too common." Make it rarer.
