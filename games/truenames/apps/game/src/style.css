@@ -226,3 +226,13 @@ button.more { width: 100%; margin-top: 6px; }
 .cstatus { color: var(--gold); font-style: italic; margin-bottom: 4px; }
 button.nudge { animation: nudge 1.2s ease-in-out infinite; }
 @keyframes nudge { 50% { box-shadow: 0 0 16px rgba(231, 194, 107, 0.7); background: rgba(231, 194, 107, 0.22); } }
+
+/* facets: one chip per facet of a being, with the word you hold for it */
+.facets { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 3px 0 2px; }
+.facet { font-size: 12px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--panel-edge); white-space: nowrap; }
+.facet.unknown { opacity: 0.45; border-style: dashed; }
+.facet.forming { color: var(--ink); }
+.facet.grasped { border-color: var(--c, var(--gold)); color: var(--gold); cursor: grab; }
+.facet b { font-family: var(--mono); font-weight: normal; }
+button.tiny { font-size: 11px; padding: 0 5px; margin-left: 3px; border-radius: 8px; letter-spacing: 0; }
+.card-facets { display: grid; gap: 3px; margin-top: 10px; font-size: 14px; text-align: left; }

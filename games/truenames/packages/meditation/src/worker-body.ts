@@ -1,7 +1,7 @@
 // The body of a meditation worker. The host app creates the actual Worker file
 // and calls installWorker(self). Kept here so Node and browser share it.
 import { cellDigest, type Spirit } from '@truenames/universe';
-import { scanRange, grindName } from './scan.ts';
+import { scanRange, grindWords } from './scan.ts';
 import type { WorkChunk, WorkerReply, WireSpirit } from './protocol.ts';
 import { createKernel, type Kernel } from './wasm/kernel.ts';
 import { TAG_CELL, poseidon3 } from '@truenames/universe';
@@ -47,11 +47,11 @@ export function runChunk(job: WorkChunk): WorkerReply {
     const hashes = scanRange(job.prefix, job.extra, BigInt(job.start), BigInt(job.count), (s) => hits.push(toWire(s)), getKernel());
     return { kind: 'scried', taskId: job.taskId, start: job.start, count: job.count, hits, hashes, ms: performance.now() - t0 };
   }
-  const best = grindName(cellDigest(job.cell), BigInt(job.aura), BigInt(job.startNonce), job.count, job.beat, undefined, getKernel());
+  const improved = grindWords(cellDigest(job.cell), BigInt(job.aura), BigInt(job.startNonce), job.count, job.facets, [...job.bests], undefined, getKernel());
   return {
     kind: 'named',
     taskId: job.taskId,
-    best: best && { nonce: best.nonce.toString(), strength: best.strength },
+    improved: improved.map((w) => ({ nonce: w.nonce.toString(), strength: w.strength, facet: w.facet })),
     count: job.count,
     hashes: job.count,
     ms: performance.now() - t0,

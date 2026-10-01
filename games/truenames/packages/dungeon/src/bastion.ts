@@ -295,7 +295,7 @@ export class BastionSim {
       const tag = `s${this.castSeq++}`;
       this.pending.set(tag, { shrine: t.id, target: target.id, tx: target.x, ty: target.y });
       t.waiting = true; // until the authority answers
-      this.auth.submitCast({ aura: this.you, spirit: s.spirit, request: B.request, target: { kind: 'point', x: target.x, y: target.y }, tick: this.auth.currentTick(), tag });
+      this.auth.submitCast({ aura: this.you, spirit: s.spirit, facet: s.facet, request: B.request, target: { kind: 'point', x: target.x, y: target.y }, tick: this.auth.currentTick(), tag });
     }
   }
 

@@ -38,7 +38,7 @@ export function bastionScreen(link: DungeonLink, welcome: BastionWelcome, journe
     const name = own ? spiritName(view) : `${FORMS[s.traits.form]!.name} of ${ELEMENT_NAMES[s.element]}`;
     return { view, strength: s.strength, form: s.traits.form, color: ELEMENT_COLOR[s.element]!, name, lastBits: null, vessel: 1, cap: 1, flash: 0 };
   });
-  for (const r of welcome.refused) host.toast(`A name was not heard at the threshold: ${r}`, '#ff7a6b');
+  for (const r of welcome.refused) host.toast(`A word was not heard at the threshold: ${r}`, '#ff7a6b');
 
   // ---------- mirror ----------
   let snap: BastionSnapshot | null = null;

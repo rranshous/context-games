@@ -3,7 +3,8 @@
 import type { App } from './main.ts';
 import type { Journey, RoundTicket } from './round.ts';
 import type { ZkNameClaim } from '@truenames/proofs';
-import { spiritOf } from './save.ts';
+import { spiritOf, splitWord } from './save.ts';
+import { facetForm } from '@truenames/universe';
 import { SLOTS, COUNCIL } from '@truenames/dungeon/balance';
 import { spiritName, type SpiritLike } from './lore.ts';
 import ProverWorker from './prover.worker.ts?worker';
@@ -56,10 +57,13 @@ function prove(job: Omit<ProveJob, 'id'>, started?: () => void): Promise<ProveRe
   });
 }
 
-/** Which names this world carries: the four-slot loadout, or the Council deck. */
-function boundFor(app: App, world: RoundTicket['world']): { cell: string; slot: number }[] {
-  const cells = world === 'council' ? (app.save.councilDeck ?? []).slice(0, COUNCIL.deckMax) : app.save.loadout.slice(0, SLOTS.length);
-  return cells.map((cell, slot) => ({ cell, slot })).filter((b): b is { cell: string; slot: number } => !!b.cell && app.services.learned(b.cell));
+/** Which words this world carries: the four-slot loadout, or the Council deck (word keys, `cell#facet`). */
+function boundFor(app: App, world: RoundTicket['world']): { key: string; cell: string; facet: number; slot: number }[] {
+  const keys = world === 'council' ? (app.save.councilDeck ?? []).slice(0, COUNCIL.deckMax) : app.save.loadout.slice(0, SLOTS.length);
+  return keys
+    .map((key, slot) => ({ key, slot }))
+    .filter((b): b is { key: string; slot: number } => !!b.key && app.services.learned(b.key))
+    .map((b) => { const w = splitWord(b.key); return { ...b, cell: w.cell, facet: w.facet ?? 0 }; });
 }
 
 /** How long one proof takes here, remembered across walks (a proof reports no progress, so the wait is estimated). */
@@ -80,7 +84,7 @@ export async function prepareJourney(app: App, ticket: RoundTicket, onEvent: (e:
   const bundle: Journey['bundle'] = [];
   onEvent({ t: 'begin', names: bound.map((b) => { const sp = spiritOf(save, b.cell)!; return { slot: b.slot, name: spiritName(sp), spirit: sp }; }) });
   await Promise.all(bound.map(async (b) => {
-    const rec = save.names[b.cell]!;
+    const rec = save.names[b.key]!;
     const sp = spiritOf(save, b.cell)!;
     const r = await prove({
       cell: b.cell,
@@ -94,14 +98,15 @@ export async function prepareJourney(app: App, ticket: RoundTicket, onEvent: (e:
       bundle.push({ slot: b.slot, claim: r.claim });
       estMs = estMs * 0.7 + r.ms * 0.3;
       try { localStorage.setItem(EST_KEY, String(Math.round(estMs))); } catch { /* estimate only */ }
-    } else app.toast(`A name would not be spoken: ${r.error}`, '#ff7a6b');
+    } else app.toast(`A word would not be spoken: ${r.error}`, '#ff7a6b');
     onEvent({ t: 'done', slot: b.slot, ok: r.ok });
   }));
   bundle.sort((a, b) => a.slot - b.slot);
   const cosmetics: Journey['cosmetics'] = Array.from({ length: Math.max(SLOTS.length, bound.length) }, () => null);
   for (const b of bound) {
     const sp = spiritOf(save, b.cell)!;
-    cosmetics[b.slot] = { element: sp.element, magnitude: sp.magnitude, traits: { ...sp.traits, flavor: sp.traits.flavor.toString() } };
+    // the facet's own form; the being's name and seal from its flavor (local only)
+    cosmetics[b.slot] = { element: sp.element, magnitude: sp.magnitude, traits: { ...sp.traits, form: facetForm(sp.traits, b.facet), formStep: 0, flavor: sp.traits.flavor.toString() } };
   }
   return { ticket, aura: aura.pub, element: aura.element, newcomer: save.runs.length < 2, bundle, cosmetics };
 }

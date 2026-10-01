@@ -97,6 +97,8 @@ export interface Kernel {
   hash4(a: bigint, b: bigint, c: bigint, d: bigint): bigint;
   /** Grind nonces [start, start+count). Calls onBest for each improvement over `beat`. Returns the best, if any. */
   grind(digest: bigint, aura: bigint, start: bigint, count: number, beat: number, onBest?: (nonce: bigint, strength: number) => void): { nonce: bigint; strength: number } | null;
+  /** Grind nonces [start, start+count), reporting every hash with more than floor() bits (floor is re-read after each hit). */
+  grindHits(digest: bigint, aura: bigint, start: bigint, count: number, floor: () => number, onHit: (nonce: bigint, hash: bigint) => void): void;
 }
 
 let cachedModule: WebAssembly.Module | null = null;
@@ -182,6 +184,24 @@ export function createKernel(opts: { optimized?: boolean } = {}): Kernel {
         put(IN + 96, base);
       }
       return best;
+    },
+    grindHits(digest, aura, start, count, floor, onHit) {
+      put(IN, TAG_NAME);
+      put(IN + 32, digest);
+      put(IN + 64, aura);
+      put(IN + 96, start);
+      let left = count;
+      let base = start;
+      while (left > 0) {
+        put(LAYOUT.THRESH, P >> BigInt(floor() + 1));
+        const i = grindW(left);
+        if (i < 0) break;
+        const nonce = base + BigInt(i);
+        onHit(nonce, get(LAYOUT.OUT));
+        left -= i + 1;
+        base = nonce + 1n;
+        put(IN + 96, base);
+      }
     },
   };
 }

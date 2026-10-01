@@ -23,13 +23,13 @@ const CARD_TEXT = [
   (p: number) => `Gather a nova: next turn it bursts for ~${Math.round(p * C.novaMult)} on the Warden, half on its creatures.`,
   (p: number) => `Send a servant: ${Math.max(1, Math.round(p * C.summonAtk))} attack, ${Math.max(1, Math.round(p * C.summonHp))} toughness. It strikes each turn.`,
   (p: number) => `Hex a foe: ~${Math.max(1, Math.round(p / C.hexTurns))} each turn for ${C.hexTurns} turns (a creature takes it at once).`,
-  () => 'Step through the astral: draw two names and regain a voice.',
+  () => 'Step through the astral: draw two words and regain a voice.',
 ];
 
 export function councilScreen(link: DungeonLink, welcome: CouncilWelcome, journey: Journey, host: RoundHost): Screen {
   const level = welcome.level;
   const me = welcome.seat;
-  for (const r of welcome.refused) host.toast(`A name was not heard at the threshold: ${r}`, '#ff7a6b');
+  for (const r of welcome.refused) host.toast(`A word was not heard at the threshold: ${r}`, '#ff7a6b');
   let view: CouncilView | null = null;
   let targeting: CouncilCard | null = null;
   let over: RoundResult | null = null;
@@ -117,7 +117,7 @@ export function councilScreen(link: DungeonLink, welcome: CouncilWelcome, journe
     const mine = seat === me;
     const lifeK = Math.max(0, s.life / s.lifeMax);
     const cap = Math.max(s.capacity * 1.6, s.strain * 1.05, 0.01);
-    return `<div class="cseat ${mine ? 'mine' : 'theirs'} ${targeting && !mine ? 'targetable' : ''}" data-face="${seat}" data-tip="=${mine ? 'You.' : 'The Warden of the council: it plays the names of ancient spirits.'} Life, ward, voice and strain.${targeting && !mine ? ' <em>Click to target.</em>' : ''}">
+    return `<div class="cseat ${mine ? 'mine' : 'theirs'} ${targeting && !mine ? 'targetable' : ''}" data-face="${seat}" data-tip="=${mine ? 'You.' : 'The Warden of the council: it plays the words of charted beings.'} Life, ward, voice and strain.${targeting && !mine ? ' <em>Click to target.</em>' : ''}">
       <div class="cseat-name">${mine ? 'You' : `the Warden of ${esc(worldDescentName('council', level))}`}${view!.active === seat ? ' <span class="gold">· speaking</span>' : ''}</div>
       <div class="cbar"><i style="width:${(100 * lifeK).toFixed(1)}%"></i></div>
       <div class="cseat-row"><span class="mono">life ${Math.max(0, s.life)}</span>${s.shield ? `<span class="mono" style="color:#cfe8ff">ward ${s.shield}</span>` : ''}
@@ -162,7 +162,7 @@ export function councilScreen(link: DungeonLink, welcome: CouncilWelcome, journe
       : targeting ? 'Now click the Warden, or a creature, to aim it. Right-click or Esc cancels.'
       : canPlayAny ? `Your turn: click a lit card to speak it (the number in its corner is its voice cost; you have ${voice}). End your turn when you're done.`
       : voice === 0 ? 'Your voice is spent. End your turn: it returns, one stronger, next turn.'
-      : `No name in your hand fits your voice (${voice}). End your turn: your voice grows by one each turn.`;
+      : `No word in your hand fits your voice (${voice}). End your turn: your voice grows by one each turn.`;
     root.querySelector('#ctable')!.innerHTML = `
       ${seatHtml(1 - me)}
       <div class="cboard">${board(1 - me)}</div>

@@ -68,7 +68,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   });
   const rivalName = new Map<number, string>();
   for (const r of welcome.rivals) rivalName.set(r.car, spiritName({ element: r.element, magnitude: r.magnitude, traits: toTraits(r.traits) }));
-  for (const r of welcome.refused) host.toast(`A name was not heard at the threshold: ${r}`, '#ff7a6b');
+  for (const r of welcome.refused) host.toast(`A word was not heard at the threshold: ${r}`, '#ff7a6b');
   const myColor = ELEMENT_COLOR[journey.element]!;
 
   // ---------- mirror of the dungeon ----------
@@ -567,7 +567,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     ctx.font = '11px JetBrains Mono, monospace';
     ctx.fillStyle = '#9c8f74';
     ctx.fillText(`heat (strain) ${hud.strain.toFixed(1)} / ${hud.capacity.toFixed(1)}`, bx, by - 3);
-    hudRects.push({ x: bx - 6, y: by - 14, w: total + 12, h: 26, tip: '<b>Heat</b> is your strain. Every name you speak strains your aura, and a strained aura drags on your engine: the hotter you run, the lower your top speed. It ebbs as you drive. Past the white mark, a name can answer with <em>backlash</em> and spin you out.' });
+    hudRects.push({ x: bx - 6, y: by - 14, w: total + 12, h: 26, tip: '<b>Heat</b> is your strain. Every word you speak strains your aura, and a strained aura drags on your engine: the hotter you run, the lower your top speed. It ebbs as you drive. Past the white mark, a name can answer with <em>backlash</em> and spin you out.' });
     for (const { s, i } of active) {
       const sl = s!;
       const ctl = CONTROLS[i]!;
@@ -605,7 +605,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';
-      ctx.fillText('WASD or arrows to drive · J K L ; (or space, clicks, 1, 2) to speak your names · Esc to pause', w / 2, by - 22);
+      ctx.fillText('WASD or arrows to drive · J K L ; (or space, clicks, 1, 2) to speak your words · Esc to pause', w / 2, by - 22);
     }
 
     ctx.textAlign = 'center';
@@ -620,7 +620,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       ctx.fillText(`${onGrid} ${onGrid === 1 ? 'racer' : 'racers'} on the grid · rivals fill the rest`, w / 2, h * 0.3 + 10);
       ctx.fillStyle = '#9c8f74';
       ctx.font = '14px EB Garamond, serif';
-      ctx.fillText(`the race starts in ${Math.ceil(lobby)}s, when everyone joining has spoken their names · Enter to go now`, w / 2, h * 0.3 + 40);
+      ctx.fillText(`the race starts in ${Math.ceil(lobby)}s, when everyone joining has spoken their words · Enter to go now`, w / 2, h * 0.3 + 40);
     } else if (countdown > 0 && !over) {
       const c = Math.ceil(countdown);
       ctx.fillStyle = '#e7c26b';

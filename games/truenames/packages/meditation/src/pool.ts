@@ -22,7 +22,9 @@ export interface NameTask {
   id: string;
   cell: string;
   aura: string; // hex pubkey
-  best: number;
+  /** the being's facet count, and the best word held so far for each facet */
+  facets: number;
+  bests: number[];
   hashes: number;
   label?: string;
 }
@@ -45,7 +47,7 @@ export interface PoolEvents {
   onSpirit?(s: Spirit, task: ScryTask): void;
   onScryProgress?(task: ScryTask): void;
   onScryDone?(task: ScryTask): void;
-  onName?(task: NameTask, nonce: bigint, strength: number): void;
+  onName?(task: NameTask, nonce: bigint, strength: number, facet: number): void;
   onRate?(hashesPerSec: number): void;
 }
 
@@ -245,7 +247,7 @@ export class MeditationPool {
     const count = Math.max(16, Math.round(this.perMs.name * TARGET_MS));
     const start = st.cursor;
     st.cursor += BigInt(count);
-    return { kind: 'name', taskId: task.id, cell: task.cell, aura: st.auraField, startNonce: start.toString(), count, beat: task.best };
+    return { kind: 'name', taskId: task.id, cell: task.cell, aura: st.auraField, startNonce: start.toString(), count, facets: task.facets, bests: [...task.bests] };
   }
 
   private onReply(i: number, m: WorkerReply) {
@@ -294,9 +296,11 @@ export class MeditationPool {
       const task = this.get(m.taskId);
       if (task && task.kind === 'name') {
         task.hashes += m.hashes;
-        if (m.best && m.best.strength > task.best) {
-          task.best = m.best.strength;
-          this.events.onName?.(task, BigInt(m.best.nonce), m.best.strength);
+        for (const w of m.improved) {
+          if (w.strength > (task.bests[w.facet] ?? 0)) {
+            task.bests[w.facet] = w.strength;
+            this.events.onName?.(task, BigInt(w.nonce), w.strength, w.facet);
+          }
         }
       }
     }

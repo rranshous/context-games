@@ -9,7 +9,7 @@ import { runVectors } from './run-vectors.ts';
 
 const v = JSON.parse(readFileSync(new URL('./vectors.json', import.meta.url), 'utf8'));
 
-describe('universe spec v1', () => {
+describe('universe spec v2', () => {
   it('matches golden vectors', () => {
     expect(runVectors(v)).toEqual([]);
   });
@@ -42,10 +42,25 @@ describe('universe spec v1', () => {
 
   it('rejects claims on empty cells, tampered nonces, and foreign auras', () => {
     const good = v.claims[0].claim as U.NameClaim;
-    expect(U.verifyNameClaim({ ...good, cell: '000000' })).toMatchObject({ ok: false });
+    expect(U.verifyNameClaim({ ...good, cell: '000000000000' })).toMatchObject({ ok: false });
     expect(U.verifyNameClaim({ ...good, nonce: String(BigInt(good.nonce) + 1n) })).toMatchObject({ ok: false });
     const other = U.bytesToHex(ed25519.getPublicKey(new Uint8Array(32).fill(9)));
     expect(U.verifyNameClaim({ ...good, aura: other })).toMatchObject({ ok: false, reason: 'bad signature' });
+  });
+
+  it('the pyramid: half as many beings a layer down, one class mightier, a bar 4 truths higher', () => {
+    for (let d = 12; d < 20; d++) {
+      expect(U.target(d + 1) - U.target(d)).toBe(4); // 8x the cells, 16x the bits: half as many
+      expect(U.mightOf(d + 1, U.target(d + 1))).toBe(U.mightOf(d, U.target(d)) + 1);
+    }
+    expect(U.mightOf(12, U.target(12) + 3)).toBe(0);
+    expect(U.mightOf(12, U.target(12) + 4)).toBe(1); // one in sixteen dwell a class above their kind
+    expect([0, 4, 7].map(U.facetCount)).toEqual([1, 5, 8]);
+    expect(U.wordBar(4)).toBe(38);
+    for (let step = 1; step < 8; step += 2) {
+      const forms = Array.from({ length: 8 }, (_, f) => U.facetForm({ form: 5, formStep: step }, f));
+      expect(new Set(forms).size).toBe(8); // a being never repeats a form
+    }
   });
 
   it('region decodes addresses', () => {

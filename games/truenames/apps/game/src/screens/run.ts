@@ -59,7 +59,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     const name = own ? spiritName(view) : `${FORMS[s.traits.form]!.name} of ${ELEMENT_NAMES[s.element]}`;
     return { view, strength: s.strength, form: s.traits.form, color: ELEMENT_COLOR[s.element]!, name, generosity: spiritStats(view).generosity, lastBits: null, vessel: 1, cap: 1, flash: 0, thin: 0 };
   });
-  for (const r of welcome.refused) host.toast(`A name was not heard at the threshold: ${r}`, '#ff7a6b');
+  for (const r of welcome.refused) host.toast(`A word was not heard at the threshold: ${r}`, '#ff7a6b');
 
   // ---------- mirror of the dungeon ----------
   let snap: Snapshot | null = null; // latest (HUD, self)
@@ -251,7 +251,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
       case 'spawn': burst(ev.x, ev.y, '#554a66', 10); return;
       case 'wave': sfx.sfxWave(); return;
       case 'breather':
-        banner = { text: `WAVE ${ev.wave + 1}`, sub: ev.wave + 1 === 3 ? 'Shamans walk with them, speaking names of their own.' : 'Breathe. Let the strain ebb.', t: 3 };
+        banner = { text: `WAVE ${ev.wave + 1}`, sub: ev.wave + 1 === 3 ? 'Shamans walk with them, speaking words of their own.' : 'Breathe. Let the strain ebb.', t: 3 };
         return;
       case 'warden': {
         const view: SpiritLike = { element: ev.element, magnitude: ev.magnitude, traits: toTraits(ev.traits) };

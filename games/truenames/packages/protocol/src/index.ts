@@ -10,6 +10,8 @@ export interface CastIntent {
   aura: string;
   /** Which spirit: an address for public spirits, or an opaque id (e.g. "t:<traitHash>") for proven ones. */
   spirit: string;
+  /** Which facet's word (default 0). All of a being's words share its vessel. */
+  facet?: number;
   request: number; // power requested
   target: TargetSpec;
   tick: number;

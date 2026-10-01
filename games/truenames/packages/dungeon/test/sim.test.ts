@@ -5,6 +5,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { bytesToHex, nameStrength, spiritAt, MIN_NAME_BITS, traitHashFromDigest, cellDigest } from '@truenames/universe';
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { DungeonSim, zkVerifier, HEARTH_GOD, BALANCE } from '../src/index.ts';
+import { HEARTH_NONCE, HEARTH_NONCE_2 } from './fixtures.ts';
 
 const require = createRequire(import.meta.url);
 const art = (f: string) => require.resolve(`@truenames/proofs/artifacts/${f}`);
@@ -20,7 +21,7 @@ function rng(seed = 7) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5)
 describe('DungeonSim', () => {
   beforeAll(async () => {
     let n = 0n;
-    while (nameStrength(HEARTH_GOD, ed25519.getPublicKey(SECRET), n) < MIN_NAME_BITS) n++;
+    n = HEARTH_NONCE;
     claim = await proveName({ cell: HEARTH_GOD, nonce: n, secretKey: SECRET, magnitude: spiritAt(HEARTH_GOD)!.magnitude, strength: MIN_NAME_BITS, context: CONTEXT }, { wasm: art('name.wasm'), zkey: art('name.zkey') });
   });
 
@@ -28,9 +29,9 @@ describe('DungeonSim', () => {
     const sim = new DungeonSim({ level: 0, context: CONTEXT, verifier, rng: rng() });
     const { slots, refused } = await sim.admit(AURA, [{ slot: 0, claim }]);
     expect(refused).toEqual([]);
-    expect(slots[0]).toMatchObject({ element: 0, strength: MIN_NAME_BITS, magnitude: 3 });
+    expect(slots[0]).toMatchObject({ element: spiritAt(HEARTH_GOD)!.element, strength: MIN_NAME_BITS, magnitude: spiritAt(HEARTH_GOD)!.magnitude, facet: 0 });
     expect(slots[0]!.spirit.startsWith('r:')).toBe(true);
-    expect(slots[0]!.traits).toMatchObject({ form: 3, flavor: '0' }); // the lance; flavor never revealed
+    expect(slots[0]!.traits).toMatchObject({ form: spiritAt(HEARTH_GOD)!.traits.form, flavor: '0' }); // the facet's form; flavor never revealed
     expect(JSON.stringify(slots)).not.toContain(HEARTH_GOD);
     expect(JSON.stringify(slots)).not.toContain(traitHashFromDigest(cellDigest(HEARTH_GOD)).toString());
   });

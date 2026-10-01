@@ -1,6 +1,7 @@
-// Admission at the threshold, shared by every world: verify each proven name against the round's
-// authority and keep only what the proof revealed (element, magnitude, gameplay traits, truths).
+// Admission at the threshold, shared by every world: verify each proven word against the round's
+// authority and keep only what the proof revealed (element, might, the facet and its form, traits, truths).
 import { spiritStats, type LocalAuthority } from '@truenames/authority';
+import { wordBar } from '@truenames/universe';
 import { parsePublic, type ZkNameClaim } from '@truenames/proofs';
 import type { Traits } from '@truenames/universe';
 import { SLOTS } from './balance.ts';
@@ -30,14 +31,16 @@ export async function admitNames(
     if (claim.aura !== aura) { refused.push('a name for another aura'); continue; }
     let pub;
     try { pub = parsePublic(claim.publicSignals); } catch { refused.push('bad public signals'); continue; }
-    if (seen.has(pub.roundTag)) { refused.push('the same patron twice'); continue; }
+    const word = `${pub.roundTag}#${pub.facet}`;
+    if (seen.has(word)) { refused.push('the same word twice'); continue; }
+    if (pub.strength < wordBar(pub.magnitude)) { refused.push('a word not yet grasped'); continue; }
     const r = await auth.submitProvenName(claim);
     if (!r.accepted || !r.spirit) { refused.push(r.reason ?? 'unknown'); continue; }
-    seen.add(pub.roundTag);
-    // the proof revealed only the details: element, magnitude, gameplay traits. Never the source.
-    const traits = { ...pub.traits, flavor: 0n };
+    seen.add(word);
+    // the proof revealed only the details: element, might, the facet's form, traits. Never the source.
+    const traits = { ...pub.traits, formStep: 0, flavor: 0n };
     slots[slot] = {
-      spirit: r.spirit, element: pub.element, magnitude: pub.magnitude, traits: wireTraits(traits), strength: r.strength!,
+      spirit: r.spirit, facet: pub.facet, element: pub.element, magnitude: pub.magnitude, traits: wireTraits(traits), strength: r.strength!,
       form: traits.form, generosity: spiritStats({ magnitude: pub.magnitude, traits }).generosity, lastBits: null,
     };
   }
@@ -45,4 +48,4 @@ export async function admitNames(
 }
 
 export const publicSlots = (slots: (AdmittedSlot | null)[]): (SlotInfo | null)[] =>
-  slots.map((s) => s && { spirit: s.spirit, element: s.element, magnitude: s.magnitude, traits: s.traits, strength: s.strength });
+  slots.map((s) => s && { spirit: s.spirit, facet: s.facet, element: s.element, magnitude: s.magnitude, traits: s.traits, strength: s.strength });

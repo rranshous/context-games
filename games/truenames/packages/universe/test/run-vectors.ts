@@ -16,11 +16,16 @@ export function runVectors(v: any): string[] {
     const got = U.spiritAt(s.cell);
     eq(`spiritAt(${s.cell})`, got && { ...got, traits: { ...got.traits, flavor: got.traits.flavor.toString() } }, s.spirit);
   }
+  for (const f of v.facets ?? []) {
+    const s = U.spiritAt(f.cell)!;
+    eq(`facets(${f.cell})`, { count: U.facetCount(s.magnitude), forms: Array.from({ length: U.facetCount(s.magnitude) }, (_, i) => U.facetForm(s.traits, i)), bar: U.wordBar(s.magnitude) }, { count: f.count, forms: f.forms, bar: f.bar });
+  }
   const pub = U.hexToBytes(v.aura.pubkey);
   eq('auraField', U.auraField(pub).toString(), v.aura.field);
   for (const n of v.nameStrength) {
     eq(`nameHash(${n.nonce})`, U.nameHash(n.cell, pub, BigInt(n.nonce)).toString(), n.hash);
     eq(`nameStrength(${n.nonce})`, U.nameStrength(n.cell, pub, BigInt(n.nonce)), n.strength);
+    if (n.word) eq(`wordOf(${n.nonce})`, U.wordOf(n.cell, pub, BigInt(n.nonce)), n.word);
   }
   for (const c of v.claims) eq(`verifyNameClaim(${c.claim.sig.slice(0, 8)})`, U.verifyNameClaim(c.claim), c.result);
   return fails;

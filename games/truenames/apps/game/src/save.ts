@@ -2,7 +2,7 @@
 // Everything here is either the player's secret (the aura key), their signed
 // claims, or maps of work done. The universe itself is never stored.
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { bytesToHex, hexToBytes, signNameClaim, type NameClaim, type Spirit } from '@truenames/universe';
+import { bytesToHex, facetForm, hexToBytes, signNameClaim, spiritAt, wordBar, type NameClaim, type Spirit } from '@truenames/universe';
 import type { WireSpirit } from '@truenames/meditation';
 import { toWire, fromWire } from '@truenames/meditation';
 
@@ -13,9 +13,18 @@ export interface KnownSpirit {
   seen?: boolean;
 }
 
+/** A word of power you hold: the signed claim, its truths, and the facet it touched. Keyed by `cell#facet`. */
 export interface NameRecord {
   claim: NameClaim;
   strength: number;
+  facet: number;
+}
+
+/** A word's key: the being's cell and the facet. Loadout, deck and name book all hold these. */
+export const wordKey = (cell: string, facet: number) => `${cell}#${facet}`;
+export function splitWord(key: string): { cell: string; facet: number | null } {
+  const i = key.indexOf('#');
+  return i < 0 ? { cell: key, facet: null } : { cell: key.slice(0, i), facet: Number(key.slice(i + 1)) };
 }
 
 export interface RunRecord {
@@ -45,7 +54,8 @@ export interface CodexView {
 }
 
 export interface SaveData {
-  version: 1;
+  /** 2: spec v2 (the pyramid, words of power). Older saves keep only their aura. */
+  version: 2;
   aura: { secret: string; pub: string; element: number; createdAt: number } | null;
   spirits: Record<string, KnownSpirit>;
   names: Record<string, NameRecord>;
@@ -66,12 +76,14 @@ export interface SaveData {
   /** Progress in worlds beyond the Dark (whose progress is `descent` / `lastDescent`). */
   worlds?: { bastion?: { descent: number; last: number }; council?: { descent: number; last: number }; racer?: { descent: number; last: number } };
   lastWorld?: 'dark' | 'bastion' | 'council' | 'racer';
-  /** The Council deck: up to twelve learned names, played as cards. */
+  /** The Council deck: up to twelve grasped words (`cell#facet`), played as cards. */
   councilDeck?: string[];
+  /** Set once, when a v1 save was carried into the v2 astral. */
+  sundered?: boolean;
 }
 
 export function emptySave(): SaveData {
-  return { version: 1, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], focus: [], scrying: [], loadout: [null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
+  return { version: 2, aura: null, spirits: {}, names: {}, scans: {}, meditating: [], focus: [], scrying: [], loadout: [null, null, null, null], runs: [], workers: null, descent: 0, lastDescent: 0 };
 }
 
 const DB = 'truenames';
@@ -96,6 +108,11 @@ export async function loadSave(): Promise<SaveData> {
       r.onerror = () => rej(r.error);
     });
     if (!v) return emptySave();
+    if ((v as { version: number }).version !== 2) {
+      // a new universe (spec v2): every spirit moved and every name is gone. Keep only who you are.
+      console.info('[save] spec v1 save: keeping the aura, starting the new astral fresh');
+      return { ...emptySave(), aura: v.aura, sundered: true } as SaveData;
+    }
     const save = { ...emptySave(), ...v };
     // older saves had six slots: keep four, moving any stranded names into free slots
     const keep = save.loadout.slice(0, 4);
@@ -166,7 +183,17 @@ export function rememberSpirit(save: SaveData, s: Spirit, source: KnownSpirit['s
   return true;
 }
 
-export function spiritOf(save: SaveData, cell: string): Spirit | null {
-  const k = save.spirits[cell];
+/** The being for a cell or a word key. */
+export function spiritOf(save: SaveData, cellOrWord: string): Spirit | null {
+  const k = save.spirits[splitWord(cellOrWord).cell];
   return k ? fromWire(k.spirit) : null;
+}
+
+/** A word as the client draws it: its being, with `form` set to this facet's form. */
+export function wordView(save: SaveData, key: string): (Spirit & { facet: number; bar: number }) | null {
+  const { cell, facet } = splitWord(key);
+  const sp = spiritOf(save, cell) ?? spiritAt(cell);
+  if (!sp) return null;
+  const f = facet ?? 0;
+  return { ...sp, facet: f, bar: wordBar(sp.magnitude), traits: { ...sp.traits, form: facetForm(sp.traits, f) } };
 }

@@ -2,8 +2,8 @@
 // Screens come and go; these persist for the whole session.
 import { MeditationPool, type ScryTask, type NameTask } from '@truenames/meditation';
 import { LocalAuthority, type Authority } from '@truenames/authority';
-import { MIN_NAME_BITS, cellsBelow, target, type Spirit } from '@truenames/universe';
-import { persist, rememberSpirit, signClaim, type SaveData, type KnownSpirit } from './save.ts';
+import { cellsBelow, facetCount, spiritAt, target, wordBar, type Spirit } from '@truenames/universe';
+import { persist, rememberSpirit, signClaim, splitWord, wordKey, type SaveData, type KnownSpirit } from './save.ts';
 import MeditationWorker from './meditation.worker.ts?worker';
 
 type Listener<T> = (v: T) => void;
@@ -28,8 +28,10 @@ export interface FindEvent {
 
 export interface NameEvent {
   cell: string;
+  facet: number;
+  key: string; // the word: cell#facet
   strength: number;
-  learned: boolean; // crossed MIN_NAME_BITS just now
+  learned: boolean; // crossed the being's bar just now (the word is grasped)
 }
 
 export const scanKey = (prefix: string, depth: number) => `${prefix}|${depth}`;
@@ -59,7 +61,7 @@ export class Services {
         persist(this.save);
         this.scry.emit(t);
       },
-      onName: (t, nonce, strength) => this.onName(t, nonce, strength),
+      onName: (t, nonce, strength, facet) => this.onName(t, nonce, strength, facet),
       onRate: (r) => this.hum.emit(r),
     });
     if (save.workers != null) this.pool.setActive(Math.max(1, save.workers));
@@ -75,12 +77,42 @@ export class Services {
     for (const p of this.save.scrying) if (p.running) this.startScry(p.prefix, p.depth, 'scry');
   }
 
-  strength(cell: string): number {
-    return this.save.names[cell]?.strength ?? 0;
+  /** A being's might, from the save or the universe. */
+  private might(cell: string): number {
+    return (this.save.spirits[cell]?.spirit.magnitude ?? spiritAt(cell)?.magnitude ?? 0);
   }
 
-  learned(cell: string): boolean {
-    return this.strength(cell) >= MIN_NAME_BITS;
+  /** The bar a word for this being must reach to be grasped. */
+  bar(cellOrWord: string): number {
+    return wordBar(this.might(splitWord(cellOrWord).cell));
+  }
+
+  /** Truths of a word (`cell#facet`), or of the truest word held for a being (`cell`). */
+  strength(cellOrWord: string): number {
+    const { cell, facet } = splitWord(cellOrWord);
+    if (facet !== null) return this.save.names[cellOrWord]?.strength ?? 0;
+    let best = 0;
+    for (let f = 0; f < facetCount(this.might(cell)); f++) best = Math.max(best, this.save.names[wordKey(cell, f)]?.strength ?? 0);
+    return best;
+  }
+
+  /** A word is grasped at its being's bar; a being is "learned" once any of its words is. */
+  learned(cellOrWord: string): boolean {
+    return this.strength(cellOrWord) >= this.bar(cellOrWord);
+  }
+
+  /** The words held for a being, one per facet (strength 0 where none has come yet). */
+  words(cell: string): { key: string; facet: number; strength: number; grasped: boolean }[] {
+    const bar = this.bar(cell);
+    return Array.from({ length: facetCount(this.might(cell)) }, (_, f) => {
+      const key = wordKey(cell, f), strength = this.save.names[key]?.strength ?? 0;
+      return { key, facet: f, strength, grasped: strength >= bar };
+    });
+  }
+
+  /** Every grasped word, as keys. */
+  graspedWords(): string[] {
+    return Object.keys(this.save.names).filter((k) => this.learned(k));
   }
 
   // ---------- meditation ----------
@@ -106,7 +138,7 @@ export class Services {
     const id = 'name:' + cell;
     this.pool.setWeight(id, this.isFocused(cell) ? Services.FOCUS_WEIGHT : 1);
     if (on && this.save.aura) {
-      if (!this.pool.get(id)) this.pool.addName({ id, cell, aura: this.save.aura.pub, best: this.strength(cell) });
+      if (!this.pool.get(id)) this.pool.addName({ id, cell, aura: this.save.aura.pub, facets: facetCount(this.might(cell)), bests: this.words(cell).map((w) => w.strength) });
       if (!this.save.meditating.includes(cell)) this.save.meditating.push(cell);
     } else {
       this.pool.remove(id);
@@ -120,15 +152,18 @@ export class Services {
     return t?.kind === 'name' ? t : undefined;
   }
 
-  private onName(t: NameTask, nonce: bigint, strength: number) {
+  private onName(t: NameTask, nonce: bigint, strength: number, facet: number) {
     if (!this.save.aura) return;
+    const key = wordKey(t.cell, facet);
+    const before = this.save.names[key]?.strength ?? 0;
+    if (strength <= before) return;
     const claim = signClaim(this.save, t.cell, nonce);
-    const r = this.authority.submitName(claim);
-    if (!r.accepted) return;
-    const before = this.strength(t.cell);
-    this.save.names[t.cell] = { claim, strength };
+    const bar = this.bar(t.cell);
+    // only grasped words are claims the authority accepts; below the bar the word is still forming (kept locally)
+    if (strength >= bar && !this.authority.submitName(claim).accepted) return;
+    this.save.names[key] = { claim, strength, facet };
     persist(this.save);
-    this.names.emit({ cell: t.cell, strength, learned: before < MIN_NAME_BITS && strength >= MIN_NAME_BITS });
+    this.names.emit({ cell: t.cell, facet, key, strength, learned: before < bar && strength >= bar });
   }
 
   // ---------- scrying ----------

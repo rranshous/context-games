@@ -3,7 +3,7 @@
 
 export type WorkChunk =
   | { kind: 'scry'; taskId: string; prefix: string; extra: number; start: string; count: string }
-  | { kind: 'name'; taskId: string; cell: string; aura: string /* field element, decimal */; startNonce: string; count: number; beat: number };
+  | { kind: 'name'; taskId: string; cell: string; aura: string /* field element, decimal */; startNonce: string; count: number; facets: number; bests: number[] };
 
 export interface WireSpirit {
   cell: string;
@@ -12,11 +12,11 @@ export interface WireSpirit {
   element: number;
   aspect: number;
   tradition: number;
-  traits: { form: number; weightIdx: number; generosityIdx: number; temperIdx: number; flavor: string };
+  traits: { form: number; formStep: number; weightIdx: number; generosityIdx: number; temperIdx: number; flavor: string };
 }
 
 export type WorkerReply =
   | { kind: 'ready'; engine?: 'wasm' | 'bigint' }
   | { kind: 'scried'; taskId: string; start: string; count: string; hits: WireSpirit[]; hashes: number; ms: number }
-  | { kind: 'named'; taskId: string; best: { nonce: string; strength: number } | null; count: number; hashes: number; ms: number }
+  | { kind: 'named'; taskId: string; improved: { nonce: string; strength: number; facet: number }[]; count: number; hashes: number; ms: number }
   | { kind: 'error'; message: string; chunk?: WorkChunk };

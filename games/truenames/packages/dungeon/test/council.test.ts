@@ -5,6 +5,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { bytesToHex, nameStrength, spiritAt, MIN_NAME_BITS } from '@truenames/universe';
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { CouncilSim, zkVerifier, HEARTH_GOD, COUNCIL, type CouncilView } from '../src/index.ts';
+import { HEARTH_NONCE, HEARTH_NONCE_2 } from './fixtures.ts';
 
 const require = createRequire(import.meta.url);
 const art = (f: string) => require.resolve(`@truenames/proofs/artifacts/${f}`);
@@ -18,7 +19,7 @@ function rng(seed = 9) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5)
 describe('the Council', () => {
   beforeAll(async () => {
     let n = 0n;
-    while (nameStrength(HEARTH_GOD, ed25519.getPublicKey(SECRET), n) < MIN_NAME_BITS) n++;
+    n = HEARTH_NONCE;
     claim = await proveName({ cell: HEARTH_GOD, nonce: n, secretKey: SECRET, magnitude: spiritAt(HEARTH_GOD)!.magnitude, strength: MIN_NAME_BITS, context: CONTEXT }, { wasm: art('name.wasm'), zkey: art('name.zkey') });
   });
 
@@ -30,7 +31,7 @@ describe('the Council', () => {
     expect(v.t).toBe('cview');
     expect(v.active).toBe(0);
     expect(v.hand.length).toBe(1); // a one-name deck
-    expect(v.hand[0]).toMatchObject({ form: 3, element: 0, strength: MIN_NAME_BITS }); // the hearth-god: a lance
+    expect(v.hand[0]).toMatchObject({ form: spiritAt(HEARTH_GOD)!.traits.form, element: spiritAt(HEARTH_GOD)!.element, strength: MIN_NAME_BITS }); // the hearth's one facet
     expect(v.seats[1]!.handCount).toBe(COUNCIL.startHand); // the Warden's hand: a count, never the cards
     expect(JSON.stringify(v)).not.toContain('"hand":[{"id":' + 999);
   });

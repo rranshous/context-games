@@ -48,7 +48,7 @@ Glossary, formulas and tunables, **as the game runs today**. Exact hashing lives
 - Knowing one being does **not** make related ones cheaper. The only advantages are the prefix you choose and your record of cells already scanned. Traits don't depend on the region.
 
 ## Words of power (meditation)
-- For a known being, grind `nonce` over `nameHash(cell, aura, nonce)`. Each word lands on the facet its hash's low bits pick (**facets reveal themselves**; you can't aim). Keep the truest word per facet.
+- For a known being, grind `nonce` over `nameHash(cell, aura, nonce)`. Each word lands on the facet its hash's low bits pick (you see every facet the moment you find the being, but **you can't aim**: words come to facets as they will). Keep the truest word per facet.
 - `strength = bits(nameHash)`. Expected work to reach strength `s` is `2^s` ("each truth requires twice as much meditation to unveil").
 - A word is **grasped** once `strength ≥ bar = 22 + 4·might`: each class is 16× harder to learn, mirroring 16× harder to find. At ~38k utterances/s (an acolyte's hum), a first word takes: wisp ~2 min, spirit ~30 min, power ~8 h, dominion ~5 days, **god ~3 months**, great god ~4 years, elder god ~60 years, primordial ~900 years. A word for every facet takes several times longer (the last facets keep eluding you).
 - Anyone can grind anyone's words (aura keys are public). Only the aura's owner can *submit* them, because claims are signed. The sanctum keeps signed claims and only ever raises a word.

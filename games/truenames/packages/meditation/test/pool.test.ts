@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { MeditationPool } from '../src/pool.ts';
 import { runChunk } from '../src/worker-body.ts';
-import { nameStrength, hexToBytes } from '@truenames/universe';
+import { hexToBytes, wordOf } from '@truenames/universe';
+
+/** A spirit-class being in the depth-12 layer (two facets). */
+const KNOWN = '012341174703';
 
 // A fake Worker that answers asynchronously, with jitter so replies arrive out of order.
 class FakeWorker {
@@ -12,7 +15,7 @@ class FakeWorker {
 }
 
 describe('MeditationPool', () => {
-  it('scans a layer completely with an in-order frontier, finds the hearth-god', async () => {
+  it('scans a layer completely with an in-order frontier, finds a known being', async () => {
     let j = 0;
     const found: string[] = [];
     const done = new Promise<bigint>((res) => {
@@ -20,23 +23,23 @@ describe('MeditationPool', () => {
         onSpirit: (s) => found.push(s.cell),
         onScryDone: (t) => res(t.doneUpTo),
       });
-      pool.addScry({ id: 's', prefix: '011', depth: 6 });
+      pool.addScry({ id: 's', prefix: '012341174', depth: 12 });
     });
     expect(await done).toBe(512n);
-    expect(found).toContain('011010');
+    expect(found).toContain(KNOWN);
   });
 
   it('grinds a name and reports verifiable improvements', async () => {
     const aura = '11'.repeat(32);
-    const got: { nonce: bigint; strength: number }[] = [];
+    const got: { nonce: bigint; strength: number; facet: number }[] = [];
     await new Promise<void>((res) => {
       const pool = new MeditationPool(() => new FakeWorker(() => 0) as unknown as Worker, 2, {
-        onName: (t, nonce, strength) => { got.push({ nonce, strength }); if (strength >= 9) { pool.remove(t.id); res(); } },
+        onName: (t, nonce, strength, facet) => { got.push({ nonce, strength, facet }); if (strength >= 9) { pool.remove(t.id); res(); } },
       });
-      pool.addName({ id: 'n', cell: '011010', aura, best: 0 });
+      pool.addName({ id: 'n', cell: KNOWN, aura, facets: 2, bests: [0, 0] });
     });
-    for (const g of got) expect(nameStrength('011010', hexToBytes(aura), g.nonce)).toBe(g.strength);
-    expect(got.map((g) => g.strength)).toEqual([...got.map((g) => g.strength)].sort((a, b) => a - b));
+    for (const g of got) expect(wordOf(KNOWN, hexToBytes(aura), g.nonce)).toEqual({ strength: g.strength, facet: g.facet });
+    for (const f of [0, 1]) { const s = got.filter((g) => g.facet === f).map((g) => g.strength); expect(s).toEqual([...s].sort((a, b) => a - b)); }
   });
 
   it('extending a scry task mid-flight never stalls the frontier', async () => {
@@ -73,10 +76,10 @@ describe('MeditationPool', () => {
         onSpirit: (s) => found.push(s.cell),
         onScryDone: (t) => res(t.doneUpTo),
       });
-      pool.addScry({ id: 's', prefix: '011', depth: 6 });
+      pool.addScry({ id: 's', prefix: '012341174', depth: 12 });
     });
     expect(await done).toBe(512n);
     expect(failed).toBe(2);
-    expect(found).toContain('011010');
+    expect(found).toContain(KNOWN);
   });
 });

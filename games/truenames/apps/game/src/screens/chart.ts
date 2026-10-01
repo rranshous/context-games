@@ -7,7 +7,7 @@ import { cellsBelow } from '@truenames/universe';
 import { expectedSpirits } from '../services.ts';
 import { sigilURL } from '../sigil.ts';
 
-export const CHART_DEPTHS = [7, 8, 9, 10, 11, 12];
+export const CHART_DEPTHS = [12, 13, 14, 15, 16, 17]; // wisps … great gods
 
 /** Fraction of the (element, aspect) layer at `depth` that is scanned, from element- and aspect-level scans. */
 export function aspectCoverage(app: App, element: number, aspect: number, depth: number): number {

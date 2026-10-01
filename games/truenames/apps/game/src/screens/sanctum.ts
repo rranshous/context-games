@@ -4,7 +4,7 @@ import {
   ELEMENT_NAMES, ELEMENT_COLOR, ELEMENT_GLYPH, ASPECTS, FORMS, HEARTH_GOD,
   addressOf, spiritName, magnitudeTitle, fmtDuration, traditionName, truths,
 } from '../lore.ts';
-import { persist, spiritOf } from '../save.ts';
+import { persist, spiritOf, wordView } from '../save.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
@@ -121,18 +121,18 @@ export function sanctumScreen(app: App): Screen {
   function renderLoadout() {
     const box = root.querySelector('#slots')!;
     box.innerHTML = save.loadout.map((cell, i) => {
-      const sp = cell ? spiritOf(save, cell) : null;
+      const sp = cell ? wordView(save, cell) : null;
       const key = SLOTS[i]!.label;
       const mouse = '';
       if (!sp) return `<div class="slot ${picking === i ? 'picking' : ''}" data-slot="${i}" data-tip="slot"><span class="key">${key}</span><span class="dim">${picking === i ? 'choose a learned spirit: press bind' : 'empty'}${mouse}</span></div>`;
       return `<div class="slot filled" data-slot="${i}" data-tip="slot" style="--c:${ELEMENT_COLOR[sp.element]}"><span class="key">${key}</span><img class="sigil-sm" src="${sigilURL(sp)}" alt="">
         <span style="flex:1"><span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:13px">${FORMS[sp.traits.form]!.name}${mouse}</span></span>
-        <span class="bits gold" data-tip="truths">${truths(S.strength(sp.cell))}</span><button class="small" data-unbind="${i}" data-tip="unbind">×</button></div>`;
+        <span class="bits gold" data-tip="truths">${truths(S.strength(cell!))}</span><button class="small" data-unbind="${i}" data-tip="unbind">×</button></div>`;
     }).join('');
     // the Council deck: up to twelve learned names
     const deck = (save.councilDeck ?? []).filter((c) => S.learned(c));
-    root.querySelector('#deck')!.innerHTML = `<div class="dim" style="font-size:13px; margin-bottom:4px">${deck.length} / ${COUNCIL.deckMax} names · add with ◇ in the Name Book</div>` + deck.map((cell) => {
-      const sp = spiritOf(save, cell)!;
+    root.querySelector('#deck')!.innerHTML = `<div class="dim" style="font-size:13px; margin-bottom:4px">${deck.length} / ${COUNCIL.deckMax} words · add with ◇ in the Name Book</div>` + deck.map((cell) => {
+      const sp = wordView(save, cell)!;
       return `<div class="deck-row" style="--c:${ELEMENT_COLOR[sp.element]}"><img class="sigil-sm" src="${sigilURL(sp)}" alt=""> <span style="color:${ELEMENT_COLOR[sp.element]}">${esc(spiritName(sp))}</span> <span class="dim" style="font-size:12px">${FORMS[sp.traits.form]!.name}</span><span style="flex:1"></span><button class="small" data-deck="${cell}" data-tip="=Take this name out of the Council deck.">×</button></div>`;
     }).join('');
     const canRun = world() === 'council' ? deck.length > 0 : save.loadout.some((c) => c && S.learned(c));
@@ -163,18 +163,18 @@ export function sanctumScreen(app: App): Screen {
     const box = root.querySelector('#advice') as HTMLElement;
     const known = Object.keys(save.spirits);
     const unlearned = known.filter((c) => !S.learned(c));
-    const learnedUnbound = known.filter((c) => S.learned(c) && !save.loadout.includes(c));
+    const learnedUnbound = S.graspedWords().filter((k) => !save.loadout.includes(k));
     const scrying = S.pool.list().some((t) => t.kind === 'scry');
     const meditating = S.pool.list().some((t) => t.kind === 'name');
     let msg = '';
-    if (known.length <= 1 && !scrying) msg = `Search for spirits: choose a region in <em>Scrying</em> and press <em>Scry here</em>. Your element, depth 7, is a good first place to look.`;
-    else if (learnedUnbound.length && save.loadout.some((c) => !c)) msg = `A learned name is waiting. Press <em>bind</em> to carry it into the dark.`;
-    else if (unlearned.length && known.every((c) => c === HEARTH_GOD || !S.learned(c)) && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found spirits you cannot yet call. Press <em>meditate</em> on one; at ${truths(MIN_NAME_BITS)} its name is yours.`;
+    if (known.length <= 1 && !scrying) msg = `Search for spirits: choose a region in <em>Scrying</em> and press <em>Scry here</em>. Your element, at depth ${MIN_SPIRIT_DEPTH} where the wisps dwell, is a good first place to look.`;
+    else if (learnedUnbound.length && save.loadout.some((c) => !c)) msg = `A grasped word is waiting. Press <em>bind</em> on it to carry it into the worlds.`;
+    else if (unlearned.length && known.every((c) => c === HEARTH_GOD || !S.learned(c)) && !unlearned.some((c) => S.isMeditating(c))) msg = `You have found beings you cannot yet call. Press <em>meditate</em> on one; words will come to its facets as they will, and a word is yours once it reaches the being's bar (${truths(MIN_NAME_BITS)} for a wisp).`;
     else if (!save.runs.length) msg = `When you are ready, <em>walk into the dark</em>. Your meditation and scrying keep working while you fight.`;
     else if (!meditating) msg = `Nothing is being meditated. Names only grow truer while you work on them, even while you sleep.`;
     else if (save.runs.length && !save.runs.at(-1)!.won) msg = `The dark was too thick. Let meditation run; every truth makes each evocation about 1.4× stronger.`;
     const w = world();
-    box.innerHTML = msg || `Your names deepen while you rest. Go deeper when ${w === 'bastion' ? 'the road feels quiet' : w === 'racer' ? 'the podium feels easy' : 'the dark feels thin'}: ${worldDescentName(w, progress(w).descent)} is open to you.`;
+    box.innerHTML = msg || `Your words deepen while you rest. Go deeper when ${w === 'bastion' ? 'the road feels quiet' : w === 'racer' ? 'the podium feels easy' : 'the dark feels thin'}: ${worldDescentName(w, progress(w).descent)} is open to you.`;
   }
 
   function renderAll() {
@@ -234,28 +234,28 @@ export function sanctumScreen(app: App): Screen {
     // lines to read while the names are proven (a few seconds each)
     const LINES: Record<World, string[]> = {
       dark: [
-        'The dark will learn what your names can do. Never where their spirits dwell.',
+        'The dark will learn what your words can do. Never where their beings dwell.',
         'Only temper and truth cross the threshold. The dwelling stays yours.',
-        'Each name is weighed, not heard.',
+        'Each word is weighed, not heard.',
         'What you carry in is sealed until you come back out.',
       ],
       bastion: [
         'Your shrines will know their patrons by deed, never by dwelling.',
         'Only temper and truth cross the threshold. The dwelling stays yours.',
-        'Each name is weighed, not heard.',
+        'Each word is weighed, not heard.',
         'The road is long. Every shrine will speak in your voice.',
       ],
       racer: [
-        'The road will know what your names can do. Never where their spirits dwell.',
+        'The road will know what your words can do. Never where their beings dwell.',
         'Only temper and truth cross the threshold. The dwelling stays yours.',
-        'Each name is weighed, not heard.',
-        'Five rivals warm their engines on the names of ancients.',
+        'Each word is weighed, not heard.',
+        'Five rivals warm their engines on the words of charted beings.',
       ],
       council: [
-        'The council will see your names as cards: what they do, never where they dwell.',
+        'The council will see your words as cards: what they do, never where they dwell.',
         'Only temper and truth cross the threshold. The dwelling stays yours.',
-        'Each name is weighed, not heard.',
-        'Across the table, the Warden shuffles names older than scholars.',
+        'Each word is weighed, not heard.',
+        'Across the table, the Warden shuffles words older than scholars.',
       ],
     };
     let li = 0;
@@ -292,7 +292,7 @@ export function sanctumScreen(app: App): Screen {
           overlay.querySelector('#th-v')!.innerHTML = e.names.map((n) => `<div class="vessel queued" data-v="${n.slot}" style="--c:${ELEMENT_COLOR[n.spirit.element]}">
             <img src="${sigilURL(n.spirit)}" alt=""><div class="flask"><i class="liquid"></i></div><div class="vname">${esc(n.name)}</div></div>`).join('');
           for (const n of e.names) names.set(n.slot, n.name);
-          msg('Your names are spoken at the threshold…');
+          msg('Your words are spoken at the threshold…');
         } else if (e.t === 'start') {
           started.set(e.slot, performance.now());
           vessel(e.slot)?.classList.replace('queued', 'speaking');
@@ -312,7 +312,7 @@ export function sanctumScreen(app: App): Screen {
       cancelAnimationFrame(raf);
       clearInterval(rotating);
       console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
-      msg(w === 'bastion' ? 'The bastion weighs your names…' : w === 'council' ? 'The council weighs your names…' : w === 'racer' ? 'The road weighs your names…' : 'The dark weighs your names…');
+      msg(w === 'bastion' ? 'The bastion weighs your words…' : w === 'council' ? 'The council weighs your words…' : w === 'racer' ? 'The road weighs your words…' : 'The dark weighs your words…');
       const welcome = await link.enter(journey);
       const host: RoundHost = {
         report(r) {
@@ -364,7 +364,7 @@ export function sanctumScreen(app: App): Screen {
               <label data-tip="scryRegion">element</label><select id="s-el">${ELEMENT_NAMES.map((n, i) => `<option value="${i}">${ELEMENT_GLYPH[i]} ${n}</option>`).join('')}</select>
               <label data-tip="scryRegion">aspect</label><select id="s-asp"></select>
               <label data-tip="scryRegion">tradition</label><select id="s-trad"></select>
-              <label data-tip="depth">depth</label><input id="s-depth" type="number" min="${MIN_SPIRIT_DEPTH}" max="24" value="7">
+              <label data-tip="depth">depth</label><input id="s-depth" type="number" min="${MIN_SPIRIT_DEPTH}" max="24" value="${MIN_SPIRIT_DEPTH}">
             </div>
             <div id="s-info" style="font-size:14px; line-height:1.45; margin-bottom:8px"></div>
             <button id="s-go" data-tip="scry">Scry here</button> <button id="s-chart" data-tip="chart">Chart of the astral</button>

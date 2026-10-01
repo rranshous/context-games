@@ -5,6 +5,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { bytesToHex, nameStrength, spiritAt, MIN_NAME_BITS } from '@truenames/universe';
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { RacerSim, zkVerifier, HEARTH_GOD, RACER, autopilot, buildTrack, driveCar, type RacerSnapshot, type RacerEvent, type CarState } from '../src/index.ts';
+import { HEARTH_NONCE, HEARTH_NONCE_2 } from './fixtures.ts';
 
 const require = createRequire(import.meta.url);
 const art = (f: string) => require.resolve(`@truenames/proofs/artifacts/${f}`);
@@ -38,7 +39,7 @@ function race(sim: RacerSim, seconds: number, drive = true, cast = false, onSnap
 describe('Dark Racer', () => {
   beforeAll(async () => {
     let n = 0n;
-    while (nameStrength(HEARTH_GOD, ed25519.getPublicKey(SECRET), n) < MIN_NAME_BITS) n++;
+    n = HEARTH_NONCE;
     claim = await proveName({ cell: HEARTH_GOD, nonce: n, secretKey: SECRET, magnitude: spiritAt(HEARTH_GOD)!.magnitude, strength: MIN_NAME_BITS, context: CONTEXT }, { wasm: art('name.wasm'), zkey: art('name.zkey') });
   });
 
@@ -84,7 +85,7 @@ describe('Dark Racer', () => {
     const r = race(sim, 1);
     const my = mine(r.last).id;
     const cast = r.events.find((e) => e.e === 'cast' && e.car === my);
-    expect(cast).toMatchObject({ form: 3, slot: 0 });
+    expect(cast).toMatchObject({ form: spiritAt(HEARTH_GOD)!.traits.form, slot: 0 });
     expect(r.events.some((e) => e.e === 'beam')).toBe(true);
     expect(r.last.strain).toBeGreaterThan(0);
     expect(mine(r.last).top).toBeLessThan(1); // heat
@@ -120,7 +121,7 @@ describe('Dark Racer', () => {
     const SECRET2 = Uint8Array.from({ length: 32 }, (_, i) => 200 - i);
     const AURA2 = bytesToHex(ed25519.getPublicKey(SECRET2));
     let n2 = 0n;
-    while (nameStrength(HEARTH_GOD, ed25519.getPublicKey(SECRET2), n2) < MIN_NAME_BITS) n2++;
+    n2 = HEARTH_NONCE_2;
     const claim2 = await proveName({ cell: HEARTH_GOD, nonce: n2, secretKey: SECRET2, magnitude: spiritAt(HEARTH_GOD)!.magnitude, strength: MIN_NAME_BITS, context: CONTEXT }, { wasm: art('name.wasm'), zkey: art('name.zkey') });
     const sim = new RacerSim({ level: 0, context: CONTEXT, verifier, rng: rng(4) });
     await sim.admit(AURA, [{ slot: 0, claim }]);

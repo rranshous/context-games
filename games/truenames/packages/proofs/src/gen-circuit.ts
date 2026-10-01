@@ -1,14 +1,14 @@
-// Generates circuits/name.circom: "I hold a name of at least `strength` truths on a spirit
-// of magnitude at least `magnitude`, with this element and these traits (form, weight,
-// generosity, temper)" without revealing the spirit's address (digits, depth), its trait hash,
-// or the nonce. A per-round tag identifies the spirit within one round only.
-// Constants (seed, tags, P>>k thresholds) come from the universe so the circuit can't drift from spec v1.
-import { P, SEED, TAG_CELL, TAG_SPIRIT, TAG_TRAITS, TAG_NAME, MIN_SPIRIT_DEPTH } from '@truenames/universe';
+// Generates circuits/name.circom (spec v2): "I hold a word of power of at least `strength` truths, for
+// facet F of a being of exactly might M, with this element and these traits (the facet's form, weight,
+// generosity, temper)" without revealing the being's address (digits, depth), its trait hash, or the nonce.
+// A per-round tag identifies the being within one round only.
+// Constants (seed, tags, target, P>>k thresholds) come from the universe so the circuit can't drift from the spec.
+import { P, SEED, TAG_CELL, TAG_SPIRIT, TAG_TRAITS, TAG_NAME, MIN_SPIRIT_DEPTH, MIGHT_ROLL_BITS, MAX_FACETS, target } from '@truenames/universe';
 
 /** Deepest provable spirit. Deeper spirits need a bigger circuit. */
 export const MAX_DEPTH = 24;
-/** Thresholds table size: truths/bits provable up to K-1. */
-export const K = 64;
+/** Thresholds table size: truths/bits provable up to K-1 (target(24) + 4 rolls of might needs ~86). */
+export const K = 128;
 /**
  * Domain tag for the per-round spirit tag. A proof-system tag, not a universe tag: it must never
  * collide with the universe's (1..5), and changing it only invalidates in-flight proofs.
@@ -77,6 +77,47 @@ template AtLeastBits() {
     ltHi.out + both === 1; // exactly one can hold when true; both 0 means h >= t
 }
 
+// Enforces bits(h) < k, i.e. h >= floor(P / 2^k). k is a signal in [0, ${K}).
+template BelowBits() {
+    signal input h;
+    signal input k;
+    var THI[${K}] = [${hi.join(', ')}];
+    var TLO[${K}] = [${lo.join(', ')}];
+    component eq[${K}];
+    signal sel[${K}];
+    var any = 0;
+    var tHi = 0;
+    var tLo = 0;
+    for (var i = 0; i < ${K}; i++) {
+        eq[i] = IsEqual();
+        eq[i].in[0] <== k;
+        eq[i].in[1] <== i;
+        sel[i] <== eq[i].out;
+        any += sel[i];
+        tHi += sel[i] * THI[i];
+        tLo += sel[i] * TLO[i];
+    }
+    any === 1;
+    component hb = Num2Bits_strict();
+    hb.in <== h;
+    var hHi = 0;
+    var hLo = 0;
+    for (var i = 0; i < 127; i++) { hLo += hb.out[i] * (1 << i); }
+    for (var i = 127; i < 254; i++) { hHi += hb.out[i] * (1 << (i - 127)); }
+    component ltHi = LessThan(128);
+    ltHi.in[0] <== hHi;
+    ltHi.in[1] <== tHi;
+    component eqHi = IsEqual();
+    eqHi.in[0] <== hHi;
+    eqHi.in[1] <== tHi;
+    component ltLo = LessThan(128);
+    ltLo.in[0] <== hLo;
+    ltLo.in[1] <== tLo;
+    signal both;
+    both <== eqHi.out * ltLo.out;
+    ltHi.out + both === 0; // h >= t
+}
+
 template NameClaim(MAXD) {
     // --- secrets (never leave the sanctum) ---
     signal input digits[MAXD];   // the spirit's address, octal digits
@@ -85,14 +126,15 @@ template NameClaim(MAXD) {
 
     // --- public inputs ---
     signal input aura;           // auraField(your public key)
-    signal input magnitude;      // claimed at least this mighty
+    signal input magnitude;      // the being's might, exactly (it decides how many facets, so which facet a word is)
     signal input strength;       // claimed at least this many truths
     signal input context;        // binds the proof to one journey
 
     // --- public outputs: the details, never the source ---
-    signal output roundTag;      // this spirit, in this round only (unlinkable across rounds)
+    signal output roundTag;      // this being, in this round only (unlinkable across rounds)
     signal output element;       // first address digit
-    signal output form;          // traits: the low bits of the trait hash (the hash itself stays secret)
+    signal output facet;         // which facet the word touched
+    signal output form;          // that facet's form (from the trait hash, which stays secret)
     signal output weightIdx;
     signal output generosityIdx;
     signal output temperIdx;
@@ -131,25 +173,23 @@ template NameClaim(MAXD) {
     signal digest;
     digest <== acc[MAXD];
 
-    // spirit existence and magnitude: bits(spiritHash) >= target(depth) + magnitude
+    // existence and exact might: might = (depth - ${MIN_SPIRIT_DEPTH}) + roll, with
+    //   target(depth) + ${MIGHT_ROLL_BITS}*roll <= bits(spiritHash) < target(depth) + ${MIGHT_ROLL_BITS}*(roll + 1)
+    // target(d) = 4d - 26 (target(12) = ${target(12)})
     component sh = Poseidon(3);
     sh.inputs[0] <== ${TAG_SPIRIT};
     sh.inputs[1] <== ${SEED};
     sh.inputs[2] <== digest;
-    // target(d) = 4 + floor(3d/2): d = 2q + r
-    signal q;
-    signal r;
-    q <-- depth \\ 2;
-    r <-- depth % 2;
-    r * (r - 1) === 0;
-    depth === 2 * q + r;
-    component qbits = Num2Bits(5);
-    qbits.in <== q;
-    component mbits = Num2Bits(6);
-    mbits.in <== magnitude;
+    signal roll;
+    roll <== magnitude - depth + ${MIN_SPIRIT_DEPTH};
+    component rollBits = Num2Bits(2); // a being rolls at most 3 classes above its depth here
+    rollBits.in <== roll;
     component spiritOk = AtLeastBits();
     spiritOk.h <== sh.out;
-    spiritOk.k <== 4 + 3 * q + r + magnitude;
+    spiritOk.k <== 4 * depth - 26 + ${MIGHT_ROLL_BITS} * roll;
+    component spiritCap = BelowBits();
+    spiritCap.h <== sh.out;
+    spiritCap.k <== 4 * depth - 26 + ${MIGHT_ROLL_BITS} * (roll + 1);
 
     // traits: decoded from the trait hash in-circuit; only the gameplay fields leave
     component th = Poseidon(3);
@@ -158,10 +198,13 @@ template NameClaim(MAXD) {
     th.inputs[2] <== digest;
     component tb = Num2Bits_strict();
     tb.in <== th.out;
-    form <== tb.out[0] + 2 * tb.out[1] + 4 * tb.out[2];
-    weightIdx <== tb.out[3] + 2 * tb.out[4] + 4 * tb.out[5] + 8 * tb.out[6];
-    generosityIdx <== tb.out[7] + 2 * tb.out[8] + 4 * tb.out[9] + 8 * tb.out[10];
-    temperIdx <== tb.out[11] + 2 * tb.out[12] + 4 * tb.out[13];
+    signal baseForm;
+    signal formStep;
+    baseForm <== tb.out[0] + 2 * tb.out[1] + 4 * tb.out[2];
+    formStep <== 2 * (tb.out[3] + 2 * tb.out[4]) + 1;
+    weightIdx <== tb.out[5] + 2 * tb.out[6] + 4 * tb.out[7] + 8 * tb.out[8];
+    generosityIdx <== tb.out[9] + 2 * tb.out[10] + 4 * tb.out[11] + 8 * tb.out[12];
+    temperIdx <== tb.out[13] + 2 * tb.out[14] + 4 * tb.out[15];
     element <== digits[0];
 
     // round tag: identifies the spirit within this round (duplicates, "shared patron" checks) and no further
@@ -180,6 +223,38 @@ template NameClaim(MAXD) {
     component nameOk = AtLeastBits();
     nameOk.h <== nh.out;
     nameOk.k <== strength;
+
+    // the facet the word touched: low 16 bits of the word hash, mod the facet count = min(${MAX_FACETS}, might + 1)
+    component mightBits = Num2Bits(5);
+    mightBits.in <== magnitude;
+    component few = LessThan(5);
+    few.in[0] <== magnitude;
+    few.in[1] <== ${MAX_FACETS};
+    signal facets;
+    facets <== few.out * (magnitude + 1 - ${MAX_FACETS}) + ${MAX_FACETS};
+    component wb = Num2Bits_strict();
+    wb.in <== nh.out;
+    var low16 = 0;
+    for (var i = 0; i < 16; i++) { low16 += wb.out[i] * (1 << i); }
+    signal fq;
+    fq <-- low16 \\ facets;
+    facet <-- low16 % facets;
+    component fqBits = Num2Bits(16);
+    fqBits.in <== fq;
+    component facetBits = Num2Bits(3);
+    facetBits.in <== facet;
+    component facetLt = LessThan(4);
+    facetLt.in[0] <== facet;
+    facetLt.in[1] <== facets;
+    facetLt.out === 1;
+    low16 === fq * facets + facet;
+
+    // that facet's form: (baseForm + facet * formStep) mod 8
+    signal fs;
+    fs <== facet * formStep;
+    component formSum = Num2Bits(6);
+    formSum.in <== baseForm + fs;
+    form <== formSum.out[0] + 2 * formSum.out[1] + 4 * formSum.out[2];
 
     // (the context is bound by the round tag above)
 }

@@ -12,7 +12,8 @@ export type EnemyKind = 'husk' | 'runner' | 'brute' | 'shaman' | 'warden';
 
 /** Traits on the wire (flavor as a decimal string). */
 export interface WireTraits {
-  form: number;
+  form: number; // the facet's form (a proof reveals only its own facet)
+  formStep: number; // 0 for proven words; a being's step for public beings
   weightIdx: number;
   generosityIdx: number;
   temperIdx: number;
@@ -21,7 +22,8 @@ export interface WireTraits {
 
 /** What a proof revealed about a name, sent back so the client can draw it. */
 export interface SlotInfo {
-  spirit: string; // opaque id ("t:<traitHash>")
+  spirit: string; // opaque id ("r:<roundTag>"): the being, within this round
+  facet: number; // which of its facets this word speaks
   element: number;
   magnitude: number;
   traits: WireTraits;

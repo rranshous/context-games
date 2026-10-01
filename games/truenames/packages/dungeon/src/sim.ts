@@ -3,11 +3,11 @@
 // Players arrive with zero-knowledge proofs only; the dungeon never learns where their spirits dwell.
 import { LocalAuthority, castCap, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
 import type { CastResult, TargetSpec } from '@truenames/protocol';
-import { spiritAt, type Spirit } from '@truenames/universe';
+import { spiritAt, wordBar, type Spirit } from '@truenames/universe';
 import type { ZkNameClaim } from '@truenames/proofs';
 import { admitNames, publicSlots, wireTraits, type AdmittedSlot } from './admission.ts';
 import { BALANCE as B } from './balance.ts';
-import { ANCIENTS, HEARTH_GOD, WARDEN_WELLS } from './world.ts';
+import { CHARTED, HEARTH_GOD, WARDEN_WELLS } from './world.ts';
 import type { EnemyKind, SimEvent, SlotInfo, Snapshot, RoundResultMsg, ClientMsg, ServerMsg } from './protocol.ts';
 import { movePlayer, collideCircle, MAX_CMD_DT, type Arena, type MoveCmd } from './movement.ts';
 
@@ -160,7 +160,7 @@ export class DungeonSim {
     const tag = `c${this.castSeq++}`;
     this.pending.set(tag, { player: id, slot, ax, ay });
     const tgt: TargetSpec = [1, 2, 5].includes(s.form) ? { kind: 'self' } : { kind: 'point', x: ax, y: ay };
-    this.auth.submitCast({ aura: id, spirit: s.spirit, request: B.request, target: tgt, tick: this.auth.currentTick(), tag });
+    this.auth.submitCast({ aura: id, spirit: s.spirit, facet: s.facet, request: B.request, target: tgt, tick: this.auth.currentTick(), tag });
   }
 
   /** Remove a player (left or abandoned). The round ends when no living player remains. */
@@ -276,7 +276,7 @@ export class DungeonSim {
     if (kind === 'warden') {
       e.aura = `npc:warden:${e.id}`;
       e.spirit = WARDEN_WELLS[(this.random() * WARDEN_WELLS.length) | 0]!;
-      this.auth.grantSyntheticName(e.aura, e.spirit, TUNABLES.capRef + B.warden.bits + D.shamanBits * this.level + 4);
+      this.auth.grantSyntheticName(e.aura, e.spirit, wordBar(publicSpirit(e.spirit).magnitude) + B.warden.bits + D.shamanBits * this.level + 4);
       e.castT = 2;
       this.warden = e;
       const sp = publicSpirit(e.spirit);
@@ -285,8 +285,8 @@ export class DungeonSim {
     }
     if (kind === 'shaman') {
       e.aura = `npc:shaman:${e.id}`;
-      e.spirit = this.random() < B.shaman.hearthChance ? HEARTH_GOD : ANCIENTS[(this.random() * ANCIENTS.length) | 0]!;
-      this.auth.grantSyntheticName(e.aura, e.spirit, TUNABLES.capRef + this.wave + D.shamanBits * this.level + ((this.random() * 3) | 0));
+      e.spirit = this.random() < B.shaman.hearthChance ? HEARTH_GOD : CHARTED[(this.random() * CHARTED.length) | 0]!;
+      this.auth.grantSyntheticName(e.aura, e.spirit, wordBar(publicSpirit(e.spirit).magnitude) + this.wave + D.shamanBits * this.level + ((this.random() * 3) | 0));
       e.castT = this.rand(1, 2);
       e.strafe = this.random() < 0.5 ? 1 : -1;
       e.element = publicSpirit(e.spirit).element;

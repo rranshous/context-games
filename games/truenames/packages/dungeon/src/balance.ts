@@ -60,10 +60,10 @@ export const SLOTS = [
 /** The worlds a dungeon can host. Each interprets the same proven powers differently. */
 export type World = 'dark' | 'bastion' | 'council' | 'racer';
 export const WORLDS: { id: World; name: string; blurb: string }[] = [
-  { id: 'dark', name: 'the Dark', blurb: 'Walk into the dark and speak your names yourself: five waves and a Warden.' },
+  { id: 'dark', name: 'the Dark', blurb: 'Walk into the dark and speak your words yourself: five waves and a Warden.' },
   { id: 'bastion', name: 'the Bastion', blurb: 'Raise shrines to your patrons along the road to your hearth. Every shrine speaks in your name, and every word strains you.' },
-  { id: 'council', name: 'the Council', blurb: 'Sit across from a Warden and play your names as cards, turn by turn. A deck of up to twelve.' },
-  { id: 'racer', name: 'Dark Racer', blurb: 'Race five rivals around a road through the astral. Your names are your weapons; every one you speak heats your engine.' },
+  { id: 'council', name: 'the Council', blurb: 'Sit across from a Warden and play your words as cards, turn by turn. A deck of up to twelve.' },
+  { id: 'racer', name: 'Dark Racer', blurb: 'Race five rivals around a road through the astral. Your words are your weapons; every one you speak heats your engine.' },
 ];
 
 export type BastionFoe = 'husk' | 'runner' | 'brute' | 'warden';
@@ -141,8 +141,6 @@ export const COUNCIL = {
   handMax: 7,
   boardMax: 5,
   voiceStart: 1,
-  /** voice to speak a name: 1 + one per costTruths truths above your deck's median, +1 for summon and nova */
-  costTruths: 4,
   voiceMax: 8,
   /** authority ticks between turns: strain ebbs (×0.9 each) and vessels refill */
   ticksPerTurn: 5,
@@ -158,10 +156,8 @@ export const COUNCIL = {
   ringMult: 0.5,
   /** backlash: damage to your own face = 1 + recoil / recoilPerLife */
   recoilPerLife: 60,
-  /** the Warden's deck: public ancients. The council seats you among peers: they speak at your deck's median
-   *  truths less wardenLag (never below wardenStrength), + shamanBits per descent. */
-  wardenDeck: ['011010', '567171', '570476', '615043', '651063', '005420', '027345', '110062', '136143', '253312', '431411', '701422'],
-  wardenStrength: 14,
+  /** The Warden speaks charted beings (world.ts). It sits among peers: its words resonate as far beyond their bars
+   *  as your deck's median resonance less wardenLag, + shamanBits per seat. Card cost is 1 + the being's might. */
   wardenLag: 3,
   /** deeper seats: a hardier Warden */
   wardenLifePerSeat: 8,
@@ -216,7 +212,8 @@ export const RACER = {
     blink: { base: 90, perPower: 16, max: 340 },
   },
   rival: {
-    strength: 14,
+    /** truths beyond each word's bar (resonance), + shamanBits per circuit */
+    resonance: 0,
     /** rivals' top speed as a fraction of a car's, + per descent (capped) */
     skillBase: 0.84,
     skillSpread: 0.07,

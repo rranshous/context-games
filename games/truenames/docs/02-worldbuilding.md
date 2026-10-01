@@ -25,7 +25,7 @@ What *is* always true of a being:
 2. **It exists whether or not anyone knows it.** Searching reveals; it doesn't create.
 3. **Its might is its depth.** The shallowest layer is thick with **wisps**; each layer down holds half as many beings, each a class mightier: wisp, spirit, power, dominion, **god**, great god, elder god, **primordial**. A rare few dwell above their kind (about 1 in 16 a class higher). The lore reads this as proof that beings *can* move, over eons far longer than any life, so that to us they are still.
 4. **Its might and character are fixed.** How much it gives, how heavily it weighs on whoever calls it, how violently it answers overreach: measurable properties of a force, the same for everyone. (The old word "temper" survives as the scholars' name for the last.)
-5. **It acts only through words of power.** It has one **facet** per class of might, plus one: a wisp one, a god five, a primordial eight. Each facet is one way it acts in the world (a bolt, a ward, a step through the astral), and no being repeats one.
+5. **It acts only through words of power.** It has one **facet** per class of might, plus one: a wisp one, a god five, a primordial eight. Each facet is one way it acts in the world (a bolt, a ward, a step through the astral), and no being repeats one. **To see a being is to see its facets**: the third eye shows them the moment you find it (and anyone shown its sign sees the same).
 6. **It belongs to no one.** Any number of people can hold its words. It can't be owned, claimed or used up.
 7. **It answers each speaker through that speaker's own word.**
 8. **Its power always costs the speaker.**
@@ -42,7 +42,7 @@ When you set out on a journey, each being whose words you carry becomes your **p
 What a church or a teacher hands down is a being's **sign**: the mark your third eye follows to find it (cultures have their own words; "sign" is the default). A sign is shareable and checkable by anyone. To know a sign is to be *able* to meditate on that being, nothing more.
 
 ## Words of power
-To call a being you must hold a **word of power** *as spoken by you*. A word is never the same in two mouths. Finding words is **meditation**: you open yourself to a being, and each word that comes touches one of its facets, as the being wills (**facets reveal themselves**; you can't aim). Over a lifetime you find truer words for the facets you hold. A word is **grasped** once it reaches the being's **bar**, and mightier beings set higher bars: a wisp's first word comes in minutes, a god's in a season of devotion, a primordial's in centuries.
+To call a being you must hold a **word of power** *as spoken by you*. A word is never the same in two mouths. Finding words is **meditation**: you open yourself to a being, and each word that comes touches one of its facets, as the being wills: you can see every facet, but **you can't aim**. Over a lifetime you find truer words for the facets you hold. A word is **grasped** once it reaches the being's **bar**, and mightier beings set higher bars: a wisp's first word comes in minutes, a god's in a season of devotion, a primordial's in centuries.
 
 - **A word belongs to one being, one facet and one speaker.** Mine is useless to you.
 - **Meditation never loses ground.**

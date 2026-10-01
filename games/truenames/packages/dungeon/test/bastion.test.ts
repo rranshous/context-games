@@ -5,6 +5,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { bytesToHex, nameStrength, spiritAt, MIN_NAME_BITS } from '@truenames/universe';
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { BastionSim, zkVerifier, HEARTH_GOD, BASTION, type BastionSnapshot } from '../src/index.ts';
+import { HEARTH_NONCE, HEARTH_NONCE_2 } from './fixtures.ts';
 
 const require = createRequire(import.meta.url);
 const art = (f: string) => require.resolve(`@truenames/proofs/artifacts/${f}`);
@@ -37,13 +38,13 @@ function run(sim: BastionSim, seconds: number, each?: (s: BastionSnapshot) => vo
 describe('the Bastion', () => {
   beforeAll(async () => {
     let n = 0n;
-    while (nameStrength(HEARTH_GOD, ed25519.getPublicKey(SECRET), n) < MIN_NAME_BITS) n++;
+    n = HEARTH_NONCE;
     claim = await proveName({ cell: HEARTH_GOD, nonce: n, secretKey: SECRET, magnitude: spiritAt(HEARTH_GOD)!.magnitude, strength: MIN_NAME_BITS, context: CONTEXT }, { wasm: art('name.wasm'), zkey: art('name.zkey') });
   });
 
   it('admits proven names and lays out a road to the hearth', async () => {
     const { sim, slots } = await round();
-    expect(slots[0]).toMatchObject({ element: 0, strength: MIN_NAME_BITS });
+    expect(slots[0]).toMatchObject({ element: spiritAt(HEARTH_GOD)!.element, strength: MIN_NAME_BITS });
     const l = sim.layout();
     expect(l.road.length).toBe(BASTION.path.length);
     expect(l.roadTiles.length).toBeGreaterThan(30);

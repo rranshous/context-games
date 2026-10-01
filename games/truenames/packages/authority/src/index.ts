@@ -1,7 +1,9 @@
 // The authority: vessels, strain, capacity, tick resolution.
 // Driven only by tick(); no timers, no DOM. Deterministic given inputs and seed.
-// Power is per caster: each (aura, spirit) draws from its own vessel. Nothing is shared.
-import { spiritAt, verifyNameClaim, type NameClaim, type Traits } from '@truenames/universe';
+// Power is per caster: each (aura, being) draws from its own vessel. Nothing is shared.
+// Words of power (spec v2): a being has several facets; each word an aura holds is for one facet.
+// All of one being's words draw on the same vessel (the being lends its power once).
+import { facetForm, spiritAt, verifyNameClaim, wordBar, type NameClaim, type Traits } from '@truenames/universe';
 import type {
   AuraState,
   CastIntent,
@@ -22,8 +24,15 @@ export interface SpiritInfo {
   traits: Traits;
 }
 
+/** A word is held per (being, facet). */
+export const wordKey = (spirit: string, facet: number) => `${spirit}#${facet}`;
+export function parseWordKey(key: string): { spirit: string; facet: number } {
+  const i = key.lastIndexOf('#');
+  return i < 0 ? { spirit: key, facet: 0 } : { spirit: key.slice(0, i), facet: Number(key.slice(i + 1)) };
+}
+
 export interface NameVerifier {
-  verify(claim: NameClaim): { ok: true; strength: number } | { ok: false; reason: string };
+  verify(claim: NameClaim): { ok: true; strength: number; facet: number } | { ok: false; reason: string };
 }
 
 export class ClearTextVerifier implements NameVerifier {
@@ -35,9 +44,10 @@ export class ClearTextVerifier implements NameVerifier {
 /** A name proven in zero knowledge: the verifier learns the spirit's identity and traits, not where it is. */
 export interface ProvenName {
   aura: string;
-  spirit: string; // opaque spirit id (e.g. "t:<traitHash>")
+  spirit: string; // opaque spirit id (e.g. "r:<roundTag>")
   magnitude: number;
   strength: number;
+  facet: number;
   traits: Traits;
 }
 
@@ -57,7 +67,7 @@ export interface Authority {
   auraState(aura: string): AuraState;
   nameBook(aura: string): Record<string, number>;
   /** The caster's own vessel for a spirit. */
-  poolInfo(aura: string, spirit: string): PoolInfo | null;
+  poolInfo(aura: string, spirit: string, facet?: number): PoolInfo | null;
   currentTick(): number;
 }
 
@@ -82,25 +92,28 @@ export interface SpiritStats {
   formEfficiency: number;
 }
 
-export function spiritStats(spirit: SpiritInfo, t: Tunables = TUNABLES): SpiritStats {
+/** A being's numbers, as spoken through one of its facets (the form differs per facet; the rest is the being's). */
+export function spiritStats(spirit: SpiritInfo, t: Tunables = TUNABLES, facet = 0): SpiritStats {
   const scale = 2 ** (t.poolExp * spirit.magnitude);
+  const form = facetForm(spirit.traits, facet);
   return {
     spirit,
     poolCap: t.poolBase * scale,
     refill: t.refillBase * scale,
     weight: t.weightMin + spirit.traits.weightIdx / t.weightDiv,
     generosity: t.generosityMin * 2 ** ((spirit.traits.generosityIdx * t.generositySpan) / 15),
-    formWeight: t.formWeight[spirit.traits.form]!,
-    formEfficiency: t.formEfficiency[spirit.traits.form]!,
+    formWeight: t.formWeight[form]!,
+    formEfficiency: t.formEfficiency[form]!,
   };
 }
 
-export function familiarity(strength: number, t: Tunables = TUNABLES): number {
-  return Math.max(t.minFamiliarity, 1 - t.familiarityRate * (strength - t.capRef));
+/** Truer words strain less: familiarity falls with resonance (truths beyond the being's bar). */
+export function familiarity(resonance: number, t: Tunables = TUNABLES): number {
+  return Math.max(t.minFamiliarity, 1 - t.familiarityRate * Math.max(0, resonance));
 }
 
 export function castStrain(stats: SpiritStats, strength: number, t: Tunables = TUNABLES): number {
-  return t.strainScale * stats.weight * stats.formWeight * familiarity(strength, t);
+  return t.strainScale * stats.weight * stats.formWeight * familiarity(strength - wordBar(stats.spirit.magnitude), t);
 }
 
 export function castCap(effective: number, generosity: number, t: Tunables = TUNABLES): number {
@@ -186,10 +199,10 @@ export class LocalAuthority implements NpcAuthority {
     for (const k of [...this.pools.keys()]) if (k.startsWith(aura + '|')) this.pools.delete(k);
   }
 
-  submitName(claim: NameClaim): NameSubmitResult {
+  submitName(claim: NameClaim): NameSubmitResult & { facet?: number } {
     const v = this.verifier.verify(claim);
     if (!v.ok) return { accepted: false, reason: v.reason };
-    return this.setName(claim.aura, claim.cell, v.strength, BigInt(claim.nonce));
+    return { ...this.setName(claim.aura, wordKey(claim.cell, v.facet), v.strength, BigInt(claim.nonce)), facet: v.facet };
   }
 
   async submitProvenName(claim: unknown): Promise<NameSubmitResult & { spirit?: string }> {
@@ -197,9 +210,10 @@ export class LocalAuthority implements NpcAuthority {
     const v = await this.proofs.verify(claim, this.context);
     if (!v.ok) return { accepted: false, reason: v.reason };
     const n = v.name;
-    this.registry.set(n.spirit, { magnitude: n.magnitude, traits: n.traits });
-    this.stats.delete(n.spirit);
-    return { ...this.setName(n.aura, n.spirit, n.strength, null), spirit: n.spirit };
+    // a proof reveals one facet's form, so the info is held per word (formStep 0: this facet only)
+    this.registry.set(wordKey(n.spirit, n.facet), { magnitude: n.magnitude, traits: n.traits });
+    for (const k of [...this.stats.keys()]) if (k.startsWith(n.spirit + '#')) this.stats.delete(k);
+    return { ...this.setName(n.aura, wordKey(n.spirit, n.facet), n.strength, null), spirit: n.spirit };
   }
 
   private setName(aura: string, spirit: string, strength: number, nonce: bigint | null): NameSubmitResult {
@@ -212,9 +226,9 @@ export class LocalAuthority implements NpcAuthority {
     return { accepted: true, strength };
   }
 
-  grantSyntheticName(aura: string, spirit: string, strength: number) {
+  grantSyntheticName(aura: string, spirit: string, strength: number, facet = 0) {
     this.registerAura(aura);
-    this.names.get(aura)!.set(spirit, { strength, nonce: null });
+    this.names.get(aura)!.set(wordKey(spirit, facet), { strength, nonce: null });
     this.auras.get(aura)!.capacity = null;
   }
 
@@ -234,8 +248,8 @@ export class LocalAuthority implements NpcAuthority {
     return out;
   }
 
-  poolInfo(aura: string, spirit: string): PoolInfo | null {
-    const st = this.statsFor(spirit);
+  poolInfo(aura: string, spirit: string, facet = 0): PoolInfo | null {
+    const st = this.statsFor(spirit, facet);
     if (!st) return null;
     return { level: this.pool(aura, spirit, st).level, cap: st.poolCap };
   }
@@ -260,12 +274,13 @@ export class LocalAuthority implements NpcAuthority {
         continue;
       }
       seen.add(key);
-      const st = this.statsFor(c.spirit);
+      const facet = c.facet ?? 0;
+      const st = this.statsFor(c.spirit, facet);
       if (!st) {
         results.push(this.refuse(c, 'no-spirit'));
         continue;
       }
-      const name = this.names.get(c.aura)?.get(c.spirit);
+      const name = this.names.get(c.aura)?.get(wordKey(c.spirit, facet));
       if (!name) {
         results.push(this.refuse(c, 'unknown-name'));
         continue;
@@ -339,12 +354,16 @@ export class LocalAuthority implements NpcAuthority {
     return a.capacity;
   }
 
-  private statsFor(spirit: string): SpiritStats | null {
-    let st = this.stats.get(spirit);
+  private statsFor(spirit: string, facet = 0): SpiritStats | null {
+    const key = wordKey(spirit, facet);
+    let st = this.stats.get(key);
     if (st === undefined) {
-      const info = this.registry.get(spirit) ?? spiritAt(spirit);
-      st = info ? spiritStats(info, this.t) : null;
-      this.stats.set(spirit, st);
+      // per-word info (proofs) first, then any word of the same being (the vessel is the being's), then the universe
+      let info: SpiritInfo | null | undefined = this.registry.get(key);
+      if (!info) for (const [k, v] of this.registry) if (k.startsWith(spirit + '#')) { info = v; break; }
+      info ??= spiritAt(spirit);
+      st = info ? spiritStats(info, this.t, facet) : null;
+      this.stats.set(key, st);
     }
     return st;
   }

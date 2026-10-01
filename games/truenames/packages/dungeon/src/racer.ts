@@ -11,10 +11,10 @@
 import { LocalAuthority, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
 import type { CastResult } from '@truenames/protocol';
 import type { ZkNameClaim } from '@truenames/proofs';
-import { spiritAt } from '@truenames/universe';
+import { spiritAt, wordBar } from '@truenames/universe';
 import { admitNames, publicSlots, wireTraits, type AdmittedSlot } from './admission.ts';
 import { BALANCE as B, RACER as R, logPower } from './balance.ts';
-import { ANCIENTS } from './world.ts';
+import { CHARTED } from './world.ts';
 import { autopilot, buildTrack, driveCar, MAX_DRIVE_DT, nearestIndex, roadDir, type CarState, type DriveCmd, type Track } from './racing.ts';
 import type { ClientMsg, RacerEvent, RacerRival, RacerSnapshot, RacerTrack, RoundResultMsg, ServerMsg, SlotInfo } from './protocol.ts';
 
@@ -22,7 +22,7 @@ const TICK_S = TUNABLES.TICK_MS / 1000;
 const FORM = { bolt: 0, ring: 1, ward: 2, lance: 3, nova: 4, summon: 5, hex: 6, blink: 7 } as const;
 const F = R.forms;
 
-interface Name { spirit: string; element: number; form: number; generosity: number; cd: number; lastBits: number | null }
+interface Name { spirit: string; facet: number; element: number; form: number; generosity: number; cd: number; lastBits: number | null }
 
 interface Car extends CarState {
   id: number;
@@ -115,7 +115,7 @@ export class RacerSim {
   }
 
   private nameOf(s: AdmittedSlot): Name {
-    return { spirit: s.spirit, element: s.element, form: s.form, generosity: s.generosity, cd: 0, lastBits: null };
+    return { spirit: s.spirit, facet: s.facet, element: s.element, form: s.form, generosity: s.generosity, cd: 0, lastBits: null };
   }
 
   /** Line up on the grid behind the start, in pairs. Players take places from the back. */
@@ -135,16 +135,15 @@ export class RacerSim {
       };
     };
     const rivals = this.seats;
-    const strength = R.rival.strength + B.descent.shamanBits * this.level;
-    const pool = [...ANCIENTS];
+    const pool = [...CHARTED];
     for (let r = 0; r < rivals; r++) {
       const raura = `npc:rival-${r}`;
       const own: Name[] = [];
       for (let k = 0; k < R.rival.names; k++) {
         const cell = pool.splice((this.random() * pool.length) | 0, 1)[0]!;
         const sp = spiritAt(cell)!;
-        this.auth.grantSyntheticName(raura, cell, strength);
-        own.push({ spirit: cell, element: sp.element, form: sp.traits.form, generosity: spiritStats(sp).generosity, cd: 0, lastBits: null });
+        this.auth.grantSyntheticName(raura, cell, wordBar(sp.magnitude) + R.rival.resonance + B.descent.shamanBits * this.level);
+        own.push({ spirit: cell, facet: 0, element: sp.element, form: sp.traits.form, generosity: spiritStats(sp).generosity, cd: 0, lastBits: null });
       }
       const skill = Math.min(R.rival.skillMax, R.rival.skillBase + R.rival.skillPerLevel * this.level + this.rand(0, R.rival.skillSpread));
       this.cars.push(mk(r, raura, true, own[0]!.element, own, skill, r));
@@ -217,7 +216,7 @@ export class RacerSim {
     s.cd = R.cooldown;
     const tag = `c${this.castSeq++}`;
     this.pending.set(tag, { car: c.id, slot });
-    this.auth.submitCast({ aura: c.aura, spirit: s.spirit, request: B.request, target: { kind: 'self' }, tick: this.auth.currentTick(), tag });
+    this.auth.submitCast({ aura: c.aura, spirit: s.spirit, facet: s.facet, request: B.request, target: { kind: 'self' }, tick: this.auth.currentTick(), tag });
   }
 
   // ---------- stepping ----------

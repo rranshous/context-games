@@ -13,6 +13,7 @@ import {
   TAG_CELL,
   TAG_SPIRIT,
   SEED,
+  facetOfHash,
 } from '@truenames/universe';
 import type { Kernel } from './wasm/kernel.ts';
 
@@ -95,8 +96,50 @@ function verified(cell: Cell, d: bigint): Spirit | null {
 }
 
 /**
+ * Grind `count` nonces for a being's words. A word touches the facet its hash's low bits pick, so this keeps the
+ * best per facet: `bests[f]` is beaten in place, and each improvement is reported (and returned).
+ */
+export function grindWords(
+  digest: bigint,
+  aura: bigint,
+  startNonce: bigint,
+  count: number,
+  facets: number,
+  bests: number[],
+  onBest?: (nonce: bigint, strength: number, facet: number) => void,
+  kern?: Kernel | null,
+): { nonce: bigint; strength: number; facet: number }[] {
+  const out: { nonce: bigint; strength: number; facet: number }[] = [];
+  const take = (n: bigint, h: bigint) => {
+    const s = bits(h), f = facetOfHash(h, facets);
+    if (s > (bests[f] ?? 0)) {
+      bests[f] = s;
+      out.push({ nonce: n, strength: s, facet: f });
+      onBest?.(n, s, f);
+    }
+  };
+  if (kern) {
+    kern.grindHits(digest, aura, startNonce, count, () => Math.min(...Array.from({ length: facets }, (_, f) => bests[f] ?? 0)), (n, h) => {
+      if (nameHashRaw(digest, aura, n) !== h) throw new Error('kernel name mismatch');
+      take(n, h);
+    });
+    return out;
+  }
+  let n = startNonce;
+  let floor = Math.min(...Array.from({ length: facets }, (_, f) => bests[f] ?? 0));
+  for (let i = 0; i < count; i++, n++) {
+    const h = nameHashRaw(digest, aura, n);
+    if (bits(h) > floor) {
+      take(n, h);
+      floor = Math.min(...Array.from({ length: facets }, (_, f) => bests[f] ?? 0));
+    }
+  }
+  return out;
+}
+
+/**
  * Grind `count` nonces for a name. Returns the best (nonce, strength) seen,
- * only if it beats `beat`. Calls onBest on each improvement.
+ * only if it beats `beat`. Calls onBest on each improvement. (Facet-blind; kept for benches.)
  */
 export function grindName(
   digest: bigint,

@@ -6,7 +6,8 @@
 //  - strain is aura-wide and ebbs between turns; past capacity, backlash hits your own face
 // Pure: no DOM, no timers. Each seat gets its own view: you never see the other seat's hand.
 import { LocalAuthority, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
-import { spiritAt } from '@truenames/universe';
+import { spiritAt, wordBar } from '@truenames/universe';
+import { CHARTED } from './world.ts';
 import type { ZkNameClaim } from '@truenames/proofs';
 import { admitNames, publicSlots, wireTraits } from './admission.ts';
 import { BALANCE as B, COUNCIL as C, councilPower } from './balance.ts';
@@ -15,7 +16,7 @@ import type { ClientMsg, CouncilCard, CouncilCreature, CouncilEvent, CouncilSeat
 const FORM = { bolt: 0, ring: 1, ward: 2, lance: 3, nova: 4, summon: 5, hex: 6, blink: 7 } as const;
 const needsTarget = (form: number) => form === FORM.bolt || form === FORM.lance || form === FORM.hex;
 
-interface Card extends CouncilCard { spirit: string; generosity: number }
+interface Card extends CouncilCard { spirit: string; facet: number; generosity: number }
 
 interface Seat {
   seat: number;
@@ -70,12 +71,12 @@ export class CouncilSim {
     const deck: Card[] = [];
     slots.forEach((s, slot) => {
       if (!s) return;
-      deck.push({ id: this.nextId++, slot, element: s.element, magnitude: s.magnitude, form: s.form, traits: s.traits, strength: s.strength, cost: 0, spirit: s.spirit, generosity: s.generosity });
+      deck.push({ id: this.nextId++, slot, element: s.element, magnitude: s.magnitude, form: s.form, traits: s.traits, strength: s.strength, cost: 0, spirit: s.spirit, facet: s.facet, generosity: s.generosity });
     });
-    // the table's truths: the Warden sits at your deck's median less wardenLag; costs count truths above it
-    const mine = deck.map((c) => c.strength).sort((a, b) => a - b);
-    this.table = Math.max(C.wardenStrength, (mine.length ? mine[mine.length >> 1]! : 0) - C.wardenLag);
-    for (const c of deck) c.cost = this.costOf(c.form, c.strength);
+    // the Warden is a peer: its words resonate as far beyond their bars as your deck's median, less wardenLag
+    const res = deck.map((c) => c.strength - wordBar(c.magnitude)).sort((a, b) => a - b);
+    this.table = Math.max(0, (res.length ? res[res.length >> 1]! : 0) - C.wardenLag);
+    for (const c of deck) c.cost = this.costOf(c.form, c.magnitude);
     this.seats[0] = this.newSeat(0, aura, deck, false);
     this.seats[1] = this.wardenSeat();
     return { slots: publicSlots(slots), refused };
@@ -100,7 +101,7 @@ export class CouncilSim {
 
   /** Turn-based: time only matters for the Warden's pacing. */
   private aiT = 0;
-  private table: number = C.wardenStrength;
+  private table = 0; // peer resonance (truths beyond the bar) the Warden speaks at
   step(dt: number) {
     if (!this.started || this.paused || this.over) return;
     if (this.seats[this.active]!.ai) {
@@ -132,7 +133,7 @@ export class CouncilSim {
     return {
       t: 'cview', you: seat, turn: this.turn, active: this.active,
       seats: this.seats.map((s) => this.seatView(s)),
-      hand: me.hand.map(({ spirit: _s, generosity: _g, ...c }) => c),
+      hand: me.hand.map(({ spirit: _s, facet: _f, generosity: _g, ...c }) => c),
       board: this.board.map((c) => ({ ...c })),
       vessels, events,
       over: this.over === null ? null : seat === 0 ? this.over : this.over === 'won' ? 'lost' : 'won',
@@ -141,8 +142,9 @@ export class CouncilSim {
 
   // ---------- rules ----------
 
-  private costOf(form: number, strength: number) {
-    return 1 + Math.floor(Math.max(0, strength - this.table - C.wardenLag) / C.costTruths) + (form === FORM.summon || form === FORM.nova ? 1 : 0);
+  /** Voice to speak a word: 1 + the being's might (mightier beings ask more), +1 for summon and nova. */
+  private costOf(form: number, might: number) {
+    return Math.min(C.voiceMax, 1 + might + (form === FORM.summon || form === FORM.nova ? 1 : 0));
   }
 
   private newSeat(seat: number, aura: string, deck: Card[], ai: boolean): Seat {
@@ -151,11 +153,11 @@ export class CouncilSim {
 
   private wardenSeat(): Seat {
     const aura = 'npc:council-warden';
-    const strength = this.table + B.descent.shamanBits * this.level;
-    const deck: Card[] = C.wardenDeck.map((cell, slot) => {
+    const deck: Card[] = CHARTED.slice(0, C.deckMax).map((cell, slot) => {
       const sp = spiritAt(cell)!;
+      const strength = wordBar(sp.magnitude) + this.table + B.descent.shamanBits * this.level;
       this.auth.grantSyntheticName(aura, cell, strength);
-      return { id: this.nextId++, slot, element: sp.element, magnitude: sp.magnitude, form: sp.traits.form, traits: wireTraits(sp.traits), strength, cost: this.costOf(sp.traits.form, strength), spirit: cell, generosity: spiritStats(sp).generosity };
+      return { id: this.nextId++, slot, element: sp.element, magnitude: sp.magnitude, form: sp.traits.form, traits: wireTraits(sp.traits), strength, cost: this.costOf(sp.traits.form, sp.magnitude), spirit: cell, facet: 0, generosity: spiritStats(sp).generosity };
     });
     const w = this.newSeat(1, aura, deck, true);
     w.life = w.lifeMax = C.life + C.wardenLifePerSeat * this.level;
@@ -231,7 +233,7 @@ export class CouncilSim {
     s.voice -= card.cost;
     s.hand.splice(i, 1);
     s.discard.push(card);
-    this.auth.submitCast({ aura: s.aura, spirit: card.spirit, request: B.request, target: { kind: 'self' }, tick: this.auth.currentTick() });
+    this.auth.submitCast({ aura: s.aura, spirit: card.spirit, facet: card.facet, request: B.request, target: { kind: 'self' }, tick: this.auth.currentTick() });
     const r = this.auth.tick().casts.find((x) => x.aura === s.aura);
     const grant = r?.grant ?? 0;
     const power = councilPower(grant, TUNABLES.formEfficiency[card.form]!);

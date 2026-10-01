@@ -4,6 +4,8 @@ import { poseidon3, poseidon4 } from '../../universe/src/poseidon.ts';
 import { P, cellDigest, auraField, nameHashRaw, bits } from '@truenames/universe';
 import { grindName } from '../src/scan.ts';
 
+const KNOWN = '012341174703';
+
 describe.each([true, false])('WASM Poseidon kernel (optimized=%s)', (optimized) => {
   const k = createKernel({ optimized });
   let x = 12345n;
@@ -20,7 +22,7 @@ describe.each([true, false])('WASM Poseidon kernel (optimized=%s)', (optimized) 
   });
 
   it('grind finds exactly the improvements the reference finds', () => {
-    const d = cellDigest('011010');
+    const d = cellDigest(KNOWN);
     const a = auraField(new Uint8Array(32).fill(5));
     const start = 2n ** 64n - 700n; // cross a 64-bit limb boundary
     const fast: [bigint, number][] = [];

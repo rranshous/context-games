@@ -1,14 +1,11 @@
-// Public facts of the universe the dungeon uses for its enemies. No secrets: anyone can recompute these.
+// Public facts of the universe the dungeon uses for its computer-controlled casters. No secrets: anyone can
+// recompute these. Spec v2: found by scanning one region per element in the depth-12 layer (see the journal).
 
-/** The hearth-god's address: known to everyone since before the first scholar. */
-export const HEARTH_GOD = '011010';
+/** The hearth: the wisp every apprentice's first word is spoken to, its sign kept in every household. */
+export const HEARTH_GOD = 'PENDING';
 
-/** The ancient layer: every spirit at depth 6 (full scan, see journal). Charted since before scholars. */
-export const ANCIENTS = [
-  '005420', '011010', '027345', '033121', '050465', '076656', '110062', '111553', '136143', '162033', '171163', '226140',
-  '233244', '242411', '253312', '303562', '305652', '371744', '375267', '427477', '431411', '446507', '473750', '507114',
-  '547533', '567171', '570476', '600212', '615043', '651063', '677662', '701422', '742340', '755517', '757057',
-];
+/** The charted beings: signs known to all. Wardens, shamans and rival racers speak them. */
+export const CHARTED: string[] = ['036207712712', '036221100226', '036244330470', '012341174703'];
 
-/** The mightiest ancients (magnitude >= 2), whom Wardens call upon. */
-export const WARDEN_WELLS = ['011010', '567171', '570476', '615043', '651063'];
+/** The mightiest charted beings, whom Wardens call upon. */
+export const WARDEN_WELLS: string[] = ['012341174703'];
