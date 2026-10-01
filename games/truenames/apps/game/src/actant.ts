@@ -22,7 +22,7 @@ interface ChatMsg { role: 'system' | 'user' | 'assistant' | 'tool'; content: str
 // Terse tools (local models break on long tool descriptions; see the local-ai findings).
 const TOOLS = [
   fn('add_aim', 'Add an aim to the end of the plan.', {
-    kind: { type: 'string', enum: ['deepen', 'grasp', 'seek'], description: 'deepen: make held words truer. grasp: get first words of beings. seek: search for beings.' },
+    kind: { type: 'string', enum: ['deepen', 'grasp', 'seek'], description: 'seek: search an element at a depth to find new beings. grasp: meditate on beings already found (any element) until a word is grasped. deepen: make held words truer.' },
     count: { type: 'integer', description: 'deepen/grasp: how many at a time (1-12). seek: stop after this many beings are known (0 = never stop).' },
     to: { type: 'integer', description: 'deepen: target truths (22-50).' },
     words: { type: 'string', enum: ['bound', 'all'], description: 'deepen: which words.' },
@@ -184,6 +184,15 @@ export class Actant {
           const count = Math.max(0, int(a.count, 1));
           spec = { kind: 'seek', prefix: el >= 0 ? String(el) : '', depth, until: count > 0 ? { count, minMight: cls(a.class, depth - 12) } : null, share: 2 };
         } else return 'error: kind must be deepen, grasp or seek';
+        // refuse rather than guess: arguments that belong to another kind mean the model meant that kind
+        const used: Record<string, string[]> = { deepen: ['kind', 'count', 'to', 'words'], grasp: ['kind', 'count', 'class'], seek: ['kind', 'count', 'element', 'depth', 'class'] };
+        const stray = Object.keys(a).filter((k) => a[k] !== undefined && a[k] !== '' && a[k] !== null && !used[kind]!.includes(k));
+        if (stray.length) {
+          const meant = (['deepen', 'grasp', 'seek'] as const).find((k) => k !== kind && stray.every((x) => used[k]!.includes(x)));
+          return `error: ${kind} does not take ${stray.join(', ')}.${meant ? ` Did you mean kind ${meant}?` : ''} Nothing was added.`;
+        }
+        const same = aims.findIndex((x) => !x.done && describeAim(x) === describeAim(spec));
+        if (same >= 0) return `already in the plan as #${same + 1}. Nothing was added.`;
         const aim = P.add(spec, 'actant');
         return `added #${aims.indexOf(aim) + 1}: ${describeAim(aim)}`;
       }
