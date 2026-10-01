@@ -634,3 +634,4 @@ Order agreed with Robby: "get the new universe going and all worlds working w/ i
 
   Electron is ~90% of the size. Windows (portable exe) and macOS (dmg) targets are configured but untested: they need building on, or for, those systems.
 - **Electron so far, against Robby's "too much" watch**: its install was the friction (the postinstall download stalled, so I fetched the zip by hand), and so were the Linux sandbox and FUSE snags. The game code itself needed nothing; the dungeon needed the single-threaded curve. The web dev loop is untouched.
+- **Robby ran the AppImage:** after `sudo apt install libfuse2t64` (the Ubuntu 24.04 name for libfuse2), "i… was able to double click the appimage file in the file explorer and it launched." A download page should tell Ubuntu 24.04 users that, or point them at the tar.gz.

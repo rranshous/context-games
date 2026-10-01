@@ -44,7 +44,7 @@ corepack pnpm install
 corepack pnpm desktop        # build and run the desktop app (the game and its dungeon in one window)
 corepack pnpm desktop:dist   # make apps/desktop/release/Truenames-*.AppImage and *.tar.gz
 ```
-No server needed: each copy hosts its own worlds, and friends on your LAN can join them (type their address in the sanctum's **worlds** field; yours is shown in its hover help). Ubuntu 24.04 needs `sudo apt install libfuse2` for the AppImage; the tar.gz runs anywhere (extract, run `truenames`). `--profile=<name>` runs a separate identity with its own save.
+No server needed: each copy hosts its own worlds, and friends on your LAN can join them (type their address in the sanctum's **worlds** field; yours is shown in its hover help). Ubuntu 24.04 needs `sudo apt install libfuse2t64` for the AppImage (then double-click it); the tar.gz runs anywhere (extract, run `truenames`). `--profile=<name>` runs a separate identity with its own save.
 
 ## Play
 ```sh
