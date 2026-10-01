@@ -1,0 +1,41 @@
+{
+  "name": "@truenames/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Truenames as a desktop app: the game and its dungeon in one window, no server required.",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "dist": "node build.mjs && electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "@truenames/dungeon-server": "workspace:*",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
+  },
+  "build": {
+    "appId": "games.truenames",
+    "productName": "Truenames",
+    "files": [
+      "dist/**",
+      "game/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Game",
+      "artifactName": "Truenames-${version}.AppImage"
+    },
+    "win": {
+      "target": "portable"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.games"
+    }
+  }
+}

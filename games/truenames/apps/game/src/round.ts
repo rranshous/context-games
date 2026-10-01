@@ -38,10 +38,23 @@ export interface RoundHost {
 /** Dev-only: ?lag=150 asks the dungeon to simulate that much round-trip latency. */
 export const DEV_LAG = Number(new URLSearchParams(location.search).get('lag') ?? 0) || 0;
 
-export const DUNGEON_URL = (() => {
+/** This machine's own dungeon: the desktop app passes it as ?dungeon=…; in development it's port 5192. */
+export const LOCAL_DUNGEON = (() => {
   const q = new URLSearchParams(location.search).get('dungeon');
   return q ?? `ws://${location.hostname || 'localhost'}:5192`;
 })();
+
+const HOST_KEY = 'truenames-world-host';
+/** Where worlds are hosted: a friend's dungeon (an address the player entered) or our own. */
+export function worldHost(): string {
+  try { return localStorage.getItem(HOST_KEY) || LOCAL_DUNGEON; } catch { return LOCAL_DUNGEON; }
+}
+/** Point at a friend's dungeon ("192.168.1.20" or "ws://host:port"), or back to our own (empty). */
+export function setWorldHost(addr: string) {
+  const a = addr.trim();
+  const url = !a ? '' : /^wss?:\/\//.test(a) ? a : `ws://${a}${/:\d+$/.test(a) ? '' : `:${new URL(LOCAL_DUNGEON).port || 5192}`}`;
+  try { if (url) localStorage.setItem(HOST_KEY, url); else localStorage.removeItem(HOST_KEY); } catch { /* per-session only */ }
+}
 
 /** A live connection to one round in a dungeon process. */
 export class DungeonLink {
@@ -56,7 +69,7 @@ export class DungeonLink {
   onClose: (() => void) | null = null;
   closed = false;
 
-  constructor(url = DUNGEON_URL) {
+  constructor(url = worldHost()) {
     this.ws = new WebSocket(url);
     this.ready = new Promise((res, rej) => {
       this.ws.onopen = () => res();

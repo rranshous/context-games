@@ -8,7 +8,12 @@ import { persist, spiritOf, wordView } from '../save.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
-import { DungeonLink, type RoundHost } from '../round.ts';
+import { DungeonLink, LOCAL_DUNGEON, setWorldHost, worldHost, type RoundHost } from '../round.ts';
+
+/** The world host as the player sees it: empty when it's our own. */
+const hostLabel = () => (worldHost() === LOCAL_DUNGEON ? '' : worldHost().replace(/^ws:\/\//, ''));
+const LAN = new URLSearchParams(location.search).get('lan');
+const hostTip = () => `<b>Where worlds are hosted.</b> Empty: here, on this machine. Or type a friend's address to walk into their worlds and race on their grid.${LAN ? ` Friends can join yours at <em>${LAN}</em>.` : ''}`;
 import { prepareJourney, proofEstimateMs } from '../threshold.ts';
 import { titleScreen } from './title.ts';
 import { SLOTS, WORLDS, COUNCIL, worldDescentName, type World } from '@truenames/dungeon/balance';
@@ -224,6 +229,11 @@ export function sanctumScreen(app: App): Screen {
 
   /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
   async function walk(w: World, level: number) {
+    // hush: the world (and the provers at the threshold) get the machine; meditation drops to one voice
+    const voices = S.pool.getActive();
+    const hush = save.quietPlay !== false;
+    if (hush) S.pool.setActive(1);
+    const unhush = () => { if (hush) S.pool.setActive(voices); };
     const overlay = frag(`<div class="overlay threshold"><h1 style="font-size:30px; color:var(--gold)">At the threshold</h1>
       <div class="prose" id="th-msg" style="font-size:20px">The way opens…</div>
       <div class="dim" id="th-sub" style="font-style:italic; min-height:1.5em; transition:opacity .6s"></div>
@@ -323,11 +333,12 @@ export function sanctumScreen(app: App): Screen {
           persist(save);
           return { unlocked };
         },
-        leave: () => app.go(sanctumScreen(app)),
+        leave: () => { unhush(); app.go(sanctumScreen(app)); },
         toast: (html, color) => app.toast(html, color),
       };
       app.go(welcome.world === 'bastion' ? bastionScreen(link, welcome, journey, host) : welcome.world === 'council' ? councilScreen(link, welcome, journey, host) : welcome.world === 'racer' ? racerScreen(link, welcome, journey, host) : runScreen(link, welcome, journey, host));
     } catch (err) {
+      unhush();
       clearInterval(rotating);
       link.close();
       overlay.remove();
@@ -348,8 +359,10 @@ export function sanctumScreen(app: App): Screen {
           <span class="spacer"></span>
           <span class="dim" data-tip="hum">hum <span class="mono" id="hum"></span></span>
           <span class="dim" data-tip="voices">voices <button class="small" id="wdec">−</button> <span class="mono" id="workers"></span> <button class="small" id="winc">+</button></span>
+          <button class="small ${save.quietPlay === false ? '' : 'on'}" id="hush" data-tip="=<b>Hush in the worlds</b>: while you are in a world, your meditation drops to a single voice so the world runs smoothly; it returns to full when you come back. Click to keep every voice chanting instead.">☾</button>
           <select id="world" data-tip="world">${WORLDS.map((x) => `<option value="${x.id}">${x.name}</option>`).join('')}</select>
           <select id="descent" data-tip="descent"></select>
+          <input id="host" class="host-input" placeholder="worlds: here" value="${esc(hostLabel())}" data-tip="=${esc(hostTip())}">
           <button class="primary" id="run" data-tip="walk">Walk into the dark</button>
           <button class="small" id="mute" data-tip="mute">♪</button>
           <button class="small" id="title" data-tip="home">⌂</button>
@@ -405,6 +418,16 @@ export function sanctumScreen(app: App): Screen {
       });
       const dsel = root.querySelector('#descent') as HTMLSelectElement;
       dsel.addEventListener('change', () => { const w = world(); setProgress(w, { ...progress(w), last: Number(dsel.value) }); persist(save); });
+      root.querySelector('#host')!.addEventListener('change', (e) => {
+        setWorldHost((e.target as HTMLInputElement).value);
+        (e.target as HTMLInputElement).value = hostLabel();
+        app.toast(hostLabel() ? `Your worlds will be hosted at <em>${esc(hostLabel())}</em>.` : 'Your worlds are hosted here again.');
+      });
+      root.querySelector('#hush')!.addEventListener('click', (e) => {
+        save.quietPlay = save.quietPlay === false;
+        (e.currentTarget as HTMLElement).classList.toggle('on', save.quietPlay !== false);
+        persist(save);
+      });
       root.querySelector('#world')!.addEventListener('change', (e) => { save.lastWorld = (e.target as HTMLSelectElement).value as World; persist(save); renderWorld(); });
       renderWorld();
       root.querySelector('#s-chart')!.addEventListener('click', () => openChart(app, (e, a, d) => {

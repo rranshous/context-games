@@ -78,6 +78,8 @@ export interface SaveData {
   lastWorld?: 'dark' | 'bastion' | 'council' | 'racer';
   /** The Council deck: up to twelve grasped words (`cell#facet`), played as cards. */
   councilDeck?: string[];
+  /** Drop to one voice while in a world (default on). */
+  quietPlay?: boolean;
   /** Set once, when a v1 save was carried into the v2 astral. */
   sundered?: boolean;
 }

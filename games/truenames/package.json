@@ -12,7 +12,9 @@
     "tools": "tsx apps/tools/src/cli.ts",
     "game": "vite apps/game",
     "dungeon": "tsx apps/dungeon/src/server.ts",
-    "racer-bot": "tsx apps/dungeon/src/racer-bot.ts"
+    "racer-bot": "tsx apps/dungeon/src/racer-bot.ts",
+    "desktop": "corepack pnpm --filter @truenames/desktop start",
+    "desktop:dist": "corepack pnpm --filter @truenames/desktop dist"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
