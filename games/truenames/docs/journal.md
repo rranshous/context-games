@@ -508,3 +508,8 @@ Robby's answers to the draft, which shape the ideaset for the rewrite:
   - **Language**: what does the church hand down? "a god's name(? / or location? idk don't have good language for this, the physical astral metaphor makes it seem like a location..)"
   - **Facets**: can you aim meditation at one facet, or does the being reveal facets as it will?
   - **Pace**: how long a new adult's first word for their church's god should take.
+- **Decided**:
+  - What a church hands down is a being's **sign** (cultures may have their own words; "sign" is the default).
+  - **Facets reveal themselves**: you meditate on the being, and each word belongs to whichever facet it touched.
+  - **Pace**: an evening is fine for a low being's first word, but "for a _god_ i think an evening is too short." **Anchor: a god's first word takes about a week.**
+  - **Mobile**: "i'm not trying to include mobile in the meditation aspect much. i totally foresee a mobile game leveraging the player's powers but gaining those powers is not something i'd expect to happen on mobile." Meditation and search are for machines with compute; mobile games *spend* power.
