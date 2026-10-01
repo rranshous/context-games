@@ -453,3 +453,7 @@ Robby, after I quoted the mechanics and spec docs back while discussing depth: "
   - **07 is the roadmap**: the sanctum/worlds direction and principles moved there from 08, with done and next.
   - **08** holds only open and parked questions, led by the astral/depth discussion.
 - **Process**: CLAUDE.md now says to update the affected docs in the same commit as a change; the README says the same. (I also saved it as a working note for myself.)
+
+## Rethinking the astral: a pyramid of might (2026-10-01)
+Robby's mental model: "99% of spirits in level 6 are wisps and 99% of (the few?) spirits at the deepest levels are ~primordials… we'll have to change how we encode / understand our data." Today's universe is the reverse: each deeper layer holds *more* spirits (the existence bar rises 1.5 bits per layer while cells grow 3 bits), and magnitude has the same odds at every depth. His call: "the current universe was always just a first step in the journey"; we rebuild everything (spec v2, new circuit, fresh saves).
+- **Lore idea, not used (yet)**: the move from the v1 universe to v2 could be an in-world event, **the Sundering**: the astral breaks and remakes itself, spirits move, every name is lost. Robby: not in the lore for now, but keep it in mind for a later event.
