@@ -6,6 +6,7 @@ import { cellsBelow, facetCount, spiritAt, target, wordBar, type Spirit } from '
 import { persist, rememberSpirit, signClaim, spiritOf, splitWord, wordKey, type SaveData, type KnownSpirit } from './save.ts';
 import { addHistory, Planner } from './plan.ts';
 import { Actant } from './actant.ts';
+import { Choir } from './choir.ts';
 import { spiritName, magnitudeTitle, truths } from './lore.ts';
 import MeditationWorker from './meditation.worker.ts?worker';
 
@@ -40,7 +41,7 @@ export interface NameEvent {
 export const scanKey = (prefix: string, depth: number) => `${prefix}|${depth}`;
 
 /** Something worth an actant's review: a find, a grasp, a search or an aim finished, a journey's end. */
-export interface SanctumEvent { kind: 'find' | 'grasp' | 'search' | 'aim' | 'journey'; text: string }
+export interface SanctumEvent { kind: 'find' | 'grasp' | 'search' | 'aim' | 'journey' | 'chat'; text: string }
 
 export class Services {
   pool: MeditationPool;
@@ -55,6 +56,8 @@ export class Services {
   planner!: Planner;
   /** An actant tending this sanctum (asleep unless woken). */
   actant!: Actant;
+  /** This sanctum's choir link (to whoever gathers at the worlds host). */
+  choir!: Choir;
   private sourceFor = new Map<string, KnownSpirit['source']>();
 
   constructor(public save: SaveData) {
@@ -81,6 +84,7 @@ export class Services {
     if (save.workers != null) this.pool.setActive(Math.max(1, save.workers));
     this.planner = new Planner(save, this);
     this.actant = new Actant(save, this);
+    this.choir = new Choir(save, this);
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);
     // re-establish names with the authority (claims are self-verifying)
@@ -92,6 +96,7 @@ export class Services {
     for (const cell of this.save.meditating) this.meditate(cell, true);
     for (const p of this.save.scrying) if (p.running) this.startScry(p.prefix, p.depth, 'scry');
     this.planner.start();
+    this.choir.connect();
   }
 
   /** A being's might, from the save or the universe. */

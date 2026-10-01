@@ -41,6 +41,8 @@ const TOOLS = [
   fn('set_share', 'Set the share of the hum for aim n (1-8).', { n: { type: 'integer' }, share: { type: 'integer' } }, ['n', 'share']),
   fn('bind_word', 'Bind a held word to a loadout slot (1-4).', { word: { type: 'string', description: 'the word id, like 312662277504#0' }, slot: { type: 'integer' } }, ['word', 'slot']),
   fn('note', 'Replace your notes (your memory between reviews). Keep it short.', { text: { type: 'string' } }, ['text']),
+  fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
+  fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
 ];
 function fn(name: string, description: string, properties: Record<string, unknown>, required: string[]) {
   return { type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } };
@@ -163,12 +165,15 @@ export class Actant {
     const unheld = Object.keys(save.spirits).filter((c) => !S.learned(c)).map((c) => spiritOf(save, c)!).map((sp) => `${sp.cell} ${spiritName(sp)} ${magnitudeTitle(sp.magnitude)} (bar ${wordBar(sp.magnitude)}, best ${S.strength(sp.cell)})`);
     const plan = S.planner.aims.map((a, i) => `${i + 1}. ${describeAim(a)} ×${a.share}${a.done ? ' (fulfilled)' : ''}`);
     const hist = (save.history ?? []).slice(-12).map((h) => `- ${h.text}`);
+    const choir = S.choir.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`);
+    const talk = S.choir.lines.slice(-6).map((l) => `${l.mine ? 'you' : l.from}: ${l.text}`);
     return [
       `Hum: ${Math.round(S.pool.rate())} utterances/s.`,
       `Words held: ${words.length ? '\n' + words.join('\n') : 'none'}`,
       `Beings without a grasped word: ${unheld.length ? '\n' + unheld.slice(0, 12).join('\n') : 'none'}`,
       `Plan: ${plan.length ? '\n' + plan.join('\n') : 'empty'}`,
       `Recent history:\n${hist.join('\n') || 'none'}`,
+      `Your choir: ${choir.length ? choir.join(', ') : 'no one else'}${talk.length ? `\nRecent talk:\n${talk.join('\n')}` : ''}`,
     ].join('\n\n');
   }
 
@@ -208,6 +213,8 @@ export class Actant {
         persist(this.save);
         return 'bound';
       }
+      case 'say': { const t = String(a.text ?? '').slice(0, 300); this.S.choir.say(t); addHistory(this.save, { kind: 'note', by: 'actant', text: `said to the choir: ${t}` }); return this.S.choir.connected ? 'said' : 'said (but no one is listening: not connected)'; }
+      case 'share': { const c = String(a.sign ?? ''); if (!this.save.spirits[c]) return 'error: you know no being with that sign'; this.S.choir.share(c); return 'shared'; }
       case 'note': this.config.notes = String(a.text ?? '').slice(0, 600); persist(this.save); return 'noted';
       default: return `error: unknown tool ${name}`;
     }

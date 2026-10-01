@@ -235,8 +235,18 @@ export function sanctumScreen(app: App): Screen {
     el.querySelector('#ac-log')!.innerHTML = [`<div class="gold">notes: ${esc(A.config.notes || '(none)')}</div>`, ...A.log.slice(-20).reverse().map((l) => `<div>${esc(l)}</div>`)].join('');
   }
 
+  function renderChoir() {
+    const C = S.choir;
+    const st = root?.querySelector('#ch-state');
+    if (!st) return;
+    st.textContent = C.connected ? `· ${C.members.length} gathered` : '· not connected';
+    root.querySelector('#ch-members')!.innerHTML = C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.actant === 'thinking' ? 'thinking' : m.actant}</span>` : ''}</div>`).join('');
+    root.querySelector('#ch-lines')!.innerHTML = C.lines.slice(-14).map((l) => `<div><span class="${l.mine ? 'gold' : ''}">${esc(l.from)}:</span> ${esc(l.text)}</div>`).join('') || '<div class="faint">No one has spoken.</div>';
+  }
+
   function renderAll() {
     renderPlan();
+    renderChoir();
     renderActant();
     renderAdvice();
     renderTop();
@@ -462,6 +472,11 @@ export function sanctumScreen(app: App): Screen {
             <div class="slots" id="slots"></div>
             <h2 style="margin-top:16px" data-tip="=The names you play as cards at the Council: up to twelve, separate from the four you carry into the Dark and the Bastion.">Council deck</h2><div id="deck"></div>
             <h2 style="margin-top:16px" data-tip="walks">Walks</h2><div class="feed" id="runs"></div>
+            <h2 style="margin-top:16px" data-tip="=<b>Your choir</b>: everyone gathered at the same worlds host (players, and actants tending their own sanctums). See each other's hum, talk, and share the signs of beings. A shared sign lands in your Name Book.">Choir <span class="dim" id="ch-state" style="font-size:12px"></span></h2>
+            <div class="choir-me">you are <input id="ch-handle" class="host-input" placeholder="your handle" data-tip="=How the choir knows you."></div>
+            <div id="ch-members" class="feed"></div>
+            <div id="ch-lines" class="feed choir-lines"></div>
+            <input id="ch-say" class="choir-say" placeholder="say to the choir…" data-tip="=Speak to everyone in the choir. An actant listening will hear you.">
           </div>
         </div>
       </div>`);
@@ -507,6 +522,15 @@ export function sanctumScreen(app: App): Screen {
       });
       S.planner.onChange = () => renderPlan();
       {
+        const handle = root.querySelector('#ch-handle') as HTMLInputElement;
+        handle.value = save.handle ?? '';
+        handle.addEventListener('change', () => { save.handle = handle.value.trim().slice(0, 24) || undefined; persist(save); S.choir.reconnect(); });
+        const say = root.querySelector('#ch-say') as HTMLInputElement;
+        say.addEventListener('keydown', (e) => { if (e.key === 'Enter') { S.choir.say(say.value); say.value = ''; } });
+        S.choir.onChange = () => { renderChoir(); renderBook(); };
+        S.choir.connect(); // a new aura has no link yet
+      }
+      {
         const A = S.actant;
         const goal = root.querySelector('#ac-goal') as HTMLTextAreaElement;
         goal.value = A.config.goal;
@@ -521,6 +545,7 @@ export function sanctumScreen(app: App): Screen {
       }
       root.querySelector('#host')!.addEventListener('change', (e) => {
         setWorldHost((e.target as HTMLInputElement).value);
+        S.choir.reconnect();
         (e.target as HTMLInputElement).value = hostLabel();
         app.toast(hostLabel() ? `Your worlds will be hosted at <em>${esc(hostLabel())}</em>.` : 'Your worlds are hosted here again.');
       });
@@ -556,6 +581,8 @@ export function sanctumScreen(app: App): Screen {
         if (foc) { S.setFocus(foc, !S.isFocused(foc)); renderBook(); return; }
         const med = t.closest('[data-med]')?.getAttribute('data-med');
         if (med) { S.meditate(med, !S.isMeditating(med)); renderBook(); return; }
+        const share = t.closest('[data-share]')?.getAttribute('data-share');
+        if (share) { S.choir.share(share); app.toast(S.choir.connected ? 'You shared its sign with the choir.' : 'You are not gathered with a choir.'); return; }
         const dk = t.closest('[data-deck]')?.getAttribute('data-deck');
         if (dk) {
           const d = save.councilDeck ?? [];
@@ -628,6 +655,7 @@ export function sanctumScreen(app: App): Screen {
       clearInterval(timer);
       offs.forEach((f) => f());
       S.planner.onChange = null;
+      S.choir.onChange = null;
       S.actant.onChange = null;
     },
   };

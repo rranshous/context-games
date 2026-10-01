@@ -43,6 +43,10 @@ export type ClientMsg =
   | { t: 'pass' } // council: end your turn
   | { t: 'drive'; cmds: DriveCmd[] } // racer: numbered throttle/steer commands, one per client tick
   | { t: 'go' } // racer: start now, without waiting out the lobby
+  | { t: 'choir-join'; aura: string; handle: string; element: number } // join this host's choir (instead of opening a round)
+  | { t: 'choir-presence'; presence: ChoirPresence }
+  | { t: 'choir-say'; text: string }
+  | { t: 'choir-share'; cell: string; note?: string } // share a being's sign with the choir
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
 
@@ -57,6 +61,9 @@ export type ServerMsg =
   | BastionSnapshot
   | CouncilView
   | RacerSnapshot
+  | { t: 'choir-roster'; members: ChoirMember[] }
+  | { t: 'choir-said'; from: { aura: string; handle: string }; text: string; at: number }
+  | { t: 'choir-shared'; from: { aura: string; handle: string }; cell: string; note?: string; at: number }
   | { t: 'end'; result: RoundResultMsg }
   | { t: 'error'; message: string };
 
@@ -305,3 +312,15 @@ export type RacerEvent =
   | { e: 'go' }
   | { e: 'lap'; car: number; lap: number }
   | { e: 'finish'; car: number; place: number };
+
+// ---------- the choir ----------
+
+/** What a choir member shows the others, refreshed every few seconds. Nothing secret: no signs, no words. */
+export interface ChoirPresence {
+  hum: number; // utterances per second
+  words: number; // grasped words held
+  beings: number; // beings known
+  truest: number; // truths of the truest word
+  actant: 'none' | 'asleep' | 'waiting' | 'thinking'; // whether a mind tends this sanctum
+}
+export interface ChoirMember extends ChoirPresence { aura: string; handle: string; element: number; since: number }

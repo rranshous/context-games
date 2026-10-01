@@ -5,7 +5,7 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
 import type { ProofVerifier } from '@truenames/authority';
-import { DungeonSim, BastionSim, CouncilSim, RacerSim, zkVerifier, type ClientMsg, type ServerMsg, type World } from '@truenames/dungeon';
+import { DungeonSim, BastionSim, CouncilSim, RacerSim, zkVerifier, type ChoirMember, type ClientMsg, type ServerMsg, type World } from '@truenames/dungeon';
 
 /** Set by startDungeon: verifies proofs against the circuit's verification key. */
 let verifier: ProofVerifier;
@@ -74,6 +74,37 @@ function closeRace(race: Race) {
   races.delete(race);
 }
 
+// ---------- the choir ----------
+// One choir per host: members (any instance that joins here) see each other's presence, talk, and share signs.
+// The host only relays; nothing is stored. Signs are public facts (anyone can check a being exists at a cell).
+interface Member { ws: WebSocket; send: (m: ServerMsg) => void; info: ChoirMember }
+const choir = new Set<Member>();
+function choirBroadcast(m: ServerMsg) { for (const x of choir) x.send(m); }
+function choirRoster() { choirBroadcast({ t: 'choir-roster', members: [...choir].map((x) => x.info) }); }
+const clean = (s: unknown, n: number) => String(s ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, n);
+
+function serveChoir(ws: WebSocket, join: Extract<ClientMsg, { t: 'choir-join' }>, send: (m: ServerMsg) => void, onMessage: (h: (m: ClientMsg) => void) => void) {
+  const me: Member = { ws, send, info: { aura: clean(join.aura, 64), handle: clean(join.handle, 24) || clean(join.aura, 6), element: Math.max(0, Math.min(7, Number(join.element) | 0)), since: Date.now(), hum: 0, words: 0, beings: 0, truest: 0, actant: 'none' } };
+  choir.add(me);
+  console.log(`[dungeon] choir: ${me.info.handle} joined (${choir.size})`);
+  choirRoster();
+  onMessage((m) => {
+    const from = { aura: me.info.aura, handle: me.info.handle };
+    if (m.t === 'choir-presence') {
+      const p = m.presence;
+      Object.assign(me.info, { hum: Math.max(0, Number(p.hum) || 0), words: Math.max(0, Number(p.words) | 0), beings: Math.max(0, Number(p.beings) | 0), truest: Math.max(0, Number(p.truest) | 0), actant: ['none', 'asleep', 'waiting', 'thinking'].includes(p.actant) ? p.actant : 'none' });
+      choirRoster();
+    } else if (m.t === 'choir-say') {
+      const text = clean(m.text, 500).trim();
+      if (text) choirBroadcast({ t: 'choir-said', from, text, at: Date.now() });
+    } else if (m.t === 'choir-share') {
+      const cell = String(m.cell ?? '');
+      if (/^[0-7]{12,24}$/.test(cell)) choirBroadcast({ t: 'choir-shared', from, cell, ...(m.note ? { note: clean(m.note, 200) } : {}), at: Date.now() });
+    }
+  });
+  ws.on('close', () => { choir.delete(me); console.log(`[dungeon] choir: ${me.info.handle} left (${choir.size})`); choirRoster(); });
+}
+
 function serveRacer(ws: WebSocket, level: number, send: (m: ServerMsg) => void, onMessage: (h: (m: ClientMsg) => void) => void) {
   const race = findRace(level);
   console.log(`[dungeon] race ${race.context.toString(16).slice(0, 8)}: a racer opens (${race.racers.size + 1} at the line, lobby ${race.firstOnGrid === null ? 'not yet open' : `${((performance.now() - race.firstOnGrid) / 1000).toFixed(1)}s in`})`);
@@ -130,6 +161,10 @@ function serve(ws: WebSocket) {
     let m: ClientMsg;
     try { m = JSON.parse(String(raw)); } catch { return send(ws, { t: 'error', message: 'bad message' }); }
     if (racer) return racer(m);
+    if (m.t === 'choir-join' && context === null) {
+      context = 0n; // this connection is a choir member, not a round
+      return serveChoir(ws, m, (out) => send(ws, out), (h) => { racer = h; });
+    }
     switch (m.t) {
       case 'open': {
         if (context !== null) return send(ws, { t: 'error', message: 'round already open' });

@@ -184,6 +184,7 @@ export function createCodex(app: App, host: HTMLElement, fresh: Set<string>): Co
         <div class="cbtns">
           <button class="small ${med ? 'on' : ''}" data-med="${sp.cell}" data-tip="meditate">${med ? 'meditating' : 'meditate'}</button>
           ${med ? `<button class="small ${S.isFocused(sp.cell) ? 'on' : ''}" data-focus="${sp.cell}" data-tip="focus">${S.isFocused(sp.cell) ? '★' : '☆'}</button>` : ''}
+          ${S.choir.connected && S.choir.members.length > 1 ? `<button class="small" data-share="${sp.cell}" data-tip="=Share this being's sign with your choir: they will know where it dwells.">share</button>` : ''}
         </div>
       </div>
     </div>`;
