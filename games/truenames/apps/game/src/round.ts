@@ -19,9 +19,25 @@ export interface Journey {
   bundle: { slot: number; claim: ZkNameClaim }[];
   /** How to draw your own names (true name, seal). Stays in this browser: never sent to the dungeon. */
   cosmetics: ({ element: number; magnitude: number; traits: WireTraits } | null)[];
+  /** An actant's driving code: when set, it drives the car (Dark Racer) instead of the keyboard. */
+  pilot?: Pilot;
 }
 
 export type RoundResult = RoundResultMsg;
+
+/** What a pilot sees each frame of a race (its own car, the road, the others, its words). */
+export interface PilotView {
+  car: { x: number; y: number; vx: number; vy: number; a: number; spin: number; slide: number; slow: number; top: number; hint: number };
+  track: { pts: { x: number; y: number }[]; halfWidth: number };
+  others: { x: number; y: number; vx: number; vy: number; place: number; ahead: boolean; dist: number }[];
+  slots: ({ index: number; form: string; ready: number; vessel: number; cap: number } | null)[];
+  place: number;
+  lap: number;
+  laps: number;
+}
+/** A pilot's order for this frame: throttle and steer (-1..1), and optionally a word (slot index) to speak. */
+export interface PilotOrder { throttle: number; steer: number; cast?: number | null }
+export type Pilot = (view: PilotView) => PilotOrder;
 export type Welcome = Extract<ServerMsg, { t: 'welcome' }>;
 export type DarkWelcome = Extract<Welcome, { world: 'dark' }>;
 export type BastionWelcome = Extract<Welcome, { world: 'bastion' }>;

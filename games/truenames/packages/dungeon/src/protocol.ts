@@ -64,6 +64,7 @@ export type ServerMsg =
   | { t: 'choir-roster'; members: ChoirMember[] }
   | { t: 'choir-said'; from: { aura: string; handle: string }; text: string; at: number }
   | { t: 'choir-shared'; from: { aura: string; handle: string }; cell: string; note?: string; at: number }
+  | { t: 'choir-race'; level: number; by: string; closesIn: number } // a Dark Racer race is gathering at this host
   | { t: 'end'; result: RoundResultMsg }
   | { t: 'error'; message: string };
 

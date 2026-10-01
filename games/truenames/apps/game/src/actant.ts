@@ -7,6 +7,8 @@ import type { Services, SanctumEvent } from './services.ts';
 import { addHistory, describeAim, type AimSpec } from './plan.ts';
 import { ELEMENT_NAMES, ASPECTS, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
+import { autopilot } from '@truenames/dungeon/racing';
+import type { Pilot, PilotOrder, PilotView } from './round.ts';
 
 export const OLLAMA = 'http://127.0.0.1:11434';
 export const DEFAULT_MODEL = 'qwen3:8b';
@@ -16,6 +18,12 @@ const GATHER_MS = 20_000;
 /** At least this long between reviews. */
 const MIN_GAP_MS = 120_000;
 const MAX_TURNS = 6;
+
+/** The driving code every actant starts with: the rivals' autopilot, speaking a word when a car ahead is close. */
+export const DEFAULT_DRIVING = `const order = autopilot(view.car, view.track, view.others);
+const target = view.others.find((o) => o.ahead && o.dist < 500);
+const word = view.slots.find((s) => s && s.ready <= 0);
+return { throttle: order.throttle, steer: order.steer, cast: target && word ? word.index : null };`;
 
 interface ChatMsg { role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[]; tool_name?: string }
 
@@ -41,6 +49,8 @@ const TOOLS = [
   fn('set_share', 'Set the share of the hum for aim n (1-8).', { n: { type: 'integer' }, share: { type: 'integer' } }, ['n', 'share']),
   fn('bind_word', 'Bind a held word to a loadout slot (1-4).', { word: { type: 'string', description: 'the word id, like 312662277504#0' }, slot: { type: 'integer' } }, ['word', 'slot']),
   fn('note', 'Replace your notes (your memory between reviews). Keep it short.', { text: { type: 'string' } }, ['text']),
+  fn('join_races', 'Standing order: when your choir gathers a Dark Racer race, join it and drive with your driving code.', { on: { type: 'boolean' } }, ['on']),
+  fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps. autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
   fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
   fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
 ];
@@ -63,6 +73,12 @@ export class Actant {
   }
 
   get config() { return this.save.actant!; }
+
+  /** This actant's pilot, if it races (its driving code, or the default when the code won't compile). */
+  pilot(): Pilot | undefined {
+    if (!this.config.on || !this.config.joinRaces) return undefined;
+    try { return compileDriving(this.config.driving || DEFAULT_DRIVING); } catch { return compileDriving(DEFAULT_DRIVING); }
+  }
 
   wake() {
     this.config.on = true;
@@ -149,6 +165,7 @@ export class Actant {
       'You do not meditate or search directly: you set the plan, an ordered list of aims the sanctum pursues on its own.',
       `Goal: ${this.config.goal || 'grow strong.'}`,
       `Your notes: ${this.config.notes || '(none yet)'}`,
+      this.config.joinRaces ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${this.config.driving || DEFAULT_DRIVING}` : 'You do not join races (join_races to start).',
     ].join('\n');
   }
 
@@ -213,12 +230,47 @@ export class Actant {
         persist(this.save);
         return 'bound';
       }
+      case 'join_races': this.config.joinRaces = a.on === true || a.on === 'true'; persist(this.save); addHistory(this.save, { kind: 'plan', by: 'actant', text: this.config.joinRaces ? 'will join the choir\'s races' : 'will not join races' }); return this.config.joinRaces ? 'you will join races your choir gathers' : 'you will not join races';
+      case 'write_driving': {
+        const code = String(a.code ?? '').slice(0, 4000);
+        const check = tryDriving(code);
+        if (check) return `error: ${check}. Your driving code was not changed.`;
+        this.config.driving = code;
+        persist(this.save);
+        addHistory(this.save, { kind: 'plan', by: 'actant', text: `rewrote its driving code (${code.length} chars)` });
+        return 'your driving code is replaced';
+      }
       case 'say': { const t = String(a.text ?? '').slice(0, 300); this.S.choir.say(t); addHistory(this.save, { kind: 'note', by: 'actant', text: `said to the choir: ${t}` }); return this.S.choir.connected ? 'said' : 'said (but no one is listening: not connected)'; }
       case 'share': { const c = String(a.sign ?? ''); if (!this.save.spirits[c]) return 'error: you know no being with that sign'; this.S.choir.share(c); return 'shared'; }
       case 'note': this.config.notes = String(a.text ?? '').slice(0, 600); persist(this.save); return 'noted';
       default: return `error: unknown tool ${name}`;
     }
   }
+}
+
+/** Compile driving code into a pilot: a throw or a bad order falls back (the racer screen falls back to the autopilot). */
+export function compileDriving(code: string): Pilot {
+  const f = new Function('view', 'autopilot', code) as (v: PilotView, ap: typeof autopilot) => PilotOrder;
+  return (v) => f(v, autopilot);
+}
+
+/** Check driving code against a made-up race frame: null if it compiles and returns a usable order. */
+function tryDriving(code: string): string | null {
+  let pilot: Pilot;
+  try { pilot = compileDriving(code); } catch (e) { return `it does not compile: ${String((e as Error).message)}`; }
+  const pts = Array.from({ length: 64 }, (_, i) => ({ x: Math.cos((i / 64) * Math.PI * 2) * 600, y: Math.sin((i / 64) * Math.PI * 2) * 400 }));
+  const view: PilotView = {
+    car: { x: 600, y: 0, vx: 0, vy: 200, a: Math.PI / 2, spin: 0, slide: 0, slow: 0, top: 1, hint: 0 },
+    track: { pts, halfWidth: 78 },
+    others: [{ x: 560, y: 120, vx: 0, vy: 200, place: 1, ahead: true, dist: 126 }],
+    slots: [{ index: 0, form: 'bolt', ready: 0, vessel: 100, cap: 100 }, null, null, null],
+    place: 2, lap: 0, laps: 3,
+  };
+  try {
+    const o = pilot(view);
+    if (!o || !Number.isFinite(o.throttle) || !Number.isFinite(o.steer)) return 'it must return { throttle, steer } as numbers';
+  } catch (e) { return `it throws: ${String((e as Error).message)}`; }
+  return null;
 }
 
 /** The models the local server offers that can use tools. */

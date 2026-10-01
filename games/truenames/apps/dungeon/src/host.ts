@@ -117,7 +117,11 @@ function serveRacer(ws: WebSocket, level: number, send: (m: ServerMsg) => void, 
       try {
         const { slots, refused } = await race.sim.admit(m.aura, m.bundle);
         me.aura = m.aura;
-        race.firstOnGrid ??= performance.now();
+        if (race.firstOnGrid === null) {
+          race.firstOnGrid = performance.now();
+          // the choir hears a race gathering: choristers standing ready can join it within the lobby
+          choirBroadcast({ t: 'choir-race', level: race.level, by: m.aura, closesIn: LOBBY });
+        }
         console.log(`[dungeon] race ${race.context.toString(16).slice(0, 8)}: ${m.aura.slice(0, 8)} on the grid (${race.sim.playerCount}), ${slots.filter(Boolean).length} names${refused.length ? `, refused: ${refused.join('; ')}` : ''}`);
         send(race.sim.welcome(m.aura, slots, refused));
       } catch (err) {

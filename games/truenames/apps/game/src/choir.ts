@@ -17,6 +17,8 @@ export class Choir {
   lines: ChoirLine[] = [];
   connected = false;
   onChange: (() => void) | null = null;
+  /** Called when a race gathers at the choir's host (level, the opener's aura). */
+  onRace: ((level: number, by: string) => void) | null = null;
   private ws: WebSocket | null = null;
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   private retry = 2000;
@@ -99,6 +101,10 @@ export class Choir {
         persist(this.save);
         this.S.events.emit({ kind: 'find', text });
       }
+    } else if (m.t === 'choir-race') {
+      const who = this.members.find((x) => x.aura === m.by)?.handle ?? 'someone';
+      this.lines.push({ at: Date.now(), from: who, text: `opened a race (circuit ${m.level + 1}); it starts within ${m.closesIn}s`, mine: m.by === me });
+      this.onRace?.(m.level, m.by);
     } else return;
     if (this.lines.length > 200) this.lines.splice(0, this.lines.length - 200);
     this.onChange?.();

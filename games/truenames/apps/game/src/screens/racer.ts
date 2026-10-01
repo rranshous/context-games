@@ -6,7 +6,7 @@ import type { DungeonLink, Journey, RacerWelcome, RoundHost, RoundResult } from 
 import { frag } from '../dom.ts';
 import { RACER as R, worldDescentName } from '@truenames/dungeon/balance';
 import type { RacerCar, RacerEvent, RacerSnapshot, WireTraits } from '@truenames/dungeon/protocol';
-import { driveCar, type CarState, type DriveCmd, type Track } from '@truenames/dungeon/racing';
+import { autopilot, driveCar, type CarState, type DriveCmd, type Track } from '@truenames/dungeon/racing';
 import { ELEMENT_COLOR, ELEMENT_NAMES, FORMS, spiritName, truths, type SpiritLike } from '../lore.ts';
 import { sigilCanvas } from '../sigil.ts';
 import * as sfx from '../audio.ts';
@@ -168,15 +168,37 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   function clientTick() {
     if (paused || over || !predInit) return;
     let throttle = 0, steer = 0;
-    if (keys.has('w') || keys.has('arrowup')) throttle += 1;
-    if (keys.has('s') || keys.has('arrowdown')) throttle -= 1;
-    if (keys.has('a') || keys.has('arrowleft')) steer -= 1;
-    if (keys.has('d') || keys.has('arrowright')) steer += 1;
+    if (journey.pilot) {
+      // an actant drives: its code sees the race and gives an order each frame
+      const order = pilotOrder();
+      throttle = order.throttle; steer = order.steer;
+      if (order.cast !== undefined && order.cast !== null && !locked()) cast(order.cast);
+    } else {
+      if (keys.has('w') || keys.has('arrowup')) throttle += 1;
+      if (keys.has('s') || keys.has('arrowdown')) throttle -= 1;
+      if (keys.has('a') || keys.has('arrowleft')) steer -= 1;
+      if (keys.has('d') || keys.has('arrowright')) steer += 1;
+    }
     const cmd: DriveCmd = { seq: ++seq, throttle, steer, dt: TICK };
     driveCar(car, locked() ? { throttle: 0, steer: 0 } : cmd, track, TICK);
     pending.push(cmd);
     outbox.push(cmd);
     if (pending.length > 600) pending.shift();
+  }
+
+  /** The pilot's order, never trusted: bad output or a throw falls back to the rivals' autopilot. */
+  function pilotOrder(): { throttle: number; steer: number; cast?: number | null } {
+    const myPlace = hud.place;
+    const view = {
+      car: { ...car }, track, laps, place: myPlace, lap: hud.lap,
+      others: [...others.values()].map((o) => ({ x: o.x, y: o.y, vx: o.vx, vy: o.vy, place: o.place, ahead: o.place < myPlace, dist: Math.hypot(o.x - car.x, o.y - car.y) })),
+      slots: slots.map((s, i) => s && { index: i, form: FORMS[s.form]!.name, ready: s.ready, vessel: s.vessel, cap: s.cap }),
+    };
+    try {
+      const o = journey.pilot!(view);
+      if (o && Number.isFinite(o.throttle) && Number.isFinite(o.steer)) return o;
+    } catch { /* fall through */ }
+    return autopilot(car, track, view.others);
   }
 
   link.onEnd = (r) => end(r);
@@ -261,6 +283,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     if (s.ready > 0) return;
     link.cast(i, 0, 0);
     s.flash = 0.2;
+    s.ready = R.cooldown; // until the dungeon says otherwise (keeps a pilot from sending a burst)
   }
   const onKey = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
@@ -647,6 +670,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     over = result;
     if (result.won) sfx.sfxVictory(); else sfx.sfxDeath();
     const { unlocked } = host.report(result);
+    if (journey.pilot) setTimeout(() => host.leave(), 6000); // an actant's instance goes home on its own
     overlay?.remove();
     const place = ordinal(result.wave);
     overlay = frag(`<div class="overlay">
