@@ -13,6 +13,9 @@ Still open from that discussion:
 5. **Ranks in the game.** Showing the player's meditation rank (Initiate … Grand Master) from their hum.
 6. **The power curve in practice.** A fresh god word draws ~256× a fresh wisp word; worlds tuned on wisps may need ladders that reach that far.
 
+## Parked: more forms (2026-10-01)
+Eight forms (3 bits) today. 16 would need 4 bits: a spec change, so decide before the desktop release. There is no heal yet ("we do have a shield though"). Candidates: **mend** (heal), veil (hide), tether (pull), drain (take strain or life), echo (repeat your last word), gate (a passage). Without a spec change, worlds can vary forms by element (a fire lance burns, a frost lance slows): 64 powers from 8 × 8.
+
 ## Open decisions
 1. **Warfare and ownership.** What does conflict *do*? Pure PvP with no ownership, or spatial sites that can be held? Anything exclusive conflicts with "no ownership" in [07](07-roadmap.md).
 2. **Attunement and mastery bonuses.** Off today. Under "proofs grant", they'd be conventions a world chooses.
