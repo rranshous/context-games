@@ -439,3 +439,17 @@ Robby: "how do i race against a second player? I joined from a private browser a
 - **Note on the first try**: a scratch bot from an earlier timed run was still connected and made a race of its own, so the first attempt showed two separate races. With timestamps added to the server's race logs, the clean run joined correctly.
 - Fix: "5th of 5" counted rivals from the welcome; the place now reads out of all cars on the grid.
 - **Played by hand**: Robby tried a shared race himself: "just tried it and it worked well."
+
+## Docs pass: keeping the design docs true (2026-09-30)
+Robby, after I quoted the mechanics and spec docs back while discussing depth: "tru. i forgot about those docs. we need to make sure the docs stay sharp and relevant." They had drifted badly: 03/04 still described shared wells with water-filling, 8-bit names and "provisional" constants, and 09 said there were no other players.
+- **Rewritten to describe the game as it is**:
+  - **01 vision**: new pillars (one power system, many games; prove the details, never the source; proofs grant, never restrict).
+  - **02 worldbuilding**: vessels instead of wells, the real hearth-god, the threshold and the worlds; planned lore marked as such.
+  - **03 mechanics**: every formula with today's tunables, a forms table across all four worlds, log power, the ladders.
+  - **04 spec**: the seed, constants marked frozen, and the zero-knowledge claim (it is part of the contract).
+- **Restructured**:
+  - **Retired**: 05 (original architecture) and 06 (the v0 plan, finished). They're in git history and summarized in the overview's "changes from the original plan".
+  - **Renumbered**: 09 → **05 overview** and 10 → **06 architecture**, both corrected (test and constraint counts, `balance.ts`'s home, the world screens, shared races, a "new world" recipe).
+  - **07 is the roadmap**: the sanctum/worlds direction and principles moved there from 08, with done and next.
+  - **08** holds only open and parked questions, led by the astral/depth discussion.
+- **Process**: CLAUDE.md now says to update the affected docs in the same commit as a change; the README says the same. (I also saved it as a working note for myself.)

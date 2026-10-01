@@ -6,7 +6,7 @@ Spirits dwell in the eightfold astral, a space that divides into eight, then eig
 
 ![The sanctum: the Name Book, scrying, and the loadout](docs/images/sanctum.png)
 
-**Status:** v0, playable, single-player and local. A zero-knowledge threshold and a separate dungeon process mark the first steps toward multiplayer. Built 2026-09-27/28; see the [journal](docs/journal.md).
+**Status:** playable. Four worlds over one power system; names cross into them as zero-knowledge proofs, worlds run in a separate dungeon process, and Dark Racer races are shared between players. The sanctum is still local to your browser. Built from 2026-09-27; see the [journal](docs/journal.md).
 
 ## How it works
 ```
@@ -93,16 +93,14 @@ Read [CLAUDE.md](CLAUDE.md) before touching `packages/universe`: its hash spec i
 ## Docs
 | # | Doc | What it covers |
 |---|-----|----------------|
-| 01 | [Vision](docs/01-vision.md) | Pitch, pillars, core loop |
-| 02 | [Worldbuilding](docs/02-worldbuilding.md) | The astral, spirits, names, aura, the Open Choir |
-| 03 | [Mechanics](docs/03-mechanics.md) | Glossary, formulas, tunables (design) |
-| 04 | [Universe spec](docs/04-universe-spec.md) | Exact hashing, cell encoding, trait decoding (frozen, v1) |
-| 05 | [Architecture](docs/05-architecture.md) | Packages and interfaces (original design) |
-| 06 | [v0: local roguelite](docs/06-v0-roguelite.md) | Scope, milestones, acceptance criteria |
-| 07 | [Multiplayer roadmap](docs/07-multiplayer-roadmap.md) | Phased path to a shared server, then ZK/ledger |
-| 08 | [Open questions](docs/08-open-questions.md) | Parked ideas, undecided and decided calls |
-| 09 | [**Overview (as built)**](docs/09-overview.md) | What the game is today, in-world words ↔ mechanics, deviations |
-| 10 | [**Architecture (as built)**](docs/10-architecture.md) | Code layout, the threshold (zero knowledge), the dungeon process, prediction, persistence, testing, extending |
+| 01 | [Vision](docs/01-vision.md) | Pitch, pillars, core loop, the two axes of power |
+| 02 | [Worldbuilding](docs/02-worldbuilding.md) | The astral, spirits, names, vessels, the threshold, the worlds; world ↔ mechanic table |
+| 03 | [Mechanics](docs/03-mechanics.md) | Glossary and every formula as it runs today: scrying, naming, vessels, casts, strain, capacity, forms per world, ladders |
+| 04 | [Universe spec](docs/04-universe-spec.md) | Exact hashing, cell encoding, trait decoding, claims, the zero-knowledge claim (frozen, v1) |
+| 05 | [Overview](docs/05-overview.md) | What the game is today: sanctum, worlds, in-world words ↔ mechanics, numbers |
+| 06 | [Architecture](docs/06-architecture.md) | Code layout, the threshold, the dungeon process, prediction, shared races, persistence, testing, extending |
+| 07 | [Roadmap](docs/07-roadmap.md) | One sanctum, many worlds; principles; done and next |
+| 08 | [Open questions](docs/08-open-questions.md) | What's under discussion, undecided, parked and settled |
 | — | [Journal](docs/journal.md) | Build log: every decision, measurement and tradeoff |
 
-New here? Read 01 for the idea, 09 for what exists, and 10 for how it's built.
+New here? Read 01 for the idea, 05 for what exists, and 06 for how it's built. The design docs describe the game *as it is*; when the game changes, they change in the same commit.

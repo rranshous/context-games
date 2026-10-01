@@ -23,7 +23,11 @@ TAG_NAME   = 5n
 ```
 
 ## Seed
-`SEED` is a field element, published per universe. v0 picks one and hardcodes it. (Later: per-epoch seeds are possible; see 08.)
+`SEED` is a field element, published per universe:
+```
+SEED = 0x7472_7565_6e61_6d65_735f_7631   // ASCII "truenames_v1"
+```
+(Per-epoch seeds are possible later; see [08](08-open-questions.md).)
 
 ## Cells
 A cell is a path of octants from the root: `path = [o1, o2, …, od]`, each `o ∈ 0..7`. `depth = d`.
@@ -74,8 +78,9 @@ magnitude(cell)  = bits(spiritHash) - target(depth)
 ```
 MIN_SPIRIT_DEPTH = 6
 target(d)        = 4 + floor(3 * d / 2)
+MIN_NAME_BITS    = 12        // a name is learned at this strength
 ```
-(These are provisional until the M0 benchmark; freeze them before publishing a seed.)
+Frozen 2026-09-27 after the hash-rate benchmark (see the journal). Changing any of them is a spec version bump.
 
 ## Traits
 A separate hash so traits are independent of magnitude:
@@ -110,6 +115,7 @@ strength                    = bits(nameHash)
 - A name is valid only if `exists(cell)`.
 
 ## Name submission (v1, clear text)
+Used inside the sanctum, which knows the address anyway. Games never receive these; they receive zero-knowledge claims (below).
 ```ts
 interface NameClaim {
   spec: 1;
@@ -128,6 +134,21 @@ Verification:
 4. Store if `strength > best[aura][cell]`.
 
 Signing is why grinding someone else's name is safe: only they can submit it.
+
+## Zero-knowledge name claim (games)
+What a world receives at the threshold, produced by `packages/proofs` (Groth16 over BN254, circuit generated from these same constants). The circuit is part of the contract: changing what it checks or reveals means a new circuit, a new trusted setup, and a new `vkey`.
+```
+private: digits[0..depth), depth, nonce
+public in:  auraField, magnitude, strength, context
+public out: roundTag = poseidon3([TAG_ROUND, digest(cell), context])      // TAG_ROUND = 101
+            element, form, weightIdx, generosityIdx, temperIdx            // decoded in-circuit
+checks:     MIN_SPIRIT_DEPTH ≤ depth ≤ 24
+            bits(spiritHash) ≥ target(depth) + magnitude                  // a lower bound
+            bits(nameHash(cell, aura, nonce)) ≥ strength                   // a lower bound
+```
+- The **trait hash never leaves the proof**, so the claim can't identify the spirit (flavor bits would). The round tag identifies it within one context only and is unlinkable across contexts.
+- The 10 public signals are signed by the aura (ed25519) so a claim is bound to its holder.
+- Verification: `context` must equal the world's issued context, `auraField` must match the signing key, then `groth16.verify` against the committed `vkey`.
 
 ## Public API (`packages/universe`)
 ```ts
@@ -148,7 +169,9 @@ export interface Traits { form: number; weightIdx: number; generosityIdx: number
 export function auraField(pubkey: Uint8Array): bigint;
 export function nameStrength(cell: Cell, aura: Uint8Array, nonce: bigint): number;
 export function verifyNameClaim(claim: NameClaim): { ok: true; strength: number } | { ok: false; reason: string };
+export const SEED: bigint, MIN_SPIRIT_DEPTH: 6, MIN_NAME_BITS: 12;
 ```
+(Plus helpers the meditation and proofs packages use: `spiritFromDigest`, `decodeTraits`, `nameHash`, `signNameClaim`.)
 
 ## Golden vectors
 `packages/universe/test/vectors.json`, generated once and then treated as law:

@@ -1,0 +1,50 @@
+# 07 · Roadmap
+
+Where Truenames is going, and the principles that decide how. What's built is in [05](05-overview.md); undecided questions are in [08](08-open-questions.md).
+
+## The shape: one sanctum, many worlds (Robby, 2026-09-27)
+- **Two halves.** The **sanctum** is persistent and asynchronous: scrying, meditation, names, knowledge, the Open Choir. **Worlds** are games where you spend power: dungeons, duels, races, whole games. Worlds lie outside the sanctum's purview.
+- **Locked at departure.** What you carry in (proven names, capacity) is fixed for the journey. Meditation that finishes mid-journey counts next time.
+- **Borrowed power.** Each patron lends you a **vessel** for the journey: per player, never shared or contested inside a world. (This replaced shared wells, whose crowding couldn't survive the split; see "Crowding" below.)
+- **Games can never create power.** Only sanctum work makes names truer. Each world decides what forms *mean* in its mechanics and reuses the shared strain/vessel rules.
+
+## Principles
+- **Prove the details, never the source.** Worlds receive zero-knowledge proofs of what a name can do, never where its spirit dwells. The aura is revealed on purpose: it is your persistent character.
+- **Proofs grant, they never restrict.** Everything a player holds is information and capability. A game can ignore a penalty but cannot deny a fact, so mechanics are things a player *gains by proving*. Three layers:
+  - *Facts*: claims, spirits, depth and fame, all derived or signed.
+  - *Capabilities*: what facts let you do (only names you hold can be spoken; only locations you know can be meditated).
+  - *Conventions*: games *choose* to reward facts. A shared rules package makes good conventions easy to adopt; nothing depends on every game following them.
+- **Servers are services over proofs, not authorities.** You trust the *operator*; if one goes bad, players migrate their proofs elsewhere. A bad operator cannot forge names (signed by the aura), steal them (bound to the key) or invent spirits (the universe is public). It *can* leak what you gave it (less with ZK), skew census data, or refuse service; exit fixes the last. Disclose only what a service needs.
+- **No ownership, first-come or exclusive resources.** Those need agreed ordering in time, which proofs alone can't give, and would bring back a real central authority (or a ledger). Keeping everything shared and derived is what makes the serverless shape possible.
+
+## Crowding, re-examined
+A global census of who knows which spirit gets the incentives backwards: publishing a strong claim costs you nothing and thins everyone else, and the census is only as complete as people choose. **Global crowding is dropped as a mechanic.** Its useful jobs become capabilities:
+- *Reward rarity, don't tax popularity.* Obscure patrons can grant *more*. Obscurity is derivable without trust (depth, or fame from the Open Choir's public schedule); worlds that honor it offer a bonus.
+- *Secrets are capabilities.* Knowing a location is what lets you meditate its name at all. When the Choir publishes it, others start meditating and your edge decays: the "half-life of private discoveries", with no rule to enforce. Worlds may reward rarity in a match ("a patron no one else here holds").
+- *If a census is ever needed*, measure it in work (each holder counts `2^truths`, so faking a crowd costs the meditation it adds). Any bulletin board of claims can serve; a world can fall back to the claims it has seen.
+- *Presence* (orders dominating a goddess) has no replacement yet.
+
+## Done
+- Sanctum/world split, names locked at departure, per-caster vessels.
+- Zero-knowledge proofs at the threshold (Groth16, local dev ceremony), parallel provers.
+- The dungeon as its own process; client prediction, reconciliation, interpolation.
+- Four worlds: the Dark, the Bastion, the Council, Dark Racer.
+- **First shared world**: Dark Racer races with a 15 s lobby, players replacing rivals.
+
+## Next
+Roughly in order; each is independently useful.
+1. **More shared worlds.** Co-op in the Dark (the sim already supports several players), a PvP Council seat. Lag compensation once players fight players.
+2. **Aura backup and export.** Today losing the browser's storage loses every name. Export/import of the save, then a backup service that stores only signed claims.
+3. **Sanctum services.** A bulletin board of claims (optional census), grants (a signed vessel/capacity summary a world can accept instead of recomputing) and **deeds** (records of what happened in a world, signed by the world and by the player; a series is optional, not assumed). **Titles are computed, not issued**: public rules over deeds.
+4. **The Open Choir.** A public sweep in a published deterministic order, fed by client tithes, publishing every find on schedule. The sweep rate sets the half-life of private discoveries. The Choir never evokes.
+5. **Knowledge and teaching.** Name gifting (grind someone's `(cell, aura)`, hand over the nonce; they sign), shared scan maps, guild servers. Orders as social structures only.
+6. **A real trusted setup** (a multi-party ceremony) before any world is run by someone players don't trust.
+7. **Conflict** (needs the warfare decision in 08): PvP with the same casting rules, possibly spatial sites.
+8. **Ledger (optional).** For names and discoveries, never for real-time play.
+
+## What must not change
+- Spec v1 hashing, cell encoding, trait decoding, `target`, `bits` (or it's a new universe, which could be a lore event, "the Sundering").
+- The `Authority`, `NameVerifier` and `ProofVerifier` interfaces (extend, don't break).
+- Claim formats (add fields, never reinterpret).
+
+Changing what the circuit proves is allowed (proofs are per journey) but needs a new trusted setup.

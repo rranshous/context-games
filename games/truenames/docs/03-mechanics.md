@@ -1,6 +1,6 @@
 # 03 · Mechanics
 
-Glossary, formulas and tunables. Exact hashing lives in [04 · Universe spec](04-universe-spec.md). All numbers here are **starting points** for tuning; they live in `packages/authority/src/tunables.ts`.
+Glossary, formulas and tunables, **as the game runs today**. Exact hashing lives in [04 · Universe spec](04-universe-spec.md). Authority numbers live in `packages/authority/src/tunables.ts`; per-world balance lives in `packages/dungeon/src/balance.ts`. If this doc and those files disagree, the files win and this doc is a bug.
 
 ## Glossary
 | Term | Meaning |
@@ -11,107 +11,123 @@ Glossary, formulas and tunables. Exact hashing lives in [04 · Universe spec](04
 | **target(depth)** | Bits a spirit hash needs at that depth to exist. |
 | **spirit** | A cell where `bits(spiritHash) ≥ target(depth)`. |
 | **magnitude** | `bits(spiritHash) − target(depth)`. How mighty the spirit is. |
-| **traits** | Decoded from a separate trait hash: form, weight, generosity, flavor. |
-| **aura** | A player's public key; also the per-player strain/capacity state. |
+| **traits** | Decoded from a separate trait hash: form, weight, generosity, temper, flavor. |
+| **aura** | A player's ed25519 public key; also the per-player strain/capacity state. |
 | **name** | A nonce for `(cell, aura)`. |
-| **strength** | `bits(nameHash)`. How truly the aura knows the spirit. |
-| **effective** | Strength after bonuses and strain, used at cast time. |
-| **pool** | A spirit's token bucket of power. |
-| **grant** | Power a caster actually receives from a pool in a tick. |
+| **strength** (on screen: **truths**) | `bits(nameHash)`. How truly the aura knows the spirit. |
+| **learned** | A name with strength ≥ `MIN_NAME_BITS` (12). |
+| **effective** | Strength + bonuses − strain, at cast time. |
+| **vessel** (code: *pool*) | The caster's own token bucket of a patron's power, for one journey. |
+| **grant** | Power a cast actually receives from the vessel. |
 | **strain** | Aura-global fatigue, in bits. |
 | **capacity** | Max strain an aura can hold before backlash. |
-| **tick** | Authority resolution step. |
+| **tick** | Authority resolution step (200 ms). |
+| **world** | A game that spends power: the Dark, the Bastion, the Council, Dark Racer. |
 
 ## Discovery (scrying)
-- Pick a prefix (e.g. `fire/storm/choir`). Enumerate cells under it at some depth. For each, compute the spirit hash. That's one hash per cell.
+- Pick a prefix (element / aspect / tradition) and a depth. Enumerate cells under it at that depth. For each, compute the spirit hash: one hash per cell.
 - A cell is the lottery ticket; there is **no nonce** at a single cell during discovery.
-- Hit rate per cell is `2^-target(depth)`. Knowing one spirit does **not** make related ones cheaper. The only advantages are the prefix you choose and your record of cells already scanned.
-- Magnitude is geometric: `P(magnitude ≥ m | spirit) = 2^-m`.
+- Hit rate per cell is `2^-target(depth)`, with `target(d) = 4 + ⌊3d/2⌋` and spirits only at `depth ≥ 6`. Each layer has 8× the cells but needs 1.5 more bits, so deeper layers hold more spirits, each costlier to find:
 
-`target(depth)` starting point: `target(d) = baseTarget + slope * d`, with `baseTarget = 4`, `slope = 1.5`. Deeper space has vastly more cells, so difficulty rises with depth to keep the frontier from exploding. Spirits only exist at `depth ≥ minSpiritDepth` (start: 6). Depths 1–5 are regions, not spirits.
+  | depth | spirits in the layer | hashes per find |
+  |---|---|---|
+  | 6 | ~32 (the 35 ancients) | ~8k |
+  | 7 | ~90 | ~23k |
+  | 8 | ~256 | ~65k |
+  | 10 | ~2k | ~500k |
+  | 12 | ~16k | ~4M |
+
+- Magnitude is geometric and **the same at every depth**: `P(magnitude ≥ m | spirit) = 2^-m`. Today depth sets cost and supply, not might (open question, see [08](08-open-questions.md)).
+- Knowing one spirit does **not** make related ones cheaper. The only advantages are the prefix you choose and your record of cells already scanned. Traits don't depend on the region either.
 
 ## Naming (meditation)
 - For a known spirit, grind `nonce` over `nameHash(cell, aura, nonce)`. Keep the best.
-- `strength = bits(nameHash)`. Expected work to reach strength `s` is `2^s` hashes.
-- A name is **learned** once `strength ≥ minNameBits` (start: 8).
-- Anyone can grind anyone's name (aura keys are public). Only the aura's owner can *submit* it, because submissions are signed.
-- The authority stores `best[aura][cell]` and only raises it.
+- `strength = bits(nameHash)`. Expected work to reach strength `s` is `2^s` hashes ("each truth requires twice as much meditation to unveil").
+- A name is **learned** once `strength ≥ MIN_NAME_BITS = 12`.
+- Anyone can grind anyone's name (aura keys are public). Only the aura's owner can *submit* it, because claims are signed.
+- The sanctum keeps signed claims and only ever raises a name.
 
-## Pools
-Per spirit, a token bucket:
-```
-poolCap(spirit)    = poolBase    * 2^(poolExp * magnitude)
-poolRefill(spirit) = refillBase  * 2^(poolExp * magnitude)   // per tick
-```
-Start: `poolBase = 100`, `refillBase = 5`, `poolExp = 0.5`.
+## The threshold
+Before a journey into a world, each name you carry is proven in zero knowledge against the world's fresh context. The proof reveals the spirit's element, gameplay traits, a magnitude and truths it clears (it may understate, never overstate) and a round tag; it hides the address, depth, nonce and trait hash. Your aura is revealed (it is your character). Names are **locked in** at departure. Details in [06](06-architecture.md#the-threshold-sanctum--round).
 
-### Allocation per tick
-For each spirit, collect cast requests `i` with requested amount `r_i`:
+## Vessels
+Each (caster, patron) pair has its own token bucket for the journey, created full:
 ```
-w_i     = 2^effective_i
-cap_i   = castCapBase * 2^(capExp * effective_i) * generosity
-share_i = pool * w_i / Σw
-grant_i = min(r_i, cap_i, share_i)
+vesselCap(spirit)    = poolBase   * 2^(poolExp * magnitude)     // 100 · 2^(m/2)
+vesselRefill(spirit) = refillBase * 2^(poolExp * magnitude)     // 5 · 2^(m/2) per tick
 ```
-Then **water-fill**: power left over because some casters were capped by `r_i` or `cap_i` is redistributed to the others by weight, repeating until no one can take more or the pool is empty. `pool -= Σ grant_i`.
+Nothing is shared: two players (or a player and a shaman) on the same spirit each have their own vessel. One cast per aura per spirit per tick; a second is refused `duplicate`.
 
-Start: `castCapBase = 4`, `capExp = 0.5`, `generosity ∈ [0.25, 2]` from traits.
-
-- **Share** handles contention: truer names take more.
-- **Cap** handles solo use: a weak name can't drain a god even alone.
+## A cast
+```
+effective = strength + bonus − strain                     // bonus: optional rules, 0 today
+cap       = castCapBase · 2^(capExp · (effective − capRef)) · generosity   // 12 · 2^((eff − 12)/2) · g
+grant     = min(request, cap, vessel level)
+vessel   −= grant
+```
+- **Cap** handles solo use: a weak name can't drain a god even alone. Each truth of effective raises the cap by √2.
+- `generosity = 0.25 · 2^(generosityIdx · 3/15)`, so 0.25 (stingy) to 2 (generous).
+- A truer name draws more; a strained aura draws less (every point of strain costs a truth).
 
 ## Strain
 Aura-global, measured in bits:
 ```
-castStrain = spirit.weight * form.weight * familiarity(strength)
-familiarity(s) = max(minFamiliarity, 1 - familiarityRate * (s - minNameBits))
-
-on cast:        strain += castStrain
-each tick:      strain *= strainDecay
-effective     = strength + bonuses - strain
+castStrain     = strainScale · spirit.weight · form.weight · familiarity(strength)
+familiarity(s) = max(0.3, 1 − 0.03 · (s − 12))
+spirit.weight  = 0.5 + weightIdx / 6                        // 0.5 .. 3
+on cast:   strain += castStrain
+each tick: strain *= 0.9
 ```
-Start: `strainDecay = 0.8`, `familiarityRate = 0.03`, `minFamiliarity = 0.3`, `spirit.weight ∈ [0.5, 3]` from traits, `form.weight` per form (below).
+No global cooldowns: spamming collapses output. (A world may add its own; Dark Racer has a 1.1 s per-name cooldown.)
 
-Every point of strain halves pull (via `2^effective`). No cooldowns; spamming collapses output.
-
-**Backlash**: if `strain > capacity`, the cast still resolves at its reduced effective strength, then rolls backlash from the spirit's temper: fizzle (no effect), misfire (random target), or recoil (damage to self). v0: recoil only.
+**Backlash**: if `strain > capacity` after a cast, it resolves at its reduced effective strength, then rolls `chance = clamp((strain − capacity) · 0.35, 0.25, 1)`. On a hit: **recoil** of `grant · 0.6` to the caster. (Fizzle and misfire are designed, not built.)
 
 ## Capacity (growth)
 ```
-capacity = capBase + capPerBit * Σ max(0, strength_j - capThreshold)   over all names j
+capacity = capBase + capPerBit · Σ max(0, strength_j − capThreshold)   // 4 + 0.1 · Σ(s − 12)
 ```
-Start: `capBase = 3`, `capPerBit = 0.1`, `capThreshold = 12`. The threshold stops farming cheap names.
+In a world, capacity counts the names you carried in. The threshold stops farming cheap names.
 
 ## Growth summary
 - Know **more** names → capacity.
-- Know names **truer** → more pull, bigger cap, less strain per cast.
-- Find **mightier** spirits → bigger, faster pools.
+- Know names **truer** → bigger cap, less strain per cast.
+- Find **mightier** spirits → bigger, faster vessels.
 
-## Spell effect
+## Forms
+Every spirit has one of eight forms. `effect = grant · form.efficiency` in the Dark; other worlds turn grants into their own numbers (below).
+
+| id | Form | form.weight | form.efficiency | Dark | Bastion shrine | Council card | Dark Racer |
+|---|---|---|---|---|---|---|---|
+| 0 | bolt | 1.0 | 1.0 | projectile | seeking bolts | strike | seeking bolt, spins out |
+| 1 | ring | 1.5 | 0.6 | burst around you | pulses | half to all enemy creatures | shockwave shove |
+| 2 | ward | 1.0 | 1.2 | shield | slowing field | shield | breaks the next strike |
+| 3 | lance | 1.3 | 0.8 | piercing line | piercing line | creature + overflow | beam that slows |
+| 4 | nova | 2.0 | 0.7 | delayed blast | artillery | bursts next turn | mine behind you |
+| 5 | summon | 2.0 | 1.0 | ally | road guardian | servant | hunter of the leader |
+| 6 | hex | 1.2 | 1.0 | damage over time | damage over time | lingers 3 turns | slick behind you |
+| 7 | blink | 0.8 | 1.0 | teleport | throws a foe back | draw two | jump down the road |
+
+Element sets damage type and visuals (the depth-1 octant).
+
+## Turning grants into game numbers
+Grants grow exponentially with truths (√2 per truth). That suits the Dark, where descents grow enemies just as fast. Worlds with small fixed numbers compress it:
 ```
-effect = grant * form.efficiency
+power = max(1, round(scale · log2(1 + grant · form.efficiency)))   // logPower(), scale 1.2
 ```
-Magnitude matters through the pool: a mighty spirit's pool can feed large grants. Strength matters through share, cap and strain.
+About one point per two truths. The Council and Dark Racer use it.
 
-### Forms (v0 set)
-| id | Form | Shape | form.weight | form.efficiency |
-|---|---|---|---|---|
-| 0 | bolt | projectile, single target | 1.0 | 1.0 |
-| 1 | ring | AoE around caster | 1.5 | 0.6 per target |
-| 2 | ward | shield absorbs damage | 1.0 | 1.2 |
-| 3 | lance | line piercing | 1.3 | 0.8 per target |
-| 4 | nova | delayed large AoE at point | 2.0 | 0.7 per target |
-| 5 | summon | spawns an ally for N ticks | 2.0 | ally HP = effect |
-| 6 | hex | DoT | 1.2 | effect over 10 ticks |
-| 7 | blink | teleport short range | 0.8 | range scales with effect |
+## Difficulty: descents
+Each world has a ladder of levels (descents, seats, circuits). Exponential name growth is answered by a harder ladder rather than by flattening the formulas:
+- **Dark**: per descent ×1.7 enemy life, ×1.2 damage, +15% count, shamans +2 truths.
+- **Bastion**: per level ×1.7 foe life and +15% count.
+- **Council**: the Warden sits at your deck's median truths − 3 (min 14), +2 per seat, +8 life per seat; card costs count truths above that table.
+- **Dark Racer**: rivals hold 14 truths +2 per circuit and drive 0.84–0.91 of top speed, +0.025 per circuit.
 
-Element sets damage type and visuals, and interacts with enemy resistances. It's taken from the depth-1 octant.
+## Optional server rules (off)
+- **Attunement bonus**: +1 effective for spirits under the element you chose at creation.
+- **Mastery bonus**: +1 effective per region depth where you hold ≥ 5 names of ≥ 14 truths under the same prefix. Cap +2.
 
-## Optional server rules (off by default)
-- **Attunement bonus**: +1 effective for spirits under the element you chose at character creation.
-- **Mastery bonus**: +1 effective per region depth where you hold ≥ `masteryCount` (5) names of ≥ `masteryMinBits` (14) under the same prefix. Cap total bonus at +2.
+Plain rules on public data. Under "proofs grant, never restrict", these would be conventions a world chooses to honor.
 
-These are plain rules on public data. Leave them out of v0 unless the loop needs them.
-
-## Parked (see 08)
-Utility spells (strain reduction), aura traits from the key, name drift per epoch, resource exhaustion, warfare/ownership.
+## Parked
+See [08](08-open-questions.md): deeper spirits mightier, regions with character, personal names, utility spells, name drift, resource exhaustion.

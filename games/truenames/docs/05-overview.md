@@ -1,9 +1,9 @@
-# 09 · Overview (as built)
+# 05 · Overview
 
-What Truenames **is today**, as opposed to what the design docs (01–08) planned. Where the build differs from the design, this doc says so and the [journal](journal.md) says why.
+What Truenames **is today**: the game a player meets, and the in-world words for what's underneath. Formulas are in [03](03-mechanics.md), code in [06](06-architecture.md), and the [journal](journal.md) says why things are the way they are.
 
 ## The game in one paragraph
-You are an apprentice who knows one word: the name of the hearth-god. In the **sanctum** you *scry* the eightfold astral for spirits and *meditate* to find truer names for the ones you've found. Both are real computation run by your browser, and the result of that work is your character's strength. You bind up to four learned names and **walk into the dark**: a top-down arena of five waves, ending with a Warden. At the **threshold** the sanctum proves each name in zero knowledge; the round receives only those proofs, never where the spirits dwell, and each patron lends you a **vessel** of power for the journey. Truer names draw more and strain less. Fall, meditate, return truer, and walk deeper.
+You are an apprentice who knows one word: the name of the hearth-god. In the **sanctum** you *scry* the eightfold astral for spirits and *meditate* to find truer names for the ones you've found. Both are real computation run by your browser, and the result of that work is your character's strength. You bind learned names and set out into one of four **worlds**: the Dark (an arena), the Bastion (tower defense), the Council (a card duel) or Dark Racer (a race, against rivals and other players). At the **threshold** the sanctum proves each name in zero knowledge; the world receives only those proofs, never where the spirits dwell, and each patron lends you a **vessel** of power for the journey. Truer names draw more and strain less. Fall, meditate, return truer, and go deeper.
 
 ## The loop
 ```mermaid
@@ -12,11 +12,11 @@ flowchart LR
   subgraph S[Sanctum]
     direction TB
     Scry[Scry regions<br/>find spirits] --> Med[Meditate<br/>truer names]
-    Med --> Bind[Bind 4 names]
+    Med --> Bind[Bind 4 names<br/>or a deck of 12]
   end
-  S -->|walk| R[The dark<br/>5 waves + Warden]
-  R -->|fall or survive| S
-  R -. win .-> D[Next descent opens]
+  S -->|threshold: proofs| R[A world<br/>Dark · Bastion · Council · Racer]
+  R -->|result| S
+  R -. win .-> D[Next level of that world opens]
 ```
 Meditation and scrying never pause for screens. They run in background workers the whole time the page is open, including mid-fight, and a name that grows truer mid-fight takes effect immediately.
 
@@ -55,12 +55,12 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 - **Scrying**: pick element / aspect / tradition and a depth.
   - It tells you how big the layer is, how many spirits to expect, how much you've searched and how long the rest takes.
   - The **Chart of the astral** shows coverage for every element × aspect at depths 7–12. Click a cell to aim there.
-- **Loadout**: four slots, LMB · RMB · key 1 · key 2.
-- **Top bar**: capacity, hum, voices (worker count), descent picker, mute.
+- **Loadout**: four slots, LMB · RMB · key 1 · key 2. **Council deck**: up to 12 names, toggled with ◇ in the Name Book.
+- **Top bar**: capacity, hum, voices (worker count), **world** picker, level picker (each world has its own ladder), mute.
 - **Guidance line**: reads your save and suggests the next step.
 - **Hover help on nearly everything** (`help.ts`).
 
-### The dark (a run)
+### The Dark (the first world)
 - **Arena**: 2000×1400 world units, pillars for cover, and a camera that follows you. Off-screen enemies show as arrows at the edges.
 - **Waves**: five of them. Husks, runners and brutes rush you. **Shamans** (from wave 3) hold synthetic names on the hearth-god or an ancient spirit and cast through the same authority, each drawing from its own vessel.
 - **The Warden** closes wave 5. It holds a strong name on one of the five mightiest ancients and calls down telegraphed novas.
@@ -74,18 +74,21 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 - A darkness vignette, per-descent tint and drifting octal motes.
 - "While you were away" summary, and news in the tab title while the tab is hidden.
 
-## Deviations from the design docs (summary)
-| Design said | Build does | Why |
+## Changes from the original plan
+The first design (v0 plan, 2026-09-27) is in git history and the journal. What changed on the way:
+
+| Plan said | Build does | Why |
 |---|---|---|
 | `MIN_NAME_BITS = 8` | 12 | 8 was instant; 12 makes attunement a moment and aligns with `capThreshold`. |
 | cast cap on absolute effective | relative to `capRef = 12` | Absolute made caps enormous with 12-truth names. |
 | `strainDecay 0.8`, `capBase 3` | 0.9, 4 | With 0.8, spamming was optimal. |
 | shrines (M5) | removed | They duplicated sanctum scrying and added nothing in play. |
-| shared wells (per-spirit pools, water-fill contention) | per-caster **vessels** | Proofs grant, never restrict; per-player borrowed power fits the multiplayer split. See 08. |
+| shared wells (per-spirit pools, water-fill contention) | per-caster **vessels** | Proofs grant, never restrict; per-player borrowed power fits the multiplayer split. See [07](07-roadmap.md). |
 | clear-text name claims to the game | **zero-knowledge proofs** at the threshold | The game never learns where spirits dwell. |
 | PixiJS / Phaser | Canvas 2D + DOM | Circles and glows; an engine added weight without benefit. |
 | 4–6 loadout slots | 4 (mouse ×2, keys ×2) | Play feel: the mouse buttons carry the fight. |
-| — | descents, Warden, WASM kernel, codex | See the journal. |
+| one game (a roguelite) | four worlds over one power system | The sanctum makes power; games interpret it. |
+| — | descents, Warden, WASM kernel, codex, dungeon process | See the journal. |
 
 ## The threshold (zero knowledge)
 - The **sanctum** is the local astral and truth system: it knows the secrets (addresses, nonces, the aura's secret key).
@@ -93,7 +96,7 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 - **Prove the details, never the source.** A proof reveals the spirit's **element**, its gameplay **traits** (form, weight, generosity, temper), a **magnitude** and **truths** it clears (a proof may understate, never overstate), a **round tag** that identifies the spirit within that round only, and the context. It hides the address, the depth, the nonce, and the spirit's trait hash, so the dungeon can't tell *which* spirit you carry, or link it across rounds. Your aura is revealed on purpose: it is your persistent character.
 - Your own browser still draws your spirits' true names and seals; it knows them. The dungeon doesn't.
 - Names are **locked in at departure**; meditation that finishes mid-journey counts next time. **Capacity** counts the names you carry in.
-- Costs on the dev box: ~1.75 s to prove a name in a browser worker (4 names ≈ 7 s at the threshold), ms to verify. The circuit is ~18.9k constraints and proves spirits up to depth 24.
+- Costs on the dev box: ~2 s to prove a name in a browser worker; up to 3 provers run in parallel, so 4 names take ~7–15 s at the threshold (shown as filling vessels). Verifying takes milliseconds. The circuit is ~20k constraints and proves spirits up to depth 24.
 - The trusted setup is a **local dev ceremony**, fine for single-player, not for a shared world.
 
 ## Worlds: one power system, many games
@@ -153,13 +156,13 @@ The dungeon hosts several **worlds**. Each admits you by the same proofs and int
   - Finish in the **top 3** to open the next circuit. The race ends when you finish, when the podium fills without you, or 25 s after the winner.
 
 ## The dungeon is its own process
-Rounds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends movement, aim and casts and draws what the dungeon reports 20 times a second. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. This is the stepping stone to multiplayer: more players are more connections into one simulation.
+Worlds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends intent (movement, aim, casts, plays) and draws what the dungeon reports. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. **Dark Racer is the first shared world**: racers at the same circuit within a 15 s lobby share one race. The other worlds are one player per round today.
 
 ## Current numbers (dev box: i7-4770, 4 cores / 8 threads)
 - Browser hum with 7 workers: ~38k utterances/s (WASM kernel; ~17k with BigInt).
 - Whole depth-7 layer of one element (262k divisions, ~16 spirits): ~30 s.
 - A name from 12 to 20 truths: a couple of minutes. 24: ~half an hour. 28: most of a day.
-- Tests: 27 in Node, plus golden vectors in a headless-Chromium worker.
+- Tests: 52 in Node (including real proofs), plus golden vectors in a headless-Chromium worker.
 
 ## Not built yet
-Networking and other players, the Open Choir, teaching names, warfare and ownership, aura backup/export, and mobile/touch. See [07](07-multiplayer-roadmap.md) and [08](08-open-questions.md).
+Shared play in the Dark, Bastion and Council; servers as services (grants, deeds, census); the Open Choir; teaching names; warfare and ownership; aura backup/export; mobile/touch. See [07](07-roadmap.md) and [08](08-open-questions.md).

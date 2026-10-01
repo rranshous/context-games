@@ -1,6 +1,6 @@
-# 10 · Architecture (as built)
+# 06 · Architecture
 
-How the code is actually organized and how data moves through it. [05 · Architecture](05-architecture.md) is the original design; this doc describes the build and notes where it differs.
+How the code is organized and how data moves through it. Rules and formulas are in [03](03-mechanics.md); the hashing contract is [04](04-universe-spec.md).
 
 ## Layout
 ```
@@ -14,9 +14,9 @@ truenames/
     meditation/   scry + name-grinding hot loops, worker body, MeditationPool, WASM Poseidon kernel
   apps/
     game/         Vite + Canvas 2D client: the sanctum (holds secrets) and a thin client for dungeon rounds
-    dungeon/      Node process: WebSocket host for rounds (one connection = one round)
+    dungeon/      Node process: WebSocket host for worlds (a round per connection; shared races for Dark Racer); racer-bot
     tools/        CLI: bench, sim, god-finder, golden vectors, WASM generator, browser vector check
-  docs/           design (01–08), as-built (09–10), journal
+  docs/           vision, world, mechanics, spec (01–04); overview, architecture (05–06); roadmap, open questions (07–08); journal
 ```
 It's a pnpm workspace. Libraries export their TypeScript source directly (`"exports": "./src/index.ts"`), with no build step: Vite, Vitest and tsx consume TS as-is. `tsc --noEmit` is the typecheck.
 
@@ -47,9 +47,9 @@ Rules held from [CLAUDE.md](../CLAUDE.md):
 2. The universe spec is frozen. Golden vectors refuse to regenerate.
 3. Vectors pass in Node and in a browser worker (`pnpm test`, `pnpm test:browser`).
 4. The authority is an interface, and game code only talks to it through `Authority` / `NpcAuthority`.
-7. **The game side never sees secrets.** Rounds run in a separate **dungeon process**, which only ever receives proofs. In the browser, `screens/run.ts` and `round.ts` are a thin client and import nothing from `save.ts`, `services.ts` or `threshold.ts`.
-5. Name verification goes through `NameVerifier` (`ClearTextVerifier` today).
-6. Authority tunables live in `packages/authority/src/tunables.ts`. Game-side balance lives in `apps/game/src/balance.ts`.
+5. Name verification sits behind verifiers: the sanctum uses `NameVerifier` (`ClearTextVerifier`), worlds use a `ProofVerifier` (`zkVerifier`).
+6. **The game side never sees secrets.** Worlds run in a separate **dungeon process**, which only ever receives proofs. In the browser, the world screens and `round.ts` are a thin client and import nothing from `save.ts`, `services.ts` or `threshold.ts`.
+7. Authority tunables live in `packages/authority/src/tunables.ts`. World balance lives in `packages/dungeon/src/balance.ts`.
 
 ## packages/universe
 One file of rules plus a fast Poseidon.
@@ -67,7 +67,7 @@ grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
 ```
 - **Tick** (`TICK_MS = 200`):
   1. Decay strain.
-  2. Group queued casts by spirit (one per aura per spirit per tick).
+  2. Take queued casts in order; a second cast by the same aura on the same spirit that tick is refused `duplicate`.
   3. Lazily refill each pool.
   4. Compute effective = strength + bonus − strain.
   5. **Draw from the caster's own vessel**: grant = min(request, cap(effective, generosity), vessel level). Vessels are keyed by aura + spirit; nothing is shared.
@@ -97,23 +97,27 @@ grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
 ```
 main.ts           boot: load save → Services → screens; the rAF loop; audio wake; tooltips; idle summary
 services.ts       long-lived: save, MeditationPool, session authority, event emitters (finds, names, scry, hum)
-save.ts           IndexedDB persistence (one record), aura keypair, claim signing, 6→4 slot migration
+save.ts           IndexedDB persistence (one record), aura keypair, claim signing, world progress
+threshold.ts      sanctum side of the threshold: which names a world carries, a pool of prover workers, cosmetics
+round.ts          game side: DungeonLink (WebSocket to the dungeon), Journey, RoundHost
 screens/
   title.ts        title, element choice, attunement (a real grind on the hearth-god)
-  sanctum.ts      top bar, guidance, scrying panel, loadout, timers, drag-to-bind
-  codex.ts        the Name Book: tabs, filters, sorts, compact paginated rows
+  sanctum.ts      top bar (world + level), guidance, scrying, loadout, Council deck, the threshold overlay
+  codex.ts        the Name Book: tabs, filters, sorts, compact paginated rows, ◇ deck toggle
   spirit-card.ts  per-spirit card
   chart.ts        Chart of the astral (coverage per element × aspect × depth)
-  run.ts          the dark: world, waves, enemies, Warden, forms, HUD, hover regions
-lore.ts           names, aspects, traditions, forms, tempers, `truths()`, the ancients
+  run.ts          the Dark (thin client: prediction, interpolation, fx, HUD)
+  bastion.ts      the Bastion (thin client: placement, shrines, waves)
+  council.ts      the Council (DOM table, cards, targeting)
+  racer.ts        Dark Racer (thin client: car prediction, road, minimap, lobby)
+lore.ts           names, aspects, traditions, forms, tempers, `truths()`
 sigil.ts          procedural seals from flavor bits (cached canvases)
 help.ts           HELP dictionary + one shared tooltip (DOM `data-tip` and canvas HUD)
 audio.ts          synthesized WebAudio (drone, casts, finds, chimes)
-balance.ts        game-side balance: enemies, waves, forms, descents, Warden, SLOTS
 astral.ts         menu backdrop
-meditation.worker.ts / vectors.worker.ts   worker entry points
+meditation.worker.ts / prover.worker.ts / vectors.worker.ts   worker entry points
 ```
-**Screens** implement `{ mount(ui), unmount(), frame?(dt, ctx, w, h) }`. `main.ts` owns the canvas and the requestAnimationFrame loop. The run draws its own frame, and other screens get the astral backdrop. `Services` outlives every screen, which is why meditation never pauses.
+**Screens** implement `{ mount(ui), unmount(), frame?(dt, ctx, w, h) }`. `main.ts` owns the canvas and the requestAnimationFrame loop. Canvas worlds draw their own frame, and other screens get the astral backdrop. `Services` outlives every screen, which is why meditation never pauses.
 
 ## Life of a name
 ```mermaid
@@ -207,8 +211,8 @@ There's one IndexedDB record (`truenames` / `kv` / `save`), written with a 1.5 s
 - **signed name claims**
 - the scan map (`prefix|depth → frontier`)
 - the meditation, focus and scry plans (resumed on boot)
-- the 4-slot loadout
-- run history, worker count, descent progress
+- the 4-slot loadout and the Council deck (≤ 12 cells)
+- run history (with world), worker count, progress per world (`descent`/`lastDescent` for the Dark, `worlds.{bastion,council,racer}`), the last world picked
 - the codex view
 
 The universe itself is never stored; it's recomputed from the seed. Losing the secret key loses every name, and there's no backup/export yet.
@@ -224,17 +228,19 @@ The universe itself is never stored; it's recomputed from the seed. Losing the s
 | `corepack pnpm tools god-finder [prefix\|-] [depth]` | Parallel scan of a layer, listing spirits by might. |
 | `corepack pnpm tools vectors` | Wrote the golden vectors once; refuses to overwrite. |
 | `corepack pnpm tools gen-wasm` | Regenerates the WASM kernel. |
+| `corepack pnpm tools zk-build` | Regenerates the name circuit and runs the local dev ceremony (~9 min). |
+| `corepack pnpm racer-bot [circuit]` | A bot racer over the real wire (own aura, real proof), for testing shared races alone. |
 
 Balance was tuned with scripted Playwright bots playing whole runs at chosen descents (see the journal).
 
 ## Extending
-- **A new form**: add it to `FORMS` (lore), `formWeight` / `formEfficiency` (tunables), the `switch` in `run.ts: applyPlayerCast`, a sound in `audio.ts: sfxCast`, and `FORM_GLYPH` in `codex.ts`. Trait decoding only has 3 bits (8 forms), so a 9th form needs a spec version bump.
-- **A tunable**: authority rules go in `tunables.ts`; run balance goes in `balance.ts`. Never inline numbers.
+- **A new form**: add it to `FORMS` (lore), `formWeight` / `formEfficiency` (tunables), every world's cast switch (`sim.ts: applyPlayerCast`, `bastion.ts`, `council.ts`, `racer.ts: applyCast`), a sound in `audio.ts: sfxCast`, and `FORM_GLYPH` in `codex.ts`. Trait decoding only has 3 bits (8 forms), so a 9th form needs a spec version bump and a new circuit.
+- **A new world**: a sim in `packages/dungeon/src` with the host interface (`admit` via `admitNames`, `welcome`, `handle`, `start`, `step`, `snapshot`, `over`, `result`, `paused`), its config in `balance.ts` (`World`, `WORLDS`, `worldDescentName`), its messages and snapshot in `protocol.ts`, a branch in `apps/dungeon/src/server.ts`, a `DungeonLink` handler in `round.ts`, a screen, and its labels/progress in `sanctum.ts` and `save.ts`. Decide how it turns grants into numbers (raw effect, or `logPower`). Then document it in 03, 05 and here.
+- **A tunable**: authority rules go in `tunables.ts`; world balance goes in `packages/dungeon/src/balance.ts`. Never inline numbers.
 - **A new screen**: implement `Screen` and call `app.go(screen)`. Use `data-tip` with a `HELP` key for hover help.
 - **Player-facing text**: in-world words only. Format truths with `lore.truths(n)`.
 
 ## Seams for multiplayer
-- `Authority` is already the only way the client touches rules. A `RemoteAuthority` over WebSocket plus a Node server hosting `LocalAuthority` would slot in. The run's local authority could remain for prediction.
-- Claims are self-verifying signed records (spec v1 message `truenames/name/v1|cell|nonce`). A server needs no trust in the client, and anyone can grind a name *for* someone else, but only the key holder can submit it.
-- `NameVerifier` is the swap point for zero-knowledge proofs later (see [07](07-multiplayer-roadmap.md)).
-- **Still local-only today**: enemy NPCs, run pools and strain, and the scan map. A shared world needs decisions on which of those become server state.
+- **Already there**: worlds run in a separate process that trusts only proofs; each world's sim is written for several players (the Dark's enemies take the nearest living player; Dark Racer shares races through a registry in `server.ts`, with per-player views and results). Adding players to another world is mostly a lobby plus per-player views.
+- **Sanctum claims** are self-verifying signed records (`truenames/name/v1|cell|nonce`): anyone can grind a name *for* someone else, but only the key holder can sign it. A sanctum service (backup, census, Open Choir) needs no trust in the client.
+- **Still local-only**: the whole sanctum (scan map, name book, claims) lives in one browser's IndexedDB; there's no export, no census, no shared knowledge. The dungeon's trusted setup is a local dev ceremony. See [07](07-roadmap.md).

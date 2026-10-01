@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mechanics.md` and `docs/04-universe-spec.md` before touching `packages/universe`.
+Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mechanics.md` and `docs/04-universe-spec.md` before touching `packages/universe`. **Keep the docs current:** when a change alters mechanics, structure or direction, update the docs it touches (03 mechanics, 05 overview, 06 architecture, 07 roadmap, 08 open questions) in the same commit, not just the journal.
 
 ## Stack
 - TypeScript, `strict: true`. Monorepo (pnpm workspaces).
@@ -17,4 +17,4 @@ Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mec
 7. **Tunables live in one file** (`packages/authority/src/tunables.ts`), never inlined.
 
 ## Vocabulary (use these words consistently)
-depth, cell, spirit, magnitude, traits, name, strength, aura, effective, pool, grant, strain, capacity. Definitions: `docs/03-mechanics.md`.
+depth, cell, spirit, magnitude, traits, name, strength (on screen: truths), aura, effective, vessel (code: pool), grant, strain, capacity, world. Definitions: `docs/03-mechanics.md`.
