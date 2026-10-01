@@ -546,3 +546,27 @@ Decisions I'm making where the worldbuilding left details open (to revisit with 
 - **Two facets of one being share one vessel** (the being lends its power once). A world refuses the same (being, facet) twice, not the same being.
 - **Power across tiers.** The cast cap stays exponential in raw truths, rebased so a fresh wisp word casts what a fresh 12-truth name did (`capRef 12 → 22`, `capThreshold 12 → 22`). Since the bar rises 4 truths per class, a fresh word's cap rises ×4 per class, and vessels follow (`poolExp 0.5 → 2`). This is the steeper curve between tiers Robby asked for: a fresh god word draws ~256× a fresh wisp word.
 - **Parked for after the rewrite (Robby):** "i actually wanted to talk about how we could include locally run ai agents (actants) as players in the games". Earlier framing: agents under the player's direction, "like their team or their choir", that also play in the games.
+
+### Building spec v2 (in progress)
+- **Universe** (`packages/universe`):
+  - Seed `truenames_v2`; beings from depth 12; `target(d) = 4d − 26`; `mightOf`, `facetCount`, `facetForm`, `wordBar`, `facetOfHash`, `wordOf`.
+  - Traits decode a `formStep` (odd), so a being's facet forms never repeat. Flavor moves up to bits 16+.
+  - Clear-text claims are `spec: 2` (`truenames/word/v2|…`) and verify to `{strength, facet}`.
+- **Proof circuit**: proves *exact* might (two bit-threshold checks: at least the class floor, below the next), the facet (low 16 bits of the word hash, mod `min(8, might + 1)`) and that facet's form. It has 11 public signals and ~22,142 constraints (still fits a 2^15 ceremony). Might must be exact because understating it would change the facet count, and so which facet and form a word is.
+- **Authority**:
+  - Words are keyed `being#facet`; a being's words share one vessel, and a being answers once per breath.
+  - Proven info is held per word (a proof reveals only its own facet's form).
+  - Familiarity runs on resonance. `capRef`/`capThreshold` move to 22 and `poolExp` to 2, so a fresh word draws ×4 per class and vessels keep pace.
+- **Meditation**: `grindWords` keeps the best word per facet. The WASM kernel gained `grindHits`: the threshold is the weakest facet's best, and each hit's facet is read from the hash it returns.
+- **Dungeon**:
+  - Admission refuses ungrasped words and duplicate (being, facet) pairs; world casts carry the facet.
+  - Computer-controlled casters now speak **charted beings** at their bars (+offsets).
+  - The Council's card cost is now 1 + might (+1 summon/nova), and its Warden plays at your deck's median *resonance* − 3.
+- **Client**:
+  - The save is `version: 2`. A v1 save keeps only its aura (with a note on the title screen: "The astral is not as you left it…").
+  - Loadout, deck and name book hold word keys (`cell#facet`).
+  - The Name Book shows facet chips (form, truths, bind/◇ per grasped word); the being's card lists facets, the bar and the vessel.
+  - The first attunement is to **the hearth**, a wisp (~2 min at full hum), and the text speaks of words and beings.
+- **Tools**: the Node scan workers silently fell back to BigInt and ran 10k hashes/s. They now use the WASM kernel (~45–50k/s on 8 threads), via a `.mjs` bootstrap, because Node 22 ignores `--import tsx` for worker threads. New `parallelGrind` for fixtures.
+- **Charting the new astral is slow even for us**: ~12 min per 17M-cell region yields ~3 wisps. A full depth-12 scan would be ~7×10¹⁰ cells, so the public "charted" beings come from eight regions (one per element), and the hearth is the best-suited wisp among them (a lance, to keep continuity with the old lance hearth-god). Found on the way while benchmarking: `012341174703`, a spirit-class outlier in the wisp layer, now the tests' two-facet fixture.
+- **Test fixtures**: grasped words now need 22+ truths (~4M attempts), so the vectors tool grinds the test auras' hearth words on all cores once, and tests read them from `vectors.json` instead of grinding.
