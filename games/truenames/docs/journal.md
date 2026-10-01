@@ -504,3 +504,7 @@ Robby's answers to the draft, which shape the ideaset for the rewrite:
 7. **New (Robby): it is *harder* to learn words for a mightier being's facet.** "there is a part here we're not pointing at." This brings back, in a new frame, the learning-bar rule I'd dropped. Its size is to be decided.
 
 **The pinch of randomness:** "one in eight does feel too common." Make it rarer.
+- **Churches hand down beings (Robby).** "one's church may point out a god in the astral to one of their members, so the only work we _know_ will have to be done by (for) the player is finding the words of power." Coming of age: a ceremony at church, you're taught a god, and you begin meditating for your first word. That makes the **learning bar the real, guaranteed gate**; search is the gate only for the unknown. Open questions:
+  - **Language**: what does the church hand down? "a god's name(? / or location? idk don't have good language for this, the physical astral metaphor makes it seem like a location..)"
+  - **Facets**: can you aim meditation at one facet, or does the being reveal facets as it will?
+  - **Pace**: how long a new adult's first word for their church's god should take.
