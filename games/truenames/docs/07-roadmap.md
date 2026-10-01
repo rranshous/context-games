@@ -36,6 +36,8 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - The dungeon as its own process; client prediction, reconciliation, interpolation.
 - Four worlds: the Dark, the Bastion, the Council, Dark Racer.
 - **First shared world**: Dark Racer races with a 15 s lobby, players replacing rivals.
+- **Universe spec v2**: the pyramid of might, facets, words of power, the hearth and 25 charted beings.
+- **The desktop app**: Electron, with the dungeon in-process, per-profile saves, LAN-joinable worlds, hush in the worlds, and AppImage + tar.gz builds.
 
 ## Next
 Roughly in order; each is independently useful.

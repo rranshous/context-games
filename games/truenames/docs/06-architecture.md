@@ -14,7 +14,8 @@ truenames/
     meditation/   scry + name-grinding hot loops, worker body, MeditationPool, WASM Poseidon kernel
   apps/
     game/         Vite + Canvas 2D client: the sanctum (holds secrets) and a thin client for dungeon rounds
-    dungeon/      Node process: WebSocket host for worlds (a round per connection; shared races for Dark Racer); racer-bot
+    dungeon/      the dungeon host (host.ts: startDungeon), its dev process (server.ts), racer-bot
+    desktop/      Electron app: serves the built game on 127.0.0.1 and runs the dungeon in-process; per-profile saves
     tools/        CLI: bench, sim, god-finder, golden vectors, WASM generator, browser vector check
   docs/           vision, world, mechanics, spec (01–04); overview, architecture (05–06); roadmap, open questions (07–08); journal
 ```
@@ -164,6 +165,17 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
   - **Casts are not predicted** beyond the gathering spark: the rules engine decides grants. Lag compensation (rewinding for hits) is deferred until players fight players.
   - `?lag=150` on the game URL asks the dungeon to simulate that much round-trip latency (dev only).
 - `corepack pnpm dev` runs both (`scripts/dev.mjs`, prefixed output); `pnpm game` / `pnpm dungeon` run them alone. `?dungeon=ws://host:port` points the client at another dungeon.
+
+## The desktop app (`apps/desktop`)
+- **Main process** (`src/main.ts`, bundled by esbuild into `dist/main.cjs` with the dungeon, snarkjs and ws: no node_modules ship):
+  - serves the production build of the game (`vite build`, into `game/`) on `127.0.0.1:<ui>`
+  - starts the dungeon on `0.0.0.0:<ui+1>` (LAN friends can join)
+  - opens one window at `http://127.0.0.1:<ui>/?dungeon=ws://127.0.0.1:<ui+1>&lan=<lan-address>`
+- **Profiles**: `--profile=<name>` sets its own `userData` directory and **fixed** ports (47190/47191 for the default; others hashed from the name). They must be fixed because the save lives in the page origin's IndexedDB. A single-instance lock per profile prevents two windows on one save.
+- **Proof verification is single-threaded** in the dungeon (`zkVerifier` pre-builds ffjavascript's curve). Its worker threads would re-launch the bundle itself.
+- **Linux sandbox**: Chromium needs `--no-sandbox` on Ubuntu 24.04+ (as a launch argument). `pnpm desktop` passes it; the AppImage launcher adds it; the tar.gz has a wrapper script (`after-pack.cjs`).
+- **The client**: `round.ts` picks the world host from the sanctum's **worlds** field (localStorage), else `?dungeon=`, else `ws://<host>:5192` (dev). The sanctum's ☾ toggle drops meditation to one voice while in a world.
+- **Build**: `corepack pnpm desktop` (build and run), `corepack pnpm desktop:dist` (AppImage and tar.gz in `apps/desktop/release/`; win/mac targets configured).
 
 ## The threshold (sanctum → round)
 ```mermaid
