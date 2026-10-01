@@ -40,7 +40,8 @@ Roughly in order; each is independently useful.
 5. **Knowledge and teaching.** Name gifting (grind someone's `(cell, aura)`, hand over the nonce; they sign), shared scan maps, guild servers. Orders as social structures only.
 6. **A real trusted setup** (a multi-party ceremony) before any world is run by someone players don't trust.
 7. **Conflict** (needs the warfare decision in 08): PvP with the same casting rules, possibly spatial sites.
-8. **Ledger (optional).** For names and discoveries, never for real-time play.
+8. **Actants: local AI agents as players** (Robby, to discuss after the spec v2 rewrite). Agents under a player's direction, their team or choir, that also play in the worlds (and could search and meditate).
+9. **Ledger (optional).** For names and discoveries, never for real-time play.
 
 ## What must not change
 - Spec v1 hashing, cell encoding, trait decoding, `target`, `bits` (or it's a new universe, which could be a lore event, "the Sundering").

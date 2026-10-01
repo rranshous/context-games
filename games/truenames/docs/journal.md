@@ -545,3 +545,4 @@ Decisions I'm making where the worldbuilding left details open (to revisit with 
   - Grasped when truths ≥ **bar(might) = 22 + 4·might**.
 - **Two facets of one being share one vessel** (the being lends its power once). A world refuses the same (being, facet) twice, not the same being.
 - **Power across tiers.** The cast cap stays exponential in raw truths, rebased so a fresh wisp word casts what a fresh 12-truth name did (`capRef 12 → 22`, `capThreshold 12 → 22`). Since the bar rises 4 truths per class, a fresh word's cap rises ×4 per class, and vessels follow (`poolExp 0.5 → 2`). This is the steeper curve between tiers Robby asked for: a fresh god word draws ~256× a fresh wisp word.
+- **Parked for after the rewrite (Robby):** "i actually wanted to talk about how we could include locally run ai agents (actants) as players in the games". Earlier framing: agents under the player's direction, "like their team or their choir", that also play in the games.
