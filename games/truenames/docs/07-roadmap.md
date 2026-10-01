@@ -39,6 +39,7 @@ A global census of who knows which spirit gets the incentives backwards: publish
 
 ## Next
 Roughly in order; each is independently useful.
+0. **Quiet the hum during play** (Robby, 2026-10-01): background meditation and scrying cut the framerate in worlds. Scale voices down automatically while a world is on screen (restore after; player override).
 0. **A sanctum UI pass for v2** (Robby, 2026-10-01: "we'll def want to focus on the UI here at some point"): show the pyramid of might, beings' facets and your words as first-class, not as v1's layout with new details.
 1. **More shared worlds.** Co-op in the Dark (the sim already supports several players), a PvP Council seat. Lag compensation once players fight players.
 2. **Aura backup and export.** Today losing the browser's storage loses every name. Export/import of the save, then a backup service that stores only signed claims.
