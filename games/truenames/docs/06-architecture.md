@@ -177,6 +177,12 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
 - **The client**: `round.ts` picks the world host from the sanctum's **worlds** field (localStorage), else `?dungeon=`, else `ws://<host>:5192` (dev). The sanctum's ☾ toggle drops meditation to one voice while in a world.
 - **Build**: `corepack pnpm desktop` (build and run), `corepack pnpm desktop:dist` (AppImage and tar.gz in `apps/desktop/release/`; win/mac targets configured).
 
+## The sanctum plan, the actant and the choir (`apps/game/src`)
+- **`plan.ts`**: the ordered **aims** (deepen / grasp / seek-until-N) and the **Planner** (every 4 s, and on change). It turns aims into meditation and search tasks it owns, with weights from share and order, and leaves the player's own tasks alone. It also holds the **sanctum history** (`save.history`). Services emit **sanctum events** (find, grasp, search, aim, journey, chat).
+- **`actant.ts`**: a local model (ollama `/api/chat`, default `qwen3:8b`) tending this sanctum. Events are gathered for 20 s, with at least 2 min between reviews. It pauses meditation while thinking and makes up to 6 tool turns. Tools: `seek`, `grasp`, `deepen`, `remove_aim`, `move_aim`, `set_share`, `bind_word`, `note`, `say`, `share`, `join_races`, `write_driving`. Driving code is a `function(view, autopilot)` body compiled with `new Function` and checked against a made-up race frame before it's accepted. The racer screen falls back to the autopilot on any throw.
+- **`choir.ts`**: a link to the worlds host's choir (`choir-join`, `choir-presence`, `choir-say`, `choir-share`; the host relays `choir-roster`, `choir-said`, `choir-shared`, `choir-race`). A shared sign becomes a known being, and a gathering race lets an actant standing ready walk in by itself, with the journey carrying a **pilot**.
+- **Testing two identities on one machine**: run a desktop instance with `--profile=<name> --remote-debugging-port=<port>` and drive it with `node apps/dungeon/cdp.mjs <port> eval "<js>"`.
+
 ## The threshold (sanctum → round)
 ```mermaid
 sequenceDiagram

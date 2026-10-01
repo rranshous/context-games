@@ -38,6 +38,7 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - **First shared world**: Dark Racer races with a 15 s lobby, players replacing rivals.
 - **Universe spec v2**: the pyramid of might, facets, words of power, the hearth and 25 charted beings.
 - **The desktop app**: Electron, with the dungeon in-process, per-profile saves, LAN-joinable worlds, hush in the worlds, and AppImage + tar.gz builds.
+- **Actants, first four milestones**: the sanctum plan (aims, planner, history); the mind (a local model reviewing on events, through the player's own plan operations); the choir (presence, chat and shared signs); racing (a standing order to join, self-written driving code). See the journal.
 
 ## Next
 Roughly in order; each is independently useful.

@@ -1,4 +1,5 @@
-// scratch: drive a desktop window over CDP. usage: node cdp.tmp.mjs <port> eval "<js>" | shot <file>
+// Drive a desktop instance over its debugging port (launch it with --remote-debugging-port=<port>), for testing
+// choristers: `node apps/dungeon/cdp.mjs <port> eval "<js>"` or `node apps/dungeon/cdp.mjs <port> shot <file.png>`.
 import WebSocket from 'ws';
 import { writeFileSync } from 'node:fs';
 const [port, mode, arg] = process.argv.slice(2);

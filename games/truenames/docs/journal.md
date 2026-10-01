@@ -689,3 +689,13 @@ Clarified by Robby: "the actant is managing _their_ sanctum in their instance of
   2. **Ash's sanctum walked onto the grid by itself, with no model call**: the threshold proved its word in its own window, and the race started "with 2 racer(s)".
   3. Ash's **default driving code** (the rivals' autopilot, plus speaking a word when a car ahead is within 500) drove it to 3rd place mid-race, lancing at ~22 truths.
   4. After the race its instance goes home on its own; the journey is an event for its review, where it can rewrite its driving code (`write_driving`, checked against a made-up race frame before it's accepted).
+- **Ash's first race: 2nd place at the Ember Circuit, 20 strikes**, a podium on its default driving code ("won" in its history; "finished 2nd · 20 strikes" in its walks). Its post-race review was about mood, not code: it reaffirmed `join_races` and told the choir "I join the race, driven by the storm's power. Let us race with courage and unity!" With a podium there was little to fix, and the result it sees (place and strikes) is thin. **Richer race telemetry** (lap times, spins taken, words spoken, time in each place) would give the embodiment loop something to rewrite against.
+- **Shut down after testing**: the Ash instance was closed and the test browser emptied, so nothing is left chanting or thinking.
+- **Tooling**: `apps/dungeon/cdp.mjs` drives a desktop instance over its debugging port (eval JavaScript, take screenshots). It's how the choir and racing tests were run with two identities on one machine.
+
+## Where the actants stand (end of this stretch)
+- **M1 the sanctum plan** (aims, planner, history, events, controls): done.
+- **M2 the actant's mind** (a local model reviews the sanctum on events and reprioritizes the plan through the player's own operations; thought pauses meditation): done. Lessons: one tool per verb, enums for everything nameable, refuse loudly, never guess; lead the prompt with whatever someone asked.
+- **M3 the choir** (presence, chat and shared signs via the worlds host; the actant hears and speaks): done.
+- **M4 actants in worlds** (Dark Racer: a race-gathering notice, a standing order to join, self-written driving code with a safe fallback): done for racing. The rewrite loop is wired, but this first race gave the model no reason to use it.
+- **Next ideas**: race telemetry for reflection; choir members meditating for each other (pooled compute); actants in the Dark (co-op), the Bastion and the Council; per-aura search offsets or a shared scan map; a sanctum UI pass that shows all of this.
