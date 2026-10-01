@@ -17,7 +17,8 @@
     "@truenames/authority": "workspace:*",
     "@truenames/proofs": "workspace:*",
     "@truenames/protocol": "workspace:*",
-    "@truenames/universe": "workspace:*"
+    "@truenames/universe": "workspace:*",
+    "ffjavascript": "0.3.0"
   },
   "devDependencies": {
     "@noble/curves": "^2.4.0"

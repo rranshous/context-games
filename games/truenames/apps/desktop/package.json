@@ -6,8 +6,8 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node build.mjs",
-    "start": "node build.mjs && electron .",
-    "dist": "node build.mjs && electron-builder --linux AppImage"
+    "start": "node build.mjs && electron . --no-sandbox",
+    "dist": "node build.mjs && electron-builder --linux"
   },
   "devDependencies": {
     "@truenames/dungeon-server": "workspace:*",
@@ -26,9 +26,19 @@
       "output": "release"
     },
     "linux": {
-      "target": "AppImage",
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
       "category": "Game",
-      "artifactName": "Truenames-${version}.AppImage"
+      "artifactName": "Truenames-${version}-linux-${arch}.${ext}",
+      "executableName": "truenames",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "Truenames"
+        }
+      },
+      "syncDesktopName": true
     },
     "win": {
       "target": "portable"
@@ -36,6 +46,11 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.games"
-    }
-  }
+    },
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "44.5.1",
+    "executableName": "truenames",
+    "afterPack": "./after-pack.cjs"
+  },
+  "desktopName": "truenames.desktop"
 }

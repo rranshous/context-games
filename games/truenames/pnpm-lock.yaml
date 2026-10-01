@@ -304,6 +304,9 @@ importers:
       '@truenames/universe':
         specifier: workspace:*
         version: link:../universe
+      ffjavascript:
+        specifier: 0.3.0
+        version: 0.3.0
     devDependencies:
       '@noble/curves':
         specifier: ^2.4.0

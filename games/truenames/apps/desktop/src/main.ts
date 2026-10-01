@@ -12,6 +12,10 @@ import { extname, join, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { startDungeon } from '../../dungeon/src/host.ts';
 
+// Linux: Ubuntu 24.04+ restricts the user namespaces Chromium's sandbox needs, and Chromium checks before this script
+// runs, so `--no-sandbox` must be a launch argument: `pnpm desktop` passes it, and electron-builder's AppImage launcher
+// adds it when the sandbox can't work. Acceptable here: the window only ever loads this app's own pages (127.0.0.1).
+
 const profile = (process.argv.find((a) => a.startsWith('--profile='))?.slice('--profile='.length) || 'default').replace(/[^\w-]/g, '');
 app.setPath('userData', join(app.getPath('appData'), 'Truenames', profile === 'default' ? 'default' : `profile-${profile}`));
 
