@@ -39,6 +39,7 @@ A global census of who knows which spirit gets the incentives backwards: publish
 
 ## Next
 Roughly in order; each is independently useful.
+0. **A sanctum UI pass for v2** (Robby, 2026-10-01: "we'll def want to focus on the UI here at some point"): show the pyramid of might, beings' facets and your words as first-class, not as v1's layout with new details.
 1. **More shared worlds.** Co-op in the Dark (the sim already supports several players), a PvP Council seat. Lag compensation once players fight players.
 2. **Aura backup and export.** Today losing the browser's storage loses every name. Export/import of the save, then a backup service that stores only signed claims.
 3. **Sanctum services.** A bulletin board of claims (optional census), grants (a signed vessel/capacity summary a world can accept instead of recomputing) and **deeds** (records of what happened in a world, signed by the world and by the player; a series is optional, not assumed). **Titles are computed, not issued**: public rules over deeds.

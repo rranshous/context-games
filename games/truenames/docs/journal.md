@@ -606,3 +606,4 @@ Robby: "i love what we're doing here, and want to extend the compute for access 
     - **Council**: a one-word deck; the wisp card costs 1 voice; the Warden plays charted beings.
     - **Dark Racer**: 1st on lap 2, lancing, heat 1.5/4.1.
   - No console or server errors. Fixed stale wording along the way: "the hearth-god" → "the hearth", "learned" → "grasped", "spirits here" → "wisps here" (the class for that depth), and the scrying hint now describes the pyramid.
+- **Robby, first look at v2:** "the sanctum UI looks about the same. i thought there was going to be more of a difference? not a problem for now but we'll def want to focus on the UI here at some point." Fair: v2 changed the rules underneath and only the details on screen (Words/Beings tabs, facet chips, the bar, depth 12, the hearth), keeping the v1 layout. **A sanctum UI pass is owed**, one that shows the pyramid, facets and words as first-class things. Added to the roadmap.
