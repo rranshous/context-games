@@ -114,7 +114,7 @@ export class Actant {
     try {
       const messages: ChatMsg[] = [
         { role: 'system', content: this.soma() },
-        { role: 'user', content: `${reason ?? (events.length ? `Since your last review: ${events.map((e) => e.text).join('; ')}.` : 'Review the sanctum.')}\n\n${this.state()}\n\nAdjust the plan if it serves the goal. Use tools; then say in one or two sentences what you did and why.` },
+        { role: 'user', content: this.ask(events, reason) },
       ];
       for (let turn = 0; turn < MAX_TURNS; turn++) {
         const reply = await this.chat(messages);
@@ -138,6 +138,20 @@ export class Actant {
       if (this.pending.length && this.config.on) this.heard(this.pending.pop()!);
     }
   }
+
+  /** The review's prompt: what the choir said to it comes first (a small model buries requests in long state). */
+  private ask(events: SanctumEvent[], reason?: string): string {
+    const talk = events.filter((e) => e.kind === 'chat').map((e) => `- ${e.text}`);
+    const other = events.filter((e) => e.kind !== 'chat').map((e) => e.text);
+    return [
+      talk.length ? `Your choir spoke to you:\n${talk.join('\n')}\nAnswer them with say, and act on any request that fits your goal.` : '',
+      reason ?? (other.length ? `Since your last review: ${other.join('; ')}.` : talk.length ? '' : 'Review the sanctum.'),
+      this.state(),
+      'Adjust the plan if it serves the goal. Use tools; then say in one or two sentences what you did and why.',
+    ].filter(Boolean).join('\n\n');
+  }
+
+  private lastSaid = '';
 
   private thought(text: string) {
     const t = (text || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -240,7 +254,7 @@ export class Actant {
         addHistory(this.save, { kind: 'plan', by: 'actant', text: `rewrote its driving code (${code.length} chars)` });
         return 'your driving code is replaced';
       }
-      case 'say': { const t = String(a.text ?? '').slice(0, 300); this.S.choir.say(t); addHistory(this.save, { kind: 'note', by: 'actant', text: `said to the choir: ${t}` }); return this.S.choir.connected ? 'said' : 'said (but no one is listening: not connected)'; }
+      case 'say': { const t = String(a.text ?? '').slice(0, 300); if (t.trim() === this.lastSaid.trim()) return 'you already said exactly that; say something new or nothing'; this.lastSaid = t; this.S.choir.say(t); addHistory(this.save, { kind: 'note', by: 'actant', text: `said to the choir: ${t}` }); return this.S.choir.connected ? 'said' : 'said (but no one is listening: not connected)'; }
       case 'share': { const c = String(a.sign ?? ''); if (!this.save.spirits[c]) return 'error: you know no being with that sign'; this.S.choir.share(c); return 'shared'; }
       case 'note': this.config.notes = String(a.text ?? '').slice(0, 600); persist(this.save); return 'noted';
       default: return `error: unknown tool ${name}`;
