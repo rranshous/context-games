@@ -438,3 +438,4 @@ Robby: "how do i race against a second player? I joined from a private browser a
   - a real two-player race: the new `racer-bot` (own aura, real proof, real websocket) and the browser landed on one grid, the lobby counted 2, and the browser won while the bot came 2nd, each with its own end screen
 - **Note on the first try**: a scratch bot from an earlier timed run was still connected and made a race of its own, so the first attempt showed two separate races. With timestamps added to the server's race logs, the clean run joined correctly.
 - Fix: "5th of 5" counted rivals from the welcome; the place now reads out of all cars on the grid.
+- **Played by hand**: Robby tried a shared race himself: "just tried it and it worked well."
