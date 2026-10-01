@@ -3,8 +3,9 @@
 import { MeditationPool, type ScryTask, type NameTask } from '@truenames/meditation';
 import { LocalAuthority, type Authority } from '@truenames/authority';
 import { cellsBelow, facetCount, spiritAt, target, wordBar, type Spirit } from '@truenames/universe';
-import { persist, rememberSpirit, signClaim, splitWord, wordKey, type SaveData, type KnownSpirit } from './save.ts';
+import { persist, rememberSpirit, signClaim, spiritOf, splitWord, wordKey, type SaveData, type KnownSpirit } from './save.ts';
 import { addHistory, Planner } from './plan.ts';
+import { Actant } from './actant.ts';
 import { spiritName, magnitudeTitle, truths } from './lore.ts';
 import MeditationWorker from './meditation.worker.ts?worker';
 
@@ -52,6 +53,8 @@ export class Services {
   events = new Emitter<SanctumEvent>();
   /** The sanctum plan's planner (created with the services, started on resume). */
   planner!: Planner;
+  /** An actant tending this sanctum (asleep unless woken). */
+  actant!: Actant;
   private sourceFor = new Map<string, KnownSpirit['source']>();
 
   constructor(public save: SaveData) {
@@ -77,6 +80,7 @@ export class Services {
     });
     if (save.workers != null) this.pool.setActive(Math.max(1, save.workers));
     this.planner = new Planner(save, this);
+    this.actant = new Actant(save, this);
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);
     // re-establish names with the authority (claims are self-verifying)
@@ -175,7 +179,8 @@ export class Services {
     // only grasped words are claims the authority accepts; below the bar the word is still forming (kept locally)
     if (strength >= bar && !this.authority.submitName(claim).accepted) return;
     this.save.names[key] = { claim, strength, facet };
-    const sp = this.save.spirits[t.cell] ? spiritName(this.save.spirits[t.cell]!.spirit as never) : t.cell;
+    const being = spiritOf(this.save, t.cell);
+    const sp = being ? spiritName(being) : t.cell;
     if (before < bar && strength >= bar) {
       const text = `grasped a word of ${sp} (facet ${facet + 1}) at ${truths(strength)}`;
       addHistory(this.save, { kind: 'grasp', by: 'sanctum', text });

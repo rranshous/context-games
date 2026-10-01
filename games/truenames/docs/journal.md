@@ -652,3 +652,14 @@ Refining the milestones: "we have the player set a goal (in prose) and the actan
 - **The sanctum history** (`save.history`, the last 400 lines) records finds, grasps, truths gained past the bar, searches finished, aims fulfilled, plan changes and who made them, and journeys. Services emit **sanctum events** (find, grasp, search, aim, journey): the actant's review triggers.
 - **The plan panel** (top of the middle column): aims with share −/+, ↑/↓, × and who set them; an add-aim form (seek uses the scrying form's region and depth); and a collapsible history.
 - **Tried in the browser**: a deepen aim (to 25) was fulfilled at once because the hearth word already held 26, and history recorded it. A seek aim ("fire at depth 12, until 1 wisp or mightier") started its search on its own.
+
+### M2: the actant's mind (in progress)
+Clarified by Robby: "the actant is managing _their_ sanctum in their instance of the game", with "simple / low level tools", reviews "event based for now", and seek "until N beings of a class are found" (built into M1). Since each actant tends its own sanctum, the mind comes before the choir link (shared signs and chat).
+- **`apps/game/src/actant.ts`**: an Actant tending this sanctum, with config in the save (`on`, `goal` in the player's words, `model`, `notes` as its memory).
+  - **Event-based**: it listens to sanctum events (find, grasp, search done, aim fulfilled, journey), gathers them for 20 s, and reviews at most every 2 min. It also reviews on waking and on "review now".
+  - **A review**: the prompt holds a short soma (what the astral is, how the plan works, its goal and notes) plus a compact state (words held, beings without words, the plan, the hum, the last 12 history lines). It then loops up to 6 turns of tool calls against **ollama's `/api/chat`**, with `think: false` and the default model **qwen3:8b**; any tool-capable local model can be picked.
+  - **Tools (terse, enums where possible)**: `add_aim`, `remove_aim`, `move_aim`, `set_share`, `bind_word`, `note`. These are the same plan operations as the player's controls, tagged `by: 'actant'` in the history.
+  - **Thought costs chanting**: the meditation pool pauses while it thinks. This isn't only lore. Warm qwen3:8b managed ~1.2 tok/s with meditation saturating the machine, against ~3.4 measured by local-ai on an idle one. A cold first call took 83 s.
+  - An early probe with a looser schema produced `depth: 1, element: "storm beings"`, hence enums and plain ranges in the tool descriptions.
+- **The sanctum's Actant section** (under the plan): wake/asleep, model (listed from the local server, tool-capable only), the goal box, status ("thinking… (meditation paused)"), its last words, and its notes and doings.
+- Bug on the way: beings were named from their stored wire form (flavor as a string), giving "Cannot mix BigInt and other types". Fixed to decode first.

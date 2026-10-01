@@ -6,6 +6,7 @@ import {
 } from '../lore.ts';
 import { persist, spiritOf, wordView } from '../save.ts';
 import { addHistory, describeAim } from '../plan.ts';
+import { toolModels } from '../actant.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
@@ -224,8 +225,19 @@ export function sanctumScreen(app: App): Screen {
     renderAll();
   }
 
+  function renderActant() {
+    const A = S.actant, el = root?.querySelector('#actant');
+    if (!el) return;
+    (el.querySelector('#ac-wake') as HTMLButtonElement).textContent = A.config.on ? 'awake' : 'asleep';
+    el.querySelector('#ac-wake')!.classList.toggle('on', A.config.on);
+    el.querySelector('#ac-status')!.textContent = A.status === 'thinking' ? 'thinking… (meditation paused)' : A.config.on ? 'listening for what happens' : '';
+    el.querySelector('#ac-thought')!.textContent = A.lastThought ? `“${A.lastThought}”` : '';
+    el.querySelector('#ac-log')!.innerHTML = [`<div class="gold">notes: ${esc(A.config.notes || '(none)')}</div>`, ...A.log.slice(-20).reverse().map((l) => `<div>${esc(l)}</div>`)].join('');
+  }
+
   function renderAll() {
     renderPlan();
+    renderActant();
     renderAdvice();
     renderTop();
     renderBook();
@@ -425,6 +437,13 @@ export function sanctumScreen(app: App): Screen {
               <button class="small" id="a-add" data-tip="=Add this aim to the end of the plan.">add aim</button>
             </div>
             <details id="hist"><summary class="dim" data-tip="=What the sanctum has done, and who changed the plan.">history</summary><div class="feed" id="history"></div></details>
+            <div class="actant" id="actant">
+              <h2 style="margin-top:12px" data-tip="=<b>An actant</b>: a mind (a local model) that tends this sanctum toward your goal. When something happens (a find, a grasp, a search or an aim finished, a journey), it reviews the sanctum and reprioritizes the plan, using the same controls you do. While it thinks, meditation pauses: thought costs chanting.">Actant</h2>
+              <div class="actant-row"><button class="small" id="ac-wake"></button> <select id="ac-model" data-tip="=Which local model thinks (served by ollama on this machine)."></select> <button class="small" id="ac-now" data-tip="=Ask it to review the sanctum now.">review now</button> <span class="dim" id="ac-status"></span></div>
+              <textarea id="ac-goal" rows="2" placeholder="its goal, in your words: e.g. make me strong in storm and ready to race" data-tip="=The goal the actant works toward. In your words; it reads this every review."></textarea>
+              <div class="dim" id="ac-thought" style="font-style:italic; font-size:13px"></div>
+              <details><summary class="dim" style="font-size:12px">its notes and doings</summary><div class="feed" id="ac-log" style="font-size:12px"></div></details>
+            </div>
             <h2 style="margin-top:14px">Scrying</h2>
             <div class="hint">Choose a region and a depth, then search it division by division. Wisps dwell at depth 12; each layer down holds half as many beings, a class mightier, and takes sixteen times the searching.</div>
             <div class="scryform">
@@ -487,6 +506,19 @@ export function sanctumScreen(app: App): Screen {
         renderAll();
       });
       S.planner.onChange = () => renderPlan();
+      {
+        const A = S.actant;
+        const goal = root.querySelector('#ac-goal') as HTMLTextAreaElement;
+        goal.value = A.config.goal;
+        goal.addEventListener('change', () => { A.config.goal = goal.value.trim(); persist(save); });
+        root.querySelector('#ac-wake')!.addEventListener('click', () => { if (A.config.on) A.sleep(); else { A.wake(); void A.review('You have just been woken to tend this sanctum.'); } renderActant(); });
+        root.querySelector('#ac-now')!.addEventListener('click', () => void A.review());
+        const sel = root.querySelector('#ac-model') as HTMLSelectElement;
+        sel.innerHTML = `<option>${esc(A.config.model)}</option>`;
+        void toolModels().then((ms) => { if (ms.length) sel.innerHTML = ms.map((m) => `<option ${m === A.config.model ? 'selected' : ''}>${esc(m)}</option>`).join(''); else sel.title = 'no local model server found (ollama on 127.0.0.1:11434)'; });
+        sel.addEventListener('change', () => { A.config.model = sel.value; persist(save); });
+        A.onChange = () => { renderActant(); renderPlan(); };
+      }
       root.querySelector('#host')!.addEventListener('change', (e) => {
         setWorldHost((e.target as HTMLInputElement).value);
         (e.target as HTMLInputElement).value = hostLabel();
@@ -596,6 +628,7 @@ export function sanctumScreen(app: App): Screen {
       clearInterval(timer);
       offs.forEach((f) => f());
       S.planner.onChange = null;
+      S.actant.onChange = null;
     },
   };
 }

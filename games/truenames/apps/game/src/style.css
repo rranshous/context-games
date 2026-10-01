@@ -248,3 +248,6 @@ button.tiny { font-size: 11px; padding: 0 5px; margin-left: 3px; border-radius: 
 .aimform select { font-size: 12px; }
 #hist summary { cursor: pointer; font-size: 13px; margin-top: 6px; }
 #hist .feed { font-size: 12px; max-height: 220px; overflow-y: auto; }
+.actant-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.actant-row select { font-size: 12px; max-width: 160px; }
+#ac-goal { width: 100%; margin: 6px 0; font: 14px var(--serif); background: rgba(255,255,255,0.03); color: var(--ink); border: 1px solid var(--panel-edge); border-radius: 3px; padding: 6px; resize: vertical; }
