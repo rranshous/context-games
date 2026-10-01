@@ -24,6 +24,12 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - *If a census is ever needed*, measure it in work (each holder counts `2^truths`, so faking a crowd costs the meditation it adds). Any bulletin board of claims can serve; a world can fall back to the claims it has seen.
 - *Presence* (orders dominating a goddess) has no replacement yet.
 
+## Platform direction: serverless, desktop (2026-10-01)
+- **No central server required.** Any instance can host worlds (the dungeon) and a choir hub. Instances find each other on the LAN, or by address. A bootstrap/relay server is optional, only for reaching beyond the LAN.
+- **A desktop app**, wrapped with Electron (it runs today's client, workers, WASM, prover and the Node dungeon in-process). Watch for it becoming "too much"; Tauri is the lighter alternative.
+- **Easy to share**: a download link on a web page (single-file builds where possible). The web dev loop stays the fast path for iteration.
+- **Local models** through a local ollama for now; bundling later, if ever.
+
 ## Done
 - Sanctum/world split, names locked at departure, per-caster vessels.
 - Zero-knowledge proofs at the threshold (Groth16, local dev ceremony), parallel provers.
@@ -40,7 +46,7 @@ Roughly in order; each is independently useful.
 5. **Knowledge and teaching.** Name gifting (grind someone's `(cell, aura)`, hand over the nonce; they sign), shared scan maps, guild servers. Orders as social structures only.
 6. **A real trusted setup** (a multi-party ceremony) before any world is run by someone players don't trust.
 7. **Conflict** (needs the warfare decision in 08): PvP with the same casting rules, possibly spatial sites.
-8. **Actants: local AI agents as players** (Robby, to discuss after the spec v2 rewrite). Agents under a player's direction, their team or choir, that also play in the worlds (and could search and meditate).
+8. **The choir: actants as players** (shape agreed 2026-10-01; slices not yet planned). A **chorister** is a full game instance with its own head (a window), its own aura and words, and a mind running on a local model (ollama). It can meditate for you (it grinds words on your aura; you sign them), meditate for itself, and play in the worlds through policy code it writes and rewrites itself (the embodied-soma pattern). Run it on the same machine or others; more machines is more compute, which is the point: **compute is the capability ceiling**. A choir hub (shared signs, a work board, chat) lives in whichever instance hosts.
 9. **Ledger (optional).** For names and discoveries, never for real-time play.
 
 ## What must not change

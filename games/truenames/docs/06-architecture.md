@@ -6,7 +6,7 @@ How the code is organized and how data moves through it. Rules and formulas are 
 ```
 truenames/
   packages/
-    universe/     pure, deterministic spec v1: cells, Poseidon, spirits, traits, names, claims
+    universe/     pure, deterministic spec v2: cells, Poseidon, beings and might, facets, words of power, claims
     protocol/     shared message types: CastIntent, CastResult, TickResult, PoolInfo, AuraState
     authority/    the rules: per-caster vessels, strain, capacity, backlash, ticks; proof-verifier seam
     proofs/       zero-knowledge name claims: circuit generator, build (circom2 + snarkjs), prove, verify
@@ -53,7 +53,7 @@ Rules held from [CLAUDE.md](../CLAUDE.md):
 
 ## packages/universe
 One file of rules plus a fast Poseidon.
-- `index.ts` holds the spec v1 functions: `bits`, `target`, `cellDigest` (chained, prefix-memoized), `region`, `spiritAt` / `spiritFromDigest`, `decodeTraits`, `auraField`, `nameHash` / `nameStrength`, `signNameClaim` / `verifyNameClaim`, and the constants (`SEED`, `MIN_SPIRIT_DEPTH = 6`, `MIN_NAME_BITS = 12`).
+- `index.ts` holds the spec v2 functions: `bits`, `target`, `mightOf`, `cellDigest` (chained, prefix-memoized), `region`, `spiritAt` / `spiritFromDigest`, `decodeTraits`, `facetCount` / `facetForm`, `auraField`, `nameHash` / `nameStrength`, `facetOfHash` / `wordOf` / `wordBar`, `signNameClaim` / `verifyNameClaim`, and the constants (`SEED`, `MIN_SPIRIT_DEPTH = 12`, `WORD_BAR_BASE = 22`, `WORD_BAR_STEP = 4`, `MIGHT_ROLL_BITS = 4`, `MAX_FACETS = 8`).
 - `poseidon.ts` is a straight-line Poseidon over frozen constants (`poseidon-constants.ts`, extracted from poseidon-lite). It's bit-identical to poseidon-lite, and a test enforces that.
 - `test/vectors.json` holds the golden vectors (never regenerated). `test/run-vectors.ts` is the environment-neutral runner used by both Node and the browser.
 
@@ -67,10 +67,10 @@ grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
 ```
 - **Tick** (`TICK_MS = 200`):
   1. Decay strain.
-  2. Take queued casts in order; a second cast by the same aura on the same spirit that tick is refused `duplicate`.
+  2. Take queued casts in order; a second cast by the same aura on the same being that tick (whatever the facet) is refused `duplicate`. The caster's word is looked up by `being#facet` (`wordKey`).
   3. Lazily refill each pool.
   4. Compute effective = strength + bonus − strain.
-  5. **Draw from the caster's own vessel**: grant = min(request, cap(effective, generosity), vessel level). Vessels are keyed by aura + spirit; nothing is shared.
+  5. **Draw from the caster's own vessel**: grant = min(request, cap(effective, generosity), vessel level). Vessels are keyed by aura + being and shared by that being's words; nothing is shared between casters. The cast's form (strain weight, efficiency) is its facet's.
   6. Add strain.
   7. Roll backlash on a seeded PRNG.
   8. Emit `CastResult`s.
@@ -81,12 +81,12 @@ grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
 ## packages/meditation
 - **`scan.ts`**:
   - `scanRange(prefix, extra, start, count, onHit, kernel?)` walks cells in index (Z) order with a digest stack. Consecutive siblings cost ~1.14 child hashes plus one spirit hash.
-  - `grindName(digest, aura, start, count, beat, onBest, kernel?)`.
+  - `grindWords(digest, aura, start, count, facets, bests, onBest, kernel?)`: keeps the best word per facet (each hash's low bits pick its facet). The kernel's `grindHits` stops at every hash above the weakest facet's best. (`grindName` remains for benches.)
 - **`worker-body.ts`**: `installWorker(self)` answers `WorkChunk` messages. It loads the WASM kernel once, self-tests it against BigInt Poseidon, and falls back to BigInt on failure. Failed chunks are reported back with their range.
 - **`pool.ts` (`MeditationPool`)** runs N workers (hardwareConcurrency − 1) and hands out **small chunks** (~120 ms, sized adaptively):
   - **Weighted fair scheduling**: the task with the least `sent / weight` goes next. Focus = weight 4.
   - **Scry tasks** keep a *contiguous frontier* (`doneUpTo`) even though chunks finish out of order. Failed ranges go on a retry list. `extendScry` widens a running task without disturbing in-flight chunks.
-  - **Name tasks** start at a random 64-bit nonce and report only improvements.
+  - **Name tasks** (one per being) start at a random 64-bit nonce and report only per-facet improvements.
   - Control: `setActive(n)` (voices), `setPaused`, `rate()` (utterances/s over 3 s).
 - **`wasm/`**: the Poseidon kernel.
   - **Generation**: `apps/tools/src/gen-wasm.ts` *generates* the WAT (8×32-bit-limb Montgomery CIOS multiply, fully unrolled), compiles it with `wabt`, and embeds it as base64 in `kernel-bytes.ts`.
@@ -184,9 +184,9 @@ sequenceDiagram
   A->>A: ProofVerifier: context matches, aura field matches key, signature, groth16.verify
   A-->>R: {spirit: "r:<roundTag>", element, magnitude, truths, traits}
 ```
-- **Circuit** (`packages/proofs/src/gen-circuit.ts` generates `circuits/name.circom`, with constants taken from the universe): secret digits, depth and nonce. Public inputs: aura field, magnitude, strength, context. Outputs: **round tag** (`Poseidon(101, digest, context)`), **element**, and the gameplay **traits** (form, weight, generosity, temper), decoded from the trait hash in-circuit. **The trait hash itself never leaves the proof** (the principle: prove the details, never the source). It checks the chained digest over `depth` digits, `bits(spiritHash) ≥ target(depth) + magnitude`, `bits(nameHash) ≥ strength` (thresholds `P >> k` via a one-hot table and 127-bit limb comparisons), and 6 ≤ depth ≤ 24.
+- **Circuit** (`packages/proofs/src/gen-circuit.ts` generates `circuits/name.circom`, with constants taken from the universe): secret digits, depth and nonce. Public inputs: aura field, might (exact), strength, context. Outputs: **round tag** (`Poseidon(101, digest, context)`), **element**, the **facet** the word touched and its **form**, and the being's weight, generosity and temper, decoded from the trait hash in-circuit. **The trait hash itself never leaves the proof** (the principle: prove the details, never the source). It checks the chained digest over `depth` digits, `target(depth) + 4·roll ≤ bits(spiritHash) < target(depth) + 4·(roll+1)` with `roll = might − (depth − 12) ∈ [0, 3]` (exact might), `bits(nameHash) ≥ strength` (thresholds `P >> k` via a 128-entry one-hot table and 127-bit limb comparisons), the facet as the word hash's low 16 bits mod `min(8, might + 1)`, and 12 ≤ depth ≤ 24. ~22k constraints.
 - **Build**: `corepack pnpm tools zk-build` compiles the circuit with circom2 (WASM) and runs a **local dev Groth16 ceremony** (about 9 minutes). The resulting `artifacts/name.wasm`, `name.zkey` and `name.vkey.json` are committed so the game runs without rebuilding. Proofs are per journey, so rebuilding the keys breaks nothing persistent.
-- **Spirit ids in a round** are `r:<roundTag>`: unique per spirit within the round (duplicate patrons in a bundle are refused), unlinkable across rounds. Enemy casters use public spirits by address (the ancients), resolved through the universe.
+- **Being ids in a round** are `r:<roundTag>`: one per being within the round (two words for the same being share it, and its vessel; the same (being, facet) twice is refused), unlinkable across rounds. Computer-controlled casters use **charted beings** by address (`packages/dungeon/src/world.ts`: the hearth and the beings found by scanning one region per element at depth 12), resolved through the universe.
 - **Display**: the dungeon never learns a player's spirits' names or seals (they come from the secret flavor bits). The journey carries local-only `cosmetics` so the player's own browser draws its true names; they are never sent to the dungeon.
 
 ## Life of a cast
@@ -225,8 +225,8 @@ The universe itself is never stored; it's recomputed from the seed. Losing the s
 | `corepack pnpm typecheck` | `tsc --noEmit` over all packages and apps. |
 | `corepack pnpm tools bench` / `bench-wasm` | Hash rates, BigInt vs WASM. |
 | `corepack pnpm tools sim` | Cadence and contention tables for tuning strain and pools. |
-| `corepack pnpm tools god-finder [prefix\|-] [depth]` | Parallel scan of a layer, listing spirits by might. |
-| `corepack pnpm tools vectors` | Wrote the golden vectors once; refuses to overwrite. |
+| `corepack pnpm tools god-finder [prefix\|-] [depth] [out.json]` | Parallel scan (all cores, WASM kernel) of a layer under a prefix, listing beings by might. How the charted beings were found. |
+| `corepack pnpm tools vectors` | Writes the golden vectors once per spec version (refuses to overwrite), including grasped hearth words for the two test auras, ground on all cores (tests read them instead of grinding). |
 | `corepack pnpm tools gen-wasm` | Regenerates the WASM kernel. |
 | `corepack pnpm tools zk-build` | Regenerates the name circuit and runs the local dev ceremony (~9 min). |
 | `corepack pnpm racer-bot [circuit]` | A bot racer over the real wire (own aura, real proof), for testing shared races alone. |

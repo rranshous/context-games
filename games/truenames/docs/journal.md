@@ -576,3 +576,18 @@ Robby: "i love what we're doing here, and want to extend the compute for access 
 - Two threads: **compute as a capability ceiling** (a player's power is bounded by the meditation they can marshal), and **actants as players** (agents in the worlds).
 - The crypto already supports the first role: anyone can grind *your* word (your aura is public); only you can sign it. A choir member meditating for you is trustless: you verify and sign what it hands over.
 - (Design discussion follows; the spec v2 build continues alongside.)
+- **The shape (agreed with Robby)**:
+  - **No central server required.** Any instance can host. A bootstrap server is optional, only for finding each other beyond the LAN: "i'd like the game to not _require_ any central server".
+  - **A desktop app**, because a LAN-first, serverless choir doesn't fit "web page plus central server".
+  - **Every chorister has a head** ("i am not thinking headless, everything should have a head"): a full game instance with a window, runnable on the same machine; separate hardware only adds compute.
+  - **Each chorister has its own aura from day one.**
+  - **Local models** via Robby's local-ai project ("point at ollama is good enough for now").
+  - **Self-improvement through embodiment.** The chorister extends its own soma/code against its task: "we can start out simple and build it up."
+  - Not discussing first slices yet: "we're just figuring out a shape and how it affects broad impl choices."
+- **Implementation consequences**:
+  - **Electron**: it runs the client, workers, WASM, prover and the Node dungeon in-process. Robby: "Electron is fine but i'll want to be on the lookout for it being _too much_… the more portable / easier to install the better. i would like to be able to offer a download link on a webpage for it. mostly i don't want it being a desktop app to get in the way of us iterating quickly and sharing it."
+  - **Every app can host** the dungeon and the choir hub; LAN discovery, with join-by-address as a fallback.
+  - **One profile per instance.**
+- **Local models shape the mind** (from local-ai's findings):
+  - Generation is memory-bound at ~3–8 tok/s on this machine (qwen3:30b-a3b best, qwen3:8b the workhorse), and verbose tool descriptions break local models, so chorister tools must be terse.
+  - On one machine the model and meditation compete for the same memory bus. **A chorister's thought costs it chanting**, so the mind thinks rarely (reflection, rewriting its own code) and its code does the moment-to-moment work.

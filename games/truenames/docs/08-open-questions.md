@@ -2,14 +2,16 @@
 
 Decisions not yet made, and ideas deliberately set aside. Settled calls move into the doc they affect (and the journal records when and why).
 
-## Under discussion: the astral, depth and what names encode (2026-09-30)
-Today depth only sets cost and supply: magnitude has the same odds at every depth, traits don't depend on region, and a name encodes only its strength. Proposals on the table (see the journal for the discussion):
-1. **Deeper spirits are mightier** (Robby, 2026-09-27: beings deeper in the astral should be harder to find *and* more powerful). E.g. *might* = magnitude + ⌊(depth − 6)/2⌋, used for vessels and titles. The circuit can reveal might without revealing depth (depth is already a private input). Lore: the ancients are worn smooth by millennia of callers; the deep holds the untouched.
-2. **Mighty spirits demand truer names.** The learning threshold rises with might (e.g. 12 + ⌊might/2⌋), so a lucky deep find isn't instantly dominant and meditation stays the spine.
-3. **Regions with character.** Each tradition leans toward a form and temper ("the Glass Choir breeds lances"), so where you scry is a real choice. Changes the traits of existing spirits.
-4. **Personal names.** Bits of the name hash beyond strength set how the spirit answers *you* (a form variant, generosity toward you). Meditation finds different names, not only stronger ones.
+## Decided 2026-10-01: the pyramid and words of power (spec v2)
+The astral and what words encode were reworked together with Robby (journal: "Rethinking the astral"). Beings are unknowable forces; might is depth (a pyramid, with a pinch of randomness); a being has several facets and you meditate on **words of power** for them; the bar to grasp a word rises with might; churches hand down **signs**. Numbers in [03](03-mechanics.md), encoding in [04](04-universe-spec.md).
 
-Open: ancients as the weakest spirits (the hearth-god a humble start)? A gentle (+1 might per 2 depths) or steep (+1 per depth) curve? All four are a spec v2 (new golden vectors); 1, 2 and 4 also need a new circuit.
+Still open from that discussion:
+1. **Regions with character.** Each tradition leans toward forms ("the Glass Choir breeds lances"), so where you scry is a real choice.
+2. **Kinship between words.** Words of related beings resonating together (pantheons as patterns people observe, not relationships beings have).
+3. **Personal temperament.** Bits of a word's hash shading how the being answers *you*.
+4. **Strain and might.** Today a god's word strains like a wisp's at the same resonance.
+5. **Ranks in the game.** Showing the player's meditation rank (Initiate … Grand Master) from their hum.
+6. **The power curve in practice.** A fresh god word draws ~256× a fresh wisp word; worlds tuned on wisps may need ladders that reach that far.
 
 ## Open decisions
 1. **Warfare and ownership.** What does conflict *do*? Pure PvP with no ownership, or spatial sites that can be held? Anything exclusive conflicts with "no ownership" in [07](07-roadmap.md).
@@ -31,10 +33,10 @@ Open: ancients as the weakest spirits (the hearth-god a humble start)? A gentle 
 
 ## Decided (for reference)
 - Fantasy setting; everyone is a warlock/priest/summoner. In-world words only on screen.
-- Octree cells, Poseidon, public seed, chained cell digest. Spec v1 frozen 2026-09-27: `MIN_SPIRIT_DEPTH = 6`, `target(d) = 4 + ⌊3d/2⌋`, `MIN_NAME_BITS = 12`, seed `truenames_v1`.
-- Hearth-god: `011010`, Vreiziobain, dominion (mag 3) of cinderfrost, stingy lance, the mightiest of the 35 ancients.
+- Octree cells, Poseidon, public seed, chained cell digest. Spec v2 (2026-10-01): beings from depth 12, `target(d) = 4d − 26`, might = depth class + ⌊surplus/4⌋, facets = might + 1, word bar `22 + 4·might`, seed `truenames_v2`. (v1, 2026-09-27: depth 6, `4 + ⌊3d/2⌋`, 12-truth names.)
+- The hearth: a charted wisp every apprentice learns first (v2; the v1 hearth-god Vreiziobain is gone with the v1 astral).
 - Discovery: the cell is the lottery ticket; no shortcut from related names.
-- Magnitude (spirit, shared) and strength (name, personal) are separate axes. Names are permanent and bound to the aura.
+- Might (being, shared) and truths (word, personal) are separate axes. Words are permanent and bound to the aura.
 - Per-caster vessels, not shared wells. Strain is aura-global, measured in bits.
 - Zero-knowledge proofs at the threshold; the aura is revealed as identity.
 - One power system, many worlds. Difficulty grows by ladders (descents), not by retuning formulas.

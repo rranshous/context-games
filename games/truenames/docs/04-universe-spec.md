@@ -1,9 +1,9 @@
-# 04 · Universe spec (v1)
+# 04 · Universe spec (v2)
 
 This is the frozen contract for `packages/universe`. **Once a seed is published, anything in this doc that changes a hash output changes the whole universe.** Changes require bumping `SPEC_VERSION` and regenerating golden vectors.
 
 ```
-SPEC_VERSION = 1
+SPEC_VERSION = 2
 ```
 
 ## Field and hash
@@ -25,7 +25,7 @@ TAG_NAME   = 5n
 ## Seed
 `SEED` is a field element, published per universe:
 ```
-SEED = 0x7472_7565_6e61_6d65_735f_7631   // ASCII "truenames_v1"
+SEED = 0x7472_7565_6e61_6d65_735f_7632   // ASCII "truenames_v2"
 ```
 (Per-epoch seeds are possible later; see [08](08-open-questions.md).)
 
@@ -68,19 +68,25 @@ export function bits(h: bigint): number {
 ```
 Use this everywhere a hash is scored. Don't use raw `clz` on the 256-bit representation.
 
-## Spirits
+## Beings (the pyramid of might)
 ```
 spiritHash(cell) = poseidon3([TAG_SPIRIT, SEED, digest(cell)])
 exists(cell)     = depth >= MIN_SPIRIT_DEPTH && bits(spiritHash) >= target(depth)
-magnitude(cell)  = bits(spiritHash) - target(depth)
+might(cell)      = (depth - MIN_SPIRIT_DEPTH) + floor((bits(spiritHash) - target(depth)) / MIGHT_ROLL_BITS)
 ```
-`target(depth)` and `MIN_SPIRIT_DEPTH` are **universe constants**, not authority tunables, because they define what exists. They're frozen with the spec:
+Code calls might `magnitude`. Constants, frozen with the spec:
 ```
-MIN_SPIRIT_DEPTH = 6
-target(d)        = 4 + floor(3 * d / 2)
-MIN_NAME_BITS    = 12        // a name is learned at this strength
+MIN_SPIRIT_DEPTH = 12          // depths 1–11 are regions and empty reaches
+target(d)        = 4d - 26     // 22 bits at depth 12, +4 per layer
+MIGHT_ROLL_BITS  = 4           // a being one class above its depth: 1 in 16; two: 1 in 256
 ```
-Frozen 2026-09-27 after the hash-rate benchmark (see the journal). Changing any of them is a spec version bump.
+Each layer has 8× the cells (3 bits) and needs 4 more bits, so it holds **half as many beings**, each **16× harder to find**, and **one class mightier** (wisp 0, spirit 1, power 2, dominion 3, god 4, great god 5, elder god 6, primordial 7). Depth sets the class; the surplus bits are a rare step up.
+
+## Facets
+A being has `facetCount(might) = min(MAX_FACETS, might + 1)` facets (`MAX_FACETS = 8`): a wisp one, a god five, a primordial eight. Each facet has a form; no being repeats one:
+```
+facetForm(traits, f) = (traits.form + f * traits.formStep) mod 8      // formStep is odd
+```
 
 ## Traits
 A separate hash so traits are independent of magnitude:
@@ -90,11 +96,12 @@ traitHash(cell) = poseidon3([TAG_TRAITS, SEED, digest(cell)])
 Decode from the low bits (`t = traitHash`):
 | Trait | Bits | Range | Meaning |
 |---|---|---|---|
-| `form` | `t & 0b111` | 0–7 | Form id (see 03) |
-| `weightIdx` | `(t >> 3) & 0xF` | 0–15 | Strain weight index |
-| `generosityIdx` | `(t >> 7) & 0xF` | 0–15 | Cast-cap multiplier index |
-| `temperIdx` | `(t >> 11) & 0x7` | 0–7 | Backlash style |
-| `flavor` | `t >> 14` | rest | Sigil, name syllables, palette, cosmetics |
+| `form` | `t & 0b111` | 0–7 | The first facet's form (see 03) |
+| `formStep` | `((t >> 3) & 0b11) * 2 + 1` | 1, 3, 5, 7 | Step between facet forms |
+| `weightIdx` | `(t >> 5) & 0xF` | 0–15 | Strain weight index |
+| `generosityIdx` | `(t >> 9) & 0xF` | 0–15 | Cast-cap multiplier index |
+| `temperIdx` | `(t >> 13) & 0x7` | 0–7 | Backlash style |
+| `flavor` | `t >> 16` | rest | Sigil, public name syllables, palette, cosmetics |
 
 The universe returns **integer indices only**. The authority maps indices to floats via tunables (e.g. `weight = 0.5 + weightIdx / 6`). This keeps `universe` float-free.
 
@@ -106,53 +113,63 @@ lo = bytes[16..32] as big-endian bigint   (128 bits)
 auraField(pubkey) = poseidon3([TAG_AURA, hi, lo])
 ```
 
-## Names
+## Words of power
 ```
 nameHash(cell, aura, nonce) = poseidon4([TAG_NAME, digest(cell), auraField(aura), nonce])
-strength                    = bits(nameHash)
+strength (truths)           = bits(nameHash)
+facet                       = (nameHash & 0xFFFF) mod facetCount(might)      // the facet the word touched
+wordBar(might)              = WORD_BAR_BASE + WORD_BAR_STEP * might          // 22 + 4·might
+grasped                     = strength >= wordBar(might)
+resonance                   = strength - wordBar(might)
 ```
 - `nonce` is a field element. Workers start from a random 64-bit offset and increment, so parallel workers don't overlap.
-- A name is valid only if `exists(cell)`.
+- Meditation can't aim at a facet: each word lands on the facet its low bits pick (independent of the leading bits that set its truths). You keep the truest word per facet.
+- `MIN_NAME_BITS = WORD_BAR_BASE = 22` (a wisp's bar) is the least truths any grasped word holds.
+- A word is valid only if `exists(cell)`.
 
-## Name submission (v1, clear text)
+## Word submission (v2, clear text)
 Used inside the sanctum, which knows the address anyway. Games never receive these; they receive zero-knowledge claims (below).
 ```ts
 interface NameClaim {
-  spec: 1;
+  spec: 2;
   cell: string;        // octal path
   aura: string;        // hex ed25519 pubkey
   nonce: string;       // decimal field element
   sig: string;         // hex ed25519 signature
 }
 ```
-Signed message: UTF-8 bytes of `truenames/name/v1|${cell}|${nonce}`, signed by the aura's private key.
+Signed message: UTF-8 bytes of `truenames/word/v2|${cell}|${nonce}`, signed by the aura's private key.
 
 Verification:
 1. `exists(cell)`.
 2. Signature valid for `aura`.
-3. `strength = bits(nameHash(cell, aura, nonce))`, and `strength >= MIN_NAME_BITS`.
-4. Store if `strength > best[aura][cell]`.
+3. `strength = bits(nameHash(cell, aura, nonce))`, and `strength >= wordBar(might)`.
+4. Returns `{ strength, facet }`; store if `strength > best[aura][cell#facet]`.
 
 Signing is why grinding someone else's name is safe: only they can submit it.
 
-## Zero-knowledge name claim (games)
+## Zero-knowledge word claim (games)
 What a world receives at the threshold, produced by `packages/proofs` (Groth16 over BN254, circuit generated from these same constants). The circuit is part of the contract: changing what it checks or reveals means a new circuit, a new trusted setup, and a new `vkey`.
 ```
 private: digits[0..depth), depth, nonce
-public in:  auraField, magnitude, strength, context
-public out: roundTag = poseidon3([TAG_ROUND, digest(cell), context])      // TAG_ROUND = 101
-            element, form, weightIdx, generosityIdx, temperIdx            // decoded in-circuit
+public in:  auraField, magnitude (might, exact), strength, context
+public out: roundTag = poseidon3([TAG_ROUND, digest(cell), context])      // TAG_ROUND = 101: the being, this round only
+            element, facet, form (that facet's), weightIdx, generosityIdx, temperIdx
 checks:     MIN_SPIRIT_DEPTH ≤ depth ≤ 24
-            bits(spiritHash) ≥ target(depth) + magnitude                  // a lower bound
-            bits(nameHash(cell, aura, nonce)) ≥ strength                   // a lower bound
+            roll = might - (depth - 12) ∈ [0, 3]
+            target(depth) + 4·roll ≤ bits(spiritHash) < target(depth) + 4·(roll + 1)   // might is exact
+            bits(nameHash(cell, aura, nonce)) ≥ strength                               // a lower bound
+            facet = (nameHash & 0xFFFF) mod min(8, might + 1);  form = facetForm(traits, facet)
 ```
-- The **trait hash never leaves the proof**, so the claim can't identify the spirit (flavor bits would). The round tag identifies it within one context only and is unlinkable across contexts.
-- The 10 public signals are signed by the aura (ed25519) so a claim is bound to its holder.
+- **Might is exact**, not a lower bound: it sets the facet count, which decides which facet (and form) a word is. A world refuses a word below its bar (`strength < wordBar(might)`).
+- The **trait hash never leaves the proof**, so the claim can't identify the being (flavor bits would). The round tag identifies it within one context only and is unlinkable across contexts. Two words for the same being share a round tag (and a vessel); a world refuses the same (round tag, facet) twice.
+- Beings more than 3 classes above their depth (1 in 65,536) can't be proven by this circuit.
+- The 11 public signals are signed by the aura (ed25519) so a claim is bound to its holder; message `truenames/zkword/v2|signals`.
 - Verification: `context` must equal the world's issued context, `auraField` must match the signing key, then `groth16.verify` against the committed `vkey`.
 
 ## Public API (`packages/universe`)
 ```ts
-export const SPEC_VERSION: 1;
+export const SPEC_VERSION: 2;
 export const P: bigint;
 export function bits(h: bigint): number;
 
@@ -164,12 +181,18 @@ export function region(cell: Cell): { element: number; aspect?: number; traditio
 export function target(depth: number): number;
 export function spiritAt(cell: Cell): Spirit | null;
 export interface Spirit { cell: Cell; depth: number; magnitude: number; element: number; aspect: number; tradition: number; traits: Traits }
-export interface Traits { form: number; weightIdx: number; generosityIdx: number; temperIdx: number; flavor: bigint }
+export interface Traits { form: number; formStep: number; weightIdx: number; generosityIdx: number; temperIdx: number; flavor: bigint }
+export function mightOf(depth: number, bits: number): number;
+export function facetCount(might: number): number;
+export function facetForm(traits: Traits, facet: number): number;
+export function wordBar(might: number): number;
+export function facetOfHash(nameHash: bigint, facets: number): number;
+export function wordOf(cell: Cell, aura: Uint8Array, nonce: bigint): { strength: number; facet: number } | null;
 
 export function auraField(pubkey: Uint8Array): bigint;
 export function nameStrength(cell: Cell, aura: Uint8Array, nonce: bigint): number;
 export function verifyNameClaim(claim: NameClaim): { ok: true; strength: number } | { ok: false; reason: string };
-export const SEED: bigint, MIN_SPIRIT_DEPTH: 6, MIN_NAME_BITS: 12;
+export const SEED: bigint, MIN_SPIRIT_DEPTH: 12, WORD_BAR_BASE: 22, WORD_BAR_STEP: 4, MIN_NAME_BITS: 22, MIGHT_ROLL_BITS: 4, MAX_FACETS: 8;
 ```
 (Plus helpers the meditation and proofs packages use: `spiritFromDigest`, `decodeTraits`, `nameHash`, `signNameClaim`.)
 

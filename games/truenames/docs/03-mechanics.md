@@ -8,14 +8,18 @@ Glossary, formulas and tunables, **as the game runs today**. Exact hashing lives
 | **cell** | A node in the octree: a path of octants (0–7) from the root. |
 | **depth** | Path length. Depth 0 is the root. |
 | **bits(h)** | Difficulty bits of a hash: `P(bits ≥ k) = 2^-k`. See spec. |
-| **target(depth)** | Bits a spirit hash needs at that depth to exist. |
-| **spirit** | A cell where `bits(spiritHash) ≥ target(depth)`. |
-| **magnitude** | `bits(spiritHash) − target(depth)`. How mighty the spirit is. |
-| **traits** | Decoded from a separate trait hash: form, weight, generosity, temper, flavor. |
+| **target(depth)** | Bits a spirit hash needs at that depth to exist: `4·depth − 26`. |
+| **being** (code: *spirit*) | A cell where `bits(spiritHash) ≥ target(depth)`. Beings begin at depth 12. |
+| **might** (code: *magnitude*) | `(depth − 12) + ⌊surplus bits / 4⌋`: wisp 0 … god 4 … primordial 7. |
+| **sign** | What a culture hands down to find a being: its address, in-world. |
+| **facet** | One of a being's ways of acting; a being has might + 1 of them (max 8), each with its own form. |
+| **traits** | Decoded from a separate trait hash: the facets' forms, weight, generosity, temper, flavor. |
 | **aura** | A player's ed25519 public key; also the per-player strain/capacity state. |
-| **name** | A nonce for `(cell, aura)`. |
-| **strength** (on screen: **truths**) | `bits(nameHash)`. How truly the aura knows the spirit. |
-| **learned** | A name with strength ≥ `MIN_NAME_BITS` (12). |
+| **word** (of power) | A nonce for `(cell, aura)`; its hash says how true it is and which facet it touched. |
+| **strength** (on screen: **truths**) | `bits(nameHash)`. How truly the aura knows the facet. |
+| **bar** | The truths a word needs to be grasped: `22 + 4·might`. |
+| **grasped** (code: *learned*) | A word with strength ≥ its being's bar. |
+| **resonance** | Truths beyond the bar. |
 | **effective** | Strength + bonuses − strain, at cast time. |
 | **vessel** (code: *pool*) | The caster's own token bucket of a patron's power, for one journey. |
 | **grant** | Power a cast actually receives from the vessel. |
@@ -24,77 +28,82 @@ Glossary, formulas and tunables, **as the game runs today**. Exact hashing lives
 | **tick** | Authority resolution step (200 ms). |
 | **world** | A game that spends power: the Dark, the Bastion, the Council, Dark Racer. |
 
-## Discovery (scrying)
+## Discovery (scrying): the pyramid
 - Pick a prefix (element / aspect / tradition) and a depth. Enumerate cells under it at that depth. For each, compute the spirit hash: one hash per cell.
 - A cell is the lottery ticket; there is **no nonce** at a single cell during discovery.
-- Hit rate per cell is `2^-target(depth)`, with `target(d) = 4 + ⌊3d/2⌋` and spirits only at `depth ≥ 6`. Each layer has 8× the cells but needs 1.5 more bits, so deeper layers hold more spirits, each costlier to find:
+- Hit rate per cell is `2^-target(depth)` with `target(d) = 4d − 26` (22 bits at depth 12). Each layer has 8× the cells but needs 4 more bits, so each layer down holds **half as many beings**, each **16× harder to find**, and **one class mightier**. Solo, at full speed on a good desktop (~9k divisions/s searched):
 
-  | depth | spirits in the layer | hashes per find |
-  |---|---|---|
-  | 6 | ~32 (the 35 ancients) | ~8k |
-  | 7 | ~90 | ~23k |
-  | 8 | ~256 | ~65k |
-  | 10 | ~2k | ~500k |
-  | 12 | ~16k | ~4M |
+  | depth | class | beings in the universe | to find one |
+  |---|---|---|---|
+  | 12 | wisp | 16,384 | ~8 min |
+  | 13 | spirit | 8,192 | ~2 h |
+  | 14 | power | 4,096 | ~1½ days |
+  | 15 | dominion | 2,048 | ~3 weeks |
+  | 16 | **god** | 1,024 | **~1 year** |
+  | 17 | great god | 512 | ~16 years |
+  | 18 | elder god | 256 | ~250 years |
+  | 19 | primordial | 128 | ~4,000 years |
 
-- Magnitude is geometric and **the same at every depth**: `P(magnitude ≥ m | spirit) = 2^-m`. Today depth sets cost and supply, not might (open question, see [08](08-open-questions.md)).
-- Knowing one spirit does **not** make related ones cheaper. The only advantages are the prefix you choose and your record of cells already scanned. Traits don't depend on the region either.
+- **Outliers**: the surplus bits beyond the target add a class every 4 bits, so 1 in 16 beings is one class above its depth, 1 in 256 two. (Lore: proof that beings *can* move, over eons.)
+- Knowing one being does **not** make related ones cheaper. The only advantages are the prefix you choose and your record of cells already scanned. Traits don't depend on the region.
 
-## Naming (meditation)
-- For a known spirit, grind `nonce` over `nameHash(cell, aura, nonce)`. Keep the best.
-- `strength = bits(nameHash)`. Expected work to reach strength `s` is `2^s` hashes ("each truth requires twice as much meditation to unveil").
-- A name is **learned** once `strength ≥ MIN_NAME_BITS = 12`.
-- Anyone can grind anyone's name (aura keys are public). Only the aura's owner can *submit* it, because claims are signed.
-- The sanctum keeps signed claims and only ever raises a name.
+## Words of power (meditation)
+- For a known being, grind `nonce` over `nameHash(cell, aura, nonce)`. Each word lands on the facet its hash's low bits pick (**facets reveal themselves**; you can't aim). Keep the truest word per facet.
+- `strength = bits(nameHash)`. Expected work to reach strength `s` is `2^s` ("each truth requires twice as much meditation to unveil").
+- A word is **grasped** once `strength ≥ bar = 22 + 4·might`: each class is 16× harder to learn, mirroring 16× harder to find. At ~38k utterances/s (an acolyte's hum), a first word takes: wisp ~2 min, spirit ~30 min, power ~8 h, dominion ~5 days, **god ~3 months**, great god ~4 years, elder god ~60 years, primordial ~900 years. A word for every facet takes several times longer (the last facets keep eluding you).
+- Anyone can grind anyone's words (aura keys are public). Only the aura's owner can *submit* them, because claims are signed. The sanctum keeps signed claims and only ever raises a word.
+
+## Ranks of meditation
+Ranks are 16× apart (one class of being each): Initiate ~2.5k/s, Acolyte ~40k/s, Adept ~600k/s, Magus ~10M/s, Hierophant ~150M/s, Grand Master ~2.5B/s. "An adept grasps a god's word as fast as an acolyte grasps a dominion's." (Design; not shown in the game yet.)
 
 ## The threshold
-Before a journey into a world, each name you carry is proven in zero knowledge against the world's fresh context. The proof reveals the spirit's element, gameplay traits, a magnitude and truths it clears (it may understate, never overstate) and a round tag; it hides the address, depth, nonce and trait hash. Your aura is revealed (it is your character). Names are **locked in** at departure. Details in [06](06-architecture.md#the-threshold-sanctum--round).
+Before a journey into a world, each word you carry is proven in zero knowledge against the world's fresh context. The proof reveals the being's element, exact might, the facet and its form, the being's weight/generosity/temper, the truths the word clears (it may understate, never overstate) and a round tag; it hides the address, depth, nonce and trait hash. Your aura is revealed (it is your character). Words are **locked in** at departure. Details in [06](06-architecture.md#the-threshold-sanctum--round).
 
 ## Vessels
-Each (caster, patron) pair has its own token bucket for the journey, created full:
+Each (caster, being) pair has its own token bucket for the journey, created full, **shared by all of that being's words**:
 ```
-vesselCap(spirit)    = poolBase   * 2^(poolExp * magnitude)     // 100 · 2^(m/2)
-vesselRefill(spirit) = refillBase * 2^(poolExp * magnitude)     // 5 · 2^(m/2) per tick
+vesselCap(being)    = poolBase   * 2^(poolExp * might)     // 100 · 4^might
+vesselRefill(being) = refillBase * 2^(poolExp * might)     // 5 · 4^might per tick
 ```
-Nothing is shared: two players (or a player and a shaman) on the same spirit each have their own vessel. One cast per aura per spirit per tick; a second is refused `duplicate`.
+Nothing is shared between casters: two players (or a player and a shaman) on the same being each have their own vessel. A being answers once a breath: one cast per aura per being per tick, whichever facet; a second is refused `duplicate`.
 
 ## A cast
 ```
 effective = strength + bonus − strain                     // bonus: optional rules, 0 today
-cap       = castCapBase · 2^(capExp · (effective − capRef)) · generosity   // 12 · 2^((eff − 12)/2) · g
+cap       = castCapBase · 2^(capExp · (effective − capRef)) · generosity   // 12 · 2^((eff − 22)/2) · g
 grant     = min(request, cap, vessel level)
 vessel   −= grant
 ```
-- **Cap** handles solo use: a weak name can't drain a god even alone. Each truth of effective raises the cap by √2.
+- **Cap** handles solo use: a weak word can't drain a god even alone. Each truth of effective raises the cap by √2. Since a word's bar rises 4 truths a class, **a fresh word draws ×4 per class** (a fresh god word ~256× a fresh wisp word), and vessels keep pace (×4 per class).
 - `generosity = 0.25 · 2^(generosityIdx · 3/15)`, so 0.25 (stingy) to 2 (generous).
-- A truer name draws more; a strained aura draws less (every point of strain costs a truth).
+- A truer word draws more; a strained aura draws less (every point of strain costs a truth).
 
 ## Strain
 Aura-global, measured in bits:
 ```
-castStrain     = strainScale · spirit.weight · form.weight · familiarity(strength)
-familiarity(s) = max(0.3, 1 − 0.03 · (s − 12))
-spirit.weight  = 0.5 + weightIdx / 6                        // 0.5 .. 3
+castStrain     = strainScale · being.weight · form.weight · familiarity(resonance)
+familiarity(r) = max(0.3, 1 − 0.03 · r)                      // r = truths beyond the bar
+being.weight   = 0.5 + weightIdx / 6                        // 0.5 .. 3
 on cast:   strain += castStrain
 each tick: strain *= 0.9
 ```
-No global cooldowns: spamming collapses output. (A world may add its own; Dark Racer has a 1.1 s per-name cooldown.)
+No global cooldowns: spamming collapses output. (A world may add its own; Dark Racer has a 1.1 s per-word cooldown.) Strain doesn't rise with might: a god's word weighs what a wisp's does at the same resonance (to revisit).
 
 **Backlash**: if `strain > capacity` after a cast, it resolves at its reduced effective strength, then rolls `chance = clamp((strain − capacity) · 0.35, 0.25, 1)`. On a hit: **recoil** of `grant · 0.6` to the caster. (Fizzle and misfire are designed, not built.)
 
 ## Capacity (growth)
 ```
-capacity = capBase + capPerBit · Σ max(0, strength_j − capThreshold)   // 4 + 0.1 · Σ(s − 12)
+capacity = capBase + capPerBit · Σ max(0, strength_j − capThreshold)   // 4 + 0.1 · Σ(s − 22)
 ```
-In a world, capacity counts the names you carried in. The threshold stops farming cheap names.
+In a world, capacity counts the words you carried in. The threshold stops farming cheap words.
 
 ## Growth summary
-- Know **more** names → capacity.
-- Know names **truer** → bigger cap, less strain per cast.
-- Find **mightier** spirits → bigger, faster vessels.
+- Hold **more** words → capacity.
+- Hold words **truer** (resonance) → bigger cap, less strain per cast.
+- Grasp words of **mightier** beings → a far higher cap (×4 a class) and bigger vessels; and a mightier being has more facets to learn.
 
 ## Forms
-Every spirit has one of eight forms. `effect = grant · form.efficiency` in the Dark; other worlds turn grants into their own numbers (below).
+Every facet has one of eight forms; a being never repeats one. `effect = grant · form.efficiency` in the Dark; other worlds turn grants into their own numbers (below).
 
 | id | Form | form.weight | form.efficiency | Dark | Bastion shrine | Council card | Dark Racer |
 |---|---|---|---|---|---|---|---|
@@ -117,17 +126,17 @@ power = max(1, round(scale · log2(1 + grant · form.efficiency)))   // logPower
 About one point per two truths. The Council and Dark Racer use it.
 
 ## Difficulty: descents
-Each world has a ladder of levels (descents, seats, circuits). Exponential name growth is answered by a harder ladder rather than by flattening the formulas:
-- **Dark**: per descent ×1.7 enemy life, ×1.2 damage, +15% count, shamans +2 truths.
+Each world has a ladder of levels (descents, seats, circuits). Exponential word growth is answered by a harder ladder rather than by flattening the formulas. Computer-controlled casters speak **charted beings** (public, in `world.ts`) with synthetic words set relative to each being's bar:
+- **Dark**: per descent ×1.7 enemy life, ×1.2 damage, +15% count; shamans at bar + wave + 2/descent, the Warden at bar + 7 + 2/descent on the mightiest charted being.
 - **Bastion**: per level ×1.7 foe life and +15% count.
-- **Council**: the Warden sits at your deck's median truths − 3 (min 14), +2 per seat, +8 life per seat; card costs count truths above that table.
-- **Dark Racer**: rivals hold 14 truths +2 per circuit and drive 0.84–0.91 of top speed, +0.025 per circuit.
+- **Council**: a card costs 1 + its being's might (+1 for summon or nova). The Warden plays charted beings with your deck's median resonance − 3, +2 per seat, +8 life per seat.
+- **Dark Racer**: rivals hold two charted beings each at their bar +2 per circuit, and drive 0.84–0.91 of top speed, +0.025 per circuit.
 
 ## Optional server rules (off)
 - **Attunement bonus**: +1 effective for spirits under the element you chose at creation.
-- **Mastery bonus**: +1 effective per region depth where you hold ≥ 5 names of ≥ 14 truths under the same prefix. Cap +2.
+- **Mastery bonus**: +1 effective per region depth where you hold ≥ 5 grasped words under the same prefix. Cap +2.
 
 Plain rules on public data. Under "proofs grant, never restrict", these would be conventions a world chooses to honor.
 
 ## Parked
-See [08](08-open-questions.md): deeper spirits mightier, regions with character, personal names, utility spells, name drift, resource exhaustion.
+See [08](08-open-questions.md): regions with character, kinship between words, personal temperament, strain by might, utility spells, name drift, resource exhaustion.

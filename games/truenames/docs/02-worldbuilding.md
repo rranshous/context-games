@@ -3,7 +3,7 @@
 Fantasy, with room to drift toward the esoteric. Everything here maps to a mechanic; the table at the bottom is the canonical mapping. Lore marked *(planned)* isn't in the game yet.
 
 ## The astral
-Reality is divided eightfold, then eightfold again, forever. Scholars call it **the eightfold division**. Each division is a **cell**. The shallow divisions are vast and old and long since charted. The deep divisions are uncountable, and most of them are empty.
+Reality is divided eightfold, then eightfold again, forever. Scholars call it **the eightfold division**. Each division is a **cell**. The shallow divisions are vast and empty, regions rather than dwellings. Beings begin far below, at the twelfth division, and the deeper you look the fewer and mightier they are.
 
 Nesting gives the astral its geography:
 
@@ -12,38 +12,57 @@ Nesting gives the astral its geography:
 | 1 | **Element** (8) | fire, frost, storm, stone, tide, shadow, light, rot |
 | 2 | **Aspect** (8 per element) | fire/storm = lightning, fire/stone = magma, fire/shadow = hellfire |
 | 3–4 | **Tradition / pantheon** | the Ashen Choir, the Forge-Mothers |
-| 5+ | **Lineage / locale** | a family of spirits, a local quirk, a shared motif |
-| 6 and deeper | **Individual spirits** | rolled per cell |
+| 5–11 | **Lineage / locale**, and empty reaches | a family of beings, a local quirk |
+| 12 and deeper | **Individual beings** | rolled per cell |
 
-The 35 spirits at depth 6, the shallowest a spirit can dwell, are **the ancients**: charted since before the first scholar, known to everyone. Deeper layers hold vastly more spirits, each harder to find.
+Scholars write addresses like `fire/storm/choir/…`. Seeking "a lightning being of the Ashen Choir" means scrying beneath that prefix.
 
-Scholars write addresses like `fire/storm/choir/…`. Seeking "a lightning spirit of the Ashen Choir" means scrying beneath that prefix.
+## Beings: a pyramid of might
+The astral is full of **forces, not persons**. They are real: anyone with the sight (the third eye) can see them, and anyone patient enough can learn their words. But no one knows what they *are*. Whether they have wills, know our names, or love anything, people answer only with stories built from the little they observe. Perhaps they are not gods at all but pure forces, and the stories are ours.
 
-## Spirits and gods
-A spirit is something that *has a name* at a cell. Most cells do not. A spirit's **magnitude** is how mighty it is, from wisp through spirit, power, dominion and god up to primordial; each step is half as common. Each spirit also has a **temper**: its form of power (a ring of fire, a bolt, a ward), how heavily it weighs on the one who calls it (strain), and how generous or stingy it is.
+What *is* always true of a being:
+1. **It dwells in one place.** **Its place is its nature**: its element, aspect and tradition come from where it dwells.
+2. **It exists whether or not anyone knows it.** Searching reveals; it doesn't create.
+3. **Its might is its depth.** The shallowest layer is thick with **wisps**; each layer down holds half as many beings, each a class mightier: wisp, spirit, power, dominion, **god**, great god, elder god, **primordial**. A rare few dwell above their kind (about 1 in 16 a class higher). The lore reads this as proof that beings *can* move, over eons far longer than any life, so that to us they are still.
+4. **Its might and character are fixed.** How much it gives, how heavily it weighs on whoever calls it, how violently it answers overreach: measurable properties of a force, the same for everyone. (The old word "temper" survives as the scholars' name for the last.)
+5. **It acts only through words of power.** It has one **facet** per class of might, plus one: a wisp one, a god five, a primordial eight. Each facet is one way it acts in the world (a bolt, a ward, a step through the astral), and no being repeats one.
+6. **It belongs to no one.** Any number of people can hold its words. It can't be owned, claimed or used up.
+7. **It answers each speaker through that speaker's own word.**
+8. **Its power always costs the speaker.**
 
-When you set out on a journey, each spirit whose name you carry becomes your **patron** and lends you a **vessel** of its power: mightier spirits lend larger vessels that refill faster. The vessel is yours alone for that journey; no one else drinks from it.
+"Wisp" and "god" are human words for how vast a force seems. A being's name and epithets are what a culture calls it.
 
-*(Earlier design: one shared **well** per spirit that every caller drank from, so a crowded god gave each a trickle. Dropped when the game split into sanctum and worlds; see [07](07-roadmap.md).)*
+How rare is a god? You come of age and set out to search the astral. Your first afternoon you'll touch a wisp. Within a few evenings, a spirit that answers back. A power takes a week or two of patient searching. A dominion is a season's work, and people will hear about it. **A god is the work of a lifetime**: most adventurers never find one, and those who do are remembered. Great gods are found by orders over generations; elder gods appear in the histories once or twice; primordials may be only rumors. There are only about a thousand gods in all the astral.
 
-## Names
-To call a spirit you must know its name *as spoken by you*. A name is never the same in two mouths. Learning a name is **meditation**: long, patient work, and the longer it continues the **truer** the name becomes. A truer name draws more from its vessel and strains you less.
+When you set out on a journey, each being whose words you carry becomes your **patron** and lends you a **vessel** of its power, shared by all its words: mightier beings lend far larger vessels. The vessel is yours alone for that journey.
 
-- **Names can't be stolen.** Mine is useless to you.
-- **Names can be taught.** A master can meditate on *your* behalf and hand you a name truer than you could find alone. Name-crafting is a profession.
-- **Names are kept.** Leave your order, keep your words.
-- **Knowing is silent; speaking is weighed, not heard.** At the threshold your names are *proven*: a world learns what each name can do and how true it is, never where its spirit dwells or which spirit it is.
+*(Earlier designs: one shared **well** per spirit that every caller drank from; and a v1 astral where spirits began at the sixth division and were no mightier deeper down. Both replaced; see the journal.)*
+
+## Signs
+What a church or a teacher hands down is a being's **sign**: the mark your third eye follows to find it (cultures have their own words; "sign" is the default). A sign is shareable and checkable by anyone. To know a sign is to be *able* to meditate on that being, nothing more.
+
+## Words of power
+To call a being you must hold a **word of power** *as spoken by you*. A word is never the same in two mouths. Finding words is **meditation**: you open yourself to a being, and each word that comes touches one of its facets, as the being wills (**facets reveal themselves**; you can't aim). Over a lifetime you find truer words for the facets you hold. A word is **grasped** once it reaches the being's **bar**, and mightier beings set higher bars: a wisp's first word comes in minutes, a god's in a season of devotion, a primordial's in centuries.
+
+- **A word belongs to one being, one facet and one speaker.** Mine is useless to you.
+- **Meditation never loses ground.**
+- **Words can be taught, never taken.** Someone can meditate on *your* behalf and hand you a truer word than you could find alone; only you can speak it.
+- **Words are kept.** Leave your order, keep your words.
+- **Knowing is silent; speaking is weighed, not heard.** At the threshold your words are *proven*: a world learns what each word can do and how true it is, never where its being dwells or which being it is.
+
+## Ways in: vanilla and the church
+Most people start **vanilla**: they search the shallows, find wisps, and grasp their first words in minutes. Others arrive through a **church**: at their coming of age the priests show them the sign of the church's god, and they begin a long vigil for its first word, like joining a new game and walking straight into your guild's hall. Ranks in a church are, in the end, meditation: Initiate, Acolyte, Adept, Magus, Hierophant, Grand Master, each sixteen times the last.
 
 ## Aura
-Your **aura** is your identity: what spirits recognize you by, and the thing every name is bound to (in the implementation, your public key). Casting strains the aura. Push it and your voice goes hoarse: each spell comes weaker than the last. Push further and the spirit's temper answers (fizzle, misfire, or worse). Every true name you hold deepens your aura, letting it bear more.
+Your **aura** is your identity: what you are known by, and the thing every word is bound to (in the implementation, your public key). Casting strains the aura. Push it and your voice goes hoarse: each spell comes weaker than the last. Push further and beings answer with backlash. Every true word you hold deepens your aura, letting it bear more.
 
-## The commons: the hearth-god
-Every apprentice learns the name of **the hearth-god**, Vreiziobain: a dominion of cinderfrost, the mightiest of the ancients, stingy, who answers as a lance. Her dwelling has been known forever. Attuning to her is every apprentice's first meditation, and deepening your name to her stays worthwhile for life.
+## The commons: the hearth
+Every apprentice's first word is spoken to **the hearth**: a wisp whose sign every household keeps, charted since before the first scholar. Its word comes in a couple of minutes, and deepening it stays worthwhile for life. Beyond it, the **charted** beings are the public commons: their signs are known to all, and the Wardens, shamans and rival racers of the worlds speak them.
 
-(Implementation: she is a real cell, `011010`, found by scanning the ancient layer, not a hardcoded exception.)
+(Implementation: real cells found by scanning the depth-12 layer, in `packages/dungeon/src/world.ts`.)
 
 ## The threshold and the worlds
-Between the sanctum and any world lies **the threshold**. There your names are spoken and weighed: proven true without revealing where their spirits dwell. Beyond it are **worlds**, each its own game, each reading the same names its own way: the **Dark** (an arena of waves and a Warden), the **Bastion** (shrines along a road to your hearth), the **Council** (a duel of names played as cards) and **Dark Racer** (a race where your names are what your car can do). In every world the same truths hold: speaking strains you, vessels run dry, and past your capacity spirits answer with backlash.
+Between the sanctum and any world lies **the threshold**. There your words are spoken and weighed: proven true without revealing where their beings dwell. Beyond it are **worlds**, each its own game, each reading the same words its own way: the **Dark** (an arena of waves and a Warden), the **Bastion** (shrines along a road to your hearth), the **Council** (a duel of words played as cards) and **Dark Racer** (a race where your words are what your car can do). In every world the same truths hold: speaking strains you, vessels run dry, and past your capacity beings answer with backlash.
 
 ## The Open Choir *(planned)*
 A public order that charts the astral for everyone. They sweep the divisions in a published order and publish every spirit they find, on schedule, with no hoarding. They find and teach; they never evoke.
@@ -54,8 +73,8 @@ Every attuned aura hums in the Choir's hymn: every client tithes a sliver of idl
 
 ## Orders and guilds *(planned)*
 There are no guild powers. Orders are strong because of what their members share:
-- **Knowledge**: spirit locations, and maps of which divisions are already known to be empty.
-- **Labor**: members meditate on each other's names.
+- **Knowledge**: signs, and maps of which divisions are already known to be empty.
+- **Labor**: members meditate on each other's words.
 - *Presence* (an order dominating a goddess's well) went away with shared wells; nothing replaces it yet.
 
 ## Mapping table
@@ -64,17 +83,22 @@ There are no guild powers. Orders are strong because of what their members share
 | Eightfold division | Octree cells |
 | Depth of a division | Octree depth |
 | Element / aspect / tradition | Address prefix at depth 1 / 2 / 3–4 |
-| A spirit exists | Spirit hash clears the depth target |
-| Magnitude | Bits the spirit hash clears beyond the target |
-| Temper (form, weight, generosity) | Trait hash bits |
+| A sign | A being's cell (address), shareable and checkable |
+| A being exists | Spirit hash clears the depth target (`4·depth − 26` bits, depth ≥ 12) |
+| Might (wisp … primordial) | `depth − 12`, plus one class per 4 surplus bits |
+| Facets and their forms | might + 1 facets; forms from the trait hash, never repeated |
+| Weight, generosity, temper | Trait hash bits |
 | Aura | ed25519 public key |
-| A name | Nonce whose name hash is bound to (cell, aura) |
-| Truer name (more **truths**) | More difficulty bits in the name hash |
+| A word of power | Nonce whose name hash is bound to (cell, aura) |
+| The facet a word touched | The name hash's low 16 bits, mod the facet count |
+| Truer word (more **truths**) | More difficulty bits in the name hash |
+| Grasped / the bar | Truths ≥ `22 + 4·might` |
+| Resonance | Truths beyond the bar |
 | Meditation | Nonce grinding in a worker |
-| Teaching a name | Grinding someone else's (cell, aura) and giving them the nonce |
-| A patron's vessel | Per-caster token bucket, sized by magnitude, per journey |
-| The threshold | Zero-knowledge proof of each name against a world's fresh context |
+| Teaching a word | Grinding someone else's (cell, aura) and giving them the nonce |
+| A patron's vessel | Per-caster token bucket, sized by might, shared by the being's words, per journey |
+| The threshold | Zero-knowledge proof of each word against a world's fresh context |
 | A world | A game hosted by the dungeon process |
 | Hoarse voice | Aura strain subtracting bits |
-| Deeper aura | Capacity from sum of name strengths |
+| Deeper aura | Capacity from the sum of words' truths beyond a wisp's bar |
 | The Open Choir | Public deterministic sweep + client tithe |
