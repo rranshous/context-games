@@ -1,0 +1,50 @@
+[
+ {
+  "cell": "036207712712",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 0,
+  "aspect": 3,
+  "tradition": 50,
+  "traits": {
+   "form": 6,
+   "formStep": 3,
+   "weightIdx": 8,
+   "generosityIdx": 14,
+   "temperIdx": 4,
+   "flavor": "200830227430193469685775723330899200824597109207900698469961349111545903"
+  }
+ },
+ {
+  "cell": "036221100226",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 0,
+  "aspect": 3,
+  "tradition": 50,
+  "traits": {
+   "form": 5,
+   "formStep": 7,
+   "weightIdx": 4,
+   "generosityIdx": 11,
+   "temperIdx": 3,
+   "flavor": "52428290206680493407960417986673779678538888456668326556999961189943643"
+  }
+ },
+ {
+  "cell": "036244330470",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 0,
+  "aspect": 3,
+  "tradition": 50,
+  "traits": {
+   "form": 2,
+   "formStep": 5,
+   "weightIdx": 7,
+   "generosityIdx": 5,
+   "temperIdx": 2,
+   "flavor": "219350216750026345504075523963844666770094048297739086715240411064366144"
+  }
+ }
+]

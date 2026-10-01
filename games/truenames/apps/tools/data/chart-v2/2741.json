@@ -1,0 +1,66 @@
+[
+ {
+  "cell": "274107616230",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 2,
+  "aspect": 7,
+  "tradition": 33,
+  "traits": {
+   "form": 6,
+   "formStep": 7,
+   "weightIdx": 10,
+   "generosityIdx": 12,
+   "temperIdx": 6,
+   "flavor": "180252302665086525614160795084493762602611038734349041418244264963101206"
+  }
+ },
+ {
+  "cell": "274112260672",
+  "depth": 12,
+  "magnitude": 1,
+  "element": 2,
+  "aspect": 7,
+  "tradition": 33,
+  "traits": {
+   "form": 4,
+   "formStep": 7,
+   "weightIdx": 13,
+   "generosityIdx": 2,
+   "temperIdx": 0,
+   "flavor": "194399803662319123206003547886849638277360562776856642009460974947136121"
+  }
+ },
+ {
+  "cell": "274141352402",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 2,
+  "aspect": 7,
+  "tradition": 33,
+  "traits": {
+   "form": 5,
+   "formStep": 7,
+   "weightIdx": 8,
+   "generosityIdx": 9,
+   "temperIdx": 7,
+   "flavor": "287727599613663117381489930166076489581997509052908888573051534090489136"
+  }
+ },
+ {
+  "cell": "274152011365",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 2,
+  "aspect": 7,
+  "tradition": 33,
+  "traits": {
+   "form": 7,
+   "formStep": 5,
+   "weightIdx": 9,
+   "generosityIdx": 15,
+   "temperIdx": 0,
+   "flavor": "193838898664362017574408095532767662322341973904781819489104122770203997"
+  }
+ }
+]

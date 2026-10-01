@@ -1,0 +1,34 @@
+[
+ {
+  "cell": "663312655466",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 6,
+  "aspect": 6,
+  "tradition": 27,
+  "traits": {
+   "form": 1,
+   "formStep": 1,
+   "weightIdx": 5,
+   "generosityIdx": 12,
+   "temperIdx": 5,
+   "flavor": "255908513247470930839638501032831365484499553883536944972954347717042132"
+  }
+ },
+ {
+  "cell": "663367473422",
+  "depth": 12,
+  "magnitude": 0,
+  "element": 6,
+  "aspect": 6,
+  "tradition": 27,
+  "traits": {
+   "form": 2,
+   "formStep": 7,
+   "weightIdx": 3,
+   "generosityIdx": 13,
+   "temperIdx": 4,
+   "flavor": "49322765484019866712465300009783654789675358485889977333754937852819478"
+  }
+ }
+]
