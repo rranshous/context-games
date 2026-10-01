@@ -51,7 +51,7 @@ describe('DungeonSim', () => {
     const events: string[] = [];
     let kills = 0;
     let seq = 0;
-    for (let i = 0; i < 60 * 40 && !sim.over; i++) {
+    for (let i = 0; i < 60 * 90 && !sim.over; i++) {
       sim.step(1 / 60);
       const snap = sim.snapshot();
       for (const e of snap.events) events.push(e.e);
@@ -59,23 +59,23 @@ describe('DungeonSim', () => {
       const me = snap.players[0]!;
       const target = snap.enemies[0];
       if (target) {
-        // kite away and lance every ~0.6 s
+        // kite away and lance every ~1.2 s (faster outruns a fresh aura's capacity: backlash)
         sim.commands(AURA, [{ seq: ++seq, mx: Math.sign(me.x - target.x), my: Math.sign(me.y - target.y), ax: target.x, ay: target.y, dt: 1 / 60 }]);
-        if (i % 36 === 0) sim.cast(AURA, 0, target.x, target.y);
+        if (i % 72 === 0) sim.cast(AURA, 0, target.x, target.y);
       } else sim.commands(AURA, [{ seq: ++seq, mx: 0, my: 0, ax: me.x + 50, ay: me.y, dt: 1 / 60 }]);
     }
     expect(events).toContain('wave');
     expect(events).toContain('cast');
-    expect(events).toContain('beam'); // the hearth-god is a lance
+    expect(events).toContain('beam'); // the hearth is a lance
     expect(kills).toBeGreaterThan(0);
     expect(sim.snapshot().wave).toBeGreaterThanOrEqual(1);
   });
 
-  it('refuses the same patron twice in one bundle', async () => {
+  it('refuses the same word twice in one bundle', async () => {
     const sim = new DungeonSim({ level: 0, context: CONTEXT, verifier, rng: rng() });
     const r = await sim.admit(AURA, [{ slot: 0, claim }, { slot: 1, claim }]);
     expect(r.slots.filter(Boolean).length).toBe(1);
-    expect(r.refused).toEqual(['the same patron twice']);
+    expect(r.refused).toEqual(['the same word twice']);
   });
 
   it('ends lost when the only player leaves', async () => {

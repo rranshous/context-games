@@ -4,7 +4,7 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import * as U from '@truenames/universe';
-import { CHARTED, HEARTH_GOD } from '../../../packages/dungeon/src/world.ts';
+import { HEARTH_GOD } from '../../../packages/dungeon/src/world.ts';
 import { parallelGrind } from './par.ts';
 
 export const TEST_SECRET = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
@@ -20,7 +20,8 @@ export async function vectors(args: string[]) {
   const P = U.P;
   const bitsIn = [0n, 1n, P - 1n, P - 2n, P >> 1n, (P >> 1n) - 1n, P >> 2n, P >> 10n, P >> 100n, P >> 200n, P >> 253n, 12345n];
   const cells = ['', '0', '07', '012345670123', '0123456701234567012345670123456701234567'];
-  const hits = [HEARTH_GOD, '012341174703', ...CHARTED.filter((c) => c !== HEARTH_GOD).slice(0, 10)];
+  // fixed cells (not the CHARTED list, which may grow): the hearth, the spirit-class outlier, and wisps of four elements
+  const hits = [HEARTH_GOD, '012341174703', '274112260672', '036207712712', '150513103736', '274107616230', '445762731153', '445716773537', '036221100226', '150543077073'];
   const misses = ['000000000000', '011010', '777777777777', '0123411747031', '01234117470', '036207712713', '7', '01101', '777'];
   const pub = ed25519.getPublicKey(TEST_SECRET);
   const aura = U.auraField(pub);

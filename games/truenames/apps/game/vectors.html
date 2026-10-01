@@ -10,7 +10,7 @@
     const { fails, ms } = e.data;
     const out = document.getElementById('out');
     out.className = fails.length ? 'fail' : 'pass';
-    out.textContent = fails.length ? `FAIL (${fails.length})\n` + fails.join('\n') : `PASS: all spec v1 vectors match in a Web Worker (${ms.toFixed(0)} ms)`;
+    out.textContent = fails.length ? `FAIL (${fails.length})\n` + fails.join('\n') : `PASS: all spec v2 vectors match in a Web Worker (${ms.toFixed(0)} ms)`;
     document.title = fails.length ? 'FAIL' : 'PASS';
   };
 </script></body></html>
