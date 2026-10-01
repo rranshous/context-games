@@ -40,6 +40,7 @@ export type ClientMsg =
   | { t: 'play'; card: number; target?: CouncilTarget } // council: play a card from your hand (by card id)
   | { t: 'pass' } // council: end your turn
   | { t: 'drive'; cmds: DriveCmd[] } // racer: numbered throttle/steer commands, one per client tick
+  | { t: 'go' } // racer: start now, without waiting out the lobby
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
 
@@ -262,6 +263,7 @@ export interface RacerCar {
   place: number; // 1-based race position
   finished: number | null; // finishing place, once over the line
   element: number;
+  player: string | null; // a player's public aura, or null for a rival
 }
 
 export interface RacerSnapshot {
@@ -270,6 +272,8 @@ export interface RacerSnapshot {
   paused: boolean;
   countdown: number;
   laps: number;
+  lobby: number | null; // seconds until the start while the grid gathers, else null
+  players: number; // players on the grid
   ack: number; // your last drive command applied
   strain: number;
   capacity: number;

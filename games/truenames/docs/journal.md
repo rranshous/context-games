@@ -424,3 +424,17 @@ Robby: "i don't really play these type of card based games, but this one doesn't
 - **Verified in the browser**: real keyboard driving via Playwright; prediction corrections peak under 9 units. A page-side key-event bot with four 23–29-truth names **won the Ember Circuit by ~10 s**, which opened the Tidal Loop, so strong names dominate the first circuit as intended. The first circuit is where to feel the controls.
 - **Known rough edges**: rival name labels overlap when the pack bunches; the car sprite is small at speed zoom; there's no engine sound yet. Balance for deeper circuits is untested by hand.
 - Tests (`racer.test.ts`, real proofs, 5): every track can be lapped by the autopilot; the countdown holds everyone, then the race runs and your commands drive you; a cast goes through the authority, heats you (`top` < 1), makes a beam, and respects the cooldown; a whole race ends with rivals casting and finishing; a bot with one 12-truth name can make the podium (seeded).
+
+### Shared races: the first real multiplayer
+Robby: "how do i race against a second player? I joined from a private browser and basically hit go at the same time but they didn't join the same server". That was expected: every connection opened its own round. Chose "the 15s thing" (auto-join with a lobby) over race codes.
+- **Server**: racer connections go through a race registry instead of a per-connection sim. `open` joins a gathering race at the same circuit, or makes one, and issues **that race's context**. This is the key bit: everyone's zero-knowledge proofs bind to one shared context. Nothing about admission changed; it just happens once per player against the same authority.
+- **The lobby**: it opens when the first racer reaches the grid. The start is held 15 s, longer while someone who opened is still proving (proofs take 7–15 s), but never past 35 s. Any racer can press **Enter** to go now. Racers still proving when it leaves get "the race left without you". A shared race never pauses.
+- **Sim**:
+  - `RacerSim` now builds six AI cars up front, and each admitted player takes the rearmost AI car. Your car's id is in the welcome, and players start at the back.
+  - Hits, results and ends are per player (`viewFor`, `doneFor`, `result(aura)`). Snapshot cars carry `player` (the public aura), and the client labels other players in gold ("racer 1e9aed").
+  - Leaving or disconnecting hands the car to the autopilot. Finishing does too (a lap of honour), and the client stops predicting once you're over the line.
+- **Verified**:
+  - a new sim test with two real proofs (two auras, separate cars and acks, a second join after the start refused, leave → autopilot, per-player results)
+  - a real two-player race: the new `racer-bot` (own aura, real proof, real websocket) and the browser landed on one grid, the lobby counted 2, and the browser won while the bot came 2nd, each with its own end screen
+- **Note on the first try**: a scratch bot from an earlier timed run was still connected and made a race of its own, so the first attempt showed two separate races. With timestamps added to the server's race logs, the clean run joined correctly.
+- Fix: "5th of 5" counted rivals from the welcome; the place now reads out of all cars on the grid.

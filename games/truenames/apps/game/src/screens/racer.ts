@@ -76,6 +76,8 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   let over: RoundResult | null = null;
   let paused = false;
   let countdown: number = R.countdown;
+  let lobby: number | null = null; // seconds until the start while the grid gathers
+  let onGrid = 1;
   const hud = { strain: 0, capacity: 1, lap: -1, place: 6, finished: null as number | null, shield: 0 };
 
   // ---------- prediction (your car) ----------
@@ -128,6 +130,10 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     while (snaps.length > 2 && snaps[1]!.time < renderTime() - 0.2) snaps.shift();
     if (snaps.length > 60) snaps.shift();
     countdown = s.countdown;
+    if (lobby !== null && s.lobby === null) banner = { text: circuit.toUpperCase(), sub: onGrid > 1 ? `${onGrid} racers on the grid. ${laps} laps; the top ${R.podium} make the podium.` : `${laps} laps against five rivals. Finish in the top ${R.podium}.`, t: 3 };
+    lobby = s.lobby;
+    onGrid = s.players;
+    for (const c of s.cars) if (c.player && c.id !== mine && !rivalName.has(c.id)) rivalName.set(c.id, `racer ${c.player.slice(0, 6)}`);
     Object.assign(hud, { strain: s.strain, capacity: s.capacity });
     s.slots.forEach((v, i) => { const sl = slots[i]; if (sl && v) { sl.lastBits = v.lastBits; sl.vessel = v.vessel; sl.cap = v.cap; sl.ready = v.ready; } });
     const me = s.cars.find((c) => c.id === mine);
@@ -141,6 +147,13 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   /** Start from where the dungeon says you are and replay what it hasn't applied yet. */
   function reconcile(me: RacerCar, ack: number) {
     pending = pending.filter((c) => c.seq > ack);
+    if (me.finished !== null) { // over the line: the autopilot drives your lap of honour; just follow it
+      pending = [];
+      Object.assign(car, { x: me.x, y: me.y, vx: me.vx, vy: me.vy, a: me.a, spin: me.spin, slide: me.slide, slow: me.slow, top: me.top });
+      offset.x = offset.y = 0;
+      predInit = true;
+      return;
+    }
     const corrected: CarState = { x: me.x, y: me.y, vx: me.vx, vy: me.vy, a: me.a, spin: me.spin, slide: me.slide, slow: me.slow, top: me.top, hint: car.hint };
     for (const c of pending) driveCar(corrected, locked() ? { throttle: 0, steer: 0 } : c, track, c.dt);
     if (predInit) {
@@ -150,7 +163,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     predInit = true;
     Object.assign(car, corrected);
   }
-  const locked = () => countdown > 0 || hud.finished !== null;
+  const locked = () => lobby !== null || countdown > 0 || hud.finished !== null;
 
   function clientTick() {
     if (paused || over || !predInit) return;
@@ -175,7 +188,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   let parts: Particle[] = [];
   let floaters: Floater[] = [];
   let shake = 0;
-  let banner: { text: string; sub: string; t: number } | null = { text: circuit.toUpperCase(), sub: `${laps} laps against five rivals. Finish in the top ${R.podium}.`, t: 3 };
+  let banner: { text: string; sub: string; t: number } | null = null;
   let lastCount = 4;
   const cam = { x: 0, y: 0, z: 1 };
 
@@ -253,6 +266,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     const k = e.key.toLowerCase();
     if (e.type === 'keydown') {
       if (k === 'escape') { togglePause(); return; }
+      if (k === 'enter' && lobby !== null) { link.go(); return; }
       if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
       const i = CONTROLS.findIndex((c) => c.keys.includes(k));
       if (!e.repeat && i >= 0) cast(i);
@@ -279,7 +293,8 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     drawn.x = car.x + offset.x; drawn.y = car.y + offset.y;
     interpolate();
     if (paused) return;
-    if (countdown > 0) {
+    if (lobby !== null) lobby = Math.max(0, lobby - dt);
+    else if (countdown > 0) {
       countdown = Math.max(0, countdown - dt);
       const c = Math.ceil(countdown);
       if (c < lastCount && c > 0) { lastCount = c; sfx.sfxHit(); }
@@ -421,7 +436,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       if (Math.abs(o.x - cam.x) > vw || Math.abs(o.y - cam.y) > vh) continue;
       drawCar(ctx, o.x, o.y, o.a, colorOf(o.element), false, o, t);
       ctx.font = '11px EB Garamond, serif';
-      ctx.fillStyle = 'rgba(233,220,184,0.7)';
+      ctx.fillStyle = o.player ? 'rgba(231,194,107,0.95)' : 'rgba(233,220,184,0.7)';
       ctx.fillText(`${rivalName.get(o.id) ?? ''} · ${ordinal(o.place)}`, o.x, o.y - 26);
     }
     if (predInit) drawCar(ctx, drawn.x, drawn.y, car.a, myColor, true, { shield: hud.shield, slow: car.slow, spin: car.spin }, t);
@@ -504,7 +519,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     const pw = ctx.measureText(ordinal(place)).width;
     ctx.font = '13px EB Garamond, serif';
     ctx.fillStyle = '#9c8f74';
-    ctx.fillText(`of ${1 + welcome.rivals.length}`, 32 + pw, 54);
+    ctx.fillText(`of ${snap?.cars.length ?? 1 + welcome.rivals.length}`, 32 + pw, 54);
     ctx.fillStyle = '#e9dcb8';
     ctx.font = '12px JetBrains Mono, monospace';
     ctx.fillText(hud.finished !== null ? 'finished' : `lap ${Math.max(1, Math.min(laps, hud.lap + 1))} / ${laps}`, 26, 72);
@@ -594,7 +609,19 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     }
 
     ctx.textAlign = 'center';
-    if (countdown > 0 && !over) {
+    if (lobby !== null && !over) {
+      ctx.fillStyle = 'rgba(10,9,17,0.8)';
+      ctx.fillRect(w / 2 - 260, h * 0.3 - 54, 520, 118);
+      ctx.fillStyle = '#e7c26b';
+      ctx.font = '26px Cinzel, serif';
+      ctx.fillText('AT THE LINE', w / 2, h * 0.3 - 18);
+      ctx.fillStyle = '#e9dcb8';
+      ctx.font = 'italic 17px EB Garamond, serif';
+      ctx.fillText(`${onGrid} ${onGrid === 1 ? 'racer' : 'racers'} on the grid · rivals fill the rest`, w / 2, h * 0.3 + 10);
+      ctx.fillStyle = '#9c8f74';
+      ctx.font = '14px EB Garamond, serif';
+      ctx.fillText(`the race starts in ${Math.ceil(lobby)}s, when everyone joining has spoken their names · Enter to go now`, w / 2, h * 0.3 + 40);
+    } else if (countdown > 0 && !over) {
       const c = Math.ceil(countdown);
       ctx.fillStyle = '#e7c26b';
       ctx.font = '96px Cinzel, serif';

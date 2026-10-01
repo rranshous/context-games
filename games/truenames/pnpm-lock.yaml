@@ -187,12 +187,18 @@ importers:
 
   apps/dungeon:
     dependencies:
+      '@noble/curves':
+        specifier: ^2.4.0
+        version: 2.4.0
       '@truenames/dungeon':
         specifier: workspace:*
         version: link:../../packages/dungeon
       '@truenames/proofs':
         specifier: workspace:*
         version: link:../../packages/proofs
+      '@truenames/universe':
+        specifier: workspace:*
+        version: link:../../packages/universe
       ws:
         specifier: ^8.22.0
         version: 8.22.0

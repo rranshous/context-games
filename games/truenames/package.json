@@ -11,7 +11,8 @@
     "build": "vite build apps/game",
     "tools": "tsx apps/tools/src/cli.ts",
     "game": "vite apps/game",
-    "dungeon": "tsx apps/dungeon/src/server.ts"
+    "dungeon": "tsx apps/dungeon/src/server.ts",
+    "racer-bot": "tsx apps/dungeon/src/racer-bot.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

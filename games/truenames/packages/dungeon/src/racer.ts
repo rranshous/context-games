@@ -4,6 +4,9 @@
 //  - vessels refill as you drive: a generous patron can be called again sooner
 //  - power is what the name actually drew, on a gentle (logarithmic) curve, as in the Council
 // Rivals are AI cars with auras of their own, racing under the names of public ancients.
+// Several players can share a race: each takes the place of a rival on the grid before the start
+// (the host holds the start for a short lobby), and each sees their own view. A player who leaves
+// is handed to the autopilot.
 // Pure: no DOM, no timers. The host feeds messages and steps; snapshots come out.
 import { LocalAuthority, spiritStats, TUNABLES, type ProofVerifier } from '@truenames/authority';
 import type { CastResult } from '@truenames/protocol';
@@ -37,6 +40,7 @@ interface Car extends CarState {
   ack: number;
   budget: number;
   immune: number; // just hit: a moment's grace so one blast doesn't spin you twice
+  player: boolean; // a player's car (even if since handed to the autopilot)
 }
 
 interface Bolt { id: number; owner: number; x: number; y: number; vx: number; vy: number; target: number; power: number; life: number; element: number }
@@ -71,8 +75,12 @@ export class RacerSim {
   private countdown: number = R.countdown;
   private finishers = 0;
   private firstFinish: number | null = null;
-  private hits = 0;
-  private you: string | null = null;
+  /** human players: aura → car id */
+  private players = new Map<string, number>();
+  private hits = new Map<number, number>();
+  private done = new Map<number, 'won' | 'lost'>();
+  /** seconds until the host starts the race (shown on the grid), or null once racing */
+  lobby: number | null = null;
   paused = false;
   started = false;
   over: null | 'won' | 'lost' = null;
@@ -82,15 +90,27 @@ export class RacerSim {
     this.random = opts.rng ?? Math.random;
     this.auth = new LocalAuthority({ proofs: opts.verifier, context: opts.context, seed: (this.random() * 2 ** 31) | 0 });
     this.track = buildTrack(R.tracks[opts.level % R.tracks.length]!);
+    this.grid();
   }
+
+  /** Car places on the grid: one per car, rivals until players take them. */
+  get seats() { return R.rivals + 1; }
+  get playerCount() { return this.players.size; }
+  get full() { return this.players.size >= this.seats; }
+  hasPlayer(aura: string) { return this.players.has(aura); }
 
   // ---------- host interface (shared with the other worlds) ----------
 
+  /** Admit a player: their proven names take over the rearmost rival's car. Only before the start. */
   async admit(aura: string, bundle: { slot: number; claim: ZkNameClaim }[]): Promise<{ slots: (SlotInfo | null)[]; refused: string[] }> {
+    if (this.started) throw new Error('the race has already started');
+    if (this.players.has(aura)) throw new Error('that aura is already on the grid');
+    if (this.full) throw new Error('the grid is full');
     const { slots, refused } = await admitNames(this.auth, aura, bundle);
-    this.you = aura;
     const names = slots.map((s) => s && this.nameOf(s));
-    this.grid(aura, names);
+    const car = [...this.cars].reverse().find((c) => c.ai && ![...this.players.values()].includes(c.id))!;
+    Object.assign(car, { aura, ai: false, names: names as Name[], element: names.find(Boolean)?.element ?? 0, skill: 1, top: 1, player: true });
+    this.players.set(aura, car.id);
     return { slots: publicSlots(slots), refused };
   }
 
@@ -98,8 +118,8 @@ export class RacerSim {
     return { spirit: s.spirit, element: s.element, form: s.form, generosity: s.generosity, cd: 0, lastBits: null };
   }
 
-  /** Line up on the grid behind the start: you at the back of the pack, rivals ahead in pairs. */
-  private grid(aura: string, names: (Name | null)[]) {
+  /** Line up on the grid behind the start, in pairs. Players take places from the back. */
+  private grid() {
     const n = this.track.pts.length;
     const place = (k: number) => {
       const i = (n - 3 - Math.floor(k / 2) * 3 + n) % n;
@@ -111,10 +131,10 @@ export class RacerSim {
       const g = place(k);
       return {
         id, aura, ai, element, names, skill, x: g.x, y: g.y, vx: 0, vy: 0, a: g.a, spin: 0, slide: 0, slow: 0, top: skill, hint: g.i,
-        shield: 0, lap: -1, prev: g.i, finished: null, finishT: 0, castT: this.rand(R.rival.castMin, R.rival.castMax) + R.countdown, ack: 0, budget: 0, immune: 0,
+        shield: 0, lap: -1, prev: g.i, finished: null, finishT: 0, castT: this.rand(R.rival.castMin, R.rival.castMax) + R.countdown, ack: 0, budget: 0, immune: 0, player: false,
       };
     };
-    const rivals = R.rivals;
+    const rivals = this.seats;
     const strength = R.rival.strength + B.descent.shamanBits * this.level;
     const pool = [...ANCIENTS];
     for (let r = 0; r < rivals; r++) {
@@ -127,41 +147,58 @@ export class RacerSim {
         own.push({ spirit: cell, element: sp.element, form: sp.traits.form, generosity: spiritStats(sp).generosity, cd: 0, lastBits: null });
       }
       const skill = Math.min(R.rival.skillMax, R.rival.skillBase + R.rival.skillPerLevel * this.level + this.rand(0, R.rival.skillSpread));
-      this.cars.push(mk(r + 1, raura, true, own[0]!.element, own, skill, r));
+      this.cars.push(mk(r, raura, true, own[0]!.element, own, skill, r));
     }
-    this.cars.unshift(mk(0, aura, false, names.find(Boolean)?.element ?? 0, names as Name[], 1, rivals));
   }
 
   welcome(you: string, slots: (SlotInfo | null)[], refused: string[]): ServerMsg {
     const track: RacerTrack = { pts: this.track.pts.map((p) => [p.x, p.y]), halfWidth: this.track.halfWidth, laps: R.laps };
-    const rivals: RacerRival[] = this.cars.filter((c) => c.ai).map((c) => {
+    const rivals: RacerRival[] = this.cars.filter((c) => !c.player).map((c) => {
       const sp = spiritAt(c.names[0]!.spirit)!;
       return { car: c.id, element: sp.element, magnitude: sp.magnitude, traits: wireTraits(sp.traits) };
     });
-    return { t: 'welcome', world: 'racer', you, level: this.level, car: 0, track, rivals, slots, refused };
+    return { t: 'welcome', world: 'racer', you, level: this.level, car: this.players.get(you) ?? -1, track, rivals, slots, refused };
   }
 
-  handle(_you: string, m: ClientMsg) {
-    if (m.t === 'drive' && Array.isArray(m.cmds)) this.drive(m.cmds);
-    else if (m.t === 'cast') this.cast(this.cars[0]!, Math.floor(Number(m.slot)));
-    else if (m.t === 'abandon') this.over = this.over ?? 'lost';
+  handle(you: string, m: ClientMsg) {
+    const id = this.players.get(you);
+    const c = id === undefined ? undefined : this.cars[id];
+    if (!c || this.done.has(c.id)) return;
+    if (m.t === 'drive' && Array.isArray(m.cmds)) this.drive(c, m.cmds);
+    else if (m.t === 'cast') this.cast(c, Math.floor(Number(m.slot)));
+    else if (m.t === 'abandon') this.leave(you);
+  }
+
+  /** A player leaves (abandons or disconnects): their car races on under the autopilot. */
+  leave(you: string) {
+    const id = this.players.get(you);
+    if (id === undefined) return;
+    const c = this.cars[id]!;
+    c.ai = true;
+    if (!this.done.has(id)) this.done.set(id, 'lost');
+    this.checkOver();
+  }
+
+  /** Has this player's race ended (finished, or no longer able to place)? */
+  doneFor(you: string): boolean {
+    const id = this.players.get(you);
+    return id !== undefined && this.done.has(id);
   }
 
   start() {
     this.started = true;
   }
 
-  result(): RoundResultMsg {
-    const me = this.cars[0]!;
-    return { world: 'racer', level: this.level, won: this.over === 'won', wave: me.finished ?? this.placeOf(me), kills: this.hits };
+  result(you: string = [...this.players.keys()][0] ?? ''): RoundResultMsg {
+    const id = this.players.get(you) ?? 0;
+    const me = this.cars[id]!;
+    return { world: 'racer', level: this.level, won: this.done.get(id) === 'won', wave: me.finished ?? this.placeOf(me), kills: this.hits.get(id) ?? 0 };
   }
 
   // ---------- your car ----------
 
   /** Your numbered drive commands, applied in order (acknowledged even when they can't move you). */
-  private drive(cmds: DriveCmd[]) {
-    const c = this.cars[0];
-    if (!c) return;
+  private drive(c: Car, cmds: DriveCmd[]) {
     for (const cmd of cmds) {
       if (!cmd || !(cmd.seq > c.ack) || ![cmd.throttle, cmd.steer, cmd.dt].every(Number.isFinite)) continue;
       c.ack = cmd.seq;
@@ -257,7 +294,7 @@ export class RacerSim {
           if (o.shield > 0) { this.absorb(o); continue; }
           const k = F.ring.push * p * (1 - d / rad * 0.5);
           o.vx += (dx / d) * k; o.vy += (dy / d) * k;
-          if (!c.ai) this.hits++;
+          this.addHit(c.id);
           this.events.push({ e: 'hit', car: o.id, by: c.id, x: o.x, y: o.y, spin: 0, element: el, what: 'shoved' });
         }
         break;
@@ -276,7 +313,7 @@ export class RacerSim {
           if (Math.hypot(o.x - px, o.y - py) > F.lance.width / 2 + R.car.radius) continue;
           if (o.shield > 0) { this.absorb(o); continue; }
           o.slow = Math.max(o.slow, F.lance.slowBase + F.lance.slowPer * p);
-          if (!c.ai) this.hits++;
+          this.addHit(c.id);
           this.events.push({ e: 'slowed', car: o.id, x: o.x, y: o.y });
         }
         break;
@@ -311,6 +348,10 @@ export class RacerSim {
     }
   }
 
+  private addHit(by: number) {
+    this.hits.set(by, (this.hits.get(by) ?? 0) + 1);
+  }
+
   private absorb(o: Car) {
     o.shield = 0;
     this.events.push({ e: 'absorb', car: o.id, x: o.x, y: o.y });
@@ -324,7 +365,7 @@ export class RacerSim {
     const spin = Math.min(R.spin.max, R.spin.base + R.spin.perPower * power);
     o.spin = Math.max(o.spin, spin);
     o.immune = spin + 0.4;
-    if (by === 0 && o.id !== 0) this.hits++;
+    if (by !== o.id) this.addHit(by);
     this.events.push({ e: 'hit', car: o.id, by, x: o.x, y: o.y, spin, element, what });
   }
 
@@ -450,7 +491,7 @@ export class RacerSim {
         if (o.slide <= 0) {
           if (o.shield > 0) { this.absorb(o); continue; }
           this.events.push({ e: 'slid', car: o.id, x: o.x, y: o.y });
-          if (s.owner === 0 && o.id !== 0) this.hits++;
+          if (s.owner !== o.id) this.addHit(s.owner);
         }
         o.slide = Math.max(o.slide, F.hex.slideBase + F.hex.slidePer * s.power);
       }
@@ -494,26 +535,46 @@ export class RacerSim {
     this.cast(c, fits.i);
   }
 
+  /** Each player's race ends on finishing, or when the podium fills without them, or after the grace. */
   private checkOver() {
-    const me = this.cars[0]!;
-    if (me.finished !== null) { this.over = me.finished <= R.podium ? 'won' : 'lost'; return; }
-    // the podium is full without you, or the race closes after the winner
-    if (this.finishers >= R.podium || (this.firstFinish !== null && this.time - this.firstFinish > R.grace)) this.over = 'lost';
+    const closing = this.finishers >= R.podium || (this.firstFinish !== null && this.time - this.firstFinish > R.grace);
+    for (const id of this.players.values()) {
+      if (this.done.has(id)) continue;
+      const c = this.cars[id]!;
+      if (c.finished !== null) { this.done.set(id, c.finished <= R.podium ? 'won' : 'lost'); c.ai = true; } // a lap of honour on the autopilot
+      else if (closing) this.done.set(id, 'lost');
+    }
+    if (this.players.size && [...this.players.values()].every((id) => this.done.has(id))) {
+      this.over = this.done.get([...this.players.values()][0]!) ?? 'lost';
+    }
   }
 
   private rand(a: number, b: number) {
     return a + this.random() * (b - a);
   }
 
-  snapshot(): RacerSnapshot {
-    const events = this.events;
+  /** What happened since the last drain: shared by every player's view of the same moment. */
+  drainEvents(): RacerEvent[] {
+    const e = this.events;
     this.events = [];
-    const me = this.cars[0];
+    return e;
+  }
+
+  /** A single player's snapshot (the first player's, by default). */
+  snapshot(you: string = [...this.players.keys()][0] ?? ''): RacerSnapshot {
+    return this.viewFor(you, this.drainEvents());
+  }
+
+  /** One player's view: the shared race plus their own aura, names and acknowledgements. */
+  viewFor(you: string, events: RacerEvent[]): RacerSnapshot {
+    const id = this.players.get(you);
+    const me = id === undefined ? undefined : this.cars[id];
     const a = me ? this.auth.auraState(me.aura) : { strain: 0, capacity: 1 };
     const order = [...this.cars].sort((x, y) => this.score(y) - this.score(x));
     return {
       t: 'rsnap', time: this.time, paused: this.paused, countdown: Math.max(0, this.countdown), laps: R.laps,
-      ack: me?.ack ?? 0, strain: a.strain, capacity: a.capacity, hits: this.hits,
+      lobby: this.lobby, players: this.players.size,
+      ack: me?.ack ?? 0, strain: a.strain, capacity: a.capacity, hits: id === undefined ? 0 : this.hits.get(id) ?? 0,
       slots: (me?.names ?? []).map((s) => {
         if (!s) return null;
         const v = this.auth.poolInfo(me!.aura, s.spirit);
@@ -521,7 +582,7 @@ export class RacerSim {
       }),
       cars: this.cars.map((c) => ({
         id: c.id, x: c.x, y: c.y, vx: c.vx, vy: c.vy, a: c.a, spin: c.spin, slide: c.slide, slow: c.slow, top: c.top,
-        shield: c.shield, lap: c.lap, place: order.indexOf(c) + 1, finished: c.finished, element: c.element,
+        shield: c.shield, lap: c.lap, place: order.indexOf(c) + 1, finished: c.finished, element: c.element, player: c.player ? c.aura : null,
       })),
       bolts: this.bolts.map((b) => ({ id: b.id, x: b.x, y: b.y, element: b.element })),
       mines: this.mines.map((m) => ({ id: m.id, x: m.x, y: m.y, armed: m.arm <= 0, element: m.element })),

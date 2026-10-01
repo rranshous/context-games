@@ -113,6 +113,7 @@ export class DungeonLink {
   play(card: number, target?: CouncilTarget) { this.send({ t: 'play', card, ...(target ? { target } : {}) }); }
   pass() { this.send({ t: 'pass' }); }
   drive(cmds: DriveCmd[]) { this.send({ t: 'drive', cmds }); }
+  go() { this.send({ t: 'go' }); }
   pause(on: boolean) { this.send({ t: 'pause', on }); }
   abandon() { this.send({ t: 'abandon' }); }
   close() { this.ws.close(); }

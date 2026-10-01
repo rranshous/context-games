@@ -149,6 +149,7 @@ The dungeon hosts several **worlds**. Each admits you by the same proofs and int
   - **Strain is engine heat.** Top speed falls by up to 30% as strain nears capacity, and backlash spins you out. Speaking is the tradeoff: every strike costs pace.
   - **Power** uses the Council's gentle log curve (`1.2 × log2(1 + grant × efficiency)`). Each name has a 1.1 s cooldown, and vessels still limit how much a name draws.
   - **Rivals** are AI cars with their own auras. Each carries two public ancients at 14 truths (+2 per circuit) and drives the shared autopilot, pulling out to overtake. Deeper circuits bring faster rivals and different tracks.
+  - **Shared races.** Racers at the same circuit join one race while it gathers: the lobby opens when the first racer is on the grid and holds the start 15 s, longer while someone is still proving (never past 35 s). Enter starts it early. Each player takes a rival's place, proves their own names against the race's context, and gets their own view and result. Someone who leaves is handed to the autopilot.
   - Finish in the **top 3** to open the next circuit. The race ends when you finish, when the podium fills without you, or 25 s after the winner.
 
 ## The dungeon is its own process
