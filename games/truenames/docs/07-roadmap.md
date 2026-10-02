@@ -62,6 +62,7 @@ Roughly in order; each is independently useful.
 - **LAN discovery**: mDNS; "choirs nearby".
 - **Invites**: a link or code that spins up a choir member on a friend's spare machine.
 - **Churches and guilds**: a church's choir of members' choristers, or a choir of choirs. What pooled hum buys an order, and what it costs a member.
+- **The issue channel stays on while we develop** (Robby, 2026-10-02: "it's a way for you to close your feedback loops and extend your embodiment"): actants and the explorer's shard report through `report_issue` into the host's `actant-issues.jsonl`, and their soma says the game is experimental. Before a release, gate it behind a development setting.
 - **Race telemetry** for actants to reflect on (lap times, spins, words spoken), so the driving-code rewrite loop has something to work with.
 
 ## What must not change
