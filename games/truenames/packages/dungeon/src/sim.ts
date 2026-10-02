@@ -251,7 +251,7 @@ export class DungeonSim {
       players: [...this.players.values()].map((p) => {
         const a = this.auth.auraState(p.id);
         return {
-          id: p.id, ack: p.ack, x: p.x, y: p.y, hp: p.hp, ward: p.ward, invuln: p.invuln > 0, strain: a.strain, capacity: a.capacity, alive: p.alive,
+          id: p.id, ack: p.ack, x: p.x, y: p.y, hp: p.hp, ward: p.ward, invuln: p.invuln > 0, strain: a.strain, capacity: a.capacity, alive: p.alive, element: p.slots.find(Boolean)?.element ?? 0,
           slots: p.slots.map((s) => {
             if (!s) return null;
             const v = this.auth.poolInfo(p.id, s.spirit);

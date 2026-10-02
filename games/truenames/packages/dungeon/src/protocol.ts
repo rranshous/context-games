@@ -87,6 +87,7 @@ export interface SnapPlayer {
   strain: number;
   capacity: number;
   alive: boolean;
+  element: number; // the element of this player's first word (how others see them)
   slots: ({ lastBits: number | null; vessel: number; cap: number } | null)[];
 }
 

@@ -568,8 +568,21 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
       if (p.id === me || !p.alive) continue;
       const s = pos.get('p:' + p.id);
       if (!s) continue;
-      ctx.fillStyle = '#9c8f74';
+      // an ally: their element's glow, a pale body ringed in it, and their life above
+      const c = ELEMENT_COLOR[p.element] ?? '#e9dcb8';
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(s.x, s.y, 4, s.x, s.y, 24);
+      g.addColorStop(0, c + '55'); g.addColorStop(1, '#00000000');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#d8cfb8';
       ctx.beginPath(); ctx.arc(s.x, s.y, B.player.radius, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = c; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(s.x, s.y, B.player.radius + 4, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#2a2233'; ctx.fillRect(s.x - 14, s.y - 26, 28, 3);
+      ctx.fillStyle = '#ff7a6b'; ctx.fillRect(s.x - 14, s.y - 26, (28 * Math.max(0, p.hp)) / B.player.hp, 3);
     }
     const strained = player.strain / player.capacity;
     const glow = ELEMENT_COLOR[journey.element]!;
