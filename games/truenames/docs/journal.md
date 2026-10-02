@@ -733,3 +733,29 @@ Robby: "do more actants testing with the noted models. I see diff shapes for tas
   5. **Tell it who it is** ("You are Ash."): 2.6b, reading "Ash, join our races!", answered as the Keeper welcoming Ash.
   6. **A call refused twice ends the review**: qwen3:8b looped the same refused `deepen` and `set_share` six times over.
 - **qwen3:8b still won't bind** for the goal "keep my strongest words bound for racing": it reads "strongest" as "deepen". 2.6b binds.
+
+### Writing the code that plays (Dark Racer)
+- **The first default driving code was a handicap.** It spoke the word whenever a car ahead was within 500, about 49 lances a race, and averaged **3.67th** over 6 races. The silent autopilot averaged **2.50th**: heat costs top speed, and backlash spins you out (4 per race).
+- **From that start no model improved it by understanding it.** Two "improvements" to 2.50 were bugs that stopped all casting: qwen3:8b compared `s.index === target.index` (cars have no index), and 2.6b tested `Array.isArray(target)`. The race result couldn't tell an insight from an accident. The others were cosmetic. qwen2.5-coder:7b writes the tool call as JSON text, not a real tool call, so through the actant's tools it never lands.
+- **Robby: "We could try starting the actants w the bot's code… give it a strong starting point."** The new `DEFAULT_DRIVING` ports the rivals' own judgment:
+  - never speak above 80% of capacity
+  - at most one word every 6 s
+  - per-form moments: a lance at a car ahead within 540, a nova or hex at one behind within 400, a ring when a car is close, blink at speed
+  `PilotView` gained `strain`, `capacity`, `time` and a per-race `memory` so code can do this. Old saves holding the first default get the new one.
+- **6 races: the new default 2.17th, silent 2.50, naive 3.67.**
+- **Starting from the bot's code:**
+  - **Through the actant's tools:** qwen3:8b made changes that alter nothing (an extra check that `fits` already implied) and announced them as "only speak my lance when it will strike". qwen2.5-coder did the same as JSON text. 2.6b either ran out of tokens thinking or answered in markdown with code that never casts (`ready <= 0 && ready > 0`).
+  - **Plain** (no soma and no tools: "reply with one js code block"): qwen2.5-coder copied the default. qwen3:8b made real attempts: one used the heading (wrongly, comparing x only), and one added a minimum range of 200.
+- **The catch, over 18 races (3 circuits × 6 seeds):**
+
+  | code | place | strikes | podiums |
+  |---|---|---|---|
+  | default | 2.89 | 4.1 | 11/18 |
+  | silent autopilot | 3.00 | 0 | 11/18 |
+  | a hand-aimed lance (cast only when a car is inside the beam along the heading) | 3.50 | 5.3 | 8/18 |
+  | qwen3:8b plain #2 (min range 200) | 2.50 | 2.5 | 13/18 |
+
+  With one 22-truth wisp lance, words barely move the finishing place, and seed noise (≈ ±0.35 standard error) swamps the differences. Aiming adds strikes but not places. **So place alone is a poor signal for a self-rewriting driver**: the 6-race comparisons above were mostly noise. Either words must matter more in races (mightier words, sharper effects), or the report and the scoring should carry more than place (strikes taken and given, time lost to slows, laps).
+- **The two shapes of work, so far:**
+  - **Tending** is judgment over a small, well-named state. Prompt engineering pays off a lot: naming things the way the tools do, the path in one line, refusals that say what to do instead. qwen3:8b (no thinking) and 2.6b (always thinking) both handle it; 350m doesn't.
+  - **Writing driving code** needs a feedback signal first. The models mostly edit around the edges, and the honest ones go furthest without the actant's persona and tools around them.

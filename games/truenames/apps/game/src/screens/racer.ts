@@ -2,7 +2,7 @@
 // own car with the dungeon's own physics (racing.ts), draws the other cars a little in the past between
 // snapshots, and turns events into light and sound. It never touches the save or the sanctum.
 import type { Screen } from '../main.ts';
-import type { DungeonLink, Journey, RacerWelcome, RoundHost, RoundResult } from '../round.ts';
+import type { DungeonLink, Journey, RacerWelcome, PilotView, RoundHost, RoundResult } from '../round.ts';
 import { frag } from '../dom.ts';
 import { RACER as R, worldDescentName } from '@truenames/dungeon/balance';
 import type { RacerCar, RacerEvent, RacerSnapshot, WireTraits } from '@truenames/dungeon/protocol';
@@ -186,11 +186,14 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     if (pending.length > 600) pending.shift();
   }
 
+  const pilotMemory: Record<string, unknown> = {}; // the pilot's own, kept between frames of this race
+  const pilotStart = performance.now();
   /** The pilot's order, never trusted: bad output or a throw falls back to the rivals' autopilot. */
   function pilotOrder(): { throttle: number; steer: number; cast?: number | null } {
     const myPlace = hud.place;
-    const view = {
+    const view: PilotView = {
       car: { ...car }, track, laps, place: myPlace, lap: hud.lap,
+      strain: hud.strain, capacity: hud.capacity, time: (performance.now() - pilotStart) / 1000, memory: pilotMemory,
       others: [...others.values()].map((o) => ({ x: o.x, y: o.y, vx: o.vx, vy: o.vy, place: o.place, ahead: o.place < myPlace, dist: Math.hypot(o.x - car.x, o.y - car.y) })),
       slots: slots.map((s, i) => s && { index: i, form: FORMS[s.form]!.name, ready: s.ready, vessel: s.vessel, cap: s.cap }),
     };

@@ -9,8 +9,29 @@ export const OLLAMA = 'http://127.0.0.1:11434';
 export const DEFAULT_MODEL = 'qwen3:8b';
 export const CLASSES = ['wisp', 'spirit', 'power', 'dominion', 'god', 'great god', 'elder god', 'primordial'];
 
-/** The driving code every actant starts with: the rivals' autopilot, speaking a word when a car ahead is close. */
-export const DEFAULT_DRIVING = `const order = autopilot(view.car, view.track, view.others);
+/**
+ * The driving code every actant starts with: the rivals' own judgment. The autopilot drives; a word is spoken only
+ * when its moment suits its form, never while running hot, and at most one every 6 s (heat costs more speed than
+ * a careless word gains).
+ */
+export const DEFAULT_DRIVING = `const m = view.memory;
+const order = autopilot(view.car, view.track, view.others);
+const speed = Math.hypot(view.car.vx, view.car.vy);
+const near = (reach, ahead) => view.others.some((o) => o.ahead === ahead && o.dist < reach);
+const fits = {
+  bolt: near(1000, true), summon: near(1000, true), lance: near(540, true),
+  nova: near(400, false), hex: near(400, false), ward: near(300, false),
+  ring: view.others.some((o) => o.dist < 150), blink: speed > 250,
+};
+let cast = null;
+if (view.time >= (m.next || 0) && view.strain <= view.capacity * 0.8) {
+  const word = view.slots.find((s) => s && s.ready <= 0 && fits[s.form]);
+  if (word) { cast = word.index; m.next = view.time + 6; }
+}
+return { throttle: order.throttle, steer: order.steer, cast };`;
+
+/** The first default (speak whenever a car ahead is near): saves that still hold it get the new default. */
+export const NAIVE_DRIVING = `const order = autopilot(view.car, view.track, view.others);
 const target = view.others.find((o) => o.ahead && o.dist < 500);
 const word = view.slots.find((s) => s && s.ready <= 0);
 return { throttle: order.throttle, steer: order.steer, cast: target && word ? word.index : null };`;
@@ -40,7 +61,7 @@ export const TOOLS = [
   fn('bind_word', 'Bind a held word to a loadout slot (1-4).', { word: { type: 'string', description: 'the word id, like 312662277504#0' }, slot: { type: 'integer' } }, ['word', 'slot']),
   fn('note', 'Replace your notes (your memory between reviews). Keep it short.', { text: { type: 'string' } }, ['text']),
   fn('join_races', 'Standing order: when your choir gathers a Dark Racer race, join it and drive with your driving code.', { on: { type: 'boolean' } }, ['on']),
-  fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps. autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
+  fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps, strain, capacity, time (seconds), memory (an object kept between frames). autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
   fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
   fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
 ];
@@ -199,7 +220,7 @@ export function tryDriving(code: string): string | null {
     track: { pts, halfWidth: 78 },
     others: [{ x: 560, y: 120, vx: 0, vy: 200, place: 1, ahead: true, dist: 126 }],
     slots: [{ index: 0, form: 'bolt', ready: 0, vessel: 100, cap: 100 }, null, null, null],
-    place: 2, lap: 0, laps: 3,
+    place: 2, lap: 0, laps: 3, strain: 1, capacity: 10, time: 12, memory: {},
   };
   try {
     const o = pilot(view);

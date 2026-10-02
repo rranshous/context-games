@@ -8,7 +8,7 @@ import { addHistory, describeAim, type AimSpec } from './plan.ts';
 import { ELEMENT_NAMES, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
 import type { Pilot } from './round.ts';
-import { CLASSES, DEFAULT_DRIVING, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
+import { CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
 
 export { OLLAMA, DEFAULT_MODEL, DEFAULT_DRIVING, compileDriving, toolModels } from './actant-mind.ts';
 /** Events gather this long before a review (several finds in a row make one review). */
@@ -36,7 +36,8 @@ export class Actant {
   /** This actant's pilot, if it races (its driving code, or the default when the code won't compile). */
   pilot(): Pilot | undefined {
     if (!this.config.on || !this.config.joinRaces) return undefined;
-    try { return compileDriving(this.config.driving || DEFAULT_DRIVING); } catch { return compileDriving(DEFAULT_DRIVING); }
+    const code = this.config.driving && this.config.driving !== NAIVE_DRIVING ? this.config.driving : DEFAULT_DRIVING;
+    try { return compileDriving(code); } catch { return compileDriving(DEFAULT_DRIVING); }
   }
 
   wake() {

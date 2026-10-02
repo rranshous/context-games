@@ -10,7 +10,7 @@ import { bytesToHex, spiritAt, facetForm, MIN_NAME_BITS } from '@truenames/unive
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { RacerSim, zkVerifier, HEARTH_GOD, RACER, autopilot, type RacerSnapshot, type RacerEvent } from '@truenames/dungeon';
 import { HEARTH_NONCE } from '../../../packages/dungeon/test/fixtures.ts';
-import { TOOLS, toolsFor, CLASSES, DEFAULT_DRIVING, soma, ask, chat, converse as converseMind, compileDriving, tryDriving, type MindState, type MindConfig } from '../../game/src/actant-mind.ts';
+import { TOOLS, toolsFor, CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, soma, ask, chat, converse as converseMind, compileDriving, tryDriving, type MindState, type MindConfig } from '../../game/src/actant-mind.ts';
 import { describeAim, type AimSpec } from '../../game/src/plan.ts';
 import { ELEMENT_NAMES, FORMS } from '../../game/src/lore.ts';
 import type { PilotView } from '../../game/src/round.ts';
@@ -199,6 +199,7 @@ async function raceWith(code: string | null, level: number, seed: number): Promi
   sim.start();
   const pilot = code ? compileDriving(code) : null;
   let seq = 0, last: RacerSnapshot | null = null, my = -1, throws = 0;
+  const memory: Record<string, unknown> = {};
   const ev: RacerEvent[] = [];
   let i = 0;
   for (; i < 60 * 300 && !sim.over; i++) {
@@ -209,7 +210,7 @@ async function raceWith(code: string | null, level: number, seed: number): Promi
       const car = { x: me.x, y: me.y, vx: me.vx, vy: me.vy, a: me.a, spin: me.spin, slide: me.slide, slow: me.slow, top: me.top, hint: -1 };
       let order: { throttle: number; steer: number; cast?: number | null } | null = null;
       if (pilot) {
-        const view: PilotView = { car, track: sim.track, others, place: me.place, lap: me.lap, laps: last.laps, slots: last.slots.map((s, k) => s && { index: k, form: FORM_NAME, ready: s.ready, vessel: s.vessel, cap: s.cap }) };
+        const view: PilotView = { car, track: sim.track, others, place: me.place, lap: me.lap, laps: last.laps, strain: last.strain, capacity: last.capacity, time: i / 60, memory, slots: last.slots.map((s, k) => s && { index: k, form: FORM_NAME, ready: s.ready, vessel: s.vessel, cap: s.cap }) };
         try { const o = pilot(view); if (o && Number.isFinite(o.throttle) && Number.isFinite(o.steer)) order = o; else throws++; } catch { throws++; }
       }
       order ??= autopilot(car, sim.track, others);
@@ -229,7 +230,8 @@ async function raceWith(code: string | null, level: number, seed: number): Promi
 
 async function raceSet(code: string | null) {
   const out: RaceOutcome[] = [];
-  for (const level of [0, 1]) for (const seed of SEEDS.slice(0, 3)) out.push(await raceWith(code, level, seed));
+  const levels = argv.includes('--wide') ? RACER.tracks.map((_, i) => i) : [0, 1];
+  for (const level of levels) for (const seed of argv.includes('--wide') ? SEEDS : SEEDS.slice(0, 3)) out.push(await raceWith(code, level, seed));
   const avg = (k: keyof RaceOutcome) => out.reduce((s, o) => s + o[k], 0) / out.length;
   return { races: out, place: avg('place'), hits: avg('hits'), casts: avg('casts'), wasted: avg('wasted'), backlash: avg('backlash'), throws: avg('throws'), podium: out.filter((o) => o.place <= RACER.podium).length };
 }
@@ -239,7 +241,7 @@ function report(r: Awaited<ReturnType<typeof raceSet>>): string {
     `Your last ${r.races.length} races with this code (6 cars, ${RACER.laps ?? 3} laps each): average place ${r.place.toFixed(1)} of 6; podium (top ${RACER.podium}) in ${r.podium}.`,
     `Per race you spoke your word ${r.casts.toFixed(1)} times; ${r.wasted.toFixed(1)} of those struck no one; it struck ${r.hits.toFixed(1)} cars; backlash spun you out ${r.backlash.toFixed(1)} times.`,
     `Your one word is a ${FORM_NAME}: a straight beam 600 long and 26 wide along the way your car faces (car.a, radians); every car it touches is slowed. After speaking it waits (ready > 0). Each word heats your engine (vessel drops, top speed drops); speaking with little vessel left risks backlash, a spin.`,
-    `view.car: x, y, vx, vy, a (heading, radians), top (speed cap from heat, 1 = cool). view.others: x, y, vx, vy, place, ahead (true if ahead of you in the race), dist. view.slots[i]: index, form, ready (seconds until it can be spoken again), vessel, cap.`,
+    `view.car: x, y, vx, vy, a (heading, radians), top (speed cap from heat, 1 = cool). view.others: x, y, vx, vy, place, ahead (true if ahead of you in the race), dist. view.slots[i]: index, form, ready (seconds until it can be spoken again), vessel, cap. view.strain and view.capacity: your heat and where backlash starts. view.time: seconds. view.memory: an object kept between frames.`,
   ].join('\n');
 }
 
@@ -247,13 +249,14 @@ const DRIVE_ASK = (rep: string) => `${rep}\n\nRewrite your driving code to place
 const PLAIN_SYS = 'You write JavaScript. Reply with only one ```js code block: the body of function(view, autopilot) that returns { throttle, steer, cast }.';
 
 async function drive(model: string, baseline: Awaited<ReturnType<typeof raceSet>>, plain: boolean) {
-  const rows: { run: number; ok: boolean; why: string | null; secs: number; code: string; result?: Awaited<ReturnType<typeof raceSet>> }[] = [];
+  const rows: { run: number; ok: boolean; why: string | null; secs: number; code: string; trace?: string; result?: Awaited<ReturnType<typeof raceSet>> }[] = [];
   for (let r = 0; r < RUNS; r++) {
     const t0 = Date.now();
-    let code = '', why: string | null = null;
+    let code = '', why: string | null = null, trace = '';
     try {
       if (plain) {
         const reply = await chat(model, [{ role: 'system', content: PLAIN_SYS }, { role: 'user', content: `Current code:\n\`\`\`js\n${DEFAULT_DRIVING}\n\`\`\`\n\n${DRIVE_ASK(report(baseline)).replace(/Use write_driving[^.]*\./, '')}` }], [], 0.4, 4000);
+        trace = reply.content.slice(0, 3000);
         code = (reply.content.match(/```(?:js|javascript)?\n([\s\S]*?)```/)?.[1] ?? reply.content).trim();
         code = code.replace(/^function\s*\w*\s*\(view,\s*autopilot\)\s*\{([\s\S]*)\}\s*$/, '$1');
         why = tryDriving(code);
@@ -261,13 +264,14 @@ async function drive(model: string, baseline: Awaited<ReturnType<typeof raceSet>
         let wrote = '';
         const S = fakeSanctum(base());
         const cfg: MindConfig = { handle: 'Ash', goal: 'win races for my choir.', notes: '', joinRaces: true, driving: DEFAULT_DRIVING };
-        await converse(model, soma(cfg), DRIVE_ASK(report(baseline)), (n, a) => { const res = S.use(n, a); if (n === 'write_driving' && !res.startsWith('error')) wrote = String(a.code); return res; }, 4, TOOLS, 4000);
+        const out = await converse(model, soma(cfg), DRIVE_ASK(report(baseline)), (n, a) => { const res = S.use(n, a); if (n === 'write_driving' && !res.startsWith('error')) wrote = String(a.code); return res; }, 4, TOOLS, 4000);
+        trace = out.calls.map((c) => `${c.name}(${JSON.stringify(c.args).slice(0, 1500)}) → ${c.result}`).join('\n') + (out.final ? `\n“${out.final.slice(0, 1500)}”` : '');
         code = wrote;
         why = wrote ? null : 'wrote no working code';
       }
     } catch (e) { why = `failed: ${String((e as Error).message)}`; }
     const secs = (Date.now() - t0) / 1000;
-    const row: (typeof rows)[number] = { run: r + 1, ok: !why, why, secs, code };
+    const row: (typeof rows)[number] = { run: r + 1, ok: !why, why, secs, code, trace };
     if (!why) row.result = await raceSet(code);
     rows.push(row);
     log(`  [drive${plain ? '/plain' : ''} ${model}] #${r + 1}: ${why ? '✗ ' + why : `✓ place ${row.result!.place.toFixed(2)} (default ${baseline.place.toFixed(2)}), hits ${row.result!.hits.toFixed(1)}, wasted ${row.result!.wasted.toFixed(1)}/${row.result!.casts.toFixed(1)}`} (${secs.toFixed(1)}s)`);
@@ -278,6 +282,14 @@ async function drive(model: string, baseline: Awaited<ReturnType<typeof raceSet>
 // ---------------------------------------------------------------- run
 
 const summary: Record<string, unknown> = {};
+if (opt('code')) {
+  const code = readFileSync(opt('code')!, 'utf8');
+  const chk = tryDriving(code);
+  if (chk) { log(`the code fails its check: ${chk}`); process.exit(1); }
+  const r = await raceSet(code);
+  log(`${opt('code')}: place ${r.place.toFixed(2)}, hits ${r.hits.toFixed(1)}, wasted ${r.wasted.toFixed(1)}/${r.casts.toFixed(1)}, backlash ${r.backlash.toFixed(1)}, podium ${r.podium}/${r.races.length}`);
+  process.exit(0);
+}
 if (SHAPE === 'tend' || SHAPE === 'all') {
   for (const m of MODELS) {
     log(`tend: ${m}`);
@@ -292,7 +304,10 @@ if (SHAPE === 'drive' || SHAPE === 'all') {
   const t0 = Date.now();
   const baseline = await raceSet(DEFAULT_DRIVING);
   const bare = await raceSet(null);
-  log(`drive baseline (default code): place ${baseline.place.toFixed(2)}, hits ${baseline.hits.toFixed(1)}, wasted ${baseline.wasted.toFixed(1)}/${baseline.casts.toFixed(1)}, backlash ${baseline.backlash.toFixed(1)}; autopilot without words: place ${bare.place.toFixed(2)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+  const naive = await raceSet(NAIVE_DRIVING);
+  const line = (r: typeof baseline) => `place ${r.place.toFixed(2)}, hits ${r.hits.toFixed(1)}, wasted ${r.wasted.toFixed(1)}/${r.casts.toFixed(1)}, backlash ${r.backlash.toFixed(1)}`;
+  log(`drive baseline (default code): ${line(baseline)}; naive code: ${line(naive)}; autopilot without words: place ${bare.place.toFixed(2)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+  summary.naive = naive;
   log(report(baseline));
   summary.baseline = baseline; summary.bare = bare;
   for (const m of MODELS) {

@@ -34,6 +34,13 @@ export interface PilotView {
   place: number;
   lap: number;
   laps: number;
+  /** Your heat: every word spoken adds strain; past capacity a word can answer with backlash (a spin). */
+  strain: number;
+  capacity: number;
+  /** Seconds since the race screen opened. */
+  time: number;
+  /** Yours to keep anything in between frames (fresh each race). */
+  memory: Record<string, unknown>;
 }
 /** A pilot's order for this frame: throttle and steer (-1..1), and optionally a word (slot index) to speak. */
 export interface PilotOrder { throttle: number; steer: number; cast?: number | null }
