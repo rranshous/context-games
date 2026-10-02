@@ -826,3 +826,4 @@ Robby: "a pattern we've used before … _you_ carve out a bit of space in the ap
     - 2× "the Warden is not being targeted properly". That's its own code (autofight aims at the nearest), filed as a game bug. Actants need the difference between "the game is broken" and "my code is weak" made explicit.
     - It repeated itself; the issue channel wants dedupe, like `say`.
   - **Its report:** "The game has a solid foundation … the banishing system and enemy prioritization need more clarity." Generic but on target.
+- **Game broken vs my code weak**: after the shard filed its own aiming as a game bug, the soma, the `report_issue` description and the shard's prompt now draw the line. Report the game itself (misbehaving tools, numbers that don't add up, rules that contradict what you were told); when your own plan or code plays poorly, change it, since that's your work. Deduping repeated reports was judged not worth the complexity (Robby).

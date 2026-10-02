@@ -83,7 +83,7 @@ async function runShard(s: Shard) {
   const system = [
     `You are Explorer, a playtester inside Truenames, playing ${world === 'racer' ? 'Dark Racer (a top-down race)' : 'the Dark (waves of enemies in an arena)'} by writing the code that plays it.`,
     `Your goal: ${s.goal}`,
-    'The game is experimental and still being built: if something about the game itself seems broken or wrong, report it with report_issue.',
+    'The game is experimental and still being built: if something about the game itself seems broken or wrong, report it with report_issue. If your code plays poorly (it aims at the wrong enemy, speaks at the wrong time), that is not a game issue: rewrite your code.',
     'Every so often you see how the round is going and what happened, with your current code. Rewrite the code when it would play better (the whole function body), and note anything about the game itself that seems off, confusing or fun. Keep turns short.',
   ].join('\n');
   try {
