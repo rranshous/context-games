@@ -5,58 +5,17 @@
 import { persist, spiritOf, splitWord, type SaveData } from './save.ts';
 import type { Services, SanctumEvent } from './services.ts';
 import { addHistory, describeAim, type AimSpec } from './plan.ts';
-import { ELEMENT_NAMES, ASPECTS, FORMS, spiritName, magnitudeTitle } from './lore.ts';
+import { ELEMENT_NAMES, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
-import { autopilot } from '@truenames/dungeon/racing';
-import type { Pilot, PilotOrder, PilotView } from './round.ts';
+import type { Pilot } from './round.ts';
+import { CLASSES, DEFAULT_DRIVING, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
 
-export const OLLAMA = 'http://127.0.0.1:11434';
-export const DEFAULT_MODEL = 'qwen3:8b';
-const CLASSES = ['wisp', 'spirit', 'power', 'dominion', 'god', 'great god', 'elder god', 'primordial'];
+export { OLLAMA, DEFAULT_MODEL, DEFAULT_DRIVING, compileDriving, toolModels } from './actant-mind.ts';
 /** Events gather this long before a review (several finds in a row make one review). */
 const GATHER_MS = 20_000;
 /** At least this long between reviews. */
 const MIN_GAP_MS = 120_000;
 const MAX_TURNS = 6;
-
-/** The driving code every actant starts with: the rivals' autopilot, speaking a word when a car ahead is close. */
-export const DEFAULT_DRIVING = `const order = autopilot(view.car, view.track, view.others);
-const target = view.others.find((o) => o.ahead && o.dist < 500);
-const word = view.slots.find((s) => s && s.ready <= 0);
-return { throttle: order.throttle, steer: order.steer, cast: target && word ? word.index : null };`;
-
-interface ChatMsg { role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[]; tool_name?: string }
-
-// Terse tools (local models break on long tool descriptions; see the local-ai findings).
-const TOOLS = [
-  fn('seek', 'Add an aim: search an element at a depth for new beings.', {
-    element: { type: 'string', enum: [...ELEMENT_NAMES] },
-    depth: { type: 'integer', description: '12 wisps, 13 spirits, 14 powers, 15 dominions, 16 gods' },
-    count: { type: 'integer', description: 'stop once this many are known there (0 = never stop)' },
-    class: { type: 'string', enum: CLASSES, description: 'count only beings this mighty or more' },
-  }, ['element', 'depth']),
-  fn('grasp', 'Add an aim: meditate on beings already found until their first word is grasped.', {
-    count: { type: 'integer', description: 'how many beings at a time (1-12)' },
-    class: { type: 'string', enum: CLASSES, description: 'mightiest class to grasp' },
-  }, []),
-  fn('deepen', 'Add an aim: make held words truer.', {
-    words: { type: 'string', enum: ['bound', 'all'] },
-    count: { type: 'integer', description: 'how many words at a time (1-12)' },
-    to: { type: 'integer', description: 'target truths (22-50)' },
-  }, ['to']),
-  fn('remove_aim', 'Remove aim number n.', { n: { type: 'integer' } }, ['n']),
-  fn('move_aim', 'Move aim number n to position to (1 = first, highest priority).', { n: { type: 'integer' }, to: { type: 'integer' } }, ['n', 'to']),
-  fn('set_share', 'Set the share of the hum for aim n (1-8).', { n: { type: 'integer' }, share: { type: 'integer' } }, ['n', 'share']),
-  fn('bind_word', 'Bind a held word to a loadout slot (1-4).', { word: { type: 'string', description: 'the word id, like 312662277504#0' }, slot: { type: 'integer' } }, ['word', 'slot']),
-  fn('note', 'Replace your notes (your memory between reviews). Keep it short.', { text: { type: 'string' } }, ['text']),
-  fn('join_races', 'Standing order: when your choir gathers a Dark Racer race, join it and drive with your driving code.', { on: { type: 'boolean' } }, ['on']),
-  fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps. autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
-  fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
-  fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
-];
-function fn(name: string, description: string, properties: Record<string, unknown>, required: string[]) {
-  return { type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } };
-}
 
 export class Actant {
   status: 'asleep' | 'waiting' | 'thinking' = 'asleep';
@@ -112,21 +71,15 @@ export class Actant {
     this.onChange?.();
     this.S.pool.setPaused(true); // thought costs chanting
     try {
-      const messages: ChatMsg[] = [
-        { role: 'system', content: this.soma() },
-        { role: 'user', content: this.ask(events, reason) },
-      ];
-      for (let turn = 0; turn < MAX_TURNS; turn++) {
-        const reply = await this.chat(messages);
-        messages.push(reply);
-        if (!reply.tool_calls?.length) { this.thought(reply.content); break; }
-        for (const call of reply.tool_calls) {
-          const result = this.use(call.function.name, call.function.arguments ?? {});
-          this.log.push(`${call.function.name}(${JSON.stringify(call.function.arguments)}) → ${result}`);
-          messages.push({ role: 'tool', tool_name: call.function.name, content: result });
-        }
-        this.onChange?.();
-      }
+      const out = await converse({
+        model: this.config.model || DEFAULT_MODEL,
+        system: soma({ ...this.config, handle: this.S.choir.handle }),
+        user: ask(events, this.mindState(), reason),
+        use: (n, a) => this.use(n, a),
+        maxTurns: MAX_TURNS,
+        onCall: (c) => { this.log.push(`${c.name}(${JSON.stringify(c.args)}) → ${c.result}`); this.onChange?.(); },
+      });
+      this.thought(out.final || (out.stuck ? '(stopped: the same call was refused twice)' : ''));
     } catch (err) {
       this.thought(`(could not think: ${String((err as Error).message ?? err)})`);
     } finally {
@@ -139,18 +92,6 @@ export class Actant {
     }
   }
 
-  /** The review's prompt: what the choir said to it comes first (a small model buries requests in long state). */
-  private ask(events: SanctumEvent[], reason?: string): string {
-    const talk = events.filter((e) => e.kind === 'chat').map((e) => `- ${e.text}`);
-    const other = events.filter((e) => e.kind !== 'chat').map((e) => e.text);
-    return [
-      talk.length ? `Your choir spoke to you:\n${talk.join('\n')}\nAnswer them with say, and act on any request that fits your goal.` : '',
-      reason ?? (other.length ? `Since your last review: ${other.join('; ')}.` : talk.length ? '' : 'Review the sanctum.'),
-      this.state(),
-      'Adjust the plan if it serves the goal. Use tools; then say in one or two sentences what you did and why.',
-    ].filter(Boolean).join('\n\n');
-  }
-
   private lastSaid = '';
 
   private thought(text: string) {
@@ -161,51 +102,25 @@ export class Actant {
     addHistory(this.save, { kind: 'note', by: 'actant', text: t.slice(0, 300) });
   }
 
-  private async chat(messages: ChatMsg[]): Promise<ChatMsg> {
-    const res = await fetch(`${OLLAMA}/api/chat`, {
-      method: 'POST',
-      body: JSON.stringify({ model: this.config.model || DEFAULT_MODEL, messages, tools: TOOLS, stream: false, think: false, options: { temperature: 0.4 } }),
-    });
-    if (!res.ok) throw new Error(`ollama ${res.status}`);
-    const d = await res.json();
-    return d.message as ChatMsg;
-  }
-
-  /** Who the actant is: its goal and its notes. Kept short (every token is time on a local model). */
-  private soma(): string {
-    return [
-      'You tend a sanctum in Truenames. Beings dwell in the astral: wisps at depth 12, spirits 13, powers 14, dominions 15, gods 16 (each deeper class is mightier and 16x harder to find).',
-      'You find beings by seeking, grasp their words of power by meditating (a word is grasped at its bar: 22 truths for a wisp, +4 per class), and deepen words to make them stronger.',
-      'You do not meditate or search directly: you set the plan, an ordered list of aims the sanctum pursues on its own.',
-      `Goal: ${this.config.goal || 'grow strong.'}`,
-      `Your notes: ${this.config.notes || '(none yet)'}`,
-      this.config.joinRaces ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${this.config.driving || DEFAULT_DRIVING}` : 'You do not join races (join_races to start).',
-    ].join('\n');
-  }
-
-  /** The sanctum as the actant sees it: words, beings, plan, hum, recent history. Compact. */
-  private state(): string {
+  /** The sanctum as plain facts for the actant's prompt. */
+  private mindState(): MindState {
     const S = this.S, save = this.save;
-    const words = Object.keys(save.names).filter((k) => S.learned(k)).map((k) => {
+    const words = Object.keys(save.names).filter((k) => S.learned(k)).flatMap((k) => {
       const { cell, facet } = splitWord(k);
       const sp = spiritOf(save, cell);
-      if (!sp) return null;
-      const form = FORMS[facetForm(sp.traits, facet ?? 0)]!.name;
-      return `${k} ${spiritName(sp)} ${magnitudeTitle(sp.magnitude)} ${form} ${S.strength(k)} truths${save.loadout.includes(k) ? ' (bound)' : ''}`;
-    }).filter(Boolean);
-    const unheld = Object.keys(save.spirits).filter((c) => !S.learned(c)).map((c) => spiritOf(save, c)!).map((sp) => `${sp.cell} ${spiritName(sp)} ${magnitudeTitle(sp.magnitude)} (bar ${wordBar(sp.magnitude)}, best ${S.strength(sp.cell)})`);
-    const plan = S.planner.aims.map((a, i) => `${i + 1}. ${describeAim(a)} ×${a.share}${a.done ? ' (fulfilled)' : ''}`);
-    const hist = (save.history ?? []).slice(-12).map((h) => `- ${h.text}`);
-    const choir = S.choir.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`);
-    const talk = S.choir.lines.slice(-6).map((l) => `${l.mine ? 'you' : l.from}: ${l.text}`);
-    return [
-      `Hum: ${Math.round(S.pool.rate())} utterances/s.`,
-      `Words held: ${words.length ? '\n' + words.join('\n') : 'none'}`,
-      `Beings without a grasped word: ${unheld.length ? '\n' + unheld.slice(0, 12).join('\n') : 'none'}`,
-      `Plan: ${plan.length ? '\n' + plan.join('\n') : 'empty'}`,
-      `Recent history:\n${hist.join('\n') || 'none'}`,
-      `Your choir: ${choir.length ? choir.join(', ') : 'no one else'}${talk.length ? `\nRecent talk:\n${talk.join('\n')}` : ''}`,
-    ].join('\n\n');
+      if (!sp) return [];
+      return [{ key: k, name: spiritName(sp), cls: magnitudeTitle(sp.magnitude), form: FORMS[facetForm(sp.traits, facet ?? 0)]!.name, truths: S.strength(k), bound: save.loadout.includes(k) }];
+    });
+    const unheld = Object.keys(save.spirits).filter((c) => !S.learned(c)).map((c) => spiritOf(save, c)!).map((sp) => ({ cell: sp.cell, name: spiritName(sp), cls: magnitudeTitle(sp.magnitude), bar: wordBar(sp.magnitude), best: S.strength(sp.cell) }));
+    return {
+      hum: S.pool.rate(),
+      words, unheld,
+      plan: S.planner.aims.map((a) => ({ text: describeAim(a), share: a.share, done: a.done })),
+      loadout: [0, 1, 2, 3].map((i) => save.loadout[i] ?? null),
+      history: (save.history ?? []).slice(-12).map((h) => h.text),
+      choir: S.choir.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`),
+      talk: S.choir.lines.slice(-6).map((l) => `${l.mine ? 'you' : l.from}: ${l.text}`),
+    };
   }
 
   /** Act: the same plan operations the player's controls use. Returns a short result for the model. */
@@ -227,7 +142,7 @@ export class Actant {
           spec = { kind: 'seek', prefix: String(el), depth, until: count > 0 ? { count, minMight: cls(a.class, depth - 12) } : null, share: 2 };
         }
         const same = aims.findIndex((x) => !x.done && describeAim(x) === describeAim(spec));
-        if (same >= 0) return `already in the plan as #${same + 1}. Nothing was added.`;
+        if (same >= 0) return `already in the plan as #${same + 1}. Nothing was added. To raise it: move_aim n=${same + 1} to=1, or set_share.`;
         const aim = P.add(spec, 'actant');
         return `added #${aims.indexOf(aim) + 1}: ${describeAim(aim)}`;
       }
@@ -259,40 +174,5 @@ export class Actant {
       case 'note': this.config.notes = String(a.text ?? '').slice(0, 600); persist(this.save); return 'noted';
       default: return `error: unknown tool ${name}`;
     }
-  }
-}
-
-/** Compile driving code into a pilot: a throw or a bad order falls back (the racer screen falls back to the autopilot). */
-export function compileDriving(code: string): Pilot {
-  const f = new Function('view', 'autopilot', code) as (v: PilotView, ap: typeof autopilot) => PilotOrder;
-  return (v) => f(v, autopilot);
-}
-
-/** Check driving code against a made-up race frame: null if it compiles and returns a usable order. */
-function tryDriving(code: string): string | null {
-  let pilot: Pilot;
-  try { pilot = compileDriving(code); } catch (e) { return `it does not compile: ${String((e as Error).message)}`; }
-  const pts = Array.from({ length: 64 }, (_, i) => ({ x: Math.cos((i / 64) * Math.PI * 2) * 600, y: Math.sin((i / 64) * Math.PI * 2) * 400 }));
-  const view: PilotView = {
-    car: { x: 600, y: 0, vx: 0, vy: 200, a: Math.PI / 2, spin: 0, slide: 0, slow: 0, top: 1, hint: 0 },
-    track: { pts, halfWidth: 78 },
-    others: [{ x: 560, y: 120, vx: 0, vy: 200, place: 1, ahead: true, dist: 126 }],
-    slots: [{ index: 0, form: 'bolt', ready: 0, vessel: 100, cap: 100 }, null, null, null],
-    place: 2, lap: 0, laps: 3,
-  };
-  try {
-    const o = pilot(view);
-    if (!o || !Number.isFinite(o.throttle) || !Number.isFinite(o.steer)) return 'it must return { throttle, steer } as numbers';
-  } catch (e) { return `it throws: ${String((e as Error).message)}`; }
-  return null;
-}
-
-/** The models the local server offers that can use tools. */
-export async function toolModels(): Promise<string[]> {
-  try {
-    const d = await (await fetch(`${OLLAMA}/api/tags`)).json();
-    return (d.models as { name: string; capabilities?: string[] }[]).filter((m) => m.capabilities?.includes('tools')).map((m) => m.name).sort();
-  } catch {
-    return [];
   }
 }

@@ -707,3 +707,29 @@ Clarified by Robby: "the actant is managing _their_ sanctum in their instance of
 4. **Churches and guilds**: "Would a guild / church have each player setup a choir member from their home machine to join a church choir? Or their leaders choir? Some mechanics to work out there." Two shapes: members send choristers to the church's choir (pooled machines as the order's strength), or a choir of choirs. The design questions: what a church gets from pooled hum (shared signs, words meditated for members, a collective rank), and what a member gives up (hum diverted from their own words). That tension is the gameplay.
 5. **"I like the angle of same frame and game for actants and human players."** A hard rule from here on: the same sanctum, the same plan operations, the same choir, the same worlds.
 6. **Smaller models**: local-ai's findings say `lfm2.5-350m` (229 MB, ~65 tok/s) selects the right tool and argument from 23 terse tools 6/6 in 1.8 s, and `lfm2.5-2.6b` scores 12/12 on its agent suite. A 350m-class actant would review in seconds, steal little from meditation, and be small enough to ship with the game. They also confirm terse tools, no `finish` tool, and that fitting tools to the task substitutes for model scale. Next: compare 350m, 2.6b and qwen3:8b on the same goal.
+
+## Actant model bench: two task shapes (2026-10-01)
+Robby: "do more actants testing with the noted models. I see diff shapes for tasks: managing the sanctum settings and (writing the code which) plays games."
+- **`apps/game/src/actant-mind.ts`** now holds everything a model sees or does: the soma, the review's ask, the sanctum as text (`stateText(MindState)`, built from plain facts rather than services), the tools, `chat`, the review loop (`converse`) and the driving-code helpers. `actant.ts` only gathers the facts and applies tool calls. The game and the bench put exactly the same words in front of a model.
+- **`corepack pnpm actant-bench tend|drive`** (`apps/dungeon/src/actant-bench.ts`), headless against ollama:
+  - **tend**: eight sanctum scenarios behind a fake sanctum that answers like the game (same refusals): a choir request ("seek frost at depth 12, say so"), an empty plan, reprioritizing, an aim fulfilled with beings waiting, a fresh grasp to bind, a request to share a sign, a request to join races, and a steady state where the right move is little or nothing. Each is scored on the resulting plan and calls.
+  - **drive**: the model reads a race report and writes driving code; the code races in the real `RacerSim` (with a proved hearth word, 2 circuits × 3 seeds) against the default code.
+- **Machine**: 8 cores, no GPU. Every number below is CPU inference.
+
+### Tending the sanctum
+| model | first prompt | after prompt fixes | per review |
+|---|---|---|---|
+| lfm2.5-350m | 3/24 (only "steady") | 3/24 with fitted tools too | ~1.5 s |
+| lfm2.5-2.6b | 6/8 | 5/8, then the three misses 3/3 with handle + loadout | ~4–10 min |
+| qwen3:8b | 4/8 | 7/8 (bind-word still fails) | ~2–3 min |
+- **350m can't tend.** It calls tools fluently but picks them almost at random: deepen when asked to seek, seek when asked to share. Fitting the tools to the event (4–7 instead of 12) didn't help, because what fails is reading the situation, not choosing among tools. That matches local-ai's note that 350m's failures are "all interpretation". It's a router, not a steward.
+- **2.6b thinks whatever you say.** It ignores `think: false` and reasons 1,500–5,000 tokens per review at ~9 tok/s, so a review costs 4–10 minutes on this CPU (slower than qwen3:8b without thinking). It's careful: it found the right calls in every scenario at least once. But one early review generated without end until the request timed out. Fixes: requests now stream, so a slow model never hits fetch's header timeout, and generation is capped (`num_predict`, 1,500 per turn for tending).
+- **qwen3:8b acts once and explains.** On the first prompt it made one call and wrote a paragraph. Telling it to "use as many tools as it takes" took it from 4/8 to 7/8. Now it over-acts instead: it sets every share to 8, which means nothing since shares are relative, and fiddles with a plan that already serves the goal.
+- **Prompt fixes that every model benefited from** (all in `actant-mind.ts`, so the game has them too):
+  1. **The path, in one line**: seek finds beings; a found being gives nothing until a grasp aim grasps its first word; a grasped word does nothing until bound; deepen makes words truer. Without it qwen3:8b re-seeked a fulfilled seek instead of grasping what it found.
+  2. **Name things the way the tools do**: the state lists `word 312662277504#0: Khossim (sign 312662277504)…`. Before, 2.6b answered "share your sign" by saying the being's name.
+  3. **Refusals carry the way forward**: "already in the plan as #2. Nothing was added. To raise it: move_aim n=2 to=1, or set_share." Before, 2.6b tried to re-add the deepen aim to raise it and gave up.
+  4. **Show the loadout** (four slots, filled or empty): bind-word was invisible without it.
+  5. **Tell it who it is** ("You are Ash."): 2.6b, reading "Ash, join our races!", answered as the Keeper welcoming Ash.
+  6. **A call refused twice ends the review**: qwen3:8b looped the same refused `deepen` and `set_share` six times over.
+- **qwen3:8b still won't bind** for the goal "keep my strongest words bound for racing": it reads "strongest" as "deepen". 2.6b binds.
