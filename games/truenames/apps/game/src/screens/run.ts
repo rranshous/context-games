@@ -2,7 +2,9 @@
 // This screen sends intent (movement, aim, casts), renders the dungeon's snapshots with smoothing,
 // and turns its events into light and sound. It never touches the save or the sanctum.
 import type { Screen } from '../main.ts';
-import type { DungeonLink, Journey, RoundHost, RoundResult, DarkWelcome, FightOrder } from '../round.ts';
+import type { DungeonLink, Journey, RoundHost, RoundResult, DarkWelcome, FightOrder, Fighter } from '../round.ts';
+import { lendRound, note, explorerCode } from '../explorer.ts';
+import { compileFighting } from '../actant-mind.ts';
 import { frag } from '../dom.ts';
 import { BALANCE as B, descentName, SLOTS } from '@truenames/dungeon/balance';
 import type { EnemyKind, SimEvent, Snapshot, SnapPlayer, WireTraits } from '@truenames/dungeon/protocol';
@@ -149,6 +151,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     if (snaps.length > 60) snaps.shift();
     const mine = s.players.find((p) => p.id === me);
     if (mine) {
+      if (alive && !mine.alive) note('you fell');
       if (alive && !mine.alive && together > 1) banner = { text: 'YOU FALL', sub: 'Your choir fights on. Watch over them.', t: 4 };
       alive = mine.alive;
       Object.assign(player, { hp: mine.hp, ward: mine.ward, invuln: mine.invuln, strain: mine.strain, capacity: mine.capacity });
@@ -180,8 +183,8 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     if (paused || over || !alive || !predInit || lobby !== null) return;
     let mx = 0, my = 0;
     let aim: Pos;
-    if (journey.fighter) {
-      // an actant fights: its code sees the dark and gives an order each frame
+    if (fighter) {
+      // an actant (or the explorer) fights: its code sees the dark and gives an order each frame
       const order = fightOrder();
       mx = order.mx; my = order.my;
       aim = fighterAim = { x: order.ax, y: order.ay };
@@ -199,7 +202,8 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     outbox.push(cmd);
     if (pending.length > 600) pending.shift(); // the dungeon has stopped answering; don't grow forever
   }
-  // ---------- an actant's fighter ----------
+  // ---------- an actant's fighter (or the explorer's) ----------
+  let fighter: Fighter | undefined = journey.fighter ?? (explorerCode('dark') as Fighter | null) ?? undefined;
   let fighterAim: Pos | null = null;
   const fightMemory: Record<string, unknown> = {}; // the fighter's own, kept between frames of this round
   const fightStart = performance.now();
@@ -209,7 +213,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     const forms = slots.map((sl) => sl && FORMS[sl.form]!.name);
     const fview = fightViewOf(snap, me, forms, { w: W, h: H }, (performance.now() - fightStart) / 1000, fightMemory, pred);
     try {
-      const o = journey.fighter!(fview);
+      const o = fighter!(fview);
       if (o && [o.mx, o.my, o.ax, o.ay].every(Number.isFinite)) return o;
     } catch { /* fall through */ }
     return { mx: 0, my: 0, ax: pred.x + 100, ay: pred.y };
@@ -228,12 +232,15 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
         floaters.push({ x: ev.x - 60 + ev.slot * 24, y: ev.y - 26 - (ev.slot % 2) * 12, text: ev.effective.toFixed(1), color: sl.color, t: 0, size: 13 });
         if (ev.thin) floaters.push({ x: ev.x, y: ev.y - 44, text: 'your vessel runs low', color: '#9c8f74', t: 0, size: 12 });
         sfx.sfxCast(ev.form, ev.element, ev.effect / 30);
+        note(`you spoke ${sl.name} (${FORMS[ev.form]!.name}): ${ev.effective.toFixed(1)} true, effect ${ev.effect.toFixed(1)}${ev.thin ? ', the vessel ran low' : ''}`);
         return;
       }
       case 'refused':
+        if (ev.p === me) note('a word went unheard');
         if (ev.p === me) floaters.push({ x: player.x, y: player.y - 26, text: 'unheard', color: '#9c8f74', t: 0, size: 13 });
         return;
       case 'backlash':
+        if (ev.p === me) note(`backlash: ${ev.dmg.toFixed(0)} harm`);
         if (ev.p === me) { sfx.sfxBacklash(); burst(player.x, player.y, '#ff5040', 20); }
         return;
       case 'hit': {
@@ -243,12 +250,14 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
         return;
       }
       case 'kill':
+        note(`a ${ev.kind} banished`);
         sfx.sfxKill();
         burst(ev.x, ev.y, B.enemies[ev.kind].color, 18);
         burst(ev.x, ev.y, colorOf(ev.element), 10);
         return;
       case 'hurt':
         if (ev.p !== me) return;
+        note(`hurt ${ev.dmg.toFixed(0)}${ev.why ? ` (${ev.why})` : ''}, life ${Math.round(player.hp)}`);
         player.hurt = 0.25;
         sfx.sfxHurt();
         shake = Math.min(12, shake + ev.dmg * 0.6);
@@ -283,11 +292,13 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
       case 'spawn': burst(ev.x, ev.y, '#554a66', 10); return;
       case 'wave': sfx.sfxWave(); return;
       case 'breather':
+        note(`wave ${ev.wave} broken; a breather`);
         banner = { text: `WAVE ${ev.wave + 1}`, sub: ev.wave + 1 === 3 ? 'Shamans walk with them, speaking words of their own.' : 'Breathe. Let the strain ebb.', t: 3 };
         return;
       case 'warden': {
         const view: SpiritLike = { element: ev.element, magnitude: ev.magnitude, traits: toTraits(ev.traits) };
         wardenName = spiritName(view);
+        note(`the Warden comes, speaking ${wardenName}`);
         banner = { text: `THE WARDEN OF ${descentName(level).toUpperCase()}`, sub: `It speaks the name of ${wardenName}.`, t: 3.5 };
         sfx.sfxWarden();
         return;
@@ -605,7 +616,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     ctx.globalAlpha = player.invuln ? 0.5 : 1;
     ctx.beginPath(); ctx.arc(0, 0, B.player.radius, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
-    const aim = journey.fighter && fighterAim ? fighterAim : toWorld(mouse.sx, mouse.sy);
+    const aim = fighter && fighterAim ? fighterAim : toWorld(mouse.sx, mouse.sy);
     const a = Math.atan2(aim.y - player.y, aim.x - player.x);
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(Math.cos(a) * 8, Math.sin(a) * 8, 3, 0, Math.PI * 2); ctx.fill();
@@ -703,7 +714,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
     ctx.fillStyle = '#9c8f74';
     ctx.fillText(`strain ${player.strain.toFixed(1)} / ${player.capacity.toFixed(1)}`, mx, my - 3);
     hud.push({ x: mx - 6, y: my - 14, w: mw + 12, h: 26, tip: HELP.strain });
-    if (journey.newcomer && !journey.fighter && !over) {
+    if (journey.newcomer && !fighter && !over) {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';
@@ -770,6 +781,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
   function end(result: RoundResult) {
     if (over) return;
     over = result;
+    note(`the round ended: ${result.won ? 'won' : 'lost'} at wave ${result.wave}, ${result.kills} banished`);
     if (result.won) sfx.sfxVictory(); else sfx.sfxDeath();
     const { unlocked } = host.report(result);
     overlay?.remove();
@@ -816,6 +828,16 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
       window.addEventListener('blur', onBlur);
       mouse.sx = window.innerWidth / 2 + 100; mouse.sy = window.innerHeight / 2;
       document.body.style.cursor = 'crosshair';
+      // Explorer Claude: the round lends its view, state and controls (see explorer.ts)
+      lendRound({
+        world: 'dark',
+        view: () => snap && fightViewOf(snap, me, slots.map((sl) => sl && FORMS[sl.form]!.name), { w: W, h: H }, (performance.now() - fightStart) / 1000, fightMemory, pred),
+        state: () => ({ wave: (snap?.wave ?? 0) + 1, waves: snap?.waves ?? B.waves.length, kills: snap?.kills ?? 0, life: Math.round(player.hp), alive, together, lobby, over: over ? (over.won ? 'won' : 'lost') : null }),
+        control: (code) => { if (journey.fighter) return; fighter = code ? compileFighting(code) : undefined; },
+        go: () => link.go(),
+        pause: (on) => { if (over || paused === on) return; paused = on; link.pause(on); },
+        players: () => together,
+      });
       // debug/bot hook: read-only view of what this client knows
       (window as any).__run = {
         player, slots, cast,
@@ -826,6 +848,7 @@ export function runScreen(link: DungeonLink, welcome: DarkWelcome, journey: Jour
       };
     },
     unmount() {
+      lendRound(null);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
       window.removeEventListener('mousemove', onMouseMove);

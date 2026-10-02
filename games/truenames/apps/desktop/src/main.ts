@@ -69,7 +69,7 @@ if (!app.requestSingleInstanceLock()) {
     const vkey = JSON.parse(readFileSync(join(__dirname, 'name.vkey.json'), 'utf8'));
     let dungeonOk = true;
     try {
-      await startDungeon({ port: PORTS.dungeon, vkey });
+      await startDungeon({ port: PORTS.dungeon, vkey, issues: join(app.getPath('userData'), 'actant-issues.jsonl') });
     } catch (e) {
       dungeonOk = false;
       console.error('[desktop] the dungeon could not start', e);

@@ -2,7 +2,9 @@
 // own car with the dungeon's own physics (racing.ts), draws the other cars a little in the past between
 // snapshots, and turns events into light and sound. It never touches the save or the sanctum.
 import type { Screen } from '../main.ts';
-import type { DungeonLink, Journey, RacerWelcome, PilotView, RoundHost, RoundResult } from '../round.ts';
+import type { DungeonLink, Journey, RacerWelcome, PilotView, Pilot, RoundHost, RoundResult } from '../round.ts';
+import { lendRound, note, explorerCode } from '../explorer.ts';
+import { compileDriving } from '../actant-mind.ts';
 import { frag } from '../dom.ts';
 import { RACER as R, worldDescentName } from '@truenames/dungeon/balance';
 import type { RacerCar, RacerEvent, RacerSnapshot, WireTraits } from '@truenames/dungeon/protocol';
@@ -168,7 +170,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   function clientTick() {
     if (paused || over || !predInit) return;
     let throttle = 0, steer = 0;
-    if (journey.pilot) {
+    if (pilot) {
       // an actant drives: its code sees the race and gives an order each frame
       const order = pilotOrder();
       throttle = order.throttle; steer = order.steer;
@@ -186,19 +188,23 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
     if (pending.length > 600) pending.shift();
   }
 
+  let pilot: Pilot | undefined = journey.pilot ?? (explorerCode('racer') as Pilot | null) ?? undefined; // an actant's (or the explorer's) driving code
   const pilotMemory: Record<string, unknown> = {}; // the pilot's own, kept between frames of this race
   const pilotStart = performance.now();
   /** The pilot's order, never trusted: bad output or a throw falls back to the rivals' autopilot. */
-  function pilotOrder(): { throttle: number; steer: number; cast?: number | null } {
+  function pilotView(): PilotView {
     const myPlace = hud.place;
-    const view: PilotView = {
+    return {
       car: { ...car }, track, laps, place: myPlace, lap: hud.lap,
       strain: hud.strain, capacity: hud.capacity, time: (performance.now() - pilotStart) / 1000, memory: pilotMemory,
       others: [...others.values()].map((o) => ({ x: o.x, y: o.y, vx: o.vx, vy: o.vy, place: o.place, ahead: o.place < myPlace, dist: Math.hypot(o.x - car.x, o.y - car.y) })),
       slots: slots.map((s, i) => s && { index: i, form: FORMS[s.form]!.name, ready: s.ready, vessel: s.vessel, cap: s.cap }),
     };
+  }
+  function pilotOrder(): { throttle: number; steer: number; cast?: number | null } {
+    const view = pilotView();
     try {
-      const o = journey.pilot!(view);
+      const o = pilot!(view);
       if (o && Number.isFinite(o.throttle) && Number.isFinite(o.steer)) return o;
     } catch { /* fall through */ }
     return autopilot(car, track, view.others);
@@ -234,24 +240,27 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
           if (sl) sl.flash = 0.3;
           floaters.push({ x: car.x, y: car.y - 30, text: `${ev.power}`, color: colorOf(ev.element), t: 0, size: 14 });
           sfx.sfxCast(ev.form, ev.element, 0.4 + ev.power / 20);
+          note(`you spoke ${FORMS[ev.form]!.name}: power ${ev.power}`);
         } else if (Math.hypot(ev.x - car.x, ev.y - car.y) < 700) sfx.sfxEnemyCast();
         return;
       }
       case 'refused': if (ev.car === mine) floaters.push({ x: car.x, y: car.y - 30, text: 'unheard', color: '#9c8f74', t: 0, size: 13 }); return;
-      case 'backlash': if (ev.car === mine) { sfx.sfxBacklash(); burst(car.x, car.y, '#ff5040', 20); floaters.push({ x: car.x, y: car.y - 34, text: 'BACKLASH', color: '#ff5040', t: 0, size: 15 }); } return;
+      case 'backlash': if (ev.car === mine) note('backlash: spun out'); if (ev.car === mine) { sfx.sfxBacklash(); burst(car.x, car.y, '#ff5040', 20); floaters.push({ x: car.x, y: car.y - 34, text: 'BACKLASH', color: '#ff5040', t: 0, size: 15 }); } return;
       case 'hit': {
         burst(ev.x, ev.y, colorOf(ev.element), 16);
         if (ev.car === mine) {
+          note(`${ev.what} by ${who(ev.by)}`);
           sfx.sfxHurt();
           shake = Math.min(14, shake + 8);
           floaters.push({ x: car.x, y: car.y - 34, text: ev.spin > 0 ? `${ev.what} by ${who(ev.by)}` : `shoved by ${who(ev.by)}`, color: '#ff7a6b', t: 0, size: 14 });
         } else {
+          if (ev.by === mine) note(`you struck ${who(ev.car)}`);
           if (ev.by === mine) { sfx.sfxHit(); floaters.push({ x: ev.x, y: ev.y - 24, text: ev.spin > 0 ? 'spun out' : 'shoved', color: colorOf(ev.element), t: 0, size: 13 }); }
         }
         return;
       }
       case 'absorb': burst(ev.x, ev.y, '#cfe8ff', 10); if (ev.car === mine) floaters.push({ x: car.x, y: car.y - 30, text: 'warded', color: '#cfe8ff', t: 0, size: 13 }); return;
-      case 'slowed': burst(ev.x, ev.y, '#a8e6ff', 8); if (ev.car === mine) { sfx.sfxHurt(); floaters.push({ x: car.x, y: car.y - 30, text: 'lanced: slowed', color: '#a8e6ff', t: 0, size: 13 }); } return;
+      case 'slowed': if (ev.car === mine) note('lanced: slowed'); burst(ev.x, ev.y, '#a8e6ff', 8); if (ev.car === mine) { sfx.sfxHurt(); floaters.push({ x: car.x, y: car.y - 30, text: 'lanced: slowed', color: '#a8e6ff', t: 0, size: 13 }); } return;
       case 'slid': burst(ev.x, ev.y, HEX, 8); if (ev.car === mine) floaters.push({ x: car.x, y: car.y - 30, text: 'slick!', color: HEX, t: 0, size: 13 }); return;
       case 'beam': fx.push({ kind: 'beam', x: ev.x, y: ev.y, x2: ev.x2, y2: ev.y2, r: ev.width, t: 0, max: 0.3, color: colorOf(ev.element) }); return;
       case 'ring': fx.push({ kind: 'ring', x: ev.x, y: ev.y, r: ev.r, t: 0, max: ev.ward ? 0.5 : 0.4, color: ev.ward ? '#cfe8ff' : colorOf(ev.element) }); return;
@@ -268,9 +277,11 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
         return;
       case 'spark': burst(ev.x, ev.y, colorOf(ev.element), 8); return;
       case 'lap':
+        if (ev.car === mine) note(`lap ${ev.lap + 1} begins, place ${hud.place}`);
         if (ev.car === mine) { banner = { text: ev.lap === laps - 1 ? 'FINAL LAP' : `LAP ${ev.lap + 1}`, sub: '', t: 1.6 }; sfx.sfxWave(); }
         return;
       case 'finish':
+        note(ev.car === mine ? `you finished ${ordinal(ev.place)}` : `${who(ev.car)} finished ${ordinal(ev.place)}`);
         if (ev.car === mine) banner = { text: `${ordinal(ev.place).toUpperCase()} PLACE`, sub: '', t: 3 };
         else floaters.push({ x: car.x, y: car.y - 60, text: `${who(ev.car)} finishes ${ordinal(ev.place)}`, color: '#9c8f74', t: 0, size: 12 });
         return;
@@ -627,7 +638,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       }
       x += sw + gap;
     }
-    if (journey.newcomer && !journey.pilot && !over) {
+    if (journey.newcomer && !pilot && !over) {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';
@@ -671,6 +682,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
   function end(result: RoundResult) {
     if (over) return;
     over = result;
+    note(`the race ended: place ${result.wave}, ${result.kills} strikes`);
     if (result.won) sfx.sfxVictory(); else sfx.sfxDeath();
     const { unlocked } = host.report(result);
     if (journey.pilot) setTimeout(() => host.leave(), 6000); // an actant's instance goes home on its own
@@ -713,6 +725,16 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       window.addEventListener('mousedown', onMouseDown);
       window.addEventListener('contextmenu', onContext);
       window.addEventListener('blur', onBlur);
+      // Explorer Claude: the race lends its view, state and controls (see explorer.ts)
+      lendRound({
+        world: 'racer',
+        view: () => pilotView(),
+        state: () => ({ countdown, lobby, place: hud.place, lap: hud.lap + 1, laps, finished: hud.finished, strain: hud.strain, capacity: hud.capacity, over: over ? (over.won ? 'won' : 'lost') : null }),
+        control: (code) => { if (journey.pilot) return; pilot = code ? compileDriving(code) : undefined; },
+        go: () => link.go(),
+        pause: (on) => { if (over || paused === on) return; paused = on; link.pause(on); },
+        players: () => onGrid,
+      });
       (window as any).__racer = {
         car, slots, cast, hud, keys,
         state: () => ({ countdown, place: hud.place, lap: hud.lap, finished: hud.finished, over: over ? (over.won ? 'won' : 'lost') : null }),
@@ -731,6 +753,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       link.onRacer = link.onEnd = link.onClose = null;
       link.close();
       delete (window as any).__racer;
+      lendRound(null);
     },
     frame(dt, ctx, w, h) {
       time += dt;

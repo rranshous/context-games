@@ -47,6 +47,7 @@ export type ClientMsg =
   | { t: 'choir-presence'; presence: ChoirPresence }
   | { t: 'choir-say'; text: string }
   | { t: 'choir-share'; cell: string; note?: string } // share a being's sign with the choir
+  | { t: 'issue'; from: string; text: string; where?: string } // development: an actant (or the explorer) reports something that seems broken
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
 

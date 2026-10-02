@@ -27,6 +27,7 @@ import { isMuted, setMuted } from '../audio.ts';
 import { openChart } from './chart.ts';
 import { openSpiritCard } from './spirit-card.ts';
 import { createCodex, type Codex } from './codex.ts';
+import { lendSanctum } from '../explorer.ts';
 
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
@@ -424,6 +425,16 @@ export function sanctumScreen(app: App): Screen {
 
   return {
     mount(ui) {
+      // Explorer Claude: the sanctum lends a walk and a summary (see explorer.ts)
+      lendSanctum({
+        walk: (w, level) => walk(w, level),
+        summary: () => ({
+          screen: 'sanctum', handle: save.handle ?? null, hum: Math.round(S.pool.rate()),
+          words: S.graspedWords().map((k) => `${k} ${S.strength(k)} truths`), loadout: save.loadout,
+          plan: S.planner.aims.map((a) => describeAim(a)), choir: S.choir.members.map((m) => m.handle),
+          actant: S.actant.config.on ? { model: S.actant.config.model, status: S.actant.status, races: !!S.actant.config.joinRaces, dark: !!S.actant.config.joinDark } : null,
+        }),
+      });
       const aura = save.aura!;
       const el0 = aura.element;
       root = frag(`<div class="sanctum">
@@ -669,6 +680,7 @@ export function sanctumScreen(app: App): Screen {
       offs.push(S.names.on(() => codex?.render()));
     },
     unmount() {
+      lendSanctum(null);
       clearInterval(timer);
       offs.forEach((f) => f());
       S.planner.onChange = null;

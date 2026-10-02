@@ -89,6 +89,7 @@ export const TOOLS = [
   fn('join_world', 'Standing order: when your choir gathers a round of this world, join it and play with your code (races: your driving code; dark: your fighting code).', { world: { type: 'string', enum: ['races', 'dark'] }, on: { type: 'boolean' } }, ['world', 'on']),
   fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps, strain, capacity, time (seconds), memory (an object kept between frames). autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
   fn('write_fighting', 'Replace your fighting code (the Dark): the body of a function(view, autofight) run every frame, returning {mx, my, ax, ay, cast}: move direction, aim point, and a slot index to speak (or null). view has me (x, y, hp, ward, strain, capacity), allies, enemies (nearest first: kind, x, y, hp, dist), shots, novas, slots (index, form, vessel, cap), wave, time (seconds), memory (an object kept between frames). autofight(view) gives {mx, my, ax, ay}.', { code: { type: 'string' } }, ['code']),
+  fn('report_issue', 'Report something about the game itself that seems broken or wrong (a tool that misbehaves, numbers that do not add up, an instruction you cannot follow). The builders read these.', { text: { type: 'string' } }, ['text']),
   fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
   fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
 ];
@@ -129,6 +130,7 @@ export function soma(c: MindConfig): string {
     `${c.handle ? `You are ${c.handle}. ` : ''}You tend a sanctum in Truenames. Beings dwell in the astral: wisps at depth 12, spirits 13, powers 14, dominions 15, gods 16 (each deeper class is mightier and 16x harder to find).`,
     'You find beings by seeking, grasp their words of power by meditating (a word is grasped at its bar: 22 truths for a wisp, +4 per class), and deepen words to make them stronger.',
     'The path: seek finds beings; a found being gives nothing until a grasp aim grasps its first word; a grasped word does nothing until bound (bind_word, up to 4 slots: what you carry into worlds); deepen makes held words truer.',
+    'Truenames is experimental and still being built: some things may be broken, missing or confusing. When something seems wrong, report it with report_issue (say what you saw and what you expected), then carry on.',
     'You do not meditate or search directly: you set the plan, an ordered list of aims the sanctum pursues on its own. Earlier aims and bigger shares get more of the hum.',
     `Goal: ${c.goal || 'grow strong.'}`,
     `Your notes: ${c.notes || '(none yet)'}`,

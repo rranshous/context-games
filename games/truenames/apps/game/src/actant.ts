@@ -7,7 +7,7 @@ import type { Services, SanctumEvent } from './services.ts';
 import { addHistory, describeAim, type AimSpec } from './plan.ts';
 import { ELEMENT_NAMES, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
-import type { Pilot, Fighter } from './round.ts';
+import { reportIssue, type Pilot, type Fighter } from './round.ts';
 import { CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, DEFAULT_FIGHTING, compileFighting, tryFighting, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
 
 export { OLLAMA, DEFAULT_MODEL, DEFAULT_DRIVING, compileDriving, toolModels } from './actant-mind.ts';
@@ -196,6 +196,13 @@ export class Actant {
       }
       case 'say': { const t = String(a.text ?? '').slice(0, 300); if (t.trim() === this.lastSaid.trim()) return 'you already said exactly that; say something new or nothing'; this.lastSaid = t; this.S.choir.say(t); addHistory(this.save, { kind: 'note', by: 'actant', text: `said to the choir: ${t}` }); return this.S.choir.connected ? 'said' : 'said (but no one is listening: not connected)'; }
       case 'share': { const c = String(a.sign ?? ''); if (!this.save.spirits[c]) return 'error: you know no being with that sign'; this.S.choir.share(c); return 'shared'; }
+      case 'report_issue': {
+        const t = String(a.text ?? '').slice(0, 2000);
+        if (!t.trim()) return 'error: say what seems wrong';
+        void reportIssue(this.S.choir.handle, t, 'actant review');
+        addHistory(this.save, { kind: 'note', by: 'actant', text: `reported an issue: ${t.slice(0, 200)}` });
+        return 'reported to the builders, thank you';
+      }
       case 'note': this.config.notes = String(a.text ?? '').slice(0, 600); persist(this.save); return 'noted';
       default: return `error: unknown tool ${name}`;
     }

@@ -6,6 +6,7 @@ import { initAudio, setDrone, sfxFind, sfxName, isMuted, setMuted } from './audi
 import { spiritOf } from './save.ts';
 import { spiritName } from './lore.ts';
 import { installTooltips } from './help.ts';
+import { installExplorer } from './explorer.ts';
 
 export interface Screen {
   mount(ui: HTMLElement): void;
@@ -62,6 +63,8 @@ async function boot() {
     },
   };
   (window as any).__truenames = { app, services, save };
+  // Explorer Claude (a way for Claude to play): in development, or with ?explorer in the address
+  if (import.meta.env.DEV || new URLSearchParams(location.search).has('explorer')) installExplorer();
   services.resume();
   installTooltips();
   const wake = () => initAudio();

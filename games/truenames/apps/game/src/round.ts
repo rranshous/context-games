@@ -83,6 +83,20 @@ export function setWorldHost(addr: string) {
   try { if (url) localStorage.setItem(HOST_KEY, url); else localStorage.removeItem(HOST_KEY); } catch { /* per-session only */ }
 }
 
+/**
+ * Development: report something that seems broken to the worlds host, which keeps it for whoever is building the
+ * game (actant-issues.jsonl). Actants and the explorer's shard use it; it's fire-and-forget.
+ */
+export function reportIssue(from: string, text: string, where = ''): Promise<boolean> {
+  return new Promise((res) => {
+    let ws: WebSocket;
+    try { ws = new WebSocket(worldHost()); } catch { return res(false); }
+    const done = (ok: boolean) => { try { ws.close(); } catch { /* gone */ } res(ok); };
+    ws.onopen = () => { ws.send(JSON.stringify({ t: 'issue', from, text, where } satisfies ClientMsg)); setTimeout(() => done(true), 200); };
+    ws.onerror = () => done(false);
+  });
+}
+
 /** A live connection to one round in a dungeon process. */
 export class DungeonLink {
   private ws: WebSocket;

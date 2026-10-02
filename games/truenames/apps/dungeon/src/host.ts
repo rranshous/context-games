@@ -4,11 +4,14 @@
 // fixed step, and streams snapshots. It never sees a secret: no addresses, no nonces, no keys.
 import { WebSocketServer, type WebSocket } from 'ws';
 import { randomBytes } from 'node:crypto';
+import { appendFileSync } from 'node:fs';
 import type { ProofVerifier } from '@truenames/authority';
 import { DungeonSim, BastionSim, CouncilSim, RacerSim, zkVerifier, type ChoirMember, type ClientMsg, type ServerMsg, type World } from '@truenames/dungeon';
 
 /** Set by startDungeon: verifies proofs against the circuit's verification key. */
 let verifier: ProofVerifier;
+/** Set by startDungeon: where reported issues are appended (one JSON line each), or null to only log them. */
+let issuesFile: string | null = null;
 const STEP = 1 / 60; // simulation step
 const SNAP_EVERY = 3; // snapshots at 20 Hz
 const MAX_LEVEL = 99;
@@ -175,6 +178,13 @@ function serve(ws: WebSocket) {
   const handle = async (raw: unknown) => {
     let m: ClientMsg;
     try { m = JSON.parse(String(raw)); } catch { return send(ws, { t: 'error', message: 'bad message' }); }
+    if (m.t === 'issue') {
+      // development: an actant or the explorer reports something that seems broken; kept for whoever builds the game
+      const line = { at: new Date().toISOString(), from: clean(m.from, 60), where: clean(m.where ?? '', 120), text: clean(m.text, 2000) };
+      console.log(`[issue] ${line.from} (${line.where}): ${line.text}`);
+      if (issuesFile) appendFileSync(issuesFile, JSON.stringify(line) + '\n');
+      return;
+    }
     if (shared) return shared(m);
     if (m.t === 'choir-join' && context === null) {
       context = 0n; // this connection is a choir member, not a round
@@ -229,8 +239,9 @@ function serve(ws: WebSocket) {
 export interface DungeonHost { port: number; close(): Promise<void> }
 
 /** Start a dungeon: listen for worlds on `port` (all interfaces by default, so LAN friends can join). */
-export function startDungeon(opts: { port: number; host?: string; vkey: object }): Promise<DungeonHost> {
+export function startDungeon(opts: { port: number; host?: string; vkey: object; issues?: string }): Promise<DungeonHost> {
   verifier = zkVerifier(opts.vkey);
+  issuesFile = opts.issues ?? null;
   return new Promise((res, rej) => {
     const wss = new WebSocketServer({ port: opts.port, host: opts.host ?? '0.0.0.0' });
     wss.on('connection', serve);

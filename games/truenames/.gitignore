@@ -3,3 +3,4 @@ dist/
 truenames-docs.zip
 .playwright-mcp/
 !docs/images/*.png
+actant-issues.jsonl

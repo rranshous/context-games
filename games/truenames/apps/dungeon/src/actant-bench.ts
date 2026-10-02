@@ -66,6 +66,7 @@ function fakeSanctum(state: MindState) {
       case 'say': { const t = String(a.text ?? ''); if (said.includes(t)) return 'you already said exactly that; say something new or nothing'; said.push(t); return 'said'; }
       case 'share': return known.has(String(a.sign ?? '')) ? 'shared' : 'error: you know no being with that sign';
       case 'note': return 'noted';
+      case 'report_issue': log(`    [issue] ${String(a.text ?? '').slice(0, 300)}`); return 'reported to the builders, thank you';
       default: return `error: unknown tool ${name}`;
     }
   }
