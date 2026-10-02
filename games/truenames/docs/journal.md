@@ -819,3 +819,10 @@ Robby: "a pattern we've used before … _you_ carve out a bit of space in the ap
   - A report travels as `{t: 'issue'}` to the worlds host, which logs `[issue] …` and appends a JSON line to `actant-issues.jsonl` (repo root for the dev dungeon, gitignored; the desktop's `userData` for its own). Every instance reports to whichever host it plays at.
   - The soma now says: "Truenames is experimental and still being built: some things may be broken, missing or confusing. When something seems wrong, report it with report_issue (say what you saw and what you expected), then carry on." The shard's prompt says the same.
 - **A trap, twice**: editing game source while a test round runs in the Vite dev server reloads the page and cuts the round (Keeper fell mid co-op; the first shard died mid-round). Don't touch `apps/game` or `packages/` while a dev-server playtest is running.
+- **The first shard run, finished (qwen3:8b, solo, descent 1)**: **won, all five waves, 82 banished, 86 life left.** 7 check-ins over ~75 min of wall time; the round paused while it thought.
+  - **Code:** 8 rewrites, most the same length (965 chars), so probably near no-ops. The last added Warden priority (1025 chars).
+  - **Issues reported** (all 5 landed in `actant-issues.jsonl`):
+    - 3× "multiple entities banished at the same time … unclear if intentional or a bug". That's the lance piercing every foe on its line, as designed, but nothing the shard saw says so. A real clarity signal: the log should say "the lance pierced 3".
+    - 2× "the Warden is not being targeted properly". That's its own code (autofight aims at the nearest), filed as a game bug. Actants need the difference between "the game is broken" and "my code is weak" made explicit.
+    - It repeated itself; the issue channel wants dedupe, like `say`.
+  - **Its report:** "The game has a solid foundation … the banishing system and enemy prioritization need more clarity." Generic but on target.
