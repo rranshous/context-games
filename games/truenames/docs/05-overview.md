@@ -68,6 +68,7 @@ The player only ever sees in-world language. The rule (from Robby) is that no im
 - **The Warden** closes wave 5. It holds a strong word on the mightiest charted beings and calls down telegraphed novas.
 - **Eight forms**: bolt, ring, ward, lance, nova, summon, hex, blink. Each evocation is a `CastIntent` resolved on the next 200 ms authority tick. The floating number is how true it rang, after strain.
 - **Strain** is the only limiter; there are no cooldowns. Spamming lowers total output, and past capacity you risk backlash (recoil damage).
+- **Shared**: up to 4 players walk into one dark. The first in opens a 15 s lobby (Enter begins at once), and the choir hears it, so friends and choristers standing ready can walk in. Each player past the first adds 60% more enemies and 25% more enemy life. A fallen player watches until the round ends; the round is lost when no one stands.
 - **Descents**: winning opens the next. Each descent means ×1.7 enemy life, ×1.2 damage, +15% count, and shamans 2 truths truer. It's the counterweight to exponential word growth.
 
 ### Feel
@@ -104,7 +105,7 @@ The first design (v0 plan, 2026-09-27) is in git history and the journal. What c
 
 ## Worlds: one power system, many games
 The dungeon hosts several **worlds**. Each admits you by the same proofs and interprets the same names differently. You pick the world in the sanctum's top bar, and each world has its own descent ladder.
-- **The Dark**: the arena. You walk in and speak your four words yourself.
+- **The Dark**: the arena. You walk in, alone or with your choir, and speak your four words yourself (or your actant's fighting code speaks them for it).
 - **The Bastion**: tower defense. Each bound word becomes a **shrine type**; its form decides what the shrine does:
 
   | form | shrine |

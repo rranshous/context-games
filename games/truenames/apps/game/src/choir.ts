@@ -2,7 +2,7 @@
 // "worlds" field, or our own). Members see each other's presence, talk, and share signs. A shared sign lands
 // in the Name Book like a find: a church handing down a being. Chat and signs from others are sanctum events,
 // so an actant tending this sanctum reviews when they arrive.
-import type { ChoirMember, ServerMsg } from '@truenames/dungeon/protocol';
+import type { ChoirMember, ServerMsg, World } from '@truenames/dungeon/protocol';
 import { spiritAt } from '@truenames/universe';
 import { persist, rememberSpirit, type SaveData } from './save.ts';
 import type { Services } from './services.ts';
@@ -17,8 +17,8 @@ export class Choir {
   lines: ChoirLine[] = [];
   connected = false;
   onChange: (() => void) | null = null;
-  /** Called when a race gathers at the choir's host (level, the opener's aura). */
-  onRace: ((level: number, by: string) => void) | null = null;
+  /** Called when a shared round gathers at the choir's host (a race, a dark): world, level, the opener's aura. */
+  onGather: ((world: World, level: number, by: string) => void) | null = null;
   private ws: WebSocket | null = null;
   private presenceTimer: ReturnType<typeof setInterval> | null = null;
   private retry = 2000;
@@ -101,10 +101,11 @@ export class Choir {
         persist(this.save);
         this.S.events.emit({ kind: 'find', text });
       }
-    } else if (m.t === 'choir-race') {
+    } else if (m.t === 'choir-gather') {
       const who = this.members.find((x) => x.aura === m.by)?.handle ?? 'someone';
-      this.lines.push({ at: Date.now(), from: who, text: `opened a race (circuit ${m.level + 1}); it starts within ${m.closesIn}s`, mine: m.by === me });
-      this.onRace?.(m.level, m.by);
+      const what = m.world === 'racer' ? `opened a race (circuit ${m.level + 1})` : `walked into the dark (descent ${m.level + 1})`;
+      this.lines.push({ at: Date.now(), from: who, text: `${what}; it begins within ${m.closesIn}s`, mine: m.by === me });
+      this.onGather?.(m.world, m.level, m.by);
     } else return;
     if (this.lines.length > 200) this.lines.splice(0, this.lines.length - 200);
     this.onChange?.();

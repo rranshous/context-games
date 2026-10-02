@@ -42,6 +42,8 @@ export const BALANCE = {
    * cast power by sqrt(2) per bit, so ~1.5 bits (~3x meditation) per level.
    */
   descent: { hpMult: 1.7, dmgMult: 1.2, countMult: 0.15, shamanBits: 2 },
+  /** A shared dark: up to `seats` players; each one past the first adds enemies and toughens them. */
+  coop: { seats: 4, countPerPlayer: 0.6, hpPerPlayer: 0.25 },
 };
 
 export const DESCENT_NAMES = ['the Threshold', 'the Lamplit Halls', 'the Ember Stair', 'the Drowned Stacks', 'the Quiet Galleries', 'the Root Vaults', 'the Unlit Deep', 'the Hollow Crown', 'the Last Door', 'the Nameless'];

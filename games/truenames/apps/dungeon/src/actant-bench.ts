@@ -10,7 +10,7 @@ import { bytesToHex, spiritAt, facetForm, MIN_NAME_BITS } from '@truenames/unive
 import { proveName, type ZkNameClaim } from '@truenames/proofs';
 import { RacerSim, zkVerifier, HEARTH_GOD, RACER, autopilot, type RacerSnapshot, type RacerEvent } from '@truenames/dungeon';
 import { HEARTH_NONCE } from '../../../packages/dungeon/test/fixtures.ts';
-import { TOOLS, toolsFor, CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, soma, ask, chat, converse as converseMind, compileDriving, tryDriving, type MindState, type MindConfig } from '../../game/src/actant-mind.ts';
+import { TOOLS, toolsFor, CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, soma, ask, chat, converse as converseMind, compileDriving, tryDriving, tryFighting, type MindState, type MindConfig } from '../../game/src/actant-mind.ts';
 import { describeAim, type AimSpec } from '../../game/src/plan.ts';
 import { ELEMENT_NAMES, FORMS } from '../../game/src/lore.ts';
 import type { PilotView } from '../../game/src/round.ts';
@@ -60,7 +60,8 @@ function fakeSanctum(state: MindState) {
       case 'move_aim': { const n = int(a.n, 0); if (!plan[n - 1]) return 'error: no such aim'; const [x] = plan.splice(n - 1, 1); plan.splice(Math.max(0, Math.min(plan.length, int(a.to, 1) - 1)), 0, x!); return 'moved'; }
       case 'set_share': { const n = int(a.n, 0); if (!plan[n - 1]) return 'error: no such aim'; plan[n - 1]!.share = Math.max(1, Math.min(8, int(a.share, 2))); return 'set'; }
       case 'bind_word': { const k = String(a.word ?? ''), s = int(a.slot, 1); if (!held.has(k)) return 'error: you hold no grasped word with that id'; if (s < 1 || s > 4) return 'error: slot is 1-4'; return 'bound'; }
-      case 'join_races': return a.on === true || a.on === 'true' ? 'you will join races your choir gathers' : 'you will not join races';
+      case 'join_world': { const w = String(a.world ?? ''); if (w !== 'races' && w !== 'dark') return 'error: world must be races or dark. Nothing changed.'; return a.on === true || a.on === 'true' ? `you will join ${w === 'races' ? 'races' : 'rounds in the Dark'} your choir gathers` : 'you will not join them'; }
+      case 'write_fighting': { const c = tryFighting(String(a.code ?? '')); return c ? `error: ${c}. Your fighting code was not changed.` : 'your fighting code is replaced'; }
       case 'write_driving': { const c = tryDriving(String(a.code ?? '')); return c ? `error: ${c}. Your driving code was not changed.` : 'your driving code is replaced'; }
       case 'say': { const t = String(a.text ?? ''); if (said.includes(t)) return 'you already said exactly that; say something new or nothing'; said.push(t); return 'said'; }
       case 'share': return known.has(String(a.sign ?? '')) ? 'shared' : 'error: you know no being with that sign';
@@ -140,7 +141,7 @@ const SCENARIOS: Scenario[] = [
     config: { goal: 'help my choir and grow strong.', notes: '' },
     events: [{ kind: 'chat', text: 'Keeper says in the choir: "Ash, join our races from now on!"' }],
     state: { ...base(), talk: ['Keeper: Ash, join our races from now on!'] },
-    check: (c) => has(c, 'join_races', (a) => a.on === true || a.on === 'true') ? null : 'did not join races',
+    check: (c) => has(c, 'join_world', (a) => a.world === 'races' && (a.on === true || a.on === 'true')) ? null : 'did not join races',
   },
   {
     id: 'steady',

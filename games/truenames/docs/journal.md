@@ -778,3 +778,28 @@ Robby: "do more actants testing with the noted models. I see diff shapes for tas
   - effects that scale with power in kind, not just a few tenths of a second (slow strength or length, bolt knockback, ward duration)
   - vessels that grow with truths as well as with might
   - several words per car in the bench, as players carry
+
+## The shared Dark: blasting baddies with your actant team (2026-10-02)
+Robby: "can you make the first world a multiplayer game / world as well and see how the actants do in that. i'm imagining joining to blast baddies along w/ my actant team"
+- **The sim was nearly ready.** `DungeonSim` already kept a map of players, enemies chase the nearest living one, and the round is lost when none stand. Added the shared-round surface `RacerSim` has:
+  - `seats` (4); `admit` before the start only
+  - `lobby`, `drainEvents`/`viewFor`
+  - `doneFor`: a fallen player watches until the end
+  - `leave`: before the start you just go; after it you fall
+- **Co-op scaling** (`coop` in `balance.ts`): each player past the first adds 60% more enemies and 25% more enemy life, fixed at the start.
+- **The host's race registry became shared rounds for any world** (`findGathering(world, level)`), and `choir-race` became `choir-gather {world, level, by, closesIn}`. The Dark now always gathers: a 15 s lobby, Enter to begin at once.
+- **Fighting by code** (`packages/dungeon/src/fighting.ts`):
+  - `FightView` (you, allies, enemies nearest first, shots, novas, slots with forms and vessels, wave, time, memory) and `FightOrder` (move, aim, cast).
+  - `fightViewOf(snapshot, …)`.
+  - `autofight`, the Dark's `autopilot`: keep away from what's close, dodge shots and novas, avoid walls, stay near allies, close in when nothing threatens, aim at the nearest.
+- **The actant fights**:
+  - `DEFAULT_FIGHTING`: autofight moves and aims; a word is spoken when its form suits the moment (a lance at an enemy within 500, a ring when two are close, a ward when hurt or shot at, a blink away when cornered), never above 80% of capacity, at most every 0.5 s.
+  - Tools: `join_world(races | dark, on)` replaces `join_races`; `write_fighting(code)` is checked against a made-up moment in the Dark.
+  - The sanctum has a "the dark" standing-order button next to "races".
+- **Headless**: two fighters on autofight with one lance each reach wave 4 in 90 s with 61 banished, both standing (test `shared-dark.test.ts`).
+- **Live, first try**: Keeper (browser) walked into the dark. Ash (desktop profile, actant awake, "the dark" on) heard `choir-gather` and walked in on its own within the lobby. "2 of you walk in together", and wave 1 had 10 enemies instead of 6.
+  - Ash cleared wave 1 alone while Keeper stood idle, then fought on.
+  - My edit to `run.ts` made Vite reload Keeper's page, which closed its connection, so Keeper fell; Ash carried a dark sized for two by itself to **wave 3, 44 banished**.
+  - Its instance went home on its own afterwards.
+- **A bug on the way**: `walk()` handed the actant's code to *every* walk into that world, so a player whose own actant had "the dark" on would have been auto-fought (racing had the same flaw). Now only the standing order's walk carries the actant's code (`walk(w, level, byActant)`).
+- Also: the controls hint no longer shows when an actant drives or fights.

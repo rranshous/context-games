@@ -627,7 +627,7 @@ export function racerScreen(link: DungeonLink, welcome: RacerWelcome, journey: J
       }
       x += sw + gap;
     }
-    if (journey.newcomer && !over) {
+    if (journey.newcomer && !journey.pilot && !over) {
       ctx.textAlign = 'center';
       ctx.font = 'italic 14px EB Garamond, serif';
       ctx.fillStyle = 'rgba(233,220,184,0.7)';

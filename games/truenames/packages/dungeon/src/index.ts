@@ -3,6 +3,7 @@ export * from './bastion.ts';
 export * from './council.ts';
 export * from './racer.ts';
 export * from './racing.ts';
+export * from './fighting.ts';
 export * from './admission.ts';
 export * from './protocol.ts';
 export * from './balance.ts';

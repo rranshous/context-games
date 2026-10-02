@@ -11,7 +11,8 @@
     "./balance": "./src/balance.ts",
     "./protocol": "./src/protocol.ts",
     "./movement": "./src/movement.ts",
-    "./racing": "./src/racing.ts"
+    "./racing": "./src/racing.ts",
+    "./fighting": "./src/fighting.ts"
   },
   "dependencies": {
     "@truenames/authority": "workspace:*",

@@ -7,8 +7,8 @@ import type { Services, SanctumEvent } from './services.ts';
 import { addHistory, describeAim, type AimSpec } from './plan.ts';
 import { ELEMENT_NAMES, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
-import type { Pilot } from './round.ts';
-import { CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
+import type { Pilot, Fighter } from './round.ts';
+import { CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, DEFAULT_FIGHTING, compileFighting, tryFighting, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
 
 export { OLLAMA, DEFAULT_MODEL, DEFAULT_DRIVING, compileDriving, toolModels } from './actant-mind.ts';
 /** Events gather this long before a review (several finds in a row make one review). */
@@ -38,6 +38,12 @@ export class Actant {
     if (!this.config.on || !this.config.joinRaces) return undefined;
     const code = this.config.driving && this.config.driving !== NAIVE_DRIVING ? this.config.driving : DEFAULT_DRIVING;
     try { return compileDriving(code); } catch { return compileDriving(DEFAULT_DRIVING); }
+  }
+
+  /** This actant's fighter, if it joins the Dark (its fighting code, or the default when the code won't compile). */
+  fighter(): Fighter | undefined {
+    if (!this.config.on || !this.config.joinDark) return undefined;
+    try { return compileFighting(this.config.fighting || DEFAULT_FIGHTING); } catch { return compileFighting(DEFAULT_FIGHTING); }
   }
 
   wake() {
@@ -160,7 +166,25 @@ export class Actant {
         persist(this.save);
         return 'bound';
       }
-      case 'join_races': this.config.joinRaces = a.on === true || a.on === 'true'; persist(this.save); addHistory(this.save, { kind: 'plan', by: 'actant', text: this.config.joinRaces ? 'will join the choir\'s races' : 'will not join races' }); return this.config.joinRaces ? 'you will join races your choir gathers' : 'you will not join races';
+      case 'join_world': {
+        const on = a.on === true || a.on === 'true';
+        const w = String(a.world ?? '').toLowerCase();
+        if (w !== 'races' && w !== 'dark') return 'error: world must be races or dark. Nothing changed.';
+        if (w === 'races') this.config.joinRaces = on; else this.config.joinDark = on;
+        const what = w === 'races' ? 'races' : 'rounds in the Dark';
+        persist(this.save);
+        addHistory(this.save, { kind: 'plan', by: 'actant', text: on ? `will join the choir's ${what}` : `will not join ${what}` });
+        return on ? `you will join ${what} your choir gathers` : `you will not join ${what}`;
+      }
+      case 'write_fighting': {
+        const code = String(a.code ?? '').slice(0, 4000);
+        const check = tryFighting(code);
+        if (check) return `error: ${check}. Your fighting code was not changed.`;
+        this.config.fighting = code;
+        persist(this.save);
+        addHistory(this.save, { kind: 'plan', by: 'actant', text: `rewrote its fighting code (${code.length} chars)` });
+        return 'your fighting code is replaced';
+      }
       case 'write_driving': {
         const code = String(a.code ?? '').slice(0, 4000);
         const check = tryDriving(code);

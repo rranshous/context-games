@@ -232,6 +232,7 @@ export function sanctumScreen(app: App): Screen {
     (el.querySelector('#ac-wake') as HTMLButtonElement).textContent = A.config.on ? 'awake' : 'asleep';
     el.querySelector('#ac-wake')!.classList.toggle('on', A.config.on);
     el.querySelector('#ac-race')!.classList.toggle('on', !!A.config.joinRaces);
+    el.querySelector('#ac-dark')!.classList.toggle('on', !!A.config.joinDark);
     el.querySelector('#ac-status')!.textContent = A.status === 'thinking' ? 'thinking… (meditation paused)' : A.config.on ? 'listening for what happens' : '';
     el.querySelector('#ac-thought')!.textContent = A.lastThought ? `“${A.lastThought}”` : '';
     el.querySelector('#ac-log')!.innerHTML = [`<div class="gold">notes: ${esc(A.config.notes || '(none)')}</div>`, ...A.log.slice(-20).reverse().map((l) => `<div>${esc(l)}</div>`)].join('');
@@ -295,7 +296,8 @@ export function sanctumScreen(app: App): Screen {
   }
 
   /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
-  async function walk(w: World, level: number) {
+  /** `byActant`: the actant walks (a standing order), so its code plays; otherwise the player's hands do. */
+  async function walk(w: World, level: number, byActant = false) {
     // hush: the world (and the provers at the threshold) get the machine; meditation drops to one voice
     const voices = S.pool.getActive();
     const hush = save.quietPlay !== false;
@@ -389,7 +391,8 @@ export function sanctumScreen(app: App): Screen {
       });
       cancelAnimationFrame(raf);
       clearInterval(rotating);
-      if (w === 'racer') journey.pilot = S.actant.pilot(); // an actant standing ready drives with its own code
+      if (byActant && w === 'racer') journey.pilot = S.actant.pilot(); // an actant standing ready drives with its own code
+      if (byActant && w === 'dark') journey.fighter = S.actant.fighter(); // and fights with its own
       console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
       msg(w === 'bastion' ? 'The bastion weighs your words…' : w === 'council' ? 'The council weighs your words…' : w === 'racer' ? 'The road weighs your words…' : 'The dark weighs your words…');
       const welcome = await link.enter(journey);
@@ -454,7 +457,7 @@ export function sanctumScreen(app: App): Screen {
             <details id="hist"><summary class="dim" data-tip="=What the sanctum has done, and who changed the plan.">history</summary><div class="feed" id="history"></div></details>
             <div class="actant" id="actant">
               <h2 style="margin-top:12px" data-tip="=<b>An actant</b>: a mind (a local model) that tends this sanctum toward your goal. When something happens (a find, a grasp, a search or an aim finished, a journey), it reviews the sanctum and reprioritizes the plan, using the same controls you do. While it thinks, meditation pauses: thought costs chanting.">Actant</h2>
-              <div class="actant-row"><button class="small" id="ac-wake"></button> <select id="ac-model" data-tip="=Which local model thinks (served by ollama on this machine)."></select> <button class="small" id="ac-now" data-tip="=Ask it to review the sanctum now.">review now</button> <button class="small" id="ac-race" data-tip="=Standing order: when your choir gathers a Dark Racer race, this sanctum's actant joins it on its own and drives with its own driving code (which it can rewrite after each race).">races</button> <span class="dim" id="ac-status"></span></div>
+              <div class="actant-row"><button class="small" id="ac-wake"></button> <select id="ac-model" data-tip="=Which local model thinks (served by ollama on this machine)."></select> <button class="small" id="ac-now" data-tip="=Ask it to review the sanctum now.">review now</button> <button class="small" id="ac-race" data-tip="=Standing order: when your choir gathers a Dark Racer race, this sanctum's actant joins it on its own and drives with its own driving code (which it can rewrite after each race).">races</button> <button class="small" id="ac-dark" data-tip="=Standing order: when your choir walks into the dark, this sanctum's actant walks in beside them on its own and fights with its own fighting code (which it can rewrite after each round).">the dark</button> <span class="dim" id="ac-status"></span></div>
               <textarea id="ac-goal" rows="2" placeholder="its goal, in your words: e.g. make me strong in storm and ready to race" data-tip="=The goal the actant works toward. In your words; it reads this every review."></textarea>
               <div class="dim" id="ac-thought" style="font-style:italic; font-size:13px"></div>
               <details><summary class="dim" style="font-size:12px">its notes and doings</summary><div class="feed" id="ac-log" style="font-size:12px"></div></details>
@@ -534,11 +537,12 @@ export function sanctumScreen(app: App): Screen {
         say.addEventListener('keydown', (e) => { if (e.key === 'Enter') { S.choir.say(say.value); say.value = ''; } });
         S.choir.onChange = () => { renderChoir(); renderBook(); };
         S.choir.connect(); // a new aura has no link yet
-        // an actant standing ready joins the choir's races on its own (no model call: a standing order)
-        S.choir.onRace = (level, by) => {
-          if (by === save.aura?.pub || walking || !S.actant.pilot()) return;
-          app.toast(`Your actant joins the race at ${worldDescentName('racer', level)}.`);
-          void walk('racer', level);
+        // an actant standing ready joins the choir's races and darks on its own (no model call: a standing order)
+        S.choir.onGather = (w, level, by) => {
+          if (by === save.aura?.pub || walking) return;
+          if (w === 'racer' ? !S.actant.pilot() : w === 'dark' ? !S.actant.fighter() : true) return;
+          app.toast(w === 'racer' ? `Your actant joins the race at ${worldDescentName('racer', level)}.` : `Your actant walks into the dark at ${worldDescentName('dark', level)}.`);
+          void walk(w, level, true);
         };
       }
       {
@@ -549,6 +553,7 @@ export function sanctumScreen(app: App): Screen {
         root.querySelector('#ac-wake')!.addEventListener('click', () => { if (A.config.on) A.sleep(); else { A.wake(); void A.review('You have just been woken to tend this sanctum.'); } renderActant(); });
         root.querySelector('#ac-now')!.addEventListener('click', () => void A.review());
         root.querySelector('#ac-race')!.addEventListener('click', () => { A.config.joinRaces = !A.config.joinRaces; persist(save); renderActant(); });
+        root.querySelector('#ac-dark')!.addEventListener('click', () => { A.config.joinDark = !A.config.joinDark; persist(save); renderActant(); });
         const sel = root.querySelector('#ac-model') as HTMLSelectElement;
         sel.innerHTML = `<option>${esc(A.config.model)}</option>`;
         void toolModels().then((ms) => { if (ms.length) sel.innerHTML = ms.map((m) => `<option ${m === A.config.model ? 'selected' : ''}>${esc(m)}</option>`).join(''); else sel.title = 'no local model server found (ollama on 127.0.0.1:11434)'; });
@@ -668,7 +673,7 @@ export function sanctumScreen(app: App): Screen {
       offs.forEach((f) => f());
       S.planner.onChange = null;
       S.choir.onChange = null;
-      S.choir.onRace = null;
+      S.choir.onGather = null;
       S.actant.onChange = null;
     },
   };

@@ -1,6 +1,7 @@
 // The game side of the threshold: a link to a dungeon process. It knows nothing of the sanctum.
 // The dungeon issues a context, receives proofs bound to it, runs the round, and reports what happened.
 import type { ZkNameClaim } from '@truenames/proofs';
+import type { Fighter } from '@truenames/dungeon/fighting';
 import type { ClientMsg, ServerMsg, Snapshot, BastionSnapshot, CouncilView, CouncilTarget, RacerSnapshot, RoundResultMsg, MoveCmd, DriveCmd, WireTraits, World } from '@truenames/dungeon/protocol';
 
 /** Issued by the dungeon when a round is opened. Proofs must be bound to its context. */
@@ -21,6 +22,8 @@ export interface Journey {
   cosmetics: ({ element: number; magnitude: number; traits: WireTraits } | null)[];
   /** An actant's driving code: when set, it drives the car (Dark Racer) instead of the keyboard. */
   pilot?: Pilot;
+  /** An actant's fighting code: when set, it moves, aims and speaks (the Dark) instead of the keyboard and mouse. */
+  fighter?: Fighter;
 }
 
 export type RoundResult = RoundResultMsg;
@@ -45,6 +48,7 @@ export interface PilotView {
 /** A pilot's order for this frame: throttle and steer (-1..1), and optionally a word (slot index) to speak. */
 export interface PilotOrder { throttle: number; steer: number; cast?: number | null }
 export type Pilot = (view: PilotView) => PilotOrder;
+export type { FightView, FightOrder, Fighter } from '@truenames/dungeon/fighting';
 export type Welcome = Extract<ServerMsg, { t: 'welcome' }>;
 export type DarkWelcome = Extract<Welcome, { world: 'dark' }>;
 export type BastionWelcome = Extract<Welcome, { world: 'bastion' }>;

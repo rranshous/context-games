@@ -3,7 +3,8 @@
 // put exactly the same words in front of a model.
 import { ELEMENT_NAMES } from './lore.ts';
 import { autopilot } from '@truenames/dungeon/racing';
-import type { Pilot, PilotOrder, PilotView } from './round.ts';
+import { autofight } from '@truenames/dungeon/fighting';
+import type { Pilot, PilotOrder, PilotView, Fighter, FightOrder, FightView } from './round.ts';
 
 export const OLLAMA = 'http://127.0.0.1:11434';
 export const DEFAULT_MODEL = 'qwen3:8b';
@@ -29,6 +30,31 @@ if (view.time >= (m.next || 0) && view.strain <= view.capacity * 0.8) {
   if (word) { cast = word.index; m.next = view.time + 6; }
 }
 return { throttle: order.throttle, steer: order.steer, cast };`;
+
+/**
+ * The fighting code every actant starts with: `autofight` moves and aims (keeps away from what's close, dodges, stays
+ * near allies); a word is spoken when its form suits the moment, never while running hot, at most every half second.
+ */
+export const DEFAULT_FIGHTING = `const m = view.memory;
+const order = autofight(view);
+const target = view.enemies[0];
+const close = view.enemies.filter((e) => e.dist < 200).length;
+const fits = {
+  bolt: !!target && target.dist < 700, lance: !!target && target.dist < 500, hex: !!target && target.dist < 600,
+  nova: !!target && target.dist < 650, ring: close >= 2 || (!!target && target.dist < 110),
+  ward: view.me.hp < 60 || view.shots.some((s) => s.dist < 160), summon: view.enemies.length >= 3,
+  blink: !!target && target.dist < 70,
+};
+let cast = null, ax = order.ax, ay = order.ay;
+if (view.time >= (m.next || 0) && view.me.strain <= view.me.capacity * 0.8) {
+  const word = view.slots.find((s) => s && fits[s.form] && s.vessel > s.cap * 0.2);
+  if (word) {
+    cast = word.index;
+    m.next = view.time + 0.5;
+    if (word.form === 'blink' && target) { ax = 2 * view.me.x - target.x; ay = 2 * view.me.y - target.y; } // blink away
+  }
+}
+return { mx: order.mx, my: order.my, ax, ay, cast };`;
 
 /** The first default (speak whenever a car ahead is near): saves that still hold it get the new default. */
 export const NAIVE_DRIVING = `const order = autopilot(view.car, view.track, view.others);
@@ -60,8 +86,9 @@ export const TOOLS = [
   fn('set_share', 'Set the share of the hum for aim n (1-8).', { n: { type: 'integer' }, share: { type: 'integer' } }, ['n', 'share']),
   fn('bind_word', 'Bind a held word to a loadout slot (1-4).', { word: { type: 'string', description: 'the word id, like 312662277504#0' }, slot: { type: 'integer' } }, ['word', 'slot']),
   fn('note', 'Replace your notes (your memory between reviews). Keep it short.', { text: { type: 'string' } }, ['text']),
-  fn('join_races', 'Standing order: when your choir gathers a Dark Racer race, join it and drive with your driving code.', { on: { type: 'boolean' } }, ['on']),
+  fn('join_world', 'Standing order: when your choir gathers a round of this world, join it and play with your code (races: your driving code; dark: your fighting code).', { world: { type: 'string', enum: ['races', 'dark'] }, on: { type: 'boolean' } }, ['world', 'on']),
   fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps, strain, capacity, time (seconds), memory (an object kept between frames). autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
+  fn('write_fighting', 'Replace your fighting code (the Dark): the body of a function(view, autofight) run every frame, returning {mx, my, ax, ay, cast}: move direction, aim point, and a slot index to speak (or null). view has me (x, y, hp, ward, strain, capacity), allies, enemies (nearest first: kind, x, y, hp, dist), shots, novas, slots (index, form, vessel, cap), wave, time (seconds), memory (an object kept between frames). autofight(view) gives {mx, my, ax, ay}.', { code: { type: 'string' } }, ['code']),
   fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
   fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
 ];
@@ -81,7 +108,7 @@ function fn(name: string, description: string, properties: Record<string, unknow
 }
 
 /** Who the actant is (its configuration). */
-export interface MindConfig { handle?: string; goal: string; notes: string; joinRaces?: boolean; driving?: string }
+export interface MindConfig { handle?: string; goal: string; notes: string; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string }
 
 /** The sanctum as plain facts, gathered by the game (or made up by the bench). */
 export interface MindState {
@@ -105,7 +132,8 @@ export function soma(c: MindConfig): string {
     'You do not meditate or search directly: you set the plan, an ordered list of aims the sanctum pursues on its own. Earlier aims and bigger shares get more of the hum.',
     `Goal: ${c.goal || 'grow strong.'}`,
     `Your notes: ${c.notes || '(none yet)'}`,
-    c.joinRaces ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${c.driving || DEFAULT_DRIVING}` : 'You do not join races (join_races to start).',
+    c.joinRaces ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${c.driving || DEFAULT_DRIVING}` : 'You do not join races (join_world races to start).',
+    c.joinDark ? `You join your choir in the Dark (waves of enemies, fought together). Your fighting code (a function(view, autofight) body):\n${c.fighting || DEFAULT_FIGHTING}` : 'You do not join the Dark (join_world dark to start).',
   ].join('\n');
 }
 
@@ -225,6 +253,31 @@ export function tryDriving(code: string): string | null {
   try {
     const o = pilot(view);
     if (!o || !Number.isFinite(o.throttle) || !Number.isFinite(o.steer)) return 'it must return { throttle, steer } as numbers';
+  } catch (e) { return `it throws: ${String((e as Error).message)}`; }
+  return null;
+}
+
+/** Compile fighting code into a fighter (the run screen falls back to standing still and aiming on any throw). */
+export function compileFighting(code: string): Fighter {
+  const f = new Function('view', 'autofight', code) as (v: FightView, af: typeof autofight) => FightOrder;
+  return (v) => f(v, autofight);
+}
+
+/** Check fighting code against a made-up moment in the Dark: null if it compiles and returns a usable order. */
+export function tryFighting(code: string): string | null {
+  let fighter: Fighter;
+  try { fighter = compileFighting(code); } catch (e) { return `it does not compile: ${String((e as Error).message)}`; }
+  const view: FightView = {
+    me: { x: 1000, y: 700, hp: 80, ward: 0, strain: 1, capacity: 6, alive: true },
+    allies: [{ x: 1040, y: 720, hp: 100, alive: true, dist: 45 }],
+    enemies: [{ id: 1, kind: 'husk', x: 1200, y: 700, hp: 8, maxHp: 8, r: 12, dist: 200 }, { id: 2, kind: 'shaman', x: 700, y: 400, hp: 18, maxHp: 18, r: 12, dist: 424 }],
+    shots: [{ x: 900, y: 650, dist: 112 }], novas: [],
+    slots: [{ index: 0, form: 'lance', vessel: 80, cap: 100 }, { index: 1, form: 'ward', vessel: 100, cap: 100 }, null, null],
+    wave: 1, waves: 5, arena: { w: 2000, h: 1400 }, time: 30, memory: {},
+  };
+  try {
+    const o = fighter(view);
+    if (!o || ![o.mx, o.my, o.ax, o.ay].every(Number.isFinite)) return 'it must return { mx, my, ax, ay } as numbers';
   } catch (e) { return `it throws: ${String((e as Error).message)}`; }
   return null;
 }

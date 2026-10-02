@@ -94,6 +94,12 @@ export class DungeonSim {
   private breather = 2.5;
   private kills = 0;
   private warden: Enemy | null = null;
+  /** players who left a started round (they stay in the snapshot as fallen) */
+  private left = new Set<string>();
+  /** how many walked in when the round started: each one past the first adds enemies and toughens them */
+  private party = 1;
+  /** seconds until the host starts the round (while others may still join), or null once under way */
+  lobby: number | null = null;
   paused = false;
   started = false;
   over: null | 'won' | 'lost' = null;
@@ -117,11 +123,22 @@ export class DungeonSim {
 
   // ---------- players ----------
 
-  /** Admit a player by their proofs. Returns what each proof revealed (or why it was refused). */
+  /** Places in a shared dark. */
+  get seats() { return B.coop.seats; }
+  get playerCount() { return this.players.size; }
+  get full() { return this.players.size >= this.seats; }
+  hasPlayer(aura: string) { return this.players.has(aura); }
+
+  /** Admit a player by their proofs, before the start. Returns what each proof revealed (or why it was refused). */
   async admit(aura: string, bundle: { slot: number; claim: ZkNameClaim }[]): Promise<{ slots: (SlotInfo | null)[]; refused: string[] }> {
+    if (this.started) throw new Error('the round has already begun');
+    if (this.players.has(aura)) throw new Error('that aura is already here');
+    if (this.full) throw new Error('the dark is full');
     const { slots, refused } = await admitNames(this.auth, aura, bundle);
-    const n = this.players.size;
-    this.players.set(aura, { id: aura, x: this.W / 2 + n * 40, y: this.H / 2, hp: B.player.hp, ward: 0, invuln: 0, ax: this.W / 2 + 100, ay: this.H / 2, slots, alive: true, ack: 0, budget: 0 });
+    // everyone starts around the center, a few steps apart
+    const n = this.players.size, a = (n * Math.PI) / 2;
+    const x = this.W / 2 + (n ? Math.cos(a) * 50 : 0), y = this.H / 2 + (n ? Math.sin(a) * 50 : 0);
+    this.players.set(aura, { id: aura, x, y, hp: B.player.hp, ward: 0, invuln: 0, ax: x + 100, ay: y, slots, alive: true, ack: 0, budget: 0 });
     return { slots: publicSlots(slots), refused };
   }
 
@@ -163,11 +180,19 @@ export class DungeonSim {
     this.auth.submitCast({ aura: id, spirit: s.spirit, facet: s.facet, request: B.request, target: tgt, tick: this.auth.currentTick(), tag });
   }
 
-  /** Remove a player (left or abandoned). The round ends when no living player remains. */
+  /** Remove a player (left or abandoned). Before the start they simply go; after, they fall. The round ends when no living player remains. */
   leave(id: string) {
     const p = this.players.get(id);
-    if (p) { p.alive = false; p.hp = 0; }
+    if (!p) return;
+    if (!this.started) { this.players.delete(id); return; }
+    p.alive = false; p.hp = 0;
+    this.left.add(id);
     this.checkLost();
+  }
+
+  /** Has this player's round ended (the round is over, or they left)? A fallen player stays to watch. */
+  doneFor(id: string): boolean {
+    return this.over !== null || this.left.has(id);
   }
 
   result(): RoundResultMsg {
@@ -178,6 +203,7 @@ export class DungeonSim {
 
   start() {
     this.started = true;
+    this.party = Math.max(1, this.players.size);
   }
 
   step(dt: number) {
@@ -196,16 +222,27 @@ export class DungeonSim {
     this.stepNovas(dt);
   }
 
-  /** Current state plus everything that happened since the last snapshot. */
-  snapshot(): Snapshot {
-    const events = this.events;
+  /** What happened since the last drain: shared by every player's view of the same moment. */
+  drainEvents(): SimEvent[] {
+    const e = this.events;
     this.events = [];
+    return e;
+  }
+
+  /** Current state plus everything that happened since the last snapshot (one viewer). */
+  snapshot(): Snapshot {
+    return this.viewFor('', this.drainEvents());
+  }
+
+  /** The shared dark as anyone sees it (each client finds itself among the players by aura). */
+  viewFor(_you: string, events: SimEvent[]): Snapshot {
     const w = this.warden && this.warden.hp > 0 ? this.warden : null;
     const wsp = w ? publicSpirit(w.spirit!) : null;
     return {
       t: 'snap',
       time: this.time,
       paused: this.paused,
+      lobby: this.lobby,
       wave: this.wave,
       waves: B.waves.length,
       breather: this.breather,
@@ -253,7 +290,7 @@ export class DungeonSim {
   private startWave() {
     const w = B.waves[this.wave]!;
     const q: EnemyKind[] = [];
-    for (const [k, n] of Object.entries(w)) for (let i = 0; i < Math.round(n * (1 + B.descent.countMult * this.level)); i++) q.push(k as EnemyKind);
+    for (const [k, n] of Object.entries(w)) for (let i = 0; i < Math.round(n * (1 + B.descent.countMult * this.level) * (1 + B.coop.countPerPlayer * (this.party - 1))); i++) q.push(k as EnemyKind);
     for (let i = q.length - 1; i > 0; i--) { const j = (this.random() * (i + 1)) | 0; [q[i], q[j]] = [q[j]!, q[i]!]; }
     if (this.wave === B.waves.length - 1) q.splice(Math.floor(q.length / 2), 0, 'warden');
     this.spawnQueue = q;
@@ -271,7 +308,8 @@ export class DungeonSim {
       y = side === 2 ? 30 : side === 3 ? H - 30 : this.rand(30, H - 30);
       if (this.living().every((p) => dist2(x, y, p.x, p.y) > 550 ** 2)) break;
     }
-    const e: Enemy = { id: this.nextId++, kind, x, y, hp: d.hp * this.hpMult, maxHp: d.hp * this.hpMult, r: d.radius, speed: d.speed * this.rand(0.9, 1.1), dmg: d.dmg * this.dmgMult, cd: 0, hexDps: 0, hexT: 0, kx: 0, ky: 0, element: -1 };
+    const hp = d.hp * this.hpMult * (1 + B.coop.hpPerPlayer * (this.party - 1));
+    const e: Enemy = { id: this.nextId++, kind, x, y, hp, maxHp: hp, r: d.radius, speed: d.speed * this.rand(0.9, 1.1), dmg: d.dmg * this.dmgMult, cd: 0, hexDps: 0, hexT: 0, kx: 0, ky: 0, element: -1 };
     const D = B.descent;
     if (kind === 'warden') {
       e.aura = `npc:warden:${e.id}`;

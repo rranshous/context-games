@@ -35,16 +35,16 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - Zero-knowledge proofs at the threshold (Groth16, local dev ceremony), parallel provers.
 - The dungeon as its own process; client prediction, reconciliation, interpolation.
 - Four worlds: the Dark, the Bastion, the Council, Dark Racer.
-- **First shared world**: Dark Racer races with a 15 s lobby, players replacing rivals.
+- **Shared worlds**: Dark Racer races with a 15 s lobby (players replacing rivals), and the Dark for up to 4 (more and tougher enemies per player).
 - **Universe spec v2**: the pyramid of might, facets, words of power, the hearth and 25 charted beings.
 - **The desktop app**: Electron, with the dungeon in-process, per-profile saves, LAN-joinable worlds, hush in the worlds, and AppImage + tar.gz builds.
-- **Actants, first four milestones**: the sanctum plan (aims, planner, history); the mind (a local model reviewing on events, through the player's own plan operations); the choir (presence, chat and shared signs); racing (a standing order to join, self-written driving code). See the journal.
+- **Actants, first four milestones**: the sanctum plan (aims, planner, history); the mind (a local model reviewing on events, through the player's own plan operations); the choir (presence, chat and shared signs); racing (a standing order to join, self-written driving code), and the Dark (a standing order to walk in beside the choir, self-written fighting code). See the journal.
 
 ## Next
 Roughly in order; each is independently useful.
 0. **Quiet the hum during play** (Robby, 2026-10-01): background meditation and scrying cut the framerate in worlds. Scale voices down automatically while a world is on screen (restore after; player override).
 0. **A sanctum UI pass for v2** (Robby, 2026-10-01: "we'll def want to focus on the UI here at some point"): show the pyramid of might, beings' facets and your words as first-class, not as v1's layout with new details.
-1. **More shared worlds.** Co-op in the Dark (the sim already supports several players), a PvP Council seat. Lag compensation once players fight players.
+1. **More shared worlds.** A PvP Council seat; a shared Bastion. Lag compensation once players fight players.
 2. **Aura backup and export.** Today losing the browser's storage loses every name. Export/import of the save, then a backup service that stores only signed claims.
 3. **Sanctum services.** A bulletin board of claims (optional census), grants (a signed vessel/capacity summary a world can accept instead of recomputing) and **deeds** (records of what happened in a world, signed by the world and by the player; a series is optional, not assumed). **Titles are computed, not issued**: public rules over deeds.
 4. **The Open Choir.** A public sweep in a published deterministic order, fed by client tithes, publishing every find on schedule. The sweep rate sets the half-life of private discoveries. The Choir never evokes.

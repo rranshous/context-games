@@ -127,7 +127,7 @@ About one point per two truths. The Council and Dark Racer use it.
 
 ## Difficulty: descents
 Each world has a ladder of levels (descents, seats, circuits). Exponential word growth is answered by a harder ladder rather than by flattening the formulas. Computer-controlled casters speak **charted beings** (public, in `world.ts`) with synthetic words set relative to each being's bar:
-- **Dark**: per descent ×1.7 enemy life, ×1.2 damage, +15% count; shamans at bar + wave + 2/descent, the Warden at bar + 7 + 2/descent on the mightiest charted being.
+- **Dark**: per descent ×1.7 enemy life, ×1.2 damage, +15% count; per player past the first +60% count and +25% life; shamans at bar + wave + 2/descent, the Warden at bar + 7 + 2/descent on the mightiest charted being.
 - **Bastion**: per level ×1.7 foe life and +15% count.
 - **Council**: a card costs 1 + its being's might (+1 for summon or nova). The Warden plays charted beings with your deck's median resonance − 3, +2 per seat, +8 life per seat.
 - **Dark Racer**: rivals hold two charted beings each at their bar +2 per circuit, and drive 0.84–0.91 of top speed, +0.025 per circuit.
