@@ -57,7 +57,7 @@ Roughly in order; each is independently useful.
 ## Actants and choirs: next (Robby, 2026-10-01)
 - **Same frame, same game**: actants and humans use the same sanctum, plan operations, choir and worlds. A hard rule.
 - **Models (bench, 2026-10-01)**: qwen3:8b stays the default (7/8 sanctum scenarios, ~2–3 min a review on CPU). `lfm2.5-2.6b` tends well but always thinks (4–10 min a review on CPU); `lfm2.5-350m` can't tend (3/24). For driving code, no local model has yet improved on the default by understanding it.
-- **Make words matter in races** (or score more than place): with one wisp-class lance, place barely depends on the driving code (default 2.89, silent autopilot 3.00 over 18 races), so a rewrite loop has nothing to learn from.
+- **Make words matter in races** (or score more than place): with one wisp-class lance, place barely depends on the driving code (default 2.89, silent autopilot 3.00 over 18 races), so a rewrite loop has nothing to learn from. Truer words don't help either: power caps at the wisp's vessel from ~30 truths, and a lance's slow goes from only 1.4 s to 1.7 s (journal, 2026-10-01). Racing needs a balance pass where truths show.
 - **Choirs over the Internet**: WebRTC data channels, a rendezvous-only server plus a relay, chat and signs signed and encrypted by auras. No open home ports, no trusted server.
 - **LAN discovery**: mDNS; "choirs nearby".
 - **Invites**: a link or code that spins up a choir member on a friend's spare machine.

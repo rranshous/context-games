@@ -189,13 +189,20 @@ function rng(seed: number) { let a = seed >>> 0; return () => { a = (a + 0x6d2b7
 const SEEDS = [3, 5, 7, 11, 13, 17];
 const FORM_NAME = FORMS[facetForm(spiritAt(HEARTH_GOD)!.traits, 0)]!.name;
 
-interface RaceOutcome { place: number; hits: number; struck: number; casts: number; wasted: number; backlash: number; throws: number; seconds: number }
+interface RaceOutcome { power: number; effective: number; place: number; hits: number; struck: number; casts: number; wasted: number; backlash: number; throws: number; seconds: number }
 
 /** One race of driving code on a circuit and seed, stepped like the server (60 Hz), the pilot asked every 2nd step. */
 async function raceWith(code: string | null, level: number, seed: number): Promise<RaceOutcome> {
   claim ??= await proveName({ cell: HEARTH_GOD, nonce: HEARTH_NONCE, secretKey: SECRET, magnitude: spiritAt(HEARTH_GOD)!.magnitude, strength: MIN_NAME_BITS, context: CONTEXT }, { wasm: art('name.wasm'), zkey: art('name.zkey') });
   const sim = new RacerSim({ level, context: CONTEXT, verifier, rng: rng(seed) });
   await sim.admit(AURA, [{ slot: 0, claim }]);
+  // test-only: give the word more truths than the proof (the way rivals get theirs), to measure what truths buy
+  if (opt('truths')) {
+    // a proved word is known to the authority by an opaque id (the proof hides the cell), so use the car's own
+    const inner = sim as unknown as { auth: { grantSyntheticName(a: string, c: string, s: number, f: number): void }; cars: { aura: string | undefined; names: { spirit: string; facet: number }[] }[] };
+    const word = inner.cars.find((c) => c.aura === AURA)!.names[0]!;
+    inner.auth.grantSyntheticName(AURA, word.spirit, Number(opt('truths')), word.facet);
+  }
   sim.start();
   const pilot = code ? compileDriving(code) : null;
   let seq = 0, last: RacerSnapshot | null = null, my = -1, throws = 0;
@@ -225,7 +232,8 @@ async function raceWith(code: string | null, level: number, seed: number): Promi
   // a lance that slowed no one is wasted: count casts without a 'slowed' event in the same snapshot window
   const slowedTimes = ev.map((e, k) => (e.e === 'slowed' ? k : -1)).filter((k) => k >= 0);
   const wasted = ev.map((e, k) => (e.e === 'cast' && e.car === my ? k : -1)).filter((k) => k >= 0 && !slowedTimes.some((s) => s > k && s - k < 12)).length;
-  return { place: res.wave, hits: res.kills, struck: ev.filter((e) => e.e === 'hit' && e.car === my).length + ev.filter((e) => e.e === 'slowed' && e.car === my).length, casts: casts.length, wasted, backlash: ev.filter((e) => e.e === 'backlash' && e.car === my).length, throws, seconds: i / 60 };
+  const mine = casts as Extract<RacerEvent, { e: 'cast' }>[];
+  return { power: mine.reduce((a, e) => a + e.power, 0) / (mine.length || 1), effective: mine.reduce((a, e) => a + e.effective, 0) / (mine.length || 1), place: res.wave, hits: res.kills, struck: ev.filter((e) => e.e === 'hit' && e.car === my).length + ev.filter((e) => e.e === 'slowed' && e.car === my).length, casts: casts.length, wasted, backlash: ev.filter((e) => e.e === 'backlash' && e.car === my).length, throws, seconds: i / 60 };
 }
 
 async function raceSet(code: string | null) {
@@ -233,7 +241,7 @@ async function raceSet(code: string | null) {
   const levels = argv.includes('--wide') ? RACER.tracks.map((_, i) => i) : [0, 1];
   for (const level of levels) for (const seed of argv.includes('--wide') ? SEEDS : SEEDS.slice(0, 3)) out.push(await raceWith(code, level, seed));
   const avg = (k: keyof RaceOutcome) => out.reduce((s, o) => s + o[k], 0) / out.length;
-  return { races: out, place: avg('place'), hits: avg('hits'), casts: avg('casts'), wasted: avg('wasted'), backlash: avg('backlash'), throws: avg('throws'), podium: out.filter((o) => o.place <= RACER.podium).length };
+  return { races: out, power: avg('power'), effective: avg('effective'), place: avg('place'), hits: avg('hits'), casts: avg('casts'), wasted: avg('wasted'), backlash: avg('backlash'), throws: avg('throws'), podium: out.filter((o) => o.place <= RACER.podium).length };
 }
 
 function report(r: Awaited<ReturnType<typeof raceSet>>): string {
@@ -287,7 +295,7 @@ if (opt('code')) {
   const chk = tryDriving(code);
   if (chk) { log(`the code fails its check: ${chk}`); process.exit(1); }
   const r = await raceSet(code);
-  log(`${opt('code')}: place ${r.place.toFixed(2)}, hits ${r.hits.toFixed(1)}, wasted ${r.wasted.toFixed(1)}/${r.casts.toFixed(1)}, backlash ${r.backlash.toFixed(1)}, podium ${r.podium}/${r.races.length}`);
+  log(`${opt('code')}: power ${r.power.toFixed(1)} (effective ${r.effective.toFixed(1)}), place ${r.place.toFixed(2)}, hits ${r.hits.toFixed(1)}, wasted ${r.wasted.toFixed(1)}/${r.casts.toFixed(1)}, backlash ${r.backlash.toFixed(1)}, podium ${r.podium}/${r.races.length}`);
   process.exit(0);
 }
 if (SHAPE === 'tend' || SHAPE === 'all') {

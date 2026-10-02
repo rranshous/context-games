@@ -759,3 +759,22 @@ Robby: "do more actants testing with the noted models. I see diff shapes for tas
 - **The two shapes of work, so far:**
   - **Tending** is judgment over a small, well-named state. Prompt engineering pays off a lot: naming things the way the tools do, the path in one line, refusals that say what to do instead. qwen3:8b (no thinking) and 2.6b (always thinking) both handle it; 350m doesn't.
   - **Writing driving code** needs a feedback signal first. The models mostly edit around the edges, and the honest ones go furthest without the actant's persona and tools around them.
+
+### How much do truer words matter in a race? (Robby: "are all powers the same level? How much of a diff do stronger words of power make?")
+- **In the bench, no, they aren't all the same level.** My car carries one word: the hearth wisp at 22 truths, its bar. Each rival carries two charted beings at their bars, +2 truths per circuit (19 of the 22 charted beings are wisps at bar 22, 3 are spirits at bar 26).
+- **Measured** with `--truths n`, a test-only override that grants the bench's word more truths. A proved word is known to the authority by an opaque id, since the proof hides the cell, so the override uses the car's own word id. Default driving code, 18 races each:
+
+  | truths | power per cast | place | strikes | podiums |
+  |---|---|---|---|---|
+  | 22 | 5.0 | 2.89 | 4.1 | 11/18 |
+  | 26 | 7.4 | 2.89 | 2.9 | 10/18 |
+  | 30 | 8.0 | 3.00 | 4.1 | 10/18 |
+  | 34 | 8.0 | 3.61 | 3.6 | 9/18 |
+  | 38 | 8.0 | 3.22 | 3.8 | 11/18 |
+  | 46 | 8.0 | 3.33 | 2.7 | 10/18 |
+- **Truths stop mattering at 30.** A cast's grant is min(request, cast cap, vessel). Truths raise the cast cap, but a wisp's vessel is small, so from ~30 truths the vessel decides and power sits at 8. Power is also logarithmic in grant.
+- **And power barely matters in a race.** A lance slows a car for 0.9 + 0.1 × power seconds: 1.4 s at 22 truths, 1.7 s at 30+. Place doesn't move (all within noise).
+- So in Dark Racer today, deepening a word buys almost nothing, and meditating has no visible payoff in races. This matters for the actants too (a driving-code loop has no signal) and for the "words of power" fantasy. Candidate fixes for a racing balance pass:
+  - effects that scale with power in kind, not just a few tenths of a second (slow strength or length, bolt knockback, ward duration)
+  - vessels that grow with truths as well as with might
+  - several words per car in the bench, as players carry
