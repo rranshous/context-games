@@ -5,3 +5,4 @@ truenames-docs.zip
 !docs/images/*.png
 actant-issues.jsonl
 .keys/
+!apps/desktop/build/icon.png
