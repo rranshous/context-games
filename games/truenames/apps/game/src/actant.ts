@@ -33,7 +33,7 @@ export class Actant {
   private off: (() => void) | null = null;
 
   constructor(private save: SaveData, private S: Services) {
-    save.actant ??= { on: false, goal: '', model: DEFAULT_MODEL, notes: '' };
+    save.actant ??= { on: false, goal: '', model: DEFAULT_MODEL, notes: '' }; // notes: kept for old saves, no longer used
     if (save.actant.on) this.wake();
   }
 
@@ -274,7 +274,16 @@ export class Actant {
         addHistory(this.save, { kind: 'note', by: 'actant', text: `reported an issue: ${t.slice(0, 200)}` });
         return 'reported to the builders, thank you';
       }
-      case 'note': this.config.notes = String(a.text ?? '').slice(0, 600); persist(this.save); return 'noted';
+      case 'set_goal': {
+        const g = String(a.goal ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
+        if (!g) return 'error: say what your goal is';
+        if (g === this.config.goal) return 'that is already your goal';
+        this.config.goal = g;
+        persist(this.save);
+        addHistory(this.save, { kind: 'plan', by: 'actant', text: `set its goal: ${g}` });
+        this.onChange?.();
+        return `your goal is now: ${g}`;
+      }
       default: return `error: unknown tool ${name}`;
     }
   }

@@ -237,7 +237,10 @@ export function sanctumScreen(app: App): Screen {
     el.querySelector('#ac-dark')!.classList.toggle('on', !!A.config.joinDark);
     el.querySelector('#ac-status')!.textContent = A.status === 'thinking' ? 'thinking… (meditation paused)' : A.config.on ? 'listening for what happens' : '';
     el.querySelector('#ac-thought')!.textContent = A.lastThought ? `“${A.lastThought}”` : '';
-    el.querySelector('#ac-log')!.innerHTML = [`<div class="gold">notes: ${esc(A.config.notes || '(none)')}</div>`, ...A.log.slice(-20).reverse().map((l) => `<div>${esc(l)}</div>`)].join('');
+    // its goal, as it holds it (it sets its own, often from what you tell it); left alone while you're typing in it
+    const goal = el.querySelector('#ac-goal') as HTMLTextAreaElement;
+    if (document.activeElement !== goal && goal.value !== A.config.goal) goal.value = A.config.goal;
+    el.querySelector('#ac-log')!.innerHTML = [...A.log.slice(-20).reverse().map((l) => `<div>${esc(l)}</div>`)].join('');
   }
 
   function renderChoir() {
@@ -489,9 +492,9 @@ export function sanctumScreen(app: App): Screen {
             <div class="actant" id="actant">
               <h2 style="margin-top:12px" data-tip="=<b>An actant</b>: a mind (a local model) that tends this sanctum toward your goal. When something happens (a find, a grasp, a search or an aim finished, a journey), it reviews the sanctum and reprioritizes the plan, using the same controls you do. While it thinks, meditation pauses: thought costs chanting.">Actant</h2>
               <div class="actant-row"><button class="small" id="ac-wake"></button> <select id="ac-model" data-tip="=Which local model thinks (served by ollama on this machine)."></select> <button class="small" id="ac-now" data-tip="=Ask it to review the sanctum now.">review now</button> <button class="small" id="ac-race" data-tip="=Standing order: when your choir gathers a Dark Racer race, this sanctum's actant joins it on its own and drives with its own driving code (which it can rewrite after each race).">races</button> <button class="small" id="ac-dark" data-tip="=Standing order: when your choir walks into the dark, this sanctum's actant walks in beside them on its own and fights with its own fighting code (which it can rewrite after each round).">the dark</button> <span class="dim" id="ac-status"></span></div>
-              <textarea id="ac-goal" rows="2" placeholder="its goal, in your words: e.g. make me strong in storm and ready to race" data-tip="=The goal the actant works toward. In your words; it reads this every review."></textarea>
+              <textarea id="ac-goal" rows="2" placeholder="its goal: it sets this itself (tell it in chat), or type one" data-tip="=The goal the actant works toward. It keeps this itself: tell it a goal in chat and it makes it its own (set_goal), and you'll see it here. You can also type one."></textarea>
               <div class="dim" id="ac-thought" style="font-style:italic; font-size:13px"></div>
-              <details><summary class="dim" style="font-size:12px">its notes and doings</summary><div class="feed" id="ac-log" style="font-size:12px"></div></details>
+              <details><summary class="dim" style="font-size:12px">its doings</summary><div class="feed" id="ac-log" style="font-size:12px"></div></details>
             </div>
             <h2 style="margin-top:14px">Scrying</h2>
             <div class="hint">Choose a region and a depth, then search it division by division. Wisps dwell at depth 12; each layer down holds half as many beings, a class mightier, and takes sixteen times the searching.</div>

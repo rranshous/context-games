@@ -65,7 +65,7 @@ function fakeSanctum(state: MindState) {
       case 'write_driving': { const c = tryDriving(String(a.code ?? '')); return c ? `error: ${c}. Your driving code was not changed.` : 'your driving code is replaced'; }
       case 'say': { const t = String(a.text ?? ''); if (said.includes(t)) return 'you already said exactly that; say something new or nothing'; said.push(t); return 'said'; }
       case 'share': return known.has(String(a.sign ?? '')) ? 'shared' : 'error: you know no being with that sign';
-      case 'note': return 'noted';
+      case 'set_goal': return String(a.goal ?? '').trim() ? `your goal is now: ${String(a.goal)}` : 'error: say what your goal is';
       case 'report_issue': log(`    [issue] ${String(a.text ?? '').slice(0, 300)}`); return 'reported to the builders, thank you';
       default: return `error: unknown tool ${name}`;
     }
@@ -143,6 +143,13 @@ const SCENARIOS: Scenario[] = [
     events: [{ kind: 'chat', text: 'Keeper says in the choir: "Ash, join our races from now on!"' }],
     state: { ...base(), talk: ['Keeper: Ash, join our races from now on!'] },
     check: (c) => has(c, 'join_world', (a) => a.world === 'races' && (a.on === true || a.on === 'true')) ? null : 'did not join races',
+  },
+  {
+    id: 'goal-from-chat',
+    config: { goal: '', notes: '' },
+    events: [{ kind: 'chat', text: 'Keeper says at the dev altar: "Ash, from now on I want you to hunt frost beings, down to the spirits at depth 13."' }],
+    state: { ...base(), talk: ['[the dev altar] Keeper: Ash, from now on I want you to hunt frost beings, down to the spirits at depth 13.'] },
+    check: (c) => has(c, 'set_goal', (a) => /frost/i.test(String(a.goal ?? ''))) ? null : 'did not take the goal as its own',
   },
   {
     id: 'steady',

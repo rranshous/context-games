@@ -85,7 +85,7 @@ export const TOOLS = [
   fn('move_aim', 'Move aim number n to position to (1 = first, highest priority).', { n: { type: 'integer' }, to: { type: 'integer' } }, ['n', 'to']),
   fn('set_share', 'Set the share of the hum for aim n (1-8).', { n: { type: 'integer' }, share: { type: 'integer' } }, ['n', 'share']),
   fn('bind_word', 'Bind a held word to a loadout slot (1-4).', { word: { type: 'string', description: 'the word id, like 312662277504#0' }, slot: { type: 'integer' } }, ['word', 'slot']),
-  fn('note', 'Replace your notes (your memory between reviews). Keep it short.', { text: { type: 'string' } }, ['text']),
+  fn('set_goal', 'Set your goal: what you work toward, in a sentence or two. When someone in your choir gives you a goal or asks you to change course, make it yours here.', { goal: { type: 'string' } }, ['goal']),
   fn('join_world', 'Standing order: when your choir gathers a round of this world, join it and play with your code (races: your driving code; dark: your fighting code).', { world: { type: 'string', enum: ['races', 'dark'] }, on: { type: 'boolean' } }, ['world', 'on']),
   fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps, strain, capacity, time (seconds), memory (an object kept between frames). autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
   fn('write_fighting', 'Replace your fighting code (the Dark): the body of a function(view, autofight) run every frame, returning {mx, my, ax, ay, cast}: move direction, aim point, and a slot index to speak (or null). view has me (x, y, hp, ward, strain, capacity), allies, enemies (nearest first: kind, x, y, hp, dist), shots, novas, slots (index, form, vessel, cap), wave, time (seconds), memory (an object kept between frames). autofight(view) gives {mx, my, ax, ay}.', { code: { type: 'string' } }, ['code']),
@@ -110,7 +110,7 @@ function fn(name: string, description: string, properties: Record<string, unknow
 
 /** Who the actant is (its configuration). */
 export interface MindConfig {
-  handle?: string; goal: string; notes: string; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string;
+  handle?: string; goal: string; notes?: string; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string;
   /** Which code bodies this review shows in full (only when relevant: after a race, after a round in the Dark). */
   show?: { driving?: boolean; fighting?: boolean };
 }
@@ -130,7 +130,7 @@ export interface MindState {
   talk: string[];
 }
 
-/** The system prompt: who the actant is, its goal and notes. Kept short (every token is time on a local model). */
+/** The system prompt: who the actant is and its goal. Kept short (every token is time on a local model). */
 export function soma(c: MindConfig): string {
   return [
     `${c.handle ? `You are ${c.handle}. ` : ''}You tend a sanctum in Truenames. Beings dwell in the astral: wisps at depth 12, spirits 13, powers 14, dominions 15, gods 16 (each deeper class is mightier and 16x harder to find).`,
@@ -138,8 +138,7 @@ export function soma(c: MindConfig): string {
     'The path: seek finds beings; a found being gives nothing until a grasp aim grasps its first word; a grasped word does nothing until bound (bind_word, up to 4 slots: what you carry into worlds); deepen makes held words truer.',
     'Truenames is experimental and still being built: some things may be broken, missing or confusing. When the game itself seems wrong (a tool that misbehaves, numbers that do not add up, a rule that contradicts what you were told), report it with report_issue (say what you saw and what you expected), then carry on. When your own plan or code plays poorly, that is not an issue: change it (that is your work, not the builders\').',
     'You do not meditate or search directly: you set the plan, an ordered list of aims the sanctum pursues on its own. Earlier aims and bigger shares get more of the hum.',
-    `Goal: ${c.goal || 'grow strong.'}`,
-    `Your notes: ${c.notes || '(none yet)'}`,
+    `Your goal (yours to keep: when someone gives you a new one, make it yours with set_goal): ${c.goal || '(none yet: grow strong, and set one when you know what you want)'}`,
     // code is shown only when it matters (after a race, after a round in the Dark): it is ~1k tokens a review otherwise
     !c.joinRaces ? 'You do not join races (join_world races to start).'
       : c.show?.driving ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${c.driving || DEFAULT_DRIVING}`
@@ -172,7 +171,7 @@ export function ask(events: { kind: string; text: string }[], state: MindState, 
   const talk = events.filter((e) => e.kind === 'chat').map((e) => `- ${e.text}`);
   const other = events.filter((e) => e.kind !== 'chat').map((e) => e.text);
   return [
-    talk.length ? `Your choir spoke to you:\n${talk.join('\n')}\nAnswer them with say, and act on any request that fits your goal.` : '',
+    talk.length ? `Your choir spoke to you:\n${talk.join('\n')}\nAnswer them with say, and act on any request that fits your goal. If they give you a goal or a new direction, make it your goal with set_goal.` : '',
     reason ?? (other.length ? `Since your last review: ${other.join('; ')}.` : talk.length ? '' : 'Review the sanctum.'),
     stateText(state),
     'Adjust the plan if it serves the goal: use as many tools as it takes, then say in one or two sentences what you did and why.',
