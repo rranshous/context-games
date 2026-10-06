@@ -32,6 +32,7 @@ Glossary, formulas and tunables, **as the game runs today**. Exact hashing lives
 | **dungeon** | A game server that hosts worlds and runs rounds. |
 | **round** | One play of a world at a dungeon. |
 | **choir** | Who is gathered at one altar. |
+| **lent hum** | Meditation one sanctum does for another: searches against the other's public key; the other checks and signs each find. |
 
 ## Discovery (scrying): the pyramid
 - Pick a prefix (element / aspect / tradition) and a depth. Enumerate cells under it at that depth. For each, compute the spirit hash: one hash per cell.

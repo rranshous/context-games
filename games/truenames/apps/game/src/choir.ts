@@ -45,6 +45,7 @@ export class Choir {
       ws.send({ t: 'join', aura: this.save.aura!.pub, handle: this.S.handle, element: this.save.aura!.element });
       this.presence();
       this.presenceTimer = setInterval(() => this.presence(), 10_000);
+      this.S.lend.resume(this); // a standing offer to meditate for someone here is renewed
       this.S.choirChanged();
     };
     ws.onmessage = (m) => this.heard(m as AltarServerMsg);
@@ -78,6 +79,11 @@ export class Choir {
     const S = this.S;
     const words = S.graspedWords();
     this.ws?.send({ t: 'presence', presence: { hum: Math.round(S.pool.rate()), words: words.length, beings: Object.keys(this.save.spirits).length, truest: Math.max(0, ...words.map((k) => S.strength(k))), actant: S.actant.config.on ? S.actant.status : 'none' } });
+  }
+
+  /** A sealed box for one member (lent meditation): the altar passes it on unread. */
+  relay(to: string, box: string) {
+    this.ws?.send({ t: 'relay', to, box });
   }
 
   /** Tell this choir what you are doing right now (live): typing, heard, thinking, or nothing. */
@@ -120,6 +126,9 @@ export class Choir {
         persist(this.save);
         this.S.events.emit({ kind: 'find', text });
       }
+    } else if (m.t === 'relayed') {
+      this.S.lend.heard(this, m.from, m.box);
+      return;
     } else if (m.t === 'called') {
       if (!WORLDS.includes(m.world)) return;
       const world = m.world as World;

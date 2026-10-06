@@ -167,10 +167,13 @@ export class Actant {
       loadout: [0, 1, 2, 3].map((i) => save.loadout[i] ?? null),
       history: (save.history ?? []).slice(-12).map((h) => h.text),
       recent: (this.config.recent ?? []).map((r) => `[${ago(r.at)}] ${r.line}`),
-      choir: S.choirs.map((c) => {
+      choir: [
+        ...(S.lend.lending ? [`you ${S.lend.lending.state === 'offered' ? 'offered to meditate for' : 'meditate for'} ${S.lend.lending.handle} (part of your hum goes to their words)`] : []),
+        ...[...S.lend.lenders.values()].filter((x) => x.accepted).map((x) => `${x.handle} meditates for you (${Math.round(x.hps)}/s)`),
+      ].concat(S.choirs.map((c) => {
         const others = c.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`);
         return `at ${c.name}${c === S.home ? ' (home)' : ''}: ${others.length ? others.join(', ') : 'no one else'}${c.connected ? '' : ' (not connected)'}`;
-      }),
+      })),
       talk: S.choirs.flatMap((c) => c.lines.map((l) => ({ ...l, altar: c.name }))).sort((a, b) => a.at - b.at).slice(-6).map((l) => `[${l.altar}] ${l.mine ? 'you' : l.from}: ${l.text}`),
     };
   }
@@ -273,6 +276,20 @@ export class Actant {
         void reportIssue(this.S.handle, t, 'actant review', this.S.home?.address);
         addHistory(this.save, { kind: 'note', by: 'actant', text: `reported an issue: ${t.slice(0, 200)}` });
         return 'reported to the builders, thank you';
+      }
+      case 'lend_hum': {
+        const on = a.on === true || a.on === 'true';
+        if (!on) { if (!this.S.lend.lending) return 'you meditate for no one'; const who = this.S.lend.lending.handle; this.S.lend.stop(); return `you no longer meditate for ${who}`; }
+        const name = String(a.to ?? '').trim().toLowerCase();
+        for (const c of this.S.choirs) {
+          const m = c.members.find((x) => x.handle.toLowerCase() === name && x.aura !== this.save.aura?.pub);
+          if (m) {
+            this.S.lend.offer(c, { aura: m.aura, handle: m.handle });
+            addHistory(this.save, { kind: 'plan', by: 'actant', text: `offered to meditate for ${m.handle}` });
+            return `you offered to meditate for ${m.handle} at ${c.name}; they must accept`;
+          }
+        }
+        return `error: no one called ${String(a.to)} is gathered at your altars`;
       }
       case 'set_goal': {
         const g = String(a.goal ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);

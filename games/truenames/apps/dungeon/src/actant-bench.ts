@@ -65,6 +65,7 @@ function fakeSanctum(state: MindState) {
       case 'write_driving': { const c = tryDriving(String(a.code ?? '')); return c ? `error: ${c}. Your driving code was not changed.` : 'your driving code is replaced'; }
       case 'say': { const t = String(a.text ?? ''); if (said.includes(t)) return 'you already said exactly that; say something new or nothing'; said.push(t); return 'said'; }
       case 'share': return known.has(String(a.sign ?? '')) ? 'shared' : 'error: you know no being with that sign';
+      case 'lend_hum': return a.on === true || a.on === 'true' ? `you offered to meditate for ${String(a.to)}; they must accept` : 'you meditate for no one';
       case 'set_goal': return String(a.goal ?? '').trim() ? `your goal is now: ${String(a.goal)}` : 'error: say what your goal is';
       case 'report_issue': log(`    [issue] ${String(a.text ?? '').slice(0, 300)}`); return 'reported to the builders, thank you';
       default: return `error: unknown tool ${name}`;

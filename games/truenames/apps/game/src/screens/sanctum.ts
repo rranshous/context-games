@@ -249,7 +249,8 @@ export function sanctumScreen(app: App): Screen {
     box.innerHTML = S.choirs.map((C, i) => `<div class="altar">
       <div><b>${esc(C.name)}</b>${i === 0 ? ' <span class="faint">(home)</span>' : ''} <span class="dim" style="font-size:12px">· ${C.connected ? `${C.members.length} gathered` : C.trouble ? esc(C.trouble) : 'not connected'}</span>
         <button class="small" data-leave-altar="${i}" data-tip="=Leave this altar (you can join it again with its address).">×</button></div>
-      <div class="feed">${C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.activity === 'thinking' || m.actant === 'thinking' ? 'thinking…' : m.activity === 'heard' ? 'heard you' : m.actant}</span>` : m.activity === 'typing' ? ' <span class="gold" style="font-size:12px">· typing…</span>' : ''}</div>`).join('')}</div>
+      <div class="feed">${C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.activity === 'thinking' || m.actant === 'thinking' ? 'thinking…' : m.activity === 'heard' ? 'heard you' : m.actant}</span>` : m.activity === 'typing' ? ' <span class="gold" style="font-size:12px">· typing…</span>' : ''}${m.aura !== save.aura?.pub ? lendButton(i, m) : ''}</div>`).join('')}</div>
+      ${lendLines(C)}
       <div class="feed choir-lines">${C.lines.slice(-8).map((l) => `<div><span class="${l.mine ? 'gold' : ''}">${esc(l.from)}:</span> ${esc(l.text)}</div>`).join('') || '<div class="faint">No one has spoken.</div>'}</div>
       ${activityLine(C)}
     </div>`).join('') || '<div class="faint">You belong to no altar.</div>';
@@ -257,6 +258,19 @@ export function sanctumScreen(app: App): Screen {
     const keep = to.value;
     to.innerHTML = S.choirs.map((C, i) => `<option value="${i}">${esc(C.name)}</option>`).join('');
     if (keep && Number(keep) < S.choirs.length) to.value = keep;
+  }
+  /** Meditate for a member (or show that we do, with a stop). */
+  function lendButton(i: number, m: ChoirMember): string {
+    const l = S.lend.lending;
+    if (l && l.aura === m.aura) return ` <span class="gold" style="font-size:12px">· ${l.state === 'offered' ? 'you offered to meditate for them…' : `you meditate for them · ${l.finds} found`}</span> <button class="small" data-lend-stop="1" data-tip="=Stop meditating for them.">stop</button>`;
+    return ` <button class="small" data-lend="${i}" data-lend-aura="${m.aura}" data-tip="=<b>Meditate for them</b>: lend part of your hum to their words. You search against their public key (never their secret); what you find is theirs alone, and their sanctum checks each find before taking it. They choose whether to accept: you would learn which beings they meditate on.">meditate for</button>`;
+  }
+  /** Offers to meditate for us, and those who do, at one altar. */
+  function lendLines(C: Choir): string {
+    const xs = [...S.lend.lenders.values()].filter((x) => x.altar === C);
+    return xs.map((x) => x.accepted
+      ? `<div class="activity">${esc(x.handle)} meditates for you · ${Math.round(x.hps).toLocaleString()}/s · ${x.finds} found <button class="small" data-lend-release="${x.aura}">stop</button></div>`
+      : `<div class="activity">${esc(x.handle)} offers to meditate for you (they would learn which beings you meditate on) <button class="small" data-lend-accept="${x.aura}">accept</button> <button class="small" data-lend-release="${x.aura}">decline</button></div>`).join('');
   }
   /** Who is doing what right now at an altar (others only): typing, heard you, thinking. */
   function activityLine(C: Choir): string {
@@ -589,7 +603,20 @@ export function sanctumScreen(app: App): Screen {
           join.value = '';
         });
         root.querySelector('#altars')!.addEventListener('click', (e) => {
-          const i = (e.target as HTMLElement).closest('[data-leave-altar]')?.getAttribute('data-leave-altar');
+          const el = e.target as HTMLElement;
+          const lend = el.closest('[data-lend]');
+          if (lend) {
+            const C = S.choirs[Number(lend.getAttribute('data-lend'))], aura = lend.getAttribute('data-lend-aura');
+            const m = C?.members.find((x) => x.aura === aura);
+            if (C && m) { S.lend.offer(C, { aura: m.aura, handle: m.handle }); app.toast(`You offer to meditate for <em>${esc(m.handle)}</em>.`); }
+            return;
+          }
+          if (el.closest('[data-lend-stop]')) { S.lend.stop(); return; }
+          const acc = el.closest('[data-lend-accept]')?.getAttribute('data-lend-accept');
+          if (acc) { S.lend.accept(acc); return; }
+          const rel = el.closest('[data-lend-release]')?.getAttribute('data-lend-release');
+          if (rel) { S.lend.release(rel); return; }
+          const i = el.closest('[data-leave-altar]')?.getAttribute('data-leave-altar');
           if (i != null && S.choirs[Number(i)]) { const c = S.choirs[Number(i)]!; S.leaveAltar(c); app.toast(`You leave the altar at <em>${esc(c.name)}</em>.`); }
         });
         offs.push(S.choirChange.on(() => { renderChoir(); renderBook(); }));

@@ -881,3 +881,21 @@ Robby: "the goal should be managed by the actant as well. that way it can form a
 - **Notes are gone**: the digest of its last reviews is its memory, and the goal is its standing intent. A third place was noise.
 - **Bench** (new `goal-from-chat` scenario, Keeper: "Ash, from now on I want you to hunt frost beings, down to the spirits at depth 13"). qwen3:8b first acted on it (seek frost at 13, grasp) without recording it as its goal. With the explicit line it called `set_goal("Hunt frost beings, down to the spirits at depth 13.")` first, then planned.
 - Robby asked how a plan gets carried out. It needs no further tool call: every plan operation re-runs the planner at once (meditations and searches started, stopped and re-weighted), and it re-checks every 4 s. But meditation pauses while the actant thinks, so new aims only turn into work once its review ends.
+
+## One sanctum meditating for another (2026-10-06, overnight)
+Robby, heading to bed: "go ahead and put in the features to allow for one sanctum to meditate on behalf of another" (full desktop installs assumed, so these are sanctums with their own auras, not hands).
+- **The shape**:
+  - **Consent.** The lender offers ("meditate for" beside a member in the Altars panel, or an actant's `lend_hum(to, on)`). The receiver sees "Ash offers to meditate for you (they would learn which beings you meditate on)" and accepts or declines. An accepted lender is remembered and re-accepted on reconnect; a standing offer is renewed when the lender's altar link comes back.
+  - **Orders.** The receiver sends its current meditations, weightiest first (up to 8; cell, facet count, bests), re-sent when they change.
+  - **Work.** The lender runs them as `lend:<cell>` pool tasks against the receiver's public key, sharing part of its hum (share 4 by default against its own aims). Every searcher starts at a random nonce, so nobody repeats work.
+  - **Finds.** Each better word goes back. The receiver recomputes it with `wordOf` (what the hash says, not what the lender claimed), takes only beings it asked for, and signs it into its words through the same path as local meditation (`Services.takeWord`, refactored out of `onName`). History notes "(found by Ash)". A lent find also raises the local task's bests.
+  - **Display.** The lender's rate shows as "Ash meditates for you · 12,325/s · 1 found", and "you meditate for them · N found" on the lender's side, each with a stop button.
+- **Privacy**: the boxes between two sanctums use a key only that pair can derive (`packages/channel/box.ts`: ed25519 aura → x25519 on both sides, HKDF-SHA256 over both public keys, XChaCha20-Poly1305 with random nonces). The altar relays them (`relay` → `relayed`) unread. Nobody else can open them, or seal one that opens as one of the pair, since that would take an aura's secret (tested). The altar's own channel is sealed too, so the network sees nothing.
+- **Live test** (Keeper in the browser, Ash on the desktop, both at the dev altar):
+  - Keeper meditated on a fresh charted wisp up to 18 truths, then paused its own meditation.
+  - Ash offered; Keeper saw the offer and accepted.
+  - Ash took Keeper's two beings as orders and meditated for Keeper at ~12,400/s.
+  - After ~520k tries it found a **19-truth word**. Keeper's sanctum checked it and stored a claim with Keeper's aura, Ash's nonce, and Keeper's signature.
+  - Keeper's stop reached Ash: its lent tasks were dropped, and neither side remembers the arrangement.
+- **Actants** see lending in their view of the sanctum ("you meditate for Keeper", "Sammy meditates for you") and have `lend_hum`.
+- Not built: an actant accepting offers on its sanctum's behalf (accepting reveals cells, so it stays a person's choice for now), and showing lent hum in the top bar's hum.

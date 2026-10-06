@@ -7,6 +7,7 @@ import { persist, rememberSpirit, signClaim, spiritOf, splitWord, wordKey, type 
 import { addHistory, Planner } from './plan.ts';
 import { Actant } from './actant.ts';
 import { Choir } from './choir.ts';
+import { Lend } from './lending.ts';
 import { LOCAL_ALTAR, sameServer } from './round.ts';
 import type { World } from '@truenames/dungeon/protocol';
 import { spiritName, magnitudeTitle, truths } from './lore.ts';
@@ -60,6 +61,8 @@ export class Services {
   actant!: Actant;
   /** This sanctum's choirs: one per altar it belongs to (the first is home). */
   choirs: Choir[] = [];
+  /** Lent meditation: meditating for another sanctum, or others meditating for this one. */
+  lend!: Lend;
   /** A choir changed (members, talk, connection). */
   choirChange = new Emitter<void>();
   /** Someone at one of your altars called a shared round: world, level, the dungeon's address, the caller's aura. */
@@ -93,6 +96,7 @@ export class Services {
     save.altars ??= [LOCAL_ALTAR];
     // a desktop profile's name is a fine first handle (you already typed it to start this instance)
     save.handle ??= new URLSearchParams(location.search).get('profile') || undefined;
+    this.lend = new Lend(save, this);
     this.choirs = save.altars.map((a) => new Choir(a, save, this));
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);
@@ -214,7 +218,18 @@ export class Services {
   }
 
   private onName(t: NameTask, nonce: bigint, strength: number, facet: number) {
+    // a find for someone else (this sanctum lends its hum): it goes to them, never into our words
+    if (t.id.startsWith('lend:')) return this.lend.found(t, nonce, strength, facet);
+    this.takeWord(t.cell, nonce, strength, facet);
+  }
+
+  /**
+   * A better word for one of this aura's beings: sign it, record it, tell the sanctum. Local meditation lands here,
+   * and so do finds lent by another sanctum (`by`: their handle), once checked.
+   */
+  takeWord(cell: string, nonce: bigint, strength: number, facet: number, by?: string) {
     if (!this.save.aura) return;
+    const t = { cell };
     const key = wordKey(t.cell, facet);
     const before = this.save.names[key]?.strength ?? 0;
     if (strength <= before) return;
@@ -223,13 +238,16 @@ export class Services {
     // only grasped words are claims the authority accepts; below the bar the word is still forming (kept locally)
     if (strength >= bar && !this.authority.submitName(claim).accepted) return;
     this.save.names[key] = { claim, strength, facet };
+    // our own meditation on it now has a higher bar to beat (a lent find may have raised it)
+    const local = this.nameTask(cell);
+    if (local && strength > (local.bests[facet] ?? 0)) local.bests[facet] = strength;
     const being = spiritOf(this.save, t.cell);
     const sp = being ? spiritName(being) : t.cell;
     if (before < bar && strength >= bar) {
-      const text = `grasped a word of ${sp} (facet ${facet + 1}) at ${truths(strength)}`;
+      const text = `grasped a word of ${sp} (facet ${facet + 1}) at ${truths(strength)}${by ? ` (found by ${by})` : ''}`;
       addHistory(this.save, { kind: 'grasp', by: 'sanctum', text });
       this.events.emit({ kind: 'grasp', text });
-    } else if (strength >= bar) addHistory(this.save, { kind: 'truth', by: 'sanctum', text: `${sp} (facet ${facet + 1}): ${truths(strength)}` });
+    } else if (strength >= bar) addHistory(this.save, { kind: 'truth', by: 'sanctum', text: `${sp} (facet ${facet + 1}): ${truths(strength)}${by ? ` (found by ${by})` : ''}` });
     persist(this.save);
     this.names.emit({ cell: t.cell, facet, key, strength, learned: before < bar && strength >= bar });
   }

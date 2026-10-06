@@ -88,6 +88,8 @@ export interface SaveData {
   handle?: string;
   /** The altars this sanctum belongs to (addresses, with keys); the first is home. Default: this machine's own. */
   altars?: string[];
+  /** Lent meditation: whom we meditate for (renewed on reconnect), and those we accepted to meditate for us (by aura). */
+  lend?: { accepted: string[]; to?: { aura: string; handle: string; altar: string; share: number } };
   /** Drop to one voice while in a world (default on). */
   quietPlay?: boolean;
   /** Set once, when a v1 save was carried into the v2 astral. */

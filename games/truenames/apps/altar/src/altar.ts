@@ -62,6 +62,11 @@ export function startAltar(opts: AltarOptions): Promise<AltarHost> {
       } else if (m.t === 'share') {
         const cell = String(m.cell ?? '');
         if (/^[0-7]{12,24}$/.test(cell)) say({ t: 'shared', from, cell, ...(m.note ? { note: clean(m.note, 200) } : {}), at: Date.now() });
+      } else if (m.t === 'relay') {
+        // a sealed box between two members (lent meditation): passed on, unread; only the named aura gets it
+        const box = String(m.box ?? '');
+        if (box.length > 65536) return;
+        for (const x of choir) if (x.info.aura === m.to && x !== me) x.peer.send({ t: 'relayed', from, box });
       } else if (m.t === 'call') {
         const world = clean(m.world, 20), dungeon = clean(m.dungeon, 200);
         if (!world || !dungeon) return;

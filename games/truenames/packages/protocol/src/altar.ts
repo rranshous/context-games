@@ -21,11 +21,13 @@ export type AltarClientMsg =
   | { t: 'activity'; what: Activity } // live: typing, heard, thinking, or nothing
   | { t: 'share'; cell: string; note?: string } // a being's sign, for the choir
   | { t: 'call'; world: string; level: number; dungeon: string; closesIn: number } // a shared round is gathering at that dungeon (its shareable address)
+  | { t: 'relay'; to: string; box: string } // a sealed box for one member (by aura); the altar can't read it
   | { t: 'issue'; from: string; text: string; where?: string }; // development: something seems broken (needs no join)
 
 export type AltarServerMsg =
   | { t: 'roster'; name: string; members: ChoirMember[] }
   | { t: 'said'; from: Speaker; text: string; at: number }
   | { t: 'shared'; from: Speaker; cell: string; note?: string; at: number }
+  | { t: 'relayed'; from: Speaker; box: string }
   | { t: 'called'; from: Speaker; world: string; level: number; dungeon: string; closesIn: number; at: number }
   | { t: 'error'; message: string };
