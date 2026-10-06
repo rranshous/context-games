@@ -109,7 +109,11 @@ function fn(name: string, description: string, properties: Record<string, unknow
 }
 
 /** Who the actant is (its configuration). */
-export interface MindConfig { handle?: string; goal: string; notes: string; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string }
+export interface MindConfig {
+  handle?: string; goal: string; notes: string; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string;
+  /** Which code bodies this review shows in full (only when relevant: after a race, after a round in the Dark). */
+  show?: { driving?: boolean; fighting?: boolean };
+}
 
 /** The sanctum as plain facts, gathered by the game (or made up by the bench). */
 export interface MindState {
@@ -120,6 +124,8 @@ export interface MindState {
   /** The four loadout slots: the word bound in each, or null. */
   loadout?: (string | null)[];
   history: string[];
+  /** Digests of your last few reviews (what you heard, did and said), newest last: your continuity. */
+  recent?: string[];
   choir: string[];
   talk: string[];
 }
@@ -134,8 +140,13 @@ export function soma(c: MindConfig): string {
     'You do not meditate or search directly: you set the plan, an ordered list of aims the sanctum pursues on its own. Earlier aims and bigger shares get more of the hum.',
     `Goal: ${c.goal || 'grow strong.'}`,
     `Your notes: ${c.notes || '(none yet)'}`,
-    c.joinRaces ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${c.driving || DEFAULT_DRIVING}` : 'You do not join races (join_world races to start).',
-    c.joinDark ? `You join your choir in the Dark (waves of enemies, fought together). Your fighting code (a function(view, autofight) body):\n${c.fighting || DEFAULT_FIGHTING}` : 'You do not join the Dark (join_world dark to start).',
+    // code is shown only when it matters (after a race, after a round in the Dark): it is ~1k tokens a review otherwise
+    !c.joinRaces ? 'You do not join races (join_world races to start).'
+      : c.show?.driving ? `You join your choir's Dark Racer races. Your driving code (a function(view, autopilot) body):\n${c.driving || DEFAULT_DRIVING}`
+      : `You join your choir's Dark Racer races with your ${c.driving ? 'own' : 'default'} driving code (you see it after a race, when you can rewrite it).`,
+    !c.joinDark ? 'You do not join the Dark (join_world dark to start).'
+      : c.show?.fighting ? `You join your choir in the Dark (waves of enemies, fought together). Your fighting code (a function(view, autofight) body):\n${c.fighting || DEFAULT_FIGHTING}`
+      : `You join your choir in the Dark (waves of enemies, fought together) with your ${c.fighting ? 'own' : 'default'} fighting code (you see it after a round, when you can rewrite it).`,
   ].join('\n');
 }
 
@@ -145,6 +156,7 @@ export function stateText(s: MindState): string {
   const unheld = s.unheld.slice(0, 12).map((b) => `${b.name} (sign ${b.cell}), ${b.cls}, bar ${b.bar}, best ${b.best}`);
   const plan = s.plan.map((a, i) => `${i + 1}. ${a.text} ×${a.share}${a.done ? ' (fulfilled)' : ''}`);
   return [
+    s.recent?.length ? `Your last reviews (newest last). Keep to these decisions unless something new calls for a change:\n${s.recent.map((r) => `- ${r}`).join('\n')}` : '',
     `Hum: ${Math.round(s.hum)} utterances/s.`,
     `Words held: ${words.length ? '\n' + words.join('\n') : 'none'}`,
     `Loadout (bound words, what you carry into worlds): ${(s.loadout ?? [null, null, null, null]).map((k, i) => `${i + 1}. ${k ?? 'empty'}`).join('  ')}`,
@@ -152,7 +164,7 @@ export function stateText(s: MindState): string {
     `Plan: ${plan.length ? '\n' + plan.join('\n') : 'empty'}`,
     `Recent history:\n${s.history.map((h) => `- ${h}`).join('\n') || 'none'}`,
     `Your altars and who is gathered there:${s.choir.length ? '\n' + s.choir.join('\n') : ' none'}${s.talk.length ? `\nRecent talk:\n${s.talk.join('\n')}` : ''}`,
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 /** The review's prompt: what the choir said to it comes first (a small model buries requests in long state). */

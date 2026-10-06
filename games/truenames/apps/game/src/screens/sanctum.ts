@@ -422,7 +422,7 @@ export function sanctumScreen(app: App): Screen {
           save.runs.push({ at: Date.now(), world: r.world, descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
           const text = `${r.won ? 'won' : 'lost'} in ${WORLDS.find((x) => x.id === r.world)?.name ?? r.world} at ${worldDescentName(r.world, r.level)} (${r.world === 'racer' ? `place ${r.wave}` : r.world === 'council' ? `turn ${r.wave}` : `wave ${r.wave}`}, ${r.kills} struck)`;
           addHistory(save, { kind: 'journey', by: 'player', text });
-          S.events.emit({ kind: 'journey', text });
+          S.events.emit({ kind: 'journey', text, world: r.world });
           const p = progress(r.world);
           const unlocked = r.won && r.level >= p.descent;
           if (unlocked) setProgress(r.world, { descent: r.level + 1, last: p.last });

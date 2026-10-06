@@ -13,6 +13,8 @@ import { reportIssue, type Pilot, type Fighter } from './round.ts';
 import { CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, DEFAULT_FIGHTING, compileFighting, tryFighting, DEFAULT_MODEL, ask, converse, compileDriving, soma, tryDriving, type MindState } from './actant-mind.ts';
 
 export { OLLAMA, DEFAULT_MODEL, DEFAULT_DRIVING, compileDriving, toolModels } from './actant-mind.ts';
+/** "3 min ago", "2 h ago": how long since, for an actant's own sense of time. */
+const ago = (at: number) => { const m = Math.round((Date.now() - at) / 60000); return m < 1 ? 'just now' : m < 90 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
 /** Events gather this long before a review (several finds in a row make one review). */
 const GATHER_MS = 20_000;
 /** Talk is answered after this short gather (it skips the gap between reviews). */
@@ -94,7 +96,9 @@ export class Actant {
     this.activity('thinking');
     this.onChange?.();
     // see the sanctum as it is (hum included) before thought pauses the chanting
-    const system = soma({ ...this.config, handle: this.S.handle });
+    // code bodies only when relevant: after a race (driving), after a round in the Dark (fighting)
+    const show = { driving: events.some((e) => e.kind === 'journey' && e.world === 'racer'), fighting: events.some((e) => e.kind === 'journey' && e.world === 'dark') };
+    const system = soma({ ...this.config, handle: this.S.handle, show });
     const user = ask(events, this.mindState(), reason);
     this.S.pool.setPaused(true); // thought costs chanting
     try {
@@ -107,6 +111,7 @@ export class Actant {
         onCall: (c) => { this.log.push(`${c.name}(${JSON.stringify(c.args)}) → ${c.result}`); this.onChange?.(); },
       });
       this.thought(out.final || (out.stuck ? '(stopped: the same call was refused twice)' : ''));
+      this.remember(events, reason, out.calls, out.final);
     } catch (err) {
       this.thought(`(could not think: ${String((err as Error).message ?? err)})`);
     } finally {
@@ -121,6 +126,21 @@ export class Actant {
   }
 
   private lastSaid = '';
+
+  /** Keep a one-line digest of this review (what it heard, did and said): the last few are its continuity. */
+  private remember(events: SanctumEvent[], reason: string | undefined, calls: { name: string; args: Record<string, unknown>; result: string }[], final: string) {
+    const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+    const talk = events.filter((e) => e.kind === 'chat').map((e) => e.text);
+    const heard = talk.length ? talk.join(' / ') : events.length ? events.slice(0, 3).map((e) => e.text).join('; ') : reason ?? 'a review';
+    const ok = calls.filter((c) => !/^error|^already|^you already/.test(c.result));
+    const did = ok.filter((c) => c.name !== 'say').map((c) => `${c.name}(${Object.values(c.args).map((v) => cut(String(v), 40)).join(', ')})`);
+    const said = ok.filter((c) => c.name === 'say').map((c) => `"${cut(String(c.args.text ?? ''), 140)}"`);
+    const line = [`heard: ${cut(heard, 200)}`, did.length ? `did: ${did.join(', ')}` : 'did: nothing', said.length ? `said: ${said.join(' ')}` : '', !said.length && final ? `thought: ${cut(final.replace(/\s+/g, ' ').trim(), 160)}` : ''].filter(Boolean).join('; ');
+    const recent = (this.config.recent ??= []);
+    recent.push({ at: Date.now(), line });
+    if (recent.length > 6) recent.splice(0, recent.length - 6);
+    persist(this.save);
+  }
 
   private thought(text: string) {
     const t = (text || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -146,6 +166,7 @@ export class Actant {
       plan: S.planner.aims.map((a) => ({ text: describeAim(a), share: a.share, done: a.done })),
       loadout: [0, 1, 2, 3].map((i) => save.loadout[i] ?? null),
       history: (save.history ?? []).slice(-12).map((h) => h.text),
+      recent: (this.config.recent ?? []).map((r) => `[${ago(r.at)}] ${r.line}`),
       choir: S.choirs.map((c) => {
         const others = c.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`);
         return `at ${c.name}${c === S.home ? ' (home)' : ''}: ${others.length ? others.join(', ') : 'no one else'}${c.connected ? '' : ' (not connected)'}`;

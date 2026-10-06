@@ -273,7 +273,7 @@ async function drive(model: string, baseline: Awaited<ReturnType<typeof raceSet>
       } else {
         let wrote = '';
         const S = fakeSanctum(base());
-        const cfg: MindConfig = { handle: 'Ash', goal: 'win races for my choir.', notes: '', joinRaces: true, driving: DEFAULT_DRIVING };
+        const cfg: MindConfig = { handle: 'Ash', goal: 'win races for my choir.', notes: '', joinRaces: true, driving: DEFAULT_DRIVING, show: { driving: true } };
         const out = await converse(model, soma(cfg), DRIVE_ASK(report(baseline)), (n, a) => { const res = S.use(n, a); if (n === 'write_driving' && !res.startsWith('error')) wrote = String(a.code); return res; }, 4, TOOLS, 4000);
         trace = out.calls.map((c) => `${c.name}(${JSON.stringify(c.args).slice(0, 1500)}) → ${c.result}`).join('\n') + (out.final ? `\n“${out.final.slice(0, 1500)}”` : '');
         code = wrote;

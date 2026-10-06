@@ -43,7 +43,7 @@ export interface NameEvent {
 export const scanKey = (prefix: string, depth: number) => `${prefix}|${depth}`;
 
 /** Something worth an actant's review: a find, a grasp, a search or an aim finished, a journey's end. */
-export interface SanctumEvent { kind: 'find' | 'grasp' | 'search' | 'aim' | 'journey' | 'chat'; text: string }
+export interface SanctumEvent { kind: 'find' | 'grasp' | 'search' | 'aim' | 'journey' | 'chat'; text: string; /** a journey's world */ world?: string }
 
 export class Services {
   pool: MeditationPool;

@@ -83,7 +83,7 @@ export interface SaveData {
   planOwned?: { names: string[]; scries: string[] };
   history?: import('./plan.ts').HistoryLine[];
   /** An actant tending this sanctum: its goal, model, notes, and whether it is awake. */
-  actant?: { on: boolean; goal: string; model: string; notes: string; lastReview?: number; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string };
+  actant?: { on: boolean; goal: string; model: string; notes: string; lastReview?: number; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string; recent?: { at: number; line: string }[] };
   /** How this sanctum is known in a choir. */
   handle?: string;
   /** The altars this sanctum belongs to (addresses, with keys); the first is home. Default: this machine's own. */
