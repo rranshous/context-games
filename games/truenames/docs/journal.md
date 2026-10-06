@@ -827,3 +827,9 @@ Robby: "a pattern we've used before … _you_ carve out a bit of space in the ap
     - It repeated itself; the issue channel wants dedupe, like `say`.
   - **Its report:** "The game has a solid foundation … the banishing system and enemy prioritization need more clarity." Generic but on target.
 - **Game broken vs my code weak**: after the shard filed its own aiming as a game bug, the soma, the `report_issue` description and the shard's prompt now draw the line. Report the game itself (misbehaving tools, numbers that don't add up, rules that contradict what you were told); when your own plan or code plays poorly, change it, since that's your work. Deduping repeated reports was judged not worth the complexity (Robby).
+
+## Hands: planning machine-lent meditation (2026-10-05)
+Robby, on the two-machine setup: "I am drawn to a link to setup B. That plus encryption would mean that we could do word of power farming by B", and since B has no local model, "it must be a hand".
+- The key insight: a word is a hash of (being, **public key**, nonce), so a hand needs only your public key. Its finds are useless to anyone but you, and your sanctum checks each with one hash and signs it. Encryption isn't about ownership; it protects **the cells** (where beings dwell), which work orders reveal.
+- `NameTask` is already portable (cell, aura public key, facets, bests), so a hand runs the same pool and workers aimed at your key.
+- Plan in [09-hands.md](09-hands.md): your sanctum keeps a master link to its own dungeon, which relays sealed envelopes to hands (keyed by your public key, contents unreadable). The invite link carries your address, keys and a one-time pairing secret (x25519 + HKDF + AES-GCM). Hands search from random nonce offsets, and finds go through the same path as local ones. Milestones H1–H4.
