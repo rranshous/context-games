@@ -52,9 +52,13 @@ export function startAltar(opts: AltarOptions): Promise<AltarHost> {
         const p = m.presence;
         Object.assign(me.info, { hum: Math.max(0, Number(p.hum) || 0), words: Math.max(0, Number(p.words) | 0), beings: Math.max(0, Number(p.beings) | 0), truest: Math.max(0, Number(p.truest) | 0), actant: ['none', 'asleep', 'waiting', 'thinking'].includes(p.actant) ? p.actant : 'none' });
         roster();
+      } else if (m.t === 'activity') {
+        const what = m.what === 'typing' || m.what === 'heard' || m.what === 'thinking' ? m.what : null;
+        if (me.info.activity !== what) { me.info.activity = what; roster(); }
       } else if (m.t === 'say') {
         const text = clean(m.text, 500).trim();
         if (text) say({ t: 'said', from, text, at: Date.now() });
+        if (me.info.activity === 'typing') { me.info.activity = null; roster(); } // speaking ends typing
       } else if (m.t === 'share') {
         const cell = String(m.cell ?? '');
         if (/^[0-7]{12,24}$/.test(cell)) say({ t: 'shared', from, cell, ...(m.note ? { note: clean(m.note, 200) } : {}), at: Date.now() });

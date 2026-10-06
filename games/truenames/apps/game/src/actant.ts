@@ -5,6 +5,7 @@
 import { persist, spiritOf, splitWord, type SaveData } from './save.ts';
 import type { Services, SanctumEvent } from './services.ts';
 import type { Choir } from './choir.ts';
+import type { Activity } from '@truenames/protocol';
 import { addHistory, describeAim, type AimSpec } from './plan.ts';
 import { ELEMENT_NAMES, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
@@ -14,6 +15,8 @@ import { CLASSES, DEFAULT_DRIVING, NAIVE_DRIVING, DEFAULT_FIGHTING, compileFight
 export { OLLAMA, DEFAULT_MODEL, DEFAULT_DRIVING, compileDriving, toolModels } from './actant-mind.ts';
 /** Events gather this long before a review (several finds in a row make one review). */
 const GATHER_MS = 20_000;
+/** Talk is answered after this short gather (it skips the gap between reviews). */
+const TALK_GATHER_MS = 5_000;
 /** At least this long between reviews. */
 const MIN_GAP_MS = 120_000;
 const MAX_TURNS = 6;
@@ -66,9 +69,21 @@ export class Actant {
 
   private heard(e: SanctumEvent) {
     this.pending.push(e);
-    if (this.timer || this.status === 'thinking') return;
+    // someone spoke to it: the choir sees at once that it heard (and that a reply is coming)
+    if (e.kind === 'chat') this.activity('heard');
+    if (this.status === 'thinking') return;
+    const talk = this.pending.some((x) => x.kind === 'chat');
+    if (this.timer && !talk) return;
+    if (this.timer) clearTimeout(this.timer);
+    // talk is answered soon (a few seconds to gather a reply-worthy moment); the rest waits out the gap between reviews
     const since = Date.now() - (this.config.lastReview ?? 0);
-    this.timer = setTimeout(() => { this.timer = null; void this.review(); }, Math.max(GATHER_MS, MIN_GAP_MS - since));
+    const wait = talk ? TALK_GATHER_MS : Math.max(GATHER_MS, MIN_GAP_MS - since);
+    this.timer = setTimeout(() => { this.timer = null; void this.review(); }, wait);
+  }
+
+  /** Show the choirs what this actant is doing right now (heard, thinking, or nothing). */
+  private activity(what: Activity) {
+    for (const c of this.S.choirs) c.activity(what);
   }
 
   /** Review now: read the sanctum, think, act through the plan. */
@@ -76,13 +91,17 @@ export class Actant {
     if (this.status === 'thinking') return;
     const events = this.pending.splice(0);
     this.status = 'thinking';
+    this.activity('thinking');
     this.onChange?.();
+    // see the sanctum as it is (hum included) before thought pauses the chanting
+    const system = soma({ ...this.config, handle: this.S.handle });
+    const user = ask(events, this.mindState(), reason);
     this.S.pool.setPaused(true); // thought costs chanting
     try {
       const out = await converse({
         model: this.config.model || DEFAULT_MODEL,
-        system: soma({ ...this.config, handle: this.S.handle }),
-        user: ask(events, this.mindState(), reason),
+        system,
+        user,
         use: (n, a) => this.use(n, a),
         maxTurns: MAX_TURNS,
         onCall: (c) => { this.log.push(`${c.name}(${JSON.stringify(c.args)}) → ${c.result}`); this.onChange?.(); },
@@ -95,6 +114,7 @@ export class Actant {
       this.config.lastReview = Date.now();
       persist(this.save);
       this.status = this.config.on ? 'waiting' : 'asleep';
+      this.activity(null);
       this.onChange?.();
       if (this.pending.length && this.config.on) this.heard(this.pending.pop()!);
     }

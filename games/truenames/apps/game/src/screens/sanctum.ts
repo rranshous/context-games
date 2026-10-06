@@ -27,6 +27,8 @@ import { openChart } from './chart.ts';
 import { openSpiritCard } from './spirit-card.ts';
 import { createCodex, type Codex } from './codex.ts';
 import { lendSanctum } from '../explorer.ts';
+import type { Choir } from '../choir.ts';
+import type { ChoirMember } from '@truenames/protocol';
 
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
@@ -229,7 +231,7 @@ export function sanctumScreen(app: App): Screen {
   function renderActant() {
     const A = S.actant, el = root?.querySelector('#actant');
     if (!el) return;
-    (el.querySelector('#ac-wake') as HTMLButtonElement).textContent = A.config.on ? 'awake' : 'asleep';
+    (el.querySelector('#ac-wake') as HTMLButtonElement).textContent = A.config.on ? 'awake · let it rest' : 'asleep · wake it';
     el.querySelector('#ac-wake')!.classList.toggle('on', A.config.on);
     el.querySelector('#ac-race')!.classList.toggle('on', !!A.config.joinRaces);
     el.querySelector('#ac-dark')!.classList.toggle('on', !!A.config.joinDark);
@@ -244,13 +246,20 @@ export function sanctumScreen(app: App): Screen {
     box.innerHTML = S.choirs.map((C, i) => `<div class="altar">
       <div><b>${esc(C.name)}</b>${i === 0 ? ' <span class="faint">(home)</span>' : ''} <span class="dim" style="font-size:12px">· ${C.connected ? `${C.members.length} gathered` : C.trouble ? esc(C.trouble) : 'not connected'}</span>
         <button class="small" data-leave-altar="${i}" data-tip="=Leave this altar (you can join it again with its address).">×</button></div>
-      <div class="feed">${C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.actant === 'thinking' ? 'thinking' : m.actant}</span>` : ''}</div>`).join('')}</div>
+      <div class="feed">${C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.activity === 'thinking' || m.actant === 'thinking' ? 'thinking…' : m.activity === 'heard' ? 'heard you' : m.actant}</span>` : m.activity === 'typing' ? ' <span class="gold" style="font-size:12px">· typing…</span>' : ''}</div>`).join('')}</div>
       <div class="feed choir-lines">${C.lines.slice(-8).map((l) => `<div><span class="${l.mine ? 'gold' : ''}">${esc(l.from)}:</span> ${esc(l.text)}</div>`).join('') || '<div class="faint">No one has spoken.</div>'}</div>
+      ${activityLine(C)}
     </div>`).join('') || '<div class="faint">You belong to no altar.</div>';
     const to = root.querySelector('#ch-to') as HTMLSelectElement;
     const keep = to.value;
     to.innerHTML = S.choirs.map((C, i) => `<option value="${i}">${esc(C.name)}</option>`).join('');
     if (keep && Number(keep) < S.choirs.length) to.value = keep;
+  }
+  /** Who is doing what right now at an altar (others only): typing, heard you, thinking. */
+  function activityLine(C: Choir): string {
+    const say = (m: ChoirMember) => m.activity === 'typing' ? `${esc(m.handle)} is typing` : m.activity === 'heard' ? `${esc(m.handle)} heard you; a reply is coming` : `${esc(m.handle)} is thinking`;
+    const busy = C.members.filter((m) => m.activity && m.aura !== save.aura?.pub);
+    return busy.length ? `<div class="activity">${busy.map(say).join(' · ')}<span class="dots"><i>.</i><i>.</i><i>.</i></span></div>` : '';
   }
   /** The choir chosen to speak to (and share at). */
   const chosenChoir = () => S.choirs[Number((root.querySelector('#ch-to') as HTMLSelectElement | null)?.value ?? 0)] ?? S.home;
@@ -558,7 +567,17 @@ export function sanctumScreen(app: App): Screen {
         handle.value = save.handle ?? '';
         handle.addEventListener('change', () => { save.handle = handle.value.trim().slice(0, 24) || undefined; persist(save); for (const c of S.choirs) c.reconnect(); });
         const say = root.querySelector('#ch-say') as HTMLInputElement;
-        say.addEventListener('keydown', (e) => { if (e.key === 'Enter') { chosenChoir()?.say(say.value); say.value = ''; } });
+        // typing shows at the chosen altar while you type (and stops when you send, or after a few quiet seconds)
+        let typingAt: Choir | null = null, typingT: ReturnType<typeof setTimeout> | null = null;
+        const stopTyping = () => { if (typingT) clearTimeout(typingT); typingT = null; typingAt?.activity(null); typingAt = null; };
+        say.addEventListener('input', () => {
+          const c = chosenChoir();
+          if (!c || !say.value.trim()) return stopTyping();
+          if (typingAt !== c) { stopTyping(); typingAt = c; c.activity('typing'); }
+          if (typingT) clearTimeout(typingT);
+          typingT = setTimeout(stopTyping, 4000);
+        });
+        say.addEventListener('keydown', (e) => { if (e.key === 'Enter') { if (typingT) clearTimeout(typingT); typingT = null; typingAt = null; chosenChoir()?.say(say.value); say.value = ''; } });
         const join = root.querySelector('#ch-join') as HTMLInputElement;
         join.addEventListener('keydown', (e) => {
           if (e.key !== 'Enter') return;

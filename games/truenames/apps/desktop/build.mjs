@@ -27,4 +27,5 @@ await build({
   logLevel: 'info',
 });
 copyFileSync(require.resolve('@truenames/proofs/artifacts/name.vkey.json', { paths: [`${root}apps/dungeon`] }), `${here}dist/name.vkey.json`);
+copyFileSync(`${here}build/icon.png`, `${here}dist/icon.png`); // the window's icon (the packages take theirs from build/)
 console.log('[desktop] built: game/ and dist/main.cjs');

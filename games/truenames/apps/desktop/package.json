@@ -1,6 +1,6 @@
 {
   "name": "@truenames/desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Truenames as a desktop app: the game and its dungeon in one window, no server required.",
   "main": "dist/main.cjs",
@@ -40,14 +40,17 @@
           "StartupWMClass": "Truenames"
         }
       },
-      "syncDesktopName": true
+      "syncDesktopName": true,
+      "icon": "build/icon.png"
     },
     "win": {
-      "target": "portable"
+      "target": "portable",
+      "icon": "build/icon.png"
     },
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.games"
+      "category": "public.app-category.games",
+      "icon": "build/icon.png"
     },
     "electronDist": "node_modules/electron/dist",
     "electronVersion": "44.5.1",

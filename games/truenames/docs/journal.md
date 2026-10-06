@@ -852,3 +852,21 @@ Robby, on terminology: the dungeon is where game runs happen, the sanctum where 
   - Ash (desktop) joined its own altar and the dev altar at once.
   - Keeper walked in again, called it, and Ash heard the call at the dev altar and walked into Keeper's dungeon within 0.1 s: "begins with 2 player(s)".
   - An issue from the explorer arrived at the altar's inbox.
+
+## Knowing you were heard (2026-10-05)
+Robby, trying 0.2.0: "we need some sort of indicator, a typing back type indicator, when choir member actants are thinking / processing … basically i'd like to know if my message was received and i'm waiting on a reply or not". Also: the handle should default to the profile name, the app needs an icon, and the wake toggle was hard to find.
+- **Live activity at altars**: `{t: 'activity', what: 'typing' | 'heard' | 'thinking' | null}`. The altar keeps it on the member and re-sends the roster at once; speaking ends typing.
+  - People: typing in the say box shows "typing…" at the chosen altar, until you send or after 4 quiet seconds.
+  - Actants: talk makes them show "heard you; a reply is coming" at once, then "thinking…" while the model runs, then nothing.
+  - Under each altar's talk: "Ash heard you; a reply is coming…" with animated dots, and the same state beside the member's name.
+- **Talk is answered soon**: chat now starts a review after 5 s and skips the 2-minute gap between reviews (other events still wait it out).
+- **The wake button says what it does**: "asleep · wake it" / "awake · let it rest". The handle defaults to the desktop profile's name. A sigil icon (Khossim's, gold on dark) for the window and the packages.
+- **Live**: Keeper typed to Ash ("Ash, are you there? Tell me one thing you are working on.").
+  - Ash's window showed "Keeper is typing…".
+  - On send, Keeper saw "Ash heard you" within 1 s and "Ash is thinking" at 5 s.
+  - qwen3:8b replied ~7 min later, slowed by Keeper's tab meditating on 7 voices on the same CPU: "Keeper, I am here. I am working on deepening my held words to make them truer…"
+  - It then moved the deepen aim to first with share 8.
+- **What the play-by-play showed**:
+  - The review read "Hum: 0", because meditation was paused before the sanctum was described. Fixed: describe first, then pause.
+  - Ash flips the same two aims back and forth review after review (grasp ↔ deepen), and keeps a grasp aim when no beings are waiting.
+  - The soma carries both code bodies (~1k tokens) even when someone just said hello.

@@ -2,7 +2,7 @@
 // Members see each other's presence, talk, share signs, and call rounds ("the Dark, descent 3, at dungeon X"). A
 // shared sign lands in the Name Book like a find: a church handing down a being. Talk, signs and calls from others
 // are sanctum events, so an actant tending this sanctum reviews when they arrive. Sealed in transit.
-import type { AltarServerMsg, ChoirMember } from '@truenames/protocol';
+import type { Activity, AltarServerMsg, ChoirMember } from '@truenames/protocol';
 import type { SealedSocket } from '@truenames/channel';
 import { spiritAt } from '@truenames/universe';
 import type { World } from '@truenames/dungeon/protocol';
@@ -78,6 +78,11 @@ export class Choir {
     const S = this.S;
     const words = S.graspedWords();
     this.ws?.send({ t: 'presence', presence: { hum: Math.round(S.pool.rate()), words: words.length, beings: Object.keys(this.save.spirits).length, truest: Math.max(0, ...words.map((k) => S.strength(k))), actant: S.actant.config.on ? S.actant.status : 'none' } });
+  }
+
+  /** Tell this choir what you are doing right now (live): typing, heard, thinking, or nothing. */
+  activity(what: Activity) {
+    this.ws?.send({ t: 'activity', what });
   }
 
   say(text: string) {

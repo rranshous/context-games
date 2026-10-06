@@ -91,6 +91,8 @@ export class Services {
     this.planner = new Planner(save, this);
     this.actant = new Actant(save, this);
     save.altars ??= [LOCAL_ALTAR];
+    // a desktop profile's name is a fine first handle (you already typed it to start this instance)
+    save.handle ??= new URLSearchParams(location.search).get('profile') || undefined;
     this.choirs = save.altars.map((a) => new Choir(a, save, this));
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);

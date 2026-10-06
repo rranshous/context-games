@@ -34,7 +34,11 @@ describe('an altar', () => {
     await until(() => a.heard.some((m) => m.t === 'roster' && m.members.length === 2));
     const roster = [...a.heard].reverse().find((m) => m.t === 'roster');
     expect(roster).toMatchObject({ name: 'the test altar' });
+    // live activity: typing shows to the others at once, and speaking ends it
+    a.ws.send({ t: 'activity', what: 'typing' });
+    await until(() => b.heard.some((m) => m.t === 'roster' && m.members.some((x) => x.handle === 'Keeper' && x.activity === 'typing')));
     a.ws.send({ t: 'say', text: 'Ash, will you seek frost?' });
+    await until(() => { const r = [...b.heard].reverse().find((m) => m.t === 'roster'); return !!r && r.t === 'roster' && r.members.some((x) => x.handle === 'Keeper' && !x.activity); });
     a.ws.send({ t: 'call', world: 'dark', level: 2, dungeon: shareAddress('ws://192.168.1.20:47191', 'k'.repeat(43)), closesIn: 15 });
     b.ws.send({ t: 'issue', from: 'Ash', text: 'the lance pierced three and the log said nothing', where: 'dark' });
     await until(() => b.heard.some((m) => m.t === 'called'));

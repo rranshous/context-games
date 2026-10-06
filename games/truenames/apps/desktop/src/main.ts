@@ -81,7 +81,7 @@ if (!app.requestSingleInstanceLock()) {
     } catch (e) { console.error('[desktop] the altar could not start', e); }
     await serveGame(gameRoot, PORTS.ui);
     win = new BrowserWindow({
-      width: 1440, height: 900, backgroundColor: '#07060c', autoHideMenuBar: true,
+      width: 1440, height: 900, backgroundColor: '#07060c', autoHideMenuBar: true, icon: join(__dirname, 'icon.png'),
       title: profile === 'default' ? 'Truenames' : `Truenames · ${profile}`,
     });
     win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
