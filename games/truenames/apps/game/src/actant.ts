@@ -4,6 +4,7 @@
 // Thought costs chanting: while it thinks, meditation pauses (on one machine they share the memory bus).
 import { persist, spiritOf, splitWord, type SaveData } from './save.ts';
 import type { Services, SanctumEvent } from './services.ts';
+import type { Choir } from './choir.ts';
 import { addHistory, describeAim, type AimSpec } from './plan.ts';
 import { ELEMENT_NAMES, FORMS, spiritName, magnitudeTitle } from './lore.ts';
 import { facetForm, wordBar } from '@truenames/universe';
@@ -80,7 +81,7 @@ export class Actant {
     try {
       const out = await converse({
         model: this.config.model || DEFAULT_MODEL,
-        system: soma({ ...this.config, handle: this.S.choir.handle }),
+        system: soma({ ...this.config, handle: this.S.handle }),
         user: ask(events, this.mindState(), reason),
         use: (n, a) => this.use(n, a),
         maxTurns: MAX_TURNS,
@@ -125,9 +126,22 @@ export class Actant {
       plan: S.planner.aims.map((a) => ({ text: describeAim(a), share: a.share, done: a.done })),
       loadout: [0, 1, 2, 3].map((i) => save.loadout[i] ?? null),
       history: (save.history ?? []).slice(-12).map((h) => h.text),
-      choir: S.choir.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`),
-      talk: S.choir.lines.slice(-6).map((l) => `${l.mine ? 'you' : l.from}: ${l.text}`),
+      choir: S.choirs.map((c) => {
+        const others = c.members.filter((m) => m.aura !== save.aura?.pub).map((m) => `${m.handle} (hum ${m.hum}, ${m.words} words${m.actant !== 'none' ? ', an actant' : ''})`);
+        return `at ${c.name}${c === S.home ? ' (home)' : ''}: ${others.length ? others.join(', ') : 'no one else'}${c.connected ? '' : ' (not connected)'}`;
+      }),
+      talk: S.choirs.flatMap((c) => c.lines.map((l) => ({ ...l, altar: c.name }))).sort((a, b) => a.at - b.at).slice(-6).map((l) => `[${l.altar}] ${l.mine ? 'you' : l.from}: ${l.text}`),
     };
+  }
+
+  /** The altar meant: one named (loosely), else where it was last spoken to by someone else, else home. */
+  private altar(name: unknown): Choir | undefined {
+    const C = this.S.choirs;
+    const n = String(name ?? '').trim().toLowerCase();
+    if (n) return C.find((c) => c.name.toLowerCase() === n) ?? C.find((c) => c.name.toLowerCase().includes(n));
+    let best: Choir | undefined, at = -1;
+    for (const c of C) { const l = [...c.lines].reverse().find((x) => !x.mine); if (l && l.at > at) { at = l.at; best = c; } }
+    return best ?? this.S.home;
   }
 
   /** Act: the same plan operations the player's controls use. Returns a short result for the model. */
@@ -194,12 +208,28 @@ export class Actant {
         addHistory(this.save, { kind: 'plan', by: 'actant', text: `rewrote its driving code (${code.length} chars)` });
         return 'your driving code is replaced';
       }
-      case 'say': { const t = String(a.text ?? '').slice(0, 300); if (t.trim() === this.lastSaid.trim()) return 'you already said exactly that; say something new or nothing'; this.lastSaid = t; this.S.choir.say(t); addHistory(this.save, { kind: 'note', by: 'actant', text: `said to the choir: ${t}` }); return this.S.choir.connected ? 'said' : 'said (but no one is listening: not connected)'; }
-      case 'share': { const c = String(a.sign ?? ''); if (!this.save.spirits[c]) return 'error: you know no being with that sign'; this.S.choir.share(c); return 'shared'; }
+      case 'say': {
+        const t = String(a.text ?? '').slice(0, 300);
+        if (t.trim() === this.lastSaid.trim()) return 'you already said exactly that; say something new or nothing';
+        const c = this.altar(a.altar);
+        if (!c) return `error: no altar called ${String(a.altar)}; yours are ${this.S.choirs.map((x) => x.name).join(', ')}`;
+        this.lastSaid = t;
+        c.say(t);
+        addHistory(this.save, { kind: 'note', by: 'actant', text: `said at ${c.name}: ${t}` });
+        return c.connected ? `said at ${c.name}` : `said (but no one is listening at ${c.name}: not connected)`;
+      }
+      case 'share': {
+        const cell = String(a.sign ?? '');
+        if (!this.save.spirits[cell]) return 'error: you know no being with that sign';
+        const c = this.altar(a.altar);
+        if (!c) return `error: no altar called ${String(a.altar)}; yours are ${this.S.choirs.map((x) => x.name).join(', ')}`;
+        c.share(cell);
+        return `shared at ${c.name}`;
+      }
       case 'report_issue': {
         const t = String(a.text ?? '').slice(0, 2000);
         if (!t.trim()) return 'error: say what seems wrong';
-        void reportIssue(this.S.choir.handle, t, 'actant review');
+        void reportIssue(this.S.handle, t, 'actant review', this.S.home?.address);
         addHistory(this.save, { kind: 'note', by: 'actant', text: `reported an issue: ${t.slice(0, 200)}` });
         return 'reported to the builders, thank you';
       }

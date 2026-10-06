@@ -1,0 +1,14 @@
+{
+  "name": "@truenames/altar",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@truenames/channel": "workspace:*",
+    "@truenames/protocol": "workspace:*",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
+}

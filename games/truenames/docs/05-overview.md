@@ -159,6 +159,9 @@ The dungeon hosts several **worlds**. Each admits you by the same proofs and int
   - **Shared races.** Racers at the same circuit join one race while it gathers: the lobby opens when the first racer is on the grid and holds the start 15 s, longer while someone is still proving (never past 35 s). Enter starts it early. Each player takes a rival's place, proves their own names against the race's context, and gets their own view and result. Someone who leaves is handed to the autopilot.
   - Finish in the **top 3** to open the next circuit. The race ends when you finish, when the podium fills without you, or 25 s after the winner.
 
+## Sanctum, altars and dungeons
+Three roles, each its own process and address. Your **sanctum** (your window) holds your aura and words. **Altars** are gathering places: you belong to several (home, a church's, a friend's), each with its choir, its talk and its round announcements. **Dungeons** host worlds and run rounds: you play at your own, or at whichever one an announcement names. On a desktop all three run together; across a LAN they can be anywhere. Every connection is encrypted. See [06](06-architecture.md).
+
 ## The dungeon is its own process
 Worlds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends intent (movement, aim, casts, plays) and draws what the dungeon reports. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. **Dark Racer is the first shared world**: racers at the same circuit within a 15 s lobby share one race. The other worlds are one player per round today.
 

@@ -15,6 +15,7 @@
     "@truenames/meditation": "workspace:*",
     "@truenames/proofs": "workspace:*",
     "@truenames/protocol": "workspace:*",
-    "@truenames/universe": "workspace:*"
+    "@truenames/universe": "workspace:*",
+    "@truenames/channel": "workspace:*"
   }
 }

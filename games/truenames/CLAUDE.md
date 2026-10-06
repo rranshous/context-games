@@ -17,4 +17,4 @@ Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mec
 7. **Tunables live in one file** (`packages/authority/src/tunables.ts`), never inlined.
 
 ## Vocabulary (use these words consistently)
-depth, cell, spirit, magnitude, traits, name, strength (on screen: truths), aura, effective, vessel (code: pool), grant, strain, capacity, world. Definitions: `docs/03-mechanics.md`.
+depth, cell, spirit, magnitude, traits, name, strength (on screen: truths), aura, effective, vessel (code: pool), grant, strain, capacity, world, round, sanctum, altar, dungeon, choir. Definitions: `docs/03-mechanics.md`.

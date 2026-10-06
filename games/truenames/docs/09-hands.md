@@ -18,16 +18,15 @@ words still come only through your own sanctum, which checks and signs every one
 ## The shape
 ```
   Your desktop (A)                                   Spare computer (B): a hand
-  sanctum ──(master link)──► A's dungeon ◄──(hand link)── hand window
+  sanctum ──(home altar)──► A's altar ◄──(hand link)── hand window
      │          relays sealed envelopes by master key;          │
      │          sees routing, sizes, timing; never contents     │
      └── work orders (cell, facets, bests) ──────────────────► meditates (same pool, same workers)
      ◄── finds (cell, nonce, strength, facet), rate ──────────────┘
 ```
-- **Your sanctum** keeps a **master link** to its *own* dungeon (even when you play at a friend's), so your hands can
-  always find you at one address.
-- **The dungeon relays** sealed envelopes between a master and its hands, keyed by the master's public key. It stores
-  nothing and can read nothing.
+- **Your hands gather at your home altar** (the first in your list; on a desktop, your own). The altar relays sealed
+  envelopes between you and your hands, keyed by your public key. Altar connections are already sealed in transit
+  (packages/channel); hands seal end to end on top, so even the altar can't read work orders. It stores nothing.
 - **The hand** runs the same `MeditationPool` and workers as a sanctum. A `NameTask` already needs only the cell, the
   aura's public key, the facet count and the best truths so far, so a hand's work is exactly a sanctum's meditation,
   aimed at someone else's public key.
@@ -63,7 +62,7 @@ everything it is doing.
 1. **H1, one machine, no network**: a hand page in a second origin (or desktop profile) given a master's public key and
    one cell by hand; its finds pasted back are checked and taken in by the sanctum. Proves the work unit, the offsets
    and the verification path.
-2. **H2, the relay and pairing**: the master link, the hand link, sealed envelopes, invite codes, pairing, the paired
+2. **H2, the relay and pairing**: hands at the home altar, the hand link, sealed envelopes, invite codes, pairing, the paired
    hands list in the save, revoking.
 3. **H3, orders from the plan**: the planner hands work to hands with shares; finds flow back live; the hum shows
    hands; history notes "found by your hand Ashbox".

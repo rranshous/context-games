@@ -27,6 +27,11 @@ Glossary, formulas and tunables, **as the game runs today**. Exact hashing lives
 | **capacity** | Max strain an aura can hold before backlash. |
 | **tick** | Authority resolution step (200 ms). |
 | **world** | A game that spends power: the Dark, the Bastion, the Council, Dark Racer. |
+| **sanctum** | Your own place: meditation, searching, your words. The only holder of your aura's secret. |
+| **altar** | A gathering place others connect to: a choir, its talk and shared signs, round announcements (later: hands, a church's pooled hum). |
+| **dungeon** | A game server that hosts worlds and runs rounds. |
+| **round** | One play of a world at a dungeon. |
+| **choir** | Who is gathered at one altar. |
 
 ## Discovery (scrying): the pyramid
 - Pick a prefix (element / aspect / tradition) and a depth. Enumerate cells under it at that depth. For each, compute the spirit hash: one hash per cell.

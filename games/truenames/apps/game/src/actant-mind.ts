@@ -90,8 +90,8 @@ export const TOOLS = [
   fn('write_driving', 'Replace your driving code: the body of a function(view, autopilot) run every frame of a race, returning {throttle, steer, cast}. view has car, track, others (x, y, place, ahead, dist), slots (index, form, ready), place, lap, laps, strain, capacity, time (seconds), memory (an object kept between frames). autopilot(car, track, others) gives {throttle, steer}.', { code: { type: 'string' } }, ['code']),
   fn('write_fighting', 'Replace your fighting code (the Dark): the body of a function(view, autofight) run every frame, returning {mx, my, ax, ay, cast}: move direction, aim point, and a slot index to speak (or null). view has me (x, y, hp, ward, strain, capacity), allies, enemies (nearest first: kind, x, y, hp, dist), shots, novas, slots (index, form, vessel, cap), wave, time (seconds), memory (an object kept between frames). autofight(view) gives {mx, my, ax, ay}.', { code: { type: 'string' } }, ['code']),
   fn('report_issue', 'Report something about the game itself that seems broken or wrong (a tool that misbehaves, numbers that do not add up, an instruction you cannot follow). Not for your own plan or code playing poorly: fix those yourself. The builders read these.', { text: { type: 'string' } }, ['text']),
-  fn('say', 'Say something to your choir (the players and actants gathered with you).', { text: { type: 'string' } }, ['text']),
-  fn('share', 'Share the sign of a being you know with your choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' } }, ['sign']),
+  fn('say', 'Say something to a choir (the players and actants gathered with you at one of your altars).', { text: { type: 'string' }, altar: { type: 'string', description: 'which altar (by name); default: where you were last spoken to' } }, ['text']),
+  fn('share', 'Share the sign of a being you know with a choir.', { sign: { type: 'string', description: 'the being\'s sign, like 312662277504' }, altar: { type: 'string', description: 'which altar (by name); default: where you were last spoken to' } }, ['sign']),
 ];
 /** Fitted tools: only those that fit what happened (a small model picks well from four, badly from twelve). */
 export function toolsFor(events: { kind: string }[]): typeof TOOLS {
@@ -151,7 +151,7 @@ export function stateText(s: MindState): string {
     `Beings without a grasped word: ${unheld.length ? '\n' + unheld.join('\n') : 'none'}`,
     `Plan: ${plan.length ? '\n' + plan.join('\n') : 'empty'}`,
     `Recent history:\n${s.history.map((h) => `- ${h}`).join('\n') || 'none'}`,
-    `Your choir: ${s.choir.length ? s.choir.join(', ') : 'no one else'}${s.talk.length ? `\nRecent talk:\n${s.talk.join('\n')}` : ''}`,
+    `Your altars and who is gathered there:${s.choir.length ? '\n' + s.choir.join('\n') : ' none'}${s.talk.length ? `\nRecent talk:\n${s.talk.join('\n')}` : ''}`,
   ].join('\n\n');
 }
 

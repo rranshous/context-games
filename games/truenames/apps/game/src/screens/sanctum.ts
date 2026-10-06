@@ -10,12 +10,11 @@ import { toolModels } from '../actant.ts';
 import { expectedSpirits } from '../services.ts';
 import { MIN_NAME_BITS, MIN_SPIRIT_DEPTH, cellsBelow, target, type Spirit } from '@truenames/universe';
 import { runScreen } from './run.ts';
-import { DungeonLink, LOCAL_DUNGEON, setWorldHost, worldHost, type RoundHost } from '../round.ts';
+import { DungeonLink, LOCAL_DUNGEON, LAN_DUNGEON, LAN_ALTAR, dungeonAddress, setDungeonAddress, shareable, type RoundHost } from '../round.ts';
 
-/** The world host as the player sees it: empty when it's our own. */
-const hostLabel = () => (worldHost() === LOCAL_DUNGEON ? '' : worldHost().replace(/^ws:\/\//, ''));
-const LAN = new URLSearchParams(location.search).get('lan');
-const hostTip = () => `<b>Where worlds are hosted.</b> Empty: here, on this machine. Or type a friend's address to walk into their worlds and race on their grid.${LAN ? ` Friends can join yours at <em>${LAN}</em>.` : ''}`;
+/** The dungeon you play at, as the player sees it: empty when it's your own. */
+const dungeonLabel = () => (dungeonAddress() === LOCAL_DUNGEON ? '' : dungeonAddress().replace(/^ws:\/\//, ''));
+const dungeonTip = () => `<b>Where you play</b>: a dungeon hosts the worlds. Empty: this machine's own. Or a game master's or a friend's dungeon address (with its key, as they share it). When someone at your altars calls a round, you walk into their dungeon instead.${LAN_DUNGEON ? ` Friends can play at yours: <em>${LAN_DUNGEON}</em>.` : ''}`;
 import { prepareJourney, proofEstimateMs } from '../threshold.ts';
 import { titleScreen } from './title.ts';
 import { SLOTS, WORLDS, COUNCIL, worldDescentName, type World } from '@truenames/dungeon/balance';
@@ -240,13 +239,21 @@ export function sanctumScreen(app: App): Screen {
   }
 
   function renderChoir() {
-    const C = S.choir;
-    const st = root?.querySelector('#ch-state');
-    if (!st) return;
-    st.textContent = C.connected ? `· ${C.members.length} gathered` : '· not connected';
-    root.querySelector('#ch-members')!.innerHTML = C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.actant === 'thinking' ? 'thinking' : m.actant}</span>` : ''}</div>`).join('');
-    root.querySelector('#ch-lines')!.innerHTML = C.lines.slice(-14).map((l) => `<div><span class="${l.mine ? 'gold' : ''}">${esc(l.from)}:</span> ${esc(l.text)}</div>`).join('') || '<div class="faint">No one has spoken.</div>';
+    const box = root?.querySelector('#altars');
+    if (!box) return;
+    box.innerHTML = S.choirs.map((C, i) => `<div class="altar">
+      <div><b>${esc(C.name)}</b>${i === 0 ? ' <span class="faint">(home)</span>' : ''} <span class="dim" style="font-size:12px">· ${C.connected ? `${C.members.length} gathered` : C.trouble ? esc(C.trouble) : 'not connected'}</span>
+        <button class="small" data-leave-altar="${i}" data-tip="=Leave this altar (you can join it again with its address).">×</button></div>
+      <div class="feed">${C.members.map((m) => `<div><span style="color:${ELEMENT_COLOR[m.element]}">${ELEMENT_GLYPH[m.element]}</span> ${esc(m.handle)}${m.aura === save.aura?.pub ? ' <span class="faint">(you)</span>' : ''} <span class="dim mono" style="font-size:12px">${m.hum.toLocaleString()}/s · ${m.words} words · truest ${m.truest}</span>${m.actant !== 'none' ? ` <span class="gold" style="font-size:12px">· actant ${m.actant === 'thinking' ? 'thinking' : m.actant}</span>` : ''}</div>`).join('')}</div>
+      <div class="feed choir-lines">${C.lines.slice(-8).map((l) => `<div><span class="${l.mine ? 'gold' : ''}">${esc(l.from)}:</span> ${esc(l.text)}</div>`).join('') || '<div class="faint">No one has spoken.</div>'}</div>
+    </div>`).join('') || '<div class="faint">You belong to no altar.</div>';
+    const to = root.querySelector('#ch-to') as HTMLSelectElement;
+    const keep = to.value;
+    to.innerHTML = S.choirs.map((C, i) => `<option value="${i}">${esc(C.name)}</option>`).join('');
+    if (keep && Number(keep) < S.choirs.length) to.value = keep;
   }
+  /** The choir chosen to speak to (and share at). */
+  const chosenChoir = () => S.choirs[Number((root.querySelector('#ch-to') as HTMLSelectElement | null)?.value ?? 0)] ?? S.home;
 
   function renderAll() {
     renderPlan();
@@ -298,7 +305,7 @@ export function sanctumScreen(app: App): Screen {
 
   /** Open a round in the dungeon, prove bound names against its context (sanctum side), hand over only the proofs. */
   /** `byActant`: the actant walks (a standing order), so its code plays; otherwise the player's hands do. */
-  async function walk(w: World, level: number, byActant = false) {
+  async function walk(w: World, level: number, byActant = false, dungeon?: string) {
     // hush: the world (and the provers at the threshold) get the machine; meditation drops to one voice
     const voices = S.pool.getActive();
     const hush = save.quietPlay !== false;
@@ -343,7 +350,7 @@ export function sanctumScreen(app: App): Screen {
     const rotate = () => { sub.style.opacity = '0'; setTimeout(() => { sub.textContent = LINES[w][li++ % LINES[w].length]!; sub.style.opacity = '1'; }, 300); };
     rotate();
     const rotating = setInterval(rotate, 3600);
-    const link = new DungeonLink();
+    const link = new DungeonLink(dungeon ?? dungeonAddress());
     try {
       const ticket = await link.open(level, w);
       const t0 = performance.now();
@@ -397,6 +404,10 @@ export function sanctumScreen(app: App): Screen {
       console.log(`[threshold] ${journey.bundle.length} names proven in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
       msg(w === 'bastion' ? 'The bastion weighs your words…' : w === 'council' ? 'The council weighs your words…' : w === 'racer' ? 'The road weighs your words…' : 'The dark weighs your words…');
       const welcome = await link.enter(journey);
+      // the one who opens a shared round calls it at their altars, with where to find it
+      if ((welcome.world === 'dark' || welcome.world === 'racer') && welcome.gathering?.first) {
+        for (const c of S.choirs) c.call(w, level, shareable(link.address, 5192), welcome.gathering.closesIn);
+      }
       const host: RoundHost = {
         report(r) {
           save.runs.push({ at: Date.now(), world: r.world, descent: r.level, wave: r.wave, won: r.won, kills: r.kills, finds: 0 });
@@ -431,7 +442,7 @@ export function sanctumScreen(app: App): Screen {
         summary: () => ({
           screen: 'sanctum', handle: save.handle ?? null, hum: Math.round(S.pool.rate()),
           words: S.graspedWords().map((k) => `${k} ${S.strength(k)} truths`), loadout: save.loadout,
-          plan: S.planner.aims.map((a) => describeAim(a)), choir: S.choir.members.map((m) => m.handle),
+          plan: S.planner.aims.map((a) => describeAim(a)), altars: S.choirs.map((c) => ({ name: c.name, connected: c.connected, members: c.members.map((m) => m.handle) })),
           actant: S.actant.config.on ? { model: S.actant.config.model, status: S.actant.status, races: !!S.actant.config.joinRaces, dark: !!S.actant.config.joinDark } : null,
         }),
       });
@@ -449,7 +460,7 @@ export function sanctumScreen(app: App): Screen {
           <button class="small ${save.quietPlay === false ? '' : 'on'}" id="hush" data-tip="=<b>Hush in the worlds</b>: while you are in a world, your meditation drops to a single voice so the world runs smoothly; it returns to full when you come back. Click to keep every voice chanting instead.">☾</button>
           <select id="world" data-tip="world">${WORLDS.map((x) => `<option value="${x.id}">${x.name}</option>`).join('')}</select>
           <select id="descent" data-tip="descent"></select>
-          <input id="host" class="host-input" placeholder="worlds: here" value="${esc(hostLabel())}" data-tip="=${esc(hostTip())}">
+          <input id="host" class="host-input" placeholder="plays at: here" value="${esc(dungeonLabel())}" data-tip="=${esc(dungeonTip())}">
           <button class="primary" id="run" data-tip="walk">Walk into the dark</button>
           <button class="small" id="mute" data-tip="mute">♪</button>
           <button class="small" id="title" data-tip="home">⌂</button>
@@ -491,11 +502,13 @@ export function sanctumScreen(app: App): Screen {
             <div class="slots" id="slots"></div>
             <h2 style="margin-top:16px" data-tip="=The names you play as cards at the Council: up to twelve, separate from the four you carry into the Dark and the Bastion.">Council deck</h2><div id="deck"></div>
             <h2 style="margin-top:16px" data-tip="walks">Walks</h2><div class="feed" id="runs"></div>
-            <h2 style="margin-top:16px" data-tip="=<b>Your choir</b>: everyone gathered at the same worlds host (players, and actants tending their own sanctums). See each other's hum, talk, and share the signs of beings. A shared sign lands in your Name Book.">Choir <span class="dim" id="ch-state" style="font-size:12px"></span></h2>
-            <div class="choir-me">you are <input id="ch-handle" class="host-input" placeholder="your handle" data-tip="=How the choir knows you."></div>
-            <div id="ch-members" class="feed"></div>
-            <div id="ch-lines" class="feed choir-lines"></div>
-            <input id="ch-say" class="choir-say" placeholder="say to the choir…" data-tip="=Speak to everyone in the choir. An actant listening will hear you.">
+            <h2 style="margin-top:16px" data-tip="=<b>Your altars</b>: the gathering places you belong to (home, a church's, a friend's). Each has its choir: players, and actants tending their own sanctums. See each other's hum, talk, share the signs of beings, and hear rounds being called. Everything is sealed in transit.">Altars</h2>
+            <div class="choir-me">you are <input id="ch-handle" class="host-input" placeholder="your handle" data-tip="=How your altars know you."></div>
+            <div id="altars"></div>
+            <div class="choir-me">say at <select id="ch-to" data-tip="=Which altar you speak to (and share signs at)."></select></div>
+            <input id="ch-say" class="choir-say" placeholder="say to the choir…" data-tip="=Speak to everyone gathered at that altar. An actant listening will hear you.">
+            <input id="ch-join" class="choir-say" placeholder="join an altar: host:port#k=…" data-tip="=An altar's address, as its keeper shares it (with its key). ${LAN_ALTAR ? `Others can join yours at <em>${esc(LAN_ALTAR)}</em>.` : ''}">
+            ${LAN_ALTAR ? `<div class="faint mono" style="font-size:11px; word-break:break-all">your altar: ${esc(LAN_ALTAR)}</div>` : ''}
           </div>
         </div>
       </div>`);
@@ -543,18 +556,29 @@ export function sanctumScreen(app: App): Screen {
       {
         const handle = root.querySelector('#ch-handle') as HTMLInputElement;
         handle.value = save.handle ?? '';
-        handle.addEventListener('change', () => { save.handle = handle.value.trim().slice(0, 24) || undefined; persist(save); S.choir.reconnect(); });
+        handle.addEventListener('change', () => { save.handle = handle.value.trim().slice(0, 24) || undefined; persist(save); for (const c of S.choirs) c.reconnect(); });
         const say = root.querySelector('#ch-say') as HTMLInputElement;
-        say.addEventListener('keydown', (e) => { if (e.key === 'Enter') { S.choir.say(say.value); say.value = ''; } });
-        S.choir.onChange = () => { renderChoir(); renderBook(); };
-        S.choir.connect(); // a new aura has no link yet
-        // an actant standing ready joins the choir's races and darks on its own (no model call: a standing order)
-        S.choir.onGather = (w, level, by) => {
+        say.addEventListener('keydown', (e) => { if (e.key === 'Enter') { chosenChoir()?.say(say.value); say.value = ''; } });
+        const join = root.querySelector('#ch-join') as HTMLInputElement;
+        join.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          const c = S.joinAltar(join.value);
+          app.toast(c ? `You join the altar at <em>${esc(c.name)}</em>.` : 'You already belong to that altar (or the address is empty).');
+          join.value = '';
+        });
+        root.querySelector('#altars')!.addEventListener('click', (e) => {
+          const i = (e.target as HTMLElement).closest('[data-leave-altar]')?.getAttribute('data-leave-altar');
+          if (i != null && S.choirs[Number(i)]) { const c = S.choirs[Number(i)]!; S.leaveAltar(c); app.toast(`You leave the altar at <em>${esc(c.name)}</em>.`); }
+        });
+        offs.push(S.choirChange.on(() => { renderChoir(); renderBook(); }));
+        for (const c of S.choirs) c.connect(); // a new aura has no links yet
+        // an actant standing ready answers a call on its own (no model call: a standing order), at the caller's dungeon
+        offs.push(S.calls.on(({ world: w, level, dungeon, by }) => {
           if (by === save.aura?.pub || walking) return;
           if (w === 'racer' ? !S.actant.pilot() : w === 'dark' ? !S.actant.fighter() : true) return;
           app.toast(w === 'racer' ? `Your actant joins the race at ${worldDescentName('racer', level)}.` : `Your actant walks into the dark at ${worldDescentName('dark', level)}.`);
-          void walk(w, level, true);
-        };
+          void walk(w, level, true, dungeon);
+        }));
       }
       {
         const A = S.actant;
@@ -572,10 +596,9 @@ export function sanctumScreen(app: App): Screen {
         A.onChange = () => { renderActant(); renderPlan(); };
       }
       root.querySelector('#host')!.addEventListener('change', (e) => {
-        setWorldHost((e.target as HTMLInputElement).value);
-        S.choir.reconnect();
-        (e.target as HTMLInputElement).value = hostLabel();
-        app.toast(hostLabel() ? `Your worlds will be hosted at <em>${esc(hostLabel())}</em>.` : 'Your worlds are hosted here again.');
+        setDungeonAddress((e.target as HTMLInputElement).value);
+        (e.target as HTMLInputElement).value = dungeonLabel();
+        app.toast(dungeonLabel() ? `You will play at the dungeon at <em>${esc(dungeonLabel().split('#')[0]!)}</em>.` : 'You play at your own dungeon again.');
       });
       root.querySelector('#hush')!.addEventListener('click', (e) => {
         save.quietPlay = save.quietPlay === false;
@@ -610,7 +633,7 @@ export function sanctumScreen(app: App): Screen {
         const med = t.closest('[data-med]')?.getAttribute('data-med');
         if (med) { S.meditate(med, !S.isMeditating(med)); renderBook(); return; }
         const share = t.closest('[data-share]')?.getAttribute('data-share');
-        if (share) { S.choir.share(share); app.toast(S.choir.connected ? 'You shared its sign with the choir.' : 'You are not gathered with a choir.'); return; }
+        if (share) { const c = chosenChoir(); c?.share(share); app.toast(c?.connected ? `You shared its sign at <em>${esc(c.name)}</em>.` : 'You are not gathered at that altar.'); return; }
         const dk = t.closest('[data-deck]')?.getAttribute('data-deck');
         if (dk) {
           const d = save.councilDeck ?? [];
@@ -684,8 +707,6 @@ export function sanctumScreen(app: App): Screen {
       clearInterval(timer);
       offs.forEach((f) => f());
       S.planner.onChange = null;
-      S.choir.onChange = null;
-      S.choir.onGather = null;
       S.actant.onChange = null;
     },
   };

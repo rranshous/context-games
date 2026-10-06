@@ -7,6 +7,8 @@ import { persist, rememberSpirit, signClaim, spiritOf, splitWord, wordKey, type 
 import { addHistory, Planner } from './plan.ts';
 import { Actant } from './actant.ts';
 import { Choir } from './choir.ts';
+import { LOCAL_ALTAR, sameServer } from './round.ts';
+import type { World } from '@truenames/dungeon/protocol';
 import { spiritName, magnitudeTitle, truths } from './lore.ts';
 import MeditationWorker from './meditation.worker.ts?worker';
 
@@ -56,8 +58,12 @@ export class Services {
   planner!: Planner;
   /** An actant tending this sanctum (asleep unless woken). */
   actant!: Actant;
-  /** This sanctum's choir link (to whoever gathers at the worlds host). */
-  choir!: Choir;
+  /** This sanctum's choirs: one per altar it belongs to (the first is home). */
+  choirs: Choir[] = [];
+  /** A choir changed (members, talk, connection). */
+  choirChange = new Emitter<void>();
+  /** Someone at one of your altars called a shared round: world, level, the dungeon's address, the caller's aura. */
+  calls = new Emitter<{ world: World; level: number; dungeon: string; by: string }>();
   private sourceFor = new Map<string, KnownSpirit['source']>();
 
   constructor(public save: SaveData) {
@@ -84,7 +90,8 @@ export class Services {
     if (save.workers != null) this.pool.setActive(Math.max(1, save.workers));
     this.planner = new Planner(save, this);
     this.actant = new Actant(save, this);
-    this.choir = new Choir(save, this);
+    save.altars ??= [LOCAL_ALTAR];
+    this.choirs = save.altars.map((a) => new Choir(a, save, this));
     this.authority = new LocalAuthority();
     if (save.aura) this.authority.registerAura(save.aura.pub);
     // re-establish names with the authority (claims are self-verifying)
@@ -96,7 +103,37 @@ export class Services {
     for (const cell of this.save.meditating) this.meditate(cell, true);
     for (const p of this.save.scrying) if (p.running) this.startScry(p.prefix, p.depth, 'scry');
     this.planner.start();
-    this.choir.connect();
+    for (const c of this.choirs) c.connect();
+  }
+
+  // ---------- altars ----------
+
+  /** How this sanctum is known at its altars. */
+  get handle(): string { return this.save.handle || (this.save.aura ? this.save.aura.pub.slice(0, 6) : 'someone'); }
+  /** Your home altar's choir (where issue reports go, and later your hands). */
+  get home(): Choir | undefined { return this.choirs[0]; }
+  choirChanged() { this.choirChange.emit(); }
+  calledRound(world: World, level: number, dungeon: string, by: string) { this.calls.emit({ world, level, dungeon, by }); }
+
+  /** Join another altar (an address as shared: "host:port#k=…"). */
+  joinAltar(addr: string): Choir | null {
+    const a = addr.trim();
+    if (!a || this.choirs.some((c) => sameServer(c.address, a, 5193))) return null;
+    const c = new Choir(a, this.save, this);
+    this.choirs.push(c);
+    this.save.altars = this.choirs.map((x) => x.address);
+    persist(this.save);
+    c.connect();
+    this.choirChanged();
+    return c;
+  }
+  /** Leave an altar. */
+  leaveAltar(c: Choir) {
+    c.stop();
+    this.choirs = this.choirs.filter((x) => x !== c);
+    this.save.altars = this.choirs.map((x) => x.address);
+    persist(this.save);
+    this.choirChanged();
   }
 
   /** A being's might, from the save or the universe. */

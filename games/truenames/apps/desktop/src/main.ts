@@ -10,7 +10,9 @@ import { createServer } from 'node:http';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
-import { startDungeon } from '../../dungeon/src/host.ts';
+import { startDungeon, type DungeonHost } from '../../dungeon/src/host.ts';
+import { startAltar, type AltarHost } from '../../altar/src/altar.ts';
+import { loadKey } from '@truenames/channel/node';
 
 // Linux: Ubuntu 24.04+ restricts the user namespaces Chromium's sandbox needs, and Chromium checks before this script
 // runs, so `--no-sandbox` must be a launch argument: `pnpm desktop` passes it, and electron-builder's AppImage launcher
@@ -19,13 +21,16 @@ import { startDungeon } from '../../dungeon/src/host.ts';
 const profile = (process.argv.find((a) => a.startsWith('--profile='))?.slice('--profile='.length) || 'default').replace(/[^\w-]/g, '');
 app.setPath('userData', join(app.getPath('appData'), 'Truenames', profile === 'default' ? 'default' : `profile-${profile}`));
 
-/** Fixed ports per profile: the default instance uses 47190/47191; others hash their name into the range above. */
-function portsFor(name: string): { ui: number; dungeon: number } {
-  if (name === 'default') return { ui: 47190, dungeon: 47191 };
+/**
+ * Fixed ports per profile: the default instance uses 47190 (window), 47191 (dungeon), 47192 (altar); others hash their
+ * name (window and dungeon in 47200–47999, altar in 48200–48999, so the window's origin and save never move).
+ */
+function portsFor(name: string): { ui: number; dungeon: number; altar: number } {
+  if (name === 'default') return { ui: 47190, dungeon: 47191, altar: 47192 };
   let h = 0;
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const base = 47200 + (h % 400) * 2;
-  return { ui: base, dungeon: base + 1 };
+  return { ui: base, dungeon: base + 1, altar: 48200 + (h % 400) * 2 };
 }
 const PORTS = portsFor(profile);
 
@@ -50,10 +55,10 @@ function serveGame(dir: string, port: number): Promise<void> {
   });
 }
 
-/** The address LAN friends would type to walk into this machine's worlds. */
-function lanAddress(port: number): string | null {
+/** This machine's address on the LAN (for the addresses friends type). */
+function lanIp(): string | null {
   for (const list of Object.values(networkInterfaces())) {
-    for (const i of list ?? []) if (i.family === 'IPv4' && !i.internal) return `${i.address}:${port}`;
+    for (const i of list ?? []) if (i.family === 'IPv4' && !i.internal) return i.address;
   }
   return null;
 }
@@ -67,21 +72,26 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     const gameRoot = join(__dirname, '..', 'game'); // inside app.asar when packaged (Electron's fs reads it)
     const vkey = JSON.parse(readFileSync(join(__dirname, 'name.vkey.json'), 'utf8'));
-    let dungeonOk = true;
+    // this machine's dungeon (hosts worlds) and altar (a gathering place), each its own server with its own key
+    const keys = join(app.getPath('userData'), 'keys');
+    let dungeon: DungeonHost | null = null, altar: AltarHost | null = null;
+    try { dungeon = await startDungeon({ port: PORTS.dungeon, vkey, key: loadKey(join(keys, 'dungeon.key')) }); } catch (e) { console.error('[desktop] the dungeon could not start', e); }
     try {
-      await startDungeon({ port: PORTS.dungeon, vkey, issues: join(app.getPath('userData'), 'actant-issues.jsonl') });
-    } catch (e) {
-      dungeonOk = false;
-      console.error('[desktop] the dungeon could not start', e);
-    }
+      altar = await startAltar({ port: PORTS.altar, key: loadKey(join(keys, 'altar.key')), name: profile === 'default' ? 'a home altar' : `${profile}'s altar`, issues: join(app.getPath('userData'), 'actant-issues.jsonl') });
+    } catch (e) { console.error('[desktop] the altar could not start', e); }
     await serveGame(gameRoot, PORTS.ui);
     win = new BrowserWindow({
       width: 1440, height: 900, backgroundColor: '#07060c', autoHideMenuBar: true,
       title: profile === 'default' ? 'Truenames' : `Truenames · ${profile}`,
     });
     win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
-    const lan = lanAddress(PORTS.dungeon);
-    const q = new URLSearchParams({ dungeon: `ws://127.0.0.1:${PORTS.dungeon}`, ...(lan && dungeonOk ? { lan } : {}), ...(profile !== 'default' ? { profile } : {}) });
+    // the window reaches both on 127.0.0.1 (keys included, so nothing is trusted blindly); LAN friends use the LAN forms
+    const ip = lanIp();
+    const q = new URLSearchParams({
+      ...(dungeon ? { dungeon: `ws://127.0.0.1:${PORTS.dungeon}#k=${dungeon.key}`, ...(ip ? { lanDungeon: `${ip}:${PORTS.dungeon}#k=${dungeon.key}` } : {}) } : {}),
+      ...(altar ? { altar: `ws://127.0.0.1:${PORTS.altar}#k=${altar.key}`, ...(ip ? { lanAltar: `${ip}:${PORTS.altar}#k=${altar.key}` } : {}) } : {}),
+      ...(profile !== 'default' ? { profile } : {}),
+    });
     await win.loadURL(`http://127.0.0.1:${PORTS.ui}/?${q}`);
   });
   app.on('window-all-closed', () => app.quit());

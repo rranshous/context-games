@@ -9,7 +9,8 @@
     "ws": "^8.22.0",
     "@noble/curves": "^2.4.0",
     "@truenames/universe": "workspace:*",
-    "@truenames/authority": "workspace:*"
+    "@truenames/authority": "workspace:*",
+    "@truenames/channel": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.18.1"

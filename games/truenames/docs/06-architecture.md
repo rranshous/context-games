@@ -7,19 +7,33 @@ How the code is organized and how data moves through it. Rules and formulas are 
 truenames/
   packages/
     universe/     pure, deterministic spec v2: cells, Poseidon, beings and might, facets, words of power, claims
-    protocol/     shared message types: CastIntent, CastResult, TickResult, PoolInfo, AuraState
+    protocol/     shared message types: CastIntent, CastResult, TickResult, PoolInfo, AuraState; the altar protocol
+    channel/      sealed WebSocket channels (x25519 + HKDF + ChaCha20-Poly1305), key pinning, Node key files
     authority/    the rules: per-caster vessels, strain, capacity, backlash, ticks; proof-verifier seam
     proofs/       zero-knowledge name claims: circuit generator, build (circom2 + snarkjs), prove, verify
     dungeon/      the authoritative round simulation (pure), wire protocol, balance, public world constants
     meditation/   scry + name-grinding hot loops, worker body, MeditationPool, WASM Poseidon kernel
   apps/
     game/         Vite + Canvas 2D client: the sanctum (holds secrets) and a thin client for dungeon rounds
-    dungeon/      the dungeon host (host.ts: startDungeon), its dev process (server.ts), racer-bot
-    desktop/      Electron app: serves the built game on 127.0.0.1 and runs the dungeon in-process; per-profile saves
+    dungeon/      a dungeon: hosts worlds and runs rounds (host.ts: startDungeon), its dev process (server.ts), racer-bot
+    altar/        an altar: a gathering place (altar.ts: startAltar): choirs, talk, signs, round calls, the issue inbox
+    desktop/      Electron app: serves the built game on 127.0.0.1 and runs a dungeon and an altar in-process; per-profile saves
     tools/        CLI: bench, sim, god-finder, golden vectors, WASM generator, browser vector check
   docs/           vision, world, mechanics, spec (01–04); overview, architecture (05–06); roadmap, open questions (07–08); journal
 ```
 It's a pnpm workspace. Libraries export their TypeScript source directly (`"exports": "./src/index.ts"`), with no build step: Vite, Vitest and tsx consume TS as-is. `tsc --noEmit` is the typecheck.
+
+## Three roles: sanctum, altar, dungeon
+Decided 2026-10-05 (Robby). Each role is its own process with its own address; on one desktop all three run together, but none needs the others on the same machine.
+| Role | What it is | Holds | Trusted for |
+|---|---|---|---|
+| **sanctum** | your own window: meditation, searching, your words | your aura's secret key, words, beings, plan, actant | everything about you (the only place secrets live, the only signer) |
+| **altar** | a gathering place: the center of a wheel | members' presence (a choir), chat, shared signs, round announcements, later hands and a church's pooled hum, the issue inbox | nothing authoritative: it relays |
+| **dungeon** | a game server: hosts worlds and runs rounds | live rounds only | the outcome of its rounds (it verifies proofs) |
+- **Vocabulary**: a **world** is a kind of game (the Dark, Dark Racer…); a **dungeon** hosts worlds; a **round** is one play of a world at a dungeon; a **choir** is who is gathered at one altar.
+- **A sanctum belongs to several altars at once** (its home altar, a church's, a friend's) and shows each one's choir. It plays at a **default dungeon**, or at whichever dungeon an announcement names.
+- **Announcements carry the dungeon's address**: someone who opens a shared round calls it out at their altars (`choir-call {world, level, dungeon}`); choir members (and actants standing ready) connect straight to that dungeon. Gathering and playing can happen in different places: your sanctum at home, your church's altar elsewhere, a game master's dungeon somewhere else again.
+- **Everything is encrypted in transit** (`packages/channel`): every altar and dungeon has a long-term x25519 key. A connection opens with the server sending its key and the client answering with an ephemeral key; both derive per-direction keys (HKDF-SHA256) and every message after is sealed (ChaCha20-Poly1305, counter nonces; a replayed, reordered or altered frame closes the connection). An address can carry the server's key (`host:port#k=…`, as shared from a desktop); a bare address is trusted on first use and pinned, and a changed key is refused loudly. The altar or dungeon itself reads what is sent to it (it relays or runs it); hands (planned, [09](09-hands.md)) add end-to-end sealing so even their altar can't read work orders.
 
 ## Dependency graph
 ```mermaid
@@ -158,7 +172,7 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
 
 ## The dungeon process
 - **`packages/dungeon/src/sim.ts` (`DungeonSim`)** is the authoritative round: arena and pillars, waves, enemies (husks, runners, brutes, shamans, the Warden), allies, projectiles, novas, and all eight forms, resolved through a `LocalAuthority` built with the proof verifier and the round's context. It is pure: the host feeds `input`/`cast` and fixed `step(dt)`; it emits `snapshot()`s carrying state plus **events** (casts, hits, kills, beams, rings, novas, banners…). It uses element numbers, never colors; the client owns presentation. It supports several players (enemies take the nearest living one; the round is lost when none live), though one plays today.
-- **`apps/dungeon/src/server.ts`** is a Node WebSocket server (port 5192, `DUNGEON_PORT`). Per connection: `open {level}` → `ticket {context}` (fresh 128-bit, from Node crypto) → `journey {aura, bundle}` → proofs verified → `welcome {arena, pillars, slots, refused}` → simulation at 60 Hz with **snapshots at 20 Hz** → `end {result}`. Also `cmds` (numbered movement/aim commands), `cast`, `pause` (single-player convenience), `abandon`.
+- **`apps/dungeon/src/server.ts`** is a Node WebSocket server (port 5192, `DUNGEON_PORT`; its key in `.keys/dungeon.key`). Every connection is sealed (`packages/channel`). A shared round's welcome says whether you opened it (`gathering: {first, closesIn}`), so the opener can call it at their altars. Per connection: `open {level}` → `ticket {context}` (fresh 128-bit, from Node crypto) → `journey {aura, bundle}` → proofs verified → `welcome {arena, pillars, slots, refused}` → simulation at 60 Hz with **snapshots at 20 Hz** → `end {result}`. Also `cmds` (numbered movement/aim commands), `cast`, `pause` (single-player convenience), `abandon`.
 - **The browser run is a thin client** using the standard model (Valve / Gambetta). It never simulates damage or outcomes.
   - **Client-side prediction:** every client tick (60 Hz) produces a numbered command `{seq, move, aim, dt}`. The client applies it to itself at once with **`packages/dungeon/src/movement.ts: movePlayer`**, the same function the dungeon runs, and sends commands in batches at 30 Hz.
   - **Server reconciliation:** the dungeon applies commands in order and acknowledges the last one per player (`ack` in snapshots). On each snapshot the client resets to the dungeon's position and replays the unacknowledged commands. Small differences are smoothed away (decay 12/s); large ones (a blink) are taken at once.
@@ -171,12 +185,12 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
 ## The desktop app (`apps/desktop`)
 - **Main process** (`src/main.ts`, bundled by esbuild into `dist/main.cjs` with the dungeon, snarkjs and ws: no node_modules ship):
   - serves the production build of the game (`vite build`, into `game/`) on `127.0.0.1:<ui>`
-  - starts the dungeon on `0.0.0.0:<ui+1>` (LAN friends can join)
-  - opens one window at `http://127.0.0.1:<ui>/?dungeon=ws://127.0.0.1:<ui+1>&lan=<lan-address>`
-- **Profiles**: `--profile=<name>` sets its own `userData` directory and **fixed** ports (47190/47191 for the default; others hashed from the name). They must be fixed because the save lives in the page origin's IndexedDB. A single-instance lock per profile prevents two windows on one save.
+  - starts a dungeon on `0.0.0.0:<dungeon>` and an altar on `0.0.0.0:<altar>`, each with its key in `userData/keys/` (LAN friends can play and gather there)
+  - opens one window at `http://127.0.0.1:<ui>/?dungeon=…&altar=…&lanDungeon=…&lanAltar=…` (every address with its key)
+- **Profiles**: `--profile=<name>` sets its own `userData` directory and **fixed** ports (window/dungeon/altar 47190/47191/47192 for the default; others hashed from the name: window and dungeon in 47200–47999, altar in 48200–48999). They must be fixed because the save lives in the page origin's IndexedDB. A single-instance lock per profile prevents two windows on one save.
 - **Proof verification is single-threaded** in the dungeon (`zkVerifier` pre-builds ffjavascript's curve). Its worker threads would re-launch the bundle itself.
 - **Linux sandbox**: Chromium needs `--no-sandbox` on Ubuntu 24.04+ (as a launch argument). `pnpm desktop` passes it; the AppImage launcher adds it; the tar.gz has a wrapper script (`after-pack.cjs`).
-- **The client**: `round.ts` picks the world host from the sanctum's **worlds** field (localStorage), else `?dungeon=`, else `ws://<host>:5192` (dev). The sanctum's ☾ toggle drops meditation to one voice while in a world.
+- **The client**: `round.ts` plays at the sanctum's **plays at** dungeon (localStorage), else `?dungeon=`, else `ws://<host>:5192` (dev); its altars are a list in the save (default: `?altar=`, else `ws://<host>:5193`). Keys come with addresses (`#k=…`) or are pinned on first contact (`truenames-pins`). The sanctum's ☾ toggle drops meditation to one voice while in a world.
 - **Build**: `corepack pnpm desktop` (build and run), `corepack pnpm desktop:dist` (AppImage and tar.gz in `apps/desktop/release/`; win/mac targets configured).
 
 ## The sanctum plan, the actant and the choir (`apps/game/src`)
@@ -184,7 +198,7 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
 - **`actant-mind.ts`**: everything a model sees or does, pure (no save, no services), shared by the game and the bench: the soma (who it is, the astral, the path seek → grasp → bind → deepen, its goal and notes), `stateText(MindState)` (words with their signs, the loadout, unheld beings, the plan, history, choir and talk), `ask` (choir talk first), the tools, `chat` (ollama `/api/chat`, streamed, `num_predict` capped) and `converse` (up to 6 tool turns; a call refused twice ends the review). Also the driving code: `DEFAULT_DRIVING` (the rivals' judgment: the autopilot drives; a word is spoken when its moment suits its form, never above 80% of capacity, at most every 6 s), `compileDriving` and `tryDriving`; and `DEFAULT_FIGHTING` (autofight moves and aims; a word is spoken when its form suits the moment, never above 80% of capacity, at most every 0.5 s), `compileFighting`, `tryFighting`.
 - **`actant.ts`**: the actant in the game (default model `qwen3:8b`). It gathers events for 20 s, with at least 2 min between reviews, builds the `MindState` from the save and services, pauses meditation while thinking, and applies tool calls: `seek`, `grasp`, `deepen`, `remove_aim`, `move_aim`, `set_share`, `bind_word`, `note`, `say`, `share`, `join_world` (races or the dark), `write_driving`, `write_fighting`. Driving code is a `function(view, autopilot)` body compiled with `new Function` and checked against a made-up race frame before it's accepted. `view` holds the car, track, others, slots, place, lap, strain, capacity, time and a per-race `memory`. The racer screen falls back to the autopilot on any throw.
 - **The actant bench** (`corepack pnpm actant-bench tend|drive`, `apps/dungeon/src/actant-bench.ts`): models against the actant's real prompt, headless. **tend**: eight sanctum scenarios behind a fake sanctum that answers like the game. **drive**: a race report → driving code, raced in the real `RacerSim` (`--wide`: 3 circuits × 6 seeds; `--code <file>` races a file; `--plain` asks for a code block without the soma or tools).
-- **`choir.ts`**: a link to the worlds host's choir (`choir-join`, `choir-presence`, `choir-say`, `choir-share`; the host relays `choir-roster`, `choir-said`, `choir-shared`, `choir-race`). A shared sign becomes a known being, and a gathering race lets an actant standing ready walk in by itself, with the journey carrying a **pilot**.
+- **`choir.ts`**: one membership at one altar (a sanctum has several: `Services.choirs`, home first). Messages (`packages/protocol/src/altar.ts`): `join`, `presence`, `say`, `share`, `call {world, level, dungeon, closesIn}`, `issue`; the altar relays `roster {name, members}`, `said`, `shared`, `called`. A shared sign becomes a known being. When you open a shared round, your sanctum calls it at all your altars with the dungeon's shareable address; when someone calls one, an actant standing ready walks into *that* dungeon (`Services.calls`). Actants hear every altar, and `say`/`share` take an optional altar name.
 - **Testing two identities on one machine**: run a desktop instance with `--profile=<name> --remote-debugging-port=<port>` and drive it with `node apps/dungeon/cdp.mjs <port> eval "<js>"`.
 
 ## The threshold (sanctum → round)

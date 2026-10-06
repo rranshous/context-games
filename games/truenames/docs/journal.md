@@ -833,3 +833,22 @@ Robby, on the two-machine setup: "I am drawn to a link to setup B. That plus enc
 - The key insight: a word is a hash of (being, **public key**, nonce), so a hand needs only your public key. Its finds are useless to anyone but you, and your sanctum checks each with one hash and signs it. Encryption isn't about ownership; it protects **the cells** (where beings dwell), which work orders reveal.
 - `NameTask` is already portable (cell, aura public key, facets, bests), so a hand runs the same pool and workers aimed at your key.
 - Plan in [09-hands.md](09-hands.md): your sanctum keeps a master link to its own dungeon, which relays sealed envelopes to hands (keyed by your public key, contents unreadable). The invite link carries your address, keys and a one-time pairing secret (x25519 + HKDF + AES-GCM). Hands search from random nonce offsets, and finds go through the same path as local ones. Milestones H1–H4.
+
+## Sanctum, altar, dungeon (2026-10-05)
+Robby, on terminology: the dungeon is where game runs happen, the sanctum where meditation and searching happen, and the **altar** is the center of the wheel ("alter" in his words; spelled *altar*, the place of gathering and offering). "I want to keep dungeon distinct from alter, not behind it … an alter and a dungeon are their own processes w their own ports (possibly addresses). A guild could have a church altar … A game master might run a world with a dungeon … Could my home computer have my sanctum but I play a game whose server is hosted elsewhere … And be part of a church that has its own altar?" Then: "Yes, multiple alters at once. Let's make sure the data is encrypted."
+- **Three roles, three processes** (06-architecture, "Three roles"):
+  - **sanctum**: your window. The only place secrets live.
+  - **altar**: a gathering place. Choirs, talk, signs, round calls, the issue inbox. It relays.
+  - **dungeon**: a game server. It hosts worlds and runs rounds, and is authoritative for their outcomes.
+  - Vocabulary: a *world* is a kind of game, a *dungeon* hosts worlds, a *round* is one play.
+- **`apps/altar`** (new, `corepack pnpm altar`, :5193). The choir moved out of the dungeon host. The dungeon knows no altars; a shared round's welcome says whether you opened it (`gathering.first`), and **the opener's sanctum calls the round at all its altars with the dungeon's shareable address**. Actants standing ready walk into *that* dungeon.
+- **A sanctum belongs to several altars** (`save.altars`, home first; `Services.choirs`). The sanctum's Altars panel shows each altar's choir and talk, with a "say at" picker, joining by address, leaving, and your own altar's shareable address. The top-bar field became **plays at** (your default dungeon). Actants hear every altar; `say`/`share` take an optional altar name (default: wherever they were last spoken to).
+- **Everything is sealed** (`packages/channel`, using `@noble/ciphers`). Each altar and dungeon has a long-term x25519 key (`.keys/` in dev, `userData/keys` on the desktop). A connection is the key in clear → the client's ephemeral key in clear → per-direction keys via HKDF-SHA256 → every message sealed with ChaCha20-Poly1305 under counter nonces. An altered, replayed or reordered frame closes the connection. Synchronous noble, so it works in any page, secure context or not. Addresses carry keys as people share them (`192.168.1.23:48372#k=…`); a bare address is pinned on first contact, and a changed key is refused ("answered with a different key than before").
+- **Desktop** starts a dungeon and an altar, each with its own port: 47191/47192 for the default profile; other profiles keep their window and dungeon ports so their saves stay put, with the altar in 48200–48999. The window gets every address with its key.
+- **Tests**: the channel (key exchange, nothing readable on the wire, pinning, a changed key refused, a replay closing the channel) and the altar over real sockets (roster, talk, calls, the issue inbox, a wrong key refused). 67 tests.
+- **Live**:
+  - Keeper (browser) joined "the dev altar" sealed (key pinned).
+  - Keeper's explorer code won a solo dark at the sealed dungeon (82 banished), and Keeper's sanctum called the round at the altar.
+  - Ash (desktop) joined its own altar and the dev altar at once.
+  - Keeper walked in again, called it, and Ash heard the call at the dev altar and walked into Keeper's dungeon within 0.1 s: "begins with 2 player(s)".
+  - An issue from the explorer arrived at the altar's inbox.

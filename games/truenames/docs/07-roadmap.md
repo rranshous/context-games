@@ -40,6 +40,8 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - **The desktop app**: Electron, with the dungeon in-process, per-profile saves, LAN-joinable worlds, hush in the worlds, and AppImage + tar.gz builds.
 - **Actants, first four milestones**: the sanctum plan (aims, planner, history); the mind (a local model reviewing on events, through the player's own plan operations); the choir (presence, chat and shared signs); racing (a standing order to join, self-written driving code), and the Dark (a standing order to walk in beside the choir, self-written fighting code). See the journal.
 
+- **Sanctum, altar, dungeon** (2026-10-05): three roles, each its own process and address; a sanctum belongs to several altars; announcements carry the dungeon's address; every connection sealed (x25519, ChaCha20-Poly1305, pinned keys).
+
 ## Next
 Roughly in order; each is independently useful.
 0. **Quiet the hum during play** (Robby, 2026-10-01): background meditation and scrying cut the framerate in worlds. Scale voices down automatically while a world is on screen (restore after; player override).

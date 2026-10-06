@@ -1,4 +1,5 @@
-// Starts the game (Vite) and the dungeon process together, with prefixed output. Ctrl-C stops both.
+// Starts the game (Vite), a dungeon (worlds, :5192) and an altar (a gathering place, :5193) together, with prefixed
+// output. Ctrl-C stops them all.
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +8,7 @@ const bin = (n) => `${root}node_modules/.bin/${n}`;
 const procs = [
   { name: 'game', color: 33, cmd: bin('vite'), args: ['apps/game'] },
   { name: 'dungeon', color: 35, cmd: bin('tsx'), args: ['watch', 'apps/dungeon/src/server.ts'] },
+  { name: 'altar', color: 36, cmd: bin('tsx'), args: ['watch', 'apps/altar/src/server.ts'] },
 ];
 const children = procs.map(({ name, color, cmd, args }) => {
   const c = spawn(cmd, args, { cwd: root, env: { ...process.env, FORCE_COLOR: '1' } });

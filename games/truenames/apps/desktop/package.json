@@ -13,7 +13,9 @@
     "@truenames/dungeon-server": "workspace:*",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "@truenames/altar": "workspace:*",
+    "@truenames/channel": "workspace:*"
   },
   "build": {
     "appId": "games.truenames",

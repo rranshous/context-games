@@ -1,4 +1,5 @@
 // Shared message types between game, authority and (later) server.
+export * from './altar.ts';
 export type { NameClaim } from '@truenames/universe';
 
 export type TargetSpec =

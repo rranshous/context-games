@@ -2,6 +2,8 @@
 // The dungeon issues a context, receives proofs bound to it, runs the round, and reports what happened.
 import type { ZkNameClaim } from '@truenames/proofs';
 import type { Fighter } from '@truenames/dungeon/fighting';
+import type { AltarClientMsg } from '@truenames/protocol';
+import { SealedSocket, parseAddress, shareAddress, trustPolicy } from '@truenames/channel';
 import type { ClientMsg, ServerMsg, Snapshot, BastionSnapshot, CouncilView, CouncilTarget, RacerSnapshot, RoundResultMsg, MoveCmd, DriveCmd, WireTraits, World } from '@truenames/dungeon/protocol';
 
 /** Issued by the dungeon when a round is opened. Proofs must be bound to its context. */
@@ -65,41 +67,72 @@ export interface RoundHost {
 /** Dev-only: ?lag=150 asks the dungeon to simulate that much round-trip latency. */
 export const DEV_LAG = Number(new URLSearchParams(location.search).get('lag') ?? 0) || 0;
 
-/** This machine's own dungeon: the desktop app passes it as ?dungeon=…; in development it's port 5192. */
-export const LOCAL_DUNGEON = (() => {
-  const q = new URLSearchParams(location.search).get('dungeon');
-  return q ?? `ws://${location.hostname || 'localhost'}:5192`;
-})();
+const Q = new URLSearchParams(location.search);
+/** This machine's own dungeon: the desktop app passes it as ?dungeon=… (with its key); in development it's port 5192. */
+export const LOCAL_DUNGEON = Q.get('dungeon') ?? `ws://${location.hostname || 'localhost'}:5192`;
+/** This machine's own altar: ?altar=… from the desktop app; in development port 5193. */
+export const LOCAL_ALTAR = Q.get('altar') ?? `ws://${location.hostname || 'localhost'}:5193`;
+/** How others on the LAN reach this machine's dungeon and altar (with keys), when the desktop app knows. */
+export const LAN_DUNGEON = Q.get('lanDungeon');
+export const LAN_ALTAR = Q.get('lanAltar');
 
-const HOST_KEY = 'truenames-world-host';
-/** Where worlds are hosted: a friend's dungeon (an address the player entered) or our own. */
-export function worldHost(): string {
-  try { return localStorage.getItem(HOST_KEY) || LOCAL_DUNGEON; } catch { return LOCAL_DUNGEON; }
+// ---------- keys: every altar and dungeon is known by its key; first contact pins it ----------
+const PINS = 'truenames-pins';
+const pins = {
+  all(): Record<string, string> { try { return JSON.parse(localStorage.getItem(PINS) ?? '{}'); } catch { return {}; } },
+  get(url: string) { return pins.all()[url] ?? null; },
+  set(url: string, key: string) { try { localStorage.setItem(PINS, JSON.stringify({ ...pins.all(), [url]: key })); } catch { /* per-session only */ } },
+};
+/** Open a sealed connection to an altar or dungeon address ("host:port", "ws://…", with "#k=…" to require a key). */
+export function openSealed(addr: string, defaultPort: number): SealedSocket {
+  const { url, key } = parseAddress(addr, defaultPort);
+  return new SealedSocket(url, trustPolicy(url, key, pins));
 }
-/** Point at a friend's dungeon ("192.168.1.20" or "ws://host:port"), or back to our own (empty). */
-export function setWorldHost(addr: string) {
-  const a = addr.trim();
-  const url = !a ? '' : /^wss?:\/\//.test(a) ? a : `ws://${a}${/:\d+$/.test(a) ? '' : `:${new URL(LOCAL_DUNGEON).port || 5192}`}`;
-  try { if (url) localStorage.setItem(HOST_KEY, url); else localStorage.removeItem(HOST_KEY); } catch { /* per-session only */ }
+/** An address others can use to reach the same server: the LAN form for our own, and always with its key. */
+export function shareable(addr: string, defaultPort: number): string {
+  if (addr === LOCAL_DUNGEON && LAN_DUNGEON) return LAN_DUNGEON;
+  if (addr === LOCAL_ALTAR && LAN_ALTAR) return LAN_ALTAR;
+  const { url, key } = parseAddress(addr, defaultPort);
+  const k = key ?? pins.get(url);
+  return k ? shareAddress(url, k) : url;
+}
+/** Two addresses name the same server (ignoring the key part and the ws:// prefix). */
+export function sameServer(a: string, b: string, defaultPort: number): boolean {
+  return parseAddress(a, defaultPort).url === parseAddress(b, defaultPort).url;
+}
+
+// ---------- where you play ----------
+const DUNGEON_KEY = 'truenames-dungeon';
+/** The dungeon you play at by default: one you chose (a game master's, a friend's), or your own. */
+export function dungeonAddress(): string {
+  try { return localStorage.getItem(DUNGEON_KEY) || localStorage.getItem('truenames-world-host') || LOCAL_DUNGEON; } catch { return LOCAL_DUNGEON; }
+}
+/** Play at another dungeon ("192.168.1.20:47191#k=…"), or back at your own (empty). */
+export function setDungeonAddress(addr: string) {
+  try {
+    localStorage.removeItem('truenames-world-host'); // the old single "worlds host"
+    if (addr.trim()) localStorage.setItem(DUNGEON_KEY, addr.trim()); else localStorage.removeItem(DUNGEON_KEY);
+  } catch { /* per-session only */ }
 }
 
 /**
- * Development: report something that seems broken to the worlds host, which keeps it for whoever is building the
- * game (actant-issues.jsonl). Actants and the explorer's shard use it; it's fire-and-forget.
+ * Development: report something that seems broken to an altar (your home altar), which keeps it for whoever is
+ * building the game (actant-issues.jsonl). Actants and the explorer's shard use it; it's fire-and-forget.
  */
-export function reportIssue(from: string, text: string, where = ''): Promise<boolean> {
+export function reportIssue(from: string, text: string, where = '', altar = LOCAL_ALTAR): Promise<boolean> {
   return new Promise((res) => {
-    let ws: WebSocket;
-    try { ws = new WebSocket(worldHost()); } catch { return res(false); }
+    let ws: SealedSocket;
+    try { ws = openSealed(altar, 5193); } catch { return res(false); }
     const done = (ok: boolean) => { try { ws.close(); } catch { /* gone */ } res(ok); };
-    ws.onopen = () => { ws.send(JSON.stringify({ t: 'issue', from, text, where } satisfies ClientMsg)); setTimeout(() => done(true), 200); };
+    ws.onopen = () => { ws.send({ t: 'issue', from, text, where } satisfies AltarClientMsg); setTimeout(() => done(true), 300); };
     ws.onerror = () => done(false);
+    ws.onclose = () => res(false);
   });
 }
 
-/** A live connection to one round in a dungeon process. */
+/** A live, sealed connection to one round at a dungeon. */
 export class DungeonLink {
-  private ws: WebSocket;
+  private ws: SealedSocket;
   private ready: Promise<void>;
   private waiters: ((m: ServerMsg) => boolean)[] = [];
   onSnapshot: ((s: Snapshot) => void) | null = null;
@@ -110,14 +143,15 @@ export class DungeonLink {
   onClose: (() => void) | null = null;
   closed = false;
 
-  constructor(url = worldHost()) {
-    this.ws = new WebSocket(url);
+  constructor(readonly address = dungeonAddress()) {
+    this.ws = openSealed(address, 5192);
     this.ready = new Promise((res, rej) => {
       this.ws.onopen = () => res();
-      this.ws.onerror = () => rej(new Error(`the dungeon at ${url} does not answer`));
+      this.ws.onerror = () => rej(new Error(`the dungeon at ${address.split('#')[0]} does not answer`));
+      this.ws.onclose = (why) => { this.closed = true; if (why) rej(new Error(why)); this.onClose?.(); };
     });
-    this.ws.onmessage = (e) => {
-      const m = JSON.parse(String(e.data)) as ServerMsg;
+    this.ws.onmessage = (raw) => {
+      const m = raw as ServerMsg;
       if (m.t === 'snap') return this.onSnapshot?.(m);
       if (m.t === 'bsnap') return this.onBastion?.(m);
       if (m.t === 'cview') return this.onCouncil?.(m);
@@ -126,11 +160,10 @@ export class DungeonLink {
       if (m.t === 'error') console.warn('[dungeon]', m.message);
       this.waiters = this.waiters.filter((w) => !w(m));
     };
-    this.ws.onclose = () => { this.closed = true; this.onClose?.(); };
   }
 
   private send(m: ClientMsg) {
-    if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m));
+    this.ws.send(m);
   }
 
   private next<T extends ServerMsg['t']>(t: T): Promise<Extract<ServerMsg, { t: T }>> {

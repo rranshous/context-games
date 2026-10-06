@@ -43,29 +43,23 @@ export type ClientMsg =
   | { t: 'pass' } // council: end your turn
   | { t: 'drive'; cmds: DriveCmd[] } // racer: numbered throttle/steer commands, one per client tick
   | { t: 'go' } // racer: start now, without waiting out the lobby
-  | { t: 'choir-join'; aura: string; handle: string; element: number } // join this host's choir (instead of opening a round)
-  | { t: 'choir-presence'; presence: ChoirPresence }
-  | { t: 'choir-say'; text: string }
-  | { t: 'choir-share'; cell: string; note?: string } // share a being's sign with the choir
-  | { t: 'issue'; from: string; text: string; where?: string } // development: an actant (or the explorer) reports something that seems broken
   | { t: 'pause'; on: boolean }
   | { t: 'abandon' };
+
+/** A shared round's lobby, as the welcome tells it: whether you opened it (and so may call it at your altars). */
+export interface Gathering { first: boolean; closesIn: number }
 
 // ---------- dungeon → client ----------
 export type ServerMsg =
   | { t: 'ticket'; context: string; level: number; world: World }
-  | { t: 'welcome'; world: 'dark'; you: string; level: number; arena: { w: number; h: number }; pillars: { x: number; y: number; r: number }[]; slots: (SlotInfo | null)[]; refused: string[] }
+  | { t: 'welcome'; world: 'dark'; you: string; level: number; arena: { w: number; h: number }; pillars: { x: number; y: number; r: number }[]; slots: (SlotInfo | null)[]; refused: string[]; gathering?: Gathering }
   | { t: 'welcome'; world: 'bastion'; you: string; level: number; bastion: BastionLayout; slots: (SlotInfo | null)[]; refused: string[] }
   | { t: 'welcome'; world: 'council'; you: string; level: number; seat: number; slots: (SlotInfo | null)[]; refused: string[] }
-  | { t: 'welcome'; world: 'racer'; you: string; level: number; car: number; track: RacerTrack; rivals: RacerRival[]; slots: (SlotInfo | null)[]; refused: string[] }
+  | { t: 'welcome'; world: 'racer'; you: string; level: number; car: number; track: RacerTrack; rivals: RacerRival[]; slots: (SlotInfo | null)[]; refused: string[]; gathering?: Gathering }
   | Snapshot
   | BastionSnapshot
   | CouncilView
   | RacerSnapshot
-  | { t: 'choir-roster'; members: ChoirMember[] }
-  | { t: 'choir-said'; from: { aura: string; handle: string }; text: string; at: number }
-  | { t: 'choir-shared'; from: { aura: string; handle: string }; cell: string; note?: string; at: number }
-  | { t: 'choir-gather'; world: World; level: number; by: string; closesIn: number } // a shared round (a race, a dark) is gathering at this host
   | { t: 'end'; result: RoundResultMsg }
   | { t: 'error'; message: string };
 
@@ -320,11 +314,3 @@ export type RacerEvent =
 // ---------- the choir ----------
 
 /** What a choir member shows the others, refreshed every few seconds. Nothing secret: no signs, no words. */
-export interface ChoirPresence {
-  hum: number; // utterances per second
-  words: number; // grasped words held
-  beings: number; // beings known
-  truest: number; // truths of the truest word
-  actant: 'none' | 'asleep' | 'waiting' | 'thinking'; // whether a mind tends this sanctum
-}
-export interface ChoirMember extends ChoirPresence { aura: string; handle: string; element: number; since: number }

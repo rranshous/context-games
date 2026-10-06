@@ -15,7 +15,8 @@
     "racer-bot": "tsx apps/dungeon/src/racer-bot.ts",
     "desktop": "corepack pnpm --filter @truenames/desktop start",
     "desktop:dist": "corepack pnpm --filter @truenames/desktop dist",
-    "actant-bench": "tsx apps/dungeon/src/actant-bench.ts"
+    "actant-bench": "tsx apps/dungeon/src/actant-bench.ts",
+    "altar": "tsx apps/altar/src/server.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

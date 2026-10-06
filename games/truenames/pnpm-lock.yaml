@@ -185,8 +185,30 @@ importers:
         specifier: ^5.0.2
         version: 5.0.2(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  apps/altar:
+    dependencies:
+      '@truenames/channel':
+        specifier: workspace:*
+        version: link:../../packages/channel
+      '@truenames/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+
   apps/desktop:
     devDependencies:
+      '@truenames/altar':
+        specifier: workspace:*
+        version: link:../altar
+      '@truenames/channel':
+        specifier: workspace:*
+        version: link:../../packages/channel
       '@truenames/dungeon-server':
         specifier: workspace:*
         version: link:../dungeon
@@ -208,6 +230,9 @@ importers:
       '@truenames/authority':
         specifier: workspace:*
         version: link:../../packages/authority
+      '@truenames/channel':
+        specifier: workspace:*
+        version: link:../../packages/channel
       '@truenames/dungeon':
         specifier: workspace:*
         version: link:../../packages/dungeon
@@ -233,6 +258,9 @@ importers:
       '@truenames/authority':
         specifier: workspace:*
         version: link:../../packages/authority
+      '@truenames/channel':
+        specifier: workspace:*
+        version: link:../../packages/channel
       '@truenames/dungeon':
         specifier: workspace:*
         version: link:../../packages/dungeon
@@ -272,7 +300,7 @@ importers:
         version: 1.58.2
       vite:
         specifier: ^8.3.1
-        version: 8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)
+        version: 8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
       wabt:
         specifier: ^1.0.39
         version: 1.0.39
@@ -289,6 +317,25 @@ importers:
       '@noble/curves':
         specifier: ^2.4.0
         version: 2.4.0
+
+  packages/channel:
+    dependencies:
+      '@noble/ciphers':
+        specifier: ^2.0.0
+        version: 2.4.0
+      '@noble/curves':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
 
   packages/dungeon:
     dependencies:
@@ -581,6 +628,10 @@ packages:
   '@malept/flatpak-bundler@0.4.0':
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
+
+  '@noble/ciphers@2.4.0':
+    resolution: {integrity: sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==}
+    engines: {node: '>= 20.19.0'}
 
   '@noble/curves@2.4.0':
     resolution: {integrity: sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==}
@@ -2418,6 +2469,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@noble/ciphers@2.4.0': {}
+
   '@noble/curves@2.4.0':
     dependencies:
       '@noble/hashes': 2.4.0
@@ -3896,19 +3949,6 @@ snapshots:
       esbuild: 0.28.2
       fsevents: 2.3.3
       jiti: 2.7.0
-      tsx: 4.23.15
-
-  vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15):
-    dependencies:
-      lightningcss: 1.33.0
-      picomatch: 4.0.7
-      postcss: 8.5.28
-      rolldown: 1.2.11
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 26.6.3
-      esbuild: 0.28.2
-      fsevents: 2.3.3
       tsx: 4.23.15
 
   vitest@5.0.2(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)):

@@ -86,6 +86,8 @@ export interface SaveData {
   actant?: { on: boolean; goal: string; model: string; notes: string; lastReview?: number; joinRaces?: boolean; driving?: string; joinDark?: boolean; fighting?: string };
   /** How this sanctum is known in a choir. */
   handle?: string;
+  /** The altars this sanctum belongs to (addresses, with keys); the first is home. Default: this machine's own. */
+  altars?: string[];
   /** Drop to one voice while in a world (default on). */
   quietPlay?: boolean;
   /** Set once, when a v1 save was carried into the v2 astral. */
