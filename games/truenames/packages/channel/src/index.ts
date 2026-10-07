@@ -1,10 +1,13 @@
-// A sealed channel over a WebSocket: every altar and dungeon has a long-term x25519 key; each connection derives
-// per-direction keys from it and an ephemeral client key, and every message after the handshake is sealed with
-// ChaCha20-Poly1305. Synchronous (noble), so it runs the same in Node, in a desktop window and in any browser page,
-// secure context or not.
+// A sealed channel over a WebSocket: every altar and dungeon has a long-term x25519 key (its identity), and each
+// connection makes fresh keys on both sides. Per-direction keys come from two key agreements: the client's fresh key
+// with the server's long-term key (only the real server can take part: authentication) and the client's fresh key with
+// the server's fresh key (forward secrecy: once both forget their fresh keys, a recording of the connection can't be
+// opened, even by someone who later steals the server's long-term key). Every message after the handshake is sealed
+// with ChaCha20-Poly1305. Synchronous (noble), so it runs the same in Node, in a desktop window and in any browser
+// page, secure context or not.
 //
-//   server → client  (clear)   {"t":"key","key":"<server public key>"}
-//   client → server  (clear)   {"t":"hello","eph":"<ephemeral public key>"}
+//   server → client  (clear)   {"t":"key","key":"<server long-term key>","eph":"<server fresh key>"}
+//   client → server  (clear)   {"t":"hello","eph":"<client fresh key>"}
 //   then both ways   (binary)  sealed JSON, nonce = 4 zero bytes + 8-byte counter (per direction, never reused)
 //
 // A client checks the server's key against what it expects (from the address, or pinned on first use) before it
@@ -14,7 +17,7 @@ import { chacha20poly1305 } from '@noble/ciphers/chacha.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 
-const INFO = new TextEncoder().encode('truenames/channel/v1');
+const INFO = new TextEncoder().encode('truenames/channel/v2');
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -75,11 +78,16 @@ export class Sealed {
   }
 }
 
-function derive(shared: Uint8Array, eph: Uint8Array, serverPub: Uint8Array): { c2s: Uint8Array; s2c: Uint8Array } {
-  const salt = new Uint8Array(64);
-  salt.set(eph, 0);
+/** Both agreements (fresh × long-term, fresh × fresh) mixed into per-direction keys, salted with all three public keys. */
+function derive(es: Uint8Array, ee: Uint8Array, clientEph: Uint8Array, serverPub: Uint8Array, serverEph: Uint8Array): { c2s: Uint8Array; s2c: Uint8Array } {
+  const ikm = new Uint8Array(64);
+  ikm.set(es, 0);
+  ikm.set(ee, 32);
+  const salt = new Uint8Array(96);
+  salt.set(clientEph, 0);
   salt.set(serverPub, 32);
-  const k = hkdf(sha256, shared, salt, INFO, 64);
+  salt.set(serverEph, 64);
+  const k = hkdf(sha256, ikm, salt, INFO, 64);
   return { c2s: k.slice(0, 32), s2c: k.slice(32) };
 }
 
@@ -93,9 +101,11 @@ export interface RawSocket { send(data: string | Uint8Array): void; close(code?:
 export class ServerEnd {
   private sealed: Sealed | null = null;
   private queue: unknown[] = [];
+  /** This connection's fresh key: forgotten as soon as the channel is open. */
+  private eph: ChannelKey | null = newKey();
   onMessage: (m: unknown) => void = () => {};
   constructor(private raw: RawSocket, private key: ChannelKey) {}
-  start() { this.raw.send(JSON.stringify({ t: 'key', key: b64u(this.key.pub) })); }
+  start() { this.raw.send(JSON.stringify({ t: 'key', key: b64u(this.key.pub), eph: b64u(this.eph!.pub) })); }
   get open() { return this.sealed !== null; }
   receive(data: string | Uint8Array) {
     try {
@@ -103,8 +113,9 @@ export class ServerEnd {
         if (typeof data !== 'string') throw new Error('expected hello');
         const m = JSON.parse(data) as { t?: string; eph?: string };
         if (m.t !== 'hello' || !m.eph) throw new Error('expected hello');
-        const eph = unb64u(m.eph);
-        const k = derive(x25519.getSharedSecret(this.key.secret, eph), eph, this.key.pub);
+        const eph = unb64u(m.eph), mine = this.eph!;
+        const k = derive(x25519.getSharedSecret(this.key.secret, eph), x25519.getSharedSecret(mine.secret, eph), eph, this.key.pub, mine.pub);
+        this.eph = null; // forward secrecy: the fresh secret is gone; only the derived keys live on, with this connection
         this.sealed = new Sealed(k.s2c, k.c2s);
         for (const q of this.queue.splice(0)) this.send(q);
         return;
@@ -139,15 +150,15 @@ export class ClientEnd {
     try {
       if (!this.sealed) {
         if (typeof data !== 'string') throw new Error('expected the key');
-        const m = JSON.parse(data) as { t?: string; key?: string };
-        if (m.t !== 'key' || !m.key) throw new Error('expected the key');
+        const m = JSON.parse(data) as { t?: string; key?: string; eph?: string };
+        if (m.t !== 'key' || !m.key || !m.eph) throw new Error('expected the key');
         const ok = this.trust(m.key);
         if (ok !== true) { this.onRefused(ok); this.raw.close(4002, 'untrusted key'); return; }
         this.serverKey = m.key;
         const eph = x25519.utils.randomSecretKey();
         const ephPub = x25519.getPublicKey(eph);
-        const serverPub = unb64u(m.key);
-        const k = derive(x25519.getSharedSecret(eph, serverPub), ephPub, serverPub);
+        const serverPub = unb64u(m.key), serverEph = unb64u(m.eph);
+        const k = derive(x25519.getSharedSecret(eph, serverPub), x25519.getSharedSecret(eph, serverEph), ephPub, serverPub, serverEph);
         this.raw.send(JSON.stringify({ t: 'hello', eph: b64u(ephPub) }));
         this.sealed = new Sealed(k.c2s, k.s2c);
         for (const q of this.queue.splice(0)) this.send(q);

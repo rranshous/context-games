@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { ClientEnd, ServerEnd, newKey, b64u, parseAddress, shareAddress, trustPolicy, type RawSocket } from '../src/index.ts';
+import { ClientEnd, ServerEnd, Sealed, newKey, b64u, unb64u, parseAddress, shareAddress, trustPolicy, type RawSocket } from '../src/index.ts';
+import { x25519 } from '@noble/curves/ed25519.js';
+import { hkdf } from '@noble/hashes/hkdf.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 /** Two ends wired back to back, recording every frame that crosses (what an eavesdropper sees). */
 function pair(trust: (k: string) => true | string = () => true) {
@@ -70,5 +73,29 @@ describe('sealed channels', () => {
     client.send({ t: 'cast', slot: 1 });
     server.receive(last!); // replayed
     expect(closed.some((c) => c.startsWith('server'))).toBe(true);
+  });
+
+  it('forward secrecy: a recording stays sealed even to someone who later steals the server\'s long-term key', () => {
+    const { client, server, wire, key } = pair();
+    const kept = (server as unknown as { eph: { secret: Uint8Array } }).eph; // for the control below only
+    server.start();
+    client.send({ t: 'say', text: 'the sign of the hearth is 312662277504' });
+    expect((server as unknown as { eph: unknown }).eph).toBeNull(); // the server's fresh secret is forgotten once open
+    // the thief has the recording and the server's long-term secret
+    const hello = JSON.parse(wire.find((f) => typeof f === 'string' && f.includes('hello')) as string);
+    const keyMsg = JSON.parse(wire.find((f) => typeof f === 'string' && f.includes('"key"')) as string);
+    const clientEph = unb64u(hello.eph), serverEph = unb64u(keyMsg.eph);
+    const es = x25519.getSharedSecret(key.secret, clientEph); // what the stolen key gives them
+    const sealedFrame = wire.find((f) => typeof f !== 'string') as Uint8Array;
+    const open = (ee: Uint8Array) => {
+      const ikm = new Uint8Array(64); ikm.set(es, 0); ikm.set(ee, 32);
+      const salt = new Uint8Array(96); salt.set(clientEph, 0); salt.set(key.pub, 32); salt.set(serverEph, 64);
+      const k = hkdf(sha256, ikm, salt, new TextEncoder().encode('truenames/channel/v2'), 64);
+      return new Sealed(k.slice(32), k.slice(0, 32)).open(sealedFrame);
+    };
+    // control: with the server's fresh secret (which the server has since forgotten) the recording opens
+    expect(open(x25519.getSharedSecret(kept.secret, clientEph))).toEqual({ t: 'say', text: 'the sign of the hearth is 312662277504' });
+    // without either fresh secret, the second agreement is out of reach: the stolen long-term key alone opens nothing
+    for (const ee of [es, new Uint8Array(32), x25519.getSharedSecret(key.secret, serverEph)]) expect(() => open(ee)).toThrow();
   });
 });
