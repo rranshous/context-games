@@ -1,6 +1,6 @@
 {
   "name": "@truenames/desktop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Truenames as a desktop app: the game and its dungeon in one window, no server required.",
   "main": "dist/main.cjs",
