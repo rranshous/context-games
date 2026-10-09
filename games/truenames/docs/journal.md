@@ -925,3 +925,4 @@ Robby: "plz make sure the docs are updated and the readme gives a good jumping o
   - **08:** open questions on choirs, altars and actants (who may accept lent hum, what an altar keeper sees, reaching beyond the LAN, lent hum in presence, churches).
   - **09:** marked as parked, with how lent meditation relates.
   - **CLAUDE.md:** rendering is Canvas 2D; a "Development loops" section (play it yourself with the explorer, read the issue inbox, don't edit during a dev-server playtest, low CPU priority, keep the docs current).
+- **Fresh screenshots** (2026-10-09), taken with Explorer Claude playing (the dev stack and the test browser at nice 19): the sanctum (Name Book with facets, the plan, the Actant section, Altars), the Dark at wave 4 (fighting code at the controls), the Bastion at wave 3 (shrines placed by code), the Council at turn 11, and Dark Racer on the Ember Circuit's S-bend (driving code at the wheel).
