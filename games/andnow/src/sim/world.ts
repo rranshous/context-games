@@ -257,15 +257,17 @@ export class World {
     this.checkOver();
   }
 
-  /** Drop the cell farthest (by path) from the IP: it can never disconnect the rest. */
+  /**
+   * Upkeep: lose one cell. Burn fat first: the farthest `.` (no-op) cell whose removal
+   * keeps the body connected. With no fat, drop the cell farthest (by path) from the IP,
+   * which can never disconnect the rest — but is usually code, so the program rots.
+   */
   private shed(wr: Warrior) {
     const start = this.idx(wr.ipX, wr.ipY);
     const dist = new Map<number, number>([[start, 0]]);
     const queue = [start];
-    let far = start;
     for (let q = 0; q < queue.length; q++) {
       const c = queue[q];
-      if (dist.get(c)! >= dist.get(far)!) far = c;
       const x = c % this.w, y = (c / this.w) | 0;
       for (let d = 0; d < 4; d++) {
         const nx = x + DX[d], ny = y + DY[d];
@@ -274,13 +276,23 @@ export class World {
         if (!dist.has(ni)) { dist.set(ni, dist.get(c)! + 1); queue.push(ni); }
       }
     }
-    if (far === start) return;
+    const byFar = queue.slice(1).reverse(); // BFS order reversed = farthest first
+    if (!byFar.length) return;
+    let drop = byFar[0];
+    for (const c of byFar) {
+      if (this.code[c] !== CODE['.']) continue;
+      this.owner[c] = NONE;
+      const ok = this.unreached(wr).length === 0;
+      this.owner[c] = wr.id;
+      if (ok) { drop = c; break; }
+    }
     // Shed cells vanish rather than becoming debris: otherwise grow → shed → collect
     // the debris is a free-size loop.
-    this.owner[far] = NONE;
-    this.code[far] = 0;
+    const lost = GLYPHS[this.code[drop]] ?? '.';
+    this.owner[drop] = NONE;
+    this.code[drop] = 0;
     wr.cellCount--;
-    this.log('shed', `${wr.name} shed a cell (max size ${Math.floor(wr.maxSize)})`, wr.id);
+    this.log('shed', `${wr.name} shed ${lost === '.' ? 'fat' : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
   }
 
   private checkOver() {

@@ -227,9 +227,12 @@ finish. Ask what that was.
   blocked), horizontal corridors 3–5 wide. Vertical corridors stay narrow, so FLOWing
   through a chokepoint is still an open frontier.
 - **Carrying your own poison is a liability.** Bomber vs Stalker (seed 3): one bomb cut
-  14 cells off the Stalker, and 7 ticks later it executed its own `@`. Damage changed how
-  the IP moves through what was left, and the `'` that normally jumps over the poison was
-  no longer in the IP's path. This is the deformation-as-damage idea showing up on its own.
+  14 cells off the Stalker, and 7 ticks later it executed its own `@`. Checked in the
+  viewer: what survived was only its top row, `>oo'@WT\$:M`, cut off from the SCAN row.
+  That row is a loop on its own (rows wrap), so it kept running `oo'@W` on stale stack
+  values, wrote `@` over its own `>`, and then ran into it. A damaged program poisoning
+  itself: the deformation-as-damage idea showing up on its own. (First guess, that the
+  `'` skip got lost, was wrong; the explorer's `body(id)` showed the real thing.)
 
 ### First tournament (5 warriors × 6 boards × both seatings, 3000-tick cap)
 ```
@@ -241,3 +244,41 @@ Gatherer  W  4 L 44
 ```
 Caveat: many wins are still tick-cap decisions on cell count, and starting size (bigger
 program = more cells) skews that. Upkeep should even it out over a longer cap.
+
+### Viewer + explorer hook
+- `index.html` + `src/main.ts` → `dist/main.js`. Canvas, 14px cells, each warrior's
+  cells tinted its color with the glyph drawn on top, so **you read the program right off
+  the body**. Debris grey (glyphs still visible), size pickups green dots, speed yellow
+  diamonds. IPs outlined (spectator toggle; warriors can't see each other's). Hover a cell
+  for its glyph's meaning. Pickers for up to 4 bundled warriors, seed, play/step/speed
+  (1–256 ticks/s), warrior cards (cells/max, speed, current glyph, heading, stack, last
+  action), event log. URL params: `?w=bomber,stalker&seed=3`.
+- Fully static: works from the vanilla dev server (`/dev/andnow/index.html`) or any static
+  server (`python3 -m http.server` in `games/andnow`).
+- `window.explorer`: `help()`, `warriors()`, `source(name)`, `load(names, seed)`,
+  `loadSource(texts, seed)`, `step(n)`, `runUntilOver(max)`, `play()/pause()/setSpeed()`,
+  `state()`, `ascii({glyphs})`, `body(id)`, `events(n)`, `screenshot()`, `config`, `world`.
+- Browser and headless runs replay identically for the same seed + warriors (checked:
+  same events at the same ticks).
+
+### Watching a 4-player match to the end (bomber, stalker, turtle, roamer; seed 5)
+- **Upkeep rotted every program.** Draw at tick 5000. Shedding dropped the cell farthest
+  from the IP, and since the IP moves around inside its own code, that's usually code. The
+  Bomber lost `>C` (no more collecting), the Roamer's branch rows were cut down to `>T` and
+  `>$`, every card said "last action failed". Warriors decayed into crippled fragments
+  instead of fighting. (The Stalker poisoned itself again, with `@@` in its debris.)
+- **Change: shedding burns fat first.** Upkeep drops the farthest `.` cell whose removal
+  keeps the body connected, and only drops code when there's no fat left. Padding is now a
+  reserve, and how much fat to carry is a design choice for each warrior. Aging as code
+  loss is still there, just later.
+- Resources are probably too scarce for 20+ cell programs: a size pickup is +4 and decay
+  is 1 per 250 ticks, but warriors only see their own room, so they rarely reach the
+  middle-room spawns. Not tuned yet.
+
+### Open threads after session 1
+- Most wins are still tick-cap decisions; starting size (program length) skews them.
+  Maybe compare to starting size, or give every warrior the same starting max size.
+- Self-poisoning is common (2 of 2 Stalker deaths). Is that a fun hazard or a trap for
+  authors? Leaning hazard: it's the most Core War thing that's happened.
+- Nobody FLOWs. Writing a chokepoint-squeezer by hand would tell us if FLOW is usable.
+- Warriors are blind outside their room; exploration is the bottleneck to fights.

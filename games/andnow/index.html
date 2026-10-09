@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>andnow</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0b0d12; color: #c9d1d9;
+      font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      display: flex; gap: 16px; padding: 16px; min-height: 100vh;
+    }
+    #stage { position: relative; }
+    canvas { display: block; border: 1px solid #1f2633; background: #0b0d12; }
+    #banner {
+      position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+      background: #161b22ee; border: 1px solid #30363d; padding: 6px 14px; border-radius: 4px;
+      display: none; font-size: 14px;
+    }
+    #tip {
+      position: absolute; pointer-events: none; background: #161b22f0; border: 1px solid #30363d;
+      padding: 4px 8px; border-radius: 3px; display: none; white-space: pre; font-size: 12px; z-index: 2;
+    }
+    #side { width: 340px; display: flex; flex-direction: column; gap: 12px; }
+    h1 { font-size: 16px; color: #e6edf3; letter-spacing: 1px; }
+    h1 small { color: #6e7681; font-weight: normal; font-size: 12px; }
+    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    button, select, input {
+      background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 3px;
+      font: inherit; padding: 3px 8px;
+    }
+    button:hover { border-color: #58a6ff; cursor: pointer; }
+    input[type=number] { width: 70px; }
+    input[type=range] { width: 110px; padding: 0; }
+    label { display: flex; gap: 4px; align-items: center; color: #8b949e; }
+    .card { border: 1px solid #1f2633; border-left: 4px solid; padding: 6px 8px; border-radius: 3px; }
+    .card.dead { opacity: 0.45; }
+    .card .name { font-weight: bold; color: #e6edf3; }
+    .card .stats { color: #8b949e; }
+    .card .stack { color: #6e7681; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #log { height: 180px; overflow-y: auto; border: 1px solid #1f2633; padding: 4px 6px; font-size: 12px; color: #8b949e; }
+    #log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #tick { color: #6e7681; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="board"></canvas>
+    <div id="banner"></div>
+    <div id="tip"></div>
+  </div>
+  <div id="side">
+    <h1>andnow <small>code-cloud warriors</small></h1>
+    <div class="row" id="pickers"></div>
+    <div class="row">
+      <label>seed <input type="number" id="seed" value="1"></label>
+      <button id="reset">New match</button>
+    </div>
+    <div class="row">
+      <button id="play">Play</button>
+      <button id="step">Step</button>
+      <label>speed <input type="range" id="speed" min="0" max="7" value="2"></label>
+      <span id="tick"></span>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="showIp" checked> show IPs</label>
+      <label><input type="checkbox" id="showGlyphs" checked> glyphs</label>
+    </div>
+    <div id="cards"></div>
+    <div id="log"></div>
+  </div>
+  <script type="module" src="./dist/main.js"></script>
+</body>
+</html>
