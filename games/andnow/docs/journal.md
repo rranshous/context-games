@@ -336,3 +336,36 @@ pathing trap. Left it for the GA to find its way around rather than hand-patchin
   to `warriors/evolved/<run>-N.warrior` with their record in the header, plus
   `manifest.json`. The viewer fetches the manifest and lists them as `evo:<name>`.
 - Smoke test (pop 16, 3 gens): 1.4 s. A pop-96 generation is ~2–5 s on 8 cores.
+
+### First real run: evo1 (pop 96, 100 gens, 3 boards/gen, 1500 ticks, ~6 min)
+- Fitness hit its ceiling (~3.0, i.e. winning nearly every game) by **generation 8** and
+  stayed flat for 90 more generations; the mean hovered ~1.5. The benchmarks are too easy,
+  and once they're beaten, the hall-of-fame opponents are close relatives.
+- Early leader (gen 6), a Stalker descendant, **got rid of its own poison**: the `@` is
+  gone and the `'` now pushes the code of `T`. Self-poisoning was the Stalker's main way
+  of dying, so the GA's first discovery was "stop carrying poison".
+- Champion `evo1-1` (held-out: 46/50 vs benchmarks; Bomber 8-2, Stalker 8-2, the rest 10-0):
+  ```
+   MC: L
+  ^>CfS|  \T
+   ^y m>$$:M2eBR
+  ```
+  It SCANs for type `f` (speed × 10, so ≥ 10, which matches nothing), so SCAN always
+  fails and it always takes the wander branch. It wanders into its home corner and
+  **camps the corner size spawn**: it sits touching the spot and collects every respawn
+  (+4 per 120 ticks vs 0.5 decay per 120 ticks), rides max size up to the 64 cap, and wins
+  every game on the tick-cap rule. No fights. All of its wins are tick-cap economy wins.
+- So the GA found the dominant strategy in 8 generations, and it's "don't play". That's
+  what the economy design says, not a GA problem. The home spawn is too generous and
+  completely safe.
+- Logging bug fixed: the "vs bench" column read results by index after sorting the
+  population (so it showed the wrong individual's games). Fitness/selection weren't affected.
+
+### What to change next (to discuss)
+- **Economy**: move resources out of the home rooms (contested middle rooms only),
+  and/or a spot doesn't regrow while anything touches it (no camping; you have to
+  leave and come back, so being there at the right time is contested).
+- **Fitness**: coevolution. Score against the current population (round robin or a sample),
+  not just the fixed benchmarks + a few relatives, so the bar keeps moving.
+- **Ticks**: evolution runs 1500-tick matches, but the real cap is 5000; economy-heavy
+  play may look different over the long game.

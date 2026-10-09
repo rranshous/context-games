@@ -1133,7 +1133,7 @@ async function main() {
   let serial = 0;
   const make = (g, parents, gen) => {
     const name = `g${gen}-${serial++}`;
-    return { g, name, text: toText(g, name), parents, fitness: 0, wins: 0, losses: 0, games: 0 };
+    return { g, name, text: toText(g, name), parents, fitness: 0, wins: 0, losses: 0, games: 0, benchWins: 0 };
   };
   let pop = [];
   for (const src of bench) {
@@ -1166,14 +1166,11 @@ async function main() {
       ind.fitness = rs.reduce((a, r) => a + r.score, 0) / rs.length;
       ind.wins = rs.filter((r) => r.win).length;
       ind.losses = rs.filter((r) => r.loss).length;
+      ind.benchWins = rs.slice(0, bench.length * seeds.length).filter((r) => r.win).length;
     });
     pop.sort((a, b) => b.fitness - a.fitness);
     const best = pop[0];
     const mean = pop.reduce((a, p) => a + p.fitness, 0) / pop.length;
-    const benchWins = (ind) => {
-      const rs = results2.slice(pop.indexOf(ind) * per2, pop.indexOf(ind) * per2 + bench.length * seeds.length);
-      return rs.filter((r) => r.win).length;
-    };
     if (!bestEver || best.fitness > bestEver.fitness) {
       bestEver = { ...best, g: clone(best.g) };
       writeFileSync(join(runDir, `best-g${String(gen).padStart(3, "0")}.warrior`), toText(best.g, best.name, [
@@ -1188,7 +1185,7 @@ async function main() {
       mean: +mean.toFixed(3),
       bestName: best.name,
       bestRecord: `${best.wins}W ${best.losses}L/${best.games}`,
-      benchWins: `${benchWins(best)}/${bench.length * seeds.length}`,
+      benchWins: `${best.benchWins}/${bench.length * seeds.length}`,
       cells: best.g.cells.length,
       parents: best.parents,
       ms: Date.now() - t0,

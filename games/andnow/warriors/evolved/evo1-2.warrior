@@ -1,0 +1,9 @@
+name: evo1-2
+# evolved: run evo1, was g90-8298 (parents g89-8267+remove)
+# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0
+dir: E
+ip: 12 2
+---
+ S : L
+^>:fS|  \T
+ ^y m>$$CM2eBR
