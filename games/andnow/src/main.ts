@@ -6,6 +6,10 @@ import { parseWarrior, WarriorSpec } from './sim/warrior-file';
 import { CONFIG, DEBRIS, World } from './sim/world';
 import { BUNDLED } from './warriors';
 
+// Every warrior the viewer knows: bundled ones, plus evolved ones fetched at startup
+// from warriors/evolved/manifest.json (written by the evolver), named `evo:<name>`.
+const SOURCES: Record<string, string> = { ...BUNDLED };
+
 const CELL = 14;
 const HUES = [205, 25, 130, 290, 55, 330, 170, 0];
 const SPEEDS = [1, 2, 4, 8, 16, 32, 64, 256]; // ticks per second, roughly
@@ -34,15 +38,31 @@ const pickersEl = $('pickers');
 const pickers: HTMLSelectElement[] = [];
 for (let i = 0; i < 4; i++) {
   const sel = document.createElement('select');
-  sel.innerHTML = `<option value="">—</option>` + Object.keys(BUNDLED).map((k) => `<option>${k}</option>`).join('');
-  sel.value = initial[i] ?? '';
+  sel.dataset.want = initial[i] ?? '';
   sel.style.borderLeft = `4px solid hsl(${HUES[i]} 70% 55%)`;
   pickersEl.appendChild(sel);
   pickers.push(sel);
 }
 
+function fillPickers() {
+  for (const sel of pickers) {
+    const want = sel.value || sel.dataset.want || '';
+    sel.innerHTML = `<option value="">—</option>` + Object.keys(SOURCES).map((k) => `<option>${k}</option>`).join('');
+    sel.value = want in SOURCES ? want : '';
+  }
+}
+
+async function loadEvolved() {
+  try {
+    const files: string[] = await (await fetch('warriors/evolved/manifest.json', { cache: 'no-store' })).json();
+    await Promise.all(files.map(async (f) => {
+      SOURCES[`evo:${f.replace(/\.warrior$/, '')}`] = await (await fetch(`warriors/evolved/${f}`, { cache: 'no-store' })).text();
+    }));
+  } catch { /* no evolved warriors yet */ }
+}
+
 function newMatch(sources?: string[], seed?: number) {
-  const srcs = sources ?? pickers.map((p) => p.value).filter(Boolean).map((k) => BUNDLED[k]);
+  const srcs = sources ?? pickers.map((p) => p.value).filter(Boolean).map((k) => SOURCES[k]);
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
   seedEl.value = String(world.seed);
@@ -183,12 +203,12 @@ const explorer = {
     'explorer.events(n)                      last n events',
     'explorer.screenshot()                   canvas as a PNG data URL',
   ].join('\n'),
-  warriors: () => Object.keys(BUNDLED),
-  source: (name: string) => BUNDLED[name],
+  warriors: () => Object.keys(SOURCES),
+  source: (name: string) => SOURCES[name],
   load(names: string[], seed?: number) {
     names.forEach((n, i) => { if (pickers[i]) pickers[i].value = n; });
     for (let i = names.length; i < pickers.length; i++) pickers[i].value = '';
-    newMatch(names.map((n) => BUNDLED[n]), seed);
+    newMatch(names.map((n) => SOURCES[n]), seed);
     return this.state();
   },
   loadSource(sources: string[], seed?: number) { newMatch(sources, seed); return this.state(); },
@@ -222,5 +242,9 @@ const explorer = {
 };
 (window as unknown as { explorer: typeof explorer }).explorer = explorer;
 
-newMatch();
-requestAnimationFrame(frame);
+fillPickers();
+loadEvolved().then(() => {
+  fillPickers();
+  newMatch();
+  requestAnimationFrame(frame);
+});

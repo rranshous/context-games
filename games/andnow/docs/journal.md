@@ -282,3 +282,57 @@ program = more cells) skews that. Upkeep should even it out over a longer cap.
   authors? Leaning hazard: it's the most Core War thing that's happened.
 - Nobody FLOWs. Writing a chokepoint-squeezer by hand would tell us if FLOW is usable.
 - Warriors are blind outside their room; exploration is the bottleneck to fights.
+
+---
+
+## Session 1, part 2: equal starts, and a GA to search for warriors
+
+User: equal starting size; the Roamer finds a wall and sticks to it; rather than
+hand-tuning, set up a GA + tournaments to search for starting warriors.
+
+### Why the Roamer sticks
+Traced with the explorer (step 1 tick at a time, read glyph/dir/stack). It sees a
+resource at (-2,-2) sitting in a nook formed by **its own body's gap** (the empty
+stretch in `v   >T\$:M`). TOWARD picks the dominant axis, west; west is a wall. The
+found-branch never checks `e`, so it repeats the same blocked SHIFT forever. A greedy
+pathing trap. Left it for the GA to find its way around rather than hand-patching.
+
+### Equal starting size
+- Every warrior starts at max size 30 (`CONFIG.startSize`), and a body can't have more
+  than 30 cells. (Before, starting max size was body + 4.)
+- That alone didn't fix tick-cap results: the smoke-test "champion" was a 27-cell
+  Stalker mutant beating the 6-cell Gatherer on *cell count*. Program length still
+  decided it.
+- **Tick-cap rule changed: the largest max size wins.** Everyone starts at 30 and decays
+  the same, so this measures who collected best; nobody collected = draw. Cell count no
+  longer matters at the cap. Tournament after: Bomber/Stalker 29W, Gatherer 21W, and the
+  Turtle can no longer win by sitting still (0W).
+
+### The GA (`src/ga/genome.ts`, `src/evolve.ts` → `dist/evolve.mjs`)
+- **Genome** = the warrior itself: cells (x, y, glyph), IP start cell, start direction.
+  Always 4-connected, ≤ 30 cells. `repair()` keeps the IP's piece and trims farthest-first.
+- **Random bodies** grow mostly sideways (rows are loops, so wide bodies run), with glyph
+  weights leaning toward S/T/M/C/B/W so random programs have a chance of doing something.
+- **Mutation** (1+ edits, geometric count): point change, add cell, remove cell,
+  duplicate a glyph into a new neighbor cell, swap two glyphs, move IP, change dir.
+- **Crossover**: 2D block swap. Line both parents up by their IP cells, take a random
+  rectangle from parent B into parent A (cells B lacks inside the rectangle are removed),
+  repair.
+- **Fitness**: average match score against the 5 hand-written warriors (fixed benchmark)
+  plus 4 hall-of-fame champions from earlier generations (so the bar rises), on 3 fresh
+  boards per generation (all individuals see the same boards; seatings alternate).
+  Match score: win by kill 3, win at cap 2, draw 1, loss 0, plus small shaping so there's
+  a slope before anything can win: +0.05/pickup (≤0.5), +0.1/bomb hit (≤1),
+  +0.25/poison write (≤1), +0.5 × fraction of the match survived.
+- **Selection**: 4 elites; the rest are size-3 tournament picks, 30% crossover (half of
+  those also mutated), 70% mutated clones.
+- **Start population**: each hand-written warrior, a mutant of each, the rest random.
+- **Workers**: matches run across `availableParallelism()` worker threads (same bundle
+  file is main and worker).
+- **Output**: `runs/<name>/log.jsonl` (one line per generation: best/mean fitness,
+  record, wins vs benchmarks, lineage, the best warrior's text) and `best-gNNN.warrior`
+  whenever the best improves (`runs/` is gitignored). At the end, the last 15 hall-of-fame
+  entries are re-tested on 10 held-out boards against the benchmarks, and the top 3 go
+  to `warriors/evolved/<run>-N.warrior` with their record in the header, plus
+  `manifest.json`. The viewer fetches the manifest and lists them as `evo:<name>`.
+- Smoke test (pop 16, 3 gens): 1.4 s. A pop-96 generation is ~2–5 s on 8 cores.

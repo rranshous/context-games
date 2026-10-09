@@ -10,6 +10,7 @@
 // - The IP is hidden from other warriors. Losing the IP's cell, or executing `@`, kills.
 // - Pieces cut off from the IP's piece become debris.
 // - Max size and speed decay toward a floor; resources push them back up.
+// - Last standing wins; at the tick cap, the largest max size wins.
 import { Board, FLOOR, makeBoard } from './board';
 import {
   CODE, COST, DX, DY, GLYPHS, T_DEBRIS, T_ENEMY, T_NOTHING, T_RESOURCE, T_SIZE, T_SPEED, T_WALL,
@@ -26,7 +27,7 @@ export const CONFIG = {
   stackMax: 64,
   sizeFloor: 8,
   sizeCap: 64,
-  sizeHeadroom: 4,      // starting max size = body cells + this
+  startSize: 30,        // every warrior starts with this max size; bodies can't be bigger
   sizeDecay: 0.004,     // per tick
   sizePickup: 4,
   debrisPickup: 0.5,
@@ -53,6 +54,7 @@ export interface Warrior {
   lastOk: boolean;
   cellCount: number;
   executed: number;
+  stats: { collected: number; bombHits: number; poisonWrites: number; kills: number };
   deathReason?: string;
   diedAt?: number;
   spec: WarriorSpec;
@@ -96,13 +98,17 @@ export class World {
   // ---------- setup ----------
 
   private place(spec: WarriorSpec, id: number) {
+    if (spec.cells.length > CONFIG.startSize) {
+      throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startSize}`);
+    }
     const room = this.board.starts[id % this.board.starts.length];
     const ox = room.x + Math.floor((room.w - spec.width) / 2);
     const oy = room.y + Math.floor((room.h - spec.height) / 2);
     const wr: Warrior = {
       id, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y, dir: spec.dir,
-      stack: [], maxSize: spec.cells.length + CONFIG.sizeHeadroom, speed: CONFIG.speedStart,
+      stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
       accum: 0, lastOk: true, cellCount: 0, executed: 0, spec,
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
     };
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -210,6 +216,7 @@ export class World {
     const victim = this.warriors[o];
     victim.cellCount--;
     if (i === this.idx(victim.ipX, victim.ipY)) {
+      by.stats.kills++;
       this.kill(victim, `core bombed by ${by.name}`);
       return;
     }
@@ -304,10 +311,12 @@ export class World {
     } else if (this.warriors.length === 1 && alive.length === 0) {
       this.result = { over: true, winner: null, reason: 'died' };
     } else if (this.t >= CONFIG.tickCap) {
-      const best = Math.max(...alive.map((w) => w.cellCount));
-      const top = alive.filter((w) => w.cellCount === best);
+      // Everyone starts at the same max size and decays the same way, so the highest
+      // max size at the cap is whoever kept their economy up best.
+      const best = Math.max(...alive.map((w) => w.maxSize));
+      const top = alive.filter((w) => best - w.maxSize < 0.01);
       this.result = top.length === 1
-        ? { over: true, winner: top[0].id, reason: `most cells at tick cap (${best})` }
+        ? { over: true, winner: top[0].id, reason: `largest max size at tick cap (${best.toFixed(1)})` }
         : { over: true, winner: null, reason: 'draw at tick cap' };
     }
     if (this.result.over) this.log('over', this.result.winner === null
@@ -564,6 +573,7 @@ export class World {
           continue;
         } else continue;
         this.resource[i] = 0;
+        wr.stats.collected++;
         got = true;
       }
     }
@@ -576,6 +586,7 @@ export class World {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : 'debris';
+    if (o >= 0) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log('bomb', `${wr.name} bombed ${victim}`, wr.id);
     return true;
@@ -594,6 +605,7 @@ export class World {
     const c = ((code % GLYPHS.length) + GLYPHS.length) % GLYPHS.length;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE['@']) wr.stats.poisonWrites++;
       this.log('write', `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
     }
     return true;

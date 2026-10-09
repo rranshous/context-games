@@ -103,8 +103,8 @@ var CONFIG = {
   stackMax: 64,
   sizeFloor: 8,
   sizeCap: 64,
-  sizeHeadroom: 4,
-  // starting max size = body cells + this
+  startSize: 30,
+  // every warrior starts with this max size; bodies can't be bigger
   sizeDecay: 4e-3,
   // per tick
   sizePickup: 4,
@@ -148,6 +148,9 @@ var World = class {
   spawnTimers;
   // ---------- setup ----------
   place(spec, id) {
+    if (spec.cells.length > CONFIG.startSize) {
+      throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startSize}`);
+    }
     const room = this.board.starts[id % this.board.starts.length];
     const ox = room.x + Math.floor((room.w - spec.width) / 2);
     const oy = room.y + Math.floor((room.h - spec.height) / 2);
@@ -159,13 +162,14 @@ var World = class {
       ipY: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
-      maxSize: spec.cells.length + CONFIG.sizeHeadroom,
+      maxSize: CONFIG.startSize,
       speed: CONFIG.speedStart,
       accum: 0,
       lastOk: true,
       cellCount: 0,
       executed: 0,
-      spec
+      spec,
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 }
     };
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -280,6 +284,7 @@ var World = class {
     const victim = this.warriors[o];
     victim.cellCount--;
     if (i === this.idx(victim.ipX, victim.ipY)) {
+      by.stats.kills++;
       this.kill(victim, `core bombed by ${by.name}`);
       return;
     }
@@ -368,9 +373,9 @@ var World = class {
     } else if (this.warriors.length === 1 && alive.length === 0) {
       this.result = { over: true, winner: null, reason: "died" };
     } else if (this.t >= CONFIG.tickCap) {
-      const best = Math.max(...alive.map((w) => w.cellCount));
-      const top = alive.filter((w) => w.cellCount === best);
-      this.result = top.length === 1 ? { over: true, winner: top[0].id, reason: `most cells at tick cap (${best})` } : { over: true, winner: null, reason: "draw at tick cap" };
+      const best = Math.max(...alive.map((w) => w.maxSize));
+      const top = alive.filter((w) => best - w.maxSize < 0.01);
+      this.result = top.length === 1 ? { over: true, winner: top[0].id, reason: `largest max size at tick cap (${best.toFixed(1)})` } : { over: true, winner: null, reason: "draw at tick cap" };
     }
     if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
   }
@@ -754,6 +759,7 @@ var World = class {
           continue;
         } else continue;
         this.resource[i] = 0;
+        wr.stats.collected++;
         got = true;
       }
     }
@@ -765,6 +771,7 @@ var World = class {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : "debris";
+    if (o >= 0) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
     return true;
@@ -781,6 +788,7 @@ var World = class {
     const c = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE["@"]) wr.stats.poisonWrites++;
       this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
     }
     return true;
