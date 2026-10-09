@@ -1,9 +1,10 @@
 // Genetic search for warriors. Fitness = matches against a fixed benchmark set (the
-// hand-written warriors) plus a sample of the hall of fame (past champions), on a few
-// fresh boards per generation. Matches run in parallel on worker threads.
+// hand-written warriors), a sample of the hall of fame (past champions), and a random
+// sample of the current population (coevolution: the bar moves as the population does),
+// on a few fresh boards per generation. Matches run in parallel on worker threads.
 //
 //   node dist/evolve.mjs --name run1 [--pop 48] [--gens 40] [--seeds 2] [--ticks 1500]
-//                        [--hof 3] [--workers 8] [--rng 1]
+//                        [--hof 3] [--peers 6] [--workers 8] [--rng 1]
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
@@ -19,7 +20,7 @@ import { parseWarrior } from './sim/warrior-file';
 // ---------- one match, scored from one side ----------
 
 interface Job { a: string; b: string; seed: number; ticks: number; swap: boolean }
-interface JobResult { score: number; win: boolean; loss: boolean }
+interface JobResult { score: number; win: boolean; loss: boolean; kill: boolean; hits: number; poisons: number }
 
 function runJob(j: Job): JobResult {
   const a = parseWarrior(j.a), b = parseWarrior(j.b);
@@ -37,9 +38,13 @@ function runJob(j: Job): JobResult {
     score += Math.min(1, 0.1 * w.stats.bombHits);
     score += Math.min(1, 0.25 * w.stats.poisonWrites);
     score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
-    return { score, win: r.winner === me, loss: r.winner !== null && r.winner !== me };
+    return {
+      score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
+      kill: world.warriors.some((x) => !x.alive), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
+    };
   } catch {
-    return { score: 0, win: false, loss: true }; // e.g. doesn't fit the start room
+    // e.g. doesn't fit the start room
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
   }
 }
 
@@ -72,7 +77,7 @@ async function main() {
   const opt = (k: string, d: number) => { const i = args.indexOf(`--${k}`); return i >= 0 ? Number(args[i + 1]) : d; };
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
   const POP = opt('pop', 48), GENS = opt('gens', 40), SEEDS = opt('seeds', 2), TICKS = opt('ticks', 1500);
-  const HOF = opt('hof', 3), ELITE = opt('elite', 4), WORKERS = opt('workers', availableParallelism());
+  const HOF = opt('hof', 3), PEERS = opt('peers', 6), ELITE = opt('elite', 4), WORKERS = opt('workers', availableParallelism());
   const NAME = str('name', `run-${Date.now()}`);
   const rng = makeRng(opt('rng', 1));
   const runDir = join('runs', NAME);
@@ -106,25 +111,37 @@ async function main() {
   for (let gen = 0; gen < GENS; gen++) {
     const t0 = Date.now();
     const seeds = Array.from({ length: SEEDS }, () => 1 + Math.floor(rng() * 1e6));
-    const opponents = [...bench];
-    for (let k = 0; k < Math.min(HOF, hallOfFame.length); k++) opponents.push(hallOfFame[Math.floor(rng() * hallOfFame.length)].text);
+    const hofSample = () => Array.from({ length: Math.min(HOF, hallOfFame.length) }, () => hallOfFame[Math.floor(rng() * hallOfFame.length)].text);
 
+    // Each individual: all benchmarks, a hall-of-fame sample, and a peer sample.
     const jobs: Job[] = [];
+    const counts: number[] = [];
     for (const ind of pop) {
+      const peers: string[] = [];
+      while (peers.length < Math.min(PEERS, pop.length - 1)) {
+        const p = pop[Math.floor(rng() * pop.length)];
+        if (p !== ind) peers.push(p.text);
+      }
+      const opponents = [...bench, ...hofSample(), ...peers];
       for (const opp of opponents) {
         seeds.forEach((seed, s) => jobs.push({ a: ind.text, b: opp, seed, ticks: TICKS, swap: s % 2 === 1 }));
       }
+      counts.push(opponents.length * seeds.length);
     }
     const results = await pool.run(jobs);
-    const per = opponents.length * seeds.length;
+    let at = 0;
     pop.forEach((ind, i) => {
-      const rs = results.slice(i * per, (i + 1) * per);
+      const rs = results.slice(at, at + counts[i]);
+      at += counts[i];
       ind.games = rs.length;
       ind.fitness = rs.reduce((a, r) => a + r.score, 0) / rs.length;
       ind.wins = rs.filter((r) => r.win).length;
       ind.losses = rs.filter((r) => r.loss).length;
       ind.benchWins = rs.slice(0, bench.length * seeds.length).filter((r) => r.win).length;
     });
+    const killRate = results.filter((r) => r.kill).length / results.length;
+    const hitsPerGame = results.reduce((a, r) => a + r.hits, 0) / results.length;
+    const poisonsPerGame = results.reduce((a, r) => a + r.poisons, 0) / results.length;
     pop.sort((a, b) => b.fitness - a.fitness);
     const best = pop[0];
     const mean = pop.reduce((a, p) => a + p.fitness, 0) / pop.length;
@@ -140,10 +157,11 @@ async function main() {
     const line = {
       gen, best: +best.fitness.toFixed(3), mean: +mean.toFixed(3), bestName: best.name,
       bestRecord: `${best.wins}W ${best.losses}L/${best.games}`, benchWins: `${best.benchWins}/${bench.length * seeds.length}`,
-      cells: best.g.cells.length, parents: best.parents, ms: Date.now() - t0, text: best.text,
+      cells: best.g.cells.length, parents: best.parents, ms: Date.now() - t0,
+      killRate: +killRate.toFixed(3), hitsPerGame: +hitsPerGame.toFixed(2), poisonsPerGame: +poisonsPerGame.toFixed(2), text: best.text,
     };
     appendFileSync(join(runDir, 'log.jsonl'), JSON.stringify(line) + '\n');
-    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${line.cells} cells  ${best.parents}  (${line.ms}ms)`);
+    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${String(line.cells).padStart(2)} cells  kills ${(killRate * 100).toFixed(0).padStart(2)}%  hits ${hitsPerGame.toFixed(2)}  poison ${poisonsPerGame.toFixed(2)}  (${line.ms}ms)`);
 
     // Next generation: elites, then tournament-selected children.
     const select = () => {

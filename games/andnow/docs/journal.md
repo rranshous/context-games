@@ -369,3 +369,22 @@ pathing trap. Left it for the GA to find its way around rather than hand-patchin
   not just the fixed benchmarks + a few relatives, so the bar keeps moving.
 - **Ticks**: evolution runs 1500-tick matches, but the real cap is 5000; economy-heavy
   play may look different over the long game.
+
+---
+
+## Session 1, part 3: contested economy + coevolution
+
+User: go ahead with all three (economy, coevolution, rerun); larger runs are fine.
+
+### Changes
+- **Resources only in the middle rooms.** Home rooms have nothing. Each middle room has
+  a speed pair and a size pair (size spots near the room's far corners, 2 in from the walls).
+- **No regrowth while touched.** A spot's respawn timer resets whenever any cell (any
+  warrior, or debris) sits on or touches it. Camping can't work; you have to leave and come back.
+- Quick check (6 boards, 2000 ticks): the camper `evo1-1` falls from champion to 2W 13L.
+  Gatherer/Roamer now lead (they go out and find things). Lots of draws: when nobody
+  collects, everyone decays to the floor (8) and ties.
+- **Coevolution**: each individual plays all 5 benchmarks + 3 hall-of-fame + 6 random
+  peers from the current population, on 2 boards (28 matches each).
+- **Fight metrics in the log**: % of games ending in a death, bomb hits per game, poison
+  writes per game, so we can see if fighting emerges.

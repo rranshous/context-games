@@ -79,9 +79,8 @@ function makeBoard(seed) {
       if (!spawns.some((s) => s.x === px && s.y === py)) spawns.push({ x: px, y: py, kind });
     }
   };
-  mirrorAll(tl.x + 1, tl.y + 1, 1);
   mirrorAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
-  mirrorAll(tm.x + tm.w / 2 - 1, tm.y + 2, 1);
+  mirrorAll(tm.x + 2, tm.y + 2, 1);
   const mirrorRect = (r, mx, my) => ({
     x: mx ? w - r.x - r.w : r.x,
     y: my ? h - r.y - r.h : r.y,
@@ -300,7 +299,9 @@ var World = class {
     this.t++;
     this.board.spawns.forEach((s, k) => {
       const i = this.idx(s.x, s.y);
-      if (this.resource[i] || this.owner[i] !== NONE) {
+      let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
+      for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
+      if (touched) {
         this.spawnTimers[k] = 0;
         return;
       }

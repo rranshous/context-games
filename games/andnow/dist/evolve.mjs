@@ -78,9 +78,8 @@ function makeBoard(seed) {
       if (!spawns.some((s) => s.x === px && s.y === py)) spawns.push({ x: px, y: py, kind });
     }
   };
-  mirrorAll(tl.x + 1, tl.y + 1, 1);
   mirrorAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
-  mirrorAll(tm.x + tm.w / 2 - 1, tm.y + 2, 1);
+  mirrorAll(tm.x + 2, tm.y + 2, 1);
   const mirrorRect = (r, mx, my) => ({
     x: mx ? w - r.x - r.w : r.x,
     y: my ? h - r.y - r.h : r.y,
@@ -299,7 +298,9 @@ var World = class {
     this.t++;
     this.board.spawns.forEach((s, k) => {
       const i = this.idx(s.x, s.y);
-      if (this.resource[i] || this.owner[i] !== NONE) {
+      let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
+      for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
+      if (touched) {
         this.spawnTimers[k] = 0;
         return;
       }
@@ -1083,9 +1084,16 @@ function runJob(j) {
     score += Math.min(1, 0.1 * w.stats.bombHits);
     score += Math.min(1, 0.25 * w.stats.poisonWrites);
     score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
-    return { score, win: r.winner === me, loss: r.winner !== null && r.winner !== me };
+    return {
+      score,
+      win: r.winner === me,
+      loss: r.winner !== null && r.winner !== me,
+      kill: world.warriors.some((x) => !x.alive),
+      hits: w.stats.bombHits,
+      poisons: w.stats.poisonWrites
+    };
   } catch {
-    return { score: 0, win: false, loss: true };
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
   }
 }
 var Pool = class {
@@ -1121,7 +1129,7 @@ async function main() {
     return i >= 0 ? args[i + 1] : d;
   };
   const POP = opt("pop", 48), GENS = opt("gens", 40), SEEDS = opt("seeds", 2), TICKS = opt("ticks", 1500);
-  const HOF = opt("hof", 3), ELITE = opt("elite", 4), WORKERS = opt("workers", availableParallelism());
+  const HOF = opt("hof", 3), PEERS = opt("peers", 6), ELITE = opt("elite", 4), WORKERS = opt("workers", availableParallelism());
   const NAME = str("name", `run-${Date.now()}`);
   const rng = makeRng(opt("rng", 1));
   const runDir = join("runs", NAME);
@@ -1150,24 +1158,35 @@ async function main() {
   for (let gen = 0; gen < GENS; gen++) {
     const t0 = Date.now();
     const seeds = Array.from({ length: SEEDS }, () => 1 + Math.floor(rng() * 1e6));
-    const opponents = [...bench];
-    for (let k = 0; k < Math.min(HOF, hallOfFame.length); k++) opponents.push(hallOfFame[Math.floor(rng() * hallOfFame.length)].text);
+    const hofSample = () => Array.from({ length: Math.min(HOF, hallOfFame.length) }, () => hallOfFame[Math.floor(rng() * hallOfFame.length)].text);
     const jobs2 = [];
+    const counts = [];
     for (const ind of pop) {
+      const peers = [];
+      while (peers.length < Math.min(PEERS, pop.length - 1)) {
+        const p = pop[Math.floor(rng() * pop.length)];
+        if (p !== ind) peers.push(p.text);
+      }
+      const opponents = [...bench, ...hofSample(), ...peers];
       for (const opp of opponents) {
         seeds.forEach((seed, s) => jobs2.push({ a: ind.text, b: opp, seed, ticks: TICKS, swap: s % 2 === 1 }));
       }
+      counts.push(opponents.length * seeds.length);
     }
     const results2 = await pool.run(jobs2);
-    const per2 = opponents.length * seeds.length;
+    let at = 0;
     pop.forEach((ind, i) => {
-      const rs = results2.slice(i * per2, (i + 1) * per2);
+      const rs = results2.slice(at, at + counts[i]);
+      at += counts[i];
       ind.games = rs.length;
       ind.fitness = rs.reduce((a, r) => a + r.score, 0) / rs.length;
       ind.wins = rs.filter((r) => r.win).length;
       ind.losses = rs.filter((r) => r.loss).length;
       ind.benchWins = rs.slice(0, bench.length * seeds.length).filter((r) => r.win).length;
     });
+    const killRate = results2.filter((r) => r.kill).length / results2.length;
+    const hitsPerGame = results2.reduce((a, r) => a + r.hits, 0) / results2.length;
+    const poisonsPerGame = results2.reduce((a, r) => a + r.poisons, 0) / results2.length;
     pop.sort((a, b) => b.fitness - a.fitness);
     const best = pop[0];
     const mean = pop.reduce((a, p) => a + p.fitness, 0) / pop.length;
@@ -1189,10 +1208,13 @@ async function main() {
       cells: best.g.cells.length,
       parents: best.parents,
       ms: Date.now() - t0,
+      killRate: +killRate.toFixed(3),
+      hitsPerGame: +hitsPerGame.toFixed(2),
+      poisonsPerGame: +poisonsPerGame.toFixed(2),
       text: best.text
     };
     appendFileSync(join(runDir, "log.jsonl"), JSON.stringify(line) + "\n");
-    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${line.cells} cells  ${best.parents}  (${line.ms}ms)`);
+    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${String(line.cells).padStart(2)} cells  kills ${(killRate * 100).toFixed(0).padStart(2)}%  hits ${hitsPerGame.toFixed(2)}  poison ${poisonsPerGame.toFixed(2)}  (${line.ms}ms)`);
     const select = () => {
       let b = pop[Math.floor(rng() * pop.length)];
       for (let k = 0; k < 2; k++) {

@@ -60,8 +60,8 @@ export function makeBoard(seed: number): Board {
   const mcW = randInt(rng, 1, 2) * 2; // even, so it sits on the centerline
   carve({ x: (w - mcW) / 2, y: tm.y + tm.h, w: mcW, h: h / 2 - (tm.y + tm.h) });
 
-  // Resource spawns: one size spot in each corner room (far corner from the door),
-  // a speed + size pair in each middle room.
+  // Resource spawns: middle rooms only (contested ground; home rooms have nothing),
+  // a speed pair and a size pair in each.
   const spawns: Spawn[] = [];
   const mirrorAll = (x: number, y: number, kind: 1 | 2) => {
     const pts = [[x, y], [w - 1 - x, y], [x, h - 1 - y], [w - 1 - x, h - 1 - y]];
@@ -69,9 +69,8 @@ export function makeBoard(seed: number): Board {
       if (!spawns.some((s) => s.x === px && s.y === py)) spawns.push({ x: px, y: py, kind });
     }
   };
-  mirrorAll(tl.x + 1, tl.y + 1, 1);
   mirrorAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
-  mirrorAll(tm.x + tm.w / 2 - 1, tm.y + 2, 1);
+  mirrorAll(tm.x + 2, tm.y + 2, 1);
 
   const mirrorRect = (r: Rect, mx: boolean, my: boolean): Rect => ({
     x: mx ? w - r.x - r.w : r.x, y: my ? h - r.y - r.h : r.y, w: r.w, h: r.h,

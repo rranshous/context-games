@@ -233,10 +233,13 @@ export class World {
     if (this.result.over) return;
     this.t++;
 
-    // Respawn resources at empty spots.
+    // Respawn resources at empty spots. A spot doesn't regrow while anything sits on or
+    // touches it, so camping a spawn doesn't work: you have to leave and come back.
     this.board.spawns.forEach((s, k) => {
       const i = this.idx(s.x, s.y);
-      if (this.resource[i] || this.owner[i] !== NONE) { this.spawnTimers[k] = 0; return; }
+      let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
+      for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
+      if (touched) { this.spawnTimers[k] = 0; return; }
       if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
         this.resource[i] = s.kind;
         this.spawnTimers[k] = 0;
