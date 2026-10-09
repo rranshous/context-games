@@ -8,7 +8,6 @@ import { basename } from 'node:path';
 import { asciiMap, statusLine } from './sim/ascii';
 import { runFfa, runMatch, runTournament } from './sim/match';
 import { parseWarrior } from './sim/warrior-file';
-import { CONFIG } from './sim/world';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -16,7 +15,7 @@ const opt = (name: string, def: number) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
 };
-const valued = new Set(['--seed', '--ticks', '--frames', '--seeds', '--matches', '--frame', '--board']);
+const valued = new Set(['--seed', '--ticks', '--frames', '--seeds', '--matches']);
 const files = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 if (!files.length) {
   console.log('usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]');
@@ -24,12 +23,6 @@ if (!files.length) {
 }
 const specs = files.map((f) => parseWarrior(readFileSync(f, 'utf8'), basename(f, '.warrior')));
 const tickCap = opt('ticks', 0) || undefined;
-{
-  const i = args.indexOf('--frame');
-  if (i >= 0) CONFIG.frame = args[i + 1] as 'origin' | 'ip';
-  const b = args.indexOf('--board');
-  if (b >= 0) CONFIG.board = args[b + 1] as 'varied' | 'classic';
-}
 
 if (flag('explore')) {
   // How fast does each warrior get out of its start room? Solo, on many boards.

@@ -41,10 +41,9 @@ var FLOOR = 0;
 var WALL = 1;
 var BOARD_W = 64;
 var BOARD_H = 40;
-function makeBoard(seed, style = "varied") {
-  if (style === "classic") return makeClassic(seed);
+function makeBoard(seed) {
   for (let k = 0; ; k++) {
-    const b = makeVaried(seed, k);
+    const b = makeRooms(seed, k);
     if (b) return b;
   }
 }
@@ -91,7 +90,7 @@ function split(rng, total, n, first, min) {
   parts.push(left);
   return parts;
 }
-function makeVaried(seed, attempt) {
+function makeRooms(seed, attempt) {
   const w = BOARD_W, h = BOARD_H, hw = w / 2, hh = h / 2;
   const rng = makeRng(seed * 7919 + attempt * 104729 ^ 5369127);
   const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
@@ -218,30 +217,6 @@ function makeVaried(seed, attempt) {
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
   return { w, h, terrain, spawns, starts };
 }
-function makeClassic(seed) {
-  const w = BOARD_W, h = BOARD_H;
-  const rng = makeRng(seed ^ 2654435769);
-  const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
-  const tl = { w: randInt(rng, 15, 17), h: randInt(rng, 11, 14), x: 0, y: 0 };
-  tl.x = randInt(rng, 2, 4);
-  tl.y = randInt(rng, 2, 4);
-  const tmW = randInt(rng, 6, 9) * 2;
-  const tm = { w: tmW, h: randInt(rng, 10, 13), x: (w - tmW) / 2, y: randInt(rng, 3, 5) };
-  carve(tl);
-  carve(tm);
-  const hcW = randInt(rng, 3, 5);
-  const hLo = Math.max(tl.y, tm.y), hHi = Math.min(tl.y + tl.h, tm.y + tm.h) - hcW;
-  const hcY = randInt(rng, hLo, Math.max(hLo, hHi));
-  carve({ x: tl.x + tl.w, y: hcY, w: tm.x - (tl.x + tl.w), h: hcW });
-  const vcW = randInt(rng, 2, 4);
-  const vcX = randInt(rng, tl.x + 2, tl.x + tl.w - vcW - 2);
-  carve({ x: vcX, y: tl.y + tl.h, w: vcW, h: h / 2 - (tl.y + tl.h) });
-  const mcW = randInt(rng, 1, 2) * 2;
-  carve({ x: (w - mcW) / 2, y: tm.y + tm.h, w: mcW, h: h / 2 - (tm.y + tm.h) });
-  spawnAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
-  spawnAll(tm.x + 2, tm.y + 2, 1);
-  return { w, h, terrain, spawns, starts: startsFrom(tl) };
-}
 
 // src/sim/world.ts
 var NONE = -1;
@@ -274,19 +249,12 @@ var CONFIG = {
   speedPickup: 1,
   spawnInterval: 120,
   // ticks between respawns at an empty spot
-  tickCap: 5e3,
-  // What instruction offsets are relative to. 'origin': the warrior's body frame, a point
-  // that starts at the IP's start cell and moves only with SHIFT, so a SCAN result stays
-  // valid while the IP walks on through the body. 'ip': the IP's current cell (the
-  // first version; offsets go stale as the IP moves).
-  frame: "origin",
-  board: "varied"
-  // see board.ts
+  tickCap: 5e3
 };
 var World = class {
   constructor(seed, specs2) {
     this.seed = seed;
-    this.board = makeBoard(seed, CONFIG.board);
+    this.board = makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int16Array(this.w * this.h).fill(NONE);
@@ -573,7 +541,7 @@ var World = class {
   // ---------- interpreter ----------
   /** The point instruction offsets are measured from. */
   frame(wr) {
-    return CONFIG.frame === "origin" ? [wr.ox, wr.oy] : [wr.ipX, wr.ipY];
+    return [wr.ox, wr.oy];
   }
   pop(wr) {
     return wr.stack.length ? wr.stack.pop() : 0;
@@ -1153,7 +1121,7 @@ var opt = (name, def) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
 };
-var valued = /* @__PURE__ */ new Set(["--seed", "--ticks", "--frames", "--seeds", "--matches", "--frame", "--board"]);
+var valued = /* @__PURE__ */ new Set(["--seed", "--ticks", "--frames", "--seeds", "--matches"]);
 var files = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]));
 if (!files.length) {
   console.log("usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]");
@@ -1161,12 +1129,6 @@ if (!files.length) {
 }
 var specs = files.map((f) => parseWarrior(readFileSync(f, "utf8"), basename(f, ".warrior")));
 var tickCap = opt("ticks", 0) || void 0;
-{
-  const i = args.indexOf("--frame");
-  if (i >= 0) CONFIG.frame = args[i + 1];
-  const b = args.indexOf("--board");
-  if (b >= 0) CONFIG.board = args[b + 1];
-}
 if (flag("explore")) {
   const n = opt("seeds", 20), cap = tickCap ?? 2e3;
   console.log(`Leaving home: each warrior alone, ${n} boards, ${cap} ticks

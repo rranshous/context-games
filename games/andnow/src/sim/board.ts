@@ -1,10 +1,8 @@
 // Boards: rooms joined by corridors, four-way mirror symmetric so every start corner is
-// equally good. Everything is generated in the top-left quadrant and mirrored.
-//
-// - 'varied' (default): 2–6 rooms per quadrant of mixed sizes, corridors 1–5 wide
-//   (straight or L-shaped, a spanning tree plus extra loops), some central rooms merging
-//   with their mirror images. Resources in the non-start rooms.
-// - 'classic': the first board. 3×2 rooms (four corner starts, two middle rooms).
+// equally good. Everything is generated in the top-left quadrant and mirrored: 2–6 rooms
+// per quadrant of mixed sizes, corridors 1–5 wide (straight or L-shaped, a spanning tree
+// plus extra loops), some central rooms merging with their mirror images. Resources in
+// the non-start rooms.
 import { makeRng, randInt, Rng } from './rng';
 
 export const FLOOR = 0;
@@ -21,21 +19,16 @@ export interface Board {
   starts: Rect[]; // corner rooms: TL, TR, BR, BL (a 2-player match is TL vs TR)
 }
 
-export type BoardStyle = 'varied' | 'classic';
-
 export const BOARD_W = 64;
 export const BOARD_H = 40;
 
-export function makeBoard(seed: number, style: BoardStyle = 'varied'): Board {
-  if (style === 'classic') return makeClassic(seed);
-  // Varied boards are re-rolled until every start and spawn is reachable.
+export function makeBoard(seed: number): Board {
+  // Re-rolled until every start and spawn is reachable.
   for (let k = 0; ; k++) {
-    const b = makeVaried(seed, k);
+    const b = makeRooms(seed, k);
     if (b) return b;
   }
 }
-
-// ---------- shared ----------
 
 function canvas(w: number, h: number) {
   const terrain = new Uint8Array(w * h).fill(WALL);
@@ -64,8 +57,6 @@ function canvas(w: number, h: number) {
   return { terrain, carve, spawns, spawnAll, startsFrom };
 }
 
-// ---------- varied ----------
-
 const WIDTHS = [1, 2, 3, 3, 4, 5]; // corridor widths, weighted toward passable
 
 /** Split `total` into `n` parts, the first at least `first`, the rest at least `min`. */
@@ -84,7 +75,7 @@ function split(rng: Rng, total: number, n: number, first: number, min: number): 
   return parts;
 }
 
-function makeVaried(seed: number, attempt: number): Board | null {
+function makeRooms(seed: number, attempt: number): Board | null {
   const w = BOARD_W, h = BOARD_H, hw = w / 2, hh = h / 2;
   const rng = makeRng((seed * 7919 + attempt * 104729) ^ 0x51ed27);
   const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
@@ -215,42 +206,4 @@ function makeVaried(seed: number, attempt: number): Board | null {
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
 
   return { w, h, terrain, spawns, starts };
-}
-
-// ---------- classic ----------
-
-function makeClassic(seed: number): Board {
-  const w = BOARD_W, h = BOARD_H;
-  const rng = makeRng(seed ^ 0x9e3779b9);
-  const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
-
-  // Top-left corner room.
-  const tl: Rect = { w: randInt(rng, 15, 17), h: randInt(rng, 11, 14), x: 0, y: 0 };
-  tl.x = randInt(rng, 2, 4);
-  tl.y = randInt(rng, 2, 4);
-  // Top-middle room, centered horizontally.
-  const tmW = randInt(rng, 6, 9) * 2;
-  const tm: Rect = { w: tmW, h: randInt(rng, 10, 13), x: (w - tmW) / 2, y: randInt(rng, 3, 5) };
-  carve(tl);
-  carve(tm);
-
-  // Horizontal corridor TL → TM, inside both rooms' row range.
-  const hcW = randInt(rng, 3, 5); // wide enough for 3-row warriors to SHIFT through
-  const hLo = Math.max(tl.y, tm.y), hHi = Math.min(tl.y + tl.h, tm.y + tm.h) - hcW;
-  const hcY = randInt(rng, hLo, Math.max(hLo, hHi));
-  carve({ x: tl.x + tl.w, y: hcY, w: tm.x - (tl.x + tl.w), h: hcW });
-
-  // Vertical corridors TL → BL and TM → BM (mirrored down).
-  const vcW = randInt(rng, 2, 4);
-  const vcX = randInt(rng, tl.x + 2, tl.x + tl.w - vcW - 2);
-  carve({ x: vcX, y: tl.y + tl.h, w: vcW, h: h / 2 - (tl.y + tl.h) });
-  const mcW = randInt(rng, 1, 2) * 2; // even, so it sits on the centerline
-  carve({ x: (w - mcW) / 2, y: tm.y + tm.h, w: mcW, h: h / 2 - (tm.y + tm.h) });
-
-  // Resource spawns: middle rooms only (contested ground; home rooms have nothing),
-  // a speed pair and a size pair in each.
-  spawnAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
-  spawnAll(tm.x + 2, tm.y + 2, 1);
-
-  return { w, h, terrain, spawns, starts: startsFrom(tl) };
 }

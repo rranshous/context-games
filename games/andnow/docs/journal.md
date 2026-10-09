@@ -590,3 +590,12 @@ Generalization (none of these evolved on varied boards), 10 boards, 5000 ticks:
 duels evo4-1..3 119W each, Bomber 79W, Stalker 70W, Viper 63W, evo2-2/evo3-1 55W,
 Gatherer 41W (159 L). FFAs: evo4 ~30% wins (57% on classic), deaths only 2–4%. More
 draws than on classic (341/1100 duels): more places to hide.
+
+### No backward-compat modes
+User: "You keep doing backward compatibility like 'classic'. No need, this is a journey.
+As long as you are journaling and committing regularly we can always peek backwards."
+Removed the `classic` board generator and the `ip` offset frame (and their `--board` /
+`--frame` flags, `CONFIG.board` / `CONFIG.frame`, the viewer's board picker). The room
+board and the body frame are simply how it works now. To look back: the classic board is
+in commit 6918b68's `src/sim/board.ts`; the IP frame is in any commit before b52e3ca.
+From here on, superseded mechanics get replaced, not kept behind switches.

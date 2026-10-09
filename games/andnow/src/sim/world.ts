@@ -7,12 +7,12 @@
 //   in its direction, skipping gaps, and wraps to the far end of its body on that
 //   row/column. It rides on its cell: if the cell moves, the IP moves with it.
 // - All coordinates in instructions are relative to the warrior's body frame: an origin
-//   that starts at the IP's start cell and moves with SHIFT (see CONFIG.frame).
+//   that starts at the IP's start cell and moves with SHIFT.
 // - The IP is hidden from other warriors. Losing the IP's cell, or executing `@`, kills.
 // - Pieces cut off from the IP's piece become debris.
 // - Max size and speed decay toward a floor; resources push them back up.
 // - Last standing wins; at the tick cap, the largest max size wins.
-import { Board, BoardStyle, FLOOR, makeBoard } from './board';
+import { Board, FLOOR, makeBoard } from './board';
 import {
   CODE, COST, DX, DY, GLYPHS, T_DEBRIS, T_ENEMY, T_NOTHING, T_RESOURCE, T_SIZE, T_SPEED, T_WALL,
 } from './glyphs';
@@ -42,12 +42,6 @@ export const CONFIG = {
   speedPickup: 1,
   spawnInterval: 120,   // ticks between respawns at an empty spot
   tickCap: 5000,
-  // What instruction offsets are relative to. 'origin': the warrior's body frame, a point
-  // that starts at the IP's start cell and moves only with SHIFT, so a SCAN result stays
-  // valid while the IP walks on through the body. 'ip': the IP's current cell (the
-  // first version; offsets go stale as the IP moves).
-  frame: 'origin' as 'origin' | 'ip',
-  board: 'varied' as BoardStyle, // see board.ts
 };
 
 export interface Warrior {
@@ -56,7 +50,10 @@ export interface Warrior {
   alive: boolean;
   ipX: number;
   ipY: number;
-  ox: number; // body-frame origin (see CONFIG.frame)
+  // Body-frame origin: instruction offsets are relative to this point. It starts at the
+  // IP's start cell and moves only with SHIFT, so a SCAN result stays valid while the IP
+  // walks on through the body.
+  ox: number;
   oy: number;
   dir: number;
   stack: number[];
@@ -99,7 +96,7 @@ export class World {
   private spawnTimers: number[];
 
   constructor(public seed: number, specs: WarriorSpec[]) {
-    this.board = makeBoard(seed, CONFIG.board);
+    this.board = makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int16Array(this.w * this.h).fill(NONE);
@@ -375,7 +372,7 @@ export class World {
 
   /** The point instruction offsets are measured from. */
   private frame(wr: Warrior): [number, number] {
-    return CONFIG.frame === 'origin' ? [wr.ox, wr.oy] : [wr.ipX, wr.ipY];
+    return [wr.ox, wr.oy];
   }
 
   private pop(wr: Warrior): number { return wr.stack.length ? wr.stack.pop()! : 0; }
