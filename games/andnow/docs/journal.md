@@ -599,3 +599,19 @@ Removed the `classic` board generator and the `ip` offset frame (and their `--bo
 board and the body frame are simply how it works now. To look back: the classic board is
 in commit 6918b68's `src/sim/board.ts`; the IP frame is in any commit before b52e3ca.
 From here on, superseded mechanics get replaced, not kept behind switches.
+
+### Correctness guard before optimizing: golden replays
+User: optimize the sim after evo5, but double-check correctness ("I'd hate to gain speed
+but lose correctness").
+- `src/check.ts` → `node dist/check.mjs --record|--verify test/golden.json`. Runs 433
+  matches (every known pair once, 150 random duels, 100 four-player FFAs, 30 solos) over
+  all known warriors plus 40 random and 40 mutated genomes, 2000 ticks each, and folds a
+  fingerprint of **the full world state into a running hash every tick**: every cell's
+  owner/glyph/resource, every warrior's IP, origin, dir, stack, max size, speed,
+  accumulator, stats, last action, harm record, death, plus the event count, latest event
+  text, and match result. Checkpoints every 50 ticks locate the first divergence.
+- The corpus (warrior texts + seeds) is stored in the golden file, so verify replays exactly
+  what was recorded even as warriors/ changes.
+- Baseline recorded from commit-current code: 831,517 ticks; self-verify OK (the sim is
+  fully deterministic). Coverage, warrior-ticks by last action: SHIFT 540k, BOMB 495k,
+  COLLECT 453k, GROW 86k, WRITE 59k, FLOW 16k, SWAP 10k.

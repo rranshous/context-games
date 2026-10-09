@@ -1,0 +1,1315 @@
+// src/check.ts
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+// src/sim/glyphs.ts
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBW";
+var CODE = {};
+for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
+var DX = [1, 0, -1, 0];
+var DY = [0, 1, 0, -1];
+var DIR_NAMES = ["E", "S", "W", "N"];
+var COST = { M: 2, G: 2, B: 4, W: 3 };
+var T_NOTHING = 0;
+var T_WALL = 1;
+var T_ENEMY = 2;
+var T_DEBRIS = 3;
+var T_SIZE = 4;
+var T_SPEED = 5;
+var T_RESOURCE = 6;
+
+// src/sim/rng.ts
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = a + 1831565813 >>> 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function randInt(rng, lo, hi) {
+  return lo + Math.floor(rng() * (hi - lo + 1));
+}
+
+// src/sim/board.ts
+var FLOOR = 0;
+var WALL = 1;
+var BOARD_W = 64;
+var BOARD_H = 40;
+function makeBoard(seed) {
+  for (let k = 0; ; k++) {
+    const b = makeRooms(seed, k);
+    if (b) return b;
+  }
+}
+function canvas(w, h) {
+  const terrain = new Uint8Array(w * h).fill(WALL);
+  const carve = (r) => {
+    for (const [mx, my] of [[false, false], [true, false], [false, true], [true, true]]) {
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) {
+          const cx = mx ? w - 1 - x : x;
+          const cy = my ? h - 1 - y : y;
+          if (cx > 0 && cy > 0 && cx < w - 1 && cy < h - 1) terrain[cy * w + cx] = FLOOR;
+        }
+      }
+    }
+  };
+  const spawns = [];
+  const spawnAll = (x, y, kind) => {
+    for (const [px, py] of [[x, y], [w - 1 - x, y], [x, h - 1 - y], [w - 1 - x, h - 1 - y]]) {
+      if (!spawns.some((s) => s.x === px && s.y === py)) spawns.push({ x: px, y: py, kind });
+    }
+  };
+  const mirrorRect = (r, mx, my) => ({
+    x: mx ? w - r.x - r.w : r.x,
+    y: my ? h - r.y - r.h : r.y,
+    w: r.w,
+    h: r.h
+  });
+  const startsFrom = (r) => [mirrorRect(r, false, false), mirrorRect(r, true, false), mirrorRect(r, true, true), mirrorRect(r, false, true)];
+  return { terrain, carve, spawns, spawnAll, startsFrom };
+}
+var WIDTHS = [1, 2, 3, 3, 4, 5];
+function split(rng, total, n, first, min) {
+  if (n === 1) return [total];
+  const a = randInt(rng, first, Math.max(first, total - min * (n - 1)));
+  const rest = total - a;
+  const parts = [a];
+  let left = rest;
+  for (let i = 1; i < n - 1; i++) {
+    const p = randInt(rng, min, Math.max(min, left - min * (n - 1 - i)));
+    parts.push(p);
+    left -= p;
+  }
+  parts.push(left);
+  return parts;
+}
+function makeRooms(seed, attempt) {
+  const w = BOARD_W, h = BOARD_H, hw = w / 2, hh = h / 2;
+  const rng = makeRng(seed * 7919 + attempt * 104729 ^ 5369127);
+  const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
+  const qcols = randInt(rng, 2, 3), qrows = randInt(rng, 1, 2);
+  const colW = split(rng, hw - 1, qcols, 18, 7);
+  const rowH = split(rng, hh - 1, qrows, 10, 6);
+  const rooms = [];
+  let y0 = 1;
+  for (let r = 0; r < qrows; r++) {
+    rooms.push([]);
+    let x0 = 1;
+    for (let c = 0; c < qcols; c++) {
+      const cw = colW[c], ch = rowH[r];
+      const start = r === 0 && c === 0;
+      const rw = start ? randInt(rng, 16, Math.max(16, cw - 2)) : randInt(rng, Math.max(4, Math.floor(cw * 0.4)), Math.max(4, cw - 3));
+      const rh = start ? randInt(rng, Math.min(8, ch - 2), ch - 2) : randInt(rng, Math.max(3, Math.floor(ch * 0.4)), Math.max(3, ch - 3));
+      const room = { x: x0 + randInt(rng, 0, cw - rw - 1) + (start ? 1 : 0), y: y0 + randInt(rng, 0, ch - rh - 1) + (start ? 1 : 0), w: rw, h: rh };
+      if (start) {
+        room.x = Math.min(room.x, x0 + cw - rw);
+        room.y = Math.min(room.y, y0 + ch - rh);
+      }
+      if (c === qcols - 1 && rng() < 0.25) room.w = hw - room.x;
+      if (r === qrows - 1 && rng() < 0.25) room.h = hh - room.y;
+      rooms[r].push(room);
+      carve(room);
+      x0 += cw;
+    }
+    y0 += rowH[r];
+  }
+  const center = (a) => ({ x: a.x + Math.floor(a.w / 2), y: a.y + Math.floor(a.h / 2) });
+  const corridor = (a, b, cw) => {
+    const ylo = Math.max(a.y, b.y), yhi = Math.min(a.y + a.h, b.y + b.h) - cw;
+    const xlo = Math.max(a.x, b.x), xhi = Math.min(a.x + a.w, b.x + b.w) - cw;
+    if (yhi >= ylo && (b.x >= a.x + a.w || a.x >= b.x + b.w)) {
+      const y = randInt(rng, ylo, yhi);
+      const [l, r] = a.x < b.x ? [a, b] : [b, a];
+      carve({ x: l.x + l.w, y, w: r.x - (l.x + l.w), h: cw });
+    } else if (xhi >= xlo && (b.y >= a.y + a.h || a.y >= b.y + b.h)) {
+      const x = randInt(rng, xlo, xhi);
+      const [t, u] = a.y < b.y ? [a, b] : [b, a];
+      carve({ x, y: t.y + t.h, w: cw, h: u.y - (t.y + t.h) });
+    } else {
+      const pa = center(a), pb = center(b);
+      carve({ x: Math.min(pa.x, pb.x), y: pa.y, w: Math.abs(pa.x - pb.x) + cw, h: cw });
+      carve({ x: pb.x, y: Math.min(pa.y, pb.y), w: cw, h: Math.abs(pa.y - pb.y) + cw });
+    }
+  };
+  const key2 = (r, c) => r * 10 + c;
+  const seen = /* @__PURE__ */ new Set([key2(0, 0)]);
+  const stack = [[0, 0]];
+  const edges = /* @__PURE__ */ new Set();
+  const startExits = [];
+  const link = (r1, c1, r2, c2) => {
+    const id = [key2(r1, c1), key2(r2, c2)].sort().join("-");
+    if (edges.has(id)) return;
+    edges.add(id);
+    const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+    if (r1 === 0 && c1 === 0 || r2 === 0 && c2 === 0) startExits.push(cw);
+    corridor(rooms[r1][c1], rooms[r2][c2], cw);
+  };
+  while (stack.length) {
+    const [r, c] = stack[stack.length - 1];
+    const next = [[r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]].filter(([a2, b2]) => a2 >= 0 && b2 >= 0 && a2 < qrows && b2 < qcols && !seen.has(key2(a2, b2)));
+    if (!next.length) {
+      stack.pop();
+      continue;
+    }
+    const [a, b] = next[Math.floor(rng() * next.length)];
+    seen.add(key2(a, b));
+    link(r, c, a, b);
+    stack.push([a, b]);
+  }
+  for (let r = 0; r < qrows; r++) {
+    for (let c = 0; c < qcols; c++) {
+      if (c + 1 < qcols && rng() < 0.4) link(r, c, r, c + 1);
+      if (r + 1 < qrows && rng() < 0.4) link(r, c, r + 1, c);
+    }
+  }
+  if (!startExits.some((cw) => cw >= 3)) {
+    const [r, c] = qcols > 1 ? [0, 1] : [1, 0];
+    corridor(rooms[0][0], rooms[r][c], randInt(rng, 3, 5));
+  }
+  const crossRight = rooms.map((row) => row[qcols - 1]);
+  const crossDown = rooms[qrows - 1];
+  const cross = (list, horizontal) => {
+    let any = list.some((a) => horizontal ? a.x + a.w >= hw : a.y + a.h >= hh);
+    list.forEach((a, i) => {
+      const touches = horizontal ? a.x + a.w >= hw : a.y + a.h >= hh;
+      if (touches || any && rng() < 0.5 && i !== list.length - 1) return;
+      const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+      if (horizontal) carve({ x: a.x + a.w, y: randInt(rng, a.y, a.y + a.h - Math.min(cw, a.h)), w: hw - (a.x + a.w), h: cw });
+      else carve({ x: randInt(rng, a.x, a.x + a.w - Math.min(cw, a.w)), y: a.y + a.h, w: cw, h: hh - (a.y + a.h) });
+      any = true;
+    });
+  };
+  cross(crossRight, true);
+  cross(crossDown, false);
+  const others = rooms.flat().filter((r) => r !== rooms[0][0]);
+  const inside = (a) => ({ x: a.x + randInt(rng, 1, Math.max(1, a.w - 2)), y: a.y + randInt(rng, 1, Math.max(1, a.h - 2)) });
+  for (let k = 0; k < 2; k++) {
+    const p = inside(others[Math.floor(rng() * others.length)]);
+    spawnAll(Math.min(p.x, hw - 1), Math.min(p.y, hh - 1), 1);
+  }
+  {
+    const p = inside(others[Math.floor(rng() * others.length)]);
+    spawnAll(Math.min(p.x, hw - 1), Math.min(p.y, hh - 1), 2);
+  }
+  const starts = startsFrom(rooms[0][0]);
+  const reach = new Uint8Array(w * h);
+  const s0 = starts[0];
+  const q = [(s0.y + 1) * w + s0.x + 1];
+  reach[q[0]] = 1;
+  while (q.length) {
+    const i = q.pop();
+    for (const n of [i - 1, i + 1, i - w, i + w]) {
+      if (n >= 0 && n < w * h && !reach[n] && terrain[n] === FLOOR) {
+        reach[n] = 1;
+        q.push(n);
+      }
+    }
+  }
+  for (const s of starts) if (!reach[(s.y + 1) * w + s.x + 1]) return null;
+  for (const sp of spawns) if (!reach[sp.y * w + sp.x]) return null;
+  for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
+  return { w, h, terrain, spawns, starts };
+}
+
+// src/sim/world.ts
+var NONE = -1;
+var DEBRIS = -2;
+var CONFIG = {
+  sight: 14,
+  // LoS range from each cell (Chebyshev)
+  bombRange: 6,
+  // BOMB reach from the cell that sees the target
+  writeRange: 2,
+  // WRITE reach into foreign cells, from the cell that sees the target
+  killPay: 0.25,
+  // a killer takes this fraction of the victim's max size and speed
+  creditWindow: 500,
+  // a death within this many ticks of being harmed credits the harmer
+  stackMax: 64,
+  sizeFloor: 8,
+  sizeCap: 64,
+  startSize: 30,
+  // every warrior starts with this max size; bodies can't be bigger
+  sizeDecay: 4e-3,
+  // per tick
+  sizePickup: 4,
+  debrisPickup: 0.5,
+  speedStart: 2,
+  speedFloor: 1,
+  speedCap: 8,
+  speedDecay: 1e-3,
+  // per tick
+  speedPickup: 1,
+  spawnInterval: 120,
+  // ticks between respawns at an empty spot
+  tickCap: 5e3
+};
+var World = class {
+  constructor(seed, specs) {
+    this.seed = seed;
+    this.board = makeBoard(seed);
+    this.w = this.board.w;
+    this.h = this.board.h;
+    this.owner = new Int16Array(this.w * this.h).fill(NONE);
+    this.code = new Uint8Array(this.w * this.h);
+    this.resource = new Uint8Array(this.w * this.h);
+    this.rng = makeRng(seed);
+    this.spawnTimers = this.board.spawns.map(() => 0);
+    for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
+    specs.forEach((s, i) => this.place(s, i));
+  }
+  board;
+  w;
+  h;
+  owner;
+  code;
+  resource;
+  // 0 none, 1 size, 2 speed
+  warriors = [];
+  t = 0;
+  rng;
+  events = [];
+  result = { over: false, winner: null, reason: "" };
+  spawnTimers;
+  // ---------- setup ----------
+  place(spec, id) {
+    if (spec.cells.length > CONFIG.startSize) {
+      throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startSize}`);
+    }
+    const room = this.board.starts[id % this.board.starts.length];
+    const ox = room.x + Math.floor((room.w - spec.width) / 2);
+    const oy = room.y + Math.floor((room.h - spec.height) / 2);
+    const wr = {
+      id,
+      name: spec.name,
+      alive: true,
+      ipX: ox + spec.ip.x,
+      ipY: oy + spec.ip.y,
+      ox: ox + spec.ip.x,
+      oy: oy + spec.ip.y,
+      dir: spec.dir,
+      stack: [],
+      maxSize: CONFIG.startSize,
+      speed: CONFIG.speedStart,
+      accum: 0,
+      lastOk: true,
+      lastAct: "",
+      cellCount: 0,
+      executed: 0,
+      spec,
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
+      home: room
+    };
+    for (const c of spec.cells) {
+      const x = ox + c.x, y = oy + c.y;
+      if (!this.isFloor(x, y)) throw new Error(`${spec.name} does not fit in its start room`);
+      const i = this.idx(x, y);
+      this.owner[i] = id;
+      this.code[i] = c.code;
+      this.resource[i] = 0;
+      wr.cellCount++;
+    }
+    this.warriors.push(wr);
+  }
+  // ---------- helpers ----------
+  idx(x, y) {
+    return y * this.w + x;
+  }
+  inBounds(x, y) {
+    return x >= 0 && y >= 0 && x < this.w && y < this.h;
+  }
+  isFloor(x, y) {
+    return this.inBounds(x, y) && this.board.terrain[this.idx(x, y)] === FLOOR;
+  }
+  ownerAt(x, y) {
+    return this.inBounds(x, y) ? this.owner[this.idx(x, y)] : NONE;
+  }
+  /** Floor with nothing on it: no cell, no debris, no resource. */
+  isFree(x, y) {
+    if (!this.isFloor(x, y)) return false;
+    const i = this.idx(x, y);
+    return this.owner[i] === NONE && this.resource[i] === 0;
+  }
+  cellsOf(id) {
+    const out = [];
+    for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === id) out.push(i);
+    return out;
+  }
+  log(kind, text, who) {
+    this.events.push({ t: this.t, kind, text, who });
+    if (this.events.length > 2e3) this.events.splice(0, 500);
+  }
+  // Walls block LoS; cells don't. Bresenham, endpoints excluded.
+  clearLine(x0, y0, x1, y1) {
+    let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy, x = x0, y = y0;
+    while (true) {
+      if (x === x1 && y === y1) return true;
+      if (!(x === x0 && y === y0) && this.board.terrain[this.idx(x, y)] !== FLOOR) return false;
+      const e2 = 2 * err;
+      if (e2 >= dy) {
+        err += dy;
+        x += sx;
+      }
+      if (e2 <= dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+  }
+  /** Index of one of my cells that sees (x,y) within `range`, or -1. Own cells always count as seen. */
+  seer(id, x, y, range = CONFIG.sight, mine) {
+    if (this.ownerAt(x, y) === id) return this.idx(x, y);
+    for (const c of mine ?? this.cellsOf(id)) {
+      const cx = c % this.w, cy = c / this.w | 0;
+      if (Math.max(Math.abs(cx - x), Math.abs(cy - y)) > range) continue;
+      if (this.clearLine(cx, cy, x, y)) return c;
+    }
+    return -1;
+  }
+  /** 4-connected check of a warrior's cells from its IP. Returns unreached cells. */
+  unreached(wr) {
+    const mine = this.cellsOf(wr.id);
+    const seen = /* @__PURE__ */ new Set();
+    const start = this.idx(wr.ipX, wr.ipY);
+    if (this.owner[start] !== wr.id) return mine;
+    const queue = [start];
+    seen.add(start);
+    while (queue.length) {
+      const c = queue.pop();
+      const x = c % this.w, y = c / this.w | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (this.ownerAt(nx, ny) !== wr.id) continue;
+        const n = this.idx(nx, ny);
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+      }
+    }
+    return mine.filter((c) => !seen.has(c));
+  }
+  toDebris(i) {
+    const o = this.owner[i];
+    if (o >= 0) this.warriors[o].cellCount--;
+    this.owner[i] = DEBRIS;
+  }
+  kill(wr, reason) {
+    if (!wr.alive) return;
+    wr.alive = false;
+    wr.deathReason = reason;
+    wr.diedAt = this.t;
+    for (const c of this.cellsOf(wr.id)) this.toDebris(c);
+    this.log("death", `${wr.name} died: ${reason}`, wr.id);
+    const h = wr.lastHarm;
+    const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : void 0;
+    if (killer && killer.alive && killer !== wr) {
+      killer.stats.kills++;
+      killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
+      killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
+      this.log("kill", `${killer.name} takes a cut of ${wr.name} (max ${Math.floor(killer.maxSize)}, speed ${killer.speed.toFixed(2)})`, killer.id);
+    }
+  }
+  /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
+  destroy(i, by) {
+    const o = this.owner[i];
+    this.owner[i] = NONE;
+    this.code[i] = 0;
+    if (o < 0) return;
+    const victim = this.warriors[o];
+    victim.cellCount--;
+    victim.lastHarm = { by: by.id, t: this.t };
+    if (i === this.idx(victim.ipX, victim.ipY)) {
+      this.kill(victim, `core bombed by ${by.name}`);
+      return;
+    }
+    const cut = this.unreached(victim);
+    if (cut.length) {
+      for (const c of cut) this.toDebris(c);
+      this.log("cut", `${victim.name} lost ${cut.length} cells cut off`, victim.id);
+    }
+  }
+  // ---------- tick ----------
+  tick() {
+    if (this.result.over) return;
+    this.t++;
+    this.board.spawns.forEach((s, k) => {
+      const i = this.idx(s.x, s.y);
+      let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
+      for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
+      if (touched) {
+        this.spawnTimers[k] = 0;
+        return;
+      }
+      if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
+        this.resource[i] = s.kind;
+        this.spawnTimers[k] = 0;
+      }
+    });
+    const n = this.warriors.length;
+    for (let k = 0; k < n; k++) {
+      const wr = this.warriors[(this.t + k) % n];
+      if (!wr.alive) continue;
+      wr.accum += wr.speed;
+      while (wr.accum >= 1 && wr.alive) wr.accum -= this.step(wr);
+    }
+    for (const wr of this.warriors) {
+      if (!wr.alive) continue;
+      const hm = wr.home;
+      if (wr.leftHomeAt === void 0 && (wr.ipX < hm.x || wr.ipY < hm.y || wr.ipX >= hm.x + hm.w || wr.ipY >= hm.y + hm.h)) {
+        wr.leftHomeAt = this.t;
+        this.log("left", `${wr.name} left its start room`, wr.id);
+      }
+      wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
+      wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
+      if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
+      if (wr.cellCount <= 0) this.kill(wr, "no cells left");
+    }
+    this.checkOver();
+  }
+  /**
+   * Upkeep: lose one cell. Burn fat first: the farthest `.` (no-op) cell whose removal
+   * keeps the body connected. With no fat, drop the cell farthest (by path) from the IP,
+   * which can never disconnect the rest — but is usually code, so the program rots.
+   */
+  shed(wr) {
+    const start = this.idx(wr.ipX, wr.ipY);
+    const dist = /* @__PURE__ */ new Map([[start, 0]]);
+    const queue = [start];
+    for (let q = 0; q < queue.length; q++) {
+      const c = queue[q];
+      const x = c % this.w, y = c / this.w | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (this.ownerAt(nx, ny) !== wr.id) continue;
+        const ni = this.idx(nx, ny);
+        if (!dist.has(ni)) {
+          dist.set(ni, dist.get(c) + 1);
+          queue.push(ni);
+        }
+      }
+    }
+    const byFar = queue.slice(1).reverse();
+    if (!byFar.length) return;
+    let drop = byFar[0];
+    for (const c of byFar) {
+      if (this.code[c] !== CODE["."]) continue;
+      this.owner[c] = NONE;
+      const ok = this.unreached(wr).length === 0;
+      this.owner[c] = wr.id;
+      if (ok) {
+        drop = c;
+        break;
+      }
+    }
+    const lost = GLYPHS[this.code[drop]] ?? ".";
+    this.owner[drop] = NONE;
+    this.code[drop] = 0;
+    wr.cellCount--;
+    this.log("shed", `${wr.name} shed ${lost === "." ? "fat" : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
+  }
+  checkOver() {
+    const alive = this.warriors.filter((w) => w.alive);
+    if (this.warriors.length > 1 && alive.length <= 1) {
+      this.result = alive.length ? { over: true, winner: alive[0].id, reason: "last standing" } : { over: true, winner: null, reason: "mutual destruction" };
+    } else if (this.warriors.length === 1 && alive.length === 0) {
+      this.result = { over: true, winner: null, reason: "died" };
+    } else if (this.t >= CONFIG.tickCap) {
+      const keys = (w) => [w.maxSize, w.speed, w.cellCount];
+      const cmp = (a, b) => {
+        const ka = keys(a), kb = keys(b);
+        for (let k = 0; k < ka.length; k++) if (Math.abs(ka[k] - kb[k]) >= 0.01) return kb[k] - ka[k];
+        return 0;
+      };
+      const ranked = [...alive].sort(cmp);
+      const tied = ranked.length > 1 && cmp(ranked[0], ranked[1]) === 0;
+      const top = ranked[0];
+      const by = ranked.length < 2 || Math.abs(top.maxSize - ranked[1].maxSize) >= 0.01 ? `largest max size (${top.maxSize.toFixed(1)})` : Math.abs(top.speed - ranked[1].speed) >= 0.01 ? `max size tied, faster (${top.speed.toFixed(2)})` : `max size and speed tied, more cells (${top.cellCount})`;
+      this.result = tied ? { over: true, winner: null, reason: "draw at tick cap" } : { over: true, winner: top.id, reason: `${by} at tick cap` };
+    }
+    if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
+  }
+  // ---------- interpreter ----------
+  /** The point instruction offsets are measured from. */
+  frame(wr) {
+    return [wr.ox, wr.oy];
+  }
+  pop(wr) {
+    return wr.stack.length ? wr.stack.pop() : 0;
+  }
+  push(wr, v) {
+    wr.stack.push(v | 0);
+    if (wr.stack.length > CONFIG.stackMax) wr.stack.shift();
+  }
+  /** Move the IP to the next own cell in its direction, wrapping within the body. */
+  advance(wr) {
+    const dx = DX[wr.dir], dy = DY[wr.dir];
+    let x = wr.ipX + dx, y = wr.ipY + dy;
+    while (this.inBounds(x, y)) {
+      if (this.owner[this.idx(x, y)] === wr.id) {
+        wr.ipX = x;
+        wr.ipY = y;
+        return;
+      }
+      x += dx;
+      y += dy;
+    }
+    x = dx > 0 ? 0 : dx < 0 ? this.w - 1 : wr.ipX;
+    y = dy > 0 ? 0 : dy < 0 ? this.h - 1 : wr.ipY;
+    while (!(x === wr.ipX && y === wr.ipY)) {
+      if (this.owner[this.idx(x, y)] === wr.id) {
+        wr.ipX = x;
+        wr.ipY = y;
+        return;
+      }
+      x += dx;
+      y += dy;
+    }
+  }
+  /** Execute one instruction. Returns its cycle cost. */
+  step(wr) {
+    const g = GLYPHS[this.code[this.idx(wr.ipX, wr.ipY)]] ?? ".";
+    wr.executed++;
+    let skip = false;
+    const pop = () => this.pop(wr);
+    const push = (v) => this.push(wr, v);
+    switch (g) {
+      case ">":
+        wr.dir = 0;
+        break;
+      case "v":
+        wr.dir = 1;
+        break;
+      case "<":
+        wr.dir = 2;
+        break;
+      case "^":
+        wr.dir = 3;
+        break;
+      case "_":
+        wr.dir = pop() === 0 ? 0 : 2;
+        break;
+      case "|":
+        wr.dir = pop() === 0 ? 1 : 3;
+        break;
+      case "#":
+        skip = true;
+        break;
+      case "?":
+        wr.dir = Math.floor(this.rng() * 4);
+        break;
+      case "@":
+        this.kill(wr, "executed @");
+        return 1;
+      case "r":
+        wr.dir = (wr.dir + 2) % 4;
+        break;
+      case "[":
+        wr.dir = (wr.dir + 3) % 4;
+        break;
+      case "]":
+        wr.dir = (wr.dir + 1) % 4;
+        break;
+      case ":": {
+        const a = pop();
+        push(a);
+        push(a);
+        break;
+      }
+      case "\\": {
+        const b = pop(), a = pop();
+        push(b);
+        push(a);
+        break;
+      }
+      case "$":
+        pop();
+        break;
+      case "o": {
+        const b = pop(), a = pop();
+        push(a);
+        push(b);
+        push(a);
+        break;
+      }
+      case "+": {
+        const b = pop(), a = pop();
+        push(a + b);
+        break;
+      }
+      case "-": {
+        const b = pop(), a = pop();
+        push(a - b);
+        break;
+      }
+      case "*": {
+        const b = pop(), a = pop();
+        push(a * b);
+        break;
+      }
+      case "/": {
+        const b = pop(), a = pop();
+        push(b === 0 ? 0 : Math.trunc(a / b));
+        break;
+      }
+      case "%": {
+        const b = pop(), a = pop();
+        push(b === 0 ? 0 : a % b);
+        break;
+      }
+      case "!":
+        push(pop() === 0 ? 1 : 0);
+        break;
+      case "`": {
+        const b = pop(), a = pop();
+        push(a > b ? 1 : 0);
+        break;
+      }
+      case "=": {
+        const b = pop(), a = pop();
+        push(a === b ? 1 : 0);
+        break;
+      }
+      case "'": {
+        const sx = wr.ipX, sy = wr.ipY;
+        this.advance(wr);
+        push(this.code[this.idx(wr.ipX, wr.ipY)]);
+        wr.ipX = sx;
+        wr.ipY = sy;
+        skip = true;
+        break;
+      }
+      case "y": {
+        const n = pop();
+        push(n > 0 ? Math.floor(this.rng() * n) : 0);
+        break;
+      }
+      case "s":
+        push(wr.cellCount);
+        break;
+      case "m":
+        push(Math.floor(wr.maxSize));
+        break;
+      case "f":
+        push(Math.floor(wr.speed * 10));
+        break;
+      case "d":
+        push(wr.dir);
+        break;
+      case "e":
+        push(wr.lastOk ? 1 : 0);
+        break;
+      case "L":
+        this.opLook(wr);
+        break;
+      case "S":
+        this.opScan(wr);
+        break;
+      case "R":
+        this.opRead(wr);
+        break;
+      case "T": {
+        const dy = pop(), dx = pop();
+        if (dx === 0 && dy === 0) push(Math.floor(this.rng() * 4));
+        else if (Math.abs(dx) >= Math.abs(dy)) push(dx > 0 ? 0 : 2);
+        else push(dy > 0 ? 1 : 3);
+        break;
+      }
+      case "M":
+        wr.lastOk = this.opShift(wr, pop());
+        break;
+      case "F": {
+        const d = pop(), dy = pop(), dx = pop();
+        wr.lastOk = this.opFlow(wr, dx, dy, d);
+        break;
+      }
+      case "X": {
+        const dy2 = pop(), dx2 = pop(), dy1 = pop(), dx1 = pop();
+        wr.lastOk = this.opSwap(wr, dx1, dy1, dx2, dy2);
+        break;
+      }
+      case "G": {
+        const c = pop(), d = pop();
+        wr.lastOk = this.opGrow(wr, d, c);
+        break;
+      }
+      case "C":
+        wr.lastOk = this.opCollect(wr);
+        break;
+      case "B": {
+        const dy = pop(), dx = pop();
+        wr.lastOk = this.opBomb(wr, dx, dy);
+        break;
+      }
+      case "W": {
+        const c = pop(), dy = pop(), dx = pop();
+        wr.lastOk = this.opWrite(wr, dx, dy, c);
+        break;
+      }
+      default:
+        if (g >= "0" && g <= "9") push(g.charCodeAt(0) - 48);
+        break;
+    }
+    if ("MFXGCBW".includes(g)) wr.lastAct = g;
+    if (!wr.alive) return COST[g] ?? 1;
+    this.advance(wr);
+    if (skip) this.advance(wr);
+    return COST[g] ?? 1;
+  }
+  // ---------- sensing ----------
+  classify(x, y, me) {
+    if (!this.isFloor(x, y)) return T_WALL;
+    const i = this.idx(x, y);
+    const o = this.owner[i];
+    if (o === DEBRIS) return T_DEBRIS;
+    if (o >= 0 && o !== me) return T_ENEMY;
+    if (this.resource[i] === 1) return T_SIZE;
+    if (this.resource[i] === 2) return T_SPEED;
+    return T_NOTHING;
+  }
+  opLook(wr) {
+    const d = (this.pop(wr) % 4 + 4) % 4;
+    let x = wr.ipX, y = wr.ipY;
+    for (let dist = 1; dist <= CONFIG.sight; dist++) {
+      x += DX[d];
+      y += DY[d];
+      if (this.ownerAt(x, y) === wr.id) continue;
+      const t = this.classify(x, y, wr.id);
+      if (t !== T_NOTHING) {
+        this.push(wr, dist);
+        this.push(wr, t);
+        return;
+      }
+    }
+    this.push(wr, 0);
+    this.push(wr, T_NOTHING);
+  }
+  opScan(wr) {
+    const type = this.pop(wr);
+    const mine = this.cellsOf(wr.id);
+    const r = CONFIG.sight;
+    const [fx, fy] = this.frame(wr);
+    const cands = [];
+    for (let y = Math.max(0, wr.ipY - r - 16); y <= Math.min(this.h - 1, wr.ipY + r + 16); y++) {
+      for (let x = Math.max(0, wr.ipX - r - 16); x <= Math.min(this.w - 1, wr.ipX + r + 16); x++) {
+        const t = this.classify(x, y, wr.id);
+        const match = type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type;
+        if (!match || t === T_WALL || t === T_NOTHING) continue;
+        cands.push([Math.abs(x - fx) + Math.abs(y - fy), x, y]);
+      }
+    }
+    cands.sort((a, b) => a[0] - b[0]);
+    for (const [, x, y] of cands) {
+      if (this.seer(wr.id, x, y, r, mine) >= 0) {
+        this.push(wr, x - fx);
+        this.push(wr, y - fy);
+        this.push(wr, 1);
+        return;
+      }
+    }
+    this.push(wr, 0);
+    this.push(wr, 0);
+    this.push(wr, 0);
+  }
+  opRead(wr) {
+    const dy = this.pop(wr), dx = this.pop(wr);
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
+    if (!this.inBounds(x, y) || this.owner[this.idx(x, y)] === NONE || this.seer(wr.id, x, y) < 0) {
+      this.push(wr, -1);
+      return;
+    }
+    this.push(wr, this.code[this.idx(x, y)]);
+  }
+  // ---------- actions ----------
+  opShift(wr, d) {
+    d = (d % 4 + 4) % 4;
+    const mine = this.cellsOf(wr.id);
+    for (const c of mine) {
+      const nx = c % this.w + DX[d], ny = (c / this.w | 0) + DY[d];
+      if (this.ownerAt(nx, ny) === wr.id) continue;
+      if (!this.isFree(nx, ny)) return false;
+    }
+    const codes = mine.map((c) => this.code[c]);
+    for (const c of mine) {
+      this.owner[c] = NONE;
+      this.code[c] = 0;
+    }
+    mine.forEach((c, k) => {
+      const ni = this.idx(c % this.w + DX[d], (c / this.w | 0) + DY[d]);
+      this.owner[ni] = wr.id;
+      this.code[ni] = codes[k];
+    });
+    wr.ipX += DX[d];
+    wr.ipY += DY[d];
+    wr.ox += DX[d];
+    wr.oy += DY[d];
+    return true;
+  }
+  opFlow(wr, dx, dy, d) {
+    d = (d % 4 + 4) % 4;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
+    const nx = x + DX[d], ny = y + DY[d];
+    if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
+    const from = this.idx(x, y), to = this.idx(nx, ny);
+    const isIp = x === wr.ipX && y === wr.ipY;
+    this.owner[to] = wr.id;
+    this.code[to] = this.code[from];
+    this.owner[from] = NONE;
+    this.code[from] = 0;
+    if (isIp) {
+      wr.ipX = nx;
+      wr.ipY = ny;
+    }
+    if (this.unreached(wr).length) {
+      this.owner[from] = wr.id;
+      this.code[from] = this.code[to];
+      this.owner[to] = NONE;
+      this.code[to] = 0;
+      if (isIp) {
+        wr.ipX = x;
+        wr.ipY = y;
+      }
+      return false;
+    }
+    return true;
+  }
+  opSwap(wr, dx1, dy1, dx2, dy2) {
+    const [fx, fy] = this.frame(wr);
+    const a = [fx + dx1, fy + dy1], b = [fx + dx2, fy + dy2];
+    if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
+    const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
+    [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
+    return true;
+  }
+  opGrow(wr, d, code) {
+    d = (d % 4 + 4) % 4;
+    if (wr.cellCount >= Math.floor(wr.maxSize)) return false;
+    let x = wr.ipX, y = wr.ipY;
+    while (this.ownerAt(x, y) === wr.id) {
+      x += DX[d];
+      y += DY[d];
+    }
+    if (!this.isFree(x, y)) return false;
+    const i = this.idx(x, y);
+    this.owner[i] = wr.id;
+    this.code[i] = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
+    wr.cellCount++;
+    return true;
+  }
+  opCollect(wr) {
+    let got = false;
+    for (const c of this.cellsOf(wr.id)) {
+      const x = c % this.w, y = c / this.w | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (!this.inBounds(nx, ny)) continue;
+        const i = this.idx(nx, ny);
+        if (this.resource[i] === 1) {
+          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup);
+          this.log("collect", `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
+        } else if (this.resource[i] === 2) {
+          wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
+          this.log("collect", `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
+        } else if (this.owner[i] === DEBRIS) {
+          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.debrisPickup);
+          this.owner[i] = NONE;
+          this.code[i] = 0;
+          got = true;
+          continue;
+        } else continue;
+        this.resource[i] = 0;
+        wr.stats.collected++;
+        got = true;
+      }
+    }
+    return got;
+  }
+  opBomb(wr, dx, dy) {
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
+    const o = this.ownerAt(x, y);
+    if (o === NONE || o === wr.id) return false;
+    if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
+    const victim = o >= 0 ? this.warriors[o].name : "debris";
+    if (o >= 0) wr.stats.bombHits++;
+    this.destroy(this.idx(x, y), wr);
+    this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
+    return true;
+  }
+  opWrite(wr, dx, dy, code) {
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
+    const o = this.ownerAt(x, y);
+    if (o === NONE) return false;
+    if (o !== wr.id) {
+      if (this.seer(wr.id, x, y, CONFIG.writeRange) < 0) return false;
+    }
+    const c = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
+    this.code[this.idx(x, y)] = c;
+    if (o >= 0 && o !== wr.id) {
+      if (c === CODE["@"]) wr.stats.poisonWrites++;
+      if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
+      this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
+    }
+    return true;
+  }
+};
+
+// src/ga/genome.ts
+var WEIGHTS = {
+  ".": 1,
+  ">": 1,
+  "<": 1,
+  "^": 1,
+  "v": 1,
+  "_": 0.7,
+  "|": 0.7,
+  "#": 0.5,
+  "?": 0.5,
+  "@": 0.2,
+  r: 0.5,
+  "[": 0.5,
+  "]": 0.5,
+  ":": 1,
+  "\\": 1,
+  $: 1,
+  o: 1,
+  "+": 0.6,
+  "-": 0.6,
+  "*": 0.4,
+  "/": 0.3,
+  "%": 0.3,
+  "!": 0.6,
+  "`": 0.5,
+  "=": 0.4,
+  "'": 0.4,
+  y: 0.6,
+  s: 0.3,
+  m: 0.3,
+  f: 0.2,
+  d: 0.5,
+  e: 0.8,
+  L: 0.8,
+  S: 2,
+  R: 0.6,
+  T: 2,
+  M: 2,
+  F: 0.6,
+  X: 0.4,
+  G: 0.8,
+  C: 2,
+  B: 1.5,
+  W: 1.5
+};
+for (let d = 0; d <= 9; d++) WEIGHTS[String(d)] = 0.35;
+var TABLE = [...GLYPHS].map((g, i) => [i, WEIGHTS[g] ?? 0.3]);
+var TOTAL = TABLE.reduce((a, [, w]) => a + w, 0);
+function randomCode(rng) {
+  let r = rng() * TOTAL;
+  for (const [c, w] of TABLE) if ((r -= w) <= 0) return c;
+  return 0;
+}
+var pick = (rng, xs) => xs[Math.floor(rng() * xs.length)];
+var key = (x, y) => `${x},${y}`;
+function toText(g, name, comments = []) {
+  const xs = g.cells.map((c) => c.x), ys = g.cells.map((c) => c.y);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const grid = Array.from({ length: y1 - y0 + 1 }, () => Array(x1 - x0 + 1).fill(" "));
+  for (const c of g.cells) grid[c.y - y0][c.x - x0] = GLYPHS[c.code];
+  return [
+    `name: ${name}`,
+    ...comments.map((c) => `# ${c}`),
+    `dir: ${DIR_NAMES[g.dir]}`,
+    `ip: ${g.ip.x - x0} ${g.ip.y - y0}`,
+    "---",
+    ...grid.map((r) => r.join("").replace(/\s+$/, "")),
+    ""
+  ].join("\n");
+}
+function repair(g) {
+  const at = new Map(g.cells.map((c) => [key(c.x, c.y), c]));
+  if (!at.has(key(g.ip.x, g.ip.y))) {
+    const c = g.cells[0] ?? { x: 0, y: 0, code: 0 };
+    if (!g.cells.length) g.cells.push(c);
+    g.ip = { x: c.x, y: c.y };
+    at.set(key(c.x, c.y), c);
+  }
+  const order = [];
+  const seen = /* @__PURE__ */ new Set([key(g.ip.x, g.ip.y)]);
+  const queue = [at.get(key(g.ip.x, g.ip.y))];
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q];
+    order.push(c);
+    for (let d = 0; d < 4; d++) {
+      const k = key(c.x + DX[d], c.y + DY[d]);
+      const n = at.get(k);
+      if (n && !seen.has(k)) {
+        seen.add(k);
+        queue.push(n);
+      }
+    }
+  }
+  g.cells = order.slice(0, CONFIG.startSize);
+  return g;
+}
+function randomGenome(rng) {
+  const n = 6 + Math.floor(rng() * 15);
+  const cells = [{ x: 0, y: 0, code: randomCode(rng) }];
+  const taken = /* @__PURE__ */ new Set([key(0, 0)]);
+  const dirW = [0.35, 0.15, 0.35, 0.15];
+  while (cells.length < n) {
+    const from = pick(rng, cells);
+    let r = rng(), d = 0;
+    while ((r -= dirW[d]) > 0) d++;
+    const x = from.x + DX[d], y = from.y + DY[d];
+    if (taken.has(key(x, y)) || Math.abs(y) > 3) continue;
+    taken.add(key(x, y));
+    cells.push({ x, y, code: randomCode(rng) });
+  }
+  return { cells, ip: { x: 0, y: 0 }, dir: Math.floor(rng() * 4) };
+}
+function freeNeighbors(g) {
+  const taken = new Set(g.cells.map((c) => key(c.x, c.y)));
+  const out = [];
+  for (const c of g.cells) {
+    for (let d = 0; d < 4; d++) {
+      const x = c.x + DX[d], y = c.y + DY[d];
+      if (!taken.has(key(x, y))) out.push({ x, y });
+    }
+  }
+  return out;
+}
+var OPS = [
+  ["point", 4],
+  ["add", 2],
+  ["remove", 2],
+  ["dupe", 1],
+  ["swap", 1],
+  ["ip", 0.5],
+  ["dir", 0.5]
+];
+var OPS_TOTAL = OPS.reduce((a, [, w]) => a + w, 0);
+function mutate(g, rng) {
+  const done = [];
+  do {
+    let r = rng() * OPS_TOTAL, op = OPS[0][0];
+    for (const [name, w] of OPS) if ((r -= w) <= 0) {
+      op = name;
+      break;
+    }
+    switch (op) {
+      case "point":
+        pick(rng, g.cells).code = randomCode(rng);
+        break;
+      case "add":
+      case "dupe": {
+        if (g.cells.length >= CONFIG.startSize) continue;
+        const spot = pick(rng, freeNeighbors(g));
+        g.cells.push({ ...spot, code: op === "add" ? randomCode(rng) : pick(rng, g.cells).code });
+        break;
+      }
+      case "remove": {
+        const others = g.cells.filter((c) => c.x !== g.ip.x || c.y !== g.ip.y);
+        if (!others.length) continue;
+        const victim = pick(rng, others);
+        g.cells = g.cells.filter((c) => c !== victim);
+        repair(g);
+        break;
+      }
+      case "swap": {
+        const a = pick(rng, g.cells), b = pick(rng, g.cells);
+        [a.code, b.code] = [b.code, a.code];
+        break;
+      }
+      case "ip": {
+        const c = pick(rng, g.cells);
+        g.ip = { x: c.x, y: c.y };
+        break;
+      }
+      case "dir":
+        g.dir = Math.floor(rng() * 4);
+        break;
+    }
+    done.push(op);
+  } while (rng() < 0.5);
+  return done;
+}
+
+// src/sim/warrior-file.ts
+function parseWarrior(text, fallbackName = "warrior") {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const sep = lines.findIndex((l) => l.trim() === "---");
+  if (sep < 0) throw new Error(`${fallbackName}: missing '---' line between header and body`);
+  const header = {};
+  for (const l of lines.slice(0, sep)) {
+    if (!l.trim() || l.trim().startsWith("#")) continue;
+    const m = l.match(/^\s*(\w+)\s*:\s*(.*)$/);
+    if (m) header[m[1].toLowerCase()] = m[2].trim();
+  }
+  const grid = lines.slice(sep + 1);
+  while (grid.length && !grid[grid.length - 1].trim()) grid.pop();
+  const cells = [];
+  let width = 0;
+  grid.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === " ") continue;
+      if (!(ch in CODE)) throw new Error(`${fallbackName}: unknown glyph '${ch}' at ${x},${y}`);
+      cells.push({ x, y, code: CODE[ch] });
+      width = Math.max(width, x + 1);
+    }
+  });
+  if (!cells.length) throw new Error(`${fallbackName}: empty body`);
+  let ip = { x: cells[0].x, y: cells[0].y };
+  if (header.ip) {
+    const [x, y] = header.ip.split(/[\s,]+/).map(Number);
+    ip = { x, y };
+    if (!cells.some((c) => c.x === x && c.y === y)) throw new Error(`${fallbackName}: ip ${x},${y} is not a cell`);
+  }
+  const dir = header.dir ? DIR_NAMES.indexOf(header.dir.toUpperCase()) : 0;
+  if (dir < 0) throw new Error(`${fallbackName}: bad dir '${header.dir}'`);
+  return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
+}
+
+// src/check.ts
+var TICKS = 2e3;
+var CHECKPOINT = 50;
+function fnv(h, v) {
+  h ^= v & 255;
+  h = Math.imul(h, 16777619);
+  h ^= v >>> 8 & 255;
+  h = Math.imul(h, 16777619);
+  h ^= v >>> 16 & 255;
+  h = Math.imul(h, 16777619);
+  h ^= v >>> 24 & 255;
+  h = Math.imul(h, 16777619);
+  return h >>> 0;
+}
+var fnum = (h, x) => fnv(fnv(h, Math.floor(x * 1e6)), Math.floor(x * 1e6 / 4294967296));
+var fstr = (h, s) => {
+  for (let i = 0; i < s.length; i++) h = fnv(h, s.charCodeAt(i));
+  return h;
+};
+function stateHash(w, h) {
+  h = fnv(h, w.t);
+  for (let i = 0; i < w.owner.length; i++) {
+    h = fnv(h, w.owner[i]);
+    h = fnv(h, w.code[i]);
+    h = fnv(h, w.resource[i]);
+  }
+  for (const x of w.warriors) {
+    for (const v of [
+      x.alive ? 1 : 0,
+      x.ipX,
+      x.ipY,
+      x.ox,
+      x.oy,
+      x.dir,
+      x.cellCount,
+      x.executed,
+      x.lastOk ? 1 : 0,
+      x.diedAt ?? -1,
+      x.stats.collected,
+      x.stats.bombHits,
+      x.stats.poisonWrites,
+      x.stats.kills,
+      x.leftHomeAt ?? -1,
+      x.lastHarm?.by ?? -1,
+      x.lastHarm?.t ?? -1
+    ]) h = fnv(h, v);
+    h = fnum(fnum(fnum(h, x.maxSize), x.speed), x.accum);
+    h = fstr(h, x.lastAct + (x.deathReason ?? ""));
+    h = fnv(h, x.stack.length);
+    for (const v of x.stack) h = fnv(h, v);
+  }
+  h = fnv(h, w.events.length);
+  const e = w.events[w.events.length - 1];
+  if (e) h = fstr(h, `${e.t}${e.kind}${e.text}`);
+  h = fstr(h, w.result.reason);
+  return h;
+}
+function runOne(c, glyphs2) {
+  const specs = c.sources.map((s) => parseWarrior(s));
+  const seed = c.seed;
+  const w = new World(seed, specs);
+  let h = 2166136261;
+  const checkpoints = [];
+  for (let t = 0; t < TICKS && !w.result.over; t++) {
+    w.tick();
+    h = stateHash(w, h);
+    if (w.t % CHECKPOINT === 0) checkpoints.push(h);
+    for (const x of w.warriors) if (x.alive) glyphs2[x.lastAct] = (glyphs2[x.lastAct] ?? 0) + 1;
+  }
+  return { name: `${specs.map((s) => s.name).join(" vs ")} @${seed}`, ticks: w.t, checkpoints, final: h };
+}
+function corpus() {
+  const files = ["warriors", "warriors/evolved"].flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".warrior")).sort().map((f) => join(d, f)));
+  const known = files.map((f) => readFileSync(f, "utf8"));
+  const rng = makeRng(424242);
+  const randoms = [];
+  for (let i = 0; i < 40; i++) randoms.push(toText(randomGenome(rng), `rand${i}`));
+  for (let i = 0; i < 40; i++) {
+    const base = parseWarrior(known[i % known.length]);
+    const g = { cells: base.cells.map((c) => ({ ...c })), ip: { ...base.ip }, dir: base.dir };
+    for (let k = 0; k < 3; k++) mutate(g, rng);
+    randoms.push(toText(g, `mut${i}`));
+  }
+  const all = [...known, ...randoms];
+  const out = [];
+  const pick2 = () => all[Math.floor(rng() * all.length)];
+  for (let i = 0; i < known.length; i++) for (let j = i + 1; j < known.length; j++) out.push({ sources: [known[i], known[j]], seed: 1 + out.length });
+  for (let k = 0; k < 150; k++) out.push({ sources: [pick2(), pick2()], seed: 1 + out.length });
+  for (let k = 0; k < 100; k++) out.push({ sources: [pick2(), pick2(), pick2(), pick2()], seed: 1 + out.length });
+  for (const r of randoms.slice(0, 30)) out.push({ sources: [r], seed: 1 + out.length });
+  return out;
+}
+var args = process.argv.slice(2);
+var mode = args[0];
+var file = args[1];
+if (mode !== "--record" && mode !== "--verify" || !file) {
+  console.log("usage: node dist/check.mjs --record|--verify <golden.json>");
+  process.exit(1);
+}
+var cases = mode === "--record" ? corpus() : JSON.parse(readFileSync(file, "utf8")).cases;
+var t0 = Date.now();
+var results = [];
+var glyphs = {};
+for (const c of cases) {
+  try {
+    results.push(runOne(c, glyphs));
+  } catch (e) {
+    results.push({ name: `error @${c.seed}: ${e.message}`, ticks: -1, checkpoints: [], final: 0 });
+  }
+}
+var ms = Date.now() - t0;
+var totalTicks = results.reduce((a, r) => a + Math.max(0, r.ticks), 0);
+if (mode === "--record") {
+  writeFileSync(file, JSON.stringify({ cases, results }));
+  console.log(`recorded ${results.length} matches, ${totalTicks} ticks in ${ms} ms`);
+  console.log("warrior-ticks by last action:", Object.entries(glyphs).map(([k, v]) => `${k || "(none)"}:${v}`).join(" "), `(glyph table ${GLYPHS.length})`);
+} else {
+  const golden = JSON.parse(readFileSync(file, "utf8")).results;
+  let bad = 0;
+  results.forEach((r, i) => {
+    const g = golden[i];
+    if (!g || g.name !== r.name || g.ticks !== r.ticks || g.final !== r.final) {
+      bad++;
+      if (bad <= 10) {
+        const at = g ? g.checkpoints.findIndex((c, k) => c !== r.checkpoints[k]) : -1;
+        console.log(`MISMATCH ${r.name}: ticks ${g?.ticks}\u2192${r.ticks}; first differing checkpoint ${at < 0 ? "after last" : `\u2264 tick ${(at + 1) * CHECKPOINT}`}`);
+      }
+    }
+  });
+  console.log(bad ? `FAIL: ${bad}/${results.length} matches differ` : `OK: all ${results.length} matches identical on every tick`);
+  console.log(`${totalTicks} ticks in ${ms} ms (${(totalTicks / ms * 1e3).toFixed(0)} ticks/s)`);
+  process.exit(bad ? 1 : 0);
+}
+//# sourceMappingURL=check.mjs.map

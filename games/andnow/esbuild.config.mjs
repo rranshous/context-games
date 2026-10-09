@@ -14,6 +14,7 @@ const targets = [
   { ...shared, entryPoints: ['src/main.ts'], outfile: 'dist/main.js', platform: 'browser' },
   { ...shared, entryPoints: ['src/headless.ts'], outfile: 'dist/headless.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/evolve.ts'], outfile: 'dist/evolve.mjs', platform: 'node' },
+  { ...shared, entryPoints: ['src/check.ts'], outfile: 'dist/check.mjs', platform: 'node' },
 ];
 
 async function build() {
