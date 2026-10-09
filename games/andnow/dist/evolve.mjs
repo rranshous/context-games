@@ -1181,13 +1181,13 @@ async function main() {
     const i = args.indexOf(`--${k}`);
     return i >= 0 ? args[i + 1] : d;
   };
-  const POP = opt("pop", 48), GENS = opt("gens", 40), SEEDS = opt("seeds", 2), TICKS = opt("ticks", 1500);
+  const POP = opt("pop", 48), GENS = opt("gens", 40), SEEDS = opt("seeds", 2), BOARDS = opt("boards", SEEDS), TICKS = opt("ticks", 1500);
   const HOF = opt("hof", 3), PEERS = opt("peers", 6), FFA = opt("ffa", 4), ELITE = opt("elite", 4), WORKERS = opt("workers", availableParallelism());
   const NAME = str("name", `run-${Date.now()}`);
   const rng = makeRng(opt("rng", 1));
   const runDir = join("runs", NAME);
   mkdirSync(runDir, { recursive: true });
-  const benchFiles = str("bench", "warriors").split(",").flatMap((dir) => readdirSync(dir).filter((f) => f.endsWith(".warrior")).sort().map((f) => join(dir, f)));
+  const benchFiles = str("bench", "warriors").split(",").flatMap((p) => p.endsWith(".warrior") ? [p] : readdirSync(p).filter((f) => f.endsWith(".warrior")).sort().map((f) => join(p, f)));
   const bench = benchFiles.map((f) => readFileSync(f, "utf8"));
   const benchNames = benchFiles.map((f) => basename(f, ".warrior"));
   const hallOfFame = [];
@@ -1205,12 +1205,14 @@ async function main() {
   }
   while (pop.length < POP) pop.push(make(randomGenome(rng), "random", 0));
   const pool = new Pool(WORKERS);
-  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${SEEDS} boards/gen, ${TICKS} ticks, ${WORKERS} workers`);
+  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} workers`);
   console.log(`benchmarks: ${benchNames.join(", ")}; offsets relative to ${CONFIG.frame}`);
   let bestEver = null;
   for (let gen = 0; gen < GENS; gen++) {
     const t0 = Date.now();
-    const seeds = Array.from({ length: SEEDS }, () => 1 + Math.floor(rng() * 1e6));
+    const boardPool = Array.from({ length: BOARDS }, () => 1 + Math.floor(rng() * 1e6));
+    const boardsFor = (k) => Array.from({ length: SEEDS }, (_, s) => boardPool[(k * SEEDS + s) % BOARDS]);
+    const seeds = boardsFor(0);
     const hofSample = () => Array.from({ length: Math.min(HOF, hallOfFame.length) }, () => hallOfFame[Math.floor(rng() * hallOfFame.length)].text);
     const jobs2 = [];
     const counts = [];
@@ -1221,14 +1223,14 @@ async function main() {
         if (p !== ind) peers.push(p.text);
       }
       const opponents = [...bench, ...hofSample(), ...peers];
-      for (const opp of opponents) {
-        seeds.forEach((seed, s) => jobs2.push(duel(ind.text, opp, seed, s % 2 === 1, TICKS)));
-      }
+      opponents.forEach((opp, k) => {
+        boardsFor(k).forEach((seed, s) => jobs2.push(duel(ind.text, opp, seed, s % 2 === 1, TICKS)));
+      });
       for (let k = 0; k < FFA; k++) {
         const others = Array.from({ length: 3 }, () => opponents[Math.floor(rng() * opponents.length)]);
         const me = k % 4;
         others.splice(me, 0, ind.text);
-        jobs2.push({ warriors: others, me, seed: seeds[k % seeds.length], ticks: TICKS });
+        jobs2.push({ warriors: others, me, seed: boardPool[k % BOARDS], ticks: TICKS });
       }
       counts.push(opponents.length * seeds.length + FFA);
     }

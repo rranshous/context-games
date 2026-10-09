@@ -523,3 +523,44 @@ ever: Viper vs evo2-2, seed 1, t2156, "evo2-2 died: executed @".
   failing; evo2-2 pinned in its home corner. Nothing has learned FLOW.
 - The GA sees only 2 boards per generation, so a body that's stuck on a third of the maps
   barely costs fitness.
+
+### evo4: the body frame unlocks aiming (pop 128, 150 gens, origin frame; ~55 min)
+Fight metrics climbed far past every earlier run:
+
+| gen | deaths | bomb hits/game | best fitness |
+|----:|---:|---:|---:|
+| 0 | 9% | 0.12 | 2.45 |
+| 30 | 19% | 1.72 | 3.45 |
+| 75 | 42% | 3.27 | 3.79 |
+| 105 | 47% | 4.34 | 3.99 |
+| 135 | 60% | 4.60 | 4.24 |
+
+(Earlier runs: ~15% deaths, ~1 hit/game, fitness ceiling ~3.) Held-out: **evo4-1 won
+145/150** against all 15 benchmarks, every earlier champion included. All three
+champions share the row **`:M>2S$B8yCM`**: SCAN for an enemy (`2S`), drop the found
+flag, BOMB exactly that offset. Aimed bombing, which the IP frame made impossible.
+```
+evo4-1              evo4-2             evo4-3
+$T                   S                   S
+FBC-  rS\+!:        !3 - S1\S+!R        SM3 -?.\S`Me
+ :M>2S$B8yCM         :M>2S$B8yCM          :M>2S$B8yCM
+  4r>4    -[          >  S  -[-R           >  4 S-[MM
+```
+Poison appeared at gen 0 (0.08 writes/game, from the Viper-seeded mutants) then died out.
+
+Duels, 11 warriors, 10 boards, 5000 ticks: evo4-1 158W 16L, evo4-2 145W, evo4-3 138W,
+then Bomber 78W, Viper 61W, Stalker 57W, evo2-2 54W, Gatherer 49W (151 losses).
+FFAs (400): evo4-1 wins 57% with 122 kills; Gatherer 16% and **dies 46%** of the time
+(it's the fattest target). Still almost no last-standing FFAs (3/400).
+
+**evo4-1 is an ambush predator.** Solo, it leaves home on 0/20 boards. In a duel vs the
+Gatherer (seed 3), it sits in its home corner until ~t2143, then comes out and bombs the
+Gatherer's core at t2412, after the Gatherer has fattened up to max size 62. Kill pay
+(25%) makes waiting for the collector to get fat worth it.
+
+### Corridors: user chose "the GA sees more boards"
+`--boards N`: a pool of N boards per generation; each opponent is played on `--seeds` of
+them, rotating through the pool, so every individual sees all N boards at the same match
+count. `--bench` now also takes individual files (dropped the evo1 campers).
+evo5 launched: 6 boards/gen (2 per opponent), benchmarks = 6 hand-written + evo2-2,
+evo3-1, evo4-1..3.

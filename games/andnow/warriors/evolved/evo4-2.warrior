@@ -1,0 +1,10 @@
+name: evo4-2
+# evolved: run evo4, was g134-16652 (parents g132-16380×g133-16505)
+# held-out vs benchmarks: 138/150 wins; bomber 8-2, gatherer 10-0, roamer 9-0, stalker 10-0, turtle 8-0, viper 10-0, evo1-1 9-0, evo1-2 9-0, evo1-3 9-0, evo2-1 9-0, evo2-2 9-0, evo2-3 10-0, evo3-1 9-1, evo3-2 9-0, evo3-3 10-0
+dir: W
+ip: 4 2
+---
+ S
+!3 - S1\S+!R
+ :M>2S$B8yCM
+  >  S  -[-R

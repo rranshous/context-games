@@ -7,6 +7,7 @@
 //                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
 //                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
 //                        [--frame origin|ip]                   (see CONFIG.frame)
+//                        [--boards 6]   (board pool per generation; --seeds = boards per opponent)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
@@ -90,7 +91,7 @@ async function main() {
   const args = process.argv.slice(2);
   const opt = (k: string, d: number) => { const i = args.indexOf(`--${k}`); return i >= 0 ? Number(args[i + 1]) : d; };
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
-  const POP = opt('pop', 48), GENS = opt('gens', 40), SEEDS = opt('seeds', 2), TICKS = opt('ticks', 1500);
+  const POP = opt('pop', 48), GENS = opt('gens', 40), SEEDS = opt('seeds', 2), BOARDS = opt('boards', SEEDS), TICKS = opt('ticks', 1500);
   const HOF = opt('hof', 3), PEERS = opt('peers', 6), FFA = opt('ffa', 4), ELITE = opt('elite', 4), WORKERS = opt('workers', availableParallelism());
   const NAME = str('name', `run-${Date.now()}`);
   const rng = makeRng(opt('rng', 1));
@@ -98,8 +99,8 @@ async function main() {
   mkdirSync(runDir, { recursive: true });
 
   // Benchmarks (and the starting population's seeds): every .warrior in the --bench dirs.
-  const benchFiles = str('bench', 'warriors').split(',').flatMap((dir) =>
-    readdirSync(dir).filter((f) => f.endsWith('.warrior')).sort().map((f) => join(dir, f)));
+  const benchFiles = str('bench', 'warriors').split(',').flatMap((p) => p.endsWith('.warrior') ? [p]
+    : readdirSync(p).filter((f) => f.endsWith('.warrior')).sort().map((f) => join(p, f)));
   const bench = benchFiles.map((f) => readFileSync(f, 'utf8'));
   const benchNames = benchFiles.map((f) => basename(f, '.warrior'));
   const hallOfFame: Individual[] = [];
@@ -120,13 +121,17 @@ async function main() {
   while (pop.length < POP) pop.push(make(randomGenome(rng), 'random', 0));
 
   const pool = new Pool(WORKERS);
-  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${SEEDS} boards/gen, ${TICKS} ticks, ${WORKERS} workers`);
+  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} workers`);
   console.log(`benchmarks: ${benchNames.join(', ')}; offsets relative to ${CONFIG.frame}`);
   let bestEver: Individual | null = null;
 
   for (let gen = 0; gen < GENS; gen++) {
     const t0 = Date.now();
-    const seeds = Array.from({ length: SEEDS }, () => 1 + Math.floor(rng() * 1e6));
+    // A pool of BOARDS boards per generation; each opponent is played on SEEDS of them,
+    // rotating through the pool, so every individual sees every board in the pool.
+    const boardPool = Array.from({ length: BOARDS }, () => 1 + Math.floor(rng() * 1e6));
+    const boardsFor = (k: number) => Array.from({ length: SEEDS }, (_, s) => boardPool[(k * SEEDS + s) % BOARDS]);
+    const seeds = boardsFor(0);
     const hofSample = () => Array.from({ length: Math.min(HOF, hallOfFame.length) }, () => hallOfFame[Math.floor(rng() * hallOfFame.length)].text);
 
     // Each individual: all benchmarks, a hall-of-fame sample, and a peer sample.
@@ -139,16 +144,16 @@ async function main() {
         if (p !== ind) peers.push(p.text);
       }
       const opponents = [...bench, ...hofSample(), ...peers];
-      for (const opp of opponents) {
-        seeds.forEach((seed, s) => jobs.push(duel(ind.text, opp, seed, s % 2 === 1, TICKS)));
-      }
+      opponents.forEach((opp, k) => {
+        boardsFor(k).forEach((seed, s) => jobs.push(duel(ind.text, opp, seed, s % 2 === 1, TICKS)));
+      });
       // Free-for-alls: me + 3 opponents drawn from the same pool, my seat rotating.
       // This is where kill pay matters: a kill doesn't end the match.
       for (let k = 0; k < FFA; k++) {
         const others = Array.from({ length: 3 }, () => opponents[Math.floor(rng() * opponents.length)]);
         const me = k % 4;
         others.splice(me, 0, ind.text);
-        jobs.push({ warriors: others, me, seed: seeds[k % seeds.length], ticks: TICKS });
+        jobs.push({ warriors: others, me, seed: boardPool[k % BOARDS], ticks: TICKS });
       }
       counts.push(opponents.length * seeds.length + FFA);
     }
