@@ -508,3 +508,18 @@ frame origin:  Bomber 60W, Viper 52W, Stalker 49W, evo2-2 38W, Gatherer 37W, evo
 Under the body frame **the hand-written hunters work as designed** and take the top three
 spots; the evolved warriors (adapted to the IP frame's quirks) drop. First poison kill
 ever: Viper vs evo2-2, seed 1, t2156, "evo2-2 died: executed @".
+
+### "Only the Bomber gets out of its start room" (user, trying evolved warriors in the viewer)
+- Part of it was the viewer: default speed was 4 ticks/s, and evolved warriors take a
+  median 120–313 ticks to leave home (hand-written ones ~40), i.e. over a minute of real
+  time. Default is now 32 ticks/s. New `left` event ("X left its start room", when the IP
+  first leaves the start room) and `node dist/headless.mjs --explore <warriors> [--seeds N]`
+  (solo runs: on how many boards, and how fast, each warrior gets out).
+- The real cause: **body height vs corridor width.** The top corridor out of the home
+  room is 3 tall on 7 of 20 boards (4 on 4, 5 on 9). SHIFT moves the body rigidly, and
+  evolved bodies grew 4–5 rows tall to fit 30 cells: evo3-1 (4 rows) can SHIFT out on 13/20
+  boards, evo2-2 (5 rows) on 9/20, the 3-row Bomber on all 20. Seed 7 in the viewer:
+  evo3-1 stuck half in its doorway after grabbing one size pickup, every move since
+  failing; evo2-2 pinned in its home corner. Nothing has learned FLOW.
+- The GA sees only 2 boards per generation, so a body that's stuck on a third of the maps
+  barely costs fitness.

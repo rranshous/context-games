@@ -181,7 +181,8 @@ var World = class {
       cellCount: 0,
       executed: 0,
       spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 }
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
+      home: room
     };
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -340,6 +341,11 @@ var World = class {
     }
     for (const wr of this.warriors) {
       if (!wr.alive) continue;
+      const hm = wr.home;
+      if (wr.leftHomeAt === void 0 && (wr.ipX < hm.x || wr.ipY < hm.y || wr.ipX >= hm.x + hm.w || wr.ipY >= hm.y + hm.h)) {
+        wr.leftHomeAt = this.t;
+        this.log("left", `${wr.name} left its start room`, wr.id);
+      }
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
@@ -1003,7 +1009,22 @@ var tickCap = opt("ticks", 0) || void 0;
   const i = args.indexOf("--frame");
   if (i >= 0) CONFIG.frame = args[i + 1];
 }
-if (flag("ffa")) {
+if (flag("explore")) {
+  const n = opt("seeds", 20), cap = tickCap ?? 2e3;
+  console.log(`Leaving home: each warrior alone, ${n} boards, ${cap} ticks
+`);
+  for (const spec of specs) {
+    const times = [];
+    for (let seed = 1; seed <= n; seed++) {
+      const { world } = runMatch([spec], seed, { tickCap: cap });
+      const t = world.warriors[0].leftHomeAt;
+      if (t !== void 0) times.push(t);
+    }
+    times.sort((a, b) => a - b);
+    const med = times.length ? times[Math.floor(times.length / 2)] : NaN;
+    console.log(`${spec.name.padEnd(16)} left home on ${String(times.length).padStart(2)}/${n} boards   median tick ${isNaN(med) ? "\u2014" : med}`);
+  }
+} else if (flag("ffa")) {
   const n = opt("matches", 200);
   const { rows, reasons } = runFfa(specs, n, tickCap);
   console.log(`Free-for-all: ${n} four-player matches among ${specs.length} warriors

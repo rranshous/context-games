@@ -67,6 +67,8 @@ export interface Warrior {
   executed: number;
   stats: { collected: number; bombHits: number; poisonWrites: number; kills: number };
   lastHarm?: { by: number; t: number }; // who last bombed or wrote into me, and when
+  home: { x: number; y: number; w: number; h: number }; // start room
+  leftHomeAt?: number; // first tick the IP was outside the start room
   deathReason?: string;
   diedAt?: number;
   spec: WarriorSpec;
@@ -121,7 +123,7 @@ export class World {
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
       accum: 0, lastOk: true, cellCount: 0, executed: 0, spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 }, home: room,
     };
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -282,6 +284,11 @@ export class World {
     // Upkeep: decay toward floors; shed cells if over max size.
     for (const wr of this.warriors) {
       if (!wr.alive) continue;
+      const hm = wr.home;
+      if (wr.leftHomeAt === undefined && (wr.ipX < hm.x || wr.ipY < hm.y || wr.ipX >= hm.x + hm.w || wr.ipY >= hm.y + hm.h)) {
+        wr.leftHomeAt = this.t;
+        this.log('left', `${wr.name} left its start room`, wr.id);
+      }
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);

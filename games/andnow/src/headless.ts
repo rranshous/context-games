@@ -29,7 +29,22 @@ const tickCap = opt('ticks', 0) || undefined;
   if (i >= 0) CONFIG.frame = args[i + 1] as 'origin' | 'ip';
 }
 
-if (flag('ffa')) {
+if (flag('explore')) {
+  // How fast does each warrior get out of its start room? Solo, on many boards.
+  const n = opt('seeds', 20), cap = tickCap ?? 2000;
+  console.log(`Leaving home: each warrior alone, ${n} boards, ${cap} ticks\n`);
+  for (const spec of specs) {
+    const times: number[] = [];
+    for (let seed = 1; seed <= n; seed++) {
+      const { world } = runMatch([spec], seed, { tickCap: cap });
+      const t = world.warriors[0].leftHomeAt;
+      if (t !== undefined) times.push(t);
+    }
+    times.sort((a, b) => a - b);
+    const med = times.length ? times[Math.floor(times.length / 2)] : NaN;
+    console.log(`${spec.name.padEnd(16)} left home on ${String(times.length).padStart(2)}/${n} boards   median tick ${isNaN(med) ? '—' : med}`);
+  }
+} else if (flag('ffa')) {
   const n = opt('matches', 200);
   const { rows, reasons } = runFfa(specs, n, tickCap);
   console.log(`Free-for-all: ${n} four-player matches among ${specs.length} warriors\n`);

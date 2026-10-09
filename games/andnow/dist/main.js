@@ -223,7 +223,8 @@ var World = class {
       cellCount: 0,
       executed: 0,
       spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 }
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
+      home: room
     };
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -382,6 +383,11 @@ var World = class {
     }
     for (const wr of this.warriors) {
       if (!wr.alive) continue;
+      const hm = wr.home;
+      if (wr.leftHomeAt === void 0 && (wr.ipX < hm.x || wr.ipY < hm.y || wr.ipX >= hm.x + hm.w || wr.ipY >= hm.y + hm.h)) {
+        wr.leftHomeAt = this.t;
+        this.log("left", `${wr.name} left its start room`, wr.id);
+      }
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
