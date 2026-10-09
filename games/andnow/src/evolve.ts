@@ -6,6 +6,7 @@
 //   node dist/evolve.mjs --name run1 [--pop 48] [--gens 40] [--seeds 2] [--ticks 1500]
 //                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
 //                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
+//                        [--frame origin|ip]                   (see CONFIG.frame)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
@@ -17,6 +18,13 @@ import { clone, crossover, fromSpec, Genome, mutate, randomGenome, toSpec, toTex
 import { runMatch } from './sim/match';
 import { makeRng } from './sim/rng';
 import { parseWarrior } from './sim/warrior-file';
+import { CONFIG } from './sim/world';
+
+// --frame origin|ip applies in the main thread and in every worker (workers get our argv).
+{
+  const i = process.argv.indexOf('--frame');
+  if (i >= 0) CONFIG.frame = process.argv[i + 1] as 'origin' | 'ip';
+}
 
 // ---------- one match, scored from one side ----------
 
@@ -59,7 +67,7 @@ function duel(a: string, b: string, seed: number, swap: boolean, ticks: number):
 class Pool {
   workers: Worker[];
   constructor(n: number) {
-    this.workers = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.workers = Array.from({ length: n }, () => new Worker(new URL(import.meta.url), { argv: process.argv.slice(2) }));
   }
   async run(jobs: Job[]): Promise<JobResult[]> {
     const n = this.workers.length;
@@ -113,7 +121,7 @@ async function main() {
 
   const pool = new Pool(WORKERS);
   console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${SEEDS} boards/gen, ${TICKS} ticks, ${WORKERS} workers`);
-  console.log(`benchmarks: ${benchNames.join(', ')}`);
+  console.log(`benchmarks: ${benchNames.join(', ')}; offsets relative to ${CONFIG.frame}`);
   let bestEver: Individual | null = null;
 
   for (let gen = 0; gen < GENS; gen++) {

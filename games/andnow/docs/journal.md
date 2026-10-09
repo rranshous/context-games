@@ -468,3 +468,43 @@ size, 88 on tiebreaks, 116 last standing.
 ### evo3 launched
 pop 128, 150 gens, 3000 ticks, 2 boards + 6 FFAs per individual per gen, benchmarks =
 hand-written + evo1/evo2 champions.
+
+### evo3 results (pop 128, 150 gens, 2 boards + 6 FFAs, benchmarks = hand-written + evo1/evo2; ~45 min)
+- Fight metrics held around 12–19% deaths, ~1–1.7 bomb hits/game; **still zero poison**.
+- Champions share an identical bottom row, **`.TMS7C-BTM?`**, a conserved "engine"
+  that crossover keeps carrying, with different control rows on top. Held-out: ~55% vs
+  the 11 benchmarks, winning records against every evo2 champion.
+- Duels at 5000 ticks: evo2-2 still on top (111W); evo3-1..3 next (101–106W).
+- **New: `--ffa` in the headless runner** (random 4-player free-for-alls, seeds 1000+).
+  400 FFAs, 12 warriors: evo2-2 wins 38%, **Gatherer 34% with zero kills**, evo3-1 33%.
+  Evolved warriors make all the kills (~0.25 per game each), but **none of the 400 FFAs
+  ended last-standing**. Kill pay is weak late in a match: 25% of a decayed victim
+  (max size ~10) is +2.5, less than one size pickup (+4).
+
+### Why poison never evolved: offsets went stale
+Wrote a range-2 poisoner, **Viper** (Bomber layout, writes code 9 = `@` instead of
+bombing; carries no `@` itself). Zero writes, even while **touching** the Turtle.
+Traced with the explorer: SCAN at the `S` cell returned 10,0 ("10 east of here"), but by
+the time `W` ran, the IP had walked ~7 cells through the body. Offsets were relative to
+the IP's *current* cell, so every offset went stale as the IP moved. Bombing half-worked
+anyway thanks to range 6 and spraying; WRITE at range 2 couldn't.
+
+That breaks the intent of the relative-coordinates decision (a frame that travels with
+the warrior, so code keeps working after a SHIFT). The IP frame moves on every
+instruction, not just on SHIFT.
+
+**Change: a body frame.** Each warrior has an origin point that starts at its IP's start
+cell and moves only with SHIFT (`wr.ox/oy`). SCAN, READ, BOMB, WRITE, FLOW and SWAP
+offsets are relative to it, so a SCAN result stays valid until the warrior moves. (LOOK
+still casts from the IP; GROW still extends the IP's current line.) `CONFIG.frame` =
+`'origin'` (default) or `'ip'` (the old behavior); `--frame ip|origin` on the headless
+runner and the evolver (workers get the parent's argv).
+
+Effect, same 8 warriors, 8 boards, 5000 ticks:
+```
+frame ip:      evo2-2 59W, evo3-1 47W, Bomber 46W, Gatherer 42W, Roamer 38W, Viper 33W ...
+frame origin:  Bomber 60W, Viper 52W, Stalker 49W, evo2-2 38W, Gatherer 37W, evo3-1 28W ...
+```
+Under the body frame **the hand-written hunters work as designed** and take the top three
+spots; the evolved warriors (adapted to the IP frame's quirks) drop. First poison kill
+ever: Viper vs evo2-2, seed 1, t2156, "evo2-2 died: executed @".

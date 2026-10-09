@@ -164,7 +164,12 @@ var CONFIG = {
   speedPickup: 1,
   spawnInterval: 120,
   // ticks between respawns at an empty spot
-  tickCap: 5e3
+  tickCap: 5e3,
+  // What instruction offsets are relative to. 'origin': the warrior's body frame, a point
+  // that starts at the IP's start cell and moves only with SHIFT, so a SCAN result stays
+  // valid while the IP walks on through the body. 'ip': the IP's current cell (the
+  // first version; offsets go stale as the IP moves).
+  frame: "origin"
 };
 var World = class {
   constructor(seed, specs2) {
@@ -207,6 +212,8 @@ var World = class {
       alive: true,
       ipX: ox + spec.ip.x,
       ipY: oy + spec.ip.y,
+      ox: ox + spec.ip.x,
+      oy: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
       maxSize: CONFIG.startSize,
@@ -445,6 +452,10 @@ var World = class {
     if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
   }
   // ---------- interpreter ----------
+  /** The point instruction offsets are measured from. */
+  frame(wr) {
+    return CONFIG.frame === "origin" ? [wr.ox, wr.oy] : [wr.ipX, wr.ipY];
+  }
   pop(wr) {
     return wr.stack.length ? wr.stack.pop() : 0;
   }
@@ -698,20 +709,21 @@ var World = class {
     const type = this.pop(wr);
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
+    const [fx, fy] = this.frame(wr);
     const cands = [];
-    for (let y = Math.max(0, wr.ipY - r - 8); y <= Math.min(this.h - 1, wr.ipY + r + 8); y++) {
-      for (let x = Math.max(0, wr.ipX - r - 8); x <= Math.min(this.w - 1, wr.ipX + r + 8); x++) {
+    for (let y = Math.max(0, wr.ipY - r - 16); y <= Math.min(this.h - 1, wr.ipY + r + 16); y++) {
+      for (let x = Math.max(0, wr.ipX - r - 16); x <= Math.min(this.w - 1, wr.ipX + r + 16); x++) {
         const t = this.classify(x, y, wr.id);
         const match = type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type;
         if (!match || t === T_WALL || t === T_NOTHING) continue;
-        cands.push([Math.abs(x - wr.ipX) + Math.abs(y - wr.ipY), x, y]);
+        cands.push([Math.abs(x - fx) + Math.abs(y - fy), x, y]);
       }
     }
     cands.sort((a, b) => a[0] - b[0]);
     for (const [, x, y] of cands) {
       if (this.seer(wr.id, x, y, r, mine) >= 0) {
-        this.push(wr, x - wr.ipX);
-        this.push(wr, y - wr.ipY);
+        this.push(wr, x - fx);
+        this.push(wr, y - fy);
         this.push(wr, 1);
         return;
       }
@@ -722,7 +734,8 @@ var World = class {
   }
   opRead(wr) {
     const dy = this.pop(wr), dx = this.pop(wr);
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     if (!this.inBounds(x, y) || this.owner[this.idx(x, y)] === NONE || this.seer(wr.id, x, y) < 0) {
       this.push(wr, -1);
       return;
@@ -750,15 +763,18 @@ var World = class {
     });
     wr.ipX += DX[d];
     wr.ipY += DY[d];
+    wr.ox += DX[d];
+    wr.oy += DY[d];
     return true;
   }
   opFlow(wr, dx, dy, d) {
     d = (d % 4 + 4) % 4;
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const nx = x + DX[d], ny = y + DY[d];
     if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
     const from = this.idx(x, y), to = this.idx(nx, ny);
-    const isIp = dx === 0 && dy === 0;
+    const isIp = x === wr.ipX && y === wr.ipY;
     this.owner[to] = wr.id;
     this.code[to] = this.code[from];
     this.owner[from] = NONE;
@@ -781,7 +797,8 @@ var World = class {
     return true;
   }
   opSwap(wr, dx1, dy1, dx2, dy2) {
-    const a = [wr.ipX + dx1, wr.ipY + dy1], b = [wr.ipX + dx2, wr.ipY + dy2];
+    const [fx, fy] = this.frame(wr);
+    const a = [fx + dx1, fy + dy1], b = [fx + dx2, fy + dy2];
     if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
@@ -831,7 +848,8 @@ var World = class {
     return got;
   }
   opBomb(wr, dx, dy) {
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
@@ -842,7 +860,8 @@ var World = class {
     return true;
   }
   opWrite(wr, dx, dy, code) {
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const o = this.ownerAt(x, y);
     if (o === NONE) return false;
     if (o !== wr.id) {
@@ -973,8 +992,11 @@ var stalker_default = "name: Stalker\n# Hunt the nearest enemy cell; when touchi
 // warriors/turtle.warrior
 var turtle_default = "name: Turtle\n# Stays put. Bombs the nearest enemy in range, grows armor in a random direction,\n# collects whatever touches it. The rings of `.` are armor and do nothing.\nip: 1 1\n---\n.........\n.2S$B4y0GC\n.........\n";
 
+// warriors/viper.warrior
+var viper_default = "name: Viper\n# Poison at range 2. Like the Bomber, but the found row writes `@` (code 9) into the\n# nearest enemy cell instead of bombing. WRITE fails quietly beyond range 2.\n# 9 is pushed as a number, so the Viper carries no `@` of its own to run into.\nip: 0 1\n---\nv   >oo9WT\\$:M\n>C2S|\n^   >$$:Me!+\n";
+
 // src/warriors.ts
-var BUNDLED = { bomber: bomber_default, gatherer: gatherer_default, roamer: roamer_default, stalker: stalker_default, turtle: turtle_default };
+var BUNDLED = { bomber: bomber_default, gatherer: gatherer_default, roamer: roamer_default, stalker: stalker_default, turtle: turtle_default, viper: viper_default };
 
 // src/main.ts
 var SOURCES = { ...BUNDLED };

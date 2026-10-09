@@ -121,7 +121,12 @@ var CONFIG = {
   speedPickup: 1,
   spawnInterval: 120,
   // ticks between respawns at an empty spot
-  tickCap: 5e3
+  tickCap: 5e3,
+  // What instruction offsets are relative to. 'origin': the warrior's body frame, a point
+  // that starts at the IP's start cell and moves only with SHIFT, so a SCAN result stays
+  // valid while the IP walks on through the body. 'ip': the IP's current cell (the
+  // first version; offsets go stale as the IP moves).
+  frame: "origin"
 };
 var World = class {
   constructor(seed, specs) {
@@ -164,6 +169,8 @@ var World = class {
       alive: true,
       ipX: ox + spec.ip.x,
       ipY: oy + spec.ip.y,
+      ox: ox + spec.ip.x,
+      oy: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
       maxSize: CONFIG.startSize,
@@ -402,6 +409,10 @@ var World = class {
     if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
   }
   // ---------- interpreter ----------
+  /** The point instruction offsets are measured from. */
+  frame(wr) {
+    return CONFIG.frame === "origin" ? [wr.ox, wr.oy] : [wr.ipX, wr.ipY];
+  }
   pop(wr) {
     return wr.stack.length ? wr.stack.pop() : 0;
   }
@@ -655,20 +666,21 @@ var World = class {
     const type = this.pop(wr);
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
+    const [fx, fy] = this.frame(wr);
     const cands = [];
-    for (let y = Math.max(0, wr.ipY - r - 8); y <= Math.min(this.h - 1, wr.ipY + r + 8); y++) {
-      for (let x = Math.max(0, wr.ipX - r - 8); x <= Math.min(this.w - 1, wr.ipX + r + 8); x++) {
+    for (let y = Math.max(0, wr.ipY - r - 16); y <= Math.min(this.h - 1, wr.ipY + r + 16); y++) {
+      for (let x = Math.max(0, wr.ipX - r - 16); x <= Math.min(this.w - 1, wr.ipX + r + 16); x++) {
         const t = this.classify(x, y, wr.id);
         const match = type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type;
         if (!match || t === T_WALL || t === T_NOTHING) continue;
-        cands.push([Math.abs(x - wr.ipX) + Math.abs(y - wr.ipY), x, y]);
+        cands.push([Math.abs(x - fx) + Math.abs(y - fy), x, y]);
       }
     }
     cands.sort((a, b) => a[0] - b[0]);
     for (const [, x, y] of cands) {
       if (this.seer(wr.id, x, y, r, mine) >= 0) {
-        this.push(wr, x - wr.ipX);
-        this.push(wr, y - wr.ipY);
+        this.push(wr, x - fx);
+        this.push(wr, y - fy);
         this.push(wr, 1);
         return;
       }
@@ -679,7 +691,8 @@ var World = class {
   }
   opRead(wr) {
     const dy = this.pop(wr), dx = this.pop(wr);
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     if (!this.inBounds(x, y) || this.owner[this.idx(x, y)] === NONE || this.seer(wr.id, x, y) < 0) {
       this.push(wr, -1);
       return;
@@ -707,15 +720,18 @@ var World = class {
     });
     wr.ipX += DX[d];
     wr.ipY += DY[d];
+    wr.ox += DX[d];
+    wr.oy += DY[d];
     return true;
   }
   opFlow(wr, dx, dy, d) {
     d = (d % 4 + 4) % 4;
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const nx = x + DX[d], ny = y + DY[d];
     if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
     const from = this.idx(x, y), to = this.idx(nx, ny);
-    const isIp = dx === 0 && dy === 0;
+    const isIp = x === wr.ipX && y === wr.ipY;
     this.owner[to] = wr.id;
     this.code[to] = this.code[from];
     this.owner[from] = NONE;
@@ -738,7 +754,8 @@ var World = class {
     return true;
   }
   opSwap(wr, dx1, dy1, dx2, dy2) {
-    const a = [wr.ipX + dx1, wr.ipY + dy1], b = [wr.ipX + dx2, wr.ipY + dy2];
+    const [fx, fy] = this.frame(wr);
+    const a = [fx + dx1, fy + dy1], b = [fx + dx2, fy + dy2];
     if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
@@ -788,7 +805,8 @@ var World = class {
     return got;
   }
   opBomb(wr, dx, dy) {
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
@@ -799,7 +817,8 @@ var World = class {
     return true;
   }
   opWrite(wr, dx, dy, code) {
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const o = this.ownerAt(x, y);
     if (o === NONE) return false;
     if (o !== wr.id) {
@@ -1090,6 +1109,10 @@ function parseWarrior(text, fallbackName = "warrior") {
 }
 
 // src/evolve.ts
+{
+  const i = process.argv.indexOf("--frame");
+  if (i >= 0) CONFIG.frame = process.argv[i + 1];
+}
 function runJob(j) {
   const me = j.me;
   try {
@@ -1123,7 +1146,7 @@ function duel(a, b, seed, swap, ticks) {
 var Pool = class {
   workers;
   constructor(n) {
-    this.workers = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.workers = Array.from({ length: n }, () => new Worker(new URL(import.meta.url), { argv: process.argv.slice(2) }));
   }
   async run(jobs) {
     const n = this.workers.length;
@@ -1177,7 +1200,7 @@ async function main() {
   while (pop.length < POP) pop.push(make(randomGenome(rng), "random", 0));
   const pool = new Pool(WORKERS);
   console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${SEEDS} boards/gen, ${TICKS} ticks, ${WORKERS} workers`);
-  console.log(`benchmarks: ${benchNames.join(", ")}`);
+  console.log(`benchmarks: ${benchNames.join(", ")}; offsets relative to ${CONFIG.frame}`);
   let bestEver = null;
   for (let gen = 0; gen < GENS; gen++) {
     const t0 = Date.now();

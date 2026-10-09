@@ -1,0 +1,9 @@
+name: Viper
+# Poison at range 2. Like the Bomber, but the found row writes `@` (code 9) into the
+# nearest enemy cell instead of bombing. WRITE fails quietly beyond range 2.
+# 9 is pushed as a number, so the Viper carries no `@` of its own to run into.
+ip: 0 1
+---
+v   >oo9WT\$:M
+>C2S|
+^   >$$:Me!+

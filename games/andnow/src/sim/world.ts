@@ -6,7 +6,8 @@
 // - One IP per warrior. It runs only its own cells. It advances to the next own cell
 //   in its direction, skipping gaps, and wraps to the far end of its body on that
 //   row/column. It rides on its cell: if the cell moves, the IP moves with it.
-// - All coordinates in instructions are relative to the IP's cell.
+// - All coordinates in instructions are relative to the warrior's body frame: an origin
+//   that starts at the IP's start cell and moves with SHIFT (see CONFIG.frame).
 // - The IP is hidden from other warriors. Losing the IP's cell, or executing `@`, kills.
 // - Pieces cut off from the IP's piece become debris.
 // - Max size and speed decay toward a floor; resources push them back up.
@@ -41,6 +42,11 @@ export const CONFIG = {
   speedPickup: 1,
   spawnInterval: 120,   // ticks between respawns at an empty spot
   tickCap: 5000,
+  // What instruction offsets are relative to. 'origin': the warrior's body frame, a point
+  // that starts at the IP's start cell and moves only with SHIFT, so a SCAN result stays
+  // valid while the IP walks on through the body. 'ip': the IP's current cell (the
+  // first version; offsets go stale as the IP moves).
+  frame: 'origin' as 'origin' | 'ip',
 };
 
 export interface Warrior {
@@ -49,6 +55,8 @@ export interface Warrior {
   alive: boolean;
   ipX: number;
   ipY: number;
+  ox: number; // body-frame origin (see CONFIG.frame)
+  oy: number;
   dir: number;
   stack: number[];
   maxSize: number;
@@ -109,7 +117,8 @@ export class World {
     const ox = room.x + Math.floor((room.w - spec.width) / 2);
     const oy = room.y + Math.floor((room.h - spec.height) / 2);
     const wr: Warrior = {
-      id, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y, dir: spec.dir,
+      id, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
+      ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
       accum: 0, lastOk: true, cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
@@ -355,6 +364,11 @@ export class World {
 
   // ---------- interpreter ----------
 
+  /** The point instruction offsets are measured from. */
+  private frame(wr: Warrior): [number, number] {
+    return CONFIG.frame === 'origin' ? [wr.ox, wr.oy] : [wr.ipX, wr.ipY];
+  }
+
   private pop(wr: Warrior): number { return wr.stack.length ? wr.stack.pop()! : 0; }
   private push(wr: Warrior, v: number) {
     wr.stack.push(v | 0);
@@ -486,20 +500,21 @@ export class World {
     const type = this.pop(wr);
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
+    const [fx, fy] = this.frame(wr);
     const cands: [number, number, number][] = [];
-    for (let y = Math.max(0, wr.ipY - r - 8); y <= Math.min(this.h - 1, wr.ipY + r + 8); y++) {
-      for (let x = Math.max(0, wr.ipX - r - 8); x <= Math.min(this.w - 1, wr.ipX + r + 8); x++) {
+    for (let y = Math.max(0, wr.ipY - r - 16); y <= Math.min(this.h - 1, wr.ipY + r + 16); y++) {
+      for (let x = Math.max(0, wr.ipX - r - 16); x <= Math.min(this.w - 1, wr.ipX + r + 16); x++) {
         const t = this.classify(x, y, wr.id);
         const match = type === T_RESOURCE ? (t === T_SIZE || t === T_SPEED) : t === type;
         if (!match || t === T_WALL || t === T_NOTHING) continue;
-        cands.push([Math.abs(x - wr.ipX) + Math.abs(y - wr.ipY), x, y]);
+        cands.push([Math.abs(x - fx) + Math.abs(y - fy), x, y]);
       }
     }
     cands.sort((a, b) => a[0] - b[0]);
     for (const [, x, y] of cands) {
       if (this.seer(wr.id, x, y, r, mine) >= 0) {
-        this.push(wr, x - wr.ipX);
-        this.push(wr, y - wr.ipY);
+        this.push(wr, x - fx);
+        this.push(wr, y - fy);
         this.push(wr, 1);
         return;
       }
@@ -509,7 +524,8 @@ export class World {
 
   private opRead(wr: Warrior) {
     const dy = this.pop(wr), dx = this.pop(wr);
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     if (!this.inBounds(x, y) || this.owner[this.idx(x, y)] === NONE || this.seer(wr.id, x, y) < 0) {
       this.push(wr, -1);
       return;
@@ -536,16 +552,19 @@ export class World {
     });
     wr.ipX += DX[d];
     wr.ipY += DY[d];
+    wr.ox += DX[d];
+    wr.oy += DY[d];
     return true;
   }
 
   private opFlow(wr: Warrior, dx: number, dy: number, d: number): boolean {
     d = ((d % 4) + 4) % 4;
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const nx = x + DX[d], ny = y + DY[d];
     if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
     const from = this.idx(x, y), to = this.idx(nx, ny);
-    const isIp = dx === 0 && dy === 0;
+    const isIp = x === wr.ipX && y === wr.ipY;
     this.owner[to] = wr.id; this.code[to] = this.code[from];
     this.owner[from] = NONE; this.code[from] = 0;
     if (isIp) { wr.ipX = nx; wr.ipY = ny; }
@@ -560,7 +579,8 @@ export class World {
   }
 
   private opSwap(wr: Warrior, dx1: number, dy1: number, dx2: number, dy2: number): boolean {
-    const a = [wr.ipX + dx1, wr.ipY + dy1], b = [wr.ipX + dx2, wr.ipY + dy2];
+    const [fx, fy] = this.frame(wr);
+    const a = [fx + dx1, fy + dy1], b = [fx + dx2, fy + dy2];
     if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
@@ -610,7 +630,8 @@ export class World {
   }
 
   private opBomb(wr: Warrior, dx: number, dy: number): boolean {
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
@@ -622,7 +643,8 @@ export class World {
   }
 
   private opWrite(wr: Warrior, dx: number, dy: number, code: number): boolean {
-    const x = wr.ipX + dx, y = wr.ipY + dy;
+    const [fx, fy] = this.frame(wr);
+    const x = fx + dx, y = fy + dy;
     const o = this.ownerAt(x, y);
     if (o === NONE) return false;
     if (o !== wr.id) {

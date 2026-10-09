@@ -1,12 +1,14 @@
 // Headless runner.
 //   node dist/headless.mjs warriors/a.warrior warriors/b.warrior [--seed N] [--ticks N] [--frames K] [--glyphs]
 //   node dist/headless.mjs --tournament warriors/*.warrior [--seeds N] [--ticks N]
+//   node dist/headless.mjs --ffa warriors/*.warrior [--matches 200] [--ticks N]   (4-player free-for-alls)
 //   node dist/headless.mjs --solo warriors/a.warrior --ticks 500 --frames 100
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { asciiMap, statusLine } from './sim/ascii';
-import { runMatch, runTournament } from './sim/match';
+import { runFfa, runMatch, runTournament } from './sim/match';
 import { parseWarrior } from './sim/warrior-file';
+import { CONFIG } from './sim/world';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -14,7 +16,7 @@ const opt = (name: string, def: number) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
 };
-const valued = new Set(['--seed', '--ticks', '--frames', '--seeds']);
+const valued = new Set(['--seed', '--ticks', '--frames', '--seeds', '--matches', '--frame']);
 const files = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 if (!files.length) {
   console.log('usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]');
@@ -22,8 +24,20 @@ if (!files.length) {
 }
 const specs = files.map((f) => parseWarrior(readFileSync(f, 'utf8'), basename(f, '.warrior')));
 const tickCap = opt('ticks', 0) || undefined;
+{
+  const i = args.indexOf('--frame');
+  if (i >= 0) CONFIG.frame = args[i + 1] as 'origin' | 'ip';
+}
 
-if (flag('tournament')) {
+if (flag('ffa')) {
+  const n = opt('matches', 200);
+  const { rows, reasons } = runFfa(specs, n, tickCap);
+  console.log(`Free-for-all: ${n} four-player matches among ${specs.length} warriors\n`);
+  for (const r of rows) {
+    console.log(`${r.name.padEnd(16)} games ${String(r.games).padStart(3)}  win ${(100 * r.wins / Math.max(1, r.games)).toFixed(0).padStart(3)}%  died ${(100 * r.deaths / Math.max(1, r.games)).toFixed(0).padStart(3)}%  kills ${r.kills}`);
+  }
+  console.log('\nhow matches ended:', Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(', '));
+} else if (flag('tournament')) {
   const n = opt('seeds', 5);
   const seeds = Array.from({ length: n }, (_, i) => i + 1);
   const { table, pairs, reasons } = runTournament(specs, seeds, tickCap);

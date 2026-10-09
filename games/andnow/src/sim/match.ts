@@ -1,4 +1,5 @@
 // Running whole matches and round-robin tournaments, headless.
+import { makeRng } from './rng';
 import { WarriorSpec } from './warrior-file';
 import { CONFIG, World } from './world';
 
@@ -66,4 +67,29 @@ export function runTournament(specs: WarriorSpec[], seeds: number[], tickCap?: n
     }
   }
   return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs, reasons };
+}
+
+export interface FfaRow { name: string; games: number; wins: number; deaths: number; kills: number }
+
+/** `matches` 4-player free-for-alls among random distinct warriors (seeded), seats shuffled. */
+export function runFfa(specs: WarriorSpec[], matches: number, tickCap?: number, players = 4) {
+  const rng = makeRng(12345);
+  const rows = new Map<string, FfaRow>(specs.map((s) => [s.name, { name: s.name, games: 0, wins: 0, deaths: 0, kills: 0 }]));
+  const reasons: Record<string, number> = {};
+  for (let m = 0; m < matches; m++) {
+    const pool = [...specs];
+    const picked: WarriorSpec[] = [];
+    while (picked.length < Math.min(players, specs.length)) picked.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    const { world, summary } = runMatch(picked, 1000 + m, { tickCap });
+    const why = summary.reason.replace(/ \([^)]*\)/g, '');
+    reasons[why] = (reasons[why] ?? 0) + 1;
+    for (const w of world.warriors) {
+      const r = rows.get(w.name)!;
+      r.games++;
+      if (!w.alive) r.deaths++;
+      r.kills += w.stats.kills;
+      if (world.result.winner === w.id) r.wins++;
+    }
+  }
+  return { rows: [...rows.values()].sort((a, b) => b.wins / Math.max(1, b.games) - a.wins / Math.max(1, a.games)), reasons };
 }
