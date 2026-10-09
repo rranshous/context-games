@@ -435,3 +435,36 @@ How matches ended: draw at tick cap 395, largest max size at cap 198, last stand
   and collects. evo2-2 is only 6–5 against it.
 - `explorer.ready` added (a promise; resolves after evolved warriors are fetched); `load()`
   throws on unknown names. Tournament output now lists how matches ended.
+
+---
+
+## Session 1, part 4: write range, kill pay, tiebreaks, free-for-alls
+
+User: WRITE range 2; killing pays in size and speed (a small fraction of the deceased);
+tiebreaking is my call. Then keep pushing while they're away.
+
+### Changes
+- **WRITE range 2**: a foreign target must be within 2 (Chebyshev) of one of my cells,
+  with line of sight from that cell. (`CONFIG.writeRange`)
+- **Kill pay**: the killer takes 25% of the victim's max size and speed
+  (`CONFIG.killPay`). Credit goes to whoever last bombed or wrote into the victim, if
+  within 500 ticks (`CONFIG.creditWindow`). So running into someone's poison credits the
+  poisoner, and breaking yourself after being bombed credits the bomber.
+- **Tiebreaks at the cap** (my call): largest max size, then speed, then cell count;
+  still tied → draw. Remaining draws are real stalemates (neither side collected, so
+  both decayed identically on all three).
+- **Free-for-alls in the GA**: kill pay only matters when a death doesn't end the match,
+  i.e. 3+ players. Jobs are now "warriors in seat order + which seat is me". Each
+  individual also plays `--ffa N` 4-player matches against 3 opponents drawn from its
+  opponent pool, its seat rotating. Kills add +0.5 each (≤1) to the match score.
+- `--bench dir1,dir2`: benchmarks (and starting-population seeds) can include evolved
+  champions, so a run can start from the last run's best.
+
+Tournament after these changes (hand-written + evo2 champions, 10 boards, 5000 ticks):
+evo2-2 71W, evo2-1 61W, Gatherer 57W (but 83 losses, 0 draws: the tiebreaks turned all
+its draws into decisions, mostly losses), evo2-3 57W. Ends: 190 true draws, 166 on max
+size, 88 on tiebreaks, 116 last standing.
+
+### evo3 launched
+pop 128, 150 gens, 3000 ticks, 2 boards + 6 FFAs per individual per gen, benchmarks =
+hand-written + evo1/evo2 champions.

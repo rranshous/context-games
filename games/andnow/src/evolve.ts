@@ -4,7 +4,8 @@
 // on a few fresh boards per generation. Matches run in parallel on worker threads.
 //
 //   node dist/evolve.mjs --name run1 [--pop 48] [--gens 40] [--seeds 2] [--ticks 1500]
-//                        [--hof 3] [--peers 6] [--workers 8] [--rng 1]
+//                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
+//                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
@@ -19,14 +20,14 @@ import { parseWarrior } from './sim/warrior-file';
 
 // ---------- one match, scored from one side ----------
 
-interface Job { a: string; b: string; seed: number; ticks: number; swap: boolean }
+// A match: `warriors` in seat order, and which seat is the individual being scored.
+interface Job { warriors: string[]; me: number; seed: number; ticks: number }
 interface JobResult { score: number; win: boolean; loss: boolean; kill: boolean; hits: number; poisons: number }
 
 function runJob(j: Job): JobResult {
-  const a = parseWarrior(j.a), b = parseWarrior(j.b);
-  const specs = j.swap ? [b, a] : [a, b];
-  const me = j.swap ? 1 : 0;
+  const me = j.me;
   try {
+    const specs = j.warriors.map((t) => parseWarrior(t));
     const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
     const w = world.warriors[me];
     const r = world.result;
@@ -37,6 +38,7 @@ function runJob(j: Job): JobResult {
     score += Math.min(0.5, 0.05 * w.stats.collected);
     score += Math.min(1, 0.1 * w.stats.bombHits);
     score += Math.min(1, 0.25 * w.stats.poisonWrites);
+    score += Math.min(1, 0.5 * w.stats.kills);
     score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
     return {
       score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
@@ -46,6 +48,10 @@ function runJob(j: Job): JobResult {
     // e.g. doesn't fit the start room
     return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
   }
+}
+
+function duel(a: string, b: string, seed: number, swap: boolean, ticks: number): Job {
+  return { warriors: swap ? [b, a] : [a, b], me: swap ? 1 : 0, seed, ticks };
 }
 
 // ---------- worker pool ----------
@@ -77,14 +83,16 @@ async function main() {
   const opt = (k: string, d: number) => { const i = args.indexOf(`--${k}`); return i >= 0 ? Number(args[i + 1]) : d; };
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
   const POP = opt('pop', 48), GENS = opt('gens', 40), SEEDS = opt('seeds', 2), TICKS = opt('ticks', 1500);
-  const HOF = opt('hof', 3), PEERS = opt('peers', 6), ELITE = opt('elite', 4), WORKERS = opt('workers', availableParallelism());
+  const HOF = opt('hof', 3), PEERS = opt('peers', 6), FFA = opt('ffa', 4), ELITE = opt('elite', 4), WORKERS = opt('workers', availableParallelism());
   const NAME = str('name', `run-${Date.now()}`);
   const rng = makeRng(opt('rng', 1));
   const runDir = join('runs', NAME);
   mkdirSync(runDir, { recursive: true });
 
-  const benchFiles = readdirSync('warriors').filter((f) => f.endsWith('.warrior')).sort();
-  const bench = benchFiles.map((f) => readFileSync(join('warriors', f), 'utf8'));
+  // Benchmarks (and the starting population's seeds): every .warrior in the --bench dirs.
+  const benchFiles = str('bench', 'warriors').split(',').flatMap((dir) =>
+    readdirSync(dir).filter((f) => f.endsWith('.warrior')).sort().map((f) => join(dir, f)));
+  const bench = benchFiles.map((f) => readFileSync(f, 'utf8'));
   const benchNames = benchFiles.map((f) => basename(f, '.warrior'));
   const hallOfFame: Individual[] = [];
 
@@ -124,9 +132,17 @@ async function main() {
       }
       const opponents = [...bench, ...hofSample(), ...peers];
       for (const opp of opponents) {
-        seeds.forEach((seed, s) => jobs.push({ a: ind.text, b: opp, seed, ticks: TICKS, swap: s % 2 === 1 }));
+        seeds.forEach((seed, s) => jobs.push(duel(ind.text, opp, seed, s % 2 === 1, TICKS)));
       }
-      counts.push(opponents.length * seeds.length);
+      // Free-for-alls: me + 3 opponents drawn from the same pool, my seat rotating.
+      // This is where kill pay matters: a kill doesn't end the match.
+      for (let k = 0; k < FFA; k++) {
+        const others = Array.from({ length: 3 }, () => opponents[Math.floor(rng() * opponents.length)]);
+        const me = k % 4;
+        others.splice(me, 0, ind.text);
+        jobs.push({ warriors: others, me, seed: seeds[k % seeds.length], ticks: TICKS });
+      }
+      counts.push(opponents.length * seeds.length + FFA);
     }
     const results = await pool.run(jobs);
     let at = 0;
@@ -191,7 +207,7 @@ async function main() {
   const heldOut = Array.from({ length: 10 }, (_, i) => 900001 + i);
   const finalists = [...new Map(hallOfFame.map((h) => [h.text, h])).values()].slice(-15);
   const jobs: Job[] = [];
-  for (const f of finalists) for (const b of bench) heldOut.forEach((seed, s) => jobs.push({ a: f.text, b, seed, ticks: TICKS, swap: s % 2 === 1 }));
+  for (const f of finalists) for (const b of bench) heldOut.forEach((seed, s) => jobs.push(duel(f.text, b, seed, s % 2 === 1, TICKS)));
   const results = await pool.run(jobs);
   pool.close();
   const per = bench.length * heldOut.length;

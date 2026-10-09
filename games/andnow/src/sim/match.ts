@@ -49,7 +49,7 @@ export function runTournament(specs: WarriorSpec[], seeds: number[], tickCap?: n
       if (i === j) continue;
       for (const seed of seeds) {
         const { summary } = runMatch([specs[i], specs[j]], seed, { tickCap });
-        const why = summary.reason.replace(/ \(.*\)$/, '');
+        const why = summary.reason.replace(/ \([^)]*\)/g, '');
         reasons[why] = (reasons[why] ?? 0) + 1;
         const a = specs[i].name, b = specs[j].name;
         const key = [a, b].sort().join(' vs ');

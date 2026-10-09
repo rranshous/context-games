@@ -57,5 +57,5 @@ export const GLYPH_DOCS: Record<string, string> = {
   'G': 'GROW: pop dir code; add a cell at the end of my line that way',
   'C': 'COLLECT: take every resource or debris touching my body',
   'B': 'BOMB: pop dx dy; destroy a visible foreign cell within range',
-  'W': 'WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell touching me',
+  'W': 'WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me',
 };

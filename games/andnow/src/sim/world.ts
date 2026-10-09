@@ -24,6 +24,9 @@ export const DEBRIS = -2;
 export const CONFIG = {
   sight: 14,            // LoS range from each cell (Chebyshev)
   bombRange: 6,         // BOMB reach from the cell that sees the target
+  writeRange: 2,        // WRITE reach into foreign cells, from the cell that sees the target
+  killPay: 0.25,        // a killer takes this fraction of the victim's max size and speed
+  creditWindow: 500,    // a death within this many ticks of being harmed credits the harmer
   stackMax: 64,
   sizeFloor: 8,
   sizeCap: 64,
@@ -55,6 +58,7 @@ export interface Warrior {
   cellCount: number;
   executed: number;
   stats: { collected: number; bombHits: number; poisonWrites: number; kills: number };
+  lastHarm?: { by: number; t: number }; // who last bombed or wrote into me, and when
   deathReason?: string;
   diedAt?: number;
   spec: WarriorSpec;
@@ -205,6 +209,17 @@ export class World {
     wr.diedAt = this.t;
     for (const c of this.cellsOf(wr.id)) this.toDebris(c);
     this.log('death', `${wr.name} died: ${reason}`, wr.id);
+    // Killing pays: whoever harmed the victim recently (bomb or write) takes a cut of
+    // its max size and speed. That includes a victim that runs into poison, or breaks
+    // itself after being bombed.
+    const h = wr.lastHarm;
+    const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : undefined;
+    if (killer && killer.alive && killer !== wr) {
+      killer.stats.kills++;
+      killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
+      killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
+      this.log('kill', `${killer.name} takes a cut of ${wr.name} (max ${Math.floor(killer.maxSize)}, speed ${killer.speed.toFixed(2)})`, killer.id);
+    }
   }
 
   /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
@@ -215,8 +230,8 @@ export class World {
     if (o < 0) return;
     const victim = this.warriors[o];
     victim.cellCount--;
+    victim.lastHarm = { by: by.id, t: this.t };
     if (i === this.idx(victim.ipX, victim.ipY)) {
-      by.stats.kills++;
       this.kill(victim, `core bombed by ${by.name}`);
       return;
     }
@@ -315,12 +330,23 @@ export class World {
       this.result = { over: true, winner: null, reason: 'died' };
     } else if (this.t >= CONFIG.tickCap) {
       // Everyone starts at the same max size and decays the same way, so the highest
-      // max size at the cap is whoever kept their economy up best.
-      const best = Math.max(...alive.map((w) => w.maxSize));
-      const top = alive.filter((w) => best - w.maxSize < 0.01);
-      this.result = top.length === 1
-        ? { over: true, winner: top[0].id, reason: `largest max size at tick cap (${best.toFixed(1)})` }
-        : { over: true, winner: null, reason: 'draw at tick cap' };
+      // max size at the cap is whoever kept their economy up best. Ties (same number of
+      // size pickups) break on speed, then on cells.
+      const keys = (w: Warrior) => [w.maxSize, w.speed, w.cellCount];
+      const cmp = (a: Warrior, b: Warrior) => {
+        const ka = keys(a), kb = keys(b);
+        for (let k = 0; k < ka.length; k++) if (Math.abs(ka[k] - kb[k]) >= 0.01) return kb[k] - ka[k];
+        return 0;
+      };
+      const ranked = [...alive].sort(cmp);
+      const tied = ranked.length > 1 && cmp(ranked[0], ranked[1]) === 0;
+      const top = ranked[0];
+      const by = ranked.length < 2 || Math.abs(top.maxSize - ranked[1].maxSize) >= 0.01 ? `largest max size (${top.maxSize.toFixed(1)})`
+        : Math.abs(top.speed - ranked[1].speed) >= 0.01 ? `max size tied, faster (${top.speed.toFixed(2)})`
+        : `max size and speed tied, more cells (${top.cellCount})`;
+      this.result = tied
+        ? { over: true, winner: null, reason: 'draw at tick cap' }
+        : { over: true, winner: top.id, reason: `${by} at tick cap` };
     }
     if (this.result.over) this.log('over', this.result.winner === null
       ? `Match over: ${this.result.reason}`
@@ -600,15 +626,14 @@ export class World {
     const o = this.ownerAt(x, y);
     if (o === NONE) return false;
     if (o !== wr.id) {
-      // Foreign cells must touch one of mine.
-      let touching = false;
-      for (let d = 0; d < 4 && !touching; d++) touching = this.ownerAt(x + DX[d], y + DY[d]) === wr.id;
-      if (!touching) return false;
+      // Foreign cells must be close to one of mine (and seen from it).
+      if (this.seer(wr.id, x, y, CONFIG.writeRange) < 0) return false;
     }
     const c = ((code % GLYPHS.length) + GLYPHS.length) % GLYPHS.length;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
       if (c === CODE['@']) wr.stats.poisonWrites++;
+      if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log('write', `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
     }
     return true;
