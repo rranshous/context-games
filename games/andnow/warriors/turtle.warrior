@@ -1,0 +1,8 @@
+name: Turtle
+# Stays put. Bombs the nearest enemy in range, grows armor in a random direction,
+# collects whatever touches it. The rings of `.` are armor and do nothing.
+ip: 1 1
+---
+.........
+.2S$B4y0GC
+.........

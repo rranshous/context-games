@@ -1,0 +1,14 @@
+name: Stalker
+# Hunt the nearest enemy cell; when touching it, write the poison glyph @ into it.
+# The wander direction lives at the bottom of the stack (like the Roamer).
+# Middle row decides: SCAN for an enemy, `|` sends the IP north if found, south if not.
+# Found (top row): copy dx,dy (`oo`), write @ there (`'@` pushes the code of @ and
+# skips it), then step toward it and adopt that as the wander direction.
+# Not found (bottom row): drop dx,dy, keep wandering; turn right when blocked.
+# Both rows wrap back to their first cell, which points the IP back into the middle row.
+# (Without the branch, a failed SCAN gives 0,0 = my own IP cell, and I poison myself.)
+ip: 0 1
+---
+v   >oo'@WT\$:M
+>C2S|
+^   >$$:Me!+

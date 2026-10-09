@@ -1,0 +1,18 @@
+{
+  "name": "andnow",
+  "version": "0.1.0",
+  "description": "2D code-cloud warriors: Tierra x Core War x RTS. Each warrior is a connected cloud of cells, each cell one instruction.",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "match": "node dist/headless.mjs"
+  },
+  "author": "Robby Ranshous",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,9 @@
+name: Roamer
+# A gatherer with a memory: the wander direction lives at the bottom of the stack.
+# Found a resource (top row): head toward it, and adopt that as the wander direction.
+# Nothing in sight (bottom row): keep going the same way; turn right when blocked.
+ip: 0 1
+---
+v   >T\$:M
+>C6S|
+^   >$$:Me!+

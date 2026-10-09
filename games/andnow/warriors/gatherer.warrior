@@ -1,0 +1,6 @@
+name: Gatherer
+# One row, so the IP just loops along it forever (the row wraps within the body).
+# Collect anything touching me; find the nearest visible resource; head toward it
+# (TOWARD of 0,0 is a random direction, so with nothing in sight it wanders).
+---
+C6S$TM

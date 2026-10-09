@@ -1,0 +1,9 @@
+name: Bomber
+# Like the Stalker, but bombs at range instead of poisoning by touch.
+# Found an enemy (top row): bomb it (fails quietly if out of range), step toward it.
+# Nothing in sight (bottom row): keep wandering; turn right when blocked.
+ip: 0 1
+---
+v   >ooBT\$:M
+>C2S|
+^   >$$:Me!+
