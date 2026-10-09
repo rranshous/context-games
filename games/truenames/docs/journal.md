@@ -909,3 +909,19 @@ Robby asked how the pair key works ("derived from their private keys right?"). E
   - Tests: both sides agree; fresh secrets wiped; a replay refused; a recorded session box opens neither with the pair key nor in a later session.
 - **Renewal**: a side that lost its session (restart, reload) can't open the other's boxes, so it asks to `renew` (at most every 10 s, and not right after accepting). The lender offers afresh, and a remembered receiver accepts at once. Live: Keeper's page reloaded twice mid-lending; each time the session came back by itself, and a find arrived through the renewed session (17 → 18 truths). Fixed on the way: renewals repeated "meditating for Keeper" in the lender's history, and boxes in flight under the old session triggered extra renewals.
 - **CPU**: Robby's machine was busy with another project, so every test process ran at `nice -n 19` (the dev servers, Ash's desktop, and the test browser, reniced) on one meditation voice. Lending still made ~5,700/s.
+
+## A docs pass (2026-10-09)
+Robby: "plz make sure the docs are updated and the readme gives a good jumping off point for understanding what we're doing and exploring here".
+- **README rewritten** as a jumping-off point:
+  - the six threads we're exploring, each linked to where it lives: work is the magic; prove the details, never the source; one power system, many games; no central server (sanctum, altars, dungeons, encryption, lent hum); actants as players in the same frame as humans; building with Claude in the loop (Explorer Claude, the issue inbox, the journal)
+  - status, a diagram of the three roles, the worlds
+  - trying it alone, with a chorister, and across a LAN
+  - developing, and a reading order
+- **Brought up to date**:
+  - **05:** a "Choirs and actants" section, the shared Dark, test counts, review times, and the "not built yet" list.
+  - **06:** the dependency graph (channel, altar, desktop), the app's file list (plan, actant, actant-mind, choir, lending, explorer); the shared Dark's round calls (the welcome's `gathering.first`, not the old `choir-gather`); the actant's tools (`set_goal`, `lend_hum`, `report_issue`; `note` gone); Explorer Claude and the issue inbox; persistence; testing; the multiplayer seams.
+  - **02:** choirs, altars and choristers in world terms; mapping rows for dungeon, altar and chorister; lent hum as the "labor" orders share.
+  - **07:** done items (encryption, lent meditation, actants grown up, Explorer, releases) and next ("choristers, further"; faster minds).
+  - **08:** open questions on choirs, altars and actants (who may accept lent hum, what an altar keeper sees, reaching beyond the LAN, lent hum in presence, churches).
+  - **09:** marked as parked, with how lent meditation relates.
+  - **CLAUDE.md:** rendering is Canvas 2D; a "Development loops" section (play it yourself with the explorer, read the issue inbox, don't edit during a dev-server playtest, low CPU priority, keep the docs current).

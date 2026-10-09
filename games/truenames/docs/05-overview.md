@@ -3,7 +3,7 @@
 What Truenames **is today**: the game a player meets, and the in-world words for what's underneath. Formulas are in [03](03-mechanics.md), code in [06](06-architecture.md), and the [journal](journal.md) says why things are the way they are.
 
 ## The game in one paragraph
-You are an apprentice who knows one word of power: the hearth's. In the **sanctum** you *scry* the eightfold astral for beings (wisps in the shallows, gods far below) and *meditate* to grasp their words, one facet at a time. Both are real computation run by your browser, and the result of that work is your character's strength. You bind grasped words and set out into one of four **worlds**: the Dark (an arena), the Bastion (tower defense), the Council (a card duel) or Dark Racer (a race, against rivals and other players). At the **threshold** the sanctum proves each word in zero knowledge; the world receives only those proofs, never where the beings dwell, and each patron lends you a **vessel** of power for the journey. Truer words draw more and strain less; words of mightier beings draw far more. Fall, meditate, return truer, and go deeper.
+You are an apprentice who knows one word of power: the hearth's. In the **sanctum** you *scry* the eightfold astral for beings (wisps in the shallows, gods far below) and *meditate* to grasp their words, one facet at a time. Both are real computation run by your machine, and the result of that work is your character's strength. You bind grasped words and set out into one of four **worlds**: the Dark (an arena, alone or with others), the Bastion (tower defense), the Council (a card duel) or Dark Racer (a race, against rivals and other players). You gather with others at **altars**, and your **choir** can include **actants**: minds on local models that tend their own sanctums and play beside you. At the **threshold** the sanctum proves each word in zero knowledge; the world receives only those proofs, never where the beings dwell, and each patron lends you a **vessel** of power for the journey. Truer words draw more and strain less; words of mightier beings draw far more. Fall, meditate, return truer, and go deeper.
 
 ## The loop
 ```mermaid
@@ -162,14 +162,24 @@ The dungeon hosts several **worlds**. Each admits you by the same proofs and int
 ## Sanctum, altars and dungeons
 Three roles, each its own process and address. Your **sanctum** (your window) holds your aura and words. **Altars** are gathering places: you belong to several (home, a church's, a friend's), each with its choir, its talk and its round announcements. **Dungeons** host worlds and run rounds: you play at your own, or at whichever one an announcement names. On a desktop all three run together; across a LAN they can be anywhere. Every connection is encrypted. A sanctum can **lend its hum** to another at the same altar: it meditates on their beings against their public key, and they check and sign every word it finds (sealed between the two; the altar can't read it). See [06](06-architecture.md).
 
+### Choirs and actants
+- **Altars** (the sanctum's Altars panel): you belong to several, each with its choir (members' hum, words, and whether an actant tends them), talk, shared signs and round calls. Join one by its address (`host:port#k=…`, as a desktop shows its own), leave with ×. Live activity shows who is **typing**, which actant **heard you**, and which is **thinking**.
+- **Round calls**: whoever opens a shared round (the Dark, a race) calls it at their altars, with the dungeon's address; others and actants standing ready walk into that dungeon within the lobby.
+- **The actant** (the sanctum's Actant section): wake it, pick a local model (ollama), and it tends your sanctum toward its **goal**, which it keeps itself (`set_goal`; tell it one in chat). When something happens (a find, a grasp, an aim fulfilled, a journey, someone speaking to it) it reviews the sanctum and adjusts the plan with the same operations you use. While it thinks, meditation pauses.
+  - **Standing orders**: "races" and "the dark". When a round is called at your altars, it walks in on its own and plays with its own **driving** or **fighting code**, which it can rewrite after each journey.
+  - **Continuity**: each review leaves a one-line digest (what it heard, did and said); the last six open every review.
+  - **Experimental**: actants are told the game is still being built, and report what seems broken (`report_issue`), not what their own code does poorly.
+- **Lent meditation**: "meditate for" beside a member offers your hum to their words. They accept (they're told you'd learn which beings they meditate on); you then meditate on their beings against their public key, and they check and sign every word you find. Sealed between the two of you; the altar can't read it.
+
 ## The dungeon is its own process
-Worlds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends intent (movement, aim, casts, plays) and draws what the dungeon reports. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts both. **Dark Racer is the first shared world**: racers at the same circuit within a 15 s lobby share one race. The other worlds are one player per round today.
+Worlds are simulated by a separate Node process (the *dungeon*), not the browser. The browser sends intent (movement, aim, casts, plays) and draws what the dungeon reports. The dungeon verifies the proofs, so the browser is never trusted about names. `corepack pnpm dev` starts the game with a dungeon and an altar. **The Dark and Dark Racer are shared**: players at the same level within a 15 s lobby share one round. The Bastion and the Council are one player per round.
 
 ## Current numbers (dev box: i7-4770, 4 cores / 8 threads)
 - Browser hum with 7 workers: ~38k utterances/s (WASM kernel; ~17k with BigInt).
 - Scrying (~18k divisions/s): a wisp every ~4 min; a spirit every ~1 h; a god ~a year (solo, nonstop).
 - A wisp's first word (22 truths): ~2 min. A power's (30): ~8 h. A god's (38): ~3 months.
-- Tests: ~55 in Node (including real proofs), plus golden vectors in a headless-Chromium worker.
+- Tests: 73 in Node (including real proofs, sealed channels and an altar over real sockets), plus golden vectors in a headless-Chromium worker.
+- Actant reviews (qwen3:8b on CPU): ~2 min each, much longer if other meditation competes for the processor.
 
 ## Not built yet
-Shared play in the Dark, Bastion and Council; servers as services (grants, deeds, census); the Open Choir; teaching names; warfare and ownership; aura backup/export; mobile/touch. See [07](07-roadmap.md) and [08](08-open-questions.md).
+Shared play in the Bastion and Council; reaching altars and dungeons beyond the LAN (Internet choirs); LAN discovery; invite links; hands (machines with no aura that meditate for you); churches and guilds; servers as services (grants, deeds, census); the Open Choir; warfare and ownership; aura backup/export; mobile/touch. See [07](07-roadmap.md) and [08](08-open-questions.md).

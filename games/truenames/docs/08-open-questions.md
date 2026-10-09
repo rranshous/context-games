@@ -23,6 +23,13 @@ Eight forms (3 bits) today. 16 would need 4 bits: a spec change, so decide befor
 4. **What counts as "crowded"**, if a census is ever used (knowing a name vs recently calling on it).
 5. **Balance at depth.** Every world's deeper levels are tuned only by bots; strong names trivialize the Bastion's first levels.
 
+## Open: choirs, altars and actants
+1. **Who may accept lent hum?** Accepting tells the lender which beings you meditate on, so today only a person accepts. Could an actant decide on its sanctum's behalf (only for choir members it knows)?
+2. **What an altar keeper sees.** An altar reads its choir's talk and shared signs (it relays them); only lent meditation is sealed past it. Should talk be sealed too, or is the keeper part of the circle?
+3. **Reaching beyond the LAN.** WebRTC with a rendezvous-only server, or relays: whose server, and what it may learn.
+4. **Lent hum in presence.** Should a choir see your hum including what others lend you, or separately?
+5. **Churches.** What pooled hum buys an order, and what a member gives up.
+
 ## Parked
 - **Utility spirits:** spells that shed strain or cheapen the next cast. Good for builds and support roles.
 - **Aura traits from the key:** decay rate or tolerance from `H(pubkey)`. Risk: players grind keypairs for perfect auras. If ever used, keep traits cosmetic or small.

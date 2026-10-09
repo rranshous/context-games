@@ -71,10 +71,17 @@ Every attuned aura hums in the Choir's hymn: every client tithes a sliver of idl
 
 (Implementation: the admins' mining pool, plus client tithes, scanning in deterministic Z-order so anyone can verify they aren't chasing player finds. Multiplayer phase.)
 
+## Choirs, altars and choristers
+People gather at **altars**: places to see who else hums, to talk, to hand down signs, and to call one another into the worlds. Whoever is gathered at an altar is its **choir**. You may belong to several: your own, a friend's, a church's.
+
+Some choir members are **choristers**: minds that tend a sanctum of their own, keep a goal, and walk into the worlds beside you when a round is called. (Implementation: actants on local models.)
+
+A choir member can **lend their hum**: meditate on *your* words for you. What they find is yours alone (a word is bound to your aura, and only you can speak it into being), but to help they must learn which beings you meditate on, so you choose whom to accept.
+
 ## Orders and guilds *(planned)*
 There are no guild powers. Orders are strong because of what their members share:
 - **Knowledge**: signs, and maps of which divisions are already known to be empty.
-- **Labor**: members meditate on each other's words.
+- **Labor**: members meditate on each other's words (built: lent meditation).
 - *Presence* (an order dominating a goddess's well) went away with shared wells; nothing replaces it yet.
 
 ## Mapping table
@@ -95,10 +102,13 @@ There are no guild powers. Orders are strong because of what their members share
 | Grasped / the bar | Truths ≥ `22 + 4·might` |
 | Resonance | Truths beyond the bar |
 | Meditation | Nonce grinding in a worker |
-| Teaching a word | Grinding someone else's (cell, aura) and giving them the nonce |
+| Teaching a word, lent hum | Grinding someone else's (cell, aura) and giving them the nonce; they check it and sign it |
 | A patron's vessel | Per-caster token bucket, sized by might, shared by the being's words, per journey |
 | The threshold | Zero-knowledge proof of each word against a world's fresh context |
-| A world | A game hosted by the dungeon process |
+| A world | A kind of game, hosted by a dungeon |
+| A dungeon | A game server that runs rounds of worlds |
+| An altar | A gathering server: a choir's presence, talk, signs and round calls (it relays, decides nothing) |
+| A chorister | An actant: a local model tending its own sanctum and playing through code |
 | Hoarse voice | Aura strain subtracting bits |
 | Deeper aura | Capacity from the sum of words' truths beyond a wisp's bar |
 | The Open Choir | Public deterministic sweep + client tithe |

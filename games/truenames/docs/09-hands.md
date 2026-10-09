@@ -1,6 +1,6 @@
 # Hands: lending a machine to meditate for you
 
-*Plan, 2026-10-05. Not built yet.*
+*Plan, 2026-10-05. Parked the same day (Robby: full desktop installs on every machine first). Lent meditation (built, 2026-10-06; [06](06-architecture.md)) is this design between two sanctums that each have an aura: the same orders, finds and checking, the same sealed relay through an altar. A hand would be that without an aura of its own.*
 
 A **hand** is a spare computer that meditates for your aura. It has no aura of its own and no model: it is an
 extension of you, set up from an invite link, talking to your sanctum over an encrypted channel. Your hum grows;

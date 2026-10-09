@@ -25,7 +25,7 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - *Presence* (orders dominating a goddess) has no replacement yet.
 
 ## Platform direction: serverless, desktop (2026-10-01)
-- **No central server required.** Any instance can host worlds (the dungeon) and a choir hub. Instances find each other on the LAN, or by address. A bootstrap/relay server is optional, only for reaching beyond the LAN.
+- **No central server required.** Any instance can host worlds (a dungeon) and a gathering place (an altar), each its own process; a sanctum belongs to several altars and plays at whichever dungeon a round is called at. Instances find each other on the LAN, or by address. A bootstrap/relay server is optional, only for reaching beyond the LAN.
 - **A desktop app**, wrapped with Electron (it runs today's client, workers, WASM, prover and the Node dungeon in-process). Watch for it becoming "too much"; Tauri is the lighter alternative.
 - **Easy to share**: a download link on a web page (single-file builds where possible). The web dev loop stays the fast path for iteration.
 - **Local models** through a local ollama for now; bundling later, if ever.
@@ -40,29 +40,34 @@ A global census of who knows which spirit gets the incentives backwards: publish
 - **The desktop app**: Electron, with the dungeon in-process, per-profile saves, LAN-joinable worlds, hush in the worlds, and AppImage + tar.gz builds.
 - **Actants, first four milestones**: the sanctum plan (aims, planner, history); the mind (a local model reviewing on events, through the player's own plan operations); the choir (presence, chat and shared signs); racing (a standing order to join, self-written driving code), and the Dark (a standing order to walk in beside the choir, self-written fighting code). See the journal.
 
-- **Sanctum, altar, dungeon** (2026-10-05): three roles, each its own process and address; a sanctum belongs to several altars; announcements carry the dungeon's address; every connection sealed (x25519, ChaCha20-Poly1305, pinned keys).
+- **Sanctum, altar, dungeon** (2026-10-05): three roles, each its own process and address; a sanctum belongs to several altars; round calls carry the dungeon's address.
+- **Encryption** (2026-10-05/06): every connection sealed (x25519, HKDF, ChaCha20-Poly1305, pinned keys), with forward secrecy (fresh keys on both sides); boxes between two sanctums sealed with keys only the pair can derive, in sessions with forward secrecy and replay counters.
+- **Lent meditation** (2026-10-06): one install meditates for another at the same altar (offer, accept, sealed orders and finds, every find checked and signed by the receiver).
+- **Actants grown up** (2026-10-02/06): live activity (typing, heard, thinking), quick replies to talk, a goal the actant keeps itself, continuity (digests of its last reviews), code in context only when relevant, the actant bench.
+- **Explorer Claude and the issue inbox** (2026-10-02): `window.explorer` for Claude to play the game by code and shard a model in; `report_issue` for actants and the shard.
+- **Desktop releases** 0.2.0–0.2.3 (local builds, not published).
 
 ## Next
 Roughly in order; each is independently useful.
 0. **Quiet the hum during play** (Robby, 2026-10-01): background meditation and scrying cut the framerate in worlds. Scale voices down automatically while a world is on screen (restore after; player override).
 0. **A sanctum UI pass for v2** (Robby, 2026-10-01: "we'll def want to focus on the UI here at some point"): show the pyramid of might, beings' facets and your words as first-class, not as v1's layout with new details.
 1. **More shared worlds.** A PvP Council seat; a shared Bastion. Lag compensation once players fight players.
-2. **Aura backup and export.** Today losing the browser's storage loses every name. Export/import of the save, then a backup service that stores only signed claims.
+2. **Aura backup and export.** Today losing a profile's storage loses every name. Export/import of the save, then a backup service that stores only signed claims.
 3. **Sanctum services.** A bulletin board of claims (optional census), grants (a signed vessel/capacity summary a world can accept instead of recomputing) and **deeds** (records of what happened in a world, signed by the world and by the player; a series is optional, not assumed). **Titles are computed, not issued**: public rules over deeds.
 4. **The Open Choir.** A public sweep in a published deterministic order, fed by client tithes, publishing every find on schedule. The sweep rate sets the half-life of private discoveries. The Choir never evokes.
-5. **Knowledge and teaching.** Name gifting (grind someone's `(cell, aura)`, hand over the nonce; they sign), shared scan maps, guild servers. Orders as social structures only.
+5. **Knowledge and teaching.** Lent meditation is built (grind someone's `(cell, aura)`, hand over the nonce; they sign). Still to come: shared scan maps (choirs searching without overlap), guild servers. Orders as social structures only.
 6. **A real trusted setup** (a multi-party ceremony) before any world is run by someone players don't trust.
 7. **Conflict** (needs the warfare decision in 08): PvP with the same casting rules, possibly spatial sites.
-8. **The choir: actants as players** (shape agreed 2026-10-01; slices not yet planned). A **chorister** is a full game instance with its own head (a window), its own aura and words, and a mind running on a local model (ollama). It can meditate for you (it grinds words on your aura; you sign them), meditate for itself, and play in the worlds through policy code it writes and rewrites itself (the embodied-soma pattern). Run it on the same machine or others; more machines is more compute, which is the point: **compute is the capability ceiling**. A choir hub (shared signs, a work board, chat) lives in whichever instance hosts.
+8. **Choristers, further** (shape agreed 2026-10-01; much of it built). A **chorister** is a full game instance with its own head (a window), its own aura and words, and a mind on a local model. It tends its sanctum, meditates for you (lent meditation), and plays the worlds through code it writes and rewrites. More machines is more compute, which is the point: **compute is the capability ceiling**. Next: faster reviews (smaller models), a reason for its code to improve (richer race and round reports), and an actant deciding offers of lent hum on its sanctum's behalf.
 9. **Ledger (optional).** For names and discoveries, never for real-time play.
 
 ## Actants and choirs: next (Robby, 2026-10-01)
 - **Same frame, same game**: actants and humans use the same sanctum, plan operations, choir and worlds. A hard rule.
+- **Faster minds** (Robby, 2026-10-05: "that time is crazy"): a review takes minutes on CPU. Try the smaller models from the local-ai research again, now that the prompt is lighter (code only when relevant, a goal, digests).
 - **Models (bench, 2026-10-01)**: qwen3:8b stays the default (7/8 sanctum scenarios, ~2–3 min a review on CPU). `lfm2.5-2.6b` tends well but always thinks (4–10 min a review on CPU); `lfm2.5-350m` can't tend (3/24). For driving code, no local model has yet improved on the default by understanding it.
 - **Make words matter in races** (or score more than place): with one wisp-class lance, place barely depends on the driving code (default 2.89, silent autopilot 3.00 over 18 races), so a rewrite loop has nothing to learn from. Truer words don't help either: power caps at the wisp's vessel from ~30 truths, and a lance's slow goes from only 1.4 s to 1.7 s (journal, 2026-10-01). Racing needs a balance pass where truths show.
 - **Focus (Robby, 2026-10-05): full desktop installs on every participating machine.** Each machine runs the whole app (its sanctum, altar and dungeon); hands are parked until that experience is solid.
-- **Lent meditation** (2026-10-06): one full install meditates for another at the same altar (offer, accept, sealed orders and finds, every find checked and signed by the receiver). This is the shape hands would have had, between sanctums that each have an aura.
-- **Hands** (planned 2026-10-05, parked; [09-hands.md](09-hands.md)): a spare machine with no model, set up from an invite link, meditates for your aura over an encrypted channel relayed by your dungeon. Your sanctum checks and signs every word it finds. H1 one machine, H2 relay and pairing, H3 orders from the plan, H4 the hand's head and desktop.
+- **Hands** (planned 2026-10-05, parked; [09-hands.md](09-hands.md)): a spare machine with no model, set up from an invite link, meditates for your aura over an encrypted channel relayed by your home altar (lent meditation without an aura of its own). Your sanctum checks and signs every word it finds. H1 one machine, H2 relay and pairing, H3 orders from the plan, H4 the hand's head and desktop.
 - **Choirs over the Internet**: WebRTC data channels, a rendezvous-only server plus a relay, chat and signs signed and encrypted by auras. No open home ports, no trusted server.
 - **LAN discovery**: mDNS; "choirs nearby".
 - **Invites**: a link or code that spins up a choir member on a friend's spare machine.

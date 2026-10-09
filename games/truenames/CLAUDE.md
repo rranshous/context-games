@@ -5,7 +5,7 @@ Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mec
 ## Stack
 - TypeScript, `strict: true`. Monorepo (pnpm workspaces).
 - Hashing: Poseidon over the BN254 scalar field (`poseidon-lite`). Keys: ed25519 (`@noble/curves` or `@noble/ed25519`).
-- Tests: vitest. 2D rendering: engine TBD (PixiJS or Phaser suggested).
+- Tests: vitest. Rendering: Canvas 2D + DOM, no engine. Encryption: `packages/channel` (@noble).
 
 ## Hard rules
 1. **`packages/universe` is pure and deterministic.** No `Math.random`, no `Date`, no floats in anything that decides existence, magnitude, traits or strength. Use `bigint`. Same inputs → same outputs on every machine, forever.
@@ -18,3 +18,11 @@ Orientation for working on this repo. Design lives in `docs/`; read `docs/03-mec
 
 ## Vocabulary (use these words consistently)
 depth, cell, spirit, magnitude, traits, name, strength (on screen: truths), aura, effective, vessel (code: pool), grant, strain, capacity, world, round, sanctum, altar, dungeon, choir. Definitions: `docs/03-mechanics.md`.
+
+## Development loops
+- **Play it yourself**: in development the game exposes `window.explorer` (Explorer Claude: `apps/game/src/explorer.ts`): drive it through Playwright's evaluate (or `node apps/dungeon/cdp.mjs <port> eval` on a desktop instance) to see state, play by code, take screenshots, and shard a local model in to play and report.
+- **Read the issue inbox**: actants and the shard report what seems broken to the altar, which appends to `actant-issues.jsonl` (repo root in dev). Check it after actant or shard runs.
+- **Don't edit `apps/game` or `packages/` while a dev-server playtest runs**: Vite reloads the page and ends the round.
+- **Run anything that hashes (meditation, desktop instances, test browsers) at low priority** (`nice -n 19`) when the machine is shared.
+- **Keep the docs current**: the design docs describe the game as it is; update them (and the journal) in the same commit as the change.
+

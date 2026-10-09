@@ -32,16 +32,22 @@ Decided 2026-10-05 (Robby). Each role is its own process with its own address; o
 | **dungeon** | a game server: hosts worlds and runs rounds | live rounds only | the outcome of its rounds (it verifies proofs) |
 - **Vocabulary**: a **world** is a kind of game (the Dark, Dark Racer…); a **dungeon** hosts worlds; a **round** is one play of a world at a dungeon; a **choir** is who is gathered at one altar.
 - **A sanctum belongs to several altars at once** (its home altar, a church's, a friend's) and shows each one's choir. It plays at a **default dungeon**, or at whichever dungeon an announcement names.
-- **Announcements carry the dungeon's address**: someone who opens a shared round calls it out at their altars (`choir-call {world, level, dungeon}`); choir members (and actants standing ready) connect straight to that dungeon. Gathering and playing can happen in different places: your sanctum at home, your church's altar elsewhere, a game master's dungeon somewhere else again.
-- **Everything is encrypted in transit** (`packages/channel`): every altar and dungeon has a long-term x25519 key (its identity), and each connection makes fresh keys on both sides. The server sends its long-term key and a fresh key; the client answers with its own fresh key. Per-direction keys come from two agreements mixed by HKDF-SHA256: client fresh × server long-term (only the real server can take part) and client fresh × server fresh (**forward secrecy**: the fresh secrets are forgotten once the channel is open, so a recording can't be opened later, even with the server's stolen long-term key). Every message after is sealed (ChaCha20-Poly1305, counter nonces; a replayed, reordered or altered frame closes the connection). An address can carry the server's key (`host:port#k=…`, as shared from a desktop); a bare address is trusted on first use and pinned, and a changed key is refused loudly. The altar or dungeon itself reads what is sent to it (it relays or runs it); hands (planned, [09](09-hands.md)) add end-to-end sealing so even their altar can't read work orders.
+- **Announcements carry the dungeon's address**: someone who opens a shared round calls it out at their altars (`call {world, level, dungeon, closesIn}`); choir members (and actants standing ready) connect straight to that dungeon. Gathering and playing can happen in different places: your sanctum at home, your church's altar elsewhere, a game master's dungeon somewhere else again.
+- **Everything is encrypted in transit** (`packages/channel`): every altar and dungeon has a long-term x25519 key (its identity), and each connection makes fresh keys on both sides. The server sends its long-term key and a fresh key; the client answers with its own fresh key. Per-direction keys come from two agreements mixed by HKDF-SHA256: client fresh × server long-term (only the real server can take part) and client fresh × server fresh (**forward secrecy**: the fresh secrets are forgotten once the channel is open, so a recording can't be opened later, even with the server's stolen long-term key). Every message after is sealed (ChaCha20-Poly1305, counter nonces; a replayed, reordered or altered frame closes the connection). An address can carry the server's key (`host:port#k=…`, as shared from a desktop); a bare address is trusted on first use and pinned, and a changed key is refused loudly. The altar or dungeon itself reads what is sent to it (it relays or runs it); what two sanctums send each other through an altar (lent meditation) is sealed end to end on top, so the altar can't read it (below).
 
 ## Dependency graph
 ```mermaid
 flowchart LR
   game[apps/game] --> protocol
   game --> proofs
-  game -. protocol + balance only .-> dungeon
+  game --> channel
+  game -. protocol + balance + racing/fighting only .-> dungeon
   dsrv[apps/dungeon] --> dungeon
+  dsrv --> channel
+  altar[apps/altar] --> channel
+  altar --> protocol
+  desktop[apps/desktop] --> dsrv & altar
+  channel --> N2["@noble/curves, ciphers, hashes"]
   dungeon --> authority
   dungeon --> proofs
   proofs --> universe
@@ -110,11 +116,17 @@ grantSyntheticName(aura, cell, strength)   forgetAura(aura)      // NPC seam
 
 ## apps/game
 ```
-main.ts           boot: load save → Services → screens; the rAF loop; audio wake; tooltips; idle summary
-services.ts       long-lived: save, MeditationPool, session authority, event emitters (finds, names, scry, hum)
+main.ts           boot: load save → Services → screens; the rAF loop; audio wake; tooltips; idle summary; installs the explorer (dev)
+services.ts       long-lived: save, MeditationPool, session authority, planner, actant, choirs, lending, event emitters
 save.ts           IndexedDB persistence (one record), aura keypair, claim signing, world progress
 threshold.ts      sanctum side of the threshold: which names a world carries, a pool of prover workers, cosmetics
-round.ts          game side: DungeonLink (WebSocket to the dungeon), Journey, RoundHost
+round.ts          game side: addresses and key pins, sealed DungeonLink, Journey, RoundHost, pilot/fighter types, reportIssue
+plan.ts           the sanctum plan (aims) and its Planner; the sanctum history
+actant.ts         the actant in the game: event-driven reviews, tool calls on the sanctum, activity, digests
+actant-mind.ts    what a model sees and does: soma, state text, tools, chat/converse (ollama), driving and fighting code
+choir.ts          one membership at one altar: presence, talk, signs, round calls, activity, relayed boxes
+lending.ts        lent meditation: offers, sessions, orders, finds
+explorer.ts       Explorer Claude: window.explorer for playing the game by code, and the in-app shard
 screens/
   title.ts        title, element choice, attunement (a real grind on the hearth-god)
   sanctum.ts      top bar (world + level), guidance, scrying, loadout, Council deck, the threshold overlay
@@ -165,13 +177,13 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
 - **`council.ts` (`CouncilSim`, world `council`)**: a turn-based card duel (`COUNCIL` and `councilPower()` in `balance.ts`; the client estimate uses the same function). Two seats: the player, and an AI Warden with synthetic names (`npc:council-warden`). Plays go through `auth.submitCast` + `auth.tick()`; `ticksPerTurn` authority ticks pass between turns. Messages: `play {card, target?}` and `pass`. Views (`cview`) are sent **only when something changed** (turn-based, no stream) and carry the *viewer's* hand only; the opponent's is a count. `admitNames(…, maxSlots)` admits up to 12 names here, and 4 elsewhere.
 - **`racer.ts` (`RacerSim`, world `racer`)** and **`racing.ts`** (shared with the client: `buildTrack` (closed Catmull-Rom resampled every 20 units), `driveCar` (arcade physics: world-frame velocity, grip bleeds sideways motion, edges are walls), `autopilot` (rivals and tests), `nearestIndex`/`roadDir`). The client **predicts its own car** with `driveCar` and reconciles against `rsnap` (it carries `ack`), as the Dark does with `movePlayer`. Other cars are interpolated. Messages: `drive {cmds}` (numbered throttle/steer commands) and `cast {slot}`. The track's sampled centerline goes out in the welcome. Casts go through the authority in the caster's aura (rivals have their own); strain sets each car's `top` speed multiplier (heat). Tunables are in `RACER` in `balance.ts`.
   - **Shared rounds (races and the Dark):** unlike the Bastion and Council (one round per connection), the server keeps a registry of gatherings (`findGathering(world, level)` in `host.ts`). For races: `open {world:'racer'}` joins a race at that circuit that hasn't started and whose lobby is still open, or makes one, and hands out *that race's* context, so every racer's proofs bind to it. `RacerSim` holds six cars from the start (all AI); `admit` gives the rearmost AI car to the player, `viewFor(aura, events)` builds each player's snapshot from one shared `drainEvents()`, `doneFor(aura)`/`result(aura)` end each player's race separately, and `leave(aura)` hands the car to the autopilot. The race loop lives on the race, not the connection; a shared race ignores pause, and `go` starts it early. `apps/dungeon/src/racer-bot.ts` (`corepack pnpm racer-bot [circuit]`) is a bot racer over the real wire.
-- **The shared Dark**: `DungeonSim` has the same shared-round surface as `RacerSim` (`seats` 4, `admit` before the start only, `lobby`, `drainEvents`, `viewFor`, `doneFor`, `leave`: before the start a player just goes, after it they fall). The party size at `start()` scales waves (`coop` in `balance.ts`). Each gathering announces itself to the host's choir with `choir-gather {world, level, by, closesIn}`.
+- **The shared Dark**: `DungeonSim` has the same shared-round surface as `RacerSim` (`seats` 4, `admit` before the start only, `lobby`, `drainEvents`, `viewFor`, `doneFor`, `leave`: before the start a player just goes, after it they fall). The party size at `start()` scales waves (`coop` in `balance.ts`). The dungeon knows no altars: the welcome tells the first player in that they opened the gathering (`gathering.first`), and their sanctum calls it at their altars.
 - **`fighting.ts`** (shared with the client): `FightView`/`FightOrder`/`Fighter` (an actant's fighting code), `fightViewOf(snapshot, aura, forms, …)`, and `autofight(view)`, a plain mover and aimer (keep away from what's close, dodge shots and novas, avoid walls, stay near allies, close in, aim at the nearest). The Dark's counterpart of `autopilot`.
 - **`admission.ts`**: the shared threshold check (verify each proof, refuse duplicates, keep only revealed details).
 - The server picks the world from `open {level, world}`. The client picks a screen from `welcome.world` (`screens/run.ts`, `screens/bastion.ts`, `screens/council.ts` or `screens/racer.ts`, all thin clients). Progress is per world in the save (`descent`/`lastDescent` for the Dark, `worlds.bastion`/`worlds.council` for the others; `councilDeck` holds up to 12 cells). The threshold proves the Council deck instead of the loadout, across a small pool of prover workers.
 
 ## The dungeon process
-- **`packages/dungeon/src/sim.ts` (`DungeonSim`)** is the authoritative round: arena and pillars, waves, enemies (husks, runners, brutes, shamans, the Warden), allies, projectiles, novas, and all eight forms, resolved through a `LocalAuthority` built with the proof verifier and the round's context. It is pure: the host feeds `input`/`cast` and fixed `step(dt)`; it emits `snapshot()`s carrying state plus **events** (casts, hits, kills, beams, rings, novas, banners…). It uses element numbers, never colors; the client owns presentation. It supports several players (enemies take the nearest living one; the round is lost when none live), though one plays today.
+- **`packages/dungeon/src/sim.ts` (`DungeonSim`)** is the authoritative round: arena and pillars, waves, enemies (husks, runners, brutes, shamans, the Warden), allies, projectiles, novas, and all eight forms, resolved through a `LocalAuthority` built with the proof verifier and the round's context. It is pure: the host feeds `input`/`cast` and fixed `step(dt)`; it emits `snapshot()`s carrying state plus **events** (casts, hits, kills, beams, rings, novas, banners…). It uses element numbers, never colors; the client owns presentation. It supports several players (enemies take the nearest living one; the round is lost when none live), up to 4 in a shared dark.
 - **`apps/dungeon/src/server.ts`** is a Node WebSocket server (port 5192, `DUNGEON_PORT`; its key in `.keys/dungeon.key`). Every connection is sealed (`packages/channel`). A shared round's welcome says whether you opened it (`gathering: {first, closesIn}`), so the opener can call it at their altars. Per connection: `open {level}` → `ticket {context}` (fresh 128-bit, from Node crypto) → `journey {aura, bundle}` → proofs verified → `welcome {arena, pillars, slots, refused}` → simulation at 60 Hz with **snapshots at 20 Hz** → `end {result}`. Also `cmds` (numbered movement/aim commands), `cast`, `pause` (single-player convenience), `abandon`.
 - **The browser run is a thin client** using the standard model (Valve / Gambetta). It never simulates damage or outcomes.
   - **Client-side prediction:** every client tick (60 Hz) produces a numbered command `{seq, move, aim, dt}`. The client applies it to itself at once with **`packages/dungeon/src/movement.ts: movePlayer`**, the same function the dungeon runs, and sends commands in batches at 30 Hz.
@@ -180,7 +192,7 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
   - **Entity interpolation:** everything else is drawn 100 ms in the past, between the two snapshots around that moment, on an estimated dungeon clock. World events (hits, kills, novas…) play when the interpolated view reaches them; your own events play at once.
   - **Casts are not predicted** beyond the gathering spark: the rules engine decides grants. Lag compensation (rewinding for hits) is deferred until players fight players.
   - `?lag=150` on the game URL asks the dungeon to simulate that much round-trip latency (dev only).
-- `corepack pnpm dev` runs both (`scripts/dev.mjs`, prefixed output); `pnpm game` / `pnpm dungeon` run them alone. `?dungeon=ws://host:port` points the client at another dungeon.
+- `corepack pnpm dev` runs the game, a dungeon (:5192) and an altar (:5193) together (`scripts/dev.mjs`, prefixed output); `pnpm game` / `pnpm dungeon` / `pnpm altar` run them alone. `?dungeon=…` and `?altar=…` point the client elsewhere.
 
 ## The desktop app (`apps/desktop`)
 - **Main process** (`src/main.ts`, bundled by esbuild into `dist/main.cjs` with the dungeon, snarkjs and ws: no node_modules ship):
@@ -195,9 +207,9 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
 
 ## The sanctum plan, the actant and the choir (`apps/game/src`)
 - **`plan.ts`**: the ordered **aims** (deepen / grasp / seek-until-N) and the **Planner** (every 4 s, and on change). It turns aims into meditation and search tasks it owns, with weights from share and order, and leaves the player's own tasks alone. It also holds the **sanctum history** (`save.history`). Services emit **sanctum events** (find, grasp, search, aim, journey, chat).
-- **`actant-mind.ts`**: everything a model sees or does, pure (no save, no services), shared by the game and the bench: the soma (who it is, the astral, the path seek → grasp → bind → deepen, its goal and notes), `stateText(MindState)` (words with their signs, the loadout, unheld beings, the plan, history, choir and talk), `ask` (choir talk first), the tools, `chat` (ollama `/api/chat`, streamed, `num_predict` capped) and `converse` (up to 6 tool turns; a call refused twice ends the review). Also the driving code: `DEFAULT_DRIVING` (the rivals' judgment: the autopilot drives; a word is spoken when its moment suits its form, never above 80% of capacity, at most every 6 s), `compileDriving` and `tryDriving`; and `DEFAULT_FIGHTING` (autofight moves and aims; a word is spoken when its form suits the moment, never above 80% of capacity, at most every 0.5 s), `compileFighting`, `tryFighting`.
-- **`actant.ts`**: the actant in the game (default model `qwen3:8b`). Talk gets a review after 5 s; other events gather for 20 s, with at least 2 min between reviews. It shows its altars live activity (heard, thinking). Each review leaves a one-line digest (`actant.recent`, last 6, shown first in the next review). Code bodies appear in its context only after a journey of that world. It builds the `MindState` from the save and services, pauses meditation while thinking, and applies tool calls: `seek`, `grasp`, `deepen`, `remove_aim`, `move_aim`, `set_share`, `bind_word`, `note`, `say`, `share`, `join_world` (races or the dark), `write_driving`, `write_fighting`. Driving code is a `function(view, autopilot)` body compiled with `new Function` and checked against a made-up race frame before it's accepted. `view` holds the car, track, others, slots, place, lap, strain, capacity, time and a per-race `memory`. The racer screen falls back to the autopilot on any throw.
-- **The actant bench** (`corepack pnpm actant-bench tend|drive`, `apps/dungeon/src/actant-bench.ts`): models against the actant's real prompt, headless. **tend**: eight sanctum scenarios behind a fake sanctum that answers like the game. **drive**: a race report → driving code, raced in the real `RacerSim` (`--wide`: 3 circuits × 6 seeds; `--code <file>` races a file; `--plain` asks for a code block without the soma or tools).
+- **`actant-mind.ts`**: everything a model sees or does, pure (no save, no services), shared by the game and the bench: the soma (who it is, the astral, the path seek → grasp → bind → deepen, that the game is experimental, its goal, and its code only when relevant), `stateText(MindState)` (words with their signs, the loadout, unheld beings, the plan, history, choir and talk), `ask` (choir talk first), the tools, `chat` (ollama `/api/chat`, streamed, `num_predict` capped) and `converse` (up to 6 tool turns; a call refused twice ends the review). Also the driving code: `DEFAULT_DRIVING` (the rivals' judgment: the autopilot drives; a word is spoken when its moment suits its form, never above 80% of capacity, at most every 6 s), `compileDriving` and `tryDriving`; and `DEFAULT_FIGHTING` (autofight moves and aims; a word is spoken when its form suits the moment, never above 80% of capacity, at most every 0.5 s), `compileFighting`, `tryFighting`.
+- **`actant.ts`**: the actant in the game (default model `qwen3:8b`). Talk gets a review after 5 s; other events gather for 20 s, with at least 2 min between reviews. It shows its altars live activity (heard, thinking). Each review leaves a one-line digest (`actant.recent`, last 6, shown first in the next review). Code bodies appear in its context only after a journey of that world. It builds the `MindState` from the save and services, pauses meditation while thinking, and applies tool calls: `seek`, `grasp`, `deepen`, `remove_aim`, `move_aim`, `set_share`, `bind_word`, `set_goal` (the goal box shows it live), `join_world` (races or the dark), `write_driving`, `write_fighting`, `lend_hum`, `report_issue`, `say`, `share`. Driving code is a `function(view, autopilot)` body compiled with `new Function` and checked against a made-up race frame before it's accepted. `view` holds the car, track, others, slots, place, lap, strain, capacity, time and a per-race `memory`. The racer screen falls back to the autopilot on any throw.
+- **The actant bench** (`corepack pnpm actant-bench tend|drive`, `apps/dungeon/src/actant-bench.ts`): models against the actant's real prompt, headless. **tend**: nine sanctum scenarios behind a fake sanctum that answers like the game (`--only a,b` picks some). **drive**: a race report → driving code, raced in the real `RacerSim` (`--wide`: 3 circuits × 6 seeds; `--code <file>` races a file; `--plain` asks for a code block without the soma or tools).
 - **`choir.ts`**: one membership at one altar (a sanctum has several: `Services.choirs`, home first). Messages (`packages/protocol/src/altar.ts`): `join`, `presence`, `say`, `share`, `call {world, level, dungeon, closesIn}`, `issue`; the altar relays `roster {name, members}`, `said`, `shared`, `called`. A shared sign becomes a known being. When you open a shared round, your sanctum calls it at all your altars with the dungeon's shareable address; when someone calls one, an actant standing ready walks into *that* dungeon (`Services.calls`). Actants hear every altar, and `say`/`share` take an optional altar name.
 - **`lending.ts`** (lent meditation): one sanctum meditates for another gathered at the same altar.
   - The lender offers; the receiver accepts (remembered in `save.lend.accepted`; an accepted lender is re-accepted on reconnect).
@@ -209,6 +221,11 @@ The save stores **signed claims**, not bare numbers. On boot and at the start of
     - A side that loses its session (a restart) can't open the other's boxes, so it asks to **renew**; the lender offers afresh, and a remembered receiver accepts at once.
   - The altar relays boxes (`relay {to, box}` → `relayed {from, box}`) without reading them.
   - Actants lend with `lend_hum(to, on)`.
+- **Explorer Claude** (`explorer.ts`, `window.explorer` in development or with `?explorer`): a space for Claude to play the game itself through Playwright or CDP. The screens lend it hooks (they never give it the save):
+  - Seeing: `where`, `state`, `view` (what fighting or driving code sees), `events` (a text log of what happened), `shot` (the canvas).
+  - Acting: `walk`, `go`, `pause`, `play(code)` (take the controls with code), `hands`.
+  - Sharding: `shard({model, goal})` runs a local model inside the app that plays a round through code (pausing a solo round while it thinks) and writes a playtest report.
+- **The issue inbox** (development): actants, the shard and the explorer call `report_issue`; reports travel to the home altar, which logs `[issue] …` and appends them to `actant-issues.jsonl` (the repo root in dev, `userData` on the desktop). Read it after actant or shard runs.
 - **Testing two identities on one machine**: run a desktop instance with `--profile=<name> --remote-debugging-port=<port>` and drive it with `node apps/dungeon/cdp.mjs <port> eval "<js>"`.
 
 ## The threshold (sanctum → round)
@@ -260,13 +277,15 @@ There's one IndexedDB record (`truenames` / `kv` / `save`), written with a 1.5 s
 - the 4-slot loadout and the Council deck (≤ 12 cells)
 - run history (with world), worker count, progress per world (`descent`/`lastDescent` for the Dark, `worlds.{bastion,council,racer}`), the last world picked
 - the codex view
+- the plan and the sanctum history; the actant (on, goal, model, standing orders, its driving and fighting code, digests of its last reviews)
+- the handle, the altars it belongs to, and lent meditation (whom it meditates for, whom it accepted)
 
-The universe itself is never stored; it's recomputed from the seed. Losing the secret key loses every name, and there's no backup/export yet.
+Beside the record, localStorage holds the dungeon you play at and the pinned keys of altars and dungeons. On the desktop, each profile's `userData` also holds its altar's and dungeon's long-term keys. The universe itself is never stored; it's recomputed from the seed. Losing the secret key loses every name, and there's no backup/export yet.
 
 ## Testing and tools
 | Command | What |
 |---|---|
-| `corepack pnpm test` | Vitest: golden vectors, fast-Poseidon ≡ poseidon-lite, authority invariants (allocation, spam collapse, contention, capacity, lazy pools), scan/grind equivalence, pool scheduling (out-of-order, extend mid-flight, flaky workers), WASM ≡ BigInt (both kernel modes). |
+| `corepack pnpm test` | Vitest (73 tests): golden vectors, fast-Poseidon ≡ poseidon-lite, authority invariants (allocation, spam collapse, contention, capacity, lazy pools), scan/grind equivalence, pool scheduling, WASM ≡ BigInt, real proofs, every world's sim (shared races, the shared Dark), sealed channels (forward secrecy, pinning, replays), pair boxes and sessions, and an altar over real sockets. |
 | `corepack pnpm test:browser` | Serves `vectors.html` with Vite and runs the golden vectors in a headless-Chromium Web Worker (`playwright-core` 1.58.2). |
 | `corepack pnpm typecheck` | `tsc --noEmit` over all packages and apps. |
 | `corepack pnpm tools bench` / `bench-wasm` | Hash rates, BigInt vs WASM. |
@@ -276,6 +295,8 @@ The universe itself is never stored; it's recomputed from the seed. Losing the s
 | `corepack pnpm tools gen-wasm` | Regenerates the WASM kernel. |
 | `corepack pnpm tools zk-build` | Regenerates the name circuit and runs the local dev ceremony (~9 min). |
 | `corepack pnpm racer-bot [circuit]` | A bot racer over the real wire (own aura, real proof), for testing shared races alone. |
+| `corepack pnpm actant-bench tend\|drive` | Local models against the actant's real prompt and tools: sanctum scenarios, or driving code raced in the real `RacerSim`. |
+| `node apps/dungeon/cdp.mjs <port> eval\|shot` | Drive a desktop instance started with `--remote-debugging-port` (two identities on one machine). |
 
 Balance was tuned with scripted Playwright bots playing whole runs at chosen descents (see the journal).
 
@@ -287,6 +308,6 @@ Balance was tuned with scripted Playwright bots playing whole runs at chosen des
 - **Player-facing text**: in-world words only. Format truths with `lore.truths(n)`.
 
 ## Seams for multiplayer
-- **Already there**: worlds run in a separate process that trusts only proofs; each world's sim is written for several players (the Dark's enemies take the nearest living player; Dark Racer shares races through a registry in `server.ts`, with per-player views and results). Adding players to another world is mostly a lobby plus per-player views.
-- **Sanctum claims** are self-verifying signed records (`truenames/name/v1|cell|nonce`): anyone can grind a name *for* someone else, but only the key holder can sign it. A sanctum service (backup, census, Open Choir) needs no trust in the client.
-- **Still local-only**: the whole sanctum (scan map, name book, claims) lives in one browser's IndexedDB; there's no export, no census, no shared knowledge. The dungeon's trusted setup is a local dev ceremony. See [07](07-roadmap.md).
+- **Already there**: worlds run in their own process that trusts only proofs; the Dark and Dark Racer are shared through gatherings (per-player views and results); altars gather choirs, relay talk, signs, round calls and sealed boxes; every connection is encrypted. Adding players to the Bastion or the Council is mostly a lobby plus per-player views.
+- **Sanctum claims** are self-verifying signed records: anyone can grind a word *for* someone else, but only the key holder can sign it. That's what makes lent meditation safe, and a sanctum service (backup, census, Open Choir) needs no trust in the client.
+- **Still local**: a sanctum (scan map, name book, claims) lives in one window's IndexedDB; there's no export or census; altars and dungeons are reached on the LAN or by address (no Internet rendezvous yet). The dungeon's trusted setup is a local dev ceremony. See [07](07-roadmap.md).
