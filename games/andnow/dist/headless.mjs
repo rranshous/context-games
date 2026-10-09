@@ -332,6 +332,7 @@ var World = class {
       speed: CONFIG.speedStart,
       accum: 0,
       lastOk: true,
+      lastAct: "",
       cellCount: 0,
       executed: 0,
       spec,
@@ -790,6 +791,7 @@ var World = class {
         if (g >= "0" && g <= "9") push(g.charCodeAt(0) - 48);
         break;
     }
+    if ("MFXGCBW".includes(g)) wr.lastAct = g;
     if (!wr.alive) return COST[g] ?? 1;
     this.advance(wr);
     if (skip) this.advance(wr);

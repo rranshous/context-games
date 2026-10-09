@@ -64,6 +64,7 @@ export interface Warrior {
   speed: number;
   accum: number;
   lastOk: boolean;
+  lastAct: string; // glyph of the last action (M F X G C B W)
   cellCount: number;
   executed: number;
   stats: { collected: number; bombHits: number; poisonWrites: number; kills: number };
@@ -123,7 +124,7 @@ export class World {
       id, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
-      accum: 0, lastOk: true, cellCount: 0, executed: 0, spec,
+      accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 }, home: room,
     };
     for (const c of spec.cells) {
@@ -472,6 +473,7 @@ export class World {
         if (g >= '0' && g <= '9') push(g.charCodeAt(0) - 48);
         break;
     }
+    if ('MFXGCBW'.includes(g)) wr.lastAct = g;
     if (!wr.alive) return COST[g] ?? 1;
     this.advance(wr);
     if (skip) this.advance(wr);

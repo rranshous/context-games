@@ -374,6 +374,7 @@ var World = class {
       speed: CONFIG.speedStart,
       accum: 0,
       lastOk: true,
+      lastAct: "",
       cellCount: 0,
       executed: 0,
       spec,
@@ -832,6 +833,7 @@ var World = class {
         if (g >= "0" && g <= "9") push(g.charCodeAt(0) - 48);
         break;
     }
+    if ("MFXGCBW".includes(g)) wr.lastAct = g;
     if (!wr.alive) return COST[g] ?? 1;
     this.advance(wr);
     if (skip) this.advance(wr);
@@ -1316,7 +1318,7 @@ function renderSide() {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : "";
     return `<div class="card ${wr.alive ? "" : "dead"}" style="border-left-color:${color(wr.id, 55)}">
       <div class="name">${LETTERS[wr.id]} \xB7 ${esc(wr.name)}</div>
-      <div class="stats">${wr.alive ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} \xB7 speed ${wr.speed.toFixed(2)} \xB7 ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} \xB7 last action ${wr.lastOk ? "ok" : "failed"}` : `died at tick ${wr.diedAt}: ${esc(wr.deathReason ?? "")}`}</div>
+      <div class="stats">${wr.alive ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} \xB7 speed ${wr.speed.toFixed(2)} \xB7 ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} \xB7 last action ${wr.lastAct ? `${wr.lastAct} ` : ""}${wr.lastOk ? "ok" : "failed"}` : `died at tick ${wr.diedAt}: ${esc(wr.deathReason ?? "")}`}</div>
       <div class="stack">stack [${wr.stack.slice(-12).join(" ")}]</div>
     </div>`;
   }).join("");
@@ -1420,6 +1422,7 @@ var explorer = {
       dir: DIR_NAMES[w.dir],
       glyph: w.alive ? glyphOf(world.code[world.idx(w.ipX, w.ipY)]) : null,
       stack: w.stack.slice(-16),
+      lastAct: w.lastAct,
       lastOk: w.lastOk,
       executed: w.executed,
       death: w.deathReason

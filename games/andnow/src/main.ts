@@ -153,7 +153,7 @@ function renderSide() {
     return `<div class="card ${wr.alive ? '' : 'dead'}" style="border-left-color:${color(wr.id, 55)}">
       <div class="name">${LETTERS[wr.id]} · ${esc(wr.name)}</div>
       <div class="stats">${wr.alive
-        ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} · speed ${wr.speed.toFixed(2)} · ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} · last action ${wr.lastOk ? 'ok' : 'failed'}`
+        ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} · speed ${wr.speed.toFixed(2)} · ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} · last action ${wr.lastAct ? `${wr.lastAct} ` : ''}${wr.lastOk ? 'ok' : 'failed'}`
         : `died at tick ${wr.diedAt}: ${esc(wr.deathReason ?? '')}`}</div>
       <div class="stack">stack [${wr.stack.slice(-12).join(' ')}]</div>
     </div>`;
@@ -237,7 +237,7 @@ const explorer = {
       id: w.id, name: w.name, alive: w.alive, cells: w.cellCount, maxSize: +w.maxSize.toFixed(2),
       speed: +w.speed.toFixed(2), ip: { x: w.ipX, y: w.ipY }, dir: DIR_NAMES[w.dir],
       glyph: w.alive ? glyphOf(world.code[world.idx(w.ipX, w.ipY)]) : null,
-      stack: w.stack.slice(-16), lastOk: w.lastOk, executed: w.executed, death: w.deathReason,
+      stack: w.stack.slice(-16), lastAct: w.lastAct, lastOk: w.lastOk, executed: w.executed, death: w.deathReason,
     })),
   }),
   ascii: (opts: { glyphs?: boolean } = {}) => asciiMap(world, opts),
