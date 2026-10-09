@@ -43,11 +43,14 @@ export interface TournamentRow { name: string; wins: number; losses: number; dra
 export function runTournament(specs: WarriorSpec[], seeds: number[], tickCap?: number) {
   const table = new Map<string, TournamentRow>(specs.map((s) => [s.name, { name: s.name, wins: 0, losses: 0, draws: 0 }]));
   const pairs: Record<string, { a: number; b: number; d: number }> = {};
+  const reasons: Record<string, number> = {};
   for (let i = 0; i < specs.length; i++) {
     for (let j = 0; j < specs.length; j++) {
       if (i === j) continue;
       for (const seed of seeds) {
         const { summary } = runMatch([specs[i], specs[j]], seed, { tickCap });
+        const why = summary.reason.replace(/ \(.*\)$/, '');
+        reasons[why] = (reasons[why] ?? 0) + 1;
         const a = specs[i].name, b = specs[j].name;
         const key = [a, b].sort().join(' vs ');
         pairs[key] ??= { a: 0, b: 0, d: 0 };
@@ -62,5 +65,5 @@ export function runTournament(specs: WarriorSpec[], seeds: number[], tickCap?: n
       }
     }
   }
-  return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs };
+  return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs, reasons };
 }

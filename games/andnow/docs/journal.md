@@ -388,3 +388,50 @@ User: go ahead with all three (economy, coevolution, rerun); larger runs are fin
   peers from the current population, on 2 boards (28 matches each).
 - **Fight metrics in the log**: % of games ending in a death, bomb hits per game, poison
   writes per game, so we can see if fighting emerges.
+
+### evo2 (pop 128, 150 gens, 2 boards/gen, 3000 ticks, coevolution; ~17 min)
+Fitness never saturated this time (best bounced 2.0–3.0, mean 1.4–2.0): the bar moves
+with the population, as intended. Fight metrics across all of each generation's games:
+
+| gen | games ending in a death | bomb hits/game | poison writes/game |
+|----:|---:|---:|---:|
+| 0 | 6% | 0.01 | 0 |
+| 40 | 12% | 0.72 | 0 |
+| 90 | 19% | 1.11 | 0 |
+| 120 | 22% | 1.49 | 0 |
+| 140 | 14% | 0.59 | 0 |
+
+**Bombing emerged; poison never did.** Poison needs adjacency plus an enemy IP that
+happens to run over the written cell; bombing works at range 6 and cuts bodies apart.
+The champions are packed with `B` (five in `evo2-2`), plus `S`, `T`, `M`, `C`:
+```
+evo2-2           evo2-1             evo2-3
+ S                 S                 B+vF|B3<7
+ T                 W                B^`?|T\SB-
+FT^^B G3<          BvvF|73<$         7 CBTM?:
+\' B: \BB-:      T|^`?BT SB-:M
+ STCBTM? TT        7oCBTM?
+```
+Shared motif across all three: `CBTM?` / `TCBTM?`, i.e. collect, bomb, head toward, move,
+random turn. Lots of `B`s means stack junk gets fired off as bomb offsets: spray bombing.
+
+Watched `evo2-2` vs Bomber (seed 1) in the viewer: evo2-2 holds the middle room; at t4702
+one bomb cut 11 cells off the Bomber, leaving a **3-cell zombie** (`T\$`, IP stranded in
+it) that lives on but can't do anything, and loses at the cap.
+
+### Full tournament at the real cap (9 warriors × 10 boards × both seatings, 5000 ticks)
+```
+evo2-2    W 68 L 29 D 63      Gatherer  W 64 L 20 D 76
+evo2-1    W 62 L 38 D 60      evo2-3    W 47 L 34 D 79
+Bomber    W 35 L 29 D 96      Roamer    W 25 L 34 D 101
+Stalker   W 12 L 68 D 80      Turtle    W  7 L 35 D 118
+evo1-1    W  5 L 38 D 117   (the old camper)
+```
+How matches ended: draw at tick cap 395, largest max size at cap 198, last standing 127.
+- **Why so many draws:** max size decays linearly, so at the cap
+  `max = 30 + 4 × size pickups − decay`. A draw just means both took the same number
+  of size pickups (often zero). The cap rule is effectively "more size pickups".
+- The hand-written Gatherer is still a top-2 warrior; it never fights, it just goes out
+  and collects. evo2-2 is only 6–5 against it.
+- `explorer.ready` added (a promise; resolves after evolved warriors are fetched); `load()`
+  throws on unknown names. Tournament output now lists how matches ended.

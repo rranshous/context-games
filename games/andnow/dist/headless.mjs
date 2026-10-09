@@ -858,11 +858,14 @@ function summarize(world) {
 function runTournament(specs2, seeds, tickCap2) {
   const table = new Map(specs2.map((s) => [s.name, { name: s.name, wins: 0, losses: 0, draws: 0 }]));
   const pairs = {};
+  const reasons = {};
   for (let i = 0; i < specs2.length; i++) {
     for (let j = 0; j < specs2.length; j++) {
       if (i === j) continue;
       for (const seed of seeds) {
         const { summary } = runMatch([specs2[i], specs2[j]], seed, { tickCap: tickCap2 });
+        const why = summary.reason.replace(/ \(.*\)$/, "");
+        reasons[why] = (reasons[why] ?? 0) + 1;
         const a = specs2[i].name, b = specs2[j].name;
         const key = [a, b].sort().join(" vs ");
         pairs[key] ??= { a: 0, b: 0, d: 0 };
@@ -881,7 +884,7 @@ function runTournament(specs2, seeds, tickCap2) {
       }
     }
   }
-  return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs };
+  return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs, reasons };
 }
 
 // src/sim/warrior-file.ts
@@ -938,10 +941,11 @@ var tickCap = opt("ticks", 0) || void 0;
 if (flag("tournament")) {
   const n = opt("seeds", 5);
   const seeds = Array.from({ length: n }, (_, i) => i + 1);
-  const { table, pairs } = runTournament(specs, seeds, tickCap);
+  const { table, pairs, reasons } = runTournament(specs, seeds, tickCap);
   console.log(`Tournament: ${specs.length} warriors, ${n} boards, both seatings
 `);
   for (const r of table) console.log(`${r.name.padEnd(16)} W ${String(r.wins).padStart(3)}  L ${String(r.losses).padStart(3)}  D ${String(r.draws).padStart(3)}`);
+  console.log("\nhow matches ended:", Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(", "));
   console.log("");
   for (const [k, v] of Object.entries(pairs)) {
     const [a, b] = k.split(" vs ");

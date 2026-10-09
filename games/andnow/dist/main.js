@@ -1150,7 +1150,8 @@ canvas.onmouseleave = () => {
 };
 var explorer = {
   help: () => [
-    "explorer.warriors()                     names of bundled warriors",
+    "await explorer.ready                    resolves once evolved warriors are loaded",
+    "explorer.warriors()                     names of bundled + evolved (evo:...) warriors",
     'explorer.load(["bomber","stalker"], 3)  new match from bundled names and a seed',
     "explorer.loadSource([text, ...], seed)  new match from warrior-file text",
     "explorer.step(n)                        advance n ticks, returns state()",
@@ -1164,6 +1165,8 @@ var explorer = {
   warriors: () => Object.keys(SOURCES),
   source: (name) => SOURCES[name],
   load(names, seed) {
+    const unknown = names.filter((n) => !(n in SOURCES));
+    if (unknown.length) throw new Error(`unknown warrior(s): ${unknown.join(", ")} (try explorer.warriors(), or await explorer.ready)`);
     names.forEach((n, i) => {
       if (pickers[i]) pickers[i].value = n;
     });
@@ -1220,13 +1223,14 @@ var explorer = {
   events: (n = 30) => world.events.slice(-n).map((e) => `t${e.t} ${e.text}`),
   screenshot: () => canvas.toDataURL("image/png"),
   config: CONFIG,
+  ready: Promise.resolve(),
   get world() {
     return world;
   }
 };
 window.explorer = explorer;
 fillPickers();
-loadEvolved().then(() => {
+explorer.ready = loadEvolved().then(() => {
   fillPickers();
   newMatch();
   requestAnimationFrame(frame);

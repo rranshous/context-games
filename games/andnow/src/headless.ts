@@ -26,9 +26,10 @@ const tickCap = opt('ticks', 0) || undefined;
 if (flag('tournament')) {
   const n = opt('seeds', 5);
   const seeds = Array.from({ length: n }, (_, i) => i + 1);
-  const { table, pairs } = runTournament(specs, seeds, tickCap);
+  const { table, pairs, reasons } = runTournament(specs, seeds, tickCap);
   console.log(`Tournament: ${specs.length} warriors, ${n} boards, both seatings\n`);
   for (const r of table) console.log(`${r.name.padEnd(16)} W ${String(r.wins).padStart(3)}  L ${String(r.losses).padStart(3)}  D ${String(r.draws).padStart(3)}`);
+  console.log('\nhow matches ended:', Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(', '));
   console.log('');
   for (const [k, v] of Object.entries(pairs)) {
     const [a, b] = k.split(' vs ');

@@ -1,0 +1,11 @@
+name: evo2-2
+# evolved: run evo2, was g147-18236 (parents g146-18130+remove)
+# held-out vs benchmarks: 23/50 wins; bomber 7-2, gatherer 2-4, roamer 4-2, stalker 7-2, turtle 3-0
+dir: E
+ip: 3 4
+---
+ S
+ T
+FT^^B G3<
+\' B: \BB-:
+ STCBTM? TT
