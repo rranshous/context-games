@@ -21,6 +21,7 @@ const banner = $('banner'), tip = $('tip'), cardsEl = $('cards'), logEl = $('log
 const seedEl = $<HTMLInputElement>('seed'), speedEl = $<HTMLInputElement>('speed');
 const showIpEl = $<HTMLInputElement>('showIp'), showGlyphsEl = $<HTMLInputElement>('showGlyphs');
 const playBtn = $<HTMLButtonElement>('play');
+const boardStyleEl = $<HTMLSelectElement>('boardStyle');
 
 let world: World;
 let specs: WarriorSpec[] = [];
@@ -33,6 +34,7 @@ let lastFrame = performance.now();
 const params = new URLSearchParams(location.search);
 const initial = (params.get('w') ?? 'bomber,stalker').split(',');
 seedEl.value = params.get('seed') ?? '1';
+boardStyleEl.value = params.get('board') ?? 'varied';
 
 const pickersEl = $('pickers');
 const pickers: HTMLSelectElement[] = [];
@@ -64,6 +66,7 @@ async function loadEvolved() {
 function newMatch(sources?: string[], seed?: number) {
   const srcs = sources ?? pickers.map((p) => p.value).filter(Boolean).map((k) => SOURCES[k]);
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
+  CONFIG.board = boardStyleEl.value as 'varied' | 'classic';
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
   seedEl.value = String(world.seed);
   canvas.width = world.w * CELL;
@@ -72,6 +75,7 @@ function newMatch(sources?: string[], seed?: number) {
 }
 
 $('reset').onclick = () => newMatch();
+boardStyleEl.onchange = () => newMatch();
 playBtn.onclick = () => setPlaying(!playing);
 $('step').onclick = () => { setPlaying(false); world.tick(); render(); };
 showIpEl.onchange = showGlyphsEl.onchange = () => render();

@@ -7,6 +7,7 @@
 //                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
 //                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
 //                        [--frame origin|ip]                   (see CONFIG.frame)
+//                        [--board varied|classic]
 //                        [--boards 6]   (board pool per generation; --seeds = boards per opponent)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
@@ -25,6 +26,8 @@ import { CONFIG } from './sim/world';
 {
   const i = process.argv.indexOf('--frame');
   if (i >= 0) CONFIG.frame = process.argv[i + 1] as 'origin' | 'ip';
+  const b = process.argv.indexOf('--board');
+  if (b >= 0) CONFIG.board = process.argv[b + 1] as 'varied' | 'classic';
 }
 
 // ---------- one match, scored from one side ----------
@@ -122,7 +125,7 @@ async function main() {
 
   const pool = new Pool(WORKERS);
   console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} workers`);
-  console.log(`benchmarks: ${benchNames.join(', ')}; offsets relative to ${CONFIG.frame}`);
+  console.log(`benchmarks: ${benchNames.join(', ')}; offsets relative to ${CONFIG.frame}; ${CONFIG.board} boards`);
   let bestEver: Individual | null = null;
 
   for (let gen = 0; gen < GENS; gen++) {

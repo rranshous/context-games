@@ -12,7 +12,7 @@
 // - Pieces cut off from the IP's piece become debris.
 // - Max size and speed decay toward a floor; resources push them back up.
 // - Last standing wins; at the tick cap, the largest max size wins.
-import { Board, FLOOR, makeBoard } from './board';
+import { Board, BoardStyle, FLOOR, makeBoard } from './board';
 import {
   CODE, COST, DX, DY, GLYPHS, T_DEBRIS, T_ENEMY, T_NOTHING, T_RESOURCE, T_SIZE, T_SPEED, T_WALL,
 } from './glyphs';
@@ -47,6 +47,7 @@ export const CONFIG = {
   // valid while the IP walks on through the body. 'ip': the IP's current cell (the
   // first version; offsets go stale as the IP moves).
   frame: 'origin' as 'origin' | 'ip',
+  board: 'varied' as BoardStyle, // see board.ts
 };
 
 export interface Warrior {
@@ -97,7 +98,7 @@ export class World {
   private spawnTimers: number[];
 
   constructor(public seed: number, specs: WarriorSpec[]) {
-    this.board = makeBoard(seed);
+    this.board = makeBoard(seed, CONFIG.board);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int16Array(this.w * this.h).fill(NONE);

@@ -41,9 +41,14 @@ var FLOOR = 0;
 var WALL = 1;
 var BOARD_W = 64;
 var BOARD_H = 40;
-function makeBoard(seed) {
-  const w = BOARD_W, h = BOARD_H;
-  const rng = makeRng(seed ^ 2654435769);
+function makeBoard(seed, style = "varied") {
+  if (style === "classic") return makeClassic(seed);
+  for (let k = 0; ; k++) {
+    const b = makeVaried(seed, k);
+    if (b) return b;
+  }
+}
+function canvas(w, h) {
   const terrain = new Uint8Array(w * h).fill(WALL);
   const carve = (r) => {
     for (const [mx, my] of [[false, false], [true, false], [false, true], [true, true]]) {
@@ -56,6 +61,167 @@ function makeBoard(seed) {
       }
     }
   };
+  const spawns = [];
+  const spawnAll = (x, y, kind) => {
+    for (const [px, py] of [[x, y], [w - 1 - x, y], [x, h - 1 - y], [w - 1 - x, h - 1 - y]]) {
+      if (!spawns.some((s) => s.x === px && s.y === py)) spawns.push({ x: px, y: py, kind });
+    }
+  };
+  const mirrorRect = (r, mx, my) => ({
+    x: mx ? w - r.x - r.w : r.x,
+    y: my ? h - r.y - r.h : r.y,
+    w: r.w,
+    h: r.h
+  });
+  const startsFrom = (r) => [mirrorRect(r, false, false), mirrorRect(r, true, false), mirrorRect(r, true, true), mirrorRect(r, false, true)];
+  return { terrain, carve, spawns, spawnAll, startsFrom };
+}
+var WIDTHS = [1, 2, 3, 3, 4, 5];
+function split(rng, total, n, first, min) {
+  if (n === 1) return [total];
+  const a = randInt(rng, first, Math.max(first, total - min * (n - 1)));
+  const rest = total - a;
+  const parts = [a];
+  let left = rest;
+  for (let i = 1; i < n - 1; i++) {
+    const p = randInt(rng, min, Math.max(min, left - min * (n - 1 - i)));
+    parts.push(p);
+    left -= p;
+  }
+  parts.push(left);
+  return parts;
+}
+function makeVaried(seed, attempt) {
+  const w = BOARD_W, h = BOARD_H, hw = w / 2, hh = h / 2;
+  const rng = makeRng(seed * 7919 + attempt * 104729 ^ 5369127);
+  const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
+  const qcols = randInt(rng, 2, 3), qrows = randInt(rng, 1, 2);
+  const colW = split(rng, hw - 1, qcols, 18, 7);
+  const rowH = split(rng, hh - 1, qrows, 10, 6);
+  const rooms = [];
+  let y0 = 1;
+  for (let r = 0; r < qrows; r++) {
+    rooms.push([]);
+    let x0 = 1;
+    for (let c = 0; c < qcols; c++) {
+      const cw = colW[c], ch = rowH[r];
+      const start = r === 0 && c === 0;
+      const rw = start ? randInt(rng, 16, Math.max(16, cw - 2)) : randInt(rng, Math.max(4, Math.floor(cw * 0.4)), Math.max(4, cw - 3));
+      const rh = start ? randInt(rng, Math.min(8, ch - 2), ch - 2) : randInt(rng, Math.max(3, Math.floor(ch * 0.4)), Math.max(3, ch - 3));
+      const room = { x: x0 + randInt(rng, 0, cw - rw - 1) + (start ? 1 : 0), y: y0 + randInt(rng, 0, ch - rh - 1) + (start ? 1 : 0), w: rw, h: rh };
+      if (start) {
+        room.x = Math.min(room.x, x0 + cw - rw);
+        room.y = Math.min(room.y, y0 + ch - rh);
+      }
+      if (c === qcols - 1 && rng() < 0.25) room.w = hw - room.x;
+      if (r === qrows - 1 && rng() < 0.25) room.h = hh - room.y;
+      rooms[r].push(room);
+      carve(room);
+      x0 += cw;
+    }
+    y0 += rowH[r];
+  }
+  const center = (a) => ({ x: a.x + Math.floor(a.w / 2), y: a.y + Math.floor(a.h / 2) });
+  const corridor = (a, b, cw) => {
+    const ylo = Math.max(a.y, b.y), yhi = Math.min(a.y + a.h, b.y + b.h) - cw;
+    const xlo = Math.max(a.x, b.x), xhi = Math.min(a.x + a.w, b.x + b.w) - cw;
+    if (yhi >= ylo && (b.x >= a.x + a.w || a.x >= b.x + b.w)) {
+      const y = randInt(rng, ylo, yhi);
+      const [l, r] = a.x < b.x ? [a, b] : [b, a];
+      carve({ x: l.x + l.w, y, w: r.x - (l.x + l.w), h: cw });
+    } else if (xhi >= xlo && (b.y >= a.y + a.h || a.y >= b.y + b.h)) {
+      const x = randInt(rng, xlo, xhi);
+      const [t, u] = a.y < b.y ? [a, b] : [b, a];
+      carve({ x, y: t.y + t.h, w: cw, h: u.y - (t.y + t.h) });
+    } else {
+      const pa = center(a), pb = center(b);
+      carve({ x: Math.min(pa.x, pb.x), y: pa.y, w: Math.abs(pa.x - pb.x) + cw, h: cw });
+      carve({ x: pb.x, y: Math.min(pa.y, pb.y), w: cw, h: Math.abs(pa.y - pb.y) + cw });
+    }
+  };
+  const key = (r, c) => r * 10 + c;
+  const seen = /* @__PURE__ */ new Set([key(0, 0)]);
+  const stack = [[0, 0]];
+  const edges = /* @__PURE__ */ new Set();
+  const startExits = [];
+  const link = (r1, c1, r2, c2) => {
+    const id = [key(r1, c1), key(r2, c2)].sort().join("-");
+    if (edges.has(id)) return;
+    edges.add(id);
+    const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+    if (r1 === 0 && c1 === 0 || r2 === 0 && c2 === 0) startExits.push(cw);
+    corridor(rooms[r1][c1], rooms[r2][c2], cw);
+  };
+  while (stack.length) {
+    const [r, c] = stack[stack.length - 1];
+    const next = [[r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]].filter(([a2, b2]) => a2 >= 0 && b2 >= 0 && a2 < qrows && b2 < qcols && !seen.has(key(a2, b2)));
+    if (!next.length) {
+      stack.pop();
+      continue;
+    }
+    const [a, b] = next[Math.floor(rng() * next.length)];
+    seen.add(key(a, b));
+    link(r, c, a, b);
+    stack.push([a, b]);
+  }
+  for (let r = 0; r < qrows; r++) {
+    for (let c = 0; c < qcols; c++) {
+      if (c + 1 < qcols && rng() < 0.4) link(r, c, r, c + 1);
+      if (r + 1 < qrows && rng() < 0.4) link(r, c, r + 1, c);
+    }
+  }
+  if (!startExits.some((cw) => cw >= 3)) {
+    const [r, c] = qcols > 1 ? [0, 1] : [1, 0];
+    corridor(rooms[0][0], rooms[r][c], randInt(rng, 3, 5));
+  }
+  const crossRight = rooms.map((row) => row[qcols - 1]);
+  const crossDown = rooms[qrows - 1];
+  const cross = (list, horizontal) => {
+    let any = list.some((a) => horizontal ? a.x + a.w >= hw : a.y + a.h >= hh);
+    list.forEach((a, i) => {
+      const touches = horizontal ? a.x + a.w >= hw : a.y + a.h >= hh;
+      if (touches || any && rng() < 0.5 && i !== list.length - 1) return;
+      const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+      if (horizontal) carve({ x: a.x + a.w, y: randInt(rng, a.y, a.y + a.h - Math.min(cw, a.h)), w: hw - (a.x + a.w), h: cw });
+      else carve({ x: randInt(rng, a.x, a.x + a.w - Math.min(cw, a.w)), y: a.y + a.h, w: cw, h: hh - (a.y + a.h) });
+      any = true;
+    });
+  };
+  cross(crossRight, true);
+  cross(crossDown, false);
+  const others = rooms.flat().filter((r) => r !== rooms[0][0]);
+  const inside = (a) => ({ x: a.x + randInt(rng, 1, Math.max(1, a.w - 2)), y: a.y + randInt(rng, 1, Math.max(1, a.h - 2)) });
+  for (let k = 0; k < 2; k++) {
+    const p = inside(others[Math.floor(rng() * others.length)]);
+    spawnAll(Math.min(p.x, hw - 1), Math.min(p.y, hh - 1), 1);
+  }
+  {
+    const p = inside(others[Math.floor(rng() * others.length)]);
+    spawnAll(Math.min(p.x, hw - 1), Math.min(p.y, hh - 1), 2);
+  }
+  const starts = startsFrom(rooms[0][0]);
+  const reach = new Uint8Array(w * h);
+  const s0 = starts[0];
+  const q = [(s0.y + 1) * w + s0.x + 1];
+  reach[q[0]] = 1;
+  while (q.length) {
+    const i = q.pop();
+    for (const n of [i - 1, i + 1, i - w, i + w]) {
+      if (n >= 0 && n < w * h && !reach[n] && terrain[n] === FLOOR) {
+        reach[n] = 1;
+        q.push(n);
+      }
+    }
+  }
+  for (const s of starts) if (!reach[(s.y + 1) * w + s.x + 1]) return null;
+  for (const sp of spawns) if (!reach[sp.y * w + sp.x]) return null;
+  for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
+  return { w, h, terrain, spawns, starts };
+}
+function makeClassic(seed) {
+  const w = BOARD_W, h = BOARD_H;
+  const rng = makeRng(seed ^ 2654435769);
+  const { terrain, carve, spawns, spawnAll, startsFrom } = canvas(w, h);
   const tl = { w: randInt(rng, 15, 17), h: randInt(rng, 11, 14), x: 0, y: 0 };
   tl.x = randInt(rng, 2, 4);
   tl.y = randInt(rng, 2, 4);
@@ -72,23 +238,9 @@ function makeBoard(seed) {
   carve({ x: vcX, y: tl.y + tl.h, w: vcW, h: h / 2 - (tl.y + tl.h) });
   const mcW = randInt(rng, 1, 2) * 2;
   carve({ x: (w - mcW) / 2, y: tm.y + tm.h, w: mcW, h: h / 2 - (tm.y + tm.h) });
-  const spawns = [];
-  const mirrorAll = (x, y, kind) => {
-    const pts = [[x, y], [w - 1 - x, y], [x, h - 1 - y], [w - 1 - x, h - 1 - y]];
-    for (const [px, py] of pts) {
-      if (!spawns.some((s) => s.x === px && s.y === py)) spawns.push({ x: px, y: py, kind });
-    }
-  };
-  mirrorAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
-  mirrorAll(tm.x + 2, tm.y + 2, 1);
-  const mirrorRect = (r, mx, my) => ({
-    x: mx ? w - r.x - r.w : r.x,
-    y: my ? h - r.y - r.h : r.y,
-    w: r.w,
-    h: r.h
-  });
-  const starts = [mirrorRect(tl, false, false), mirrorRect(tl, true, false), mirrorRect(tl, true, true), mirrorRect(tl, false, true)];
-  return { w, h, terrain, spawns, starts };
+  spawnAll(tm.x + tm.w / 2 - 3, tm.y + Math.floor(tm.h / 2), 2);
+  spawnAll(tm.x + 2, tm.y + 2, 1);
+  return { w, h, terrain, spawns, starts: startsFrom(tl) };
 }
 
 // src/sim/world.ts
@@ -127,12 +279,14 @@ var CONFIG = {
   // that starts at the IP's start cell and moves only with SHIFT, so a SCAN result stays
   // valid while the IP walks on through the body. 'ip': the IP's current cell (the
   // first version; offsets go stale as the IP moves).
-  frame: "origin"
+  frame: "origin",
+  board: "varied"
+  // see board.ts
 };
 var World = class {
   constructor(seed, specs2) {
     this.seed = seed;
-    this.board = makeBoard(seed);
+    this.board = makeBoard(seed, CONFIG.board);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int16Array(this.w * this.h).fill(NONE);
@@ -997,7 +1151,7 @@ var opt = (name, def) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
 };
-var valued = /* @__PURE__ */ new Set(["--seed", "--ticks", "--frames", "--seeds", "--matches", "--frame"]);
+var valued = /* @__PURE__ */ new Set(["--seed", "--ticks", "--frames", "--seeds", "--matches", "--frame", "--board"]);
 var files = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]));
 if (!files.length) {
   console.log("usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]");
@@ -1008,6 +1162,8 @@ var tickCap = opt("ticks", 0) || void 0;
 {
   const i = args.indexOf("--frame");
   if (i >= 0) CONFIG.frame = args[i + 1];
+  const b = args.indexOf("--board");
+  if (b >= 0) CONFIG.board = args[b + 1];
 }
 if (flag("explore")) {
   const n = opt("seeds", 20), cap = tickCap ?? 2e3;

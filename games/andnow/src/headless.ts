@@ -16,7 +16,7 @@ const opt = (name: string, def: number) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
 };
-const valued = new Set(['--seed', '--ticks', '--frames', '--seeds', '--matches', '--frame']);
+const valued = new Set(['--seed', '--ticks', '--frames', '--seeds', '--matches', '--frame', '--board']);
 const files = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 if (!files.length) {
   console.log('usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]');
@@ -27,6 +27,8 @@ const tickCap = opt('ticks', 0) || undefined;
 {
   const i = args.indexOf('--frame');
   if (i >= 0) CONFIG.frame = args[i + 1] as 'origin' | 'ip';
+  const b = args.indexOf('--board');
+  if (b >= 0) CONFIG.board = args[b + 1] as 'varied' | 'classic';
 }
 
 if (flag('explore')) {

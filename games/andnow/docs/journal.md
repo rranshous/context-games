@@ -564,3 +564,29 @@ them, rotating through the pool, so every individual sees all N boards at the sa
 count. `--bench` now also takes individual files (dropped the evo1 campers).
 evo5 launched: 6 boards/gen (2 per opponent), benchmarks = 6 hand-written + evo2-2,
 evo3-1, evo4-1..3.
+
+### Varied boards (user: more rooms, various corridor sizes)
+New generator, `CONFIG.board = 'varied'` (now the default; the first board is still
+`'classic'`; `--board varied|classic` on headless/evolve, a picker in the viewer, `?board=`).
+Still generated in the top-left quadrant and mirrored four ways, so seats stay fair:
+- A 2–3 × 1–2 grid of rooms per quadrant (4–24 rooms total), column/row sizes split
+  randomly (the start column/row gets enough room for any warrior). Rooms sit well
+  inside their cells (40%–full minus 3), so there's wall between them and corridors have
+  length: halls, closets, pillars.
+- Corridors 1–5 wide (weighted toward 3), straight when the rooms overlap across the
+  gap, otherwise L-shaped. Random spanning tree over the grid plus 40% extra edges for loops.
+- Axis rooms sometimes (25%) stretch to the mirror axis and merge with their mirror into
+  a central hall; otherwise corridors cross the axes (at least one per axis).
+- The start room always has at least one exit ≥ 3 wide.
+- Resources: 2 size spots + 1 speed spot (×4 mirrored) in random non-start rooms.
+- Re-rolled until every start and spawn is reachable; unreachable pockets filled in.
+- First pass made rooms nearly fill their cells, which read as open plains with gaps;
+  shrinking rooms inside the cells fixed that.
+
+Check on 200 varied boards: every warrior fits; leaving home: Bomber 105/200 (median
+tick 37), evo3-1 167/200 (152), evo4-1..3 only ~20/200 (they're ambushers).
+
+Generalization (none of these evolved on varied boards), 10 boards, 5000 ticks:
+duels evo4-1..3 119W each, Bomber 79W, Stalker 70W, Viper 63W, evo2-2/evo3-1 55W,
+Gatherer 41W (159 L). FFAs: evo4 ~30% wins (57% on classic), deaths only 2–4%. More
+draws than on classic (341/1100 duels): more places to hide.
