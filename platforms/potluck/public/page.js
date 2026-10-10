@@ -11,7 +11,9 @@ const defaultName = (() => {
 })();
 let name = localStorage.getItem('potluck-name') || defaultName;
 let threads = [];
-let wanted = Number(localStorage.getItem('potluck-threads')) || cores;
+// 0 threads = watching only (e.g. a dashboard on the machine that runs the work itself).
+const saved = localStorage.getItem('potluck-threads');
+let wanted = saved === null ? cores : Number(saved);
 let paused = false;
 let done = 0;
 const recent = [];
@@ -21,8 +23,9 @@ $('name').onchange = () => { name = $('name').value || defaultName; try { localS
 $('cores').textContent = cores;
 $('threads').max = cores;
 $('threads').value = wanted;
-$('threadsOut').textContent = wanted;
-$('threads').oninput = () => { wanted = Number($('threads').value); $('threadsOut').textContent = wanted; try { localStorage.setItem('potluck-threads', wanted); } catch {} restart(); };
+const threadsLabel = () => { $('threadsOut').textContent = wanted === 0 ? '0 (watching only)' : wanted; };
+threadsLabel();
+$('threads').oninput = () => { wanted = Number($('threads').value); threadsLabel(); try { localStorage.setItem('potluck-threads', wanted); } catch {} restart(); };
 $('pause').onclick = () => {
   paused = !paused;
   $('pause').textContent = paused ? 'Resume' : 'Pause';
@@ -57,7 +60,7 @@ function restart() {
 async function refresh() {
   const now = Date.now();
   while (recent.length && now - recent[0] > 30000) recent.shift();
-  $('mine').textContent = `${done} batches done here · ${recent.length * 2}/min`;
+  $('mine').textContent = wanted === 0 ? 'watching only: this device does no work' : `${done} batches done here · ${recent.length * 2}/min`;
   try {
     const s = await (await fetch('/api/status')).json();
     // Group threads into devices.

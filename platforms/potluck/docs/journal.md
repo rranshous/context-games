@@ -62,3 +62,18 @@ Tests (same args, diffed against a local-only run; all identical):
 | D. server + browser (same 8 cores) | 9–20 of ~50/gen | slower here only because the browser competes for the same cores |
 | E. server killed after gen 1 | 27, 16, then 0 | finished locally |
 | F. server started after gen 0 | 0, 0, then 1, 1 | re-registered and rejoined |
+
+### First real farm: the living room machine
+- Robby opened the page on the low-power living room machine ("calendar", 4 cores) and
+  on this desktop's own browser ("lilg", 8 cores; Robby keeps it open as the admin panel,
+  set to 4 threads).
+- **Canaries passed on both** (15 replays identical): a different machine and browser runs
+  the andnow sim bit-for-bit like this desktop's Node.
+- Small run (pop 48): identical results, but *slower* with the farm (1.6 s vs 0.9–1.2 s
+  per gen): with tiny generations the tail (waiting for, and locally re-running, batches
+  out at slower devices) dominates.
+- Real size (evo5 settings, pop 128, ~190 batches/gen): identical results; **7.2–8.2 s →
+  5.2–7.7 s per generation (~25% faster)**, the farm doing 103–127 batches/gen (part of
+  that was lilg's browser threads sharing this desktop's cores with the local threads).
+- Threads slider now goes to **0 = watching only**, for a dashboard on the machine that
+  runs the work itself.
