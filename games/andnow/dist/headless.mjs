@@ -311,7 +311,7 @@ var World = class {
       const x = ox + c.x, y = oy + c.y;
       if (!this.isFloor(x, y)) throw new Error(`${spec.name} does not fit in its start room`);
       const i = this.idx(x, y);
-      this.owner[i] = id;
+      this.setOwner(i, id);
       this.code[i] = c.code;
       this.resource[i] = 0;
       wr.cellCount++;
@@ -337,9 +337,36 @@ var World = class {
     const i = this.idx(x, y);
     return this.owner[i] === NONE && this.resource[i] === 0;
   }
+  // Cells by owner (warrior id, or DEBRIS), kept in step with `owner` by setOwner, so
+  // nothing has to scan the whole board to find a warrior's cells.
+  cellSets = /* @__PURE__ */ new Map();
+  sortedCells = /* @__PURE__ */ new Map();
+  /** The way `owner` changes (opShift does a bulk equivalent). */
+  setOwner(i, v) {
+    const o = this.owner[i];
+    if (o === v) return;
+    if (o !== NONE) {
+      this.cellSets.get(o).delete(i);
+      this.sortedCells.delete(o);
+    }
+    this.owner[i] = v;
+    if (v !== NONE) {
+      let set = this.cellSets.get(v);
+      if (!set) {
+        set = /* @__PURE__ */ new Set();
+        this.cellSets.set(v, set);
+      }
+      set.add(i);
+      this.sortedCells.delete(v);
+    }
+  }
+  /** A warrior's (or DEBRIS's) cells in board order. Treat the array as read-only. */
   cellsOf(id) {
-    const out = [];
-    for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === id) out.push(i);
+    let out = this.sortedCells.get(id);
+    if (!out) {
+      out = Array.from(Int32Array.from(this.cellSets.get(id) ?? []).sort());
+      this.sortedCells.set(id, out);
+    }
     return out;
   }
   log(kind, text, who) {
@@ -401,7 +428,7 @@ var World = class {
   toDebris(i) {
     const o = this.owner[i];
     if (o >= 0) this.warriors[o].cellCount--;
-    this.owner[i] = DEBRIS;
+    this.setOwner(i, DEBRIS);
   }
   kill(wr, reason) {
     if (!wr.alive) return;
@@ -422,7 +449,7 @@ var World = class {
   /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
   destroy(i, by) {
     const o = this.owner[i];
-    this.owner[i] = NONE;
+    this.setOwner(i, NONE);
     this.code[i] = 0;
     if (o < 0) return;
     const victim = this.warriors[o];
@@ -442,19 +469,21 @@ var World = class {
   tick() {
     if (this.result.over) return;
     this.t++;
-    this.board.spawns.forEach((s, k) => {
+    const spawns = this.board.spawns;
+    for (let k = 0; k < spawns.length; k++) {
+      const s = spawns[k];
       const i = this.idx(s.x, s.y);
       let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
       for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
       if (touched) {
         this.spawnTimers[k] = 0;
-        return;
+        continue;
       }
       if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
         this.resource[i] = s.kind;
         this.spawnTimers[k] = 0;
       }
-    });
+    }
     const n = this.warriors.length;
     for (let k = 0; k < n; k++) {
       const wr = this.warriors[(this.t + k) % n];
@@ -503,21 +532,24 @@ var World = class {
     let drop = byFar[0];
     for (const c of byFar) {
       if (this.code[c] !== CODE["."]) continue;
-      this.owner[c] = NONE;
+      this.setOwner(c, NONE);
       const ok = this.unreached(wr).length === 0;
-      this.owner[c] = wr.id;
+      this.setOwner(c, wr.id);
       if (ok) {
         drop = c;
         break;
       }
     }
     const lost = GLYPHS[this.code[drop]] ?? ".";
-    this.owner[drop] = NONE;
+    this.setOwner(drop, NONE);
     this.code[drop] = 0;
     wr.cellCount--;
     this.log("shed", `${wr.name} shed ${lost === "." ? "fat" : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
   }
   checkOver() {
+    let living = 0;
+    for (const w of this.warriors) if (w.alive) living++;
+    if (living > 1 && this.t < CONFIG.tickCap) return;
     const alive = this.warriors.filter((w) => w.alive);
     if (this.warriors.length > 1 && alive.length <= 1) {
       this.result = alive.length ? { over: true, winner: alive[0].id, reason: "last standing" } : { over: true, winner: null, reason: "mutual destruction" };
@@ -552,36 +584,38 @@ var World = class {
   }
   /** Move the IP to the next own cell in its direction, wrapping within the body. */
   advance(wr) {
-    const dx = DX[wr.dir], dy = DY[wr.dir];
-    let x = wr.ipX + dx, y = wr.ipY + dy;
-    while (this.inBounds(x, y)) {
-      if (this.owner[this.idx(x, y)] === wr.id) {
-        wr.ipX = x;
-        wr.ipY = y;
+    const { w, h, owner } = this;
+    const id = wr.id, dir = wr.dir;
+    const horiz = dir === 0 || dir === 2;
+    const step = dir === 0 ? 1 : dir === 2 ? -1 : dir === 1 ? w : -w;
+    const pos = horiz ? wr.ipX : wr.ipY;
+    const len = horiz ? w : h;
+    const fwd = dir === 0 || dir === 1;
+    const start = wr.ipY * w + wr.ipX;
+    let i = start + step;
+    for (let p = pos + (fwd ? 1 : -1); fwd ? p < len : p >= 0; p += fwd ? 1 : -1, i += step) {
+      if (owner[i] === id) {
+        this.setIp(wr, i);
         return;
       }
-      x += dx;
-      y += dy;
     }
-    x = dx > 0 ? 0 : dx < 0 ? this.w - 1 : wr.ipX;
-    y = dy > 0 ? 0 : dy < 0 ? this.h - 1 : wr.ipY;
-    while (!(x === wr.ipX && y === wr.ipY)) {
-      if (this.owner[this.idx(x, y)] === wr.id) {
-        wr.ipX = x;
-        wr.ipY = y;
+    i = start - step * (fwd ? pos : len - 1 - pos);
+    for (let p = fwd ? 0 : len - 1; p !== pos; p += fwd ? 1 : -1, i += step) {
+      if (owner[i] === id) {
+        this.setIp(wr, i);
         return;
       }
-      x += dx;
-      y += dy;
     }
+  }
+  setIp(wr, i) {
+    wr.ipX = i % this.w;
+    wr.ipY = i / this.w | 0;
   }
   /** Execute one instruction. Returns its cycle cost. */
   step(wr) {
     const g = GLYPHS[this.code[this.idx(wr.ipX, wr.ipY)]] ?? ".";
     wr.executed++;
     let skip = false;
-    const pop = () => this.pop(wr);
-    const push = (v) => this.push(wr, v);
     switch (g) {
       case ">":
         wr.dir = 0;
@@ -596,10 +630,10 @@ var World = class {
         wr.dir = 3;
         break;
       case "_":
-        wr.dir = pop() === 0 ? 0 : 2;
+        wr.dir = this.pop(wr) === 0 ? 0 : 2;
         break;
       case "|":
-        wr.dir = pop() === 0 ? 1 : 3;
+        wr.dir = this.pop(wr) === 0 ? 1 : 3;
         break;
       case "#":
         skip = true;
@@ -620,93 +654,93 @@ var World = class {
         wr.dir = (wr.dir + 1) % 4;
         break;
       case ":": {
-        const a = pop();
-        push(a);
-        push(a);
+        const a = this.pop(wr);
+        this.push(wr, a);
+        this.push(wr, a);
         break;
       }
       case "\\": {
-        const b = pop(), a = pop();
-        push(b);
-        push(a);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, b);
+        this.push(wr, a);
         break;
       }
       case "$":
-        pop();
+        this.pop(wr);
         break;
       case "o": {
-        const b = pop(), a = pop();
-        push(a);
-        push(b);
-        push(a);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, a);
+        this.push(wr, b);
+        this.push(wr, a);
         break;
       }
       case "+": {
-        const b = pop(), a = pop();
-        push(a + b);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, a + b);
         break;
       }
       case "-": {
-        const b = pop(), a = pop();
-        push(a - b);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, a - b);
         break;
       }
       case "*": {
-        const b = pop(), a = pop();
-        push(a * b);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, a * b);
         break;
       }
       case "/": {
-        const b = pop(), a = pop();
-        push(b === 0 ? 0 : Math.trunc(a / b));
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, b === 0 ? 0 : Math.trunc(a / b));
         break;
       }
       case "%": {
-        const b = pop(), a = pop();
-        push(b === 0 ? 0 : a % b);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, b === 0 ? 0 : a % b);
         break;
       }
       case "!":
-        push(pop() === 0 ? 1 : 0);
+        this.push(wr, this.pop(wr) === 0 ? 1 : 0);
         break;
       case "`": {
-        const b = pop(), a = pop();
-        push(a > b ? 1 : 0);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, a > b ? 1 : 0);
         break;
       }
       case "=": {
-        const b = pop(), a = pop();
-        push(a === b ? 1 : 0);
+        const b = this.pop(wr), a = this.pop(wr);
+        this.push(wr, a === b ? 1 : 0);
         break;
       }
       case "'": {
         const sx = wr.ipX, sy = wr.ipY;
         this.advance(wr);
-        push(this.code[this.idx(wr.ipX, wr.ipY)]);
+        this.push(wr, this.code[this.idx(wr.ipX, wr.ipY)]);
         wr.ipX = sx;
         wr.ipY = sy;
         skip = true;
         break;
       }
       case "y": {
-        const n = pop();
-        push(n > 0 ? Math.floor(this.rng() * n) : 0);
+        const n = this.pop(wr);
+        this.push(wr, n > 0 ? Math.floor(this.rng() * n) : 0);
         break;
       }
       case "s":
-        push(wr.cellCount);
+        this.push(wr, wr.cellCount);
         break;
       case "m":
-        push(Math.floor(wr.maxSize));
+        this.push(wr, Math.floor(wr.maxSize));
         break;
       case "f":
-        push(Math.floor(wr.speed * 10));
+        this.push(wr, Math.floor(wr.speed * 10));
         break;
       case "d":
-        push(wr.dir);
+        this.push(wr, wr.dir);
         break;
       case "e":
-        push(wr.lastOk ? 1 : 0);
+        this.push(wr, wr.lastOk ? 1 : 0);
         break;
       case "L":
         this.opLook(wr);
@@ -718,27 +752,27 @@ var World = class {
         this.opRead(wr);
         break;
       case "T": {
-        const dy = pop(), dx = pop();
-        if (dx === 0 && dy === 0) push(Math.floor(this.rng() * 4));
-        else if (Math.abs(dx) >= Math.abs(dy)) push(dx > 0 ? 0 : 2);
-        else push(dy > 0 ? 1 : 3);
+        const dy = this.pop(wr), dx = this.pop(wr);
+        if (dx === 0 && dy === 0) this.push(wr, Math.floor(this.rng() * 4));
+        else if (Math.abs(dx) >= Math.abs(dy)) this.push(wr, dx > 0 ? 0 : 2);
+        else this.push(wr, dy > 0 ? 1 : 3);
         break;
       }
       case "M":
-        wr.lastOk = this.opShift(wr, pop());
+        wr.lastOk = this.opShift(wr, this.pop(wr));
         break;
       case "F": {
-        const d = pop(), dy = pop(), dx = pop();
+        const d = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr);
         wr.lastOk = this.opFlow(wr, dx, dy, d);
         break;
       }
       case "X": {
-        const dy2 = pop(), dx2 = pop(), dy1 = pop(), dx1 = pop();
+        const dy2 = this.pop(wr), dx2 = this.pop(wr), dy1 = this.pop(wr), dx1 = this.pop(wr);
         wr.lastOk = this.opSwap(wr, dx1, dy1, dx2, dy2);
         break;
       }
       case "G": {
-        const c = pop(), d = pop();
+        const c = this.pop(wr), d = this.pop(wr);
         wr.lastOk = this.opGrow(wr, d, c);
         break;
       }
@@ -746,17 +780,17 @@ var World = class {
         wr.lastOk = this.opCollect(wr);
         break;
       case "B": {
-        const dy = pop(), dx = pop();
+        const dy = this.pop(wr), dx = this.pop(wr);
         wr.lastOk = this.opBomb(wr, dx, dy);
         break;
       }
       case "W": {
-        const c = pop(), dy = pop(), dx = pop();
+        const c = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr);
         wr.lastOk = this.opWrite(wr, dx, dy, c);
         break;
       }
       default:
-        if (g >= "0" && g <= "9") push(g.charCodeAt(0) - 48);
+        if (g >= "0" && g <= "9") this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
     if ("MFXGCBW".includes(g)) wr.lastAct = g;
@@ -798,17 +832,26 @@ var World = class {
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
     const [fx, fy] = this.frame(wr);
+    const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
+    const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
     const cands = [];
-    for (let y = Math.max(0, wr.ipY - r - 16); y <= Math.min(this.h - 1, wr.ipY + r + 16); y++) {
-      for (let x = Math.max(0, wr.ipX - r - 16); x <= Math.min(this.w - 1, wr.ipX + r + 16); x++) {
-        const t = this.classify(x, y, wr.id);
-        const match = type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type;
-        if (!match || t === T_WALL || t === T_NOTHING) continue;
-        cands.push([Math.abs(x - fx) + Math.abs(y - fy), x, y]);
-      }
+    const consider = (i) => {
+      const x = i % this.w, y = i / this.w | 0;
+      if (x < x0 || x > x1 || y < y0 || y > y1) return;
+      const t = this.classify(x, y, wr.id);
+      const match = type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type;
+      if (!match || t === T_WALL || t === T_NOTHING) return;
+      cands.push([Math.abs(x - fx) + Math.abs(y - fy), i, x, y]);
+    };
+    if (type === T_ENEMY) {
+      for (const other of this.warriors) if (other.id !== wr.id) for (const i of this.cellSets.get(other.id) ?? []) consider(i);
+    } else if (type === T_DEBRIS) {
+      for (const i of this.cellSets.get(DEBRIS) ?? []) consider(i);
+    } else if (type === T_SIZE || type === T_SPEED || type === T_RESOURCE) {
+      for (const sp of this.board.spawns) consider(this.idx(sp.x, sp.y));
     }
-    cands.sort((a, b) => a[0] - b[0]);
-    for (const [, x, y] of cands) {
+    cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    for (const [, , x, y] of cands) {
       if (this.seer(wr.id, x, y, r, mine) >= 0) {
         this.push(wr, x - fx);
         this.push(wr, y - fy);
@@ -844,11 +887,14 @@ var World = class {
       this.owner[c] = NONE;
       this.code[c] = 0;
     }
-    mine.forEach((c, k) => {
-      const ni = this.idx(c % this.w + DX[d], (c / this.w | 0) + DY[d]);
-      this.owner[ni] = wr.id;
-      this.code[ni] = codes[k];
-    });
+    const delta = DY[d] * this.w + DX[d];
+    const moved = mine.map((c) => c + delta);
+    for (let k = 0; k < moved.length; k++) {
+      this.owner[moved[k]] = wr.id;
+      this.code[moved[k]] = codes[k];
+    }
+    this.cellSets.set(wr.id, new Set(moved));
+    this.sortedCells.set(wr.id, moved);
     wr.ipX += DX[d];
     wr.ipY += DY[d];
     wr.ox += DX[d];
@@ -863,18 +909,18 @@ var World = class {
     if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
     const from = this.idx(x, y), to = this.idx(nx, ny);
     const isIp = x === wr.ipX && y === wr.ipY;
-    this.owner[to] = wr.id;
+    this.setOwner(to, wr.id);
     this.code[to] = this.code[from];
-    this.owner[from] = NONE;
+    this.setOwner(from, NONE);
     this.code[from] = 0;
     if (isIp) {
       wr.ipX = nx;
       wr.ipY = ny;
     }
     if (this.unreached(wr).length) {
-      this.owner[from] = wr.id;
+      this.setOwner(from, wr.id);
       this.code[from] = this.code[to];
-      this.owner[to] = NONE;
+      this.setOwner(to, NONE);
       this.code[to] = 0;
       if (isIp) {
         wr.ipX = x;
@@ -902,7 +948,7 @@ var World = class {
     }
     if (!this.isFree(x, y)) return false;
     const i = this.idx(x, y);
-    this.owner[i] = wr.id;
+    this.setOwner(i, wr.id);
     this.code[i] = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
     wr.cellCount++;
     return true;
@@ -923,7 +969,7 @@ var World = class {
           this.log("collect", `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
           wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.debrisPickup);
-          this.owner[i] = NONE;
+          this.setOwner(i, NONE);
           this.code[i] = 0;
           got = true;
           continue;

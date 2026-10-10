@@ -615,3 +615,23 @@ but lose correctness").
 - Baseline recorded from commit-current code: 831,517 ticks; self-verify OK (the sim is
   fully deterministic). Coverage, warrior-ticks by last action: SHIFT 540k, BOMB 495k,
   COLLECT 453k, GROW 86k, WRITE 59k, FLOW 16k, SWAP 10k.
+
+### Sim optimization, round 1 (verified identical against the golden replays)
+Profile before: 48% in `opScan` (read a ~60×40 window, classify every cell, sort, then
+LoS), plus whole-board scans in `cellsOf` (SHIFT, COLLECT, SCAN, `seer`).
+Changes, each followed by `check --verify` (all 433 matches identical on every tick):
+1. **Per-owner cell sets** (`cellSets`, plus a cached board-ordered array), kept in step
+   by `setOwner()`, now the only way `owner` changes (SHIFT does a bulk equivalent).
+2. **SCAN from candidates**: other warriors' cells / the debris set / spawn points (the only
+   places resources can exist), same window bounds, sorted by distance then board index,
+   exactly the order the old row-major scan + stable sort produced.
+3. **No per-instruction closures**: `step()` allocated `pop`/`push` arrow functions on every
+   instruction; now direct calls.
+4. **`advance()` walks the owner grid by index** instead of `inBounds`/`idx` calls.
+5. Spawn loop without a `forEach` callback; `checkOver` fast path (nothing to decide while
+   2+ are alive before the cap); `cellsOf` sorts via `Int32Array` (native numeric sort).
+6. **Bulk SHIFT**: a translation keeps board order and touches only the mover's cells, so
+   the moved list stays sorted; no per-cell set churn.
+`check --bench` (same corpus, no hashing; noisy while evo5 holds all 8 cores): old ~58–108k
+ticks/s, new ~150–190k ticks/s, roughly 2–2.5×. Tournament output byte-identical old vs new.
+Clean numbers to come once the CPU is free.

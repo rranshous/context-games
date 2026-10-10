@@ -4,6 +4,7 @@
 //
 //   node dist/check.mjs --record golden.json
 //   node dist/check.mjs --verify golden.json
+//   node dist/check.mjs --bench golden.json     (same matches, no hashing: raw sim speed)
 //
 // Coverage: every warrior in warriors/ and warriors/evolved/, plus random and mutated
 // genomes (so every instruction gets exercised), in duels and 4-player free-for-alls.
@@ -92,9 +93,24 @@ function corpus(): Case[] {
 
 const args = process.argv.slice(2);
 const mode = args[0], file = args[1];
-if ((mode !== '--record' && mode !== '--verify') || !file) {
-  console.log('usage: node dist/check.mjs --record|--verify <golden.json>');
+if (!['--record', '--verify', '--bench'].includes(mode) || !file) {
+  console.log('usage: node dist/check.mjs --record|--verify|--bench <golden.json>');
   process.exit(1);
+}
+if (mode === '--bench') {
+  const cases: Case[] = JSON.parse(readFileSync(file, 'utf8')).cases;
+  const t0 = Date.now();
+  let ticks = 0;
+  for (const c of cases) {
+    try {
+      const w = new World(c.seed, c.sources.map((s) => parseWarrior(s)));
+      while (w.t < TICKS && !w.result.over) w.tick();
+      ticks += w.t;
+    } catch { /* same cases fail the same way in every build */ }
+  }
+  const ms = Date.now() - t0;
+  console.log(`bench: ${ticks} ticks in ${ms} ms (${(ticks / ms * 1000).toFixed(0)} ticks/s)`);
+  process.exit(0);
 }
 // The corpus is stored in the golden file, so verify replays exactly what was recorded
 // even after warriors/ changes.

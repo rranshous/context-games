@@ -128,7 +128,7 @@ export class World {
       const x = ox + c.x, y = oy + c.y;
       if (!this.isFloor(x, y)) throw new Error(`${spec.name} does not fit in its start room`);
       const i = this.idx(x, y);
-      this.owner[i] = id;
+      this.setOwner(i, id);
       this.code[i] = c.code;
       this.resource[i] = 0;
       wr.cellCount++;
@@ -149,9 +149,33 @@ export class World {
     return this.owner[i] === NONE && this.resource[i] === 0;
   }
 
+  // Cells by owner (warrior id, or DEBRIS), kept in step with `owner` by setOwner, so
+  // nothing has to scan the whole board to find a warrior's cells.
+  private cellSets = new Map<number, Set<number>>();
+  private sortedCells = new Map<number, number[]>();
+
+  /** The way `owner` changes (opShift does a bulk equivalent). */
+  private setOwner(i: number, v: number) {
+    const o = this.owner[i];
+    if (o === v) return;
+    if (o !== NONE) { this.cellSets.get(o)!.delete(i); this.sortedCells.delete(o); }
+    this.owner[i] = v;
+    if (v !== NONE) {
+      let set = this.cellSets.get(v);
+      if (!set) { set = new Set(); this.cellSets.set(v, set); }
+      set.add(i);
+      this.sortedCells.delete(v);
+    }
+  }
+
+  /** A warrior's (or DEBRIS's) cells in board order. Treat the array as read-only. */
   cellsOf(id: number): number[] {
-    const out: number[] = [];
-    for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === id) out.push(i);
+    let out = this.sortedCells.get(id);
+    if (!out) {
+      // Typed-array sort is numeric and native (no comparator callback).
+      out = Array.from(Int32Array.from(this.cellSets.get(id) ?? []).sort());
+      this.sortedCells.set(id, out);
+    }
     return out;
   }
 
@@ -209,7 +233,7 @@ export class World {
   private toDebris(i: number) {
     const o = this.owner[i];
     if (o >= 0) this.warriors[o].cellCount--;
-    this.owner[i] = DEBRIS;
+    this.setOwner(i, DEBRIS);
   }
 
   private kill(wr: Warrior, reason: string) {
@@ -235,7 +259,7 @@ export class World {
   /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
   private destroy(i: number, by: Warrior) {
     const o = this.owner[i];
-    this.owner[i] = NONE;
+    this.setOwner(i, NONE);
     this.code[i] = 0;
     if (o < 0) return;
     const victim = this.warriors[o];
@@ -260,16 +284,18 @@ export class World {
 
     // Respawn resources at empty spots. A spot doesn't regrow while anything sits on or
     // touches it, so camping a spawn doesn't work: you have to leave and come back.
-    this.board.spawns.forEach((s, k) => {
+    const spawns = this.board.spawns;
+    for (let k = 0; k < spawns.length; k++) {
+      const s = spawns[k];
       const i = this.idx(s.x, s.y);
       let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
       for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
-      if (touched) { this.spawnTimers[k] = 0; return; }
+      if (touched) { this.spawnTimers[k] = 0; continue; }
       if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
         this.resource[i] = s.kind;
         this.spawnTimers[k] = 0;
       }
-    });
+    }
 
     // Run warriors in a rotating order so nobody always moves first.
     const n = this.warriors.length;
@@ -321,21 +347,24 @@ export class World {
     let drop = byFar[0];
     for (const c of byFar) {
       if (this.code[c] !== CODE['.']) continue;
-      this.owner[c] = NONE;
+      this.setOwner(c, NONE);
       const ok = this.unreached(wr).length === 0;
-      this.owner[c] = wr.id;
+      this.setOwner(c, wr.id);
       if (ok) { drop = c; break; }
     }
     // Shed cells vanish rather than becoming debris: otherwise grow → shed → collect
     // the debris is a free-size loop.
     const lost = GLYPHS[this.code[drop]] ?? '.';
-    this.owner[drop] = NONE;
+    this.setOwner(drop, NONE);
     this.code[drop] = 0;
     wr.cellCount--;
     this.log('shed', `${wr.name} shed ${lost === '.' ? 'fat' : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
   }
 
   private checkOver() {
+    let living = 0;
+    for (const w of this.warriors) if (w.alive) living++;
+    if (living > 1 && this.t < CONFIG.tickCap) return; // the common case: nothing to decide
     const alive = this.warriors.filter((w) => w.alive);
     if (this.warriors.length > 1 && alive.length <= 1) {
       this.result = alive.length
@@ -383,19 +412,30 @@ export class World {
 
   /** Move the IP to the next own cell in its direction, wrapping within the body. */
   private advance(wr: Warrior) {
-    const dx = DX[wr.dir], dy = DY[wr.dir];
-    let x = wr.ipX + dx, y = wr.ipY + dy;
-    while (this.inBounds(x, y)) {
-      if (this.owner[this.idx(x, y)] === wr.id) { wr.ipX = x; wr.ipY = y; return; }
-      x += dx; y += dy;
+    // Walk the owner grid by index along the IP's row or column.
+    const { w, h, owner } = this;
+    const id = wr.id, dir = wr.dir;
+    const horiz = dir === 0 || dir === 2;
+    const step = dir === 0 ? 1 : dir === 2 ? -1 : dir === 1 ? w : -w;
+    const pos = horiz ? wr.ipX : wr.ipY;          // position along the line
+    const len = horiz ? w : h;
+    const fwd = dir === 0 || dir === 1;            // moving toward higher x / y
+    const start = wr.ipY * w + wr.ipX;
+    // Ahead of the IP, up to the board edge.
+    let i = start + step;
+    for (let p = pos + (fwd ? 1 : -1); fwd ? p < len : p >= 0; p += fwd ? 1 : -1, i += step) {
+      if (owner[i] === id) { this.setIp(wr, i); return; }
     }
-    // Wrap: scan from the opposite edge toward the IP.
-    x = dx > 0 ? 0 : dx < 0 ? this.w - 1 : wr.ipX;
-    y = dy > 0 ? 0 : dy < 0 ? this.h - 1 : wr.ipY;
-    while (!(x === wr.ipX && y === wr.ipY)) {
-      if (this.owner[this.idx(x, y)] === wr.id) { wr.ipX = x; wr.ipY = y; return; }
-      x += dx; y += dy;
+    // Wrap: from the opposite edge toward the IP.
+    i = start - step * (fwd ? pos : len - 1 - pos);
+    for (let p = fwd ? 0 : len - 1; p !== pos; p += fwd ? 1 : -1, i += step) {
+      if (owner[i] === id) { this.setIp(wr, i); return; }
     }
+  }
+
+  private setIp(wr: Warrior, i: number) {
+    wr.ipX = i % this.w;
+    wr.ipY = (i / this.w) | 0;
   }
 
   /** Execute one instruction. Returns its cycle cost. */
@@ -403,71 +443,70 @@ export class World {
     const g = GLYPHS[this.code[this.idx(wr.ipX, wr.ipY)]] ?? '.';
     wr.executed++;
     let skip = false;
-    const pop = () => this.pop(wr);
-    const push = (v: number) => this.push(wr, v);
+    // (pop/push are called directly: closures here would allocate on every instruction.)
 
     switch (g) {
       case '>': wr.dir = 0; break;
       case 'v': wr.dir = 1; break;
       case '<': wr.dir = 2; break;
       case '^': wr.dir = 3; break;
-      case '_': wr.dir = pop() === 0 ? 0 : 2; break;
-      case '|': wr.dir = pop() === 0 ? 1 : 3; break;
+      case '_': wr.dir = this.pop(wr) === 0 ? 0 : 2; break;
+      case '|': wr.dir = this.pop(wr) === 0 ? 1 : 3; break;
       case '#': skip = true; break;
       case '?': wr.dir = Math.floor(this.rng() * 4); break;
       case '@': this.kill(wr, 'executed @'); return 1;
       case 'r': wr.dir = (wr.dir + 2) % 4; break;
       case '[': wr.dir = (wr.dir + 3) % 4; break;
       case ']': wr.dir = (wr.dir + 1) % 4; break;
-      case ':': { const a = pop(); push(a); push(a); break; }
-      case '\\': { const b = pop(), a = pop(); push(b); push(a); break; }
-      case '$': pop(); break;
-      case 'o': { const b = pop(), a = pop(); push(a); push(b); push(a); break; }
-      case '+': { const b = pop(), a = pop(); push(a + b); break; }
-      case '-': { const b = pop(), a = pop(); push(a - b); break; }
-      case '*': { const b = pop(), a = pop(); push(a * b); break; }
-      case '/': { const b = pop(), a = pop(); push(b === 0 ? 0 : Math.trunc(a / b)); break; }
-      case '%': { const b = pop(), a = pop(); push(b === 0 ? 0 : a % b); break; }
-      case '!': push(pop() === 0 ? 1 : 0); break;
-      case '`': { const b = pop(), a = pop(); push(a > b ? 1 : 0); break; }
-      case '=': { const b = pop(), a = pop(); push(a === b ? 1 : 0); break; }
+      case ':': { const a = this.pop(wr); this.push(wr, a); this.push(wr, a); break; }
+      case '\\': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, b); this.push(wr, a); break; }
+      case '$': this.pop(wr); break;
+      case 'o': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, a); this.push(wr, b); this.push(wr, a); break; }
+      case '+': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, a + b); break; }
+      case '-': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, a - b); break; }
+      case '*': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, a * b); break; }
+      case '/': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, b === 0 ? 0 : Math.trunc(a / b)); break; }
+      case '%': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, b === 0 ? 0 : a % b); break; }
+      case '!': this.push(wr, this.pop(wr) === 0 ? 1 : 0); break;
+      case '`': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, a > b ? 1 : 0); break; }
+      case '=': { const b = this.pop(wr), a = this.pop(wr); this.push(wr, a === b ? 1 : 0); break; }
       case "'": {
         const sx = wr.ipX, sy = wr.ipY;
         this.advance(wr);
-        push(this.code[this.idx(wr.ipX, wr.ipY)]);
+        this.push(wr, this.code[this.idx(wr.ipX, wr.ipY)]);
         wr.ipX = sx; wr.ipY = sy;
         skip = true;
         break;
       }
-      case 'y': { const n = pop(); push(n > 0 ? Math.floor(this.rng() * n) : 0); break; }
-      case 's': push(wr.cellCount); break;
-      case 'm': push(Math.floor(wr.maxSize)); break;
-      case 'f': push(Math.floor(wr.speed * 10)); break;
-      case 'd': push(wr.dir); break;
-      case 'e': push(wr.lastOk ? 1 : 0); break;
+      case 'y': { const n = this.pop(wr); this.push(wr, n > 0 ? Math.floor(this.rng() * n) : 0); break; }
+      case 's': this.push(wr, wr.cellCount); break;
+      case 'm': this.push(wr, Math.floor(wr.maxSize)); break;
+      case 'f': this.push(wr, Math.floor(wr.speed * 10)); break;
+      case 'd': this.push(wr, wr.dir); break;
+      case 'e': this.push(wr, wr.lastOk ? 1 : 0); break;
       case 'L': this.opLook(wr); break;
       case 'S': this.opScan(wr); break;
       case 'R': this.opRead(wr); break;
       case 'T': {
-        const dy = pop(), dx = pop();
-        if (dx === 0 && dy === 0) push(Math.floor(this.rng() * 4));
-        else if (Math.abs(dx) >= Math.abs(dy)) push(dx > 0 ? 0 : 2);
-        else push(dy > 0 ? 1 : 3);
+        const dy = this.pop(wr), dx = this.pop(wr);
+        if (dx === 0 && dy === 0) this.push(wr, Math.floor(this.rng() * 4));
+        else if (Math.abs(dx) >= Math.abs(dy)) this.push(wr, dx > 0 ? 0 : 2);
+        else this.push(wr, dy > 0 ? 1 : 3);
         break;
       }
-      case 'M': wr.lastOk = this.opShift(wr, pop()); break;
-      case 'F': { const d = pop(), dy = pop(), dx = pop(); wr.lastOk = this.opFlow(wr, dx, dy, d); break; }
+      case 'M': wr.lastOk = this.opShift(wr, this.pop(wr)); break;
+      case 'F': { const d = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opFlow(wr, dx, dy, d); break; }
       case 'X': {
-        const dy2 = pop(), dx2 = pop(), dy1 = pop(), dx1 = pop();
+        const dy2 = this.pop(wr), dx2 = this.pop(wr), dy1 = this.pop(wr), dx1 = this.pop(wr);
         wr.lastOk = this.opSwap(wr, dx1, dy1, dx2, dy2);
         break;
       }
-      case 'G': { const c = pop(), d = pop(); wr.lastOk = this.opGrow(wr, d, c); break; }
+      case 'G': { const c = this.pop(wr), d = this.pop(wr); wr.lastOk = this.opGrow(wr, d, c); break; }
       case 'C': wr.lastOk = this.opCollect(wr); break;
-      case 'B': { const dy = pop(), dx = pop(); wr.lastOk = this.opBomb(wr, dx, dy); break; }
-      case 'W': { const c = pop(), dy = pop(), dx = pop(); wr.lastOk = this.opWrite(wr, dx, dy, c); break; }
+      case 'B': { const dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opBomb(wr, dx, dy); break; }
+      case 'W': { const c = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opWrite(wr, dx, dy, c); break; }
       default:
-        if (g >= '0' && g <= '9') push(g.charCodeAt(0) - 48);
+        if (g >= '0' && g <= '9') this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
     if ('MFXGCBW'.includes(g)) wr.lastAct = g;
@@ -508,17 +547,29 @@ export class World {
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
     const [fx, fy] = this.frame(wr);
-    const cands: [number, number, number][] = [];
-    for (let y = Math.max(0, wr.ipY - r - 16); y <= Math.min(this.h - 1, wr.ipY + r + 16); y++) {
-      for (let x = Math.max(0, wr.ipX - r - 16); x <= Math.min(this.w - 1, wr.ipX + r + 16); x++) {
-        const t = this.classify(x, y, wr.id);
-        const match = type === T_RESOURCE ? (t === T_SIZE || t === T_SPEED) : t === type;
-        if (!match || t === T_WALL || t === T_NOTHING) continue;
-        cands.push([Math.abs(x - fx) + Math.abs(y - fy), x, y]);
-      }
+    // Candidates come from where such things can be (other warriors' cells, debris,
+    // spawn points), limited to a window around the IP, nearest the frame origin first,
+    // ties in board order.
+    const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
+    const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
+    const cands: [number, number, number, number][] = []; // dist, index, x, y
+    const consider = (i: number) => {
+      const x = i % this.w, y = (i / this.w) | 0;
+      if (x < x0 || x > x1 || y < y0 || y > y1) return;
+      const t = this.classify(x, y, wr.id);
+      const match = type === T_RESOURCE ? (t === T_SIZE || t === T_SPEED) : t === type;
+      if (!match || t === T_WALL || t === T_NOTHING) return;
+      cands.push([Math.abs(x - fx) + Math.abs(y - fy), i, x, y]);
+    };
+    if (type === T_ENEMY) {
+      for (const other of this.warriors) if (other.id !== wr.id) for (const i of this.cellSets.get(other.id) ?? []) consider(i);
+    } else if (type === T_DEBRIS) {
+      for (const i of this.cellSets.get(DEBRIS) ?? []) consider(i);
+    } else if (type === T_SIZE || type === T_SPEED || type === T_RESOURCE) {
+      for (const sp of this.board.spawns) consider(this.idx(sp.x, sp.y));
     }
-    cands.sort((a, b) => a[0] - b[0]);
-    for (const [, x, y] of cands) {
+    cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    for (const [, , x, y] of cands) {
       if (this.seer(wr.id, x, y, r, mine) >= 0) {
         this.push(wr, x - fx);
         this.push(wr, y - fy);
@@ -550,13 +601,19 @@ export class World {
       if (this.ownerAt(nx, ny) === wr.id) continue;
       if (!this.isFree(nx, ny)) return false;
     }
+    // Bulk move, bypassing setOwner: every destination was free or mine, so no other
+    // owner's cells change, and a translation keeps board order, so the moved list is
+    // still sorted.
     const codes = mine.map((c) => this.code[c]);
     for (const c of mine) { this.owner[c] = NONE; this.code[c] = 0; }
-    mine.forEach((c, k) => {
-      const ni = this.idx((c % this.w) + DX[d], ((c / this.w) | 0) + DY[d]);
-      this.owner[ni] = wr.id;
-      this.code[ni] = codes[k];
-    });
+    const delta = DY[d] * this.w + DX[d];
+    const moved = mine.map((c) => c + delta);
+    for (let k = 0; k < moved.length; k++) {
+      this.owner[moved[k]] = wr.id;
+      this.code[moved[k]] = codes[k];
+    }
+    this.cellSets.set(wr.id, new Set(moved));
+    this.sortedCells.set(wr.id, moved);
     wr.ipX += DX[d];
     wr.ipY += DY[d];
     wr.ox += DX[d];
@@ -572,13 +629,13 @@ export class World {
     if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
     const from = this.idx(x, y), to = this.idx(nx, ny);
     const isIp = x === wr.ipX && y === wr.ipY;
-    this.owner[to] = wr.id; this.code[to] = this.code[from];
-    this.owner[from] = NONE; this.code[from] = 0;
+    this.setOwner(to, wr.id); this.code[to] = this.code[from];
+    this.setOwner(from, NONE); this.code[from] = 0;
     if (isIp) { wr.ipX = nx; wr.ipY = ny; }
     if (this.unreached(wr).length) {
       // Would disconnect: undo.
-      this.owner[from] = wr.id; this.code[from] = this.code[to];
-      this.owner[to] = NONE; this.code[to] = 0;
+      this.setOwner(from, wr.id); this.code[from] = this.code[to];
+      this.setOwner(to, NONE); this.code[to] = 0;
       if (isIp) { wr.ipX = x; wr.ipY = y; }
       return false;
     }
@@ -601,7 +658,7 @@ export class World {
     while (this.ownerAt(x, y) === wr.id) { x += DX[d]; y += DY[d]; }
     if (!this.isFree(x, y)) return false;
     const i = this.idx(x, y);
-    this.owner[i] = wr.id;
+    this.setOwner(i, wr.id);
     this.code[i] = ((code % GLYPHS.length) + GLYPHS.length) % GLYPHS.length;
     wr.cellCount++;
     return true;
@@ -623,7 +680,7 @@ export class World {
           this.log('collect', `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
           wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.debrisPickup);
-          this.owner[i] = NONE;
+          this.setOwner(i, NONE);
           this.code[i] = 0;
           got = true;
           continue;
