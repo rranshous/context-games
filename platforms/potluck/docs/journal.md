@@ -98,3 +98,7 @@ Energy Saver (CPU-heavy tabs hidden + silent > 5 min). Lost capacity, never lost
 - **A tip on the page** with the dependable fix for the browser it's running in: Edge →
   "Never put these sites to sleep", Chrome → "Always keep these sites active", add the farm's
   host:port.
+- **Share of farm** column (user: "a percent of total work readout"): each device's share of
+  what the farm is doing now (by rate) and of everything since the server started. Only the
+  browser tabs count: the client's local work deliberately isn't reported (user: "Local
+  doesn't need to report in its work"), so I dropped a job-total field I'd started on.

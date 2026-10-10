@@ -75,8 +75,13 @@ async function refresh() {
       for (const f of w.failed) d.failed.add(f);
       devices.set(key, d);
     }
-    $('farm').innerHTML = [...devices.values()].map((d) =>
-      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td>${d.threads ? Math.round(d.perMin / d.threads) : 0}/min</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
+    // Each device's share of what the farm is doing right now (by rate) and of everything
+    // it has done since the server started.
+    const all = [...devices.values()];
+    const rateTotal = all.reduce((a, d) => a + d.perMin, 0) || 1;
+    const doneTotal = all.reduce((a, d) => a + d.done, 0) || 1;
+    $('farm').innerHTML = all.map((d) =>
+      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td>${d.threads ? Math.round(d.perMin / d.threads) : 0}/min</td><td>${Math.round(100 * d.perMin / rateTotal)}% now · ${Math.round(100 * d.done / doneTotal)}% total</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
     $('queue').textContent = `${s.queue} waiting · ${s.jobs.map((j) => `${esc(j.task ?? '?')}: ${j.total - j.remaining}/${j.total}`).join(' · ') || 'no jobs'}`;
   } catch { $('queue').textContent = 'server unreachable'; }
 }
