@@ -5,7 +5,7 @@ import { basename, join } from "node:path";
 import { isMainThread } from "node:worker_threads";
 
 // src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBW";
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWD";
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
 var DX = [1, 0, -1, 0];
@@ -248,7 +248,15 @@ var CONFIG = {
   speedPickup: 1,
   spawnInterval: 120,
   // ticks between respawns at an empty spot
-  tickCap: 5e3
+  tickCap: 5e3,
+  copyError: 0.02,
+  // DIVIDE: chance each copied cell becomes a random glyph
+  maxWarriors: 64,
+  // DIVIDE fails once a match has this many warriors
+  reaperCap: 0,
+  // petri dish: with this many alive, a birth kills the oldest living warrior (0 = off)
+  lifespan: 0
+  // petri dish: warriors die of old age after this many ticks (0 = off)
 };
 var World = class {
   constructor(seed, specs) {
@@ -287,6 +295,9 @@ var World = class {
     const oy = room.y + Math.floor((room.h - spec.height) / 2);
     const wr = {
       id,
+      lineage: id,
+      gen: 0,
+      born: 0,
       name: spec.name,
       alive: true,
       ipX: ox + spec.ip.x,
@@ -303,7 +314,7 @@ var World = class {
       cellCount: 0,
       executed: 0,
       spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0 },
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 },
       home: room
     };
     for (const c of spec.cells) {
@@ -501,6 +512,7 @@ var World = class {
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
       if (wr.cellCount <= 0) this.kill(wr, "no cells left");
+      else if (CONFIG.lifespan > 0 && this.t - wr.born >= CONFIG.lifespan) this.kill(wr, "old age");
     }
     this.checkOver();
   }
@@ -545,27 +557,43 @@ var World = class {
     wr.cellCount--;
     this.log("shed", `${wr.name} shed ${lost === "." ? "fat" : `code '${lost}'`} (max size ${Math.floor(wr.maxSize)})`, wr.id);
   }
+  /** True when every living warrior is of one lineage (only possible once someone divides). */
+  oneTeamLeft() {
+    let team = -1;
+    for (const w of this.warriors) {
+      if (!w.alive) continue;
+      if (team === -1) team = w.lineage;
+      else if (w.lineage !== team) return false;
+    }
+    return team !== -1 && this.warriors.some((w) => w.lineage !== team);
+  }
   checkOver() {
     let living = 0;
     for (const w of this.warriors) if (w.alive) living++;
-    if (living > 1 && this.t < CONFIG.tickCap) return;
-    const alive = this.warriors.filter((w) => w.alive);
-    if (this.warriors.length > 1 && alive.length <= 1) {
-      this.result = alive.length ? { over: true, winner: alive[0].id, reason: "last standing" } : { over: true, winner: null, reason: "mutual destruction" };
-    } else if (this.warriors.length === 1 && alive.length === 0) {
+    if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return;
+    const founders = this.warriors.filter((w) => w.gen === 0);
+    const teams = /* @__PURE__ */ new Map();
+    for (const w of this.warriors) if (w.alive) teams.set(w.lineage, [...teams.get(w.lineage) ?? [], w]);
+    if (founders.length > 1 && teams.size <= 1) {
+      this.result = teams.size ? { over: true, winner: [...teams.keys()][0], reason: "last standing" } : { over: true, winner: null, reason: "mutual destruction" };
+    } else if (founders.length === 1 && teams.size === 0) {
       this.result = { over: true, winner: null, reason: "died" };
     } else if (this.t >= CONFIG.tickCap) {
-      const keys = (w) => [w.maxSize, w.speed, w.cellCount];
+      const keys = (ms) => [
+        ms.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
+        ms.reduce((a, w) => a + w.speed, 0),
+        ms.reduce((a, w) => a + w.cellCount, 0)
+      ];
+      const ranked = [...teams.entries()].map(([team, ms]) => ({ team, k: keys(ms) }));
       const cmp = (a, b) => {
-        const ka = keys(a), kb = keys(b);
-        for (let k = 0; k < ka.length; k++) if (Math.abs(ka[k] - kb[k]) >= 0.01) return kb[k] - ka[k];
+        for (let k = 0; k < a.k.length; k++) if (Math.abs(a.k[k] - b.k[k]) >= 0.01) return b.k[k] - a.k[k];
         return 0;
       };
-      const ranked = [...alive].sort(cmp);
+      ranked.sort(cmp);
       const tied = ranked.length > 1 && cmp(ranked[0], ranked[1]) === 0;
-      const top = ranked[0];
-      const by = ranked.length < 2 || Math.abs(top.maxSize - ranked[1].maxSize) >= 0.01 ? `largest max size (${top.maxSize.toFixed(1)})` : Math.abs(top.speed - ranked[1].speed) >= 0.01 ? `max size tied, faster (${top.speed.toFixed(2)})` : `max size and speed tied, more cells (${top.cellCount})`;
-      this.result = tied ? { over: true, winner: null, reason: "draw at tick cap" } : { over: true, winner: top.id, reason: `${by} at tick cap` };
+      const top = ranked[0], next = ranked[1];
+      const by = !next || Math.abs(top.k[0] - next.k[0]) >= 0.01 ? `largest max size (${top.k[0].toFixed(1)})` : Math.abs(top.k[1] - next.k[1]) >= 0.01 ? `max size tied, faster (${top.k[1].toFixed(2)})` : `max size and speed tied, more cells (${top.k[2]})`;
+      this.result = tied ? { over: true, winner: null, reason: "draw at tick cap" } : { over: true, winner: top.team, reason: `${by} at tick cap` };
     }
     if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
   }
@@ -615,6 +643,7 @@ var World = class {
     const g = GLYPHS[this.code[this.idx(wr.ipX, wr.ipY)]] ?? ".";
     wr.executed++;
     let skip = false;
+    let cost = COST[g] ?? 1;
     switch (g) {
       case ">":
         wr.dir = 0;
@@ -788,15 +817,22 @@ var World = class {
         wr.lastOk = this.opWrite(wr, dx, dy, c);
         break;
       }
+      // Copying costs a cycle per cell; a failed attempt costs 1.
+      case "D": {
+        const before = wr.cellCount;
+        wr.lastOk = this.opDivide(wr, this.pop(wr));
+        cost = wr.lastOk ? Math.max(1, before) : 1;
+        break;
+      }
       default:
         if (g >= "0" && g <= "9") this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
-    if ("MFXGCBW".includes(g)) wr.lastAct = g;
-    if (!wr.alive) return COST[g] ?? 1;
+    if ("MFXGCBWD".includes(g)) wr.lastAct = g;
+    if (!wr.alive) return cost;
     this.advance(wr);
     if (skip) this.advance(wr);
-    return COST[g] ?? 1;
+    return cost;
   }
   // ---------- sensing ----------
   classify(x, y, me) {
@@ -927,6 +963,7 @@ var World = class {
       }
       return false;
     }
+    wr.stats.flows++;
     return true;
   }
   opSwap(wr, dx1, dy1, dx2, dy2) {
@@ -934,6 +971,7 @@ var World = class {
     const a = [fx + dx1, fy + dy1], b = [fx + dx2, fy + dy2];
     if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
+    if (this.code[ia] !== this.code[ib]) wr.stats.swaps++;
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
     return true;
   }
@@ -950,6 +988,7 @@ var World = class {
     this.setOwner(i, wr.id);
     this.code[i] = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
     wr.cellCount++;
+    wr.stats.grows++;
     return true;
   }
   opCollect(wr) {
@@ -992,6 +1031,73 @@ var World = class {
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
     return true;
   }
+  /**
+   * DIVIDE: copy my whole body beyond itself in direction d, as a new warrior of my lineage
+   * (a rival like any other in play).
+   * Needs max size ≥ 2× my cells (and ≥ 2× the floor); parent and child each get half the
+   * max size, the same speed, and a fresh stack. Each copied cell becomes a random glyph
+   * with chance CONFIG.copyError: variation, so a lineage can evolve within one match.
+   */
+  opDivide(wr, d) {
+    d = (d % 4 + 4) % 4;
+    if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < 2 * CONFIG.sizeFloor) return false;
+    if (CONFIG.reaperCap > 0) {
+      const living = this.warriors.filter((w) => w.alive);
+      if (living.length >= CONFIG.reaperCap) {
+        const oldest = living.filter((w) => w !== wr).reduce((a, w) => w.born < a.born ? w : a);
+        this.kill(oldest, "reaped (oldest)");
+      }
+    } else if (this.warriors.length >= CONFIG.maxWarriors) return false;
+    const mine = this.cellsOf(wr.id);
+    const xs = mine.map((c) => c % this.w), ys = mine.map((c) => c / this.w | 0);
+    const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
+    const ox = DX[d] * (bw + 1), oy = DY[d] * (bh + 1);
+    for (let k = 0; k < mine.length; k++) if (!this.isFree(xs[k] + ox, ys[k] + oy)) return false;
+    const id = this.warriors.length;
+    const founder = this.warriors[wr.lineage];
+    const born = this.warriors.filter((w) => w.lineage === wr.lineage).length;
+    const child = {
+      id,
+      lineage: wr.lineage,
+      gen: wr.gen + 1,
+      parent: wr.id,
+      born: this.t,
+      name: `${founder.name}\xB7${born}`,
+      alive: true,
+      ipX: wr.ipX + ox,
+      ipY: wr.ipY + oy,
+      ox: wr.ox + ox,
+      oy: wr.oy + oy,
+      dir: wr.dir,
+      stack: [],
+      maxSize: wr.maxSize / 2,
+      speed: wr.speed,
+      accum: 0,
+      lastOk: true,
+      lastAct: "",
+      cellCount: 0,
+      executed: 0,
+      spec: wr.spec,
+      home: wr.home,
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 }
+    };
+    this.warriors.push(child);
+    let mutations = 0;
+    for (let k = 0; k < mine.length; k++) {
+      const i = this.idx(xs[k] + ox, ys[k] + oy);
+      let code = this.code[mine[k]];
+      if (this.rng() < CONFIG.copyError) {
+        code = Math.floor(this.rng() * GLYPHS.length);
+        mutations++;
+      }
+      this.setOwner(i, id);
+      this.code[i] = code;
+      child.cellCount++;
+    }
+    wr.maxSize /= 2;
+    this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);
+    return true;
+  }
   opWrite(wr, dx, dy, code) {
     const [fx, fy] = this.frame(wr);
     const x = fx + dx, y = fy + dy;
@@ -1001,6 +1107,7 @@ var World = class {
       if (this.seer(wr.id, x, y, CONFIG.writeRange) < 0) return false;
     }
     const c = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
+    if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
       if (c === CODE["@"]) wr.stats.poisonWrites++;
@@ -1290,7 +1397,20 @@ function runJob(j) {
   try {
     const specs = j.warriors.map((t) => parseWarrior(t));
     const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
-    const w = world.warriors[me];
+    const team = world.warriors.filter((x) => x.lineage === me);
+    const sum = (f) => team.reduce((a, x) => a + f(x), 0);
+    const alive = team.some((x) => x.alive);
+    const w = {
+      alive,
+      diedAt: alive ? void 0 : Math.max(...team.map((x) => x.diedAt ?? 0)),
+      leftHomeAt: team.some((x) => x.leftHomeAt !== void 0) ? 0 : void 0,
+      stats: {
+        collected: sum((x) => x.stats.collected),
+        bombHits: sum((x) => x.stats.bombHits),
+        poisonWrites: sum((x) => x.stats.poisonWrites),
+        kills: sum((x) => x.stats.kills)
+      }
+    };
     const r = world.result;
     let score = 0;
     if (r.winner === me) score = r.reason === "last standing" ? 3 : 2;
@@ -1304,7 +1424,7 @@ function runJob(j) {
       score,
       win: r.winner === me,
       loss: r.winner !== null && r.winner !== me,
-      kill: world.warriors.some((x) => !x.alive),
+      kill: world.warriors.some((x) => x.gen === 0 && !world.warriors.some((y) => y.lineage === x.lineage && y.alive)),
       hits: w.stats.bombHits,
       poisons: w.stats.poisonWrites,
       collected: w.stats.collected,
@@ -1398,7 +1518,7 @@ var Potluck = class _Potluck {
     return (await this.req("POST", "/api/run", { task, inputs }, 0)).outputs;
   }
 };
-async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 250, onFarmError }) {
+async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, onFarmError }) {
   const n = inputs.length;
   const outputs = new Array(n);
   const finished = new Uint8Array(n);
@@ -1439,7 +1559,7 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
     while (left > 0 && farmOn) {
       try {
         const cap = await farm.capacity(task);
-        const target = cap.verified > 0 ? cap.verified * 2 : cap.live > 0 ? 1 : 0;
+        const target = cap.verified > 0 ? cap.verified * 3 : cap.live > 0 ? 1 : 0;
         const want = Math.min(target - atFarm.size, back - front + 1);
         if (want > 0) {
           const idx = [];
@@ -1546,6 +1666,10 @@ var Runner = class {
   }
   lastStats = { local: 0, farm: 0, rerun: 0 };
   async run(jobs) {
+    return (await this.runDetailed(jobs)).results;
+  }
+  /** Like run, plus this call's split between local and farm (safe with concurrent calls). */
+  async runDetailed(jobs) {
     if (this.farm && this.farmDown) await this.register();
     const { outputs, stats } = await runHybrid({
       inputs: toBatches(jobs, this.batchSize),
@@ -1559,7 +1683,7 @@ var Runner = class {
       }
     });
     this.lastStats = stats;
-    return outputs.flat();
+    return { results: outputs.flat(), stats };
   }
   close() {
     this.threads.close();

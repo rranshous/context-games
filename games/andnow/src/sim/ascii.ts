@@ -7,7 +7,7 @@ export const LETTERS = 'ABCDEFGH';
 /** Map view: walls '#', warriors by letter (IP lowercase), debris '%', size '+', speed '*'. */
 export function asciiMap(world: World, opts: { glyphs?: boolean } = {}): string {
   const rows: string[] = [];
-  const ips = new Map(world.warriors.filter((w) => w.alive).map((w) => [world.idx(w.ipX, w.ipY), w.id]));
+  const ips = new Set(world.warriors.filter((w) => w.alive).map((w) => world.idx(w.ipX, w.ipY)));
   for (let y = 0; y < world.h; y++) {
     let row = '';
     for (let x = 0; x < world.w; x++) {
@@ -16,7 +16,7 @@ export function asciiMap(world: World, opts: { glyphs?: boolean } = {}): string 
       if (!world.isFloor(x, y)) row += '#';
       else if (o >= 0) {
         if (opts.glyphs) row += glyphOf(world.code[i]);
-        else row += ips.get(i) === o ? LETTERS[o].toLowerCase() : LETTERS[o];
+        else { const L = LETTERS[world.warriors[o].lineage] ?? '?'; row += ips.has(i) ? L.toLowerCase() : L; }
       } else if (o === DEBRIS) row += '%';
       else if (world.resource[i] === 1) row += '+';
       else if (world.resource[i] === 2) row += '*';
@@ -47,7 +47,7 @@ export function asciiBody(world: World, id: number): string {
 }
 
 export function statusLine(world: World): string {
-  return world.warriors.map((w) =>
-    `${LETTERS[w.id]}:${w.name} ${w.alive ? `cells=${w.cellCount}/${Math.floor(w.maxSize)} spd=${w.speed.toFixed(2)}` : `dead@${w.diedAt} (${w.deathReason})`}`,
+  return world.warriors.filter((w) => w.gen === 0 || w.alive).map((w) =>
+    `${LETTERS[w.lineage]}${w.gen ? `(g${w.gen})` : ''}:${w.name} ${w.alive ? `cells=${w.cellCount}/${Math.floor(w.maxSize)} spd=${w.speed.toFixed(2)}` : `dead@${w.diedAt} (${w.deathReason})`}`,
   ).join(' | ');
 }

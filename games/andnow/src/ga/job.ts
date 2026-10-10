@@ -16,7 +16,18 @@ export function runJob(j: Job): JobResult {
   try {
     const specs = j.warriors.map((t) => parseWarrior(t));
     const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
-    const w = world.warriors[me];
+    // My side is my whole lineage (the founder plus anything it DIVIDEd into).
+    const team = world.warriors.filter((x) => x.lineage === me);
+    const sum = (f: (x: (typeof team)[0]) => number) => team.reduce((a, x) => a + f(x), 0);
+    const alive = team.some((x) => x.alive);
+    const w = {
+      alive, diedAt: alive ? undefined : Math.max(...team.map((x) => x.diedAt ?? 0)),
+      leftHomeAt: team.some((x) => x.leftHomeAt !== undefined) ? 0 : undefined,
+      stats: {
+        collected: sum((x) => x.stats.collected), bombHits: sum((x) => x.stats.bombHits),
+        poisonWrites: sum((x) => x.stats.poisonWrites), kills: sum((x) => x.stats.kills),
+      },
+    };
     const r = world.result;
     let score = 0;
     if (r.winner === me) score = r.reason === 'last standing' ? 3 : 2;
@@ -29,7 +40,7 @@ export function runJob(j: Job): JobResult {
     score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
     return {
       score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
-      kill: world.warriors.some((x) => !x.alive), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
+      kill: world.warriors.some((x) => x.gen === 0 && !world.warriors.some((y) => y.lineage === x.lineage && y.alive)), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
       collected: w.stats.collected, left: w.leftHomeAt !== undefined,
     };
   } catch {

@@ -751,3 +751,75 @@ Farm: Pinky's PC at 10 threads (~2,600 batches/min), calendar, both Xboxes; the 
 ~70% of each generation (~6 s/gen). Xboxes are slow per thread (~51 batches/min vs ~260
 on Pinky's PC): probably the console caps apps' CPU share (and/or Xbox One cores). Added a
 per-thread rate column to the farm table.
+
+---
+
+## Session 1, part 6: self-modification, and evolution inside a game
+
+User (heading out): "Self modification is possible for warriors right? We could see
+evolution during a game?"
+
+### Do evolved warriors rewrite themselves? No.
+Added self-modification counters (writes that changed one of my own glyphs, grows, swaps,
+flows) and `node dist/headless.mjs --selfmod <warriors>`, which also compares each body at
+the start and end of a match, aligned on its body frame. Every evolved champion (evo4-1,
+evo5-3, evo6-2, map1-*): **zero** self-writes, grows, swaps and flows; every starting cell
+ends the match with its starting glyph. Only the hand-written Turtle grows armor. A random
+rewrite of your own running code is almost always damage, so selection removed it.
+
+### DIVIDE: reproduction, with copy errors
+- **`D` (DIVIDE)**: pop dir; if max size ≥ 2× cells (and ≥ 2× the floor) and the space just
+  beyond my body that way is free, copy my whole body there as a **new warrior with its own
+  IP**. Parent and child each get half the max size; same speed; fresh stack. Each copied
+  cell becomes a random glyph with chance `CONFIG.copyError` (2%). Costs a cycle per cell
+  (1 if it fails). Appended to the glyph table, so existing codes are unchanged.
+- **Lineages**: each warrior has `lineage` (its founder's id) and `gen`. Matches are won by
+  lineages; a lineage's cap score is the sum of its members' max size above the floor plus
+  one floor (= just max size for a lone warrior, so nothing changes for existing play;
+  splitting into many floor-sized members earns nothing). GA scoring credits a seat with
+  its whole lineage.
+- **Kin are rivals** (user's call, over my first version where kin were allies): lineage
+  only decides who won and who's scored; in play a copy is a warrior like any other:
+  SCAN's "enemy" is anyone not me, kin can bomb and poison kin. Kin recognition, if it
+  matters, has to evolve.
+- Viewer: colored by lineage, descendants lighter per generation, one card per lineage
+  with its descendant count; births in the log.
+- Golden replays identical (existing warriors never DIVIDE).
+
+### The petri dish (`src/petri.ts` → `node dist/petri.mjs <replicators...>`)
+One (or several) replicators alone on a board, faster food (`--spawn 40`), copy errors,
+a **reaper** (`CONFIG.reaperCap`: at the cap, a birth kills the oldest living warrior) and a
+**lifespan** (`CONFIG.lifespan`: death of old age). Both are world rules that are off in
+normal play. Reports population, births, deaths, generation depth, and the most common
+living genomes over time; with several replicators, a count per lineage.
+
+What happened:
+1. **Upkeep shedding is a mutation pressure.** A 9-cell Amoeba (`C6S$TM4yD`) never took off:
+   after a split, each half decays toward the 8-cell floor and sheds a cell, usually code.
+   Descendants lost their `C` (can divide, can't collect) or had `D` copied wrong (collects,
+   can't divide). A replicator has to fit under the floor. → 7-cell `C6S$TMD`.
+2. **Purifying selection.** Seed 1, 30k ticks: population hit the cap (40), 108 births,
+   generation 13; mutants kept appearing but the founder's genome held ~88%.
+3. **Stasis without death.** Run longer and the dish filled: births need free space beyond
+   the body, nobody could divide, the reaper only acts at a birth, so nothing died: frozen
+   for 270k ticks. → lifespan (6000 ticks).
+4. **Evolution in one game.** With turnover (seed 1, 300k ticks, copy error 5%): 1,365
+   births, generations 118 deep; **the founder's genome was extinct by tick 30k**, and a
+   succession of genomes took over: `C6S$TMD` → `C7SyTMD` → `C+S$TMD` → `C+SdTMD` →
+   `CoSdTMD` → `C=!%TMD` → `C0DCTMD` → `6%DCTMD`. Trends: **targeted foraging abandoned for
+   random walking** (`6S` mutated into scans for types that match nothing, so TOWARD picks
+   a random direction: in a crowded dish everyone heading for the same food loses), and a
+   **second DIVIDE** (`C0DCTMD`: two tries at reproducing per loop). Even a few bombs and a
+   kill appeared late on.
+5. **Did it improve anything? Yes.** Head-to-head in the dish (20 boards × both seatings, no
+   mutation): first takeover `C7SyTMD` beat the founder **32–8**; later `C0DCTMD` beat it **29–11**.
+
+Also: `warriors/amoeba.warrior` is the 7-cell replicator (bundled in the viewer).
+
+### Farm utilization (user: "waiting" often shows 0)
+- `runHybrid` now keeps ~3 items per verified thread queued (was 2) and tops up every 100 ms
+  (was 250).
+- MAP-Elites runs **overlapping generations** (`--overlap 2`): the next generation is bred
+  from the current archive and sent out while the last one's stragglers finish, so the
+  farm doesn't go idle at generation boundaries. (map2 was already running on the old
+  code, so it still shows gaps.)

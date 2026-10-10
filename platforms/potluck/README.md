@@ -45,7 +45,7 @@ const { outputs, stats } = await runHybrid({
 
 How `runHybrid` splits the work:
 - Inputs sit in one queue. Local runners take from the front; the farm takes from the
-  back, but only up to ~2 per thread that has passed the task's canary (or a single probe
+  back, but only up to ~3 per thread that has passed the task's canary (or a single probe
   input when threads are connected but haven't verified yet, so they run the canary).
 - When the local queue is empty, local runners also run whatever is still out at the farm.
   First result wins. So local runners alone always finish the job.

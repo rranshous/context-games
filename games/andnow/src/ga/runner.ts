@@ -65,7 +65,9 @@ export class Runner {
     }
   }
   lastStats = { local: 0, farm: 0, rerun: 0 };
-  async run(jobs: Job[]): Promise<JobResult[]> {
+  async run(jobs: Job[]): Promise<JobResult[]> { return (await this.runDetailed(jobs)).results; }
+  /** Like run, plus this call's split between local and farm (safe with concurrent calls). */
+  async runDetailed(jobs: Job[]): Promise<{ results: JobResult[]; stats: { local: number; farm: number; rerun: number } }> {
     if (this.farm && this.farmDown) await this.register();
     const { outputs, stats } = await runHybrid({
       inputs: toBatches(jobs, this.batchSize),
@@ -79,7 +81,7 @@ export class Runner {
       },
     });
     this.lastStats = stats;
-    return outputs.flat();
+    return { results: outputs.flat(), stats };
   }
   close() { this.threads.close(); }
 }

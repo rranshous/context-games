@@ -114,9 +114,11 @@ function render() {
       ctx.fillStyle = '#0e1117';
       ctx.fillRect(px, py, CELL, CELL);
       if (o >= 0) {
-        ctx.fillStyle = color(o, 28);
+        // Colored by lineage; DIVIDE's descendants a little lighter per generation.
+        const wo = world.warriors[o];
+        ctx.fillStyle = color(wo.lineage, 28 + Math.min(wo.gen, 5) * 4);
         ctx.fillRect(px + 0.5, py + 0.5, CELL - 1, CELL - 1);
-        if (glyphs) { ctx.fillStyle = color(o, 78); ctx.fillText(glyphOf(world.code[i]), px + CELL / 2, py + CELL / 2 + 1); }
+        if (glyphs) { ctx.fillStyle = color(wo.lineage, 82); ctx.fillText(glyphOf(world.code[i]), px + CELL / 2, py + CELL / 2 + 1); }
       } else if (o === DEBRIS) {
         ctx.fillStyle = '#2a2d33';
         ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
@@ -144,10 +146,13 @@ function render() {
 
 function renderSide() {
   tickEl.textContent = `tick ${world.t}`;
-  cardsEl.innerHTML = world.warriors.map((wr) => {
+  cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : '';
-    return `<div class="card ${wr.alive ? '' : 'dead'}" style="border-left-color:${color(wr.id, 55)}">
-      <div class="name">${LETTERS[wr.id]} · ${esc(wr.name)}</div>
+    const kin = world.warriors.filter((k) => k.lineage === wr.id && k.gen > 0);
+    const kinLine = kin.length
+      ? `<div class="stats">lineage: ${kin.filter((k) => k.alive).length} of ${kin.length} descendants alive, up to generation ${Math.max(...kin.map((k) => k.gen))}</div>` : '';
+    return `<div class="card ${wr.alive || kin.some((k) => k.alive) ? '' : 'dead'}" style="border-left-color:${color(wr.id, 55)}">
+      <div class="name">${LETTERS[wr.id]} · ${esc(wr.name)}</div>${kinLine}
       <div class="stats">${wr.alive
         ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} · speed ${wr.speed.toFixed(2)} · ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} · last action ${wr.lastAct ? `${wr.lastAct} ` : ''}${wr.lastOk ? 'ok' : 'failed'}`
         : `died at tick ${wr.diedAt}: ${esc(wr.deathReason ?? '')}`}</div>
@@ -155,7 +160,7 @@ function renderSide() {
     </div>`;
   }).join('');
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== 'shed').map((e) =>
-    `<div style="color:${e.who !== undefined ? color(e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
+    `<div style="color:${e.who !== undefined ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
   logEl.scrollTop = logEl.scrollHeight;
   if (world.result.over) {
     banner.style.display = 'block';

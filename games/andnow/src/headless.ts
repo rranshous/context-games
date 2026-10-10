@@ -2,12 +2,15 @@
 //   node dist/headless.mjs warriors/a.warrior warriors/b.warrior [--seed N] [--ticks N] [--frames K] [--glyphs]
 //   node dist/headless.mjs --tournament warriors/*.warrior [--seeds N] [--ticks N]
 //   node dist/headless.mjs --ffa warriors/*.warrior [--matches 200] [--ticks N]   (4-player free-for-alls)
+//   node dist/headless.mjs --selfmod <warriors> [--seeds N]   (do warriors rewrite themselves mid-match?)
 //   node dist/headless.mjs --solo warriors/a.warrior --ticks 500 --frames 100
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { asciiMap, statusLine } from './sim/ascii';
 import { runFfa, runMatch, runTournament } from './sim/match';
+import { glyphOf } from './sim/glyphs';
 import { parseWarrior } from './sim/warrior-file';
+import { World } from './sim/world';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -24,7 +27,58 @@ if (!files.length) {
 const specs = files.map((f) => parseWarrior(readFileSync(f, 'utf8'), basename(f, '.warrior')));
 const tickCap = opt('ticks', 0) || undefined;
 
-if (flag('explore')) {
+if (flag('selfmod')) {
+  // Do warriors rewrite themselves mid-match? Each warrior vs each other given warrior,
+  // on --seeds boards: self-modification counters, and the body at the start vs the end,
+  // aligned on its body frame (so moving doesn't count as change).
+  const n = opt('seeds', 4), cap = tickCap ?? 3000;
+  const bodyAt = (w: World, id: number) => {
+    const wr = w.warriors[id];
+    return new Map(w.cellsOf(id).map((c) => [`${(c % w.w) - wr.ox},${((c / w.w) | 0) - wr.oy}`, glyphOf(w.code[c])]));
+  };
+  const render = (m: Map<string, string>, other: Map<string, string>, mark: boolean) => {
+    const pts = [...m.keys(), ...other.keys()].map((k) => k.split(',').map(Number));
+    const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0]));
+    const y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
+    const rows: string[] = [];
+    for (let y = y0; y <= y1; y++) {
+      let r = '';
+      for (let x = x0; x <= x1; x++) {
+        const g = m.get(`${x},${y}`);
+        r += g === undefined ? ' ' : mark && other.get(`${x},${y}`) !== g ? g : (mark ? '·' : g);
+      }
+      rows.push(r.replace(/\s+$/, ''));
+    }
+    return rows;
+  };
+  console.log(`Self-modification: each warrior vs the others, ${n} boards each, ${cap} ticks\n`);
+  for (let a = 0; a < specs.length; a++) {
+    const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, changed: 0, games: 0 };
+    let best: { changed: number; start: Map<string, string>; end: Map<string, string>; vs: string } | null = null;
+    for (let b = 0; b < specs.length; b++) {
+      if (a === b && specs.length > 1) continue;
+      for (let seed = 1; seed <= n; seed++) {
+        const pair = specs.length > 1 ? [specs[a], specs[b]] : [specs[a]];
+        const w = new World(seed, pair);
+        const start = bodyAt(w, 0);
+        let end = start;
+        while (!w.result.over && w.t < cap) { w.tick(); if (w.warriors[0].alive) end = bodyAt(w, 0); }
+        const st = w.warriors[0].stats;
+        let changed = 0;
+        for (const [k, g] of end) if (start.has(k) && start.get(k) !== g) changed++;
+        tot.selfWrites += st.selfWrites; tot.grows += st.grows; tot.swaps += st.swaps; tot.flows += st.flows; tot.changed += changed; tot.games++;
+        if (!best || changed > best.changed) best = { changed, start, end, vs: specs[b].name };
+      }
+    }
+    const g = Math.max(1, tot.games);
+    console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
+    if (best && best.changed > 0) {
+      const s0 = render(best.start, best.start, false), s1 = render(best.end, best.start, true);
+      console.log(`  most changed (vs ${best.vs}): start → end (· = unchanged)`);
+      for (let k = 0; k < Math.max(s0.length, s1.length); k++) console.log(`    ${(s0[k] ?? '').padEnd(18)}  ${s1[k] ?? ''}`);
+    }
+  }
+} else if (flag('explore')) {
   // How fast does each warrior get out of its start room? Solo, on many boards.
   const n = opt('seeds', 20), cap = tickCap ?? 2000;
   console.log(`Leaving home: each warrior alone, ${n} boards, ${cap} ticks\n`);

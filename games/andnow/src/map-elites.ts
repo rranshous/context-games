@@ -13,6 +13,7 @@
 //   node dist/map.mjs --name map1 [--gens 200] [--batch 256] [--seeds 2] [--boards 6]
 //                     [--ticks 3000] [--peers 6] [--ffa 4] [--bench warriors,...] [--rng 1]
 //                     [--workers 8] [--farm http://host:7700] [--reeval 64]   (elites re-evaluated per generation)
+//                     [--overlap 2]   (generations in flight at once, keeps the farm busy)
 //
 // Writes runs/<name>/log.jsonl and archive.json (every 10 generations and at the end), and
 // the best warrior of each weapon class to warriors/evolved/<name>-<class>.warrior.
@@ -63,7 +64,7 @@ async function main() {
   const args = process.argv.slice(2);
   const opt = (k: string, d: number) => { const i = args.indexOf(`--${k}`); return i >= 0 ? Number(args[i + 1]) : d; };
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
-  const GENS = opt('gens', 200), BATCH = opt('batch', 256), REEVAL = opt('reeval', 64), SEEDS = opt('seeds', 2), BOARDS = opt('boards', 6);
+  const GENS = opt('gens', 200), BATCH = opt('batch', 256), REEVAL = opt('reeval', 64), OVERLAP = opt('overlap', 2), SEEDS = opt('seeds', 2), BOARDS = opt('boards', 6);
   const TICKS = opt('ticks', 3000), PEERS = opt('peers', 6), FFA = opt('ffa', 4), WORKERS = opt('workers', availableParallelism());
   const NAME = str('name', `map-${Date.now()}`), FARM = str('farm', '');
   const rng = makeRng(opt('rng', 1));
@@ -86,7 +87,11 @@ async function main() {
   const saveArchive = () => writeFileSync(join(runDir, 'archive.json'), JSON.stringify(
     [...archive.entries()].map(([k, e]) => ({ niche: k, weapon: WEAPONS[e.desc.weapon], ...e, g: undefined })), null, 1));
 
-  for (let gen = 0; gen < GENS; gen++) {
+  // Each generation: prepare (breed from the archive as it is now, build the jobs), run,
+  // file results into the archive. Up to OVERLAP generations are in flight at once, so the
+  // next one's work is already out while the last one's stragglers finish: no idle farm at
+  // generation boundaries. (Breeding from a slightly older archive costs MAP-Elites nothing.)
+  const prepare = (gen: number) => {
     const t0 = Date.now();
     // Candidates: the benchmarks, mutants and random bodies at first; then offspring of
     // elites picked uniformly across the filled slots.
@@ -141,7 +146,10 @@ async function main() {
       }
       counts.push(opponents.length * SEEDS + FFA);
     }
-    const results = await pool.run(jobs);
+    return { gen, t0, inds, jobs, counts };
+  };
+
+  const file = ({ gen, t0, inds, counts }: ReturnType<typeof prepare>, results: JobResult[], stats: typeof pool.lastStats) => {
 
     // File each candidate into its slot if it beats the incumbent.
     let at = 0, added = 0, replaced = 0;
@@ -176,13 +184,21 @@ async function main() {
       gen, filled: archive.size, added, replaced, best: +best.fitness.toFixed(3),
       mean: +(elites.reduce((a, e) => a + e.fitness, 0) / elites.length).toFixed(3),
       byWeapon: Object.fromEntries(WEAPONS.map((w, k) => [w, { niches: byWeapon[k].length, best: +Math.max(0, ...byWeapon[k].map((e) => e.fitness)).toFixed(2) }])),
-      ms: Date.now() - t0, batches: pool.lastStats,
+      ms: Date.now() - t0, batches: stats,
     };
     appendFileSync(join(runDir, 'log.jsonl'), JSON.stringify(line) + '\n');
     const wb = WEAPONS.map((w, k) => `${w} ${byWeapon[k].length}/${line.byWeapon[w].best.toFixed(2)}`).join('  ');
-    console.log(`gen ${String(gen).padStart(3)}  slots ${String(archive.size).padStart(3)} (+${added}, ${replaced} better)  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  |  ${wb}  (${line.ms}ms${FARM ? `, farm ${pool.lastStats.farm}/${pool.lastStats.farm + pool.lastStats.local}` : ''})`);
+    console.log(`gen ${String(gen).padStart(3)}  slots ${String(archive.size).padStart(3)} (+${added}, ${replaced} better)  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  |  ${wb}  (${line.ms}ms${FARM ? `, farm ${stats.farm}/${stats.farm + stats.local}` : ''})`);
     if (gen % 10 === 9) saveArchive();
+  };
+
+  const inflight: Promise<{ p: ReturnType<typeof prepare>; results: JobResult[]; stats: typeof pool.lastStats }>[] = [];
+  for (let gen = 0; gen < GENS; gen++) {
+    const p = prepare(gen);
+    inflight.push(pool.runDetailed(p.jobs).then((r) => ({ p, ...r })));
+    if (inflight.length >= OVERLAP) { const x = await inflight.shift()!; file(x.p, x.results, x.stats); }
   }
+  while (inflight.length) { const x = await inflight.shift()!; file(x.p, x.results, x.stats); }
   saveArchive();
 
   // The map: best fitness per slot, one table per weapon class (rows economy, columns mobility).
