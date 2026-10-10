@@ -634,4 +634,6 @@ Changes, each followed by `check --verify` (all 433 matches identical on every t
    the moved list stays sorted; no per-cell set churn.
 `check --bench` (same corpus, no hashing; noisy while evo5 holds all 8 cores): old ~58–108k
 ticks/s, new ~150–190k ticks/s, roughly 2–2.5×. Tournament output byte-identical old vs new.
-Clean numbers to come once the CPU is free.
+Clean numbers (CPU idle): golden corpus **177k → 480k ticks/s (2.7×)**; fight-heavy
+tournament (Bomber, Viper, evo4-1, evo4-2, evo3-1; 6 boards; 3000 ticks) **1.65 s → 0.71 s (2.3×)**.
+evo5 (38 generations in, on the old build) was stopped and restarted on the fast build.
