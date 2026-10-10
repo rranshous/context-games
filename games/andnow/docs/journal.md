@@ -660,3 +660,17 @@ er     XM-@d        F4 M   R$S      y4 T <-4$>
 - So: more boards per generation → compact, mobile warriors that hold their own against
   the ambushers. The "only the Bomber leaves home" complaint is answered by evolution, not
   by a rule change.
+
+### Potluck: the GA on a browser farm (`platforms/potluck/`, see its journal)
+Talked through Cloudflare Workers and installing a sim server on the other home
+machines; Robby's idea won: a local server as orchestrator and **any browser that opens
+its page as a worker**, a named pattern (Potluck) other projects can use.
+- andnow side: match scoring moved to `src/ga/job.ts` (shared by local threads and the farm
+  task), state fingerprinting to `src/sim/fingerprint.ts` (shared by `check` and canaries).
+  `src/farm-task.ts` → `dist/farm-task.mjs` (browser-safe): `run(batch)` runs a batch of
+  matches (distinct warrior texts sent once, jobs by index); `canary()` replays 15 golden
+  cases (`test/canary.json`, from `check --canary`) and checks every final hash.
+- `node dist/evolve.mjs ... --farm http://localhost:7700` registers the task and sends each
+  generation as batches of 24 jobs.
+- Verified: a local run and a farm run with the same args produce identical output; the
+  farm runs at local-thread speed on the same cores.

@@ -1,7 +1,7 @@
 // One Potluck worker thread: lease an input, run it with the task's module, post the
 // output, repeat. Before working on a task it hasn't seen, it runs the task's canary
 // (if any); a failed canary means this thread never takes that task.
-let id = '', page = {}, paused = false;
+let id = '', page = {}, paused = false, idle = 0;
 const modules = new Map(); // task id -> module
 const verified = new Set();
 
@@ -20,6 +20,13 @@ async function loop() {
     if (paused) { await new Promise((r) => setTimeout(r, 500)); continue; }
     try {
       const work = await post('/api/lease', { worker: id, verified: [...verified], ...page });
+      if (work.none) {
+        // Nothing to do: back off (up to ~1 s) so idle pages stay quiet.
+        idle = Math.min(idle + 1, 10);
+        await new Promise((r) => setTimeout(r, 100 * idle + Math.random() * 100));
+        continue;
+      }
+      idle = 0;
       if (work.verify) {
         self.postMessage({ type: 'status', text: `checking ${work.verify}` });
         const mod = await load(work.verify);

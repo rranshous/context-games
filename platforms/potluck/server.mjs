@@ -15,7 +15,7 @@
 // API (JSON)
 //   POST /api/tasks   { name, code }            -> { id }        register a task module
 //   POST /api/run     { task, inputs, leaseMs? } -> { outputs }   blocks until all done
-//   POST /api/lease   { worker, verified[] }    -> { item } | { verify: taskId } | { none }
+//   POST /api/lease   { worker, verified[] }    -> { item } | { verify: taskId } | { none }  (never waits)
 //   POST /api/canary  { worker, task, ok, detail }
 //   POST /api/result  { worker, job, index, output }
 //   GET  /api/status                             -> workers, queue, jobs
@@ -29,7 +29,6 @@ import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 7700;
 const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), 'public');
-const LEASE_WAIT_MS = 20000;   // how long a lease request waits for work before returning { none }
 const DEFAULT_LEASE_MS = 60000; // a leased item not returned by then goes back in the queue
 
 /** @type {Map<string, { id: string, name: string, code: string }>} */
@@ -38,8 +37,6 @@ const tasks = new Map();
 const jobs = new Map();
 /** Items waiting to be leased: { job, index } */
 const queue = [];
-/** Lease requests waiting for work: { worker, verified:Set, resolve } */
-const waiting = [];
 /** @type {Map<string, WorkerInfo>} */
 const workers = new Map();
 
@@ -49,7 +46,6 @@ let jobSerial = 0;
 
 function enqueue(job) {
   for (let i = 0; i < job.inputs.length; i++) queue.push({ job: job.id, index: i });
-  wakeWaiters();
 }
 
 /** Find work for a worker: an item of a task it has verified, or a task it should verify. */
@@ -67,14 +63,6 @@ function findWork(worker, verified) {
   return null;
 }
 
-function wakeWaiters() {
-  for (let k = 0; k < waiting.length; k++) {
-    const w = waiting[k];
-    const work = findWork(w.worker, w.verified);
-    if (work) { waiting.splice(k--, 1); w.resolve(work); }
-  }
-}
-
 // Expired leases go back in the queue (the worker closed, slept, or is just slow; results
 // are deterministic, so if both come back, the first one wins).
 setInterval(() => {
@@ -87,7 +75,6 @@ setInterval(() => {
       }
     }
   }
-  wakeWaiters();
   for (const [id, w] of workers) if (now - w.lastSeen > 120000) workers.delete(id);
 }, 2000);
 
@@ -142,24 +129,16 @@ const routes = {
 
   'POST /api/lease': async (body) => {
     touch(body.worker, { name: body.name, cores: body.cores, threads: body.threads });
-    const verified = new Set(body.verified ?? []);
-    const work = findWork(body.worker, verified);
-    if (work) return work;
-    return new Promise((resolve) => {
-      const entry = { worker: body.worker, verified, resolve };
-      waiting.push(entry);
-      setTimeout(() => {
-        const k = waiting.indexOf(entry);
-        if (k >= 0) { waiting.splice(k, 1); resolve({ none: true }); }
-      }, LEASE_WAIT_MS);
-    });
+    // Never hold the request open: a browser allows only ~6 connections per host, shared
+    // by all of a page's worker threads, so parked lease requests would block the
+    // threads' result posts. Idle threads poll with a short backoff instead.
+    return findWork(body.worker, new Set(body.verified ?? [])) ?? { none: true };
   },
 
   'POST /api/canary': async (body) => {
     const w = touch(body.worker);
     (body.ok ? w.passed : w.failed).add(body.task);
     console.log(`canary ${body.ok ? 'passed' : 'FAILED'} on ${w.name || body.worker} for ${tasks.get(body.task)?.name ?? body.task}${body.detail ? `: ${body.detail}` : ''}`);
-    wakeWaiters();
     return {};
   },
 

@@ -37,7 +37,7 @@ rate, queue).
 |---|---|---|
 | `POST /api/tasks` | `{ name, code }` | → `{ id }` register a task module |
 | `POST /api/run` | `{ task, inputs, leaseMs? }` | → `{ outputs, ms }` blocks until every input is done |
-| `POST /api/lease` | `{ worker, verified[], name, cores, threads }` | → `{ item }` / `{ verify: taskId }` / `{ none }` (waits up to 20 s for work) |
+| `POST /api/lease` | `{ worker, verified[], name, cores, threads }` | → `{ item }` / `{ verify: taskId }` / `{ none }` (answers immediately; idle threads back off ≤1 s) |
 | `POST /api/canary` | `{ worker, task, ok, detail }` | |
 | `POST /api/result` | `{ worker, job, index, output }` | |
 | `GET /api/status` | | workers, queue, jobs, tasks |

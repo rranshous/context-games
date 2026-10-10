@@ -20,3 +20,16 @@ v1 decisions:
 - Canary per worker thread per task before leasing; failures shown on the page.
 - Lease expiry + first-result-wins; outputs returned in input order.
 - Worker page doubles as a dashboard (made with the touchscreen box in mind).
+
+### First end-to-end test (andnow GA, this desktop's browser as the only worker)
+- **Correct**: the same small evolution (`--pop 24 --gens 3 --rng 77`) run on local worker
+  threads and through Potluck produced identical generation lines (fitness, records, kill
+  and poison stats) and identical held-out results. Canaries passed on all 8 threads.
+- **First version was ~20× slower** (22 s/gen vs 1.3 s). Cause: the browser's ~6 connections
+  per host are shared by all of a page's worker threads, and leases were long-polls held
+  for up to 20 s. Six parked leases took every connection, so the other threads' result
+  posts queued behind them. Fix: `/api/lease` answers immediately (`{ none }` when idle)
+  and idle threads back off up to ~1 s. After: the farm matched local threads on the same
+  8 cores (gen 0 ~3.7 s including the canaries, then 0.7 s/gen vs local 0.65–1.0 s).
+- Bonus: restarting the server while a page was open was harmless. The page's threads
+  kept retrying, reconnected, and picked up work (they re-verified via canary).
