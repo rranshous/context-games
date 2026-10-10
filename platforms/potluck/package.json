@@ -1,0 +1,9 @@
+{
+  "name": "potluck",
+  "version": "0.1.0",
+  "description": "Zero-install work farm: any browser that opens the page brings its cores",
+  "type": "module",
+  "scripts": { "start": "node server.mjs" },
+  "author": "Robby Ranshous",
+  "license": "MIT"
+}

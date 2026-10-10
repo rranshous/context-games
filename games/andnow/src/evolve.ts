@@ -7,6 +7,7 @@
 //                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
 //                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
 //                        [--boards 6]   (board pool per generation; --seeds = boards per opponent)
+//                        [--farm http://host:7700]   (run matches on a Potluck farm instead of local threads)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
@@ -15,46 +16,10 @@ import { availableParallelism } from 'node:os';
 import { basename, join } from 'node:path';
 import { isMainThread, parentPort, Worker } from 'node:worker_threads';
 import { clone, crossover, fromSpec, Genome, mutate, randomGenome, toSpec, toText } from './ga/genome';
-import { runMatch } from './sim/match';
+import { duel, Job, JobResult, runJob, toBatches } from './ga/job';
 import { makeRng } from './sim/rng';
 import { parseWarrior } from './sim/warrior-file';
 
-
-// ---------- one match, scored from one side ----------
-
-// A match: `warriors` in seat order, and which seat is the individual being scored.
-interface Job { warriors: string[]; me: number; seed: number; ticks: number }
-interface JobResult { score: number; win: boolean; loss: boolean; kill: boolean; hits: number; poisons: number }
-
-function runJob(j: Job): JobResult {
-  const me = j.me;
-  try {
-    const specs = j.warriors.map((t) => parseWarrior(t));
-    const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
-    const w = world.warriors[me];
-    const r = world.result;
-    let score = 0;
-    if (r.winner === me) score = r.reason === 'last standing' ? 3 : 2;
-    else if (r.winner === null) score = 1;
-    // Shaping, so there's a slope before anything can win.
-    score += Math.min(0.5, 0.05 * w.stats.collected);
-    score += Math.min(1, 0.1 * w.stats.bombHits);
-    score += Math.min(1, 0.25 * w.stats.poisonWrites);
-    score += Math.min(1, 0.5 * w.stats.kills);
-    score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
-    return {
-      score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
-      kill: world.warriors.some((x) => !x.alive), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
-    };
-  } catch {
-    // e.g. doesn't fit the start room
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
-  }
-}
-
-function duel(a: string, b: string, seed: number, swap: boolean, ticks: number): Job {
-  return { warriors: swap ? [b, a] : [a, b], me: swap ? 1 : 0, seed, ticks };
-}
 
 // ---------- worker pool ----------
 
@@ -74,6 +39,27 @@ class Pool {
     return parts.flat();
   }
   close() { for (const w of this.workers) w.terminate(); }
+}
+
+/** Runs jobs on a Potluck farm (platforms/potluck): batches go to whatever browsers have its page open. */
+class FarmPool {
+  private task = '';
+  constructor(private url: string, private batchSize = 24) {}
+  private async post(path: string, body: unknown) {
+    const r = await fetch(this.url + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`potluck ${path}: ${r.status} ${await r.text()}`);
+    return r.json();
+  }
+  async init() {
+    const code = readFileSync(new URL('./farm-task.mjs', import.meta.url), 'utf8');
+    this.task = (await this.post('/api/tasks', { name: 'andnow-matches', code })).id;
+    console.log(`potluck: task ${this.task} registered at ${this.url} (open that URL on any machine to help)`);
+  }
+  async run(jobs: Job[]): Promise<JobResult[]> {
+    const { outputs } = await this.post('/api/run', { task: this.task, inputs: toBatches(jobs, this.batchSize) });
+    return (outputs as JobResult[][]).flat();
+  }
+  close() {}
 }
 
 // ---------- the search ----------
@@ -113,8 +99,10 @@ async function main() {
   }
   while (pop.length < POP) pop.push(make(randomGenome(rng), 'random', 0));
 
-  const pool = new Pool(WORKERS);
-  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} workers`);
+  const FARM = str('farm', '');
+  const pool = FARM ? new FarmPool(FARM.replace(/\/$/, '')) : new Pool(WORKERS);
+  if (pool instanceof FarmPool) await pool.init();
+  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${FARM ? `potluck farm ${FARM}` : `${WORKERS} workers`}`);
   console.log(`benchmarks: ${benchNames.join(', ')}`);
   let bestEver: Individual | null = null;
 

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Potluck</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #12100e; color: #e8e0d4; font: 16px/1.5 system-ui, sans-serif; padding: 20px; max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 28px; color: #f4b860; }
+    .sub { color: #9a8f80; margin-bottom: 18px; }
+    section { background: #1d1a16; border: 1px solid #332d26; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #9a8f80; margin-bottom: 8px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    input, button { font: inherit; background: #2a251f; color: #e8e0d4; border: 1px solid #443c32; border-radius: 8px; padding: 8px 12px; }
+    button { min-width: 110px; cursor: pointer; }
+    input[type=range] { padding: 0; width: 180px; accent-color: #f4b860; }
+    #mine { font-size: 20px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    td, th { text-align: left; padding: 4px 8px 4px 0; }
+    th { color: #9a8f80; font-weight: normal; font-size: 13px; }
+    #log { font: 12px/1.5 ui-monospace, monospace; color: #9a8f80; max-height: 220px; overflow-y: auto; }
+    .ok { color: #8fcf8f; } .bad { color: #ef8a7a; }
+  </style>
+</head>
+<body>
+  <h1>Potluck</h1>
+  <p class="sub">Leave this page open and this device helps with the work.</p>
+  <section>
+    <h2>This device</h2>
+    <div class="row">
+      <label>name <input id="name" size="16"></label>
+      <label>threads <input type="range" id="threads" min="1"> <span id="threadsOut"></span> of <span id="cores"></span></label>
+      <button id="pause">Pause</button>
+    </div>
+    <div id="mine"></div>
+  </section>
+  <section>
+    <h2>The farm</h2>
+    <div id="queue"></div>
+    <table><thead><tr><th>device</th><th>threads</th><th>batches</th><th>rate</th><th></th></tr></thead><tbody id="farm"></tbody></table>
+  </section>
+  <section>
+    <h2>Log</h2>
+    <div id="log"></div>
+  </section>
+  <script type="module" src="/page.js"></script>
+</body>
+</html>

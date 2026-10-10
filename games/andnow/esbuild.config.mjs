@@ -15,6 +15,8 @@ const targets = [
   { ...shared, entryPoints: ['src/headless.ts'], outfile: 'dist/headless.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/evolve.ts'], outfile: 'dist/evolve.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/check.ts'], outfile: 'dist/check.mjs', platform: 'node' },
+  // Potluck task module: runs in browsers, so no Node built-ins and no source map comment.
+  { ...shared, sourcemap: false, entryPoints: ['src/farm-task.ts'], outfile: 'dist/farm-task.mjs', platform: 'browser' },
 ];
 
 async function build() {

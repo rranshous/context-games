@@ -637,3 +637,26 @@ ticks/s, new ~150–190k ticks/s, roughly 2–2.5×. Tournament output byte-iden
 Clean numbers (CPU idle): golden corpus **177k → 480k ticks/s (2.7×)**; fight-heavy
 tournament (Bomber, Viper, evo4-1, evo4-2, evo3-1; 6 boards; 3000 ticks) **1.65 s → 0.71 s (2.3×)**.
 evo5 (38 generations in, on the old build) was stopped and restarted on the fast build.
+
+### evo5: varied boards + 6-board pool (pop 128, 150 gens; ~20 min on the fast sim)
+Restarted on the optimized sim (gen 0 came out identical to the old-build run's gen 0:
+best 2.70, 32W 5L, 17/22 vs bench, more evidence the speedup changed nothing).
+Benchmarks were the hand-written warriors + evo2-2, evo3-1, evo4-1..3, so the bar was high.
+- Champions are **compact**: 3-row bodies (evo4's were 4–5), and they kept evo4's aiming
+  row (`:M>2S$B8CyM`). Held-out vs benchmarks: 47–53/110 wins, losing records vs evo4-2/3.
+```
+evo5-1          evo5-2             evo5-3
+ .G$3-CC3-          y^MWFS_ :       y$M  ^_ :W-
+:M>2S$B8CyM     6>28M>2S$B8CyMC    :M>2S$B8CyMC
+er     XM-@d        F4 M   R$S      y4 T <-4$>
+=
+```
+- **Mobile**: leaving home solo on 100 varied boards: evo5-2 90/100 (median tick 36!),
+  evo5-3 85, evo5-1 75; evo4-2/3 63 (median tick 1857), evo4-1 15, Bomber 58.
+- Duels (12 warriors, 10 boards, 5000 ticks): **evo5-3 121W** tops, then evo4-1 115W,
+  evo4-3 114W, evo4-2 112W, evo5-1 101W, evo5-2 95W; Bomber 68W.
+- FFAs (400): evo4-3 27%, evo4-1 26%, evo5-1 26%, evo5-3 26%, evo4-2 25%, evo5-2 17%.
+  Still essentially no last-standing FFAs (4/400).
+- So: more boards per generation → compact, mobile warriors that hold their own against
+  the ambushers. The "only the Bomber leaves home" complaint is answered by evolution, not
+  by a rule change.

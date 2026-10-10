@@ -5,6 +5,7 @@
 //   node dist/check.mjs --record golden.json
 //   node dist/check.mjs --verify golden.json
 //   node dist/check.mjs --bench golden.json     (same matches, no hashing: raw sim speed)
+//   node dist/check.mjs --canary golden.json canary.json   (slice for Potluck canaries)
 //
 // Coverage: every warrior in warriors/ and warriors/evolved/, plus random and mutated
 // genomes (so every instruction gets exercised), in duels and 4-player free-for-alls.
@@ -15,57 +16,7 @@ import { GLYPHS } from './sim/glyphs';
 import { makeRng } from './sim/rng';
 import { parseWarrior } from './sim/warrior-file';
 import { World } from './sim/world';
-
-const TICKS = 2000;
-const CHECKPOINT = 50; // also keep the running hash every N ticks, to locate a divergence
-
-function fnv(h: number, v: number): number {
-  h ^= v & 0xff; h = Math.imul(h, 16777619);
-  h ^= (v >>> 8) & 0xff; h = Math.imul(h, 16777619);
-  h ^= (v >>> 16) & 0xff; h = Math.imul(h, 16777619);
-  h ^= (v >>> 24) & 0xff; h = Math.imul(h, 16777619);
-  return h >>> 0;
-}
-const fnum = (h: number, x: number) => fnv(fnv(h, Math.floor(x * 1e6)), Math.floor(x * 1e6 / 4294967296));
-const fstr = (h: number, s: string) => { for (let i = 0; i < s.length; i++) h = fnv(h, s.charCodeAt(i)); return h; };
-
-/** Fingerprint of everything observable in the world. */
-function stateHash(w: World, h: number): number {
-  h = fnv(h, w.t);
-  for (let i = 0; i < w.owner.length; i++) { h = fnv(h, w.owner[i]); h = fnv(h, w.code[i]); h = fnv(h, w.resource[i]); }
-  for (const x of w.warriors) {
-    for (const v of [x.alive ? 1 : 0, x.ipX, x.ipY, x.ox, x.oy, x.dir, x.cellCount, x.executed, x.lastOk ? 1 : 0, x.diedAt ?? -1,
-      x.stats.collected, x.stats.bombHits, x.stats.poisonWrites, x.stats.kills, x.leftHomeAt ?? -1,
-      x.lastHarm?.by ?? -1, x.lastHarm?.t ?? -1]) h = fnv(h, v);
-    h = fnum(fnum(fnum(h, x.maxSize), x.speed), x.accum);
-    h = fstr(h, x.lastAct + (x.deathReason ?? ''));
-    h = fnv(h, x.stack.length);
-    for (const v of x.stack) h = fnv(h, v);
-  }
-  h = fnv(h, w.events.length);
-  const e = w.events[w.events.length - 1];
-  if (e) h = fstr(h, `${e.t}${e.kind}${e.text}`);
-  h = fstr(h, w.result.reason);
-  return h;
-}
-
-interface Golden { name: string; ticks: number; checkpoints: number[]; final: number }
-interface Case { sources: string[]; seed: number }
-
-function runOne(c: Case, glyphs: Record<string, number>): Golden {
-  const specs = c.sources.map((s) => parseWarrior(s));
-  const seed = c.seed;
-  const w = new World(seed, specs);
-  let h = 2166136261;
-  const checkpoints: number[] = [];
-  for (let t = 0; t < TICKS && !w.result.over; t++) {
-    w.tick();
-    h = stateHash(w, h);
-    if (w.t % CHECKPOINT === 0) checkpoints.push(h);
-    for (const x of w.warriors) if (x.alive) glyphs[x.lastAct] = (glyphs[x.lastAct] ?? 0) + 1;
-  }
-  return { name: `${specs.map((s) => s.name).join(' vs ')} @${seed}`, ticks: w.t, checkpoints, final: h };
-}
+import { Case, CHECKPOINT, replay, Replay, TICKS } from './sim/fingerprint';
 
 function corpus(): Case[] {
   const files = ['warriors', 'warriors/evolved'].flatMap((d) =>
@@ -93,9 +44,19 @@ function corpus(): Case[] {
 
 const args = process.argv.slice(2);
 const mode = args[0], file = args[1];
-if (!['--record', '--verify', '--bench'].includes(mode) || !file) {
-  console.log('usage: node dist/check.mjs --record|--verify|--bench <golden.json>');
+if (!['--record', '--verify', '--bench', '--canary'].includes(mode) || !file) {
+  console.log('usage: node dist/check.mjs --record|--verify|--bench <golden.json> | --canary <golden.json> <canary.json>');
   process.exit(1);
+}
+if (mode === '--canary') {
+  // A small slice of the golden replays (spread across duels, FFAs and solos) for
+  // devices to check themselves against before taking work (see farm-task.ts).
+  const g = JSON.parse(readFileSync(file, 'utf8'));
+  const picks = g.cases.map((c: Case, i: number) => ({ case: c, final: g.results[i].final, ticks: g.results[i].ticks }))
+    .filter((_: unknown, i: number) => i % 29 === 7);
+  writeFileSync(args[2], JSON.stringify(picks));
+  console.log(`wrote ${picks.length} canary cases to ${args[2]}`);
+  process.exit(0);
 }
 if (mode === '--bench') {
   const cases: Case[] = JSON.parse(readFileSync(file, 'utf8')).cases;
@@ -116,11 +77,11 @@ if (mode === '--bench') {
 // even after warriors/ changes.
 const cases: Case[] = mode === '--record' ? corpus() : JSON.parse(readFileSync(file, 'utf8')).cases;
 const t0 = Date.now();
-const results: Golden[] = [];
+const results: Replay[] = [];
 const glyphs: Record<string, number> = {};
 for (const c of cases) {
   try {
-    results.push(runOne(c, glyphs));
+    results.push(replay(c, glyphs));
   } catch (e) {
     results.push({ name: `error @${c.seed}: ${(e as Error).message}`, ticks: -1, checkpoints: [], final: 0 });
   }
@@ -133,7 +94,7 @@ if (mode === '--record') {
   console.log(`recorded ${results.length} matches, ${totalTicks} ticks in ${ms} ms`);
   console.log('warrior-ticks by last action:', Object.entries(glyphs).map(([k, v]) => `${k || '(none)'}:${v}`).join(' '), `(glyph table ${GLYPHS.length})`);
 } else {
-  const golden: Golden[] = JSON.parse(readFileSync(file, 'utf8')).results;
+  const golden: Replay[] = JSON.parse(readFileSync(file, 'utf8')).results;
   let bad = 0;
   results.forEach((r, i) => {
     const g = golden[i];

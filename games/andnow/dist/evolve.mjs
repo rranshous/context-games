@@ -1284,7 +1284,7 @@ function parseWarrior(text, fallbackName = "warrior") {
   return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
 }
 
-// src/evolve.ts
+// src/ga/job.ts
 function runJob(j) {
   const me = j.me;
   try {
@@ -1315,6 +1315,24 @@ function runJob(j) {
 function duel(a, b, seed, swap, ticks) {
   return { warriors: swap ? [b, a] : [a, b], me: swap ? 1 : 0, seed, ticks };
 }
+function toBatches(jobs, size) {
+  const out = [];
+  for (let i = 0; i < jobs.length; i += size) {
+    const warriors = [];
+    const at = /* @__PURE__ */ new Map();
+    const ref = (t) => {
+      if (!at.has(t)) {
+        at.set(t, warriors.length);
+        warriors.push(t);
+      }
+      return at.get(t);
+    };
+    out.push({ warriors, jobs: jobs.slice(i, i + size).map((j) => ({ w: j.warriors.map(ref), me: j.me, seed: j.seed, ticks: j.ticks })) });
+  }
+  return out;
+}
+
+// src/evolve.ts
 var Pool = class {
   workers;
   constructor(n) {
@@ -1335,6 +1353,29 @@ var Pool = class {
   }
   close() {
     for (const w of this.workers) w.terminate();
+  }
+};
+var FarmPool = class {
+  constructor(url, batchSize = 24) {
+    this.url = url;
+    this.batchSize = batchSize;
+  }
+  task = "";
+  async post(path, body) {
+    const r = await fetch(this.url + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`potluck ${path}: ${r.status} ${await r.text()}`);
+    return r.json();
+  }
+  async init() {
+    const code = readFileSync(new URL("./farm-task.mjs", import.meta.url), "utf8");
+    this.task = (await this.post("/api/tasks", { name: "andnow-matches", code })).id;
+    console.log(`potluck: task ${this.task} registered at ${this.url} (open that URL on any machine to help)`);
+  }
+  async run(jobs) {
+    const { outputs } = await this.post("/api/run", { task: this.task, inputs: toBatches(jobs, this.batchSize) });
+    return outputs.flat();
+  }
+  close() {
   }
 };
 async function main() {
@@ -1370,8 +1411,10 @@ async function main() {
     pop.push(make(m, `mutant:${parseWarrior(src).name}`, 0));
   }
   while (pop.length < POP) pop.push(make(randomGenome(rng), "random", 0));
-  const pool = new Pool(WORKERS);
-  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} workers`);
+  const FARM = str("farm", "");
+  const pool = FARM ? new FarmPool(FARM.replace(/\/$/, "")) : new Pool(WORKERS);
+  if (pool instanceof FarmPool) await pool.init();
+  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${FARM ? `potluck farm ${FARM}` : `${WORKERS} workers`}`);
   console.log(`benchmarks: ${benchNames.join(", ")}`);
   let bestEver = null;
   for (let gen = 0; gen < GENS; gen++) {

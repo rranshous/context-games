@@ -1225,7 +1225,7 @@ function parseWarrior(text, fallbackName = "warrior") {
   return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
 }
 
-// src/check.ts
+// src/sim/fingerprint.ts
 var TICKS = 2e3;
 var CHECKPOINT = 50;
 function fnv(h, v) {
@@ -1282,20 +1282,23 @@ function stateHash(w, h) {
   h = fstr(h, w.result.reason);
   return h;
 }
-function runOne(c, glyphs2) {
+function replay(c, glyphs2) {
   const specs = c.sources.map((s) => parseWarrior(s));
-  const seed = c.seed;
-  const w = new World(seed, specs);
+  const w = new World(c.seed, specs);
   let h = 2166136261;
   const checkpoints = [];
   for (let t = 0; t < TICKS && !w.result.over; t++) {
     w.tick();
     h = stateHash(w, h);
     if (w.t % CHECKPOINT === 0) checkpoints.push(h);
-    for (const x of w.warriors) if (x.alive) glyphs2[x.lastAct] = (glyphs2[x.lastAct] ?? 0) + 1;
+    if (glyphs2) {
+      for (const x of w.warriors) if (x.alive) glyphs2[x.lastAct] = (glyphs2[x.lastAct] ?? 0) + 1;
+    }
   }
-  return { name: `${specs.map((s) => s.name).join(" vs ")} @${seed}`, ticks: w.t, checkpoints, final: h };
+  return { name: `${specs.map((s) => s.name).join(" vs ")} @${c.seed}`, ticks: w.t, checkpoints, final: h };
 }
+
+// src/check.ts
 function corpus() {
   const files = ["warriors", "warriors/evolved"].flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".warrior")).sort().map((f) => join(d, f)));
   const known = files.map((f) => readFileSync(f, "utf8"));
@@ -1320,9 +1323,16 @@ function corpus() {
 var args = process.argv.slice(2);
 var mode = args[0];
 var file = args[1];
-if (!["--record", "--verify", "--bench"].includes(mode) || !file) {
-  console.log("usage: node dist/check.mjs --record|--verify|--bench <golden.json>");
+if (!["--record", "--verify", "--bench", "--canary"].includes(mode) || !file) {
+  console.log("usage: node dist/check.mjs --record|--verify|--bench <golden.json> | --canary <golden.json> <canary.json>");
   process.exit(1);
+}
+if (mode === "--canary") {
+  const g = JSON.parse(readFileSync(file, "utf8"));
+  const picks = g.cases.map((c, i) => ({ case: c, final: g.results[i].final, ticks: g.results[i].ticks })).filter((_, i) => i % 29 === 7);
+  writeFileSync(args[2], JSON.stringify(picks));
+  console.log(`wrote ${picks.length} canary cases to ${args[2]}`);
+  process.exit(0);
 }
 if (mode === "--bench") {
   const cases2 = JSON.parse(readFileSync(file, "utf8")).cases;
@@ -1346,7 +1356,7 @@ var results = [];
 var glyphs = {};
 for (const c of cases) {
   try {
-    results.push(runOne(c, glyphs));
+    results.push(replay(c, glyphs));
   } catch (e) {
     results.push({ name: `error @${c.seed}: ${e.message}`, ticks: -1, checkpoints: [], final: 0 });
   }
