@@ -72,7 +72,7 @@ function canvas(w, h) {
   const startsFrom = (r) => [mirrorRect(r, false, false), mirrorRect(r, true, false), mirrorRect(r, true, true), mirrorRect(r, false, true)];
   return { terrain, carve, spawns, spawnAll, startsFrom };
 }
-var WIDTHS = [1, 2, 3, 3, 4, 5];
+var WIDTHS = [1, 1, 2, 2, 3, 4];
 function split(rng, total, n, first, min) {
   if (n === 1) return [total];
   const a = randInt(rng, first, Math.max(first, total - min * (n - 1)));
@@ -166,9 +166,9 @@ function makeRooms(seed, attempt) {
       if (r + 1 < qrows && rng() < 0.4) link(r, c, r + 1, c);
     }
   }
-  if (!startExits.some((cw) => cw >= 3)) {
+  if (!startExits.some((cw) => cw >= 2)) {
     const [r, c] = qcols > 1 ? [0, 1] : [1, 0];
-    corridor(rooms[0][0], rooms[r][c], randInt(rng, 3, 5));
+    corridor(rooms[0][0], rooms[r][c], 2);
   }
   const crossRight = rooms.map((row) => row[qcols - 1]);
   const crossDown = rooms[qrows - 1];
@@ -597,9 +597,9 @@ var World = class {
       this.result = { over: true, winner: null, reason: "died" };
     } else if (this.t >= CONFIG.tickCap) {
       const keys = (ms2) => [
+        ms2.reduce((a, w) => a + w.cellCount, 0),
         ms2.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
-        ms2.reduce((a, w) => a + w.speed, 0),
-        ms2.reduce((a, w) => a + w.cellCount, 0)
+        ms2.reduce((a, w) => a + w.speed, 0)
       ];
       const ranked = [...teams.entries()].map(([team, ms2]) => ({ team, k: keys(ms2) }));
       const cmp = (a, b) => {
@@ -609,7 +609,7 @@ var World = class {
       ranked.sort(cmp);
       const tied = ranked.length > 1 && cmp(ranked[0], ranked[1]) === 0;
       const top = ranked[0], next = ranked[1];
-      const by = !next || Math.abs(top.k[0] - next.k[0]) >= 0.01 ? `largest max size (${top.k[0].toFixed(1)})` : Math.abs(top.k[1] - next.k[1]) >= 0.01 ? `max size tied, faster (${top.k[1].toFixed(2)})` : `max size and speed tied, more cells (${top.k[2]})`;
+      const by = !next || Math.abs(top.k[0] - next.k[0]) >= 0.01 ? `biggest body (${top.k[0]} cells)` : Math.abs(top.k[1] - next.k[1]) >= 0.01 ? `bodies tied, larger max size (${top.k[1].toFixed(1)})` : `bodies and max size tied, faster (${top.k[2].toFixed(2)})`;
       this.result = tied ? { over: true, winner: null, reason: "draw at tick cap" } : { over: true, winner: top.team, reason: `${by} at tick cap` };
     }
     if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);

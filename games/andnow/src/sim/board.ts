@@ -1,6 +1,6 @@
 // Boards: rooms joined by corridors, four-way mirror symmetric so every start corner is
 // equally good. Everything is generated in the top-left quadrant and mirrored: 2–6 rooms
-// per quadrant of mixed sizes, corridors 1–5 wide (straight or L-shaped, a spanning tree
+// per quadrant of mixed sizes, corridors 1–4 wide, mostly 1–2 (straight or L-shaped, a spanning tree
 // plus extra loops), some central rooms merging with their mirror images. Resources in
 // the non-start rooms.
 import { makeRng, randInt, Rng } from './rng';
@@ -57,7 +57,7 @@ function canvas(w: number, h: number) {
   return { terrain, carve, spawns, spawnAll, startsFrom };
 }
 
-const WIDTHS = [1, 2, 3, 3, 4, 5]; // corridor widths, weighted toward passable
+const WIDTHS = [1, 1, 2, 2, 3, 4]; // corridor widths, mostly too narrow to SHIFT a block through
 
 /** Split `total` into `n` parts, the first at least `first`, the rest at least `min`. */
 function split(rng: Rng, total: number, n: number, first: number, min: number): number[] {
@@ -158,10 +158,10 @@ function makeRooms(seed: number, attempt: number): Board | null {
       if (r + 1 < qrows && rng() < 0.4) link(r, c, r + 1, c);
     }
   }
-  // The start room gets at least one exit a 3-row warrior can SHIFT through.
-  if (!startExits.some((cw) => cw >= 3)) {
+  // The start room gets at least one exit 2 wide: a body that oozes or is thin gets out.
+  if (!startExits.some((cw) => cw >= 2)) {
     const [r, c] = qcols > 1 ? [0, 1] : [1, 0];
-    corridor(rooms[0][0], rooms[r][c], randInt(rng, 3, 5));
+    corridor(rooms[0][0], rooms[r][c], 2);
   }
 
   // Cross the mirror axes: each axis room either merges with its mirror (stretched to

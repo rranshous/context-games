@@ -1005,3 +1005,18 @@ plus Oozer/Blob and mutants of them; benchmarks: map4 ×4, map3-none, evo6-2, ma
   its 3-row block to a single 17-cell line (`B|>B·A$2:M>C22A+S`) and kept fighting.
 - **Lesson**: the axes reward tolerance of shape change, not *use* of it. Shape change
   has to pay, which means the boards and the win rule have to ask for it. → morph2.
+
+### Rule changes for morph2: bodies win, corridors narrow
+- **Tick cap: the biggest body wins** (total cells of the lineage; ties → max size, then
+  speed). Before it was the largest max size, i.e. collecting alone. Collecting still only
+  raises the cap; to win on size a warrior now has to GROW into it before decay sheds it.
+  The old objection to cell count (a 27-cell program beat a 6-cell one on length alone)
+  is gone because decay sheds everyone to ~10 cells by tick 5000 unless they feed: a
+  sitter ends at ~10, a gatherer that never grows ends at its 6.
+- **Corridors**: widths drawn from [1, 1, 2, 2, 3, 4] (was [1, 2, 3, 3, 4, 5]); the start
+  room's guaranteed exit is 2 wide (was ≥ 3). A 3-row SHIFT block can't take most
+  corridors any more; OOZE or a thin body can.
+- Probe on the new boards (20 boards, 3000 ticks): pickups fall from ~5.5 to ~1.4 a game
+  for every evolved warrior (map4, map3, morph1 alike); squeezing jumps to 10–13/20 (that's
+  the IP stepping into a narrow mouth, mostly). Nobody grows. Plenty of room to evolve.
+- Golden replays re-recorded (1315 matches), canary regenerated (46 cases).

@@ -11,7 +11,7 @@
 // - The IP is hidden from other warriors. Losing the IP's cell, or executing `@`, kills.
 // - Pieces cut off from the IP's piece become debris.
 // - Max size and speed decay toward a floor; resources push them back up.
-// - Last standing wins; at the tick cap, the largest max size wins.
+// - Last standing wins; at the tick cap, the biggest body (most cells) wins.
 import { Board, FLOOR, makeBoard } from './board';
 import {
   CODE, COST, DX, DY, GLYPHS, T_DEBRIS, T_ENEMY, T_NOTHING, T_RESOURCE, T_SIZE, T_SPEED, T_WALL,
@@ -420,14 +420,14 @@ export class World {
     } else if (founders.length === 1 && teams.size === 0) {
       this.result = { over: true, winner: null, reason: 'died' };
     } else if (this.t >= CONFIG.tickCap) {
-      // Everyone starts at the same max size and decays the same way, so the highest
-      // max size at the cap is whoever kept their economy up best. A lineage counts each
-      // member's max size above the floor, plus one floor (so for a lone warrior it's just
-      // its max size, and splitting into many floor-sized members earns nothing). Ties
-      // (same number of size pickups) break on speed, then on cells.
+      // Bodies decide it: the lineage with the most cells on the board. Collecting only
+      // raises max size (the most cells a body may have), so winning on size means both
+      // feeding and GROWing into it before decay sheds it again. Ties break on max size
+      // (members above the floor, plus one floor), then speed.
       const keys = (ms: Warrior[]) => [
+        ms.reduce((a, w) => a + w.cellCount, 0),
         ms.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
-        ms.reduce((a, w) => a + w.speed, 0), ms.reduce((a, w) => a + w.cellCount, 0),
+        ms.reduce((a, w) => a + w.speed, 0),
       ];
       const ranked = [...teams.entries()].map(([team, ms]) => ({ team, k: keys(ms) }));
       const cmp = (a: { k: number[] }, b: { k: number[] }) => {
@@ -437,9 +437,9 @@ export class World {
       ranked.sort(cmp);
       const tied = ranked.length > 1 && cmp(ranked[0], ranked[1]) === 0;
       const top = ranked[0], next = ranked[1];
-      const by = !next || Math.abs(top.k[0] - next.k[0]) >= 0.01 ? `largest max size (${top.k[0].toFixed(1)})`
-        : Math.abs(top.k[1] - next.k[1]) >= 0.01 ? `max size tied, faster (${top.k[1].toFixed(2)})`
-        : `max size and speed tied, more cells (${top.k[2]})`;
+      const by = !next || Math.abs(top.k[0] - next.k[0]) >= 0.01 ? `biggest body (${top.k[0]} cells)`
+        : Math.abs(top.k[1] - next.k[1]) >= 0.01 ? `bodies tied, larger max size (${top.k[1].toFixed(1)})`
+        : `bodies and max size tied, faster (${top.k[2].toFixed(2)})`;
       this.result = tied
         ? { over: true, winner: null, reason: 'draw at tick cap' }
         : { over: true, winner: top.team, reason: `${by} at tick cap` };
