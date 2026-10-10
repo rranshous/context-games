@@ -1020,3 +1020,12 @@ plus Oozer/Blob and mutants of them; benchmarks: map4 ×4, map3-none, evo6-2, ma
   for every evolved warrior (map4, map3, morph1 alike); squeezing jumps to 10–13/20 (that's
   the IP stepping into a narrow mouth, mostly). Nobody grows. Plenty of room to evolve.
 - Golden replays re-recorded (1315 matches), canary regenerated (46 cases).
+
+#### morph2, first try: the splitting exploit
+By gen 107 the top of every column was a 4–6-cell body (`A]v/BWD/ e41/ Mdo/C2/`) that
+never left home, collected nothing, and DIVIDEd. Each member keeps its own max-size floor
+(8), so six 5-cell bodies are 30 cells at the cap while a lone feeder decays to ~10. The
+old max-size rule already counted "each member above the floor, plus one floor" for this
+exact reason; my cell-count version dropped it. Fixed the same way (each member's cells
+above the floor, plus one floor). Re-checked: the splitter goes 0–24 against map4-none
+and morph1-ooze. Run killed and kept as `runs/morph2-split`; morph2 restarted fresh.

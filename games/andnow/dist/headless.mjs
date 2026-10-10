@@ -600,7 +600,7 @@ var World = class {
       this.result = { over: true, winner: null, reason: "died" };
     } else if (this.t >= CONFIG.tickCap) {
       const keys = (ms) => [
-        ms.reduce((a, w) => a + w.cellCount, 0),
+        ms.reduce((a, w) => a + w.cellCount - CONFIG.sizeFloor, CONFIG.sizeFloor),
         ms.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
         ms.reduce((a, w) => a + w.speed, 0)
       ];

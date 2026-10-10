@@ -422,10 +422,12 @@ export class World {
     } else if (this.t >= CONFIG.tickCap) {
       // Bodies decide it: the lineage with the most cells on the board. Collecting only
       // raises max size (the most cells a body may have), so winning on size means both
-      // feeding and GROWing into it before decay sheds it again. Ties break on max size
-      // (members above the floor, plus one floor), then speed.
+      // feeding and GROWing into it before decay sheds it again. A lineage counts each
+      // member's cells above the size floor, plus one floor (every member keeps a floor
+      // of max size, so otherwise splitting into many small bodies is free size). Ties
+      // break on max size (counted the same way), then speed.
       const keys = (ms: Warrior[]) => [
-        ms.reduce((a, w) => a + w.cellCount, 0),
+        ms.reduce((a, w) => a + w.cellCount - CONFIG.sizeFloor, CONFIG.sizeFloor),
         ms.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
         ms.reduce((a, w) => a + w.speed, 0),
       ];
