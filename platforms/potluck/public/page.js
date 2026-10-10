@@ -76,7 +76,7 @@ async function refresh() {
       devices.set(key, d);
     }
     $('farm').innerHTML = [...devices.values()].map((d) =>
-      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
+      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td>${d.threads ? Math.round(d.perMin / d.threads) : 0}/min</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
     $('queue').textContent = `${s.queue} waiting · ${s.jobs.map((j) => `${esc(j.task ?? '?')}: ${j.total - j.remaining}/${j.total}`).join(' · ') || 'no jobs'}`;
   } catch { $('queue').textContent = 'server unreachable'; }
 }
