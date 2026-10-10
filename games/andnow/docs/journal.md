@@ -864,3 +864,26 @@ Also: `warriors/amoeba.warrior` is the 7-cell replicator (bundled in the viewer)
 So the diversity search found a genuinely different strategy that beats the plateau's
 aimed bombers one-on-one (out-collect them and win on the cap) but loses in four-player
 chaos. Non-transitive dynamics the single-population GA had collapsed away.
+
+### map3: seeded from map2, full 5000-tick matches (200 gens, overlapping generations)
+- `--from runs/map2/archive.json`: map2's 77 elites were gen 0's candidates. Under 5000-tick
+  conditions they first collapsed into 25 slots (longer games shift playstyles), then the
+  map refilled: **all 80 slots by the end**.
+- First run with the farm-feeding fixes: the queue held ~175 waiting items throughout
+  (map2 often showed 0). The farm did ~78% of the batches.
+- Showcases: `map3-bomber` (fitness 2.95: 3.65 hits *and* 4.6 pickups/game, leaves home in
+  every game), `map3-none` (fitness 2.34: **7.2 pickups/game**), `map3-mixed` 2.01,
+  `map3-poisoner` 1.86 (poison weakens in longer games).
+
+Tournament (11 warriors: map3 + map2 showcases, map1-bomber, evo5-3, evo6-2; 10 boards; 5000 ticks):
+- Duels: **map3-none 99W** tops, then map2-poisoner 89W, map3-mixed 84W, map2-mixed 83W,
+  map3-poisoner 81W, map2-none 79W, map2-bomber 71W, evo6-2 67W, map1-bomber 66W, evo5-3 62W,
+  and **map3-bomber last (50W 98L)**.
+- FFAs: map1-bomber 30%, evo5-3 26%, evo6-2 25%, **map3-none 23% with zero kills** (the best
+  non-bomber, ahead of map2-bomber 21%), map3-bomber 15%, the rest ≤ 12%.
+- **Lesson: an archive score measured against a weak field doesn't transfer.** map3-bomber's
+  2.95 came from map3's opponent mix (all of `warriors/`, i.e. the hand-written weaklings
+  and the Amoeba, plus archive peers): it farms weak opponents and loses to strong ones.
+  Benchmarks for future runs should be the strong evolved champions, not everything.
+- The economy line keeps strengthening: a pure collector now wins duels outright and
+  holds its own in FFAs. Aimed bombers still own four-player chaos.

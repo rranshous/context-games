@@ -1731,7 +1731,7 @@ async function main() {
   };
   const GENS = opt("gens", 200), BATCH = opt("batch", 256), REEVAL = opt("reeval", 64), OVERLAP = opt("overlap", 2), SEEDS = opt("seeds", 2), BOARDS = opt("boards", 6);
   const TICKS = opt("ticks", 3e3), PEERS = opt("peers", 6), FFA = opt("ffa", 4), WORKERS = opt("workers", availableParallelism());
-  const NAME = str("name", `map-${Date.now()}`), FARM = str("farm", "");
+  const NAME = str("name", `map-${Date.now()}`), FARM = str("farm", ""), FROM = str("from", "");
   const rng = makeRng(opt("rng", 1));
   const runDir = join("runs", NAME);
   mkdirSync(runDir, { recursive: true });
@@ -1752,7 +1752,15 @@ async function main() {
   const prepare = (gen) => {
     const t0 = Date.now();
     const cands = [];
-    if (archive.size === 0) {
+    if (archive.size === 0 && gen === 0 && FROM) {
+      const prev = JSON.parse(readFileSync2(FROM, "utf8"));
+      for (const e of prev) cands.push({ g: fromSpec(parseWarrior(e.text)), parents: `from:${e.name}` });
+      while (cands.length < BATCH) {
+        const g = clone(pick2(cands).g);
+        mutate(g, rng);
+        cands.push({ g, parents: "from+mutant" });
+      }
+    } else if (archive.size === 0) {
       for (const src of bench) {
         cands.push({ g: fromSpec(parseWarrior(src)), parents: `seed:${parseWarrior(src).name}` });
         const m = fromSpec(parseWarrior(src));

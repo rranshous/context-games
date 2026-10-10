@@ -22,5 +22,9 @@
   "map2-none.warrior",
   "map2-bomber.warrior",
   "map2-mixed.warrior",
-  "map2-poisoner.warrior"
+  "map2-poisoner.warrior",
+  "map3-none.warrior",
+  "map3-bomber.warrior",
+  "map3-mixed.warrior",
+  "map3-poisoner.warrior"
 ]

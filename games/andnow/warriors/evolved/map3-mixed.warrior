@@ -1,0 +1,11 @@
+name: map3-mixed
+# map-elites run map3, slot 2-3-3 (mixed), was m197-75976 (gen 197, parents m189-72802+)
+# fitness 2.01; 19W of 46; per game: 0.04 bomb hits, 0.04 poison writes, 2.46 pickups; left home in 80% of games
+dir: E
+ip: 0 2
+---
+    .
+v   >oo'@WC\$:MB
+>C2S|      $
+^   >$$:Mem+
+M

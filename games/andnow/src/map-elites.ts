@@ -14,6 +14,7 @@
 //                     [--ticks 3000] [--peers 6] [--ffa 4] [--bench warriors,...] [--rng 1]
 //                     [--workers 8] [--farm http://host:7700] [--reeval 64]   (elites re-evaluated per generation)
 //                     [--overlap 2]   (generations in flight at once, keeps the farm busy)
+//                     [--from runs/<run>/archive.json]   (start from an earlier run's archive)
 //
 // Writes runs/<name>/log.jsonl and archive.json (every 10 generations and at the end), and
 // the best warrior of each weapon class to warriors/evolved/<name>-<class>.warrior.
@@ -66,7 +67,7 @@ async function main() {
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
   const GENS = opt('gens', 200), BATCH = opt('batch', 256), REEVAL = opt('reeval', 64), OVERLAP = opt('overlap', 2), SEEDS = opt('seeds', 2), BOARDS = opt('boards', 6);
   const TICKS = opt('ticks', 3000), PEERS = opt('peers', 6), FFA = opt('ffa', 4), WORKERS = opt('workers', availableParallelism());
-  const NAME = str('name', `map-${Date.now()}`), FARM = str('farm', '');
+  const NAME = str('name', `map-${Date.now()}`), FARM = str('farm', ''), FROM = str('from', '');
   const rng = makeRng(opt('rng', 1));
   const runDir = join('runs', NAME);
   mkdirSync(runDir, { recursive: true });
@@ -96,7 +97,12 @@ async function main() {
     // Candidates: the benchmarks, mutants and random bodies at first; then offspring of
     // elites picked uniformly across the filled slots.
     const cands: { g: Genome; parents: string }[] = [];
-    if (archive.size === 0) {
+    if (archive.size === 0 && gen === 0 && FROM) {
+      // Start from an earlier archive: its elites are this generation's candidates.
+      const prev: { text: string; name: string }[] = JSON.parse(readFileSync(FROM, 'utf8'));
+      for (const e of prev) cands.push({ g: fromSpec(parseWarrior(e.text)), parents: `from:${e.name}` });
+      while (cands.length < BATCH) { const g = clone(pick(cands).g); mutate(g, rng); cands.push({ g, parents: 'from+mutant' }); }
+    } else if (archive.size === 0) {
       for (const src of bench) {
         cands.push({ g: fromSpec(parseWarrior(src)), parents: `seed:${parseWarrior(src).name}` });
         const m = fromSpec(parseWarrior(src)); mutate(m, rng);
