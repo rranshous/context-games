@@ -1,0 +1,10 @@
+name: map2-bomber
+# map-elites run map2, slot 1-3-3 (bomber), was m248-95485 (gen 248, parents m247-94854+point)
+# fitness 2.67; 45W of 72; per game: 3.36 bomb hits, 0.00 poison writes, 2.19 pickups; left home in 86% of games
+dir: W
+ip: 14 2
+---
+\
+MFB ^y  f-fe
+  :M>>2S$B8CyMC
+   4r^  >$S $

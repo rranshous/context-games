@@ -841,3 +841,26 @@ Also: `warriors/amoeba.warrior` is the 7-cell replicator (bundled in the viewer)
 - Most boards don't work for this amoeba: it can only divide east, and from the middle of
   its start room there's no room to the east; its max size decays below what dividing
   needs (16) before it wanders somewhere useful. Seed 1 works; choose dish boards accordingly.
+
+### map2: diversity search works (pop 384/gen, 250 gens, farm; armed at 0.05, elite re-evaluation)
+- **77 of 80 slots filled** (map1: 39). By weapon class: none 20, bomber 19, mixed 19,
+  poisoner 19. Re-evaluation deflates lucky elites (a bomber at 3.03 at gen 244 settled to
+  2.67 after re-tests).
+- The map (fitness per slot): within every weapon class the top-right corner (lots of
+  pickups, leaves home most games) is best; bombers top out highest (2.67), poisoners
+  2.28, pacifists 2.03, mixed 1.97.
+- Showcases: `map2-bomber` (3.4 hits, 2.2 pickups/game), `map2-poisoner` / `map2-mixed`
+  (descendants of the Stalker's `oo'@W`: collectors, 3.4–3.5 pickups/game, poisoning
+  opportunistically ~0.14 writes/game), `map2-none` (pure collector, 3.6 pickups/game).
+
+**Strategy depends on format.** 10 warriors, 10 boards, 5000 ticks:
+- Duels: **map2-mixed 89W, map2-poisoner 87W, map2-none 82W** top the table, ahead of
+  evo6-2 79W, map2-bomber 77W, map1-bomber 75W, evo5-3 74W, evo4-1 72W. Pairwise over 20
+  games, the collectors beat every aimed-bomber lineage modestly (map2-mixed vs evo4-1
+  10–6, vs evo5-3 10–6, vs evo6-2 9–7, vs map1-bomber 9–6) and crush Bomber (12–3) and
+  Gatherer (17–3).
+- FFAs: the same collectors are the **worst** evolved warriors (5–9% wins, die ~26% of the
+  time); bombers dominate (map1-bomber and evo6-2 26%, evo5-3 23%, evo4-1 21%).
+So the diversity search found a genuinely different strategy that beats the plateau's
+aimed bombers one-on-one (out-collect them and win on the cap) but loses in four-player
+chaos. Non-transitive dynamics the single-population GA had collapsed away.

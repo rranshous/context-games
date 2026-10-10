@@ -18,5 +18,9 @@
   "evo6-2.warrior",
   "evo6-3.warrior",
   "map1-none.warrior",
-  "map1-bomber.warrior"
+  "map1-bomber.warrior",
+  "map2-none.warrior",
+  "map2-bomber.warrior",
+  "map2-mixed.warrior",
+  "map2-poisoner.warrior"
 ]
