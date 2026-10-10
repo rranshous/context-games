@@ -54,7 +54,7 @@ export const GLYPH_DOCS: Record<string, string> = {
   'M': 'SHIFT: pop dir; move my whole body one step (only if all clear)',
   'F': 'FLOW: pop dx dy dir; move one of my cells one step (must stay connected)',
   'X': 'SWAP: pop dx1 dy1 dx2 dy2; swap the code of two of my cells',
-  'G': 'GROW: pop dir code; add a cell at the end of my line that way',
+  'G': 'GROW: pop dir; add a fat cell (.) at the end of my line that way, if my max size has room',
   'C': 'COLLECT: take every resource or debris touching my body',
   'B': 'BOMB: pop dx dy; destroy a visible foreign cell within range',
   'W': 'WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me',

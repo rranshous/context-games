@@ -580,7 +580,7 @@ export class World {
         wr.lastOk = this.opSwap(wr, dx1, dy1, dx2, dy2);
         break;
       }
-      case 'G': { const c = this.pop(wr), d = this.pop(wr); wr.lastOk = this.opGrow(wr, d, c); break; }
+      case 'G': wr.lastOk = this.opGrow(wr, this.pop(wr)); break;
       case 'C': wr.lastOk = this.opCollect(wr); break;
       case 'B': { const dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opBomb(wr, dx, dy); break; }
       case 'W': { const c = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opWrite(wr, dx, dy, c); break; }
@@ -799,7 +799,8 @@ export class World {
     return true;
   }
 
-  private opGrow(wr: Warrior, d: number, code: number): boolean {
+  /** Fat only: growth is size (and a buffer that sheds first), never new code to run into. */
+  private opGrow(wr: Warrior, d: number): boolean {
     d = ((d % 4) + 4) % 4;
     if (wr.cellCount >= Math.floor(wr.maxSize)) return false;
     let x = wr.ipX, y = wr.ipY;
@@ -807,7 +808,7 @@ export class World {
     if (!this.isFree(x, y)) return false;
     const i = this.idx(x, y);
     this.setOwner(i, wr.id);
-    this.code[i] = ((code % GLYPHS.length) + GLYPHS.length) % GLYPHS.length;
+    this.code[i] = CODE['.'];
     wr.cellCount++;
     wr.stats.grows++;
     return true;

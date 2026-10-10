@@ -1124,3 +1124,109 @@ the body pokes into a corridor mouth as it wanders, nothing more. They were righ
   sensible stack args, and a grown cell becomes code the IP walks into; evolution hasn't
   found the trade worth it. Next lever if we want growth: a cheaper/safer GROW (e.g. grow
   fat only, no code arg) or growth tied to COLLECT.
+
+## Session 1, part 9: anatomy of the shape-changers, and GROW makes fat
+
+### Why can the amoeba change shape and keep operating?
+Tools: an execution tracer (every instruction the IP runs, plus the body every N ticks)
+and a shuffle test (same body shape, glyphs randomly permuted, 10 shuffles × 10 boards).
+Both are scratch scripts, not committed; the findings are what matter.
+
+**The rule that makes it possible.** The IP runs "the next cell of my own body along my
+current direction, skipping gaps, wrapping around." So the program actually running is
+whichever cells line up with the IP *right now*: for an IP heading west, the cells of its
+current row, in a loop. Change the body and the program changes with it.
+
+**1. No direction glyphs, no poison.** The two travelers contain zero direction changers
+(`> < ^ v _ | ? r [ ] #`) and zero `@`:
+
+| warrior | direction glyphs | `@` |
+|---|---|---|
+| morph4-amoeba | 0 | 0 |
+| crawler | 0 | 0 |
+| Oozer (hand seed) | 0 | 0 |
+| morph4-still / twitch / morph / ooze | 7 / 5 / 8 / 6 | 1 each |
+| map4-none | 7 | 1 |
+
+With no way to turn, the amoeba's IP heads west for the whole match. It can't be routed
+into a dead end or onto a poison cell however the body is rearranged; it just loops over
+whatever its row holds. The SHIFT collectors are the opposite: their programs are 2D
+circuits (`v … >C2S| … ^`) that route the IP between rows, with an `@` parked where the
+IP never goes *in that layout*. Rearrange them and the IP takes a wrong turn: shuffled,
+they die on 1–3 of 10 boards (the amoeba and crawler never do).
+
+**2. OOZE takes from the back; the IP lives at the front.** OOZE moves the *rearmost*
+cell (along the ooze direction) to the free spot *farthest ahead*, preferring spots near
+the body's middle across that direction. The amoeba oozes mostly west (its row runs `d`,
+"push my direction", before `A`), so cells leave the trailing edge and land on the leading
+edge, which is where its IP's row is. The code being executed is almost never what gets
+moved, and every moved cell *joins* the running row. Trace (seed 2, solo):
+
+```
+t0      5-cell row   +em[L]A           executes  A L m e + …
+t250   13-cell row   :BdLmL[m]s\eA     loop  dB:Ae\smLmL   (cells from the back joined it)
+t500   22-cell row   R+C[=]M1BdLmLms\e.*=4A   now has C (collect) and M (shift) in the loop
+t1500  27-cell row   eC.*=4A+C=M1BdL[L]R/TCmWW\s
+t2000  snake, 2 wide: the row is just  m[A]  →  loops  AmAmAm…
+```
+
+So the body self-assembles its program: it starts with a tiny engine (`A` plus something
+that pushes a direction), and oozing streams the rest of its code into the loop.
+
+**3. Most of its code is order-insensitive.** Almost everything in the row is a stack
+push/pop (`m s d e 1 4 : \ + * =`), a sense (`L`), or an action that needs no arguments
+(`C`) or tolerates any (`A`, `M`, `B`, `W` take whatever is on the stack, and an empty
+stack pops 0, which is a valid direction). Any order of those cells is a valid program
+that does roughly "ooze/shift somewhere, collect, poke around." The *direction* it oozes
+does depend on the order (the value just before `A`), so the arrangement steers it, a
+random walk that reshapes itself, not a planned gait.
+
+**4. Endgame quirk: steering by decay.** As a 2-wide vertical snake, its row holds two
+cells, `m A`: push max size, ooze that way (mod 4). Max size decays 1 per 250 ticks, so the
+ooze direction rotates east → north → west → south every 250 ticks; a pickup adds 4,
+which leaves it unchanged. Eventually it parks against a wall (`W A`, stack empty,
+oozing east into nothing).
+
+**But it is not "any arrangement works."** Shuffled from the start, the amoeba never
+oozes at all (527 oozes → 0): the IP's *starting row* has to contain the engine (`A` with
+a direction source). Its resilience is to the rearrangements its *own oozing* produces,
+which keep the engine at the leading edge.
+
+| warrior | original: room / oozes | shuffled ×10: room / oozes |
+|---|---|---|
+| morph4-amoeba | 5/10, 527 | 0/10, 0 |
+| crawler | 9/10, 713 | 1.6/10, 103 |
+| Oozer (6 cells) | 3/10, 896 | 4.4/10, 793 |
+| morph4-morph | 2/10, 0 | 0.2/10, 91 |
+| map4-none | 2/10, 0 | 0/10, 0 |
+
+Oozer is the only one that truly doesn't care (6 cells, almost every row has `A`).
+
+### The other entities
+- **crawler** is the same design turned 90°: IP heads south, so its program is its
+  *column*. 22 cells, 12 of them fat (`.`): the fat is spacer that is harmless in any
+  order. Loop at t200: `AM..d!..6.=..TC` (ooze, shift, push direction, a TOWARD). It
+  travels best (whole body into another room on 18/20) but its `C` is rarely in the
+  running column, so it barely feeds.
+- **morph4-still / twitch / morph** (the SHIFT lineage since map2): a 3–4 row circuit
+  that SCANs for resources, TOWARDs them and SHIFTs the whole block. Fast and good at
+  feeding when the way is wide, but a block can't fit a 1–2-wide exit, and oozing breaks
+  the circuit, so they ooze only in side branches (0–30/game) and mostly stay home.
+- **morph4-ooze**: a SHIFT-lineage warrior with `A` in a branch; oozes when blocked,
+  which scrambles it (shuffles kill it on 3–4 boards of 10).
+- **Oozer / Blob** (hand seeds): Oozer `C6S$TA` aims at the nearest resource and oozes
+  there; tiny, so robust, but too small to win. Blob (Oozer plus fat) mostly loses its
+  engine row.
+
+### GROW now makes fat
+- Old GROW popped a direction *and a code* and added that code as a new cell. Nothing
+  ever used it: it needs two sensible stack values, and the new cell is code the IP then
+  runs into. **New GROW pops only a direction and adds a fat cell (`.`)** at the end of my
+  line that way, if max size has room. Fat is a no-op, sheds first, and counts as body.
+- One-cell test: morph4-amoeba with its row's `e` changed to `G` (**amoeba-g**,
+  `warriors/amoeba-g.warrior`): grows 12 cells/game, peaks at 41 cells (cap 40 + pickups),
+  feeds 3× better (3.2 vs 1.1 pickups solo: a bigger body touches more), ends with 29 cells
+  vs 23, and wins a 3-way tournament (amoeba-g 12W 6L, morph4-twitch 8W, morph4-amoeba
+  4W 10L).
+- Golden re-recorded (1933 matches), canary 67 cases.
+- morph5: from morph4's archive + amoeba-g/Oozer seeds, 300 gens.

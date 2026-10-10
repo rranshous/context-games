@@ -57,7 +57,7 @@ var GLYPH_DOCS = {
   "M": "SHIFT: pop dir; move my whole body one step (only if all clear)",
   "F": "FLOW: pop dx dy dir; move one of my cells one step (must stay connected)",
   "X": "SWAP: pop dx1 dy1 dx2 dy2; swap the code of two of my cells",
-  "G": "GROW: pop dir code; add a cell at the end of my line that way",
+  "G": "GROW: pop dir; add a fat cell (.) at the end of my line that way, if my max size has room",
   "C": "COLLECT: take every resource or debris touching my body",
   "B": "BOMB: pop dx dy; destroy a visible foreign cell within range",
   "W": "WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me",
@@ -895,11 +895,9 @@ var World = class {
         wr.lastOk = this.opSwap(wr, dx1, dy1, dx2, dy2);
         break;
       }
-      case "G": {
-        const c = this.pop(wr), d = this.pop(wr);
-        wr.lastOk = this.opGrow(wr, d, c);
+      case "G":
+        wr.lastOk = this.opGrow(wr, this.pop(wr));
         break;
-      }
       case "C":
         wr.lastOk = this.opCollect(wr);
         break;
@@ -1147,7 +1145,8 @@ var World = class {
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
     return true;
   }
-  opGrow(wr, d, code) {
+  /** Fat only: growth is size (and a buffer that sheds first), never new code to run into. */
+  opGrow(wr, d) {
     d = (d % 4 + 4) % 4;
     if (wr.cellCount >= Math.floor(wr.maxSize)) return false;
     let x = wr.ipX, y = wr.ipY;
@@ -1158,7 +1157,7 @@ var World = class {
     if (!this.isFree(x, y)) return false;
     const i = this.idx(x, y);
     this.setOwner(i, wr.id);
-    this.code[i] = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
+    this.code[i] = CODE["."];
     wr.cellCount++;
     wr.stats.grows++;
     return true;
