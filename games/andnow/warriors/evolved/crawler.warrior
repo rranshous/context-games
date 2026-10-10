@@ -1,0 +1,10 @@
+name: crawler
+# morph4 gen ~115, slot 0-4-3: 22 cells (mostly fat) that ooze ~850 cells/game; whole body into another room on 18/20 solo boards; barely collects
+dir: S
+ip: 7 2
+---
+CTT
+  =6S \A
+  ...!..
+  ......
+     dM
