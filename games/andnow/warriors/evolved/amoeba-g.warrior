@@ -1,0 +1,13 @@
+name: amoeba-g
+# morph4-amoeba with one cell changed (e → G): grows fat as it oozes
+dir: W
+ip: 4 4
+---
+  m
+  *T
+  1WBCs
+  +=\M
+ +GmLA
+R+dWCmLC
+   L=/:
+   4
