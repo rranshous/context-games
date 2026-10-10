@@ -1,0 +1,11 @@
+name: morph1-still
+# map-elites run morph1, slot 2-0-0 (still), was m249-95875 (gen 249, parents m150-57657+point)
+# fitness 2.09; 13W of 30; per game: 0.33 bomb hits, 0.87 poison writes, 2.53 pickups; left home in 93% of games
+# shape changes 0.0 cells/game; squeezed through a narrow passage in 0% of games
+dir: E
+ip: 11 3
+---
+      .
+  v  +>oo'@W B
+:$>C2S|   B-BB
+  ^   >$$:Mem+

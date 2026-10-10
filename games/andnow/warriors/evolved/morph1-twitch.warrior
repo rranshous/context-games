@@ -1,0 +1,10 @@
+name: morph1-twitch
+# map-elites run morph1, slot 1-1-0 (twitch), was m248-95312 (gen 248, parents m246-94544+remove)
+# fitness 2.20; 10W of 30; per game: 2.80 bomb hits, 0.00 poison writes, 2.30 pickups; left home in 77% of games
+# shape changes 7.6 cells/game; squeezed through a narrow passage in 13% of games
+dir: W
+ip: 11 2
+---
+ v  +BBA2@
+ >C2S|     !B
+>^ A >$$:Mem+

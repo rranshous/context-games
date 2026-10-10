@@ -979,3 +979,29 @@ code cyclically, which a wrap-around loop doesn't even notice).
 Fitness is unchanged (match score vs strong benchmarks + peers + FFAs), so a high-morph
 slot keeps only warriors that win while reshaping themselves. Seeded from map4's archive
 plus Oozer/Blob and mutants of them; benchmarks: map4 ×4, map3-none, evo6-2, map1-bomber.
+
+#### morph1 results (250 gens)
+- 62 of 80 slots; 39 of them morph 10+ cells a game. The best warrior in the whole archive
+  (bomber, 2.42) is a morpher (17 cells/game), and morphers at 50–200/game reach 2.36:
+  **oozing code can win**. Top fitnesses are noisy (reeval of 64), ±0.3 gen to gen.
+- Showcases (`warriors/evolved/morph1-{still,twitch,morph,ooze,amoeba}`) are all the
+  map4 SHIFT lineage (`>C2S| … $$:Mem+`) with `A` cells sprinkled into branches. They
+  still travel by SHIFT; OOZE fires in side branches, mostly in fights.
+- Solo probe (`dist/probe.mjs`, new: 20 boards, 3000 ticks):
+
+  | warrior | pickups | oozes | left home | squeezed |
+  |---|---|---|---|---|
+  | morph1-still | 5.6 | 0 | 19/20 | 1/20 |
+  | morph1-morph | 5.5 | 10.6 | 20/20 | 2/20 |
+  | morph1-ooze | 7.1 | 11.3 | 19/20 | 1/20 |
+  | morph1-amoeba | 5.4 | 28.8 | 19/20 | 1/20 |
+  | Oozer (seed) | 0.8 | 848 | 16/20 | 1/20 |
+  | map4-none | 5.8 | 0 | 19/20 | 1/20 |
+
+  Nobody grows (0 grows everywhere) and nobody needs to squeeze: the boards guarantee a
+  ≥ 3-wide exit from the start room and most corridors are 3–5 wide, so a 3-row SHIFTer
+  reaches everything. The squeeze axis was measuring board luck.
+- `--selfmod` did catch real amorphousness once: morph1-morph vs morph1-amoeba went from
+  its 3-row block to a single 17-cell line (`B|>B·A$2:M>C22A+S`) and kept fighting.
+- **Lesson**: the axes reward tolerance of shape change, not *use* of it. Shape change
+  has to pay, which means the boards and the win rule have to ask for it. → morph2.

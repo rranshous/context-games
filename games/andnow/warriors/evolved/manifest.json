@@ -30,5 +30,10 @@
   "map4-none.warrior",
   "map4-bomber.warrior",
   "map4-mixed.warrior",
-  "map4-poisoner.warrior"
+  "map4-poisoner.warrior",
+  "morph1-still.warrior",
+  "morph1-twitch.warrior",
+  "morph1-morph.warrior",
+  "morph1-ooze.warrior",
+  "morph1-amoeba.warrior"
 ]

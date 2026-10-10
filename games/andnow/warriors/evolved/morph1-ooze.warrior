@@ -1,0 +1,10 @@
+name: morph1-ooze
+# map-elites run morph1, slot 1-3-0 (ooze), was m248-95468 (gen 248, parents m242-93118×m109-41886)
+# fitness 2.36; 13W of 30; per game: 3.07 bomb hits, 0.00 poison writes, 3.47 pickups; left home in 73% of games
+# shape changes 51.8 cells/game; squeezed through a narrow passage in 0% of games
+dir: W
+ip: 10 0
+---
+v y B     >
+>C2S|     2S|
+^ AA>$$:Mem+
