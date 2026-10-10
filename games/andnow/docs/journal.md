@@ -674,3 +674,12 @@ its page as a worker**, a named pattern (Potluck) other projects can use.
   generation as batches of 24 jobs.
 - Verified: a local run and a farm run with the same args produce identical output; the
   farm runs at local-thread speed on the same cores.
+
+### The GA never depends on the farm
+Robby: GA runs must not depend on a browser being open, and no capacity must never
+block. The evolver now always runs generations through Potluck's `runHybrid()` with its
+own worker threads as the local runner (a batch at a time); `--farm <url>` only adds the
+farm, which takes what verified capacity it has. Six scenarios (no farm flag, server
+down, server up with no browser, browser helping, server killed mid-run, server started
+mid-run) all produce output identical to a local-only run; see the Potluck journal.
+The log line shows the farm's share: `(1426ms, farm 20/52 batches)`.

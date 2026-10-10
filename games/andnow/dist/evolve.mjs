@@ -1217,6 +1217,151 @@ function crossover(a, b, rng) {
   return repair(child);
 }
 
+// ../../platforms/potluck/client.mjs
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+var Potluck = class _Potluck {
+  /** @param {string} url  e.g. http://localhost:7700 */
+  constructor(url, { timeoutMs = 5e3 } = {}) {
+    this.url = url.replace(/\/$/, "");
+    this.timeoutMs = timeoutMs;
+  }
+  /** A client if the server answers, else null. */
+  static async connect(url, opts) {
+    const p = new _Potluck(url, opts);
+    try {
+      await p.status();
+      return p;
+    } catch {
+      return null;
+    }
+  }
+  async req(method, path, body, timeoutMs = this.timeoutMs) {
+    const r = await fetch(this.url + path, {
+      method,
+      headers: body ? { "content-type": "application/json" } : void 0,
+      body: body ? JSON.stringify(body) : void 0,
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : void 0
+    });
+    if (!r.ok) throw new Error(`potluck ${path}: ${r.status} ${await r.text()}`);
+    return r.json();
+  }
+  /** Register a task module (browser-safe ESM exporting run(input), optionally canary()). Returns its id. */
+  async registerTask(name, code) {
+    return (await this.req("POST", "/api/tasks", { name, code })).id;
+  }
+  status() {
+    return this.req("GET", "/api/status");
+  }
+  /** Worker threads right now: live (seen recently), verified (passed this task's canary), leased (busy on it). */
+  capacity(task) {
+    return this.req("GET", `/api/capacity?task=${task}`);
+  }
+  async submit(task, inputs = [], leaseMs) {
+    return (await this.req("POST", "/api/jobs", { task, inputs, leaseMs })).job;
+  }
+  async add(job, inputs) {
+    return (await this.req("POST", `/api/jobs/${job}/add`, { inputs })).first;
+  }
+  /** Finished outputs since `cursor`: { done: [[index, output]...], cursor, remaining }. */
+  poll(job, cursor = 0) {
+    return this.req("GET", `/api/jobs/${job}?cursor=${cursor}`);
+  }
+  cancel(job) {
+    return this.req("POST", `/api/jobs/${job}/cancel`);
+  }
+  /** Blocking: every input on the farm, nothing local. Only for when a farm is certain to have workers. */
+  async run(task, inputs) {
+    return (await this.req("POST", "/api/run", { task, inputs }, 0)).outputs;
+  }
+};
+async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 250, onFarmError }) {
+  const n = inputs.length;
+  const outputs = new Array(n);
+  const finished = new Uint8Array(n);
+  const stats = { local: 0, farm: 0, rerun: 0 };
+  let left = n;
+  let front = 0, back = n - 1;
+  const atFarm = /* @__PURE__ */ new Set();
+  const rerun = /* @__PURE__ */ new Set();
+  let farmOn = !!(farm && task);
+  let allDone;
+  const done = new Promise((r) => {
+    allDone = r;
+  });
+  const complete = (i, out, where) => {
+    if (finished[i]) return;
+    finished[i] = 1;
+    outputs[i] = out;
+    atFarm.delete(i);
+    stats[where]++;
+    if (--left === 0) allDone();
+  };
+  if (n === 0) allDone();
+  const nextLocal = () => {
+    if (front <= back) return front++;
+    for (const i of atFarm) if (!finished[i] && !rerun.has(i)) {
+      rerun.add(i);
+      stats.rerun++;
+      return i;
+    }
+    return -1;
+  };
+  const runner = async () => {
+    for (let i = nextLocal(); i >= 0; i = nextLocal()) complete(i, await local(inputs[i]), "local");
+  };
+  const feeder = async () => {
+    let job = null, cursor = 0;
+    const map = [];
+    while (left > 0 && farmOn) {
+      try {
+        const cap = await farm.capacity(task);
+        const target = cap.verified > 0 ? cap.verified * 2 : cap.live > 0 ? 1 : 0;
+        const want = Math.min(target - atFarm.size, back - front + 1);
+        if (want > 0) {
+          const idx = [];
+          for (let k = 0; k < want; k++) {
+            idx.push(back);
+            atFarm.add(back--);
+          }
+          const batch = idx.map((i) => inputs[i]);
+          let first;
+          if (!job) {
+            job = await farm.submit(task, batch);
+            first = 0;
+          } else first = await farm.add(job, batch);
+          idx.forEach((i, k) => {
+            map[first + k] = i;
+          });
+        }
+        if (job) {
+          const r = await farm.poll(job, cursor);
+          cursor = r.cursor;
+          for (const [fi, out] of r.done) complete(map[fi], out, "farm");
+        }
+      } catch (e) {
+        farmOn = false;
+        onFarmError?.(e);
+        break;
+      }
+      if (left > 0) await sleep(pollMs);
+    }
+    if (job) farm.cancel(job).catch(() => {
+    });
+  };
+  const runners = Array.from({ length: concurrency }, runner);
+  const feeding = farmOn ? feeder() : Promise.resolve();
+  if (concurrency > 0) {
+    await Promise.all(runners);
+    farmOn = false;
+  } else {
+    await Promise.race([done, feeding.then(() => {
+      if (left > 0) throw new Error("farm stopped with work left and no local runners");
+    })]);
+  }
+  await done;
+  return { outputs, stats };
+}
+
 // src/sim/match.ts
 function runMatch(specs, seed, opts = {}) {
   const prevCap = CONFIG.tickCap;
@@ -1331,51 +1476,84 @@ function toBatches(jobs, size) {
   }
   return out;
 }
+function runBatch(b) {
+  return b.jobs.map((j) => runJob({ warriors: j.w.map((k) => b.warriors[k]), me: j.me, seed: j.seed, ticks: j.ticks }));
+}
 
 // src/evolve.ts
-var Pool = class {
-  workers;
+var ThreadPool = class {
+  free;
+  waiting = [];
+  size;
   constructor(n) {
-    this.workers = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.free = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.size = n;
   }
-  async run(jobs) {
-    const n = this.workers.length;
-    const chunk = Math.ceil(jobs.length / n);
-    const parts = await Promise.all(this.workers.map((w, i) => {
-      const slice = jobs.slice(i * chunk, (i + 1) * chunk);
-      if (!slice.length) return Promise.resolve([]);
-      return new Promise((res) => {
+  async runBatch(batch) {
+    const w = this.free.pop() ?? await new Promise((r) => this.waiting.push(r));
+    try {
+      return await new Promise((res) => {
         w.once("message", res);
-        w.postMessage(slice);
+        w.postMessage(batch);
       });
-    }));
-    return parts.flat();
+    } finally {
+      const next = this.waiting.shift();
+      if (next) next(w);
+      else this.free.push(w);
+    }
   }
   close() {
-    for (const w of this.workers) w.terminate();
+    for (const w of [...this.free]) w.terminate();
   }
 };
-var FarmPool = class {
-  constructor(url, batchSize = 24) {
-    this.url = url;
+var Runner = class {
+  constructor(threads, farmUrl, batchSize = 24) {
+    this.threads = threads;
+    this.farmUrl = farmUrl;
     this.batchSize = batchSize;
   }
-  task = "";
-  async post(path, body) {
-    const r = await fetch(this.url + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`potluck ${path}: ${r.status} ${await r.text()}`);
-    return r.json();
-  }
+  farm = null;
+  task = null;
+  code = "";
+  farmDown = false;
   async init() {
-    const code = readFileSync(new URL("./farm-task.mjs", import.meta.url), "utf8");
-    this.task = (await this.post("/api/tasks", { name: "andnow-matches", code })).id;
-    console.log(`potluck: task ${this.task} registered at ${this.url} (open that URL on any machine to help)`);
+    if (!this.farmUrl) return;
+    this.code = readFileSync(new URL("./farm-task.mjs", import.meta.url), "utf8");
+    this.farm = new Potluck(this.farmUrl);
+    await this.register();
   }
+  /** (Re-)register the task; a restarted server has forgotten it. Fails fast if the server is down. */
+  async register() {
+    try {
+      const wasUp = !this.farmDown && this.task !== null;
+      this.task = await this.farm.registerTask("andnow-matches", this.code);
+      if (!wasUp) console.log(`potluck: task ${this.task} registered at ${this.farmUrl}; open it on any machine to help`);
+      this.farmDown = false;
+    } catch {
+      if (!this.farmDown) console.log(`potluck: ${this.farmUrl} not reachable; running locally (will keep trying)`);
+      this.task = null;
+      this.farmDown = true;
+    }
+  }
+  lastStats = { local: 0, farm: 0, rerun: 0 };
   async run(jobs) {
-    const { outputs } = await this.post("/api/run", { task: this.task, inputs: toBatches(jobs, this.batchSize) });
+    if (this.farm && this.farmDown) await this.register();
+    const { outputs, stats } = await runHybrid({
+      inputs: toBatches(jobs, this.batchSize),
+      local: (b) => this.threads.runBatch(b),
+      concurrency: this.threads.size,
+      farm: this.farmDown ? null : this.farm,
+      task: this.task,
+      onFarmError: (e) => {
+        console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);
+        this.farmDown = true;
+      }
+    });
+    this.lastStats = stats;
     return outputs.flat();
   }
   close() {
+    this.threads.close();
   }
 };
 async function main() {
@@ -1412,9 +1590,9 @@ async function main() {
   }
   while (pop.length < POP) pop.push(make(randomGenome(rng), "random", 0));
   const FARM = str("farm", "");
-  const pool = FARM ? new FarmPool(FARM.replace(/\/$/, "")) : new Pool(WORKERS);
-  if (pool instanceof FarmPool) await pool.init();
-  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${FARM ? `potluck farm ${FARM}` : `${WORKERS} workers`}`);
+  const pool = new Runner(new ThreadPool(WORKERS), FARM);
+  await pool.init();
+  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ""}`);
   console.log(`benchmarks: ${benchNames.join(", ")}`);
   let bestEver = null;
   for (let gen = 0; gen < GENS; gen++) {
@@ -1478,13 +1656,14 @@ async function main() {
       cells: best.g.cells.length,
       parents: best.parents,
       ms: Date.now() - t0,
+      batches: pool.lastStats,
       killRate: +killRate.toFixed(3),
       hitsPerGame: +hitsPerGame.toFixed(2),
       poisonsPerGame: +poisonsPerGame.toFixed(2),
       text: best.text
     };
     appendFileSync(join(runDir, "log.jsonl"), JSON.stringify(line) + "\n");
-    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${String(line.cells).padStart(2)} cells  kills ${(killRate * 100).toFixed(0).padStart(2)}%  hits ${hitsPerGame.toFixed(2)}  poison ${poisonsPerGame.toFixed(2)}  (${line.ms}ms)`);
+    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${String(line.cells).padStart(2)} cells  kills ${(killRate * 100).toFixed(0).padStart(2)}%  hits ${hitsPerGame.toFixed(2)}  poison ${poisonsPerGame.toFixed(2)}  (${line.ms}ms${FARM ? `, farm ${pool.lastStats.farm}/${pool.lastStats.farm + pool.lastStats.local} batches` : ""})`);
     const select = () => {
       let b = pop[Math.floor(rng() * pop.length)];
       for (let k = 0; k < 2; k++) {
@@ -1546,7 +1725,7 @@ held-out check (10 boards \xD7 ${bench.length} benchmarks):`);
 wrote top 3 to ${outDir}/, log in ${runDir}/`);
 }
 if (!isMainThread) {
-  parentPort.on("message", (jobs) => parentPort.postMessage(jobs.map(runJob)));
+  parentPort.on("message", (batch) => parentPort.postMessage(runBatch(batch)));
 } else {
   main().catch((e) => {
     console.error(e);

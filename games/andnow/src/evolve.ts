@@ -7,7 +7,7 @@
 //                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
 //                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
 //                        [--boards 6]   (board pool per generation; --seeds = boards per opponent)
-//                        [--farm http://host:7700]   (run matches on a Potluck farm instead of local threads)
+//                        [--farm http://host:7700]   (a Potluck farm helps local threads when it has capacity)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
@@ -16,50 +16,83 @@ import { availableParallelism } from 'node:os';
 import { basename, join } from 'node:path';
 import { isMainThread, parentPort, Worker } from 'node:worker_threads';
 import { clone, crossover, fromSpec, Genome, mutate, randomGenome, toSpec, toText } from './ga/genome';
-import { duel, Job, JobResult, runJob, toBatches } from './ga/job';
+import { Potluck, runHybrid } from '../../../platforms/potluck/client.mjs';
+import { Batch, duel, Job, JobResult, runBatch, toBatches } from './ga/job';
 import { makeRng } from './sim/rng';
 import { parseWarrior } from './sim/warrior-file';
 
 
 // ---------- worker pool ----------
 
-class Pool {
-  workers: Worker[];
+/** Local worker threads, each running one batch of jobs at a time. */
+class ThreadPool {
+  private free: Worker[];
+  private waiting: ((w: Worker) => void)[] = [];
+  readonly size: number;
   constructor(n: number) {
-    this.workers = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.free = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.size = n;
   }
-  async run(jobs: Job[]): Promise<JobResult[]> {
-    const n = this.workers.length;
-    const chunk = Math.ceil(jobs.length / n);
-    const parts = await Promise.all(this.workers.map((w, i) => {
-      const slice = jobs.slice(i * chunk, (i + 1) * chunk);
-      if (!slice.length) return Promise.resolve([] as JobResult[]);
-      return new Promise<JobResult[]>((res) => { w.once('message', res); w.postMessage(slice); });
-    }));
-    return parts.flat();
+  async runBatch(batch: Batch): Promise<JobResult[]> {
+    const w = this.free.pop() ?? await new Promise<Worker>((r) => this.waiting.push(r));
+    try {
+      return await new Promise<JobResult[]>((res) => { w.once('message', res); w.postMessage(batch); });
+    } finally {
+      const next = this.waiting.shift();
+      if (next) next(w); else this.free.push(w);
+    }
   }
-  close() { for (const w of this.workers) w.terminate(); }
+  close() { for (const w of [...this.free]) w.terminate(); }
 }
 
-/** Runs jobs on a Potluck farm (platforms/potluck): batches go to whatever browsers have its page open. */
-class FarmPool {
-  private task = '';
-  constructor(private url: string, private batchSize = 24) {}
-  private async post(path: string, body: unknown) {
-    const r = await fetch(this.url + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`potluck ${path}: ${r.status} ${await r.text()}`);
-    return r.json();
-  }
+/**
+ * Runs a generation's jobs as batches on local threads, with a Potluck farm
+ * (platforms/potluck) helping when it has capacity. The farm is never required: with no
+ * browsers open, or no server, everything runs locally at full speed.
+ */
+class Runner {
+  private farm: Potluck | null = null;
+  private task: string | null = null;
+  private code = '';
+  private farmDown = false;
+  constructor(private threads: ThreadPool, private farmUrl: string, private batchSize = 24) {}
   async init() {
-    const code = readFileSync(new URL('./farm-task.mjs', import.meta.url), 'utf8');
-    this.task = (await this.post('/api/tasks', { name: 'andnow-matches', code })).id;
-    console.log(`potluck: task ${this.task} registered at ${this.url} (open that URL on any machine to help)`);
+    if (!this.farmUrl) return;
+    this.code = readFileSync(new URL('./farm-task.mjs', import.meta.url), 'utf8');
+    this.farm = new Potluck(this.farmUrl);
+    await this.register();
   }
+  /** (Re-)register the task; a restarted server has forgotten it. Fails fast if the server is down. */
+  private async register() {
+    try {
+      const wasUp = !this.farmDown && this.task !== null;
+      this.task = await this.farm!.registerTask('andnow-matches', this.code);
+      if (!wasUp) console.log(`potluck: task ${this.task} registered at ${this.farmUrl}; open it on any machine to help`);
+      this.farmDown = false;
+    } catch {
+      if (!this.farmDown) console.log(`potluck: ${this.farmUrl} not reachable; running locally (will keep trying)`);
+      this.task = null;
+      this.farmDown = true;
+    }
+  }
+  lastStats = { local: 0, farm: 0, rerun: 0 };
   async run(jobs: Job[]): Promise<JobResult[]> {
-    const { outputs } = await this.post('/api/run', { task: this.task, inputs: toBatches(jobs, this.batchSize) });
-    return (outputs as JobResult[][]).flat();
+    if (this.farm && this.farmDown) await this.register();
+    const { outputs, stats } = await runHybrid({
+      inputs: toBatches(jobs, this.batchSize),
+      local: (b) => this.threads.runBatch(b),
+      concurrency: this.threads.size,
+      farm: this.farmDown ? null : this.farm,
+      task: this.task,
+      onFarmError: (e) => {
+        console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);
+        this.farmDown = true;
+      },
+    });
+    this.lastStats = stats;
+    return outputs.flat();
   }
-  close() {}
+  close() { this.threads.close(); }
 }
 
 // ---------- the search ----------
@@ -100,9 +133,9 @@ async function main() {
   while (pop.length < POP) pop.push(make(randomGenome(rng), 'random', 0));
 
   const FARM = str('farm', '');
-  const pool = FARM ? new FarmPool(FARM.replace(/\/$/, '')) : new Pool(WORKERS);
-  if (pool instanceof FarmPool) await pool.init();
-  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${FARM ? `potluck farm ${FARM}` : `${WORKERS} workers`}`);
+  const pool = new Runner(new ThreadPool(WORKERS), FARM);
+  await pool.init();
+  console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ''}`);
   console.log(`benchmarks: ${benchNames.join(', ')}`);
   let bestEver: Individual | null = null;
 
@@ -167,11 +200,11 @@ async function main() {
     const line = {
       gen, best: +best.fitness.toFixed(3), mean: +mean.toFixed(3), bestName: best.name,
       bestRecord: `${best.wins}W ${best.losses}L/${best.games}`, benchWins: `${best.benchWins}/${bench.length * seeds.length}`,
-      cells: best.g.cells.length, parents: best.parents, ms: Date.now() - t0,
+      cells: best.g.cells.length, parents: best.parents, ms: Date.now() - t0, batches: pool.lastStats,
       killRate: +killRate.toFixed(3), hitsPerGame: +hitsPerGame.toFixed(2), poisonsPerGame: +poisonsPerGame.toFixed(2), text: best.text,
     };
     appendFileSync(join(runDir, 'log.jsonl'), JSON.stringify(line) + '\n');
-    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${String(line.cells).padStart(2)} cells  kills ${(killRate * 100).toFixed(0).padStart(2)}%  hits ${hitsPerGame.toFixed(2)}  poison ${poisonsPerGame.toFixed(2)}  (${line.ms}ms)`);
+    console.log(`gen ${String(gen).padStart(3)}  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  ${line.bestRecord.padEnd(12)} vs bench ${line.benchWins.padEnd(6)} ${String(line.cells).padStart(2)} cells  kills ${(killRate * 100).toFixed(0).padStart(2)}%  hits ${hitsPerGame.toFixed(2)}  poison ${poisonsPerGame.toFixed(2)}  (${line.ms}ms${FARM ? `, farm ${pool.lastStats.farm}/${pool.lastStats.farm + pool.lastStats.local} batches` : ''})`);
 
     // Next generation: elites, then tournament-selected children.
     const select = () => {
@@ -235,7 +268,7 @@ async function main() {
 
 // Entry: the same file is the main process and each worker.
 if (!isMainThread) {
-  parentPort!.on('message', (jobs: Job[]) => parentPort!.postMessage(jobs.map(runJob)));
+  parentPort!.on('message', (batch: Batch) => parentPort!.postMessage(runBatch(batch)));
 } else {
   main().catch((e) => { console.error(e); process.exit(1); });
 }
