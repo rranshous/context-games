@@ -1,0 +1,10 @@
+name: morph2-morph
+# map-elites run morph2, slot 1-2-1 (morph), was m244-93830 (gen 244, parents m237-91369×m238-91571)
+# fitness 2.02; 53W of 150; per game: 2.40 bomb hits, 0.00 poison writes, 3.03 pickups; left home in 83% of games
+# shape changes 10.3 cells/game; squeezed through a narrow passage in 37% of games
+dir: S
+ip: 7 1
+---
+7>oS   B     MB
+S| >C2S| SMe 2B.
+   ^ A >=$:Mem+

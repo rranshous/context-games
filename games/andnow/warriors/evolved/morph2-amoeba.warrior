@@ -1,0 +1,11 @@
+name: morph2-amoeba
+# map-elites run morph2, slot 1-4-0 (amoeba), was m247-95104 (gen 247, parents m236-90899+point)
+# fitness 2.01; 19W of 60; per game: 1.90 bomb hits, 0.00 poison writes, 5.73 pickups; left home in 87% of games
+# shape changes 379.1 cells/game; squeezed through a narrow passage in 7% of games
+dir: W
+ip: 6 3
+---
+6   *.
+Cv -CBBT
+9>C2S|     3vC
+ ^ AA>$$:Mem+

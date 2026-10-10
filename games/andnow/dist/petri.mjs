@@ -271,8 +271,10 @@ var CONFIG = {
   stackMax: 64,
   sizeFloor: 8,
   sizeCap: 64,
-  startSize: 30,
-  // every warrior starts with this max size; bodies can't be bigger
+  startSize: 40,
+  // every warrior starts with this max size (the most cells its body may have)
+  startCells: 30,
+  // a warrior file holds at most this many cells: the rest of max size is room to GROW
   sizeDecay: 4e-3,
   // per tick
   sizePickup: 4,
@@ -340,8 +342,8 @@ var World = class {
   spawnTimers;
   // ---------- setup ----------
   place(spec2, id) {
-    if (spec2.cells.length > CONFIG.startSize) {
-      throw new Error(`${spec2.name} has ${spec2.cells.length} cells; the limit is ${CONFIG.startSize}`);
+    if (spec2.cells.length > CONFIG.startCells) {
+      throw new Error(`${spec2.name} has ${spec2.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
     const room = this.board.starts[id % this.board.starts.length];
     const ox = room.x + Math.floor((room.w - spec2.width) / 2);

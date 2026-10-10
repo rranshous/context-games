@@ -234,8 +234,10 @@ var CONFIG = {
   stackMax: 64,
   sizeFloor: 8,
   sizeCap: 64,
-  startSize: 30,
-  // every warrior starts with this max size; bodies can't be bigger
+  startSize: 40,
+  // every warrior starts with this max size (the most cells its body may have)
+  startCells: 30,
+  // a warrior file holds at most this many cells: the rest of max size is room to GROW
   sizeDecay: 4e-3,
   // per tick
   sizePickup: 4,
@@ -303,8 +305,8 @@ var World = class {
   spawnTimers;
   // ---------- setup ----------
   place(spec, id) {
-    if (spec.cells.length > CONFIG.startSize) {
-      throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startSize}`);
+    if (spec.cells.length > CONFIG.startCells) {
+      throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
     const room = this.board.starts[id % this.board.starts.length];
     const ox = room.x + Math.floor((room.w - spec.width) / 2);
@@ -1318,7 +1320,7 @@ function repair(g) {
       }
     }
   }
-  g.cells = order.slice(0, CONFIG.startSize);
+  g.cells = order.slice(0, CONFIG.startCells);
   return g;
 }
 function randomGenome(rng) {
@@ -1372,7 +1374,7 @@ function mutate(g, rng) {
         break;
       case "add":
       case "dupe": {
-        if (g.cells.length >= CONFIG.startSize) continue;
+        if (g.cells.length >= CONFIG.startCells) continue;
         const spot = pick(rng, freeNeighbors(g));
         g.cells.push({ ...spot, code: op === "add" ? randomCode(rng) : pick(rng, g.cells).code });
         break;

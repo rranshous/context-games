@@ -85,7 +85,7 @@ export function repair(g: Genome): Genome {
       if (n && !seen.has(k)) { seen.add(k); queue.push(n); }
     }
   }
-  g.cells = order.slice(0, CONFIG.startSize);
+  g.cells = order.slice(0, CONFIG.startCells);
   return g;
 }
 
@@ -134,7 +134,7 @@ export function mutate(g: Genome, rng: Rng): string[] {
       case 'point': pick(rng, g.cells).code = randomCode(rng); break;
       case 'add':
       case 'dupe': {
-        if (g.cells.length >= CONFIG.startSize) continue;
+        if (g.cells.length >= CONFIG.startCells) continue;
         const spot = pick(rng, freeNeighbors(g));
         g.cells.push({ ...spot, code: op === 'add' ? randomCode(rng) : pick(rng, g.cells).code });
         break;

@@ -1029,3 +1029,34 @@ old max-size rule already counted "each member above the floor, plus one floor" 
 exact reason; my cell-count version dropped it. Fixed the same way (each member's cells
 above the floor, plus one floor). Re-checked: the splitter goes 0–24 against map4-none
 and morph1-ooze. Run killed and kept as `runs/morph2-split`; morph2 restarted fresh.
+
+#### morph2 results (250 gens, narrow corridors, biggest body wins)
+- 78 of 80 slots. Pinky's computer rejoined the farm near gen 200 (11 threads, ~195
+  batches/min each, twice a calendar thread): gens fell from ~63 s to ~21 s, farm doing
+  ~77% of jobs.
+- Solo probe on the narrow boards (20 boards, 5000 ticks):
+
+  | warrior | pickups | oozes | final cells |
+  |---|---|---|---|
+  | map4-none | 2.3 | 0 | 14.8 |
+  | morph1-ooze | 3.4 | 86 | 14.3 |
+  | morph2-still | 5.8 | 0 | 19.1 |
+  | morph2-morph | 4.3 | 122 | 18.4 |
+  | morph2-ooze | 3.9 | 153 | 16.6 |
+  | morph2-amoeba | 3.9 | 235 | 16.4 |
+
+  The narrow boards made morph2 feed better than every older champion, and its oozers
+  reshape 5–10× more than morph1's. Still the SHIFT lineage underneath.
+- **Still zero grows.** A diagnostic (wrapping opGrow) found `G` almost never even runs,
+  and the one attempt hit a full body. Why: evolved bodies are 25–29 cells and max size
+  started at 30, so there was no room to grow until after feeding; and cap ties between
+  two non-growers fall to max size, so collecting alone already won.
+
+### Room to grow: max size starts at 40, bodies at most 30 cells
+- `CONFIG.startCells = 30` (the most cells a warrior file / genome may have) split from
+  `CONFIG.startSize = 40` (starting max size). Every warrior has 10+ cells of room from
+  tick 0 that only GROW fills; with biggest-body-wins, a grower beats an equal collector.
+  (Side effect: DIVIDE, which needs max size ≥ 2× cells, opens up for ≤ 20-cell bodies.)
+- Kept existing warrior files valid (no trimming). Golden re-recorded (1555 matches),
+  canary 54 cases.
+- morph3: seeded from morph2's archive, same axes, benchmarks = morph2 showcases + map4-none.
