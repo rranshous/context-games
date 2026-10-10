@@ -1,6 +1,6 @@
 // Boards: rooms joined by corridors, four-way mirror symmetric so every start corner is
 // equally good. Everything is generated in the top-left quadrant and mirrored: 2–6 rooms
-// per quadrant of mixed sizes, corridors 1–4 wide, mostly 1–2 (straight or L-shaped, a spanning tree
+// per quadrant of mixed sizes, corridors 1–4 wide, mostly 1–2, and only 1–2 out of the start room (straight or L-shaped, a spanning tree
 // plus extra loops), some central rooms merging with their mirror images. Resources in
 // the non-start rooms.
 import { makeRng, randInt, Rng } from './rng';
@@ -17,6 +17,7 @@ export interface Board {
   terrain: Uint8Array;
   spawns: Spawn[];
   starts: Rect[]; // corner rooms: TL, TR, BR, BL (a 2-player match is TL vs TR)
+  rooms: Rect[];  // every room (start rooms included), mirror images listed separately
 }
 
 export const BOARD_W = 64;
@@ -99,8 +100,9 @@ function makeRooms(seed: number, attempt: number): Board | null {
       const room: Rect = { x: x0 + randInt(rng, 0, cw - rw - 1) + (start ? 1 : 0), y: y0 + randInt(rng, 0, ch - rh - 1) + (start ? 1 : 0), w: rw, h: rh };
       if (start) { room.x = Math.min(room.x, x0 + cw - rw); room.y = Math.min(room.y, y0 + ch - rh); }
       // Rooms on the mirror axes sometimes stretch to the axis and merge with their mirror.
-      if (c === qcols - 1 && rng() < 0.25) room.w = hw - room.x;
-      if (r === qrows - 1 && rng() < 0.25) room.h = hh - room.y;
+      // (Never the start room: every way out of it is a narrow corridor.)
+      if (c === qcols - 1 && rng() < 0.25 && !start) room.w = hw - room.x;
+      if (r === qrows - 1 && rng() < 0.25 && !start) room.h = hh - room.y;
       rooms[r].push(room);
       carve(room);
       x0 += cw;
@@ -138,8 +140,8 @@ function makeRooms(seed: number, attempt: number): Board | null {
     const id = [key(r1, c1), key(r2, c2)].sort().join('-');
     if (edges.has(id)) return;
     edges.add(id);
-    const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
-    if ((r1 === 0 && c1 === 0) || (r2 === 0 && c2 === 0)) startExits.push(cw);
+    let cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+    if ((r1 === 0 && c1 === 0) || (r2 === 0 && c2 === 0)) { cw = Math.min(cw, 2); startExits.push(cw); }
     corridor(rooms[r1][c1], rooms[r2][c2], cw);
   };
   while (stack.length) {
@@ -158,7 +160,8 @@ function makeRooms(seed: number, attempt: number): Board | null {
       if (r + 1 < qrows && rng() < 0.4) link(r, c, r + 1, c);
     }
   }
-  // The start room gets at least one exit 2 wide: a body that oozes or is thin gets out.
+  // Every exit from the start room is 1–2 wide (getting out means squeezing through), and
+  // at least one is 2 wide.
   if (!startExits.some((cw) => cw >= 2)) {
     const [r, c] = qcols > 1 ? [0, 1] : [1, 0];
     corridor(rooms[0][0], rooms[r][c], 2);
@@ -173,7 +176,7 @@ function makeRooms(seed: number, attempt: number): Board | null {
     list.forEach((a, i) => {
       const touches = horizontal ? a.x + a.w >= hw : a.y + a.h >= hh;
       if (touches || (any && rng() < 0.5 && i !== list.length - 1)) return;
-      const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+      const cw = a === rooms[0][0] ? Math.min(2, WIDTHS[Math.floor(rng() * WIDTHS.length)]) : WIDTHS[Math.floor(rng() * WIDTHS.length)];
       if (horizontal) carve({ x: a.x + a.w, y: randInt(rng, a.y, a.y + a.h - Math.min(cw, a.h)), w: hw - (a.x + a.w), h: cw });
       else carve({ x: randInt(rng, a.x, a.x + a.w - Math.min(cw, a.w)), y: a.y + a.h, w: cw, h: hh - (a.y + a.h) });
       any = true;
@@ -205,5 +208,6 @@ function makeRooms(seed: number, attempt: number): Board | null {
   for (const sp of spawns) if (!reach[sp.y * w + sp.x]) return null;
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
 
-  return { w, h, terrain, spawns, starts };
+  const allRooms = rooms.flat().flatMap(startsFrom);
+  return { w, h, terrain, spawns, starts, rooms: allRooms };
 }

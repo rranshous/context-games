@@ -145,8 +145,8 @@ function makeRooms(seed, attempt) {
         room.x = Math.min(room.x, x0 + cw - rw);
         room.y = Math.min(room.y, y0 + ch - rh);
       }
-      if (c === qcols - 1 && rng() < 0.25) room.w = hw - room.x;
-      if (r === qrows - 1 && rng() < 0.25) room.h = hh - room.y;
+      if (c === qcols - 1 && rng() < 0.25 && !start) room.w = hw - room.x;
+      if (r === qrows - 1 && rng() < 0.25 && !start) room.h = hh - room.y;
       rooms[r].push(room);
       carve(room);
       x0 += cw;
@@ -180,8 +180,11 @@ function makeRooms(seed, attempt) {
     const id = [key(r1, c1), key(r2, c2)].sort().join("-");
     if (edges.has(id)) return;
     edges.add(id);
-    const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
-    if (r1 === 0 && c1 === 0 || r2 === 0 && c2 === 0) startExits.push(cw);
+    let cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+    if (r1 === 0 && c1 === 0 || r2 === 0 && c2 === 0) {
+      cw = Math.min(cw, 2);
+      startExits.push(cw);
+    }
     corridor(rooms[r1][c1], rooms[r2][c2], cw);
   };
   while (stack.length) {
@@ -213,7 +216,7 @@ function makeRooms(seed, attempt) {
     list.forEach((a, i) => {
       const touches = horizontal ? a.x + a.w >= hw : a.y + a.h >= hh;
       if (touches || any && rng() < 0.5 && i !== list.length - 1) return;
-      const cw = WIDTHS[Math.floor(rng() * WIDTHS.length)];
+      const cw = a === rooms[0][0] ? Math.min(2, WIDTHS[Math.floor(rng() * WIDTHS.length)]) : WIDTHS[Math.floor(rng() * WIDTHS.length)];
       if (horizontal) carve({ x: a.x + a.w, y: randInt(rng, a.y, a.y + a.h - Math.min(cw, a.h)), w: hw - (a.x + a.w), h: cw });
       else carve({ x: randInt(rng, a.x, a.x + a.w - Math.min(cw, a.w)), y: a.y + a.h, w: cw, h: hh - (a.y + a.h) });
       any = true;
@@ -248,7 +251,8 @@ function makeRooms(seed, attempt) {
   for (const s of starts) if (!reach[(s.y + 1) * w + s.x + 1]) return null;
   for (const sp of spawns) if (!reach[sp.y * w + sp.x]) return null;
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
-  return { w, h, terrain, spawns, starts };
+  const allRooms = rooms.flat().flatMap(startsFrom);
+  return { w, h, terrain, spawns, starts, rooms: allRooms };
 }
 
 // src/sim/world.ts
@@ -366,8 +370,9 @@ var World = class {
       cellCount: 0,
       executed: 0,
       spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 },
-      home: room
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
+      home: room,
+      roomsSeen: /* @__PURE__ */ new Set()
     };
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     for (const c of spec.cells) {
@@ -556,12 +561,34 @@ var World = class {
     }
     for (const wr of this.warriors) {
       if (!wr.alive) continue;
-      const hm = wr.home;
-      if (wr.leftHomeAt === void 0 && (wr.ipX < hm.x || wr.ipY < hm.y || wr.ipX >= hm.x + hm.w || wr.ipY >= hm.y + hm.h)) {
-        wr.leftHomeAt = this.t;
-        this.log("left", `${wr.name} left its start room`, wr.id);
+      const cells = this.cellSets.get(wr.id);
+      if (cells) {
+        const hm = wr.home;
+        let home = 0, narrow = 0, x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
+        for (const c of cells) {
+          const x = c % this.w, y = c / this.w | 0;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+          if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
+          if (this.narrow[c]) narrow++;
+        }
+        if (wr.leftHomeAt === void 0 && home === 0 && cells.size > 0) {
+          wr.leftHomeAt = this.t;
+          this.log("left", `${wr.name} left its start room (whole body)`, wr.id);
+        }
+        if (cells.size >= 4 && 2 * narrow >= cells.size) wr.stats.squeezed++;
+        if (home === 0) {
+          this.board.rooms.forEach((r, k) => {
+            if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) return;
+            if (r.x === hm.x && r.y === hm.y) return;
+            wr.roomsSeen.add(k);
+            wr.stats.rooms++;
+            this.log("room", `${wr.name} moved its whole body into another room`, wr.id);
+          });
+        }
       }
-      if (this.narrow[wr.ipY * this.w + wr.ipX]) wr.stats.squeezed++;
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
@@ -1213,7 +1240,8 @@ var World = class {
       executed: 0,
       spec: wr.spec,
       home: wr.home,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 }
+      roomsSeen: new Set(wr.roomsSeen),
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);
@@ -1264,13 +1292,13 @@ var files = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]
 var N = opt("seeds", 20);
 var TICKS = opt("ticks", 3e3);
 CONFIG.tickCap = TICKS;
-console.log(`Solo probe: ${N} boards, ${TICKS} ticks. Per game: pickups, oozes, flows, grows; peak and final body (cells); boards where it left home / squeezed through a \u22642-wide passage / survived
+console.log(`Solo probe: ${N} boards, ${TICKS} ticks. Per game: pickups, oozes, flows, grows; peak and final body (cells); boards where its whole body left home / was mostly inside a \u22642-wide passage / got wholly into another room / survived
 `);
 var pad = (s, n) => String(s).padStart(n);
-console.log(`${"warrior".padEnd(24)}${pad("pickups", 8)}${pad("oozes", 7)}${pad("flows", 7)}${pad("grows", 7)}${pad("peak", 6)}${pad("final", 6)}${pad("left", 6)}${pad("squeeze", 8)}${pad("alive", 6)}`);
+console.log(`${"warrior".padEnd(24)}${pad("pickups", 8)}${pad("oozes", 7)}${pad("flows", 7)}${pad("grows", 7)}${pad("peak", 6)}${pad("final", 6)}${pad("left", 6)}${pad("squeeze", 8)}${pad("room", 6)}${pad("alive", 6)}`);
 for (const f of files) {
   const spec = parseWarrior(readFileSync(f, "utf8"), basename(f, ".warrior"));
-  const t = { pickups: 0, oozes: 0, flows: 0, grows: 0, peak: 0, final: 0, left: 0, squeezed: 0, alive: 0 };
+  const t = { pickups: 0, oozes: 0, flows: 0, grows: 0, peak: 0, final: 0, left: 0, squeezed: 0, room: 0, alive: 0 };
   for (let seed = 1; seed <= N; seed++) {
     const w = new World(seed, [spec]);
     let peak = 0;
@@ -1290,9 +1318,10 @@ for (const f of files) {
     t.final += team.reduce((a, x) => a + (x.alive ? x.cellCount : 0), 0);
     if (team.some((x) => x.leftHomeAt !== void 0)) t.left++;
     if (team.some((x) => x.stats.squeezed > 0)) t.squeezed++;
+    if (team.some((x) => x.stats.rooms > 0)) t.room++;
     if (team.some((x) => x.alive)) t.alive++;
   }
   const per = (v) => (v / N).toFixed(1);
-  console.log(`${spec.name.slice(0, 23).padEnd(24)}${pad(per(t.pickups), 8)}${pad(per(t.oozes), 7)}${pad(per(t.flows), 7)}${pad(per(t.grows), 7)}${pad(per(t.peak), 6)}${pad(per(t.final), 6)}${pad(`${t.left}/${N}`, 6)}${pad(`${t.squeezed}/${N}`, 8)}${pad(`${t.alive}/${N}`, 6)}`);
+  console.log(`${spec.name.slice(0, 23).padEnd(24)}${pad(per(t.pickups), 8)}${pad(per(t.oozes), 7)}${pad(per(t.flows), 7)}${pad(per(t.grows), 7)}${pad(per(t.peak), 6)}${pad(per(t.final), 6)}${pad(`${t.left}/${N}`, 6)}${pad(`${t.squeezed}/${N}`, 8)}${pad(`${t.room}/${N}`, 6)}${pad(`${t.alive}/${N}`, 6)}`);
 }
 //# sourceMappingURL=probe.mjs.map

@@ -40,7 +40,7 @@ interface Elite {
   fitness: number; wins: number; games: number;
   scoreSum: number; // fitness = scoreSum / games, over every game it has played (re-evaluations add up)
   desc: { weapon: number; economy: number; mobility: number };
-  stats: { hitsPerGame: number; poisonsPerGame: number; collectedPerGame: number; leftRate: number; morphPerGame: number; squeezeRate: number };
+  stats: { hitsPerGame: number; poisonsPerGame: number; collectedPerGame: number; leftRate: number; morphPerGame: number; squeezeRate: number; roomRate: number };
 }
 
 const bin = (v: number, bounds: number[]) => { let k = 0; while (k < bounds.length && v >= bounds[k]) k++; return k; };
@@ -54,6 +54,7 @@ function describe(rs: JobResult[]): Pick<Elite, 'desc' | 'stats'> {
   const leftRate = rs.filter((r) => r.left).length / n;
   const morph = rs.reduce((a, r) => a + r.morph, 0) / n;
   const squeezeRate = rs.filter((r) => r.squeezed).length / n;
+  const roomRate = rs.filter((r) => r.rooms > 0).length / n;
   const attacks = hits + poisons;
   const share = attacks > 0 ? poisons / attacks : 0;
   // Low bar for "armed": a budding poisoner at 0.1 writes/game should get its own slot to
@@ -62,9 +63,9 @@ function describe(rs: JobResult[]): Pick<Elite, 'desc' | 'stats'> {
   const weapon = attacks < 0.05 ? 0 : share < 0.2 ? 1 : share < 0.8 ? 2 : 3;
   return {
     desc: MORPH_AXES
-      ? { weapon, economy: bin(morph, ECONOMY), mobility: bin(squeezeRate, MOBILITY) }
+      ? { weapon, economy: bin(morph, ECONOMY), mobility: bin(roomRate, MOBILITY) }
       : { weapon, economy: bin(collected, ECONOMY), mobility: bin(leftRate, MOBILITY) },
-    stats: { hitsPerGame: hits, poisonsPerGame: poisons, collectedPerGame: collected, leftRate, morphPerGame: morph, squeezeRate },
+    stats: { hitsPerGame: hits, poisonsPerGame: poisons, collectedPerGame: collected, leftRate, morphPerGame: morph, squeezeRate, roomRate },
   };
 }
 
@@ -87,7 +88,7 @@ async function main() {
   const pool = new Runner(new ThreadPool(WORKERS), FARM);
   await pool.init();
   console.log(`map-elites ${NAME}: ${GENS} gens × ${BATCH} offspring, ${BOARDS} boards/gen, ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ''}`);
-  console.log(`niches: ${WEAPONS.length} weapon × ${ECONOMY.length + 1} ${MORPH_AXES ? 'shape change' : 'economy'} × ${MOBILITY.length + 1} ${MORPH_AXES ? 'squeeze' : 'mobility'} = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, '.warrior')).join(', ')}`);
+  console.log(`niches: ${WEAPONS.length} weapon × ${ECONOMY.length + 1} ${MORPH_AXES ? 'shape change' : 'economy'} × ${MOBILITY.length + 1} ${MORPH_AXES ? 'other room' : 'mobility'} = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, '.warrior')).join(', ')}`);
 
   const archive = new Map<string, Elite>();
   let serial = 0;
@@ -228,7 +229,7 @@ async function main() {
   saveArchive();
 
   // The map: best fitness per slot, one table per weapon class (rows economy, columns mobility).
-  console.log(MORPH_AXES ? '\nthe map (fitness per slot; rows = cells oozed/flowed/grown per game, columns = share of games it squeezed through a narrow passage):'
+  console.log(MORPH_AXES ? '\nthe map (fitness per slot; rows = cells oozed/flowed/grown per game, columns = share of games its whole body got into another room):'
     : '\nthe map (fitness per slot; rows = pickups/game, columns = share of games it left home):');
   const ecoLabels = MORPH_AXES ? ['0–1', '1–10', '10–50', '50–200', '200+'] : ['0–½', '½–1', '1–2', '2–4', '4+'], mobLabels = ['0–¼', '¼–½', '½–¾', '¾–1'];
   WEAPONS.forEach((w, wi) => {
@@ -257,10 +258,10 @@ async function main() {
     writeFileSync(join(outDir, `${name}.warrior`), toText(e.g, name, [
       `map-elites run ${NAME}, slot ${keyOf(e.desc)} (${w}), was ${e.name} (gen ${e.gen}, parents ${e.parents})`,
       `fitness ${e.fitness.toFixed(2)}; ${e.wins}W of ${e.games}; per game: ${e.stats.hitsPerGame.toFixed(2)} bomb hits, ${e.stats.poisonsPerGame.toFixed(2)} poison writes, ${e.stats.collectedPerGame.toFixed(2)} pickups; left home in ${(100 * e.stats.leftRate).toFixed(0)}% of games`,
-      `shape changes ${e.stats.morphPerGame.toFixed(1)} cells/game; squeezed through a narrow passage in ${(100 * e.stats.squeezeRate).toFixed(0)}% of games`,
+      `shape changes ${e.stats.morphPerGame.toFixed(1)} cells/game; squeezed into a narrow passage in ${(100 * e.stats.squeezeRate).toFixed(0)}% of games; whole body into another room in ${(100 * e.stats.roomRate).toFixed(0)}%`,
     ]));
     if (!manifest.includes(`${name}.warrior`)) manifest.push(`${name}.warrior`);
-    console.log(`  ${name.padEnd(20)} fitness ${e.fitness.toFixed(2)}  ${e.stats.hitsPerGame.toFixed(2)} hits, ${e.stats.poisonsPerGame.toFixed(2)} poison, ${e.stats.collectedPerGame.toFixed(2)} pickups /game, left home ${(100 * e.stats.leftRate).toFixed(0)}%, morph ${e.stats.morphPerGame.toFixed(0)}/game, squeezed ${(100 * e.stats.squeezeRate).toFixed(0)}%`);
+    console.log(`  ${name.padEnd(20)} fitness ${e.fitness.toFixed(2)}  ${e.stats.hitsPerGame.toFixed(2)} hits, ${e.stats.poisonsPerGame.toFixed(2)} poison, ${e.stats.collectedPerGame.toFixed(2)} pickups /game, left home ${(100 * e.stats.leftRate).toFixed(0)}%, morph ${e.stats.morphPerGame.toFixed(0)}/game, squeezed ${(100 * e.stats.squeezeRate).toFixed(0)}%, other room ${(100 * e.stats.roomRate).toFixed(0)}%`);
   });
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   pool.close();

@@ -80,11 +80,13 @@ export interface Warrior {
     // Self-modification: writes into my own cells (that changed a glyph), cells grown, swaps, flows.
     selfWrites: number; grows: number; swaps: number; flows: number;
     oozes: number;
-    squeezed: number; // ticks the IP spent in a narrow passage (≤ 2 wide)
+    rooms: number;    // rooms (not its start room) its whole body has been inside, each counted once
+    squeezed: number; // ticks with at least half of a 4+ cell body inside narrow passages (≤ 2 wide)
   };
   lastHarm?: { by: number; t: number }; // who last bombed or wrote into me, and when
   home: { x: number; y: number; w: number; h: number }; // start room
-  leftHomeAt?: number; // first tick the IP was outside the start room
+  leftHomeAt?: number; // first tick no cell of the body was in the start room
+  roomsSeen: Set<number>; // board.rooms indices its whole body has been inside (children inherit a copy)
   deathReason?: string;
   diedAt?: number;
   spec: WarriorSpec;
@@ -153,7 +155,7 @@ export class World {
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 }, home: room,
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }, home: room, roomsSeen: new Set(),
     };
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     for (const c of spec.cells) {
@@ -341,12 +343,32 @@ export class World {
     // Upkeep: decay toward floors; shed cells if over max size.
     for (const wr of this.warriors) {
       if (!wr.alive) continue;
-      const hm = wr.home;
-      if (wr.leftHomeAt === undefined && (wr.ipX < hm.x || wr.ipY < hm.y || wr.ipX >= hm.x + hm.w || wr.ipY >= hm.y + hm.h)) {
-        wr.leftHomeAt = this.t;
-        this.log('left', `${wr.name} left its start room`, wr.id);
+      // Whole-body measures: a tip poking into a corridor mouth is neither leaving nor squeezing.
+      const cells = this.cellSets.get(wr.id);
+      if (cells) {
+        const hm = wr.home;
+        let home = 0, narrow = 0, x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
+        for (const c of cells) {
+          const x = c % this.w, y = (c / this.w) | 0;
+          if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+          if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
+          if (this.narrow[c]) narrow++;
+        }
+        if (wr.leftHomeAt === undefined && home === 0 && cells.size > 0) {
+          wr.leftHomeAt = this.t;
+          this.log('left', `${wr.name} left its start room (whole body)`, wr.id);
+        }
+        if (cells.size >= 4 && 2 * narrow >= cells.size) wr.stats.squeezed++;
+        if (home === 0) {
+          this.board.rooms.forEach((r, k) => {
+            if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) return;
+            if (r.x === hm.x && r.y === hm.y) return;
+            wr.roomsSeen.add(k);
+            wr.stats.rooms++;
+            this.log('room', `${wr.name} moved its whole body into another room`, wr.id);
+          });
+        }
       }
-      if (this.narrow[wr.ipY * this.w + wr.ipX]) wr.stats.squeezed++;
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
@@ -863,8 +885,8 @@ export class World {
       id, lineage: wr.lineage, gen: wr.gen + 1, parent: wr.id, born: this.t, name: `${founder.name}·${born}`, alive: true,
       ipX: wr.ipX + ox, ipY: wr.ipY + oy, ox: wr.ox + ox, oy: wr.oy + oy, dir: wr.dir,
       stack: [], maxSize: wr.maxSize / 2, speed: wr.speed, accum: 0, lastOk: true, lastAct: '',
-      cellCount: 0, executed: 0, spec: wr.spec, home: wr.home,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 },
+      cellCount: 0, executed: 0, spec: wr.spec, home: wr.home, roomsSeen: new Set(wr.roomsSeen),
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);

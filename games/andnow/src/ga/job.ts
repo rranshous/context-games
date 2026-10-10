@@ -10,7 +10,8 @@ export interface JobResult {
   // Playstyle, for quality-diversity search: what this side did in the match.
   hits: number; poisons: number; collected: number; left: boolean;
   morph: number;     // shape changes: cells oozed, flowed or grown
-  squeezed: boolean; // went through a passage ≤ 2 wide
+  squeezed: boolean; // the body was mostly inside a passage ≤ 2 wide at some point
+  rooms: number;     // other rooms its whole body got into (each counted once per member)
 }
 
 export function runJob(j: Job): JobResult {
@@ -28,7 +29,7 @@ export function runJob(j: Job): JobResult {
       stats: {
         collected: sum((x) => x.stats.collected), bombHits: sum((x) => x.stats.bombHits),
         poisonWrites: sum((x) => x.stats.poisonWrites), kills: sum((x) => x.stats.kills),
-        morph: sum((x) => x.stats.oozes + x.stats.flows + x.stats.grows), squeezed: sum((x) => x.stats.squeezed),
+        morph: sum((x) => x.stats.oozes + x.stats.flows + x.stats.grows), squeezed: sum((x) => x.stats.squeezed), rooms: sum((x) => x.stats.rooms),
       },
     };
     const r = world.result;
@@ -40,16 +41,17 @@ export function runJob(j: Job): JobResult {
     score += Math.min(1, 0.1 * w.stats.bombHits);
     score += Math.min(1, 0.25 * w.stats.poisonWrites);
     score += Math.min(1, 0.5 * w.stats.kills);
+    score += Math.min(1, 0.5 * w.stats.rooms); // getting the whole body somewhere else
     score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
     return {
       score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
       kill: world.warriors.some((x) => x.gen === 0 && !world.warriors.some((y) => y.lineage === x.lineage && y.alive)), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
       collected: w.stats.collected, left: w.leftHomeAt !== undefined,
-      morph: w.stats.morph, squeezed: w.stats.squeezed > 0,
+      morph: w.stats.morph, squeezed: w.stats.squeezed > 0, rooms: w.stats.rooms,
     };
   } catch {
     // e.g. doesn't fit the start room
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false, morph: 0, squeezed: false };
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false, morph: 0, squeezed: false, rooms: 0 };
   }
 }
 

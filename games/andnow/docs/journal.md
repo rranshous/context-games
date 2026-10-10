@@ -1060,3 +1060,29 @@ and morph1-ooze. Run killed and kept as `runs/morph2-split`; morph2 restarted fr
 - Kept existing warrior files valid (no trimming). Golden re-recorded (1555 matches),
   canary 54 cases.
 - morph3: seeded from morph2's archive, same axes, benchmarks = morph2 showcases + map4-none.
+
+### The "left home" and "squeezed" stats were wrong (caught by the user, watching)
+Watching matches in the UI, the user saw no warrior ever fully leave its room: a tip of
+the body pokes into a corridor mouth as it wanders, nothing more. They were right:
+- "left home" fired when the **IP** was outside the start room; "squeezed" when the
+  **IP** stood on a narrow cell. A body poking one cell into a corridor counted for both.
+  So every "left home 97%" / "squeezed 50%" since map1, and the squeeze axis of morph1–3,
+  measured tips, not travel. The morph1/morph2 conclusions about squeezing are void.
+- Fixed to whole-body measures: **left home** = no cell of the body in the start room;
+  **squeezed** = at least half of a 4+ cell body inside ≤ 2-wide passages.
+- Re-probed (narrow boards, 20 boards, 5000 ticks): morph2/map4 warriors fully leave on
+  5–8/20 boards and are never mostly inside a narrow passage (0/20). Only the hand-made
+  6-cell Oozer really threads corridors (5/20 squeezed, 9/20 left).
+
+### Making travel the point
+- **Every exit from the start room is 1–2 wide** (start-room links capped at 2; the start
+  room never stretches to merge with its mirror; axis crossings from it capped at 2).
+  Getting anywhere now means threading a corridor.
+- **"Entered another room" (the user's suggestion)**: boards keep their room rects; a
+  warrior counts a room once its whole body (bounding box) is inside a room other than its
+  start room. Children inherit the parent's set (so DIVIDE can't double-count). Fitness
+  gets +0.5 per room, up to +1. The MAP-Elites morph axes now use the share of games
+  with a room entered instead of the squeeze rate.
+- Probe after: morph2/map4 warriors get wholly into another room on 3/20 boards; Oozer
+  9/20, Blob 3/20. morph3 (old metric) stopped at gen ~100, kept as runs/morph3-badmetric.
+- morph4: from morph2's archive + Oozer/Blob seeds, 400 gens.
