@@ -41,6 +41,7 @@ if (PETRI) {
   CONFIG.spawnInterval = Number(params.get('spawn') ?? 40);
   CONFIG.copyError = Number(params.get('error') ?? 0.05);
   CONFIG.tickCap = 1e9;
+  CONFIG.endless = true;
 }
 const initial = (params.get('w') ?? (PETRI ? 'amoeba' : 'bomber,stalker')).split(',');
 seedEl.value = params.get('seed') ?? '1';

@@ -22,6 +22,7 @@ CONFIG.spawnInterval = opt('spawn', 40);
 CONFIG.copyError = opt('error', 0.02);
 CONFIG.lifespan = opt('life', 6000);
 CONFIG.tickCap = TICKS + 1;
+CONFIG.endless = true;
 
 // Several replicators = several lineages competing in one dish (each starts in its own corner).
 const specs = files.map((f) => parseWarrior(readFileSync(f, 'utf8'), basename(f, '.warrior')));

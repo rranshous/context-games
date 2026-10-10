@@ -823,3 +823,21 @@ Also: `warriors/amoeba.warrior` is the 7-cell replicator (bundled in the viewer)
   from the current archive and sent out while the last one's stragglers finish, so the
   farm doesn't go idle at generation boundaries. (map2 was already running on the old
   code, so it still shows gaps.)
+
+### Petri dish, continued
+- Viewer: **petri dish mode** (`?petri=1`, or the "Petri dish" button): same rules as
+  `dist/petri.mjs`, with a live panel of the most common living genomes (colored by
+  lineage, founder marked), births, deaths, generation depth. Seed 1 in the viewer matches
+  the headless run tick for tick (15 × `C7SyTMD` at t30000 in both).
+- `CONFIG.endless` (dish only): don't end when one lineage is left.
+- **Predators**: a replicating bomber, Hunter (`C2S$BTMD`). Alone it bombs its own newborn
+  copies (they appear right next to it, the nearest "enemy") and goes extinct by t6.5k.
+  With amoebas (seed 1): hunters died out early (cannibalism again), amoebas grew to 14,
+  then **the whole dish went extinct between t15k and t30k**: with a fixed lifespan a cohort
+  born together dies together, and a small population whose births stall in that window
+  empties. → **lifespans now vary per warrior** (50–150% of the setting, drawn at birth;
+  only when a lifespan is set, so normal matches are unchanged). Seed 1, cap 60: stable at
+  ~22–25 alive through t150k, generation 64.
+- Most boards don't work for this amoeba: it can only divide east, and from the middle of
+  its start room there's no room to the east; its max size decays below what dividing
+  needs (16) before it wanders somewhere useful. Seed 1 works; choose dish boards accordingly.

@@ -255,8 +255,10 @@ var CONFIG = {
   // DIVIDE fails once a match has this many warriors
   reaperCap: 0,
   // petri dish: with this many alive, a birth kills the oldest living warrior (0 = off)
-  lifespan: 0
-  // petri dish: warriors die of old age after this many ticks (0 = off)
+  lifespan: 0,
+  // petri dish: typical lifespan in ticks; each warrior's is 50–150% of it (0 = off)
+  endless: false
+  // petri dish: don't end when one lineage is left (only the tick cap ends it)
 };
 var World = class {
   constructor(seed, specs) {
@@ -317,6 +319,7 @@ var World = class {
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 },
       home: room
     };
+    if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
       if (!this.isFloor(x, y)) throw new Error(`${spec.name} does not fit in its start room`);
@@ -512,7 +515,7 @@ var World = class {
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
       if (wr.cellCount <= 0) this.kill(wr, "no cells left");
-      else if (CONFIG.lifespan > 0 && this.t - wr.born >= CONFIG.lifespan) this.kill(wr, "old age");
+      else if (wr.diesAt !== void 0 && this.t >= wr.diesAt) this.kill(wr, "old age");
     }
     this.checkOver();
   }
@@ -571,6 +574,7 @@ var World = class {
     let living = 0;
     for (const w of this.warriors) if (w.alive) living++;
     if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return;
+    if (CONFIG.endless && this.t < CONFIG.tickCap) return;
     const founders = this.warriors.filter((w) => w.gen === 0);
     const teams = /* @__PURE__ */ new Map();
     for (const w of this.warriors) if (w.alive) teams.set(w.lineage, [...teams.get(w.lineage) ?? [], w]);
@@ -1081,6 +1085,7 @@ var World = class {
       home: wr.home,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 }
     };
+    if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {

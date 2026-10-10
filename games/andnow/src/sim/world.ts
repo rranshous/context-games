@@ -45,7 +45,8 @@ export const CONFIG = {
   copyError: 0.02,      // DIVIDE: chance each copied cell becomes a random glyph
   maxWarriors: 64,      // DIVIDE fails once a match has this many warriors
   reaperCap: 0,         // petri dish: with this many alive, a birth kills the oldest living warrior (0 = off)
-  lifespan: 0,          // petri dish: warriors die of old age after this many ticks (0 = off)
+  lifespan: 0,          // petri dish: typical lifespan in ticks; each warrior's is 50–150% of it (0 = off)
+  endless: false,       // petri dish: don't end when one lineage is left (only the tick cap ends it)
 };
 
 export interface Warrior {
@@ -54,6 +55,7 @@ export interface Warrior {
   gen: number;    // 0 for founders, parent's + 1 for children of DIVIDE
   parent?: number;
   born: number;   // tick of birth (0 for founders)
+  diesAt?: number; // petri dish: death of old age (lifespan drawn at birth, 50–150% of CONFIG.lifespan)
   name: string;
   alive: boolean;
   ipX: number;
@@ -136,6 +138,7 @@ export class World {
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 }, home: room,
     };
+    if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
       if (!this.isFloor(x, y)) throw new Error(`${spec.name} does not fit in its start room`);
@@ -330,7 +333,7 @@ export class World {
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
       if (wr.cellCount <= 0) this.kill(wr, 'no cells left');
-      else if (CONFIG.lifespan > 0 && this.t - wr.born >= CONFIG.lifespan) this.kill(wr, 'old age');
+      else if (wr.diesAt !== undefined && this.t >= wr.diesAt) this.kill(wr, 'old age');
     }
 
     this.checkOver();
@@ -388,6 +391,7 @@ export class World {
     let living = 0;
     for (const w of this.warriors) if (w.alive) living++;
     if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return; // nothing to decide
+    if (CONFIG.endless && this.t < CONFIG.tickCap) return;
     // Lineages: each founder and everything it DIVIDEd into. Matches are won by lineages.
     const founders = this.warriors.filter((w) => w.gen === 0);
     const teams = new Map<number, Warrior[]>();
@@ -776,6 +780,7 @@ export class World {
       cellCount: 0, executed: 0, spec: wr.spec, home: wr.home,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 },
     };
+    if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
