@@ -1097,10 +1097,12 @@ function runJob(j) {
       loss: r.winner !== null && r.winner !== me,
       kill: world.warriors.some((x) => !x.alive),
       hits: w.stats.bombHits,
-      poisons: w.stats.poisonWrites
+      poisons: w.stats.poisonWrites,
+      collected: w.stats.collected,
+      left: w.leftHomeAt !== void 0
     };
   } catch {
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false };
   }
 }
 function runBatch(b) {

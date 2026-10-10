@@ -703,3 +703,33 @@ unlocked aimed bombing (evo4), the population has converged on that one motif an
 is only refining it. Getting further probably takes a change in pressure (bigger or more
 diverse populations, niches/speciation, longer matches) or in the game itself, not just
 more generations.
+
+---
+
+## Session 1, part 5: breaking the plateau with diversity (MAP-Elites)
+
+The farm grew again: two **Xboxes** (8 threads each, Edge) joined, for 35 browser threads
+plus this desktop's 8.
+
+User asked how BOMB works (answer: pop dx,dy in the body frame; target must be a foreign
+cell (enemy or debris) within 6, Chebyshev, of one of my cells that can see it; 4 cycles;
+destroys the cell; the IP's cell kills (+25% of the victim's size and speed); cut-off pieces
+become debris; the victim records the bomber as last harmer. No defense exists: no
+shields, no blocking LoS except walls, no repair) and chose option 1: change the
+selection pressure to keep diversity.
+
+**MAP-Elites** (`src/map-elites.ts` → `dist/map.mjs`): an archive with one slot per
+playstyle, each holding the best warrior found for it; offspring come from elites picked
+uniformly across filled slots and are filed into their slot if they beat the incumbent.
+Playstyle, averaged over an individual's games:
+- weapon: none (< 0.25 attacks/game) | bomber (poison < 20% of attacks) | mixed | poisoner (> 80%)
+- economy: pickups/game, bins 0–½, ½–1, 1–2, 2–4, 4+
+- mobility: share of games it left its home room, bins of ¼
+= 80 slots. Opponents: all benchmarks + 6 elites from the archive, rotating boards, plus FFAs.
+Ends by printing the map (fitness per slot) and writing the best of each weapon class to
+`warriors/evolved/<run>-<class>.warrior`.
+
+Plumbing: the thread pool + hybrid farm runner moved to `src/ga/runner.ts` (shared by
+evolve and map); `JobResult` now also reports pickups and whether the side left home
+(a new farm task, so every device re-ran its canary automatically). Golden replays still
+identical.

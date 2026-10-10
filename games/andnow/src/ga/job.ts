@@ -5,7 +5,11 @@ import { parseWarrior } from '../sim/warrior-file';
 
 /** A match: `warriors` in seat order, and which seat is the individual being scored. */
 export interface Job { warriors: string[]; me: number; seed: number; ticks: number }
-export interface JobResult { score: number; win: boolean; loss: boolean; kill: boolean; hits: number; poisons: number }
+export interface JobResult {
+  score: number; win: boolean; loss: boolean; kill: boolean;
+  // Playstyle, for quality-diversity search: what this side did in the match.
+  hits: number; poisons: number; collected: number; left: boolean;
+}
 
 export function runJob(j: Job): JobResult {
   const me = j.me;
@@ -26,10 +30,11 @@ export function runJob(j: Job): JobResult {
     return {
       score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
       kill: world.warriors.some((x) => !x.alive), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
+      collected: w.stats.collected, left: w.leftHomeAt !== undefined,
     };
   } catch {
     // e.g. doesn't fit the start room
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false };
   }
 }
 

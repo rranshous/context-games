@@ -1,8 +1,8 @@
 // src/evolve.ts
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync, appendFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, join } from "node:path";
-import { isMainThread, parentPort, Worker } from "node:worker_threads";
+import { isMainThread } from "node:worker_threads";
 
 // src/sim/glyphs.ts
 var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBW";
@@ -1217,6 +1217,130 @@ function crossover(a, b, rng) {
   return repair(child);
 }
 
+// src/sim/match.ts
+function runMatch(specs, seed, opts = {}) {
+  const prevCap = CONFIG.tickCap;
+  if (opts.tickCap) CONFIG.tickCap = opts.tickCap;
+  try {
+    const world = new World(seed, specs);
+    while (!world.result.over) {
+      world.tick();
+      opts.onTick?.(world);
+    }
+    return { world, summary: summarize(world) };
+  } finally {
+    CONFIG.tickCap = prevCap;
+  }
+}
+function summarize(world) {
+  return {
+    seed: world.seed,
+    ticks: world.t,
+    winner: world.result.winner === null ? null : world.warriors[world.result.winner].name,
+    reason: world.result.reason,
+    warriors: world.warriors.map((w) => ({
+      name: w.name,
+      alive: w.alive,
+      cells: w.cellCount,
+      executed: w.executed,
+      death: w.deathReason
+    }))
+  };
+}
+
+// src/sim/warrior-file.ts
+function parseWarrior(text, fallbackName = "warrior") {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const sep = lines.findIndex((l) => l.trim() === "---");
+  if (sep < 0) throw new Error(`${fallbackName}: missing '---' line between header and body`);
+  const header = {};
+  for (const l of lines.slice(0, sep)) {
+    if (!l.trim() || l.trim().startsWith("#")) continue;
+    const m = l.match(/^\s*(\w+)\s*:\s*(.*)$/);
+    if (m) header[m[1].toLowerCase()] = m[2].trim();
+  }
+  const grid = lines.slice(sep + 1);
+  while (grid.length && !grid[grid.length - 1].trim()) grid.pop();
+  const cells = [];
+  let width = 0;
+  grid.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === " ") continue;
+      if (!(ch in CODE)) throw new Error(`${fallbackName}: unknown glyph '${ch}' at ${x},${y}`);
+      cells.push({ x, y, code: CODE[ch] });
+      width = Math.max(width, x + 1);
+    }
+  });
+  if (!cells.length) throw new Error(`${fallbackName}: empty body`);
+  let ip = { x: cells[0].x, y: cells[0].y };
+  if (header.ip) {
+    const [x, y] = header.ip.split(/[\s,]+/).map(Number);
+    ip = { x, y };
+    if (!cells.some((c) => c.x === x && c.y === y)) throw new Error(`${fallbackName}: ip ${x},${y} is not a cell`);
+  }
+  const dir = header.dir ? DIR_NAMES.indexOf(header.dir.toUpperCase()) : 0;
+  if (dir < 0) throw new Error(`${fallbackName}: bad dir '${header.dir}'`);
+  return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
+}
+
+// src/ga/job.ts
+function runJob(j) {
+  const me = j.me;
+  try {
+    const specs = j.warriors.map((t) => parseWarrior(t));
+    const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
+    const w = world.warriors[me];
+    const r = world.result;
+    let score = 0;
+    if (r.winner === me) score = r.reason === "last standing" ? 3 : 2;
+    else if (r.winner === null) score = 1;
+    score += Math.min(0.5, 0.05 * w.stats.collected);
+    score += Math.min(1, 0.1 * w.stats.bombHits);
+    score += Math.min(1, 0.25 * w.stats.poisonWrites);
+    score += Math.min(1, 0.5 * w.stats.kills);
+    score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
+    return {
+      score,
+      win: r.winner === me,
+      loss: r.winner !== null && r.winner !== me,
+      kill: world.warriors.some((x) => !x.alive),
+      hits: w.stats.bombHits,
+      poisons: w.stats.poisonWrites,
+      collected: w.stats.collected,
+      left: w.leftHomeAt !== void 0
+    };
+  } catch {
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false };
+  }
+}
+function duel(a, b, seed, swap, ticks) {
+  return { warriors: swap ? [b, a] : [a, b], me: swap ? 1 : 0, seed, ticks };
+}
+function toBatches(jobs, size) {
+  const out = [];
+  for (let i = 0; i < jobs.length; i += size) {
+    const warriors = [];
+    const at = /* @__PURE__ */ new Map();
+    const ref = (t) => {
+      if (!at.has(t)) {
+        at.set(t, warriors.length);
+        warriors.push(t);
+      }
+      return at.get(t);
+    };
+    out.push({ warriors, jobs: jobs.slice(i, i + size).map((j) => ({ w: j.warriors.map(ref), me: j.me, seed: j.seed, ticks: j.ticks })) });
+  }
+  return out;
+}
+function runBatch(b) {
+  return b.jobs.map((j) => runJob({ warriors: j.w.map((k) => b.warriors[k]), me: j.me, seed: j.seed, ticks: j.ticks }));
+}
+
+// src/ga/runner.ts
+import { readFileSync } from "node:fs";
+import { parentPort, Worker } from "node:worker_threads";
+
 // ../../platforms/potluck/client.mjs
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 var Potluck = class _Potluck {
@@ -1362,125 +1486,10 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
   return { outputs, stats };
 }
 
-// src/sim/match.ts
-function runMatch(specs, seed, opts = {}) {
-  const prevCap = CONFIG.tickCap;
-  if (opts.tickCap) CONFIG.tickCap = opts.tickCap;
-  try {
-    const world = new World(seed, specs);
-    while (!world.result.over) {
-      world.tick();
-      opts.onTick?.(world);
-    }
-    return { world, summary: summarize(world) };
-  } finally {
-    CONFIG.tickCap = prevCap;
-  }
+// src/ga/runner.ts
+function serveBatches() {
+  parentPort.on("message", (batch) => parentPort.postMessage(runBatch(batch)));
 }
-function summarize(world) {
-  return {
-    seed: world.seed,
-    ticks: world.t,
-    winner: world.result.winner === null ? null : world.warriors[world.result.winner].name,
-    reason: world.result.reason,
-    warriors: world.warriors.map((w) => ({
-      name: w.name,
-      alive: w.alive,
-      cells: w.cellCount,
-      executed: w.executed,
-      death: w.deathReason
-    }))
-  };
-}
-
-// src/sim/warrior-file.ts
-function parseWarrior(text, fallbackName = "warrior") {
-  const lines = text.replace(/\r/g, "").split("\n");
-  const sep = lines.findIndex((l) => l.trim() === "---");
-  if (sep < 0) throw new Error(`${fallbackName}: missing '---' line between header and body`);
-  const header = {};
-  for (const l of lines.slice(0, sep)) {
-    if (!l.trim() || l.trim().startsWith("#")) continue;
-    const m = l.match(/^\s*(\w+)\s*:\s*(.*)$/);
-    if (m) header[m[1].toLowerCase()] = m[2].trim();
-  }
-  const grid = lines.slice(sep + 1);
-  while (grid.length && !grid[grid.length - 1].trim()) grid.pop();
-  const cells = [];
-  let width = 0;
-  grid.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) {
-      const ch = row[x];
-      if (ch === " ") continue;
-      if (!(ch in CODE)) throw new Error(`${fallbackName}: unknown glyph '${ch}' at ${x},${y}`);
-      cells.push({ x, y, code: CODE[ch] });
-      width = Math.max(width, x + 1);
-    }
-  });
-  if (!cells.length) throw new Error(`${fallbackName}: empty body`);
-  let ip = { x: cells[0].x, y: cells[0].y };
-  if (header.ip) {
-    const [x, y] = header.ip.split(/[\s,]+/).map(Number);
-    ip = { x, y };
-    if (!cells.some((c) => c.x === x && c.y === y)) throw new Error(`${fallbackName}: ip ${x},${y} is not a cell`);
-  }
-  const dir = header.dir ? DIR_NAMES.indexOf(header.dir.toUpperCase()) : 0;
-  if (dir < 0) throw new Error(`${fallbackName}: bad dir '${header.dir}'`);
-  return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
-}
-
-// src/ga/job.ts
-function runJob(j) {
-  const me = j.me;
-  try {
-    const specs = j.warriors.map((t) => parseWarrior(t));
-    const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
-    const w = world.warriors[me];
-    const r = world.result;
-    let score = 0;
-    if (r.winner === me) score = r.reason === "last standing" ? 3 : 2;
-    else if (r.winner === null) score = 1;
-    score += Math.min(0.5, 0.05 * w.stats.collected);
-    score += Math.min(1, 0.1 * w.stats.bombHits);
-    score += Math.min(1, 0.25 * w.stats.poisonWrites);
-    score += Math.min(1, 0.5 * w.stats.kills);
-    score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
-    return {
-      score,
-      win: r.winner === me,
-      loss: r.winner !== null && r.winner !== me,
-      kill: world.warriors.some((x) => !x.alive),
-      hits: w.stats.bombHits,
-      poisons: w.stats.poisonWrites
-    };
-  } catch {
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0 };
-  }
-}
-function duel(a, b, seed, swap, ticks) {
-  return { warriors: swap ? [b, a] : [a, b], me: swap ? 1 : 0, seed, ticks };
-}
-function toBatches(jobs, size) {
-  const out = [];
-  for (let i = 0; i < jobs.length; i += size) {
-    const warriors = [];
-    const at = /* @__PURE__ */ new Map();
-    const ref = (t) => {
-      if (!at.has(t)) {
-        at.set(t, warriors.length);
-        warriors.push(t);
-      }
-      return at.get(t);
-    };
-    out.push({ warriors, jobs: jobs.slice(i, i + size).map((j) => ({ w: j.warriors.map(ref), me: j.me, seed: j.seed, ticks: j.ticks })) });
-  }
-  return out;
-}
-function runBatch(b) {
-  return b.jobs.map((j) => runJob({ warriors: j.w.map((k) => b.warriors[k]), me: j.me, seed: j.seed, ticks: j.ticks }));
-}
-
-// src/evolve.ts
 var ThreadPool = class {
   free;
   waiting = [];
@@ -1556,6 +1565,8 @@ var Runner = class {
     this.threads.close();
   }
 };
+
+// src/evolve.ts
 async function main() {
   const args = process.argv.slice(2);
   const opt = (k, d) => {
@@ -1573,7 +1584,7 @@ async function main() {
   const runDir = join("runs", NAME);
   mkdirSync(runDir, { recursive: true });
   const benchFiles = str("bench", "warriors").split(",").flatMap((p) => p.endsWith(".warrior") ? [p] : readdirSync(p).filter((f) => f.endsWith(".warrior")).sort().map((f) => join(p, f)));
-  const bench = benchFiles.map((f) => readFileSync(f, "utf8"));
+  const bench = benchFiles.map((f) => readFileSync2(f, "utf8"));
   const benchNames = benchFiles.map((f) => basename(f, ".warrior"));
   const hallOfFame = [];
   let serial = 0;
@@ -1709,7 +1720,7 @@ held-out check (10 boards \xD7 ${bench.length} benchmarks):`);
   const outDir = join("warriors", "evolved");
   mkdirSync(outDir, { recursive: true });
   const manifestPath = join(outDir, "manifest.json");
-  const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : [];
+  const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync2(manifestPath, "utf8")) : [];
   scored.slice(0, 3).forEach((s, i) => {
     const name = `${NAME}-${i + 1}`;
     const file = `${name}.warrior`;
@@ -1725,7 +1736,7 @@ held-out check (10 boards \xD7 ${bench.length} benchmarks):`);
 wrote top 3 to ${outDir}/, log in ${runDir}/`);
 }
 if (!isMainThread) {
-  parentPort.on("message", (batch) => parentPort.postMessage(runBatch(batch)));
+  serveBatches();
 } else {
   main().catch((e) => {
     console.error(e);
