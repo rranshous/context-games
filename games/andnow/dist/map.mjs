@@ -5,7 +5,7 @@ import { basename, join } from "node:path";
 import { isMainThread } from "node:worker_threads";
 
 // src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWD";
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDA";
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
 var DX = [1, 0, -1, 0];
@@ -272,6 +272,18 @@ var World = class {
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
+    this.narrow = new Uint8Array(this.w * this.h);
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!this.isFloor(x, y)) continue;
+        let a = x, b = x, c = y, d = y;
+        while (this.isFloor(a - 1, y)) a--;
+        while (this.isFloor(b + 1, y)) b++;
+        while (this.isFloor(x, c - 1)) c--;
+        while (this.isFloor(x, d + 1)) d++;
+        if (b - a < 2 || d - c < 2) this.narrow[this.idx(x, y)] = 1;
+      }
+    }
     specs.forEach((s, i) => this.place(s, i));
   }
   board;
@@ -281,6 +293,8 @@ var World = class {
   code;
   resource;
   // 0 none, 1 size, 2 speed
+  /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
+  narrow;
   warriors = [];
   t = 0;
   rng;
@@ -316,7 +330,7 @@ var World = class {
       cellCount: 0,
       executed: 0,
       spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 },
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 },
       home: room
     };
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
@@ -511,6 +525,7 @@ var World = class {
         wr.leftHomeAt = this.t;
         this.log("left", `${wr.name} left its start room`, wr.id);
       }
+      if (this.narrow[wr.ipY * this.w + wr.ipX]) wr.stats.squeezed++;
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
@@ -793,6 +808,9 @@ var World = class {
       case "M":
         wr.lastOk = this.opShift(wr, this.pop(wr));
         break;
+      case "A":
+        wr.lastOk = this.opOoze(wr, this.pop(wr));
+        break;
       case "F": {
         const d = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr);
         wr.lastOk = this.opFlow(wr, dx, dy, d);
@@ -832,7 +850,7 @@ var World = class {
         if (g >= "0" && g <= "9") this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
-    if ("MFXGCBWD".includes(g)) wr.lastAct = g;
+    if ("MFXGCBWDA".includes(g)) wr.lastAct = g;
     if (!wr.alive) return cost;
     this.advance(wr);
     if (skip) this.advance(wr);
@@ -939,6 +957,82 @@ var World = class {
     wr.ox += DX[d];
     wr.oy += DY[d];
     return true;
+  }
+  /**
+   * OOZE: amoeboid movement, one cell at a time. My rearmost cell (least far along d) that
+   * can leave without splitting the body moves, code and all, to the free floor touching
+   * the rest of the body that is farthest along d (ties: nearest my body's middle across
+   * d). It must end up farther along d than it was. Repeated, a body pours itself through
+   * any gap, its program rearranged on the way. The IP and the frame origin ride the cell
+   * under them.
+   */
+  opOoze(wr, d) {
+    d = (d % 4 + 4) % 4;
+    const id = wr.id, w = this.w;
+    const mine = this.cellsOf(id);
+    if (mine.length < 2) return this.opShift(wr, d);
+    const along = (c) => c % w * DX[d] + (c / w | 0) * DY[d];
+    const across = (c) => c % w * DY[d] - (c / w | 0) * DX[d];
+    let mid = 0;
+    for (const c of mine) mid += across(c);
+    mid /= mine.length;
+    const order = mine.slice().sort((a, b) => along(a) - along(b) || a - b);
+    const mineSet = this.cellSets.get(id);
+    for (const src of order) {
+      const rest = mine.length - 1;
+      const start = mine[0] === src ? mine[1] : mine[0];
+      const seen = /* @__PURE__ */ new Set([start]);
+      const queue = [start];
+      while (queue.length) {
+        const c = queue.pop();
+        const x = c % w, y = c / w | 0;
+        for (let k = 0; k < 4; k++) {
+          const nx = x + DX[k], ny = y + DY[k];
+          if (!this.inBounds(nx, ny)) continue;
+          const n = ny * w + nx;
+          if (n !== src && mineSet.has(n) && !seen.has(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      if (seen.size !== rest) continue;
+      let best = -1, bestAlong = along(src), bestAcross = Infinity;
+      for (const c of mine) {
+        if (c === src) continue;
+        const x = c % w, y = c / w | 0;
+        for (let k = 0; k < 4; k++) {
+          const nx = x + DX[k], ny = y + DY[k];
+          if (!this.isFree(nx, ny)) continue;
+          const t = ny * w + nx;
+          const a = along(t), off = Math.abs(across(t) - mid);
+          if (a > bestAlong || a === bestAlong && best >= 0 && (off < bestAcross || off === bestAcross && t < best)) {
+            if (a > along(src)) {
+              best = t;
+              bestAlong = a;
+              bestAcross = off;
+            }
+          }
+        }
+      }
+      if (best < 0) return false;
+      this.setOwner(best, id);
+      this.code[best] = this.code[src];
+      this.setOwner(src, NONE);
+      this.code[src] = 0;
+      const bx = best % w, by = best / w | 0, sx = src % w, sy = src / w | 0;
+      if (wr.ipX === sx && wr.ipY === sy) {
+        wr.ipX = bx;
+        wr.ipY = by;
+      }
+      if (wr.ox === sx && wr.oy === sy) {
+        wr.ox = bx;
+        wr.oy = by;
+      }
+      wr.stats.oozes++;
+      return true;
+    }
+    return false;
   }
   opFlow(wr, dx, dy, d) {
     d = (d % 4 + 4) % 4;
@@ -1083,7 +1177,7 @@ var World = class {
       executed: 0,
       spec: wr.spec,
       home: wr.home,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 }
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 }
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);
@@ -1167,7 +1261,8 @@ var WEIGHTS = {
   G: 0.8,
   C: 2,
   B: 1.5,
-  W: 1.5
+  W: 1.5,
+  A: 2
 };
 for (let d = 0; d <= 9; d++) WEIGHTS[String(d)] = 0.35;
 var TABLE = [...GLYPHS].map((g, i) => [i, WEIGHTS[g] ?? 0.3]);
@@ -1413,7 +1508,9 @@ function runJob(j) {
         collected: sum((x) => x.stats.collected),
         bombHits: sum((x) => x.stats.bombHits),
         poisonWrites: sum((x) => x.stats.poisonWrites),
-        kills: sum((x) => x.stats.kills)
+        kills: sum((x) => x.stats.kills),
+        morph: sum((x) => x.stats.oozes + x.stats.flows + x.stats.grows),
+        squeezed: sum((x) => x.stats.squeezed)
       }
     };
     const r = world.result;
@@ -1433,10 +1530,12 @@ function runJob(j) {
       hits: w.stats.bombHits,
       poisons: w.stats.poisonWrites,
       collected: w.stats.collected,
-      left: w.leftHomeAt !== void 0
+      left: w.leftHomeAt !== void 0,
+      morph: w.stats.morph,
+      squeezed: w.stats.squeezed > 0
     };
   } catch {
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false };
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false, morph: 0, squeezed: false };
   }
 }
 function duel(a, b, seed, swap, ticks) {
@@ -1697,7 +1796,8 @@ var Runner = class {
 
 // src/map-elites.ts
 var WEAPONS = ["none", "bomber", "mixed", "poisoner"];
-var ECONOMY = [0.5, 1, 2, 4];
+var MORPH_AXES = process.argv.includes("--axes") && process.argv[process.argv.indexOf("--axes") + 1] === "morph";
+var ECONOMY = MORPH_AXES ? [1, 10, 50, 200] : [0.5, 1, 2, 4];
 var MOBILITY = [0.25, 0.5, 0.75];
 var bin = (v, bounds) => {
   let k = 0;
@@ -1711,12 +1811,14 @@ function describe(rs) {
   const poisons = rs.reduce((a, r) => a + r.poisons, 0) / n;
   const collected = rs.reduce((a, r) => a + r.collected, 0) / n;
   const leftRate = rs.filter((r) => r.left).length / n;
+  const morph = rs.reduce((a, r) => a + r.morph, 0) / n;
+  const squeezeRate = rs.filter((r) => r.squeezed).length / n;
   const attacks = hits + poisons;
   const share = attacks > 0 ? poisons / attacks : 0;
   const weapon = attacks < 0.05 ? 0 : share < 0.2 ? 1 : share < 0.8 ? 2 : 3;
   return {
-    desc: { weapon, economy: bin(collected, ECONOMY), mobility: bin(leftRate, MOBILITY) },
-    stats: { hitsPerGame: hits, poisonsPerGame: poisons, collectedPerGame: collected, leftRate }
+    desc: MORPH_AXES ? { weapon, economy: bin(morph, ECONOMY), mobility: bin(squeezeRate, MOBILITY) } : { weapon, economy: bin(collected, ECONOMY), mobility: bin(leftRate, MOBILITY) },
+    stats: { hitsPerGame: hits, poisonsPerGame: poisons, collectedPerGame: collected, leftRate, morphPerGame: morph, squeezeRate }
   };
 }
 async function main() {
@@ -1732,6 +1834,7 @@ async function main() {
   const GENS = opt("gens", 200), BATCH = opt("batch", 256), REEVAL = opt("reeval", 64), OVERLAP = opt("overlap", 2), SEEDS = opt("seeds", 2), BOARDS = opt("boards", 6);
   const TICKS = opt("ticks", 3e3), PEERS = opt("peers", 6), FFA = opt("ffa", 4), WORKERS = opt("workers", availableParallelism());
   const NAME = str("name", `map-${Date.now()}`), FARM = str("farm", ""), FROM = str("from", "");
+  const SEEDFILES = str("seed", "").split(",").filter(Boolean);
   const rng = makeRng(opt("rng", 1));
   const runDir = join("runs", NAME);
   mkdirSync(runDir, { recursive: true });
@@ -1740,7 +1843,7 @@ async function main() {
   const pool = new Runner(new ThreadPool(WORKERS), FARM);
   await pool.init();
   console.log(`map-elites ${NAME}: ${GENS} gens \xD7 ${BATCH} offspring, ${BOARDS} boards/gen, ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ""}`);
-  console.log(`niches: ${WEAPONS.length} weapon \xD7 ${ECONOMY.length + 1} economy \xD7 ${MOBILITY.length + 1} mobility = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, ".warrior")).join(", ")}`);
+  console.log(`niches: ${WEAPONS.length} weapon \xD7 ${ECONOMY.length + 1} ${MORPH_AXES ? "shape change" : "economy"} \xD7 ${MOBILITY.length + 1} ${MORPH_AXES ? "squeeze" : "mobility"} = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, ".warrior")).join(", ")}`);
   const archive = /* @__PURE__ */ new Map();
   let serial = 0;
   const pick2 = (xs) => xs[Math.floor(rng() * xs.length)];
@@ -1755,6 +1858,11 @@ async function main() {
     if (archive.size === 0 && gen === 0 && FROM) {
       const prev = JSON.parse(readFileSync2(FROM, "utf8"));
       for (const e of prev) cands.push({ g: fromSpec(parseWarrior(e.text)), parents: `from:${e.name}` });
+      for (const f of SEEDFILES) for (let k = 0; k < 8; k++) {
+        const g = fromSpec(parseWarrior(readFileSync2(f, "utf8")));
+        if (k) mutate(g, rng);
+        cands.push({ g, parents: `seed:${basename(f, ".warrior")}` });
+      }
       while (cands.length < BATCH) {
         const g = clone(pick2(cands).g);
         mutate(g, rng);
@@ -1766,6 +1874,11 @@ async function main() {
         const m = fromSpec(parseWarrior(src));
         mutate(m, rng);
         cands.push({ g: m, parents: `mutant:${parseWarrior(src).name}` });
+      }
+      for (const f of SEEDFILES) for (let k = 0; k < 8; k++) {
+        const g = fromSpec(parseWarrior(readFileSync2(f, "utf8")));
+        if (k) mutate(g, rng);
+        cands.push({ g, parents: `seed:${basename(f, ".warrior")}` });
       }
       while (cands.length < BATCH) cands.push({ g: randomGenome(rng), parents: "random" });
     } else {
@@ -1863,7 +1976,11 @@ async function main() {
       batches: stats
     };
     appendFileSync(join(runDir, "log.jsonl"), JSON.stringify(line) + "\n");
-    const wb = WEAPONS.map((w, k) => `${w} ${byWeapon[k].length}/${line.byWeapon[w].best.toFixed(2)}`).join("  ");
+    let wb = WEAPONS.map((w, k) => `${w} ${byWeapon[k].length}/${line.byWeapon[w].best.toFixed(2)}`).join("  ");
+    if (MORPH_AXES) {
+      const morphers = elites.filter((e) => e.desc.economy >= 2);
+      wb += `  |  morphing (10+/game) ${morphers.length}/${Math.max(0, ...morphers.map((e) => e.fitness)).toFixed(2)}`;
+    }
     console.log(`gen ${String(gen).padStart(3)}  slots ${String(archive.size).padStart(3)} (+${added}, ${replaced} better)  best ${line.best.toFixed(2)}  mean ${line.mean.toFixed(2)}  |  ${wb}  (${line.ms}ms${FARM ? `, farm ${stats.farm}/${stats.farm + stats.local}` : ""})`);
     if (gen % 10 === 9) saveArchive();
   };
@@ -1881,8 +1998,8 @@ async function main() {
     file(x.p, x.results, x.stats);
   }
   saveArchive();
-  console.log("\nthe map (fitness per slot; rows = pickups/game, columns = share of games it left home):");
-  const ecoLabels = ["0\u2013\xBD", "\xBD\u20131", "1\u20132", "2\u20134", "4+"], mobLabels = ["0\u2013\xBC", "\xBC\u2013\xBD", "\xBD\u2013\xBE", "\xBE\u20131"];
+  console.log(MORPH_AXES ? "\nthe map (fitness per slot; rows = cells oozed/flowed/grown per game, columns = share of games it squeezed through a narrow passage):" : "\nthe map (fitness per slot; rows = pickups/game, columns = share of games it left home):");
+  const ecoLabels = MORPH_AXES ? ["0\u20131", "1\u201310", "10\u201350", "50\u2013200", "200+"] : ["0\u2013\xBD", "\xBD\u20131", "1\u20132", "2\u20134", "4+"], mobLabels = ["0\u2013\xBC", "\xBC\u2013\xBD", "\xBD\u2013\xBE", "\xBE\u20131"];
   WEAPONS.forEach((w, wi) => {
     console.log(`
   ${w}`);
@@ -1899,18 +2016,22 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
   const manifestPath = join(outDir, "manifest.json");
   const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync2(manifestPath, "utf8")) : [];
-  console.log("\nbest of each weapon class:");
-  WEAPONS.forEach((w, wi) => {
-    const es = [...archive.values()].filter((e2) => e2.desc.weapon === wi);
+  const groups = MORPH_AXES ? ["still", "twitch", "morph", "ooze", "amoeba"] : WEAPONS;
+  const groupOf = (e) => MORPH_AXES ? e.desc.economy : e.desc.weapon;
+  console.log(`
+best of each ${MORPH_AXES ? "shape-change level" : "weapon class"}:`);
+  groups.forEach((w, wi) => {
+    const es = [...archive.values()].filter((e2) => groupOf(e2) === wi);
     if (!es.length) return;
     const e = es.reduce((a, b) => b.fitness > a.fitness ? b : a);
     const name = `${NAME}-${w}`;
     writeFileSync(join(outDir, `${name}.warrior`), toText(e.g, name, [
       `map-elites run ${NAME}, slot ${keyOf(e.desc)} (${w}), was ${e.name} (gen ${e.gen}, parents ${e.parents})`,
-      `fitness ${e.fitness.toFixed(2)}; ${e.wins}W of ${e.games}; per game: ${e.stats.hitsPerGame.toFixed(2)} bomb hits, ${e.stats.poisonsPerGame.toFixed(2)} poison writes, ${e.stats.collectedPerGame.toFixed(2)} pickups; left home in ${(100 * e.stats.leftRate).toFixed(0)}% of games`
+      `fitness ${e.fitness.toFixed(2)}; ${e.wins}W of ${e.games}; per game: ${e.stats.hitsPerGame.toFixed(2)} bomb hits, ${e.stats.poisonsPerGame.toFixed(2)} poison writes, ${e.stats.collectedPerGame.toFixed(2)} pickups; left home in ${(100 * e.stats.leftRate).toFixed(0)}% of games`,
+      `shape changes ${e.stats.morphPerGame.toFixed(1)} cells/game; squeezed through a narrow passage in ${(100 * e.stats.squeezeRate).toFixed(0)}% of games`
     ]));
     if (!manifest.includes(`${name}.warrior`)) manifest.push(`${name}.warrior`);
-    console.log(`  ${name.padEnd(20)} fitness ${e.fitness.toFixed(2)}  ${e.stats.hitsPerGame.toFixed(2)} hits, ${e.stats.poisonsPerGame.toFixed(2)} poison, ${e.stats.collectedPerGame.toFixed(2)} pickups /game, left home ${(100 * e.stats.leftRate).toFixed(0)}%`);
+    console.log(`  ${name.padEnd(20)} fitness ${e.fitness.toFixed(2)}  ${e.stats.hitsPerGame.toFixed(2)} hits, ${e.stats.poisonsPerGame.toFixed(2)} poison, ${e.stats.collectedPerGame.toFixed(2)} pickups /game, left home ${(100 * e.stats.leftRate).toFixed(0)}%, morph ${e.stats.morphPerGame.toFixed(0)}/game, squeezed ${(100 * e.stats.squeezeRate).toFixed(0)}%`);
   });
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   pool.close();

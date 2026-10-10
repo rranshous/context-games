@@ -1,0 +1,6 @@
+name: Oozer
+# A Gatherer that OOZEs instead of SHIFTing: collect, scan for a resource, head that way
+# one cell at a time. Its rearmost cell keeps moving to its front, so its body (and the
+# order of its program) changes as it goes. A seed for evolving amorphous warriors.
+---
+C6S$TA

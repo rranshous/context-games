@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 // src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWD";
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDA";
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
 function glyphOf(code) {
@@ -273,6 +273,18 @@ var World = class {
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
+    this.narrow = new Uint8Array(this.w * this.h);
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!this.isFloor(x, y)) continue;
+        let a = x, b = x, c = y, d = y;
+        while (this.isFloor(a - 1, y)) a--;
+        while (this.isFloor(b + 1, y)) b++;
+        while (this.isFloor(x, c - 1)) c--;
+        while (this.isFloor(x, d + 1)) d++;
+        if (b - a < 2 || d - c < 2) this.narrow[this.idx(x, y)] = 1;
+      }
+    }
     specs2.forEach((s, i) => this.place(s, i));
   }
   board;
@@ -282,6 +294,8 @@ var World = class {
   code;
   resource;
   // 0 none, 1 size, 2 speed
+  /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
+  narrow;
   warriors = [];
   t = 0;
   rng;
@@ -317,7 +331,7 @@ var World = class {
       cellCount: 0,
       executed: 0,
       spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 },
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 },
       home: room
     };
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
@@ -512,6 +526,7 @@ var World = class {
         wr.leftHomeAt = this.t;
         this.log("left", `${wr.name} left its start room`, wr.id);
       }
+      if (this.narrow[wr.ipY * this.w + wr.ipX]) wr.stats.squeezed++;
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
@@ -794,6 +809,9 @@ var World = class {
       case "M":
         wr.lastOk = this.opShift(wr, this.pop(wr));
         break;
+      case "A":
+        wr.lastOk = this.opOoze(wr, this.pop(wr));
+        break;
       case "F": {
         const d = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr);
         wr.lastOk = this.opFlow(wr, dx, dy, d);
@@ -833,7 +851,7 @@ var World = class {
         if (g >= "0" && g <= "9") this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
-    if ("MFXGCBWD".includes(g)) wr.lastAct = g;
+    if ("MFXGCBWDA".includes(g)) wr.lastAct = g;
     if (!wr.alive) return cost;
     this.advance(wr);
     if (skip) this.advance(wr);
@@ -940,6 +958,82 @@ var World = class {
     wr.ox += DX[d];
     wr.oy += DY[d];
     return true;
+  }
+  /**
+   * OOZE: amoeboid movement, one cell at a time. My rearmost cell (least far along d) that
+   * can leave without splitting the body moves, code and all, to the free floor touching
+   * the rest of the body that is farthest along d (ties: nearest my body's middle across
+   * d). It must end up farther along d than it was. Repeated, a body pours itself through
+   * any gap, its program rearranged on the way. The IP and the frame origin ride the cell
+   * under them.
+   */
+  opOoze(wr, d) {
+    d = (d % 4 + 4) % 4;
+    const id = wr.id, w = this.w;
+    const mine = this.cellsOf(id);
+    if (mine.length < 2) return this.opShift(wr, d);
+    const along = (c) => c % w * DX[d] + (c / w | 0) * DY[d];
+    const across = (c) => c % w * DY[d] - (c / w | 0) * DX[d];
+    let mid = 0;
+    for (const c of mine) mid += across(c);
+    mid /= mine.length;
+    const order = mine.slice().sort((a, b) => along(a) - along(b) || a - b);
+    const mineSet = this.cellSets.get(id);
+    for (const src of order) {
+      const rest = mine.length - 1;
+      const start = mine[0] === src ? mine[1] : mine[0];
+      const seen = /* @__PURE__ */ new Set([start]);
+      const queue = [start];
+      while (queue.length) {
+        const c = queue.pop();
+        const x = c % w, y = c / w | 0;
+        for (let k = 0; k < 4; k++) {
+          const nx = x + DX[k], ny = y + DY[k];
+          if (!this.inBounds(nx, ny)) continue;
+          const n = ny * w + nx;
+          if (n !== src && mineSet.has(n) && !seen.has(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      if (seen.size !== rest) continue;
+      let best = -1, bestAlong = along(src), bestAcross = Infinity;
+      for (const c of mine) {
+        if (c === src) continue;
+        const x = c % w, y = c / w | 0;
+        for (let k = 0; k < 4; k++) {
+          const nx = x + DX[k], ny = y + DY[k];
+          if (!this.isFree(nx, ny)) continue;
+          const t = ny * w + nx;
+          const a = along(t), off = Math.abs(across(t) - mid);
+          if (a > bestAlong || a === bestAlong && best >= 0 && (off < bestAcross || off === bestAcross && t < best)) {
+            if (a > along(src)) {
+              best = t;
+              bestAlong = a;
+              bestAcross = off;
+            }
+          }
+        }
+      }
+      if (best < 0) return false;
+      this.setOwner(best, id);
+      this.code[best] = this.code[src];
+      this.setOwner(src, NONE);
+      this.code[src] = 0;
+      const bx = best % w, by = best / w | 0, sx = src % w, sy = src / w | 0;
+      if (wr.ipX === sx && wr.ipY === sy) {
+        wr.ipX = bx;
+        wr.ipY = by;
+      }
+      if (wr.ox === sx && wr.oy === sy) {
+        wr.ox = bx;
+        wr.oy = by;
+      }
+      wr.stats.oozes++;
+      return true;
+    }
+    return false;
   }
   opFlow(wr, dx, dy, d) {
     d = (d % 4 + 4) % 4;
@@ -1084,7 +1178,7 @@ var World = class {
       executed: 0,
       spec: wr.spec,
       home: wr.home,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 }
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 }
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);
@@ -1314,7 +1408,7 @@ if (flag("selfmod")) {
   console.log(`Self-modification: each warrior vs the others, ${n} boards each, ${cap} ticks
 `);
   for (let a = 0; a < specs.length; a++) {
-    const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, changed: 0, games: 0 };
+    const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, changed: 0, games: 0 };
     let best = null;
     for (let b = 0; b < specs.length; b++) {
       if (a === b && specs.length > 1) continue;
@@ -1334,13 +1428,15 @@ if (flag("selfmod")) {
         tot.grows += st.grows;
         tot.swaps += st.swaps;
         tot.flows += st.flows;
+        tot.oozes += st.oozes;
+        tot.squeezed += st.squeezed > 0 ? 1 : 0;
         tot.changed += changed;
         tot.games++;
         if (!best || changed > best.changed) best = { changed, start, end, vs: specs[b].name };
       }
     }
     const g = Math.max(1, tot.games);
-    console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
+    console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows, ${(tot.oozes / g).toFixed(1)} oozes; squeezed through a narrow passage in ${(100 * tot.squeezed / g).toFixed(0)}% of games; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
     if (best && best.changed > 0) {
       const s0 = render(best.start, best.start, false), s1 = render(best.end, best.start, true);
       console.log(`  most changed (vs ${best.vs}): start \u2192 end (\xB7 = unchanged)`);

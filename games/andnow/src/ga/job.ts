@@ -9,6 +9,8 @@ export interface JobResult {
   score: number; win: boolean; loss: boolean; kill: boolean;
   // Playstyle, for quality-diversity search: what this side did in the match.
   hits: number; poisons: number; collected: number; left: boolean;
+  morph: number;     // shape changes: cells oozed, flowed or grown
+  squeezed: boolean; // went through a passage ≤ 2 wide
 }
 
 export function runJob(j: Job): JobResult {
@@ -26,6 +28,7 @@ export function runJob(j: Job): JobResult {
       stats: {
         collected: sum((x) => x.stats.collected), bombHits: sum((x) => x.stats.bombHits),
         poisonWrites: sum((x) => x.stats.poisonWrites), kills: sum((x) => x.stats.kills),
+        morph: sum((x) => x.stats.oozes + x.stats.flows + x.stats.grows), squeezed: sum((x) => x.stats.squeezed),
       },
     };
     const r = world.result;
@@ -42,10 +45,11 @@ export function runJob(j: Job): JobResult {
       score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
       kill: world.warriors.some((x) => x.gen === 0 && !world.warriors.some((y) => y.lineage === x.lineage && y.alive)), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
       collected: w.stats.collected, left: w.leftHomeAt !== undefined,
+      morph: w.stats.morph, squeezed: w.stats.squeezed > 0,
     };
   } catch {
     // e.g. doesn't fit the start room
-    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false };
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false, morph: 0, squeezed: false };
   }
 }
 

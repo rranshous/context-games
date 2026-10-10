@@ -53,7 +53,7 @@ if (flag('selfmod')) {
   };
   console.log(`Self-modification: each warrior vs the others, ${n} boards each, ${cap} ticks\n`);
   for (let a = 0; a < specs.length; a++) {
-    const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, changed: 0, games: 0 };
+    const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, changed: 0, games: 0 };
     let best: { changed: number; start: Map<string, string>; end: Map<string, string>; vs: string } | null = null;
     for (let b = 0; b < specs.length; b++) {
       if (a === b && specs.length > 1) continue;
@@ -66,12 +66,12 @@ if (flag('selfmod')) {
         const st = w.warriors[0].stats;
         let changed = 0;
         for (const [k, g] of end) if (start.has(k) && start.get(k) !== g) changed++;
-        tot.selfWrites += st.selfWrites; tot.grows += st.grows; tot.swaps += st.swaps; tot.flows += st.flows; tot.changed += changed; tot.games++;
+        tot.selfWrites += st.selfWrites; tot.grows += st.grows; tot.swaps += st.swaps; tot.flows += st.flows; tot.oozes += st.oozes; tot.squeezed += st.squeezed > 0 ? 1 : 0; tot.changed += changed; tot.games++;
         if (!best || changed > best.changed) best = { changed, start, end, vs: specs[b].name };
       }
     }
     const g = Math.max(1, tot.games);
-    console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
+    console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows, ${(tot.oozes / g).toFixed(1)} oozes; squeezed through a narrow passage in ${(100 * tot.squeezed / g).toFixed(0)}% of games; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
     if (best && best.changed > 0) {
       const s0 = render(best.start, best.start, false), s1 = render(best.end, best.start, true);
       console.log(`  most changed (vs ${best.vs}): start → end (· = unchanged)`);

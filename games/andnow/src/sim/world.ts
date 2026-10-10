@@ -78,6 +78,8 @@ export interface Warrior {
     collected: number; bombHits: number; poisonWrites: number; kills: number;
     // Self-modification: writes into my own cells (that changed a glyph), cells grown, swaps, flows.
     selfWrites: number; grows: number; swaps: number; flows: number;
+    oozes: number;
+    squeezed: number; // ticks the IP spent in a narrow passage (≤ 2 wide)
   };
   lastHarm?: { by: number; t: number }; // who last bombed or wrote into me, and when
   home: { x: number; y: number; w: number; h: number }; // start room
@@ -102,6 +104,8 @@ export class World {
   owner: Int16Array;
   code: Uint8Array;
   resource: Uint8Array; // 0 none, 1 size, 2 speed
+  /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
+  narrow: Uint8Array;
   warriors: Warrior[] = [];
   t = 0;
   rng: Rng;
@@ -119,6 +123,18 @@ export class World {
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
+    this.narrow = new Uint8Array(this.w * this.h);
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (!this.isFloor(x, y)) continue;
+        let a = x, b = x, c = y, d = y;
+        while (this.isFloor(a - 1, y)) a--;
+        while (this.isFloor(b + 1, y)) b++;
+        while (this.isFloor(x, c - 1)) c--;
+        while (this.isFloor(x, d + 1)) d++;
+        if (b - a < 2 || d - c < 2) this.narrow[this.idx(x, y)] = 1;
+      }
+    }
     specs.forEach((s, i) => this.place(s, i));
   }
 
@@ -136,7 +152,7 @@ export class World {
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 }, home: room,
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 }, home: room,
     };
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     for (const c of spec.cells) {
@@ -329,6 +345,7 @@ export class World {
         wr.leftHomeAt = this.t;
         this.log('left', `${wr.name} left its start room`, wr.id);
       }
+      if (this.narrow[wr.ipY * this.w + wr.ipX]) wr.stats.squeezed++;
       wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
       if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
@@ -531,6 +548,7 @@ export class World {
         break;
       }
       case 'M': wr.lastOk = this.opShift(wr, this.pop(wr)); break;
+      case 'A': wr.lastOk = this.opOoze(wr, this.pop(wr)); break;
       case 'F': { const d = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opFlow(wr, dx, dy, d); break; }
       case 'X': {
         const dy2 = this.pop(wr), dx2 = this.pop(wr), dy1 = this.pop(wr), dx1 = this.pop(wr);
@@ -547,7 +565,7 @@ export class World {
         if (g >= '0' && g <= '9') this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
-    if ('MFXGCBWD'.includes(g)) wr.lastAct = g;
+    if ('MFXGCBWDA'.includes(g)) wr.lastAct = g;
     if (!wr.alive) return cost;
     this.advance(wr);
     if (skip) this.advance(wr);
@@ -657,6 +675,71 @@ export class World {
     wr.ox += DX[d];
     wr.oy += DY[d];
     return true;
+  }
+
+  /**
+   * OOZE: amoeboid movement, one cell at a time. My rearmost cell (least far along d) that
+   * can leave without splitting the body moves, code and all, to the free floor touching
+   * the rest of the body that is farthest along d (ties: nearest my body's middle across
+   * d). It must end up farther along d than it was. Repeated, a body pours itself through
+   * any gap, its program rearranged on the way. The IP and the frame origin ride the cell
+   * under them.
+   */
+  private opOoze(wr: Warrior, d: number): boolean {
+    d = ((d % 4) + 4) % 4;
+    const id = wr.id, w = this.w;
+    const mine = this.cellsOf(id);
+    if (mine.length < 2) return this.opShift(wr, d);
+    const along = (c: number) => (c % w) * DX[d] + ((c / w) | 0) * DY[d];
+    const across = (c: number) => (c % w) * DY[d] - ((c / w) | 0) * DX[d];
+    let mid = 0;
+    for (const c of mine) mid += across(c);
+    mid /= mine.length;
+    // Sources, rearmost first.
+    const order = mine.slice().sort((a, b) => along(a) - along(b) || a - b);
+    const mineSet = this.cellSets.get(id)!;
+    for (const src of order) {
+      // The rest must stay connected without src.
+      const rest = mine.length - 1;
+      const start = mine[0] === src ? mine[1] : mine[0];
+      const seen = new Set([start]);
+      const queue = [start];
+      while (queue.length) {
+        const c = queue.pop()!;
+        const x = c % w, y = (c / w) | 0;
+        for (let k = 0; k < 4; k++) {
+          const nx = x + DX[k], ny = y + DY[k];
+          if (!this.inBounds(nx, ny)) continue;
+          const n = ny * w + nx;
+          if (n !== src && mineSet.has(n) && !seen.has(n)) { seen.add(n); queue.push(n); }
+        }
+      }
+      if (seen.size !== rest) continue;
+      // Destination: free floor touching the rest, farthest along d.
+      let best = -1, bestAlong = along(src), bestAcross = Infinity;
+      for (const c of mine) {
+        if (c === src) continue;
+        const x = c % w, y = (c / w) | 0;
+        for (let k = 0; k < 4; k++) {
+          const nx = x + DX[k], ny = y + DY[k];
+          if (!this.isFree(nx, ny)) continue;
+          const t = ny * w + nx;
+          const a = along(t), off = Math.abs(across(t) - mid);
+          if (a > bestAlong || (a === bestAlong && best >= 0 && (off < bestAcross || (off === bestAcross && t < best)))) {
+            if (a > along(src)) { best = t; bestAlong = a; bestAcross = off; }
+          }
+        }
+      }
+      if (best < 0) return false; // the rearmost movable cell has nowhere ahead to go
+      this.setOwner(best, id); this.code[best] = this.code[src];
+      this.setOwner(src, NONE); this.code[src] = 0;
+      const bx = best % w, by = (best / w) | 0, sx = src % w, sy = (src / w) | 0;
+      if (wr.ipX === sx && wr.ipY === sy) { wr.ipX = bx; wr.ipY = by; }
+      if (wr.ox === sx && wr.oy === sy) { wr.ox = bx; wr.oy = by; }
+      wr.stats.oozes++;
+      return true;
+    }
+    return false;
   }
 
   private opFlow(wr: Warrior, dx: number, dy: number, d: number): boolean {
@@ -778,7 +861,7 @@ export class World {
       ipX: wr.ipX + ox, ipY: wr.ipY + oy, ox: wr.ox + ox, oy: wr.oy + oy, dir: wr.dir,
       stack: [], maxSize: wr.maxSize / 2, speed: wr.speed, accum: 0, lastOk: true, lastAct: '',
       cellCount: 0, executed: 0, spec: wr.spec, home: wr.home,
-      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0 },
+      stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0 },
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
     this.warriors.push(child);
