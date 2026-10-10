@@ -77,3 +77,9 @@ Tests (same args, diffed against a local-only run; all identical):
   that was lilg's browser threads sharing this desktop's cores with the local threads).
 - Threads slider now goes to **0 = watching only**, for a dashboard on the machine that
   runs the work itself.
+- Clean comparison (lilg set to 0 threads, so only calendar helping; same args back to
+  back, pop 128 × 4 gens at evo5 settings): local only 7.0–8.6 s/gen, **31 s total**; with
+  the farm 5.1–6.1 s/gen, **23 s total (26% faster)**; calendar's 4 low-power cores did about
+  a third of the batches (59–67 of 182–214). Results identical.
+- Farm table now lists only threads seen in the last 10 s (it was showing lilg's stopped
+  threads, which the server remembers for 2 minutes).

@@ -66,6 +66,9 @@ async function refresh() {
     // Group threads into devices.
     const devices = new Map();
     for (const w of s.workers) {
+      // Only threads seen recently (the server remembers stopped ones for a while; this is
+      // the same 10 s rule its capacity check uses).
+      if (w.ago > 10) continue;
       const key = w.name || w.id;
       const d = devices.get(key) ?? { name: key, threads: 0, done: 0, perMin: 0, failed: new Set() };
       d.threads++; d.done += w.done; d.perMin += w.perMin;
