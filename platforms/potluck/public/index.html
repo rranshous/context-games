@@ -21,6 +21,7 @@
     th { color: #9a8f80; font-weight: normal; font-size: 13px; }
     #log { font: 12px/1.5 ui-monospace, monospace; color: #9a8f80; max-height: 220px; overflow-y: auto; }
     .ok { color: #8fcf8f; } .bad { color: #ef8a7a; }
+    code { background: #2a251f; padding: 1px 5px; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -33,12 +34,17 @@
       <label>threads <input type="range" id="threads" min="0"> <span id="threadsOut"></span> of <span id="cores"></span></label>
       <button id="pause">Pause</button>
     </div>
+    <div class="row" id="wakeRow" hidden><label><input type="checkbox" id="wake"> keep the screen on while this page is showing</label></div>
     <div id="mine"></div>
   </section>
   <section>
     <h2>The farm</h2>
     <div id="queue"></div>
     <table><thead><tr><th>device</th><th>threads</th><th>batches</th><th>rate</th><th></th></tr></thead><tbody id="farm"></tbody></table>
+  </section>
+  <section>
+    <h2>Keeping this page awake</h2>
+    <p id="tip" class="sub" style="margin:0"></p>
   </section>
   <section>
     <h2>Log</h2>

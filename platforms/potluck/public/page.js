@@ -82,6 +82,49 @@ async function refresh() {
 }
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
+// ---------- staying awake ----------
+// Browsers freeze background tabs to save power (Edge "sleeping tabs", Chrome Energy/Memory
+// Saver), which stops the worker threads until someone looks at the tab again. Chrome
+// doesn't freeze tabs holding an IndexedDB connection or a Web Lock, so hold both. (Web
+// Locks and the screen wake lock need HTTPS or localhost; IndexedDB works over plain http.)
+// The dependable fix is the browser's own never-sleep list; see the tip on the page.
+try { const req = indexedDB.open('potluck-keepalive'); req.onsuccess = () => { window.potluckDb = req.result; }; } catch {}
+if (navigator.locks) navigator.locks.request('potluck-keepalive', () => new Promise(() => {})).catch(() => {});
+
+// Keep the screen on (phones, wall displays): only while this page is visible.
+let wakeLock = null;
+const wantWake = () => localStorage.getItem('potluck-wake') === '1';
+async function applyWake() {
+  try {
+    if (wantWake() && document.visibilityState === 'visible' && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!wantWake() && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { /* not allowed here (needs https or localhost) */ }
+}
+if ('wakeLock' in navigator) {
+  $('wakeRow').hidden = false;
+  $('wake').checked = wantWake();
+  $('wake').onchange = () => { try { localStorage.setItem('potluck-wake', $('wake').checked ? '1' : '0'); } catch {} applyWake(); };
+  document.addEventListener('visibilitychange', applyWake);
+  applyWake();
+}
+
+// Notice when this tab was asleep: the heartbeat stalls while it's frozen.
+let lastBeat = Date.now();
+setInterval(() => {
+  const gap = Date.now() - lastBeat;
+  if (gap > 30000) log(`this tab was asleep for ${Math.round(gap / 1000)} s; see "keeping this page awake" below`, 'bad');
+  lastBeat = Date.now();
+}, 5000);
+
+const ua = navigator.userAgent;
+$('tip').innerHTML = /Edg\//.test(ua)
+  ? `Edge puts background tabs to sleep. Settings → System and performance → <b>Never put these sites to sleep</b> → add <code>${location.host}</code>.`
+  : /Chrome\//.test(ua)
+    ? `Chrome may freeze background tabs. Settings → Performance → <b>Always keep these sites active</b> → add <code>${location.host}</code>.`
+    : `Browsers may pause background tabs. If this device stops showing up on the farm, keep this page in its own window or add <code>${location.host}</code> to the browser's never-sleep list.`;
+
 restart();
 refresh();
 setInterval(refresh, 2000);

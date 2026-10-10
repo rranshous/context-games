@@ -83,3 +83,18 @@ Tests (same args, diffed against a local-only run; all identical):
   a third of the batches (59–67 of 182–214). Results identical.
 - Farm table now lists only threads seen in the last 10 s (it was showing lilg's stopped
   threads, which the server remembers for 2 minutes).
+
+### Background tabs fall asleep
+Pinky's PC and the living room PC dropped off the farm after a while; looking at the tab
+again brought them back (and they picked up work again, as designed). Browsers freeze
+background tabs: Edge "sleeping tabs" (inactivity-based, configurable), Chrome freezing in
+Energy Saver (CPU-heavy tabs hidden + silent > 5 min). Lost capacity, never lost work.
+- The page now holds an **IndexedDB connection** and a **Web Lock** for its lifetime: Chrome
+  documents both as exemptions from freezing. IndexedDB works over plain http on the LAN;
+  Web Locks (and the screen wake lock) need HTTPS or localhost, so they're feature-detected.
+  Edge's sleeping-tab heuristics aren't documented; no promises there.
+- Optional **keep the screen on** checkbox (Screen Wake Lock; where available).
+- **Sleep detection**: a 5 s heartbeat; a gap > 30 s logs "this tab was asleep for N s".
+- **A tip on the page** with the dependable fix for the browser it's running in: Edge →
+  "Never put these sites to sleep", Chrome → "Always keep these sites active", add the farm's
+  host:port.
