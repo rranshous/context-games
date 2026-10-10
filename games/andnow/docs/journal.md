@@ -683,3 +683,23 @@ farm, which takes what verified capacity it has. Six scenarios (no farm flag, se
 down, server up with no browser, browser helping, server killed mid-run, server started
 mid-run) all produce output identical to a local-only run; see the Potluck journal.
 The log line shows the farm's share: `(1426ms, farm 20/52 batches)`.
+
+### evo6: the first farm run (pop 128, 150 gens, evo5 settings, `--farm`)
+The farm grew during the run: the living room PC ("calendar", passively cooled, later
+turned down to 2 threads), **Pinky's gaming PC** (8 of 12 cores, ~1,600 batches/min) and
+**Robby's Android phone** (8 threads, ~690 batches/min, twice the living room PC). All
+passed the canary, including the phone: an ARM CPU in a mobile browser runs the sim
+bit-for-bit like this desktop's Node. **The farm did 59% of the run's batches** (24,399 of
+41,635); generations went from ~7 s (farm = living room only) to ~4 s with everyone on;
+12 minutes of generation time in all.
+
+Results: champions keep the aiming row (`:M>2S$B8CyMC`); held-out 61–65/140 vs a strong
+bench (winning records vs most of evo4/evo5). Tournaments (12 warriors, 10 boards, 5000
+ticks): duels evo5-3 104W, evo6-2 99W, evo4-2 95W, evo4-1 94W, evo4-3 90W, evo6-1 90W, ...
+FFAs: evo4-1 25%, evo5-3 22%, evo5-2 20%, evo6-1..3 17–19%. Leaving home: evo6 69–79/100.
+
+**Plateau.** evo4, evo5 and evo6 are now within noise of each other. Since the body frame
+unlocked aimed bombing (evo4), the population has converged on that one motif and the GA
+is only refining it. Getting further probably takes a change in pressure (bigger or more
+diverse populations, niches/speciation, longer matches) or in the game itself, not just
+more generations.
