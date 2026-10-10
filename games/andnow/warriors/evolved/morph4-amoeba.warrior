@@ -1,0 +1,15 @@
+name: morph4-amoeba
+# map-elites run morph4, slot 0-4-3 (amoeba), was m399-153465 (gen 399, parents m393-151196+swap,dupe,dupe,point)
+# fitness 2.55; 14W of 28; per game: 0.00 bomb hits, 0.00 poison writes, 1.29 pickups; left home in 93% of games
+# shape changes 605.6 cells/game; squeezed into a narrow passage in 4% of games; whole body into another room in 79%
+dir: W
+ip: 4 4
+---
+  m
+  *T
+  1WBCs
+  +=\M
+ +emLA
+R+dWCmLC
+   L=/:
+   4

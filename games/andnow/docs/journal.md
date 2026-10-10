@@ -1086,3 +1086,41 @@ the body pokes into a corridor mouth as it wanders, nothing more. They were righ
 - Probe after: morph2/map4 warriors get wholly into another room on 3/20 boards; Oozer
   9/20, Blob 3/20. morph3 (old metric) stopped at gen ~100, kept as runs/morph3-badmetric.
 - morph4: from morph2's archive + Oozer/Blob seeds, 400 gens.
+
+#### morph4 results (400 gens; whole-body metrics, narrow start exits, room bonus)
+- 69 of 80 slots. Pinky's computer left around gen 200 (gens ~34 s → ~95 s).
+- **crawler** (pulled out early, gen ~115): 22 cells, mostly fat, oozes ~850 cells/game and
+  gets its whole body into another room on 18/20 solo boards. Frames show it threading the
+  2-wide start corridor across the map in ~100 ticks, then reshaping: a 1-wide line along a
+  wall, a 2-wide column, a 20-cell line through a corridor. First warrior that really
+  changes shape to travel. It barely collects (0.2/game) and loses most duels (3W 49L).
+- A new lineage (`*T / 1SBCs / +=\ / emLA / dWC L`) took the top of the archive from gen
+  ~220 on and became **morph4-amoeba**: ~640 oozes/game, whole body into another room on
+  10/20 solo boards (79% of GA games), and 2nd in the showcase tournament.
+- `--selfmod`: morph4-amoeba turns from an 8-row blob into a 1–2-wide, 16-row vertical
+  snake mid-match (6 of its starting cells end up with different glyphs around them) and
+  keeps fighting. Amorphous and resilient, which is what we were after.
+- Solo probe (narrow boards, 20 boards, 5000 ticks):
+
+  | warrior | pickups | oozes | left | squeeze | room |
+  |---|---|---|---|---|---|
+  | morph4-amoeba | 1.1 | 639 | 12/20 | 0/20 | 10/20 |
+  | morph4-twitch | 2.0 | 33 | 8/20 | 3/20 | 5/20 |
+  | morph4-morph | 2.0 | 29 | 6/20 | 2/20 | 4/20 |
+  | morph4-still | 1.9 | 0.5 | 3/20 | 0/20 | 3/20 |
+  | crawler | 0.2 | 849 | 19/20 | 1/20 | 18/20 |
+  | morph2-still | 4.0 | 0 | 3/20 | 0/20 | 3/20 |
+  | map4-none | 1.1 | 0 | 3/20 | 0/20 | 3/20 |
+
+  ("Squeeze" stays near 0 because it needs half the body inside narrow cells at once;
+  snakes count, but a blob that streams through a corridor mouth keeps most of itself in
+  the rooms on either side.)
+- Tournament (8 warriors, 6 boards, both seatings): morph4-twitch 30W 9L, morph4-amoeba
+  28W 9L, morph4-morph 23W, morph2-still 23W, morph4-still 15W, morph4-ooze 12W,
+  map4-none 9W, crawler 3W 49L. 193 of 336 matches are draws at the cap.
+- In GA matches the collectors log ~8 pickups/game vs ~2 solo: debris from bombed cells
+  counts as a pickup, so fights feed them.
+- **Still zero grows**, with 10 cells of room. GROW needs to sit on the executed path with
+  sensible stack args, and a grown cell becomes code the IP walks into; evolution hasn't
+  found the trade worth it. Next lever if we want growth: a cheaper/safer GROW (e.g. grow
+  fat only, no code arg) or growth tied to COLLECT.

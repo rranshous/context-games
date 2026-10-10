@@ -1,0 +1,11 @@
+name: morph4-still
+# map-elites run morph4, slot 1-0-1 (still), was m397-152498 (gen 397, parents m393-151022+point,remove,add,ip)
+# fitness 2.21; 30W of 56; per game: 0.21 bomb hits, 0.00 poison writes, 7.96 pickups; left home in 29% of games
+# shape changes 0.0 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%
+dir: W
+ip: 5 1
+---
+     M.
+ Cv TCBB      ^
+T7>2CS|     3@C
+ >^ A >$$:Mem+

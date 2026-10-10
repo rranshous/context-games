@@ -41,5 +41,10 @@
   "morph2-morph.warrior",
   "morph2-ooze.warrior",
   "morph2-amoeba.warrior",
-  "crawler.warrior"
+  "crawler.warrior",
+  "morph4-still.warrior",
+  "morph4-twitch.warrior",
+  "morph4-morph.warrior",
+  "morph4-ooze.warrior",
+  "morph4-amoeba.warrior"
 ]

@@ -1,0 +1,11 @@
+name: morph4-twitch
+# map-elites run morph4, slot 0-1-1 (twitch), was m397-152563 (gen 397, parents m37-14565×m395-151787)
+# fitness 2.38; 18W of 28; per game: 0.00 bomb hits, 0.00 poison writes, 8.50 pickups; left home in 29% of games
+# shape changes 5.7 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%
+dir: W
+ip: 11 2
+---
+d   *.
+Cv TCB6-
+9>C2S|     3@C
+ ^ SA>$$:Mem+
