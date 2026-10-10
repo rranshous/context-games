@@ -4,7 +4,7 @@
 // long enough to get good.
 //
 // Playstyle (averaged over an individual's games):
-//   weapon    none | bomber | mixed | poisoner   (bomb hits + poison writes per game, and poison's share)
+//   weapon    none | bomber | mixed | poisoner   (armed at ≥ 0.05 bomb hits + poison writes per game; poison's share)
 //   economy   pickups collected per game          (0–½, ½–1, 1–2, 2–4, 4+)
 //   mobility  share of games it left its home room (0–¼, ¼–½, ½–¾, ¾–1)
 // Fitness: the same match score as evolve.ts, against the benchmarks + elites from other
@@ -12,7 +12,7 @@
 //
 //   node dist/map.mjs --name map1 [--gens 200] [--batch 256] [--seeds 2] [--boards 6]
 //                     [--ticks 3000] [--peers 6] [--ffa 4] [--bench warriors,...] [--rng 1]
-//                     [--workers 8] [--farm http://host:7700]
+//                     [--workers 8] [--farm http://host:7700] [--reeval 64]   (elites re-evaluated per generation)
 //
 // Writes runs/<name>/log.jsonl and archive.json (every 10 generations and at the end), and
 // the best warrior of each weapon class to warriors/evolved/<name>-<class>.warrior.
@@ -33,6 +33,7 @@ const MOBILITY = [0.25, 0.5, 0.75];
 interface Elite {
   g: Genome; name: string; text: string; parents: string; gen: number;
   fitness: number; wins: number; games: number;
+  scoreSum: number; // fitness = scoreSum / games, over every game it has played (re-evaluations add up)
   desc: { weapon: number; economy: number; mobility: number };
   stats: { hitsPerGame: number; poisonsPerGame: number; collectedPerGame: number; leftRate: number };
 }
@@ -48,7 +49,10 @@ function describe(rs: JobResult[]): Pick<Elite, 'desc' | 'stats'> {
   const leftRate = rs.filter((r) => r.left).length / n;
   const attacks = hits + poisons;
   const share = attacks > 0 ? poisons / attacks : 0;
-  const weapon = attacks < 0.25 ? 0 : share < 0.2 ? 1 : share < 0.8 ? 2 : 3;
+  // Low bar for "armed": a budding poisoner at 0.1 writes/game should get its own slot to
+  // improve in, not compete with the pacifists (map1 had the bar at 0.25 and never found
+  // a mixed or poisoner warrior).
+  const weapon = attacks < 0.05 ? 0 : share < 0.2 ? 1 : share < 0.8 ? 2 : 3;
   return {
     desc: { weapon, economy: bin(collected, ECONOMY), mobility: bin(leftRate, MOBILITY) },
     stats: { hitsPerGame: hits, poisonsPerGame: poisons, collectedPerGame: collected, leftRate },
@@ -59,7 +63,7 @@ async function main() {
   const args = process.argv.slice(2);
   const opt = (k: string, d: number) => { const i = args.indexOf(`--${k}`); return i >= 0 ? Number(args[i + 1]) : d; };
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
-  const GENS = opt('gens', 200), BATCH = opt('batch', 256), SEEDS = opt('seeds', 2), BOARDS = opt('boards', 6);
+  const GENS = opt('gens', 200), BATCH = opt('batch', 256), REEVAL = opt('reeval', 64), SEEDS = opt('seeds', 2), BOARDS = opt('boards', 6);
   const TICKS = opt('ticks', 3000), PEERS = opt('peers', 6), FFA = opt('ffa', 4), WORKERS = opt('workers', availableParallelism());
   const NAME = str('name', `map-${Date.now()}`), FARM = str('farm', '');
   const rng = makeRng(opt('rng', 1));
@@ -73,7 +77,7 @@ async function main() {
   const pool = new Runner(new ThreadPool(WORKERS), FARM);
   await pool.init();
   console.log(`map-elites ${NAME}: ${GENS} gens × ${BATCH} offspring, ${BOARDS} boards/gen, ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ''}`);
-  console.log(`niches: ${WEAPONS.length} weapon × ${ECONOMY.length + 1} economy × ${MOBILITY.length + 2} mobility = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 2)}; benchmarks: ${benchFiles.map((f) => basename(f, '.warrior')).join(', ')}`);
+  console.log(`niches: ${WEAPONS.length} weapon × ${ECONOMY.length + 1} economy × ${MOBILITY.length + 1} mobility = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, '.warrior')).join(', ')}`);
 
   const archive = new Map<string, Elite>();
   let serial = 0;
@@ -109,7 +113,14 @@ async function main() {
         }
       }
     }
-    const inds = cands.map((c) => { const name = `m${gen}-${serial++}`; return { ...c, name, text: toText(c.g, name) }; });
+    // Re-evaluate a sample of current elites too: a slot's score is otherwise one round of
+    // games against random opponents, and a lucky round would hold the slot forever.
+    const reevals = [...archive.entries()].sort(() => rng() - 0.5).slice(0, REEVAL)
+      .map(([key, e]) => ({ g: e.g, parents: e.parents, name: e.name, text: e.text, reeval: key }));
+    const inds: { g: Genome; parents: string; name: string; text: string; reeval?: string }[] = [
+      ...reevals,
+      ...cands.map((c) => { const name = `m${gen}-${serial++}`; return { ...c, name, text: toText(c.g, name) }; }),
+    ];
 
     // Opponents: all benchmarks + PEERS elites from the archive, on rotating boards; plus
     // FFA four-player matches.
@@ -137,9 +148,20 @@ async function main() {
     inds.forEach((ind, i) => {
       const rs = results.slice(at, at + counts[i]);
       at += counts[i];
+      const sum = rs.reduce((a, r) => a + r.score, 0);
+      if (ind.reeval) {
+        // Re-evaluations come first in the list, so they update incumbents before this
+        // generation's candidates are compared against them.
+        const cur = archive.get(ind.reeval);
+        if (cur && cur.text === ind.text) {
+          cur.scoreSum += sum; cur.games += rs.length; cur.wins += rs.filter((r) => r.win).length;
+          cur.fitness = cur.scoreSum / cur.games;
+        }
+        return;
+      }
       const e: Elite = {
         g: ind.g, name: ind.name, text: ind.text, parents: ind.parents, gen,
-        fitness: rs.reduce((a, r) => a + r.score, 0) / rs.length,
+        fitness: sum / rs.length, scoreSum: sum,
         wins: rs.filter((r) => r.win).length, games: rs.length, ...describe(rs),
       };
       const k = keyOf(e.desc);

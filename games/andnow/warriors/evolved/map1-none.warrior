@@ -1,0 +1,10 @@
+name: map1-none
+# map-elites run map1 (stopped at gen ~127, stagnant), slot 0-3-2 (none), was m98-37682 (gen 98)
+# fitness 2.23; per game: 0.00 bomb hits, 0.00 poison writes, 3.62 pickups; left home in 71% of games
+dir: E
+ip: 0 2
+---
+9
+v
+8yCM
+>$$9M$$vMS!+

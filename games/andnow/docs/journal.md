@@ -733,3 +733,21 @@ Plumbing: the thread pool + hybrid farm runner moved to `src/ga/runner.ts` (shar
 evolve and map); `JobResult` now also reports pickups and whether the side left home
 (a new farm task, so every device re-ran its canary automatically). Golden replays still
 identical.
+
+### map1 (pop 384/gen, farm) and why it stalled
+- Filled 39 slots by gen ~40 (20 "none", 19 "bomber"), then **stagnated**: no new slots and
+  no improvements for ~90 generations; stopped at gen ~127 (archive saved at 119).
+- **Never found a mixed or poisoner warrior.** Cause: the "armed" bar was 0.25 attacks/game,
+  so a budding poisoner (the smoke test had one at 0.21 poison writes/game) was filed under
+  "none" and competed with the pacifists instead of getting its own slot. → map2: 0.05.
+- **Lucky elites.** The best slot (a bomber, fitness 3.46, the highest ever) dated from gen
+  14 and was never beaten: an elite's score was a single round of games vs random
+  opponents, so a lucky round held the slot forever. → map2 re-evaluates 64 elites per
+  generation and keeps a running average over all their games (`--reeval`).
+- Saved `map1-bomber` (5 hits, 2 pickups/game, leaves home 91%) and `map1-none` (a pure
+  collector: 3.6 pickups/game) from the archive.
+
+Farm: Pinky's PC at 10 threads (~2,600 batches/min), calendar, both Xboxes; the farm did
+~70% of each generation (~6 s/gen). Xboxes are slow per thread (~51 batches/min vs ~260
+on Pinky's PC): probably the console caps apps' CPU share (and/or Xbox One cores). Added a
+per-thread rate column to the farm table.

@@ -1584,7 +1584,7 @@ function describe(rs) {
   const leftRate = rs.filter((r) => r.left).length / n;
   const attacks = hits + poisons;
   const share = attacks > 0 ? poisons / attacks : 0;
-  const weapon = attacks < 0.25 ? 0 : share < 0.2 ? 1 : share < 0.8 ? 2 : 3;
+  const weapon = attacks < 0.05 ? 0 : share < 0.2 ? 1 : share < 0.8 ? 2 : 3;
   return {
     desc: { weapon, economy: bin(collected, ECONOMY), mobility: bin(leftRate, MOBILITY) },
     stats: { hitsPerGame: hits, poisonsPerGame: poisons, collectedPerGame: collected, leftRate }
@@ -1600,7 +1600,7 @@ async function main() {
     const i = args.indexOf(`--${k}`);
     return i >= 0 ? args[i + 1] : d;
   };
-  const GENS = opt("gens", 200), BATCH = opt("batch", 256), SEEDS = opt("seeds", 2), BOARDS = opt("boards", 6);
+  const GENS = opt("gens", 200), BATCH = opt("batch", 256), REEVAL = opt("reeval", 64), SEEDS = opt("seeds", 2), BOARDS = opt("boards", 6);
   const TICKS = opt("ticks", 3e3), PEERS = opt("peers", 6), FFA = opt("ffa", 4), WORKERS = opt("workers", availableParallelism());
   const NAME = str("name", `map-${Date.now()}`), FARM = str("farm", "");
   const rng = makeRng(opt("rng", 1));
@@ -1611,7 +1611,7 @@ async function main() {
   const pool = new Runner(new ThreadPool(WORKERS), FARM);
   await pool.init();
   console.log(`map-elites ${NAME}: ${GENS} gens \xD7 ${BATCH} offspring, ${BOARDS} boards/gen, ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ""}`);
-  console.log(`niches: ${WEAPONS.length} weapon \xD7 ${ECONOMY.length + 1} economy \xD7 ${MOBILITY.length + 2} mobility = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 2)}; benchmarks: ${benchFiles.map((f) => basename(f, ".warrior")).join(", ")}`);
+  console.log(`niches: ${WEAPONS.length} weapon \xD7 ${ECONOMY.length + 1} economy \xD7 ${MOBILITY.length + 1} mobility = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, ".warrior")).join(", ")}`);
   const archive = /* @__PURE__ */ new Map();
   let serial = 0;
   const pick2 = (xs) => xs[Math.floor(rng() * xs.length)];
@@ -1646,10 +1646,14 @@ async function main() {
         }
       }
     }
-    const inds = cands.map((c) => {
-      const name = `m${gen}-${serial++}`;
-      return { ...c, name, text: toText(c.g, name) };
-    });
+    const reevals = [...archive.entries()].sort(() => rng() - 0.5).slice(0, REEVAL).map(([key2, e]) => ({ g: e.g, parents: e.parents, name: e.name, text: e.text, reeval: key2 }));
+    const inds = [
+      ...reevals,
+      ...cands.map((c) => {
+        const name = `m${gen}-${serial++}`;
+        return { ...c, name, text: toText(c.g, name) };
+      })
+    ];
     const boardPool = Array.from({ length: BOARDS }, () => 1 + Math.floor(rng() * 1e6));
     const boardsFor = (k) => Array.from({ length: SEEDS }, (_, s) => boardPool[(k * SEEDS + s) % BOARDS]);
     const eliteTexts = [...archive.values()].map((e) => e.text);
@@ -1672,13 +1676,25 @@ async function main() {
     inds.forEach((ind, i) => {
       const rs = results.slice(at, at + counts[i]);
       at += counts[i];
+      const sum = rs.reduce((a, r) => a + r.score, 0);
+      if (ind.reeval) {
+        const cur2 = archive.get(ind.reeval);
+        if (cur2 && cur2.text === ind.text) {
+          cur2.scoreSum += sum;
+          cur2.games += rs.length;
+          cur2.wins += rs.filter((r) => r.win).length;
+          cur2.fitness = cur2.scoreSum / cur2.games;
+        }
+        return;
+      }
       const e = {
         g: ind.g,
         name: ind.name,
         text: ind.text,
         parents: ind.parents,
         gen,
-        fitness: rs.reduce((a, r) => a + r.score, 0) / rs.length,
+        fitness: sum / rs.length,
+        scoreSum: sum,
         wins: rs.filter((r) => r.win).length,
         games: rs.length,
         ...describe(rs)
