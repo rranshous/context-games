@@ -939,3 +939,43 @@ Chain in `runs/overnight/run.sh` (01:36–03:56): map4, then 21 long petri dishe
   (`C6S$TMTMD` etc.) didn't; evolution's are shorter (7 cells, under the size floor).
 - Next: make an evolved walker the default dish founder, or find out what the 16 boards
   it still fails on have in common (probably food that's far or behind narrow corridors).
+
+## Session 1, part 8: amorphous warriors (OOZE)
+The user, watching the viewer: nothing ever changes shape to get through a corridor, never
+self-modifies, never grows. Measured: the champions (map4-none, map4-bomber, map3-none,
+evo6-2) do **0.0 self-writes, 0.0 grows, 0.0 swaps, 0.0 flows per game**. Picking up size
+raises max size (a budget), not the body; cells come only from GROW, and nothing rewards it.
+
+Is corridor-fitting shape change possible with the current ops? Effectively no:
+- FLOW moves one cell one step and the body must stay connected, so a cell can only slide
+  around a corner of the body. A straight line can't FLOW at all; nothing can turn a
+  1-wide L-bend.
+- GROW can push out a tentacle, but there's no voluntary way to drop cells (shedding only
+  follows the slow max-size decay).
+- SHIFT is rigid.
+
+First try: CRAWL, a snake move for chain-shaped bodies, with the IP reading along the
+chain's bends. The user: too limited, they want **amorphous** bodies and a GA toward
+programs that survive shape change. Reverted (it's in the git history only as this note).
+
+**OOZE (`A`, pop dir)**: amoeboid movement one cell at a time. The rearmost cell (least
+far along dir) that can leave without splitting the body moves, code and all, to the free
+floor touching the body that is farthest along dir (ties: nearest the body's middle). It
+must land farther along than it was. The IP and the frame origin ride the cell under
+them. Repeated, a blob pours itself through any gap and re-forms beyond it; its program
+is rearranged along the way (a straight line oozing along its own axis just rotates its
+code cyclically, which a wrap-around loop doesn't even notice).
+- Appending the glyph left all 433 golden replays identical.
+- New stats: `oozes`, and `squeezed` = ticks the IP spent in a narrow passage (a floor
+  cell whose run across or down is ≤ 2).
+- Hand seeds: `Oozer` (`C6S$TA`, the Gatherer with OOZE) and `Blob` (same plus two rows of
+  fat). Solo, 20 boards, 3000 ticks: they leave home in 16–17/20 games (Gatherer 10/20) and
+  squeeze through narrow passages, but collect ~0.9 pickups/game (Gatherer 7.8): oozing
+  scrambles the program. Making programs resilient to that is the GA's job.
+
+### morph1: MAP-Elites toward amorphous, resilient warriors
+`--axes morph`: weapon (4) × **shape change** per game (cells oozed + flowed + grown: 0–1,
+1–10, 10–50, 50–200, 200+) × **squeeze** (share of games through a ≤ 2-wide passage).
+Fitness is unchanged (match score vs strong benchmarks + peers + FFAs), so a high-morph
+slot keeps only warriors that win while reshaping themselves. Seeded from map4's archive
+plus Oozer/Blob and mutants of them; benchmarks: map4 ×4, map3-none, evo6-2, map1-bomber.
