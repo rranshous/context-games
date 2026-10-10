@@ -42,6 +42,8 @@
     #log { height: 180px; overflow-y: auto; border: 1px solid #1f2633; padding: 4px 6px; font-size: 12px; color: #8b949e; }
     #log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #tick { color: #6e7681; }
+    .genome { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .genome code { color: #e6edf3; }
   </style>
 </head>
 <body>
@@ -56,6 +58,7 @@
     <div class="row">
       <label>seed <input type="number" id="seed" value="1"></label>
       <button id="reset">New match</button>
+      <button id="petri">Petri dish</button>
     </div>
     <div class="row">
       <button id="play">Play</button>
@@ -67,6 +70,7 @@
       <label><input type="checkbox" id="showIp" checked> show IPs</label>
       <label><input type="checkbox" id="showGlyphs" checked> glyphs</label>
     </div>
+    <div id="dish" class="card" style="border-left-color:#e3b341"></div>
     <div id="cards"></div>
     <div id="log"></div>
   </div>

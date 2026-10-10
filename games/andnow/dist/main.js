@@ -1306,13 +1306,22 @@ var speedEl = $("speed");
 var showIpEl = $("showIp");
 var showGlyphsEl = $("showGlyphs");
 var playBtn = $("play");
+var dishEl = $("dish");
 var world;
 var specs = [];
 var playing = false;
 var tickBudget = 0;
 var lastFrame = performance.now();
 var params = new URLSearchParams(location.search);
-var initial = (params.get("w") ?? "bomber,stalker").split(",");
+var PETRI = params.has("petri");
+if (PETRI) {
+  CONFIG.reaperCap = Number(params.get("cap") ?? 40);
+  CONFIG.lifespan = Number(params.get("life") ?? 6e3);
+  CONFIG.spawnInterval = Number(params.get("spawn") ?? 40);
+  CONFIG.copyError = Number(params.get("error") ?? 0.05);
+  CONFIG.tickCap = 1e9;
+}
+var initial = (params.get("w") ?? (PETRI ? "amoeba" : "bomber,stalker")).split(",");
 seedEl.value = params.get("seed") ?? "1";
 var pickersEl = $("pickers");
 var pickers = [];
@@ -1349,6 +1358,11 @@ function newMatch(sources, seed) {
   render();
 }
 $("reset").onclick = () => newMatch();
+$("petri").textContent = PETRI ? "Back to matches" : "Petri dish";
+$("petri").onclick = () => {
+  location.search = PETRI ? "" : "?petri=1&w=amoeba";
+};
+dishEl.style.display = PETRI ? "block" : "none";
 playBtn.onclick = () => setPlaying(!playing);
 $("step").onclick = () => {
   setPlaying(false);
@@ -1449,12 +1463,45 @@ function renderSide() {
       <div class="stack">stack [${wr.stack.slice(-12).join(" ")}]</div>
     </div>`;
   }).join("");
+  if (PETRI) renderDish();
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== "shed").map((e) => `<div style="color:${e.who !== void 0 ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : "#e6edf3"}">t${e.t} ${esc(e.text)}</div>`).join("");
   logEl.scrollTop = logEl.scrollHeight;
   if (world.result.over) {
     banner.style.display = "block";
     banner.textContent = world.result.winner === null ? `No winner: ${world.result.reason}` : `${world.warriors[world.result.winner].name} wins (${world.result.reason})`;
   } else banner.style.display = "none";
+}
+function genomeOf(id) {
+  const cells = world.cellsOf(id);
+  if (!cells.length) return "";
+  const xs = cells.map((c) => c % world.w), ys = cells.map((c) => c / world.w | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = "";
+    for (let x = x0; x <= x1; x++) {
+      const i = world.idx(x, y);
+      r += world.owner[i] === id ? glyphOf(world.code[i]) : " ";
+    }
+    rows.push(r.replace(/\s+$/, ""));
+  }
+  return rows.join(" / ");
+}
+function renderDish() {
+  const living = world.warriors.filter((w) => w.alive);
+  const counts = /* @__PURE__ */ new Map();
+  for (const w of living) {
+    const g = genomeOf(w.id);
+    const c = counts.get(g) ?? { n: 0, lineage: w.lineage };
+    c.n++;
+    counts.set(g, c);
+  }
+  const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf(w.id) || w.spec.source.split("---")[1]?.trim().split("\n").join(" / "));
+  const died = world.warriors.filter((w) => !w.alive).length;
+  const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+  dishEl.innerHTML = `<div class="name">Petri dish</div>
+    <div class="stats">${living.length} alive \xB7 ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born \xB7 ${died} died \xB7 deepest generation ${Math.max(0, ...living.map((w) => w.gen))} \xB7 ${counts.size} genomes alive</div>
+    ${top.map(([g, c]) => `<div class="genome"><span style="color:${color(c.lineage, 65)}">${String(c.n).padStart(3)} \xD7</span> <code>${esc(g)}</code>${founders.includes(g) ? ' <span class="stats">(founder)</span>' : ""}</div>`).join("")}`;
 }
 function esc(s) {
   return s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);

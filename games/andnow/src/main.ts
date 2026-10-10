@@ -21,6 +21,7 @@ const banner = $('banner'), tip = $('tip'), cardsEl = $('cards'), logEl = $('log
 const seedEl = $<HTMLInputElement>('seed'), speedEl = $<HTMLInputElement>('speed');
 const showIpEl = $<HTMLInputElement>('showIp'), showGlyphsEl = $<HTMLInputElement>('showGlyphs');
 const playBtn = $<HTMLButtonElement>('play');
+const dishEl = $('dish');
 
 let world: World;
 let specs: WarriorSpec[] = [];
@@ -31,7 +32,17 @@ let lastFrame = performance.now();
 // ---------- setup ----------
 
 const params = new URLSearchParams(location.search);
-const initial = (params.get('w') ?? 'bomber,stalker').split(',');
+// Petri dish (?petri=1): replicators with copy errors, a reaper and a lifespan; evolution
+// inside one long run (same rules as dist/petri.mjs).
+const PETRI = params.has('petri');
+if (PETRI) {
+  CONFIG.reaperCap = Number(params.get('cap') ?? 40);
+  CONFIG.lifespan = Number(params.get('life') ?? 6000);
+  CONFIG.spawnInterval = Number(params.get('spawn') ?? 40);
+  CONFIG.copyError = Number(params.get('error') ?? 0.05);
+  CONFIG.tickCap = 1e9;
+}
+const initial = (params.get('w') ?? (PETRI ? 'amoeba' : 'bomber,stalker')).split(',');
 seedEl.value = params.get('seed') ?? '1';
 
 const pickersEl = $('pickers');
@@ -72,6 +83,9 @@ function newMatch(sources?: string[], seed?: number) {
 }
 
 $('reset').onclick = () => newMatch();
+$('petri').textContent = PETRI ? 'Back to matches' : 'Petri dish';
+$('petri').onclick = () => { location.search = PETRI ? '' : '?petri=1&w=amoeba'; };
+dishEl.style.display = PETRI ? 'block' : 'none';
 playBtn.onclick = () => setPlaying(!playing);
 $('step').onclick = () => { setPlaying(false); world.tick(); render(); };
 showIpEl.onchange = showGlyphsEl.onchange = () => render();
@@ -159,6 +173,7 @@ function renderSide() {
       <div class="stack">stack [${wr.stack.slice(-12).join(' ')}]</div>
     </div>`;
   }).join('');
+  if (PETRI) renderDish();
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== 'shed').map((e) =>
     `<div style="color:${e.who !== undefined ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
   logEl.scrollTop = logEl.scrollHeight;
@@ -168,6 +183,38 @@ function renderSide() {
       ? `No winner: ${world.result.reason}`
       : `${world.warriors[world.result.winner].name} wins (${world.result.reason})`;
   } else banner.style.display = 'none';
+}
+
+/** A warrior's genome: its glyph grid, cropped. */
+function genomeOf(id: number): string {
+  const cells = world.cellsOf(id);
+  if (!cells.length) return '';
+  const xs = cells.map((c) => c % world.w), ys = cells.map((c) => (c / world.w) | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows: string[] = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = '';
+    for (let x = x0; x <= x1; x++) { const i = world.idx(x, y); r += world.owner[i] === id ? glyphOf(world.code[i]) : ' '; }
+    rows.push(r.replace(/\s+$/, ''));
+  }
+  return rows.join(' / ');
+}
+
+function renderDish() {
+  const living = world.warriors.filter((w) => w.alive);
+  const counts = new Map<string, { n: number; lineage: number }>();
+  for (const w of living) {
+    const g = genomeOf(w.id);
+    const c = counts.get(g) ?? { n: 0, lineage: w.lineage };
+    c.n++;
+    counts.set(g, c);
+  }
+  const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf(w.id) || w.spec.source.split('---')[1]?.trim().split('\n').join(' / '));
+  const died = world.warriors.filter((w) => !w.alive).length;
+  const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+  dishEl.innerHTML = `<div class="name">Petri dish</div>
+    <div class="stats">${living.length} alive · ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born · ${died} died · deepest generation ${Math.max(0, ...living.map((w) => w.gen))} · ${counts.size} genomes alive</div>
+    ${top.map(([g, c]) => `<div class="genome"><span style="color:${color(c.lineage, 65)}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code>${founders.includes(g) ? ' <span class="stats">(founder)</span>' : ''}</div>`).join('')}`;
 }
 
 function esc(s: string) { return s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`); }
