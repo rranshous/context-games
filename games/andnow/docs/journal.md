@@ -887,3 +887,55 @@ Tournament (11 warriors: map3 + map2 showcases, map1-bomber, evo5-3, evo6-2; 10 
   Benchmarks for future runs should be the strong evolved champions, not everything.
 - The economy line keeps strengthening: a pure collector now wins duels outright and
   holds its own in FFAs. Aimed bombers still own four-player chaos.
+
+## Session 1, part 7: an overnight run (map4, petri series, grand tournament)
+Chain in `runs/overnight/run.sh` (01:36–03:56): map4, then 21 long petri dishes, then a
+19-warrior grand tournament. The farm was mostly the calendar machine (other devices slept),
+~150 of 672 matches per generation.
+
+### map4: seeded from map3, strong-only benchmarks (300 gens)
+- Benchmarks were only the strong champions (evo5-3, evo6-2, map1-bomber, the map2 and map3
+  showcases except map3-bomber): the fix for map3's weak-field lesson.
+- The map3 archive collapsed to 42 slots at gen 0 under the harder field and refilled to
+  79–80 by gen 27. Best fitness wandered between 2.2 and 3.1 (re-evaluation keeps
+  deflating lucky elites) and ended 2.90 (bomber); none 2.19, mixed 2.25, poisoner 2.19.
+- **All four showcases are one family**: Stalker's `oo'@W` descendant with a
+  `C2S|`/`$$:Mem+` loop, differing in a cell or two. A strong benchmark field rewards one
+  robust design and its variants fill every behavior niche. The "none" showcase even
+  carries a `B` (it just doesn't fire in archive games).
+
+### Grand tournament (19 warriors: all showcases + the best of each evo run; 10 boards, 5000 ticks)
+- Duels: **map4-none 195W, map4-mixed 191W, map4-bomber 186W**, map3-none 184W,
+  map4-poisoner 183W, then map2-poisoner 156, map3-mixed 154, map2-mixed 148,
+  map3-poisoner 146, map2-none 140, map1-bomber 128, map2-bomber 128, evo6-2 127,
+  evo4-1 124, evo5-3 117, map3-bomber 101, map1-none 83, evo2-2 63, evo3-1 55.
+  Head to head: map4-none beats map3-none 11–7, evo6-2 13–3, map1-bomber 12–4;
+  map4-bomber beats map1-bomber 11–4 and map3-none 14–4.
+- FFAs (800 four-player matches): the old aimed bombers still lead (map1-bomber 26%,
+  map2-bomber / evo6-2 / evo5-3 23%), but **map4-bomber and map4-none are right there at
+  22%** and rarely die (7% / 11%, vs map3-none's 27%). map4-mixed 10%.
+- So map4 closed most of the duel/FFA gap: the first warriors that top duels *and* sit in
+  the FFA lead pack. Strong-only benchmarks were the right call.
+
+### Petri series: most boards can't start a dish
+- 21 dishes (seeds 1, 11–30; 300k ticks, cap 60, copy error 0.05). **Only seed 1 got
+  going**, and even it went extinct between t250k and t300k (13 alive at t250k). The other
+  20 died within ~8k ticks: the founder never divides, or its few children die of old age.
+- Cause (traced on seed 2): the Amoeba steers greedily at the nearest visible resource.
+  From most start rooms that's through a wall, so it shoves against the wall forever while
+  food sits uneaten in other rooms; and from the middle of its room, an east DIVIDE has no
+  space. Faster food or longer lives didn't help (0/10).
+- Screening 120 boards: the Amoeba sustains a dish on 6 (1, 52, 76, 79, 102, 113). Long runs
+  on those: 52, 76 and 113 alive at t300k (generation 87–101), 79 and 102 died out early.
+- **Convergent evolution to random walking.** In dishes 1, 52 and 76 the founder's genome
+  vanished and descendants gave up food-seeking: `C0SyTMD` (seed 1: `y` turns the scan
+  into a jittery walk), `Ce0%TMD` (seed 52: `e0%` is always 0, so TOWARD gets 0,0 and picks
+  a random direction: collect, step randomly, divide), `C=FDTM>` (seed 76: divide first,
+  then a random step). A random walker doesn't crowd one food spot with its kin.
+  On seed 113, where greedy steering works, the founder's genome *held* (83% at t300k):
+  stabilizing selection.
+- The evolved walkers are better founders: on 20 boards where the Amoeba starts 0 dishes,
+  `Ce0%TMD`, `C0SyTMD` and `C=FDTM>` each start 4. My hand-made wander variants
+  (`C6S$TMTMD` etc.) didn't; evolution's are shorter (7 cells, under the size floor).
+- Next: make an evolved walker the default dish founder, or find out what the 16 boards
+  it still fails on have in common (probably food that's far or behind narrow corridors).

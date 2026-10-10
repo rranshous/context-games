@@ -1,0 +1,10 @@
+name: map4-none
+# map-elites run map4, slot 0-2-3 (none), was m292-112421 (gen 292, parents m287-110453+add)
+# fitness 2.19; 99W of 252; per game: 0.00 bomb hits, 0.00 poison writes, 1.81 pickups; left home in 83% of games
+dir: W
+ip: 3 2
+---
+     .
+ v  +Boo'@W .
+$>C2S| |   W$
+ ^<  >$$:Mem+

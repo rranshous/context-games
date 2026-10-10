@@ -1,0 +1,9 @@
+name: map4-bomber
+# map-elites run map4, slot 1-4-3 (bomber), was m298-114704 (gen 298, parents m295-113526+point)
+# fitness 2.90; 20W of 36; per game: 4.19 bomb hits, 0.00 poison writes, 4.69 pickups; left home in 89% of games
+dir: E
+ip: 3 1
+---
+ v  WBoo'@W .
+$>C2S|     W$
+ ^<  >$$:Mem+

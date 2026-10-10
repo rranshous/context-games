@@ -1,0 +1,10 @@
+name: map4-poisoner
+# map-elites run map4, slot 3-4-3 (poisoner), was m296-113891 (gen 296, parents m289-111025+)
+# fitness 2.19; 51W of 108; per game: 0.89 bomb hits, 20.75 poison writes, 7.06 pickups; left home in 100% of games
+dir: W
+ip: 1 2
+---
+       .
+M  v  +>oo'@W B
+:S$>C2S|     W$
+   ^   >$$:Mem+
