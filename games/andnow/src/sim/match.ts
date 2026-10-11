@@ -40,56 +40,64 @@ export function summarize(world: World): MatchSummary {
 
 export interface TournamentRow { name: string; wins: number; losses: number; draws: number }
 
+/** Plays a list of matches (each: warriors in seat order, a board seed); outputs in order. */
+export type PlayMatches = (games: { specs: WarriorSpec[]; seed: number }[]) => Promise<{ summary: MatchSummary; kills: number[] }[]>;
+
 /** Every pair, both seatings, over `seeds` boards. */
-export function runTournament(specs: WarriorSpec[], seeds: number[], tickCap?: number) {
+export async function runTournament(specs: WarriorSpec[], seeds: number[], play: PlayMatches) {
   const table = new Map<string, TournamentRow>(specs.map((s) => [s.name, { name: s.name, wins: 0, losses: 0, draws: 0 }]));
   const pairs: Record<string, { a: number; b: number; d: number }> = {};
   const reasons: Record<string, number> = {};
+  const games: { specs: WarriorSpec[]; seed: number }[] = [];
   for (let i = 0; i < specs.length; i++) {
-    for (let j = 0; j < specs.length; j++) {
-      if (i === j) continue;
-      for (const seed of seeds) {
-        const { summary } = runMatch([specs[i], specs[j]], seed, { tickCap });
-        const why = summary.reason.replace(/ \([^)]*\)/g, '');
-        reasons[why] = (reasons[why] ?? 0) + 1;
-        const a = specs[i].name, b = specs[j].name;
-        const key = [a, b].sort().join(' vs ');
-        pairs[key] ??= { a: 0, b: 0, d: 0 };
-        const [first] = [a, b].sort();
-        if (summary.winner === null) {
-          table.get(a)!.draws++; table.get(b)!.draws++; pairs[key].d++;
-        } else {
-          const loser = summary.winner === a ? b : a;
-          table.get(summary.winner)!.wins++; table.get(loser)!.losses++;
-          if (summary.winner === first) pairs[key].a++; else pairs[key].b++;
-        }
-      }
-    }
+    for (let j = 0; j < specs.length; j++) if (i !== j) for (const seed of seeds) games.push({ specs: [specs[i], specs[j]], seed });
   }
+  const outcomes = await play(games);
+  games.forEach((g, k) => {
+    const { summary } = outcomes[k];
+    const why = summary.reason.replace(/ \([^)]*\)/g, '');
+    reasons[why] = (reasons[why] ?? 0) + 1;
+    const a = g.specs[0].name, b = g.specs[1].name;
+    const key = [a, b].sort().join(' vs ');
+    pairs[key] ??= { a: 0, b: 0, d: 0 };
+    const [first] = [a, b].sort();
+    if (summary.winner === null) {
+      table.get(a)!.draws++; table.get(b)!.draws++; pairs[key].d++;
+    } else {
+      const loser = summary.winner === a ? b : a;
+      table.get(summary.winner)!.wins++; table.get(loser)!.losses++;
+      if (summary.winner === first) pairs[key].a++; else pairs[key].b++;
+    }
+  });
   return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs, reasons };
 }
 
 export interface FfaRow { name: string; games: number; wins: number; deaths: number; kills: number }
 
 /** `matches` 4-player free-for-alls among random distinct warriors (seeded), seats shuffled. */
-export function runFfa(specs: WarriorSpec[], matches: number, tickCap?: number, players = 4) {
+export async function runFfa(specs: WarriorSpec[], matches: number, play: PlayMatches, players = 4) {
   const rng = makeRng(12345);
   const rows = new Map<string, FfaRow>(specs.map((s) => [s.name, { name: s.name, games: 0, wins: 0, deaths: 0, kills: 0 }]));
   const reasons: Record<string, number> = {};
+  const games: { specs: WarriorSpec[]; seed: number }[] = [];
   for (let m = 0; m < matches; m++) {
     const pool = [...specs];
     const picked: WarriorSpec[] = [];
     while (picked.length < Math.min(players, specs.length)) picked.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-    const { world, summary } = runMatch(picked, 1000 + m, { tickCap });
+    games.push({ specs: picked, seed: 1000 + m });
+  }
+  const outcomes = await play(games);
+  outcomes.forEach(({ summary, kills }) => {
     const why = summary.reason.replace(/ \([^)]*\)/g, '');
     reasons[why] = (reasons[why] ?? 0) + 1;
-    for (const w of world.warriors) {
-      const r = rows.get(w.name)!;
+    summary.warriors.slice(0, kills.length).forEach((w, k) => {
+      const r = rows.get(w.name);
+      if (!r || k >= Math.min(players, specs.length)) return; // founders only (DIVIDE children aren't seats)
       r.games++;
       if (!w.alive) r.deaths++;
-      r.kills += w.stats.kills;
-      if (world.result.winner === w.id) r.wins++;
-    }
-  }
+      r.kills += kills[k];
+      if (summary.winner === w.name) r.wins++;
+    });
+  });
   return { rows: [...rows.values()].sort((a, b) => b.wins / Math.max(1, b.games) - a.wins / Math.max(1, a.games)), reasons };
 }

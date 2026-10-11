@@ -12,7 +12,7 @@
 //
 //   node dist/map.mjs --name map1 [--gens 200] [--batch 256] [--seeds 2] [--boards 6]
 //                     [--ticks 3000] [--peers 6] [--ffa 4] [--bench warriors,...] [--rng 1]
-//                     [--workers 8] [--farm http://host:7700] [--reeval 64]   (elites re-evaluated per generation)
+//                     [--workers 8] [--farm URL|off (default http://localhost:7700)] [--reeval 64]   (elites re-evaluated per generation)
 //                     [--overlap 2]   (generations in flight at once, keeps the farm busy)
 //                     [--from runs/<run>/archive.json]   (start from an earlier run's archive)
 //
@@ -24,7 +24,7 @@ import { basename, join } from 'node:path';
 import { isMainThread } from 'node:worker_threads';
 import { clone, crossover, fromSpec, Genome, mutate, randomGenome, toText } from './ga/genome';
 import { duel, Job, JobResult } from './ga/job';
-import { Runner, serveBatches, ThreadPool } from './ga/runner';
+import { farmArg, Runner, serveWork, ThreadPool } from './ga/runner';
 import { makeRng } from './sim/rng';
 import { parseWarrior } from './sim/warrior-file';
 
@@ -75,7 +75,7 @@ async function main() {
   const str = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
   const GENS = opt('gens', 200), BATCH = opt('batch', 256), REEVAL = opt('reeval', 64), OVERLAP = opt('overlap', 2), SEEDS = opt('seeds', 2), BOARDS = opt('boards', 6);
   const TICKS = opt('ticks', 3000), PEERS = opt('peers', 6), FFA = opt('ffa', 4), WORKERS = opt('workers', availableParallelism());
-  const NAME = str('name', `map-${Date.now()}`), FARM = str('farm', ''), FROM = str('from', '');
+  const NAME = str('name', `map-${Date.now()}`), FARM = farmArg(process.argv), FROM = str('from', '');
   const SEEDFILES = str('seed', '').split(',').filter(Boolean);   // extra gen-0 candidates
   const rng = makeRng(opt('rng', 1));
   const runDir = join('runs', NAME);
@@ -265,5 +265,5 @@ async function main() {
 }
 
 // Entry: the same file is the main process and each worker.
-if (!isMainThread) serveBatches();
+if (!isMainThread) serveWork();
 else main().catch((e) => { console.error(e); process.exit(1); });

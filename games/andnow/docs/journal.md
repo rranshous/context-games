@@ -1368,3 +1368,26 @@ What was missing next to the MEGA-plate: there, bacteria deplete the nutrients w
 - **Caveat:** the population reaches the 500 cap by about 20–40k. After that a birth needs a death somewhere, which may blunt the breakthrough "explosion" at later rings.
 
 Golden replays unaffected: ripening is off in matches.
+
+### No population cap; offense doesn't appear (yet)
+
+The user removed the cap: are offense and defense worth it on a saturated plate? 8 seeds × 100k ticks, uncapped:
+- **Population** levels off at about 800–990, set by food and space. Most dishes end on 3K; seed 3 has 4K in front (363/990). 100k ticks takes 5–8 min headless.
+- **Offense never takes hold.** Only 0–14 of ~800 living warriors carry `B` at any time, and it never spreads. There are a few thousand bomb hits per dish over 100k ticks (mostly mutants firing at random) and almost no poison writes. `world.attacks` counts all hits, kin included; the per-warrior stats count rivals only, so everything would read 0 in a dish.
+- **Why, probably:**
+  - Aiming is a big jump from a random walker: `B` needs a dx dy on the stack.
+  - A kill pays only 25% of a small victim's max size.
+  - Nothing defends, so there's no arms race to start.
+
+### Farm by default for everything that's many independent games (user request)
+
+- **What happened:** morph6 had fallen back to local-only. A single failed request while the machine was loaded turned the farm off for the rest of that call.
+- **Fix in `runHybrid`:** retry with backoff, and only give up after 6 failures in a row. It also takes a `leaseMs`, so a long item (a dish) isn't re-queued after the default 60 s.
+- **One farm task, `andnow`** (`src/work.ts`), runs any unit of work: GA match batches, a whole match (tournaments, FFAs), a solo probe game, or a whole dish. Each item carries its settings and runs from the default CONFIG.
+- **Every tool that runs many independent games now farms by default** (`http://localhost:7700`; `--farm off` to skip): map-elites, evolve, `headless --tournament` / `--ffa`, probe, and the new **`dist/dishes.mjs`** sweep (one dish per seed).
+- **Still local:** a single `petri.mjs` dish (sequential) and the golden check.
+- **Verified:**
+  - The probe gives identical numbers via the runner.
+  - A 16-seed dish sweep ran 8 dishes locally and 8 on the farm in 190 s, with seeds matching the earlier local runs.
+  - Golden replays are unchanged.
+- **Potluck page:** a "whole farm" total row (threads, items done, items per minute).

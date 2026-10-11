@@ -1,25 +1,162 @@
 // src/headless.ts
-import { readFileSync } from "node:fs";
+import { readFileSync as readFileSync2 } from "node:fs";
+import { cpus } from "node:os";
 import { basename } from "node:path";
+import { isMainThread } from "node:worker_threads";
 
-// src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
-var CODE = {};
-for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
-function glyphOf(code) {
-  return GLYPHS[code] ?? ".";
+// src/ga/runner.ts
+import { readFileSync } from "node:fs";
+import { parentPort, Worker } from "node:worker_threads";
+
+// ../../platforms/potluck/client.mjs
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+var Potluck = class _Potluck {
+  /** @param {string} url  e.g. http://localhost:7700 */
+  constructor(url, { timeoutMs = 5e3 } = {}) {
+    this.url = url.replace(/\/$/, "");
+    this.timeoutMs = timeoutMs;
+  }
+  /** A client if the server answers, else null. */
+  static async connect(url, opts) {
+    const p = new _Potluck(url, opts);
+    try {
+      await p.status();
+      return p;
+    } catch {
+      return null;
+    }
+  }
+  async req(method, path, body, timeoutMs = this.timeoutMs) {
+    const r = await fetch(this.url + path, {
+      method,
+      headers: body ? { "content-type": "application/json" } : void 0,
+      body: body ? JSON.stringify(body) : void 0,
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : void 0
+    });
+    if (!r.ok) throw new Error(`potluck ${path}: ${r.status} ${await r.text()}`);
+    return r.json();
+  }
+  /** Register a task module (browser-safe ESM exporting run(input), optionally canary()). Returns its id. */
+  async registerTask(name, code) {
+    return (await this.req("POST", "/api/tasks", { name, code })).id;
+  }
+  status() {
+    return this.req("GET", "/api/status");
+  }
+  /** Worker threads right now: live (seen recently), verified (passed this task's canary), leased (busy on it). */
+  capacity(task) {
+    return this.req("GET", `/api/capacity?task=${task}`);
+  }
+  async submit(task, inputs = [], leaseMs) {
+    return (await this.req("POST", "/api/jobs", { task, inputs, leaseMs })).job;
+  }
+  async add(job, inputs) {
+    return (await this.req("POST", `/api/jobs/${job}/add`, { inputs })).first;
+  }
+  /** Finished outputs since `cursor`: { done: [[index, output]...], cursor, remaining }. */
+  poll(job, cursor = 0) {
+    return this.req("GET", `/api/jobs/${job}?cursor=${cursor}`);
+  }
+  cancel(job) {
+    return this.req("POST", `/api/jobs/${job}/cancel`);
+  }
+  /** Blocking: every input on the farm, nothing local. Only for when a farm is certain to have workers. */
+  async run(task, inputs) {
+    return (await this.req("POST", "/api/run", { task, inputs }, 0)).outputs;
+  }
+};
+async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, onFarmError }) {
+  const n = inputs.length;
+  const outputs = new Array(n);
+  const finished = new Uint8Array(n);
+  const stats = { local: 0, farm: 0, rerun: 0 };
+  let left = n;
+  let front = 0, back = n - 1;
+  const atFarm = /* @__PURE__ */ new Set();
+  const rerun = /* @__PURE__ */ new Set();
+  let farmOn = !!(farm && task);
+  let allDone;
+  const done = new Promise((r) => {
+    allDone = r;
+  });
+  const complete = (i, out, where) => {
+    if (finished[i]) return;
+    finished[i] = 1;
+    outputs[i] = out;
+    atFarm.delete(i);
+    stats[where]++;
+    if (--left === 0) allDone();
+  };
+  if (n === 0) allDone();
+  const nextLocal = () => {
+    if (front <= back) return front++;
+    for (const i of atFarm) if (!finished[i] && !rerun.has(i)) {
+      rerun.add(i);
+      stats.rerun++;
+      return i;
+    }
+    return -1;
+  };
+  const runner = async () => {
+    for (let i = nextLocal(); i >= 0; i = nextLocal()) complete(i, await local(inputs[i]), "local");
+  };
+  const feeder = async () => {
+    let job = null, cursor = 0, failures = 0;
+    const map = [];
+    while (left > 0 && farmOn) {
+      try {
+        const cap = await farm.capacity(task);
+        const target = cap.verified > 0 ? cap.verified * 3 : cap.live > 0 ? 1 : 0;
+        const want = Math.min(target - atFarm.size, back - front + 1);
+        if (want > 0) {
+          const idx = [];
+          for (let k = 0; k < want; k++) {
+            idx.push(back);
+            atFarm.add(back--);
+          }
+          const batch = idx.map((i) => inputs[i]);
+          let first;
+          if (!job) {
+            job = await farm.submit(task, batch, leaseMs);
+            first = 0;
+          } else first = await farm.add(job, batch);
+          idx.forEach((i, k) => {
+            map[first + k] = i;
+          });
+        }
+        if (job) {
+          const r = await farm.poll(job, cursor);
+          cursor = r.cursor;
+          for (const [fi, out] of r.done) complete(map[fi], out, "farm");
+        }
+        failures = 0;
+      } catch (e) {
+        if (++failures < 6) {
+          await sleep(pollMs * 2 ** failures);
+          continue;
+        }
+        farmOn = false;
+        onFarmError?.(e);
+        break;
+      }
+      if (left > 0) await sleep(pollMs);
+    }
+    if (job) farm.cancel(job).catch(() => {
+    });
+  };
+  const runners = Array.from({ length: concurrency }, runner);
+  const feeding = farmOn ? feeder() : Promise.resolve();
+  if (concurrency > 0) {
+    await Promise.all(runners);
+    farmOn = false;
+  } else {
+    await Promise.race([done, feeding.then(() => {
+      if (left > 0) throw new Error("farm stopped with work left and no local runners");
+    })]);
+  }
+  await done;
+  return { outputs, stats };
 }
-var DX = [1, 0, -1, 0];
-var DY = [0, 1, 0, -1];
-var DIR_NAMES = ["E", "S", "W", "N"];
-var COST = { M: 2, G: 2, B: 4, W: 3 };
-var T_NOTHING = 0;
-var T_WALL = 1;
-var T_ENEMY = 2;
-var T_DEBRIS = 3;
-var T_SIZE = 4;
-var T_SPEED = 5;
-var T_RESOURCE = 6;
 
 // src/sim/rng.ts
 function makeRng(seed) {
@@ -271,6 +408,25 @@ function makePlate(seed, size, bands, foodSpacing) {
   return { w, h, terrain, spawns, starts: [start], rooms: [], toxin };
 }
 
+// src/sim/glyphs.ts
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
+var CODE = {};
+for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
+function glyphOf(code) {
+  return GLYPHS[code] ?? ".";
+}
+var DX = [1, 0, -1, 0];
+var DY = [0, 1, 0, -1];
+var DIR_NAMES = ["E", "S", "W", "N"];
+var COST = { M: 2, G: 2, B: 4, W: 3 };
+var T_NOTHING = 0;
+var T_WALL = 1;
+var T_ENEMY = 2;
+var T_DEBRIS = 3;
+var T_SIZE = 4;
+var T_SPEED = 5;
+var T_RESOURCE = 6;
+
 // src/sim/world.ts
 var NONE = -1;
 var K = CODE["K"];
@@ -338,7 +494,7 @@ var CONFIG = {
   // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
 };
 var World = class {
-  constructor(seed, specs2) {
+  constructor(seed, specs) {
     this.seed = seed;
     this.board = CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
@@ -362,7 +518,7 @@ var World = class {
         if (b - a < 2 || d - c < 2) this.narrow[this.idx(x, y)] = 1;
       }
     }
-    specs2.forEach((s, i) => this.place(s, i));
+    specs.forEach((s, i) => this.place(s, i));
   }
   board;
   w;
@@ -384,6 +540,8 @@ var World = class {
   t = 0;
   rng;
   events = [];
+  /** Every bomb hit and poison write so far, kin included (the per-warrior stats count rivals only). */
+  attacks = { bombs: 0, poisons: 0 };
   result = { over: false, winner: null, reason: "" };
   spawnTimers;
   // ---------- setup ----------
@@ -1261,6 +1419,7 @@ var World = class {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : "debris";
+    if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
@@ -1380,6 +1539,7 @@ var World = class {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
@@ -1388,44 +1548,12 @@ var World = class {
   }
 };
 
-// src/sim/ascii.ts
-var LETTERS = "ABCDEFGH";
-function asciiMap(world, opts = {}) {
-  const rows = [];
-  const ips = new Set(world.warriors.filter((w) => w.alive).map((w) => world.idx(w.ipX, w.ipY)));
-  for (let y = 0; y < world.h; y++) {
-    let row = "";
-    for (let x = 0; x < world.w; x++) {
-      const i = world.idx(x, y);
-      const o = world.owner[i];
-      if (!world.isFloor(x, y)) row += "#";
-      else if (o >= 0) {
-        if (opts.glyphs) row += glyphOf(world.code[i]);
-        else {
-          const L = LETTERS[world.warriors[o].lineage] ?? "?";
-          row += ips.has(i) ? L.toLowerCase() : L;
-        }
-      } else if (o === DEBRIS) row += "%";
-      else if (world.resource[i] === 1) row += "+";
-      else if (world.resource[i] === 2) row += "*";
-      else row += o === NONE ? " " : "?";
-    }
-    rows.push(row);
-  }
-  return rows.join("\n");
-}
-function statusLine(world) {
-  return world.warriors.filter((w) => w.gen === 0 || w.alive).map(
-    (w) => `${LETTERS[w.lineage]}${w.gen ? `(g${w.gen})` : ""}:${w.name} ${w.alive ? `cells=${w.cellCount}/${Math.floor(w.maxSize)} spd=${w.speed.toFixed(2)}` : `dead@${w.diedAt} (${w.deathReason})`}`
-  ).join(" | ");
-}
-
 // src/sim/match.ts
-function runMatch(specs2, seed, opts = {}) {
+function runMatch(specs, seed, opts = {}) {
   const prevCap = CONFIG.tickCap;
   if (opts.tickCap) CONFIG.tickCap = opts.tickCap;
   try {
-    const world = new World(seed, specs2);
+    const world = new World(seed, specs);
     while (!world.result.over) {
       world.tick();
       opts.onTick?.(world);
@@ -1450,56 +1578,61 @@ function summarize(world) {
     }))
   };
 }
-function runTournament(specs2, seeds, tickCap2) {
-  const table = new Map(specs2.map((s) => [s.name, { name: s.name, wins: 0, losses: 0, draws: 0 }]));
+async function runTournament(specs, seeds, play) {
+  const table = new Map(specs.map((s) => [s.name, { name: s.name, wins: 0, losses: 0, draws: 0 }]));
   const pairs = {};
   const reasons = {};
-  for (let i = 0; i < specs2.length; i++) {
-    for (let j = 0; j < specs2.length; j++) {
-      if (i === j) continue;
-      for (const seed of seeds) {
-        const { summary } = runMatch([specs2[i], specs2[j]], seed, { tickCap: tickCap2 });
-        const why = summary.reason.replace(/ \([^)]*\)/g, "");
-        reasons[why] = (reasons[why] ?? 0) + 1;
-        const a = specs2[i].name, b = specs2[j].name;
-        const key = [a, b].sort().join(" vs ");
-        pairs[key] ??= { a: 0, b: 0, d: 0 };
-        const [first] = [a, b].sort();
-        if (summary.winner === null) {
-          table.get(a).draws++;
-          table.get(b).draws++;
-          pairs[key].d++;
-        } else {
-          const loser = summary.winner === a ? b : a;
-          table.get(summary.winner).wins++;
-          table.get(loser).losses++;
-          if (summary.winner === first) pairs[key].a++;
-          else pairs[key].b++;
-        }
-      }
-    }
+  const games = [];
+  for (let i = 0; i < specs.length; i++) {
+    for (let j = 0; j < specs.length; j++) if (i !== j) for (const seed of seeds) games.push({ specs: [specs[i], specs[j]], seed });
   }
-  return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs, reasons };
-}
-function runFfa(specs2, matches, tickCap2, players = 4) {
-  const rng = makeRng(12345);
-  const rows = new Map(specs2.map((s) => [s.name, { name: s.name, games: 0, wins: 0, deaths: 0, kills: 0 }]));
-  const reasons = {};
-  for (let m = 0; m < matches; m++) {
-    const pool = [...specs2];
-    const picked = [];
-    while (picked.length < Math.min(players, specs2.length)) picked.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-    const { world, summary } = runMatch(picked, 1e3 + m, { tickCap: tickCap2 });
+  const outcomes = await play(games);
+  games.forEach((g, k) => {
+    const { summary } = outcomes[k];
     const why = summary.reason.replace(/ \([^)]*\)/g, "");
     reasons[why] = (reasons[why] ?? 0) + 1;
-    for (const w of world.warriors) {
+    const a = g.specs[0].name, b = g.specs[1].name;
+    const key = [a, b].sort().join(" vs ");
+    pairs[key] ??= { a: 0, b: 0, d: 0 };
+    const [first] = [a, b].sort();
+    if (summary.winner === null) {
+      table.get(a).draws++;
+      table.get(b).draws++;
+      pairs[key].d++;
+    } else {
+      const loser = summary.winner === a ? b : a;
+      table.get(summary.winner).wins++;
+      table.get(loser).losses++;
+      if (summary.winner === first) pairs[key].a++;
+      else pairs[key].b++;
+    }
+  });
+  return { table: [...table.values()].sort((x, y) => y.wins - x.wins), pairs, reasons };
+}
+async function runFfa(specs, matches, play, players = 4) {
+  const rng = makeRng(12345);
+  const rows = new Map(specs.map((s) => [s.name, { name: s.name, games: 0, wins: 0, deaths: 0, kills: 0 }]));
+  const reasons = {};
+  const games = [];
+  for (let m = 0; m < matches; m++) {
+    const pool = [...specs];
+    const picked = [];
+    while (picked.length < Math.min(players, specs.length)) picked.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    games.push({ specs: picked, seed: 1e3 + m });
+  }
+  const outcomes = await play(games);
+  outcomes.forEach(({ summary, kills }) => {
+    const why = summary.reason.replace(/ \([^)]*\)/g, "");
+    reasons[why] = (reasons[why] ?? 0) + 1;
+    summary.warriors.slice(0, kills.length).forEach((w, k) => {
       const r = rows.get(w.name);
+      if (!r || k >= Math.min(players, specs.length)) return;
       r.games++;
       if (!w.alive) r.deaths++;
-      r.kills += w.stats.kills;
-      if (world.result.winner === w.id) r.wins++;
-    }
-  }
+      r.kills += kills[k];
+      if (summary.winner === w.name) r.wins++;
+    });
+  });
   return { rows: [...rows.values()].sort((a, b) => b.wins / Math.max(1, b.games) - a.wins / Math.max(1, a.games)), reasons };
 }
 
@@ -1539,141 +1672,535 @@ function parseWarrior(text, fallbackName = "warrior") {
   return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
 }
 
-// src/headless.ts
-var args = process.argv.slice(2);
-var flag = (name) => args.includes(`--${name}`);
-var opt = (name, def) => {
-  const i = args.indexOf(`--${name}`);
-  return i >= 0 ? Number(args[i + 1]) : def;
-};
-var valued = /* @__PURE__ */ new Set(["--seed", "--ticks", "--frames", "--seeds", "--matches"]);
-var files = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]));
-if (!files.length) {
-  console.log("usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]");
-  process.exit(1);
+// src/ga/job.ts
+function runJob(j) {
+  const me = j.me;
+  try {
+    const specs = j.warriors.map((t) => parseWarrior(t));
+    const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
+    const team = world.warriors.filter((x) => x.lineage === me);
+    const sum = (f) => team.reduce((a, x) => a + f(x), 0);
+    const alive = team.some((x) => x.alive);
+    const w = {
+      alive,
+      diedAt: alive ? void 0 : Math.max(...team.map((x) => x.diedAt ?? 0)),
+      leftHomeAt: team.some((x) => x.leftHomeAt !== void 0) ? 0 : void 0,
+      stats: {
+        collected: sum((x) => x.stats.collected),
+        bombHits: sum((x) => x.stats.bombHits),
+        poisonWrites: sum((x) => x.stats.poisonWrites),
+        kills: sum((x) => x.stats.kills),
+        morph: sum((x) => x.stats.oozes + x.stats.flows + x.stats.grows),
+        squeezed: sum((x) => x.stats.squeezed),
+        rooms: sum((x) => x.stats.rooms)
+      }
+    };
+    const r = world.result;
+    let score = 0;
+    if (r.winner === me) score = r.reason === "last standing" ? 3 : 2;
+    else if (r.winner === null) score = 1;
+    score += Math.min(0.5, 0.05 * w.stats.collected);
+    score += Math.min(1, 0.1 * w.stats.bombHits);
+    score += Math.min(1, 0.25 * w.stats.poisonWrites);
+    score += Math.min(1, 0.5 * w.stats.kills);
+    score += Math.min(1, 0.5 * w.stats.rooms);
+    score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
+    return {
+      score,
+      win: r.winner === me,
+      loss: r.winner !== null && r.winner !== me,
+      kill: world.warriors.some((x) => x.gen === 0 && !world.warriors.some((y) => y.lineage === x.lineage && y.alive)),
+      hits: w.stats.bombHits,
+      poisons: w.stats.poisonWrites,
+      collected: w.stats.collected,
+      left: w.leftHomeAt !== void 0,
+      morph: w.stats.morph,
+      squeezed: w.stats.squeezed > 0,
+      rooms: w.stats.rooms
+    };
+  } catch {
+    return { score: 0, win: false, loss: true, kill: false, hits: 0, poisons: 0, collected: 0, left: false, morph: 0, squeezed: false, rooms: 0 };
+  }
 }
-var specs = files.map((f) => parseWarrior(readFileSync(f, "utf8"), basename(f, ".warrior")));
-var tickCap = opt("ticks", 0) || void 0;
-if (flag("selfmod")) {
-  const n = opt("seeds", 4), cap = tickCap ?? 3e3;
-  const bodyAt = (w, id) => {
-    const wr = w.warriors[id];
-    return new Map(w.cellsOf(id).map((c) => [`${c % w.w - wr.ox},${(c / w.w | 0) - wr.oy}`, glyphOf(w.code[c])]));
-  };
-  const render = (m, other, mark) => {
-    const pts = [...m.keys(), ...other.keys()].map((k) => k.split(",").map(Number));
-    const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0]));
-    const y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
-    const rows = [];
-    for (let y = y0; y <= y1; y++) {
-      let r = "";
-      for (let x = x0; x <= x1; x++) {
-        const g = m.get(`${x},${y}`);
-        r += g === void 0 ? " " : mark && other.get(`${x},${y}`) !== g ? g : mark ? "\xB7" : g;
+function toBatches(jobs, size) {
+  const out = [];
+  for (let i = 0; i < jobs.length; i += size) {
+    const warriors = [];
+    const at = /* @__PURE__ */ new Map();
+    const ref = (t) => {
+      if (!at.has(t)) {
+        at.set(t, warriors.length);
+        warriors.push(t);
       }
-      rows.push(r.replace(/\s+$/, ""));
+      return at.get(t);
+    };
+    out.push({ warriors, jobs: jobs.slice(i, i + size).map((j) => ({ w: j.warriors.map(ref), me: j.me, seed: j.seed, ticks: j.ticks })) });
+  }
+  return out;
+}
+function runBatch(b) {
+  return b.jobs.map((j) => runJob({ warriors: j.w.map((k) => b.warriors[k]), me: j.me, seed: j.seed, ticks: j.ticks }));
+}
+
+// src/sim/dish.ts
+var DISH_DEFAULTS = {
+  size: 160,
+  // plate diameter (cells)
+  bands: 5,
+  // toxin levels 0 (middle) … 4 (rim)
+  food: 5,
+  // about one food spot per food² cells
+  spawn: 40,
+  // ticks a food spot needs untouched to regrow
+  ripen: 300,
+  // an uneaten pickup grows one pickup's worth every this many ticks…
+  ripemax: 5,
+  // …up to this many (so fresh territory is rich, picked-over ground poor)
+  toxin: 1e-3,
+  // per tick, a cell's chance of dying one toxin level above its warrior's armor…
+  step: 10,
+  // …times this for each further level
+  error: 0.02,
+  // DIVIDE: chance each copied cell becomes a random glyph
+  insert: 0.02,
+  // DIVIDE: chance the child gains a fat cell
+  delete: 0.02,
+  // DIVIDE: chance the child loses a cell
+  life: 6e3,
+  // typical lifespan (each warrior's is 50–150% of it)
+  cap: 0
+  // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
+};
+function applyDish(get) {
+  const o = {};
+  for (const [k, d] of Object.entries(DISH_DEFAULTS)) {
+    const v = get(k);
+    o[k] = v !== null && v !== "" ? Number(v) : d;
+  }
+  CONFIG.plate = o.size;
+  CONFIG.plateBands = o.bands;
+  CONFIG.plateFood = o.food;
+  CONFIG.spawnInterval = o.spawn;
+  CONFIG.foodRipen = o.ripen;
+  CONFIG.foodRipeMax = o.ripemax;
+  CONFIG.toxinRate = o.toxin;
+  CONFIG.toxinStep = o.step;
+  CONFIG.copyError = o.error;
+  CONFIG.copyInsert = o.insert;
+  CONFIG.copyDelete = o.delete;
+  CONFIG.lifespan = o.life;
+  CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
+  CONFIG.reaperCap = 0;
+  CONFIG.tickCap = 1e12;
+  CONFIG.endless = true;
+  return o;
+}
+var K2 = CODE["K"];
+function armorOf(world, id) {
+  let n = 0;
+  for (const c of world.cellsOf(id)) if (world.code[c] === K2) n++;
+  return n;
+}
+function bandOf(world, id) {
+  const w = world.warriors[id];
+  return world.board.toxin?.[world.idx(w.ipX, w.ipY)] ?? 0;
+}
+function genomeOf(world, id, sep = "/") {
+  const cells = world.cellsOf(id);
+  if (!cells.length) return "";
+  const xs = cells.map((c) => c % world.w), ys = cells.map((c) => c / world.w | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = "";
+    for (let x = x0; x <= x1; x++) {
+      const i = world.idx(x, y);
+      r += world.owner[i] === id ? glyphOf(world.code[i]) : " ";
     }
-    return rows;
+    rows.push(r.replace(/\s+$/, ""));
+  }
+  return rows.join(sep);
+}
+var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
+function dishSnapshot(world, founders) {
+  const living = world.living();
+  const bands = new Array(CONFIG.plateBands).fill(0), armor = [];
+  const counts = /* @__PURE__ */ new Map();
+  const weapons = { B: 0, W: 0, poison: 0 };
+  for (const w of living) {
+    bands[bandOf(world, w.id)]++;
+    const a = armorOf(world, w.id);
+    armor[a] = (armor[a] ?? 0) + 1;
+    const g = genomeOf(world, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+    const cells = world.cellsOf(w.id);
+    for (const k of ["B", "W", "poison"]) if (cells.some((c) => world.code[c] === WEAPON[k])) weapons[k]++;
+  }
+  for (let a = 0; a < armor.length; a++) armor[a] ??= 0;
+  const deaths = {};
+  for (const w of world.warriors) {
+    if (w.alive || !w.deathReason) continue;
+    const k = w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "");
+    deaths[k] = (deaths[k] ?? 0) + 1;
+  }
+  return {
+    t: world.t,
+    alive: living.length,
+    births: world.warriors.length - founders,
+    maxGen: Math.max(0, ...living.map((w) => w.gen)),
+    bands,
+    armor,
+    deaths,
+    weapons,
+    attacks: { ...world.attacks },
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
   };
-  console.log(`Self-modification: each warrior vs the others, ${n} boards each, ${cap} ticks
-`);
-  for (let a = 0; a < specs.length; a++) {
-    const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, changed: 0, games: 0 };
-    let best = null;
-    for (let b = 0; b < specs.length; b++) {
-      if (a === b && specs.length > 1) continue;
-      for (let seed = 1; seed <= n; seed++) {
-        const pair = specs.length > 1 ? [specs[a], specs[b]] : [specs[a]];
-        const w = new World(seed, pair);
-        const start = bodyAt(w, 0);
-        let end = start;
-        while (!w.result.over && w.t < cap) {
-          w.tick();
-          if (w.warriors[0].alive) end = bodyAt(w, 0);
+}
+
+// src/work.ts
+var DEFAULTS = { ...CONFIG };
+function runWork(w) {
+  Object.assign(CONFIG, DEFAULTS);
+  switch (w.kind) {
+    case "matches":
+      return runBatch(w.batch);
+    case "match":
+      return playMatch(w.warriors, w.names, w.seed, w.ticks);
+    case "solo":
+      return playSolo(w.warrior, w.seed, w.ticks);
+    case "dish":
+      return playDish(w);
+  }
+}
+function playMatch(texts, names, seed, ticks) {
+  CONFIG.tickCap = ticks;
+  const world = new World(seed, texts.map((t, i) => parseWarrior(t, names?.[i])));
+  while (!world.result.over) world.tick();
+  return { summary: summarize(world), kills: world.warriors.map((x) => x.stats.kills) };
+}
+function playSolo(text, seed, ticks) {
+  CONFIG.tickCap = ticks;
+  const world = new World(seed, [parseWarrior(text)]);
+  let peak = 0;
+  const cells = () => world.living().reduce((a, x) => a + x.cellCount, 0);
+  while (!world.result.over) {
+    world.tick();
+    peak = Math.max(peak, cells());
+  }
+  const team = world.warriors, sum = (f) => team.reduce((a, x) => a + f(x), 0);
+  return {
+    pickups: sum((x) => x.stats.collected),
+    oozes: sum((x) => x.stats.oozes),
+    flows: sum((x) => x.stats.flows),
+    grows: sum((x) => x.stats.grows),
+    peak,
+    final: cells(),
+    left: team.some((x) => x.leftHomeAt !== void 0),
+    squeezed: team.some((x) => x.stats.squeezed > 0),
+    room: team.some((x) => x.stats.rooms > 0),
+    alive: team.some((x) => x.alive)
+  };
+}
+function playDish(w) {
+  applyDish((k) => w.settings[k] ?? null);
+  const specs = w.warriors.map((t) => parseWarrior(t));
+  const world = new World(w.seed, specs);
+  const founder = genomeOf(world, 0);
+  const snapshots = [];
+  while (world.t < w.ticks && world.living().length) {
+    world.tick();
+    if (world.t % w.report === 0) snapshots.push(dishSnapshot(world, specs.length));
+  }
+  if (world.t % w.report !== 0) snapshots.push(dishSnapshot(world, specs.length));
+  return { founder, snapshots, extinct: world.living().length === 0 };
+}
+
+// src/ga/runner.ts
+var DEFAULT_FARM = "http://localhost:7700";
+function farmArg(args) {
+  const i = args.indexOf("--farm");
+  const v = i >= 0 ? args[i + 1] : DEFAULT_FARM;
+  return v === "off" || v === "none" ? "" : v;
+}
+function serveWork() {
+  parentPort.on("message", (w) => parentPort.postMessage(runWork(w)));
+}
+var ThreadPool = class {
+  free;
+  waiting = [];
+  size;
+  constructor(n) {
+    this.free = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
+    this.size = n;
+  }
+  async run(work) {
+    const w = this.free.pop() ?? await new Promise((r) => this.waiting.push(r));
+    try {
+      return await new Promise((res) => {
+        w.once("message", res);
+        w.postMessage(work);
+      });
+    } finally {
+      const next = this.waiting.shift();
+      if (next) next(w);
+      else this.free.push(w);
+    }
+  }
+  close() {
+    for (const w of [...this.free]) w.terminate();
+  }
+};
+var Runner = class {
+  constructor(threads, farmUrl, batchSize = 24) {
+    this.threads = threads;
+    this.farmUrl = farmUrl;
+    this.batchSize = batchSize;
+  }
+  farm = null;
+  task = null;
+  code = "";
+  farmDown = false;
+  async init() {
+    if (!this.farmUrl) return;
+    this.code = readFileSync(new URL("./farm-task.mjs", import.meta.url), "utf8");
+    this.farm = new Potluck(this.farmUrl);
+    await this.register();
+  }
+  /** (Re-)register the task; a restarted server has forgotten it. Fails fast if the server is down. */
+  async register() {
+    try {
+      const wasUp = !this.farmDown && this.task !== null;
+      this.task = await this.farm.registerTask("andnow", this.code);
+      if (!wasUp) console.log(`potluck: task ${this.task} registered at ${this.farmUrl}; open it on any machine to help`);
+      this.farmDown = false;
+    } catch {
+      if (!this.farmDown) console.log(`potluck: ${this.farmUrl} not reachable; running locally (will keep trying)`);
+      this.task = null;
+      this.farmDown = true;
+    }
+  }
+  lastStats = { local: 0, farm: 0, rerun: 0 };
+  async run(jobs) {
+    return (await this.runDetailed(jobs)).results;
+  }
+  /** GA jobs, batched; plus this call's split between local and farm (safe with concurrent calls). */
+  async runDetailed(jobs) {
+    const { outputs, stats } = await this.runWorkDetailed(toBatches(jobs, this.batchSize).map((batch) => ({ kind: "matches", batch })));
+    this.lastStats = stats;
+    return { results: outputs.flat(), stats };
+  }
+  /** Any work items, outputs in order. `leaseMs`: how long a farm browser may hold one (long for dishes). */
+  async runWork(items, leaseMs) {
+    return (await this.runWorkDetailed(items, leaseMs)).outputs;
+  }
+  async runWorkDetailed(items, leaseMs) {
+    if (this.farm && this.farmDown) await this.register();
+    const { outputs, stats } = await runHybrid({
+      inputs: items,
+      local: (w) => this.threads.run(w),
+      concurrency: this.threads.size,
+      farm: this.farmDown ? null : this.farm,
+      task: this.task,
+      leaseMs,
+      onFarmError: (e) => {
+        console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);
+        this.farmDown = true;
+      }
+    });
+    return { outputs, stats };
+  }
+  close() {
+    this.threads.close();
+  }
+};
+
+// src/sim/ascii.ts
+var LETTERS = "ABCDEFGH";
+function asciiMap(world, opts = {}) {
+  const rows = [];
+  const ips = new Set(world.warriors.filter((w) => w.alive).map((w) => world.idx(w.ipX, w.ipY)));
+  for (let y = 0; y < world.h; y++) {
+    let row = "";
+    for (let x = 0; x < world.w; x++) {
+      const i = world.idx(x, y);
+      const o = world.owner[i];
+      if (!world.isFloor(x, y)) row += "#";
+      else if (o >= 0) {
+        if (opts.glyphs) row += glyphOf(world.code[i]);
+        else {
+          const L = LETTERS[world.warriors[o].lineage] ?? "?";
+          row += ips.has(i) ? L.toLowerCase() : L;
         }
-        const st = w.warriors[0].stats;
-        let changed = 0;
-        for (const [k, g2] of end) if (start.has(k) && start.get(k) !== g2) changed++;
-        tot.selfWrites += st.selfWrites;
-        tot.grows += st.grows;
-        tot.swaps += st.swaps;
-        tot.flows += st.flows;
-        tot.oozes += st.oozes;
-        tot.squeezed += st.squeezed > 0 ? 1 : 0;
-        tot.changed += changed;
-        tot.games++;
-        if (!best || changed > best.changed) best = { changed, start, end, vs: specs[b].name };
+      } else if (o === DEBRIS) row += "%";
+      else if (world.resource[i] === 1) row += "+";
+      else if (world.resource[i] === 2) row += "*";
+      else row += o === NONE ? " " : "?";
+    }
+    rows.push(row);
+  }
+  return rows.join("\n");
+}
+function statusLine(world) {
+  return world.warriors.filter((w) => w.gen === 0 || w.alive).map(
+    (w) => `${LETTERS[w.lineage]}${w.gen ? `(g${w.gen})` : ""}:${w.name} ${w.alive ? `cells=${w.cellCount}/${Math.floor(w.maxSize)} spd=${w.speed.toFixed(2)}` : `dead@${w.diedAt} (${w.deathReason})`}`
+  ).join(" | ");
+}
+
+// src/headless.ts
+if (!isMainThread) serveWork();
+else await main();
+async function main() {
+  const args = process.argv.slice(2);
+  const flag = (name) => args.includes(`--${name}`);
+  const opt = (name, def) => {
+    const i = args.indexOf(`--${name}`);
+    return i >= 0 ? Number(args[i + 1]) : def;
+  };
+  const valued = /* @__PURE__ */ new Set(["--seed", "--ticks", "--frames", "--seeds", "--matches", "--farm"]);
+  const files = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]));
+  if (!files.length) {
+    console.log("usage: node dist/headless.mjs [--tournament|--solo] <warrior files> [--seed N] [--seeds N] [--ticks N] [--frames K] [--glyphs]");
+    process.exit(1);
+  }
+  const specs = files.map((f) => parseWarrior(readFileSync2(f, "utf8"), basename(f, ".warrior")));
+  const tickCap = opt("ticks", 0) || void 0;
+  const play = async (games) => {
+    const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv));
+    await pool.init();
+    const texts = new Map(specs.map((s, k) => [s, files[k]]));
+    try {
+      return await pool.runWork(games.map((g) => ({
+        kind: "match",
+        warriors: g.specs.map((sp) => readFileSync2(texts.get(sp), "utf8")),
+        names: g.specs.map((sp) => sp.name),
+        seed: g.seed,
+        ticks: tickCap ?? 5e3
+      })));
+    } finally {
+      pool.close();
+    }
+  };
+  if (flag("selfmod")) {
+    const n = opt("seeds", 4), cap = tickCap ?? 3e3;
+    const bodyAt = (w, id) => {
+      const wr = w.warriors[id];
+      return new Map(w.cellsOf(id).map((c) => [`${c % w.w - wr.ox},${(c / w.w | 0) - wr.oy}`, glyphOf(w.code[c])]));
+    };
+    const render = (m, other, mark) => {
+      const pts = [...m.keys(), ...other.keys()].map((k) => k.split(",").map(Number));
+      const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0]));
+      const y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
+      const rows = [];
+      for (let y = y0; y <= y1; y++) {
+        let r = "";
+        for (let x = x0; x <= x1; x++) {
+          const g = m.get(`${x},${y}`);
+          r += g === void 0 ? " " : mark && other.get(`${x},${y}`) !== g ? g : mark ? "\xB7" : g;
+        }
+        rows.push(r.replace(/\s+$/, ""));
+      }
+      return rows;
+    };
+    console.log(`Self-modification: each warrior vs the others, ${n} boards each, ${cap} ticks
+`);
+    for (let a = 0; a < specs.length; a++) {
+      const tot = { selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, changed: 0, games: 0 };
+      let best = null;
+      for (let b = 0; b < specs.length; b++) {
+        if (a === b && specs.length > 1) continue;
+        for (let seed = 1; seed <= n; seed++) {
+          const pair = specs.length > 1 ? [specs[a], specs[b]] : [specs[a]];
+          const w = new World(seed, pair);
+          const start = bodyAt(w, 0);
+          let end = start;
+          while (!w.result.over && w.t < cap) {
+            w.tick();
+            if (w.warriors[0].alive) end = bodyAt(w, 0);
+          }
+          const st = w.warriors[0].stats;
+          let changed = 0;
+          for (const [k, g2] of end) if (start.has(k) && start.get(k) !== g2) changed++;
+          tot.selfWrites += st.selfWrites;
+          tot.grows += st.grows;
+          tot.swaps += st.swaps;
+          tot.flows += st.flows;
+          tot.oozes += st.oozes;
+          tot.squeezed += st.squeezed > 0 ? 1 : 0;
+          tot.changed += changed;
+          tot.games++;
+          if (!best || changed > best.changed) best = { changed, start, end, vs: specs[b].name };
+        }
+      }
+      const g = Math.max(1, tot.games);
+      console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows, ${(tot.oozes / g).toFixed(1)} oozes; squeezed through a narrow passage in ${(100 * tot.squeezed / g).toFixed(0)}% of games; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
+      if (best && best.changed > 0) {
+        const s0 = render(best.start, best.start, false), s1 = render(best.end, best.start, true);
+        console.log(`  most changed (vs ${best.vs}): start \u2192 end (\xB7 = unchanged)`);
+        for (let k = 0; k < Math.max(s0.length, s1.length); k++) console.log(`    ${(s0[k] ?? "").padEnd(18)}  ${s1[k] ?? ""}`);
       }
     }
-    const g = Math.max(1, tot.games);
-    console.log(`${specs[a].name.padEnd(16)} per game: ${(tot.selfWrites / g).toFixed(1)} self-writes, ${(tot.grows / g).toFixed(1)} grows, ${(tot.swaps / g).toFixed(1)} swaps, ${(tot.flows / g).toFixed(1)} flows, ${(tot.oozes / g).toFixed(1)} oozes; squeezed through a narrow passage in ${(100 * tot.squeezed / g).toFixed(0)}% of games; ${(tot.changed / g).toFixed(1)} of its starting cells end with a different glyph`);
-    if (best && best.changed > 0) {
-      const s0 = render(best.start, best.start, false), s1 = render(best.end, best.start, true);
-      console.log(`  most changed (vs ${best.vs}): start \u2192 end (\xB7 = unchanged)`);
-      for (let k = 0; k < Math.max(s0.length, s1.length); k++) console.log(`    ${(s0[k] ?? "").padEnd(18)}  ${s1[k] ?? ""}`);
+  } else if (flag("explore")) {
+    const n = opt("seeds", 20), cap = tickCap ?? 2e3;
+    console.log(`Leaving home: each warrior alone, ${n} boards, ${cap} ticks
+`);
+    for (const spec of specs) {
+      const times = [];
+      for (let seed = 1; seed <= n; seed++) {
+        const { world } = runMatch([spec], seed, { tickCap: cap });
+        const t = world.warriors[0].leftHomeAt;
+        if (t !== void 0) times.push(t);
+      }
+      times.sort((a, b) => a - b);
+      const med = times.length ? times[Math.floor(times.length / 2)] : NaN;
+      console.log(`${spec.name.padEnd(16)} left home on ${String(times.length).padStart(2)}/${n} boards   median tick ${isNaN(med) ? "\u2014" : med}`);
     }
-  }
-} else if (flag("explore")) {
-  const n = opt("seeds", 20), cap = tickCap ?? 2e3;
-  console.log(`Leaving home: each warrior alone, ${n} boards, ${cap} ticks
+  } else if (flag("ffa")) {
+    const n = opt("matches", 200);
+    const { rows, reasons } = await runFfa(specs, n, play);
+    console.log(`Free-for-all: ${n} four-player matches among ${specs.length} warriors
 `);
-  for (const spec of specs) {
-    const times = [];
-    for (let seed = 1; seed <= n; seed++) {
-      const { world } = runMatch([spec], seed, { tickCap: cap });
-      const t = world.warriors[0].leftHomeAt;
-      if (t !== void 0) times.push(t);
+    for (const r of rows) {
+      console.log(`${r.name.padEnd(16)} games ${String(r.games).padStart(3)}  win ${(100 * r.wins / Math.max(1, r.games)).toFixed(0).padStart(3)}%  died ${(100 * r.deaths / Math.max(1, r.games)).toFixed(0).padStart(3)}%  kills ${r.kills}`);
     }
-    times.sort((a, b) => a - b);
-    const med = times.length ? times[Math.floor(times.length / 2)] : NaN;
-    console.log(`${spec.name.padEnd(16)} left home on ${String(times.length).padStart(2)}/${n} boards   median tick ${isNaN(med) ? "\u2014" : med}`);
-  }
-} else if (flag("ffa")) {
-  const n = opt("matches", 200);
-  const { rows, reasons } = runFfa(specs, n, tickCap);
-  console.log(`Free-for-all: ${n} four-player matches among ${specs.length} warriors
+    console.log("\nhow matches ended:", Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(", "));
+  } else if (flag("tournament")) {
+    const n = opt("seeds", 5);
+    const seeds = Array.from({ length: n }, (_, i) => i + 1);
+    const { table, pairs, reasons } = await runTournament(specs, seeds, play);
+    console.log(`Tournament: ${specs.length} warriors, ${n} boards, both seatings
 `);
-  for (const r of rows) {
-    console.log(`${r.name.padEnd(16)} games ${String(r.games).padStart(3)}  win ${(100 * r.wins / Math.max(1, r.games)).toFixed(0).padStart(3)}%  died ${(100 * r.deaths / Math.max(1, r.games)).toFixed(0).padStart(3)}%  kills ${r.kills}`);
-  }
-  console.log("\nhow matches ended:", Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(", "));
-} else if (flag("tournament")) {
-  const n = opt("seeds", 5);
-  const seeds = Array.from({ length: n }, (_, i) => i + 1);
-  const { table, pairs, reasons } = runTournament(specs, seeds, tickCap);
-  console.log(`Tournament: ${specs.length} warriors, ${n} boards, both seatings
-`);
-  for (const r of table) console.log(`${r.name.padEnd(16)} W ${String(r.wins).padStart(3)}  L ${String(r.losses).padStart(3)}  D ${String(r.draws).padStart(3)}`);
-  console.log("\nhow matches ended:", Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(", "));
-  console.log("");
-  for (const [k, v] of Object.entries(pairs)) {
-    const [a, b] = k.split(" vs ");
-    console.log(`${k.padEnd(34)} ${a} ${v.a} / ${b} ${v.b} / draw ${v.d}`);
-  }
-} else {
-  const seed = opt("seed", 1);
-  const frames = opt("frames", 0);
-  const { world, summary } = runMatch(specs, seed, {
-    tickCap,
-    onTick: (w) => {
-      if (frames && w.t % frames === 0) {
-        console.log(`
+    for (const r of table) console.log(`${r.name.padEnd(16)} W ${String(r.wins).padStart(3)}  L ${String(r.losses).padStart(3)}  D ${String(r.draws).padStart(3)}`);
+    console.log("\nhow matches ended:", Object.entries(reasons).map(([k, v]) => `${k} ${v}`).join(", "));
+    console.log("");
+    for (const [k, v] of Object.entries(pairs)) {
+      const [a, b] = k.split(" vs ");
+      console.log(`${k.padEnd(34)} ${a} ${v.a} / ${b} ${v.b} / draw ${v.d}`);
+    }
+  } else {
+    const seed = opt("seed", 1);
+    const frames = opt("frames", 0);
+    const { world, summary } = runMatch(specs, seed, {
+      tickCap,
+      onTick: (w) => {
+        if (frames && w.t % frames === 0) {
+          console.log(`
 --- tick ${w.t} --- ${statusLine(w)}`);
-        console.log(asciiMap(w, { glyphs: flag("glyphs") }));
+          console.log(asciiMap(w, { glyphs: flag("glyphs") }));
+        }
       }
-    }
-  });
-  if (frames) {
-    console.log(`
+    });
+    if (frames) {
+      console.log(`
 --- final, tick ${world.t} ---`);
-    console.log(asciiMap(world, { glyphs: flag("glyphs") }));
-  }
-  console.log(`
+      console.log(asciiMap(world, { glyphs: flag("glyphs") }));
+    }
+    console.log(`
 seed ${seed}, ${summary.ticks} ticks: ${summary.winner ?? "no winner"} (${summary.reason})`);
-  console.log(statusLine(world));
-  const kinds = {};
-  for (const e of world.events) kinds[e.kind] = (kinds[e.kind] ?? 0) + 1;
-  console.log("events:", JSON.stringify(kinds));
-  if (flag("events")) for (const e of world.events) console.log(`  t${e.t} ${e.text}`);
+    console.log(statusLine(world));
+    const kinds = {};
+    for (const e of world.events) kinds[e.kind] = (kinds[e.kind] ?? 0) + 1;
+    console.log("events:", JSON.stringify(kinds));
+    if (flag("events")) for (const e of world.events) console.log(`  t${e.t} ${e.text}`);
+  }
 }
 //# sourceMappingURL=headless.mjs.map

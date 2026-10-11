@@ -1,15 +1,15 @@
-// andnow's Potluck task: runs a batch of GA matches in whatever browser leased it.
-// Browser-safe (no Node imports). Built to dist/farm-task.mjs; the evolver registers it
-// with the Potluck server when run with --farm.
+// andnow's Potluck task: runs one unit of work (src/work.ts: GA matches, a match, a solo
+// probe game, a whole petri dish) in whatever browser leased it. Browser-safe (no Node
+// imports). Built to dist/farm-task.mjs; every andnow tool that farms registers it.
 //
 // canary(): replays a slice of the golden replays (test/canary.json) and checks every
 // final hash, so a device only takes work once it's shown it runs the sim identically.
 import canaryCases from '../test/canary.json';
-import { Batch, JobResult, runBatch } from './ga/job';
 import { Case, replay } from './sim/fingerprint';
+import { runWork, Work } from './work';
 
-export function run(input: Batch): JobResult[] {
-  return runBatch(input);
+export function run(input: Work): unknown {
+  return runWork(input);
 }
 
 export function canary(): { ok: boolean; detail: string } {

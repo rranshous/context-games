@@ -130,6 +130,8 @@ export class World {
   t = 0;
   rng: Rng;
   events: WorldEvent[] = [];
+  /** Every bomb hit and poison write so far, kin included (the per-warrior stats count rivals only). */
+  attacks = { bombs: 0, poisons: 0 };
   result: MatchResult = { over: false, winner: null, reason: '' };
   private spawnTimers: number[];
 
@@ -892,6 +894,7 @@ export class World {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : 'debris';
+    if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++; // hits on kin earn nothing
     this.destroy(this.idx(x, y), wr);
     this.log('bomb', `${wr.name} bombed ${victim}`, wr.id);
@@ -994,6 +997,7 @@ export class World {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE['@']) this.attacks.poisons++;
       if (c === CODE['@'] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log('write', `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);

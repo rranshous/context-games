@@ -65,7 +65,7 @@ export class Potluck {
  * @param {(e: Error) => void} [o.onFarmError]      farm dropped for the rest of this run
  * @returns {Promise<{ outputs: any[], stats: { local: number, farm: number, rerun: number } }>}
  */
-export async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, onFarmError }) {
+export async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, onFarmError }) {
   const n = inputs.length;
   const outputs = new Array(n);
   const finished = new Uint8Array(n);
@@ -100,7 +100,7 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
   };
 
   const feeder = async () => {
-    let job = null, cursor = 0;
+    let job = null, cursor = 0, failures = 0;
     const map = [];                  // farm job index -> input index
     while (left > 0 && farmOn) {
       try {
@@ -118,7 +118,7 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
           for (let k = 0; k < want; k++) { idx.push(back); atFarm.add(back--); }
           const batch = idx.map((i) => inputs[i]);
           let first;
-          if (!job) { job = await farm.submit(task, batch); first = 0; } else first = await farm.add(job, batch);
+          if (!job) { job = await farm.submit(task, batch, leaseMs); first = 0; } else first = await farm.add(job, batch);
           idx.forEach((i, k) => { map[first + k] = i; });
         }
         if (job) {
@@ -126,7 +126,11 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
           cursor = r.cursor;
           for (const [fi, out] of r.done) complete(map[fi], out, 'farm');
         }
+        failures = 0;
       } catch (e) {
+        // One failed request (a busy machine, a blip) isn't a lost farm: retry with backoff,
+        // and give up on the farm for the rest of this run only after several in a row.
+        if (++failures < 6) { await sleep(pollMs * 2 ** failures); continue; }
         farmOn = false;              // the rest of this run is local (atFarm items get re-run)
         onFarmError?.(e);
         break;

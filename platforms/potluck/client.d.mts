@@ -25,5 +25,7 @@ export function runHybrid<I, O>(o: {
   farm?: Potluck | null;
   task?: string | null;
   pollMs?: number;
+  /** How long a farm browser may hold one input before it goes back in the queue (server default 60 s). */
+  leaseMs?: number;
   onFarmError?: (e: Error) => void;
 }): Promise<{ outputs: O[]; stats: HybridStats }>;

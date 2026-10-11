@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Potluck</title>
   <style>
+    tr.total td { border-top: 1px solid currentColor; font-weight: bold; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #12100e; color: #e8e0d4; font: 16px/1.5 system-ui, sans-serif; padding: 20px; max-width: 720px; margin: 0 auto; }
     h1 { font-size: 28px; color: #f4b860; }
@@ -40,7 +41,7 @@
   <section>
     <h2>The farm</h2>
     <div id="queue"></div>
-    <table><thead><tr><th>device</th><th>threads</th><th>batches</th><th>rate</th><th>per thread</th><th>share of farm</th><th></th></tr></thead><tbody id="farm"></tbody></table>
+    <table><thead><tr><th>device</th><th>threads</th><th>batches</th><th>rate</th><th>per thread</th><th>share of farm</th><th></th></tr></thead><tbody id="farm"></tbody><tfoot id="farmTotal"></tfoot></table>
   </section>
   <section>
     <h2>Keeping this page awake</h2>

@@ -8,6 +8,9 @@ import { isMainThread } from "node:worker_threads";
 var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
+function glyphOf(code) {
+  return GLYPHS[code] ?? ".";
+}
 var DX = [1, 0, -1, 0];
 var DY = [0, 1, 0, -1];
 var DIR_NAMES = ["E", "S", "W", "N"];
@@ -383,6 +386,8 @@ var World = class {
   t = 0;
   rng;
   events = [];
+  /** Every bomb hit and poison write so far, kin included (the per-warrior stats count rivals only). */
+  attacks = { bombs: 0, poisons: 0 };
   result = { over: false, winner: null, reason: "" };
   spawnTimers;
   // ---------- setup ----------
@@ -1260,6 +1265,7 @@ var World = class {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : "debris";
+    if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
@@ -1379,6 +1385,7 @@ var World = class {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
@@ -1795,7 +1802,7 @@ var Potluck = class _Potluck {
     return (await this.req("POST", "/api/run", { task, inputs }, 0)).outputs;
   }
 };
-async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, onFarmError }) {
+async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, onFarmError }) {
   const n = inputs.length;
   const outputs = new Array(n);
   const finished = new Uint8Array(n);
@@ -1831,7 +1838,7 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
     for (let i = nextLocal(); i >= 0; i = nextLocal()) complete(i, await local(inputs[i]), "local");
   };
   const feeder = async () => {
-    let job = null, cursor = 0;
+    let job = null, cursor = 0, failures = 0;
     const map = [];
     while (left > 0 && farmOn) {
       try {
@@ -1847,7 +1854,7 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
           const batch = idx.map((i) => inputs[i]);
           let first;
           if (!job) {
-            job = await farm.submit(task, batch);
+            job = await farm.submit(task, batch, leaseMs);
             first = 0;
           } else first = await farm.add(job, batch);
           idx.forEach((i, k) => {
@@ -1859,7 +1866,12 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
           cursor = r.cursor;
           for (const [fi, out] of r.done) complete(map[fi], out, "farm");
         }
+        failures = 0;
       } catch (e) {
+        if (++failures < 6) {
+          await sleep(pollMs * 2 ** failures);
+          continue;
+        }
         farmOn = false;
         onFarmError?.(e);
         break;
@@ -1883,9 +1895,188 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
   return { outputs, stats };
 }
 
+// src/sim/dish.ts
+var DISH_DEFAULTS = {
+  size: 160,
+  // plate diameter (cells)
+  bands: 5,
+  // toxin levels 0 (middle) … 4 (rim)
+  food: 5,
+  // about one food spot per food² cells
+  spawn: 40,
+  // ticks a food spot needs untouched to regrow
+  ripen: 300,
+  // an uneaten pickup grows one pickup's worth every this many ticks…
+  ripemax: 5,
+  // …up to this many (so fresh territory is rich, picked-over ground poor)
+  toxin: 1e-3,
+  // per tick, a cell's chance of dying one toxin level above its warrior's armor…
+  step: 10,
+  // …times this for each further level
+  error: 0.02,
+  // DIVIDE: chance each copied cell becomes a random glyph
+  insert: 0.02,
+  // DIVIDE: chance the child gains a fat cell
+  delete: 0.02,
+  // DIVIDE: chance the child loses a cell
+  life: 6e3,
+  // typical lifespan (each warrior's is 50–150% of it)
+  cap: 0
+  // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
+};
+function applyDish(get) {
+  const o = {};
+  for (const [k, d] of Object.entries(DISH_DEFAULTS)) {
+    const v = get(k);
+    o[k] = v !== null && v !== "" ? Number(v) : d;
+  }
+  CONFIG.plate = o.size;
+  CONFIG.plateBands = o.bands;
+  CONFIG.plateFood = o.food;
+  CONFIG.spawnInterval = o.spawn;
+  CONFIG.foodRipen = o.ripen;
+  CONFIG.foodRipeMax = o.ripemax;
+  CONFIG.toxinRate = o.toxin;
+  CONFIG.toxinStep = o.step;
+  CONFIG.copyError = o.error;
+  CONFIG.copyInsert = o.insert;
+  CONFIG.copyDelete = o.delete;
+  CONFIG.lifespan = o.life;
+  CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
+  CONFIG.reaperCap = 0;
+  CONFIG.tickCap = 1e12;
+  CONFIG.endless = true;
+  return o;
+}
+var K2 = CODE["K"];
+function armorOf(world, id) {
+  let n = 0;
+  for (const c of world.cellsOf(id)) if (world.code[c] === K2) n++;
+  return n;
+}
+function bandOf(world, id) {
+  const w = world.warriors[id];
+  return world.board.toxin?.[world.idx(w.ipX, w.ipY)] ?? 0;
+}
+function genomeOf(world, id, sep = "/") {
+  const cells = world.cellsOf(id);
+  if (!cells.length) return "";
+  const xs = cells.map((c) => c % world.w), ys = cells.map((c) => c / world.w | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = "";
+    for (let x = x0; x <= x1; x++) {
+      const i = world.idx(x, y);
+      r += world.owner[i] === id ? glyphOf(world.code[i]) : " ";
+    }
+    rows.push(r.replace(/\s+$/, ""));
+  }
+  return rows.join(sep);
+}
+var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
+function dishSnapshot(world, founders) {
+  const living = world.living();
+  const bands = new Array(CONFIG.plateBands).fill(0), armor = [];
+  const counts = /* @__PURE__ */ new Map();
+  const weapons = { B: 0, W: 0, poison: 0 };
+  for (const w of living) {
+    bands[bandOf(world, w.id)]++;
+    const a = armorOf(world, w.id);
+    armor[a] = (armor[a] ?? 0) + 1;
+    const g = genomeOf(world, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+    const cells = world.cellsOf(w.id);
+    for (const k of ["B", "W", "poison"]) if (cells.some((c) => world.code[c] === WEAPON[k])) weapons[k]++;
+  }
+  for (let a = 0; a < armor.length; a++) armor[a] ??= 0;
+  const deaths = {};
+  for (const w of world.warriors) {
+    if (w.alive || !w.deathReason) continue;
+    const k = w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "");
+    deaths[k] = (deaths[k] ?? 0) + 1;
+  }
+  return {
+    t: world.t,
+    alive: living.length,
+    births: world.warriors.length - founders,
+    maxGen: Math.max(0, ...living.map((w) => w.gen)),
+    bands,
+    armor,
+    deaths,
+    weapons,
+    attacks: { ...world.attacks },
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+  };
+}
+
+// src/work.ts
+var DEFAULTS = { ...CONFIG };
+function runWork(w) {
+  Object.assign(CONFIG, DEFAULTS);
+  switch (w.kind) {
+    case "matches":
+      return runBatch(w.batch);
+    case "match":
+      return playMatch(w.warriors, w.names, w.seed, w.ticks);
+    case "solo":
+      return playSolo(w.warrior, w.seed, w.ticks);
+    case "dish":
+      return playDish(w);
+  }
+}
+function playMatch(texts, names, seed, ticks) {
+  CONFIG.tickCap = ticks;
+  const world = new World(seed, texts.map((t, i) => parseWarrior(t, names?.[i])));
+  while (!world.result.over) world.tick();
+  return { summary: summarize(world), kills: world.warriors.map((x) => x.stats.kills) };
+}
+function playSolo(text, seed, ticks) {
+  CONFIG.tickCap = ticks;
+  const world = new World(seed, [parseWarrior(text)]);
+  let peak = 0;
+  const cells = () => world.living().reduce((a, x) => a + x.cellCount, 0);
+  while (!world.result.over) {
+    world.tick();
+    peak = Math.max(peak, cells());
+  }
+  const team = world.warriors, sum = (f) => team.reduce((a, x) => a + f(x), 0);
+  return {
+    pickups: sum((x) => x.stats.collected),
+    oozes: sum((x) => x.stats.oozes),
+    flows: sum((x) => x.stats.flows),
+    grows: sum((x) => x.stats.grows),
+    peak,
+    final: cells(),
+    left: team.some((x) => x.leftHomeAt !== void 0),
+    squeezed: team.some((x) => x.stats.squeezed > 0),
+    room: team.some((x) => x.stats.rooms > 0),
+    alive: team.some((x) => x.alive)
+  };
+}
+function playDish(w) {
+  applyDish((k) => w.settings[k] ?? null);
+  const specs = w.warriors.map((t) => parseWarrior(t));
+  const world = new World(w.seed, specs);
+  const founder = genomeOf(world, 0);
+  const snapshots = [];
+  while (world.t < w.ticks && world.living().length) {
+    world.tick();
+    if (world.t % w.report === 0) snapshots.push(dishSnapshot(world, specs.length));
+  }
+  if (world.t % w.report !== 0) snapshots.push(dishSnapshot(world, specs.length));
+  return { founder, snapshots, extinct: world.living().length === 0 };
+}
+
 // src/ga/runner.ts
-function serveBatches() {
-  parentPort.on("message", (batch) => parentPort.postMessage(runBatch(batch)));
+var DEFAULT_FARM = "http://localhost:7700";
+function farmArg(args) {
+  const i = args.indexOf("--farm");
+  const v = i >= 0 ? args[i + 1] : DEFAULT_FARM;
+  return v === "off" || v === "none" ? "" : v;
+}
+function serveWork() {
+  parentPort.on("message", (w) => parentPort.postMessage(runWork(w)));
 }
 var ThreadPool = class {
   free;
@@ -1895,12 +2086,12 @@ var ThreadPool = class {
     this.free = Array.from({ length: n }, () => new Worker(new URL(import.meta.url)));
     this.size = n;
   }
-  async runBatch(batch) {
+  async run(work) {
     const w = this.free.pop() ?? await new Promise((r) => this.waiting.push(r));
     try {
       return await new Promise((res) => {
         w.once("message", res);
-        w.postMessage(batch);
+        w.postMessage(work);
       });
     } finally {
       const next = this.waiting.shift();
@@ -1932,7 +2123,7 @@ var Runner = class {
   async register() {
     try {
       const wasUp = !this.farmDown && this.task !== null;
-      this.task = await this.farm.registerTask("andnow-matches", this.code);
+      this.task = await this.farm.registerTask("andnow", this.code);
       if (!wasUp) console.log(`potluck: task ${this.task} registered at ${this.farmUrl}; open it on any machine to help`);
       this.farmDown = false;
     } catch {
@@ -1945,22 +2136,31 @@ var Runner = class {
   async run(jobs) {
     return (await this.runDetailed(jobs)).results;
   }
-  /** Like run, plus this call's split between local and farm (safe with concurrent calls). */
+  /** GA jobs, batched; plus this call's split between local and farm (safe with concurrent calls). */
   async runDetailed(jobs) {
+    const { outputs, stats } = await this.runWorkDetailed(toBatches(jobs, this.batchSize).map((batch) => ({ kind: "matches", batch })));
+    this.lastStats = stats;
+    return { results: outputs.flat(), stats };
+  }
+  /** Any work items, outputs in order. `leaseMs`: how long a farm browser may hold one (long for dishes). */
+  async runWork(items, leaseMs) {
+    return (await this.runWorkDetailed(items, leaseMs)).outputs;
+  }
+  async runWorkDetailed(items, leaseMs) {
     if (this.farm && this.farmDown) await this.register();
     const { outputs, stats } = await runHybrid({
-      inputs: toBatches(jobs, this.batchSize),
-      local: (b) => this.threads.runBatch(b),
+      inputs: items,
+      local: (w) => this.threads.run(w),
       concurrency: this.threads.size,
       farm: this.farmDown ? null : this.farm,
       task: this.task,
+      leaseMs,
       onFarmError: (e) => {
         console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);
         this.farmDown = true;
       }
     });
-    this.lastStats = stats;
-    return { results: outputs.flat(), stats };
+    return { outputs, stats };
   }
   close() {
     this.threads.close();
@@ -2001,7 +2201,7 @@ async function main() {
     pop.push(make(m, `mutant:${parseWarrior(src).name}`, 0));
   }
   while (pop.length < POP) pop.push(make(randomGenome(rng), "random", 0));
-  const FARM = str("farm", "");
+  const FARM = farmArg(process.argv);
   const pool = new Runner(new ThreadPool(WORKERS), FARM);
   await pool.init();
   console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ""}`);
@@ -2133,7 +2333,7 @@ held-out check (10 boards \xD7 ${bench.length} benchmarks):`);
 wrote top 3 to ${outDir}/, log in ${runDir}/`);
 }
 if (!isMainThread) {
-  serveBatches();
+  serveWork();
 } else {
   main().catch((e) => {
     console.error(e);

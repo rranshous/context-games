@@ -7,7 +7,7 @@
 //                        [--hof 3] [--peers 6] [--ffa 4] [--workers 8] [--rng 1]
 //                        [--bench warriors,warriors/evolved]   (benchmark + seed dirs)
 //                        [--boards 6]   (board pool per generation; --seeds = boards per opponent)
-//                        [--farm http://host:7700]   (a Potluck farm helps local threads when it has capacity)
+//                        [--farm URL|off]   (a Potluck farm helps local threads when it has capacity; default http://localhost:7700)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
 // and at the end the top warriors to warriors/evolved/ (add the good ones to manifest.json for the viewer by hand).
@@ -17,7 +17,7 @@ import { basename, join } from 'node:path';
 import { isMainThread } from 'node:worker_threads';
 import { clone, crossover, fromSpec, Genome, mutate, randomGenome, toSpec, toText } from './ga/genome';
 import { duel, Job } from './ga/job';
-import { Runner, serveBatches, ThreadPool } from './ga/runner';
+import { farmArg, Runner, serveWork, ThreadPool } from './ga/runner';
 import { makeRng } from './sim/rng';
 import { parseWarrior } from './sim/warrior-file';
 
@@ -61,7 +61,7 @@ async function main() {
   }
   while (pop.length < POP) pop.push(make(randomGenome(rng), 'random', 0));
 
-  const FARM = str('farm', '');
+  const FARM = farmArg(process.argv);
   const pool = new Runner(new ThreadPool(WORKERS), FARM);
   await pool.init();
   console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ''}`);
@@ -193,7 +193,7 @@ async function main() {
 
 // Entry: the same file is the main process and each worker.
 if (!isMainThread) {
-  serveBatches();
+  serveWork();
 } else {
   main().catch((e) => { console.error(e); process.exit(1); });
 }

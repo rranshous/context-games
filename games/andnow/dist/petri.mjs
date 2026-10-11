@@ -384,6 +384,8 @@ var World = class {
   t = 0;
   rng;
   events = [];
+  /** Every bomb hit and poison write so far, kin included (the per-warrior stats count rivals only). */
+  attacks = { bombs: 0, poisons: 0 };
   result = { over: false, winner: null, reason: "" };
   spawnTimers;
   // ---------- setup ----------
@@ -1261,6 +1263,7 @@ var World = class {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : "debris";
+    if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
@@ -1380,6 +1383,7 @@ var World = class {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
@@ -1414,8 +1418,8 @@ var DISH_DEFAULTS = {
   // DIVIDE: chance the child loses a cell
   life: 6e3,
   // typical lifespan (each warrior's is 50–150% of it)
-  cap: 500
-  // most warriors alive at once (DIVIDE fails at the cap): keeps it fast
+  cap: 0
+  // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
 };
 function applyDish(get) {
   const o = {};
@@ -1435,7 +1439,7 @@ function applyDish(get) {
   CONFIG.copyInsert = o.insert;
   CONFIG.copyDelete = o.delete;
   CONFIG.lifespan = o.life;
-  CONFIG.maxWarriors = o.cap;
+  CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
@@ -1450,6 +1454,69 @@ function armorOf(world2, id) {
 function bandOf(world2, id) {
   const w = world2.warriors[id];
   return world2.board.toxin?.[world2.idx(w.ipX, w.ipY)] ?? 0;
+}
+function genomeOf(world2, id, sep = "/") {
+  const cells = world2.cellsOf(id);
+  if (!cells.length) return "";
+  const xs = cells.map((c) => c % world2.w), ys = cells.map((c) => c / world2.w | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = "";
+    for (let x = x0; x <= x1; x++) {
+      const i = world2.idx(x, y);
+      r += world2.owner[i] === id ? glyphOf(world2.code[i]) : " ";
+    }
+    rows.push(r.replace(/\s+$/, ""));
+  }
+  return rows.join(sep);
+}
+var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
+function dishSnapshot(world2, founders) {
+  const living = world2.living();
+  const bands = new Array(CONFIG.plateBands).fill(0), armor = [];
+  const counts = /* @__PURE__ */ new Map();
+  const weapons = { B: 0, W: 0, poison: 0 };
+  for (const w of living) {
+    bands[bandOf(world2, w.id)]++;
+    const a = armorOf(world2, w.id);
+    armor[a] = (armor[a] ?? 0) + 1;
+    const g = genomeOf(world2, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+    const cells = world2.cellsOf(w.id);
+    for (const k of ["B", "W", "poison"]) if (cells.some((c) => world2.code[c] === WEAPON[k])) weapons[k]++;
+  }
+  for (let a = 0; a < armor.length; a++) armor[a] ??= 0;
+  const deaths = {};
+  for (const w of world2.warriors) {
+    if (w.alive || !w.deathReason) continue;
+    const k = w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "");
+    deaths[k] = (deaths[k] ?? 0) + 1;
+  }
+  return {
+    t: world2.t,
+    alive: living.length,
+    births: world2.warriors.length - founders,
+    maxGen: Math.max(0, ...living.map((w) => w.gen)),
+    bands,
+    armor,
+    deaths,
+    weapons,
+    attacks: { ...world2.attacks },
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+  };
+}
+function formatSnapshot(s, founder2) {
+  let front = -1;
+  s.bands.forEach((n, b) => {
+    if (n >= 3) front = b;
+  });
+  return [
+    `t${String(s.t).padStart(7)}  alive ${String(s.alive).padStart(4)}  births ${String(s.births).padStart(6)}  gen \u2264${String(s.maxGen).padStart(4)}  bands [${s.bands.map((n) => String(n).padStart(4)).join(" ")}]  front ${front}  armor {${s.armor.map((n, a) => n ? `${a}K:${n}` : "").filter(Boolean).join(" ")}}`,
+    `           deaths: ${Object.entries(s.deaths).map(([k, n]) => `${k} ${n}`).join(", ")}`,
+    `           weapons: B in ${s.weapons.B}, W in ${s.weapons.W}, @ in ${s.weapons.poison}; so far ${s.attacks.bombs} bomb hits, ${s.attacks.poisons} poison writes`,
+    ...s.top.map(([g, n]) => `           ${String(n).padStart(4)} \xD7 ${g}${g === founder2 ? "   (founder)" : ""}`)
+  ];
 }
 
 // src/sim/warrior-file.ts
@@ -1502,51 +1569,12 @@ var REPORT = Number(val("report") ?? 2500);
 var dish = applyDish(val);
 var specs = files.map((f) => parseWarrior(readFileSync(f, "utf8"), basename(f, ".warrior")));
 var world = new World(Number(val("seed") ?? 1), specs);
-function genome(id) {
-  const cells = world.cellsOf(id);
-  if (!cells.length) return "";
-  const xs = cells.map((c) => c % world.w), ys = cells.map((c) => c / world.w | 0);
-  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
-  const rows = [];
-  for (let y = y0; y <= y1; y++) {
-    let r = "";
-    for (let x = x0; x <= x1; x++) {
-      const i = world.idx(x, y);
-      r += world.owner[i] === id ? glyphOf(world.code[i]) : " ";
-    }
-    rows.push(r.replace(/\s+$/, ""));
-  }
-  return rows.join("/");
-}
-var founder = genome(0);
+var founder = genomeOf(world, 0);
 console.log(`petri dish: ${specs.map((s) => s.name).join(", ")} (${founder}), seed ${world.seed}, ${TICKS} ticks; ${Object.entries(dish).map(([k, v]) => `${k} ${v}`).join(", ")}
 `);
 console.log("band = toxin level under the IP (0 = clean middle); armor = K cells; the front = outermost band holding 3+ warriors\n");
 var report = () => {
-  const living = world.living();
-  const byBand = new Array(dish.bands).fill(0);
-  const armors = /* @__PURE__ */ new Map();
-  const counts = /* @__PURE__ */ new Map();
-  for (const w of living) {
-    byBand[bandOf(world, w.id)]++;
-    const a = armorOf(world, w.id);
-    armors.set(a, (armors.get(a) ?? 0) + 1);
-    const g = genome(w.id);
-    counts.set(g, (counts.get(g) ?? 0) + 1);
-  }
-  let front = -1;
-  byBand.forEach((n, b) => {
-    if (n >= 3) front = b;
-  });
-  const deaths = {};
-  for (const w of world.warriors) if (!w.alive && w.deathReason) {
-    const k = w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "");
-    deaths[k] = (deaths[k] ?? 0) + 1;
-  }
-  const maxGen = Math.max(0, ...living.map((w) => w.gen));
-  console.log(`t${String(world.t).padStart(7)}  alive ${String(living.length).padStart(3)}  births ${String(world.warriors.length - specs.length).padStart(6)}  gen \u2264${String(maxGen).padStart(4)}  bands [${byBand.map((n) => String(n).padStart(3)).join(" ")}]  front ${front}  armor {${[...armors.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `${a}K:${n}`).join(" ")}}`);
-  console.log(`           deaths: ${Object.entries(deaths).map(([k, n]) => `${k} ${n}`).join(", ")}`);
-  for (const [g, n] of [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)) console.log(`           ${String(n).padStart(3)} \xD7 ${g}${g === founder ? "   (founder)" : ""}`);
+  for (const line of formatSnapshot(dishSnapshot(world, specs.length), founder)) console.log(line);
 };
 var t0 = Date.now();
 while (world.t < TICKS && world.living().length) {

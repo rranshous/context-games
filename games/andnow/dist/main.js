@@ -429,6 +429,8 @@ var World = class {
   t = 0;
   rng;
   events = [];
+  /** Every bomb hit and poison write so far, kin included (the per-warrior stats count rivals only). */
+  attacks = { bombs: 0, poisons: 0 };
   result = { over: false, winner: null, reason: "" };
   spawnTimers;
   // ---------- setup ----------
@@ -1306,6 +1308,7 @@ var World = class {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : "debris";
+    if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
@@ -1425,6 +1428,7 @@ var World = class {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
+      if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
@@ -1561,8 +1565,8 @@ var DISH_DEFAULTS = {
   // DIVIDE: chance the child loses a cell
   life: 6e3,
   // typical lifespan (each warrior's is 50–150% of it)
-  cap: 500
-  // most warriors alive at once (DIVIDE fails at the cap): keeps it fast
+  cap: 0
+  // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
 };
 function applyDish(get) {
   const o = {};
@@ -1582,7 +1586,7 @@ function applyDish(get) {
   CONFIG.copyInsert = o.insert;
   CONFIG.copyDelete = o.delete;
   CONFIG.lifespan = o.life;
-  CONFIG.maxWarriors = o.cap;
+  CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
@@ -1598,6 +1602,7 @@ function bandOf(world2, id) {
   const w = world2.warriors[id];
   return world2.board.toxin?.[world2.idx(w.ipX, w.ipY)] ?? 0;
 }
+var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
 
 // warriors/amoeba.warrior
 var amoeba_default = "name: Amoeba\n# The petri dish founder: a Gatherer (collect, head for the nearest resource) that DIVIDEs\n# every loop (D pops an empty stack = east): copies itself beside itself as a new\n# warrior. Its descendants are rivals like anyone else. The two fat cells under it are\n# spare: copy errors can turn them into armor (K) without breaking the program.\n---\nC6S$TMD\n..\n";

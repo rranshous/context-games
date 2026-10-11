@@ -18,6 +18,7 @@ const targets = [
   { ...shared, entryPoints: ['src/map-elites.ts'], outfile: 'dist/map.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/petri.ts'], outfile: 'dist/petri.mjs', platform: 'node' },
   { ...shared, entryPoints: ['src/probe.ts'], outfile: 'dist/probe.mjs', platform: 'node' },
+  { ...shared, entryPoints: ['src/dishes.ts'], outfile: 'dist/dishes.mjs', platform: 'node' },
   // Potluck task module: runs in browsers, so no Node built-ins and no source map comment.
   { ...shared, sourcemap: false, entryPoints: ['src/farm-task.ts'], outfile: 'dist/farm-task.mjs', platform: 'browser' },
 ];

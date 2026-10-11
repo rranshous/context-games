@@ -1,9 +1,10 @@
 // Petri dish settings, shared by the headless runner (dist/petri.mjs) and the viewer
 // (?petri=1). In the spirit of Tierra: no score, no reaper; replicators on a plate with
-// copy errors (substitutions, insertions, deletions), food, starvation and old age.
+// copy errors (substitutions, insertions, deletions), food, starvation and old age; no cap
+// on the population, so a saturated plate is where offense and defense could pay.
 // Whatever persists, persists. The plate is MEGA-plate style: clean in the middle, rings
 // of rising toxin out to the rim, and armor (K cells) is the only way deeper.
-import { CODE } from './glyphs';
+import { CODE, glyphOf } from './glyphs';
 import { CONFIG, World } from './world';
 
 export const DISH_DEFAULTS: Record<string, number> = {
@@ -19,7 +20,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   insert: 0.02,   // DIVIDE: chance the child gains a fat cell
   delete: 0.02,   // DIVIDE: chance the child loses a cell
   life: 6000,     // typical lifespan (each warrior's is 50–150% of it)
-  cap: 500,       // most warriors alive at once (DIVIDE fails at the cap): keeps it fast
+  cap: 0,         // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
 };
 
 /** Apply dish settings; `get(k)` returns an override or null. Returns the settings used. */
@@ -38,7 +39,7 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.copyInsert = o.insert;
   CONFIG.copyDelete = o.delete;
   CONFIG.lifespan = o.life;
-  CONFIG.maxWarriors = o.cap;
+  CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
@@ -58,4 +59,73 @@ export function armorOf(world: World, id: number): number {
 export function bandOf(world: World, id: number): number {
   const w = world.warriors[id];
   return world.board.toxin?.[world.idx(w.ipX, w.ipY)] ?? 0;
+}
+
+/** A warrior's genome: its glyph grid, cropped (position-free), rows joined by `/`. */
+export function genomeOf(world: World, id: number, sep = '/'): string {
+  const cells = world.cellsOf(id);
+  if (!cells.length) return '';
+  const xs = cells.map((c) => c % world.w), ys = cells.map((c) => (c / world.w) | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows: string[] = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = '';
+    for (let x = x0; x <= x1; x++) { const i = world.idx(x, y); r += world.owner[i] === id ? glyphOf(world.code[i]) : ' '; }
+    rows.push(r.replace(/\s+$/, ''));
+  }
+  return rows.join(sep);
+}
+
+/** One moment of a dish, for reports. */
+export interface DishSnapshot {
+  t: number; alive: number; births: number; maxGen: number;
+  bands: number[];                  // living warriors by toxin level under their IP
+  armor: number[];                  // living warriors by K count
+  deaths: Record<string, number>;   // all deaths so far, by cause
+  weapons: { B: number; W: number; poison: number }; // living warriors carrying each
+  attacks: { bombs: number; poisons: number };       // hits so far, kin included
+  top: [string, number][];          // most common living genomes
+}
+
+const WEAPON = { B: CODE['B'], W: CODE['W'], poison: CODE['@'] };
+
+export function dishSnapshot(world: World, founders: number): DishSnapshot {
+  const living = world.living();
+  const bands = new Array(CONFIG.plateBands).fill(0), armor: number[] = [];
+  const counts = new Map<string, number>();
+  const weapons = { B: 0, W: 0, poison: 0 };
+  for (const w of living) {
+    bands[bandOf(world, w.id)]++;
+    const a = armorOf(world, w.id);
+    armor[a] = (armor[a] ?? 0) + 1;
+    const g = genomeOf(world, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+    const cells = world.cellsOf(w.id);
+    for (const k of ['B', 'W', 'poison'] as const) if (cells.some((c) => world.code[c] === WEAPON[k])) weapons[k]++;
+  }
+  for (let a = 0; a < armor.length; a++) armor[a] ??= 0;
+  const deaths: Record<string, number> = {};
+  for (const w of world.warriors) {
+    if (w.alive || !w.deathReason) continue;
+    const k = w.deathReason.replace(/ by .*/, '').replace(/ \(.*/, '');
+    deaths[k] = (deaths[k] ?? 0) + 1;
+  }
+  return {
+    t: world.t, alive: living.length, births: world.warriors.length - founders,
+    maxGen: Math.max(0, ...living.map((w) => w.gen)), bands, armor, deaths, weapons,
+    attacks: { ...world.attacks },
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3),
+  };
+}
+
+/** A snapshot as report lines. */
+export function formatSnapshot(s: DishSnapshot, founder: string): string[] {
+  let front = -1;
+  s.bands.forEach((n, b) => { if (n >= 3) front = b; });
+  return [
+    `t${String(s.t).padStart(7)}  alive ${String(s.alive).padStart(4)}  births ${String(s.births).padStart(6)}  gen ≤${String(s.maxGen).padStart(4)}  bands [${s.bands.map((n) => String(n).padStart(4)).join(' ')}]  front ${front}  armor {${s.armor.map((n, a) => (n ? `${a}K:${n}` : '')).filter(Boolean).join(' ')}}`,
+    `           deaths: ${Object.entries(s.deaths).map(([k, n]) => `${k} ${n}`).join(', ')}`,
+    `           weapons: B in ${s.weapons.B}, W in ${s.weapons.W}, @ in ${s.weapons.poison}; so far ${s.attacks.bombs} bomb hits, ${s.attacks.poisons} poison writes`,
+    ...s.top.map(([g, n]) => `           ${String(n).padStart(4)} × ${g}${g === founder ? '   (founder)' : ''}`),
+  ];
 }
