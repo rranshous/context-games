@@ -38,7 +38,7 @@ const tickCap = opt('ticks', 0) || undefined;
 
 // Many independent matches: local threads plus the farm.
 const play: PlayMatches = async (games) => {
-  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv));
+  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv), 24, flag('ffa') ? 'free-for-all' : 'tournament');
   await pool.init();
   const texts = new Map(specs.map((s, k) => [s, files[k]]));
   try {

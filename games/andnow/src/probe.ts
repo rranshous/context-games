@@ -21,7 +21,7 @@ async function main() {
   const files = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
   const N = opt('seeds', 20), TICKS = opt('ticks', 3000);
 
-  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv));
+  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv), 24, `probe (${files.length} warriors)`);
   await pool.init();
   const texts = files.map((f) => readFileSync(f, 'utf8'));
   const items: Work[] = texts.flatMap((t) => Array.from({ length: N }, (_, k): Work => ({ kind: 'solo', warrior: t, seed: k + 1, ticks: TICKS })));

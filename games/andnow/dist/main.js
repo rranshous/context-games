@@ -59,7 +59,7 @@ var GLYPH_DOCS = {
   "X": "SWAP: pop dx1 dy1 dx2 dy2; swap the code of two of my cells",
   "G": "GROW: pop dir; add a fat cell (.) at the end of my line that way, if my max size has room",
   "C": "COLLECT: take every resource or debris touching my body",
-  "B": "BOMB: pop dx dy; destroy a visible foreign cell within range",
+  "B": "BOMB: pop dx dy; destroy a visible foreign cell within range (empty stack: the foreign cell nearest my IP)",
   "W": "WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me",
   "A": "OOZE: pop dir; amoeboid move: my rearmost cell (code and all) moves to the free spot touching my body farthest that way, if that is ahead of where it was and I stay connected",
   "K": "no-op; armor: each K in my body lets me live one toxin level deeper (petri dish)",
@@ -1013,8 +1013,13 @@ var World = class {
         wr.lastOk = this.opCollect(wr);
         break;
       case "B": {
+        if (!wr.stack.length) {
+          wr.lastOk = this.opBombNearest(wr);
+          break;
+        }
         const dy = this.pop(wr), dx = this.pop(wr);
-        wr.lastOk = this.opBomb(wr, dx, dy);
+        const [fx, fy] = this.frame(wr);
+        wr.lastOk = this.opBombAt(wr, fx + dx, fy + dy);
         break;
       }
       case "W": {
@@ -1301,9 +1306,24 @@ var World = class {
     }
     return got;
   }
-  opBomb(wr, dx, dy) {
-    const [fx, fy] = this.frame(wr);
-    const x = fx + dx, y = fy + dy;
+  /** BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP, within range. */
+  opBombNearest(wr) {
+    const R = CONFIG.bombRange;
+    let best = -1, bx = 0, by = 0;
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const x = wr.ipX + dx, y = wr.ipY + dy, d = Math.abs(dx) + Math.abs(dy);
+        if (best >= 0 && d >= best) continue;
+        const o = this.ownerAt(x, y);
+        if (o < 0 || o === wr.id || this.seer(wr.id, x, y, R) < 0) continue;
+        best = d;
+        bx = x;
+        by = y;
+      }
+    }
+    return best >= 0 && this.opBombAt(wr, bx, by);
+  }
+  opBombAt(wr, x, y) {
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;

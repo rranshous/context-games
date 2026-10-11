@@ -626,7 +626,13 @@ export class World {
       }
       case 'G': wr.lastOk = this.opGrow(wr, this.pop(wr)); break;
       case 'C': wr.lastOk = this.opCollect(wr); break;
-      case 'B': { const dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opBomb(wr, dx, dy); break; }
+      case 'B': {
+        if (!wr.stack.length) { wr.lastOk = this.opBombNearest(wr); break; } // empty stack: the nearest foreign cell
+        const dy = this.pop(wr), dx = this.pop(wr);
+        const [fx, fy] = this.frame(wr);
+        wr.lastOk = this.opBombAt(wr, fx + dx, fy + dy);
+        break;
+      }
       case 'W': { const c = this.pop(wr), dy = this.pop(wr), dx = this.pop(wr); wr.lastOk = this.opWrite(wr, dx, dy, c); break; }
       // Copying costs a cycle per cell; a failed attempt costs 1.
       case 'D': { const before = wr.cellCount; wr.lastOk = this.opDivide(wr, this.pop(wr)); cost = wr.lastOk ? Math.max(1, before) : 1; break; }
@@ -887,9 +893,23 @@ export class World {
     return got;
   }
 
-  private opBomb(wr: Warrior, dx: number, dy: number): boolean {
-    const [fx, fy] = this.frame(wr);
-    const x = fx + dx, y = fy + dy;
+  /** BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP, within range. */
+  private opBombNearest(wr: Warrior): boolean {
+    const R = CONFIG.bombRange;
+    let best = -1, bx = 0, by = 0;
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const x = wr.ipX + dx, y = wr.ipY + dy, d = Math.abs(dx) + Math.abs(dy);
+        if (best >= 0 && d >= best) continue;
+        const o = this.ownerAt(x, y);
+        if (o < 0 || o === wr.id || this.seer(wr.id, x, y, R) < 0) continue;
+        best = d; bx = x; by = y;
+      }
+    }
+    return best >= 0 && this.opBombAt(wr, bx, by);
+  }
+
+  private opBombAt(wr: Warrior, x: number, y: number): boolean {
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;

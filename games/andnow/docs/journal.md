@@ -1391,3 +1391,16 @@ The user removed the cap: are offense and defense worth it on a saturated plate?
   - A 16-seed dish sweep ran 8 dishes locally and 8 on the farm in 190 s, with seeds matching the earlier local runs.
   - Golden replays are unchanged.
 - **Potluck page:** a "whole farm" total row (threads, items done, items per minute).
+
+### Are they growing? No. Plus: bombs aim themselves; farm page shows the work
+
+- **Body size in dishes** (8 seeds × 80k):
+  - Bodies average about 6 cells, below the 9-cell founder. GROW is essentially unused (0.00–0.08 per warrior).
+  - The winning genome in most dishes is `CKKKTMD`: the food-seeking code `6S$` mutated into armor, and the two spare fat cells were dropped.
+  - Small wins the copying race, since DIVIDE needs max size ≥ 2× cells. One exception: seed 3 stacked armor on top (`KK` above `CKDKTM`, 8 cells).
+  - The user: not to be addressed directly for now.
+- **BOMB with an empty stack (user's rule)** hits the visible foreign cell nearest the IP, within range. One mutation to `B` is now a working weapon. Golden re-recorded.
+- **Farm page:**
+  - Jobs carry a label: the tool and run, plus the kind of work, e.g. "dish sweep, seeds 1-8: petri dishes".
+  - The queue line shows labels, and each device has a "working on" column.
+  - The server was restarted to load this.

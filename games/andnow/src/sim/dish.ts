@@ -85,6 +85,7 @@ export interface DishSnapshot {
   weapons: { B: number; W: number; poison: number }; // living warriors carrying each
   attacks: { bombs: number; poisons: number };       // hits so far, kin included
   top: [string, number][];          // most common living genomes
+  body: { mean: number; max: number; genome: number; grows: number }; // living: cells (mean, max), cells of the most common genome, GROWs per warrior
 }
 
 const WEAPON = { B: CODE['B'], W: CODE['W'], poison: CODE['@'] };
@@ -115,6 +116,12 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
     maxGen: Math.max(0, ...living.map((w) => w.gen)), bands, armor, deaths, weapons,
     attacks: { ...world.attacks },
     top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    body: {
+      mean: living.reduce((a, w) => a + w.cellCount, 0) / Math.max(1, living.length),
+      max: Math.max(0, ...living.map((w) => w.cellCount)),
+      genome: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].replace(/[ /]/g, '').length ?? 0,
+      grows: living.reduce((a, w) => a + w.stats.grows, 0) / Math.max(1, living.length),
+    },
   };
 }
 
@@ -125,6 +132,7 @@ export function formatSnapshot(s: DishSnapshot, founder: string): string[] {
   return [
     `t${String(s.t).padStart(7)}  alive ${String(s.alive).padStart(4)}  births ${String(s.births).padStart(6)}  gen ≤${String(s.maxGen).padStart(4)}  bands [${s.bands.map((n) => String(n).padStart(4)).join(' ')}]  front ${front}  armor {${s.armor.map((n, a) => (n ? `${a}K:${n}` : '')).filter(Boolean).join(' ')}}`,
     `           deaths: ${Object.entries(s.deaths).map(([k, n]) => `${k} ${n}`).join(', ')}`,
+    `           bodies: ${s.body.mean.toFixed(1)} cells on average, largest ${s.body.max}; most common genome ${s.body.genome} cells; ${s.body.grows.toFixed(2)} GROWs per living warrior`,
     `           weapons: B in ${s.weapons.B}, W in ${s.weapons.W}, @ in ${s.weapons.poison}; so far ${s.attacks.bombs} bomb hits, ${s.attacks.poisons} poison writes`,
     ...s.top.map(([g, n]) => `           ${String(n).padStart(4)} × ${g}${g === founder ? '   (founder)' : ''}`),
   ];

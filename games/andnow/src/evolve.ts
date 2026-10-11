@@ -62,7 +62,7 @@ async function main() {
   while (pop.length < POP) pop.push(make(randomGenome(rng), 'random', 0));
 
   const FARM = farmArg(process.argv);
-  const pool = new Runner(new ThreadPool(WORKERS), FARM);
+  const pool = new Runner(new ThreadPool(WORKERS), FARM, 24, `evolve ${NAME}`);
   await pool.init();
   console.log(`evolving ${NAME}: pop ${POP}, ${GENS} gens, ${BOARDS} boards/gen (${SEEDS} per opponent), ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ''}`);
   console.log(`benchmarks: ${benchNames.join(', ')}`);

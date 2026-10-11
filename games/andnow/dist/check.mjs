@@ -965,8 +965,13 @@ var World = class {
         wr.lastOk = this.opCollect(wr);
         break;
       case "B": {
+        if (!wr.stack.length) {
+          wr.lastOk = this.opBombNearest(wr);
+          break;
+        }
         const dy = this.pop(wr), dx = this.pop(wr);
-        wr.lastOk = this.opBomb(wr, dx, dy);
+        const [fx, fy] = this.frame(wr);
+        wr.lastOk = this.opBombAt(wr, fx + dx, fy + dy);
         break;
       }
       case "W": {
@@ -1253,9 +1258,24 @@ var World = class {
     }
     return got;
   }
-  opBomb(wr, dx, dy) {
-    const [fx, fy] = this.frame(wr);
-    const x = fx + dx, y = fy + dy;
+  /** BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP, within range. */
+  opBombNearest(wr) {
+    const R = CONFIG.bombRange;
+    let best = -1, bx = 0, by = 0;
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const x = wr.ipX + dx, y = wr.ipY + dy, d = Math.abs(dx) + Math.abs(dy);
+        if (best >= 0 && d >= best) continue;
+        const o = this.ownerAt(x, y);
+        if (o < 0 || o === wr.id || this.seer(wr.id, x, y, R) < 0) continue;
+        best = d;
+        bx = x;
+        by = y;
+      }
+    }
+    return best >= 0 && this.opBombAt(wr, bx, by);
+  }
+  opBombAt(wr, x, y) {
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;

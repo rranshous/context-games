@@ -26,7 +26,7 @@ async function main() {
   const settings: Record<string, string> = {};
   for (const k of Object.keys(DISH_DEFAULTS)) { const v = val(k); if (v !== null) settings[k] = v; }
 
-  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv));
+  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv), 24, `dish sweep, seeds ${seeds[0]}-${seeds[seeds.length - 1]}`);
   await pool.init();
   const warriors = files.map((f) => readFileSync(f, 'utf8'));
   console.log(`dish sweep: seeds ${seeds[0]}–${seeds[seeds.length - 1]}, ${ticks} ticks, ${files.join(', ')}; settings ${JSON.stringify({ ...DISH_DEFAULTS, ...settings })}\n`);

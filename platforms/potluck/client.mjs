@@ -43,7 +43,7 @@ export class Potluck {
   status() { return this.req('GET', '/api/status'); }
   /** Worker threads right now: live (seen recently), verified (passed this task's canary), leased (busy on it). */
   capacity(task) { return this.req('GET', `/api/capacity?task=${task}`); }
-  async submit(task, inputs = [], leaseMs) { return (await this.req('POST', '/api/jobs', { task, inputs, leaseMs })).job; }
+  async submit(task, inputs = [], leaseMs, label) { return (await this.req('POST', '/api/jobs', { task, inputs, leaseMs, label })).job; }
   async add(job, inputs) { return (await this.req('POST', `/api/jobs/${job}/add`, { inputs })).first; }
   /** Finished outputs since `cursor`: { done: [[index, output]...], cursor, remaining }. */
   poll(job, cursor = 0) { return this.req('GET', `/api/jobs/${job}?cursor=${cursor}`); }
@@ -65,7 +65,7 @@ export class Potluck {
  * @param {(e: Error) => void} [o.onFarmError]      farm dropped for the rest of this run
  * @returns {Promise<{ outputs: any[], stats: { local: number, farm: number, rerun: number } }>}
  */
-export async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, onFarmError }) {
+export async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, label, onFarmError }) {
   const n = inputs.length;
   const outputs = new Array(n);
   const finished = new Uint8Array(n);
@@ -118,7 +118,7 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
           for (let k = 0; k < want; k++) { idx.push(back); atFarm.add(back--); }
           const batch = idx.map((i) => inputs[i]);
           let first;
-          if (!job) { job = await farm.submit(task, batch, leaseMs); first = 0; } else first = await farm.add(job, batch);
+          if (!job) { job = await farm.submit(task, batch, leaseMs, label); first = 0; } else first = await farm.add(job, batch);
           idx.forEach((i, k) => { map[first + k] = i; });
         }
         if (job) {

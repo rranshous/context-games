@@ -70,8 +70,9 @@ async function refresh() {
       // the same 10 s rule its capacity check uses).
       if (w.ago > 10) continue;
       const key = w.name || w.id;
-      const d = devices.get(key) ?? { name: key, threads: 0, done: 0, perMin: 0, failed: new Set() };
+      const d = devices.get(key) ?? { name: key, threads: 0, done: 0, perMin: 0, failed: new Set(), working: new Map() };
       d.threads++; d.done += w.done; d.perMin += w.perMin;
+      if (w.working && w.perMin) d.working.set(w.working, (d.working.get(w.working) ?? 0) + 1);
       for (const f of w.failed) d.failed.add(f);
       devices.set(key, d);
     }
@@ -81,12 +82,12 @@ async function refresh() {
     const rateTotal = all.reduce((a, d) => a + d.perMin, 0) || 1;
     const doneTotal = all.reduce((a, d) => a + d.done, 0) || 1;
     $('farm').innerHTML = all.map((d) =>
-      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td>${d.threads ? Math.round(d.perMin / d.threads) : 0}/min</td><td>${Math.round(100 * d.perMin / rateTotal)}% now · ${Math.round(100 * d.done / doneTotal)}% total</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
+      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td>${d.threads ? Math.round(d.perMin / d.threads) : 0}/min</td><td>${Math.round(100 * d.perMin / rateTotal)}% now · ${Math.round(100 * d.done / doneTotal)}% total</td><td>${[...d.working].map(([l, n]) => `${esc(l)}${n > 1 ? ` ×${n}` : ''}`).join('<br>') || '<span class="idle">idle</span>'}</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
     // The whole farm: every device added up.
     const threads = all.reduce((a, d) => a + d.threads, 0), rate = all.reduce((a, d) => a + d.perMin, 0);
     $('farmTotal').innerHTML = all.length > 1
-      ? `<tr class="total"><td>whole farm (${all.length} devices)</td><td>${threads}</td><td>${all.reduce((a, d) => a + d.done, 0)}</td><td>${rate}/min</td><td>${threads ? Math.round(rate / threads) : 0}/min</td><td></td><td></td></tr>` : '';
-    $('queue').textContent = `${s.queue} waiting · ${s.jobs.map((j) => `${esc(j.task ?? '?')}: ${j.total - j.remaining}/${j.total}`).join(' · ') || 'no jobs'}`;
+      ? `<tr class="total"><td>whole farm (${all.length} devices)</td><td>${threads}</td><td>${all.reduce((a, d) => a + d.done, 0)}</td><td>${rate}/min</td><td>${threads ? Math.round(rate / threads) : 0}/min</td><td></td><td></td><td></td></tr>` : '';
+    $('queue').textContent = `${s.queue} waiting · ${s.jobs.filter((j) => j.remaining > 0).map((j) => `${esc(j.label || j.task || '?')}: ${j.total - j.remaining}/${j.total}`).join(' · ') || 'no work queued'}`;
   } catch { $('queue').textContent = 'server unreachable'; }
 }
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);

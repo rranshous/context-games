@@ -85,7 +85,7 @@ async function main() {
     : readdirSync(p).filter((f) => f.endsWith('.warrior')).sort().map((f) => join(p, f)));
   const bench = benchFiles.map((f) => readFileSync(f, 'utf8'));
 
-  const pool = new Runner(new ThreadPool(WORKERS), FARM);
+  const pool = new Runner(new ThreadPool(WORKERS), FARM, 24, `map-elites ${NAME}`);
   await pool.init();
   console.log(`map-elites ${NAME}: ${GENS} gens × ${BATCH} offspring, ${BOARDS} boards/gen, ${TICKS} ticks, ${WORKERS} threads${FARM ? ` + potluck farm ${FARM}` : ''}`);
   console.log(`niches: ${WEAPONS.length} weapon × ${ECONOMY.length + 1} ${MORPH_AXES ? 'shape change' : 'economy'} × ${MOBILITY.length + 1} ${MORPH_AXES ? 'other room' : 'mobility'} = ${WEAPONS.length * (ECONOMY.length + 1) * (MOBILITY.length + 1)}; benchmarks: ${benchFiles.map((f) => basename(f, '.warrior')).join(', ')}`);

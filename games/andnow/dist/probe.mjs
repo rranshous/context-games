@@ -47,8 +47,8 @@ var Potluck = class _Potluck {
   capacity(task) {
     return this.req("GET", `/api/capacity?task=${task}`);
   }
-  async submit(task, inputs = [], leaseMs) {
-    return (await this.req("POST", "/api/jobs", { task, inputs, leaseMs })).job;
+  async submit(task, inputs = [], leaseMs, label) {
+    return (await this.req("POST", "/api/jobs", { task, inputs, leaseMs, label })).job;
   }
   async add(job, inputs) {
     return (await this.req("POST", `/api/jobs/${job}/add`, { inputs })).first;
@@ -65,7 +65,7 @@ var Potluck = class _Potluck {
     return (await this.req("POST", "/api/run", { task, inputs }, 0)).outputs;
   }
 };
-async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, onFarmError }) {
+async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, label, onFarmError }) {
   const n = inputs.length;
   const outputs = new Array(n);
   const finished = new Uint8Array(n);
@@ -117,7 +117,7 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
           const batch = idx.map((i) => inputs[i]);
           let first;
           if (!job) {
-            job = await farm.submit(task, batch, leaseMs);
+            job = await farm.submit(task, batch, leaseMs, label);
             first = 0;
           } else first = await farm.add(job, batch);
           idx.forEach((i, k) => {
@@ -1124,8 +1124,13 @@ var World = class {
         wr.lastOk = this.opCollect(wr);
         break;
       case "B": {
+        if (!wr.stack.length) {
+          wr.lastOk = this.opBombNearest(wr);
+          break;
+        }
         const dy = this.pop(wr), dx = this.pop(wr);
-        wr.lastOk = this.opBomb(wr, dx, dy);
+        const [fx, fy] = this.frame(wr);
+        wr.lastOk = this.opBombAt(wr, fx + dx, fy + dy);
         break;
       }
       case "W": {
@@ -1412,9 +1417,24 @@ var World = class {
     }
     return got;
   }
-  opBomb(wr, dx, dy) {
-    const [fx, fy] = this.frame(wr);
-    const x = fx + dx, y = fy + dy;
+  /** BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP, within range. */
+  opBombNearest(wr) {
+    const R = CONFIG.bombRange;
+    let best = -1, bx = 0, by = 0;
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const x = wr.ipX + dx, y = wr.ipY + dy, d = Math.abs(dx) + Math.abs(dy);
+        if (best >= 0 && d >= best) continue;
+        const o = this.ownerAt(x, y);
+        if (o < 0 || o === wr.id || this.seer(wr.id, x, y, R) < 0) continue;
+        best = d;
+        bx = x;
+        by = y;
+      }
+    }
+    return best >= 0 && this.opBombAt(wr, bx, by);
+  }
+  opBombAt(wr, x, y) {
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
@@ -1796,7 +1816,13 @@ function dishSnapshot(world, founders) {
     deaths,
     weapons,
     attacks: { ...world.attacks },
-    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    body: {
+      mean: living.reduce((a, w) => a + w.cellCount, 0) / Math.max(1, living.length),
+      max: Math.max(0, ...living.map((w) => w.cellCount)),
+      genome: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].replace(/[ /]/g, "").length ?? 0,
+      grows: living.reduce((a, w) => a + w.stats.grows, 0) / Math.max(1, living.length)
+    }
   };
 }
 
@@ -1860,6 +1886,7 @@ function playDish(w) {
 
 // src/ga/runner.ts
 var DEFAULT_FARM = "http://localhost:7700";
+var KIND_NAMES = { matches: "GA matches", match: "matches", solo: "solo probe games", dish: "petri dishes" };
 function farmArg(args) {
   const i = args.indexOf("--farm");
   const v = i >= 0 ? args[i + 1] : DEFAULT_FARM;
@@ -1894,10 +1921,12 @@ var ThreadPool = class {
   }
 };
 var Runner = class {
-  constructor(threads, farmUrl, batchSize = 24) {
+  /** `label`: who is asking, shown on the farm page with the kind of work (e.g. "map-elites morph6"). */
+  constructor(threads, farmUrl, batchSize = 24, label = "") {
     this.threads = threads;
     this.farmUrl = farmUrl;
     this.batchSize = batchSize;
+    this.label = label;
   }
   farm = null;
   task = null;
@@ -1945,6 +1974,7 @@ var Runner = class {
       farm: this.farmDown ? null : this.farm,
       task: this.task,
       leaseMs,
+      label: [this.label, KIND_NAMES[items[0]?.kind] ?? ""].filter(Boolean).join(": "),
       onFarmError: (e) => {
         console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);
         this.farmDown = true;
@@ -1969,7 +1999,7 @@ async function main() {
   const valued = /* @__PURE__ */ new Set(["--seeds", "--ticks", "--farm"]);
   const files = args.filter((a, i) => !a.startsWith("--") && !valued.has(args[i - 1]));
   const N = opt("seeds", 20), TICKS = opt("ticks", 3e3);
-  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv));
+  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv), 24, `probe (${files.length} warriors)`);
   await pool.init();
   const texts = files.map((f) => readFileSync2(f, "utf8"));
   const items = texts.flatMap((t) => Array.from({ length: N }, (_, k) => ({ kind: "solo", warrior: t, seed: k + 1, ticks: TICKS })));

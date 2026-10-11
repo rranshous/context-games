@@ -968,8 +968,13 @@ var World = class {
         wr.lastOk = this.opCollect(wr);
         break;
       case "B": {
+        if (!wr.stack.length) {
+          wr.lastOk = this.opBombNearest(wr);
+          break;
+        }
         const dy = this.pop(wr), dx = this.pop(wr);
-        wr.lastOk = this.opBomb(wr, dx, dy);
+        const [fx, fy] = this.frame(wr);
+        wr.lastOk = this.opBombAt(wr, fx + dx, fy + dy);
         break;
       }
       case "W": {
@@ -1256,9 +1261,24 @@ var World = class {
     }
     return got;
   }
-  opBomb(wr, dx, dy) {
-    const [fx, fy] = this.frame(wr);
-    const x = fx + dx, y = fy + dy;
+  /** BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP, within range. */
+  opBombNearest(wr) {
+    const R = CONFIG.bombRange;
+    let best = -1, bx = 0, by = 0;
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const x = wr.ipX + dx, y = wr.ipY + dy, d = Math.abs(dx) + Math.abs(dy);
+        if (best >= 0 && d >= best) continue;
+        const o = this.ownerAt(x, y);
+        if (o < 0 || o === wr.id || this.seer(wr.id, x, y, R) < 0) continue;
+        best = d;
+        bx = x;
+        by = y;
+      }
+    }
+    return best >= 0 && this.opBombAt(wr, bx, by);
+  }
+  opBombAt(wr, x, y) {
     const o = this.ownerAt(x, y);
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
@@ -1503,7 +1523,13 @@ function dishSnapshot(world2, founders) {
     deaths,
     weapons,
     attacks: { ...world2.attacks },
-    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    body: {
+      mean: living.reduce((a, w) => a + w.cellCount, 0) / Math.max(1, living.length),
+      max: Math.max(0, ...living.map((w) => w.cellCount)),
+      genome: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].replace(/[ /]/g, "").length ?? 0,
+      grows: living.reduce((a, w) => a + w.stats.grows, 0) / Math.max(1, living.length)
+    }
   };
 }
 function formatSnapshot(s, founder2) {
@@ -1514,6 +1540,7 @@ function formatSnapshot(s, founder2) {
   return [
     `t${String(s.t).padStart(7)}  alive ${String(s.alive).padStart(4)}  births ${String(s.births).padStart(6)}  gen \u2264${String(s.maxGen).padStart(4)}  bands [${s.bands.map((n) => String(n).padStart(4)).join(" ")}]  front ${front}  armor {${s.armor.map((n, a) => n ? `${a}K:${n}` : "").filter(Boolean).join(" ")}}`,
     `           deaths: ${Object.entries(s.deaths).map(([k, n]) => `${k} ${n}`).join(", ")}`,
+    `           bodies: ${s.body.mean.toFixed(1)} cells on average, largest ${s.body.max}; most common genome ${s.body.genome} cells; ${s.body.grows.toFixed(2)} GROWs per living warrior`,
     `           weapons: B in ${s.weapons.B}, W in ${s.weapons.W}, @ in ${s.weapons.poison}; so far ${s.attacks.bombs} bomb hits, ${s.attacks.poisons} poison writes`,
     ...s.top.map(([g, n]) => `           ${String(n).padStart(4)} \xD7 ${g}${g === founder2 ? "   (founder)" : ""}`)
   ];

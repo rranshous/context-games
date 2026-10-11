@@ -17,7 +17,7 @@
 //
 // API (JSON)
 //   POST /api/tasks              { name, code }        -> { id }
-//   POST /api/jobs               { task, inputs?, leaseMs? } -> { job }
+//   POST /api/jobs               { task, inputs?, leaseMs?, label? } -> { job }   label: what the work is, for the page
 //   POST /api/jobs/<id>/add      { inputs }            -> { first }   index of the first added input
 //   GET  /api/jobs/<id>?cursor=N                       -> { done: [[index, output], ...], cursor, remaining }
 //   POST /api/jobs/<id>/cancel                         -> {}          drop queued inputs, forget the job
@@ -54,10 +54,10 @@ let jobSerial = 0;
 
 // ---------- jobs ----------
 
-function makeJob(task, leaseMs) {
+function makeJob(task, leaseMs, label) {
   if (!tasks.has(task)) throw Object.assign(new Error(`unknown task ${task}`), { code: 404 });
   const job = {
-    id: `j${++jobSerial}`, task, inputs: [], outputs: [], completions: [], leases: new Map(),
+    id: `j${++jobSerial}`, task, label: label ?? '', inputs: [], outputs: [], completions: [], leases: new Map(),
     leaseMs: leaseMs ?? DEFAULT_LEASE_MS, started: Date.now(), touched: Date.now(), onDone: null,
   };
   jobs.set(job.id, job);
@@ -93,6 +93,7 @@ function findWork(worker, verified) {
     if (!verified.has(job.task)) return { verify: job.task };
     const { index } = queue.splice(k, 1)[0];
     job.leases.set(index, { worker, until: Date.now() + job.leaseMs });
+    if (info) info.working = job.label || tasks.get(job.task)?.name || job.task;
     return { item: { job: job.id, index, task: job.task, input: job.inputs[index] } };
   }
   return null;
@@ -149,7 +150,7 @@ const routes = [
   }],
 
   ['POST', /^\/api\/jobs$/, async (body) => {
-    const job = makeJob(body.task, body.leaseMs);
+    const job = makeJob(body.task, body.leaseMs, body.label);
     addInputs(job, body.inputs ?? []);
     return { job: job.id };
   }],
@@ -224,12 +225,12 @@ const routes = [
     const now = Date.now();
     return {
       queue: queue.length,
-      jobs: [...jobs.values()].map((j) => ({ id: j.id, task: tasks.get(j.task)?.name, total: j.inputs.length, remaining: remaining(j), leased: j.leases.size })),
+      jobs: [...jobs.values()].map((j) => ({ id: j.id, task: tasks.get(j.task)?.name, label: j.label, total: j.inputs.length, remaining: remaining(j), leased: j.leases.size })),
       tasks: [...tasks.values()].map((t) => ({ id: t.id, name: t.name })),
       workers: [...workers.values()].map((w) => {
         w.recent = w.recent.filter((t) => now - t < 30000);
         return {
-          id: w.id, name: w.name, cores: w.cores, threads: w.threads, done: w.done, perMin: w.recent.length * 2,
+          id: w.id, name: w.name, cores: w.cores, threads: w.threads, done: w.done, perMin: w.recent.length * 2, working: w.working ?? '',
           passed: [...w.passed].map((t) => tasks.get(t)?.name ?? t), failed: [...w.failed].map((t) => tasks.get(t)?.name ?? t),
           ago: Math.round((now - w.lastSeen) / 1000),
         };

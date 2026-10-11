@@ -13,6 +13,8 @@ import { Job, JobResult, toBatches } from './job';
 
 export const DEFAULT_FARM = 'http://localhost:7700';
 
+const KIND_NAMES: Record<string, string> = { matches: 'GA matches', match: 'matches', solo: 'solo probe games', dish: 'petri dishes' };
+
 /** The --farm setting from argv: a URL, the default, or '' for `--farm off`. */
 export function farmArg(args: string[]): string {
   const i = args.indexOf('--farm');
@@ -56,7 +58,8 @@ export class Runner {
   private task: string | null = null;
   private code = '';
   private farmDown = false;
-  constructor(private threads: ThreadPool, private farmUrl: string, private batchSize = 24) {}
+  /** `label`: who is asking, shown on the farm page with the kind of work (e.g. "map-elites morph6"). */
+  constructor(private threads: ThreadPool, private farmUrl: string, private batchSize = 24, public label = '') {}
   async init() {
     if (!this.farmUrl) return;
     this.code = readFileSync(new URL('./farm-task.mjs', import.meta.url), 'utf8');
@@ -95,6 +98,7 @@ export class Runner {
       farm: this.farmDown ? null : this.farm,
       task: this.task,
       leaseMs,
+      label: [this.label, KIND_NAMES[items[0]?.kind] ?? ''].filter(Boolean).join(': '),
       onFarmError: (e: Error) => {
         console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);
         this.farmDown = true;
