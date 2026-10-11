@@ -1416,16 +1416,23 @@ var World = class {
     }
     return got;
   }
-  /** BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP, within range. */
+  /**
+   * BOMB with an empty stack: the visible foreign cell (another warrior's) nearest my IP,
+   * within range, skipping cells that hold a glyph my own body has. Kin recognition: a
+   * near-copy of me is immune, a stranger is hit where it differs from me (and a warrior
+   * that carries my glyphs, a mimic, is spared).
+   */
   opBombNearest(wr) {
     const R = CONFIG.bombRange;
+    const mine = new Uint8Array(GLYPHS.length + 1);
+    for (const c of this.cellsOf(wr.id)) mine[this.code[c]] = 1;
     let best = -1, bx = 0, by = 0;
     for (let dy = -R; dy <= R; dy++) {
       for (let dx = -R; dx <= R; dx++) {
         const x = wr.ipX + dx, y = wr.ipY + dy, d = Math.abs(dx) + Math.abs(dy);
         if (best >= 0 && d >= best) continue;
         const o = this.ownerAt(x, y);
-        if (o < 0 || o === wr.id || this.seer(wr.id, x, y, R) < 0) continue;
+        if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         best = d;
         bx = x;
         by = y;
