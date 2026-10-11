@@ -1404,3 +1404,13 @@ The user removed the cap: are offense and defense worth it on a saturated plate?
   - Jobs carry a label: the tool and run, plus the kind of work, e.g. "dish sweep, seeds 1-8: petri dishes".
   - The queue line shows labels, and each device has a "working on" column.
   - The server was restarted to load this.
+
+### Kin recognition (user picked it)
+
+The empty-stack BOMB skips cells holding a glyph the bomber's own body has. A near-copy is immune, a stranger is hit where it differs, and a mimic carrying the bomber's glyphs is spared.
+
+16 seeds × 80k (11 dishes run locally, 5 on the farm, 613 s):
+- **Bombers still mostly a minority:** 2–26 B carriers out of ~700 in most dishes. Bomb hits fell from 10–19k to 3–11k per dish, so less cannibalism.
+- **First sign of spread in seed 7:** B carriers went 3 → 46 between 60k and 80k, and the population fell 708 → 570.
+- **3 dishes went extinct early** (seeds 10–12, by tick 9.5k–21k), where no early dish had died before. A likely way: a mutant whose `B` replaced its `D` has no `D` of its own, so it hits exactly the `D` cells of its clone siblings. One mutant can sterilize a young population.
+- **Seed 9** went 337 → 154 alive between 40k and 80k, with bombers present.
