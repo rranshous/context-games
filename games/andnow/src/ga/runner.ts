@@ -89,7 +89,8 @@ export class Runner {
   }
   /** Any work items, outputs in order. `leaseMs`: how long a farm browser may hold one (long for dishes). */
   async runWork<T>(items: Work[], leaseMs?: number): Promise<T[]> { return (await this.runWorkDetailed<T>(items, leaseMs)).outputs; }
-  async runWorkDetailed<T>(items: Work[], leaseMs?: number): Promise<{ outputs: T[]; stats: { local: number; farm: number; rerun: number } }> {
+  /** `onResult` fires as each item finishes; `depth`: items queued per farm thread (1 for long ones). */
+  async runWorkDetailed<T>(items: Work[], leaseMs?: number, onResult?: (i: number, out: T) => void, depth?: number): Promise<{ outputs: T[]; stats: { local: number; farm: number; rerun: number } }> {
     if (this.farm && this.farmDown) await this.register();
     const { outputs, stats } = await runHybrid({
       inputs: items,
@@ -98,6 +99,8 @@ export class Runner {
       farm: this.farmDown ? null : this.farm,
       task: this.task,
       leaseMs,
+      depth,
+      onResult: onResult as ((i: number, out: unknown) => void) | undefined,
       label: [this.label, KIND_NAMES[items[0]?.kind] ?? ''].filter(Boolean).join(': '),
       onFarmError: (e: Error) => {
         console.log(`potluck: lost the farm (${e.message}); running locally (will keep trying)`);

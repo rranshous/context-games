@@ -1420,3 +1420,21 @@ The empty-stack BOMB skips cells holding a glyph the bomber's own body has. A ne
 The rim is toxin level 4, so 4 K makes a warrior immune everywhere. Among warriors that reached the rim, the 3-armor ones lived 833–851 ticks on average and 94% died of the toxin. The 4-armor ones lived about 5,700 ticks and 92–94% died of old age (the lifespan is 3–9k). A 5th K therefore does nothing against the toxin directly. It's a spare: each copy has a 2% error chance per glyph, so a 4K parent has roughly an 8% chance per child of making a 3K child that dies at the rim, while a 5K parent needs two errors. A spare K also covers a K lost to a bomb or to shedding. Neither dish reached 4K in numbers or grew a T shape by 300k; the viewer dish the user watched at 421k has both. Hypothesis for the T (a row plus one cell under it): the IP only walks its own row, so the cell underneath is never executed. A K there is armor that costs no tick per loop, unlike the in-line Ks (CKKKTMD spends 3 of every 7 ticks on no-ops). The founder's two spare cells sat there for exactly this reason. Not yet confirmed.
 
 Viewer: the far right of the speed slider runs the sim flat out and redraws about 4 times a second.
+
+## Safari (the user is out for the day: "go wide and long, find interesting types of things")
+
+New tools:
+- **`dist/safari.mjs <round> <variants.json>`** runs many dishes across variants (founders plus dish settings) on threads plus the farm. It saves each dish as it finishes to `runs/safari/<round>/` and skips finished ones on a re-run.
+- **`dist/look.mjs <out> --seed --at t1,t2`** writes a PNG of the plate (a colour per genome) and a census. For each top genome, the census marks which cells the IP actually ran (`*`) and which it never ran (`·`).
+- **DishSnapshot** now carries the top 12 genomes, the top 12 body outlines, the distinct-genome count, glyph carriers, and per-warrior acts.
+- **Potluck `runHybrid`** gained `onResult` (fires as each item finishes) and `depth` (items queued per farm thread; dishes use 1).
+- **`warriors/amoeba-roomy.warrior`**: the founder plus two rows of fat cells. The first version put a fat row on top, where the IP starts, so it ran no-ops forever and never divided.
+
+**Find: off-path storage (the T or hat).** Seed 4's winner is `KCKTMD` with a `K` on top. The census confirms the IP never runs the top K. It's armor that costs no tick, and the in-line K count fell from 3 to 2. The winners also dropped the founder's `6S$` food scan. With an empty stack, T heads in a random direction, so they're random walkers.
+
+**Find: 3 armor holds the rim because no working 4-armor exists.** Seed 4, 36,579 lives between 200k and 270k:
+- Rim 3-armors live 279 ticks and leave 0.96 children each, so the rim is a sink refilled from band 3, where 3-armors leave 1.46 children.
+- The 19 rim 4-armors live 3,824 ticks, eat 7× more, and leave 0.05 children. Every one is a broken T: `KCKTKD`, `KCKKMD`, `KCKTMK`. The 4th K overwrote M, T or D.
+- A working 4K needs an insertion and then a K mutation of the new cell. That's two rare events, plus a bigger division threshold.
+
+**Find: single-cell turrets and the xenophobe crash.** Small, young dishes (cold-mutation s1, two-founders s1, the 3 early extinctions in the kin sweep) die to tiny warriors such as `B`, `BSF` and `BSFTM`. A body that sheds down to a lone B core can't eat, but bombs every tick. Kin recognition makes a glyph-poor body treat almost every cell as foreign, its own clones included.

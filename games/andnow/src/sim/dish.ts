@@ -84,7 +84,11 @@ export interface DishSnapshot {
   deaths: Record<string, number>;   // all deaths so far, by cause
   weapons: { B: number; W: number; poison: number }; // living warriors carrying each
   attacks: { bombs: number; poisons: number };       // hits so far, kin included
-  top: [string, number][];          // most common living genomes
+  top: [string, number][];          // most common living genomes (up to 12)
+  shapes: [string, number][];       // most common body outlines (genome with every cell as #)
+  distinct: number;                 // distinct living genomes
+  glyphs: Record<string, number>;   // living warriors carrying each glyph
+  acts: Record<string, number>;     // per living warrior: lifetime collects, bomb hits, poison writes, kills, self-writes, grows, swaps, flows, oozes
   body: { mean: number; max: number; genome: number; grows: number }; // living: cells (mean, max), cells of the most common genome, GROWs per warrior
 }
 
@@ -95,12 +99,18 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
   const bands = new Array(CONFIG.plateBands).fill(0), armor: number[] = [];
   const counts = new Map<string, number>();
   const weapons = { B: 0, W: 0, poison: 0 };
+  const shapes = new Map<string, number>(), glyphs: Record<string, number> = {};
+  const acts: Record<string, number> = { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0 };
   for (const w of living) {
     bands[bandOf(world, w.id)]++;
     const a = armorOf(world, w.id);
     armor[a] = (armor[a] ?? 0) + 1;
     const g = genomeOf(world, w.id);
     counts.set(g, (counts.get(g) ?? 0) + 1);
+    const outline = g.replace(/[^ /]/g, '#');
+    shapes.set(outline, (shapes.get(outline) ?? 0) + 1);
+    for (const ch of new Set(g.replace(/[ /]/g, ''))) glyphs[ch] = (glyphs[ch] ?? 0) + 1;
+    for (const k in acts) acts[k] += (w.stats as unknown as Record<string, number>)[k] / living.length;
     const cells = world.cellsOf(w.id);
     for (const k of ['B', 'W', 'poison'] as const) if (cells.some((c) => world.code[c] === WEAPON[k])) weapons[k]++;
   }
@@ -115,7 +125,9 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
     t: world.t, alive: living.length, births: world.warriors.length - founders,
     maxGen: Math.max(0, ...living.map((w) => w.gen)), bands, armor, deaths, weapons,
     attacks: { ...world.attacks },
-    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12),
+    shapes: [...shapes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12),
+    distinct: counts.size, glyphs, acts,
     body: {
       mean: living.reduce((a, w) => a + w.cellCount, 0) / Math.max(1, living.length),
       max: Math.max(0, ...living.map((w) => w.cellCount)),
@@ -134,6 +146,6 @@ export function formatSnapshot(s: DishSnapshot, founder: string): string[] {
     `           deaths: ${Object.entries(s.deaths).map(([k, n]) => `${k} ${n}`).join(', ')}`,
     `           bodies: ${s.body.mean.toFixed(1)} cells on average, largest ${s.body.max}; most common genome ${s.body.genome} cells; ${s.body.grows.toFixed(2)} GROWs per living warrior`,
     `           weapons: B in ${s.weapons.B}, W in ${s.weapons.W}, @ in ${s.weapons.poison}; so far ${s.attacks.bombs} bomb hits, ${s.attacks.poisons} poison writes`,
-    ...s.top.map(([g, n]) => `           ${String(n).padStart(4)} × ${g}${g === founder ? '   (founder)' : ''}`),
+    ...s.top.slice(0, 3).map(([g, n]) => `           ${String(n).padStart(4)} × ${g}${g === founder ? '   (founder)' : ''}`),
   ];
 }

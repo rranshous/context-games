@@ -1,0 +1,18 @@
+[
+  { "name": "default" },
+  { "name": "roomy", "w": ["amoeba-roomy"] },
+  { "name": "hot-mutation", "settings": { "error": "0.05", "insert": "0.04", "delete": "0.04" } },
+  { "name": "cold-mutation", "settings": { "error": "0.005", "insert": "0.005", "delete": "0.005" } },
+  { "name": "gentle-gradient", "settings": { "step": "3" } },
+  { "name": "no-toxin", "settings": { "toxin": "0" } },
+  { "name": "wide-plate", "settings": { "size": "240", "bands": "7" } },
+  { "name": "scarce", "settings": { "food": "8" } },
+  { "name": "rich", "settings": { "food": "3" } },
+  { "name": "slow-regrow", "settings": { "spawn": "200" } },
+  { "name": "no-ripening", "settings": { "ripemax": "1" } },
+  { "name": "long-life", "settings": { "life": "20000" } },
+  { "name": "short-life", "settings": { "life": "2000" } },
+  { "name": "fattening", "settings": { "insert": "0.08", "delete": "0.01" } },
+  { "name": "roomy-hot", "w": ["amoeba-roomy"], "settings": { "error": "0.05", "insert": "0.06" } },
+  { "name": "two-founders", "w": ["amoeba", "amoeba-roomy"] }
+]

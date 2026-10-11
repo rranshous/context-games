@@ -65,7 +65,7 @@ export class Potluck {
  * @param {(e: Error) => void} [o.onFarmError]      farm dropped for the rest of this run
  * @returns {Promise<{ outputs: any[], stats: { local: number, farm: number, rerun: number } }>}
  */
-export async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, label, onFarmError }) {
+export async function runHybrid({ inputs, local, concurrency, farm = null, task = null, pollMs = 100, leaseMs, label, onFarmError, onResult, depth = 3 }) {
   const n = inputs.length;
   const outputs = new Array(n);
   const finished = new Uint8Array(n);
@@ -84,6 +84,7 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
     outputs[i] = out;
     atFarm.delete(i);
     stats[where]++;
+    onResult?.(i, out, where);
     if (--left === 0) allDone();
   };
   if (n === 0) allDone();
@@ -105,10 +106,10 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
     while (left > 0 && farmOn) {
       try {
         const cap = await farm.capacity(task);
-        // Keep each verified thread fed (~3 items each, so a fast thread never finds the
-        // queue empty between top-ups). With live but unverified threads, offer one item so
+        // Keep each verified thread fed (~`depth` items each, so a fast thread never finds the
+        // queue empty between top-ups; 1 for long items). With live but unverified threads, offer one item so
         // they run the canary; with no threads, send nothing.
-        const target = cap.verified > 0 ? cap.verified * 3 : cap.live > 0 ? 1 : 0;
+        const target = cap.verified > 0 ? cap.verified * depth : cap.live > 0 ? 1 : 0;
         const want = Math.min(target - atFarm.size, back - front + 1);
         if (want > 0) {
           // Taking from the queue and marking as out-at-the-farm happen together (no await

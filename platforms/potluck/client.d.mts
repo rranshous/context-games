@@ -30,4 +30,8 @@ export function runHybrid<I, O>(o: {
   /** What this work is, shown on the farm page (e.g. "dish sweep, seeds 1-16"). */
   label?: string;
   onFarmError?: (e: Error) => void;
+  /** Called as each input finishes, wherever it ran. */
+  onResult?: (index: number, output: O, where: 'local' | 'farm' | 'rerun') => void;
+  /** Inputs to keep queued per verified farm thread (default 3; 1 for long items). */
+  depth?: number;
 }): Promise<{ outputs: O[]; stats: HybridStats }>;

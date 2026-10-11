@@ -1,0 +1,7 @@
+name: Roomy Amoeba
+# The petri founder with more spare room: same program as Amoeba, with two rows of fat
+# cells under it (copy errors can turn spare cells into anything without breaking the loop).
+---
+C6S$TMD
+.......
+...
