@@ -1414,3 +1414,9 @@ The empty-stack BOMB skips cells holding a glyph the bomber's own body has. A ne
 - **First sign of spread in seed 7:** B carriers went 3 → 46 between 60k and 80k, and the population fell 708 → 570.
 - **3 dishes went extinct early** (seeds 10–12, by tick 9.5k–21k), where no early dish had died before. A likely way: a mutant whose `B` replaced its `D` has no `D` of its own, so it hits exactly the `D` cells of its clone siblings. One mutant can sterilize a young population.
 - **Seed 9** went 337 → 154 alive between 40k and 80k, with bombers present.
+
+### Does armor past 4 help? (two dishes to 300k, every death after 150k logged)
+
+The rim is toxin level 4, so 4 K makes a warrior immune everywhere. Among warriors that reached the rim, the 3-armor ones lived 833–851 ticks on average and 94% died of the toxin. The 4-armor ones lived about 5,700 ticks and 92–94% died of old age (the lifespan is 3–9k). A 5th K therefore does nothing against the toxin directly. It's a spare: each copy has a 2% error chance per glyph, so a 4K parent has roughly an 8% chance per child of making a 3K child that dies at the rim, while a 5K parent needs two errors. A spare K also covers a K lost to a bomb or to shedding. Neither dish reached 4K in numbers or grew a T shape by 300k; the viewer dish the user watched at 421k has both. Hypothesis for the T (a row plus one cell under it): the IP only walks its own row, so the cell underneath is never executed. A K there is armor that costs no tick per loop, unlike the in-line Ks (CKKKTMD spends 3 of every 7 ticks on no-ops). The founder's two spare cells sat there for exactly this reason. Not yet confirmed.
+
+Viewer: the far right of the speed slider runs the sim flat out and redraws about 4 times a second.
