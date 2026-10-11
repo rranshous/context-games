@@ -1450,3 +1450,16 @@ Gallery so far (pictures in runs/look/):
 - the pseudogene `6` (two-founders s2);
 - the graveyard ring and gene-surgery bombers (two-founders s1);
 - the stalled front (roomy s2).
+
+**Round 2** (600k ticks): ring founder, a race of three body plans, steep gradient, roomy on a wide plate, no old age.
+
+**Find: the MEGA-plate staircase, cleanly (ring s1).** The population sat near 100–230 for 400k ticks.
+- 100k: `>C6!eTv` became `>C6!KTv` (1 armor); population 100 → 217, band 1 opens.
+- 410k: `>C9!KT^` became `>C-KKT^` (2 armor); 200 → 350, band 2.
+- 490k: became `>CKKKT^` (3 armor); 350 → 580, bands 3–4.
+
+Each step is one point mutation of a code cell that had drifted into junk. The ring deleted its three spare no-ops early (`^DM   <`, a shorter loop pays), so it had no spare parts and waited a long time for junk to appear.
+
+**Find: an in-line silent slot via the quote glyph (ring-gentle s1).** `'` pushes the next cell's code and skips it, so `>C'@$Tv` carries a DIE glyph that never runs. The skipped slot drifted `@ → o → r → W` and became K at the 230k breakout (`>CKK$Tv`, 2 armor in one jump). It's off-path storage reached through the code row instead of the body shape.
+
+**Ring hot s2:** the ring dissolved into arch forms (`CD KTM` over `K7KK`). **Roomy wide s2:** an arch plus keel, three rows (`CK KTMD` / ` KKK` / `  K`), 6 armor. **No toxin (round 1):** the founder `C6S$TMD` never changes (stasis), while the population booms and busts (850–1,500), with 46–50k bomb deaths per dish.
