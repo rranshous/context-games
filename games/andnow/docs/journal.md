@@ -1463,3 +1463,11 @@ Each step is one point mutation of a code cell that had drifted into junk. The r
 **Find: an in-line silent slot via the quote glyph (ring-gentle s1).** `'` pushes the next cell's code and skips it, so `>C'@$Tv` carries a DIE glyph that never runs. The skipped slot drifted `@ → o → r → W` and became K at the 230k breakout (`>CKK$Tv`, 2 armor in one jump). It's off-path storage reached through the code row instead of the body shape.
 
 **Ring hot s2:** the ring dissolved into arch forms (`CD KTM` over `K7KK`). **Roomy wide s2:** an arch plus keel, three rows (`CK KTMD` / ` KKK` / `  K`), 6 armor. **No toxin (round 1):** the founder `C6S$TMD` never changes (stasis), while the population booms and busts (850–1,500), with 46–50k bomb deaths per dish.
+
+**Find: predator–prey cycles (no toxin, seeds 1–2, 200k ticks, sampled every 500).** Classes: predators (have B, no C), armed grazers (B and C), grazers (C, no B).
+- Predators are scarce, averaging 18–21 alive (plus 11–13 armed grazers) out of ~1,200.
+- Both series oscillate. Their autocorrelation dips at about 8k ticks and peaks again at about 15–16k ticks, so the period is roughly 15k ticks.
+- A predator peak comes before a grazer trough. The correlation of predators now with grazers 2–3k ticks later is −0.75 and −0.84; at zero lag it is only −0.52 and −0.65.
+- A grazer peak comes before a predator rise. The correlation of grazers now with predators 6k ticks later is +0.23 and +0.26: weak but positive.
+
+That is the Lotka–Volterra signature: predators lead prey down, and prey lead predators up a quarter-cycle later. With toxin on, the gradient pins everyone to their band and the cycle never shows. The C-less predators are `BTMD`, `B$TM` and `B$TMD`: bodies that dropped their collector.
