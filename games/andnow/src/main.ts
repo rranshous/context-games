@@ -192,7 +192,7 @@ function render() {
         const size = world.resource[i] === 1;
         ctx.fillStyle = size ? '#3fb950' : '#e3b341';
         ctx.beginPath();
-        if (size) { ctx.arc(px + CELL / 2, py + CELL / 2, CELL / 3, 0, Math.PI * 2); }
+        if (size) { ctx.arc(px + CELL / 2, py + CELL / 2, (CELL / 3) * Math.min(1.6, Math.sqrt(world.ripe[i])), 0, Math.PI * 2); } // bigger = riper
         else { ctx.moveTo(px + CELL / 2, py + 2); ctx.lineTo(px + CELL - 2, py + CELL / 2); ctx.lineTo(px + CELL / 2, py + CELL - 2); ctx.lineTo(px + 2, py + CELL / 2); }
         ctx.fill();
       }

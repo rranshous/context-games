@@ -373,6 +373,10 @@ var CONFIG = {
   // plate: each tick, a cell one toxin level above my armor (K count) dies with this chance…
   toxinStep: 10,
   // …and each further level multiplies it by this (MEGA-plate bands were 10× steps)
+  foodRipen: 0,
+  // petri dish: an uneaten size pickup grows by one pickup's worth every this many ticks (0 = off)…
+  foodRipeMax: 5,
+  // …up to this many pickups' worth
   copyInsert: 0,
   // DIVIDE: chance the child gains a fat cell (.) stuck to its body
   copyDelete: 0
@@ -387,6 +391,7 @@ var World = class {
     this.owner = new Int32Array(this.w * this.h).fill(NONE);
     this.code = new Uint8Array(this.w * this.h);
     this.resource = new Uint8Array(this.w * this.h);
+    this.ripe = new Float32Array(this.w * this.h).fill(1);
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
@@ -411,6 +416,8 @@ var World = class {
   code;
   resource;
   // 0 none, 1 size, 2 speed
+  ripe;
+  // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
   narrow;
   warriors = [];
@@ -636,6 +643,7 @@ var World = class {
     for (let k = 0; k < spawns.length; k++) {
       const s = spawns[k];
       const i = this.idx(s.x, s.y);
+      if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
       let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
       for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
       if (touched) {
@@ -644,6 +652,7 @@ var World = class {
       }
       if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
         this.resource[i] = s.kind;
+        this.ripe[i] = 1;
         this.spawnTimers[k] = 0;
       }
     }
@@ -1271,7 +1280,7 @@ var World = class {
         if (!this.inBounds(nx, ny)) continue;
         const i = this.idx(nx, ny);
         if (this.resource[i] === 1) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup);
+          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup * this.ripe[i]);
           this.log("collect", `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
@@ -1528,7 +1537,7 @@ function parseWarrior(text, fallbackName = "warrior") {
 
 // src/sim/dish.ts
 var DISH_DEFAULTS = {
-  size: 120,
+  size: 160,
   // plate diameter (cells)
   bands: 5,
   // toxin levels 0 (middle) … 4 (rim)
@@ -1536,6 +1545,10 @@ var DISH_DEFAULTS = {
   // about one food spot per food² cells
   spawn: 40,
   // ticks a food spot needs untouched to regrow
+  ripen: 300,
+  // an uneaten pickup grows one pickup's worth every this many ticks…
+  ripemax: 5,
+  // …up to this many (so fresh territory is rich, picked-over ground poor)
   toxin: 1e-3,
   // per tick, a cell's chance of dying one toxin level above its warrior's armor…
   step: 10,
@@ -1548,7 +1561,7 @@ var DISH_DEFAULTS = {
   // DIVIDE: chance the child loses a cell
   life: 6e3,
   // typical lifespan (each warrior's is 50–150% of it)
-  cap: 300
+  cap: 500
   // most warriors alive at once (DIVIDE fails at the cap): keeps it fast
 };
 function applyDish(get) {
@@ -1561,6 +1574,8 @@ function applyDish(get) {
   CONFIG.plateBands = o.bands;
   CONFIG.plateFood = o.food;
   CONFIG.spawnInterval = o.spawn;
+  CONFIG.foodRipen = o.ripen;
+  CONFIG.foodRipeMax = o.ripemax;
   CONFIG.toxinRate = o.toxin;
   CONFIG.toxinStep = o.step;
   CONFIG.copyError = o.error;
@@ -1801,7 +1816,7 @@ function render() {
         ctx.fillStyle = size ? "#3fb950" : "#e3b341";
         ctx.beginPath();
         if (size) {
-          ctx.arc(px + CELL / 2, py + CELL / 2, CELL / 3, 0, Math.PI * 2);
+          ctx.arc(px + CELL / 2, py + CELL / 2, CELL / 3 * Math.min(1.6, Math.sqrt(world.ripe[i])), 0, Math.PI * 2);
         } else {
           ctx.moveTo(px + CELL / 2, py + 2);
           ctx.lineTo(px + CELL - 2, py + CELL / 2);

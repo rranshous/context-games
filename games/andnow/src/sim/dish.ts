@@ -7,17 +7,19 @@ import { CODE } from './glyphs';
 import { CONFIG, World } from './world';
 
 export const DISH_DEFAULTS: Record<string, number> = {
-  size: 120,      // plate diameter (cells)
+  size: 160,      // plate diameter (cells)
   bands: 5,       // toxin levels 0 (middle) … 4 (rim)
   food: 5,        // about one food spot per food² cells
   spawn: 40,      // ticks a food spot needs untouched to regrow
+  ripen: 300,     // an uneaten pickup grows one pickup's worth every this many ticks…
+  ripemax: 5,     // …up to this many (so fresh territory is rich, picked-over ground poor)
   toxin: 0.001,   // per tick, a cell's chance of dying one toxin level above its warrior's armor…
   step: 10,       // …times this for each further level
   error: 0.02,    // DIVIDE: chance each copied cell becomes a random glyph
   insert: 0.02,   // DIVIDE: chance the child gains a fat cell
   delete: 0.02,   // DIVIDE: chance the child loses a cell
   life: 6000,     // typical lifespan (each warrior's is 50–150% of it)
-  cap: 300,       // most warriors alive at once (DIVIDE fails at the cap): keeps it fast
+  cap: 500,       // most warriors alive at once (DIVIDE fails at the cap): keeps it fast
 };
 
 /** Apply dish settings; `get(k)` returns an override or null. Returns the settings used. */
@@ -28,6 +30,8 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.plateBands = o.bands;
   CONFIG.plateFood = o.food;
   CONFIG.spawnInterval = o.spawn;
+  CONFIG.foodRipen = o.ripen;
+  CONFIG.foodRipeMax = o.ripemax;
   CONFIG.toxinRate = o.toxin;
   CONFIG.toxinStep = o.step;
   CONFIG.copyError = o.error;

@@ -1348,3 +1348,23 @@ Seed 6 at 50k: armor 3K:214, 2K:61, and the first 4K.
 - Viewer and headless match tick for tick (seed 6, t40000: 176 alive, 4748 born).
 
 Golden re-recorded (glyph table 56), canary 69 cases.
+
+### Ripening food and bigger rings (user: "no sustained greens" by 76k; give breakthroughs a food advantage)
+
+What was missing next to the MEGA-plate: there, bacteria deplete the nutrients where they live, so a fresh band is a feast. Ours regrew every food spot in 40 ticks, so new territory offered nothing.
+
+- **Ripening food:** an uneaten size pickup grows by one pickup's worth every 300 ticks, up to 5× (`foodRipen`, `foodRipeMax`; off in matches). Crowded ground stays at 1×; untouched rings fill with 5× food, so the first warrior through can divide at once. The viewer draws riper food bigger.
+- **Bigger plate:** 120 → 160 across, cap 300 → 500.
+- **Results** (80k ticks, 8 seeds): all 8 thrive and every one steps through the armor levels, each sweep then holding.
+
+  | Seed | Ticks | What happened |
+  |---|---|---|
+  | 7 | 20k → 30k | 0K only, then 1K sweeps (209/294) |
+  | 7 | 50k–80k | 2K sweeps and holds (420/500) |
+  | 4 | by 20k | 3K is the majority |
+  | 6 | 60k | 4K is the majority (291/500) |
+  | 6 | 80k | 4K at 403/500 |
+
+- **Caveat:** the population reaches the 500 cap by about 20–40k. After that a birth needs a death somewhere, which may blunt the breakthrough "explosion" at later rings.
+
+Golden replays unaffected: ripening is off in matches.

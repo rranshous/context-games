@@ -328,6 +328,10 @@ var CONFIG = {
   // plate: each tick, a cell one toxin level above my armor (K count) dies with this chance…
   toxinStep: 10,
   // …and each further level multiplies it by this (MEGA-plate bands were 10× steps)
+  foodRipen: 0,
+  // petri dish: an uneaten size pickup grows by one pickup's worth every this many ticks (0 = off)…
+  foodRipeMax: 5,
+  // …up to this many pickups' worth
   copyInsert: 0,
   // DIVIDE: chance the child gains a fat cell (.) stuck to its body
   copyDelete: 0
@@ -342,6 +346,7 @@ var World = class {
     this.owner = new Int32Array(this.w * this.h).fill(NONE);
     this.code = new Uint8Array(this.w * this.h);
     this.resource = new Uint8Array(this.w * this.h);
+    this.ripe = new Float32Array(this.w * this.h).fill(1);
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
@@ -366,6 +371,8 @@ var World = class {
   code;
   resource;
   // 0 none, 1 size, 2 speed
+  ripe;
+  // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
   narrow;
   warriors = [];
@@ -591,6 +598,7 @@ var World = class {
     for (let k = 0; k < spawns.length; k++) {
       const s = spawns[k];
       const i = this.idx(s.x, s.y);
+      if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
       let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
       for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
       if (touched) {
@@ -599,6 +607,7 @@ var World = class {
       }
       if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
         this.resource[i] = s.kind;
+        this.ripe[i] = 1;
         this.spawnTimers[k] = 0;
       }
     }
@@ -1226,7 +1235,7 @@ var World = class {
         if (!this.inBounds(nx, ny)) continue;
         const i = this.idx(nx, ny);
         if (this.resource[i] === 1) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup);
+          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup * this.ripe[i]);
           this.log("collect", `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);

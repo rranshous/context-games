@@ -3,8 +3,8 @@
 // out life has spread, how much armor it carries, and which genomes are winning.
 //
 //   node dist/petri.mjs [warriors/amoeba.warrior ...] [--seed 1] [--ticks 100000] [--report 2500]
-//                       [--size 120] [--bands 5] [--food 5] [--spawn 40] [--toxin 0.001] [--step 10]
-//                       [--error 0.02] [--insert 0.02] [--delete 0.02] [--life 6000] [--cap 300]
+//                       [--size 160] [--bands 5] [--food 5] [--spawn 40] [--ripen 300] [--ripemax 5] [--toxin 0.001] [--step 10]
+//                       [--error 0.02] [--insert 0.02] [--delete 0.02] [--life 6000] [--cap 500]
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { applyDish, armorOf, bandOf, DISH_DEFAULTS } from './sim/dish';

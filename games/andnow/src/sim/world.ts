@@ -56,6 +56,8 @@ export const CONFIG = {
   plateFood: 5,         // plate: about one food spot per this many cells squared
   toxinRate: 0.001,     // plate: each tick, a cell one toxin level above my armor (K count) dies with this chance…
   toxinStep: 10,        // …and each further level multiplies it by this (MEGA-plate bands were 10× steps)
+  foodRipen: 0,         // petri dish: an uneaten size pickup grows by one pickup's worth every this many ticks (0 = off)…
+  foodRipeMax: 5,       // …up to this many pickups' worth
   copyInsert: 0,        // DIVIDE: chance the child gains a fat cell (.) stuck to its body
   copyDelete: 0,        // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
 };
@@ -117,6 +119,7 @@ export class World {
   owner: Int32Array;
   code: Uint8Array;
   resource: Uint8Array; // 0 none, 1 size, 2 speed
+  ripe: Float32Array;   // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
   narrow: Uint8Array;
   warriors: Warrior[] = [];
@@ -137,6 +140,7 @@ export class World {
     this.owner = new Int32Array(this.w * this.h).fill(NONE);
     this.code = new Uint8Array(this.w * this.h);
     this.resource = new Uint8Array(this.w * this.h);
+    this.ripe = new Float32Array(this.w * this.h).fill(1);
     this.rng = makeRng(seed);
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
@@ -347,11 +351,15 @@ export class World {
     for (let k = 0; k < spawns.length; k++) {
       const s = spawns[k];
       const i = this.idx(s.x, s.y);
+      // Food left alone ripens (petri dish): picked-over ground stays poor, untouched ground
+      // gets rich, so whoever first breaks into new territory feasts.
+      if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
       let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
       for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
       if (touched) { this.spawnTimers[k] = 0; continue; }
       if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
         this.resource[i] = s.kind;
+        this.ripe[i] = 1;
         this.spawnTimers[k] = 0;
       }
     }
@@ -857,7 +865,7 @@ export class World {
         if (!this.inBounds(nx, ny)) continue;
         const i = this.idx(nx, ny);
         if (this.resource[i] === 1) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup);
+          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup * this.ripe[i]);
           this.log('collect', `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
