@@ -1,33 +1,27 @@
-// Petri dish: evolution inside a single long match. One replicator alone on a board, with
-// copy errors on DIVIDE and a reaper (when the population is at the cap, each birth kills
-// the oldest living warrior). Corpses become debris, which COLLECT turns back into size.
-// Birth, death, variation and competition for food: does selection happen in-game?
+// Petri dish: evolution with no score (see src/sim/dish.ts for the rules). One or more
+// replicators start in the clean middle of a plate ringed by rising toxin; reports how far
+// out life has spread, how much armor it carries, and which genomes are winning.
 //
-//   node dist/petri.mjs [warriors/amoeba.warrior ...] [--seed 1] [--ticks 30000] [--cap 40]
-//                       [--spawn 40] [--error 0.02] [--life 6000] [--report 2500]
+//   node dist/petri.mjs [warriors/amoeba.warrior ...] [--seed 1] [--ticks 100000] [--report 2500]
+//                       [--size 120] [--bands 5] [--food 5] [--spawn 40] [--toxin 0.001] [--step 10]
+//                       [--error 0.02] [--insert 0.02] [--delete 0.02] [--life 6000] [--cap 300]
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { applyDish, armorOf, bandOf, DISH_DEFAULTS } from './sim/dish';
 import { glyphOf } from './sim/glyphs';
 import { parseWarrior } from './sim/warrior-file';
-import { CONFIG, World } from './sim/world';
+import { World } from './sim/world';
 
 const args = process.argv.slice(2);
-const opt = (k: string, d: number) => { const i = args.indexOf(`--${k}`); return i >= 0 ? Number(args[i + 1]) : d; };
-const valued = new Set(['--seed', '--ticks', '--cap', '--spawn', '--error', '--report', '--life']);
+const val = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : null; };
+const valued = new Set(['seed', 'ticks', 'report', ...Object.keys(DISH_DEFAULTS)].map((k) => `--${k}`));
 const files = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 if (!files.length) files.push('warriors/amoeba.warrior');
-const TICKS = opt('ticks', 30000), REPORT = opt('report', 2500);
-CONFIG.reaperCap = opt('cap', 40);
-CONFIG.spawnInterval = opt('spawn', 40);
-CONFIG.copyError = opt('error', 0.02);
-CONFIG.lifespan = opt('life', 6000);
-CONFIG.tickCap = TICKS + 1;
-CONFIG.endless = true;
+const TICKS = Number(val('ticks') ?? 100000), REPORT = Number(val('report') ?? 2500);
+const dish = applyDish(val);
 
-// Several replicators = several lineages competing in one dish (each starts in its own corner).
 const specs = files.map((f) => parseWarrior(readFileSync(f, 'utf8'), basename(f, '.warrior')));
-const spec = specs[0];
-const world = new World(opt('seed', 1), specs);
+const world = new World(Number(val('seed') ?? 1), specs);
 
 /** A warrior's genome: its glyph grid, cropped (position-free). */
 function genome(id: number): string {
@@ -44,30 +38,36 @@ function genome(id: number): string {
   return rows.join('/');
 }
 
-const founderGenome = genome(0);
-console.log(`petri dish: ${spec.name} (${founderGenome}), seed ${world.seed}, ${TICKS} ticks, population cap ${CONFIG.reaperCap}, lifespan ${CONFIG.lifespan}, food every ${CONFIG.spawnInterval} ticks per spot, copy error ${CONFIG.copyError}\n`);
+const founder = genome(0);
+console.log(`petri dish: ${specs.map((s) => s.name).join(', ')} (${founder}), seed ${world.seed}, ${TICKS} ticks; ${Object.entries(dish).map(([k, v]) => `${k} ${v}`).join(', ')}\n`);
+console.log('band = toxin level under the IP (0 = clean middle); armor = K cells; the front = outermost band holding 3+ warriors\n');
 
-const history: { t: number; living: number; founderShare: number }[] = [];
 const report = () => {
-  const living = world.warriors.filter((w) => w.alive);
+  const living = world.living();
+  const byBand = new Array(dish.bands).fill(0);
+  const armors = new Map<number, number>();
   const counts = new Map<string, number>();
-  for (const w of living) { const g = genome(w.id); counts.set(g, (counts.get(g) ?? 0) + 1); }
-  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-  const births = world.warriors.length - 1;
-  const reaped = world.warriors.filter((w) => w.deathReason === 'reaped (oldest)' || w.deathReason === 'old age').length;
+  for (const w of living) {
+    byBand[bandOf(world, w.id)]++;
+    const a = armorOf(world, w.id);
+    armors.set(a, (armors.get(a) ?? 0) + 1);
+    const g = genome(w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+  }
+  let front = -1;
+  byBand.forEach((n, b) => { if (n >= 3) front = b; });
+  const deaths: Record<string, number> = {};
+  for (const w of world.warriors) if (!w.alive && w.deathReason) { const k = w.deathReason.replace(/ by .*/, '').replace(/ \(.*/, ''); deaths[k] = (deaths[k] ?? 0) + 1; }
   const maxGen = Math.max(0, ...living.map((w) => w.gen));
-  const founderShare = (counts.get(founderGenome) ?? 0) / Math.max(1, living.length);
-  history.push({ t: world.t, living: living.length, founderShare });
-  console.log(`t${String(world.t).padStart(6)}  alive ${String(living.length).padStart(3)}  births ${String(births).padStart(4)}  died ${String(reaped).padStart(4)}  deepest generation ${String(maxGen).padStart(3)}  genomes ${String(counts.size).padStart(3)}  founder's genome ${(100 * founderShare).toFixed(0).padStart(3)}%`);
-  if (specs.length > 1) console.log(`           lineages: ${specs.map((s, k) => `${s.name} ${living.filter((w) => w.lineage === k).length}`).join(', ')}`);
-  for (const [g, n] of top) console.log(`           ${String(n).padStart(3)} × ${g}${g === founderGenome ? '   (founder)' : ''}`);
+  console.log(`t${String(world.t).padStart(7)}  alive ${String(living.length).padStart(3)}  births ${String(world.warriors.length - specs.length).padStart(6)}  gen ≤${String(maxGen).padStart(4)}  bands [${byBand.map((n) => String(n).padStart(3)).join(' ')}]  front ${front}  armor {${[...armors.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `${a}K:${n}`).join(' ')}}`);
+  console.log(`           deaths: ${Object.entries(deaths).map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  for (const [g, n] of [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)) console.log(`           ${String(n).padStart(3)} × ${g}${g === founder ? '   (founder)' : ''}`);
 };
 
-while (world.t < TICKS && !world.result.over) {
+const t0 = Date.now();
+while (world.t < TICKS && world.living().length) {
   world.tick();
   if (world.t % REPORT === 0) report();
 }
 if (world.t % REPORT !== 0) report();
-const kinds: Record<string, number> = {};
-for (const e of world.events) kinds[e.kind] = (kinds[e.kind] ?? 0) + 1;
-console.log('\nrecent events:', JSON.stringify(kinds));
+console.log(`\n${world.t} ticks in ${((Date.now() - t0) / 1000).toFixed(0)} s${world.living().length ? '' : ' (extinct)'}`);

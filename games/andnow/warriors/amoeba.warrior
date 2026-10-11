@@ -1,7 +1,8 @@
 name: Amoeba
-# The first replicator: a Gatherer (collect, head for the nearest resource) that DIVIDEs
+# The petri dish founder: a Gatherer (collect, head for the nearest resource) that DIVIDEs
 # every loop (D pops an empty stack = east): copies itself beside itself as a new
-# warrior. Seven cells, so it fits under the size floor (a 9-cell version lost genes to
-# upkeep shedding). Its descendants are rivals like anyone else.
+# warrior. Its descendants are rivals like anyone else. The two fat cells under it are
+# spare: copy errors can turn them into armor (K) without breaking the program.
 ---
 C6S$TMD
+..

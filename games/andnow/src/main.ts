@@ -3,6 +3,7 @@ import { asciiBody, asciiMap, LETTERS, statusLine } from './sim/ascii';
 import { DIR_NAMES, GLYPH_DOCS, glyphOf } from './sim/glyphs';
 import { summarize } from './sim/match';
 import { parseWarrior, WarriorSpec } from './sim/warrior-file';
+import { applyDish, armorOf, bandOf } from './sim/dish';
 import { CONFIG, DEBRIS, World } from './sim/world';
 import { BUNDLED } from './warriors';
 
@@ -10,7 +11,7 @@ import { BUNDLED } from './warriors';
 // from warriors/evolved/manifest.json (written by the evolver), named `evo:<name>`.
 const SOURCES: Record<string, string> = { ...BUNDLED };
 
-const CELL = 14;
+let CELL = 14; // px per cell; the petri plate is scaled to fit the screen
 const HUES = [205, 25, 130, 290, 55, 330, 170, 0];
 const SPEEDS = [1, 2, 4, 8, 16, 32, 64, 256]; // ticks per second, roughly
 
@@ -33,17 +34,10 @@ let lastFrame = performance.now();
 // ---------- setup ----------
 
 const params = new URLSearchParams(location.search);
-// Petri dish (?petri=1): replicators with copy errors, a reaper and a lifespan; evolution
-// inside one long run (same rules as dist/petri.mjs).
+// Petri dish (?petri=1): the toxin-gradient plate, no score (same rules as dist/petri.mjs;
+// settings from the URL, e.g. &toxin=0.002&size=96, defaults in src/sim/dish.ts).
 const PETRI = params.has('petri');
-if (PETRI) {
-  CONFIG.reaperCap = Number(params.get('cap') ?? 40);
-  CONFIG.lifespan = Number(params.get('life') ?? 6000);
-  CONFIG.spawnInterval = Number(params.get('spawn') ?? 40);
-  CONFIG.copyError = Number(params.get('error') ?? 0.05);
-  CONFIG.tickCap = 1e9;
-  CONFIG.endless = true;
-}
+if (PETRI) applyDish((k) => params.get(k));
 // No tick limit in the viewer: a match runs until one lineage is left (?ticks=N to judge
 // by body size at tick N, as the runners do).
 CONFIG.tickCap = Number(params.get('ticks')) || Infinity;
@@ -86,6 +80,7 @@ function newMatch(sources?: string[], seed?: number) {
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
   seedEl.value = String(world.seed);
+  CELL = PETRI ? Math.max(3, Math.min(10, Math.floor((Math.min(window.innerWidth, 1000) - 24) / world.w))) : 14;
   canvas.width = world.w * CELL;
   canvas.height = world.h * CELL;
   render();
@@ -105,7 +100,8 @@ function shareText(): string {
   q.set('seed', String(world.seed));
   q.set('t', String(world.t));
   const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ':').replace(/%2C/g, ',')}`;
-  const alive = world.warriors.filter((w) => w.alive).map((w) => `${w.name} ${w.cellCount}c`).join(', ');
+  const living = world.living();
+  const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(', ');
   const end = world.result.over ? ` — over: ${world.result.reason}` : '';
   return `andnow match ${url}\ntick ${world.t}; alive: ${alive || 'none'}${end}${matchNames ? '' : ' (warriors loaded from source: link has the seed only)'}`;
 }
@@ -147,7 +143,10 @@ function frame(now: number) {
   if (playing && !world.result.over) {
     tickBudget += dt * SPEEDS[Number(speedEl.value)];
     let n = 0;
-    while (tickBudget >= 1 && n < 500 && !world.result.over) { world.tick(); tickBudget--; n++; }
+    // At most ~40 ms of sim per frame (a full dish is slow); drop what doesn't fit.
+    const until = performance.now() + 40;
+    while (tickBudget >= 1 && n < 500 && !world.result.over && performance.now() < until) { world.tick(); tickBudget--; n++; }
+    if (tickBudget > 1) tickBudget = 1;
     if (world.result.over) setPlaying(false);
     render();
   }
@@ -158,9 +157,15 @@ function frame(now: number) {
 
 function color(id: number, l: number, a = 1) { return `hsl(${HUES[id % HUES.length]} 60% ${l}% / ${a})`; }
 
+const TOXIN_TINT = ['#0e1117', '#1b1220', '#281427', '#36162c', '#451831', '#541a35'];
+const ARMOR_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#d946ef'];
+
 function render() {
   const { w, h } = world;
-  const glyphs = showGlyphsEl.checked;
+  const glyphs = showGlyphsEl.checked && CELL >= 9;
+  const tox = world.board.toxin;
+  const armor = new Map<number, number>();
+  if (tox) for (const wr of world.living()) armor.set(wr.id, armorOf(world, wr.id));
   ctx.font = `bold ${CELL - 3}px ui-monospace, Menlo, monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -169,12 +174,14 @@ function render() {
       const i = world.idx(x, y), px = x * CELL, py = y * CELL;
       const o = world.owner[i];
       if (!world.isFloor(x, y)) { ctx.fillStyle = '#1a1f29'; ctx.fillRect(px, py, CELL, CELL); continue; }
-      ctx.fillStyle = '#0e1117';
+      ctx.fillStyle = tox ? TOXIN_TINT[Math.min(TOXIN_TINT.length - 1, tox[i])] : '#0e1117';
       ctx.fillRect(px, py, CELL, CELL);
       if (o >= 0) {
-        // Colored by lineage; DIVIDE's descendants a little lighter per generation.
+        // Colored by lineage; DIVIDE's descendants a little lighter per generation. On the
+        // plate, colored by armor instead (blue 0K → green → yellow → orange → red 4K+), so
+        // a resistant strain sweeping outward shows as a color wave.
         const wo = world.warriors[o];
-        ctx.fillStyle = color(wo.lineage, 28 + Math.min(wo.gen, 5) * 4);
+        ctx.fillStyle = tox ? ARMOR_COLORS[Math.min(ARMOR_COLORS.length - 1, armor.get(o) ?? 0)] : color(wo.lineage, 28 + Math.min(wo.gen, 5) * 4);
         ctx.fillRect(px + 0.5, py + 0.5, CELL - 1, CELL - 1);
         if (glyphs) { ctx.fillStyle = color(wo.lineage, 82); ctx.fillText(glyphOf(world.code[i]), px + CELL / 2, py + CELL / 2 + 1); }
       } else if (o === DEBRIS) {
@@ -191,9 +198,8 @@ function render() {
       }
     }
   }
-  if (showIpEl.checked) {
-    for (const wr of world.warriors) {
-      if (!wr.alive) continue;
+  if (showIpEl.checked && CELL >= 6) {
+    for (const wr of world.living()) {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.strokeRect(wr.ipX * CELL + 1, wr.ipY * CELL + 1, CELL - 2, CELL - 2);
@@ -245,7 +251,13 @@ function genomeOf(id: number): string {
 }
 
 function renderDish() {
-  const living = world.warriors.filter((w) => w.alive);
+  const living = world.living();
+  const bands = new Array(CONFIG.plateBands).fill(0), armors = new Map<number, number>();
+  for (const w of living) {
+    bands[bandOf(world, w.id)]++;
+    const a = armorOf(world, w.id);
+    armors.set(a, (armors.get(a) ?? 0) + 1);
+  }
   const counts = new Map<string, { n: number; lineage: number }>();
   for (const w of living) {
     const g = genomeOf(w.id);
@@ -258,6 +270,8 @@ function renderDish() {
   const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   dishEl.innerHTML = `<div class="name">Petri dish</div>
     <div class="stats">${living.length} alive · ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born · ${died} died · deepest generation ${Math.max(0, ...living.map((w) => w.gen))} · ${counts.size} genomes alive</div>
+    <div class="stats">by toxin level (0 = clean middle): ${bands.map((n, b) => `<span style="background:${TOXIN_TINT[b]};padding:0 4px">${b}: ${n}</span>`).join(' ')}</div>
+    <div class="stats">by armor (K cells): ${[...armors.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `<span style="color:${ARMOR_COLORS[Math.min(ARMOR_COLORS.length - 1, a)]}">${a}K: ${n}</span>`).join(' · ')}</div>
     ${top.map(([g, c]) => `<div class="genome"><span style="color:${color(c.lineage, 65)}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code>${founders.includes(g) ? ' <span class="stats">(founder)</span>' : ''}</div>`).join('')}`;
 }
 

@@ -2,7 +2,7 @@
 // a number, WRITE/GROW pop one, and `'` pushes the code of the next cell.
 // Code 0 is `.` (no-op), which is what a grown cell holds unless told otherwise.
 
-export const GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDA";
+export const GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
 
 export const CODE: Record<string, number> = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
@@ -59,5 +59,6 @@ export const GLYPH_DOCS: Record<string, string> = {
   'B': 'BOMB: pop dx dy; destroy a visible foreign cell within range',
   'W': 'WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me',
   'A': 'OOZE: pop dir; amoeboid move: my rearmost cell (code and all) moves to the free spot touching my body farthest that way, if that is ahead of where it was and I stay connected',
+  'K': 'no-op; armor: each K in my body lets me live one toxin level deeper (petri dish)',
   'D': 'DIVIDE: pop dir; copy my whole body beyond itself that way as a new warrior (my lineage, but a rival like any other; needs max size ≥ 2× my cells; each copied cell may mutate)',
 };

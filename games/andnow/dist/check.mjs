@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDA";
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
 var DX = [1, 0, -1, 0];
@@ -243,9 +243,34 @@ function makeRooms(seed, attempt) {
   });
   return { w, h, terrain, spawns, starts, rooms: allRooms };
 }
+function makePlate(seed, size, bands, foodSpacing) {
+  const w = size, h = size, c = (size - 1) / 2, R = size / 2 - 1;
+  const rng = makeRng(seed ^ 2654435769);
+  const terrain = new Uint8Array(w * h).fill(WALL);
+  const toxin = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const r = Math.hypot(x - c, y - c);
+      if (r > R) continue;
+      terrain[y * w + x] = FLOOR;
+      toxin[y * w + x] = Math.max(0, Math.min(bands - 1, Math.floor(r / R * (bands + 1)) - 1));
+    }
+  }
+  const spawns = [];
+  for (let y = 1; y < h - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px < w && py < h && terrain[py * w + px] === FLOOR) spawns.push({ x: px, y: py, kind: rng() < 0.2 ? 2 : 1 });
+    }
+  }
+  const s = Math.floor(2 * R / (bands + 1));
+  const start = { x: Math.round(c - s / Math.SQRT2), y: Math.round(c - s / Math.SQRT2), w: Math.floor(s * Math.SQRT2), h: Math.floor(s * Math.SQRT2) };
+  return { w, h, terrain, spawns, starts: [start], rooms: [], toxin };
+}
 
 // src/sim/world.ts
 var NONE = -1;
+var K = CODE["K"];
 var DEBRIS = -2;
 var CONFIG = {
   sight: 14,
@@ -283,21 +308,35 @@ var CONFIG = {
   copyError: 0.02,
   // DIVIDE: chance each copied cell becomes a random glyph
   maxWarriors: 64,
-  // DIVIDE fails once a match has this many warriors
+  // DIVIDE fails while this many warriors are alive
   reaperCap: 0,
   // petri dish: with this many alive, a birth kills the oldest living warrior (0 = off)
   lifespan: 0,
   // petri dish: typical lifespan in ticks; each warrior's is 50–150% of it (0 = off)
-  endless: false
+  endless: false,
   // petri dish: don't end when one lineage is left (only the tick cap ends it)
+  plate: 0,
+  // petri dish: board is a round plate this many cells across (0 = rooms board)
+  plateBands: 5,
+  // plate: toxin levels, clean middle (0) to rim (bands-1)
+  plateFood: 5,
+  // plate: about one food spot per this many cells squared
+  toxinRate: 1e-3,
+  // plate: each tick, a cell one toxin level above my armor (K count) dies with this chance…
+  toxinStep: 10,
+  // …and each further level multiplies it by this (MEGA-plate bands were 10× steps)
+  copyInsert: 0,
+  // DIVIDE: chance the child gains a fat cell (.) stuck to its body
+  copyDelete: 0
+  // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
 };
 var World = class {
   constructor(seed, specs) {
     this.seed = seed;
-    this.board = makeBoard(seed);
+    this.board = CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
-    this.owner = new Int16Array(this.w * this.h).fill(NONE);
+    this.owner = new Int32Array(this.w * this.h).fill(NONE);
     this.code = new Uint8Array(this.w * this.h);
     this.resource = new Uint8Array(this.w * this.h);
     this.rng = makeRng(seed);
@@ -327,6 +366,11 @@ var World = class {
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
   narrow;
   warriors = [];
+  /** The living warriors (a long dish has far more dead than alive). Rebuilt lazily after deaths. */
+  livingList = [];
+  livingDirty = false;
+  bornIn = /* @__PURE__ */ new Map();
+  // lineage → warriors born so far (for names)
   t = 0;
   rng;
   events = [];
@@ -376,6 +420,16 @@ var World = class {
       wr.cellCount++;
     }
     this.warriors.push(wr);
+    this.livingList.push(wr);
+    this.bornIn.set(id, 1);
+  }
+  /** Living warriors, in id order. */
+  living() {
+    if (this.livingDirty) {
+      this.livingList = this.livingList.filter((w) => w.alive);
+      this.livingDirty = false;
+    }
+    return this.livingList;
   }
   // ---------- helpers ----------
   idx(x, y) {
@@ -492,6 +546,7 @@ var World = class {
   kill(wr, reason) {
     if (!wr.alive) return;
     wr.alive = false;
+    this.livingDirty = true;
     wr.deathReason = reason;
     wr.diedAt = this.t;
     for (const c of this.cellsOf(wr.id)) this.toDebris(c);
@@ -506,6 +561,7 @@ var World = class {
     }
   }
   /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
+  /** Destroy a cell outright: a bomb (`by`), or the plate's toxin (no `by`). */
   destroy(i, by) {
     const o = this.owner[i];
     this.setOwner(i, NONE);
@@ -513,9 +569,9 @@ var World = class {
     if (o < 0) return;
     const victim = this.warriors[o];
     victim.cellCount--;
-    victim.lastHarm = { by: by.id, t: this.t };
+    if (by) victim.lastHarm = { by: by.id, t: this.t };
     if (i === this.idx(victim.ipX, victim.ipY)) {
-      this.kill(victim, `core bombed by ${by.name}`);
+      this.kill(victim, by ? `core bombed by ${by.name}` : "core poisoned by the toxin");
       return;
     }
     const cut = this.unreached(victim);
@@ -543,14 +599,15 @@ var World = class {
         this.spawnTimers[k] = 0;
       }
     }
-    const n = this.warriors.length;
+    const order = this.living().slice();
+    const n = order.length;
     for (let k = 0; k < n; k++) {
-      const wr = this.warriors[(this.t + k) % n];
+      const wr = order[(this.t + k) % n];
       if (!wr.alive) continue;
       wr.accum += wr.speed;
       while (wr.accum >= 1 && wr.alive) wr.accum -= this.step(wr);
     }
-    for (const wr of this.warriors) {
+    for (const wr of this.living().slice()) {
       if (!wr.alive) continue;
       const cells = this.cellSets.get(wr.id);
       if (cells) {
@@ -579,6 +636,21 @@ var World = class {
             this.log("room", `${wr.name} moved its whole body into another room`, wr.id);
           });
         }
+      }
+      const tox = this.board.toxin;
+      if (tox && cells) {
+        let armor = 0;
+        for (const c of cells) if (this.code[c] === K) armor++;
+        const doomed = [];
+        for (const c of cells) {
+          const over = tox[c] - armor;
+          if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
+        }
+        for (const c of doomed) {
+          if (!wr.alive) break;
+          if (this.owner[c] === wr.id) this.destroy(c);
+        }
+        if (!wr.alive) continue;
       }
       wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
@@ -634,18 +706,16 @@ var World = class {
   /** True when every living warrior is of one lineage (only possible once someone divides). */
   oneTeamLeft() {
     let team = -1;
-    for (const w of this.warriors) {
-      if (!w.alive) continue;
+    for (const w of this.living()) {
       if (team === -1) team = w.lineage;
       else if (w.lineage !== team) return false;
     }
     return team !== -1 && this.warriors.some((w) => w.lineage !== team);
   }
   checkOver() {
-    let living = 0;
-    for (const w of this.warriors) if (w.alive) living++;
-    if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return;
+    const living = this.living().length;
     if (CONFIG.endless && this.t < CONFIG.tickCap) return;
+    if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return;
     const founders = this.warriors.filter((w) => w.gen === 0);
     const teams = /* @__PURE__ */ new Map();
     for (const w of this.warriors) if (w.alive) teams.set(w.lineage, [...teams.get(w.lineage) ?? [], w]);
@@ -955,7 +1025,7 @@ var World = class {
       cands.push([Math.abs(x - fx) + Math.abs(y - fy), i, x, y]);
     };
     if (type === T_ENEMY) {
-      for (const other of this.warriors) if (other.id !== wr.id) for (const i of this.cellSets.get(other.id) ?? []) consider(i);
+      for (const other of this.living()) if (other.id !== wr.id) for (const i of this.cellSets.get(other.id) ?? []) consider(i);
     } else if (type === T_DEBRIS) {
       for (const i of this.cellSets.get(DEBRIS) ?? []) consider(i);
     } else if (type === T_SIZE || type === T_SPEED || type === T_RESOURCE) {
@@ -1195,12 +1265,12 @@ var World = class {
     d = (d % 4 + 4) % 4;
     if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
     if (CONFIG.reaperCap > 0) {
-      const living = this.warriors.filter((w) => w.alive);
+      const living = this.living();
       if (living.length >= CONFIG.reaperCap) {
         const oldest = living.filter((w) => w !== wr).reduce((a, w) => w.born < a.born ? w : a);
         this.kill(oldest, "reaped (oldest)");
       }
-    } else if (this.warriors.length >= CONFIG.maxWarriors) return false;
+    } else if (this.living().length >= CONFIG.maxWarriors) return false;
     const mine = this.cellsOf(wr.id);
     const xs = mine.map((c) => c % this.w), ys = mine.map((c) => c / this.w | 0);
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
@@ -1212,7 +1282,8 @@ var World = class {
     }
     const id = this.warriors.length;
     const founder = this.warriors[wr.lineage];
-    const born = this.warriors.filter((w) => w.lineage === wr.lineage).length;
+    const born = this.bornIn.get(wr.lineage) ?? 1;
+    this.bornIn.set(wr.lineage, born + 1);
     const child = {
       id,
       lineage: wr.lineage,
@@ -1245,6 +1316,7 @@ var World = class {
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
     });
     this.warriors.push(child);
+    this.livingList.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
       const i = this.idx(xs[k] + ox, ys[k] + oy);
@@ -1256,6 +1328,29 @@ var World = class {
       this.setOwner(i, id);
       this.code[i] = code;
       child.cellCount++;
+    }
+    if (CONFIG.copyInsert > 0 && this.rng() < CONFIG.copyInsert) {
+      const kids = this.cellsOf(id);
+      const c = kids[Math.floor(this.rng() * kids.length)], d2 = Math.floor(this.rng() * 4);
+      const nx = c % this.w + DX[d2], ny = (c / this.w | 0) + DY[d2];
+      if (this.isFree(nx, ny)) {
+        const i = this.idx(nx, ny);
+        this.setOwner(i, id);
+        this.code[i] = CODE["."];
+        child.cellCount++;
+        mutations++;
+      }
+    }
+    if (CONFIG.copyDelete > 0 && child.cellCount > 1 && this.rng() < CONFIG.copyDelete) {
+      const ip = this.idx(child.ipX, child.ipY);
+      const kids = this.cellsOf(id).filter((c2) => c2 !== ip);
+      const c = kids[Math.floor(this.rng() * kids.length)];
+      this.setOwner(c, NONE);
+      if (this.unreached(child).length === 0) {
+        this.code[c] = 0;
+        child.cellCount--;
+        mutations++;
+      } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
     this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);

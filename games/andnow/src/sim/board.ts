@@ -18,6 +18,7 @@ export interface Board {
   spawns: Spawn[];
   starts: Rect[]; // corner rooms: TL, TR, BR, BL (a 2-player match is TL vs TR)
   rooms: Rect[];  // every room (start rooms included), mirror images listed separately; a room merged with its mirror is one hall
+  toxin?: Uint8Array; // petri dish plate: toxin level of each cell (0 = clean)
 }
 
 export const BOARD_W = 64;
@@ -240,4 +241,35 @@ function makeRooms(seed: number, attempt: number): Board | null {
     return startsFrom(hall).filter((m) => { const k = `${m.x},${m.y},${m.w},${m.h}`; return !listed.has(k) && !!listed.add(k); });
   });
   return { w, h, terrain, spawns, starts, rooms: allRooms };
+}
+
+/**
+ * Petri dish plate (after the MEGA-plate experiment): one round open arena, clean in the
+ * middle (two bands wide, so a young population can settle), then rings of rising toxin
+ * out to the rim, `bands` levels in all (0 … bands-1). Food spots everywhere, about one per `foodSpacing`² cells (1 in 5 is speed).
+ * The start is the middle.
+ */
+export function makePlate(seed: number, size: number, bands: number, foodSpacing: number): Board {
+  const w = size, h = size, c = (size - 1) / 2, R = size / 2 - 1;
+  const rng = makeRng(seed ^ 0x9e3779b9);
+  const terrain = new Uint8Array(w * h).fill(WALL);
+  const toxin = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const r = Math.hypot(x - c, y - c);
+      if (r > R) continue;
+      terrain[y * w + x] = FLOOR;
+      toxin[y * w + x] = Math.max(0, Math.min(bands - 1, Math.floor((r / R) * (bands + 1)) - 1)); // the clean middle is two bands wide
+    }
+  }
+  const spawns: Spawn[] = [];
+  for (let y = 1; y < h - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px < w && py < h && terrain[py * w + px] === FLOOR) spawns.push({ x: px, y: py, kind: rng() < 0.2 ? 2 : 1 });
+    }
+  }
+  const s = Math.floor((2 * R) / (bands + 1)); // the clean disc's inscribed square
+  const start: Rect = { x: Math.round(c - s / Math.SQRT2), y: Math.round(c - s / Math.SQRT2), w: Math.floor(s * Math.SQRT2), h: Math.floor(s * Math.SQRT2) };
+  return { w, h, terrain, spawns, starts: [start], rooms: [], toxin };
 }

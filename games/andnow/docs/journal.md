@@ -1308,3 +1308,43 @@ Re-probe (20 boards):
 The travellers keep their credit; the "after" columns are blank where the value didn't change.
 
 Golden re-recorded, canary 69 cases. morph5 ranked with the bug, so it was stopped at gen 220 (kept as runs/morph5-roombug). morph6 starts from that archive's warriors, scored fresh under the fixed rules and decay-to-0, with the five viewer warriors and crawler as benchmarks.
+
+## Session 1, part 10: the petri dish becomes a toxin-gradient plate (Tierra × MEGA-plate)
+
+The user asked why things would reproduce in Tierra (they don't need a reason: whatever copies itself is what persists), then: build a petri dish in that spirit, and make it the focus after morph6. They remembered the MEGA-plate experiment (Harvard, 2016): bacteria on a huge plate with bands of rising antibiotic, stalling at each band until a resistant mutant breaks through and floods it. (The real plate went edge → center; ours goes center → rim, as they remembered it.) The old room-board dish is replaced outright.
+
+**Rules** (`src/sim/dish.ts`, used by `dist/petri.mjs` and the viewer's `?petri=1`):
+- **No score, no reaper.** Only birth (DIVIDE), starvation (max size decays to 0), old age (lifespan 50–150% of 6000), and a cap on how many are alive at once (300; DIVIDE fails at the cap), which keeps it fast.
+- **The plate** (`makePlate`): round, 120 across, open.
+  - Rings of toxin, levels 0–4. The clean middle is two bands wide: with a one-band middle, 4 of 6 dishes died out before getting started.
+  - Food spots everywhere, about one per 5×5 cells, 1 in 5 of them speed.
+- **Toxin:** each tick, a cell on a level above its warrior's armor dies with chance 0.001 × 10^(levels over − 1). Losing the IP cell kills.
+  - The 10× steps are the MEGA-plate's.
+  - A linear rate either killed everything (0.003) or let unarmored life reach the rim (0.001).
+- **Armor is genetic:** a new glyph `K`, a no-op. A warrior with n K cells lives n levels deeper. It costs a body cell (more max size per division, more food).
+- **Tierra-style copy errors:** substitution (2% per cell), plus insertion (2%: a fat cell stuck on, which later substitutions can turn into K) and deletion (2%). So genome size can evolve, which climbing past level 1 needs.
+- **Founder:** the Amoeba (`C6S$TMD`) plus two spare fat cells.
+- **Engine changes:** a living list (a dish has far more dead than alive), Int32 owners (more than 32k births), a per-lineage birth counter, and `maxWarriors` counting the living.
+
+**First results** (50k ticks, 8 seeds): 7 of 8 thrive, and 4 reached the rim. The staircase shows clearly. Seed 1 (the first version):
+
+| Tick | What happened |
+|---|---|
+| 10000 | Stuck at ring 1; first 1K mutants |
+| 20000 | 1K swept (95/106); front at ring 2 |
+| 30000 | 2K swept (133/189); front at ring 3 |
+| 35000 | First 3K |
+| 40000 | Life at the rim |
+
+Seed 6 at 50k: armor 3K:214, 2K:61, and the first 4K.
+
+**Evolved genome** (seed 6, t40k): `CK.$TMD`, 50 of 176. The founder's `6S` (scan for food) became `K.`: armor, and food-seeking dropped. `T` now gets 0,0 and walks randomly, the same convergence to random walking the old dish showed.
+
+**Viewer:**
+- Toxin rings are tinted.
+- Warriors are colored by armor (blue 0K → green → yellow → orange → red), so a resistant strain spreading out shows as a color wave.
+- The panel counts warriors by level and by armor.
+- The plate is scaled to the screen; the frame loop gets a 40 ms sim budget.
+- Viewer and headless match tick for tick (seed 6, t40000: 176 alive, 4748 born).
+
+Golden re-recorded (glyph table 56), canary 69 cases.
