@@ -1438,3 +1438,15 @@ New tools:
 - A working 4K needs an insertion and then a K mutation of the new cell. That's two rare events, plus a bigger division threshold.
 
 **Find: single-cell turrets and the xenophobe crash.** Small, young dishes (cold-mutation s1, two-founders s1, the 3 early extinctions in the kin sweep) die to tiny warriors such as `B`, `BSF` and `BSFTM`. A body that sheds down to a lone B core can't eat, but bombs every tick. Kin recognition makes a glyph-poor body treat almost every cell as foreign, its own clones included.
+
+**Find: competition versus colonization (divide-before-move).** `D` before `M` won in 4 of 19 round-1 dishes, and 3 of those were stalled fronts (fronts that never reach the outer bands). Controlled test, 250k ticks, 4 seeds each: founders `CKKTMD` (move then divide) and `CKKDTM` (divide then move).
+- Solo, both reach the rim. Move-first gets there sooner: 20+ on the rim by tick 5k, 10k, 35k and 40k, versus 5k, 55k, 70k and 225k.
+- Head to head, divide-first wins all 4 dishes. In 2 of them the plate never reaches the rim, so it stays 2-armor and stalled.
+
+Divide-first is the better competitor in the crowd and the worse colonist, and once it beats the colonist nobody pushes out. Mechanism not pinned down yet. One candidate: a child starts right after the D, so a divide-first child moves away from its parent at once, while a move-first child first collects and runs its Ks.
+
+Gallery so far (pictures in runs/look/):
+- off-path armor: seed 4's T, the arch (roomy-hot s1, `CKK TMD` over `K?K`, whose middle slot drifts freely), the keel (roomy s1), the table (`C TMD` over `KKK`);
+- the pseudogene `6` (two-founders s2);
+- the graveyard ring and gene-surgery bombers (two-founders s1);
+- the stalled front (roomy s2).

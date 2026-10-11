@@ -1,0 +1,5 @@
+[
+  { "name": "md-solo", "w": ["test-md"] },
+  { "name": "dm-solo", "w": ["test-dm"] },
+  { "name": "md-vs-dm", "w": ["test-md", "test-dm"] }
+]
