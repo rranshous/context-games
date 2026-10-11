@@ -1230,3 +1230,11 @@ Oozer is the only one that truly doesn't care (6 cells, almost every row has `A`
   4W 10L).
 - Golden re-recorded (1933 matches), canary 67 cases.
 - morph5: from morph4's archive + amoeba-g/Oozer seeds, 300 gens.
+
+### Aside: "spawn camping" is jitter (user observation, morph5 gen ~80)
+
+Watching a match, the user saw an entity sitting at a resource, losing and regaining a cell fast. Measured solo over 10 boards × 3000 ticks:
+
+- Resources can't be camped: a spawn regrows only after 120 consecutive ticks with nothing on or next to it (`spawnInterval`), and touching it resets the timer. Sitting next to one denies it to everyone, yourself included.
+- Body size barely churns: growers gain about 10–14 cells a game (GROW) and shed 5–9 to decay, with only 1–2 swings between gaining and losing.
+- What flickers is oozing back and forth. Of all the cells an oozer vacates, 35–60% are refilled within 20 ticks: amoeba-g 188 of 404, m68-26220 316 of 524. Its loop pops directions that alternate, so the same tip moves off and back. Very few of these happen next to a resource spot (1–13 a game), so it isn't camping. Much of the "oozes per game" count is this wasted motion. Only whole-body room entries, which are in the fitness, mean real travel.
