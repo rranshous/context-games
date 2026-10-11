@@ -1471,3 +1471,17 @@ Each step is one point mutation of a code cell that had drifted into junk. The r
 - A grazer peak comes before a predator rise. The correlation of grazers now with predators 6k ticks later is +0.23 and +0.26: weak but positive.
 
 That is the Lotka–Volterra signature: predators lead prey down, and prey lead predators up a quarter-cycle later. With toxin on, the gradient pins everyone to their band and the cycle never shows. The C-less predators are `BTMD`, `B$TM` and `B$TMD`: bodies that dropped their collector.
+
+**Field guide published** (private artifact: https://claude.ai/artifact/KCWB6oErfVfyUf8FWH2qhB). It ranks seven types:
+1. The unread genome (off-path storage). This takes the prize.
+2. Predator–prey cycles.
+3. The staircase (punctuated equilibrium).
+4. The rim sink.
+5. Competition versus colonization.
+6. The xenophobe and the turret.
+7. Neutral filler and self-measured constants.
+
+New from round 4 (no toxin):
+- `CMsDT` (hot mutation s2) dropped the food scan. `s` pushes the body's cell count (5), and `D` pops it as the divide direction, so body size is the gene for where children go.
+- The ring evolved stack-neutral filler, `> C:$Tv` (dup then drop). Its row has a hole that the IP skips at no cost.
+- Small and scarce no-toxin plates went extinct to turret-like `B$TM` and `BTM` remnants.

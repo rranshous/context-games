@@ -1,0 +1,10 @@
+[
+  { "name": "deep", "settings": { "size": "240", "bands": "9" } },
+  { "name": "deep-gentle", "settings": { "size": "240", "bands": "9", "step": "3" } },
+  { "name": "fat", "settings": { "insert": "0.08" } },
+  { "name": "lean", "settings": { "delete": "0.08" } },
+  { "name": "nt-fat", "settings": { "toxin": "0", "insert": "0.08" } },
+  { "name": "crowded", "settings": { "cap": "400" } },
+  { "name": "quick-life", "settings": { "life": "1500" } },
+  { "name": "fast-regrow", "settings": { "spawn": "10" } }
+]

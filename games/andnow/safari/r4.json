@@ -1,0 +1,9 @@
+[
+  { "name": "nt-roomy", "w": ["amoeba-roomy"], "settings": { "toxin": "0" } },
+  { "name": "nt-ring", "w": ["amoeba-ring"], "settings": { "toxin": "0" } },
+  { "name": "nt-hot", "settings": { "toxin": "0", "error": "0.04" } },
+  { "name": "nt-long-life", "settings": { "toxin": "0", "life": "20000" } },
+  { "name": "nt-scarce", "settings": { "toxin": "0", "food": "7" } },
+  { "name": "nt-small", "settings": { "toxin": "0", "size": "100" } },
+  { "name": "nt-three-plans", "w": ["amoeba", "amoeba-roomy", "amoeba-ring"], "settings": { "toxin": "0" } }
+]
