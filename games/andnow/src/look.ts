@@ -3,7 +3,9 @@
 // census of the most common genomes, each with which of its cells the IP actually ran
 // over the next --watch ticks (* ran, · never ran).
 //
-//   node dist/look.mjs <out-dir> [warriors/amoeba.warrior ...] [--seed 1] [--at 50000,100000] [--watch 400] [--px 4]
+// With --frames from:to:step it writes only pictures (frame-<tick>.png), for time-lapses.
+//
+//   node dist/look.mjs <out-dir> [warriors/amoeba.warrior ...] [--seed 1] [--at 50000,100000] [--watch 400] [--px 4] [--frames a:b:step]
 //                      [dish settings: --size --toxin ... see src/sim/dish.ts]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
@@ -15,7 +17,7 @@ import { DEBRIS, World } from './sim/world';
 
 const args = process.argv.slice(2);
 const val = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : null; };
-const valued = new Set(['seed', 'at', 'watch', 'px', ...Object.keys(DISH_DEFAULTS)].map((k) => `--${k}`));
+const valued = new Set(['seed', 'at', 'watch', 'px', 'frames', ...Object.keys(DISH_DEFAULTS)].map((k) => `--${k}`));
 const [out, ...files] = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 if (!files.length) files.push('warriors/amoeba.warrior');
 applyDish(val);
@@ -51,7 +53,7 @@ function png(w: number, h: number, rgb: Uint8Array): Buffer {
 
 const TINT = [[14, 17, 23], [30, 18, 34], [44, 20, 40], [58, 22, 46], [72, 24, 50], [86, 26, 54], [100, 28, 58], [114, 30, 62]];
 
-function picture(t: number, genomes: Map<number, string>) {
+function picture(t: number, genomes: Map<number, string>, name = `t${t}`) {
   const { w, h } = world, W = w * PX, H = h * PX;
   const rgb = new Uint8Array(W * H * 3);
   const tox = world.board.toxin;
@@ -70,7 +72,18 @@ function picture(t: number, genomes: Map<number, string>) {
       rgb[p] = edge ? c[0] * 0.4 : c[0]; rgb[p + 1] = edge ? c[1] * 0.4 : c[1]; rgb[p + 2] = edge ? c[2] * 0.4 : c[2];
     }
   }
-  writeFileSync(`${out}/t${t}.png`, png(W, H, rgb));
+  writeFileSync(`${out}/${name}.png`, png(W, H, rgb));
+}
+
+const frames = val('frames');
+if (frames) {
+  const [a, b, step] = frames.split(':').map(Number);
+  for (let T = a; T <= b && world.living().length; T += step) {
+    while (world.t < T && world.living().length) world.tick();
+    picture(world.t, new Map(world.living().map((wr) => [wr.id, genomeOf(world, wr.id)])), `frame-${String(world.t).padStart(7, '0')}`);
+  }
+  console.log(`${out}: frames ${a}–${world.t}`);
+  process.exit(0);
 }
 
 for (const T of at) {

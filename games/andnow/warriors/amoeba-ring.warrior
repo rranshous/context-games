@@ -1,0 +1,7 @@
+name: Ring Amoeba
+# The petri founder's program bent into a ring: east along the top row, down at v, west
+# along the bottom row, up at ^, and round again. Same loop as Amoeba (collect, head for
+# food, move, divide) plus three spare no-ops on the way back.
+---
+>C6S$Tv
+^DM...<

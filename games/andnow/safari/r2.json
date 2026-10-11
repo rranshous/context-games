@@ -1,0 +1,10 @@
+[
+  { "name": "ring", "w": ["amoeba-ring"] },
+  { "name": "ring-gentle", "w": ["amoeba-ring"], "settings": { "step": "3" } },
+  { "name": "roomy", "w": ["amoeba-roomy"] },
+  { "name": "three-plans", "w": ["amoeba", "amoeba-roomy", "amoeba-ring"] },
+  { "name": "steep", "settings": { "step": "30" } },
+  { "name": "roomy-wide", "w": ["amoeba-roomy"], "settings": { "size": "240", "bands": "7" } },
+  { "name": "ring-hot", "w": ["amoeba-ring"], "settings": { "error": "0.04", "insert": "0.04" } },
+  { "name": "roomy-no-old-age", "w": ["amoeba-roomy"], "settings": { "life": "1000000000" } }
+]
