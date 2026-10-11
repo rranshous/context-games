@@ -1659,7 +1659,7 @@ var BUNDLED = { amoeba: amoeba_default, bomber: bomber_default, gatherer: gather
 var SOURCES = { ...BUNDLED };
 var CELL = 14;
 var HUES = [205, 25, 130, 290, 55, 330, 170, 0];
-var SPEEDS = [1, 2, 4, 8, 16, 32, 64, 256];
+var SPEEDS = [1, 2, 4, 8, 16, 32, 64, 256, Infinity];
 var $ = (id) => document.getElementById(id);
 var canvas2 = $("board");
 var ctx = canvas2.getContext("2d");
@@ -1785,21 +1785,34 @@ function setPlaying(p) {
   playing = p;
   playBtn.textContent = p ? "Pause" : "Play";
 }
+var lastRender = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - lastFrame) / 1e3);
   lastFrame = now;
   if (playing && !world.result.over) {
-    tickBudget += dt * SPEEDS[Number(speedEl.value)];
-    let n = 0;
-    const until = performance.now() + 40;
-    while (tickBudget >= 1 && n < 500 && !world.result.over && performance.now() < until) {
-      world.tick();
-      tickBudget--;
-      n++;
+    const speed = SPEEDS[Number(speedEl.value)];
+    if (speed === Infinity) {
+      const until = performance.now() + 50;
+      while (!world.result.over && performance.now() < until) world.tick();
+      tickBudget = 0;
+      if (now - lastRender > 250 || world.result.over) {
+        render();
+        lastRender = now;
+      }
+    } else {
+      tickBudget += dt * speed;
+      let n = 0;
+      const until = performance.now() + 40;
+      while (tickBudget >= 1 && n < 500 && !world.result.over && performance.now() < until) {
+        world.tick();
+        tickBudget--;
+        n++;
+      }
+      if (tickBudget > 1) tickBudget = 1;
+      render();
+      lastRender = now;
     }
-    if (tickBudget > 1) tickBudget = 1;
     if (world.result.over) setPlaying(false);
-    render();
   }
   requestAnimationFrame(frame);
 }

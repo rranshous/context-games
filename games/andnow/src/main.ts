@@ -13,7 +13,7 @@ const SOURCES: Record<string, string> = { ...BUNDLED };
 
 let CELL = 14; // px per cell; the petri plate is scaled to fit the screen
 const HUES = [205, 25, 130, 290, 55, 330, 170, 0];
-const SPEEDS = [1, 2, 4, 8, 16, 32, 64, 256]; // ticks per second, roughly
+const SPEEDS = [1, 2, 4, 8, 16, 32, 64, 256, Infinity]; // ticks per second, roughly; the last is flat out
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('board');
@@ -137,18 +137,30 @@ function setPlaying(p: boolean) {
 
 // ---------- loop ----------
 
+let lastRender = 0;
+
 function frame(now: number) {
   const dt = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
   if (playing && !world.result.over) {
-    tickBudget += dt * SPEEDS[Number(speedEl.value)];
-    let n = 0;
-    // At most ~40 ms of sim per frame (a full dish is slow); drop what doesn't fit.
-    const until = performance.now() + 40;
-    while (tickBudget >= 1 && n < 500 && !world.result.over && performance.now() < until) { world.tick(); tickBudget--; n++; }
-    if (tickBudget > 1) tickBudget = 1;
+    const speed = SPEEDS[Number(speedEl.value)];
+    if (speed === Infinity) {
+      // Flat out: sim for most of each frame and redraw only a few times a second.
+      const until = performance.now() + 50;
+      while (!world.result.over && performance.now() < until) world.tick();
+      tickBudget = 0;
+      if (now - lastRender > 250 || world.result.over) { render(); lastRender = now; }
+    } else {
+      tickBudget += dt * speed;
+      let n = 0;
+      // At most ~40 ms of sim per frame (a full dish is slow); drop what doesn't fit.
+      const until = performance.now() + 40;
+      while (tickBudget >= 1 && n < 500 && !world.result.over && performance.now() < until) { world.tick(); tickBudget--; n++; }
+      if (tickBudget > 1) tickBudget = 1;
+      render();
+      lastRender = now;
+    }
     if (world.result.over) setPlaying(false);
-    render();
   }
   requestAnimationFrame(frame);
 }
