@@ -1273,3 +1273,38 @@ Watching a match, the user saw an entity sitting at a resource, losing and regai
 - morph5, already running, keeps the old floor rules to the end: its workers loaded the sim at start. Its results get tested under the new rules in the tournament.
 
 **Copy link** (viewer). Copies `andnow match <url>` plus a status line (tick, who's alive, cells). The URL has the warriors, seed, any other settings (e.g. petri) and `t=<tick>`, so opening it replays the deterministic match to that tick and pauses there. Over the LAN there's no secure context, so `navigator.clipboard` is missing; it falls back to `execCommand('copy')`, then to a prompt. Links replay under the current rules, so a rule change can make an old link play out differently. Also `explorer.share()`.
+
+### Fitness bugs stomped (morph5 stopped at gen 220 → runs/morph5-roombug; morph6)
+
+The user asked to stomp out fitness bugs. At gen 211, morph5's top five never moved, yet scored "whole body into another room" on 3/20 solo boards (and 36–64% of archive games). Every warrior that stayed home showed the same 3/20. Audit of every stat the score uses:
+
+1. **The start room merged with its mirror (the bug behind it).** On boards with one row of rooms, the start room's position clamp let it reach the edge of its grid cell, which there is the mirror axis. The start room and its mirror image became one hall twice as tall, a "start exit" as wide as the room.
+   - A block-shaped warrior SHIFTed down into the other half: that's left home plus entered another room, with no corridor and no reshaping. It also fed from that half: those warriors' pickups fall to 0 with the fix.
+   - Fix: keep a wall between the start room and its cell's far edge.
+   - New guard: the generator measures the widest opening around the start room (`widestExit`) and re-rolls any board where it's over 2, so no future cause can slip through. 3000 boards checked, widest 2.
+2. **DIVIDE copied through walls.** A child only needed free target cells, so it could be born in the next room over. That gave room credit without travel, and skipped corridors entirely.
+   - Fix: the straight line from each cell to its copy must be open floor.
+   - A child also isn't credited for the room it's born in (it starts with that room in `roomsSeen`).
+3. **Combat credit on kin.** Bomb hits, poison writes and kills counted against a warrior's own lineage, so dividing and bombing your children could earn up to +3 a game. Nothing in morph5's archive did it (0/66 scored combat alone), but it was open.
+   - Fix: these stats count rival lineages only.
+   - Kill *pay* still applies to kin, since petri-dish relatives are rivals.
+4. **Merged axis halls counted twice.** A non-start room stretched to an axis merges with its mirror, but `rooms` listed both halves, so wandering inside one hall counted as two rooms, the full room bonus. Fix: such a hall is listed once.
+
+Checked and fine:
+- **Pickups:** debris doesn't count, and spawns need 120 untouched ticks.
+- **Survival:** any member alive counts, which is a fair reward for dividing.
+- **Draws:** fine.
+- **Tick-cap:** sums cells.
+
+Re-probe (20 boards):
+
+| Warrior | Left home (before → after) | Other room (before → after) | Pickups (before → after) |
+|---|---|---|---|
+| morph5's top five | 3 → 0 | 3 → 0 | 0.5–0.9 → 0 |
+| m163-62881 (oozing bomber) | 19 | 17 | 2.4 |
+| amoeba-g | 17 | 9 | |
+| crawler | 18 | 18 | |
+
+The travellers keep their credit; the "after" columns are blank where the value didn't change.
+
+Golden re-recorded, canary 69 cases. morph5 ranked with the bug, so it was stopped at gen 220 (kept as runs/morph5-roombug). morph6 starts from that archive's warriors, scored fresh under the fixed rules and decay-to-0, with the five viewer warriors and crawler as benchmarks.

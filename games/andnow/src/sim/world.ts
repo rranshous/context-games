@@ -281,11 +281,12 @@ export class World {
     this.log('death', `${wr.name} died: ${reason}`, wr.id);
     // Killing pays: whoever harmed the victim recently (bomb or write) takes a cut of
     // its max size and speed. That includes a victim that runs into poison, or breaks
-    // itself after being bombed.
+    // itself after being bombed. Killing kin pays too (petri-dish relatives are rivals), but
+    // only rival kills count in the stats the GA scores, so a lineage can't farm its offspring.
     const h = wr.lastHarm;
     const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : undefined;
     if (killer && killer.alive && killer !== wr) {
-      killer.stats.kills++;
+      if (killer.lineage !== wr.lineage) killer.stats.kills++;
       killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
       killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
       this.log('kill', `${killer.name} takes a cut of ${wr.name} (max ${Math.floor(killer.maxSize)}, speed ${killer.speed.toFixed(2)})`, killer.id);
@@ -852,7 +853,7 @@ export class World {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : 'debris';
-    if (o >= 0) wr.stats.bombHits++;
+    if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++; // hits on kin earn nothing
     this.destroy(this.idx(x, y), wr);
     this.log('bomb', `${wr.name} bombed ${victim}`, wr.id);
     return true;
@@ -881,6 +882,12 @@ export class World {
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
     const ox = DX[d] * (bw + 1), oy = DY[d] * (bh + 1); // one cell of gap beyond my body
     for (let k = 0; k < mine.length; k++) if (!this.isFree(xs[k] + ox, ys[k] + oy)) return false;
+    // No copying through walls: the straight line from each cell to its copy must be open
+    // floor, so a child is born in space its parent could reach, never in the next room over.
+    const steps = Math.abs(ox) + Math.abs(oy);
+    for (let k = 0; k < mine.length; k++) {
+      for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
+    }
     const id = this.warriors.length;
     const founder = this.warriors[wr.lineage];
     const born = this.warriors.filter((w) => w.lineage === wr.lineage).length;
@@ -892,6 +899,11 @@ export class World {
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
+    // The room a child is born in isn't one it travelled to: no "entered another room" for it.
+    const cx0 = Math.min(...xs) + ox, cx1 = Math.max(...xs) + ox, cy0 = Math.min(...ys) + oy, cy1 = Math.max(...ys) + oy;
+    this.board.rooms.forEach((r, k) => {
+      if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
+    });
     this.warriors.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
@@ -920,7 +932,7 @@ export class World {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
-      if (c === CODE['@']) wr.stats.poisonWrites++;
+      if (c === CODE['@'] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log('write', `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
     }

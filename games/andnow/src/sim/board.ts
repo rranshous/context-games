@@ -17,7 +17,7 @@ export interface Board {
   terrain: Uint8Array;
   spawns: Spawn[];
   starts: Rect[]; // corner rooms: TL, TR, BR, BL (a 2-player match is TL vs TR)
-  rooms: Rect[];  // every room (start rooms included), mirror images listed separately
+  rooms: Rect[];  // every room (start rooms included), mirror images listed separately; a room merged with its mirror is one hall
 }
 
 export const BOARD_W = 64;
@@ -76,6 +76,22 @@ function split(rng: Rng, total: number, n: number, first: number, min: number): 
   return parts;
 }
 
+/** Longest run of floor along the ring of cells just outside rect `r`, side by side. */
+export function widestExit(terrain: Uint8Array, w: number, r: Rect): number {
+  let widest = 0;
+  const sides: [number, number, number, number, number][] = [
+    [r.x, r.y - 1, 1, 0, r.w], [r.x, r.y + r.h, 1, 0, r.w], [r.x - 1, r.y, 0, 1, r.h], [r.x + r.w, r.y, 0, 1, r.h],
+  ];
+  for (const [x0, y0, dx, dy, n] of sides) {
+    let run = 0;
+    for (let k = 0; k < n; k++) {
+      run = terrain[(y0 + k * dy) * w + x0 + k * dx] === FLOOR ? run + 1 : 0;
+      if (run > widest) widest = run;
+    }
+  }
+  return widest;
+}
+
 function makeRooms(seed: number, attempt: number): Board | null {
   const w = BOARD_W, h = BOARD_H, hw = w / 2, hh = h / 2;
   const rng = makeRng((seed * 7919 + attempt * 104729) ^ 0x51ed27);
@@ -98,7 +114,9 @@ function makeRooms(seed: number, attempt: number): Board | null {
       const rw = start ? randInt(rng, 16, Math.max(16, cw - 2)) : randInt(rng, Math.max(4, Math.floor(cw * 0.4)), Math.max(4, cw - 3));
       const rh = start ? randInt(rng, Math.min(8, ch - 2), ch - 2) : randInt(rng, Math.max(3, Math.floor(ch * 0.4)), Math.max(3, ch - 3));
       const room: Rect = { x: x0 + randInt(rng, 0, cw - rw - 1) + (start ? 1 : 0), y: y0 + randInt(rng, 0, ch - rh - 1) + (start ? 1 : 0), w: rw, h: rh };
-      if (start) { room.x = Math.min(room.x, x0 + cw - rw); room.y = Math.min(room.y, y0 + ch - rh); }
+      // Keep a wall between the start room and its cell's far edge: with one row of rooms that
+      // edge is the mirror axis, and touching it merges the start room with its mirror image.
+      if (start) { room.x = Math.min(room.x, x0 + cw - rw - 1); room.y = Math.min(room.y, y0 + ch - rh - 1); }
       // Rooms on the mirror axes sometimes stretch to the axis and merge with their mirror.
       // (Never the start room: every way out of it is a narrow corridor.)
       if (c === qcols - 1 && rng() < 0.25 && !start) room.w = hw - room.x;
@@ -193,6 +211,11 @@ function makeRooms(seed: number, attempt: number): Board | null {
 
   const starts = startsFrom(rooms[0][0]);
 
+  // Every way out of the start room is at most 2 wide (re-roll otherwise): the "left home"
+  // and "entered another room" stats, and the fitness built on them, assume leaving means
+  // squeezing through a corridor.
+  if (widestExit(terrain, w, starts[0]) > 2) return null;
+
   // Everything must be reachable from the first start; fill in anything that isn't.
   const reach = new Uint8Array(w * h);
   const s0 = starts[0];
@@ -208,6 +231,13 @@ function makeRooms(seed: number, attempt: number): Board | null {
   for (const sp of spawns) if (!reach[sp.y * w + sp.x]) return null;
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
 
-  const allRooms = rooms.flat().flatMap(startsFrom);
+  // Rooms for the "entered another room" stat. A room stretched to a mirror axis merges with
+  // its mirror image into one hall, listed once (as two halves, wandering inside one hall
+  // would count as two rooms).
+  const listed = new Set<string>();
+  const allRooms = rooms.flat().flatMap((r) => {
+    const hall = { x: r.x, y: r.y, w: r.x + r.w === hw ? 2 * r.w : r.w, h: r.y + r.h === hh ? 2 * r.h : r.h };
+    return startsFrom(hall).filter((m) => { const k = `${m.x},${m.y},${m.w},${m.h}`; return !listed.has(k) && !!listed.add(k); });
+  });
   return { w, h, terrain, spawns, starts, rooms: allRooms };
 }

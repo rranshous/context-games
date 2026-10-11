@@ -134,6 +134,23 @@ function split(rng, total, n, first, min) {
   parts.push(left);
   return parts;
 }
+function widestExit(terrain, w, r) {
+  let widest = 0;
+  const sides = [
+    [r.x, r.y - 1, 1, 0, r.w],
+    [r.x, r.y + r.h, 1, 0, r.w],
+    [r.x - 1, r.y, 0, 1, r.h],
+    [r.x + r.w, r.y, 0, 1, r.h]
+  ];
+  for (const [x0, y0, dx, dy, n] of sides) {
+    let run = 0;
+    for (let k = 0; k < n; k++) {
+      run = terrain[(y0 + k * dy) * w + x0 + k * dx] === FLOOR ? run + 1 : 0;
+      if (run > widest) widest = run;
+    }
+  }
+  return widest;
+}
 function makeRooms(seed, attempt) {
   const w = BOARD_W, h = BOARD_H, hw = w / 2, hh = h / 2;
   const rng = makeRng(seed * 7919 + attempt * 104729 ^ 5369127);
@@ -153,8 +170,8 @@ function makeRooms(seed, attempt) {
       const rh = start ? randInt(rng, Math.min(8, ch - 2), ch - 2) : randInt(rng, Math.max(3, Math.floor(ch * 0.4)), Math.max(3, ch - 3));
       const room = { x: x0 + randInt(rng, 0, cw - rw - 1) + (start ? 1 : 0), y: y0 + randInt(rng, 0, ch - rh - 1) + (start ? 1 : 0), w: rw, h: rh };
       if (start) {
-        room.x = Math.min(room.x, x0 + cw - rw);
-        room.y = Math.min(room.y, y0 + ch - rh);
+        room.x = Math.min(room.x, x0 + cw - rw - 1);
+        room.y = Math.min(room.y, y0 + ch - rh - 1);
       }
       if (c === qcols - 1 && rng() < 0.25 && !start) room.w = hw - room.x;
       if (r === qrows - 1 && rng() < 0.25 && !start) room.h = hh - room.y;
@@ -246,6 +263,7 @@ function makeRooms(seed, attempt) {
     spawnAll(Math.min(p.x, hw - 1), Math.min(p.y, hh - 1), 2);
   }
   const starts = startsFrom(rooms[0][0]);
+  if (widestExit(terrain, w, starts[0]) > 2) return null;
   const reach = new Uint8Array(w * h);
   const s0 = starts[0];
   const q = [(s0.y + 1) * w + s0.x + 1];
@@ -262,7 +280,14 @@ function makeRooms(seed, attempt) {
   for (const s of starts) if (!reach[(s.y + 1) * w + s.x + 1]) return null;
   for (const sp of spawns) if (!reach[sp.y * w + sp.x]) return null;
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !reach[i]) terrain[i] = WALL;
-  const allRooms = rooms.flat().flatMap(startsFrom);
+  const listed = /* @__PURE__ */ new Set();
+  const allRooms = rooms.flat().flatMap((r) => {
+    const hall = { x: r.x, y: r.y, w: r.x + r.w === hw ? 2 * r.w : r.w, h: r.y + r.h === hh ? 2 * r.h : r.h };
+    return startsFrom(hall).filter((m) => {
+      const k = `${m.x},${m.y},${m.w},${m.h}`;
+      return !listed.has(k) && !!listed.add(k);
+    });
+  });
   return { w, h, terrain, spawns, starts, rooms: allRooms };
 }
 
@@ -521,7 +546,7 @@ var World = class {
     const h = wr.lastHarm;
     const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : void 0;
     if (killer && killer.alive && killer !== wr) {
-      killer.stats.kills++;
+      if (killer.lineage !== wr.lineage) killer.stats.kills++;
       killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
       killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
       this.log("kill", `${killer.name} takes a cut of ${wr.name} (max ${Math.floor(killer.maxSize)}, speed ${killer.speed.toFixed(2)})`, killer.id);
@@ -1201,7 +1226,7 @@ var World = class {
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : "debris";
-    if (o >= 0) wr.stats.bombHits++;
+    if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     this.destroy(this.idx(x, y), wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
     return true;
@@ -1228,6 +1253,10 @@ var World = class {
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
     const ox = DX[d] * (bw + 1), oy = DY[d] * (bh + 1);
     for (let k = 0; k < mine.length; k++) if (!this.isFree(xs[k] + ox, ys[k] + oy)) return false;
+    const steps = Math.abs(ox) + Math.abs(oy);
+    for (let k = 0; k < mine.length; k++) {
+      for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
+    }
     const id = this.warriors.length;
     const founder = this.warriors[wr.lineage];
     const born = this.warriors.filter((w) => w.lineage === wr.lineage).length;
@@ -1258,6 +1287,10 @@ var World = class {
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }
     };
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
+    const cx0 = Math.min(...xs) + ox, cx1 = Math.max(...xs) + ox, cy0 = Math.min(...ys) + oy, cy1 = Math.max(...ys) + oy;
+    this.board.rooms.forEach((r, k) => {
+      if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
+    });
     this.warriors.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
@@ -1287,7 +1320,7 @@ var World = class {
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
-      if (c === CODE["@"]) wr.stats.poisonWrites++;
+      if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
       if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
       this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
     }
