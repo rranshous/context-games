@@ -1,5 +1,5 @@
 // src/map-elites.ts
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, join } from "node:path";
 import { isMainThread } from "node:worker_threads";
@@ -2047,8 +2047,6 @@ async function main() {
   });
   const outDir = join("warriors", "evolved");
   mkdirSync(outDir, { recursive: true });
-  const manifestPath = join(outDir, "manifest.json");
-  const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync2(manifestPath, "utf8")) : [];
   const groups = MORPH_AXES ? ["still", "twitch", "morph", "ooze", "amoeba"] : WEAPONS;
   const groupOf = (e) => MORPH_AXES ? e.desc.economy : e.desc.weapon;
   console.log(`
@@ -2063,10 +2061,8 @@ best of each ${MORPH_AXES ? "shape-change level" : "weapon class"}:`);
       `fitness ${e.fitness.toFixed(2)}; ${e.wins}W of ${e.games}; per game: ${e.stats.hitsPerGame.toFixed(2)} bomb hits, ${e.stats.poisonsPerGame.toFixed(2)} poison writes, ${e.stats.collectedPerGame.toFixed(2)} pickups; left home in ${(100 * e.stats.leftRate).toFixed(0)}% of games`,
       `shape changes ${e.stats.morphPerGame.toFixed(1)} cells/game; squeezed into a narrow passage in ${(100 * e.stats.squeezeRate).toFixed(0)}% of games; whole body into another room in ${(100 * e.stats.roomRate).toFixed(0)}%`
     ]));
-    if (!manifest.includes(`${name}.warrior`)) manifest.push(`${name}.warrior`);
     console.log(`  ${name.padEnd(20)} fitness ${e.fitness.toFixed(2)}  ${e.stats.hitsPerGame.toFixed(2)} hits, ${e.stats.poisonsPerGame.toFixed(2)} poison, ${e.stats.collectedPerGame.toFixed(2)} pickups /game, left home ${(100 * e.stats.leftRate).toFixed(0)}%, morph ${e.stats.morphPerGame.toFixed(0)}/game, squeezed ${(100 * e.stats.squeezeRate).toFixed(0)}%, other room ${(100 * e.stats.roomRate).toFixed(0)}%`);
   });
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   pool.close();
 }
 if (!isMainThread) serveBatches();

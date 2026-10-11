@@ -241,11 +241,10 @@ async function main() {
     });
   });
 
-  // Showcase: the best of each weapon class.
+  // Showcase: the best of each weapon class. (The viewer's manifest.json is curated by hand:
+  // only warriors that win tournaments go in it.)
   const outDir = join('warriors', 'evolved');
   mkdirSync(outDir, { recursive: true });
-  const manifestPath = join(outDir, 'manifest.json');
-  const manifest: string[] = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : [];
   // With --axes morph: the best of each shape-change level instead.
   const groups = MORPH_AXES ? ['still', 'twitch', 'morph', 'ooze', 'amoeba'] : WEAPONS;
   const groupOf = (e: Elite) => (MORPH_AXES ? e.desc.economy : e.desc.weapon);
@@ -260,10 +259,8 @@ async function main() {
       `fitness ${e.fitness.toFixed(2)}; ${e.wins}W of ${e.games}; per game: ${e.stats.hitsPerGame.toFixed(2)} bomb hits, ${e.stats.poisonsPerGame.toFixed(2)} poison writes, ${e.stats.collectedPerGame.toFixed(2)} pickups; left home in ${(100 * e.stats.leftRate).toFixed(0)}% of games`,
       `shape changes ${e.stats.morphPerGame.toFixed(1)} cells/game; squeezed into a narrow passage in ${(100 * e.stats.squeezeRate).toFixed(0)}% of games; whole body into another room in ${(100 * e.stats.roomRate).toFixed(0)}%`,
     ]));
-    if (!manifest.includes(`${name}.warrior`)) manifest.push(`${name}.warrior`);
     console.log(`  ${name.padEnd(20)} fitness ${e.fitness.toFixed(2)}  ${e.stats.hitsPerGame.toFixed(2)} hits, ${e.stats.poisonsPerGame.toFixed(2)} poison, ${e.stats.collectedPerGame.toFixed(2)} pickups /game, left home ${(100 * e.stats.leftRate).toFixed(0)}%, morph ${e.stats.morphPerGame.toFixed(0)}/game, squeezed ${(100 * e.stats.squeezeRate).toFixed(0)}%, other room ${(100 * e.stats.roomRate).toFixed(0)}%`);
   });
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   pool.close();
 }
 

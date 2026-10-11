@@ -1,5 +1,5 @@
 // src/evolve.ts
-import { existsSync, mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync, appendFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync, appendFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, join } from "node:path";
 import { isMainThread } from "node:worker_threads";
@@ -1979,8 +1979,6 @@ async function main() {
 held-out check (10 boards \xD7 ${bench.length} benchmarks):`);
   const outDir = join("warriors", "evolved");
   mkdirSync(outDir, { recursive: true });
-  const manifestPath = join(outDir, "manifest.json");
-  const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync2(manifestPath, "utf8")) : [];
   scored.slice(0, 3).forEach((s, i) => {
     const name = `${NAME}-${i + 1}`;
     const file = `${name}.warrior`;
@@ -1988,10 +1986,8 @@ held-out check (10 boards \xD7 ${bench.length} benchmarks):`);
       `evolved: run ${NAME}, was ${s.f.name} (parents ${s.f.parents})`,
       `held-out vs benchmarks: ${s.wins}/${per} wins; ${s.byBench.join(", ")}`
     ]));
-    if (!manifest.includes(file)) manifest.push(file);
     console.log(`  ${name.padEnd(16)} score ${s.score.toFixed(2)}  ${s.wins}/${per} wins  ${s.byBench.join("  ")}`);
   });
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   console.log(`
 wrote top 3 to ${outDir}/, log in ${runDir}/`);
 }

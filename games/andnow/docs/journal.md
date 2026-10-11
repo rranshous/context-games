@@ -1238,3 +1238,12 @@ Watching a match, the user saw an entity sitting at a resource, losing and regai
 - Resources can't be camped: a spawn regrows only after 120 consecutive ticks with nothing on or next to it (`spawnInterval`), and touching it resets the timer. Sitting next to one denies it to everyone, yourself included.
 - Body size barely churns: growers gain about 10–14 cells a game (GROW) and shed 5–9 to decay, with only 1–2 swings between gaining and losing.
 - What flickers is oozing back and forth. Of all the cells an oozer vacates, 35–60% are refilled within 20 ticks: amoeba-g 188 of 404, m68-26220 316 of 524. Its loop pops directions that alternate, so the same tip moves off and back. Very few of these happen next to a resource spot (1–13 a game), so it isn't camping. Much of the "oozes per game" count is this wasted motion. Only whole-body room entries, which are in the fitness, mean real travel.
+
+### Viewer: fewer choices, no tick limit (user request)
+
+- **The picker** now offers only the curated evolved warriors in `warriors/evolved/manifest.json`. That's five, the winners of the recent tournaments: morph4-twitch, morph4-amoeba, amoeba-g, morph4-morph and morph2-still.
+  - The hand-made warriors and the older evolved ones still load by name from `?w=`.
+  - The evolvers no longer append their showcases to the manifest. A warrior goes in by hand once it wins a tournament.
+- **The default match** is morph4-twitch vs amoeba-g.
+- **No tick limit in the viewer:** a match runs until one lineage is left. `?ticks=N` brings back the body-size judgement at tick N. `explorer.runUntilOver()` still stops at 20000 ticks by default so it can't hang.
+- **The viewer is served for the LAN** at `http://lilg:8765/`.

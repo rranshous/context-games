@@ -1451,7 +1451,8 @@ if (PETRI) {
   CONFIG.tickCap = 1e9;
   CONFIG.endless = true;
 }
-var initial = (params.get("w") ?? (PETRI ? "amoeba" : "bomber,stalker")).split(",");
+CONFIG.tickCap = Number(params.get("ticks")) || Infinity;
+var initial = (params.get("w") ?? (PETRI ? "amoeba" : "evo:morph4-twitch,evo:amoeba-g")).split(",");
 seedEl.value = params.get("seed") ?? "1";
 var pickersEl = $("pickers");
 var pickers = [];
@@ -1465,7 +1466,8 @@ for (let i = 0; i < 4; i++) {
 function fillPickers() {
   for (const sel of pickers) {
     const want = sel.value || sel.dataset.want || "";
-    sel.innerHTML = `<option value="">\u2014</option>` + Object.keys(SOURCES).map((k) => `<option>${k}</option>`).join("");
+    const names = Object.keys(SOURCES).filter((k) => k.startsWith("evo:") || k === want);
+    sel.innerHTML = `<option value="">\u2014</option>` + names.map((k) => `<option>${k}</option>`).join("");
     sel.value = want in SOURCES ? want : "";
   }
 }
@@ -1696,7 +1698,7 @@ var explorer = {
     render();
     return this.state();
   },
-  runUntilOver(maxTicks = CONFIG.tickCap) {
+  runUntilOver(maxTicks = Math.min(CONFIG.tickCap, 2e4)) {
     for (let i = 0; i < maxTicks && !world.result.over; i++) world.tick();
     render();
     return summarize(world);

@@ -10,7 +10,7 @@
 //                        [--farm http://host:7700]   (a Potluck farm helps local threads when it has capacity)
 //
 // Writes runs/<name>/log.jsonl (one line per generation) and best-gNNN.warrior files,
-// and at the end the top warriors to warriors/evolved/ (+ manifest.json for the viewer).
+// and at the end the top warriors to warriors/evolved/ (add the good ones to manifest.json for the viewer by hand).
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { basename, join } from 'node:path';
@@ -179,8 +179,6 @@ async function main() {
   console.log(`\nheld-out check (10 boards × ${bench.length} benchmarks):`);
   const outDir = join('warriors', 'evolved');
   mkdirSync(outDir, { recursive: true });
-  const manifestPath = join(outDir, 'manifest.json');
-  const manifest: string[] = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : [];
   scored.slice(0, 3).forEach((s, i) => {
     const name = `${NAME}-${i + 1}`;
     const file = `${name}.warrior`;
@@ -188,10 +186,8 @@ async function main() {
       `evolved: run ${NAME}, was ${s.f.name} (parents ${s.f.parents})`,
       `held-out vs benchmarks: ${s.wins}/${per} wins; ${s.byBench.join(', ')}`,
     ]));
-    if (!manifest.includes(file)) manifest.push(file);
     console.log(`  ${name.padEnd(16)} score ${s.score.toFixed(2)}  ${s.wins}/${per} wins  ${s.byBench.join('  ')}`);
   });
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log(`\nwrote top 3 to ${outDir}/, log in ${runDir}/`);
 }
 

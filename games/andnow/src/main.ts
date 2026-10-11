@@ -43,7 +43,10 @@ if (PETRI) {
   CONFIG.tickCap = 1e9;
   CONFIG.endless = true;
 }
-const initial = (params.get('w') ?? (PETRI ? 'amoeba' : 'bomber,stalker')).split(',');
+// No tick limit in the viewer: a match runs until one lineage is left (?ticks=N to judge
+// by body size at tick N, as the runners do).
+CONFIG.tickCap = Number(params.get('ticks')) || Infinity;
+const initial = (params.get('w') ?? (PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
 seedEl.value = params.get('seed') ?? '1';
 
 const pickersEl = $('pickers');
@@ -59,7 +62,10 @@ for (let i = 0; i < 4; i++) {
 function fillPickers() {
   for (const sel of pickers) {
     const want = sel.value || sel.dataset.want || '';
-    sel.innerHTML = `<option value="">—</option>` + Object.keys(SOURCES).map((k) => `<option>${k}</option>`).join('');
+    // The picker offers only the curated evolved warriors (manifest.json); bundled ones
+    // still load by name from ?w=.
+    const names = Object.keys(SOURCES).filter((k) => k.startsWith('evo:') || k === want);
+    sel.innerHTML = `<option value="">—</option>` + names.map((k) => `<option>${k}</option>`).join('');
     sel.value = want in SOURCES ? want : '';
   }
 }
@@ -269,7 +275,7 @@ const explorer = {
   },
   loadSource(sources: string[], seed?: number) { newMatch(sources, seed); return this.state(); },
   step(n = 1) { for (let i = 0; i < n && !world.result.over; i++) world.tick(); render(); return this.state(); },
-  runUntilOver(maxTicks = CONFIG.tickCap) {
+  runUntilOver(maxTicks = Math.min(CONFIG.tickCap, 20000)) {
     for (let i = 0; i < maxTicks && !world.result.over; i++) world.tick();
     render();
     return summarize(world);
