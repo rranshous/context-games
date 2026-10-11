@@ -25,6 +25,7 @@ const dishEl = $('dish');
 
 let world: World;
 let specs: WarriorSpec[] = [];
+let matchNames: string[] | null = null; // picker names of this match's warriors (null: loaded from source)
 let playing = false;
 let tickBudget = 0;
 let lastFrame = performance.now();
@@ -80,6 +81,7 @@ async function loadEvolved() {
 }
 
 function newMatch(sources?: string[], seed?: number) {
+  matchNames = sources ? null : pickers.map((p) => p.value).filter(Boolean);
   const srcs = sources ?? pickers.map((p) => p.value).filter(Boolean).map((k) => SOURCES[k]);
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
@@ -94,6 +96,41 @@ $('petri').textContent = PETRI ? 'Back to matches' : 'Petri dish';
 $('petri').onclick = () => { location.search = PETRI ? '' : '?petri=1&w=amoeba'; };
 dishEl.style.display = PETRI ? 'block' : 'none';
 playBtn.onclick = () => setPlaying(!playing);
+
+// Share: a link that rebuilds this exact match (same warriors, seed and settings; the sim is
+// deterministic) and jumps to the current tick, plus a one-line status for context.
+function shareText(): string {
+  const q = new URLSearchParams(location.search);
+  if (matchNames) q.set('w', matchNames.join(','));
+  q.set('seed', String(world.seed));
+  q.set('t', String(world.t));
+  const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ':').replace(/%2C/g, ',')}`;
+  const alive = world.warriors.filter((w) => w.alive).map((w) => `${w.name} ${w.cellCount}c`).join(', ');
+  const end = world.result.over ? ` — over: ${world.result.reason}` : '';
+  return `andnow match ${url}\ntick ${world.t}; alive: ${alive || 'none'}${end}${matchNames ? '' : ' (warriors loaded from source: link has the seed only)'}`;
+}
+function copyText(text: string): boolean {
+  // navigator.clipboard needs a secure context (https or localhost); over the LAN it's
+  // missing, so fall back to a selected textarea and execCommand.
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { /* unsupported */ }
+  ta.remove();
+  return ok;
+}
+$('share').onclick = async () => {
+  const text = shareText();
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = copyText(text); }
+  if (!ok) { window.prompt('Copy this:', text); return; }
+  $('share').textContent = 'Copied!';
+  setTimeout(() => { $('share').textContent = 'Copy link'; }, 1500);
+};
 $('step').onclick = () => { setPlaying(false); world.tick(); render(); };
 showIpEl.onchange = showGlyphsEl.onchange = () => render();
 
@@ -253,6 +290,7 @@ const explorer = {
   help: () => [
     'await explorer.ready                    resolves once evolved warriors are loaded',
     'explorer.warriors()                     names of bundled + evolved (evo:...) warriors',
+    'explorer.share()                        the Copy link text: URL (warriors, seed, settings, &t=tick) + status',
     'explorer.load(["bomber","stalker"], 3)  new match from bundled names and a seed',
     'explorer.loadSource([text, ...], seed)  new match from warrior-file text',
     'explorer.step(n)                        advance n ticks, returns state()',
@@ -280,6 +318,7 @@ const explorer = {
     render();
     return summarize(world);
   },
+  share: () => shareText(),
   play() { setPlaying(true); },
   pause() { setPlaying(false); },
   setSpeed(s: number) { speedEl.value = String(s); },
@@ -309,5 +348,9 @@ fillPickers();
 explorer.ready = loadEvolved().then(() => {
   fillPickers();
   newMatch();
+  // ?t=N (from a shared link): replay to tick N, paused there.
+  const t = Number(params.get('t')) || 0;
+  while (world.t < t && !world.result.over) world.tick();
+  render();
   requestAnimationFrame(frame);
 });

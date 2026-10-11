@@ -1247,3 +1247,29 @@ Watching a match, the user saw an entity sitting at a resource, losing and regai
 - **The default match** is morph4-twitch vs amoeba-g.
 - **No tick limit in the viewer:** a match runs until one lineage is left. `?ticks=N` brings back the body-size judgement at tick N. `explorer.runUntilOver()` still stops at 20000 ticks by default so it can't hang.
 - **The viewer is served for the LAN** at `http://lilg:8765/`.
+
+### Size decays to 0, slower when small (user request); Copy link button
+
+**Decay.** The user suggested letting size decay all the way to 0, with smaller bodies decaying more slowly. Max size had stopped at a floor of 8, so a warrior that stopped feeding lived forever at 8 cells, and an endless viewer match could never end that way.
+
+- **The rule:** max size now loses `sizeDecay × √(max size / startSize)` per tick. That's 0.004 at the starting 40, 0.0018 at 8 and 0.0006 at 1. When max size drops below 1 the warrior starves.
+- **Why √:** proportional decay (exponential) would never reach 0, and a flat rate isn't "slower when small". With √ the body shrinks fast while big, slowly while small, and still reaches 0 in finite time. With no food it goes 40→8 in about 11000 ticks (the old flat rate took 8000), then 8→starved in about 6000 more, about 17000 ticks in all.
+- **Inside the 5000-tick GA horizon** little changes: 40 falls to about 22, where the old rule gave 20.
+- **The size floor is gone:**
+  - The tick-cap rule now just sums a lineage's cells, then its max size. The "above the floor, plus one floor" accounting only existed because every member kept a free floor.
+  - DIVIDE now needs max size ≥ 2× its cells and ≥ `divideMin` (16, the old 2× floor).
+- **Long solo probe** (30000 ticks, 10 boards), survivors at the end:
+
+  | Warrior | Survived | Pickups per game |
+  |---|---|---|
+  | morph4-twitch | 1/10 | 4.8 |
+  | morph4-amoeba | 0/10 | 1.8 |
+  | amoeba-g | 0/10 | 3.4 |
+  | morph4-morph | 1/10 | 4.4 |
+  | morph2-still | 3/10 | 15 |
+
+  Over a long match only steady feeders last. The travellers explore but eat about one size pickup per 6000 ticks, which isn't enough. Food density and pickup value are now real knobs for how long matches run.
+- Golden re-recorded (1991 matches), canary 69 cases.
+- morph5, already running, keeps the old floor rules to the end: its workers loaded the sim at start. Its results get tested under the new rules in the tournament.
+
+**Copy link** (viewer). Copies `andnow match <url>` plus a status line (tick, who's alive, cells). The URL has the warriors, seed, any other settings (e.g. petri) and `t=<tick>`, so opening it replays the deterministic match to that tick and pauses there. Over the LAN there's no secure context, so `navigator.clipboard` is missing; it falls back to `execCommand('copy')`, then to a prompt. Links replay under the current rules, so a rule change can make an old link play out differently. Also `explorer.share()`.

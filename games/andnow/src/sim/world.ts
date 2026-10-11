@@ -10,7 +10,8 @@
 //   that starts at the IP's start cell and moves with SHIFT.
 // - The IP is hidden from other warriors. Losing the IP's cell, or executing `@`, kills.
 // - Pieces cut off from the IP's piece become debris.
-// - Max size and speed decay toward a floor; resources push them back up.
+// - Max size decays all the way to 0 (slower the smaller it is) and speed toward a floor;
+//   resources push them back up. A body whose max size falls below 1 starves.
 // - Last standing wins; at the tick cap, the biggest body (most cells) wins.
 import { Board, FLOOR, makeBoard } from './board';
 import {
@@ -29,11 +30,12 @@ export const CONFIG = {
   killPay: 0.25,        // a killer takes this fraction of the victim's max size and speed
   creditWindow: 500,    // a death within this many ticks of being harmed credits the harmer
   stackMax: 64,
-  sizeFloor: 8,
   sizeCap: 64,
   startSize: 40,        // every warrior starts with this max size (the most cells its body may have)
   startCells: 30,       // a warrior file holds at most this many cells: the rest of max size is room to GROW
-  sizeDecay: 0.004,     // per tick
+  sizeDecay: 0.004,     // per tick at the starting max size; scales with √(max size / startSize), so
+                        // 40→8 takes ~11000 ticks and 8→starved another ~6000 (~17000 from 40)
+  divideMin: 16,        // DIVIDE needs at least this max size (and 2× its cells)
   sizePickup: 4,
   debrisPickup: 0.5,
   speedStart: 2,
@@ -369,9 +371,11 @@ export class World {
           });
         }
       }
-      wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
+      wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
-      if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
+      if (wr.maxSize < 1) this.kill(wr, 'starved (max size fell to 0)');
+      else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
+      if (!wr.alive) continue;
       if (wr.cellCount <= 0) this.kill(wr, 'no cells left');
       else if (wr.diesAt !== undefined && this.t >= wr.diesAt) this.kill(wr, 'old age');
     }
@@ -445,13 +449,11 @@ export class World {
     } else if (this.t >= CONFIG.tickCap) {
       // Bodies decide it: the lineage with the most cells on the board. Collecting only
       // raises max size (the most cells a body may have), so winning on size means both
-      // feeding and GROWing into it before decay sheds it again. A lineage counts each
-      // member's cells above the size floor, plus one floor (every member keeps a floor
-      // of max size, so otherwise splitting into many small bodies is free size). Ties
-      // break on max size (counted the same way), then speed.
+      // feeding and GROWing into it before decay sheds it again. A lineage counts all its
+      // members' cells. Ties break on max size, then speed.
       const keys = (ms: Warrior[]) => [
-        ms.reduce((a, w) => a + w.cellCount - CONFIG.sizeFloor, CONFIG.sizeFloor),
-        ms.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
+        ms.reduce((a, w) => a + w.cellCount, 0),
+        ms.reduce((a, w) => a + w.maxSize, 0),
         ms.reduce((a, w) => a + w.speed, 0),
       ];
       const ranked = [...teams.entries()].map(([team, ms]) => ({ team, k: keys(ms) }));
@@ -859,13 +861,13 @@ export class World {
   /**
    * DIVIDE: copy my whole body beyond itself in direction d, as a new warrior of my lineage
    * (a rival like any other in play).
-   * Needs max size ≥ 2× my cells (and ≥ 2× the floor); parent and child each get half the
+   * Needs max size ≥ 2× my cells (and ≥ divideMin); parent and child each get half the
    * max size, the same speed, and a fresh stack. Each copied cell becomes a random glyph
    * with chance CONFIG.copyError: variation, so a lineage can evolve within one match.
    */
   private opDivide(wr: Warrior, d: number): boolean {
     d = ((d % 4) + 4) % 4;
-    if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < 2 * CONFIG.sizeFloor) return false;
+    if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
     if (CONFIG.reaperCap > 0) {
       // Petri dish: make room by reaping the oldest living warrior (not the parent).
       const living = this.warriors.filter((w) => w.alive);

@@ -281,14 +281,16 @@ var CONFIG = {
   creditWindow: 500,
   // a death within this many ticks of being harmed credits the harmer
   stackMax: 64,
-  sizeFloor: 8,
   sizeCap: 64,
   startSize: 40,
   // every warrior starts with this max size (the most cells its body may have)
   startCells: 30,
   // a warrior file holds at most this many cells: the rest of max size is room to GROW
   sizeDecay: 4e-3,
-  // per tick
+  // per tick at the starting max size; scales with √(max size / startSize), so
+  // 40→8 takes ~11000 ticks and 8→starved another ~6000 (~17000 from 40)
+  divideMin: 16,
+  // DIVIDE needs at least this max size (and 2× its cells)
   sizePickup: 4,
   debrisPickup: 0.5,
   speedStart: 2,
@@ -600,9 +602,11 @@ var World = class {
           });
         }
       }
-      wr.maxSize = Math.max(CONFIG.sizeFloor, wr.maxSize - CONFIG.sizeDecay);
+      wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
-      if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
+      if (wr.maxSize < 1) this.kill(wr, "starved (max size fell to 0)");
+      else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
+      if (!wr.alive) continue;
       if (wr.cellCount <= 0) this.kill(wr, "no cells left");
       else if (wr.diesAt !== void 0 && this.t >= wr.diesAt) this.kill(wr, "old age");
     }
@@ -673,8 +677,8 @@ var World = class {
       this.result = { over: true, winner: null, reason: "died" };
     } else if (this.t >= CONFIG.tickCap) {
       const keys = (ms) => [
-        ms.reduce((a, w) => a + w.cellCount - CONFIG.sizeFloor, CONFIG.sizeFloor),
-        ms.reduce((a, w) => a + w.maxSize - CONFIG.sizeFloor, CONFIG.sizeFloor),
+        ms.reduce((a, w) => a + w.cellCount, 0),
+        ms.reduce((a, w) => a + w.maxSize, 0),
         ms.reduce((a, w) => a + w.speed, 0)
       ];
       const ranked = [...teams.entries()].map(([team, ms]) => ({ team, k: keys(ms) }));
@@ -1205,13 +1209,13 @@ var World = class {
   /**
    * DIVIDE: copy my whole body beyond itself in direction d, as a new warrior of my lineage
    * (a rival like any other in play).
-   * Needs max size ≥ 2× my cells (and ≥ 2× the floor); parent and child each get half the
+   * Needs max size ≥ 2× my cells (and ≥ divideMin); parent and child each get half the
    * max size, the same speed, and a fresh stack. Each copied cell becomes a random glyph
    * with chance CONFIG.copyError: variation, so a lineage can evolve within one match.
    */
   opDivide(wr, d) {
     d = (d % 4 + 4) % 4;
-    if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < 2 * CONFIG.sizeFloor) return false;
+    if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
     if (CONFIG.reaperCap > 0) {
       const living = this.warriors.filter((w) => w.alive);
       if (living.length >= CONFIG.reaperCap) {
@@ -1438,6 +1442,7 @@ var playBtn = $("play");
 var dishEl = $("dish");
 var world;
 var specs = [];
+var matchNames = null;
 var playing = false;
 var tickBudget = 0;
 var lastFrame = performance.now();
@@ -1481,6 +1486,7 @@ async function loadEvolved() {
   }
 }
 function newMatch(sources, seed) {
+  matchNames = sources ? null : pickers.map((p) => p.value).filter(Boolean);
   const srcs = sources ?? pickers.map((p) => p.value).filter(Boolean).map((k) => SOURCES[k]);
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
@@ -1496,6 +1502,50 @@ $("petri").onclick = () => {
 };
 dishEl.style.display = PETRI ? "block" : "none";
 playBtn.onclick = () => setPlaying(!playing);
+function shareText() {
+  const q = new URLSearchParams(location.search);
+  if (matchNames) q.set("w", matchNames.join(","));
+  q.set("seed", String(world.seed));
+  q.set("t", String(world.t));
+  const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ":").replace(/%2C/g, ",")}`;
+  const alive = world.warriors.filter((w) => w.alive).map((w) => `${w.name} ${w.cellCount}c`).join(", ");
+  const end = world.result.over ? ` \u2014 over: ${world.result.reason}` : "";
+  return `andnow match ${url}
+tick ${world.t}; alive: ${alive || "none"}${end}${matchNames ? "" : " (warriors loaded from source: link has the seed only)"}`;
+}
+function copyText(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+  }
+  ta.remove();
+  return ok;
+}
+$("share").onclick = async () => {
+  const text = shareText();
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch {
+    ok = copyText(text);
+  }
+  if (!ok) {
+    window.prompt("Copy this:", text);
+    return;
+  }
+  $("share").textContent = "Copied!";
+  setTimeout(() => {
+    $("share").textContent = "Copy link";
+  }, 1500);
+};
 $("step").onclick = () => {
   setPlaying(false);
   world.tick();
@@ -1667,6 +1717,7 @@ var explorer = {
   help: () => [
     "await explorer.ready                    resolves once evolved warriors are loaded",
     "explorer.warriors()                     names of bundled + evolved (evo:...) warriors",
+    "explorer.share()                        the Copy link text: URL (warriors, seed, settings, &t=tick) + status",
     'explorer.load(["bomber","stalker"], 3)  new match from bundled names and a seed',
     "explorer.loadSource([text, ...], seed)  new match from warrior-file text",
     "explorer.step(n)                        advance n ticks, returns state()",
@@ -1703,6 +1754,7 @@ var explorer = {
     render();
     return summarize(world);
   },
+  share: () => shareText(),
   play() {
     setPlaying(true);
   },
@@ -1749,6 +1801,9 @@ fillPickers();
 explorer.ready = loadEvolved().then(() => {
   fillPickers();
   newMatch();
+  const t = Number(params.get("t")) || 0;
+  while (world.t < t && !world.result.over) world.tick();
+  render();
   requestAnimationFrame(frame);
 });
 //# sourceMappingURL=main.js.map
