@@ -1509,3 +1509,29 @@ Why a long stall followed by a fast cascade: the hard step is growing the first 
 - **s2:** the swings went 538 → 1,231 → 625 → 1,387 → 1,059 → 18 (1.41M → 1.46M). In the last 10k ticks, 880 died by bomb, 730 of old age and 150 starved. The bombers were glyph-poor (`BD`, `BDTM`), so kin recognition treats nearly everyone as foreign. That's the xenophobe crash again, this time in a crowded, low-diversity population.
 
 With toxin on, no dish has died past 100k ticks (the latest extinction was slow-regrow s1 at 86k). Without the gradient to sort the plate into bands, the dish has no refuge, and selection for faster breeding (divide-first, dropping C) eventually breaks it.
+
+## Island survival (the user: "a bigger pivot... entities dive for food; water pressure (K), mines, big strong things in the deep")
+
+A side view (`?island=1`, or `--island 1` in the runners). The board is `size` wide and half as tall. From the top:
+- Sky.
+- Three islands rising out of the sea. The middle one is home.
+- Water down to an uneven seabed.
+- Rock below.
+
+Two evolving realms:
+- **Seals** (islanders, realm 0). They start on the home island and eat only vegetation. Pressure rises with depth on the same rule as the petri toxin, and K resists it: the top two slices are safe, then bands 1…4. Kelp gets thicker with depth, which pays them to dive.
+- **Sharks** (sea creatures, realm 1, from a warrior file with `realm: sea`). They start in the deep middle and eat only dead cells. Their pressure is the mirror image: they need the deep, need K to come up, and die out of the water. They starve at a quarter of the usual rate (`hunger`, the user's idea: sharks can wait). Each dead cell is worth 2 max size (`seafeed`).
+
+Mines are fixed cells in the middle band. Every 30 ticks each one blows up the nearest living cell within 5, from either realm.
+
+Dead cells sink one row every 6 ticks, even through kelp, so seals that die in the shallows feed the deep ("marine snow"). A dead cell that can't sink rots away (0.001 per tick).
+
+Rules settled while balancing:
+- **Sharks eat dead cells by swimming into them and trample kelp.** At first a dead cell blocked a shark like a wall, so a shark heading for food stopped at the first dead cell in its way. Big bodies also wedged against kelp they couldn't eat.
+- **In island mode, an empty-stack bomb targets only the other realm.** Kin recognition made every mutant look foreign. Sharks born next to each other bombed each other out (19 of the first sharks' deaths were shark kills), and a seal bomb mutant sterilized the young island. Now sharks hunt seals, seals can evolve to fight sharks, and mines hit everyone.
+- **The shark founder is a scavenger first** (`C3S$TMBD` over a fat row): head for the nearest dead cell, bomb whatever strays near. The first shark scanned for the nearest warrior, so sharks locked onto each other and jammed.
+- **Founders of one realm start side by side** (`w=amoeba,shark,shark,shark`).
+
+**First balance:** seals and sharks coexist through 40k ticks in both seeds tried, with 150–210 seals and 50–150 sharks rising and falling. They zone cleanly: seals in bands 0–1, sharks in bands 2–4, the mines between.
+
+**Viewer:** one pixel per cell, scaled up crisp. Sky gradient, sand and grass islands, water darkening with depth plus faint pressure bands, kelp greener as it ripens. Seals are cream, warming toward pink with armor. Sharks are red, warming toward yellow and green with armor. Mines are ringed and flash when they fire.
