@@ -25,7 +25,9 @@ export const DISH_DEFAULTS: Record<string, number> = {
   mines: 24,      // island: one mine every this many columns (0 = none)
   minerate: 30,   // island: ticks between a mine's shots
   hunger: 0.25,   // island: sea creatures starve at this fraction of the usual rate
-  seafeed: 2,     // island: max size a sea creature gains per dead cell
+  seafeed: 3,     // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
+  bite: 2,        // island: a shark's BOMB reach
+  full: 48,       // island: a shark this big (max size) is full and won't bite
 };
 
 /** Apply dish settings; `get(k)` returns an override or null. Returns the settings used. */
@@ -50,6 +52,8 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.mineEvery = Math.max(1, o.minerate);
   CONFIG.seaHunger = o.hunger;
   CONFIG.seaFeed = o.seafeed;
+  CONFIG.biteRange = o.bite;
+  CONFIG.sharkFull = o.full;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;

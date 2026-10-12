@@ -65,9 +65,12 @@ export const CONFIG = {
   mineEvery: 30,        // island: each mine bombs the nearest cell in range once every this many ticks
   mineRange: 5,
   seaHunger: 0.25,      // island: sea creatures' max size and speed decay at this fraction of the usual rate
+  sharkFull: 48,        // island: a sea creature with at least this max size is full and won't bite
+  biteRange: 2,         // island: a sea creature's BOMB reach (a bite, not a shot)
   seaFeed: 2,           // island: max size a sea creature gains per dead cell it collects
   sinkEvery: 6,         // island: dead cells sink one row every this many ticks (marine snow)
-  rot: 0.001,           // island: per tick, a dead cell that can't sink rots away with this chance
+  rot: 0.003,           // island: per tick, a dead cell that can't sink rots away with this chance
+  corpse: 0.33,         // island: share of a dead body's cells left as dead cells (the rest dissolves)
 };
 
 export interface Warrior {
@@ -219,7 +222,7 @@ export class World {
   inBounds(x: number, y: number) { return x >= 0 && y >= 0 && x < this.w && y < this.h; }
   isFloor(x: number, y: number) { return this.inBounds(x, y) && this.board.terrain[this.idx(x, y)] === FLOOR; }
   ownerAt(x: number, y: number) { return this.inBounds(x, y) ? this.owner[this.idx(x, y)] : NONE; }
-  /** Free for this warrior to move into: free, or (island) vegetation a sea creature tramples or a dead cell it eats. */
+  /** Free for this warrior to move into: free, or (island) vegetation a sea creature swims over (it stays) or a dead cell it eats. */
   private passable(wr: Warrior, x: number, y: number) {
     if (this.isFree(x, y)) return true;
     if (!CONFIG.island || wr.realm !== 1 || !this.isFloor(x, y)) return false;
@@ -318,6 +321,8 @@ export class World {
   private toDebris(i: number) {
     const o = this.owner[i];
     if (o >= 0) this.warriors[o].cellCount--;
+    // Island survival: only part of a seal's body is left to sink, and none of a shark's.
+    if (CONFIG.island && (o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) { this.setOwner(i, NONE); this.code[i] = 0; return; }
     this.setOwner(i, DEBRIS);
   }
 
@@ -327,6 +332,18 @@ export class World {
     this.livingDirty = true;
     wr.deathReason = reason;
     wr.diedAt = this.t;
+    const h0 = wr.lastHarm;
+    const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : undefined;
+    if (CONFIG.island && k0 && k0.alive && k0.realm === 1 && wr.realm === 0) {
+      // Island survival: a shark that kills a seal eats it whole: all its cells' worth, no corpse.
+      const cells = this.cellsOf(wr.id).slice();
+      k0.maxSize = Math.min(CONFIG.sizeCap, k0.maxSize + CONFIG.seaFeed * (cells.length + 1));
+      k0.stats.kills++;
+      for (const c of cells) { this.setOwner(c, NONE); this.code[c] = 0; }
+      wr.cellCount = 0;
+      this.log('death', `${wr.name} died: ${reason}; ${k0.name} ate it (max ${Math.floor(k0.maxSize)})`, wr.id);
+      return;
+    }
     for (const c of this.cellsOf(wr.id)) this.toDebris(c);
     this.log('death', `${wr.name} died: ${reason}`, wr.id);
     // Killing pays: whoever harmed the victim recently (bomb or write) takes a cut of
@@ -822,7 +839,6 @@ export class World {
     for (let k = 0; k < moved.length; k++) {
       this.owner[moved[k]] = wr.id;
       this.code[moved[k]] = codes[k];
-      this.resource[moved[k]] = 0; // (only a sea creature can be moving onto vegetation)
     }
     this.cellSets.set(wr.id, new Set(moved));
     this.sortedCells.set(wr.id, moved);
@@ -984,7 +1000,7 @@ export class World {
    * that carries my glyphs, a mimic, is spared). Island survival: only the other realm.
    */
   private opBombNearest(wr: Warrior): boolean {
-    const R = CONFIG.bombRange;
+    const R = this.reach(wr);
     const mine = new Uint8Array(GLYPHS.length + 1);
     for (const c of this.cellsOf(wr.id)) mine[this.code[c]] = 1;
     let best = -1, bx = 0, by = 0;
@@ -1001,10 +1017,16 @@ export class World {
     return best >= 0 && this.opBombAt(wr, bx, by);
   }
 
+  /** BOMB reach: island sharks bite (CONFIG.biteRange) rather than shoot. */
+  private reach(wr: Warrior) { return CONFIG.island && wr.realm === 1 ? CONFIG.biteRange : CONFIG.bombRange; }
+
   private opBombAt(wr: Warrior, x: number, y: number): boolean {
+    // Island survival: a full shark doesn't bite (it digests first; with slow hunger, a while).
+    if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull) return false;
     const o = this.ownerAt(x, y);
+    if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warriors[o].realm === 1) return false; // sharks never bite sharks
     if (o === NONE || o === wr.id) return false;
-    if (this.seer(wr.id, x, y, CONFIG.bombRange) < 0) return false;
+    if (this.seer(wr.id, x, y, this.reach(wr)) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : 'debris';
     if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++; // hits on kin earn nothing
@@ -1068,7 +1090,6 @@ export class World {
       if (this.rng() < CONFIG.copyError) { code = Math.floor(this.rng() * GLYPHS.length); mutations++; }
       this.setOwner(i, id);
       this.code[i] = code;
-      this.resource[i] = 0;
       child.cellCount++;
     }
     // Size mutations (Tierra-style): gain a fat cell stuck to the body, or lose a cell. Fat

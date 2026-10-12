@@ -284,8 +284,8 @@ export function makePlate(seed: number, size: number, bands: number, foodSpacing
 /**
  * Island survival: a side view. Sky (wall) on top with islands rising out of the sea; the
  * water below gets deeper toward an uneven seabed. Islanders (realm 0) feel pressure that
- * rises with depth; sea creatures (realm 1) feel the mirror image (they need the deep, and
- * die out of the water). Both counter it with armor (K). Vegetation grows in the water,
+ * rises with depth and counter it with armor (K); sea creatures (realm 1) swim anywhere in
+ * the water but die on land. Vegetation grows in the water,
  * thicker the deeper it is, plus a kelp line along the seabed. A row of mines sits in the
  * middle band. Starts: the middle island's top (realm 0) and the deep middle (realm 1).
  */
@@ -299,11 +299,11 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
   const bed = (x: number) => bedMax - Math.round(hill * (0.5 + 0.25 * Math.sin(x / w * 6.28 * 1.3 + ph[0]) + 0.17 * Math.sin(x / w * 6.28 * 3.7 + ph[1]) + 0.08 * Math.sin(x / w * 6.28 * 9.1 + ph[2])));
   for (let x = 1; x < w - 1; x++) for (let y = S; y <= bed(x); y++) terrain[y * w + x] = FLOOR;
   // Islands: mounds above the surface. The middle one is home.
-  const isl = [0.18, 0.5, 0.82].map((f) => ({ cx: Math.round(w * f), hw: Math.round(w * (f === 0.5 ? 0.07 : 0.045)) }));
+  const isl = [0.18, 0.5, 0.82].map((f) => ({ cx: Math.round(w * f), hw: Math.round(w * (f === 0.5 ? 0.1 : 0.06)) }));
   const land = new Uint8Array(w * h);
   for (const { cx, hw } of isl) {
     for (let x = cx - hw; x <= cx + hw; x++) {
-      const k = (x - cx) / hw, top = S - Math.round((S - 2) * (1 - k * k));
+      const k = (x - cx) / hw, top = S - Math.round((S - 2) * Math.min(1, 1.8 * (1 - k * k))); // flat-topped, steep shores
       for (let y = top; y < S; y++) { terrain[y * w + x] = FLOOR; land[y * w + x] = 1; }
     }
   }
@@ -315,7 +315,7 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
     if (land[i]) { landP[i] = 0; seaP[i] = bands + 1; continue; }
     const d = (y - S) / (bedMax - S);
     landP[i] = level(d);
-    seaP[i] = level(1 - d);
+    seaP[i] = 0; // sharks swim anywhere in the water
   }
   // Mines: one every ~mineSpacing columns, somewhere in the middle band.
   const mid = Math.floor((bands - 1) / 2), mines: number[] = [];
@@ -343,7 +343,7 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
     for (let x = 1; x < w - 1; x += foodSpacing) {
       const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
       if (px >= w || py >= h) continue;
-      if (rng() < 0.4 + 0.6 * (py - S) / (bedMax - S)) add(px, py);
+      if (rng() < 0.25 + 0.75 * (py - S) / (bedMax - S)) add(px, py); // sparse in the shallows, rich in the deep
     }
   }
   for (let x = 2; x < w - 2; x += Math.max(2, foodSpacing >> 1)) add(x, bed(x));
