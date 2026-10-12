@@ -1,0 +1,4 @@
+[
+  { "name": "deep-long", "settings": { "size": "240", "bands": "9" } },
+  { "name": "nt-long", "settings": { "toxin": "0" } }
+]

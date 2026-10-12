@@ -1485,3 +1485,13 @@ New from round 4 (no toxin):
 - `CMsDT` (hot mutation s2) dropped the food scan. `s` pushes the body's cell count (5), and `D` pops it as the divide direction, so body size is the gene for where children go.
 - The ring evolved stack-neutral filler, `> C:$Tv` (dup then drop). Its row has a hole that the IP skips at no cost.
 - Small and scarce no-toxin plates went extinct to turret-like `B$TM` and `BTM` remnants.
+
+**Round 5** (400k ticks: deep plates, fat and lean copying, a population cap, quick life, fast regrowth).
+
+**Find: the armor ceiling (deep plates, 9 bands, so the rim needs 8 armor).** Armor tops out at 3–4 in all 4 deep dishes. Bands 5–8 stay all but empty for 400k ticks: deep s1 holds 41/3/0/0 in bands 5–8, and at most 1–4 warriors per dish have 5 armor. It's the rim sink again, one level up. Each extra K needs an insertion plus a mutation, plus a body shape that keeps it off the code row. Even the gentle gradient (step 3) only sends strays into bands 7–8. Round 6 runs deep plates to 1.5M ticks to see whether the ceiling breaks.
+
+**Find: the shrinking replicator (no toxin).** With nothing to armor against, bodies shrink toward the minimal walker-divider `CTMD` (collect, toward, move, divide). In nt-fat s2, even an insertion rate of 0.08 can't keep them big: insertions survive only as off-path tails (`CTMD/ !`, `CTMD/ _`). nt-hot s1 goes the same way (TM, TMD, CTMD by 300k). This is Spiegelman's monster: when only replication speed counts, the genome sheds everything else. Other no-toxin forms compute their divide direction with filler, such as `C=!DTM` and `CsSDTM`.
+
+**Hitchhiker:** in fat s2, 353 carriers hold a DIE glyph `@` hanging off-path below a K (`CKKKTMD/   K/   @`). It's harmless as long as it never runs.
+
+Population cap (crowded) and quick life changed little: the same `CKKKTMD`, plus hats.
