@@ -1508,4 +1508,4 @@ Why a long stall followed by a fast cascade: the hard step is growing the first 
 - **s1:** collectors faded. `SDTM`, which has no C, took the lead, and C carriers fell 892 → 240 → 327 → 6 of 536 (1.14M → 1.18M). By 1,187,443 everyone was dead.
 - **s2:** the swings went 538 → 1,231 → 625 → 1,387 → 1,059 → 18 (1.41M → 1.46M). In the last 10k ticks, 880 died by bomb, 730 of old age and 150 starved. The bombers were glyph-poor (`BD`, `BDTM`), so kin recognition treats nearly everyone as foreign. That's the xenophobe crash again, this time in a crowded, low-diversity population.
 
-With toxin on, no dish has gone extinct after its youth. Without the gradient to sort the plate into bands, the dish has no refuge, and selection for faster breeding (divide-first, dropping C) eventually breaks it.
+With toxin on, no dish has died past 100k ticks (the latest extinction was slow-regrow s1 at 86k). Without the gradient to sort the plate into bands, the dish has no refuge, and selection for faster breeding (divide-first, dropping C) eventually breaks it.
