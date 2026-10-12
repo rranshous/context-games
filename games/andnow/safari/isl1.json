@@ -1,0 +1,5 @@
+[
+  { "name": "island", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1" } },
+  { "name": "island-no-mines", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1", "mines": "0" } },
+  { "name": "island-no-sharks", "w": ["amoeba"], "settings": { "island": "1" } }
+]

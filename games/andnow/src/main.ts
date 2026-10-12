@@ -234,7 +234,7 @@ let islandBg: Uint8ClampedArray | null = null;
 type RGB = [number, number, number];
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const SEAL_COLORS: RGB[] = [[244, 238, 226], [255, 214, 120], [255, 160, 70], [255, 100, 100], [232, 67, 147], [190, 60, 255]];
-const SHARK_COLORS: RGB[] = [[120, 132, 156], [150, 120, 200], [190, 110, 220], [230, 100, 200], [255, 90, 150], [255, 60, 90]];
+const SHARK_COLORS: RGB[] = [[214, 64, 52], [236, 96, 40], [250, 140, 30], [255, 190, 40], [200, 255, 60], [80, 255, 160]];
 
 /** The scenery (sky, islands, water by depth, seabed), drawn once per world. */
 function islandBackground(): Uint8ClampedArray {
@@ -277,7 +277,7 @@ function renderIsland() {
       let c = (wo.realm ? SHARK_COLORS : SEAL_COLORS)[a];
       if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix(c, [0, 0, 0], 0.45); // the eye
       put(i, c);
-    } else if (o === DEBRIS) put(i, mix([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [200, 200, 205], 0.55));
+    } else if (o === DEBRIS) put(i, mix([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [150, 140, 130], 0.3)); // marine snow, faint
     else if (world.resource[i] === 1) put(i, mix([30, 150, 70], [90, 230, 110], Math.min(1, (world.ripe[i] - 1) / 4)));
     else if (world.resource[i] === 2) put(i, [240, 210, 70]);
   }

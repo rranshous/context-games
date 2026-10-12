@@ -67,7 +67,7 @@ export const CONFIG = {
   seaHunger: 0.25,      // island: sea creatures' max size and speed decay at this fraction of the usual rate
   seaFeed: 2,           // island: max size a sea creature gains per dead cell it collects
   sinkEvery: 6,         // island: dead cells sink one row every this many ticks (marine snow)
-  rot: 0.0002,          // island: per tick, a dead cell that can't sink rots away with this chance
+  rot: 0.001,           // island: per tick, a dead cell that can't sink rots away with this chance
 };
 
 export interface Warrior {
