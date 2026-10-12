@@ -84,10 +84,17 @@ mixed results to make sense. The canary is how a device proves it does.
 | `POST /api/lease` | `{ worker, verified[], name, cores, threads }` | (workers) → `{ item }` / `{ verify }` / `{ none }` |
 | `POST /api/canary` | `{ worker, task, ok, detail }` | (workers) |
 | `POST /api/result` | `{ worker, job, index, output }` | (workers) |
-| `GET /api/status` | | workers, queue, jobs, tasks |
+| `POST /api/heartbeat` | `{ workers[], session, name, cores, threads, paused }` | (pages) vouch for threads busy on a long item |
+| `GET /api/status` | | `now`, workers (state, current item and since), jobs (done/leased/queued, item durations), recently `finished`, tasks |
 | `GET /tasks/<id>.mjs`, `GET /client.mjs` | | task module source; the client library |
 
 Jobs nobody polls for 5 minutes are dropped.
+
+**Long items.** A thread can't talk while `run()` works (it's synchronous), so the page's
+main thread heartbeats for its threads. A page silent for 60 s, or reloaded (new `session`),
+gives its threads' leased items back to the queue right away instead of waiting out a long
+`leaseMs`. The page shows each busy thread's item, a live clock, and progress against the
+job's average item time once one has finished.
 
 ## Customers
 

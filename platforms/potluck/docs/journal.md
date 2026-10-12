@@ -102,3 +102,30 @@ Energy Saver (CPU-heavy tabs hidden + silent > 5 min). Lost capacity, never lost
   what the farm is doing now (by rate) and of everything since the server started. Only the
   browser tabs count: the client's local work deliberately isn't reported (user: "Local
   doesn't need to report in its work"), so I dropped a job-total field I'd started on.
+
+### Long items (andnow island dishes, 30–90 min each)
+User: "these long run pieces of work aren't reflected in the potluck ui well." The page was
+built for second-long batches: rate per minute, "working on" only shown when the rate was
+non-zero. Worse, a thread busy for an hour never talks to the server (`run()` is
+synchronous), so after 10 s it dropped off the farm table, after 2 min the server forgot it
+(and its done count), and `/api/capacity` stopped counting it. `working` also stuck around
+after the item finished (it showed a label with no jobs open).
+- **Server tracks each thread's `current`** (item or canary, job, index, since), cleared on
+  result/canary/none. Jobs keep each item's duration (lease start → result).
+  `/api/status` adds `now`, per-worker `state` (working / verifying / idle / paused),
+  `current` (with `stale` when the result already came from elsewhere: the thread can't be
+  stopped), `last`, per-job `done`/`queued`/`started`/`durations`/`leases`, and a
+  `finished` list. Old fields kept.
+- **Page heartbeat**: the page's main thread posts `/api/heartbeat` every 4 s for its
+  threads. A thread is live if heard from in 10 s; pages from before the heartbeat get the
+  benefit of the doubt while their lease runs. Pages carry a `session` (new per thread
+  restart): a reload, or 60 s of silence, hands that page's leased items back to the queue
+  instead of waiting out andnow's 3 h dish lease.
+- **Page redone** around "what's running and for how long": a headline (threads working,
+  items done, next finish), a job card per job (done / running / waiting bar, typical item
+  time, an estimate to go by handing queued items to whichever thread frees up first),
+  thread tiles per device with a big live clock and a bar against the job's average
+  ("longer than typical" past it, moving stripes before any item has finished),
+  idle threads as small chips, recently finished items with durations. Scales the root
+  font with the viewport for the TV/xbox helpers. Animations keep their phase across
+  the 1 s re-render via a negative `animation-delay`.

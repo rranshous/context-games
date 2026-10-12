@@ -26,7 +26,9 @@
 //   POST /api/lease   (workers)  { worker, verified[] } -> { item } | { verify: taskId } | { none }   (never waits)
 //   POST /api/canary  (workers)  { worker, task, ok, detail }
 //   POST /api/result  (workers)  { worker, job, index, output }
-//   GET  /api/status                                   -> workers, queue, jobs, tasks
+//   POST /api/heartbeat (pages)  { workers[], session, name, cores, threads, paused }   the page's main thread vouches
+//                                for its worker threads, which can't talk while a long item runs
+//   GET  /api/status                                   -> now, workers, queue, jobs, tasks, finished
 //   GET  /tasks/<id>.mjs                               task module source
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -40,6 +42,8 @@ const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), 'public');
 const DEFAULT_LEASE_MS = 60000;  // a leased item not returned by then goes back in the queue
 const LIVE_MS = 10000;           // a worker thread seen this recently counts as capacity
 const ABANDONED_MS = 300000;     // a job nobody has polled for this long is dropped
+const FINISHED_KEEP = 40;
+const SILENT_MS = 60000;         // a heartbeating page silent this long has closed or slept: its threads' leases go back in the queue        // recently finished items kept for the page
 
 /** @type {Map<string, { id: string, name: string, code: string }>} */
 const tasks = new Map();
@@ -49,6 +53,8 @@ const jobs = new Map();
 const queue = [];
 /** @type {Map<string, any>} */
 const workers = new Map();
+/** Recently finished items, newest last: { job, label, index, ms, at, worker, name } */
+const finished = [];
 
 let jobSerial = 0;
 
@@ -57,7 +63,7 @@ let jobSerial = 0;
 function makeJob(task, leaseMs, label) {
   if (!tasks.has(task)) throw Object.assign(new Error(`unknown task ${task}`), { code: 404 });
   const job = {
-    id: `j${++jobSerial}`, task, label: label ?? '', inputs: [], outputs: [], completions: [], leases: new Map(),
+    id: `j${++jobSerial}`, task, label: label ?? '', inputs: [], outputs: [], completions: [], durations: [], leases: new Map(),
     leaseMs: leaseMs ?? DEFAULT_LEASE_MS, started: Date.now(), touched: Date.now(), onDone: null,
   };
   jobs.set(job.id, job);
@@ -75,12 +81,32 @@ function addInputs(job, inputs) {
 }
 
 const remaining = (job) => job.inputs.length - job.completions.length;
+const jobLabel = (job) => job.label || tasks.get(job.task)?.name || job.task;
+
+/** A worker thread counts as live if it was heard from recently. A thread deep in a long
+ *  item can't talk (run() is synchronous), so its page heartbeats for it; a page from
+ *  before heartbeats existed gets the benefit of the doubt until its lease runs out. */
+function alive(w, now = Date.now()) {
+  if (now - w.lastSeen <= LIVE_MS) return true;
+  return !w.beats && w.current?.kind === 'item' && w.current.until > now;
+}
 
 function getJob(id) {
   const job = jobs.get(id);
   if (!job) throw Object.assign(new Error(`unknown job ${id}`), { code: 404 });
   job.touched = Date.now();
   return job;
+}
+
+/** Put a thread's leased items back in the queue (its page closed, slept, or reloaded). */
+function dropLeases(workerId) {
+  for (const job of jobs.values()) {
+    for (const [index, lease] of job.leases) {
+      if (lease.worker === workerId && job.outputs[index] === undefined) { job.leases.delete(index); queue.unshift({ job: job.id, index }); }
+    }
+  }
+  const w = workers.get(workerId);
+  if (w) w.current = null;
 }
 
 /** Find work for a worker: an item of a task it has verified, or a task it should verify. */
@@ -92,8 +118,9 @@ function findWork(worker, verified) {
     if (info?.failed.has(job.task)) continue;
     if (!verified.has(job.task)) return { verify: job.task };
     const { index } = queue.splice(k, 1)[0];
-    job.leases.set(index, { worker, until: Date.now() + job.leaseMs });
-    if (info) info.working = job.label || tasks.get(job.task)?.name || job.task;
+    const now = Date.now();
+    job.leases.set(index, { worker, since: now, until: now + job.leaseMs });
+    if (info) info.current = { kind: 'item', job: job.id, index, task: job.task, label: jobLabel(job), since: now, until: now + job.leaseMs };
     return { item: { job: job.id, index, task: job.task, input: job.inputs[index] } };
   }
   // Nothing queued it can take: still verify the task of any open job, so a thread that
@@ -118,15 +145,24 @@ setInterval(() => {
     }
     if (!job.onDone && now - job.touched > ABANDONED_MS) jobs.delete(job.id);
   }
-  for (const [id, w] of workers) if (now - w.lastSeen > 120000) workers.delete(id);
+  for (const [id, w] of workers) {
+    // Heartbeating pages vouch for their threads, so silence means the page is gone: don't
+    // make a long item wait out its (hours-long) lease before someone else picks it up.
+    if (w.beats && w.current && now - w.lastSeen > SILENT_MS) dropLeases(id);
+    if (now - w.lastSeen > 120000 && !alive(w, now)) workers.delete(id);
+  }
 }, 2000);
 
 function touch(worker, meta = {}) {
   let w = workers.get(worker);
   if (!w) {
-    w = { id: worker, name: '', cores: 0, threads: 0, done: 0, failed: new Set(), passed: new Set(), recent: [], lastSeen: 0 };
+    w = { id: worker, name: '', cores: 0, threads: 0, done: 0, failed: new Set(), passed: new Set(), recent: [], lastSeen: 0,
+      current: null, last: null, beats: false, paused: false };
     workers.set(worker, w);
   }
+  // Thread ids survive a page reload (or a threads change); a new session means the old
+  // threads, and whatever they were running, are gone.
+  if (meta.session && w.session && meta.session !== w.session) dropLeases(worker);
   Object.assign(w, meta, { lastSeen: Date.now() });
   return w;
 }
@@ -180,7 +216,7 @@ const routes = [
     const now = Date.now();
     let live = 0, verified = 0, leased = 0;
     for (const w of workers.values()) {
-      if (now - w.lastSeen > LIVE_MS || w.failed.has(task)) continue;
+      if (!alive(w, now) || w.failed.has(task)) continue;
       live++;
       if (w.passed.has(task)) verified++;
     }
@@ -199,15 +235,25 @@ const routes = [
   }],
 
   ['POST', /^\/api\/lease$/, async (body) => {
-    touch(body.worker, { name: body.name, cores: body.cores, threads: body.threads });
+    touch(body.worker, { name: body.name, cores: body.cores, threads: body.threads, session: body.session });
     // Never hold the request open: a browser allows only ~6 connections per host, shared
     // by all of a page's worker threads, so parked lease requests would block the
     // threads' result posts. Idle threads poll with a short backoff instead.
-    return findWork(body.worker, new Set(body.verified ?? [])) ?? { none: true };
+    const w = workers.get(body.worker);
+    const work = findWork(body.worker, new Set(body.verified ?? []));
+    if (work?.verify) w.current = { kind: 'verify', task: work.verify, label: tasks.get(work.verify)?.name ?? work.verify, since: Date.now() };
+    if (!work) w.current = null;
+    return work ?? { none: true };
+  }],
+
+  ['POST', /^\/api\/heartbeat$/, async (body) => {
+    for (const id of body.workers ?? []) touch(id, { name: body.name, cores: body.cores, threads: body.threads, paused: !!body.paused, beats: true, session: body.session });
+    return {};
   }],
 
   ['POST', /^\/api\/canary$/, async (body) => {
     const w = touch(body.worker);
+    w.current = null;
     (body.ok ? w.passed : w.failed).add(body.task);
     console.log(`canary ${body.ok ? 'passed' : 'FAILED'} on ${w.name || body.worker} for ${tasks.get(body.task)?.name ?? body.task}${body.detail ? `: ${body.detail}` : ''}`);
     return {};
@@ -216,7 +262,20 @@ const routes = [
   ['POST', /^\/api\/result$/, async (body) => {
     const w = touch(body.worker);
     const job = jobs.get(body.job);
+    const now = Date.now();
+    // How long this thread spent on it (its own lease start; the job's lease may have
+    // expired and been handed to someone else meanwhile).
+    const mine = w.current?.kind === 'item' && w.current.job === body.job && w.current.index === body.index ? w.current : null;
+    const since = mine?.since ?? job?.leases.get(body.index)?.since;
+    const ms = since ? now - since : null;
+    w.current = null;
+    if (ms !== null) w.last = { job: body.job, label: mine?.label ?? (job ? jobLabel(job) : ''), index: body.index, ms, at: now };
     if (job && job.outputs[body.index] === undefined) {
+      if (ms !== null) {
+        job.durations.push(ms);
+        finished.push({ job: job.id, label: jobLabel(job), index: body.index, ms, at: now, worker: w.id, name: w.name });
+        if (finished.length > FINISHED_KEEP) finished.shift();
+      }
       job.outputs[body.index] = body.output;
       job.completions.push(body.index);
       job.leases.delete(body.index);
@@ -230,15 +289,32 @@ const routes = [
   ['GET', /^\/api\/status$/, async () => {
     const now = Date.now();
     return {
+      now, // the page ticks elapsed times against this clock between polls
       queue: queue.length,
-      jobs: [...jobs.values()].map((j) => ({ id: j.id, task: tasks.get(j.task)?.name, label: j.label, total: j.inputs.length, remaining: remaining(j), leased: j.leases.size })),
+      jobs: [...jobs.values()].map((j) => {
+        const d = j.durations, n = d.length;
+        return {
+          id: j.id, task: tasks.get(j.task)?.name, label: j.label, total: j.inputs.length, remaining: remaining(j), leased: j.leases.size,
+          done: j.completions.length, queued: Math.max(0, remaining(j) - j.leases.size), started: j.started,
+          durations: n ? { n, avgMs: Math.round(d.reduce((a, x) => a + x, 0) / n), minMs: Math.min(...d), maxMs: Math.max(...d) } : null,
+          leases: [...j.leases].map(([index, l]) => ({ index, worker: l.worker, since: l.since, until: l.until })),
+        };
+      }),
       tasks: [...tasks.values()].map((t) => ({ id: t.id, name: t.name })),
+      finished,
       workers: [...workers.values()].map((w) => {
         w.recent = w.recent.filter((t) => now - t < 30000);
+        const live = alive(w, now);
+        const c = live ? w.current : null;
+        const job = c?.job ? jobs.get(c.job) : null;
         return {
-          id: w.id, name: w.name, cores: w.cores, threads: w.threads, done: w.done, perMin: w.recent.length * 2, working: w.working ?? '',
+          id: w.id, name: w.name, cores: w.cores, threads: w.threads, done: w.done, perMin: w.recent.length * 2, working: c?.label ?? '',
           passed: [...w.passed].map((t) => tasks.get(t)?.name ?? t), failed: [...w.failed].map((t) => tasks.get(t)?.name ?? t),
-          ago: Math.round((now - w.lastSeen) / 1000),
+          ago: Math.round((now - w.lastSeen) / 1000), live,
+          state: !c ? (w.paused ? 'paused' : 'idle') : c.kind === 'verify' ? 'verifying' : 'working',
+          // stale: the item already has its result from elsewhere (or its job is gone); this thread can't stop mid-run
+          current: c && { kind: c.kind, job: c.job, index: c.index, label: c.label, since: c.since, stale: c.kind === 'item' && (!job || job.outputs[c.index] !== undefined) },
+          last: w.last,
         };
       }),
     };

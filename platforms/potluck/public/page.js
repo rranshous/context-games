@@ -11,12 +11,12 @@ const defaultName = (() => {
 })();
 let name = localStorage.getItem('potluck-name') || defaultName;
 let threads = [];
+let session = ''; // new each time the threads are (re)started
 // 0 threads = watching only (e.g. a dashboard on the machine that runs the work itself).
 const saved = localStorage.getItem('potluck-threads');
 let wanted = saved === null ? cores : Number(saved);
 let paused = false;
 let done = 0;
-const recent = [];
 
 $('name').value = name;
 $('name').onchange = () => { name = $('name').value || defaultName; try { localStorage.setItem('potluck-name', name); } catch {} restart(); };
@@ -30,6 +30,7 @@ $('pause').onclick = () => {
   paused = !paused;
   $('pause').textContent = paused ? 'Resume' : 'Pause';
   for (const t of threads) t.postMessage({ type: 'pause', paused });
+  heartbeat(); render();
 };
 
 function log(text, cls = '') {
@@ -43,54 +44,184 @@ function log(text, cls = '') {
 function restart() {
   for (const t of threads) t.terminate();
   threads = [];
+  session = Math.random().toString(36).slice(2, 10);
   for (let i = 0; i < wanted; i++) {
     const t = new Worker('/worker.js', { type: 'module' });
     t.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'done') { done++; recent.push(Date.now()); }
+      if (m.type === 'done') { done++; log(`thread ${i}: finished an item in ${dur(m.ms)}`, 'ok'); }
       if (m.type === 'canary') log(`thread ${i}: canary ${m.ok ? 'passed' : 'FAILED'} for ${m.task} (${Math.round(m.ms)} ms)${m.detail ? ` — ${m.detail}` : ''}`, m.ok ? 'ok' : 'bad');
       if (m.type === 'error') log(`thread ${i}: ${m.text}`, 'bad');
     };
-    t.postMessage({ type: 'start', id: `${pageId}-${i}`, page: { name, cores, threads: wanted, page: pageId } });
+    t.postMessage({ type: 'start', id: `${pageId}-${i}`, page: { name, cores, threads: wanted, page: pageId, session } });
     if (paused) t.postMessage({ type: 'pause', paused });
     threads.push(t);
   }
 }
 
+// ---------- the farm, as the server sees it ----------
+// Items can run for an hour without a word from their thread (run() is synchronous), so
+// the page polls the server for who's on what since when, and ticks the clocks itself.
+let status = null, clockOffset = 0, reachable = true;
+
 async function refresh() {
-  const now = Date.now();
-  while (recent.length && now - recent[0] > 30000) recent.shift();
-  $('mine').textContent = wanted === 0 ? 'watching only: this device does no work' : `${done} batches done here · ${recent.length * 2}/min`;
   try {
     const s = await (await fetch('/api/status')).json();
-    // Group threads into devices.
-    const devices = new Map();
-    for (const w of s.workers) {
-      // Only threads seen recently (the server remembers stopped ones for a while; this is
-      // the same 10 s rule its capacity check uses).
-      if (w.ago > 10) continue;
-      const key = w.name || w.id;
-      const d = devices.get(key) ?? { name: key, threads: 0, done: 0, perMin: 0, failed: new Set(), working: new Map() };
-      d.threads++; d.done += w.done; d.perMin += w.perMin;
-      if (w.working && w.perMin) d.working.set(w.working, (d.working.get(w.working) ?? 0) + 1);
-      for (const f of w.failed) d.failed.add(f);
-      devices.set(key, d);
-    }
-    // Each device's share of what the farm is doing right now (by rate) and of everything
-    // it has done since the server started.
-    const all = [...devices.values()];
-    const rateTotal = all.reduce((a, d) => a + d.perMin, 0) || 1;
-    const doneTotal = all.reduce((a, d) => a + d.done, 0) || 1;
-    $('farm').innerHTML = all.map((d) =>
-      `<tr><td>${esc(d.name)}${d.name === name ? ' (this)' : ''}</td><td>${d.threads}</td><td>${d.done}</td><td>${d.perMin}/min</td><td>${d.threads ? Math.round(d.perMin / d.threads) : 0}/min</td><td>${Math.round(100 * d.perMin / rateTotal)}% now · ${Math.round(100 * d.done / doneTotal)}% total</td><td>${[...d.working].map(([l, n]) => `${esc(l)}${n > 1 ? ` ×${n}` : ''}`).join('<br>') || '<span class="idle">idle</span>'}</td><td class="bad">${[...d.failed].map(esc).join(', ')}</td></tr>`).join('');
-    // The whole farm: every device added up.
-    const threads = all.reduce((a, d) => a + d.threads, 0), rate = all.reduce((a, d) => a + d.perMin, 0);
-    $('farmTotal').innerHTML = all.length > 1
-      ? `<tr class="total"><td>whole farm (${all.length} devices)</td><td>${threads}</td><td>${all.reduce((a, d) => a + d.done, 0)}</td><td>${rate}/min</td><td>${threads ? Math.round(rate / threads) : 0}/min</td><td></td><td></td><td></td></tr>` : '';
-    $('queue').textContent = `${s.queue} waiting · ${s.jobs.filter((j) => j.remaining > 0).map((j) => `${esc(j.label || j.task || '?')}: ${j.total - j.remaining}/${j.total}`).join(' · ') || 'no work queued'}`;
-  } catch { $('queue').textContent = 'server unreachable'; }
+    clockOffset = (s.now ?? Date.now()) - Date.now();
+    status = s; reachable = true;
+  } catch { reachable = false; }
+  render();
+}
+
+const serverNow = () => Date.now() + clockOffset;
+const pad = (n) => String(n).padStart(2, '0');
+/** A ticking clock: 4:07, 1:04:12. */
+function clock(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+/** A rough length: 42s, 4m 12s, 38m, 1h 04m. */
+function dur(ms) {
+  const t = Math.max(0, Math.round(ms / 1000));
+  if (t < 60) return `${t}s`;
+  if (t < 600) return `${Math.floor(t / 60)}m ${pad(t % 60)}s`;
+  if (t < 3600) return `${Math.round(t / 60)}m`;
+  return `${Math.floor(t / 3600)}h ${pad(Math.floor(t / 60) % 60)}m`;
+}
+const ago = (at) => { const ms = serverNow() - at; return ms < 5000 ? 'just now' : `${dur(ms)} ago`; };
+const threadNo = (id) => id.split('-').pop();
+const isLive = (w) => w.live ?? w.ago <= 10;
+
+/** When a job's farm share is likely done: hand queued items to whichever thread frees up first. */
+function jobEta(job, idleThreads, now) {
+  const avg = job.durations?.avgMs;
+  if (!avg) return null;
+  const free = (job.leases ?? []).map((l) => Math.max(0, avg - (now - l.since)));
+  for (let i = 0; i < idleThreads; i++) free.push(0);
+  if (!free.length) return null;
+  for (let q = 0; q < job.queued; q++) {
+    let k = 0;
+    for (let i = 1; i < free.length; i++) if (free[i] < free[k]) k = i;
+    free[k] += avg;
+  }
+  return Math.max(...free);
+}
+
+function render() {
+  const now = serverNow();
+  // Freshly drawn stripes and dots pick up their animation where the old ones were.
+  document.documentElement.style.setProperty('--phase', `${-(Date.now() % 1200) / 1000}s`);
+  document.documentElement.style.setProperty('--pulse', `${-(Date.now() % 2000) / 1000}s`);
+  const s = status;
+  const live = s ? s.workers.filter(isLive) : [];
+  const jobsById = new Map((s?.jobs ?? []).map((j) => [j.id, j]));
+
+  // --- jobs ---
+  const open = (s?.jobs ?? []).filter((j) => j.remaining > 0);
+  $('jobs').innerHTML = open.map((j) => {
+    const done = j.done ?? j.total - j.remaining, queued = j.queued ?? Math.max(0, j.remaining - j.leased);
+    const pct = (n) => `${(100 * n / Math.max(1, j.total)).toFixed(2)}%`;
+    const taskName = j.task;
+    const idle = live.filter((w) => w.state === 'idle' && w.passed.includes(taskName)).length;
+    const eta = jobEta({ ...j, queued }, idle, now);
+    const d = j.durations;
+    return `<div class="job">
+      <div class="job-head"><span class="job-title">${esc(j.label || j.task || '?')}</span><span class="job-count"><b>${done}</b> / ${j.total} done</span></div>
+      <div class="bar"><span class="done" style="width:${pct(done)}"></span><span class="run" style="width:${pct(j.leased)}"></span></div>
+      <div class="job-meta">
+        <span><i class="key" style="background:var(--work)"></i>${done} done</span>
+        <span><i class="key" style="background:#6fbf7b;opacity:.7"></i><b>${j.leased}</b> running</span>
+        <span><i class="key" style="background:var(--track);outline:1px solid var(--line)"></i>${queued} waiting</span>
+        ${j.started ? `<span>started ${ago(j.started)}</span>` : ''}
+        <span>${d ? `items take <b>~${dur(d.avgMs)}</b>${d.n > 1 ? ` (${dur(d.minMs)}–${dur(d.maxMs)})` : ''}` : 'no item finished yet, so no estimate'}</span>
+        ${eta !== null ? `<span><b>~${dur(eta)}</b> to go</span>` : ''}
+      </div></div>`;
+  }).join('') || `<div class="empty">${!reachable ? 'server unreachable' : s?.queue ? `${s.queue} items waiting` : 'nothing queued: waiting for work'}</div>`;
+
+  // --- threads, grouped by device ---
+  const devices = new Map();
+  for (const w of live) {
+    const key = w.name || w.id;
+    const dv = devices.get(key) ?? { name: key, threads: [], done: 0, failed: new Set() };
+    dv.threads.push(w); dv.done += w.done;
+    for (const f of w.failed) dv.failed.add(f);
+    devices.set(key, dv);
+  }
+  const busy = (w) => w.state === 'working' || w.state === 'verifying';
+  const all = [...devices.values()].sort((a, b) => (b.name === name) - (a.name === name) || b.threads.filter(busy).length - a.threads.filter(busy).length || a.name.localeCompare(b.name));
+  const doneTotal = all.reduce((a, dv) => a + dv.done, 0);
+  let nextFinish = null;
+  $('devices').innerHTML = all.map((dv) => {
+    const sorted = dv.threads.slice().sort((a, b) => threadNo(a.id) - threadNo(b.id));
+    const working = sorted.filter(busy).sort((a, b) => (a.current?.since ?? 0) - (b.current?.since ?? 0));
+    const resting = sorted.filter((w) => !busy(w));
+    const tiles = working.map((w) => {
+      const c = w.current ?? { label: w.working, since: null };
+      const elapsed = c.since ? now - c.since : null;
+      if (w.state === 'verifying') {
+        return `<div class="tile verifying"><div class="tile-top"><span class="state"><i class="dot"></i>verifying</span><span class="thread-no">thread ${threadNo(w.id)}</span></div>
+          <div class="what">canary for ${esc(c.label || '?')}</div>
+          <div class="clock">${elapsed !== null ? clock(elapsed) : '…'}</div>
+          <div class="bar verify"><span class="fill" style="width:100%"></span></div>
+          <div class="eta">proving this device computes identical results</div></div>`;
+      }
+      const job = jobsById.get(c.job);
+      const avg = job?.durations?.avgMs;
+      let cls = 'unknown', width = 100, eta = 'first of this job: no estimate yet';
+      if (c.stale) { cls = 'stale'; eta = 'already done elsewhere; result will be dropped'; }
+      else if (avg && elapsed !== null) {
+        if (elapsed <= avg) {
+          cls = ''; width = 100 * elapsed / avg; eta = `~${dur(avg - elapsed)} left · typical ${dur(avg)}`;
+          if (nextFinish === null || avg - elapsed < nextFinish) nextFinish = avg - elapsed;
+        } else { cls = 'over'; eta = `longer than typical (${dur(avg)}), still going`; }
+      }
+      const item = c.index !== undefined && c.index !== null ? `item ${c.index + 1}${job ? ` of ${job.total}` : ''} · ` : '';
+      return `<div class="tile${c.stale ? ' stale' : ''}"><div class="tile-top"><span class="state"><i class="dot"></i>${c.stale ? 'finishing' : 'working'}</span><span class="thread-no">${item}thread ${threadNo(w.id)}</span></div>
+        <div class="what" title="${esc(c.label || '')}">${esc(c.label || '?')}</div>
+        <div class="clock">${elapsed !== null ? clock(elapsed) : '…'}</div>
+        <div class="bar ${cls}"><span class="fill" style="width:${width.toFixed(2)}%"></span></div>
+        <div class="eta">${eta}</div></div>`;
+    }).join('');
+    const paused = resting.filter((w) => w.state === 'paused');
+    const idlers = resting.length ? `<div class="idlers">${resting.length - paused.length ? `idle:` : ''} ${resting.filter((w) => w.state !== 'paused').map((w) => `<span class="chip" title="${esc(w.last ? `last: ${w.last.label} #${w.last.index + 1}, ${dur(w.last.ms)}` : 'nothing yet')}">${threadNo(w.id)}</span>`).join('')}
+      ${paused.length ? ` paused: ${paused.map((w) => `<span class="chip">${threadNo(w.id)}</span>`).join('')}` : ''}</div>` : '';
+    return `<div class="device"><div class="device-head">
+        <span class="device-name">${esc(dv.name)}</span>${dv.name === name ? '<span class="tag">this device</span>' : ''}
+        <span class="muted"><b class="${working.length ? 'ok' : ''}">${working.length}</b> of ${dv.threads.length} threads busy</span>
+        <span class="muted">${dv.done} items done${doneTotal && all.length > 1 ? ` (${Math.round(100 * dv.done / doneTotal)}% of farm)` : ''}</span>
+        ${dv.failed.size ? `<span class="bad">canary failed: ${[...dv.failed].map(esc).join(', ')}</span>` : ''}
+      </div>${tiles ? `<div class="tiles">${tiles}</div>` : ''}${idlers}</div>`;
+  }).join('') || `<div class="empty">${reachable ? 'no devices connected' : 'server unreachable'}</div>`;
+
+  // --- recently finished ---
+  const fin = (s?.finished ?? []).slice(-12).reverse();
+  $('recent').innerHTML = fin.length ? `<table><thead><tr><th>item</th><th>took</th><th class="hide-narrow">by</th><th>when</th></tr></thead><tbody>${fin.map((f) =>
+    `<tr><td>${esc(f.label)} <span class="muted">#${f.index + 1}</span></td><td class="num"><b>${dur(f.ms)}</b></td><td class="hide-narrow muted">${esc(f.name || f.worker)}</td><td class="num muted">${ago(f.at)}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty">nothing finished yet</div>';
+
+  // --- headline ---
+  const workingN = live.filter((w) => w.state === 'working' && !w.current?.stale).length;
+  const verifyingN = live.filter((w) => w.state === 'verifying').length;
+  const doneN = open.reduce((a, j) => a + (j.done ?? j.total - j.remaining), 0), totalN = open.reduce((a, j) => a + j.total, 0);
+  $('summary').innerHTML = !reachable ? '<span class="bad">server unreachable</span>'
+    : !s ? 'connecting…'
+    : workingN || verifyingN || open.length
+      ? [`<b>${workingN}</b> of ${live.length} threads working`, verifyingN ? `<b>${verifyingN}</b> verifying` : '',
+        open.length ? `<b>${doneN}</b> / ${totalN} items done` : '', nextFinish !== null ? `next finish in <b>~${dur(nextFinish)}</b>` : ''].filter(Boolean).join(' · ')
+      : `${live.length} threads ready · waiting for work`;
+
+  const mineLive = live.filter((w) => w.name === name);
+  $('mine').innerHTML = wanted === 0 ? 'watching only: this device does no work'
+    : `${paused ? '<b class="bad">paused</b> · ' : ''}<b>${mineLive.filter(busy).length}</b> of ${wanted} threads busy · <b>${done}</b> items finished here since this page opened`;
 }
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+// The worker threads can't speak while running a long item, so this (main) thread vouches for them.
+function heartbeat() {
+  if (!threads.length) return;
+  fetch('/api/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ workers: threads.map((_, i) => `${pageId}-${i}`), session, name, cores, threads: wanted, paused }) }).catch(() => {});
+}
 
 // ---------- staying awake ----------
 // Browsers freeze background tabs to save power (Edge "sleeping tabs", Chrome Energy/Memory
@@ -138,3 +269,6 @@ $('tip').innerHTML = /Edg\//.test(ua)
 restart();
 refresh();
 setInterval(refresh, 2000);
+setInterval(render, 1000);
+heartbeat();
+setInterval(heartbeat, 4000);

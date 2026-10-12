@@ -5,53 +5,124 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Potluck</title>
   <style>
-    tr.total td { border-top: 1px solid currentColor; font-weight: bold; }
-    .idle { opacity: 0.5; }
+    :root {
+      --bg: #12100e; --panel: #1d1a16; --panel2: #25211c; --line: #332d26; --text: #e8e0d4; --dim: #9a8f80; --faint: #5e564b;
+      --accent: #f4b860; --work: #7fd18b; --verify: #f4b860; --bad: #ef8a7a; --track: #2e2923;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #12100e; color: #e8e0d4; font: 16px/1.5 system-ui, sans-serif; padding: 20px; max-width: 720px; margin: 0 auto; }
-    h1 { font-size: 28px; color: #f4b860; }
-    .sub { color: #9a8f80; margin-bottom: 18px; }
-    section { background: #1d1a16; border: 1px solid #332d26; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
-    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #9a8f80; margin-bottom: 8px; }
-    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    input, button { font: inherit; background: #2a251f; color: #e8e0d4; border: 1px solid #443c32; border-radius: 8px; padding: 8px 12px; }
-    button { min-width: 110px; cursor: pointer; }
-    input[type=range] { padding: 0; width: 180px; accent-color: #f4b860; }
-    #mine { font-size: 20px; margin-top: 8px; }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    td, th { text-align: left; padding: 4px 8px 4px 0; }
-    th { color: #9a8f80; font-weight: normal; font-size: 13px; }
-    #log { font: 12px/1.5 ui-monospace, monospace; color: #9a8f80; max-height: 220px; overflow-y: auto; }
-    .ok { color: #8fcf8f; } .bad { color: #ef8a7a; }
-    code { background: #2a251f; padding: 1px 5px; border-radius: 4px; }
+    /* Scales up on big screens (a TV across the room) without getting silly on a laptop. */
+    html { font-size: clamp(15px, 0.55vw + 9px, 24px); }
+    body { background: var(--bg); color: var(--text); font: 1rem/1.45 system-ui, sans-serif; padding: 1.2rem 1rem 3rem; max-width: 1500px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+    h1 { font-size: 1.8rem; color: var(--accent); }
+    #summary { font-size: 1.15rem; color: var(--dim); }
+    #summary b { color: var(--text); font-weight: 600; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.9rem 1rem; margin-bottom: 0.9rem; }
+    h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin-bottom: 0.6rem; font-weight: 600; }
+    .row { display: flex; gap: 0.8rem 1.2rem; align-items: center; flex-wrap: wrap; }
+    input, button { font: inherit; background: #2a251f; color: var(--text); border: 1px solid #443c32; border-radius: 0.5rem; padding: 0.45rem 0.75rem; }
+    button { min-width: 7rem; cursor: pointer; }
+    input[type=range] { padding: 0; width: 11rem; accent-color: var(--accent); vertical-align: middle; }
+    input[type=checkbox] { accent-color: var(--accent); }
+    #mine { color: var(--dim); margin-top: 0.5rem; }
+    #mine b { color: var(--text); }
+    .muted { color: var(--dim); }
+    .empty { color: var(--faint); padding: 0.3rem 0; }
+    .ok { color: var(--work); } .bad { color: var(--bad); }
+    code { background: #2a251f; padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+
+    /* progress bars: done = solid, running = moving stripes, queued = empty track */
+    .bar { position: relative; height: 0.9rem; background: var(--track); border-radius: 0.45rem; overflow: hidden; display: flex; }
+    .bar > span { height: 100%; }
+    .bar .done { background: var(--work); }
+    .bar .fill, .bar .run, .bar.unknown .fill { background: repeating-linear-gradient(-45deg, #4f8d59 0 0.45rem, #6fbf7b 0.45rem 0.9rem); background-size: 1.27rem 100%; animation: slide 1.2s linear infinite; animation-delay: var(--phase, 0s); }
+    .bar.verify .fill { background: repeating-linear-gradient(-45deg, #a87a35 0 0.45rem, #d9a250 0.45rem 0.9rem); background-size: 1.27rem 100%; animation: slide 1.2s linear infinite; animation-delay: var(--phase, 0s); }
+    .bar.over .fill { background: repeating-linear-gradient(-45deg, #8d7a4f 0 0.45rem, #bfa56f 0.45rem 0.9rem); background-size: 1.27rem 100%; animation: slide 1.2s linear infinite; animation-delay: var(--phase, 0s); }
+    .bar.stale .fill { background: var(--faint); animation: none; }
+    @keyframes slide { to { background-position: 1.27rem 0; } }
+
+    /* jobs */
+    .job + .job { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+    .job-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: baseline; margin-bottom: 0.4rem; }
+    .job-title { font-size: 1.2rem; font-weight: 600; }
+    .job-count { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+    .job .bar { height: 1.3rem; border-radius: 0.65rem; }
+    .job-meta { display: flex; gap: 0.3rem 1.4rem; flex-wrap: wrap; color: var(--dim); margin-top: 0.45rem; }
+    .job-meta b { color: var(--text); font-weight: 600; }
+    .key { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 0.2rem; vertical-align: -0.05rem; margin-right: 0.3rem; }
+
+    /* threads */
+    .device + .device { margin-top: 1rem; }
+    .device-head { display: flex; gap: 0.3rem 1.2rem; flex-wrap: wrap; align-items: baseline; margin-bottom: 0.5rem; }
+    .device-name { font-size: 1.1rem; font-weight: 600; }
+    .tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); border: 1px solid #5a4630; border-radius: 0.3rem; padding: 0 0.35rem; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.6rem; }
+    .tile { background: var(--panel2); border: 1px solid var(--line); border-left: 0.3rem solid var(--work); border-radius: 0.5rem; padding: 0.55rem 0.7rem 0.65rem; }
+    .tile.verifying { border-left-color: var(--verify); }
+    .tile.stale { border-left-color: var(--faint); }
+    .tile-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .state { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--work); display: flex; align-items: center; gap: 0.4rem; }
+    .verifying .state { color: var(--verify); }
+    .stale .state { color: var(--dim); }
+    .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: currentColor; animation: pulse 2s ease-in-out infinite; animation-delay: var(--pulse, 0s); }
+    .stale .dot { animation: none; }
+    @keyframes pulse { 50% { opacity: 0.25; } }
+    .thread-no { color: var(--faint); font-size: 0.85rem; }
+    .what { margin: 0.25rem 0 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .clock { font-size: 1.9rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .tile .bar { margin: 0.35rem 0 0.25rem; }
+    .eta { font-size: 0.85rem; color: var(--dim); }
+    .idlers { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-top: 0.55rem; color: var(--dim); font-size: 0.9rem; }
+    .idlers .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 0.35rem; padding: 0.05rem 0.45rem; color: var(--faint); }
+
+    /* recent */
+    table { width: 100%; border-collapse: collapse; }
+    td, th { text-align: left; padding: 0.25rem 1rem 0.25rem 0; vertical-align: top; }
+    th { color: var(--dim); font-weight: normal; font-size: 0.85rem; }
+    td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cols { display: grid; grid-template-columns: 3fr 2fr; gap: 0.9rem; align-items: start; }
+    .cols > section { margin-bottom: 0; }
+    @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } .hide-narrow { display: none; } }
+    details summary { cursor: pointer; color: var(--dim); }
+    #log { font: 0.8rem/1.5 ui-monospace, monospace; color: var(--dim); max-height: 14rem; overflow-y: auto; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
-  <h1>Potluck</h1>
-  <p class="sub">Leave this page open and this device helps with the work.</p>
+  <header>
+    <h1>Potluck</h1>
+    <div id="summary">connecting…</div>
+  </header>
+
   <section>
-    <h2>This device</h2>
-    <div class="row">
-      <label>name <input id="name" size="16"></label>
-      <label>threads <input type="range" id="threads" min="0"> <span id="threadsOut"></span> of <span id="cores"></span></label>
-      <button id="pause">Pause</button>
-    </div>
-    <div class="row" id="wakeRow" hidden><label><input type="checkbox" id="wake"> keep the screen on while this page is showing</label></div>
-    <div id="mine"></div>
+    <h2>Work in progress</h2>
+    <div id="jobs"><div class="empty">nothing queued</div></div>
   </section>
+
   <section>
-    <h2>The farm</h2>
-    <div id="queue"></div>
-    <table><thead><tr><th>device</th><th>threads</th><th>batches</th><th>rate</th><th>per thread</th><th>share of farm</th><th>working on</th><th></th></tr></thead><tbody id="farm"></tbody><tfoot id="farmTotal"></tfoot></table>
+    <h2>Threads</h2>
+    <div id="devices"><div class="empty">no devices connected</div></div>
   </section>
-  <section>
-    <h2>Keeping this page awake</h2>
-    <p id="tip" class="sub" style="margin:0"></p>
-  </section>
-  <section>
-    <h2>Log</h2>
-    <div id="log"></div>
-  </section>
+
+  <div class="cols">
+    <section>
+      <h2>Recently finished</h2>
+      <div id="recent"><div class="empty">nothing finished yet</div></div>
+    </section>
+    <section>
+      <h2>This device</h2>
+      <div class="row">
+        <label>name <input id="name" size="14"></label>
+        <button id="pause">Pause</button>
+      </div>
+      <div class="row" style="margin-top:0.6rem">
+        <label>threads <input type="range" id="threads" min="0"> <span id="threadsOut"></span> of <span id="cores"></span></label>
+      </div>
+      <div class="row" id="wakeRow" hidden style="margin-top:0.4rem"><label><input type="checkbox" id="wake"> keep the screen on while this page is showing</label></div>
+      <div id="mine"></div>
+      <p id="tip" class="muted" style="margin-top:0.7rem;font-size:0.9rem"></p>
+      <details style="margin-top:0.7rem"><summary>log</summary><div id="log"></div></details>
+    </section>
+  </div>
   <script type="module" src="/page.js"></script>
 </body>
 </html>
