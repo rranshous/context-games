@@ -1495,3 +1495,11 @@ New from round 4 (no toxin):
 **Hitchhiker:** in fat s2, 353 carriers hold a DIE glyph `@` hanging off-path below a K (`CKKKTMD/   K/   @`). It's harmless as long as it never runs.
 
 Population cap (crowded) and quick life changed little: the same `CKKKTMD`, plus hats.
+
+**Round 6: the armor ceiling breaks (deep plates, 9 bands, 1.5M ticks).** It breaks in both seeds, and once it breaks it cascades.
+- **s1:** stuck at 4 armor for about 900k ticks. Then it climbs to 5 armor (1.01M), 7 (1.11M) and 8 (1.21M). At 1.5M, 345 warriors have 8 armor, 161 live on the rim, and the population is 1,337 (it was about 650 during the stall).
+- **s2:** 3 → 4 armor at about 500k, 6 by 710k, 7 by 1.01M and 8 by 1.31M. At 1.5M, 461 warriors have 8 armor, 224 live on the rim, and the population is 1,535.
+
+Nearly all the new armor is off the code row. s1's winner is `     K/  CKKKTMD/KKK   K` (3 in-line K and 5 off-path). s2's winner is `KK/CKTMD/KKKKK`: one in-line K and seven off-path, a 5-cell program wrapped in armor.
+
+Why a long stall followed by a fast cascade: the hard step is growing the first off-path shelf, a row that needs an insertion in the right place plus a K mutation. Once a shelf exists, each insertion on it is one more K, costs no tick, and can't break the program, so climbing from 5 to 8 took 200–300k ticks against 500–900k for the first step. The rim sink and the ceiling were waiting times, not limits.
