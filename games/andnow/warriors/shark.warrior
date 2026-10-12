@@ -1,0 +1,9 @@
+name: Shark
+realm: sea
+# Island survival's deep hunter. Eats only dead cells: head for the nearest one (3 S),
+# collect, and bomb the nearest foreign cell in range (B, empty stack) on the way, so
+# anything that strays near becomes food. Big: a row of fat under it soaks up hits and
+# gives copy errors room to make armor (K) for the climb upward.
+---
+C3S$TMBD
+........

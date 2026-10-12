@@ -7,6 +7,7 @@ import { makeRng, randInt, Rng } from './rng';
 
 export const FLOOR = 0;
 export const WALL = 1;
+export const MINE = 2; // island survival: a fixed mine (blocks like a wall; bombs what comes near)
 
 export interface Spawn { x: number; y: number; kind: 1 | 2 } // 1 = size, 2 = speed
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -19,6 +20,12 @@ export interface Board {
   starts: Rect[]; // corner rooms: TL, TR, BR, BL (a 2-player match is TL vs TR)
   rooms: Rect[];  // every room (start rooms included), mirror images listed separately; a room merged with its mirror is one hall
   toxin?: Uint8Array; // petri dish plate: toxin level of each cell (0 = clean)
+  // Island survival: pressure per realm (0 = islanders, 1 = sea creatures; `toxin` is the
+  // islanders'), the realm each start belongs to, the mines, and the surface row.
+  toxinBy?: Uint8Array[];
+  startRealm?: number[];
+  mines?: number[];
+  surface?: number;
 }
 
 export const BOARD_W = 64;
@@ -272,4 +279,79 @@ export function makePlate(seed: number, size: number, bands: number, foodSpacing
   const s = Math.floor((2 * R) / (bands + 1)); // the clean disc's inscribed square
   const start: Rect = { x: Math.round(c - s / Math.SQRT2), y: Math.round(c - s / Math.SQRT2), w: Math.floor(s * Math.SQRT2), h: Math.floor(s * Math.SQRT2) };
   return { w, h, terrain, spawns, starts: [start], rooms: [], toxin };
+}
+
+/**
+ * Island survival: a side view. Sky (wall) on top with islands rising out of the sea; the
+ * water below gets deeper toward an uneven seabed. Islanders (realm 0) feel pressure that
+ * rises with depth; sea creatures (realm 1) feel the mirror image (they need the deep, and
+ * die out of the water). Both counter it with armor (K). Vegetation grows in the water,
+ * thicker the deeper it is, plus a kelp line along the seabed. A row of mines sits in the
+ * middle band. Starts: the middle island's top (realm 0) and the deep middle (realm 1).
+ */
+export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, mineSpacing: number): Board {
+  const h = Math.round(w / 2);
+  const rng = makeRng(seed ^ 0x51ed27);
+  const terrain = new Uint8Array(w * h).fill(WALL);
+  const S = Math.round(h * 0.12);                // first water row
+  const bedMax = h - 2, hill = Math.round(h * 0.14);
+  const ph = [rng() * 6.28, rng() * 6.28, rng() * 6.28];
+  const bed = (x: number) => bedMax - Math.round(hill * (0.5 + 0.25 * Math.sin(x / w * 6.28 * 1.3 + ph[0]) + 0.17 * Math.sin(x / w * 6.28 * 3.7 + ph[1]) + 0.08 * Math.sin(x / w * 6.28 * 9.1 + ph[2])));
+  for (let x = 1; x < w - 1; x++) for (let y = S; y <= bed(x); y++) terrain[y * w + x] = FLOOR;
+  // Islands: mounds above the surface. The middle one is home.
+  const isl = [0.18, 0.5, 0.82].map((f) => ({ cx: Math.round(w * f), hw: Math.round(w * (f === 0.5 ? 0.07 : 0.045)) }));
+  const land = new Uint8Array(w * h);
+  for (const { cx, hw } of isl) {
+    for (let x = cx - hw; x <= cx + hw; x++) {
+      const k = (x - cx) / hw, top = S - Math.round((S - 2) * (1 - k * k));
+      for (let y = top; y < S; y++) { terrain[y * w + x] = FLOOR; land[y * w + x] = 1; }
+    }
+  }
+  const landP = new Uint8Array(w * h), seaP = new Uint8Array(w * h);
+  const level = (d: number) => Math.max(0, Math.min(bands - 1, Math.floor(d * (bands + 1)) - 1)); // the top (or bottom) two slices are safe
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (terrain[i] !== FLOOR) continue;
+    if (land[i]) { landP[i] = 0; seaP[i] = bands + 1; continue; }
+    const d = (y - S) / (bedMax - S);
+    landP[i] = level(d);
+    seaP[i] = level(1 - d);
+  }
+  // Mines: one every ~mineSpacing columns, somewhere in the middle band.
+  const mid = Math.floor((bands - 1) / 2), mines: number[] = [];
+  if (mineSpacing > 0) {
+    for (let x = Math.floor(mineSpacing / 2); x < w - 1; x += mineSpacing) {
+      const ys: number[] = [];
+      for (let y = S; y < h; y++) if (terrain[y * w + x] === FLOOR && landP[y * w + x] === mid && !land[y * w + x]) ys.push(y);
+      if (!ys.length) continue;
+      const mx = Math.max(1, Math.min(w - 2, x + randInt(rng, -2, 2))), my = ys[randInt(rng, 0, ys.length - 1)];
+      if (terrain[my * w + mx] !== FLOOR) continue;
+      terrain[my * w + mx] = MINE;
+      mines.push(my * w + mx);
+    }
+  }
+  // Vegetation: in the water only, thicker with depth; a kelp line along the seabed.
+  const spawns: Spawn[] = [];
+  const has = new Set<number>();
+  const add = (x: number, y: number) => {
+    const i = y * w + x;
+    if (terrain[i] !== FLOOR || land[i] || has.has(i)) return;
+    has.add(i);
+    spawns.push({ x, y, kind: rng() < 0.2 ? 2 : 1 });
+  };
+  for (let y = S; y < h - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w || py >= h) continue;
+      if (rng() < 0.4 + 0.6 * (py - S) / (bedMax - S)) add(px, py);
+    }
+  }
+  for (let x = 2; x < w - 2; x += Math.max(2, foodSpacing >> 1)) add(x, bed(x));
+  // Starts: the home island's top (as wide a box as fits), and a box in the deep middle.
+  const home = isl[1], top = S - 4;
+  const homeRect: Rect = { x: home.cx - 7, y: top, w: 14, h: 4 };
+  let deepTop = bedMax;
+  for (let x = Math.round(w / 2) - 12; x <= Math.round(w / 2) + 12; x++) deepTop = Math.min(deepTop, bed(x));
+  const deepRect: Rect = { x: Math.round(w / 2) - 12, y: deepTop - 8, w: 24, h: 7 };
+  return { w, h, terrain, spawns, starts: [homeRect, deepRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], mines, surface: S };
 }

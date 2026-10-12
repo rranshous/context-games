@@ -4,6 +4,7 @@
 //   name: Gatherer
 //   dir: E          (start direction of the IP; default E)
 //   ip: 0 0         (column row of the IP's start cell in the grid; default first cell)
+//   realm: sea      (island survival only: a sea creature, starting in the deep)
 //   # comments are allowed in the header
 //   ---
 //   C6S$TM
@@ -17,6 +18,7 @@ export interface WarriorSpec {
   width: number;
   height: number;
   source: string;
+  realm?: string; // island survival: 'sea' starts in the deep as a sea creature
 }
 
 export function parseWarrior(text: string, fallbackName = 'warrior'): WarriorSpec {
@@ -54,5 +56,5 @@ export function parseWarrior(text: string, fallbackName = 'warrior'): WarriorSpe
   const dir = header.dir ? DIR_NAMES.indexOf(header.dir.toUpperCase()) : 0;
   if (dir < 0) throw new Error(`${fallbackName}: bad dir '${header.dir}'`);
 
-  return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text };
+  return { name: header.name || fallbackName, dir, ip, cells, width, height: grid.length, source: text, realm: header.realm };
 }

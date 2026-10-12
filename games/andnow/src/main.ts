@@ -36,12 +36,15 @@ let lastFrame = performance.now();
 const params = new URLSearchParams(location.search);
 // Petri dish (?petri=1): the toxin-gradient plate, no score (same rules as dist/petri.mjs;
 // settings from the URL, e.g. &toxin=0.002&size=96, defaults in src/sim/dish.ts).
-const PETRI = params.has('petri');
+// Island survival (?island=1): the side-view sea with islanders, sharks and mines. It's a
+// dish too (same settings plus island ones), so it implies PETRI.
+const ISLAND = params.get('island') === '1';
+const PETRI = params.has('petri') || ISLAND;
 if (PETRI) applyDish((k) => params.get(k));
 // No tick limit in the viewer: a match runs until one lineage is left (?ticks=N to judge
 // by body size at tick N, as the runners do).
 CONFIG.tickCap = Number(params.get('ticks')) || Infinity;
-const initial = (params.get('w') ?? (PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
+const initial = (params.get('w') ?? (ISLAND ? 'amoeba,shark,shark,shark' : PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
 seedEl.value = params.get('seed') ?? '1';
 
 const pickersEl = $('pickers');
@@ -80,7 +83,8 @@ function newMatch(sources?: string[], seed?: number) {
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
   seedEl.value = String(world.seed);
-  CELL = PETRI ? Math.max(3, Math.min(10, Math.floor((Math.min(window.innerWidth, 1000) - 24) / world.w))) : 14;
+  CELL = PETRI ? Math.max(3, Math.min(10, Math.floor((Math.min(window.innerWidth - 380, ISLAND ? 1300 : 1000) - 24) / world.w))) : 14;
+  islandBg = null;
   canvas.width = world.w * CELL;
   canvas.height = world.h * CELL;
   render();
@@ -88,6 +92,7 @@ function newMatch(sources?: string[], seed?: number) {
 
 $('reset').onclick = () => newMatch();
 $('petri').textContent = PETRI ? 'Back to matches' : 'Petri dish';
+$('island').onclick = () => { location.search = '?island=1'; };
 $('petri').onclick = () => { location.search = PETRI ? '' : '?petri=1&w=amoeba'; };
 dishEl.style.display = PETRI ? 'block' : 'none';
 playBtn.onclick = () => setPlaying(!playing);
@@ -173,6 +178,7 @@ const TOXIN_TINT = ['#0e1117', '#1b1220', '#281427', '#36162c', '#451831', '#541
 const ARMOR_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#d946ef'];
 
 function render() {
+  if (ISLAND) { renderIsland(); renderSide(); return; }
   const { w, h } = world;
   const glyphs = showGlyphsEl.checked && CELL >= 9;
   const tox = world.board.toxin;
@@ -220,6 +226,77 @@ function render() {
   renderSide();
 }
 
+// ---------- island survival: low-res pixel art, one pixel per cell, scaled up crisp ----------
+
+const pix = document.createElement('canvas');
+const pctx = pix.getContext('2d')!;
+let islandBg: Uint8ClampedArray | null = null;
+type RGB = [number, number, number];
+const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const SEAL_COLORS: RGB[] = [[244, 238, 226], [255, 214, 120], [255, 160, 70], [255, 100, 100], [232, 67, 147], [190, 60, 255]];
+const SHARK_COLORS: RGB[] = [[120, 132, 156], [150, 120, 200], [190, 110, 220], [230, 100, 200], [255, 90, 150], [255, 60, 90]];
+
+/** The scenery (sky, islands, water by depth, seabed), drawn once per world. */
+function islandBackground(): Uint8ClampedArray {
+  const { w, h } = world, b = world.board, S = b.surface ?? 0;
+  const out = new Uint8ClampedArray(w * h * 4);
+  let bottom = S;
+  for (let i = 0; i < w * h; i++) if (b.terrain[i] === 0) bottom = Math.max(bottom, (i / w) | 0);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, t = b.terrain[i];
+    let c: RGB;
+    const n = ((Math.imul(x * 73856093 ^ y * 19349663, 2654435761) >>> 0) % 100) / 100; // stable grain
+    if (t !== 0 && y < S) c = mix([110, 190, 240], [200, 235, 255], y / Math.max(1, S)); // sky
+    else if (t !== 0) c = mix([70, 55, 45], [40, 32, 28], n * 0.6); // rock (a mine is drawn over it)
+    else if (y < S) {
+      const above = y > 0 && b.terrain[i - w] === 0;
+      c = above ? mix([226, 204, 140], [205, 180, 120], n) : mix([110, 190, 80], [80, 160, 60], n); // grass on top, sand below
+    } else {
+      const d = (y - S) / Math.max(1, bottom - S);
+      c = mix([60, 165, 220], [8, 22, 58], Math.pow(d, 0.8));
+      if ((b.toxin?.[i] ?? 0) % 2) c = mix(c, [0, 0, 0], 0.06); // faint pressure bands
+      c = mix(c, [255, 255, 255], (n - 0.5) * 0.03);
+    }
+    out.set([c[0], c[1], c[2], 255], i * 4);
+  }
+  return out;
+}
+
+function renderIsland() {
+  const { w, h } = world;
+  if (!islandBg) { islandBg = islandBackground(); pix.width = w; pix.height = h; }
+  const img = pctx.createImageData(w, h), d = img.data;
+  d.set(islandBg);
+  const armor = new Map<number, number>();
+  for (const wr of world.living()) armor.set(wr.id, armorOf(world, wr.id));
+  const put = (i: number, c: RGB) => { d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; };
+  for (let i = 0; i < w * h; i++) {
+    const o = world.owner[i];
+    if (o >= 0) {
+      const wo = world.warriors[o], a = Math.min(5, armor.get(o) ?? 0);
+      let c = (wo.realm ? SHARK_COLORS : SEAL_COLORS)[a];
+      if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix(c, [0, 0, 0], 0.45); // the eye
+      put(i, c);
+    } else if (o === DEBRIS) put(i, mix([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [200, 200, 205], 0.55));
+    else if (world.resource[i] === 1) put(i, mix([30, 150, 70], [90, 230, 110], Math.min(1, (world.ripe[i] - 1) / 4)));
+    else if (world.resource[i] === 2) put(i, [240, 210, 70]);
+  }
+  for (const [k, m] of (world.board.mines ?? []).entries()) {
+    const firing = (world.t + k * 7) % CONFIG.mineEvery < 3;
+    put(m, firing ? [255, 60, 40] : [30, 30, 34]);
+  }
+  pctx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(pix, 0, 0, w * CELL, h * CELL);
+  // Mines get a ring so they read at any zoom.
+  ctx.strokeStyle = '#ff5a3c';
+  ctx.lineWidth = 1;
+  for (const m of world.board.mines ?? []) {
+    const x = (m % w) * CELL + CELL / 2, y = ((m / w) | 0) * CELL + CELL / 2;
+    ctx.beginPath(); ctx.arc(x, y, CELL * 0.9, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
 function renderSide() {
   tickEl.textContent = `tick ${world.t}`;
   cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
@@ -235,7 +312,7 @@ function renderSide() {
       <div class="stack">stack [${wr.stack.slice(-12).join(' ')}]</div>
     </div>`;
   }).join('');
-  if (PETRI) renderDish();
+  if (ISLAND) renderIslandPanel(); else if (PETRI) renderDish();
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== 'shed').map((e) =>
     `<div style="color:${e.who !== undefined ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
   logEl.scrollTop = logEl.scrollHeight;
@@ -287,6 +364,37 @@ function renderDish() {
     ${top.map(([g, c]) => `<div class="genome"><span style="color:${color(c.lineage, 65)}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code>${founders.includes(g) ? ' <span class="stats">(founder)</span>' : ''}</div>`).join('')}`;
 }
 
+function renderIslandPanel() {
+  const living = world.living();
+  const realm = (r: number) => living.filter((w) => w.realm === r);
+  const css = (c: RGB) => `rgb(${c.join(',')})`;
+  const part = (r: number, title: string, colors: RGB[]) => {
+    const ws = realm(r), bands = new Array(CONFIG.plateBands).fill(0), arm = new Map<number, number>(), counts = new Map<string, number>();
+    for (const w of ws) {
+      bands[bandOf(world, w.id)]++;
+      const a = armorOf(world, w.id);
+      arm.set(a, (arm.get(a) ?? 0) + 1);
+      const g = genomeOf(w.id);
+      counts.set(g, (counts.get(g) ?? 0) + 1);
+    }
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return `<div class="name" style="margin-top:6px">${title}: ${ws.length}</div>
+      <div class="stats">by depth (0 = shallows): ${bands.map((n, b) => `${b}: ${n}`).join(' · ')}</div>
+      <div class="stats">by armor: ${[...arm.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `<span style="color:${css(colors[Math.min(5, a)])}">${a}K: ${n}</span>`).join(' · ')}</div>
+      ${top.map(([g, n]) => `<div class="genome"><span class="stats">${String(n).padStart(3)} ×</span> <code>${esc(g)}</code></div>`).join('')}`;
+  };
+  const deaths = new Map<string, number>();
+  for (const w of world.warriors) if (!w.alive && w.deathReason) {
+    const k = `${w.realm ? 'shark' : 'seal'} ${w.deathReason.replace(/ by .*/, '').replace(/ \(.*/, '').replace('core ', '')}`;
+    deaths.set(k, (deaths.get(k) ?? 0) + 1);
+  }
+  dishEl.innerHTML = `<div class="name">Island survival</div>
+    <div class="stats">${world.warriors.length} ever lived · ${world.board.mines?.length ?? 0} mines</div>
+    ${part(0, 'Seals (islanders, eat kelp)', SEAL_COLORS)}
+    ${part(1, 'Sharks (eat the dead)', SHARK_COLORS)}
+    <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>`;
+}
+
 function esc(s: string) { return s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`); }
 
 // Hover: what's in this cell.
@@ -299,7 +407,9 @@ canvas.onmousemove = (ev) => {
   if (o >= 0 || o === DEBRIS) {
     const g = glyphOf(world.code[i]);
     text = `${o >= 0 ? world.warriors[o].name : 'debris'}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= '0' && g <= '9' ? `push ${g}` : '')}`;
-  } else if (world.resource[i]) text = world.resource[i] === 1 ? 'size pickup' : 'speed pickup';
+  } else if (world.resource[i]) text = ISLAND ? (world.resource[i] === 1 ? 'kelp (seals eat it)' : 'plankton (speed)') : world.resource[i] === 1 ? 'size pickup' : 'speed pickup';
+  else if (world.board.terrain[i] === 2) text = 'mine: bombs the nearest cell in range';
+  if (o >= 0 && ISLAND) text = `${world.warriors[o].realm ? 'shark' : 'seal'} ${text}`;
   if (!text) { tip.style.display = 'none'; return; }
   tip.textContent = text;
   tip.style.display = 'block';

@@ -21,6 +21,11 @@ export const DISH_DEFAULTS: Record<string, number> = {
   delete: 0.02,   // DIVIDE: chance the child loses a cell
   life: 6000,     // typical lifespan (each warrior's is 50–150% of it)
   cap: 0,         // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
+  island: 0,      // 1 = island survival (side view: islanders, sea creatures, mines; size = width)
+  mines: 24,      // island: one mine every this many columns (0 = none)
+  minerate: 30,   // island: ticks between a mine's shots
+  hunger: 0.25,   // island: sea creatures starve at this fraction of the usual rate
+  seafeed: 2,     // island: max size a sea creature gains per dead cell
 };
 
 /** Apply dish settings; `get(k)` returns an override or null. Returns the settings used. */
@@ -40,6 +45,11 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.copyDelete = o.delete;
   CONFIG.lifespan = o.life;
   CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
+  CONFIG.island = o.island > 0;
+  CONFIG.mineSpacing = o.mines;
+  CONFIG.mineEvery = Math.max(1, o.minerate);
+  CONFIG.seaHunger = o.hunger;
+  CONFIG.seaFeed = o.seafeed;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
@@ -90,12 +100,14 @@ export interface DishSnapshot {
   glyphs: Record<string, number>;   // living warriors carrying each glyph
   acts: Record<string, number>;     // per living warrior: lifetime collects, bomb hits, poison writes, kills, self-writes, grows, swaps, flows, oozes
   body: { mean: number; max: number; genome: number; grows: number }; // living: cells (mean, max), cells of the most common genome, GROWs per warrior
+  sea?: { alive: number; bands: number[]; armor: number[]; top: [string, number][] }; // island survival: the sea creatures (the rest is islanders)
 }
 
 const WEAPON = { B: CODE['B'], W: CODE['W'], poison: CODE['@'] };
 
 export function dishSnapshot(world: World, founders: number): DishSnapshot {
-  const living = world.living();
+  const all = world.living();
+  const living = all.filter((w) => w.realm === 0);
   const bands = new Array(CONFIG.plateBands).fill(0), armor: number[] = [];
   const counts = new Map<string, number>();
   const weapons = { B: 0, W: 0, poison: 0 };
@@ -134,7 +146,21 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
       genome: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].replace(/[ /]/g, '').length ?? 0,
       grows: living.reduce((a, w) => a + w.stats.grows, 0) / Math.max(1, living.length),
     },
+    sea: CONFIG.island ? seaSnapshot(world, all.filter((w) => w.realm === 1)) : undefined,
   };
+}
+
+function seaSnapshot(world: World, sea: World['warriors']) {
+  const bands = new Array(CONFIG.plateBands).fill(0), armor: number[] = [], counts = new Map<string, number>();
+  for (const w of sea) {
+    bands[bandOf(world, w.id)]++;
+    const a = armorOf(world, w.id);
+    armor[a] = (armor[a] ?? 0) + 1;
+    const g = genomeOf(world, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+  }
+  for (let a = 0; a < armor.length; a++) armor[a] ??= 0;
+  return { alive: sea.length, bands, armor, top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8) };
 }
 
 /** A snapshot as report lines. */
@@ -147,5 +173,9 @@ export function formatSnapshot(s: DishSnapshot, founder: string): string[] {
     `           bodies: ${s.body.mean.toFixed(1)} cells on average, largest ${s.body.max}; most common genome ${s.body.genome} cells; ${s.body.grows.toFixed(2)} GROWs per living warrior`,
     `           weapons: B in ${s.weapons.B}, W in ${s.weapons.W}, @ in ${s.weapons.poison}; so far ${s.attacks.bombs} bomb hits, ${s.attacks.poisons} poison writes`,
     ...s.top.slice(0, 3).map(([g, n]) => `           ${String(n).padStart(4)} × ${g}${g === founder ? '   (founder)' : ''}`),
+    ...(s.sea ? [
+      `           sea: ${s.sea.alive} alive, by depth band [${s.sea.bands.join(' ')}], armor {${s.sea.armor.map((n, a) => (n ? `${a}K:${n}` : '')).filter(Boolean).join(' ')}}`,
+      ...s.sea.top.slice(0, 3).map(([g, n]) => `           ${String(n).padStart(4)} × ${g}`),
+    ] : []),
   ];
 }
