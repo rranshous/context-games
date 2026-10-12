@@ -7,7 +7,6 @@ import { makeRng, randInt, Rng } from './rng';
 
 export const FLOOR = 0;
 export const WALL = 1;
-export const MINE = 2; // island survival: a fixed mine (blocks like a wall; bombs what comes near)
 
 export interface Spawn { x: number; y: number; kind: 1 | 2 } // 1 = size, 2 = speed
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -21,10 +20,9 @@ export interface Board {
   rooms: Rect[];  // every room (start rooms included), mirror images listed separately; a room merged with its mirror is one hall
   toxin?: Uint8Array; // petri dish plate: toxin level of each cell (0 = clean)
   // Island survival: pressure per realm (0 = islanders, 1 = sea creatures; `toxin` is the
-  // islanders'), the realm each start belongs to, the mines, and the surface row.
+  // islanders'), the realm each start belongs to, and the surface row.
   toxinBy?: Uint8Array[];
   startRealm?: number[];
-  mines?: number[];
   surface?: number;
   land?: Uint8Array;  // island: 1 on the islands (seals haul out here; sharks can't bite it)
   sharkLine?: number; // island: the first row sharks may enter (everything above is too shallow)
@@ -288,10 +286,9 @@ export function makePlate(seed: number, size: number, bands: number, foodSpacing
  * water below gets deeper toward an uneven seabed. Islanders (realm 0) feel pressure that
  * rises with depth and counter it with armor (K); sea creatures (realm 1) are never hurt,
  * but can't swim into the shallows (the top `shallows` share of the water) or onto land. Vegetation grows in the water,
- * thicker the deeper it is, plus a kelp line along the seabed. A row of mines sits in the
- * middle band. Starts: the middle island's top (realm 0) and the deep middle (realm 1).
+ * thicker the deeper it is, plus a kelp line along the seabed. Starts: the middle island's top (realm 0) and the deep middle (realm 1).
  */
-export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, mineSpacing: number, shallows = 0.4): Board {
+export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, shallows = 0.4): Board {
   const h = Math.round(w / 2);
   const rng = makeRng(seed ^ 0x51ed27);
   const terrain = new Uint8Array(w * h).fill(WALL);
@@ -319,19 +316,6 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
     landP[i] = level(d);
     seaP[i] = 0; // sharks swim anywhere in the water
   }
-  // Mines: one every ~mineSpacing columns, somewhere in the middle band.
-  const mid = Math.floor((bands - 1) / 2), mines: number[] = [];
-  if (mineSpacing > 0) {
-    for (let x = Math.floor(mineSpacing / 2); x < w - 1; x += mineSpacing) {
-      const ys: number[] = [];
-      for (let y = S; y < h; y++) if (terrain[y * w + x] === FLOOR && landP[y * w + x] === mid && !land[y * w + x]) ys.push(y);
-      if (!ys.length) continue;
-      const mx = Math.max(1, Math.min(w - 2, x + randInt(rng, -2, 2))), my = ys[randInt(rng, 0, ys.length - 1)];
-      if (terrain[my * w + mx] !== FLOOR) continue;
-      terrain[my * w + mx] = MINE;
-      mines.push(my * w + mx);
-    }
-  }
   // Vegetation: in the water only, thicker with depth; a kelp line along the seabed.
   const spawns: Spawn[] = [];
   const has = new Set<number>();
@@ -355,5 +339,5 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
   let deepTop = bedMax;
   for (let x = Math.round(w / 2) - 12; x <= Math.round(w / 2) + 12; x++) deepTop = Math.min(deepTop, bed(x));
   const deepRect: Rect = { x: Math.round(w / 2) - 12, y: deepTop - 8, w: 24, h: 7 };
-  return { w, h, terrain, spawns, starts: [homeRect, deepRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], mines, surface: S, land, sharkLine: S + Math.round(shallows * (bedMax - S)) };
+  return { w, h, terrain, spawns, starts: [homeRect, deepRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine: S + Math.round(shallows * (bedMax - S)) };
 }

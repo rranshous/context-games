@@ -36,7 +36,7 @@ let lastFrame = performance.now();
 const params = new URLSearchParams(location.search);
 // Petri dish (?petri=1): the toxin-gradient plate, no score (same rules as dist/petri.mjs;
 // settings from the URL, e.g. &toxin=0.002&size=96, defaults in src/sim/dish.ts).
-// Island survival (?island=1): the side-view sea with islanders, sharks and mines. It's a
+// Island survival (?island=1): the side-view sea with seals and sharks. It's a
 // dish too (same settings plus island ones), so it implies PETRI.
 const ISLAND = params.get('island') === '1';
 const PETRI = params.has('petri') || ISLAND;
@@ -247,7 +247,7 @@ function islandBackground(): Uint8ClampedArray {
     let c: RGB;
     const n = ((Math.imul(x * 73856093 ^ y * 19349663, 2654435761) >>> 0) % 100) / 100; // stable grain
     if (t !== 0 && y < S) c = mix([110, 190, 240], [200, 235, 255], y / Math.max(1, S)); // sky
-    else if (t !== 0) c = mix([70, 55, 45], [40, 32, 28], n * 0.6); // rock (a mine is drawn over it)
+    else if (t !== 0) c = mix([70, 55, 45], [40, 32, 28], n * 0.6); // rock
     else if (y < S) {
       const above = y > 0 && b.terrain[i - w] === 0;
       c = above ? mix([226, 204, 140], [205, 180, 120], n) : mix([110, 190, 80], [80, 160, 60], n); // grass on top, sand below
@@ -283,20 +283,9 @@ function renderIsland() {
     else if (world.resource[i] === 1) put(i, mix([30, 150, 70], [90, 230, 110], Math.min(1, (world.ripe[i] - 1) / 4)));
     else if (world.resource[i] === 2) put(i, [240, 210, 70]);
   }
-  for (const [k, m] of (world.board.mines ?? []).entries()) {
-    const firing = (world.t + k * 7) % CONFIG.mineEvery < 3;
-    put(m, firing ? [255, 60, 40] : [30, 30, 34]);
-  }
   pctx.putImageData(img, 0, 0);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(pix, 0, 0, w * CELL, h * CELL);
-  // Mines get a ring so they read at any zoom.
-  ctx.strokeStyle = '#ff5a3c';
-  ctx.lineWidth = 1;
-  for (const m of world.board.mines ?? []) {
-    const x = (m % w) * CELL + CELL / 2, y = ((m / w) | 0) * CELL + CELL / 2;
-    ctx.beginPath(); ctx.arc(x, y, CELL * 0.9, 0, Math.PI * 2); ctx.stroke();
-  }
 }
 
 function renderSide() {
@@ -391,7 +380,7 @@ function renderIslandPanel() {
     deaths.set(k, (deaths.get(k) ?? 0) + 1);
   }
   dishEl.innerHTML = `<div class="name">Island survival</div>
-    <div class="stats">${world.warriors.length} ever lived · ${world.board.mines?.length ?? 0} mines</div>
+    <div class="stats">${world.warriors.length} ever lived</div>
     ${part(0, 'Seals (islanders, eat kelp)', SEAL_COLORS)}
     ${part(1, 'Sharks (eat the dead)', SHARK_COLORS)}
     <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>`;
@@ -410,7 +399,6 @@ canvas.onmousemove = (ev) => {
     const g = glyphOf(world.code[i]);
     text = `${o >= 0 ? world.warriors[o].name : 'debris'}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= '0' && g <= '9' ? `push ${g}` : '')}`;
   } else if (world.resource[i]) text = ISLAND ? (world.resource[i] === 1 ? 'kelp (seals eat it)' : 'plankton (speed)') : world.resource[i] === 1 ? 'size pickup' : 'speed pickup';
-  else if (world.board.terrain[i] === 2) text = 'mine: bombs the nearest cell in range';
   if (o >= 0 && ISLAND) text = `${world.warriors[o].realm ? 'shark' : 'seal'} ${text}`;
   if (!text) { tip.style.display = 'none'; return; }
   tip.textContent = text;

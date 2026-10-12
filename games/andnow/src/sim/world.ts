@@ -61,9 +61,6 @@ export const CONFIG = {
   copyInsert: 0,        // DIVIDE: chance the child gains a fat cell (.) stuck to its body
   copyDelete: 0,        // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
   island: false,        // island survival: side view, islanders vs sea creatures (board width = plate)
-  mineSpacing: 24,      // island: about one mine every this many columns (0 = none)
-  mineEvery: 30,        // island: each mine bombs the nearest cell in range once every this many ticks
-  mineRange: 5,
   seaHunger: 0.25,      // island: sea creatures' max size and speed decay at this fraction of the usual rate
   shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
   sharkFull: 48,        // island: a sea creature with at least this max size is full and won't bite
@@ -149,7 +146,7 @@ export class World {
   private spawnTimers: number[];
 
   constructor(public seed: number, specs: WarriorSpec[]) {
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.mineSpacing, CONFIG.shallows)
+    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows)
       : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
@@ -478,32 +475,8 @@ export class World {
     this.checkOver();
   }
 
-  /**
-   * Island survival, once a tick: mines fire, dead cells sink (and rot where they can't).
-   * A mine bombs the nearest living cell in range and in sight, anyone's, every
-   * CONFIG.mineEvery ticks (mines are staggered so they don't all fire at once).
-   */
+  /** Island survival, once a tick: dead cells sink (and rot where they can't). */
   private islandTick() {
-    const mines = this.board.mines ?? [];
-    const R = CONFIG.mineRange;
-    for (let k = 0; k < mines.length; k++) {
-      if ((this.t + k * 7) % CONFIG.mineEvery) continue;
-      const mx = mines[k] % this.w, my = (mines[k] / this.w) | 0;
-      let best = -1, bd = Infinity;
-      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-        const d = Math.abs(dx) + Math.abs(dy);
-        if (d >= bd) continue;
-        const x = mx + dx, y = my + dy;
-        if (this.ownerAt(x, y) < 0 || !this.clearLine(mx, my, x, y)) continue;
-        best = this.idx(x, y); bd = d;
-      }
-      if (best >= 0) {
-        const o = this.owner[best];
-        this.attacks.bombs++;
-        this.destroy(best, undefined, 'core blown up by a mine');
-        this.log('mine', `a mine hit ${this.warriors[o].name}`, o);
-      }
-    }
     if (this.t % CONFIG.sinkEvery === 0) {
       // Bottom rows first, so a column of dead cells falls together.
       const dead = this.cellsOf(DEBRIS).slice().reverse();

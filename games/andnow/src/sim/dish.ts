@@ -21,9 +21,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   delete: 0.02,   // DIVIDE: chance the child loses a cell
   life: 6000,     // typical lifespan (each warrior's is 50–150% of it)
   cap: 0,         // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
-  island: 0,      // 1 = island survival (side view: islanders, sea creatures, mines; size = width)
-  mines: 24,      // island: one mine every this many columns (0 = none)
-  minerate: 30,   // island: ticks between a mine's shots
+  island: 0,      // 1 = island survival (side view: islanders and sea creatures; size = width)
   hunger: 0.25,   // island: sea creatures starve at this fraction of the usual rate
   seafeed: 3,     // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
   bite: 2,        // island: a shark's BOMB reach
@@ -50,8 +48,6 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.lifespan = o.life;
   CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.island = o.island > 0;
-  CONFIG.mineSpacing = o.mines;
-  CONFIG.mineEvery = Math.max(1, o.minerate);
   CONFIG.seaHunger = o.hunger;
   CONFIG.seaFeed = o.seafeed;
   CONFIG.biteRange = o.bite;
