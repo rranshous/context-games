@@ -28,12 +28,14 @@ export const DISH_DEFAULTS: Record<string, number> = {
   seafeed: 3,     // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
   bite: 2,        // island: a shark's BOMB reach
   full: 48,       // island: a shark this big (max size) is full and won't bite
+  shallows: 0.4,  // island: top share of the water sharks can't enter
 };
 
 /** Apply dish settings; `get(k)` returns an override or null. Returns the settings used. */
 export function applyDish(get: (k: string) => string | null): Record<string, number> {
   const o: Record<string, number> = {};
   for (const [k, d] of Object.entries(DISH_DEFAULTS)) { const v = get(k); o[k] = v !== null && v !== '' ? Number(v) : d; }
+  if (o.island > 0 && (get('size') ?? '') === '') o.size = 320; // island survival is a big sea unless told otherwise
   CONFIG.plate = o.size;
   CONFIG.plateBands = o.bands;
   CONFIG.plateFood = o.food;
@@ -54,6 +56,7 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.seaFeed = o.seafeed;
   CONFIG.biteRange = o.bite;
   CONFIG.sharkFull = o.full;
+  CONFIG.shallows = o.shallows;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;

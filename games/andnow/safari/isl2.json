@@ -1,0 +1,5 @@
+[
+  { "name": "big", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1" } },
+  { "name": "big-hungry", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1", "hunger": "0.5" } },
+  { "name": "big-lean", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1", "seafeed": "2" } }
+]

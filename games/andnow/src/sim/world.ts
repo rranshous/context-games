@@ -65,6 +65,7 @@ export const CONFIG = {
   mineEvery: 30,        // island: each mine bombs the nearest cell in range once every this many ticks
   mineRange: 5,
   seaHunger: 0.25,      // island: sea creatures' max size and speed decay at this fraction of the usual rate
+  shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
   sharkFull: 48,        // island: a sea creature with at least this max size is full and won't bite
   biteRange: 2,         // island: a sea creature's BOMB reach (a bite, not a shot)
   seaFeed: 2,           // island: max size a sea creature gains per dead cell it collects
@@ -148,7 +149,7 @@ export class World {
   private spawnTimers: number[];
 
   constructor(public seed: number, specs: WarriorSpec[]) {
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 240, CONFIG.plateBands, CONFIG.plateFood, CONFIG.mineSpacing)
+    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.mineSpacing, CONFIG.shallows)
       : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
@@ -224,10 +225,16 @@ export class World {
   ownerAt(x: number, y: number) { return this.inBounds(x, y) ? this.owner[this.idx(x, y)] : NONE; }
   /** Free for this warrior to move into: free, or (island) vegetation a sea creature swims over (it stays) or a dead cell it eats. */
   private passable(wr: Warrior, x: number, y: number) {
+    if (this.sharkBlocked(wr, y)) return false;
     if (this.isFree(x, y)) return true;
     if (!CONFIG.island || wr.realm !== 1 || !this.isFloor(x, y)) return false;
     const o = this.owner[this.idx(x, y)];
     return o === NONE || o === DEBRIS;
+  }
+
+  /** Island survival: sea creatures can't get into the shallows or onto land (blocked, never hurt). */
+  private sharkBlocked(wr: Warrior, y: number) {
+    return CONFIG.island && wr.realm === 1 && y < (this.board.sharkLine ?? 0);
   }
 
   /** Floor with nothing on it: no cell, no debris, no resource. */
@@ -894,7 +901,7 @@ export class World {
         const x = c % w, y = (c / w) | 0;
         for (let k = 0; k < 4; k++) {
           const nx = x + DX[k], ny = y + DY[k];
-          if (!this.isFree(nx, ny)) continue;
+          if (!this.isFree(nx, ny) || this.sharkBlocked(wr, ny)) continue;
           const t = ny * w + nx;
           const a = along(t), off = Math.abs(across(t) - mid);
           if (a > bestAlong || (a === bestAlong && best >= 0 && (off < bestAcross || (off === bestAcross && t < best)))) {
@@ -919,7 +926,7 @@ export class World {
     const [fx, fy] = this.frame(wr);
     const x = fx + dx, y = fy + dy;
     const nx = x + DX[d], ny = y + DY[d];
-    if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny)) return false;
+    if (this.ownerAt(x, y) !== wr.id || !this.isFree(nx, ny) || this.sharkBlocked(wr, ny)) return false;
     const from = this.idx(x, y), to = this.idx(nx, ny);
     const isIp = x === wr.ipX && y === wr.ipY;
     this.setOwner(to, wr.id); this.code[to] = this.code[from];
@@ -952,7 +959,7 @@ export class World {
     if (wr.cellCount >= Math.floor(wr.maxSize)) return false;
     let x = wr.ipX, y = wr.ipY;
     while (this.ownerAt(x, y) === wr.id) { x += DX[d]; y += DY[d]; }
-    if (!this.isFree(x, y)) return false;
+    if (!this.isFree(x, y) || this.sharkBlocked(wr, y)) return false;
     const i = this.idx(x, y);
     this.setOwner(i, wr.id);
     this.code[i] = CODE['.'];
@@ -1011,6 +1018,7 @@ export class World {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue; // island: sharks hunt seals, seals fight sharks
+        if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d; bx = x; by = y;
       }
     }
@@ -1025,6 +1033,7 @@ export class World {
     if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull) return false;
     const o = this.ownerAt(x, y);
     if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warriors[o].realm === 1) return false; // sharks never bite sharks
+    if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) return false; // a seal hauled out is safe
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, this.reach(wr)) < 0) return false;
     const victim = o >= 0 ? this.warriors[o].name : 'debris';

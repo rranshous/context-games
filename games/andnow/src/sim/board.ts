@@ -26,6 +26,8 @@ export interface Board {
   startRealm?: number[];
   mines?: number[];
   surface?: number;
+  land?: Uint8Array;  // island: 1 on the islands (seals haul out here; sharks can't bite it)
+  sharkLine?: number; // island: the first row sharks may enter (everything above is too shallow)
 }
 
 export const BOARD_W = 64;
@@ -284,12 +286,12 @@ export function makePlate(seed: number, size: number, bands: number, foodSpacing
 /**
  * Island survival: a side view. Sky (wall) on top with islands rising out of the sea; the
  * water below gets deeper toward an uneven seabed. Islanders (realm 0) feel pressure that
- * rises with depth and counter it with armor (K); sea creatures (realm 1) swim anywhere in
- * the water but die on land. Vegetation grows in the water,
+ * rises with depth and counter it with armor (K); sea creatures (realm 1) are never hurt,
+ * but can't swim into the shallows (the top `shallows` share of the water) or onto land. Vegetation grows in the water,
  * thicker the deeper it is, plus a kelp line along the seabed. A row of mines sits in the
  * middle band. Starts: the middle island's top (realm 0) and the deep middle (realm 1).
  */
-export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, mineSpacing: number): Board {
+export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, mineSpacing: number, shallows = 0.4): Board {
   const h = Math.round(w / 2);
   const rng = makeRng(seed ^ 0x51ed27);
   const terrain = new Uint8Array(w * h).fill(WALL);
@@ -312,7 +314,7 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     if (terrain[i] !== FLOOR) continue;
-    if (land[i]) { landP[i] = 0; seaP[i] = bands + 1; continue; }
+    if (land[i]) continue; // no pressure on land for anyone (sharks can't get there: see CONFIG.shallows)
     const d = (y - S) / (bedMax - S);
     landP[i] = level(d);
     seaP[i] = 0; // sharks swim anywhere in the water
@@ -353,5 +355,5 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
   let deepTop = bedMax;
   for (let x = Math.round(w / 2) - 12; x <= Math.round(w / 2) + 12; x++) deepTop = Math.min(deepTop, bed(x));
   const deepRect: Rect = { x: Math.round(w / 2) - 12, y: deepTop - 8, w: 24, h: 7 };
-  return { w, h, terrain, spawns, starts: [homeRect, deepRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], mines, surface: S };
+  return { w, h, terrain, spawns, starts: [homeRect, deepRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], mines, surface: S, land, sharkLine: S + Math.round(shallows * (bedMax - S)) };
 }

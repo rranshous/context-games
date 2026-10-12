@@ -255,6 +255,8 @@ function islandBackground(): Uint8ClampedArray {
       const d = (y - S) / Math.max(1, bottom - S);
       c = mix([60, 165, 220], [8, 22, 58], Math.pow(d, 0.8));
       if ((b.toxin?.[i] ?? 0) % 2) c = mix(c, [0, 0, 0], 0.06); // faint pressure bands
+      if (y < (b.sharkLine ?? 0)) c = mix(c, [150, 230, 240], 0.14); // the shallows: no sharks
+      if (y === (b.sharkLine ?? -1) - 1 && x % 4 < 2) c = mix(c, [255, 255, 255], 0.25); // dashed shark line
       c = mix(c, [255, 255, 255], (n - 0.5) * 0.03);
     }
     out.set([c[0], c[1], c[2], 255], i * 4);
