@@ -96,6 +96,12 @@ function findWork(worker, verified) {
     if (info) info.working = job.label || tasks.get(job.task)?.name || job.task;
     return { item: { job: job.id, index, task: job.task, input: job.inputs[index] } };
   }
+  // Nothing queued it can take: still verify the task of any open job, so a thread that
+  // joins while the farm's share is all leased out counts as verified capacity (the
+  // client only queues more once it does).
+  for (const job of jobs.values()) {
+    if (!verified.has(job.task) && !info?.failed.has(job.task)) return { verify: job.task };
+  }
   return null;
 }
 
