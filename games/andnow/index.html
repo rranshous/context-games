@@ -12,6 +12,12 @@
       display: flex; gap: 16px; padding: 16px; min-height: 100vh;
     }
     #stage { position: relative; }
+    #climbButtons button { font-size: 16px; padding: 6px 12px; background: #161b22dd; }
+    @media (max-width: 899px) {
+      body { flex-direction: column; padding: 12px; }
+      #side { width: auto; }
+      #climbButtons button { font-size: 13px; padding: 3px 8px; }
+    }
     canvas { display: block; border: 1px solid #1f2633; background: #0b0d12; }
     #banner {
       position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
@@ -52,6 +58,7 @@
     <div id="banner"></div>
     <div id="tip"></div>
     <canvas id="minimap" style="display:none;position:absolute;top:0;right:-122px;cursor:pointer"></canvas>
+    <div id="climbButtons" style="display:none;position:absolute;left:8px;bottom:8px;gap:6px;flex-wrap:wrap"></div>
   </div>
   <div id="side">
     <h1>andnow <small>code-cloud warriors</small></h1>
@@ -78,6 +85,6 @@
     <div id="cards"></div>
     <div id="log"></div>
   </div>
-  <script type="module" src="./dist/main.js?v=9"></script>
+  <script type="module" src="./dist/main.js?v=10"></script>
 </body>
 </html>

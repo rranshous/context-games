@@ -2385,19 +2385,48 @@ var ClimbView = class {
     const w = world2();
     this.cam = cam ?? { x: 0, y: 0, zoom: 3 };
     if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0);
-    canvas3.addEventListener("mousedown", (e) => {
-      this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
+    canvas3.style.touchAction = "none";
+    const pts = /* @__PURE__ */ new Map();
+    let pinch = null;
+    const spread = () => {
+      const [a, b] = [...pts.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    canvas3.addEventListener("pointerdown", (e) => {
+      canvas3.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
+      else if (pts.size === 2) {
+        const r = canvas3.getBoundingClientRect(), [a, b] = [...pts.values()];
+        const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+        pinch = { d: spread(), zoom: this.cam.zoom, wx: this.cam.x + mx / this.cam.zoom, wy: this.cam.y + my / this.cam.zoom };
+        this.drag = null;
+      }
     });
-    window.addEventListener("mouseup", () => {
-      this.drag = null;
-    });
-    window.addEventListener("mousemove", (e) => {
-      if (!this.drag) return;
-      this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
-      this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
+    canvas3.addEventListener("pointermove", (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size === 2) {
+        const r = canvas3.getBoundingClientRect(), [a, b] = [...pts.values()];
+        const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+        this.cam.zoom = Math.max(1, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
+        this.cam.x = pinch.wx - mx / this.cam.zoom;
+        this.cam.y = pinch.wy - my / this.cam.zoom;
+      } else if (this.drag) {
+        this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
+        this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
+      } else return;
       this.clamp();
       this.redraw();
     });
+    const up = (e) => {
+      pts.delete(e.pointerId);
+      pinch = null;
+      const rest = [...pts.values()][0];
+      this.drag = rest ? { x: rest.x, y: rest.y, cx: this.cam.x, cy: this.cam.y } : null;
+    };
+    canvas3.addEventListener("pointerup", up);
+    canvas3.addEventListener("pointercancel", up);
     canvas3.addEventListener("wheel", (e) => {
       e.preventDefault();
       const r = canvas3.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -2434,6 +2463,21 @@ var ClimbView = class {
   pix = document.createElement("canvas");
   pctx = this.pix.getContext("2d");
   drag = null;
+  /** Zoom by a factor around the middle of the view (the on-screen buttons). */
+  zoomBy(f) {
+    const wx = this.cam.x + this.viewW / 2, wy = this.cam.y + this.viewH / 2;
+    this.cam.zoom = Math.max(1, Math.min(12, this.cam.zoom * f));
+    this.centerOn(wx, wy);
+    this.redraw();
+  }
+  /** Jump to the middle of a step (the on-screen buttons). */
+  goToStep(n) {
+    const b = this.world().board, S = b.climbSteps;
+    if (n < -S || n > S) return;
+    const top = b.stepTop[n + S], h = b.stepH[n + S];
+    this.centerOn(this.cam.x + this.viewW / 2, n === 0 ? top + h / 2 : n > 0 ? top + h - this.viewH / 2 : top + this.viewH / 2);
+    this.redraw();
+  }
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
@@ -2628,7 +2672,7 @@ var ClimbView = class {
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world2, c.id))}">${String(c.n).padStart(3)} \xD7</span> <code>${esc2(g)}</code></div>`).join("")}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc2(k)} ${n}`).join(" \xB7 ")}</div>
-      <div class="stats" style="margin-top:6px;color:#6e7681">drag to pan \xB7 wheel or +/- to zoom \xB7 WASD/arrows \xB7 click the strip to jump</div>`;
+      <div class="stats" style="margin-top:6px;color:#6e7681">drag to pan \xB7 pinch, wheel or +/- to zoom \xB7 WASD/arrows \xB7 tap the strip to jump</div>`;
   }
 };
 
@@ -2699,15 +2743,31 @@ function newMatch(sources, seed) {
   seedEl.value = String(world.seed);
   if (CLIMB) {
     const mini = $("minimap");
-    canvas2.width = Math.max(400, window.innerWidth - 380 - 140);
-    canvas2.height = Math.max(300, window.innerHeight - 40);
-    mini.width = 110;
+    const narrow = window.innerWidth < 900;
+    const miniW = narrow ? 56 : 110;
+    canvas2.width = narrow ? window.innerWidth - 24 - miniW - 8 : Math.max(400, window.innerWidth - 380 - 140);
+    canvas2.height = narrow ? Math.round(window.innerHeight * 0.62) : Math.max(300, window.innerHeight - 40);
+    mini.width = miniW;
     mini.height = canvas2.height;
     mini.style.display = "block";
-    $("stage").style.marginRight = "124px";
+    mini.style.right = `-${miniW + 8}px`;
+    $("stage").style.marginRight = `${miniW + 10}px`;
+    $("climbButtons").style.display = "flex";
     if (!climbView) {
       const cam = (params.get("cam") ?? "").split(",").map(Number);
       climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
+      const view = climbView;
+      const btns = $("climbButtons");
+      const add = (label, fn) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        b.onclick = fn;
+        btns.appendChild(b);
+      };
+      add("\uFF0B", () => view.zoomBy(1.4));
+      add("\uFF0D", () => view.zoomBy(1 / 1.4));
+      const S = world.board.climbSteps ?? 2;
+      for (let n = S; n >= -S; n--) add(n > 0 ? `+${n}` : String(n), () => view.goToStep(n));
     }
     render();
     return;

@@ -89,15 +89,28 @@ function newMatch(sources?: string[], seed?: number) {
   if (CLIMB) {
     // A fixed viewport onto the tall world, plus the minimap strip beside it.
     const mini = $<HTMLCanvasElement>('minimap');
-    canvas.width = Math.max(400, window.innerWidth - 380 - 140);
-    canvas.height = Math.max(300, window.innerHeight - 40);
-    mini.width = 110;
+    // Phones (narrow screens) stack: the view across the full width with a slim strip beside
+    // it, the controls and stats below (see the media query in index.html).
+    const narrow = window.innerWidth < 900;
+    const miniW = narrow ? 56 : 110;
+    canvas.width = narrow ? window.innerWidth - 24 - miniW - 8 : Math.max(400, window.innerWidth - 380 - 140);
+    canvas.height = narrow ? Math.round(window.innerHeight * 0.62) : Math.max(300, window.innerHeight - 40);
+    mini.width = miniW;
     mini.height = canvas.height;
     mini.style.display = 'block';
-    $('stage').style.marginRight = '124px';
+    mini.style.right = `-${miniW + 8}px`;
+    $('stage').style.marginRight = `${miniW + 10}px`;
+    $('climbButtons').style.display = 'flex';
     if (!climbView) {
       const cam = (params.get('cam') ?? '').split(',').map(Number);
       climbView = new ClimbView(canvas, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : undefined);
+      const view = climbView;
+      const btns = $('climbButtons');
+      const add = (label: string, fn: () => void) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; btns.appendChild(b); };
+      add('＋', () => view.zoomBy(1.4));
+      add('－', () => view.zoomBy(1 / 1.4));
+      const S = world.board.climbSteps ?? 2;
+      for (let n = S; n >= -S; n--) add(n > 0 ? `+${n}` : String(n), () => view.goToStep(n));
     }
     render();
     return;

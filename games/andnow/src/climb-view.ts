@@ -31,14 +31,44 @@ export class ClimbView {
     const w = world();
     this.cam = cam ?? { x: 0, y: 0, zoom: 3 };
     if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0);
-    canvas.addEventListener('mousedown', (e) => { this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y }; });
-    window.addEventListener('mouseup', () => { this.drag = null; });
-    window.addEventListener('mousemove', (e) => {
-      if (!this.drag) return;
-      this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
-      this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
+    // Pointer events cover mouse and touch: one pointer drags, two pinch to zoom.
+    canvas.style.touchAction = 'none';
+    const pts = new Map<number, { x: number; y: number }>();
+    let pinch: { d: number; zoom: number; wx: number; wy: number } | null = null;
+    const spread = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
+      else if (pts.size === 2) {
+        const r = canvas.getBoundingClientRect(), [a, b] = [...pts.values()];
+        const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+        pinch = { d: spread(), zoom: this.cam.zoom, wx: this.cam.x + mx / this.cam.zoom, wy: this.cam.y + my / this.cam.zoom };
+        this.drag = null;
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size === 2) {
+        const r = canvas.getBoundingClientRect(), [a, b] = [...pts.values()];
+        const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+        this.cam.zoom = Math.max(1, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
+        this.cam.x = pinch.wx - mx / this.cam.zoom; this.cam.y = pinch.wy - my / this.cam.zoom;
+      } else if (this.drag) {
+        this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
+        this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
+      } else return;
       this.clamp(); this.redraw();
     });
+    const up = (e: PointerEvent) => {
+      pts.delete(e.pointerId);
+      pinch = null;
+      const rest = [...pts.values()][0];
+      this.drag = rest ? { x: rest.x, y: rest.y, cx: this.cam.x, cy: this.cam.y } : null;
+    };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -65,6 +95,24 @@ export class ClimbView {
       const y = this.miniToRow(e.clientY - r.top), x = ((e.clientX - r.left) / mini.width) * this.world().w;
       this.centerOn(x, y); this.redraw();
     });
+  }
+
+  /** Zoom by a factor around the middle of the view (the on-screen buttons). */
+  zoomBy(f: number) {
+    const wx = this.cam.x + this.viewW / 2, wy = this.cam.y + this.viewH / 2;
+    this.cam.zoom = Math.max(1, Math.min(12, this.cam.zoom * f));
+    this.centerOn(wx, wy);
+    this.redraw();
+  }
+
+  /** Jump to the middle of a step (the on-screen buttons). */
+  goToStep(n: number) {
+    const b = this.world().board, S = b.climbSteps!;
+    if (n < -S || n > S) return;
+    const top = b.stepTop![n + S], h = b.stepH![n + S];
+    // Near step 0's edge for the big steps (where life arrives first), the middle for step 0.
+    this.centerOn(this.cam.x + this.viewW / 2, n === 0 ? top + h / 2 : n > 0 ? top + h - this.viewH / 2 : top + this.viewH / 2);
+    this.redraw();
   }
 
   /** Viewport size in cells. */
@@ -254,6 +302,6 @@ export class ClimbView {
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world, c.id))}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code></div>`).join('')}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>
-      <div class="stats" style="margin-top:6px;color:#6e7681">drag to pan · wheel or +/- to zoom · WASD/arrows · click the strip to jump</div>`;
+      <div class="stats" style="margin-top:6px;color:#6e7681">drag to pan · pinch, wheel or +/- to zoom · WASD/arrows · tap the strip to jump</div>`;
   }
 }
