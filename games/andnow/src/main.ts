@@ -294,8 +294,18 @@ function renderIsland() {
   ctx.drawImage(pix, 0, 0, w * CELL, h * CELL);
 }
 
+let rateTick = 0, rateAt = performance.now(), tps = 0;
+
 function renderSide() {
-  tickEl.textContent = `tick ${world.t}`;
+  // Ticks per second: sampled about once a second, smoothed a little.
+  const now = performance.now();
+  if (world.t < rateTick) { rateTick = world.t; rateAt = now; tps = 0; }
+  else if (now - rateAt >= 1000) {
+    const inst = ((world.t - rateTick) * 1000) / (now - rateAt);
+    tps = tps ? tps * 0.5 + inst * 0.5 : inst;
+    rateTick = world.t; rateAt = now;
+  }
+  tickEl.textContent = `tick ${world.t} · ${tps < 10 ? tps.toFixed(1) : Math.round(tps)} ticks/s`;
   cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : '';
     const kin = world.warriors.filter((k) => k.lineage === wr.id && k.gen > 0);
