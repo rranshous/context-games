@@ -21,6 +21,7 @@
 //   POST /api/jobs/<id>/add      { inputs }            -> { first }   index of the first added input
 //   GET  /api/jobs/<id>?cursor=N                       -> { done: [[index, output], ...], cursor, remaining }
 //   POST /api/jobs/<id>/cancel                         -> {}          drop queued inputs, forget the job; threads running its items are stopped
+//   POST /api/jobs/<id>/drop     { indices }           -> {}          the client no longer needs these items (it ran them itself): unqueue them, stop threads running them
 //   GET  /api/capacity?task=<id>                       -> { live, verified, leased }   worker threads right now
 //   POST /api/run                { task, inputs }      -> { outputs, ms }   blocking convenience
 //   POST /api/lease   (workers)  { worker, verified[] } -> { item } | { verify: taskId } | { none }   (never waits)
@@ -210,6 +211,14 @@ const routes = [
 
   ['POST', /^\/api\/jobs\/(j\d+)\/cancel$/, async (_b, m) => {
     jobs.delete(m[1]); // queued items are dropped lazily by findWork
+    return {};
+  }],
+
+  ['POST', /^\/api\/jobs\/(j\d+)\/drop$/, async (body, m) => {
+    // Mark as answered (null), so queued copies are skipped, a late result is ignored, and
+    // the next heartbeat tells the page to stop any thread still running one.
+    const job = getJob(m[1]);
+    for (const i of body.indices ?? []) if (job.outputs[i] === undefined) { job.outputs[i] = null; job.leases.delete(i); }
     return {};
   }],
 

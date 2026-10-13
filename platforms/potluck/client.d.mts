@@ -13,6 +13,8 @@ export class Potluck {
   add<I>(job: string, inputs: I[]): Promise<number>;
   poll<O>(job: string, cursor?: number): Promise<Poll<O>>;
   cancel(job: string): Promise<unknown>;
+  /** The client no longer needs these items (it ran them itself): the farm stops running them. */
+  drop(job: string, indices: number[]): Promise<unknown>;
   run<I, O>(task: string, inputs: I[]): Promise<O[]>;
 }
 

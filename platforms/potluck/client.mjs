@@ -48,6 +48,8 @@ export class Potluck {
   /** Finished outputs since `cursor`: { done: [[index, output]...], cursor, remaining }. */
   poll(job, cursor = 0) { return this.req('GET', `/api/jobs/${job}?cursor=${cursor}`); }
   cancel(job) { return this.req('POST', `/api/jobs/${job}/cancel`); }
+  /** The client no longer needs these items of a job (e.g. it ran them itself): the farm stops running them. */
+  drop(job, indices) { return this.req('POST', `/api/jobs/${job}/drop`, { indices }); }
   /** Blocking: every input on the farm, nothing local. Only for when a farm is certain to have workers. */
   async run(task, inputs) { return (await this.req('POST', '/api/run', { task, inputs }, 0)).outputs; }
 }
@@ -75,6 +77,8 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
   const atFarm = new Set();          // input indices out at the farm, not finished
   const rerun = new Set();           // ...of those, ones a local runner is also running
   let farmOn = !!(farm && task);
+  let job = null;                    // the farm job, once submitted
+  const farmIndex = new Map();       // input index -> its index in the farm job
   let allDone;
   const done = new Promise((r) => { allDone = r; });
 
@@ -82,6 +86,8 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
     if (finished[i]) return;
     finished[i] = 1;
     outputs[i] = out;
+    // Finished here while a copy is out at the farm: tell the farm to stop running it.
+    if (where !== 'farm' && atFarm.has(i) && job && farmIndex.has(i)) farm.drop(job, [farmIndex.get(i)]).catch(() => {});
     atFarm.delete(i);
     stats[where]++;
     onResult?.(i, out, where);
@@ -101,7 +107,7 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
   };
 
   const feeder = async () => {
-    let job = null, cursor = 0, failures = 0;
+    let cursor = 0, failures = 0;
     const map = [];                  // farm job index -> input index
     while (left > 0 && farmOn) {
       try {
@@ -120,7 +126,7 @@ export async function runHybrid({ inputs, local, concurrency, farm = null, task 
           const batch = idx.map((i) => inputs[i]);
           let first;
           if (!job) { job = await farm.submit(task, batch, leaseMs, label); first = 0; } else first = await farm.add(job, batch);
-          idx.forEach((i, k) => { map[first + k] = i; });
+          idx.forEach((i, k) => { map[first + k] = i; farmIndex.set(i, first + k); });
         }
         if (job) {
           const r = await farm.poll(job, cursor);

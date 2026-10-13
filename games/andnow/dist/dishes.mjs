@@ -59,6 +59,10 @@ var Potluck = class _Potluck {
   cancel(job) {
     return this.req("POST", `/api/jobs/${job}/cancel`);
   }
+  /** The client no longer needs these items of a job (e.g. it ran them itself): the farm stops running them. */
+  drop(job, indices) {
+    return this.req("POST", `/api/jobs/${job}/drop`, { indices });
+  }
   /** Blocking: every input on the farm, nothing local. Only for when a farm is certain to have workers. */
   async run(task, inputs) {
     return (await this.req("POST", "/api/run", { task, inputs }, 0)).outputs;
@@ -74,6 +78,8 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
   const atFarm = /* @__PURE__ */ new Set();
   const rerun = /* @__PURE__ */ new Set();
   let farmOn = !!(farm && task);
+  let job = null;
+  const farmIndex = /* @__PURE__ */ new Map();
   let allDone;
   const done = new Promise((r) => {
     allDone = r;
@@ -82,6 +88,8 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
     if (finished[i]) return;
     finished[i] = 1;
     outputs[i] = out;
+    if (where !== "farm" && atFarm.has(i) && job && farmIndex.has(i)) farm.drop(job, [farmIndex.get(i)]).catch(() => {
+    });
     atFarm.delete(i);
     stats[where]++;
     onResult?.(i, out, where);
@@ -101,7 +109,7 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
     for (let i = nextLocal(); i >= 0; i = nextLocal()) complete(i, await local(inputs[i]), "local");
   };
   const feeder = async () => {
-    let job = null, cursor = 0, failures = 0;
+    let cursor = 0, failures = 0;
     const map = [];
     while (left > 0 && farmOn) {
       try {
@@ -122,6 +130,7 @@ async function runHybrid({ inputs, local, concurrency, farm = null, task = null,
           } else first = await farm.add(job, batch);
           idx.forEach((i, k) => {
             map[first + k] = i;
+            farmIndex.set(i, first + k);
           });
         }
         if (job) {
