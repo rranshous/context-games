@@ -68,6 +68,7 @@ export const CONFIG = {
   climb: false,         // The Climb: fixed width (plate), steps up (air: insulation) and down (water: armor), 10× taller and richer each
   climbBase: 20,        // climb: step 0's height in rows (step ±n is base × 10^n)
   climbSteps: 2,        // climb: steps each way
+  crowd: 24,            // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
   tile: 64,             // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,          // island: ticks an unfed seal with max size 20 lasts (about a tenth of a lifetime)
   sharkStarve: 6000,    // island: the same for a shark (10× a seal's, as is its lifespan: about 10 meals a life for both)
@@ -212,6 +213,8 @@ export class World {
   private tileActive = new Uint8Array(0);
   private tileLast = new Float64Array(0);
   private activeTiles: number[] = [];
+  private tileCount = new Uint16Array(0); // bodies (by IP) per tile, recounted with the active tiles and on each birth
+  private tileOf(x: number, y: number) { return Math.floor(y / CONFIG.tile) * this.tw + Math.floor(x / CONFIG.tile); }
   private tw = 0;
 
   private initTiles() {
@@ -221,6 +224,7 @@ export class World {
     this.spawnsInTile = Array.from({ length: n }, () => []);
     this.tileActive = new Uint8Array(n);
     this.tileLast = new Float64Array(n);
+    this.tileCount = new Uint16Array(n);
     this.board.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
   }
 
@@ -234,7 +238,9 @@ export class World {
   private refreshTiles() {
     const T = CONFIG.tile, th = this.tileActive.length / this.tw;
     const next = new Uint8Array(this.tileActive.length);
+    this.tileCount.fill(0);
     for (const wr of this.living()) {
+      this.tileCount[this.tileOf(wr.ipX, wr.ipY)]++;
       const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const x = tx + dx, y = ty + dy;
@@ -1341,6 +1347,8 @@ export class World {
         this.kill(oldest, 'reaped (oldest)');
       }
     } else if (this.living().length >= CONFIG.maxWarriors) return false;
+    // The Climb: crowding is local, so one booming population can't block (or reap) the rest.
+    if (CONFIG.climb && CONFIG.crowd > 0 && (this.tileCount[this.tileOf(wr.ipX, wr.ipY)] ?? 0) >= CONFIG.crowd) return false;
     const mine = this.cellsOf(wr.id);
     const xs = mine.map((c) => c % this.w), ys = mine.map((c) => (c / this.w) | 0);
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
@@ -1402,6 +1410,7 @@ export class World {
       if (this.unreached(child).length === 0) { this.code[c] = 0; child.cellCount--; mutations++; } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
+    if (CONFIG.climb) this.tileCount[this.tileOf(child.ipX, child.ipY)]++;
     this.log('birth', `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? 's' : ''}` : ''})`, id);
     return true;
   }

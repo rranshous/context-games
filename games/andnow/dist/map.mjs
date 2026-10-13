@@ -534,6 +534,8 @@ var CONFIG = {
   // climb: step 0's height in rows (step ±n is base × 10^n)
   climbSteps: 2,
   // climb: steps each way
+  crowd: 24,
+  // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
   tile: 64,
   // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,
@@ -641,6 +643,11 @@ var World = class {
   tileActive = new Uint8Array(0);
   tileLast = new Float64Array(0);
   activeTiles = [];
+  tileCount = new Uint16Array(0);
+  // bodies (by IP) per tile, recounted with the active tiles and on each birth
+  tileOf(x, y) {
+    return Math.floor(y / CONFIG.tile) * this.tw + Math.floor(x / CONFIG.tile);
+  }
   tw = 0;
   initTiles() {
     const T = CONFIG.tile;
@@ -649,6 +656,7 @@ var World = class {
     this.spawnsInTile = Array.from({ length: n }, () => []);
     this.tileActive = new Uint8Array(n);
     this.tileLast = new Float64Array(n);
+    this.tileCount = new Uint16Array(n);
     this.board.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
   }
   /** How many tiles the world is spending upkeep on right now (of how many). */
@@ -662,7 +670,9 @@ var World = class {
   refreshTiles() {
     const T = CONFIG.tile, th = this.tileActive.length / this.tw;
     const next = new Uint8Array(this.tileActive.length);
+    this.tileCount.fill(0);
     for (const wr of this.living()) {
+      this.tileCount[this.tileOf(wr.ipX, wr.ipY)]++;
       const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const x = tx + dx, y = ty + dy;
@@ -1927,6 +1937,7 @@ var World = class {
         this.kill(oldest, "reaped (oldest)");
       }
     } else if (this.living().length >= CONFIG.maxWarriors) return false;
+    if (CONFIG.climb && CONFIG.crowd > 0 && (this.tileCount[this.tileOf(wr.ipX, wr.ipY)] ?? 0) >= CONFIG.crowd) return false;
     const mine = this.cellsOf(wr.id);
     const xs = mine.map((c) => c % this.w), ys = mine.map((c) => c / this.w | 0);
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
@@ -2010,6 +2021,7 @@ var World = class {
       } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
+    if (CONFIG.climb) this.tileCount[this.tileOf(child.ipX, child.ipY)]++;
     this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);
     return true;
   }
@@ -2581,6 +2593,8 @@ var DISH_DEFAULTS = {
   // climb: step 0's height (step ±n is base × 10^n)
   steps: 2,
   // climb: steps each way
+  crowd: 24,
+  // climb: DIVIDE fails where the parent's tile (64×64) already holds this many bodies (local crowding, not a global cap)
   starve: 600,
   // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6e3,
@@ -2619,7 +2633,6 @@ function applyDish(get) {
     if (unset("ripemax")) o.ripemax = 8;
     if (unset("toxin")) o.toxin = 5e-3;
     if (unset("seals")) o.seals = 40;
-    if (unset("cap")) o.cap = 2500;
   }
   if (o.island > 0) {
     const unset = (k) => (get(k) ?? "") === "";
@@ -2657,8 +2670,8 @@ function applyDish(get) {
   CONFIG.depth = o.depth;
   CONFIG.sharkArrive = o.arrive;
   CONFIG.seals = o.seals;
-  CONFIG.reaperCap = o.climb > 0 && o.cap > 0 ? o.cap : 0;
-  if (CONFIG.reaperCap) CONFIG.maxWarriors = Infinity;
+  CONFIG.reaperCap = 0;
+  CONFIG.crowd = o.crowd;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
   return o;
@@ -2688,6 +2701,34 @@ function genomeOf(world, id, sep = "/") {
     rows.push(r.replace(/\s+$/, ""));
   }
   return rows.join(sep);
+}
+function climbSnapshot(world) {
+  const b = world.board, S = b.climbSteps, st = b.step;
+  const steps = new Array(2 * S + 1).fill(0), armor = [], insulation = [];
+  const diet = { plants: 0, meat: 0, both: 0, none: 0 }, founders = {}, counts = /* @__PURE__ */ new Map();
+  const mods = { I: 0, "~": 0, x: 0, n: 0 };
+  let biggest = null;
+  for (const w of world.living()) {
+    const n = st[world.idx(w.ipX, w.ipY)];
+    steps[S - n]++;
+    const t = w.traits;
+    if (t) {
+      armor[t.armor] = (armor[t.armor] ?? 0) + 1;
+      insulation[t.insulation] = (insulation[t.insulation] ?? 0) + 1;
+      if (t.plants && t.meat) diet.both++;
+      else if (t.meat) diet.meat++;
+      else if (t.plants) diet.plants++;
+      else diet.none++;
+    }
+    const f = world.warriors[w.lineage].name;
+    founders[f] = (founders[f] ?? 0) + 1;
+    const g = genomeOf(world, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+    for (const ch of Object.keys(mods)) if (g.includes(ch)) mods[ch]++;
+    if (!biggest || w.cellCount > biggest.cells) biggest = { genome: g, cells: w.cellCount, step: n, meat: !!t?.meat };
+  }
+  for (const a of [armor, insulation]) for (let k = 0; k < a.length; k++) a[k] ??= 0;
+  return { steps, armor, insulation, diet, founders, top: [...counts.entries()].sort((a, c) => c[1] - a[1]).slice(0, 12), biggest, mods, tiles: world.tileStats().active };
 }
 var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
 function dishSnapshot(world, founders) {
@@ -2739,7 +2780,8 @@ function dishSnapshot(world, founders) {
       genome: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0].replace(/[ /]/g, "").length ?? 0,
       grows: living.reduce((a, w) => a + w.stats.grows, 0) / Math.max(1, living.length)
     },
-    sea: CONFIG.island ? seaSnapshot(world, all.filter((w) => w.realm === 1)) : void 0
+    sea: CONFIG.island ? seaSnapshot(world, all.filter((w) => w.realm === 1)) : void 0,
+    climb: CONFIG.climb ? climbSnapshot(world) : void 0
   };
 }
 function seaSnapshot(world, sea) {

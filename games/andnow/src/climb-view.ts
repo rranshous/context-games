@@ -8,6 +8,9 @@ import { CONFIG, DEBRIS, World } from './sim/world';
 type RGB = [number, number, number];
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
+/** Far enough out to see the whole world at once (below 1 px per cell the view samples). */
+const MIN_ZOOM = 0.05;
+
 export interface Camera { x: number; y: number; zoom: number } // top-left cell, px per cell
 
 /** Colour for a body: hunters (meat) red, insulated cool, armored warm, plain grazers pale. */
@@ -30,7 +33,7 @@ export class ClimbView {
   constructor(private canvas: HTMLCanvasElement, private mini: HTMLCanvasElement, private world: () => World, private redraw: () => void, cam?: Camera) {
     const w = world();
     this.cam = cam ?? { x: 0, y: 0, zoom: 3 };
-    if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0);
+    if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0); else this.clamp();
     // Pointer events cover mouse and touch: one pointer drags, two pinch to zoom.
     canvas.style.touchAction = 'none';
     const pts = new Map<number, { x: number; y: number }>();
@@ -53,7 +56,7 @@ export class ClimbView {
       if (pinch && pts.size === 2) {
         const r = canvas.getBoundingClientRect(), [a, b] = [...pts.values()];
         const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
-        this.cam.zoom = Math.max(1, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
+        this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
         this.cam.x = pinch.wx - mx / this.cam.zoom; this.cam.y = pinch.wy - my / this.cam.zoom;
       } else if (this.drag) {
         this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
@@ -73,7 +76,7 @@ export class ClimbView {
       e.preventDefault();
       const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
       const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
-      this.cam.zoom = Math.max(1, Math.min(12, this.cam.zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
+      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
       this.cam.x = wx - mx / this.cam.zoom; this.cam.y = wy - my / this.cam.zoom;
       this.clamp(); this.redraw();
     }, { passive: false });
@@ -86,7 +89,7 @@ export class ClimbView {
       else if (k === 'arrowup' || k === 'w') this.cam.y -= s;
       else if (k === 'arrowdown' || k === 's') this.cam.y += s;
       else if (k === '+' || k === '=') this.cam.zoom = Math.min(12, this.cam.zoom * 1.25);
-      else if (k === '-') this.cam.zoom = Math.max(1, this.cam.zoom * 0.8);
+      else if (k === '-') this.cam.zoom = Math.max(MIN_ZOOM, this.cam.zoom * 0.8);
       else return;
       e.preventDefault(); this.clamp(); this.redraw();
     });
@@ -105,8 +108,9 @@ export class ClimbView {
 
   private clamp() {
     const w = this.world();
-    this.cam.x = Math.max(0, Math.min(w.w - this.viewW, this.cam.x));
-    this.cam.y = Math.max(0, Math.min(w.h - this.viewH, this.cam.y));
+    // (A view bigger than the world is centred on it.)
+    this.cam.x = this.viewW >= w.w ? (w.w - this.viewW) / 2 : Math.max(0, Math.min(w.w - this.viewW, this.cam.x));
+    this.cam.y = this.viewH >= w.h ? (w.h - this.viewH) / 2 : Math.max(0, Math.min(w.h - this.viewH, this.cam.y));
   }
 
   /** Board cell under a canvas pixel. */
@@ -143,7 +147,41 @@ export class ClimbView {
     return step > 0 ? 1 - f : f;
   }
 
+  /**
+   * Zoomed out below 1 px per cell: one sample per screen pixel for the scenery (rock, sky,
+   * water, plants), then every body drawn on top as a dot at its IP, so none vanish.
+   */
+  private renderFar() {
+    const world = this.world(), b = world.board, st = b.step!, z = this.cam.zoom;
+    const W = this.canvas.width, H = this.canvas.height;
+    const ctx = this.canvas.getContext('2d')!;
+    const img = ctx.createImageData(W, H), d = img.data;
+    for (let py = 0; py < H; py++) {
+      const y = Math.floor(this.cam.y + py / z);
+      for (let px = 0; px < W; px++) {
+        const x = Math.floor(this.cam.x + px / z), p = (py * W + px) * 4;
+        if (x < 0 || y < 0 || x >= world.w || y >= world.h) { d[p + 3] = 255; continue; }
+        const c = y * world.w + x;
+        const col: RGB = b.terrain[c] !== 0 ? (st[c] > 0 ? [105, 95, 108] : st[c] < 0 ? [50, 42, 38] : [90, 80, 70])
+          : world.resource[c] ? (st[c] > 0 ? [150, 220, 90] : [40, 150, 70]) : this.sky(st[c], y);
+        d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
+      }
+    }
+    const dot = Math.max(1, Math.round(z * 4));
+    for (const wr of world.living()) {
+      const px = Math.floor((wr.ipX - this.cam.x) * z), py = Math.floor((wr.ipY - this.cam.y) * z);
+      if (px < 0 || py < 0 || px >= W || py >= H) continue;
+      const col = bodyColor(world, wr.id);
+      for (let dy = 0; dy < dot && py + dy < H; dy++) for (let dx = 0; dx < dot && px + dx < W; dx++) {
+        const p = ((py + dy) * W + px + dx) * 4;
+        d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2];
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
   render() {
+    if (this.cam.zoom < 1) { this.renderFar(); this.renderLabels(); this.renderMini(); return; }
     const world = this.world(), b = world.board, st = b.step!;
     const vw = Math.ceil(this.viewW) + 1, vh = Math.ceil(this.viewH) + 1, x0 = Math.floor(this.cam.x), y0 = Math.floor(this.cam.y);
     if (this.pix.width !== vw || this.pix.height !== vh) { this.pix.width = vw; this.pix.height = vh; }
@@ -187,29 +225,42 @@ export class ClimbView {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const z = this.cam.zoom;
     ctx.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
+    this.renderLabels();
+    this.renderMini();
+  }
+
+  /** Step boundary lines, each with a small label on its line at the right edge. */
+  private renderLabels() {
+    const b = this.world().board, z = this.cam.zoom, ctx = this.canvas.getContext('2d')!;
     // Step boundaries, each with a small label sitting on its line (not pinned over the view).
     const S = b.climbSteps!;
     ctx.font = '11px ui-monospace, Menlo, monospace';
     ctx.textBaseline = 'bottom';
+    const right = Math.min(this.canvas.width, (this.world().w - this.cam.x) * z); // the world's edges on screen
+    const left = Math.max(0, -this.cam.x * z);
+    let lastY = -1e9;
     for (let n = S; n >= -S; n--) {
       const bottomRow = b.stepTop![n + S] + b.stepH![n + S], sy = (bottomRow - this.cam.y) * z; // the line below step n
       if (sy < 12 || sy > this.canvas.height + 12) continue;
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillRect(0, sy, this.canvas.width, 1);
+      ctx.fillRect(left, sy, right - left, 1);
+      if (sy - lastY < 30) continue; // (zoomed far out, thin steps' labels would pile up)
+      lastY = sy;
       const short = this.canvas.width < 600;
       const below = n - 1, label = (k: number) => short
         ? (k > 0 ? `+${k} · ${k} insul` : k < 0 ? `${k} · ${-k} armor` : '0 · sea')
         : (k > 0 ? `+${k} · ${k} insulation · food ×${10 ** k}` : k < 0 ? `${k} · ${-k} armor · food ×${10 ** -k}` : '0 · sea level');
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      const t1 = `▲ ${label(n)}`, t2 = below >= -S ? `▼ ${label(below)}` : '';
-      const w1 = ctx.measureText(t1).width, w2 = ctx.measureText(t2).width, x = this.canvas.width - Math.max(w1, w2) - 14;
+      // The ▼ label for the step below, unless its own line comes right after (then that line's ▲ says it).
+      const nextLine = below >= -S ? (b.stepTop![below + S] + b.stepH![below + S] - this.cam.y) * z : Infinity;
+      const t1 = `▲ ${label(n)}`, t2 = below >= -S && nextLine - sy >= 30 ? `▼ ${label(below)}` : '';
+      const w1 = ctx.measureText(t1).width, w2 = ctx.measureText(t2).width, x = right - Math.max(w1, w2) - 14;
       ctx.fillRect(x - 3, sy - 13, w1 + 6, 13);
       if (t2) ctx.fillRect(x - 3, sy + 1, w2 + 6, 13);
       ctx.fillStyle = n > 0 ? '#bfe6ff' : n < 0 ? '#ffd9a0' : '#ffffff';
       ctx.fillText(t1, x, sy - 1);
       if (t2) { ctx.fillStyle = below > 0 ? '#bfe6ff' : below < 0 ? '#ffd9a0' : '#ffffff'; ctx.textBaseline = 'top'; ctx.fillText(t2, x, sy + 2); ctx.textBaseline = 'bottom'; }
     }
-    this.renderMini();
   }
 
   /** The minimap: life density per bin over the step-normalized strip, plus the camera's box. */
@@ -277,7 +328,7 @@ export class ClimbView {
     const top = [...counts.entries()].sort((a, c) => c[1].n - a[1].n).slice(0, 6);
     const css = (c: number[]) => `rgb(${c.join(',')})`;
     return `<div class="name">The Climb</div>
-      <div class="stats">${living.length} alive (cap ${Number.isFinite(CONFIG.maxWarriors) ? CONFIG.maxWarriors : '∞'}) · ${world.warriors.length} ever lived · pace ${living.length ? (paceSum / living.length).toFixed(2) : '-'} avg</div>
+      <div class="stats">${living.length} alive · ${world.warriors.length} ever lived · pace ${living.length ? (paceSum / living.length).toFixed(2) : '-'} avg</div>
       <div class="stats">upkeep in ${tiles.active} of ${tiles.total} tiles (only near life)</div>
       <div class="name" style="margin-top:6px">by step</div>${bars}
       <div class="stats" style="margin-top:6px"><span style="color:#ffb46e">armor</span> ${hist(arm)}</div>

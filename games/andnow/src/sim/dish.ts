@@ -25,6 +25,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   climb: 0,       // 1 = The Climb (steps up into air and down into water, 10× taller and richer each; size = width)
   base: 20,       // climb: step 0's height (step ±n is base × 10^n)
   steps: 2,       // climb: steps each way
+  crowd: 24,      // climb: DIVIDE fails where the parent's tile (64×64) already holds this many bodies (local crowding, not a global cap)
   starve: 600,    // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6000, // island: the same for a shark (10×, like its lifespan)
   sharklife: 10,  // island: shark lifespan, times a seal's
@@ -53,7 +54,7 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
     if (unset('ripemax')) o.ripemax = 8;
     if (unset('toxin')) o.toxin = 0.005;
     if (unset('seals')) o.seals = 40;
-    if (unset('cap')) o.cap = 2500; // most alive at once, so it stays runnable
+
   }
   if (o.island > 0) {
     const unset = (k: string) => (get(k) ?? '') === '';
@@ -91,10 +92,8 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.depth = o.depth;
   CONFIG.sharkArrive = o.arrive;
   CONFIG.seals = o.seals;
-  // (The Climb: the cap reaps the oldest at each birth instead of stopping births, so a rare
-  // kind, like the hunters, can still breed while the grazers fill the world.)
-  CONFIG.reaperCap = o.climb > 0 && o.cap > 0 ? o.cap : 0;
-  if (CONFIG.reaperCap) CONFIG.maxWarriors = Infinity;
+  CONFIG.reaperCap = 0;
+  CONFIG.crowd = o.crowd;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
   return o;
@@ -145,6 +144,45 @@ export interface DishSnapshot {
   acts: Record<string, number>;     // per living warrior: lifetime collects, bomb hits, poison writes, kills, self-writes, grows, swaps, flows, oozes
   body: { mean: number; max: number; genome: number; grows: number }; // living: cells (mean, max), cells of the most common genome, GROWs per warrior
   sea?: { alive: number; bands: number[]; armor: number[]; top: [string, number][] }; // island survival: the sea creatures (the rest is islanders)
+  climb?: ClimbSnapshot;
+}
+
+/** The Climb: where life is and what it's made of. */
+export interface ClimbSnapshot {
+  steps: number[];                       // living by step under the IP, from +S down to −S
+  armor: number[]; insulation: number[]; // living by trait value
+  diet: { plants: number; meat: number; both: number; none: number };
+  founders: Record<string, number>;      // living by founder name (lineage)
+  top: [string, number][];               // most common genomes
+  biggest: { genome: string; cells: number; step: number; meat: boolean } | null; // the largest body alive (kraken watch)
+  mods: Record<string, number>;          // living carrying each chemistry glyph (I ~ x n)
+  tiles: number;                         // tiles getting upkeep
+}
+
+function climbSnapshot(world: World): ClimbSnapshot {
+  const b = world.board, S = b.climbSteps!, st = b.step!;
+  const steps = new Array(2 * S + 1).fill(0), armor: number[] = [], insulation: number[] = [];
+  const diet = { plants: 0, meat: 0, both: 0, none: 0 }, founders: Record<string, number> = {}, counts = new Map<string, number>();
+  const mods: Record<string, number> = { I: 0, '~': 0, x: 0, n: 0 };
+  let biggest: ClimbSnapshot['biggest'] = null;
+  for (const w of world.living()) {
+    const n = st[world.idx(w.ipX, w.ipY)];
+    steps[S - n]++;
+    const t = w.traits;
+    if (t) {
+      armor[t.armor] = (armor[t.armor] ?? 0) + 1;
+      insulation[t.insulation] = (insulation[t.insulation] ?? 0) + 1;
+      if (t.plants && t.meat) diet.both++; else if (t.meat) diet.meat++; else if (t.plants) diet.plants++; else diet.none++;
+    }
+    const f = world.warriors[w.lineage].name;
+    founders[f] = (founders[f] ?? 0) + 1;
+    const g = genomeOf(world, w.id);
+    counts.set(g, (counts.get(g) ?? 0) + 1);
+    for (const ch of Object.keys(mods)) if (g.includes(ch)) mods[ch]++;
+    if (!biggest || w.cellCount > biggest.cells) biggest = { genome: g, cells: w.cellCount, step: n, meat: !!t?.meat };
+  }
+  for (const a of [armor, insulation]) for (let k = 0; k < a.length; k++) a[k] ??= 0;
+  return { steps, armor, insulation, diet, founders, top: [...counts.entries()].sort((a, c) => c[1] - a[1]).slice(0, 12), biggest, mods, tiles: world.tileStats().active };
 }
 
 const WEAPON = { B: CODE['B'], W: CODE['W'], poison: CODE['@'] };
@@ -191,6 +229,7 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
       grows: living.reduce((a, w) => a + w.stats.grows, 0) / Math.max(1, living.length),
     },
     sea: CONFIG.island ? seaSnapshot(world, all.filter((w) => w.realm === 1)) : undefined,
+    climb: CONFIG.climb ? climbSnapshot(world) : undefined,
   };
 }
 

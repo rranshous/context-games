@@ -529,6 +529,8 @@ var CONFIG = {
   // climb: step 0's height in rows (step ±n is base × 10^n)
   climbSteps: 2,
   // climb: steps each way
+  crowd: 24,
+  // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
   tile: 64,
   // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,
@@ -636,6 +638,11 @@ var World = class {
   tileActive = new Uint8Array(0);
   tileLast = new Float64Array(0);
   activeTiles = [];
+  tileCount = new Uint16Array(0);
+  // bodies (by IP) per tile, recounted with the active tiles and on each birth
+  tileOf(x, y) {
+    return Math.floor(y / CONFIG.tile) * this.tw + Math.floor(x / CONFIG.tile);
+  }
   tw = 0;
   initTiles() {
     const T = CONFIG.tile;
@@ -644,6 +651,7 @@ var World = class {
     this.spawnsInTile = Array.from({ length: n }, () => []);
     this.tileActive = new Uint8Array(n);
     this.tileLast = new Float64Array(n);
+    this.tileCount = new Uint16Array(n);
     this.board.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
   }
   /** How many tiles the world is spending upkeep on right now (of how many). */
@@ -657,7 +665,9 @@ var World = class {
   refreshTiles() {
     const T = CONFIG.tile, th = this.tileActive.length / this.tw;
     const next = new Uint8Array(this.tileActive.length);
+    this.tileCount.fill(0);
     for (const wr of this.living()) {
+      this.tileCount[this.tileOf(wr.ipX, wr.ipY)]++;
       const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const x = tx + dx, y = ty + dy;
@@ -1922,6 +1932,7 @@ var World = class {
         this.kill(oldest, "reaped (oldest)");
       }
     } else if (this.living().length >= CONFIG.maxWarriors) return false;
+    if (CONFIG.climb && CONFIG.crowd > 0 && (this.tileCount[this.tileOf(wr.ipX, wr.ipY)] ?? 0) >= CONFIG.crowd) return false;
     const mine = this.cellsOf(wr.id);
     const xs = mine.map((c) => c % this.w), ys = mine.map((c) => c / this.w | 0);
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
@@ -2005,6 +2016,7 @@ var World = class {
       } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
+    if (CONFIG.climb) this.tileCount[this.tileOf(child.ipX, child.ipY)]++;
     this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);
     return true;
   }
