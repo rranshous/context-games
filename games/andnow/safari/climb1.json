@@ -1,0 +1,5 @@
+[
+  { "name": "c200k", "w": ["climber", "diver", "hunter"], "settings": { "climb": "1" }, "ticks": 200000 },
+  { "name": "c400k", "w": ["climber", "diver", "hunter"], "settings": { "climb": "1" }, "ticks": 400000 },
+  { "name": "c700k", "w": ["climber", "diver", "hunter"], "settings": { "climb": "1" }, "ticks": 700000 }
+]

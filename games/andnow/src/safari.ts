@@ -16,7 +16,7 @@ import { DishOutcome, Work } from './work';
 if (!isMainThread) serveWork();
 else await main();
 
-interface Variant { name: string; w?: string[]; settings?: Record<string, string> }
+interface Variant { name: string; w?: string[]; settings?: Record<string, string>; ticks?: number } // ticks: this variant's own length (else --ticks)
 
 async function main() {
   const args = process.argv.slice(2);
@@ -32,7 +32,7 @@ async function main() {
   const jobs = variants.flatMap((v) => seeds.map((seed) => ({ v, seed, path: `${dir}/${v.name}-s${seed}.json` })))
     .filter((j) => !existsSync(j.path)); // a re-run picks up where it left off
   const items = jobs.map(({ v, seed }): Work => ({
-    kind: 'dish', seed, ticks, report, settings: v.settings ?? {},
+    kind: 'dish', seed, ticks: v.ticks ?? ticks, report, settings: v.settings ?? {},
     warriors: (v.w ?? ['amoeba']).map((n) => readFileSync(`warriors/${n}.warrior`, 'utf8')),
   }));
   console.log(`safari ${round}: ${jobs.length} dishes (${variants.length} variants × seeds ${seeds[0]}–${seeds[seeds.length - 1]}), ${ticks} ticks`);
@@ -44,8 +44,8 @@ async function main() {
   let n = 0;
   const { stats } = await pool.runWorkDetailed<DishOutcome>(items, 3 * 60 * 60 * 1000, (i, out) => {
     const { v, seed, path } = jobs[i];
-    const url = `?petri=1&w=${(v.w ?? ['amoeba']).join(',')}&seed=${seed}${Object.entries(v.settings ?? {}).map(([k, x]) => `&${k}=${x}`).join('')}`;
-    writeFileSync(path, JSON.stringify({ variant: v, seed, ticks, url, ...out }));
+    const url = `?${v.settings?.climb ? 'climb=1' : v.settings?.island ? 'island=1' : 'petri=1'}&w=${(v.w ?? ['amoeba']).join(',')}&seed=${seed}${Object.entries(v.settings ?? {}).map(([k, x]) => `&${k}=${x}`).join('')}`;
+    writeFileSync(path, JSON.stringify({ variant: v, seed, ticks: v.ticks ?? ticks, url, ...out }));
     const last = out.snapshots[out.snapshots.length - 1];
     console.log(`[${++n}/${jobs.length} ${((Date.now() - t0) / 60000).toFixed(0)}m] ${v.name} s${seed}: ${out.extinct ? `extinct at ${last.t}` : `${last.alive} alive, ${last.distinct} genomes`}; top ${last.top[0]?.[0] ?? '-'}`);
   }, 1);

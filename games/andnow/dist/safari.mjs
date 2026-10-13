@@ -2770,7 +2770,7 @@ async function main() {
   const items = jobs.map(({ v, seed }) => ({
     kind: "dish",
     seed,
-    ticks,
+    ticks: v.ticks ?? ticks,
     report,
     settings: v.settings ?? {},
     warriors: (v.w ?? ["amoeba"]).map((n2) => readFileSync2(`warriors/${n2}.warrior`, "utf8"))
@@ -2782,8 +2782,8 @@ async function main() {
   let n = 0;
   const { stats } = await pool.runWorkDetailed(items, 3 * 60 * 60 * 1e3, (i, out) => {
     const { v, seed, path } = jobs[i];
-    const url = `?petri=1&w=${(v.w ?? ["amoeba"]).join(",")}&seed=${seed}${Object.entries(v.settings ?? {}).map(([k, x]) => `&${k}=${x}`).join("")}`;
-    writeFileSync(path, JSON.stringify({ variant: v, seed, ticks, url, ...out }));
+    const url = `?${v.settings?.climb ? "climb=1" : v.settings?.island ? "island=1" : "petri=1"}&w=${(v.w ?? ["amoeba"]).join(",")}&seed=${seed}${Object.entries(v.settings ?? {}).map(([k, x]) => `&${k}=${x}`).join("")}`;
+    writeFileSync(path, JSON.stringify({ variant: v, seed, ticks: v.ticks ?? ticks, url, ...out }));
     const last = out.snapshots[out.snapshots.length - 1];
     console.log(`[${++n}/${jobs.length} ${((Date.now() - t0) / 6e4).toFixed(0)}m] ${v.name} s${seed}: ${out.extinct ? `extinct at ${last.t}` : `${last.alive} alive, ${last.distinct} genomes`}; top ${last.top[0]?.[0] ?? "-"}`);
   }, 1);
