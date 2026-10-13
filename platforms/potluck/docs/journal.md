@@ -148,3 +148,14 @@ burning its core for up to an hour, and so did the losing copy of an item leased
   within ~3 s of the first result.
 - Not covered: an item runHybrid finishes locally mid-run keeps its farm copy running until
   the run ends and cancels the job (the client doesn't report local completions).
+
+## Dropping items the client ran itself
+
+runHybrid re-runs anything still out at the farm once its local queue runs dry. When the local copy finished first, the farm copy kept running until the whole run ended and the job was cancelled, which could mean an hour of wasted browser time per item on andnow's island dishes.
+
+Now `POST /api/jobs/<id>/drop { indices }` marks those items as answered (`null`), so:
+- queued copies are skipped;
+- a late result is ignored;
+- the page's next heartbeat stops any thread still running one.
+
+runHybrid calls `farm.drop` as soon as it finishes an item locally that has a copy at the farm. Tested on a spare port: a dropped item that was leased shows up in the heartbeat's `drop` list, and its queued copy is never leased again. Clients that bundle client.mjs have to be rebuilt to get this (andnow's dist was).
