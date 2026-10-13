@@ -2499,10 +2499,18 @@ var ClimbView = class {
   cellAt(px, py) {
     return [Math.floor(this.cam.x + px / this.cam.zoom), Math.floor(this.cam.y + py / this.cam.zoom)];
   }
-  // ---------- the minimap: every step an equal share of the strip ----------
+  // ---------- the minimap: each step sized by the square root of its height ----------
+  /** Minimap sections, top to bottom, each sized by the square root of its step's height (step 0 small but visible). */
   sections() {
     const b = this.world().board, S = b.climbSteps, n = 2 * S + 1, H = this.mini.height;
-    return Array.from({ length: n }, (_, k) => ({ step: S - k, top: b.stepTop[2 * S - k], h: b.stepH[2 * S - k], y0: k * H / n, y1: (k + 1) * H / n }));
+    const weights = Array.from({ length: n }, (_, k) => Math.sqrt(b.stepH[2 * S - k]));
+    const total = weights.reduce((a, c) => a + c, 0);
+    let y = 0;
+    return weights.map((wt, k) => {
+      const y0 = y;
+      y += wt / total * H;
+      return { step: S - k, top: b.stepTop[2 * S - k], h: b.stepH[2 * S - k], y0, y1: y };
+    });
   }
   rowToMini(row) {
     for (const s of this.sections()) if (row >= s.top && row < s.top + s.h) return s.y0 + (row - s.top) / s.h * (s.y1 - s.y0);
