@@ -22,6 +22,9 @@ export const DISH_DEFAULTS: Record<string, number> = {
   life: 6000,     // typical lifespan (each warrior's is 50–150% of it)
   cap: 0,         // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
   island: 0,      // 1 = island survival (side view: islanders and sea creatures; size = width)
+  climb: 0,       // 1 = The Climb (steps up into air and down into water, 10× taller and richer each; size = width)
+  base: 20,       // climb: step 0's height (step ±n is base × 10^n)
+  steps: 2,       // climb: steps each way
   starve: 600,    // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6000, // island: the same for a shark (10×, like its lifespan)
   sharklife: 10,  // island: shark lifespan, times a seal's
@@ -42,6 +45,16 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   for (const [k, d] of Object.entries(DISH_DEFAULTS)) { const v = get(k); o[k] = v !== null && v !== '' ? Number(v) : d; }
   // Island survival's own defaults where not told otherwise: a big sea, and kelp that goes
   // from a snack (8) to a feast (8× ripe) if left alone ~1750 ticks.
+  if (o.climb > 0) {
+    // The Climb's own defaults: wide, harsh steps, ripening plants, a few dozen of each founder.
+    const unset = (k: string) => (get(k) ?? '') === '';
+    if (unset('size')) o.size = 2000;
+    if (unset('ripen')) o.ripen = 250;
+    if (unset('ripemax')) o.ripemax = 8;
+    if (unset('toxin')) o.toxin = 0.005;
+    if (unset('seals')) o.seals = 40;
+    if (unset('cap')) o.cap = 2500; // most alive at once, so it stays runnable
+  }
   if (o.island > 0) {
     const unset = (k: string) => (get(k) ?? '') === '';
     if (unset('size')) o.size = 360;
@@ -63,6 +76,9 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.lifespan = o.life;
   CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.island = o.island > 0;
+  CONFIG.climb = o.climb > 0;
+  CONFIG.climbBase = o.base;
+  CONFIG.climbSteps = o.steps;
   CONFIG.starve = o.starve;
   CONFIG.sharkStarve = o.sharkstarve;
   CONFIG.sharkLife = o.sharklife;

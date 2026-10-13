@@ -2,7 +2,8 @@
 var canary_default = [{ case: { sources: ["name: amoeba-g\n# morph4-amoeba with one cell changed (e \u2192 G): grows fat as it oozes\ndir: W\nip: 4 4\n---\n  m\n  *T\n  1WBCs\n  +=\\M\n +GmLA\nR+dWCmLC\n   L=/:\n   4\n", "name: Turtle\n# Stays put. Bombs the nearest enemy in range, grows armor in a random direction,\n# collects whatever touches it. The rings of `.` are armor and do nothing.\nip: 1 1\n---\n.........\n.2S$B4y0GC\n.........\n"], seed: 8 }, final: 3272579777, ticks: 2e3 }, { case: { sources: ["name: amoeba-g\n# morph4-amoeba with one cell changed (e \u2192 G): grows fat as it oozes\ndir: W\nip: 4 4\n---\n  m\n  *T\n  1WBCs\n  +=\\M\n +GmLA\nR+dWCmLC\n   L=/:\n   4\n", "name: map3-mixed\n# map-elites run map3, slot 2-3-3 (mixed), was m197-75976 (gen 197, parents m189-72802+)\n# fitness 2.01; 19W of 46; per game: 0.04 bomb hits, 0.04 poison writes, 2.46 pickups; left home in 80% of games\ndir: E\nip: 0 2\n---\n    .\nv   >oo'@WC\\$:MB\n>C2S|      $\n^   >$$:Mem+\nM\n"], seed: 37 }, final: 1952829904, ticks: 2e3 }, { case: { sources: ["name: Amoeba\n# The petri dish founder: a Gatherer (collect, head for the nearest resource) that DIVIDEs\n# every loop (D pops an empty stack = east): copies itself beside itself as a new\n# warrior. Its descendants are rivals like anyone else. The two fat cells under it are\n# spare: copy errors can turn them into armor (K) without breaking the program.\n---\nC6S$TMD\n..\n", "name: Viper\n# Poison at range 2. Like the Bomber, but the found row writes `@` (code 9) into the\n# nearest enemy cell instead of bombing. WRITE fails quietly beyond range 2.\n# 9 is pushed as a number, so the Viper carries no `@` of its own to run into.\nip: 0 1\n---\nv   >oo9WT\\$:M\n>C2S|\n^   >$$:Me!+\n"], seed: 66 }, final: 1622709016, ticks: 2e3 }, { case: { sources: ["name: Amoeba\n# The petri dish founder: a Gatherer (collect, head for the nearest resource) that DIVIDEs\n# every loop (D pops an empty stack = east): copies itself beside itself as a new\n# warrior. Its descendants are rivals like anyone else. The two fat cells under it are\n# spare: copy errors can turn them into armor (K) without breaking the program.\n---\nC6S$TMD\n..\n", "name: map3-none\n# map-elites run map3, slot 0-4-2 (none), was m199-76527 (gen 199, parents m192-73841+point)\n# fitness 2.34; 30W of 46; per game: 0.00 bomb hits, 0.00 poison writes, 7.20 pickups; left home in 67% of games\ndir: E\nip: 7 3\n---\n  M\n>#ov  B>oo'\n|\\ >m2S|\n>d$CMem+\n"], seed: 95 }, final: 473889689, ticks: 2e3 }, { case: { sources: ["name: Blob\n# The Oozer's loop with two rows of fat: a blob that oozes, squeezing through gaps.\n---\nC6S$TA\n......\n......\n", "name: crawler\n# morph4 gen ~115, slot 0-4-3: 22 cells (mostly fat) that ooze ~850 cells/game; whole body into another room on 18/20 solo boards; barely collects\ndir: S\nip: 7 2\n---\nCTT\n  =6S \\A\n  ...!..\n  ......\n     dM\n"], seed: 124 }, final: 901941241, ticks: 2e3 }, { case: { sources: ["name: Blob\n# The Oozer's loop with two rows of fat: a blob that oozes, squeezing through gaps.\n---\nC6S$TA\n......\n......\n", "name: map4-bomber\n# map-elites run map4, slot 1-4-3 (bomber), was m298-114704 (gen 298, parents m295-113526+point)\n# fitness 2.90; 20W of 36; per game: 4.19 bomb hits, 0.00 poison writes, 4.69 pickups; left home in 89% of games\ndir: E\nip: 3 1\n---\n v  WBoo'@W .\n$>C2S|     W$\n ^<  >$$:Mem+\n"], seed: 153 }, final: 390846299, ticks: 2e3 }, { case: { sources: ["name: Bomber\n# Like the Stalker, but bombs at range instead of poisoning by touch.\n# Found an enemy (top row): bomb it (fails quietly if out of range), step toward it.\n# Nothing in sight (bottom row): keep wandering; turn right when blocked.\nip: 0 1\n---\nv   >ooBT\\$:M\n>C2S|\n^   >$$:Me!+\n", "name: evo1-3\n# evolved: run evo1, was g94-8652 (parents g90-8298\xD7g93-8634)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n S :mL\n^>:fS|  \\T\n ^y m>$$CM2eBR\n"], seed: 182 }, final: 2504940674, ticks: 2e3 }, { case: { sources: ["name: Bomber\n# Like the Stalker, but bombs at range instead of poisoning by touch.\n# Found an enemy (top row): bomb it (fails quietly if out of range), step toward it.\n# Nothing in sight (bottom row): keep wandering; turn right when blocked.\nip: 0 1\n---\nv   >ooBT\\$:M\n>C2S|\n^   >$$:Me!+\n", "name: map4-poisoner\n# map-elites run map4, slot 3-4-3 (poisoner), was m296-113891 (gen 296, parents m289-111025+)\n# fitness 2.19; 51W of 108; per game: 0.89 bomb hits, 20.75 poison writes, 7.06 pickups; left home in 100% of games\ndir: W\nip: 1 2\n---\n       .\nM  v  +>oo'@W B\n:S$>C2S|     W$\n   ^   >$$:Mem+\n"], seed: 211 }, final: 3155712965, ticks: 2e3 }, { case: { sources: ["name: Gatherer\n# One row, so the IP just loops along it forever (the row wraps within the body).\n# Collect anything touching me; find the nearest visible resource; head toward it\n# (TOWARD of 0,0 is a random direction, so with nothing in sight it wanders).\n---\nC6S$TM\n", "name: evo3-1\n# evolved: run evo3, was g140-17481 (parents g139-17263\xD7g139-17331)\n# held-out vs benchmarks: 61/110 wins; bomber 6-3, gatherer 7-3, roamer 3-4, stalker 7-2, turtle 4-0, evo1-1 5-0, evo1-2 5-0, evo1-3 5-0, evo2-1 6-3, evo2-2 5-4, evo2-3 8-1\ndir: E\nip: 6 3\n---\n   M\n  [m- =!  d`\n BW:B<R X BRW\n.TMS7C-BTM?\n"], seed: 240 }, final: 64482445, ticks: 2e3 }, { case: { sources: ["name: Gatherer\n# One row, so the IP just loops along it forever (the row wraps within the body).\n# Collect anything touching me; find the nearest visible resource; head toward it\n# (TOWARD of 0,0 is a random direction, so with nothing in sight it wanders).\n---\nC6S$TM\n", "name: morph1-still\n# map-elites run morph1, slot 2-0-0 (still), was m249-95875 (gen 249, parents m150-57657+point)\n# fitness 2.09; 13W of 30; per game: 0.33 bomb hits, 0.87 poison writes, 2.53 pickups; left home in 93% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 0% of games\ndir: E\nip: 11 3\n---\n      .\n  v  +>oo'@W B\n:$>C2S|   B-BB\n  ^   >$$:Mem+\n"], seed: 269 }, final: 2756900365, ticks: 2e3 }, { case: { sources: ["name: Oozer\n# A Gatherer that OOZEs instead of SHIFTing: collect, scan for a resource, head that way\n# one cell at a time. Its rearmost cell keeps moving to its front, so its body (and the\n# order of its program) changes as it goes. A seed for evolving amorphous warriors.\n---\nC6S$TA\n", "name: evo4-3\n# evolved: run evo4, was g142-17669 (parents g141-17501+ip,ip)\n# held-out vs benchmarks: 138/150 wins; bomber 7-3, gatherer 10-0, roamer 9-0, stalker 10-0, turtle 9-0, viper 10-0, evo1-1 9-0, evo1-2 9-0, evo1-3 9-0, evo2-1 9-0, evo2-2 9-0, evo2-3 10-0, evo3-1 9-1, evo3-2 9-0, evo3-3 10-0\ndir: W\nip: 5 2\n---\n  S\nSM3 -?.\\S`Me\n  :M>2S$B8yCM\n   >  4 S-[MM\n"], seed: 298 }, final: 2932629339, ticks: 2e3 }, { case: { sources: ["name: Oozer\n# A Gatherer that OOZEs instead of SHIFTing: collect, scan for a resource, head that way\n# one cell at a time. Its rearmost cell keeps moving to its front, so its body (and the\n# order of its program) changes as it goes. A seed for evolving amorphous warriors.\n---\nC6S$TA\n", "name: morph2-still\n# map-elites run morph2, slot 1-0-0 (still), was m247-95084 (gen 247, parents m242-93180+dir)\n# fitness 1.94; 19W of 60; per game: 1.27 bomb hits, 0.00 poison writes, 4.97 pickups; left home in 83% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 17% of games\ndir: W\nip: 9 3\n---\n      .\n  v  MB\nAX>C2S|$    W$\n >^LA5>$$:Mem+\n     T\n"], seed: 327 }, final: 2614600182, ticks: 2e3 }, { case: { sources: ["name: Roamer\n# A gatherer with a memory: the wander direction lives at the bottom of the stack.\n# Found a resource (top row): head toward it, and adopt that as the wander direction.\n# Nothing in sight (bottom row): keep going the same way; turn right when blocked.\nip: 0 1\n---\nv   >T\\$:M\n>C6S|\n^   >$$:Me!+\n", "name: evo6-3\n# evolved: run evo6, was g136-16889 (parents g135-16802+remove)\n# held-out vs benchmarks: 61/140 wins; bomber 3-2, gatherer 7-3, roamer 4-1, stalker 4-1, turtle 4-1, viper 4-1, evo2-2 5-0, evo3-1 6-0, evo4-1 2-5, evo4-2 4-2, evo4-3 3-3, evo5-1 4-2, evo5-2 5-2, evo5-3 6-2\ndir: W\nip: 4 1\n---\nCo RCr_%de y\n :M>2S$B8CyMC\n CM[ v @  e_\n"], seed: 356 }, final: 933318217, ticks: 2e3 }, { case: { sources: ["name: Roamer\n# A gatherer with a memory: the wander direction lives at the bottom of the stack.\n# Found a resource (top row): head toward it, and adopt that as the wander direction.\n# Nothing in sight (bottom row): keep going the same way; turn right when blocked.\nip: 0 1\n---\nv   >T\\$:M\n>C6S|\n^   >$$:Me!+\n", "name: morph4-twitch\n# map-elites run morph4, slot 0-1-1 (twitch), was m397-152563 (gen 397, parents m37-14565\xD7m395-151787)\n# fitness 2.38; 18W of 28; per game: 0.00 bomb hits, 0.00 poison writes, 8.50 pickups; left home in 29% of games\n# shape changes 5.7 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 11 2\n---\nd   *.\nCv TCB6-\n9>C2S|     3@C\n ^ SA>$$:Mem+\n"], seed: 385 }, final: 1645452998, ticks: 2e3 }, { case: { sources: ["name: Stalker\n# Hunt the nearest enemy cell; when touching it, write the poison glyph @ into it.\n# The wander direction lives at the bottom of the stack (like the Roamer).\n# Middle row decides: SCAN for an enemy, `|` sends the IP north if found, south if not.\n# Found (top row): copy dx,dy (`oo`), write @ there (`'@` pushes the code of @ and\n# skips it), then step toward it and adopt that as the wander direction.\n# Not found (bottom row): drop dx,dy, keep wandering; turn right when blocked.\n# Both rows wrap back to their first cell, which points the IP back into the middle row.\n# (Without the branch, a failed SCAN gives 0,0 = my own IP cell, and I poison myself.)\nip: 0 1\n---\nv   >oo'@WT\\$:M\n>C2S|\n^   >$$:Me!+\n", "name: map3-bomber\n# map-elites run map3, slot 1-4-3 (bomber), was m198-76057 (gen 198, parents m53-20474+point,remove)\n# fitness 2.95; 35W of 46; per game: 3.65 bomb hits, 0.00 poison writes, 4.61 pickups; left home in 100% of games\ndir: W\nip: 12 2\n---\n    +\nMFS -y  \\$+8\n  :M>>2S$B8CyMC\n   4r^  +   $r\n"], seed: 414 }, final: 1540965837, ticks: 2e3 }, { case: { sources: ["name: Turtle\n# Stays put. Bombs the nearest enemy in range, grows armor in a random direction,\n# collects whatever touches it. The rings of `.` are armor and do nothing.\nip: 1 1\n---\n.........\n.2S$B4y0GC\n.........\n", "name: evo2-1\n# evolved: run evo2, was g138-17186 (parents g137-16995+add)\n# held-out vs benchmarks: 22/50 wins; bomber 6-2, gatherer 2-4, roamer 3-4, stalker 7-2, turtle 4-0\ndir: E\nip: 2 4\n---\n  S\n  W\n  BvvF|73<$\nT|^`?BT SB-:M\n  7oCBTM?\n"], seed: 443 }, final: 1454444478, ticks: 2e3 }, { case: { sources: ["name: Turtle\n# Stays put. Bombs the nearest enemy in range, grows armor in a random direction,\n# collects whatever touches it. The rings of `.` are armor and do nothing.\nip: 1 1\n---\n.........\n.2S$B4y0GC\n.........\n", "name: morph1-amoeba\n# map-elites run morph1, slot 1-4-2 (amoeba), was m158-60820 (gen 158, parents m139-53708+point)\n# fitness 2.08; 932W of 2730; per game: 1.77 bomb hits, 0.00 poison writes, 3.13 pickups; left home in 97% of games\n# shape changes 205.0 cells/game; squeezed through a narrow passage in 53% of games\ndir: W\nip: 12 1\n---\n  v 2+BBA'@\\\nA$>C2S|     2B\n >^ A >$$:Mem+\n"], seed: 472 }, final: 1543602921, ticks: 2e3 }, { case: { sources: ["name: Viper\n# Poison at range 2. Like the Bomber, but the found row writes `@` (code 9) into the\n# nearest enemy cell instead of bombing. WRITE fails quietly beyond range 2.\n# 9 is pushed as a number, so the Viper carries no `@` of its own to run into.\nip: 0 1\n---\nv   >oo9WT\\$:M\n>C2S|\n^   >$$:Me!+\n", "name: evo5-1\n# evolved: run evo5, was g138-17128 (parents g137-17041\xD7g137-17108)\n# held-out vs benchmarks: 50/110 wins; bomber 2-2, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-1, viper 4-1, evo2-2 5-0, evo3-1 8-0, evo4-1 4-2, evo4-2 3-3, evo4-3 2-4\ndir: W\nip: 10 1\n---\n .G$3-CC3-\n:M>2S$B8CyM\ner     XM-@d\n=\n"], seed: 501 }, final: 866318460, ticks: 2e3 }, { case: { sources: ["name: Viper\n# Poison at range 2. Like the Bomber, but the found row writes `@` (code 9) into the\n# nearest enemy cell instead of bombing. WRITE fails quietly beyond range 2.\n# 9 is pushed as a number, so the Viper carries no `@` of its own to run into.\nip: 0 1\n---\nv   >oo9WT\\$:M\n>C2S|\n^   >$$:Me!+\n", "name: morph2-twitch\n# map-elites run morph2, slot 1-1-2 (twitch), was m237-91376 (gen 237, parents m235-90361+point,point)\n# fitness 1.95; 100W of 300; per game: 2.40 bomb hits, 0.00 poison writes, 9.77 pickups; left home in 93% of games\n# shape changes 3.3 cells/game; squeezed through a narrow passage in 50% of games\ndir: E\nip: 2 2\n---\n      .\n  $  CBBAG@  B\nA7>C2S|     W$\n >^ AS>$$:Mem+\n"], seed: 530 }, final: 2774173520, ticks: 2e3 }, { case: { sources: ["name: amoeba-g\n# morph4-amoeba with one cell changed (e \u2192 G): grows fat as it oozes\ndir: W\nip: 4 4\n---\n  m\n  *T\n  1WBCs\n  +=\\M\n +GmLA\nR+dWCmLC\n   L=/:\n   4\n", "name: map2-none\n# map-elites run map2, slot 0-3-3 (none), was m249-95832 (gen 249, parents m245-94228+point)\n# fitness 2.03; 21W of 36; per game: 0.00 bomb hits, 0.00 poison writes, 3.56 pickups; left home in 97% of games\ndir: S\nip: 0 1\n---\n    .\nv   >oo'@WT\\$vMB\n>C2S|      $\n^   >$$:Mem+\nM\n"], seed: 559 }, final: 3253046893, ticks: 2e3 }, { case: { sources: ["name: crawler\n# morph4 gen ~115, slot 0-4-3: 22 cells (mostly fat) that ooze ~850 cells/game; whole body into another room on 18/20 solo boards; barely collects\ndir: S\nip: 7 2\n---\nCTT\n  =6S \\A\n  ...!..\n  ......\n     dM\n", "name: evo2-2\n# evolved: run evo2, was g147-18236 (parents g146-18130+remove)\n# held-out vs benchmarks: 23/50 wins; bomber 7-2, gatherer 2-4, roamer 4-2, stalker 7-2, turtle 3-0\ndir: E\nip: 3 4\n---\n S\n T\nFT^^B G3<\n\\' B: \\BB-:\n STCBTM? TT\n"], seed: 588 }, final: 2573118444, ticks: 415 }, { case: { sources: ["name: crawler\n# morph4 gen ~115, slot 0-4-3: 22 cells (mostly fat) that ooze ~850 cells/game; whole body into another room on 18/20 solo boards; barely collects\ndir: S\nip: 7 2\n---\nCTT\n  =6S \\A\n  ...!..\n  ......\n     dM\n", "name: morph1-morph\n# map-elites run morph1, slot 1-2-0 (morph), was m248-95532 (gen 248, parents m242-93223+dupe)\n# fitness 2.42; 12W of 30; per game: 2.90 bomb hits, 0.00 poison writes, 2.20 pickups; left home in 97% of games\n# shape changes 16.8 cells/game; squeezed through a narrow passage in 13% of games\ndir: W\nip: 6 2\n---\n v 2+BBA2@\\\n >C2S|     !B\n>^ AA>$$:Mem+\n>\n"], seed: 617 }, final: 358672342, ticks: 71 }, { case: { sources: ["name: evo1-1\n# evolved: run evo1, was g82-7551 (parents g81-7503\xD7g81-7461)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n MC: L\n^>CfS|  \\T\n ^y m>$$:M2eBR\n", "name: evo6-2\n# evolved: run evo6, was g147-18251 (parents g146-18184\xD7g146-18116)\n# held-out vs benchmarks: 61/140 wins; bomber 2-3, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-0, viper 4-1, evo2-2 6-0, evo3-1 6-0, evo4-1 4-1, evo4-2 4-1, evo4-3 4-1, evo5-1 1-4, evo5-2 4-2, evo5-3 4-2\ndir: W\nip: 4 2\n---\n5\nCo yM \\-+e y\n :M>2S$B8CyMC\n C.^   @+ $S\n"], seed: 646 }, final: 3012976978, ticks: 2e3 }, { case: { sources: ["name: evo1-1\n# evolved: run evo1, was g82-7551 (parents g81-7503\xD7g81-7461)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n MC: L\n^>CfS|  \\T\n ^y m>$$:M2eBR\n", "name: morph4-still\n# map-elites run morph4, slot 1-0-1 (still), was m397-152498 (gen 397, parents m393-151022+point,remove,add,ip)\n# fitness 2.21; 30W of 56; per game: 0.21 bomb hits, 0.00 poison writes, 7.96 pickups; left home in 29% of games\n# shape changes 0.0 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 5 1\n---\n     M.\n Cv TCBB      ^\nT7>2CS|     3@C\n >^ A >$$:Mem+\n"], seed: 675 }, final: 2458524150, ticks: 2e3 }, { case: { sources: ["name: evo1-2\n# evolved: run evo1, was g90-8298 (parents g89-8267+remove)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n S : L\n^>:fS|  \\T\n ^y m>$$CM2eBR\n", "name: map4-mixed\n# map-elites run map4, slot 2-3-3 (mixed), was m297-114224 (gen 297, parents m286-109904+)\n# fitness 2.25; 27W of 72; per game: 2.28 bomb hits, 0.72 poison writes, 2.97 pickups; left home in 97% of games\ndir: E\nip: 14 2\n---\n       .\nM  v  +>oo'@W B\n:M$>C2S|     W$\n   ^   >$$:Mem+\n"], seed: 704 }, final: 3903975061, ticks: 2e3 }, { case: { sources: ["name: evo1-3\n# evolved: run evo1, was g94-8652 (parents g90-8298\xD7g93-8634)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n S :mL\n^>:fS|  \\T\n ^y m>$$CM2eBR\n", "name: evo5-3\n# evolved: run evo5, was g143-17853 (parents g142-17652+remove)\n# held-out vs benchmarks: 47/110 wins; bomber 3-1, gatherer 8-2, roamer 3-1, stalker 3-1, turtle 6-0, viper 2-2, evo2-2 7-0, evo3-1 5-0, evo4-1 4-3, evo4-2 3-4, evo4-3 3-4\ndir: W\nip: 3 1\n---\n y$M  ^_ :W-\n:M>2S$B8CyMC\n y4 T <-4$>\n"], seed: 733 }, final: 306135737, ticks: 2e3 }, { case: { sources: ["name: evo1-3\n# evolved: run evo1, was g94-8652 (parents g90-8298\xD7g93-8634)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n S :mL\n^>:fS|  \\T\n ^y m>$$CM2eBR\n", "name: morph4-morph\n# map-elites run morph4, slot 1-2-1 (morph), was m397-152481 (gen 397, parents m391-150471+swap,point,point)\n# fitness 2.51; 36W of 56; per game: 0.29 bomb hits, 0.00 poison writes, 8.79 pickups; left home in 39% of games\n# shape changes 20.6 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 36%\ndir: W\nip: 11 3\n---\n    <\nd   >.\nCv TCB<-\n9>C2S|     3@C\n ^ A >=$:Mem+\n"], seed: 762 }, final: 3648067633, ticks: 2e3 }, { case: { sources: ["name: evo2-1\n# evolved: run evo2, was g138-17186 (parents g137-16995+add)\n# held-out vs benchmarks: 22/50 wins; bomber 6-2, gatherer 2-4, roamer 3-4, stalker 7-2, turtle 4-0\ndir: E\nip: 2 4\n---\n  S\n  W\n  BvvF|73<$\nT|^`?BT SB-:M\n  7oCBTM?\n", "name: map4-mixed\n# map-elites run map4, slot 2-3-3 (mixed), was m297-114224 (gen 297, parents m286-109904+)\n# fitness 2.25; 27W of 72; per game: 2.28 bomb hits, 0.72 poison writes, 2.97 pickups; left home in 97% of games\ndir: E\nip: 14 2\n---\n       .\nM  v  +>oo'@W B\n:M$>C2S|     W$\n   ^   >$$:Mem+\n"], seed: 791 }, final: 1765107638, ticks: 2e3 }, { case: { sources: ["name: evo2-2\n# evolved: run evo2, was g147-18236 (parents g146-18130+remove)\n# held-out vs benchmarks: 23/50 wins; bomber 7-2, gatherer 2-4, roamer 4-2, stalker 7-2, turtle 3-0\ndir: E\nip: 3 4\n---\n S\n T\nFT^^B G3<\n\\' B: \\BB-:\n STCBTM? TT\n", "name: evo6-2\n# evolved: run evo6, was g147-18251 (parents g146-18184\xD7g146-18116)\n# held-out vs benchmarks: 61/140 wins; bomber 2-3, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-0, viper 4-1, evo2-2 6-0, evo3-1 6-0, evo4-1 4-1, evo4-2 4-1, evo4-3 4-1, evo5-1 1-4, evo5-2 4-2, evo5-3 4-2\ndir: W\nip: 4 2\n---\n5\nCo yM \\-+e y\n :M>2S$B8CyMC\n C.^   @+ $S\n"], seed: 820 }, final: 642878751, ticks: 2e3 }, { case: { sources: ["name: evo2-2\n# evolved: run evo2, was g147-18236 (parents g146-18130+remove)\n# held-out vs benchmarks: 23/50 wins; bomber 7-2, gatherer 2-4, roamer 4-2, stalker 7-2, turtle 3-0\ndir: E\nip: 3 4\n---\n S\n T\nFT^^B G3<\n\\' B: \\BB-:\n STCBTM? TT\n", "name: morph4-still\n# map-elites run morph4, slot 1-0-1 (still), was m397-152498 (gen 397, parents m393-151022+point,remove,add,ip)\n# fitness 2.21; 30W of 56; per game: 0.21 bomb hits, 0.00 poison writes, 7.96 pickups; left home in 29% of games\n# shape changes 0.0 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 5 1\n---\n     M.\n Cv TCBB      ^\nT7>2CS|     3@C\n >^ A >$$:Mem+\n"], seed: 849 }, final: 2551385531, ticks: 2e3 }, { case: { sources: ["name: evo2-3\n# evolved: run evo2, was g133-16531 (parents g132-16407+point,remove)\n# held-out vs benchmarks: 22/50 wins; bomber 7-1, gatherer 2-4, roamer 2-4, stalker 6-2, turtle 5-0\ndir: W\nip: 3 2\n---\n B+vF|B3<7\nB^`?|T\\SB-\n 7 CBTM?:\n", "name: morph1-morph\n# map-elites run morph1, slot 1-2-0 (morph), was m248-95532 (gen 248, parents m242-93223+dupe)\n# fitness 2.42; 12W of 30; per game: 2.90 bomb hits, 0.00 poison writes, 2.20 pickups; left home in 97% of games\n# shape changes 16.8 cells/game; squeezed through a narrow passage in 13% of games\ndir: W\nip: 6 2\n---\n v 2+BBA2@\\\n >C2S|     !B\n>^ AA>$$:Mem+\n>\n"], seed: 878 }, final: 1116706560, ticks: 2e3 }, { case: { sources: ["name: evo3-1\n# evolved: run evo3, was g140-17481 (parents g139-17263\xD7g139-17331)\n# held-out vs benchmarks: 61/110 wins; bomber 6-3, gatherer 7-3, roamer 3-4, stalker 7-2, turtle 4-0, evo1-1 5-0, evo1-2 5-0, evo1-3 5-0, evo2-1 6-3, evo2-2 5-4, evo2-3 8-1\ndir: E\nip: 6 3\n---\n   M\n  [m- =!  d`\n BW:B<R X BRW\n.TMS7C-BTM?\n", "name: map2-none\n# map-elites run map2, slot 0-3-3 (none), was m249-95832 (gen 249, parents m245-94228+point)\n# fitness 2.03; 21W of 36; per game: 0.00 bomb hits, 0.00 poison writes, 3.56 pickups; left home in 97% of games\ndir: S\nip: 0 1\n---\n    .\nv   >oo'@WT\\$vMB\n>C2S|      $\n^   >$$:Mem+\nM\n"], seed: 907 }, final: 3337203731, ticks: 2e3 }, { case: { sources: ["name: evo3-2\n# evolved: run evo3, was g149-18493 (parents g147-18235+remove,dupe)\n# held-out vs benchmarks: 59/110 wins; bomber 4-3, gatherer 7-3, roamer 5-2, stalker 7-2, turtle 4-1, evo1-1 5-0, evo1-2 5-0, evo1-3 5-0, evo2-1 5-5, evo2-2 5-5, evo2-3 7-2\ndir: E\nip: 6 3\n---\n   MS     -\n  -<-    dd`\n  $|G< BT!B[\n.TMS7C-BTM?\n", "name: evo5-1\n# evolved: run evo5, was g138-17128 (parents g137-17041\xD7g137-17108)\n# held-out vs benchmarks: 50/110 wins; bomber 2-2, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-1, viper 4-1, evo2-2 5-0, evo3-1 8-0, evo4-1 4-2, evo4-2 3-3, evo4-3 2-4\ndir: W\nip: 10 1\n---\n .G$3-CC3-\n:M>2S$B8CyM\ner     XM-@d\n=\n"], seed: 936 }, final: 3177409164, ticks: 2e3 }, { case: { sources: ["name: evo3-2\n# evolved: run evo3, was g149-18493 (parents g147-18235+remove,dupe)\n# held-out vs benchmarks: 59/110 wins; bomber 4-3, gatherer 7-3, roamer 5-2, stalker 7-2, turtle 4-1, evo1-1 5-0, evo1-2 5-0, evo1-3 5-0, evo2-1 5-5, evo2-2 5-5, evo2-3 7-2\ndir: E\nip: 6 3\n---\n   MS     -\n  -<-    dd`\n  $|G< BT!B[\n.TMS7C-BTM?\n", "name: morph2-twitch\n# map-elites run morph2, slot 1-1-2 (twitch), was m237-91376 (gen 237, parents m235-90361+point,point)\n# fitness 1.95; 100W of 300; per game: 2.40 bomb hits, 0.00 poison writes, 9.77 pickups; left home in 93% of games\n# shape changes 3.3 cells/game; squeezed through a narrow passage in 50% of games\ndir: E\nip: 2 2\n---\n      .\n  $  CBBAG@  B\nA7>C2S|     W$\n >^ AS>$$:Mem+\n"], seed: 965 }, final: 3116389572, ticks: 2e3 }, { case: { sources: ["name: evo3-3\n# evolved: run evo3, was g144-17963 (parents g143-17821\xD7g143-17777)\n# held-out vs benchmarks: 57/110 wins; bomber 4-5, gatherer 7-3, roamer 2-4, stalker 7-2, turtle 4-1, evo1-1 5-0, evo1-2 5-0, evo1-3 5-0, evo2-1 5-4, evo2-2 5-4, evo2-3 8-1\ndir: E\nip: 6 3\n---\n   M\n  -<- $!  d`\n s S /R!TmB[W\n.TMS7C-BTM?\n", "name: morph1-amoeba\n# map-elites run morph1, slot 1-4-2 (amoeba), was m158-60820 (gen 158, parents m139-53708+point)\n# fitness 2.08; 932W of 2730; per game: 1.77 bomb hits, 0.00 poison writes, 3.13 pickups; left home in 97% of games\n# shape changes 205.0 cells/game; squeezed through a narrow passage in 53% of games\ndir: W\nip: 12 1\n---\n  v 2+BBA'@\\\nA$>C2S|     2B\n >^ A >$$:Mem+\n"], seed: 994 }, final: 3119127792, ticks: 2e3 }, { case: { sources: ["name: evo4-1\n# evolved: run evo4, was g141-17574 (parents g140-17376\xD7g140-17398)\n# held-out vs benchmarks: 145/150 wins; bomber 9-1, gatherer 10-0, roamer 10-0, stalker 10-0, turtle 8-0, viper 10-0, evo1-1 10-0, evo1-2 10-0, evo1-3 10-0, evo2-1 10-0, evo2-2 9-0, evo2-3 10-0, evo3-1 10-0, evo3-2 9-0, evo3-3 10-0\ndir: W\nip: 4 2\n---\n$T\nFBC-  rS\\+!:\n :M>2S$B8yCM\n  4r>4    -[\n", "name: map3-bomber\n# map-elites run map3, slot 1-4-3 (bomber), was m198-76057 (gen 198, parents m53-20474+point,remove)\n# fitness 2.95; 35W of 46; per game: 3.65 bomb hits, 0.00 poison writes, 4.61 pickups; left home in 100% of games\ndir: W\nip: 12 2\n---\n    +\nMFS -y  \\$+8\n  :M>>2S$B8CyMC\n   4r^  +   $r\n"], seed: 1023 }, final: 1526976115, ticks: 2e3 }, { case: { sources: ["name: evo4-2\n# evolved: run evo4, was g134-16652 (parents g132-16380\xD7g133-16505)\n# held-out vs benchmarks: 138/150 wins; bomber 8-2, gatherer 10-0, roamer 9-0, stalker 10-0, turtle 8-0, viper 10-0, evo1-1 9-0, evo1-2 9-0, evo1-3 9-0, evo2-1 9-0, evo2-2 9-0, evo2-3 10-0, evo3-1 9-1, evo3-2 9-0, evo3-3 10-0\ndir: W\nip: 4 2\n---\n S\n!3 - S1\\S+!R\n :M>2S$B8yCM\n  >  S  -[-R\n", "name: evo6-3\n# evolved: run evo6, was g136-16889 (parents g135-16802+remove)\n# held-out vs benchmarks: 61/140 wins; bomber 3-2, gatherer 7-3, roamer 4-1, stalker 4-1, turtle 4-1, viper 4-1, evo2-2 5-0, evo3-1 6-0, evo4-1 2-5, evo4-2 4-2, evo4-3 3-3, evo5-1 4-2, evo5-2 5-2, evo5-3 6-2\ndir: W\nip: 4 1\n---\nCo RCr_%de y\n :M>2S$B8CyMC\n CM[ v @  e_\n"], seed: 1052 }, final: 4155588172, ticks: 2e3 }, { case: { sources: ["name: evo4-2\n# evolved: run evo4, was g134-16652 (parents g132-16380\xD7g133-16505)\n# held-out vs benchmarks: 138/150 wins; bomber 8-2, gatherer 10-0, roamer 9-0, stalker 10-0, turtle 8-0, viper 10-0, evo1-1 9-0, evo1-2 9-0, evo1-3 9-0, evo2-1 9-0, evo2-2 9-0, evo2-3 10-0, evo3-1 9-1, evo3-2 9-0, evo3-3 10-0\ndir: W\nip: 4 2\n---\n S\n!3 - S1\\S+!R\n :M>2S$B8yCM\n  >  S  -[-R\n", "name: morph4-twitch\n# map-elites run morph4, slot 0-1-1 (twitch), was m397-152563 (gen 397, parents m37-14565\xD7m395-151787)\n# fitness 2.38; 18W of 28; per game: 0.00 bomb hits, 0.00 poison writes, 8.50 pickups; left home in 29% of games\n# shape changes 5.7 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 11 2\n---\nd   *.\nCv TCB6-\n9>C2S|     3@C\n ^ SA>$$:Mem+\n"], seed: 1081 }, final: 1084634080, ticks: 2e3 }, { case: { sources: ["name: evo4-3\n# evolved: run evo4, was g142-17669 (parents g141-17501+ip,ip)\n# held-out vs benchmarks: 138/150 wins; bomber 7-3, gatherer 10-0, roamer 9-0, stalker 10-0, turtle 9-0, viper 10-0, evo1-1 9-0, evo1-2 9-0, evo1-3 9-0, evo2-1 9-0, evo2-2 9-0, evo2-3 10-0, evo3-1 9-1, evo3-2 9-0, evo3-3 10-0\ndir: W\nip: 5 2\n---\n  S\nSM3 -?.\\S`Me\n  :M>2S$B8yCM\n   >  4 S-[MM\n", "name: morph2-still\n# map-elites run morph2, slot 1-0-0 (still), was m247-95084 (gen 247, parents m242-93180+dir)\n# fitness 1.94; 19W of 60; per game: 1.27 bomb hits, 0.00 poison writes, 4.97 pickups; left home in 83% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 17% of games\ndir: W\nip: 9 3\n---\n      .\n  v  MB\nAX>C2S|$    W$\n >^LA5>$$:Mem+\n     T\n"], seed: 1110 }, final: 1873742159, ticks: 2e3 }, { case: { sources: ["name: evo5-1\n# evolved: run evo5, was g138-17128 (parents g137-17041\xD7g137-17108)\n# held-out vs benchmarks: 50/110 wins; bomber 2-2, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-1, viper 4-1, evo2-2 5-0, evo3-1 8-0, evo4-1 4-2, evo4-2 3-3, evo4-3 2-4\ndir: W\nip: 10 1\n---\n .G$3-CC3-\n:M>2S$B8CyM\ner     XM-@d\n=\n", "name: morph1-still\n# map-elites run morph1, slot 2-0-0 (still), was m249-95875 (gen 249, parents m150-57657+point)\n# fitness 2.09; 13W of 30; per game: 0.33 bomb hits, 0.87 poison writes, 2.53 pickups; left home in 93% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 0% of games\ndir: E\nip: 11 3\n---\n      .\n  v  +>oo'@W B\n:$>C2S|   B-BB\n  ^   >$$:Mem+\n"], seed: 1139 }, final: 1394506251, ticks: 2e3 }, { case: { sources: ["name: evo5-2\n# evolved: run evo5, was g148-18472 (parents g147-18327+remove)\n# held-out vs benchmarks: 53/110 wins; bomber 5-1, gatherer 10-0, roamer 5-1, stalker 5-1, turtle 5-2, viper 5-1, evo2-2 6-0, evo3-1 5-1, evo4-1 3-3, evo4-2 2-4, evo4-3 2-4\ndir: E\nip: 6 1\n---\n    y^MWFS_ :\n6>28M>2S$B8CyMC\n    F4 M   R$S\n", "name: map4-poisoner\n# map-elites run map4, slot 3-4-3 (poisoner), was m296-113891 (gen 296, parents m289-111025+)\n# fitness 2.19; 51W of 108; per game: 0.89 bomb hits, 20.75 poison writes, 7.06 pickups; left home in 100% of games\ndir: W\nip: 1 2\n---\n       .\nM  v  +>oo'@W B\n:S$>C2S|     W$\n   ^   >$$:Mem+\n"], seed: 1168 }, final: 1425278261, ticks: 2e3 }, { case: { sources: ["name: evo5-3\n# evolved: run evo5, was g143-17853 (parents g142-17652+remove)\n# held-out vs benchmarks: 47/110 wins; bomber 3-1, gatherer 8-2, roamer 3-1, stalker 3-1, turtle 6-0, viper 2-2, evo2-2 7-0, evo3-1 5-0, evo4-1 4-3, evo4-2 3-4, evo4-3 3-4\ndir: W\nip: 3 1\n---\n y$M  ^_ :W-\n:M>2S$B8CyMC\n y4 T <-4$>\n", "name: map4-bomber\n# map-elites run map4, slot 1-4-3 (bomber), was m298-114704 (gen 298, parents m295-113526+point)\n# fitness 2.90; 20W of 36; per game: 4.19 bomb hits, 0.00 poison writes, 4.69 pickups; left home in 89% of games\ndir: E\nip: 3 1\n---\n v  WBoo'@W .\n$>C2S|     W$\n ^<  >$$:Mem+\n"], seed: 1197 }, final: 850267669, ticks: 2e3 }, { case: { sources: ["name: evo6-1\n# evolved: run evo6, was g143-17847 (parents g142-17720\xD7g142-17670)\n# held-out vs benchmarks: 65/140 wins; bomber 4-1, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-0, viper 4-1, evo2-2 7-0, evo3-1 6-0, evo4-1 2-3, evo4-2 5-1, evo4-3 3-3, evo5-1 4-2, evo5-2 4-3, evo5-3 4-2\ndir: W\nip: 4 1\n---\nCo yMe_ de y\n :M>2S$B8CyMC\n W.^: T@   /\n", "name: map3-none\n# map-elites run map3, slot 0-4-2 (none), was m199-76527 (gen 199, parents m192-73841+point)\n# fitness 2.34; 30W of 46; per game: 0.00 bomb hits, 0.00 poison writes, 7.20 pickups; left home in 67% of games\ndir: E\nip: 7 3\n---\n  M\n>#ov  B>oo'\n|\\ >m2S|\n>d$CMem+\n"], seed: 1226 }, final: 1773945099, ticks: 2e3 }, { case: { sources: ["name: evo6-2\n# evolved: run evo6, was g147-18251 (parents g146-18184\xD7g146-18116)\n# held-out vs benchmarks: 61/140 wins; bomber 2-3, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-0, viper 4-1, evo2-2 6-0, evo3-1 6-0, evo4-1 4-1, evo4-2 4-1, evo4-3 4-1, evo5-1 1-4, evo5-2 4-2, evo5-3 4-2\ndir: W\nip: 4 2\n---\n5\nCo yM \\-+e y\n :M>2S$B8CyMC\n C.^   @+ $S\n", "name: map3-mixed\n# map-elites run map3, slot 2-3-3 (mixed), was m197-75976 (gen 197, parents m189-72802+)\n# fitness 2.01; 19W of 46; per game: 0.04 bomb hits, 0.04 poison writes, 2.46 pickups; left home in 80% of games\ndir: E\nip: 0 2\n---\n    .\nv   >oo'@WC\\$:MB\n>C2S|      $\n^   >$$:Mem+\nM\n"], seed: 1255 }, final: 3559646842, ticks: 2e3 }, { case: { sources: ["name: evo6-3\n# evolved: run evo6, was g136-16889 (parents g135-16802+remove)\n# held-out vs benchmarks: 61/140 wins; bomber 3-2, gatherer 7-3, roamer 4-1, stalker 4-1, turtle 4-1, viper 4-1, evo2-2 5-0, evo3-1 6-0, evo4-1 2-5, evo4-2 4-2, evo4-3 3-3, evo5-1 4-2, evo5-2 5-2, evo5-3 6-2\ndir: W\nip: 4 1\n---\nCo RCr_%de y\n :M>2S$B8CyMC\n CM[ v @  e_\n", "name: map3-mixed\n# map-elites run map3, slot 2-3-3 (mixed), was m197-75976 (gen 197, parents m189-72802+)\n# fitness 2.01; 19W of 46; per game: 0.04 bomb hits, 0.04 poison writes, 2.46 pickups; left home in 80% of games\ndir: E\nip: 0 2\n---\n    .\nv   >oo'@WC\\$:MB\n>C2S|      $\n^   >$$:Mem+\nM\n"], seed: 1284 }, final: 292842551, ticks: 2e3 }, { case: { sources: ["name: map1-bomber\n# map-elites run map1 (stopped at gen ~127, stagnant), slot 1-3-3 (bomber), was m14-5507 (gen 14)\n# fitness 3.46; per game: 5.00 bomb hits, 0.00 poison writes, 2.00 pickups; left home in 91% of games\ndir: W\nip: 4 2\n---\n$\nFB -  rS\\+!:\n :M>2S$B8yCM\n  4r^   >$$:M\n", "name: map3-none\n# map-elites run map3, slot 0-4-2 (none), was m199-76527 (gen 199, parents m192-73841+point)\n# fitness 2.34; 30W of 46; per game: 0.00 bomb hits, 0.00 poison writes, 7.20 pickups; left home in 67% of games\ndir: E\nip: 7 3\n---\n  M\n>#ov  B>oo'\n|\\ >m2S|\n>d$CMem+\n"], seed: 1313 }, final: 218864970, ticks: 2e3 }, { case: { sources: ["name: map1-none\n# map-elites run map1 (stopped at gen ~127, stagnant), slot 0-3-2 (none), was m98-37682 (gen 98)\n# fitness 2.23; per game: 0.00 bomb hits, 0.00 poison writes, 3.62 pickups; left home in 71% of games\ndir: E\nip: 0 2\n---\n9\nv\n8yCM\n>$$9M$$vMS!+\n", "name: map4-bomber\n# map-elites run map4, slot 1-4-3 (bomber), was m298-114704 (gen 298, parents m295-113526+point)\n# fitness 2.90; 20W of 36; per game: 4.19 bomb hits, 0.00 poison writes, 4.69 pickups; left home in 89% of games\ndir: E\nip: 3 1\n---\n v  WBoo'@W .\n$>C2S|     W$\n ^<  >$$:Mem+\n"], seed: 1342 }, final: 2600899406, ticks: 2e3 }, { case: { sources: ["name: map2-bomber\n# map-elites run map2, slot 1-3-3 (bomber), was m248-95485 (gen 248, parents m247-94854+point)\n# fitness 2.67; 45W of 72; per game: 3.36 bomb hits, 0.00 poison writes, 2.19 pickups; left home in 86% of games\ndir: W\nip: 14 2\n---\n\\\nMFB ^y  f-fe\n  :M>>2S$B8CyMC\n   4r^  >$S $\n", "name: map4-poisoner\n# map-elites run map4, slot 3-4-3 (poisoner), was m296-113891 (gen 296, parents m289-111025+)\n# fitness 2.19; 51W of 108; per game: 0.89 bomb hits, 20.75 poison writes, 7.06 pickups; left home in 100% of games\ndir: W\nip: 1 2\n---\n       .\nM  v  +>oo'@W B\n:S$>C2S|     W$\n   ^   >$$:Mem+\n"], seed: 1371 }, final: 3951944527, ticks: 2e3 }, { case: { sources: ["name: map2-mixed\n# map-elites run map2, slot 2-3-3 (mixed), was m248-95250 (gen 248, parents m126-48739+)\n# fitness 1.97; 34W of 72; per game: 0.08 bomb hits, 0.14 poison writes, 3.36 pickups; left home in 89% of games\ndir: S\nip: 0 2\n---\n    .\nv   >oo'@WT\\$:MB\n>C2S|      $\n^   >$$:Mem+\nM\n", "name: morph1-still\n# map-elites run morph1, slot 2-0-0 (still), was m249-95875 (gen 249, parents m150-57657+point)\n# fitness 2.09; 13W of 30; per game: 0.33 bomb hits, 0.87 poison writes, 2.53 pickups; left home in 93% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 0% of games\ndir: E\nip: 11 3\n---\n      .\n  v  +>oo'@W B\n:$>C2S|   B-BB\n  ^   >$$:Mem+\n"], seed: 1400 }, final: 2169872713, ticks: 2e3 }, { case: { sources: ["name: map2-none\n# map-elites run map2, slot 0-3-3 (none), was m249-95832 (gen 249, parents m245-94228+point)\n# fitness 2.03; 21W of 36; per game: 0.00 bomb hits, 0.00 poison writes, 3.56 pickups; left home in 97% of games\ndir: S\nip: 0 1\n---\n    .\nv   >oo'@WT\\$vMB\n>C2S|      $\n^   >$$:Mem+\nM\n", "name: morph2-still\n# map-elites run morph2, slot 1-0-0 (still), was m247-95084 (gen 247, parents m242-93180+dir)\n# fitness 1.94; 19W of 60; per game: 1.27 bomb hits, 0.00 poison writes, 4.97 pickups; left home in 83% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 17% of games\ndir: W\nip: 9 3\n---\n      .\n  v  MB\nAX>C2S|$    W$\n >^LA5>$$:Mem+\n     T\n"], seed: 1429 }, final: 2480341722, ticks: 2e3 }, { case: { sources: ["name: map2-poisoner\n# map-elites run map2, slot 3-3-3 (poisoner), was m249-95710 (gen 249, parents m242-92949\xD7m192-73730)\n# fitness 2.28; 22W of 36; per game: 0.03 bomb hits, 0.14 poison writes, 3.53 pickups; left home in 97% of games\ndir: E\nip: 0 1\n---\nv B >oo'@W o$:M\n>C2S|     +$.\n^   >$$:Mem+\nM\n", "name: morph4-twitch\n# map-elites run morph4, slot 0-1-1 (twitch), was m397-152563 (gen 397, parents m37-14565\xD7m395-151787)\n# fitness 2.38; 18W of 28; per game: 0.00 bomb hits, 0.00 poison writes, 8.50 pickups; left home in 29% of games\n# shape changes 5.7 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 11 2\n---\nd   *.\nCv TCB6-\n9>C2S|     3@C\n ^ SA>$$:Mem+\n"], seed: 1458 }, final: 3154226641, ticks: 2e3 }, { case: { sources: ["name: map3-mixed\n# map-elites run map3, slot 2-3-3 (mixed), was m197-75976 (gen 197, parents m189-72802+)\n# fitness 2.01; 19W of 46; per game: 0.04 bomb hits, 0.04 poison writes, 2.46 pickups; left home in 80% of games\ndir: E\nip: 0 2\n---\n    .\nv   >oo'@WC\\$:MB\n>C2S|      $\n^   >$$:Mem+\nM\n", "name: morph1-amoeba\n# map-elites run morph1, slot 1-4-2 (amoeba), was m158-60820 (gen 158, parents m139-53708+point)\n# fitness 2.08; 932W of 2730; per game: 1.77 bomb hits, 0.00 poison writes, 3.13 pickups; left home in 97% of games\n# shape changes 205.0 cells/game; squeezed through a narrow passage in 53% of games\ndir: W\nip: 12 1\n---\n  v 2+BBA'@\\\nA$>C2S|     2B\n >^ A >$$:Mem+\n"], seed: 1487 }, final: 2232943437, ticks: 2e3 }, { case: { sources: ["name: map3-none\n# map-elites run map3, slot 0-4-2 (none), was m199-76527 (gen 199, parents m192-73841+point)\n# fitness 2.34; 30W of 46; per game: 0.00 bomb hits, 0.00 poison writes, 7.20 pickups; left home in 67% of games\ndir: E\nip: 7 3\n---\n  M\n>#ov  B>oo'\n|\\ >m2S|\n>d$CMem+\n", "name: morph2-twitch\n# map-elites run morph2, slot 1-1-2 (twitch), was m237-91376 (gen 237, parents m235-90361+point,point)\n# fitness 1.95; 100W of 300; per game: 2.40 bomb hits, 0.00 poison writes, 9.77 pickups; left home in 93% of games\n# shape changes 3.3 cells/game; squeezed through a narrow passage in 50% of games\ndir: E\nip: 2 2\n---\n      .\n  $  CBBAG@  B\nA7>C2S|     W$\n >^ AS>$$:Mem+\n"], seed: 1516 }, final: 1948322041, ticks: 2e3 }, { case: { sources: ["name: map4-bomber\n# map-elites run map4, slot 1-4-3 (bomber), was m298-114704 (gen 298, parents m295-113526+point)\n# fitness 2.90; 20W of 36; per game: 4.19 bomb hits, 0.00 poison writes, 4.69 pickups; left home in 89% of games\ndir: E\nip: 3 1\n---\n v  WBoo'@W .\n$>C2S|     W$\n ^<  >$$:Mem+\n", "name: morph1-morph\n# map-elites run morph1, slot 1-2-0 (morph), was m248-95532 (gen 248, parents m242-93223+dupe)\n# fitness 2.42; 12W of 30; per game: 2.90 bomb hits, 0.00 poison writes, 2.20 pickups; left home in 97% of games\n# shape changes 16.8 cells/game; squeezed through a narrow passage in 13% of games\ndir: W\nip: 6 2\n---\n v 2+BBA2@\\\n >C2S|     !B\n>^ AA>$$:Mem+\n>\n"], seed: 1545 }, final: 110092381, ticks: 2e3 }, { case: { sources: ["name: map4-mixed\n# map-elites run map4, slot 2-3-3 (mixed), was m297-114224 (gen 297, parents m286-109904+)\n# fitness 2.25; 27W of 72; per game: 2.28 bomb hits, 0.72 poison writes, 2.97 pickups; left home in 97% of games\ndir: E\nip: 14 2\n---\n       .\nM  v  +>oo'@W B\n:M$>C2S|     W$\n   ^   >$$:Mem+\n", "name: morph4-still\n# map-elites run morph4, slot 1-0-1 (still), was m397-152498 (gen 397, parents m393-151022+point,remove,add,ip)\n# fitness 2.21; 30W of 56; per game: 0.21 bomb hits, 0.00 poison writes, 7.96 pickups; left home in 29% of games\n# shape changes 0.0 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 5 1\n---\n     M.\n Cv TCBB      ^\nT7>2CS|     3@C\n >^ A >$$:Mem+\n"], seed: 1574 }, final: 3962898892, ticks: 2e3 }, { case: { sources: ["name: map4-poisoner\n# map-elites run map4, slot 3-4-3 (poisoner), was m296-113891 (gen 296, parents m289-111025+)\n# fitness 2.19; 51W of 108; per game: 0.89 bomb hits, 20.75 poison writes, 7.06 pickups; left home in 100% of games\ndir: W\nip: 1 2\n---\n       .\nM  v  +>oo'@W B\n:S$>C2S|     W$\n   ^   >$$:Mem+\n", "name: morph4-morph\n# map-elites run morph4, slot 1-2-1 (morph), was m397-152481 (gen 397, parents m391-150471+swap,point,point)\n# fitness 2.51; 36W of 56; per game: 0.29 bomb hits, 0.00 poison writes, 8.79 pickups; left home in 39% of games\n# shape changes 20.6 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 36%\ndir: W\nip: 11 3\n---\n    <\nd   >.\nCv TCB<-\n9>C2S|     3@C\n ^ A >=$:Mem+\n"], seed: 1603 }, final: 1424372153, ticks: 2e3 }, { case: { sources: ["name: morph1-morph\n# map-elites run morph1, slot 1-2-0 (morph), was m248-95532 (gen 248, parents m242-93223+dupe)\n# fitness 2.42; 12W of 30; per game: 2.90 bomb hits, 0.00 poison writes, 2.20 pickups; left home in 97% of games\n# shape changes 16.8 cells/game; squeezed through a narrow passage in 13% of games\ndir: W\nip: 6 2\n---\n v 2+BBA2@\\\n >C2S|     !B\n>^ AA>$$:Mem+\n>\n", "name: morph4-still\n# map-elites run morph4, slot 1-0-1 (still), was m397-152498 (gen 397, parents m393-151022+point,remove,add,ip)\n# fitness 2.21; 30W of 56; per game: 0.21 bomb hits, 0.00 poison writes, 7.96 pickups; left home in 29% of games\n# shape changes 0.0 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 5 1\n---\n     M.\n Cv TCBB      ^\nT7>2CS|     3@C\n >^ A >$$:Mem+\n"], seed: 1632 }, final: 47682641, ticks: 2e3 }, { case: { sources: ["name: morph1-twitch\n# map-elites run morph1, slot 1-1-0 (twitch), was m248-95312 (gen 248, parents m246-94544+remove)\n# fitness 2.20; 10W of 30; per game: 2.80 bomb hits, 0.00 poison writes, 2.30 pickups; left home in 77% of games\n# shape changes 7.6 cells/game; squeezed through a narrow passage in 13% of games\ndir: W\nip: 11 2\n---\n v  +BBA2@\n >C2S|     !B\n>^ A >$$:Mem+\n", "name: morph2-twitch\n# map-elites run morph2, slot 1-1-2 (twitch), was m237-91376 (gen 237, parents m235-90361+point,point)\n# fitness 1.95; 100W of 300; per game: 2.40 bomb hits, 0.00 poison writes, 9.77 pickups; left home in 93% of games\n# shape changes 3.3 cells/game; squeezed through a narrow passage in 50% of games\ndir: E\nip: 2 2\n---\n      .\n  $  CBBAG@  B\nA7>C2S|     W$\n >^ AS>$$:Mem+\n"], seed: 1661 }, final: 30380904, ticks: 2e3 }, { case: { sources: ["name: morph2-ooze\n# map-elites run morph2, slot 1-3-2 (ooze), was m244-93862 (gen 244, parents m203-78037+dir)\n# fitness 2.09; 51W of 120; per game: 1.37 bomb hits, 0.00 poison writes, 3.63 pickups; left home in 97% of games\n# shape changes 110.9 cells/game; squeezed through a narrow passage in 50% of games\ndir: E\nip: 6 3\n---\nd   T.\n+vM-CB7T\n >C2S|     ]7C\n ^ AA>$$:Mem+\n", "name: morph4-twitch\n# map-elites run morph4, slot 0-1-1 (twitch), was m397-152563 (gen 397, parents m37-14565\xD7m395-151787)\n# fitness 2.38; 18W of 28; per game: 0.00 bomb hits, 0.00 poison writes, 8.50 pickups; left home in 29% of games\n# shape changes 5.7 cells/game; squeezed into a narrow passage in 0% of games; whole body into another room in 29%\ndir: W\nip: 11 2\n---\nd   *.\nCv TCB6-\n9>C2S|     3@C\n ^ SA>$$:Mem+\n"], seed: 1690 }, final: 3948016463, ticks: 2e3 }, { case: { sources: ["name: evo2-3\n# evolved: run evo2, was g133-16531 (parents g132-16407+point,remove)\n# held-out vs benchmarks: 22/50 wins; bomber 7-1, gatherer 2-4, roamer 2-4, stalker 6-2, turtle 5-0\ndir: W\nip: 3 2\n---\n B+vF|B3<7\nB^`?|T\\SB-\n 7 CBTM?:\n", "name: morph2-still\n# map-elites run morph2, slot 1-0-0 (still), was m247-95084 (gen 247, parents m242-93180+dir)\n# fitness 1.94; 19W of 60; per game: 1.27 bomb hits, 0.00 poison writes, 4.97 pickups; left home in 83% of games\n# shape changes 0.0 cells/game; squeezed through a narrow passage in 17% of games\ndir: W\nip: 9 3\n---\n      .\n  v  MB\nAX>C2S|$    W$\n >^LA5>$$:Mem+\n     T\n"], seed: 1719 }, final: 3300457446, ticks: 2e3 }, { case: { sources: ["name: rand15\ndir: S\nip: 3 1\n---\n  <m8\n   \\\n=LC6AM\n  CT\n  4M\n", "name: morph2-amoeba\n# map-elites run morph2, slot 1-4-0 (amoeba), was m247-95104 (gen 247, parents m236-90899+point)\n# fitness 2.01; 19W of 60; per game: 1.90 bomb hits, 0.00 poison writes, 5.73 pickups; left home in 87% of games\n# shape changes 379.1 cells/game; squeezed through a narrow passage in 7% of games\ndir: W\nip: 6 3\n---\n6   *.\nCv -CBBT\n9>C2S|     3vC\n ^ AA>$$:Mem+\n"], seed: 1748 }, final: 2340355700, ticks: 2e3 }, { case: { sources: ["name: mut17\ndir: W\nip: 3 2\n---\n   T7\n  B+vF|B3<7\n_B^`?|T\\SB-\n  7 CBTM :\n", "name: rand17\ndir: N\nip: 3 2\n---\n>Te:_\n  +4?\n3.KL\n 6C\\\n  #T$\n"], seed: 1777 }, final: 2733624005, ticks: 2e3 }, { case: { sources: ["name: mut33\ndir: W\nip: 3 2\n---\n    .   C\nv   >oo'@WT\\$:MB\n>C2S|      $\n^   >$$: ee+\nM\n", "name: rand27\ndir: S\nip: 3 2\n---\n  %`\n  0A\nW#%<5!\n"], seed: 1806 }, final: 3673348208, ticks: 2e3 }, { case: { sources: ["name: evo6-3\n# evolved: run evo6, was g136-16889 (parents g135-16802+remove)\n# held-out vs benchmarks: 61/140 wins; bomber 3-2, gatherer 7-3, roamer 4-1, stalker 4-1, turtle 4-1, viper 4-1, evo2-2 5-0, evo3-1 6-0, evo4-1 2-5, evo4-2 4-2, evo4-3 3-3, evo5-1 4-2, evo5-2 5-2, evo5-3 6-2\ndir: W\nip: 4 1\n---\nCo RCr_%de y\n :M>2S$B8CyMC\n CM[ v @  e_\n", "name: map2-none\n# map-elites run map2, slot 0-3-3 (none), was m249-95832 (gen 249, parents m245-94228+point)\n# fitness 2.03; 21W of 36; per game: 0.00 bomb hits, 0.00 poison writes, 3.56 pickups; left home in 97% of games\ndir: S\nip: 0 1\n---\n    .\nv   >oo'@WT\\$vMB\n>C2S|      $\n^   >$$:Mem+\nM\n"], seed: 1835 }, final: 1349031961, ticks: 2e3 }, { case: { sources: ["name: mut5\ndir: E\nip: 1 0\n---\n C6S$TA\nTS S\n", "name: map2-bomber\n# map-elites run map2, slot 1-3-3 (bomber), was m248-95485 (gen 248, parents m247-94854+point)\n# fitness 2.67; 45W of 72; per game: 3.36 bomb hits, 0.00 poison writes, 2.19 pickups; left home in 86% of games\ndir: W\nip: 14 2\n---\n\\\nMFB ^y  f-fe\n  :M>>2S$B8CyMC\n   4r^  >$S $\n", "name: rand29\ndir: N\nip: 2 2\n---\n   1\nvC<T^A\n 8A@e|\n", "name: map1-none\n# map-elites run map1 (stopped at gen ~127, stagnant), slot 0-3-2 (none), was m98-37682 (gen 98)\n# fitness 2.23; per game: 0.00 bomb hits, 0.00 poison writes, 3.62 pickups; left home in 71% of games\ndir: E\nip: 0 2\n---\n9\nv\n8yCM\n>$$9M$$vMS!+\n"], seed: 1864 }, final: 4194166820, ticks: 2e3 }, { case: { sources: ["name: mut30\ndir: W\nip: 4 2\n---\n<\nFB -  rS_+!3\n :M>2S$B8yCM\n  4r^   >$$:M\n        B\n", "name: rand21\ndir: W\nip: 4 2\n---\n   ?\n  :$e\n  2Lo\nWS@TM\n  TT\n", "name: amoeba-g\n# morph4-amoeba with one cell changed (e \u2192 G): grows fat as it oozes\ndir: W\nip: 4 4\n---\n  m\n  *T\n  1WBCs\n  +=\\M\n +GmLA\nR+dWCmLC\n   L=/:\n   4\n", "name: rand16\ndir: S\nip: 3 1\n---\n 8\nWWFCB\n :T|\n  >]\n   +\n"], seed: 1893 }, final: 1796336964, ticks: 2e3 }, { case: { sources: ["name: rand20\ndir: W\nip: 3 2\n---\n   Ao\n oCTT\nL.TGA.\n? ./2\n", "name: evo5-1\n# evolved: run evo5, was g138-17128 (parents g137-17041\xD7g137-17108)\n# held-out vs benchmarks: 50/110 wins; bomber 2-2, gatherer 8-2, roamer 4-1, stalker 4-1, turtle 6-1, viper 4-1, evo2-2 5-0, evo3-1 8-0, evo4-1 4-2, evo4-2 3-3, evo4-3 2-4\ndir: W\nip: 10 1\n---\n .G$3-CC3-\n:M>2S$B8CyM\ner     XM-@d\n=\n", "name: mut7\ndir: E\nip: 1 1\n---\n v   >oo'@WT\\$:M\n_>C2Sm     2\n ^   >$$:Me!+\n", "name: map2-poisoner\n# map-elites run map2, slot 3-3-3 (poisoner), was m249-95710 (gen 249, parents m242-92949\xD7m192-73730)\n# fitness 2.28; 22W of 36; per game: 0.03 bomb hits, 0.14 poison writes, 3.53 pickups; left home in 97% of games\ndir: E\nip: 0 1\n---\nv B >oo'@W o$:M\n>C2S|     +$.\n^   >$$:Mem+\nM\n"], seed: 1922 }, final: 2587173587, ticks: 2e3 }, { case: { sources: ["name: rand20\ndir: W\nip: 3 2\n---\n   Ao\n oCTT\nL.TGA.\n? ./2\n", "name: mut4\ndir: S\nip: 0 1\n---\no\nC6\\$:M\n", "name: map2-bomber\n# map-elites run map2, slot 1-3-3 (bomber), was m248-95485 (gen 248, parents m247-94854+point)\n# fitness 2.67; 45W of 72; per game: 3.36 bomb hits, 0.00 poison writes, 2.19 pickups; left home in 86% of games\ndir: W\nip: 14 2\n---\n\\\nMFB ^y  f-fe\n  :M>>2S$B8CyMC\n   4r^  >$S $\n", "name: evo1-3\n# evolved: run evo1, was g94-8652 (parents g90-8298\xD7g93-8634)\n# held-out vs benchmarks: 46/50 wins; bomber 8-2, gatherer 10-0, roamer 10-0, stalker 8-2, turtle 10-0\ndir: E\nip: 12 2\n---\n S :mL\n^>:fS|  \\T\n ^y m>$$CM2eBR\n"], seed: 1951 }, final: 3634306947, ticks: 2e3 }, { case: { sources: ["name: rand18\ndir: S\nip: 3 3\n---\n     T-\n T.<  C\n GfMC.S\n XA\\D\nS|m9\n"], seed: 1980 }, final: 1112347107, ticks: 2e3 }];
 
 // src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAKI~xn";
+var CLASSIC_GLYPHS = GLYPHS.indexOf("I");
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
 function glyphOf(code) {
@@ -399,10 +400,103 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.25, de
   const bayRect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
   return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
 }
+function makeClimb(seed, w, base, steps, foodSpacing) {
+  const stepH = [], stepTop = [];
+  let h = 0;
+  for (let n = steps; n >= -steps; n--) {
+    stepTop[n + steps] = h;
+    stepH[n + steps] = base * 10 ** Math.abs(n);
+    h += stepH[n + steps];
+  }
+  const top0 = stepTop[steps], seaLevel = top0 + (base >> 1);
+  const rng = makeRng(seed ^ 49435);
+  const terrain = new Uint8Array(w * h);
+  const step = new Int8Array(w * h);
+  for (let n = -steps; n <= steps; n++) {
+    const t = stepTop[n + steps], H = stepH[n + steps];
+    step.fill(n, t * w, (t + H) * w);
+  }
+  for (let y = 0; y < h; y++) {
+    terrain[y * w] = WALL;
+    terrain[y * w + w - 1] = WALL;
+  }
+  for (let x = 0; x < w; x++) {
+    terrain[x] = WALL;
+    terrain[(h - 1) * w + x] = WALL;
+  }
+  const rockIn = (n, gx, gy, fill) => {
+    const t = stepTop[n + steps], H = stepH[n + steps], gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
+    let g = new Uint8Array(gw * gh);
+    for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
+    for (let pass = 0; pass < 4; pass++) {
+      const next = g.slice();
+      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+        let c = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
+        next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
+      }
+      g = next;
+    }
+    for (let y = t; y < t + H; y++) {
+      const j = Math.floor((y - t) / gy);
+      for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
+    }
+  };
+  for (let n = 1; n <= steps; n++) {
+    rockIn(n, 10, 3, 0.36);
+    rockIn(-n, 5, 5, 0.38 + 0.04 * n);
+  }
+  const seen = new Uint8Array(w * h), q = [];
+  for (let x = 1; x < w - 1; x++) {
+    const i = seaLevel * w + x;
+    if (terrain[i] === FLOOR) {
+      seen[i] = 1;
+      q.push(i);
+    }
+  }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k];
+    for (const nb of [i - 1, i + 1, i - w, i + w]) if (nb >= 0 && nb < w * h && !seen[nb] && terrain[nb] === FLOOR) {
+      seen[nb] = 1;
+      q.push(nb);
+    }
+  }
+  for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
+  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
+  const meadow = (x) => {
+    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
+    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
+  };
+  const spawns = [];
+  for (let y = 1; y < h - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w - 1 || py >= h - 1) continue;
+      const i = py * w + px;
+      if (terrain[i] !== FLOOR) continue;
+      const n = step[i], t = stepTop[n + steps], H = stepH[n + steps];
+      const layer = n === 0 ? 0.6 : 0.25 + 0.75 * Math.sin(Math.PI * (py - t + 0.5) / H);
+      const ledge = terrain[i + w] !== FLOOR ? 2 : 1;
+      const sparse = n > 0 ? 0.5 : 1;
+      if (rng() < 0.3 * meadow(px) * layer * ledge * sparse) spawns.push({ x: px, y: py, kind: 1 });
+    }
+  }
+  const s0 = { x: 2, y: top0 + 1, w: w - 4, h: base - 2 };
+  const sm1 = { x: 2, y: stepTop[steps - 1] + 2, w: w - 4, h: Math.min(30, stepH[steps - 1] - 4) };
+  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, climbSteps: steps, stepTop, stepH, seaLevel };
+}
 
 // src/sim/world.ts
 var NONE = -1;
 var K = CODE["K"];
+var INSUL = CODE["I"];
+var FLIP = CODE["~"];
+var DOUBLE = CODE["x"];
+var MASK = CODE["n"];
+var FAT = CODE["."];
+var MOVE = CODE["M"];
+var BITE = CODE["B"];
+var COLLECT = CODE["C"];
 var DEBRIS = -2;
 var CONFIG = {
   sight: 14,
@@ -467,6 +561,14 @@ var CONFIG = {
   // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
   island: false,
   // island survival: side view, islanders vs sea creatures (board width = plate)
+  climb: false,
+  // The Climb: fixed width (plate), steps up (air: insulation) and down (water: armor), 10× taller and richer each
+  climbBase: 20,
+  // climb: step 0's height in rows (step ±n is base × 10^n)
+  climbSteps: 2,
+  // climb: steps each way
+  tile: 64,
+  // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,
   // island: ticks an unfed seal with max size 20 lasts (about a tenth of a lifetime)
   sharkStarve: 6e3,
@@ -509,7 +611,7 @@ var CONFIG = {
 var World = class {
   constructor(seed, specs) {
     this.seed = seed;
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 360, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm, CONFIG.depth) : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
+    this.board = CONFIG.climb ? makeClimb(seed, CONFIG.plate || 2e3, CONFIG.climbBase, CONFIG.climbSteps, CONFIG.plateFood) : CONFIG.island ? makeIsland(seed, CONFIG.plate || 360, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm, CONFIG.depth) : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int32Array(this.w * this.h).fill(NONE);
@@ -520,7 +622,8 @@ var World = class {
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
     this.narrow = new Uint8Array(this.w * this.h);
-    for (let y = 0; y < this.h; y++) {
+    if (CONFIG.climb) this.initTiles();
+    for (let y = 0; y < this.h && !CONFIG.climb; y++) {
       for (let x = 0; x < this.w; x++) {
         if (!this.isFloor(x, y)) continue;
         let a = x, b = x, c = y, d = y;
@@ -535,7 +638,7 @@ var World = class {
       if (CONFIG.island && s.realm === "sea" && CONFIG.sharkArrive > 0) this.arriving.push(s);
       else this.place(s, this.warriors.length);
     }
-    if (CONFIG.island) this.settle();
+    if (CONFIG.island || CONFIG.climb) this.settle();
   }
   board;
   w;
@@ -561,6 +664,77 @@ var World = class {
   attacks = { bombs: 0, poisons: 0 };
   result = { over: false, winner: null, reason: "" };
   spawnTimers;
+  /** Glyphs a copy error or WRITE can produce: The Climb's chemistry glyphs exist only there. */
+  glyphCount() {
+    return CONFIG.climb ? GLYPHS.length : CLASSIC_GLYPHS;
+  }
+  // ---------- The Climb: upkeep only near life ----------
+  /** Tiles (CONFIG.tile square): which spawns each holds, whether it's active, and when it last was. */
+  spawnsInTile = [];
+  tileActive = new Uint8Array(0);
+  tileLast = new Float64Array(0);
+  activeTiles = [];
+  tw = 0;
+  initTiles() {
+    const T = CONFIG.tile;
+    this.tw = Math.ceil(this.w / T);
+    const n = this.tw * Math.ceil(this.h / T);
+    this.spawnsInTile = Array.from({ length: n }, () => []);
+    this.tileActive = new Uint8Array(n);
+    this.tileLast = new Float64Array(n);
+    this.board.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
+  }
+  /** How many tiles the world is spending upkeep on right now (of how many). */
+  tileStats() {
+    return { active: this.activeTiles.length, total: this.tileActive.length };
+  }
+  /**
+   * Mark the tiles around every living body active. A tile that wakes after a long sleep
+   * catches up at once: its plants regrow and ripen as if time had passed there too.
+   */
+  refreshTiles() {
+    const T = CONFIG.tile, th = this.tileActive.length / this.tw;
+    const next = new Uint8Array(this.tileActive.length);
+    for (const wr of this.living()) {
+      const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = tx + dx, y = ty + dy;
+        if (x >= 0 && y >= 0 && x < this.tw && y < th) next[y * this.tw + x] = 1;
+      }
+    }
+    this.activeTiles = [];
+    for (let k = 0; k < next.length; k++) {
+      if (!next[k]) continue;
+      this.activeTiles.push(k);
+      if (!this.tileActive[k]) {
+        const gap = this.t - this.tileLast[k];
+        for (const sk of this.spawnsInTile[k]) {
+          const s = this.board.spawns[sk], i = this.idx(s.x, s.y);
+          if (this.resource[i] === 0 && this.owner[i] === NONE && gap >= this.regrowAt(s.y)) {
+            this.resource[i] = s.kind;
+            this.ripe[i] = 1;
+            this.spawnTimers[sk] = 0;
+          }
+          if (this.resource[i] === 1 && CONFIG.foodRipen > 0) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + gap / CONFIG.foodRipen);
+        }
+      }
+    }
+    for (const k of this.activeTiles) this.tileLast[k] = this.t;
+    this.tileActive = next;
+  }
+  /** Climb: ticks for a plant to regrow; sunlight makes it faster the higher the step. */
+  regrowAt(y) {
+    const n = this.board.step ? this.board.step[y * this.w] : 0;
+    return Math.max(1, Math.round(CONFIG.spawnInterval / (1 + Math.max(0, n))));
+  }
+  /** Climb: how much richer food is at this cell's step (10× per step out). */
+  richness(i) {
+    return this.board.step ? 10 ** Math.abs(this.board.step[i]) : 1;
+  }
+  /** Climb: the largest max size a body can have where its IP is (2× per step out, room for krakens). */
+  capAtCell(i) {
+    return this.board.step ? CONFIG.sizeCap * 2 ** Math.abs(this.board.step[i]) : CONFIG.sizeCap;
+  }
   // ---------- setup ----------
   arriving = [];
   /** Bumped whenever the terrain changes (the island's channel opening), so a viewer can redraw scenery. */
@@ -570,7 +744,7 @@ var World = class {
       throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
     const realm = this.board.startRealm ? spec.realm === "sea" ? 1 : 0 : 0;
-    const room = this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
+    const room = CONFIG.climb ? this.board.starts[spec.realm === "deep" ? 1 : 0] : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
     const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
     const ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
@@ -589,9 +763,9 @@ var World = class {
       oy: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
-      maxSize: CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
+      maxSize: CONFIG.climb ? this.capAtCell(this.idx(ox + spec.ip.x, oy + spec.ip.y)) : CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
       speed: CONFIG.speedStart,
-      // island founders start full
+      // island and climb founders start full
       accum: 0,
       lastOk: true,
       lastAct: "",
@@ -746,7 +920,7 @@ var World = class {
   toDebris(i) {
     const o = this.owner[i];
     if (o >= 0) this.warriors[o].cellCount--;
-    if (CONFIG.island && (o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) {
+    if ((CONFIG.island || CONFIG.climb) && (CONFIG.island && o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) {
       this.setOwner(i, NONE);
       this.code[i] = 0;
       return;
@@ -761,9 +935,10 @@ var World = class {
     wr.diedAt = this.t;
     const h0 = wr.lastHarm;
     const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : void 0;
-    if (CONFIG.island && k0 && k0.alive && k0.realm === 1 && wr.realm === 0) {
+    const eatsWhole = CONFIG.island ? k0?.realm === 1 && wr.realm === 0 : CONFIG.climb && !!k0?.traits?.meat;
+    if (eatsWhole && k0 && k0.alive) {
       const cells = this.cellsOf(wr.id).slice();
-      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1));
+      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1) * this.dietShare(k0, "meat") * this.richness(this.idx(wr.ipX, wr.ipY)));
       k0.stats.kills++;
       for (const c of cells) {
         this.setOwner(c, NONE);
@@ -809,7 +984,11 @@ var World = class {
     if (this.result.over) return;
     this.t++;
     const spawns = this.board.spawns;
-    for (let k = 0; k < spawns.length; k++) {
+    if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
+    const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
+    const nSpawns = climbList ? climbList.length : spawns.length;
+    for (let kk = 0; kk < nSpawns; kk++) {
+      const k = climbList ? climbList[kk] : kk;
       const s = spawns[k];
       const i = this.idx(s.x, s.y);
       if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
@@ -819,13 +998,13 @@ var World = class {
         this.spawnTimers[k] = 0;
         continue;
       }
-      if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
+      if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
         this.resource[i] = s.kind;
         this.ripe[i] = 1;
         this.spawnTimers[k] = 0;
       }
     }
-    if (CONFIG.island) this.islandTick();
+    if (CONFIG.island || CONFIG.climb) this.islandTick();
     if (this.arriving.length && this.t >= CONFIG.sharkArrive) this.arrive();
     const order = this.living().slice();
     const n = order.length;
@@ -881,8 +1060,23 @@ var World = class {
         }
         if (!wr.alive) continue;
       }
-      if (CONFIG.island) {
-        const pace = this.paceOf(wr);
+      if (CONFIG.climb && cells) {
+        const tr = this.traitsOf(wr);
+        wr.traits = tr;
+        const st = this.board.step;
+        const doomed = [];
+        for (const c of cells) {
+          const n2 = st[c], over = n2 > 0 ? n2 - tr.insulation : -n2 - tr.armor;
+          if (n2 && over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
+        }
+        for (const c of doomed) {
+          if (!wr.alive) break;
+          if (this.owner[c] === wr.id) this.destroy(c, void 0, st[c] > 0 ? "core frozen (too high)" : "core crushed by the pressure");
+        }
+        if (!wr.alive) continue;
+      }
+      if (CONFIG.island || CONFIG.climb) {
+        const pace = CONFIG.climb ? (wr.traits ??= this.traitsOf(wr)).pace : this.paceOf(wr);
         wr.pace = pace;
         wr.speed = CONFIG.paceSpeed * pace;
         const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
@@ -896,7 +1090,7 @@ var World = class {
       else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
       if (!wr.alive) continue;
       if (wr.cellCount <= 0) this.kill(wr, "no cells left");
-      else if (wr.diesAt !== void 0 && (CONFIG.island ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, "old age");
+      else if (wr.diesAt !== void 0 && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, "old age");
     }
     this.checkOver();
   }
@@ -907,9 +1101,11 @@ var World = class {
   settle() {
     for (const f of this.warriors.filter((w) => w.realm === 0 && w.gen === 0)) {
       const S = this.board.surface ?? 0, calm = this.board.calmLine ?? S;
+      const room = this.board.starts[f.spec.realm === "deep" ? 1 : 0];
       for (let n = 0, tries = 0; n < CONFIG.seals && tries < CONFIG.seals * 50; tries++) {
         const bay = this.board.starts[1], x0 = bay.x + bay.w + 2;
-        const ox = x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width)), oy = S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
+        const ox = CONFIG.climb ? room.x + Math.floor(this.rng() * Math.max(1, room.w - f.spec.width)) : x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width));
+        const oy = CONFIG.climb ? room.y + Math.floor(this.rng() * Math.max(1, room.h - f.spec.height)) : S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
         if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
         const id = this.warriors.length;
         const born = this.bornIn.get(f.lineage) ?? 1;
@@ -958,7 +1154,45 @@ var World = class {
   }
   /** Size cap for a realm (island sea creatures are big and need room to breed). */
   capOf(wr) {
+    if (CONFIG.climb) return this.capAtCell(this.idx(wr.ipX, wr.ipY));
     return CONFIG.island && wr.realm === 1 ? CONFIG.sharkCap : CONFIG.sizeCap;
+  }
+  /**
+   * The Climb: a body's chemistry. Each cell adds to its traits: K armor, I insulation, M
+   * move, B bite (and a taste for meat), C a taste for plants (if C outnumber B); K, I and fat (.) weigh 2, the
+   * rest 1. Modifier cells change the cells beside them (of the same body): ~ flips K ⇄ I,
+   * x doubles a cell's trait, n makes a cell weigh nothing. Pace = (1 + move) / (1 + mass / 11).
+   */
+  traitsOf(wr) {
+    const w = this.w, id = wr.id;
+    let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
+    for (const c of this.cellsOf(id)) {
+      let g = this.code[c], flip = false, dbl = 1, weightless = false;
+      for (const nb of [c - 1, c + 1, c - w, c + w]) {
+        if (this.owner[nb] !== id) continue;
+        const m = this.code[nb];
+        if (m === FLIP) flip = !flip;
+        else if (m === DOUBLE) dbl *= 2;
+        else if (m === MASK) weightless = true;
+      }
+      if (flip) g = g === K ? INSUL : g === INSUL ? K : g;
+      if (!weightless) mass += g === K || g === INSUL || g === FAT ? 2 : 1;
+      if (g === K) armor += dbl;
+      else if (g === INSUL) insulation += dbl;
+      else if (g === MOVE) move += dbl;
+      else if (g === BITE) {
+        bite += dbl;
+        meat++;
+      } else if (g === COLLECT) plants++;
+    }
+    return { armor, insulation, mass, move, bite: Math.max(1, bite), plants: plants > meat, meat: meat > 0, pace: (1 + move) / (1 + mass / CONFIG.paceMass) };
+  }
+  /** The Climb: how much of a food a body digests (a body that eats both gets 60% of each). */
+  dietShare(wr, food) {
+    const t = wr.traits;
+    if (!CONFIG.climb || !t) return 1;
+    if (!t[food]) return 0;
+    return t.plants && t.meat ? 0.6 : 1;
   }
   /** Typical lifespan for a realm (island sea creatures live CONFIG.sharkLife times longer). */
   lifeOf(realm) {
@@ -1363,6 +1597,10 @@ var World = class {
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
     const [fx, fy] = this.frame(wr);
+    if (CONFIG.climb) {
+      this.ringScan(wr, type, mine, fx, fy);
+      return;
+    }
     const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
     const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
     const cands = [];
@@ -1389,6 +1627,47 @@ var World = class {
         this.push(wr, y - fy);
         this.push(wr, 1);
         return;
+      }
+    }
+    this.push(wr, 0);
+    this.push(wr, 0);
+    this.push(wr, 0);
+  }
+  /**
+   * The Climb's SCAN: the same answer as the classic scan (nearest to the frame origin,
+   * then board order, among things in sight), found by searching outward ring by ring
+   * (Manhattan distance from the frame origin) and stopping at the first match it can see,
+   * so its cost follows what's near, not how big the world is.
+   */
+  ringScan(wr, type, mine, fx, fy) {
+    const r = CONFIG.sight, maxD = 2 * (r + 16);
+    const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
+    const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
+    const ring = [];
+    for (let d = 0; d <= maxD; d++) {
+      ring.length = 0;
+      for (let dy = -d; dy <= d; dy++) {
+        const y = fy + dy;
+        if (y < y0 || y > y1) continue;
+        const ax = d - Math.abs(dy);
+        for (const x of ax ? [fx - ax, fx + ax] : [fx]) {
+          if (x < x0 || x > x1) continue;
+          const t = this.classify(x, y, wr.id);
+          if (t === T_WALL || t === T_NOTHING) continue;
+          if (t === T_ENEMY && this.warriors[this.owner[y * this.w + x]].lineage === wr.lineage) continue;
+          if (type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type) ring.push(y * this.w + x);
+        }
+      }
+      if (!ring.length) continue;
+      ring.sort((a, b) => a - b);
+      for (const i of ring) {
+        const x = i % this.w, y = i / this.w | 0;
+        if (this.seer(wr.id, x, y, r, mine) >= 0) {
+          this.push(wr, x - fx);
+          this.push(wr, y - fy);
+          this.push(wr, 1);
+          return;
+        }
       }
     }
     this.push(wr, 0);
@@ -1584,17 +1863,20 @@ var World = class {
         if (!this.inBounds(nx, ny)) continue;
         const i = this.idx(nx, ny);
         if (CONFIG.island && (wr.realm ? this.owner[i] !== DEBRIS : this.owner[i] === DEBRIS)) continue;
+        if (CONFIG.climb && (this.owner[i] === DEBRIS ? !this.dietShare(wr, "meat") : !this.dietShare(wr, "plants"))) continue;
         if (this.resource[i] === 1) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + (CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup) * this.ripe[i]);
+          const feed = CONFIG.climb ? CONFIG.kelpFeed * this.dietShare(wr, "plants") * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
+          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed * this.ripe[i]);
           this.log("collect", `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log("collect", `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + (CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup));
+          const feed = CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, "meat") * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup;
+          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
           this.setOwner(i, NONE);
           this.code[i] = 0;
-          if (CONFIG.island) wr.stats.collected++;
+          if (CONFIG.island || CONFIG.climb) wr.stats.collected++;
           got = true;
           continue;
         } else continue;
@@ -1623,6 +1905,7 @@ var World = class {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue;
+        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue;
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d;
         bx = x;
@@ -1646,9 +1929,9 @@ var World = class {
     if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     const ti = this.idx(x, y);
-    if (CONFIG.island && o >= 0 && this.code[ti] === K) {
+    if ((CONFIG.island || CONFIG.climb) && o >= 0 && this.code[ti] === K) {
       const v = this.warriors[o];
-      v.dents = (v.dents ?? 0) + 1;
+      v.dents = (v.dents ?? 0) + (CONFIG.climb ? wr.traits?.bite ?? 1 : 1);
       v.lastHarm = { by: wr.id, t: this.t };
       if (v.dents < CONFIG.armorBites) {
         this.log("bomb", `${wr.name}'s bite glanced off ${victim}'s armor`, wr.id);
@@ -1669,7 +1952,7 @@ var World = class {
    */
   opDivide(wr, d) {
     d = (d % 4 + 4) % 4;
-    if (wr.maxSize < (CONFIG.island ? 3 : 2) * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
+    if (wr.maxSize < (CONFIG.island || CONFIG.climb ? 3 : 2) * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
     if (CONFIG.reaperCap > 0) {
       const living = this.living();
       if (living.length >= CONFIG.reaperCap) {
@@ -1729,7 +2012,7 @@ var World = class {
       const i = this.idx(xs[k] + ox, ys[k] + oy);
       let code = this.code[mine[k]];
       if (this.rng() < CONFIG.copyError) {
-        code = Math.floor(this.rng() * GLYPHS.length);
+        code = Math.floor(this.rng() * this.glyphCount());
         mutations++;
       }
       this.setOwner(i, id);
@@ -1771,7 +2054,7 @@ var World = class {
     if (o !== wr.id) {
       if (this.seer(wr.id, x, y, CONFIG.writeRange) < 0) return false;
     }
-    const c = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
+    const n = this.glyphCount(), c = (code % n + n) % n;
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
@@ -1972,6 +2255,12 @@ var DISH_DEFAULTS = {
   // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
   island: 0,
   // 1 = island survival (side view: islanders and sea creatures; size = width)
+  climb: 0,
+  // 1 = The Climb (steps up into air and down into water, 10× taller and richer each; size = width)
+  base: 20,
+  // climb: step 0's height (step ±n is base × 10^n)
+  steps: 2,
+  // climb: steps each way
   starve: 600,
   // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6e3,
@@ -2003,6 +2292,15 @@ function applyDish(get) {
     const v = get(k);
     o[k] = v !== null && v !== "" ? Number(v) : d;
   }
+  if (o.climb > 0) {
+    const unset = (k) => (get(k) ?? "") === "";
+    if (unset("size")) o.size = 2e3;
+    if (unset("ripen")) o.ripen = 250;
+    if (unset("ripemax")) o.ripemax = 8;
+    if (unset("toxin")) o.toxin = 5e-3;
+    if (unset("seals")) o.seals = 40;
+    if (unset("cap")) o.cap = 2500;
+  }
   if (o.island > 0) {
     const unset = (k) => (get(k) ?? "") === "";
     if (unset("size")) o.size = 360;
@@ -2024,6 +2322,9 @@ function applyDish(get) {
   CONFIG.lifespan = o.life;
   CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.island = o.island > 0;
+  CONFIG.climb = o.climb > 0;
+  CONFIG.climbBase = o.base;
+  CONFIG.climbSteps = o.steps;
   CONFIG.starve = o.starve;
   CONFIG.sharkStarve = o.sharkstarve;
   CONFIG.sharkLife = o.sharklife;

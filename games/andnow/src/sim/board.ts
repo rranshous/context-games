@@ -28,6 +28,13 @@ export interface Board {
   reef?: number[];    // island: wall cells closing the deep off at the left edge until the channel opens
   calmLine?: number;  // island: first row with pressure (seals start above it)
   sharkLine?: number; // island: the first row sharks may enter (everything above is too shallow)
+  // The Climb: the step of each cell (+ up into thin air, − down into deep water, 0 the start),
+  // each step's first row and height (index: step + climbSteps), and the sea-level row.
+  step?: Int8Array;
+  climbSteps?: number;
+  stepTop?: number[];
+  stepH?: number[];
+  seaLevel?: number;
 }
 
 export const BOARD_W = 64;
@@ -384,4 +391,83 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
   }
   const bayRect: Rect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
   return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
+}
+
+/**
+ * The Climb: a fixed-width world going up into thinner, colder air and down into deeper
+ * water, `steps` steps each way from the start (step 0). Each step out is 10× taller (and,
+ * in the sim, 10× richer) than the last. Step 0's top half is air and its bottom half water
+ * (sea level in the middle). Rock: wide flat ledges and cliffs in the air (cellular automata
+ * on a wide, flat grid), caves and outcrops in the water (a square grid); none in step 0.
+ * Food (plants) is patchy: meadows and barrens across the width, and a rich layer partway
+ * through each step, thinning toward its edges; plants on ledges and rock floors are twice
+ * as likely. Everything is a pure function of the seed, so any step could be generated alone.
+ * Starts: step 0 (climbers and divers) and the top of step −1 (hunters).
+ */
+export function makeClimb(seed: number, w: number, base: number, steps: number, foodSpacing: number): Board {
+  const stepH: number[] = [], stepTop: number[] = [];
+  let h = 0;
+  for (let n = steps; n >= -steps; n--) { stepTop[n + steps] = h; stepH[n + steps] = base * 10 ** Math.abs(n); h += stepH[n + steps]; }
+  const top0 = stepTop[steps], seaLevel = top0 + (base >> 1);
+  const rng = makeRng(seed ^ 0xc11b);
+  const terrain = new Uint8Array(w * h);
+  const step = new Int8Array(w * h);
+  for (let n = -steps; n <= steps; n++) {
+    const t = stepTop[n + steps], H = stepH[n + steps];
+    step.fill(n, t * w, (t + H) * w);
+  }
+  for (let y = 0; y < h; y++) { terrain[y * w] = WALL; terrain[y * w + w - 1] = WALL; }
+  for (let x = 0; x < w; x++) { terrain[x] = WALL; terrain[(h - 1) * w + x] = WALL; }
+  // Rock on a coarse grid: wide flat cells in the air (ledges), square in the water (caves).
+  const rockIn = (n: number, gx: number, gy: number, fill: number) => {
+    const t = stepTop[n + steps], H = stepH[n + steps], gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
+    let g = new Uint8Array(gw * gh);
+    for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
+    for (let pass = 0; pass < 4; pass++) {
+      const next = g.slice();
+      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+        let c = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
+        next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
+      }
+      g = next;
+    }
+    for (let y = t; y < t + H; y++) {
+      const j = Math.floor((y - t) / gy);
+      for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
+    }
+  };
+  for (let n = 1; n <= steps; n++) { rockIn(n, 10, 3, 0.36); rockIn(-n, 5, 5, 0.38 + 0.04 * n); }
+  // Fill in pockets the start can't reach.
+  const seen = new Uint8Array(w * h), q: number[] = [];
+  for (let x = 1; x < w - 1; x++) { const i = seaLevel * w + x; if (terrain[i] === FLOOR) { seen[i] = 1; q.push(i); } }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k];
+    for (const nb of [i - 1, i + 1, i - w, i + w]) if (nb >= 0 && nb < w * h && !seen[nb] && terrain[nb] === FLOOR) { seen[nb] = 1; q.push(nb); }
+  }
+  for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
+  // Plants: meadows across the width × a rich layer partway through each step.
+  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
+  const meadow = (x: number) => {
+    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
+    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
+  };
+  const spawns: Spawn[] = [];
+  for (let y = 1; y < h - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w - 1 || py >= h - 1) continue;
+      const i = py * w + px;
+      if (terrain[i] !== FLOOR) continue;
+      const n = step[i], t = stepTop[n + steps], H = stepH[n + steps];
+      const layer = n === 0 ? 0.6 : 0.25 + 0.75 * Math.sin(Math.PI * (py - t + 0.5) / H);
+      const ledge = terrain[i + w] !== FLOOR ? 2 : 1;
+      const sparse = n > 0 ? 0.5 : 1; // the air's patches are sparse (but regrow faster: sunlight)
+      if (rng() < 0.3 * meadow(px) * layer * ledge * sparse) spawns.push({ x: px, y: py, kind: 1 });
+    }
+  }
+  // Starts: across step 0 for the climbers and divers, the top of step −1 for the hunters.
+  const s0: Rect = { x: 2, y: top0 + 1, w: w - 4, h: base - 2 };
+  const sm1: Rect = { x: 2, y: stepTop[steps - 1] + 2, w: w - 4, h: Math.min(30, stepH[steps - 1] - 4) };
+  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, climbSteps: steps, stepTop, stepH, seaLevel };
 }

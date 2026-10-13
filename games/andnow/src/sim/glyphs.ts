@@ -2,7 +2,9 @@
 // a number, WRITE/GROW pop one, and `'` pushes the code of the next cell.
 // Code 0 is `.` (no-op), which is what a grown cell holds unless told otherwise.
 
-export const GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
+export const GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAKI~xn";
+/** Glyphs before The Climb's chemistry ones (I ~ x n): every other mode mutates and writes only these, so its runs replay as before. */
+export const CLASSIC_GLYPHS = GLYPHS.indexOf('I');
 
 export const CODE: Record<string, number> = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
@@ -60,5 +62,9 @@ export const GLYPH_DOCS: Record<string, string> = {
   'W': 'WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me',
   'A': 'OOZE: pop dir; amoeboid move: my rearmost cell (code and all) moves to the free spot touching my body farthest that way, if that is ahead of where it was and I stay connected',
   'K': 'no-op; armor: each K in my body lets me live one toxin level deeper (petri dish)',
+  'I': 'no-op; insulation: lets me live one step higher (The Climb)',
+  '~': 'no-op; chemistry (The Climb): flips the cells beside it, armor (K) ⇄ insulation (I)',
+  'x': 'no-op; chemistry (The Climb): doubles the trait of the cells beside it (armor, insulation, bite, move)',
+  'n': 'no-op; chemistry (The Climb): the cells beside it weigh nothing',
   'D': 'DIVIDE: pop dir; copy my whole body beyond itself that way as a new warrior (my lineage, but a rival like any other; needs max size ≥ 2× my cells; each copied cell may mutate)',
 };

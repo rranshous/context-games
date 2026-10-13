@@ -1658,3 +1658,40 @@ The exception is seed 7: without sharks it never armored, but with sharks, 1-arm
 **Sharks evolve.** The founder `C2S$TMB3S$TMD` drifted into forms like `Cs/$TMB3S$9eD` (54 alive in seed 6), `` `TMB3SFTMD `` and `C2S$TMB34.T2D`, often dropping the C and keeping the hunt-and-bite core.
 
 **New seal trick, the hunger compass:** `CKKDmM`, 121 alive in seed 9. `m` pushes the body's own max size, and `M` moves in that direction (max size mod 4). Its heading changes as it eats and starves. It's a cousin of `CMsDT`, which set its divide direction from its own cell count.
+
+## The Climb, first build
+
+`?climb=1`. A 2,000-wide world with five steps: +2, +1, 0, −1, −2, heights 2000 / 200 / 20 / 200 / 2000 rows (×10 per step). That's 2000×4420, about 8.8M cells, built in about 0.6 s. The generator (`makeClimb`) is a pure function of the seed and works for any number of steps; going further only needs more memory.
+- **Rock:** wide, flat ledges in the air (cellular automata on a 10×3 grid) and caves in the water (5×5). None in step 0. Unreachable pockets are filled.
+- **Plants:** meadows across the width × a rich layer partway through each step, ×2 on ledges and floors, sparse in the air but regrowing faster there (spawn interval ÷ (1 + step up)).
+- **Food:** worth 10^|step|. The size cap is 64 × 2^|step|.
+- **Damage:** "levels over" = steps short of insulation (up) or armor (down), at the island's harsh rate (0.005, ×10 per level).
+- **Compute only where life is:** tiles are 64×64. Food regrowth and ripening run only in tiles within one tile of a living body, recomputed every 20 ticks. A tile that wakes after a long sleep catches up at once: its plants regrow and ripen as if time had passed. Typically 130–170 of 2,240 tiles are active. Memory is still allocated for the whole map; only compute is sparse.
+- **Body chemistry (`traitsOf`, recomputed every tick):**
+  - K is armor, I is insulation, M is move, B is bite and a taste for meat, C is a taste for plants (if C outnumber B).
+  - K, I and fat weigh 2; everything else weighs 1.
+  - Modifier cells act on their same-body neighbours: `~` flips K ⇄ I, `x` doubles a trait, `n` makes a cell weightless.
+  - Pace = (1 + move) / (1 + mass/11), and it sets speed, hunger and aging as on the island.
+  - There are no realms: diet decides who eats what. A body eating both gets 60% of each. A meat eater that kills eats the victim whole (3 per cell × richness).
+  - Three-bite armor, with a stronger bite denting more.
+- **The new glyphs `I ~ x n` sit at the end of the glyph table.** Copy errors and WRITE use them only in the Climb (`glyphCount`), so every other mode replays exactly as before: the golden check passes, 1,991 matches identical.
+- **Founders:**
+  - climber: `C6S$TMD` over ` .I.`
+  - diver: `C6S$TMD` over ` .K.`
+  - hunter: `C2S$TMB3S$TMD` over a fat row with one K, starting at the top of step −1 (`realm: deep`)
+
+  There are 40 copies of each, spread across their starts. The population is capped at 2,500.
+
+**Bugs found while building:**
+- **The SCAN looped over every food spot in the world** (32k) for every creature: 165 ms per tick. The Climb now uses a ring search outward from the frame origin that stops at the first visible match, the same answer as the classic scan. 14–42 ms per tick at 600–2,500 alive.
+- **Climbers exploded** (3,200 in step +1 within 1,000 ticks): food worth 10×, regrowing twice as fast, and a 4×-per-step reserve cap funded bursts of divisions. Fixed with a cap of 2× per step, sparser air plants and a population cap.
+- **Hunters bunched at the start and attacked each other** (23 hunter-on-hunter kills; most never ate), the same jam the sharks had. In the Climb, a creature's scan and its bite on the nearest stranger now skip its own lineage.
+- **Hunters started in step +1** instead of −1 (a step index slip), and traits weren't computed for bodies the damage step skipped.
+
+**Viewer (`src/climb-view.ts`):**
+- a camera (drag to pan, wheel or +/- to zoom, WASD or arrows);
+- a minimap strip with every step given an equal share, life as dots, the camera box, click to jump;
+- step boundaries labelled with what each needs and its food multiplier;
+- bodies coloured by chemistry: insulated cool blue, armored warm orange, meat eaters red;
+- a stats panel: by step, armor and insulation counts, diets, top genomes, deaths, active tiles;
+- hover shows a cell's traits and genome; Copy link includes the camera (`&cam=x,y,zoom`).

@@ -1,0 +1,7 @@
+name: Climber
+# The Climb's upward grazer: the petri founder (collect, head for the nearest plant, move,
+# divide) with an insulation cell (I) off its code row, so it can live in step +1 and
+# copy errors on the fat can add more.
+---
+C6S$TMD
+ .I.

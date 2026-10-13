@@ -6,6 +6,7 @@ import { parseWarrior, WarriorSpec } from './sim/warrior-file';
 import { applyDish, armorOf, bandOf } from './sim/dish';
 import { CONFIG, DEBRIS, World } from './sim/world';
 import { BUNDLED } from './warriors';
+import { ClimbView } from './climb-view';
 
 // Every warrior the viewer knows: bundled ones, plus evolved ones fetched at startup
 // from warriors/evolved/manifest.json (written by the evolver), named `evo:<name>`.
@@ -39,12 +40,14 @@ const params = new URLSearchParams(location.search);
 // Island survival (?island=1): the side-view sea with seals and sharks. It's a
 // dish too (same settings plus island ones), so it implies PETRI.
 const ISLAND = params.get('island') === '1';
-const PETRI = params.has('petri') || ISLAND;
+// The Climb (?climb=1): the tall world, up into air and down into water (also a dish).
+const CLIMB = params.get('climb') === '1';
+const PETRI = params.has('petri') || ISLAND || CLIMB;
 if (PETRI) applyDish((k) => params.get(k));
 // No tick limit in the viewer: a match runs until one lineage is left (?ticks=N to judge
 // by body size at tick N, as the runners do).
 CONFIG.tickCap = Number(params.get('ticks')) || Infinity;
-const initial = (params.get('w') ?? (ISLAND ? 'amoeba,shark,shark' : PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
+const initial = (params.get('w') ?? (CLIMB ? 'climber,diver,hunter' : ISLAND ? 'amoeba,shark,shark' : PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
 seedEl.value = params.get('seed') ?? '1';
 
 const pickersEl = $('pickers');
@@ -83,6 +86,22 @@ function newMatch(sources?: string[], seed?: number) {
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
   seedEl.value = String(world.seed);
+  if (CLIMB) {
+    // A fixed viewport onto the tall world, plus the minimap strip beside it.
+    const mini = $<HTMLCanvasElement>('minimap');
+    canvas.width = Math.max(400, window.innerWidth - 380 - 140);
+    canvas.height = Math.max(300, window.innerHeight - 40);
+    mini.width = 110;
+    mini.height = canvas.height;
+    mini.style.display = 'block';
+    $('stage').style.marginRight = '124px';
+    if (!climbView) {
+      const cam = (params.get('cam') ?? '').split(',').map(Number);
+      climbView = new ClimbView(canvas, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : undefined);
+    }
+    render();
+    return;
+  }
   CELL = PETRI ? Math.max(3, Math.min(10, Math.floor((Math.min(window.innerWidth - 380, ISLAND ? 1300 : 1000) - 24) / world.w))) : 14;
   islandBg = null;
   canvas.width = world.w * CELL;
@@ -93,6 +112,7 @@ function newMatch(sources?: string[], seed?: number) {
 $('reset').onclick = () => newMatch();
 $('petri').textContent = PETRI ? 'Back to matches' : 'Petri dish';
 $('island').onclick = () => { location.search = '?island=1'; };
+$('climb').onclick = () => { location.search = '?climb=1'; };
 $('petri').onclick = () => { location.search = PETRI ? '' : '?petri=1&w=amoeba'; };
 dishEl.style.display = PETRI ? 'block' : 'none';
 playBtn.onclick = () => setPlaying(!playing);
@@ -104,6 +124,7 @@ function shareText(): string {
   if (matchNames) q.set('w', matchNames.join(','));
   q.set('seed', String(world.seed));
   q.set('t', String(world.t));
+  if (CLIMB && climbView) q.set('cam', `${Math.round(climbView.cam.x)},${Math.round(climbView.cam.y)},${+climbView.cam.zoom.toFixed(2)}`);
   const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ':').replace(/%2C/g, ',')}`;
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(', ');
@@ -177,7 +198,10 @@ function color(id: number, l: number, a = 1) { return `hsl(${HUES[id % HUES.leng
 const TOXIN_TINT = ['#0e1117', '#1b1220', '#281427', '#36162c', '#451831', '#541a35'];
 const ARMOR_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#d946ef'];
 
+let climbView: ClimbView | null = null;
+
 function render() {
+  if (CLIMB && climbView) { climbView.render(); renderSide(); return; }
   if (ISLAND) { renderIsland(); renderSide(); return; }
   const { w, h } = world;
   const glyphs = showGlyphsEl.checked && CELL >= 9;
@@ -319,7 +343,7 @@ function renderSide() {
       <div class="stack">stack [${wr.stack.slice(-12).join(' ')}]</div>
     </div>`;
   }).join('');
-  if (ISLAND) renderIslandPanel(); else if (PETRI) renderDish();
+  if (CLIMB && climbView) dishEl.innerHTML = climbView.panel(esc); else if (ISLAND) renderIslandPanel(); else if (PETRI) renderDish();
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== 'shed').map((e) =>
     `<div style="color:${e.who !== undefined ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
   logEl.scrollTop = logEl.scrollHeight;
@@ -403,12 +427,14 @@ function renderIslandPanel() {
     <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>`;
 }
 
+function genomeOfCell(id: number) { return genomeOf(id); }
+
 function esc(s: string) { return s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`); }
 
 // Hover: what's in this cell.
 canvas.onmousemove = (ev) => {
   const r = canvas.getBoundingClientRect();
-  const x = Math.floor((ev.clientX - r.left) / CELL), y = Math.floor((ev.clientY - r.top) / CELL);
+  const [x, y] = CLIMB && climbView ? climbView.cellAt(ev.clientX - r.left, ev.clientY - r.top) : [Math.floor((ev.clientX - r.left) / CELL), Math.floor((ev.clientY - r.top) / CELL)];
   if (!world.inBounds(x, y)) { tip.style.display = 'none'; return; }
   const i = world.idx(x, y), o = world.owner[i];
   let text = '';
@@ -417,11 +443,18 @@ canvas.onmousemove = (ev) => {
     text = `${o >= 0 ? world.warriors[o].name : 'debris'}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= '0' && g <= '9' ? `push ${g}` : '')}`;
   } else if (world.resource[i]) text = ISLAND ? (world.resource[i] === 1 ? 'kelp (seals eat it)' : 'plankton (speed)') : world.resource[i] === 1 ? 'size pickup' : 'speed pickup';
   if (o >= 0 && ISLAND) text = `${world.warriors[o].realm ? 'shark' : 'seal'} ${text}`;
+  if (CLIMB) {
+    const n = world.board.step?.[i] ?? 0;
+    if (world.resource[i]) text = `plant ×${(world.richness(i) * world.ripe[i]).toFixed(0)} food (ripeness ${world.ripe[i].toFixed(1)})`;
+    const t = o >= 0 ? world.warriors[o].traits : undefined;
+    if (t) text += `\narmor ${t.armor} · insulation ${t.insulation} · bite ${t.bite} · pace ${t.pace.toFixed(2)} · eats ${t.plants && t.meat ? 'both' : t.meat ? 'meat' : t.plants ? 'plants' : 'nothing'}\nmax size ${Math.floor(world.warriors[o].maxSize)} · ${genomeOfCell(o)}`;
+    text = `${text ? text + '\n' : ''}step ${n > 0 ? '+' + n : n}${world.board.terrain[i] ? ' · rock' : ''}`;
+  }
   if (!text) { tip.style.display = 'none'; return; }
   tip.textContent = text;
   tip.style.display = 'block';
-  tip.style.left = `${x * CELL + CELL + 4}px`;
-  tip.style.top = `${y * CELL + CELL + 4}px`;
+  tip.style.left = `${CLIMB ? ev.clientX - r.left + 14 : x * CELL + CELL + 4}px`;
+  tip.style.top = `${CLIMB ? ev.clientY - r.top + 14 : y * CELL + CELL + 4}px`;
 };
 canvas.onmouseleave = () => { tip.style.display = 'none'; };
 

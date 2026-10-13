@@ -1,5 +1,6 @@
 // src/sim/glyphs.ts
-var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAK";
+var GLYPHS = ".><^v_|#?@r[]0123456789:\\$o+-*/%!`='ysmfdeLSRTMFXGCBWDAKI~xn";
+var CLASSIC_GLYPHS = GLYPHS.indexOf("I");
 var CODE = {};
 for (let i = 0; i < GLYPHS.length; i++) CODE[GLYPHS[i]] = i;
 function glyphOf(code) {
@@ -63,6 +64,10 @@ var GLYPH_DOCS = {
   "W": "WRITE: pop dx dy code; overwrite one of my cells, or a foreign cell within 2 of me",
   "A": "OOZE: pop dir; amoeboid move: my rearmost cell (code and all) moves to the free spot touching my body farthest that way, if that is ahead of where it was and I stay connected",
   "K": "no-op; armor: each K in my body lets me live one toxin level deeper (petri dish)",
+  "I": "no-op; insulation: lets me live one step higher (The Climb)",
+  "~": "no-op; chemistry (The Climb): flips the cells beside it, armor (K) \u21C4 insulation (I)",
+  "x": "no-op; chemistry (The Climb): doubles the trait of the cells beside it (armor, insulation, bite, move)",
+  "n": "no-op; chemistry (The Climb): the cells beside it weigh nothing",
   "D": "DIVIDE: pop dir; copy my whole body beyond itself that way as a new warrior (my lineage, but a rival like any other; needs max size \u2265 2\xD7 my cells; each copied cell may mutate)"
 };
 
@@ -409,10 +414,103 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.25, de
   const bayRect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
   return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
 }
+function makeClimb(seed, w, base, steps, foodSpacing) {
+  const stepH = [], stepTop = [];
+  let h = 0;
+  for (let n = steps; n >= -steps; n--) {
+    stepTop[n + steps] = h;
+    stepH[n + steps] = base * 10 ** Math.abs(n);
+    h += stepH[n + steps];
+  }
+  const top0 = stepTop[steps], seaLevel = top0 + (base >> 1);
+  const rng = makeRng(seed ^ 49435);
+  const terrain = new Uint8Array(w * h);
+  const step = new Int8Array(w * h);
+  for (let n = -steps; n <= steps; n++) {
+    const t = stepTop[n + steps], H = stepH[n + steps];
+    step.fill(n, t * w, (t + H) * w);
+  }
+  for (let y = 0; y < h; y++) {
+    terrain[y * w] = WALL;
+    terrain[y * w + w - 1] = WALL;
+  }
+  for (let x = 0; x < w; x++) {
+    terrain[x] = WALL;
+    terrain[(h - 1) * w + x] = WALL;
+  }
+  const rockIn = (n, gx, gy, fill) => {
+    const t = stepTop[n + steps], H = stepH[n + steps], gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
+    let g = new Uint8Array(gw * gh);
+    for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
+    for (let pass = 0; pass < 4; pass++) {
+      const next = g.slice();
+      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+        let c = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
+        next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
+      }
+      g = next;
+    }
+    for (let y = t; y < t + H; y++) {
+      const j = Math.floor((y - t) / gy);
+      for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
+    }
+  };
+  for (let n = 1; n <= steps; n++) {
+    rockIn(n, 10, 3, 0.36);
+    rockIn(-n, 5, 5, 0.38 + 0.04 * n);
+  }
+  const seen = new Uint8Array(w * h), q = [];
+  for (let x = 1; x < w - 1; x++) {
+    const i = seaLevel * w + x;
+    if (terrain[i] === FLOOR) {
+      seen[i] = 1;
+      q.push(i);
+    }
+  }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k];
+    for (const nb of [i - 1, i + 1, i - w, i + w]) if (nb >= 0 && nb < w * h && !seen[nb] && terrain[nb] === FLOOR) {
+      seen[nb] = 1;
+      q.push(nb);
+    }
+  }
+  for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
+  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
+  const meadow = (x) => {
+    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
+    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
+  };
+  const spawns = [];
+  for (let y = 1; y < h - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w - 1 || py >= h - 1) continue;
+      const i = py * w + px;
+      if (terrain[i] !== FLOOR) continue;
+      const n = step[i], t = stepTop[n + steps], H = stepH[n + steps];
+      const layer = n === 0 ? 0.6 : 0.25 + 0.75 * Math.sin(Math.PI * (py - t + 0.5) / H);
+      const ledge = terrain[i + w] !== FLOOR ? 2 : 1;
+      const sparse = n > 0 ? 0.5 : 1;
+      if (rng() < 0.3 * meadow(px) * layer * ledge * sparse) spawns.push({ x: px, y: py, kind: 1 });
+    }
+  }
+  const s0 = { x: 2, y: top0 + 1, w: w - 4, h: base - 2 };
+  const sm1 = { x: 2, y: stepTop[steps - 1] + 2, w: w - 4, h: Math.min(30, stepH[steps - 1] - 4) };
+  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, climbSteps: steps, stepTop, stepH, seaLevel };
+}
 
 // src/sim/world.ts
 var NONE = -1;
 var K = CODE["K"];
+var INSUL = CODE["I"];
+var FLIP = CODE["~"];
+var DOUBLE = CODE["x"];
+var MASK = CODE["n"];
+var FAT = CODE["."];
+var MOVE = CODE["M"];
+var BITE = CODE["B"];
+var COLLECT = CODE["C"];
 var DEBRIS = -2;
 var CONFIG = {
   sight: 14,
@@ -477,6 +575,14 @@ var CONFIG = {
   // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
   island: false,
   // island survival: side view, islanders vs sea creatures (board width = plate)
+  climb: false,
+  // The Climb: fixed width (plate), steps up (air: insulation) and down (water: armor), 10× taller and richer each
+  climbBase: 20,
+  // climb: step 0's height in rows (step ±n is base × 10^n)
+  climbSteps: 2,
+  // climb: steps each way
+  tile: 64,
+  // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,
   // island: ticks an unfed seal with max size 20 lasts (about a tenth of a lifetime)
   sharkStarve: 6e3,
@@ -519,7 +625,7 @@ var CONFIG = {
 var World = class {
   constructor(seed, specs2) {
     this.seed = seed;
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 360, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm, CONFIG.depth) : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
+    this.board = CONFIG.climb ? makeClimb(seed, CONFIG.plate || 2e3, CONFIG.climbBase, CONFIG.climbSteps, CONFIG.plateFood) : CONFIG.island ? makeIsland(seed, CONFIG.plate || 360, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm, CONFIG.depth) : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int32Array(this.w * this.h).fill(NONE);
@@ -530,7 +636,8 @@ var World = class {
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
     this.narrow = new Uint8Array(this.w * this.h);
-    for (let y = 0; y < this.h; y++) {
+    if (CONFIG.climb) this.initTiles();
+    for (let y = 0; y < this.h && !CONFIG.climb; y++) {
       for (let x = 0; x < this.w; x++) {
         if (!this.isFloor(x, y)) continue;
         let a = x, b = x, c = y, d = y;
@@ -545,7 +652,7 @@ var World = class {
       if (CONFIG.island && s.realm === "sea" && CONFIG.sharkArrive > 0) this.arriving.push(s);
       else this.place(s, this.warriors.length);
     }
-    if (CONFIG.island) this.settle();
+    if (CONFIG.island || CONFIG.climb) this.settle();
   }
   board;
   w;
@@ -571,6 +678,77 @@ var World = class {
   attacks = { bombs: 0, poisons: 0 };
   result = { over: false, winner: null, reason: "" };
   spawnTimers;
+  /** Glyphs a copy error or WRITE can produce: The Climb's chemistry glyphs exist only there. */
+  glyphCount() {
+    return CONFIG.climb ? GLYPHS.length : CLASSIC_GLYPHS;
+  }
+  // ---------- The Climb: upkeep only near life ----------
+  /** Tiles (CONFIG.tile square): which spawns each holds, whether it's active, and when it last was. */
+  spawnsInTile = [];
+  tileActive = new Uint8Array(0);
+  tileLast = new Float64Array(0);
+  activeTiles = [];
+  tw = 0;
+  initTiles() {
+    const T = CONFIG.tile;
+    this.tw = Math.ceil(this.w / T);
+    const n = this.tw * Math.ceil(this.h / T);
+    this.spawnsInTile = Array.from({ length: n }, () => []);
+    this.tileActive = new Uint8Array(n);
+    this.tileLast = new Float64Array(n);
+    this.board.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
+  }
+  /** How many tiles the world is spending upkeep on right now (of how many). */
+  tileStats() {
+    return { active: this.activeTiles.length, total: this.tileActive.length };
+  }
+  /**
+   * Mark the tiles around every living body active. A tile that wakes after a long sleep
+   * catches up at once: its plants regrow and ripen as if time had passed there too.
+   */
+  refreshTiles() {
+    const T = CONFIG.tile, th = this.tileActive.length / this.tw;
+    const next = new Uint8Array(this.tileActive.length);
+    for (const wr of this.living()) {
+      const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = tx + dx, y = ty + dy;
+        if (x >= 0 && y >= 0 && x < this.tw && y < th) next[y * this.tw + x] = 1;
+      }
+    }
+    this.activeTiles = [];
+    for (let k = 0; k < next.length; k++) {
+      if (!next[k]) continue;
+      this.activeTiles.push(k);
+      if (!this.tileActive[k]) {
+        const gap = this.t - this.tileLast[k];
+        for (const sk of this.spawnsInTile[k]) {
+          const s = this.board.spawns[sk], i = this.idx(s.x, s.y);
+          if (this.resource[i] === 0 && this.owner[i] === NONE && gap >= this.regrowAt(s.y)) {
+            this.resource[i] = s.kind;
+            this.ripe[i] = 1;
+            this.spawnTimers[sk] = 0;
+          }
+          if (this.resource[i] === 1 && CONFIG.foodRipen > 0) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + gap / CONFIG.foodRipen);
+        }
+      }
+    }
+    for (const k of this.activeTiles) this.tileLast[k] = this.t;
+    this.tileActive = next;
+  }
+  /** Climb: ticks for a plant to regrow; sunlight makes it faster the higher the step. */
+  regrowAt(y) {
+    const n = this.board.step ? this.board.step[y * this.w] : 0;
+    return Math.max(1, Math.round(CONFIG.spawnInterval / (1 + Math.max(0, n))));
+  }
+  /** Climb: how much richer food is at this cell's step (10× per step out). */
+  richness(i) {
+    return this.board.step ? 10 ** Math.abs(this.board.step[i]) : 1;
+  }
+  /** Climb: the largest max size a body can have where its IP is (2× per step out, room for krakens). */
+  capAtCell(i) {
+    return this.board.step ? CONFIG.sizeCap * 2 ** Math.abs(this.board.step[i]) : CONFIG.sizeCap;
+  }
   // ---------- setup ----------
   arriving = [];
   /** Bumped whenever the terrain changes (the island's channel opening), so a viewer can redraw scenery. */
@@ -580,7 +758,7 @@ var World = class {
       throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
     const realm = this.board.startRealm ? spec.realm === "sea" ? 1 : 0 : 0;
-    const room = this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
+    const room = CONFIG.climb ? this.board.starts[spec.realm === "deep" ? 1 : 0] : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
     const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
     const ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
@@ -599,9 +777,9 @@ var World = class {
       oy: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
-      maxSize: CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
+      maxSize: CONFIG.climb ? this.capAtCell(this.idx(ox + spec.ip.x, oy + spec.ip.y)) : CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
       speed: CONFIG.speedStart,
-      // island founders start full
+      // island and climb founders start full
       accum: 0,
       lastOk: true,
       lastAct: "",
@@ -756,7 +934,7 @@ var World = class {
   toDebris(i) {
     const o = this.owner[i];
     if (o >= 0) this.warriors[o].cellCount--;
-    if (CONFIG.island && (o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) {
+    if ((CONFIG.island || CONFIG.climb) && (CONFIG.island && o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) {
       this.setOwner(i, NONE);
       this.code[i] = 0;
       return;
@@ -771,9 +949,10 @@ var World = class {
     wr.diedAt = this.t;
     const h0 = wr.lastHarm;
     const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : void 0;
-    if (CONFIG.island && k0 && k0.alive && k0.realm === 1 && wr.realm === 0) {
+    const eatsWhole = CONFIG.island ? k0?.realm === 1 && wr.realm === 0 : CONFIG.climb && !!k0?.traits?.meat;
+    if (eatsWhole && k0 && k0.alive) {
       const cells = this.cellsOf(wr.id).slice();
-      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1));
+      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1) * this.dietShare(k0, "meat") * this.richness(this.idx(wr.ipX, wr.ipY)));
       k0.stats.kills++;
       for (const c of cells) {
         this.setOwner(c, NONE);
@@ -819,7 +998,11 @@ var World = class {
     if (this.result.over) return;
     this.t++;
     const spawns = this.board.spawns;
-    for (let k = 0; k < spawns.length; k++) {
+    if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
+    const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
+    const nSpawns = climbList ? climbList.length : spawns.length;
+    for (let kk = 0; kk < nSpawns; kk++) {
+      const k = climbList ? climbList[kk] : kk;
       const s = spawns[k];
       const i = this.idx(s.x, s.y);
       if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
@@ -829,13 +1012,13 @@ var World = class {
         this.spawnTimers[k] = 0;
         continue;
       }
-      if (++this.spawnTimers[k] >= CONFIG.spawnInterval) {
+      if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
         this.resource[i] = s.kind;
         this.ripe[i] = 1;
         this.spawnTimers[k] = 0;
       }
     }
-    if (CONFIG.island) this.islandTick();
+    if (CONFIG.island || CONFIG.climb) this.islandTick();
     if (this.arriving.length && this.t >= CONFIG.sharkArrive) this.arrive();
     const order = this.living().slice();
     const n = order.length;
@@ -891,8 +1074,23 @@ var World = class {
         }
         if (!wr.alive) continue;
       }
-      if (CONFIG.island) {
-        const pace = this.paceOf(wr);
+      if (CONFIG.climb && cells) {
+        const tr = this.traitsOf(wr);
+        wr.traits = tr;
+        const st = this.board.step;
+        const doomed = [];
+        for (const c of cells) {
+          const n2 = st[c], over = n2 > 0 ? n2 - tr.insulation : -n2 - tr.armor;
+          if (n2 && over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
+        }
+        for (const c of doomed) {
+          if (!wr.alive) break;
+          if (this.owner[c] === wr.id) this.destroy(c, void 0, st[c] > 0 ? "core frozen (too high)" : "core crushed by the pressure");
+        }
+        if (!wr.alive) continue;
+      }
+      if (CONFIG.island || CONFIG.climb) {
+        const pace = CONFIG.climb ? (wr.traits ??= this.traitsOf(wr)).pace : this.paceOf(wr);
         wr.pace = pace;
         wr.speed = CONFIG.paceSpeed * pace;
         const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
@@ -906,7 +1104,7 @@ var World = class {
       else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
       if (!wr.alive) continue;
       if (wr.cellCount <= 0) this.kill(wr, "no cells left");
-      else if (wr.diesAt !== void 0 && (CONFIG.island ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, "old age");
+      else if (wr.diesAt !== void 0 && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, "old age");
     }
     this.checkOver();
   }
@@ -917,9 +1115,11 @@ var World = class {
   settle() {
     for (const f of this.warriors.filter((w) => w.realm === 0 && w.gen === 0)) {
       const S = this.board.surface ?? 0, calm = this.board.calmLine ?? S;
+      const room = this.board.starts[f.spec.realm === "deep" ? 1 : 0];
       for (let n = 0, tries = 0; n < CONFIG.seals && tries < CONFIG.seals * 50; tries++) {
         const bay = this.board.starts[1], x0 = bay.x + bay.w + 2;
-        const ox = x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width)), oy = S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
+        const ox = CONFIG.climb ? room.x + Math.floor(this.rng() * Math.max(1, room.w - f.spec.width)) : x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width));
+        const oy = CONFIG.climb ? room.y + Math.floor(this.rng() * Math.max(1, room.h - f.spec.height)) : S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
         if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
         const id = this.warriors.length;
         const born = this.bornIn.get(f.lineage) ?? 1;
@@ -968,7 +1168,45 @@ var World = class {
   }
   /** Size cap for a realm (island sea creatures are big and need room to breed). */
   capOf(wr) {
+    if (CONFIG.climb) return this.capAtCell(this.idx(wr.ipX, wr.ipY));
     return CONFIG.island && wr.realm === 1 ? CONFIG.sharkCap : CONFIG.sizeCap;
+  }
+  /**
+   * The Climb: a body's chemistry. Each cell adds to its traits: K armor, I insulation, M
+   * move, B bite (and a taste for meat), C a taste for plants (if C outnumber B); K, I and fat (.) weigh 2, the
+   * rest 1. Modifier cells change the cells beside them (of the same body): ~ flips K ⇄ I,
+   * x doubles a cell's trait, n makes a cell weigh nothing. Pace = (1 + move) / (1 + mass / 11).
+   */
+  traitsOf(wr) {
+    const w = this.w, id = wr.id;
+    let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
+    for (const c of this.cellsOf(id)) {
+      let g = this.code[c], flip = false, dbl = 1, weightless = false;
+      for (const nb of [c - 1, c + 1, c - w, c + w]) {
+        if (this.owner[nb] !== id) continue;
+        const m = this.code[nb];
+        if (m === FLIP) flip = !flip;
+        else if (m === DOUBLE) dbl *= 2;
+        else if (m === MASK) weightless = true;
+      }
+      if (flip) g = g === K ? INSUL : g === INSUL ? K : g;
+      if (!weightless) mass += g === K || g === INSUL || g === FAT ? 2 : 1;
+      if (g === K) armor += dbl;
+      else if (g === INSUL) insulation += dbl;
+      else if (g === MOVE) move += dbl;
+      else if (g === BITE) {
+        bite += dbl;
+        meat++;
+      } else if (g === COLLECT) plants++;
+    }
+    return { armor, insulation, mass, move, bite: Math.max(1, bite), plants: plants > meat, meat: meat > 0, pace: (1 + move) / (1 + mass / CONFIG.paceMass) };
+  }
+  /** The Climb: how much of a food a body digests (a body that eats both gets 60% of each). */
+  dietShare(wr, food) {
+    const t = wr.traits;
+    if (!CONFIG.climb || !t) return 1;
+    if (!t[food]) return 0;
+    return t.plants && t.meat ? 0.6 : 1;
   }
   /** Typical lifespan for a realm (island sea creatures live CONFIG.sharkLife times longer). */
   lifeOf(realm) {
@@ -1373,6 +1611,10 @@ var World = class {
     const mine = this.cellsOf(wr.id);
     const r = CONFIG.sight;
     const [fx, fy] = this.frame(wr);
+    if (CONFIG.climb) {
+      this.ringScan(wr, type, mine, fx, fy);
+      return;
+    }
     const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
     const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
     const cands = [];
@@ -1399,6 +1641,47 @@ var World = class {
         this.push(wr, y - fy);
         this.push(wr, 1);
         return;
+      }
+    }
+    this.push(wr, 0);
+    this.push(wr, 0);
+    this.push(wr, 0);
+  }
+  /**
+   * The Climb's SCAN: the same answer as the classic scan (nearest to the frame origin,
+   * then board order, among things in sight), found by searching outward ring by ring
+   * (Manhattan distance from the frame origin) and stopping at the first match it can see,
+   * so its cost follows what's near, not how big the world is.
+   */
+  ringScan(wr, type, mine, fx, fy) {
+    const r = CONFIG.sight, maxD = 2 * (r + 16);
+    const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
+    const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
+    const ring = [];
+    for (let d = 0; d <= maxD; d++) {
+      ring.length = 0;
+      for (let dy = -d; dy <= d; dy++) {
+        const y = fy + dy;
+        if (y < y0 || y > y1) continue;
+        const ax = d - Math.abs(dy);
+        for (const x of ax ? [fx - ax, fx + ax] : [fx]) {
+          if (x < x0 || x > x1) continue;
+          const t = this.classify(x, y, wr.id);
+          if (t === T_WALL || t === T_NOTHING) continue;
+          if (t === T_ENEMY && this.warriors[this.owner[y * this.w + x]].lineage === wr.lineage) continue;
+          if (type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type) ring.push(y * this.w + x);
+        }
+      }
+      if (!ring.length) continue;
+      ring.sort((a, b) => a - b);
+      for (const i of ring) {
+        const x = i % this.w, y = i / this.w | 0;
+        if (this.seer(wr.id, x, y, r, mine) >= 0) {
+          this.push(wr, x - fx);
+          this.push(wr, y - fy);
+          this.push(wr, 1);
+          return;
+        }
       }
     }
     this.push(wr, 0);
@@ -1594,17 +1877,20 @@ var World = class {
         if (!this.inBounds(nx, ny)) continue;
         const i = this.idx(nx, ny);
         if (CONFIG.island && (wr.realm ? this.owner[i] !== DEBRIS : this.owner[i] === DEBRIS)) continue;
+        if (CONFIG.climb && (this.owner[i] === DEBRIS ? !this.dietShare(wr, "meat") : !this.dietShare(wr, "plants"))) continue;
         if (this.resource[i] === 1) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + (CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup) * this.ripe[i]);
+          const feed = CONFIG.climb ? CONFIG.kelpFeed * this.dietShare(wr, "plants") * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
+          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed * this.ripe[i]);
           this.log("collect", `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log("collect", `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + (CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup));
+          const feed = CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, "meat") * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup;
+          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
           this.setOwner(i, NONE);
           this.code[i] = 0;
-          if (CONFIG.island) wr.stats.collected++;
+          if (CONFIG.island || CONFIG.climb) wr.stats.collected++;
           got = true;
           continue;
         } else continue;
@@ -1633,6 +1919,7 @@ var World = class {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue;
+        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue;
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d;
         bx = x;
@@ -1656,9 +1943,9 @@ var World = class {
     if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
     const ti = this.idx(x, y);
-    if (CONFIG.island && o >= 0 && this.code[ti] === K) {
+    if ((CONFIG.island || CONFIG.climb) && o >= 0 && this.code[ti] === K) {
       const v = this.warriors[o];
-      v.dents = (v.dents ?? 0) + 1;
+      v.dents = (v.dents ?? 0) + (CONFIG.climb ? wr.traits?.bite ?? 1 : 1);
       v.lastHarm = { by: wr.id, t: this.t };
       if (v.dents < CONFIG.armorBites) {
         this.log("bomb", `${wr.name}'s bite glanced off ${victim}'s armor`, wr.id);
@@ -1679,7 +1966,7 @@ var World = class {
    */
   opDivide(wr, d) {
     d = (d % 4 + 4) % 4;
-    if (wr.maxSize < (CONFIG.island ? 3 : 2) * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
+    if (wr.maxSize < (CONFIG.island || CONFIG.climb ? 3 : 2) * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
     if (CONFIG.reaperCap > 0) {
       const living = this.living();
       if (living.length >= CONFIG.reaperCap) {
@@ -1739,7 +2026,7 @@ var World = class {
       const i = this.idx(xs[k] + ox, ys[k] + oy);
       let code = this.code[mine[k]];
       if (this.rng() < CONFIG.copyError) {
-        code = Math.floor(this.rng() * GLYPHS.length);
+        code = Math.floor(this.rng() * this.glyphCount());
         mutations++;
       }
       this.setOwner(i, id);
@@ -1781,7 +2068,7 @@ var World = class {
     if (o !== wr.id) {
       if (this.seer(wr.id, x, y, CONFIG.writeRange) < 0) return false;
     }
-    const c = (code % GLYPHS.length + GLYPHS.length) % GLYPHS.length;
+    const n = this.glyphCount(), c = (code % n + n) % n;
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
     if (o >= 0 && o !== wr.id) {
@@ -1926,6 +2213,12 @@ var DISH_DEFAULTS = {
   // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
   island: 0,
   // 1 = island survival (side view: islanders and sea creatures; size = width)
+  climb: 0,
+  // 1 = The Climb (steps up into air and down into water, 10× taller and richer each; size = width)
+  base: 20,
+  // climb: step 0's height (step ±n is base × 10^n)
+  steps: 2,
+  // climb: steps each way
   starve: 600,
   // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6e3,
@@ -1957,6 +2250,15 @@ function applyDish(get) {
     const v = get(k);
     o[k] = v !== null && v !== "" ? Number(v) : d;
   }
+  if (o.climb > 0) {
+    const unset = (k) => (get(k) ?? "") === "";
+    if (unset("size")) o.size = 2e3;
+    if (unset("ripen")) o.ripen = 250;
+    if (unset("ripemax")) o.ripemax = 8;
+    if (unset("toxin")) o.toxin = 5e-3;
+    if (unset("seals")) o.seals = 40;
+    if (unset("cap")) o.cap = 2500;
+  }
   if (o.island > 0) {
     const unset = (k) => (get(k) ?? "") === "";
     if (unset("size")) o.size = 360;
@@ -1978,6 +2280,9 @@ function applyDish(get) {
   CONFIG.lifespan = o.life;
   CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.island = o.island > 0;
+  CONFIG.climb = o.climb > 0;
+  CONFIG.climbBase = o.base;
+  CONFIG.climbSteps = o.steps;
   CONFIG.starve = o.starve;
   CONFIG.sharkStarve = o.sharkstarve;
   CONFIG.sharkLife = o.sharklife;
@@ -2005,6 +2310,22 @@ function bandOf(world2, id) {
   const w = world2.warriors[id];
   return world2.board.toxin?.[world2.idx(w.ipX, w.ipY)] ?? 0;
 }
+function genomeOf(world2, id, sep = "/") {
+  const cells = world2.cellsOf(id);
+  if (!cells.length) return "";
+  const xs = cells.map((c) => c % world2.w), ys = cells.map((c) => c / world2.w | 0);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const rows = [];
+  for (let y = y0; y <= y1; y++) {
+    let r = "";
+    for (let x = x0; x <= x1; x++) {
+      const i = world2.idx(x, y);
+      r += world2.owner[i] === id ? glyphOf(world2.code[i]) : " ";
+    }
+    rows.push(r.replace(/\s+$/, ""));
+  }
+  return rows.join(sep);
+}
 var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
 
 // warriors/amoeba.warrior
@@ -2013,8 +2334,17 @@ var amoeba_default = "name: Amoeba\n# The petri dish founder: a Gatherer (collec
 // warriors/bomber.warrior
 var bomber_default = "name: Bomber\n# Like the Stalker, but bombs at range instead of poisoning by touch.\n# Found an enemy (top row): bomb it (fails quietly if out of range), step toward it.\n# Nothing in sight (bottom row): keep wandering; turn right when blocked.\nip: 0 1\n---\nv   >ooBT\\$:M\n>C2S|\n^   >$$:Me!+\n";
 
+// warriors/climber.warrior
+var climber_default = "name: Climber\n# The Climb's upward grazer: the petri founder (collect, head for the nearest plant, move,\n# divide) with an insulation cell (I) off its code row, so it can live in step +1 and\n# copy errors on the fat can add more.\n---\nC6S$TMD\n .I.\n";
+
+// warriors/diver.warrior
+var diver_default = "name: Diver\n# The Climb's downward grazer: the petri founder with an armor cell (K) off its code row,\n# so it can live in step -1 and copy errors on the fat can add more.\n---\nC6S$TMD\n .K.\n";
+
 // warriors/gatherer.warrior
 var gatherer_default = "name: Gatherer\n# One row, so the IP just loops along it forever (the row wraps within the body).\n# Collect anything touching me; find the nearest visible resource; head toward it\n# (TOWARD of 0,0 is a random direction, so with nothing in sight it wanders).\n---\nC6S$TM\n";
+
+// warriors/hunter.warrior
+var hunter_default = "name: Hunter\nrealm: deep\n# The Climb's hunter, kraken stock: big and slow (a row of fat), one armor (K) so it can\n# live in step -1, where it starts, under the falling dead cells. B gives it a taste for\n# meat (its single C collects dead cells, not plants). Head for the nearest warrior (2 S),\n# bite the nearest foreign cell (B), head for the nearest dead cell (3 S), divide.\n---\nC2S$TMB3S$TMD\n......K......\n";
 
 // warriors/roamer.warrior
 var roamer_default = "name: Roamer\n# A gatherer with a memory: the wander direction lives at the bottom of the stack.\n# Found a resource (top row): head toward it, and adopt that as the wander direction.\n# Nothing in sight (bottom row): keep going the same way; turn right when blocked.\nip: 0 1\n---\nv   >T\\$:M\n>C6S|\n^   >$$:Me!+\n";
@@ -2032,7 +2362,274 @@ var turtle_default = "name: Turtle\n# Stays put. Bombs the nearest enemy in rang
 var viper_default = "name: Viper\n# Poison at range 2. Like the Bomber, but the found row writes `@` (code 9) into the\n# nearest enemy cell instead of bombing. WRITE fails quietly beyond range 2.\n# 9 is pushed as a number, so the Viper carries no `@` of its own to run into.\nip: 0 1\n---\nv   >oo9WT\\$:M\n>C2S|\n^   >$$:Me!+\n";
 
 // src/warriors.ts
-var BUNDLED = { amoeba: amoeba_default, bomber: bomber_default, gatherer: gatherer_default, roamer: roamer_default, shark: shark_default, stalker: stalker_default, turtle: turtle_default, viper: viper_default };
+var BUNDLED = { amoeba: amoeba_default, bomber: bomber_default, climber: climber_default, diver: diver_default, gatherer: gatherer_default, hunter: hunter_default, roamer: roamer_default, shark: shark_default, stalker: stalker_default, turtle: turtle_default, viper: viper_default };
+
+// src/climb-view.ts
+var mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+function bodyColor(world2, id) {
+  const t = world2.warriors[id].traits;
+  if (!t) return [230, 230, 230];
+  if (t.meat && !t.plants) return mix([200, 40, 60], [255, 120, 160], Math.min(1, (t.bite - 1) / 3));
+  if (t.meat) return [230, 90, 200];
+  if (t.insulation > t.armor) return mix([140, 220, 255], [40, 110, 255], Math.min(1, (t.insulation - 1) / 3));
+  if (t.armor > t.insulation) return mix([255, 210, 110], [255, 110, 40], Math.min(1, (t.armor - 1) / 3));
+  return [235, 235, 225];
+}
+var ClimbView = class {
+  constructor(canvas3, mini, world2, redraw, cam) {
+    this.canvas = canvas3;
+    this.mini = mini;
+    this.world = world2;
+    this.redraw = redraw;
+    const w = world2();
+    this.cam = cam ?? { x: 0, y: 0, zoom: 3 };
+    if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0);
+    canvas3.addEventListener("mousedown", (e) => {
+      this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
+    });
+    window.addEventListener("mouseup", () => {
+      this.drag = null;
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!this.drag) return;
+      this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
+      this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
+      this.clamp();
+      this.redraw();
+    });
+    canvas3.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const r = canvas3.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
+      this.cam.zoom = Math.max(1, Math.min(12, this.cam.zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
+      this.cam.x = wx - mx / this.cam.zoom;
+      this.cam.y = wy - my / this.cam.zoom;
+      this.clamp();
+      this.redraw();
+    }, { passive: false });
+    window.addEventListener("keydown", (e) => {
+      if (e.target?.tagName === "INPUT") return;
+      const s = 40 / this.cam.zoom * 4;
+      const k = e.key.toLowerCase();
+      if (k === "arrowleft" || k === "a") this.cam.x -= s;
+      else if (k === "arrowright" || k === "d") this.cam.x += s;
+      else if (k === "arrowup" || k === "w") this.cam.y -= s;
+      else if (k === "arrowdown" || k === "s") this.cam.y += s;
+      else if (k === "+" || k === "=") this.cam.zoom = Math.min(12, this.cam.zoom * 1.25);
+      else if (k === "-") this.cam.zoom = Math.max(1, this.cam.zoom * 0.8);
+      else return;
+      e.preventDefault();
+      this.clamp();
+      this.redraw();
+    });
+    mini.addEventListener("click", (e) => {
+      const r = mini.getBoundingClientRect();
+      const y = this.miniToRow(e.clientY - r.top), x = (e.clientX - r.left) / mini.width * this.world().w;
+      this.centerOn(x, y);
+      this.redraw();
+    });
+  }
+  cam;
+  pix = document.createElement("canvas");
+  pctx = this.pix.getContext("2d");
+  drag = null;
+  /** Viewport size in cells. */
+  get viewW() {
+    return this.canvas.width / this.cam.zoom;
+  }
+  get viewH() {
+    return this.canvas.height / this.cam.zoom;
+  }
+  centerOn(x, y) {
+    this.cam.x = x - this.viewW / 2;
+    this.cam.y = y - this.viewH / 2;
+    this.clamp();
+  }
+  clamp() {
+    const w = this.world();
+    this.cam.x = Math.max(0, Math.min(w.w - this.viewW, this.cam.x));
+    this.cam.y = Math.max(0, Math.min(w.h - this.viewH, this.cam.y));
+  }
+  /** Board cell under a canvas pixel. */
+  cellAt(px, py) {
+    return [Math.floor(this.cam.x + px / this.cam.zoom), Math.floor(this.cam.y + py / this.cam.zoom)];
+  }
+  // ---------- the minimap: every step an equal share of the strip ----------
+  sections() {
+    const b = this.world().board, S = b.climbSteps, n = 2 * S + 1, H = this.mini.height;
+    return Array.from({ length: n }, (_, k) => ({ step: S - k, top: b.stepTop[2 * S - k], h: b.stepH[2 * S - k], y0: k * H / n, y1: (k + 1) * H / n }));
+  }
+  rowToMini(row) {
+    for (const s of this.sections()) if (row >= s.top && row < s.top + s.h) return s.y0 + (row - s.top) / s.h * (s.y1 - s.y0);
+    return this.mini.height;
+  }
+  miniToRow(y) {
+    for (const s of this.sections()) if (y >= s.y0 && y < s.y1) return s.top + (y - s.y0) / (s.y1 - s.y0) * s.h;
+    return 0;
+  }
+  // ---------- drawing ----------
+  /** Background colour of an empty floor cell: air bluer then violet the higher, water darker the deeper. */
+  sky(step, row) {
+    const b = this.world().board, sea = b.seaLevel ?? 0;
+    if (step > 0) return mix([150, 200, 240], [40, 20, 80], Math.min(1, (step - 1 + this.frac(step, row)) / Math.max(1, b.climbSteps)));
+    if (step < 0) return mix([30, 110, 160], [4, 8, 30], Math.min(1, (-step - 1 + this.frac(step, row)) / Math.max(1, b.climbSteps)));
+    return row < sea ? [170, 215, 245] : [50, 140, 190];
+  }
+  /** How far through its step a row is (0 at the edge toward step 0, 1 at the far edge). */
+  frac(step, row) {
+    const b = this.world().board, S = b.climbSteps, top = b.stepTop[step + S], h = b.stepH[step + S];
+    const f = (row - top) / h;
+    return step > 0 ? 1 - f : f;
+  }
+  render() {
+    const world2 = this.world(), b = world2.board, st = b.step;
+    const vw = Math.ceil(this.viewW) + 1, vh = Math.ceil(this.viewH) + 1, x0 = Math.floor(this.cam.x), y0 = Math.floor(this.cam.y);
+    if (this.pix.width !== vw || this.pix.height !== vh) {
+      this.pix.width = vw;
+      this.pix.height = vh;
+    }
+    const img = this.pctx.createImageData(vw, vh), d = img.data;
+    const colors = /* @__PURE__ */ new Map();
+    const sea = b.seaLevel ?? -1;
+    for (let j = 0; j < vh; j++) {
+      const y = y0 + j;
+      if (y >= world2.h) break;
+      for (let i = 0; i < vw; i++) {
+        const x = x0 + i;
+        if (x >= world2.w) break;
+        const c = y * world2.w + x, o = world2.owner[c];
+        let col;
+        if (b.terrain[c] !== 0) {
+          const n = (Math.imul(x * 73856093 ^ y * 19349663, 2654435761) >>> 0) % 100 / 100;
+          col = st[c] > 0 ? mix([120, 110, 120], [90, 80, 95], n) : st[c] < 0 ? mix([60, 50, 45], [38, 32, 30], n) : [90, 80, 70];
+        } else if (o >= 0) {
+          let cc = colors.get(o);
+          if (!cc) {
+            cc = bodyColor(world2, o);
+            colors.set(o, cc);
+          }
+          const wo = world2.warriors[o];
+          col = c === wo.ipY * world2.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
+        } else {
+          col = this.sky(st[c], y);
+          if (y === sea) col = mix(col, [255, 255, 255], 0.35);
+          if (o === DEBRIS) col = mix(col, [170, 160, 150], 0.4);
+          else if (world2.resource[c]) {
+            const r = Math.min(1, (world2.ripe[c] - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
+            const fresh = st[c] > 0 ? [150, 220, 90] : [40, 150, 70];
+            col = r < 0.5 ? mix(fresh, [110, 230, 100], r * 2) : mix([110, 230, 100], [255, 210, 60], (r - 0.5) * 2);
+          }
+        }
+        const p = (j * vw + i) * 4;
+        d[p] = col[0];
+        d[p + 1] = col[1];
+        d[p + 2] = col[2];
+        d[p + 3] = 255;
+      }
+    }
+    this.pctx.putImageData(img, 0, 0);
+    const ctx2 = this.canvas.getContext("2d");
+    ctx2.imageSmoothingEnabled = false;
+    ctx2.fillStyle = "#000";
+    ctx2.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    const z = this.cam.zoom;
+    ctx2.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
+    const S = b.climbSteps;
+    ctx2.font = "bold 13px ui-monospace, Menlo, monospace";
+    ctx2.textBaseline = "top";
+    for (let n = S; n >= -S; n--) {
+      const top = b.stepTop[n + S], sy = (top - this.cam.y) * z;
+      if (sy > -2 && sy < this.canvas.height) {
+        ctx2.fillStyle = "rgba(255,255,255,0.35)";
+        ctx2.fillRect(0, sy, this.canvas.width, 1);
+      }
+      const ly = Math.max(4, sy + 4), bottom = (top + b.stepH[n + S] - this.cam.y) * z;
+      if (bottom > 20 && ly < this.canvas.height - 16) {
+        const label = n > 0 ? `step +${n} \xB7 thin air \xB7 needs ${n} insulation \xB7 food \xD7${10 ** n}` : n < 0 ? `step ${n} \xB7 deep water \xB7 needs ${-n} armor \xB7 food \xD7${10 ** -n}` : "step 0 \xB7 sea level \xB7 food \xD71";
+        ctx2.fillStyle = "rgba(0,0,0,0.55)";
+        ctx2.fillRect(6, ly - 2, ctx2.measureText(label).width + 10, 18);
+        ctx2.fillStyle = n > 0 ? "#bfe6ff" : n < 0 ? "#ffd9a0" : "#ffffff";
+        ctx2.fillText(label, 11, ly);
+      }
+    }
+    this.renderMini();
+  }
+  /** The minimap: life density per bin over the step-normalized strip, plus the camera's box. */
+  renderMini() {
+    const world2 = this.world(), m = this.mini, ctx2 = m.getContext("2d"), W = m.width, H = m.height;
+    const secs = this.sections();
+    for (const s of secs) {
+      const c = this.sky(s.step, s.top + s.h / 2);
+      ctx2.fillStyle = `rgb(${c.map((v) => v * 0.55).join(",")})`;
+      ctx2.fillRect(0, s.y0, W, s.y1 - s.y0);
+      ctx2.fillStyle = "rgba(255,255,255,0.4)";
+      ctx2.fillRect(0, s.y0, W, 1);
+      ctx2.fillStyle = "#ddd";
+      ctx2.font = "11px ui-monospace, Menlo, monospace";
+      ctx2.textBaseline = "top";
+      ctx2.fillText(s.step > 0 ? `+${s.step}` : String(s.step), 3, s.y0 + 2);
+    }
+    for (const wr of world2.living()) {
+      const c = bodyColor(world2, wr.id);
+      ctx2.fillStyle = `rgb(${c.join(",")})`;
+      ctx2.fillRect(wr.ipX / world2.w * W, this.rowToMini(wr.ipY), 2, 2);
+    }
+    const y0 = this.rowToMini(this.cam.y), y1 = this.rowToMini(Math.min(world2.h - 1, this.cam.y + this.viewH));
+    ctx2.strokeStyle = "#fff";
+    ctx2.lineWidth = 1;
+    ctx2.strokeRect(this.cam.x / world2.w * W + 0.5, y0 + 0.5, Math.max(2, this.viewW / world2.w * W), Math.max(2, y1 - y0));
+  }
+  /** Side panel: population by step, chemistry, diets, top genomes, deaths, active tiles. */
+  panel(esc2) {
+    const world2 = this.world(), b = world2.board, S = b.climbSteps, st = b.step;
+    const living = world2.living();
+    const by = new Array(2 * S + 1).fill(0), arm = /* @__PURE__ */ new Map(), ins = /* @__PURE__ */ new Map();
+    let plants = 0, meat = 0, both = 0, paceSum = 0;
+    const counts = /* @__PURE__ */ new Map();
+    for (const w of living) {
+      by[S - st[w.ipY * world2.w + w.ipX]]++;
+      const t = w.traits;
+      if (t) {
+        arm.set(t.armor, (arm.get(t.armor) ?? 0) + 1);
+        ins.set(t.insulation, (ins.get(t.insulation) ?? 0) + 1);
+        if (t.plants && t.meat) both++;
+        else if (t.meat) meat++;
+        else if (t.plants) plants++;
+        paceSum += t.pace;
+      }
+      const g = genomeOf(world2, w.id, " / ");
+      const c = counts.get(g) ?? { n: 0, id: w.id };
+      c.n++;
+      counts.set(g, c);
+    }
+    const max = Math.max(1, ...by);
+    const bars = by.map((n, k) => {
+      const step = S - k;
+      const c = this.sky(step, b.stepTop[step + S] + b.stepH[step + S] / 2);
+      return `<div class="stats" style="display:flex;gap:6px;align-items:center"><span style="width:28px">${step > 0 ? `+${step}` : step}</span><span style="display:inline-block;height:9px;width:${Math.round(n / max * 160)}px;background:rgb(${c.join(",")})"></span>${n}</div>`;
+    }).join("");
+    const hist = (m) => [...m.entries()].sort((a, c) => a[0] - c[0]).map(([k, n]) => `${k}: ${n}`).join(" \xB7 ");
+    const deaths = /* @__PURE__ */ new Map();
+    for (const w of world2.warriors) if (!w.alive && w.deathReason) {
+      const k = w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "").replace("core ", "");
+      deaths.set(k, (deaths.get(k) ?? 0) + 1);
+    }
+    const tiles = world2.tileStats();
+    const top = [...counts.entries()].sort((a, c) => c[1].n - a[1].n).slice(0, 6);
+    const css = (c) => `rgb(${c.join(",")})`;
+    return `<div class="name">The Climb</div>
+      <div class="stats">${living.length} alive (cap ${Number.isFinite(CONFIG.maxWarriors) ? CONFIG.maxWarriors : "\u221E"}) \xB7 ${world2.warriors.length} ever lived \xB7 pace ${living.length ? (paceSum / living.length).toFixed(2) : "-"} avg</div>
+      <div class="stats">upkeep in ${tiles.active} of ${tiles.total} tiles (only near life)</div>
+      <div class="name" style="margin-top:6px">by step</div>${bars}
+      <div class="stats" style="margin-top:6px"><span style="color:#ffb46e">armor</span> ${hist(arm)}</div>
+      <div class="stats"><span style="color:#8cd2ff">insulation</span> ${hist(ins)}</div>
+      <div class="stats">diet: plants ${plants} \xB7 <span style="color:#ff6b8b">meat ${meat}</span> \xB7 both ${both}</div>
+      <div class="name" style="margin-top:6px">top genomes</div>
+      ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world2, c.id))}">${String(c.n).padStart(3)} \xD7</span> <code>${esc2(g)}</code></div>`).join("")}
+      <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc2(k)} ${n}`).join(" \xB7 ")}</div>
+      <div class="stats" style="margin-top:6px;color:#6e7681">drag to pan \xB7 wheel or +/- to zoom \xB7 WASD/arrows \xB7 click the strip to jump</div>`;
+  }
+};
 
 // src/main.ts
 var SOURCES = { ...BUNDLED };
@@ -2061,10 +2658,11 @@ var tickBudget = 0;
 var lastFrame = performance.now();
 var params = new URLSearchParams(location.search);
 var ISLAND = params.get("island") === "1";
-var PETRI = params.has("petri") || ISLAND;
+var CLIMB = params.get("climb") === "1";
+var PETRI = params.has("petri") || ISLAND || CLIMB;
 if (PETRI) applyDish((k) => params.get(k));
 CONFIG.tickCap = Number(params.get("ticks")) || Infinity;
-var initial = (params.get("w") ?? (ISLAND ? "amoeba,shark,shark" : PETRI ? "amoeba" : "evo:morph4-twitch,evo:amoeba-g")).split(",");
+var initial = (params.get("w") ?? (CLIMB ? "climber,diver,hunter" : ISLAND ? "amoeba,shark,shark" : PETRI ? "amoeba" : "evo:morph4-twitch,evo:amoeba-g")).split(",");
 seedEl.value = params.get("seed") ?? "1";
 var pickersEl = $("pickers");
 var pickers = [];
@@ -2098,6 +2696,21 @@ function newMatch(sources, seed) {
   specs = srcs.map((s, i) => parseWarrior(s, `warrior${i + 1}`));
   world = new World(seed ?? (Number(seedEl.value) || 1), specs);
   seedEl.value = String(world.seed);
+  if (CLIMB) {
+    const mini = $("minimap");
+    canvas2.width = Math.max(400, window.innerWidth - 380 - 140);
+    canvas2.height = Math.max(300, window.innerHeight - 40);
+    mini.width = 110;
+    mini.height = canvas2.height;
+    mini.style.display = "block";
+    $("stage").style.marginRight = "124px";
+    if (!climbView) {
+      const cam = (params.get("cam") ?? "").split(",").map(Number);
+      climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
+    }
+    render();
+    return;
+  }
   CELL = PETRI ? Math.max(3, Math.min(10, Math.floor((Math.min(window.innerWidth - 380, ISLAND ? 1300 : 1e3) - 24) / world.w))) : 14;
   islandBg = null;
   canvas2.width = world.w * CELL;
@@ -2109,6 +2722,9 @@ $("petri").textContent = PETRI ? "Back to matches" : "Petri dish";
 $("island").onclick = () => {
   location.search = "?island=1";
 };
+$("climb").onclick = () => {
+  location.search = "?climb=1";
+};
 $("petri").onclick = () => {
   location.search = PETRI ? "" : "?petri=1&w=amoeba";
 };
@@ -2119,6 +2735,7 @@ function shareText() {
   if (matchNames) q.set("w", matchNames.join(","));
   q.set("seed", String(world.seed));
   q.set("t", String(world.t));
+  if (CLIMB && climbView) q.set("cam", `${Math.round(climbView.cam.x)},${Math.round(climbView.cam.y)},${+climbView.cam.zoom.toFixed(2)}`);
   const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ":").replace(/%2C/g, ",")}`;
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(", ");
@@ -2205,7 +2822,13 @@ function color(id, l, a = 1) {
 }
 var TOXIN_TINT = ["#0e1117", "#1b1220", "#281427", "#36162c", "#451831", "#541a35"];
 var ARMOR_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#ef4444", "#d946ef"];
+var climbView = null;
 function render() {
+  if (CLIMB && climbView) {
+    climbView.render();
+    renderSide();
+    return;
+  }
   if (ISLAND) {
     renderIsland();
     renderSide();
@@ -2274,7 +2897,7 @@ var pix = document.createElement("canvas");
 var pctx = pix.getContext("2d");
 var islandBg = null;
 var bgVersion = -1;
-var mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+var mix2 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 var SEAL_COLORS = [[244, 238, 226], [255, 214, 120], [255, 160, 70], [255, 100, 100], [232, 67, 147], [190, 60, 255]];
 var SHARK_COLORS = [[214, 64, 52], [236, 96, 40], [250, 140, 30], [255, 190, 40], [200, 255, 60], [80, 255, 160]];
 function islandBackground() {
@@ -2286,18 +2909,18 @@ function islandBackground() {
     const i = y * w + x, t = b.terrain[i];
     let c;
     const n = (Math.imul(x * 73856093 ^ y * 19349663, 2654435761) >>> 0) % 100 / 100;
-    if (t !== 0 && y < S) c = mix([110, 190, 240], [200, 235, 255], y / Math.max(1, S));
-    else if (t !== 0) c = mix([70, 55, 45], [40, 32, 28], n * 0.6);
+    if (t !== 0 && y < S) c = mix2([110, 190, 240], [200, 235, 255], y / Math.max(1, S));
+    else if (t !== 0) c = mix2([70, 55, 45], [40, 32, 28], n * 0.6);
     else if (y < S) {
       const above = y > 0 && b.terrain[i - w] === 0;
-      c = above ? mix([226, 204, 140], [205, 180, 120], n) : mix([110, 190, 80], [80, 160, 60], n);
+      c = above ? mix2([226, 204, 140], [205, 180, 120], n) : mix2([110, 190, 80], [80, 160, 60], n);
     } else {
       const d = (y - S) / Math.max(1, bottom - S);
-      c = mix([60, 165, 220], [8, 22, 58], Math.pow(d, 0.8));
-      if ((b.toxin?.[i] ?? 0) % 2) c = mix(c, [0, 0, 0], 0.06);
-      if (y < (b.sharkLine ?? 0)) c = mix(c, [150, 230, 240], 0.14);
-      if (y === (b.sharkLine ?? -1) - 1 && x % 4 < 2) c = mix(c, [255, 255, 255], 0.25);
-      c = mix(c, [255, 255, 255], (n - 0.5) * 0.03);
+      c = mix2([60, 165, 220], [8, 22, 58], Math.pow(d, 0.8));
+      if ((b.toxin?.[i] ?? 0) % 2) c = mix2(c, [0, 0, 0], 0.06);
+      if (y < (b.sharkLine ?? 0)) c = mix2(c, [150, 230, 240], 0.14);
+      if (y === (b.sharkLine ?? -1) - 1 && x % 4 < 2) c = mix2(c, [255, 255, 255], 0.25);
+      c = mix2(c, [255, 255, 255], (n - 0.5) * 0.03);
     }
     out.set([c[0], c[1], c[2], 255], i * 4);
   }
@@ -2325,13 +2948,13 @@ function renderIsland() {
     if (o >= 0) {
       const wo = world.warriors[o], a = Math.min(5, armor.get(o) ?? 0);
       let c = (wo.realm ? SHARK_COLORS : SEAL_COLORS)[a];
-      if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix(c, [0, 0, 0], 0.45);
+      if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix2(c, [0, 0, 0], 0.45);
       put(i, c);
-    } else if (o === DEBRIS) put(i, mix([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [150, 140, 130], 0.3));
+    } else if (o === DEBRIS) put(i, mix2([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [150, 140, 130], 0.3));
     else if (world.resource[i] === 1) {
       const r = Math.min(1, (world.ripe[i] - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
-      put(i, r < 0.5 ? mix([25, 120, 55], [80, 210, 90], r * 2) : mix([80, 210, 90], [250, 210, 60], (r - 0.5) * 2));
-      if (r > 0.6 && i >= w && world.owner[i - w] === -1 && !world.resource[i - w] && world.isFloor((i - w) % w, (i - w) / w | 0)) put(i - w, mix([d[(i - w) * 4], d[(i - w) * 4 + 1], d[(i - w) * 4 + 2]], [200, 190, 70], 0.5));
+      put(i, r < 0.5 ? mix2([25, 120, 55], [80, 210, 90], r * 2) : mix2([80, 210, 90], [250, 210, 60], (r - 0.5) * 2));
+      if (r > 0.6 && i >= w && world.owner[i - w] === -1 && !world.resource[i - w] && world.isFloor((i - w) % w, (i - w) / w | 0)) put(i - w, mix2([d[(i - w) * 4], d[(i - w) * 4 + 1], d[(i - w) * 4 + 2]], [200, 190, 70], 0.5));
     } else if (world.resource[i] === 2) put(i, [240, 210, 70]);
   }
   pctx.putImageData(img, 0, 0);
@@ -2364,7 +2987,8 @@ function renderSide() {
       <div class="stack">stack [${wr.stack.slice(-12).join(" ")}]</div>
     </div>`;
   }).join("");
-  if (ISLAND) renderIslandPanel();
+  if (CLIMB && climbView) dishEl.innerHTML = climbView.panel(esc);
+  else if (ISLAND) renderIslandPanel();
   else if (PETRI) renderDish();
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== "shed").map((e) => `<div style="color:${e.who !== void 0 ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : "#e6edf3"}">t${e.t} ${esc(e.text)}</div>`).join("");
   logEl.scrollTop = logEl.scrollHeight;
@@ -2373,7 +2997,7 @@ function renderSide() {
     banner.textContent = world.result.winner === null ? `No winner: ${world.result.reason}` : `${world.warriors[world.result.winner].name} wins (${world.result.reason})`;
   } else banner.style.display = "none";
 }
-function genomeOf(id) {
+function genomeOf2(id) {
   const cells = world.cellsOf(id);
   if (!cells.length) return "";
   const xs = cells.map((c) => c % world.w), ys = cells.map((c) => c / world.w | 0);
@@ -2399,12 +3023,12 @@ function renderDish() {
   }
   const counts = /* @__PURE__ */ new Map();
   for (const w of living) {
-    const g = genomeOf(w.id);
+    const g = genomeOf2(w.id);
     const c = counts.get(g) ?? { n: 0, lineage: w.lineage };
     c.n++;
     counts.set(g, c);
   }
-  const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf(w.id) || w.spec.source.split("---")[1]?.trim().split("\n").join(" / "));
+  const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf2(w.id) || w.spec.source.split("---")[1]?.trim().split("\n").join(" / "));
   const died = world.warriors.filter((w) => !w.alive).length;
   const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   dishEl.innerHTML = `<div class="name">Petri dish</div>
@@ -2423,7 +3047,7 @@ function renderIslandPanel() {
       bands[bandOf(world, w.id)]++;
       const a = armorOf(world, w.id);
       arm.set(a, (arm.get(a) ?? 0) + 1);
-      const g = genomeOf(w.id);
+      const g = genomeOf2(w.id);
       counts.set(g, (counts.get(g) ?? 0) + 1);
     }
     const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -2444,12 +3068,15 @@ function renderIslandPanel() {
     ${part(1, "Sharks (eat the dead)", SHARK_COLORS)}
     <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${esc(k)} ${n}`).join(" \xB7 ")}</div>`;
 }
+function genomeOfCell(id) {
+  return genomeOf2(id);
+}
 function esc(s) {
   return s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 canvas2.onmousemove = (ev) => {
   const r = canvas2.getBoundingClientRect();
-  const x = Math.floor((ev.clientX - r.left) / CELL), y = Math.floor((ev.clientY - r.top) / CELL);
+  const [x, y] = CLIMB && climbView ? climbView.cellAt(ev.clientX - r.left, ev.clientY - r.top) : [Math.floor((ev.clientX - r.left) / CELL), Math.floor((ev.clientY - r.top) / CELL)];
   if (!world.inBounds(x, y)) {
     tip.style.display = "none";
     return;
@@ -2461,14 +3088,23 @@ canvas2.onmousemove = (ev) => {
     text = `${o >= 0 ? world.warriors[o].name : "debris"}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= "0" && g <= "9" ? `push ${g}` : "")}`;
   } else if (world.resource[i]) text = ISLAND ? world.resource[i] === 1 ? "kelp (seals eat it)" : "plankton (speed)" : world.resource[i] === 1 ? "size pickup" : "speed pickup";
   if (o >= 0 && ISLAND) text = `${world.warriors[o].realm ? "shark" : "seal"} ${text}`;
+  if (CLIMB) {
+    const n = world.board.step?.[i] ?? 0;
+    if (world.resource[i]) text = `plant \xD7${(world.richness(i) * world.ripe[i]).toFixed(0)} food (ripeness ${world.ripe[i].toFixed(1)})`;
+    const t = o >= 0 ? world.warriors[o].traits : void 0;
+    if (t) text += `
+armor ${t.armor} \xB7 insulation ${t.insulation} \xB7 bite ${t.bite} \xB7 pace ${t.pace.toFixed(2)} \xB7 eats ${t.plants && t.meat ? "both" : t.meat ? "meat" : t.plants ? "plants" : "nothing"}
+max size ${Math.floor(world.warriors[o].maxSize)} \xB7 ${genomeOfCell(o)}`;
+    text = `${text ? text + "\n" : ""}step ${n > 0 ? "+" + n : n}${world.board.terrain[i] ? " \xB7 rock" : ""}`;
+  }
   if (!text) {
     tip.style.display = "none";
     return;
   }
   tip.textContent = text;
   tip.style.display = "block";
-  tip.style.left = `${x * CELL + CELL + 4}px`;
-  tip.style.top = `${y * CELL + CELL + 4}px`;
+  tip.style.left = `${CLIMB ? ev.clientX - r.left + 14 : x * CELL + CELL + 4}px`;
+  tip.style.top = `${CLIMB ? ev.clientY - r.top + 14 : y * CELL + CELL + 4}px`;
 };
 canvas2.onmouseleave = () => {
   tip.style.display = "none";

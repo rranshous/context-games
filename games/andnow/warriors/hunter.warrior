@@ -1,0 +1,9 @@
+name: Hunter
+realm: deep
+# The Climb's hunter, kraken stock: big and slow (a row of fat), one armor (K) so it can
+# live in step -1, where it starts, under the falling dead cells. B gives it a taste for
+# meat (its single C collects dead cells, not plants). Head for the nearest warrior (2 S),
+# bite the nearest foreign cell (B), head for the nearest dead cell (3 S), divide.
+---
+C2S$TMB3S$TMD
+......K......
