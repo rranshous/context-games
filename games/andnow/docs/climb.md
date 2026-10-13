@@ -8,7 +8,7 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
 
 ## World
 
-- **Width:** fixed, about 400 cells.
+- **Width:** fixed, about 2,000 cells (the user: wider than 400). Chunks are tiles in both directions, so only active tiles cost compute.
 - **Height:** infinite both ways. Step 0 is the start, a sea-level band about 40 rows tall.
 - **Steps:**
   - Step +n (up) is thin, cold air. Living there needs n points of **insulation**.
@@ -16,7 +16,16 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
 - **Each step out is 10× taller and 10× richer than the one before.** Step ±1 is about 400 rows and step ±2 about 4,000. Food in step ±n is worth 10^|n| times step 0's food.
   - Going one step farther costs one more point of the trait and one big jump in reward. The frontier always pays.
 - **Damage:** the island's pressure rule, with "levels over" = the steps you're short of the trait. It's harsh enough that a dip pays off and living there doesn't.
-- **Terrain:** generated per chunk from the seed and the chunk's row index, so any chunk can be rebuilt on demand.
+- **Natural patches:** the ×10 per step is the big trend. Inside each step, food is patchy:
+  - across the width, meadows and barrens;
+  - through the height of a step, a rich layer partway in (a kelp-forest band in the deep, a fertile ledge layer in the air) thinning toward the step's edges.
+
+  Creatures have to find good ground, not just go farther, so populations cluster and separate.
+- **Up and down differ:**
+  - **Down** gets falling dead cells (marine snow), free food pooling in the depths: the pantry for big slow scavenger-hunters.
+  - **Up** gets sunlight: plants regrow faster the higher you go, but patches are sparse. That suits fast, light grazers.
+- **Size cap grows with richness,** so bodies can get huge where food is worth 1,000×. The user is hoping for krakens: big, slow, long-lived deep hunters (mask cells cancelling mass, bite doublers, low pace so slow hunger).
+- **Terrain:** generated per tile from the seed and the tile's coordinates, so any tile can be rebuilt on demand.
   - Downward: rock, caves and overhangs, as on the island.
   - Upward: cliffs, ledges and overhangs.
   - Both block line of sight.
@@ -47,7 +56,7 @@ The rules are in the body, so a mutation can change what a body's other cells me
 
 1. **Climber:** a grazer with an insulation cell spare, heading up.
 2. **Diver:** a grazer with an armor cell spare, heading down.
-3. **Hunter:** big, slow, bites and eats dead cells. It starts in step 0, to see which way it follows the food.
+3. **Hunter:** big, slow, bites and eats dead cells. It starts at the top of step −1, in reach of the marine snow, as kraken stock.
 
 ## The viewer
 
@@ -58,4 +67,4 @@ The rules are in the body, so a mutation can change what a body's other cells me
 
 - Numbers grow 10× per step. Reserves and food values may need logarithms, or a cap with ripeness doing the work.
 - Chunk size, and how long an emptied chunk is kept before it's dropped.
-- Which way do dead cells move in air: fall, or drift?
+- Dead cells fall in both air and water, so the heights feed the depths.
