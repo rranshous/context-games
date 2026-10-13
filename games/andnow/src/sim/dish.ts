@@ -91,7 +91,10 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.depth = o.depth;
   CONFIG.sharkArrive = o.arrive;
   CONFIG.seals = o.seals;
-  CONFIG.reaperCap = 0;
+  // (The Climb: the cap reaps the oldest at each birth instead of stopping births, so a rare
+  // kind, like the hunters, can still breed while the grazers fill the world.)
+  CONFIG.reaperCap = o.climb > 0 && o.cap > 0 ? o.cap : 0;
+  if (CONFIG.reaperCap) CONFIG.maxWarriors = Infinity;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
   return o;

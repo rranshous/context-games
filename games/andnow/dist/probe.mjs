@@ -2447,7 +2447,8 @@ function applyDish(get) {
   CONFIG.depth = o.depth;
   CONFIG.sharkArrive = o.arrive;
   CONFIG.seals = o.seals;
-  CONFIG.reaperCap = 0;
+  CONFIG.reaperCap = o.climb > 0 && o.cap > 0 ? o.cap : 0;
+  if (CONFIG.reaperCap) CONFIG.maxWarriors = Infinity;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
   return o;
