@@ -78,13 +78,13 @@ mixed results to make sense. The canary is how a device proves it does.
 | `POST /api/jobs` | `{ task, inputs?, leaseMs? }` | → `{ job }` |
 | `POST /api/jobs/<id>/add` | `{ inputs }` | → `{ first }` index of the first added input |
 | `GET /api/jobs/<id>?cursor=N` | | → `{ done: [[index, output]…], cursor, remaining }` |
-| `POST /api/jobs/<id>/cancel` | | drop the job's queued inputs |
+| `POST /api/jobs/<id>/cancel` | | drop the job's queued inputs and stop threads running its items |
 | `GET /api/capacity?task=<id>` | | → `{ live, verified, leased }` worker threads right now |
 | `POST /api/run` | `{ task, inputs }` | → `{ outputs, ms }` blocking, farm only |
 | `POST /api/lease` | `{ worker, verified[], name, cores, threads }` | (workers) → `{ item }` / `{ verify }` / `{ none }` |
 | `POST /api/canary` | `{ worker, task, ok, detail }` | (workers) |
 | `POST /api/result` | `{ worker, job, index, output }` | (workers) |
-| `POST /api/heartbeat` | `{ workers[], session, name, cores, threads, paused }` | (pages) vouch for threads busy on a long item |
+| `POST /api/heartbeat` | `{ workers[], session, name, cores, threads, paused, abort }` | (pages) vouch for threads busy on a long item → `{ drop }` items nobody wants |
 | `GET /api/status` | | `now`, workers (state, current item and since), jobs (done/leased/queued, item durations), recently `finished`, tasks |
 | `GET /tasks/<id>.mjs`, `GET /client.mjs` | | task module source; the client library |
 
@@ -95,6 +95,12 @@ main thread heartbeats for its threads. A page silent for 60 s, or reloaded (new
 gives its threads' leased items back to the queue right away instead of waiting out a long
 `leaseMs`. The page shows each busy thread's item, a live clock, and progress against the
 job's average item time once one has finished.
+
+**Cancelling stops the work.** An item whose job was cancelled (or dropped), or whose result
+already came in from another thread, is listed in the heartbeat's `drop`; the page
+terminates that thread and starts a fresh one in its place (keeping the tasks it had
+verified, so no canary re-run), within a heartbeat (~4 s). runHybrid cancels its job when
+the run finishes, so leftover farm copies of items done locally stop then.
 
 ## Customers
 

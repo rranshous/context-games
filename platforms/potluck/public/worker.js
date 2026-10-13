@@ -1,6 +1,7 @@
 // One Potluck worker thread: lease an input, run it with the task's module, post the
 // output, repeat. Before working on a task it hasn't seen, it runs the task's canary
-// (if any); a failed canary means this thread never takes that task.
+// (if any); a failed canary means this thread never takes that task. To abort an item the
+// page terminates this thread and starts a fresh one (run() can't be interrupted).
 let id = '', page = {}, paused = false, idle = 0;
 const modules = new Map(); // task id -> module
 const verified = new Set();
@@ -39,9 +40,10 @@ async function loop() {
         const { job, index, task, input } = work.item;
         const mod = await load(task);
         const t0 = performance.now();
+        self.postMessage({ type: 'item', job, index });
         const output = await mod.run(input);
         await post('/api/result', { worker: id, job, index, output });
-        self.postMessage({ type: 'done', ms: performance.now() - t0 });
+        self.postMessage({ type: 'done', job, index, ms: performance.now() - t0 });
       }
     } catch (e) {
       self.postMessage({ type: 'error', text: String(e.message ?? e) });
@@ -52,6 +54,7 @@ async function loop() {
 
 self.onmessage = (e) => {
   const m = e.data;
-  if (m.type === 'start') { id = m.id; page = m.page; loop(); }
+  // `verified`: tasks this thread's predecessor already passed (it was restarted to abort an item).
+  if (m.type === 'start') { id = m.id; page = m.page; for (const t of m.verified ?? []) verified.add(t); loop(); }
   if (m.type === 'pause') paused = m.paused;
 };

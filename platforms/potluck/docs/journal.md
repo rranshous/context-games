@@ -129,3 +129,22 @@ after the item finished (it showed a label with no jobs open).
   idle threads as small chips, recently finished items with durations. Scales the root
   font with the viewport for the TV/xbox helpers. Animations keep their phase across
   the 1 s re-render via a negative `animation-delay`.
+
+### Cancel actually stops the work
+User: "canceled work isn't aborted it just is marked as not useful. but it's still executing."
+Right: cancelling forgot the job, but a browser thread deep in a synchronous `run()` kept
+burning its core for up to an hour, and so did the losing copy of an item leased twice.
+- The heartbeat answer now carries `drop: [{ worker, job, index }]`: busy items whose job
+  is gone (cancelled, or dropped as abandoned) or whose result is already in. A page that
+  says `abort: true` terminates that Worker and spawns a fresh one with the same id, handing
+  it the tasks the old one had verified (worker.js takes `verified` on start), so no canary
+  re-run. Threads tell the page which item they're on (`item` message); the page aborts only
+  if the thread is still on that exact item, so a thread that finished and moved on between
+  the server's check and the answer isn't killed.
+- The server logs the abort in `finished` (`aborted: 'cancelled' | 'done elsewhere'`), and
+  the page lists it as "cancelled: thread restarted · stopped at 15s".
+- Tested on a spare port: cancel of 3 ten-minute items → all three threads restarted ~4 s
+  later; a 20 s item with a 4 s lease (handed to all 4 threads) → the 3 losers stopped
+  within ~3 s of the first result.
+- Not covered: an item runHybrid finishes locally mid-run keeps its farm copy running until
+  the run ends and cancels the job (the client doesn't report local completions).

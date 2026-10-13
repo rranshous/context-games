@@ -20,14 +20,16 @@
 //   POST /api/jobs               { task, inputs?, leaseMs?, label? } -> { job }   label: what the work is, for the page
 //   POST /api/jobs/<id>/add      { inputs }            -> { first }   index of the first added input
 //   GET  /api/jobs/<id>?cursor=N                       -> { done: [[index, output], ...], cursor, remaining }
-//   POST /api/jobs/<id>/cancel                         -> {}          drop queued inputs, forget the job
+//   POST /api/jobs/<id>/cancel                         -> {}          drop queued inputs, forget the job; threads running its items are stopped
 //   GET  /api/capacity?task=<id>                       -> { live, verified, leased }   worker threads right now
 //   POST /api/run                { task, inputs }      -> { outputs, ms }   blocking convenience
 //   POST /api/lease   (workers)  { worker, verified[] } -> { item } | { verify: taskId } | { none }   (never waits)
 //   POST /api/canary  (workers)  { worker, task, ok, detail }
 //   POST /api/result  (workers)  { worker, job, index, output }
-//   POST /api/heartbeat (pages)  { workers[], session, name, cores, threads, paused }   the page's main thread vouches
-//                                for its worker threads, which can't talk while a long item runs
+//   POST /api/heartbeat (pages)  { workers[], session, name, cores, threads, paused, abort } -> { drop: [{ worker, job, index }] }
+//                                the page's main thread vouches for its worker threads, which can't talk while a long
+//                                item runs; `drop` lists items nobody wants any more (job cancelled or gone, or the result
+//                                already in), and a page that sent `abort: true` terminates those threads and starts fresh ones
 //   GET  /api/status                                   -> now, workers, queue, jobs, tasks, finished
 //   GET  /tasks/<id>.mjs                               task module source
 import { createHash } from 'node:crypto';
@@ -42,8 +44,8 @@ const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), 'public');
 const DEFAULT_LEASE_MS = 60000;  // a leased item not returned by then goes back in the queue
 const LIVE_MS = 10000;           // a worker thread seen this recently counts as capacity
 const ABANDONED_MS = 300000;     // a job nobody has polled for this long is dropped
-const FINISHED_KEEP = 40;
-const SILENT_MS = 60000;         // a heartbeating page silent this long has closed or slept: its threads' leases go back in the queue        // recently finished items kept for the page
+const FINISHED_KEEP = 40;        // recently finished items kept for the page
+const SILENT_MS = 60000;         // a heartbeating page silent this long has closed or slept: its threads' leases go back in the queue
 
 /** @type {Map<string, { id: string, name: string, code: string }>} */
 const tasks = new Map();
@@ -247,8 +249,24 @@ const routes = [
   }],
 
   ['POST', /^\/api\/heartbeat$/, async (body) => {
-    for (const id of body.workers ?? []) touch(id, { name: body.name, cores: body.cores, threads: body.threads, paused: !!body.paused, beats: true, session: body.session });
-    return {};
+    const drop = [];
+    const now = Date.now();
+    for (const id of body.workers ?? []) {
+      const w = touch(id, { name: body.name, cores: body.cores, threads: body.threads, paused: !!body.paused, beats: true, session: body.session });
+      const c = w.current;
+      if (c?.kind !== 'item') continue;
+      const job = jobs.get(c.job);
+      if (job && job.outputs[c.index] === undefined) continue;
+      // Nobody wants this item any more, but run() is synchronous: only the page can stop
+      // it, by terminating the thread. Pages from before aborting just keep running it.
+      drop.push({ worker: id, job: c.job, index: c.index });
+      if (body.abort) {
+        finished.push({ job: c.job, label: c.label, index: c.index, ms: now - c.since, at: now, worker: id, name: w.name, aborted: job ? 'done elsewhere' : 'cancelled' });
+        if (finished.length > FINISHED_KEEP) finished.shift();
+        w.current = null;
+      }
+    }
+    return { drop };
   }],
 
   ['POST', /^\/api\/canary$/, async (body) => {

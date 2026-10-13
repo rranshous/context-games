@@ -41,21 +41,48 @@ function log(text, cls = '') {
   while ($('log').children.length > 50) $('log').lastChild.remove();
 }
 
+// Per thread: what it's running ({ job, index } or null) and the tasks it has verified,
+// so a thread restarted to abort an item doesn't re-run canaries.
+let running = [], verifiedBy = [];
+
+/** Start (or restart) thread i. */
+function spawn(i, verified = []) {
+  const t = new Worker('/worker.js', { type: 'module' });
+  running[i] = null;
+  verifiedBy[i] = new Set(verified);
+  t.onmessage = (e) => {
+    if (threads[i] !== t) return; // a terminated thread's last words
+    const m = e.data;
+    if (m.type === 'item') running[i] = { job: m.job, index: m.index };
+    if (m.type === 'done') { running[i] = null; done++; log(`thread ${i}: finished item ${m.index + 1} in ${dur(m.ms)}`, 'ok'); }
+    if (m.type === 'canary') {
+      if (m.ok) verifiedBy[i].add(m.task);
+      log(`thread ${i}: canary ${m.ok ? 'passed' : 'FAILED'} for ${m.task} (${Math.round(m.ms)} ms)${m.detail ? ` — ${m.detail}` : ''}`, m.ok ? 'ok' : 'bad');
+    }
+    if (m.type === 'error') log(`thread ${i}: ${m.text}`, 'bad');
+  };
+  t.postMessage({ type: 'start', id: `${pageId}-${i}`, page: { name, cores, threads: wanted, page: pageId, session }, verified: [...verifiedBy[i]] });
+  if (paused) t.postMessage({ type: 'pause', paused });
+  threads[i] = t;
+}
+
 function restart() {
   for (const t of threads) t.terminate();
-  threads = [];
+  threads = []; running = []; verifiedBy = [];
   session = Math.random().toString(36).slice(2, 10);
-  for (let i = 0; i < wanted; i++) {
-    const t = new Worker('/worker.js', { type: 'module' });
-    t.onmessage = (e) => {
-      const m = e.data;
-      if (m.type === 'done') { done++; log(`thread ${i}: finished an item in ${dur(m.ms)}`, 'ok'); }
-      if (m.type === 'canary') log(`thread ${i}: canary ${m.ok ? 'passed' : 'FAILED'} for ${m.task} (${Math.round(m.ms)} ms)${m.detail ? ` — ${m.detail}` : ''}`, m.ok ? 'ok' : 'bad');
-      if (m.type === 'error') log(`thread ${i}: ${m.text}`, 'bad');
-    };
-    t.postMessage({ type: 'start', id: `${pageId}-${i}`, page: { name, cores, threads: wanted, page: pageId, session } });
-    if (paused) t.postMessage({ type: 'pause', paused });
-    threads.push(t);
+  for (let i = 0; i < wanted; i++) spawn(i);
+}
+
+/** The server says nobody wants these items any more: stop the threads running them. */
+function abort(drop) {
+  for (const d of drop ?? []) {
+    const i = threads.findIndex((_, k) => `${pageId}-${k}` === d.worker);
+    const r = running[i];
+    // Only if it's still on that item (it may have finished and moved on since).
+    if (i < 0 || !r || r.job !== d.job || r.index !== d.index) continue;
+    threads[i].terminate();
+    spawn(i, verifiedBy[i]);
+    log(`thread ${i}: item ${d.index + 1} not needed any more (cancelled or done elsewhere); thread restarted`, 'bad');
   }
 }
 
@@ -168,7 +195,7 @@ function render() {
       const job = jobsById.get(c.job);
       const avg = job?.durations?.avgMs;
       let cls = 'unknown', width = 100, eta = 'first of this job: no estimate yet';
-      if (c.stale) { cls = 'stale'; eta = 'already done elsewhere; result will be dropped'; }
+      if (c.stale) { cls = 'stale'; eta = 'not needed any more: stopping'; }
       else if (avg && elapsed !== null) {
         if (elapsed <= avg) {
           cls = ''; width = 100 * elapsed / avg; eta = `~${dur(avg - elapsed)} left · typical ${dur(avg)}`;
@@ -196,7 +223,7 @@ function render() {
   // --- recently finished ---
   const fin = (s?.finished ?? []).slice(-12).reverse();
   $('recent').innerHTML = fin.length ? `<table><thead><tr><th>item</th><th>took</th><th class="hide-narrow">by</th><th>when</th></tr></thead><tbody>${fin.map((f) =>
-    `<tr><td>${esc(f.label)} <span class="muted">#${f.index + 1}</span></td><td class="num"><b>${dur(f.ms)}</b></td><td class="hide-narrow muted">${esc(f.name || f.worker)}</td><td class="num muted">${ago(f.at)}</td></tr>`).join('')}</tbody></table>`
+    `<tr${f.aborted ? ' class="aborted"' : ''}><td>${esc(f.label)} <span class="muted">#${f.index + 1}</span>${f.aborted ? `<br><span class="bad">${esc(f.aborted)}: thread restarted</span>` : ''}</td><td class="num"><b>${f.aborted ? `stopped at ${dur(f.ms)}` : dur(f.ms)}</b></td><td class="hide-narrow muted">${esc(f.name || f.worker)}</td><td class="num muted">${ago(f.at)}</td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">nothing finished yet</div>';
 
   // --- headline ---
@@ -217,10 +244,14 @@ function render() {
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // The worker threads can't speak while running a long item, so this (main) thread vouches for them.
-function heartbeat() {
+// Its answer lists items nobody wants any more, which this page aborts.
+async function heartbeat() {
   if (!threads.length) return;
-  fetch('/api/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ workers: threads.map((_, i) => `${pageId}-${i}`), session, name, cores, threads: wanted, paused }) }).catch(() => {});
+  try {
+    const r = await fetch('/api/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workers: threads.map((_, i) => `${pageId}-${i}`), session, name, cores, threads: wanted, paused, abort: true }) });
+    abort((await r.json()).drop);
+  } catch { /* server away: try again next beat */ }
 }
 
 // ---------- staying awake ----------
