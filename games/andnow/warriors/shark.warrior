@@ -1,9 +1,9 @@
 name: Shark
 realm: sea
-# Island survival's hunter. Eats only dead cells, so it kills to eat: head for the
-# nearest seal it can see (2 S: a shark's scan never finds sharks, and it can't see into
-# the shallows), bite the nearest one in reach (B, empty stack), then head for the
-# nearest dead cell (3 S), collect, divide. One row, so dividing (3x its cells of max
-# size on the island) takes a good kill or two.
+# Island survival's hunter: big and slow by design (a row of fat makes it heavy, so its
+# pace is about 2/3 of a seal's). Eats only dead cells, so it kills to eat: head for the
+# nearest seal it can see (2 S: never sharks, and not into the shallows), bite the nearest
+# one in reach (B, empty stack), then head for the nearest dead cell (3 S), collect, divide.
 ---
 C2S$TMB3S$TMD
+.............

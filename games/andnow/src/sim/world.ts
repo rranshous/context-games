@@ -64,12 +64,15 @@ export const CONFIG = {
   starve: 600,          // island: ticks an unfed seal with max size 20 lasts (about a tenth of a lifetime)
   sharkStarve: 6000,    // island: the same for a shark (10× a seal's, as is its lifespan: about 10 meals a life for both)
   sharkLife: 10,        // island: a sea creature's lifespan is this many times CONFIG.lifespan
+  paceMass: 11,         // island: pace = (1 + M cells) / (1 + mass / this); the seal founder's mass is 11
+  paceSpeed: 2,         // island: instructions per tick at pace 1
+  sharkCap: 128,        // island: a sea creature's largest max size
   kelpFeed: 15,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
   calm: 0.5,            // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
   sharkArrive: 20000,   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
   seals: 60,            // island: each islander founder starts with this many copies spread through the calm water
-  sharkFull: 48,        // island: a sea creature with at least this max size is full and won't bite
+  sharkFull: 0.75,      // island: a sea creature at this share of its size cap is full and won't bite
   biteRange: 2,         // island: a sea creature's BOMB reach (a bite, not a shot)
   seaFeed: 2,           // island: max size a sea creature gains per dead cell it collects
   sinkEvery: 6,         // island: dead cells sink one row every this many ticks (marine snow)
@@ -85,6 +88,8 @@ export interface Warrior {
   parent?: number;
   born: number;   // tick of birth (0 for founders)
   diesAt?: number; // petri dish: death of old age (lifespan drawn at birth, 50–150% of CONFIG.lifespan)
+  aged?: number;   // island survival: biological age, which advances at the body's pace (dies at diesAt − born)
+  pace?: number;   // island survival: the body's pace (speed, hunger and aging all scale with it)
   name: string;
   alive: boolean;
   ipX: number;
@@ -204,7 +209,7 @@ export class World {
     const wr: Warrior = {
       id, lineage: id, gen: 0, realm, born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
-      stack: [], maxSize: CONFIG.island ? CONFIG.sizeCap : CONFIG.startSize, speed: CONFIG.speedStart, // island founders start full
+      stack: [], maxSize: CONFIG.island ? (realm ? CONFIG.sharkCap : CONFIG.sizeCap) : CONFIG.startSize, speed: CONFIG.speedStart, // island founders start full
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }, home: room, roomsSeen: new Set(),
     };
@@ -356,7 +361,7 @@ export class World {
     if (CONFIG.island && k0 && k0.alive && k0.realm === 1 && wr.realm === 0) {
       // Island survival: a shark that kills a seal eats it whole: all its cells' worth, no corpse.
       const cells = this.cellsOf(wr.id).slice();
-      k0.maxSize = Math.min(CONFIG.sizeCap, k0.maxSize + CONFIG.seaFeed * (cells.length + 1));
+      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1));
       k0.stats.kills++;
       for (const c of cells) { this.setOwner(c, NONE); this.code[c] = 0; }
       wr.cellCount = 0;
@@ -478,15 +483,25 @@ export class World {
         for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, cause); }
         if (!wr.alive) continue;
       }
-      // Island survival: hunger is set so an unfed body with max size 20 lasts `starve` ticks.
-      const hunger = CONFIG.island ? (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve) : 1;
-      wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
-      wr.speed = Math.max(CONFIG.speedFloor, wr.speed - hunger * CONFIG.speedDecay);
+      if (CONFIG.island) {
+        // Island survival: the body sets the pace, and the pace sets speed, hunger and aging,
+        // so every body gets about the same meals (and moves) per lifetime. An unfed body at
+        // pace 1 with max size 20 lasts `starve` ticks.
+        const pace = this.paceOf(wr);
+        wr.pace = pace;
+        wr.speed = CONFIG.paceSpeed * pace;
+        const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
+        wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
+        wr.aged = (wr.aged ?? 0) + pace;
+      } else {
+        wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
+        wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
+      }
       if (wr.maxSize < 1) this.kill(wr, 'starved (max size fell to 0)');
       else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
       if (!wr.alive) continue;
       if (wr.cellCount <= 0) this.kill(wr, 'no cells left');
-      else if (wr.diesAt !== undefined && this.t >= wr.diesAt) this.kill(wr, 'old age');
+      else if (wr.diesAt !== undefined && (CONFIG.island ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, 'old age');
     }
 
     this.checkOver();
@@ -519,6 +534,23 @@ export class World {
       }
     }
   }
+
+  /**
+   * Island survival: a body's pace, from what it's made of. Move cells (M) quicken it; mass
+   * slows it, with armor (K) and fat (.) counting double. The seal founder is 1.
+   */
+  paceOf(wr: Warrior): number {
+    let m = 0, mass = 0;
+    for (const c of this.cellsOf(wr.id)) {
+      const g = this.code[c];
+      if (g === CODE['M']) m++;
+      mass += g === K || g === CODE['.'] ? 2 : 1;
+    }
+    return (1 + m) / (1 + mass / CONFIG.paceMass);
+  }
+
+  /** Size cap for a realm (island sea creatures are big and need room to breed). */
+  private capOf(wr: Warrior) { return CONFIG.island && wr.realm === 1 ? CONFIG.sharkCap : CONFIG.sizeCap; }
 
   /** Typical lifespan for a realm (island sea creatures live CONFIG.sharkLife times longer). */
   private lifeOf(realm: number) { return CONFIG.lifespan * (CONFIG.island && realm === 1 ? CONFIG.sharkLife : 1); }
@@ -882,7 +914,7 @@ export class World {
         if (this.owner[t] !== DEBRIS) continue;
         this.setOwner(t, NONE);
         this.code[t] = 0;
-        wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.seaFeed);
+        wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + CONFIG.seaFeed);
         wr.stats.collected++;
       }
     }
@@ -1035,7 +1067,7 @@ export class World {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log('collect', `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + (CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup));
+          wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + (CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup));
           this.setOwner(i, NONE);
           this.code[i] = 0;
           if (CONFIG.island) wr.stats.collected++;
@@ -1080,7 +1112,7 @@ export class World {
 
   private opBombAt(wr: Warrior, x: number, y: number): boolean {
     // Island survival: a full shark doesn't bite (it digests first; until hunger brings it back down).
-    if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull) return false;
+    if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull * CONFIG.sharkCap) return false;
     const o = this.ownerAt(x, y);
     if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warriors[o].realm === 1) return false; // sharks never bite sharks
     if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) return false; // a seal hauled out is safe

@@ -326,7 +326,7 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
     const i = y * w + x;
     if (terrain[i] !== FLOOR || land[i] || has.has(i)) return;
     has.add(i);
-    spawns.push({ x, y, kind: rng() < 0.2 ? 2 : 1 });
+    spawns.push({ x, y, kind: 1 }); // all kelp: speed comes from the body's pace
   };
   for (let y = S; y < h - 1; y += foodSpacing) {
     for (let x = 1; x < w - 1; x += foodSpacing) {

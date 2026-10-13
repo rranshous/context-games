@@ -1564,3 +1564,19 @@ Rules settled while balancing:
 **Potluck:**
 - A thread that joined while the farm's share was all leased out was never asked to verify, so it never got work. Fixed in the server.
 - A subagent redid the farm page for long items: per-thread clocks, job progress, and estimated times.
+
+### Pace (the user's idea: speed and lifespan should be related, and the code should set the speed)
+
+On the island, each body has a pace, worked out from what it's made of:
+
+**pace = (1 + M cells) ÷ (1 + mass ÷ 11)**
+
+Mass is the cell count, with armor (K) and fat (`.`) counting double. The seal founder works out to exactly 1.
+- **Pace sets three things:** speed (2 × pace instructions per tick), hunger (burn rate × pace) and aging (biological age advances by pace each tick). Every body therefore gets about the same moves and meals per lifetime, fast or slow.
+- **Pace follows the body as it changes.** It's recomputed every tick, so a bitten shark gets lighter and quicker, and a seal that grows armor slows down and lives longer.
+- **Speed pickups are gone from the island.** Speed now comes from the body.
+- **Sharks are big and slow by design:** a code row over a row of fat, pace about 0.66. They keep their 10× lifespan and hunger as a different kind of animal. Their size cap is 128 (`sharkCap`) so a 26-cell body can still breed at 3×, and satiation is now 75% of that cap.
+
+The plan is to start with counts. A "mask" version, where only cells the program runs set the pace, is for later. It would make off-path armor weightless.
+
+**First check:** 4 seeds to 40k ticks (160 wide, sharks at 3k). All coexist: seals 120–180, sharks 45–100.

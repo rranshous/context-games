@@ -28,7 +28,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   kelp: 15,       // island: max size a seal gains per kelp (times ripeness)
   seafeed: 3,     // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
   bite: 2,        // island: a shark's BOMB reach
-  full: 48,       // island: a shark this big (max size) is full and won't bite
+  full: 0.75,     // island: a shark at this share of its size cap is full and won't bite
   shallows: 0.4,  // island: top share of the water sharks can't enter
   calm: 0.5,      // island: top share of the water with no pressure
   arrive: 20000,  // island: tick the reef channel opens and the sharks swim in

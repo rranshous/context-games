@@ -371,6 +371,7 @@ function renderIslandPanel() {
     }
     const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     return `<div class="name" style="margin-top:6px">${title}: ${ws.length}</div>
+      <div class="stats">pace ${ws.length ? (ws.reduce((t, w) => t + (w.pace ?? 0), 0) / ws.length).toFixed(2) : '-'} on average (speed, hunger and aging)</div>
       <div class="stats">by depth (0 = shallows): ${bands.map((n, b) => `${b}: ${n}`).join(' · ')}</div>
       <div class="stats">by armor: ${[...arm.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `<span style="color:${css(colors[Math.min(5, a)])}">${a}K: ${n}</span>`).join(' · ')}</div>
       ${top.map(([g, n]) => `<div class="genome"><span class="stats">${String(n).padStart(3)} ×</span> <code>${esc(g)}</code></div>`).join('')}`;
