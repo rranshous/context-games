@@ -2463,21 +2463,6 @@ var ClimbView = class {
   pix = document.createElement("canvas");
   pctx = this.pix.getContext("2d");
   drag = null;
-  /** Zoom by a factor around the middle of the view (the on-screen buttons). */
-  zoomBy(f) {
-    const wx = this.cam.x + this.viewW / 2, wy = this.cam.y + this.viewH / 2;
-    this.cam.zoom = Math.max(1, Math.min(12, this.cam.zoom * f));
-    this.centerOn(wx, wy);
-    this.redraw();
-  }
-  /** Jump to the middle of a step (the on-screen buttons). */
-  goToStep(n) {
-    const b = this.world().board, S = b.climbSteps;
-    if (n < -S || n > S) return;
-    const top = b.stepTop[n + S], h = b.stepH[n + S];
-    this.centerOn(this.cam.x + this.viewW / 2, n === 0 ? top + h / 2 : n > 0 ? top + h - this.viewH / 2 : top + this.viewH / 2);
-    this.redraw();
-  }
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
@@ -2758,22 +2743,9 @@ function newMatch(sources, seed) {
     mini.style.display = "block";
     mini.style.right = `-${miniW + 8}px`;
     $("stage").style.marginRight = `${miniW + 10}px`;
-    $("climbButtons").style.display = "flex";
     if (!climbView) {
       const cam = (params.get("cam") ?? "").split(",").map(Number);
       climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
-      const view = climbView;
-      const btns = $("climbButtons");
-      const add = (label, fn) => {
-        const b = document.createElement("button");
-        b.textContent = label;
-        b.onclick = fn;
-        btns.appendChild(b);
-      };
-      add("\uFF0B", () => view.zoomBy(1.4));
-      add("\uFF0D", () => view.zoomBy(1 / 1.4));
-      const S = world.board.climbSteps ?? 2;
-      for (let n = S; n >= -S; n--) add(n > 0 ? `+${n}` : String(n), () => view.goToStep(n));
     }
     render();
     return;

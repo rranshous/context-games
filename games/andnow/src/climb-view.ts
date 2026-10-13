@@ -97,24 +97,6 @@ export class ClimbView {
     });
   }
 
-  /** Zoom by a factor around the middle of the view (the on-screen buttons). */
-  zoomBy(f: number) {
-    const wx = this.cam.x + this.viewW / 2, wy = this.cam.y + this.viewH / 2;
-    this.cam.zoom = Math.max(1, Math.min(12, this.cam.zoom * f));
-    this.centerOn(wx, wy);
-    this.redraw();
-  }
-
-  /** Jump to the middle of a step (the on-screen buttons). */
-  goToStep(n: number) {
-    const b = this.world().board, S = b.climbSteps!;
-    if (n < -S || n > S) return;
-    const top = b.stepTop![n + S], h = b.stepH![n + S];
-    // Near step 0's edge for the big steps (where life arrives first), the middle for step 0.
-    this.centerOn(this.cam.x + this.viewW / 2, n === 0 ? top + h / 2 : n > 0 ? top + h - this.viewH / 2 : top + this.viewH / 2);
-    this.redraw();
-  }
-
   /** Viewport size in cells. */
   get viewW() { return this.canvas.width / this.cam.zoom; }
   get viewH() { return this.canvas.height / this.cam.zoom; }

@@ -100,17 +100,9 @@ function newMatch(sources?: string[], seed?: number) {
     mini.style.display = 'block';
     mini.style.right = `-${miniW + 8}px`;
     $('stage').style.marginRight = `${miniW + 10}px`;
-    $('climbButtons').style.display = 'flex';
     if (!climbView) {
       const cam = (params.get('cam') ?? '').split(',').map(Number);
       climbView = new ClimbView(canvas, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : undefined);
-      const view = climbView;
-      const btns = $('climbButtons');
-      const add = (label: string, fn: () => void) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; btns.appendChild(b); };
-      add('＋', () => view.zoomBy(1.4));
-      add('－', () => view.zoomBy(1 / 1.4));
-      const S = world.board.climbSteps ?? 2;
-      for (let n = S; n >= -S; n--) add(n > 0 ? `+${n}` : String(n), () => view.goToStep(n));
     }
     render();
     return;
