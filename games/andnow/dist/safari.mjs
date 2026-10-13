@@ -2410,7 +2410,7 @@ async function main() {
     warriors: (v.w ?? ["amoeba"]).map((n2) => readFileSync2(`warriors/${n2}.warrior`, "utf8"))
   }));
   console.log(`safari ${round}: ${jobs.length} dishes (${variants.length} variants \xD7 seeds ${seeds[0]}\u2013${seeds[seeds.length - 1]}), ${ticks} ticks`);
-  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv), 24, `safari ${round}`);
+  const pool = new Runner(new ThreadPool(Number(val("threads") ?? cpus().length)), farmArg(process.argv), 24, `safari ${round}`);
   await pool.init();
   const t0 = Date.now();
   let n = 0;

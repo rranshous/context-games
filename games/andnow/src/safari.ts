@@ -4,7 +4,7 @@
 // (see src/sim/dish.ts); the viewer replays any dish at
 // ?petri=1&w=<founders>&seed=<seed>&t=<tick>&<settings>.
 //
-//   node dist/safari.mjs <round> <variants.json> [--seeds 1-2] [--ticks 400000] [--report 10000] [--farm URL|off]
+//   node dist/safari.mjs <round> <variants.json> [--seeds 1-2] [--ticks 400000] [--report 10000] [--threads N (local; default all cores)] [--farm URL|off]
 //
 // variants.json: [{ "name": "default", "w": ["amoeba"], "settings": { "error": "0.05" } }, ...]
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -37,7 +37,8 @@ async function main() {
   }));
   console.log(`safari ${round}: ${jobs.length} dishes (${variants.length} variants × seeds ${seeds[0]}–${seeds[seeds.length - 1]}), ${ticks} ticks`);
 
-  const pool = new Runner(new ThreadPool(cpus().length), farmArg(process.argv), 24, `safari ${round}`);
+  // Fewer local threads leave more dishes for the farm (local runners take the queue's front at once).
+  const pool = new Runner(new ThreadPool(Number(val('threads') ?? cpus().length)), farmArg(process.argv), 24, `safari ${round}`);
   await pool.init();
   const t0 = Date.now();
   let n = 0;
