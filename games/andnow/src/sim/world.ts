@@ -68,6 +68,7 @@ export const CONFIG = {
   paceSpeed: 2,         // island: instructions per tick at pace 1
   sharkCap: 128,        // island: a sea creature's largest max size
   kelpFeed: 8,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
+  depth: 0.75,          // island: the sea is this many times as deep as it is wide
   calm: 0.5,            // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
   sharkArrive: 60000,   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
@@ -157,7 +158,7 @@ export class World {
   private spawnTimers: number[];
 
   constructor(public seed: number, specs: WarriorSpec[]) {
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm)
+    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 360, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm, CONFIG.depth)
       : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;

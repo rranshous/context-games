@@ -31,6 +31,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   full: 0.75,     // island: a shark at this share of its size cap is full and won't bite
   shallows: 0.4,  // island: top share of the water sharks can't enter
   calm: 0.5,      // island: top share of the water with no pressure
+  depth: 0.75,    // island: sea depth as a share of its width
   arrive: 60000,  // island: tick the reef channel opens and the sharks swim in
   seals: 60,      // island: seals already spread through the calm water at the start
 };
@@ -43,7 +44,7 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   // from a snack (8) to a feast (8× ripe) if left alone ~1750 ticks.
   if (o.island > 0) {
     const unset = (k: string) => (get(k) ?? '') === '';
-    if (unset('size')) o.size = 320;
+    if (unset('size')) o.size = 360;
     if (unset('ripen')) o.ripen = 250;
     if (unset('ripemax')) o.ripemax = 8;
   }
@@ -70,6 +71,7 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.sharkFull = o.full;
   CONFIG.shallows = o.shallows;
   CONFIG.calm = o.calm;
+  CONFIG.depth = o.depth;
   CONFIG.sharkArrive = o.arrive;
   CONFIG.seals = o.seals;
   CONFIG.reaperCap = 0;

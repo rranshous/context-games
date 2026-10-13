@@ -408,16 +408,40 @@ function makePlate(seed, size, bands, foodSpacing) {
   const start = { x: Math.round(c - s / Math.SQRT2), y: Math.round(c - s / Math.SQRT2), w: Math.floor(s * Math.SQRT2), h: Math.floor(s * Math.SQRT2) };
   return { w, h, terrain, spawns, starts: [start], rooms: [], toxin };
 }
-function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.5) {
-  const h = Math.round(w / 2);
+function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.5, depth = 0.75) {
+  const h = Math.round(w * depth);
   const rng = makeRng(seed ^ 5369127);
   const terrain = new Uint8Array(w * h).fill(WALL);
-  const S = Math.round(h * 0.12);
-  const bedMax = h - 2, hill = Math.round(h * 0.14);
+  const S = 14;
+  const bedMax = h - 2, hill = Math.round((bedMax - S) * 0.12);
   const ph = [rng() * 6.28, rng() * 6.28, rng() * 6.28];
   const bed = (x) => bedMax - Math.round(hill * (0.5 + 0.25 * Math.sin(x / w * 6.28 * 1.3 + ph[0]) + 0.17 * Math.sin(x / w * 6.28 * 3.7 + ph[1]) + 0.08 * Math.sin(x / w * 6.28 * 9.1 + ph[2])));
   for (let x = 1; x < w - 1; x++) for (let y = S; y <= bed(x); y++) terrain[y * w + x] = FLOOR;
-  const isl = [0.18, 0.5, 0.82].map((f) => ({ cx: Math.round(w * f), hw: Math.round(w * (f === 0.5 ? 0.1 : 0.06)) }));
+  const depthOf = (y) => (y - S) / (bedMax - S);
+  const sharkLine = S + Math.round(shallows * (bedMax - S));
+  const bayW = Math.max(18, Math.round(w * 0.06)), reefX = bayW + 1;
+  const G = 4, gw = Math.ceil(w / G), gh = Math.ceil(h / G);
+  let cg = new Uint8Array(gw * gh);
+  const ok = (gx, gy) => gy * G >= sharkLine + 4 && gx * G > reefX + 2 && gx < gw - 1;
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) if (ok(gx, gy) && rng() < 0.37 + 0.13 * depthOf(gy * G)) cg[gy * gw + gx] = 1;
+  for (let pass = 0; pass < 4; pass++) {
+    const next = cg.slice();
+    for (let gy = 1; gy < gh - 1; gy++) for (let gx = 1; gx < gw - 1; gx++) {
+      if (!ok(gx, gy)) continue;
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && cg[(gy + dy) * gw + gx + dx]) n++;
+      next[gy * gw + gx] = n >= 5 ? 1 : n <= 3 ? 0 : cg[gy * gw + gx];
+    }
+    cg = next;
+  }
+  const rock = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (cg[(y / G | 0) * gw + (x / G | 0)] && terrain[y * w + x] === FLOOR) rock[y * w + x] = 1;
+  for (let i = 0; i < w * h; i++) if (rock[i]) terrain[i] = WALL;
+  const nIsl = Math.max(3, Math.round(w / 100) | 1);
+  const isl = Array.from({ length: nIsl }, (_, k) => {
+    const f = (k + 0.5) / nIsl, mid = k === (nIsl - 1) / 2;
+    return { cx: Math.round(w * f), hw: Math.round(w * (mid ? 0.08 : 0.045)) };
+  });
   const land = new Uint8Array(w * h);
   for (const { cx, hw } of isl) {
     for (let x = cx - hw; x <= cx + hw; x++) {
@@ -428,21 +452,30 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.5) {
       }
     }
   }
+  const seen = new Uint8Array(w * h), q = [];
+  for (let x = 1; x < w - 1; x++) if (terrain[S * w + x] === FLOOR) {
+    seen[S * w + x] = 1;
+    q.push(S * w + x);
+  }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k];
+    for (const n of [i - 1, i + 1, i - w, i + w]) if (n >= 0 && n < w * h && !seen[n] && terrain[n] === FLOOR) {
+      seen[n] = 1;
+      q.push(n);
+    }
+  }
+  for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
   const landP = new Uint8Array(w * h), seaP = new Uint8Array(w * h);
   const level = (d) => d < calm ? 0 : Math.min(bands - 1, 1 + Math.floor((d - calm) / (1 - calm) * (bands - 1)));
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+  for (let y = S; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
-    if (terrain[i] !== FLOOR) continue;
-    if (land[i]) continue;
-    const d = (y - S) / (bedMax - S);
-    landP[i] = level(d);
-    seaP[i] = 0;
+    if (terrain[i] === FLOOR) landP[i] = level(depthOf(y));
   }
   const spawns = [];
   const has = /* @__PURE__ */ new Set();
   const add = (x, y) => {
     const i = y * w + x;
-    if (terrain[i] !== FLOOR || land[i] || has.has(i)) return;
+    if (terrain[i] !== FLOOR || land[i] || has.has(i) || x === reefX) return;
     has.add(i);
     spawns.push({ x, y, kind: 1 });
   };
@@ -450,14 +483,14 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.5) {
     for (let x = 1; x < w - 1; x += foodSpacing) {
       const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
       if (px >= w || py >= h) continue;
-      if (rng() < 0.25 + 0.75 * (py - S) / (bedMax - S)) add(px, py);
+      if (rng() < 0.25 + 0.75 * depthOf(py)) add(px, py);
     }
   }
-  for (let x = 2; x < w - 2; x += Math.max(2, foodSpacing >> 1)) add(x, bed(x));
-  const home = isl[1], top = S - 4;
+  for (let y = sharkLine; y < h - 1; y++) for (let x = 2; x < w - 2; x += 3) {
+    if (terrain[y * w + x] === FLOOR && terrain[(y + 1) * w + x] !== FLOOR && rng() < 0.5) add(x, y);
+  }
+  const home = isl[nIsl - 1 >> 1], top = S - 4;
   const homeRect = { x: home.cx - 7, y: top, w: 14, h: 4 };
-  const sharkLine = S + Math.round(shallows * (bedMax - S));
-  const bayW = Math.max(18, Math.round(w * 0.06)), reefX = bayW + 1;
   const reef = [];
   for (let y = sharkLine; y < h; y++) {
     const i = y * w + reefX;
@@ -466,7 +499,6 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.5) {
       reef.push(i);
     }
   }
-  for (const sp of spawns.splice(0)) if (sp.x !== reefX) spawns.push(sp);
   const bayRect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
   return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
 }
@@ -571,6 +603,8 @@ var CONFIG = {
   // island: a sea creature's largest max size
   kelpFeed: 8,
   // island: max size a seal gains from a kelp (times its ripeness), a real meal
+  depth: 0.75,
+  // island: the sea is this many times as deep as it is wide
   calm: 0.5,
   // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,
@@ -595,7 +629,7 @@ var CONFIG = {
 var World = class {
   constructor(seed, specs) {
     this.seed = seed;
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm) : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
+    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 360, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm, CONFIG.depth) : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
     this.owner = new Int32Array(this.w * this.h).fill(NONE);
@@ -2101,6 +2135,8 @@ var DISH_DEFAULTS = {
   // island: top share of the water sharks can't enter
   calm: 0.5,
   // island: top share of the water with no pressure
+  depth: 0.75,
+  // island: sea depth as a share of its width
   arrive: 6e4,
   // island: tick the reef channel opens and the sharks swim in
   seals: 60
@@ -2114,7 +2150,7 @@ function applyDish(get) {
   }
   if (o.island > 0) {
     const unset = (k) => (get(k) ?? "") === "";
-    if (unset("size")) o.size = 320;
+    if (unset("size")) o.size = 360;
     if (unset("ripen")) o.ripen = 250;
     if (unset("ripemax")) o.ripemax = 8;
   }
@@ -2141,6 +2177,7 @@ function applyDish(get) {
   CONFIG.sharkFull = o.full;
   CONFIG.shallows = o.shallows;
   CONFIG.calm = o.calm;
+  CONFIG.depth = o.depth;
   CONFIG.sharkArrive = o.arrive;
   CONFIG.seals = o.seals;
   CONFIG.reaperCap = 0;

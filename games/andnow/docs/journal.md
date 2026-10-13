@@ -1596,3 +1596,19 @@ Under pace, fat counts double for mass, so a rake is now slow: more water swept 
 - The column sweeps food into COLLECT along its whole length.
 
 So a "discard" instruction was replaced by one that discards *and* builds, with growth gated on food being near. Under pace, each fat cell counts double for mass, so rakes are now slow. The same replay also had a fully vertical warrior, `$/A/C/S/6/T/M`, with its program stacked top to bottom.
+
+**The user's cross-shaped seal (island seed 1, t18889)** is an ooze sculpture: `AS$` / `6D` / ` C` / ` T`, a vertical spine (A, D, C, T) with arms. It carries `A` (OOZE), which moves the body one cell at a time and rearranges the program as it goes. The other odd seal alive then, an upside-down T (`D` / `$` / `MTCAS`), carries `A` too.
+
+### A deeper, rockier sea (the user: "deepen the ocean, same number of depth bands, more room for armored seals to eat... bigger in all dimensions, with features that block line of sight, like mountains and caves, so sharks have to search and separate groups can form")
+
+The user watched armored (yellow) seals bloom and then starve. Unarmored seals dip into band 1 and eat its food, the same problem the petri dish had before its bands were widened.
+- **Depth:** the sea is now 0.75× its width deep (`depth`), was 0.5×. The 5 pressure bands stay, so each band is much thicker and a dip only reaches its top.
+- **Size:** 360 wide by default, so 360×270, about 2× the old area and about half the speed. One island every ~100 columns (5 at 360). The surface sits at a fixed row 14.
+- **Rock:** cellular automata on a coarse 4×4 grid, so the features are big. Seeding is 37% plus 13% × depth, smoothed 4 times (rock at 5+ rock neighbours, open water at 3 or fewer). There's none above the shark line or in the sharks' bay. Getting the density right took three tries:
+  - fine-grained at 25–55% was a sponge with no open water;
+  - coarse at 30–50% with a weak erosion rule went solid at the bottom;
+  - coarse at 26–42% left only scattered boulders.
+
+  Where it ended up: caves, chambers, overhangs and outcrops with open water between.
+- **Sealed-off water:** any water not reachable from the surface is filled in.
+- **Kelp:** grows along every rock floor as well as in the open water.
