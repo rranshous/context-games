@@ -44,7 +44,7 @@ if (PETRI) applyDish((k) => params.get(k));
 // No tick limit in the viewer: a match runs until one lineage is left (?ticks=N to judge
 // by body size at tick N, as the runners do).
 CONFIG.tickCap = Number(params.get('ticks')) || Infinity;
-const initial = (params.get('w') ?? (ISLAND ? 'amoeba,shark,shark,shark' : PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
+const initial = (params.get('w') ?? (ISLAND ? 'amoeba,shark,shark' : PETRI ? 'amoeba' : 'evo:morph4-twitch,evo:amoeba-g')).split(',');
 seedEl.value = params.get('seed') ?? '1';
 
 const pickersEl = $('pickers');
@@ -231,6 +231,7 @@ function render() {
 const pix = document.createElement('canvas');
 const pctx = pix.getContext('2d')!;
 let islandBg: Uint8ClampedArray | null = null;
+let bgVersion = -1;
 type RGB = [number, number, number];
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const SEAL_COLORS: RGB[] = [[244, 238, 226], [255, 214, 120], [255, 160, 70], [255, 100, 100], [232, 67, 147], [190, 60, 255]];
@@ -266,7 +267,7 @@ function islandBackground(): Uint8ClampedArray {
 
 function renderIsland() {
   const { w, h } = world;
-  if (!islandBg) { islandBg = islandBackground(); pix.width = w; pix.height = h; }
+  if (!islandBg || bgVersion !== world.terrainVersion) { islandBg = islandBackground(); bgVersion = world.terrainVersion; pix.width = w; pix.height = h; }
   const img = pctx.createImageData(w, h), d = img.data;
   d.set(islandBg);
   const armor = new Map<number, number>();

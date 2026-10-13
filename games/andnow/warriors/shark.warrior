@@ -1,9 +1,9 @@
 name: Shark
 realm: sea
-# Island survival's deep hunter. Eats only dead cells: head for the nearest one (3 S),
-# collect, and bomb the nearest foreign cell in range (B, empty stack) on the way, so
-# anything that strays near becomes food. Big: a row of fat under it soaks up hits and
-# gives copy errors room to make armor (K) for the climb upward.
+# Island survival's hunter. Eats only dead cells, so it kills to eat: head for the
+# nearest seal it can see (2 S: a shark's scan never finds sharks, and it can't see into
+# the shallows), bite the nearest one in reach (B, empty stack), then head for the
+# nearest dead cell (3 S), collect, divide. One row, so dividing (3x its cells of max
+# size on the island) takes a good kill or two.
 ---
-C3S$TMBD
-........
+C2S$TMB3S$TMD

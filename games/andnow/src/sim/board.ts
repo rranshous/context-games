@@ -25,6 +25,8 @@ export interface Board {
   startRealm?: number[];
   surface?: number;
   land?: Uint8Array;  // island: 1 on the islands (seals haul out here; sharks can't bite it)
+  reef?: number[];    // island: wall cells closing the deep off at the left edge until the channel opens
+  calmLine?: number;  // island: first row with pressure (seals start above it)
   sharkLine?: number; // island: the first row sharks may enter (everything above is too shallow)
 }
 
@@ -288,7 +290,7 @@ export function makePlate(seed: number, size: number, bands: number, foodSpacing
  * but can't swim into the shallows (the top `shallows` share of the water) or onto land. Vegetation grows in the water,
  * thicker the deeper it is, plus a kelp line along the seabed. Starts: the middle island's top (realm 0) and the deep middle (realm 1).
  */
-export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, shallows = 0.4): Board {
+export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, shallows = 0.4, calm = 0.5): Board {
   const h = Math.round(w / 2);
   const rng = makeRng(seed ^ 0x51ed27);
   const terrain = new Uint8Array(w * h).fill(WALL);
@@ -307,7 +309,8 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
     }
   }
   const landP = new Uint8Array(w * h), seaP = new Uint8Array(w * h);
-  const level = (d: number) => Math.max(0, Math.min(bands - 1, Math.floor(d * (bands + 1)) - 1)); // the top (or bottom) two slices are safe
+  // The top `calm` share of the water has no pressure; below it, bands 1 … bands-1 split the rest.
+  const level = (d: number) => (d < calm ? 0 : Math.min(bands - 1, 1 + Math.floor(((d - calm) / (1 - calm)) * (bands - 1))));
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     if (terrain[i] !== FLOOR) continue;
@@ -333,11 +336,19 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
     }
   }
   for (let x = 2; x < w - 2; x += Math.max(2, foodSpacing >> 1)) add(x, bed(x));
-  // Starts: the home island's top (as wide a box as fits), and a box in the deep middle.
+  // Starts: the home island's top, and a box just under the shark line (sharks start where the hunting is).
   const home = isl[1], top = S - 4;
   const homeRect: Rect = { x: home.cx - 7, y: top, w: 14, h: 4 };
-  let deepTop = bedMax;
-  for (let x = Math.round(w / 2) - 12; x <= Math.round(w / 2) + 12; x++) deepTop = Math.min(deepTop, bed(x));
-  const deepRect: Rect = { x: Math.round(w / 2) - 12, y: deepTop - 8, w: 24, h: 7 };
-  return { w, h, terrain, spawns, starts: [homeRect, deepRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine: S + Math.round(shallows * (bedMax - S)) };
+  const sharkLine = S + Math.round(shallows * (bedMax - S));
+  // The sharks come in from the left edge: a reef walls off a bay there (below the shark
+  // line) until weather opens a channel; the sharks start inside it.
+  const bayW = Math.max(18, Math.round(w * 0.06)), reefX = bayW + 1;
+  const reef: number[] = [];
+  for (let y = sharkLine; y < h; y++) {
+    const i = y * w + reefX;
+    if (terrain[i] === FLOOR) { terrain[i] = WALL; reef.push(i); }
+  }
+  for (const sp of spawns.splice(0)) if (sp.x !== reefX) spawns.push(sp);
+  const bayRect: Rect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
+  return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
 }

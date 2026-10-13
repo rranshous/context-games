@@ -1,5 +1,5 @@
 [
-  { "name": "big", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1" } },
-  { "name": "big-hungry", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1", "hunger": "0.5" } },
-  { "name": "big-lean", "w": ["amoeba", "shark", "shark", "shark"], "settings": { "island": "1", "seafeed": "2" } }
+  { "name": "archipelago", "w": ["amoeba", "shark", "shark"], "settings": { "island": "1" } },
+  { "name": "late-sharks", "w": ["amoeba", "shark", "shark"], "settings": { "island": "1", "arrive": "80000" } },
+  { "name": "no-sharks", "w": ["amoeba"], "settings": { "island": "1" } }
 ]

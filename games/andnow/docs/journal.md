@@ -1535,3 +1535,32 @@ Rules settled while balancing:
 **First balance:** seals and sharks coexist through 40k ticks in both seeds tried, with 150–210 seals and 50–150 sharks rising and falling. They zone cleanly: seals in bands 0–1, sharks in bands 2–4, the mines between.
 
 **Viewer:** one pixel per cell, scaled up crisp. Sky gradient, sand and grass islands, water darkening with depth plus faint pressure bands, kelp greener as it ripens. Seals are cream, warming toward pink with armor. Sharks are red, warming toward yellow and green with armor. Mines are ringed and flash when they fire.
+
+### Island survival, round 2 (rules from the user as they watched)
+
+**Changes the user asked for:**
+- **Mines removed.** They weren't doing anything.
+- **Sparse kelp in the shallows, rich kelp in the deep.**
+- **A shark that kills a seal eats it whole:** all its cells' worth, with no corpse left.
+- **Sharks are never hurt anywhere,** and they leave no corpse.
+- **Sharks never bite or eat sharks.**
+- **Sharks can't go into the top 40% of the water.** They're blocked, not hurt, and a dashed line marks it in the viewer. Seals can haul out on the islands, where sharks can't bite.
+- **A bigger sea:** 320 wide by default.
+- **Hunger:** "about 10 meals a lifetime." An unfed seal with max size 20 lasts about 600 ticks (`starve`), so a kelp is now a real meal: 15 per bite, times ripeness (`kelp`).
+  - Sharks live 10× as long as seals (`sharklife`) and starve 10× slower (`sharkstarve` 6000), so they also need about 10 meals a life. A kill is worth 3 per seal cell (`seafeed`).
+- **The opening is a "peaceful archipelago the sharks discover."**
+  - 60 seals start spread through the calm water (`seals`).
+  - A reef walls off a bay at the left edge of the deep. At `arrive` (default 20k), weather opens a channel and two sharks swim in.
+
+**Changes needed to make that work:**
+- **Pressure starts at 50% depth (`calm`) instead of 33%.** That leaves a 40–50% overlap where seals feed on richer kelp within sharks' reach.
+- **Sharks can't see into the shallows,** and a shark's prey scan never finds sharks. Before this, the scan locked onto unreachable seals above the line, and sharks starved pressed against it.
+- **The shark founder is one row,** a hunter: `C2S$TMB3S$TMD`. The two-row body needed a reserve of 52 to divide.
+- **On the island, dividing needs 3× the body size in reserve, and founders start full.** With fast hunger, two halves at exactly body size shed cells within a couple of hundred ticks. The early sharks rotted into fragments like `MB3` and `B3`.
+- **Shark bite reach is 2.** A shark at 48 or more is full and doesn't bite (satiation).
+
+**Balance:** 4 seeds to 40k ticks (160 wide, arrival at 3k). All coexist: seals 90–140, sharks 50–95, no crash. Every version before this crashed, because a predator that can reach all of its prey's habitat eats the prey out. A refuge (the shallows, the land) plus long-lived, slow-starving sharks steadied it.
+
+**Potluck:**
+- A thread that joined while the farm's share was all leased out was never asked to verify, so it never got work. Fixed in the server.
+- A subagent redid the farm page for long items: per-thread clocks, job progress, and estimated times.

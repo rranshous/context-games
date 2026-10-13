@@ -22,11 +22,17 @@ export const DISH_DEFAULTS: Record<string, number> = {
   life: 6000,     // typical lifespan (each warrior's is 50–150% of it)
   cap: 0,         // most warriors alive at once (DIVIDE fails at the cap); 0 = no cap: food and space decide
   island: 0,      // 1 = island survival (side view: islanders and sea creatures; size = width)
-  hunger: 0.25,   // island: sea creatures starve at this fraction of the usual rate
+  starve: 600,    // island: ticks an unfed seal with max size 20 lasts
+  sharkstarve: 6000, // island: the same for a shark (10×, like its lifespan)
+  sharklife: 10,  // island: shark lifespan, times a seal's
+  kelp: 15,       // island: max size a seal gains per kelp (times ripeness)
   seafeed: 3,     // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
   bite: 2,        // island: a shark's BOMB reach
   full: 48,       // island: a shark this big (max size) is full and won't bite
   shallows: 0.4,  // island: top share of the water sharks can't enter
+  calm: 0.5,      // island: top share of the water with no pressure
+  arrive: 20000,  // island: tick the reef channel opens and the sharks swim in
+  seals: 60,      // island: seals already spread through the calm water at the start
 };
 
 /** Apply dish settings; `get(k)` returns an override or null. Returns the settings used. */
@@ -48,11 +54,17 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.lifespan = o.life;
   CONFIG.maxWarriors = o.cap > 0 ? o.cap : Infinity;
   CONFIG.island = o.island > 0;
-  CONFIG.seaHunger = o.hunger;
+  CONFIG.starve = o.starve;
+  CONFIG.sharkStarve = o.sharkstarve;
+  CONFIG.sharkLife = o.sharklife;
+  CONFIG.kelpFeed = o.kelp;
   CONFIG.seaFeed = o.seafeed;
   CONFIG.biteRange = o.bite;
   CONFIG.sharkFull = o.full;
   CONFIG.shallows = o.shallows;
+  CONFIG.calm = o.calm;
+  CONFIG.sharkArrive = o.arrive;
+  CONFIG.seals = o.seals;
   CONFIG.reaperCap = 0;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;

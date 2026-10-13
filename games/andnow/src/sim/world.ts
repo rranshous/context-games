@@ -61,8 +61,14 @@ export const CONFIG = {
   copyInsert: 0,        // DIVIDE: chance the child gains a fat cell (.) stuck to its body
   copyDelete: 0,        // DIVIDE: chance the child loses one cell (never its IP cell; stays connected)
   island: false,        // island survival: side view, islanders vs sea creatures (board width = plate)
-  seaHunger: 0.25,      // island: sea creatures' max size and speed decay at this fraction of the usual rate
+  starve: 600,          // island: ticks an unfed seal with max size 20 lasts (about a tenth of a lifetime)
+  sharkStarve: 6000,    // island: the same for a shark (10× a seal's, as is its lifespan: about 10 meals a life for both)
+  sharkLife: 10,        // island: a sea creature's lifespan is this many times CONFIG.lifespan
+  kelpFeed: 15,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
+  calm: 0.5,            // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
+  sharkArrive: 20000,   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
+  seals: 60,            // island: each islander founder starts with this many copies spread through the calm water
   sharkFull: 48,        // island: a sea creature with at least this max size is full and won't bite
   biteRange: 2,         // island: a sea creature's BOMB reach (a bite, not a shot)
   seaFeed: 2,           // island: max size a sea creature gains per dead cell it collects
@@ -146,7 +152,7 @@ export class World {
   private spawnTimers: number[];
 
   constructor(public seed: number, specs: WarriorSpec[]) {
-    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows)
+    this.board = CONFIG.island ? makeIsland(seed, CONFIG.plate || 320, CONFIG.plateBands, CONFIG.plateFood, CONFIG.shallows, CONFIG.calm)
       : CONFIG.plate ? makePlate(seed, CONFIG.plate, CONFIG.plateBands, CONFIG.plateFood) : makeBoard(seed);
     this.w = this.board.w;
     this.h = this.board.h;
@@ -169,12 +175,21 @@ export class World {
         if (b - a < 2 || d - c < 2) this.narrow[this.idx(x, y)] = 1;
       }
     }
-    specs.forEach((s, i) => this.place(s, i));
+    // Island survival: sea founders arrive at CONFIG.sharkArrive, once there's prey in the water.
+    for (const s of specs) {
+      if (CONFIG.island && s.realm === 'sea' && CONFIG.sharkArrive > 0) this.arriving.push(s);
+      else this.place(s, this.warriors.length);
+    }
+    if (CONFIG.island) this.settle();
   }
 
   // ---------- setup ----------
 
-  private place(spec: WarriorSpec, id: number) {
+  private arriving: WarriorSpec[] = [];
+  /** Bumped whenever the terrain changes (the island's channel opening), so a viewer can redraw scenery. */
+  terrainVersion = 0;
+
+  private place(spec: WarriorSpec, id: number, at?: [number, number]) {
     if (spec.cells.length > CONFIG.startCells) {
       throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
@@ -184,16 +199,16 @@ export class World {
     // Island survival: founders of one realm share a start, side by side.
     const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
-    const ox = room.x + Math.floor((room.w - spec.width) / 2) + shift;
-    const oy = room.y + Math.floor((room.h - spec.height) / 2);
+    const ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
+    const oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
     const wr: Warrior = {
       id, lineage: id, gen: 0, realm, born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
-      stack: [], maxSize: CONFIG.startSize, speed: CONFIG.speedStart,
+      stack: [], maxSize: CONFIG.island ? CONFIG.sizeCap : CONFIG.startSize, speed: CONFIG.speedStart, // island founders start full
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }, home: room, roomsSeen: new Set(),
     };
-    if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
+    if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(wr.realm) * (0.5 + this.rng()));
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
       if (!this.isFloor(x, y)) throw new Error(`${spec.name} does not fit in its start room`);
@@ -411,6 +426,7 @@ export class World {
     }
 
     if (CONFIG.island) this.islandTick();
+    if (this.arriving.length && this.t >= CONFIG.sharkArrive) this.arrive();
 
     // Run warriors in a rotating order so nobody always moves first.
     const order = this.living().slice();
@@ -462,7 +478,8 @@ export class World {
         for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, cause); }
         if (!wr.alive) continue;
       }
-      const hunger = wr.realm ? CONFIG.seaHunger : 1; // sharks can wait a long time between meals
+      // Island survival: hunger is set so an unfed body with max size 20 lasts `starve` ticks.
+      const hunger = CONFIG.island ? (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve) : 1;
       wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
       wr.speed = Math.max(CONFIG.speedFloor, wr.speed - hunger * CONFIG.speedDecay);
       if (wr.maxSize < 1) this.kill(wr, 'starved (max size fell to 0)');
@@ -473,6 +490,64 @@ export class World {
     }
 
     this.checkOver();
+  }
+
+  /**
+   * Island survival: a settled archipelago. Each islander founder gets CONFIG.seals copies
+   * of itself (its descendants, generation 1) scattered through the calm water.
+   */
+  private settle() {
+    for (const f of this.warriors.filter((w) => w.realm === 0 && w.gen === 0)) {
+      const S = this.board.surface ?? 0, calm = this.board.calmLine ?? S;
+      for (let n = 0, tries = 0; n < CONFIG.seals && tries < CONFIG.seals * 50; tries++) {
+        const bay = this.board.starts[1], x0 = bay.x + bay.w + 2; // (not in the sharks' walled bay)
+        const ox = x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width)), oy = S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
+        if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
+        const id = this.warriors.length;
+        const born = this.bornIn.get(f.lineage) ?? 1;
+        this.bornIn.set(f.lineage, born + 1);
+        const wr: Warrior = {
+          ...f, id, gen: 1, parent: f.id, name: `${f.name}·${born}`, ipX: ox + f.spec.ip.x, ipY: oy + f.spec.ip.y, ox: ox + f.spec.ip.x, oy: oy + f.spec.ip.y,
+          stack: [], cellCount: 0, executed: 0, roomsSeen: new Set(),
+          stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
+        };
+        if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(0) * (0.5 + this.rng()));
+        this.warriors.push(wr);
+        this.livingList.push(wr);
+        for (const c of f.spec.cells) { const i = this.idx(ox + c.x, oy + c.y); this.setOwner(i, id); this.code[i] = c.code; wr.cellCount++; }
+        n++;
+      }
+    }
+  }
+
+  /** Typical lifespan for a realm (island sea creatures live CONFIG.sharkLife times longer). */
+  private lifeOf(realm: number) { return CONFIG.lifespan * (CONFIG.island && realm === 1 ? CONFIG.sharkLife : 1); }
+
+  /** Island survival: weather opens the reef channel and the waiting sea founders swim in, each once its spot is clear. */
+  private arrive() {
+    if (this.board.reef?.length) {
+      for (const i of this.board.reef) this.board.terrain[i] = FLOOR;
+      this.board.reef = [];
+      this.terrainVersion++;
+      this.log('arrive', 'weather opens a channel through the reef');
+    }
+    for (let k = 0; k < this.arriving.length; k++) {
+      const spec = this.arriving[k];
+      // Any clear spot in the bay, top rows first.
+      const room = this.board.starts[this.board.startRealm!.indexOf(1)];
+      let at: [number, number] | null = null;
+      for (let oy = room.y + 1; oy + spec.height <= room.y + room.h && !at; oy += 2) {
+        for (let ox = room.x; ox + spec.width <= room.x + room.w && !at; ox++) {
+          if (spec.cells.every((c) => this.isFloor(ox + c.x, oy + c.y) && this.owner[this.idx(ox + c.x, oy + c.y)] === NONE)) at = [ox, oy];
+        }
+      }
+      if (!at) continue;
+      this.place(spec, this.warriors.length, at);
+      this.warriors[this.warriors.length - 1].born = this.t;
+      if (CONFIG.lifespan > 0) this.warriors[this.warriors.length - 1].diesAt = this.t + Math.floor(this.lifeOf(1) * (0.5 + this.rng()));
+      this.arriving.splice(k--, 1);
+      this.log('arrive', `${spec.name} arrives`, this.warriors.length - 1);
+    }
   }
 
   /** Island survival, once a tick: dead cells sink (and rot where they can't). */
@@ -753,13 +828,15 @@ export class World {
     const consider = (i: number) => {
       const x = i % this.w, y = (i / this.w) | 0;
       if (x < x0 || x > x1 || y < y0 || y > y1) return;
+      if (CONFIG.island && wr.realm === 1 && y < (this.board.sharkLine ?? 0)) return; // sharks can't see into the shallows
       const t = this.classify(x, y, wr.id);
       const match = type === T_RESOURCE ? (t === T_SIZE || t === T_SPEED) : t === type;
       if (!match || t === T_WALL || t === T_NOTHING) return;
       cands.push([Math.abs(x - fx) + Math.abs(y - fy), i, x, y]);
     };
     if (type === T_ENEMY) {
-      for (const other of this.living()) if (other.id !== wr.id) for (const i of this.cellSets.get(other.id) ?? []) consider(i);
+      // (Island survival: only the other realm: a shark scanning for prey never finds sharks.)
+      for (const other of this.living()) if (other.id !== wr.id && !(CONFIG.island && other.realm === wr.realm)) for (const i of this.cellSets.get(other.id) ?? []) consider(i);
     } else if (type === T_DEBRIS) {
       for (const i of this.cellSets.get(DEBRIS) ?? []) consider(i);
     } else if (type === T_SIZE || type === T_SPEED || type === T_RESOURCE) {
@@ -952,7 +1029,7 @@ export class World {
         // Island survival: islanders eat only vegetation, sea creatures only dead cells.
         if (CONFIG.island && (wr.realm ? this.owner[i] !== DEBRIS : this.owner[i] === DEBRIS)) continue;
         if (this.resource[i] === 1) {
-          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + CONFIG.sizePickup * this.ripe[i]);
+          wr.maxSize = Math.min(CONFIG.sizeCap, wr.maxSize + (CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup) * this.ripe[i]);
           this.log('collect', `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
@@ -1002,7 +1079,7 @@ export class World {
   private reach(wr: Warrior) { return CONFIG.island && wr.realm === 1 ? CONFIG.biteRange : CONFIG.bombRange; }
 
   private opBombAt(wr: Warrior, x: number, y: number): boolean {
-    // Island survival: a full shark doesn't bite (it digests first; with slow hunger, a while).
+    // Island survival: a full shark doesn't bite (it digests first; until hunger brings it back down).
     if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull) return false;
     const o = this.ownerAt(x, y);
     if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warriors[o].realm === 1) return false; // sharks never bite sharks
@@ -1026,7 +1103,8 @@ export class World {
    */
   private opDivide(wr: Warrior, d: number): boolean {
     d = ((d % 4) + 4) % 4;
-    if (wr.maxSize < 2 * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
+    // (Island survival: 3× my cells, so with fast hunger both halves start with some slack.)
+    if (wr.maxSize < (CONFIG.island ? 3 : 2) * wr.cellCount || wr.maxSize < CONFIG.divideMin) return false;
     if (CONFIG.reaperCap > 0) {
       // Petri dish: make room by reaping the oldest living warrior (not the parent).
       const living = this.living();
@@ -1057,7 +1135,7 @@ export class World {
       cellCount: 0, executed: 0, spec: wr.spec, home: wr.home, roomsSeen: new Set(wr.roomsSeen),
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
     };
-    if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(CONFIG.lifespan * (0.5 + this.rng()));
+    if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(this.lifeOf(child.realm) * (0.5 + this.rng()));
     // The room a child is born in isn't one it travelled to: no "entered another room" for it.
     const cx0 = Math.min(...xs) + ox, cx1 = Math.max(...xs) + ox, cy0 = Math.min(...ys) + oy, cy1 = Math.max(...ys) + oy;
     this.board.rooms.forEach((r, k) => {
