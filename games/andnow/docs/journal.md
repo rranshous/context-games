@@ -1588,3 +1588,11 @@ None of the saved dishes have one among their top-12 genomes (the tallest are 4-
 Under pace, fat counts double for mass, so a rake is now slow: more water swept per step, fewer steps. Worth watching whether rakes survive that.
 
 **Kelp ripens into a feast, and sharks wait longer (the user).** Ripening was already on, but it barely mattered: a kelp was worth 15 fresh and the reserve cap is 64. On the island it's now worth 8 fresh and ripens +1× every 250 ticks up to 8×, so untouched kelp grows into a full reserve (64) over about 1,750 ticks. Grazed shallows offer snacks, while untouched deep kelp is a jackpot. The viewer draws kelp dark green when fresh, golden when ripe, with a frond above it. Sharks now arrive at 60k, giving seals time to dive. Balance check (4 seeds, 160 wide, sharks at 3k, 30k ticks): about 100 seals and 50–75 sharks, stable in all four.
+
+**The rake, dissected (the user's sighting: default island, seed 2, about 40k; replayed with the current rules, one turned up at t2000).** The genome is `C6SGTMD` with a column of 15 fat cells under the `G`. It's one point mutation of the founder, `$` → `G`.
+- The founder's `$` drops the scan's "found" flag before T steers on dx, dy.
+- GROW pops one number too, so it drops the same flag and the program runs exactly as before.
+- But G uses that number as a direction: 1 grows down, 0 grows right. Whenever food is in sight, a fat cell grows downward from the G, and the column lengthens every loop until the body reaches its max size.
+- The column sweeps food into COLLECT along its whole length.
+
+So a "discard" instruction was replaced by one that discards *and* builds, with growth gated on food being near. Under pace, each fat cell counts double for mass, so rakes are now slow. The same replay also had a fully vertical warrior, `$/A/C/S/6/T/M`, with its program stacked top to bottom.
