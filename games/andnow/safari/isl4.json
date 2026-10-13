@@ -1,0 +1,4 @@
+[
+  { "name": "deep", "w": ["amoeba", "shark", "shark"], "settings": { "island": "1" } },
+  { "name": "deep-no-sharks", "w": ["amoeba"], "settings": { "island": "1" } }
+]
