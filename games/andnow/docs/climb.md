@@ -24,6 +24,7 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
 - **Up and down differ:**
   - **Down** gets falling dead cells (marine snow), free food pooling in the depths: the pantry for big slow scavenger-hunters.
   - **Up** gets sunlight: plants regrow faster the higher you go, but patches are sparse. That suits fast, light grazers.
+  - Dead cells fall in both air and water, so the heights feed the depths.
 - **Size cap grows with richness,** so bodies can get huge where food is worth 1,000×. The user is hoping for krakens: big, slow, long-lived deep hunters (mask cells cancelling mass, bite doublers, low pace so slow hunger).
 - **Terrain:** generated per tile from the seed and the tile's coordinates, so any tile can be rebuilt on demand.
   - Downward: rock, caves and overhangs, as on the island.
@@ -67,4 +68,3 @@ The rules are in the body, so a mutation can change what a body's other cells me
 
 - Numbers grow 10× per step. Reserves and food values may need logarithms, or a cap with ripeness doing the work.
 - Chunk size, and how long an emptied chunk is kept before it's dropped.
-- Dead cells fall in both air and water, so the heights feed the depths.
