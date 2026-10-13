@@ -1612,3 +1612,14 @@ The user watched armored (yellow) seals bloom and then starve. Unarmored seals d
   Where it ended up: caves, chambers, overhangs and outcrops with open water between.
 - **Sealed-off water:** any water not reachable from the surface is filled in.
 - **Kelp:** grows along every rock floor as well as in the open water.
+
+**Banding check (the user: yellow seals have a narrow band, white seals operate over 60% of the water).** Confirmed:
+- Pressure only started at 50% depth. It had been moved there for shark overlap.
+- Band 1 cost a white seal a 0.1% chance per cell per tick. Its core cell lasted about 1,000 ticks there, longer than its 600-tick starvation clock, so whites effectively owned everything down to about 62%.
+- Yellows (1 armor) were left the narrow slice of band 1 that whites hadn't already grazed.
+
+Fixed:
+- Pressure starts at 35% (`calm`), just above the 40% shark line. Measured on the 360 board, the bands now fall at 0–35, 35–51, 52–67, 68–83 and 84–99%.
+- On the island, pressure is 5× harsher (`toxin` 0.005; still ×10 per band past your armor): about 200 ticks to lose the core one band too deep. A dip is fine; living there isn't.
+
+Balance (200 wide, sharks at 3k, 30k ticks, 4 seeds): 160–230 seals, 70–95 sharks, stable.

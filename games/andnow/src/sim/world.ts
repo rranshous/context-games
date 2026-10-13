@@ -69,7 +69,7 @@ export const CONFIG = {
   sharkCap: 128,        // island: a sea creature's largest max size
   kelpFeed: 8,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
   depth: 0.75,          // island: the sea is this many times as deep as it is wide
-  calm: 0.5,            // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
+  calm: 0.35,           // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
   sharkArrive: 60000,   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
   seals: 60,            // island: each islander founder starts with this many copies spread through the calm water

@@ -295,7 +295,7 @@ export function makePlate(seed: number, size: number, bands: number, foodSpacing
  * every rock floor. Starts: the middle island's top (realm 0), and a bay at the left edge
  * walled off by a reef until the channel opens (realm 1).
  */
-export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, shallows = 0.4, calm = 0.5, depth = 0.75): Board {
+export function makeIsland(seed: number, w: number, bands: number, foodSpacing: number, shallows = 0.4, calm = 0.35, depth = 0.75): Board {
   const h = Math.round(w * depth);
   const rng = makeRng(seed ^ 0x51ed27);
   const terrain = new Uint8Array(w * h).fill(WALL);

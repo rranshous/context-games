@@ -408,7 +408,7 @@ function makePlate(seed, size, bands, foodSpacing) {
   const start = { x: Math.round(c - s / Math.SQRT2), y: Math.round(c - s / Math.SQRT2), w: Math.floor(s * Math.SQRT2), h: Math.floor(s * Math.SQRT2) };
   return { w, h, terrain, spawns, starts: [start], rooms: [], toxin };
 }
-function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.5, depth = 0.75) {
+function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.35, depth = 0.75) {
   const h = Math.round(w * depth);
   const rng = makeRng(seed ^ 5369127);
   const terrain = new Uint8Array(w * h).fill(WALL);
@@ -605,7 +605,7 @@ var CONFIG = {
   // island: max size a seal gains from a kelp (times its ripeness), a real meal
   depth: 0.75,
   // island: the sea is this many times as deep as it is wide
-  calm: 0.5,
+  calm: 0.35,
   // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,
   // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
@@ -2076,7 +2076,7 @@ var DISH_DEFAULTS = {
   // island: a shark at this share of its size cap is full and won't bite
   shallows: 0.4,
   // island: top share of the water sharks can't enter
-  calm: 0.5,
+  calm: 0.35,
   // island: top share of the water with no pressure
   depth: 0.75,
   // island: sea depth as a share of its width
@@ -2096,6 +2096,7 @@ function applyDish(get) {
     if (unset("size")) o.size = 360;
     if (unset("ripen")) o.ripen = 250;
     if (unset("ripemax")) o.ripemax = 8;
+    if (unset("toxin")) o.toxin = 5e-3;
   }
   CONFIG.plate = o.size;
   CONFIG.plateBands = o.bands;
