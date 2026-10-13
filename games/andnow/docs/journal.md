@@ -1695,3 +1695,13 @@ The exception is seed 7: without sharks it never armored, but with sharks, 1-arm
 - bodies coloured by chemistry: insulated cool blue, armored warm orange, meat eaters red;
 - a stats panel: by step, armor and insulation counts, diets, top genomes, deaths, active tiles;
 - hover shows a cell's traits and genome; Copy link includes the camera (`&cam=x,y,zoom`).
+
+**Climb tuning, then an overnight batch.**
+- **The global cap backfired.** Reaping the oldest at each birth let climbers, the fastest breeders in the rich air, push every diver and hunter out through the cap: by tick 8,000 only climbers were left.
+- **Replaced by local crowding:** DIVIDE fails where the parent's 64×64 tile already holds 24 bodies (`crowd`). It never limits the world's total, so a boom in one step can't erase another.
+- **Side by side over 12k ticks:**
+  - crowding 24: 1,690 alive and levelling off, 40 ms per tick; climbers about 1,000, divers about 600.
+  - no limit: 5,074 by 6k and still climbing, 139 ms per tick.
+- **Hunters die out either way** (54 → 2 with crowding, 100 → 50 without). That's still to dig into.
+- **Viewer:** zoom out to 0.05 px per cell (scenery sampled per pixel, bodies drawn as dots); minimap sections sized by the square root of step height.
+- **Overnight (`safari/climb1.json`):** 4 seeds each at 700k, 400k and 200k ticks, defaults, all 8 cores plus the farm, longest first. The snapshots now carry Climb data: by step, armor and insulation counts, diets, founders, top genomes, the biggest body (kraken watch), chemistry glyph carriers, active tiles.
