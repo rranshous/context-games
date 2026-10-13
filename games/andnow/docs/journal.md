@@ -1631,3 +1631,30 @@ Balance (200 wide, sharks at 3k, 30k ticks, 4 seeds): 160–230 seals, 70–95 s
 ## Next mode: The Climb (designed with the user, to be built after the island batch is analysed)
 
 A fixed-width world, infinite up and down. Food and step height both grow 10× per step out; depth needs armor and height needs insulation. Traits come from a body chemistry: a base table plus modifier glyphs (flip, double, mask) that change how neighbouring cells count, so evolution can rewire what its own cells mean. To start: designed creatures (a climber, a diver, a hunter). Design note: docs/climb.md.
+
+### Island batch isl4: analysis (calm 25%, three-bite armor, pace; 360×270, sharks at 60k; stopped at 10 of 20 dishes, 150k ticks each)
+
+Five dishes with sharks (seeds 3, 4, 6, 7, 8) and five without (seeds 6–10). Seeds 6, 7 and 8 ran both ways and are identical up to 60k.
+
+**Armor evolves without sharks, and sometimes all the way down.**
+- Seeds 6 and 9 climbed the whole staircase: by 150k, 4-armor seals live in band 4 (71 and 39 there).
+  - Seed 9 held about 1,400 seals spread over every band.
+  - Its winners carry the armor off the code row (`C4S$TMD/ K`), or several K's in-line (`CKKDmM/ K`).
+- Seeds 8 and 10 got to 1 armor by about 100k and stopped there.
+- Seed 7 never armored at all. That's the stalled front again.
+
+**Sharks cap armor at 1, by eating the deep seals.** Seed 6 is the clean case:
+- At 60k (both runs identical), 2- and 3-armor seals were spreading through bands 2 and 3 (169 and 24 seals).
+- Without sharks, they went on to 4 armor and band 4.
+- With sharks (116 by 100k, 191 by 150k, most in bands 1–2), bands 2 and up were emptied (1, then 7 seals), and armor fell back to at most 1.
+- In every shark dish, seals end up confined to bands 0–1.
+
+The exception is seed 7: without sharks it never armored, but with sharks, 1-armor seals rose to 313 by 100k. One guess is that sharks thinning the crowd of whites gave 1-armor mutants room to establish. That's one case, so not proven.
+
+**What kills seals:** starvation (80k–140k deaths per dish) and pressure (50k–200k). Sharks killed only 200–2,500 per dish. Predation matters by being targeted: it takes out the deep, armored frontier, not many seals overall.
+
+**Sharks still crowd the top of their zone.** Most sharks sit in band 1, just under the 40% line, even with the smaller safe zone.
+
+**Sharks evolve.** The founder `C2S$TMB3S$TMD` drifted into forms like `Cs/$TMB3S$9eD` (54 alive in seed 6), `` `TMB3SFTMD `` and `C2S$TMB34.T2D`, often dropping the C and keeping the hunt-and-bite core.
+
+**New seal trick, the hunger compass:** `CKKDmM`, 121 alive in seed 9. `m` pushes the body's own max size, and `M` moves in that direction (max size mod 4). Its heading changes as it eats and starves. It's a cousin of `CMsDT`, which set its divide direction from its own cell count.
