@@ -1580,3 +1580,9 @@ Mass is the cell count, with armor (K) and fat (`.`) counting double. The seal f
 The plan is to start with counts. A "mask" version, where only cells the program runs set the pace, is for later. It would make off-path armor weightless.
 
 **First check:** 4 seeds to 40k ticks (160 wide, sharks at 3k). All coexist: seals 120–180, sharks 45–100.
+
+**Seen by the user, in both the petri dish and the island: the rake.** Some lineages grow a long vertical column of cells and use it to sweep up food. COLLECT takes everything touching any cell of the body, so a tall column moving sideways clears a whole band of rows each step, like a trawl net. A column off the code row also costs nothing to run (the unread-genome trick again).
+
+None of the saved dishes have one among their top-12 genomes (the tallest are 4-row armor keels such as `CKTMD/KK/K`), so rakes are probably rare individuals. My guess is they're built by GROW, which adds fat at the end of the body in the IP's direction, so repeated G pointing down makes a column, or by stacked copy insertions. I'm waiting on a share link to dissect one.
+
+Under pace, fat counts double for mass, so a rake is now slow: more water swept per step, fewer steps. Worth watching whether rakes survive that.
