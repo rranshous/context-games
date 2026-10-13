@@ -30,7 +30,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   bite: 2,        // island: a shark's BOMB reach
   full: 0.75,     // island: a shark at this share of its size cap is full and won't bite
   shallows: 0.4,  // island: top share of the water sharks can't enter
-  calm: 0.35,     // island: top share of the water with no pressure
+  calm: 0.25,     // island: top share of the water with no pressure
   depth: 0.75,    // island: sea depth as a share of its width
   arrive: 60000,  // island: tick the reef channel opens and the sharks swim in
   seals: 60,      // island: seals already spread through the calm water at the start
