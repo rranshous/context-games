@@ -205,25 +205,27 @@ export class ClimbView {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const z = this.cam.zoom;
     ctx.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
-    // Step boundaries and labels.
+    // Step boundaries, each with a small label sitting on its line (not pinned over the view).
     const S = b.climbSteps!;
-    ctx.font = 'bold 13px ui-monospace, Menlo, monospace';
-    ctx.textBaseline = 'top';
+    ctx.font = '11px ui-monospace, Menlo, monospace';
+    ctx.textBaseline = 'bottom';
     for (let n = S; n >= -S; n--) {
-      const top = b.stepTop![n + S], sy = (top - this.cam.y) * z;
-      if (sy > -2 && sy < this.canvas.height) {
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.fillRect(0, sy, this.canvas.width, 1);
-      }
-      const ly = Math.max(4, sy + 4), bottom = (top + b.stepH![n + S] - this.cam.y) * z;
-      if (bottom > 20 && ly < this.canvas.height - 16) {
-        const label = n > 0 ? `step +${n} · thin air · needs ${n} insulation · food ×${10 ** n}`
-          : n < 0 ? `step ${n} · deep water · needs ${-n} armor · food ×${10 ** -n}` : 'step 0 · sea level · food ×1';
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillRect(6, ly - 2, ctx.measureText(label).width + 10, 18);
-        ctx.fillStyle = n > 0 ? '#bfe6ff' : n < 0 ? '#ffd9a0' : '#ffffff';
-        ctx.fillText(label, 11, ly);
-      }
+      const bottomRow = b.stepTop![n + S] + b.stepH![n + S], sy = (bottomRow - this.cam.y) * z; // the line below step n
+      if (sy < 12 || sy > this.canvas.height + 12) continue;
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(0, sy, this.canvas.width, 1);
+      const short = this.canvas.width < 600;
+      const below = n - 1, label = (k: number) => short
+        ? (k > 0 ? `+${k} · ${k} insul` : k < 0 ? `${k} · ${-k} armor` : '0 · sea')
+        : (k > 0 ? `+${k} · ${k} insulation · food ×${10 ** k}` : k < 0 ? `${k} · ${-k} armor · food ×${10 ** -k}` : '0 · sea level');
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      const t1 = `▲ ${label(n)}`, t2 = below >= -S ? `▼ ${label(below)}` : '';
+      const w1 = ctx.measureText(t1).width, w2 = ctx.measureText(t2).width, x = this.canvas.width - Math.max(w1, w2) - 14;
+      ctx.fillRect(x - 3, sy - 13, w1 + 6, 13);
+      if (t2) ctx.fillRect(x - 3, sy + 1, w2 + 6, 13);
+      ctx.fillStyle = n > 0 ? '#bfe6ff' : n < 0 ? '#ffd9a0' : '#ffffff';
+      ctx.fillText(t1, x, sy - 1);
+      if (t2) { ctx.fillStyle = below > 0 ? '#bfe6ff' : below < 0 ? '#ffd9a0' : '#ffffff'; ctx.textBaseline = 'top'; ctx.fillText(t2, x, sy + 2); ctx.textBaseline = 'bottom'; }
     }
     this.renderMini();
   }
