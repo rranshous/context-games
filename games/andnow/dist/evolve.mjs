@@ -444,6 +444,8 @@ var CONFIG = {
   // island: pace = (1 + M cells) / (1 + mass / this); the seal founder's mass is 11
   paceSpeed: 2,
   // island: instructions per tick at pace 1
+  armorBites: 3,
+  // island: bites an armor (K) cell takes before it breaks
   sharkCap: 128,
   // island: a sea creature's largest max size
   kelpFeed: 8,
@@ -1610,7 +1612,18 @@ var World = class {
     const victim = o >= 0 ? this.warriors[o].name : "debris";
     if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
-    this.destroy(this.idx(x, y), wr);
+    const ti = this.idx(x, y);
+    if (CONFIG.island && o >= 0 && this.code[ti] === K) {
+      const v = this.warriors[o];
+      v.dents = (v.dents ?? 0) + 1;
+      v.lastHarm = { by: wr.id, t: this.t };
+      if (v.dents < CONFIG.armorBites) {
+        this.log("bomb", `${wr.name}'s bite glanced off ${victim}'s armor`, wr.id);
+        return true;
+      }
+      v.dents = 0;
+    }
+    this.destroy(ti, wr);
     this.log("bomb", `${wr.name} bombed ${victim}`, wr.id);
     return true;
   }

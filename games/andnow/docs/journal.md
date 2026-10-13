@@ -1623,3 +1623,5 @@ Fixed:
 - On the island, pressure is 5× harsher (`toxin` 0.005; still ×10 per band past your armor): about 200 ticks to lose the core one band too deep. A dip is fine; living there isn't.
 
 Balance (200 wide, sharks at 3k, 30k ticks, 4 seeds): 160–230 seals, 70–95 sharks, stable.
+
+**Armor takes three bites (the user).** Until now, K cells only resisted pressure: a bite destroyed a K cell like any other, costing that cell and a point of armor. On the island, a bite or bomb that lands on a K cell now dents the body's armor instead, and every third dent breaks one K cell (`armorBites` 3). The counter is kept per body rather than per cell, so it doesn't have to follow cells around as they move and rearrange; for a body with one or two K's it comes to the same thing. It applies to everyone, sharks included. Pressure still crushes armor directly. Heavy, deep seals become tanky: slow (K is double mass under pace), but hard to eat.

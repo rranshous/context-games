@@ -66,6 +66,7 @@ export const CONFIG = {
   sharkLife: 10,        // island: a sea creature's lifespan is this many times CONFIG.lifespan
   paceMass: 11,         // island: pace = (1 + M cells) / (1 + mass / this); the seal founder's mass is 11
   paceSpeed: 2,         // island: instructions per tick at pace 1
+  armorBites: 3,        // island: bites an armor (K) cell takes before it breaks
   sharkCap: 128,        // island: a sea creature's largest max size
   kelpFeed: 8,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
   depth: 0.75,          // island: the sea is this many times as deep as it is wide
@@ -91,6 +92,7 @@ export interface Warrior {
   diesAt?: number; // petri dish: death of old age (lifespan drawn at birth, 50–150% of CONFIG.lifespan)
   aged?: number;   // island survival: biological age, which advances at the body's pace (dies at diesAt − born)
   pace?: number;   // island survival: the body's pace (speed, hunger and aging all scale with it)
+  dents?: number;  // island survival: bites taken on armor since an armor cell last broke (it breaks at CONFIG.armorBites)
   name: string;
   alive: boolean;
   ipX: number;
@@ -1122,7 +1124,17 @@ export class World {
     const victim = o >= 0 ? this.warriors[o].name : 'debris';
     if (o >= 0) this.attacks.bombs++;
     if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++; // hits on kin earn nothing
-    this.destroy(this.idx(x, y), wr);
+    // Island survival: armor takes three bites. A hit on a K cell dents the body's armor;
+    // every third dent breaks the cell.
+    const ti = this.idx(x, y);
+    if (CONFIG.island && o >= 0 && this.code[ti] === K) {
+      const v = this.warriors[o];
+      v.dents = (v.dents ?? 0) + 1;
+      v.lastHarm = { by: wr.id, t: this.t };
+      if (v.dents < CONFIG.armorBites) { this.log('bomb', `${wr.name}'s bite glanced off ${victim}'s armor`, wr.id); return true; }
+      v.dents = 0;
+    }
+    this.destroy(ti, wr);
     this.log('bomb', `${wr.name} bombed ${victim}`, wr.id);
     return true;
   }
