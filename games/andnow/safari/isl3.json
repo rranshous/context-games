@@ -1,0 +1,5 @@
+[
+  { "name": "archipelago", "w": ["amoeba", "shark", "shark"], "settings": { "island": "1" } },
+  { "name": "late-sharks", "w": ["amoeba", "shark", "shark"], "settings": { "island": "1", "arrive": "80000" } },
+  { "name": "no-sharks", "w": ["amoeba"], "settings": { "island": "1" } }
+]
