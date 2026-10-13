@@ -67,10 +67,10 @@ export const CONFIG = {
   paceMass: 11,         // island: pace = (1 + M cells) / (1 + mass / this); the seal founder's mass is 11
   paceSpeed: 2,         // island: instructions per tick at pace 1
   sharkCap: 128,        // island: a sea creature's largest max size
-  kelpFeed: 15,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
+  kelpFeed: 8,         // island: max size a seal gains from a kelp (times its ripeness), a real meal
   calm: 0.5,            // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,        // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
-  sharkArrive: 20000,   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
+  sharkArrive: 60000,   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
   seals: 60,            // island: each islander founder starts with this many copies spread through the calm water
   sharkFull: 0.75,      // island: a sea creature at this share of its size cap is full and won't bite
   biteRange: 2,         // island: a sea creature's BOMB reach (a bite, not a shot)

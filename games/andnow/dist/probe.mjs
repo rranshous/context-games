@@ -569,13 +569,13 @@ var CONFIG = {
   // island: instructions per tick at pace 1
   sharkCap: 128,
   // island: a sea creature's largest max size
-  kelpFeed: 15,
+  kelpFeed: 8,
   // island: max size a seal gains from a kelp (times its ripeness), a real meal
   calm: 0.5,
   // island: top share of the water with no pressure (seals overlap sharks below `shallows`)
   shallows: 0.4,
   // island: sea creatures can't swim into this top share of the water (blocked, never hurt)
-  sharkArrive: 2e4,
+  sharkArrive: 6e4,
   // island: the reef channel opens and the sea founders arrive at this tick (0 = at the start)
   seals: 60,
   // island: each islander founder starts with this many copies spread through the calm water
@@ -2032,7 +2032,7 @@ var DISH_DEFAULTS = {
   // island: the same for a shark (10×, like its lifespan)
   sharklife: 10,
   // island: shark lifespan, times a seal's
-  kelp: 15,
+  kelp: 8,
   // island: max size a seal gains per kelp (times ripeness)
   seafeed: 3,
   // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
@@ -2044,7 +2044,7 @@ var DISH_DEFAULTS = {
   // island: top share of the water sharks can't enter
   calm: 0.5,
   // island: top share of the water with no pressure
-  arrive: 2e4,
+  arrive: 6e4,
   // island: tick the reef channel opens and the sharks swim in
   seals: 60
   // island: seals already spread through the calm water at the start
@@ -2055,7 +2055,12 @@ function applyDish(get) {
     const v = get(k);
     o[k] = v !== null && v !== "" ? Number(v) : d;
   }
-  if (o.island > 0 && (get("size") ?? "") === "") o.size = 320;
+  if (o.island > 0) {
+    const unset = (k) => (get(k) ?? "") === "";
+    if (unset("size")) o.size = 320;
+    if (unset("ripen")) o.ripen = 250;
+    if (unset("ripemax")) o.ripemax = 8;
+  }
   CONFIG.plate = o.size;
   CONFIG.plateBands = o.bands;
   CONFIG.plateFood = o.food;

@@ -281,7 +281,12 @@ function renderIsland() {
       if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix(c, [0, 0, 0], 0.45); // the eye
       put(i, c);
     } else if (o === DEBRIS) put(i, mix([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]], [150, 140, 130], 0.3)); // marine snow, faint
-    else if (world.resource[i] === 1) put(i, mix([30, 150, 70], [90, 230, 110], Math.min(1, (world.ripe[i] - 1) / 4)));
+    else if (world.resource[i] === 1) {
+      // Kelp: dark green when fresh, ripening to gold; a ripe one grows a frond above it.
+      const r = Math.min(1, (world.ripe[i] - 1) / Math.max(1, CONFIG.foodRipeMax - 1));
+      put(i, r < 0.5 ? mix([25, 120, 55], [80, 210, 90], r * 2) : mix([80, 210, 90], [250, 210, 60], (r - 0.5) * 2));
+      if (r > 0.6 && i >= w && world.owner[i - w] === -1 && !world.resource[i - w] && world.isFloor((i - w) % w, ((i - w) / w) | 0)) put(i - w, mix([d[(i - w) * 4], d[(i - w) * 4 + 1], d[(i - w) * 4 + 2]], [200, 190, 70], 0.5));
+    }
     else if (world.resource[i] === 2) put(i, [240, 210, 70]);
   }
   pctx.putImageData(img, 0, 0);

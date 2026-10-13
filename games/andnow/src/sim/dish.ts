@@ -25,13 +25,13 @@ export const DISH_DEFAULTS: Record<string, number> = {
   starve: 600,    // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6000, // island: the same for a shark (10×, like its lifespan)
   sharklife: 10,  // island: shark lifespan, times a seal's
-  kelp: 15,       // island: max size a seal gains per kelp (times ripeness)
+  kelp: 8,        // island: max size a seal gains per kelp (times ripeness)
   seafeed: 3,     // island: max size a sea creature gains per dead cell (and per cell of a seal it kills)
   bite: 2,        // island: a shark's BOMB reach
   full: 0.75,     // island: a shark at this share of its size cap is full and won't bite
   shallows: 0.4,  // island: top share of the water sharks can't enter
   calm: 0.5,      // island: top share of the water with no pressure
-  arrive: 20000,  // island: tick the reef channel opens and the sharks swim in
+  arrive: 60000,  // island: tick the reef channel opens and the sharks swim in
   seals: 60,      // island: seals already spread through the calm water at the start
 };
 
@@ -39,7 +39,14 @@ export const DISH_DEFAULTS: Record<string, number> = {
 export function applyDish(get: (k: string) => string | null): Record<string, number> {
   const o: Record<string, number> = {};
   for (const [k, d] of Object.entries(DISH_DEFAULTS)) { const v = get(k); o[k] = v !== null && v !== '' ? Number(v) : d; }
-  if (o.island > 0 && (get('size') ?? '') === '') o.size = 320; // island survival is a big sea unless told otherwise
+  // Island survival's own defaults where not told otherwise: a big sea, and kelp that goes
+  // from a snack (8) to a feast (8× ripe) if left alone ~1750 ticks.
+  if (o.island > 0) {
+    const unset = (k: string) => (get(k) ?? '') === '';
+    if (unset('size')) o.size = 320;
+    if (unset('ripen')) o.ripen = 250;
+    if (unset('ripemax')) o.ripemax = 8;
+  }
   CONFIG.plate = o.size;
   CONFIG.plateBands = o.bands;
   CONFIG.plateFood = o.food;
