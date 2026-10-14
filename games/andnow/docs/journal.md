@@ -1705,3 +1705,14 @@ The exception is seed 7: without sharks it never armored, but with sharks, 1-arm
 - **Hunters die out either way** (54 → 2 with crowding, 100 → 50 without). That's still to dig into.
 - **Viewer:** zoom out to 0.05 px per cell (scenery sampled per pixel, bodies drawn as dots); minimap sections sized by the square root of step height.
 - **Overnight (`safari/climb1.json`):** 4 seeds each at 700k, 400k and 200k ticks, defaults, all 8 cores plus the farm, longest first. The snapshots now carry Climb data: by step, armor and insulation counts, diets, founders, top genomes, the biggest body (kraken watch), chemistry glyph carriers, active tiles.
+
+## 2026-10-14 — climb1 overnight results (7 of 12 dishes)
+
+The overnight batch ran 8 local threads without nice at first (reniced to 19 mid-run). Its RAM grew to 29 GB and the process died with `ERR_WORKER_OUT_OF_MEMORY` after 7 dishes: all four c200k, plus c400k seeds 1, 3 and 4. c400k s2 and every c700k dish were lost. The memory growth has to be found before the next long run; suspects are uncapped populations (9,490 alive in c400k s4) and tiles that are never freed.
+
+Findings:
+- **Both frontiers broke, and the chemistry did it.**
+  - **Seeds 3 and 4 went deep, to step −2** (795 and 5,798 bodies at 400k), through the armor doubler. The winning genome in seed 4 is `CxKDTM`: the diver moved its armor cell onto the run path with an `x` beside it, and doubled armor gets it down to −2. x appears 4,728 times in that dish.
+  - **Seed 2 went high, to step +2** (1,061 bodies by 200k; it broke out between 170k and 190k). It used `CyI-TMD/  I` (one insulation on the path and one off it) and `C*I-TMD/  x` (insulation doubled by an x stored off the path). Flips (`~`) show up 428 times.
+- **Hunters died out in every dish.** Meat eaters are ≤77 bodies, all mutants. No krakens: the largest body is 154 cells.
+- In seeds 1 and 3 nothing has passed ±1 by 200–400k. The ±1 populations sit at about 1,000–2,000 each.
