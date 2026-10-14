@@ -27,6 +27,7 @@ const INSUL = CODE['I'], FLIP = CODE['~'], DOUBLE = CODE['x'], MASK = CODE['n'],
 /** The Climb: what a body's chemistry adds up to (see World.traitsOf). */
 export interface Traits { armor: number; insulation: number; mass: number; move: number; bite: number; plants: boolean; meat: boolean; pace: number }
 export const DEBRIS = -2;
+const SCAN_KEYS = new Float64Array(64 * 64); // (ringScan's scratch: its window is at most 61×61)
 
 export const CONFIG = {
   sight: 14,            // LoS range from each cell (Chebyshev)
@@ -1072,27 +1073,33 @@ export class World {
     const r = CONFIG.sight, maxD = 2 * (r + 16);
     const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
     const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
-    const ring: number[] = [];
-    for (let d = 0; d <= maxD; d++) {
-      ring.length = 0;
-      for (let dy = -d; dy <= d; dy++) {
-        const y = fy + dy;
-        if (y < y0 || y > y1) continue;
-        const ax = d - Math.abs(dy);
-        for (const x of ax ? [fx - ax, fx + ax] : [fx]) {
-          if (x < x0 || x > x1) continue;
-          const t = this.classify(x, y, wr.id);
-          if (t === T_WALL || t === T_NOTHING) continue;
-          if (t === T_ENEMY && this.warriors[this.owner[y * this.w + x]].lineage === wr.lineage) continue; // (your own kind isn't prey)
-          if (type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type) ring.push(y * this.w + x);
-        }
+    // One sweep of the window collects the matches, keyed (distance, board index), and they're
+    // tried nearest first: the same order as searching ring by ring, at a fraction of the cost.
+    // (classify, inlined: this is the hottest loop in a climb. The window is inside the board.)
+    const W = this.w, terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
+    const keys = SCAN_KEYS;
+    let n = 0;
+    for (let y = y0; y <= y1; y++) {
+      const ady = y < fy ? fy - y : y - fy;
+      if (ady > maxD) continue;
+      const row = y * W;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x, o = owner[i], res = resource[i];
+        if (o === NONE && res === 0) continue;
+        if (terrain[i] !== FLOOR) continue;
+        const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
+        if (t === T_NOTHING) continue;
+        if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
+        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue; // (your own kind isn't prey)
+        const d = ady + (x < fx ? fx - x : x - fx);
+        if (d > maxD) continue;
+        keys[n++] = d * 16777216 + i;
       }
-      if (!ring.length) continue;
-      ring.sort((a, b) => a - b);
-      for (const i of ring) {
-        const x = i % this.w, y = (i / this.w) | 0;
-        if (this.seer(wr.id, x, y, r, mine) >= 0) { this.push(wr, x - fx); this.push(wr, y - fy); this.push(wr, 1); return; }
-      }
+    }
+    const found = keys.subarray(0, n).sort();
+    for (let k = 0; k < n; k++) {
+      const i = found[k] % 16777216, x = i % W, y = (i / W) | 0;
+      if (this.seer(wr.id, x, y, r, mine) >= 0) { this.push(wr, x - fx); this.push(wr, y - fy); this.push(wr, 1); return; }
     }
     this.push(wr, 0); this.push(wr, 0); this.push(wr, 0);
   }

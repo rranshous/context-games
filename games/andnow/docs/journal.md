@@ -1716,3 +1716,18 @@ Findings:
   - **Seed 2 went high, to step +2** (1,061 bodies by 200k; it broke out between 170k and 190k). It used `CyI-TMD/  I` (one insulation on the path and one off it) and `C*I-TMD/  x` (insulation doubled by an x stored off the path). Flips (`~`) show up 428 times.
 - **Hunters died out in every dish.** Meat eaters are ≤77 bodies, all mutants. No krakens: the largest body is 154 cells.
 - In seeds 1 and 3 nothing has passed ±1 by 200–400k. The ±1 populations sit at about 1,000–2,000 each.
+
+## 2026-10-14: memory, bakes, a viewer that jumps
+
+- **The overnight OOM came from keeping every dead body.** That's about 2.5 KB each, and a long climb dish has over a million births. Dishes (`CONFIG.endless`) now point each dead id at one shared record per lineage, and keep deaths as a tally (`world.deaths`). Snapshots are identical and the golden replays still match. The viewer no longer walks the whole graveyard every frame either.
+- **Bakes: `dist/bake.mjs "<query>" <ticks> --out runs/bake/<name> [--resume]`** saves the whole world every 1,000 ticks.
+  - The format (`src/sim/save.ts`) is a JSON object table, so shared objects stay shared, followed by the raw typed arrays. Gzipped it's about 0.7–1 MB.
+  - Restoring is exact: the state hash after save, load and 1,500 more ticks matches a run that never stopped.
+  - A V8 gotcha: building restored objects key by key with computed keys gave slow dictionary objects, and the restored world ticked 3× slower (it even slowed a fresh world on the same page). Patching JSON.parse's own objects in place fixed it.
+- **The viewer can jump.**
+  - With `?bake=runs/bake/<name>`, a timeline under the board shows alive (grey) and the biggest body (red) per checkpoint. Tap or drag it to jump.
+  - A go-to-tick box loads the nearest checkpoint and fast-forwards from there.
+  - `?t=` no longer freezes the page.
+  - Climb: "biggest now: follow it" (key B) and "biggest in this run: go see it". The camera follows and outlines the body.
+- **The climb scan is about 2.5× faster.** One linear sweep of the window, keyed (distance, index), gives the same order as the ring-by-ring search. Results are identical.
+- Baking now: climb seed 2 to 220k (the 154-cell tower appears around 200k) and seed 4 to 400k (the `CxKDTM` deep colony).
