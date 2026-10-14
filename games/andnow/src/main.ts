@@ -337,10 +337,10 @@ function renderSide() {
   tickEl.textContent = `tick ${world.t} · ${tps < 10 ? tps.toFixed(1) : Math.round(tps)} ticks/s`;
   cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : '';
-    const kin = world.warriors.filter((k) => k.lineage === wr.id && k.gen > 0);
-    const kinLine = kin.length
-      ? `<div class="stats">lineage: ${kin.filter((k) => k.alive).length} of ${kin.length} descendants alive, up to generation ${Math.max(...kin.map((k) => k.gen))}</div>` : '';
-    return `<div class="card ${wr.alive || kin.some((k) => k.alive) ? '' : 'dead'}" style="border-left-color:${color(wr.id, 55)}">
+    const kin = world.living().filter((k) => k.lineage === wr.id && k.gen > 0), born = world.bornCount(wr.id);
+    const kinLine = born
+      ? `<div class="stats">lineage: ${kin.length} of ${born} descendants alive${kin.length ? `, up to generation ${Math.max(...kin.map((k) => k.gen))}` : ''}</div>` : '';
+    return `<div class="card ${wr.alive || kin.length ? '' : 'dead'}" style="border-left-color:${color(wr.id, 55)}">
       <div class="name">${LETTERS[wr.id]} · ${esc(wr.name)}</div>${kinLine}
       <div class="stats">${wr.alive
         ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} · speed ${wr.speed.toFixed(2)} · ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} · last action ${wr.lastAct ? `${wr.lastAct} ` : ''}${wr.lastOk ? 'ok' : 'failed'}`
@@ -391,7 +391,7 @@ function renderDish() {
     counts.set(g, c);
   }
   const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf(w.id) || w.spec.source.split('---')[1]?.trim().split('\n').join(' / '));
-  const died = world.warriors.filter((w) => !w.alive).length;
+  const died = [...world.deaths.values()].reduce((a, n) => a + n, 0);
   const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   dishEl.innerHTML = `<div class="name">Petri dish</div>
     <div class="stats">${living.length} alive · ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born · ${died} died · deepest generation ${Math.max(0, ...living.map((w) => w.gen))} · ${counts.size} genomes alive</div>
@@ -421,9 +421,9 @@ function renderIslandPanel() {
       ${top.map(([g, n]) => `<div class="genome"><span class="stats">${String(n).padStart(3)} ×</span> <code>${esc(g)}</code></div>`).join('')}`;
   };
   const deaths = new Map<string, number>();
-  for (const w of world.warriors) if (!w.alive && w.deathReason) {
-    const k = `${w.realm ? 'shark' : 'seal'} ${w.deathReason.replace(/ by .*/, '').replace(/ \(.*/, '').replace('core ', '')}`;
-    deaths.set(k, (deaths.get(k) ?? 0) + 1);
+  for (const [rk, n] of world.deaths) {
+    const [realm, why] = rk.split('|');
+    deaths.set(`${realm === '1' ? 'shark' : 'seal'} ${why.replace('core ', '')}`, n);
   }
   dishEl.innerHTML = `<div class="name">Island survival</div>
     <div class="stats">${world.warriors.length} ever lived</div>

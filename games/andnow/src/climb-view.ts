@@ -328,10 +328,7 @@ export class ClimbView {
     }).join('');
     const hist = (m: Map<number, number>) => [...m.entries()].sort((a, c) => a[0] - c[0]).map(([k, n]) => `${k}: ${n}`).join(' · ');
     const deaths = new Map<string, number>();
-    for (const w of world.warriors) if (!w.alive && w.deathReason) {
-      const k = w.deathReason.replace(/ by .*/, '').replace(/ \(.*/, '').replace('core ', '');
-      deaths.set(k, (deaths.get(k) ?? 0) + 1);
-    }
+    for (const [rk, n] of world.deaths) { const k = rk.slice(rk.indexOf('|') + 1).replace('core ', ''); deaths.set(k, (deaths.get(k) ?? 0) + n); }
     const tiles = world.tileStats();
     const top = [...counts.entries()].sort((a, c) => c[1].n - a[1].n).slice(0, 6);
     const css = (c: number[]) => `rgb(${c.join(',')})`;

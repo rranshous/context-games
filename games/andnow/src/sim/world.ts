@@ -440,8 +440,32 @@ export class World {
     this.setOwner(i, DEBRIS);
   }
 
+  /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
+  deaths = new Map<string, number>();
+  private tombstones = new Map<number, Warrior>();
+
+  /** Descendants a founder has had (alive or dead). */
+  bornCount(lineage: number) { return (this.bornIn.get(lineage) ?? 1) - 1; }
+
   private kill(wr: Warrior, reason: string) {
     if (!wr.alive) return;
+    this.die(wr, reason);
+    const k = `${wr.realm}|${reason.replace(/ by .*/, '').replace(/ \(.*/, '')}`;
+    this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
+    // A petri dish runs for hundreds of thousands of births: keeping every dead body
+    // ran a long dish out of memory. The dead (founders aside) share one record per
+    // lineage, which is all anything needs of them (lineage, realm, not alive).
+    if (CONFIG.endless && wr.gen > 0) {
+      let tomb = this.tombstones.get(wr.lineage);
+      if (!tomb) {
+        tomb = { ...wr, name: `${this.warriors[wr.lineage].name} (dead)`, deathReason: 'dead', stack: [], roomsSeen: new Set(), traits: undefined, lastHarm: undefined, cellCount: 0 };
+        this.tombstones.set(wr.lineage, tomb);
+      }
+      this.warriors[wr.id] = tomb;
+    }
+  }
+
+  private die(wr: Warrior, reason: string) {
     wr.alive = false;
     this.livingDirty = true;
     wr.deathReason = reason;

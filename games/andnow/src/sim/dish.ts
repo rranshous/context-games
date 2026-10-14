@@ -210,11 +210,7 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
   }
   for (let a = 0; a < armor.length; a++) armor[a] ??= 0;
   const deaths: Record<string, number> = {};
-  for (const w of world.warriors) {
-    if (w.alive || !w.deathReason) continue;
-    const k = w.deathReason.replace(/ by .*/, '').replace(/ \(.*/, '');
-    deaths[k] = (deaths[k] ?? 0) + 1;
-  }
+  for (const [rk, n] of world.deaths) { const k = rk.slice(rk.indexOf('|') + 1); deaths[k] = (deaths[k] ?? 0) + n; }
   return {
     t: world.t, alive: living.length, births: world.warriors.length - founders,
     maxGen: Math.max(0, ...living.map((w) => w.gen)), bands, armor, deaths, weapons,
