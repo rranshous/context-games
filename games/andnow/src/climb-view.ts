@@ -29,6 +29,8 @@ export class ClimbView {
   private pix = document.createElement('canvas');
   private pctx = this.pix.getContext('2d')!;
   private drag: { x: number; y: number; cx: number; cy: number } | null = null;
+  /** A body the camera follows and outlines (dragging the view lets go of it). */
+  follow: number | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private mini: HTMLCanvasElement, private world: () => World, private redraw: () => void, cam?: Camera) {
     const w = world();
@@ -59,6 +61,7 @@ export class ClimbView {
         this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
         this.cam.x = pinch.wx - mx / this.cam.zoom; this.cam.y = pinch.wy - my / this.cam.zoom;
       } else if (this.drag) {
+        this.follow = null;
         this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
         this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
       } else return;
@@ -103,6 +106,42 @@ export class ClimbView {
   /** Viewport size in cells. */
   get viewW() { return this.canvas.width / this.cam.zoom; }
   get viewH() { return this.canvas.height / this.cam.zoom; }
+
+  /** Follow a body: zoom so it fits comfortably, centre on it, outline it. */
+  focus(id: number) {
+    const world = this.world(), cells = world.cellsOf(id);
+    if (!cells.length) return;
+    const xs = cells.map((c) => c % world.w), ys = cells.map((c) => (c / world.w) | 0);
+    const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
+    this.cam.zoom = Math.max(1, Math.min(8, Math.min(this.canvas.width / (bw + 30), this.canvas.height / (bh + 30))));
+    this.follow = id;
+    this.redraw();
+  }
+
+  /** Keep a followed body in view; let go once it's dead. */
+  private track() {
+    if (this.follow === null) return;
+    const wr = this.world().warriors[this.follow];
+    if (!wr?.alive) { this.follow = null; return; }
+    this.centerOn(wr.ipX, wr.ipY);
+  }
+
+  /** The followed body's outline. */
+  private renderMark() {
+    if (this.follow === null) return;
+    const world = this.world(), cells = world.cellsOf(this.follow);
+    if (!cells.length) return;
+    const xs = cells.map((c) => c % world.w), ys = cells.map((c) => (c / world.w) | 0), z = this.cam.zoom;
+    const x0 = (Math.min(...xs) - this.cam.x) * z, y0 = (Math.min(...ys) - this.cam.y) * z;
+    const x1 = (Math.max(...xs) + 1 - this.cam.x) * z, y1 = (Math.max(...ys) + 1 - this.cam.y) * z;
+    const ctx = this.canvas.getContext('2d')!, pad = 4;
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad);
+    ctx.restore();
+  }
 
   centerOn(x: number, y: number) { this.cam.x = x - this.viewW / 2; this.cam.y = y - this.viewH / 2; this.clamp(); }
 
@@ -189,7 +228,8 @@ export class ClimbView {
   }
 
   render() {
-    if (this.cam.zoom < 1) { this.renderFar(); this.renderLabels(); this.renderMini(); return; }
+    this.track();
+    if (this.cam.zoom < 1) { this.renderFar(); this.renderMark(); this.renderLabels(); this.renderMini(); return; }
     const world = this.world(), b = world.board, st = b.step!;
     const vw = Math.ceil(this.viewW) + 1, vh = Math.ceil(this.viewH) + 1, x0 = Math.floor(this.cam.x), y0 = Math.floor(this.cam.y);
     if (this.pix.width !== vw || this.pix.height !== vh) { this.pix.width = vw; this.pix.height = vh; }
@@ -233,6 +273,7 @@ export class ClimbView {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const z = this.cam.zoom;
     ctx.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
+    this.renderMark();
     this.renderLabels();
     this.renderMini();
   }

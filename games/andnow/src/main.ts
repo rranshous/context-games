@@ -5,6 +5,7 @@ import { summarize } from './sim/match';
 import { parseWarrior, WarriorSpec } from './sim/warrior-file';
 import { applyDish, armorOf, bandOf } from './sim/dish';
 import { CONFIG, DEBRIS, World } from './sim/world';
+import { loadWorld } from './sim/save';
 import { BUNDLED } from './warriors';
 import { ClimbView } from './climb-view';
 
@@ -100,6 +101,7 @@ function newMatch(sources?: string[], seed?: number) {
     mini.style.display = 'block';
     mini.style.right = `-${miniW + 8}px`;
     $('stage').style.marginRight = `${miniW + 10}px`;
+    sizeTimeline();
     if (!climbView) {
       const cam = (params.get('cam') ?? '').split(',').map(Number);
       climbView = new ClimbView(canvas, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : undefined);
@@ -111,6 +113,7 @@ function newMatch(sources?: string[], seed?: number) {
   islandBg = null;
   canvas.width = world.w * CELL;
   canvas.height = world.h * CELL;
+  sizeTimeline();
   render();
 }
 
@@ -120,7 +123,7 @@ $('island').onclick = () => { location.search = '?island=1'; };
 $('climb').onclick = () => { location.search = '?climb=1'; };
 $('petri').onclick = () => { location.search = PETRI ? '' : '?petri=1&w=amoeba'; };
 dishEl.style.display = PETRI ? 'block' : 'none';
-playBtn.onclick = () => setPlaying(!playing);
+playBtn.onclick = () => { seekTo = null; setPlaying(!playing); };
 
 // Share: a link that rebuilds this exact match (same warriors, seed and settings; the sim is
 // deterministic) and jumps to the current tick, plus a one-line status for context.
@@ -173,6 +176,23 @@ let lastRender = 0;
 function frame(now: number) {
   const dt = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
+  if (seekTo !== null) {
+    // Seeking: sim flat out toward the target, redrawing a few times a second.
+    const until = performance.now() + 60;
+    while (world.t < seekTo && !world.result.over && performance.now() < until) world.tick();
+    if (world.t >= seekTo || world.result.over) {
+      seekTo = null;
+      rateTick = Infinity;
+      render();
+      const then = afterSeek;
+      afterSeek = null;
+      then?.();
+    } else if (now - lastRender > 300) {
+      render();
+      lastRender = now;
+      tickEl.textContent = `seeking: tick ${world.t} of ${seekTo}…`;
+    }
+  }
   if (playing && !world.result.over) {
     const speed = SPEEDS[Number(speedEl.value)];
     if (speed === Infinity) {
@@ -206,7 +226,8 @@ const ARMOR_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#d
 let climbView: ClimbView | null = null;
 
 function render() {
-  if (CLIMB && climbView) { climbView.render(); renderSide(); return; }
+  renderTimeline();
+  if (CLIMB && climbView) { climbView.render(); renderSide(); renderFinder(); return; }
   if (ISLAND) { renderIsland(); renderSide(); return; }
   const { w, h } = world;
   const glyphs = showGlyphsEl.checked && CELL >= 9;
@@ -463,6 +484,176 @@ canvas.onmousemove = (ev) => {
 };
 canvas.onmouseleave = () => { tip.style.display = 'none'; };
 
+// ---------- jumping to a tick ----------
+// Any mode can seek forward by simulating flat out. With a bake (?bake=runs/bake/<name>,
+// written by dist/bake.mjs) it loads the nearest saved checkpoint first, so tick 150,000
+// is a download away, and the timeline under the board shows the whole run to tap through.
+
+interface Mark { t: number; file: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
+interface Bake { query: string; every: number; ticks: number; marks: Mark[] }
+const BAKE = params.get('bake');
+let bake: Bake | null = null;
+let seekTo: number | null = null;
+let afterSeek: (() => void) | null = null;
+let scrub: number | null = null; // the tick under a finger dragging along the timeline
+const timeline = $<HTMLCanvasElement>('timeline');
+const gotoEl = $<HTMLInputElement>('goto');
+const finderEl = $('finder');
+
+/** Fetch the bake's index. Returns false when the page is reloading with the bake's settings. */
+async function loadBake(): Promise<boolean> {
+  if (!BAKE) return true;
+  bake = (await (await fetch(`${BAKE}/index.json`, { cache: 'no-store' })).json()) as Bake;
+  const want = new URLSearchParams(bake.query);
+  if ([...want].some(([k, v]) => params.get(k) !== v)) {
+    for (const [k, v] of params) if (!want.has(k)) want.set(k, v);
+    location.replace(`?${want.toString().replace(/%2C/g, ',').replace(/%2F/g, '/')}`);
+    return false;
+  }
+  // A bake still being written grows: pick up new checkpoints now and then.
+  const poll = setInterval(async () => {
+    try { bake = (await (await fetch(`${BAKE}/index.json`, { cache: 'no-store' })).json()) as Bake; } catch { /* keep the old one */ }
+    if (bake && bake.marks[bake.marks.length - 1].t >= bake.ticks) clearInterval(poll);
+    renderTimeline();
+  }, 30000);
+  timeline.style.display = 'block';
+  return true;
+}
+
+async function readMark(m: Mark): Promise<World> {
+  const buf = new Uint8Array(await (await fetch(`${BAKE}/${m.file}`)).arrayBuffer());
+  const gz = buf[0] === 0x1f && buf[1] === 0x8b; // (unless the server already unzipped it)
+  const raw = gz ? new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()) : buf;
+  return loadWorld(raw);
+}
+
+/** Jump to a tick (paused there), then run `then`. */
+async function seek(target: number, then?: () => void) {
+  setPlaying(false);
+  target = Math.max(0, Math.floor(target));
+  const follow = climbView?.follow ?? null;
+  if (bake) {
+    let m: Mark | undefined;
+    for (const k of bake.marks) if (k.t <= target) m = k;
+    if (m && (world.t > target || m.t > world.t)) {
+      seekTo = null;
+      tickEl.textContent = `loading tick ${m.t}…`;
+      world = await readMark(m);
+      CONFIG.tickCap = Number(params.get('ticks')) || Infinity;
+    }
+  } else if (world.t > target) newMatch();
+  if (climbView) climbView.follow = follow; // (same ids in the same run: keep following)
+  seekTo = target;
+  afterSeek = then ?? null;
+  rateTick = Infinity; // (a jump isn't a speed: restart the ticks/s reading)
+  render();
+}
+
+gotoEl.onkeydown = (e) => { if (e.key === 'Enter') $('go').click(); };
+$('go').onclick = () => { if (gotoEl.value !== '') void seek(Number(gotoEl.value)); };
+
+function sizeTimeline() {
+  timeline.width = canvas.width;
+  timeline.height = 52;
+}
+
+const kfmt = (t: number) => (t >= 1000 ? `${+(t / 1000).toFixed(t % 1000 ? 1 : 0)}k` : String(t));
+
+/** The run at a glance: alive (grey) and the biggest body (red) per checkpoint, and where we are. */
+function renderTimeline() {
+  if (!bake || timeline.style.display === 'none') return;
+  const g = timeline.getContext('2d')!, W = timeline.width, H = timeline.height, marks = bake.marks;
+  const T = Math.max(bake.ticks, world.t), X = (t: number) => (t / T) * (W - 1);
+  const maxAlive = Math.max(1, ...marks.map((m) => m.alive)), maxBig = Math.max(1, ...marks.map((m) => m.biggest?.cells ?? 0));
+  g.fillStyle = '#0d1117';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = '#161b22';
+  g.fillRect(0, 0, X(marks[marks.length - 1].t), H); // baked so far
+  const top = 14, h = H - top - 2;
+  g.beginPath();
+  g.moveTo(X(marks[0].t), H - 2);
+  for (const m of marks) g.lineTo(X(m.t), H - 2 - (m.alive / maxAlive) * h);
+  g.lineTo(X(marks[marks.length - 1].t), H - 2);
+  g.fillStyle = '#30363d';
+  g.fill();
+  g.beginPath();
+  marks.forEach((m, k) => { const y = H - 2 - ((m.biggest?.cells ?? 0) / maxBig) * h; if (k) g.lineTo(X(m.t), y); else g.moveTo(X(m.t), y); });
+  g.strokeStyle = '#ff6b8b';
+  g.lineWidth = 1.5;
+  g.stroke();
+  const line = (t: number, c: string) => { g.fillStyle = c; g.fillRect(Math.round(X(t)) - 1, 0, 2, H); };
+  if (seekTo !== null) line(seekTo, '#e3b341');
+  line(world.t, '#fff');
+  g.font = '11px ui-monospace, Menlo, monospace';
+  g.textBaseline = 'top';
+  g.fillStyle = '#8b949e';
+  g.fillText(`alive ≤${maxAlive}`, 4, 2);
+  g.fillStyle = '#ff6b8b';
+  g.fillText(`biggest ≤${maxBig}`, 4 + g.measureText(`alive ≤${maxAlive}  `).width, 2);
+  g.fillStyle = '#8b949e';
+  g.textAlign = 'right';
+  g.fillText(kfmt(T), W - 4, 2);
+  g.textAlign = 'left';
+  if (scrub !== null) {
+    line(scrub, '#58a6ff');
+    const label = `tick ${kfmt(scrub)}`, lw = g.measureText(label).width + 8, lx = Math.min(W - lw, Math.max(0, X(scrub) - lw / 2));
+    g.fillStyle = '#161b22';
+    g.fillRect(lx, top, lw, 15);
+    g.fillStyle = '#e6edf3';
+    g.fillText(label, lx + 4, top + 2);
+  }
+}
+
+{
+  const tickAt = (e: PointerEvent) => {
+    const r = timeline.getBoundingClientRect(), T = Math.max(bake?.ticks ?? 0, world.t);
+    const t = Math.round(((e.clientX - r.left) / r.width) * T);
+    const every = bake?.every ?? 1;
+    return Math.max(0, Math.min(T, Math.round(t / every) * every)); // snap to checkpoints: instant to load
+  };
+  timeline.addEventListener('pointerdown', (e) => { timeline.setPointerCapture(e.pointerId); scrub = tickAt(e); renderTimeline(); });
+  timeline.addEventListener('pointermove', (e) => { if (scrub !== null) { scrub = tickAt(e); renderTimeline(); } });
+  timeline.addEventListener('pointerup', () => { if (scrub !== null) { const t = scrub; scrub = null; void seek(t); } });
+  timeline.addEventListener('pointercancel', () => { scrub = null; renderTimeline(); });
+}
+
+/** Climb: find the biggest body, now or anywhere in the bake. */
+function renderFinder() {
+  finderEl.style.display = 'block';
+  let big: { id: number; cells: number } | null = null;
+  for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount };
+  let ever: Mark | null = null;
+  for (const m of bake?.marks ?? []) if (m.biggest && (!ever || m.biggest.cells > ever.biggest!.cells)) ever = m;
+  const following = climbView?.follow ?? null;
+  const html = [
+    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} · <a data-follow="${big.id}">${following === big.id ? 'following' : 'follow it'}</a> <span style="color:#6e7681">(key B)</span></div>` : '',
+    ever ? `<div>biggest in this run: ${ever.biggest!.cells} cells at tick ${ever.t} · <a data-ever="${ever.t}">go see it</a></div>` : '',
+    following !== null && following !== big?.id ? `<div>following ${esc(world.warriors[following]?.name ?? '')} · <a data-unfollow="1">stop</a></div>` : '',
+  ].join('');
+  if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
+}
+
+function followBiggest() {
+  let big: { id: number; cells: number } | null = null;
+  for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount };
+  if (big && climbView) climbView.focus(big.id);
+}
+
+finderEl.onclick = (e) => {
+  const a = (e.target as HTMLElement).closest('a');
+  if (!a || !climbView) return;
+  if (a.dataset.follow) climbView.focus(Number(a.dataset.follow));
+  else if (a.dataset.unfollow) { climbView.follow = null; render(); }
+  else if (a.dataset.ever) {
+    const m = bake!.marks.find((k) => k.t === Number(a.dataset.ever))!;
+    void seek(m.t, () => climbView!.focus(m.biggest!.id));
+  }
+};
+window.addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.key === 'b' || e.key === 'B') followBiggest();
+});
+
 // ---------- explorer hook ----------
 // Claude drives this through Playwright's evaluate: load matches, step, read state,
 // read the board as text, take a screenshot.
@@ -526,12 +717,13 @@ const explorer = {
 (window as unknown as { explorer: typeof explorer }).explorer = explorer;
 
 fillPickers();
-explorer.ready = loadEvolved().then(() => {
+explorer.ready = loadEvolved().then(async () => {
+  if (!(await loadBake())) return;
   fillPickers();
   newMatch();
-  // ?t=N (from a shared link): replay to tick N, paused there.
-  const t = Number(params.get('t')) || 0;
-  while (world.t < t && !world.result.over) world.tick();
   render();
   requestAnimationFrame(frame);
+  // ?t=N (from a shared link): jump to tick N, paused there.
+  const t = Number(params.get('t')) || 0;
+  if (t) await seek(t);
 });

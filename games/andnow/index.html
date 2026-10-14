@@ -48,6 +48,8 @@
     #tick { color: #6e7681; }
     .genome { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .genome code { color: #e6edf3; }
+    #finder a { color: #58a6ff; cursor: pointer; text-decoration: none; }
+    #finder div { margin: 2px 0; }
   </style>
 </head>
 <body>
@@ -56,6 +58,7 @@
     <div id="banner"></div>
     <div id="tip"></div>
     <canvas id="minimap" style="display:none;position:absolute;top:0;right:-122px;cursor:pointer"></canvas>
+    <canvas id="timeline" style="display:none;margin-top:6px;touch-action:none;cursor:pointer" title="tap or drag to jump to a tick"></canvas>
   </div>
   <div id="side">
     <h1>andnow <small>code-cloud warriors</small></h1>
@@ -75,6 +78,11 @@
       <span id="tick"></span>
     </div>
     <div class="row">
+      <input type="number" id="goto" placeholder="go to tick" min="0" style="width:110px">
+      <button id="go">Go</button>
+    </div>
+    <div id="finder" class="stats" style="display:none"></div>
+    <div class="row">
       <label><input type="checkbox" id="showIp" checked> show IPs</label>
       <label><input type="checkbox" id="showGlyphs" checked> glyphs</label>
     </div>
@@ -82,6 +90,6 @@
     <div id="cards"></div>
     <div id="log"></div>
   </div>
-  <script type="module" src="./dist/main.js?v=10"></script>
+  <script type="module" src="./dist/main.js?v=11"></script>
 </body>
 </html>
