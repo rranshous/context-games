@@ -6,9 +6,11 @@
 // Writes t<tick>.andnow.gz (the whole world, see src/sim/save.ts) every --every ticks, and
 // index.json listing them with a few facts each (who's alive, the biggest body and where).
 // --resume carries on from the last checkpoint in --out (same run: the sim is deterministic).
+// <ticks> can be "forever": it runs until the dish dies out, or the disk gets under 20 GB free.
+// index.json says done: true once it stops. serve.py lists every bake at /bakes.json.
 // Open it in the viewer with ?bake=runs/bake/<name>. Same seed and settings as a safari
 // dish replay the same run.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statfsSync, writeFileSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { applyDish, genomeOf } from './sim/dish';
 import { loadWorld, saveWorld } from './sim/save';
@@ -23,7 +25,7 @@ const resume = args.includes('--resume');
 if (resume) args.splice(args.indexOf('--resume'), 1);
 const [query, ticksArg] = args;
 const out = flag('--out', '') || args[2] || `runs/bake/${query?.replace(/[^a-z0-9=,]+/gi, '_')}`;
-const ticks = Number(ticksArg);
+const ticks = ticksArg === 'forever' ? Infinity : Number(ticksArg);
 if (!query || !ticks) {
   console.log('usage: node dist/bake.mjs "<viewer query>" <ticks> [--every 1000] [--out dir]');
   process.exit(1);
@@ -37,11 +39,12 @@ let world = new World(Number(params.get('seed')) || 1, names.map((n, i) => parse
 
 interface Mark { t: number; file: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
 mkdirSync(out, { recursive: true });
-let index = { query, every, ticks, marks: [] as Mark[] };
+// (ticks: null is forever: JSON has no Infinity)
+let index = { query, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] as Mark[] };
 if (resume && existsSync(`${out}/index.json`)) {
   const old = JSON.parse(readFileSync(`${out}/index.json`, 'utf8')) as typeof index;
   if (old.query !== query || old.every !== every) throw new Error(`${out} is a different bake (${old.query}, every ${old.every})`);
-  index = { ...old, ticks };
+  index = { ...old, ticks: index.ticks, done: false };
   world = loadWorld(gunzipSync(readFileSync(`${out}/${old.marks[old.marks.length - 1].file}`)));
   console.log(`resuming at tick ${world.t}`);
 } else if (existsSync(`${out}/index.json`)) console.log(`(overwriting ${out})`);
@@ -57,15 +60,20 @@ const save = () => {
   writeFileSync(`${out}/index.json`, JSON.stringify(index));
 };
 
+const diskLow = () => { const f = statfsSync(out); return f.bavail * f.bsize < 20e9; };
 const t0 = Date.now(), tStart = world.t;
 if (!resume || !index.marks.length) save();
+let stop = '';
 while (world.t < ticks && world.living().length && !world.result.over) {
   world.tick();
   if (world.t % every === 0) {
+    if (diskLow()) { stop = 'disk under 20 GB free'; break; }
     save();
     const m = index.marks[index.marks.length - 1];
     if (world.t % (every * 10) === 0) console.log(`t${world.t} alive ${m.alive} biggest ${m.biggest?.cells ?? 0} · ${((Date.now() - t0) / (world.t - tStart)).toFixed(1)} ms/tick · ${m.kb} KB`);
   }
 }
-if (world.t % every !== 0) save();
-console.log(`done: ${index.marks.length} checkpoints in ${out}`);
+index.done = true;
+if (!stop && world.t % every !== 0) save();
+else writeFileSync(`${out}/index.json`, JSON.stringify(index));
+console.log(`done${stop ? ` (${stop})` : world.living().length ? '' : ' (died out)'}: ${index.marks.length} checkpoints in ${out}`);

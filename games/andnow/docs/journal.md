@@ -1731,3 +1731,16 @@ Findings:
   - Climb: "biggest now: follow it" (key B) and "biggest in this run: go see it". The camera follows and outlines the body.
 - **The climb scan is about 2.5× faster.** One linear sweep of the window, keyed (distance, index), gives the same order as the ring-by-ring search. Results are identical.
 - Baking now: climb seed 2 to 220k (the 154-cell tower appears around 200k) and seed 4 to 400k (the `CxKDTM` deep colony).
+
+## 2026-10-14: runs that never stop, and a list to hop between them
+
+- **Bakes can run forever.** `dist/bake.mjs "<query>" forever` keeps going until the dish dies out, or until the disk drops under 20 GB free. When it stops, `index.json` says `done: true`. Checkpoints cost about 3 MB per 1,000 ticks at 150k, so roughly 3–4 GB per million ticks per run; there's 257 GB free.
+- **The viewer has a runs list.** `serve.py` now answers `/bakes.json`: every bake in `runs/bake`, with its tick, alive count, biggest now, biggest ever, and live/done/stopped. The viewer lists them under the finder; click one to hop to it. The timeline now spans what's been baked so far, not the target, since a forever run has no end to scale to.
+- **Four runs going, all at nice 19:**
+  - **Seeds 2 and 4** finish their targets (220k, 400k), then carry on forever via `--resume`.
+  - **Seeds 7 and 13** are new.
+- **Two start-up bugs in the climb, found by trying seed 7:**
+  - **The diver founder was placed on top of the climber founder.** Both are centred in the shared step-0 start, so in every climb dish founder 0 was a ghost: it counted 10 cells and owned none. (Its 40 settled copies were fine.)
+  - **On seeds 6, 7 and 10, the hunter's centred spot in step −1 hit rock**, and the dish wouldn't start.
+  - Fix: a founder goes centred if it fits there, else to the nearest free spot. Every other mode's founders already fit centred, so they're unchanged (golden replays). New climb dishes differ from old ones from tick 0. The existing bakes don't change, since they resume from checkpoints.
+- **Follow centres on the body's middle**, not its IP. The IP runs all over a big body, so the view kept jumping. The camera also eases toward the body (a quarter-second time constant) instead of snapping each frame.

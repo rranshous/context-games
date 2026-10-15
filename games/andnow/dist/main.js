@@ -74,13 +74,17 @@ var GLYPH_DOCS = {
 // src/sim/rng.ts
 function makeRng(seed) {
   let a = seed >>> 0;
-  return () => {
+  const rng = () => {
     a = a + 1831565813 >>> 0;
     let t = a;
     t = Math.imul(t ^ t >>> 15, t | 1);
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
+  Object.defineProperty(rng, "state", { get: () => a, set: (v) => {
+    a = v >>> 0;
+  } });
+  return rng;
 }
 function randInt(rng, lo, hi) {
   return lo + Math.floor(rng() * (hi - lo + 1));
@@ -512,6 +516,7 @@ var MOVE = CODE["M"];
 var BITE = CODE["B"];
 var COLLECT = CODE["C"];
 var DEBRIS = -2;
+var SCAN_KEYS = new Float64Array(64 * 64);
 var CONFIG = {
   sight: 14,
   // LoS range from each cell (Chebyshev)
@@ -771,8 +776,19 @@ var World = class {
     const room = CONFIG.climb ? this.board.starts[spec.realm === "deep" ? 1 : 0] : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
     const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
-    const ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
-    const oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
+    let ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
+    let oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
+    if (!at) {
+      const fits = (x, y) => spec.cells.every((c) => this.isFree(x + c.x, y + c.y));
+      const near = (n) => Array.from({ length: n + 1 }, (_, k) => (k % 2 ? 1 : -1) * Math.ceil(k / 2));
+      search: for (const dy of near(room.h)) for (const dx of near(room.w)) {
+        if (fits(ox + dx, oy + dy)) {
+          ox += dx;
+          oy += dy;
+          break search;
+        }
+      }
+    }
     const wr = {
       id,
       lineage: id,
@@ -951,8 +967,28 @@ var World = class {
     }
     this.setOwner(i, DEBRIS);
   }
+  /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
+  deaths = /* @__PURE__ */ new Map();
+  tombstones = /* @__PURE__ */ new Map();
+  /** Descendants a founder has had (alive or dead). */
+  bornCount(lineage) {
+    return (this.bornIn.get(lineage) ?? 1) - 1;
+  }
   kill(wr, reason) {
     if (!wr.alive) return;
+    this.die(wr, reason);
+    const k = `${wr.realm}|${reason.replace(/ by .*/, "").replace(/ \(.*/, "")}`;
+    this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
+    if (CONFIG.endless && wr.gen > 0) {
+      let tomb = this.tombstones.get(wr.lineage);
+      if (!tomb) {
+        tomb = { ...wr, name: `${this.warriors[wr.lineage].name} (dead)`, deathReason: "dead", stack: [], roomsSeen: /* @__PURE__ */ new Set(), traits: void 0, lastHarm: void 0, cellCount: 0 };
+        this.tombstones.set(wr.lineage, tomb);
+      }
+      this.warriors[wr.id] = tomb;
+    }
+  }
+  die(wr, reason) {
     wr.alive = false;
     this.livingDirty = true;
     wr.deathReason = reason;
@@ -1667,31 +1703,34 @@ var World = class {
     const r = CONFIG.sight, maxD = 2 * (r + 16);
     const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
     const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
-    const ring = [];
-    for (let d = 0; d <= maxD; d++) {
-      ring.length = 0;
-      for (let dy = -d; dy <= d; dy++) {
-        const y = fy + dy;
-        if (y < y0 || y > y1) continue;
-        const ax = d - Math.abs(dy);
-        for (const x of ax ? [fx - ax, fx + ax] : [fx]) {
-          if (x < x0 || x > x1) continue;
-          const t = this.classify(x, y, wr.id);
-          if (t === T_WALL || t === T_NOTHING) continue;
-          if (t === T_ENEMY && this.warriors[this.owner[y * this.w + x]].lineage === wr.lineage) continue;
-          if (type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type) ring.push(y * this.w + x);
-        }
+    const W = this.w, terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
+    const keys = SCAN_KEYS;
+    let n = 0;
+    for (let y = y0; y <= y1; y++) {
+      const ady = y < fy ? fy - y : y - fy;
+      if (ady > maxD) continue;
+      const row = y * W;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x, o = owner[i], res = resource[i];
+        if (o === NONE && res === 0) continue;
+        if (terrain[i] !== FLOOR) continue;
+        const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
+        if (t === T_NOTHING) continue;
+        if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
+        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
+        const d = ady + (x < fx ? fx - x : x - fx);
+        if (d > maxD) continue;
+        keys[n++] = d * 16777216 + i;
       }
-      if (!ring.length) continue;
-      ring.sort((a, b) => a - b);
-      for (const i of ring) {
-        const x = i % this.w, y = i / this.w | 0;
-        if (this.seer(wr.id, x, y, r, mine) >= 0) {
-          this.push(wr, x - fx);
-          this.push(wr, y - fy);
-          this.push(wr, 1);
-          return;
-        }
+    }
+    const found = keys.subarray(0, n).sort();
+    for (let k = 0; k < n; k++) {
+      const i = found[k] % 16777216, x = i % W, y = i / W | 0;
+      if (this.seer(wr.id, x, y, r, mine) >= 0) {
+        this.push(wr, x - fx);
+        this.push(wr, y - fy);
+        this.push(wr, 1);
+        return;
       }
     }
     this.push(wr, 0);
@@ -2342,6 +2381,60 @@ function genomeOf(world2, id, sep = "/") {
 }
 var WEAPON = { B: CODE["B"], W: CODE["W"], poison: CODE["@"] };
 
+// src/sim/save.ts
+var TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array };
+function readHeader(bytes) {
+  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
+  return JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + n)));
+}
+function loadWorld(bytes) {
+  const header = readHeader(bytes);
+  if (header.version !== 1) throw new Error(`unknown save version ${header.version}`);
+  const n = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
+  const start = Math.ceil((4 + n) / 8) * 8;
+  const table = header.table;
+  const rootId = header.root.$r;
+  const objs = table.map((e) => {
+    if ("$o" in e) return e.$o;
+    if ("$ta" in e) {
+      const C = TYPED[e.$ta];
+      const at = bytes.byteOffset + start + e.off;
+      return new C(bytes.buffer.slice(at, at + e.len * C.BYTES_PER_ELEMENT));
+    }
+    if ("$a" in e) return [];
+    if ("$m" in e) return /* @__PURE__ */ new Map();
+    if ("$s" in e) return /* @__PURE__ */ new Set();
+    throw new Error("bad save entry");
+  });
+  const dec = (v) => {
+    if (v === null || typeof v !== "object") return v;
+    const o = v;
+    if ("$r" in o) return objs[o.$r];
+    if ("$u" in o) return void 0;
+    if ("$n" in o) return Number(o.$n);
+    throw new Error("bad save entry");
+  };
+  table.forEach((e, i) => {
+    const o = objs[i];
+    if ("$a" in e) for (const x of e.$a) o.push(dec(x));
+    else if ("$m" in e) for (const [k, x] of e.$m) o.set(dec(k), dec(x));
+    else if ("$s" in e) for (const x of e.$s) o.add(dec(x));
+    else if ("$o" in e) {
+      const r = o;
+      for (const k in r) r[k] = dec(r[k]);
+    }
+  });
+  Object.assign(CONFIG, dec(header.config));
+  const world2 = Object.setPrototypeOf(objs[rootId], World.prototype);
+  world2.rng = restoreRng(header.rng);
+  return world2;
+}
+function restoreRng(state) {
+  const r = makeRng(0);
+  r.state = state;
+  return r;
+}
+
 // warriors/amoeba.warrior
 var amoeba_default = "name: Amoeba\n# The petri dish founder: a Gatherer (collect, head for the nearest resource) that DIVIDEs\n# every loop (D pops an empty stack = east): copies itself beside itself as a new\n# warrior. Its descendants are rivals like anyone else. The two fat cells under it are\n# spare: copy errors can turn them into armor (K) without breaking the program.\n---\nC6S$TMD\n..\n";
 
@@ -2428,6 +2521,7 @@ var ClimbView = class {
         this.cam.x = pinch.wx - mx / this.cam.zoom;
         this.cam.y = pinch.wy - my / this.cam.zoom;
       } else if (this.drag) {
+        this.follow = null;
         this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
         this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
       } else return;
@@ -2478,12 +2572,71 @@ var ClimbView = class {
   pix = document.createElement("canvas");
   pctx = this.pix.getContext("2d");
   drag = null;
+  /** A body the camera follows and outlines (dragging the view lets go of it). */
+  follow = null;
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
   }
   get viewH() {
     return this.canvas.height / this.cam.zoom;
+  }
+  /** Follow a body: zoom so it fits comfortably, centre on it, outline it. */
+  focus(id) {
+    const world2 = this.world(), cells = world2.cellsOf(id);
+    if (!cells.length) return;
+    const xs = cells.map((c) => c % world2.w), ys = cells.map((c) => c / world2.w | 0);
+    const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
+    this.cam.zoom = Math.max(1, Math.min(8, Math.min(this.canvas.width / (bw + 30), this.canvas.height / (bh + 30))));
+    this.follow = id;
+    this.snap = true;
+    this.redraw();
+  }
+  /** Keep a followed body in view; let go once it's dead. */
+  track() {
+    if (this.follow === null) return;
+    const wr = this.world().warriors[this.follow];
+    if (!wr?.alive) {
+      this.follow = null;
+      return;
+    }
+    const world2 = this.world(), cells = world2.cellsOf(this.follow);
+    if (!cells.length) return;
+    let sx = 0, sy = 0;
+    for (const c of cells) {
+      sx += c % world2.w;
+      sy += c / world2.w | 0;
+    }
+    const x = sx / cells.length + 0.5 - this.viewW / 2, y = sy / cells.length + 0.5 - this.viewH / 2;
+    const now = performance.now(), k = this.snap ? 1 : 1 - Math.exp(-(now - this.lastTrack) / 250);
+    this.snap = false;
+    this.lastTrack = now;
+    const x0 = this.cam.x, y0 = this.cam.y;
+    this.cam.x += (x - this.cam.x) * k;
+    this.cam.y += (y - this.cam.y) * k;
+    this.clamp();
+    this.gliding = Math.abs(this.cam.x - x0) + Math.abs(this.cam.y - y0) > 0.02;
+  }
+  snap = false;
+  // (the first look at a newly followed body jumps there)
+  lastTrack = 0;
+  /** The camera is still easing toward a followed body: worth another frame even when paused. */
+  gliding = false;
+  /** The followed body's outline. */
+  renderMark() {
+    if (this.follow === null) return;
+    const world2 = this.world(), cells = world2.cellsOf(this.follow);
+    if (!cells.length) return;
+    const xs = cells.map((c) => c % world2.w), ys = cells.map((c) => c / world2.w | 0), z = this.cam.zoom;
+    const x0 = (Math.min(...xs) - this.cam.x) * z, y0 = (Math.min(...ys) - this.cam.y) * z;
+    const x1 = (Math.max(...xs) + 1 - this.cam.x) * z, y1 = (Math.max(...ys) + 1 - this.cam.y) * z;
+    const ctx2 = this.canvas.getContext("2d"), pad = 4;
+    ctx2.save();
+    ctx2.setLineDash([5, 4]);
+    ctx2.strokeStyle = "#fff";
+    ctx2.lineWidth = 1.5;
+    ctx2.strokeRect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad);
+    ctx2.restore();
   }
   centerOn(x, y) {
     this.cam.x = x - this.viewW / 2;
@@ -2574,8 +2727,10 @@ var ClimbView = class {
     ctx2.putImageData(img, 0, 0);
   }
   render() {
+    this.track();
     if (this.cam.zoom < 1) {
       this.renderFar();
+      this.renderMark();
       this.renderLabels();
       this.renderMini();
       return;
@@ -2632,6 +2787,7 @@ var ClimbView = class {
     ctx2.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const z = this.cam.zoom;
     ctx2.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
+    this.renderMark();
     this.renderLabels();
     this.renderMini();
   }
@@ -2725,9 +2881,9 @@ var ClimbView = class {
     }).join("");
     const hist = (m) => [...m.entries()].sort((a, c) => a[0] - c[0]).map(([k, n]) => `${k}: ${n}`).join(" \xB7 ");
     const deaths = /* @__PURE__ */ new Map();
-    for (const w of world2.warriors) if (!w.alive && w.deathReason) {
-      const k = w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "").replace("core ", "");
-      deaths.set(k, (deaths.get(k) ?? 0) + 1);
+    for (const [rk, n] of world2.deaths) {
+      const k = rk.slice(rk.indexOf("|") + 1).replace("core ", "");
+      deaths.set(k, (deaths.get(k) ?? 0) + n);
     }
     const tiles = world2.tileStats();
     const top = [...counts.entries()].sort((a, c) => c[1].n - a[1].n).slice(0, 6);
@@ -2822,6 +2978,7 @@ function newMatch(sources, seed) {
     mini.style.display = "block";
     mini.style.right = `-${miniW + 8}px`;
     $("stage").style.marginRight = `${miniW + 10}px`;
+    sizeTimeline();
     if (!climbView) {
       const cam = (params.get("cam") ?? "").split(",").map(Number);
       climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
@@ -2833,6 +2990,7 @@ function newMatch(sources, seed) {
   islandBg = null;
   canvas2.width = world.w * CELL;
   canvas2.height = world.h * CELL;
+  sizeTimeline();
   render();
 }
 $("reset").onclick = () => newMatch();
@@ -2847,7 +3005,10 @@ $("petri").onclick = () => {
   location.search = PETRI ? "" : "?petri=1&w=amoeba";
 };
 dishEl.style.display = PETRI ? "block" : "none";
-playBtn.onclick = () => setPlaying(!playing);
+playBtn.onclick = () => {
+  seekTo = null;
+  setPlaying(!playing);
+};
 function shareText() {
   const q = new URLSearchParams(location.search);
   if (matchNames) q.set("w", matchNames.join(","));
@@ -2908,6 +3069,22 @@ var lastRender = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - lastFrame) / 1e3);
   lastFrame = now;
+  if (seekTo !== null) {
+    const until = performance.now() + 60;
+    while (world.t < seekTo && !world.result.over && performance.now() < until) world.tick();
+    if (world.t >= seekTo || world.result.over) {
+      seekTo = null;
+      rateTick = Infinity;
+      render();
+      const then = afterSeek;
+      afterSeek = null;
+      then?.();
+    } else if (now - lastRender > 300) {
+      render();
+      lastRender = now;
+      tickEl.textContent = `seeking: tick ${world.t} of ${seekTo}\u2026`;
+    }
+  }
   if (playing && !world.result.over) {
     const speed = SPEEDS[Number(speedEl.value)];
     if (speed === Infinity) {
@@ -2932,7 +3109,7 @@ function frame(now) {
       lastRender = now;
     }
     if (world.result.over) setPlaying(false);
-  }
+  } else if (seekTo === null && climbView?.gliding) render();
   requestAnimationFrame(frame);
 }
 function color(id, l, a = 1) {
@@ -2942,9 +3119,11 @@ var TOXIN_TINT = ["#0e1117", "#1b1220", "#281427", "#36162c", "#451831", "#541a3
 var ARMOR_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#ef4444", "#d946ef"];
 var climbView = null;
 function render() {
+  renderTimeline();
   if (CLIMB && climbView) {
     climbView.render();
     renderSide();
+    renderFinder();
     return;
   }
   if (ISLAND) {
@@ -3097,9 +3276,9 @@ function renderSide() {
   tickEl.textContent = `tick ${world.t} \xB7 ${tps < 10 ? tps.toFixed(1) : Math.round(tps)} ticks/s`;
   cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : "";
-    const kin = world.warriors.filter((k) => k.lineage === wr.id && k.gen > 0);
-    const kinLine = kin.length ? `<div class="stats">lineage: ${kin.filter((k) => k.alive).length} of ${kin.length} descendants alive, up to generation ${Math.max(...kin.map((k) => k.gen))}</div>` : "";
-    return `<div class="card ${wr.alive || kin.some((k) => k.alive) ? "" : "dead"}" style="border-left-color:${color(wr.id, 55)}">
+    const kin = world.living().filter((k) => k.lineage === wr.id && k.gen > 0), born = world.bornCount(wr.id);
+    const kinLine = born ? `<div class="stats">lineage: ${kin.length} of ${born} descendants alive${kin.length ? `, up to generation ${Math.max(...kin.map((k) => k.gen))}` : ""}</div>` : "";
+    return `<div class="card ${wr.alive || kin.length ? "" : "dead"}" style="border-left-color:${color(wr.id, 55)}">
       <div class="name">${LETTERS[wr.id]} \xB7 ${esc(wr.name)}</div>${kinLine}
       <div class="stats">${wr.alive ? `cells ${wr.cellCount}/${Math.floor(wr.maxSize)} \xB7 speed ${wr.speed.toFixed(2)} \xB7 ran ${wr.executed}<br>at '${esc(g)}' heading ${DIR_NAMES[wr.dir]} \xB7 last action ${wr.lastAct ? `${wr.lastAct} ` : ""}${wr.lastOk ? "ok" : "failed"}` : `died at tick ${wr.diedAt}: ${esc(wr.deathReason ?? "")}`}</div>
       <div class="stack">stack [${wr.stack.slice(-12).join(" ")}]</div>
@@ -3147,7 +3326,7 @@ function renderDish() {
     counts.set(g, c);
   }
   const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf2(w.id) || w.spec.source.split("---")[1]?.trim().split("\n").join(" / "));
-  const died = world.warriors.filter((w) => !w.alive).length;
+  const died = [...world.deaths.values()].reduce((a, n) => a + n, 0);
   const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   dishEl.innerHTML = `<div class="name">Petri dish</div>
     <div class="stats">${living.length} alive \xB7 ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born \xB7 ${died} died \xB7 deepest generation ${Math.max(0, ...living.map((w) => w.gen))} \xB7 ${counts.size} genomes alive</div>
@@ -3176,9 +3355,9 @@ function renderIslandPanel() {
       ${top.map(([g, n]) => `<div class="genome"><span class="stats">${String(n).padStart(3)} \xD7</span> <code>${esc(g)}</code></div>`).join("")}`;
   };
   const deaths = /* @__PURE__ */ new Map();
-  for (const w of world.warriors) if (!w.alive && w.deathReason) {
-    const k = `${w.realm ? "shark" : "seal"} ${w.deathReason.replace(/ by .*/, "").replace(/ \(.*/, "").replace("core ", "")}`;
-    deaths.set(k, (deaths.get(k) ?? 0) + 1);
+  for (const [rk, n] of world.deaths) {
+    const [realm2, why] = rk.split("|");
+    deaths.set(`${realm2 === "1" ? "shark" : "seal"} ${why.replace("core ", "")}`, n);
   }
   dishEl.innerHTML = `<div class="name">Island survival</div>
     <div class="stats">${world.warriors.length} ever lived</div>
@@ -3227,6 +3406,200 @@ max size ${Math.floor(world.warriors[o].maxSize)} \xB7 ${genomeOfCell(o)}`;
 canvas2.onmouseleave = () => {
   tip.style.display = "none";
 };
+var BAKE = params.get("bake");
+var bake = null;
+var seekTo = null;
+var afterSeek = null;
+var scrub = null;
+var timeline = $("timeline");
+var gotoEl = $("goto");
+var finderEl = $("finder");
+async function loadBake() {
+  if (!BAKE) return true;
+  bake = await (await fetch(`${BAKE}/index.json`, { cache: "no-store" })).json();
+  const want = new URLSearchParams(bake.query);
+  if ([...want].some(([k, v]) => params.get(k) !== v)) {
+    for (const [k, v] of params) if (!want.has(k)) want.set(k, v);
+    location.replace(`?${want.toString().replace(/%2C/g, ",").replace(/%2F/g, "/")}`);
+    return false;
+  }
+  const poll = setInterval(async () => {
+    try {
+      bake = await (await fetch(`${BAKE}/index.json`, { cache: "no-store" })).json();
+    } catch {
+    }
+    if (bake?.done) clearInterval(poll);
+    renderTimeline();
+  }, 3e4);
+  timeline.style.display = "block";
+  return true;
+}
+async function readMark(m) {
+  const buf = new Uint8Array(await (await fetch(`${BAKE}/${m.file}`)).arrayBuffer());
+  const gz = buf[0] === 31 && buf[1] === 139;
+  const raw = gz ? new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()) : buf;
+  return loadWorld(raw);
+}
+async function seek(target, then) {
+  setPlaying(false);
+  target = Math.max(0, Math.floor(target));
+  const follow = climbView?.follow ?? null;
+  if (bake) {
+    let m;
+    for (const k of bake.marks) if (k.t <= target) m = k;
+    if (m && (world.t > target || m.t > world.t)) {
+      seekTo = null;
+      tickEl.textContent = `loading tick ${m.t}\u2026`;
+      world = await readMark(m);
+      CONFIG.tickCap = Number(params.get("ticks")) || Infinity;
+    }
+  } else if (world.t > target) newMatch();
+  if (climbView) climbView.follow = follow;
+  seekTo = target;
+  afterSeek = then ?? null;
+  rateTick = Infinity;
+  render();
+}
+gotoEl.onkeydown = (e) => {
+  if (e.key === "Enter") $("go").click();
+};
+$("go").onclick = () => {
+  if (gotoEl.value !== "") void seek(Number(gotoEl.value));
+};
+function sizeTimeline() {
+  timeline.width = canvas2.width;
+  timeline.height = 52;
+}
+var kfmt = (t) => t >= 1e3 ? `${+(t / 1e3).toFixed(t % 1e3 ? 1 : 0)}k` : String(t);
+function renderTimeline() {
+  if (!bake || timeline.style.display === "none") return;
+  const g = timeline.getContext("2d"), W = timeline.width, H = timeline.height, marks = bake.marks;
+  const T = Math.max(marks[marks.length - 1].t, world.t, 1), X = (t) => t / T * (W - 1);
+  const maxAlive = Math.max(1, ...marks.map((m) => m.alive)), maxBig = Math.max(1, ...marks.map((m) => m.biggest?.cells ?? 0));
+  g.fillStyle = "#0d1117";
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = "#161b22";
+  g.fillRect(0, 0, X(marks[marks.length - 1].t), H);
+  const top = 14, h = H - top - 2;
+  g.beginPath();
+  g.moveTo(X(marks[0].t), H - 2);
+  for (const m of marks) g.lineTo(X(m.t), H - 2 - m.alive / maxAlive * h);
+  g.lineTo(X(marks[marks.length - 1].t), H - 2);
+  g.fillStyle = "#30363d";
+  g.fill();
+  g.beginPath();
+  marks.forEach((m, k) => {
+    const y = H - 2 - (m.biggest?.cells ?? 0) / maxBig * h;
+    if (k) g.lineTo(X(m.t), y);
+    else g.moveTo(X(m.t), y);
+  });
+  g.strokeStyle = "#ff6b8b";
+  g.lineWidth = 1.5;
+  g.stroke();
+  const line = (t, c) => {
+    g.fillStyle = c;
+    g.fillRect(Math.round(X(t)) - 1, 0, 2, H);
+  };
+  if (seekTo !== null) line(seekTo, "#e3b341");
+  line(world.t, "#fff");
+  g.font = "11px ui-monospace, Menlo, monospace";
+  g.textBaseline = "top";
+  g.fillStyle = "#8b949e";
+  g.fillText(`alive \u2264${maxAlive}`, 4, 2);
+  g.fillStyle = "#ff6b8b";
+  g.fillText(`biggest \u2264${maxBig}`, 4 + g.measureText(`alive \u2264${maxAlive}  `).width, 2);
+  g.fillStyle = "#8b949e";
+  g.textAlign = "right";
+  g.fillText(kfmt(T), W - 4, 2);
+  g.textAlign = "left";
+  if (scrub !== null) {
+    line(scrub, "#58a6ff");
+    const label = `tick ${kfmt(scrub)}`, lw = g.measureText(label).width + 8, lx = Math.min(W - lw, Math.max(0, X(scrub) - lw / 2));
+    g.fillStyle = "#161b22";
+    g.fillRect(lx, top, lw, 15);
+    g.fillStyle = "#e6edf3";
+    g.fillText(label, lx + 4, top + 2);
+  }
+}
+{
+  const tickAt = (e) => {
+    const r = timeline.getBoundingClientRect(), T = Math.max(bake?.marks[bake.marks.length - 1].t ?? 0, world.t, 1);
+    const t = Math.round((e.clientX - r.left) / r.width * T);
+    const every = bake?.every ?? 1;
+    return Math.max(0, Math.min(T, Math.round(t / every) * every));
+  };
+  timeline.addEventListener("pointerdown", (e) => {
+    timeline.setPointerCapture(e.pointerId);
+    scrub = tickAt(e);
+    renderTimeline();
+  });
+  timeline.addEventListener("pointermove", (e) => {
+    if (scrub !== null) {
+      scrub = tickAt(e);
+      renderTimeline();
+    }
+  });
+  timeline.addEventListener("pointerup", () => {
+    if (scrub !== null) {
+      const t = scrub;
+      scrub = null;
+      void seek(t);
+    }
+  });
+  timeline.addEventListener("pointercancel", () => {
+    scrub = null;
+    renderTimeline();
+  });
+}
+function renderFinder() {
+  finderEl.style.display = "block";
+  let big = null;
+  for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount };
+  let ever = null;
+  for (const m of bake?.marks ?? []) if (m.biggest && (!ever || m.biggest.cells > ever.biggest.cells)) ever = m;
+  const following = climbView?.follow ?? null;
+  const html = [
+    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} \xB7 <a data-follow="${big.id}">${following === big.id ? "following" : "follow it"}</a> <span style="color:#6e7681">(key B)</span></div>` : "",
+    ever ? `<div>biggest in this run: ${ever.biggest.cells} cells at tick ${ever.t} \xB7 <a data-ever="${ever.t}">go see it</a></div>` : "",
+    following !== null && following !== big?.id ? `<div>following ${esc(world.warriors[following]?.name ?? "")} \xB7 <a data-unfollow="1">stop</a></div>` : ""
+  ].join("");
+  if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
+}
+function followBiggest() {
+  let big = null;
+  for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount };
+  if (big && climbView) climbView.focus(big.id);
+}
+finderEl.onclick = (e) => {
+  const a = e.target.closest("a");
+  if (!a || !climbView) return;
+  if (a.dataset.follow) climbView.focus(Number(a.dataset.follow));
+  else if (a.dataset.unfollow) {
+    climbView.follow = null;
+    render();
+  } else if (a.dataset.ever) {
+    const m = bake.marks.find((k) => k.t === Number(a.dataset.ever));
+    void seek(m.t, () => climbView.focus(m.biggest.id));
+  }
+};
+window.addEventListener("keydown", (e) => {
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.key === "b" || e.key === "B") followBiggest();
+});
+var bakesEl = $("bakes");
+async function renderBakes() {
+  let rows;
+  try {
+    rows = await (await fetch("bakes.json", { cache: "no-store" })).json();
+  } catch {
+    return;
+  }
+  if (!Array.isArray(rows) || !rows.length) return;
+  bakesEl.style.display = "block";
+  bakesEl.innerHTML = '<div class="stats" style="margin-bottom:2px">runs <span style="color:#6e7681">(tick \xB7 alive \xB7 biggest now \xB7 biggest ever)</span></div>' + rows.map((r) => `<a class="${r.path === BAKE ? "here" : ""}" href="?bake=${encodeURI(r.path)}" title="biggest ever at tick ${r.best.t}"><span class="nm">${esc(r.name)}</span><span>${kfmt(r.t)}</span><span>${r.alive}</span><span>${r.biggest}</span><span class="big">${r.best.cells}</span><span class="${r.state === "live" ? "live" : ""}">${r.state === "live" ? "\u25CF live" : r.state}</span></a>`).join("");
+}
+void renderBakes();
+setInterval(renderBakes, 3e4);
 var explorer = {
   help: () => [
     "await explorer.ready                    resolves once evolved warriors are loaded",
@@ -3312,12 +3685,13 @@ var explorer = {
 };
 window.explorer = explorer;
 fillPickers();
-explorer.ready = loadEvolved().then(() => {
+explorer.ready = loadEvolved().then(async () => {
+  if (!await loadBake()) return;
   fillPickers();
   newMatch();
-  const t = Number(params.get("t")) || 0;
-  while (world.t < t && !world.result.over) world.tick();
   render();
   requestAnimationFrame(frame);
+  const t = Number(params.get("t")) || 0;
+  if (t) await seek(t);
 });
 //# sourceMappingURL=main.js.map

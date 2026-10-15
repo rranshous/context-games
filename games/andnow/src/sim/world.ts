@@ -295,8 +295,18 @@ export class World {
     // Island survival: founders of one realm share a start, side by side.
     const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
-    const ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
-    const oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
+    let ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
+    let oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
+    // Centred if it fits there, else the nearest free spot in the start. (The Climb's founders
+    // share a start, and its rock is ragged: the second founder used to land on the first,
+    // leaving it a ghost of 10 cells it didn't own, and on some seeds a hunter met rock.)
+    if (!at) {
+      const fits = (x: number, y: number) => spec.cells.every((c) => this.isFree(x + c.x, y + c.y));
+      const near = (n: number) => Array.from({ length: n + 1 }, (_, k) => (k % 2 ? 1 : -1) * Math.ceil(k / 2));
+      search: for (const dy of near(room.h)) for (const dx of near(room.w)) {
+        if (fits(ox + dx, oy + dy)) { ox += dx; oy += dy; break search; }
+      }
+    }
     const wr: Warrior = {
       id, lineage: id, gen: 0, realm, born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,

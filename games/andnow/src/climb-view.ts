@@ -115,6 +115,7 @@ export class ClimbView {
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
     this.cam.zoom = Math.max(1, Math.min(8, Math.min(this.canvas.width / (bw + 30), this.canvas.height / (bh + 30))));
     this.follow = id;
+    this.snap = true;
     this.redraw();
   }
 
@@ -123,8 +124,25 @@ export class ClimbView {
     if (this.follow === null) return;
     const wr = this.world().warriors[this.follow];
     if (!wr?.alive) { this.follow = null; return; }
-    this.centerOn(wr.ipX, wr.ipY);
+    // The body's middle, not its IP (which runs all over it), eased so the view glides.
+    const world = this.world(), cells = world.cellsOf(this.follow);
+    if (!cells.length) return;
+    let sx = 0, sy = 0;
+    for (const c of cells) { sx += c % world.w; sy += (c / world.w) | 0; }
+    const x = sx / cells.length + 0.5 - this.viewW / 2, y = sy / cells.length + 0.5 - this.viewH / 2;
+    const now = performance.now(), k = this.snap ? 1 : 1 - Math.exp(-(now - this.lastTrack) / 250);
+    this.snap = false;
+    this.lastTrack = now;
+    const x0 = this.cam.x, y0 = this.cam.y;
+    this.cam.x += (x - this.cam.x) * k;
+    this.cam.y += (y - this.cam.y) * k;
+    this.clamp();
+    this.gliding = Math.abs(this.cam.x - x0) + Math.abs(this.cam.y - y0) > 0.02;
   }
+  private snap = false; // (the first look at a newly followed body jumps there)
+  private lastTrack = 0;
+  /** The camera is still easing toward a followed body: worth another frame even when paused. */
+  gliding = false;
 
   /** The followed body's outline. */
   private renderMark() {

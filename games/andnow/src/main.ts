@@ -213,6 +213,7 @@ function frame(now: number) {
     }
     if (world.result.over) setPlaying(false);
   }
+  else if (seekTo === null && climbView?.gliding) render(); // (paused: let the camera finish gliding)
   requestAnimationFrame(frame);
 }
 
@@ -490,7 +491,7 @@ canvas.onmouseleave = () => { tip.style.display = 'none'; };
 // is a download away, and the timeline under the board shows the whole run to tap through.
 
 interface Mark { t: number; file: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
-interface Bake { query: string; every: number; ticks: number; marks: Mark[] }
+interface Bake { query: string; every: number; ticks: number | null; done?: boolean; marks: Mark[] }
 const BAKE = params.get('bake');
 let bake: Bake | null = null;
 let seekTo: number | null = null;
@@ -513,7 +514,7 @@ async function loadBake(): Promise<boolean> {
   // A bake still being written grows: pick up new checkpoints now and then.
   const poll = setInterval(async () => {
     try { bake = (await (await fetch(`${BAKE}/index.json`, { cache: 'no-store' })).json()) as Bake; } catch { /* keep the old one */ }
-    if (bake && bake.marks[bake.marks.length - 1].t >= bake.ticks) clearInterval(poll);
+    if (bake?.done) clearInterval(poll);
     renderTimeline();
   }, 30000);
   timeline.style.display = 'block';
@@ -563,7 +564,7 @@ const kfmt = (t: number) => (t >= 1000 ? `${+(t / 1000).toFixed(t % 1000 ? 1 : 0
 function renderTimeline() {
   if (!bake || timeline.style.display === 'none') return;
   const g = timeline.getContext('2d')!, W = timeline.width, H = timeline.height, marks = bake.marks;
-  const T = Math.max(bake.ticks, world.t), X = (t: number) => (t / T) * (W - 1);
+  const T = Math.max(marks[marks.length - 1].t, world.t, 1), X = (t: number) => (t / T) * (W - 1);
   const maxAlive = Math.max(1, ...marks.map((m) => m.alive)), maxBig = Math.max(1, ...marks.map((m) => m.biggest?.cells ?? 0));
   g.fillStyle = '#0d1117';
   g.fillRect(0, 0, W, H);
@@ -606,7 +607,7 @@ function renderTimeline() {
 
 {
   const tickAt = (e: PointerEvent) => {
-    const r = timeline.getBoundingClientRect(), T = Math.max(bake?.ticks ?? 0, world.t);
+    const r = timeline.getBoundingClientRect(), T = Math.max(bake?.marks[bake.marks.length - 1].t ?? 0, world.t, 1);
     const t = Math.round(((e.clientX - r.left) / r.width) * T);
     const every = bake?.every ?? 1;
     return Math.max(0, Math.min(T, Math.round(t / every) * every)); // snap to checkpoints: instant to load
@@ -653,6 +654,22 @@ window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (e.key === 'b' || e.key === 'B') followBiggest();
 });
+
+/** Every bake on the server (serve.py's /bakes.json), to hop between runs. */
+interface BakeRow { path: string; name: string; t: number; alive: number; biggest: number; best: { t: number; cells: number }; state: string }
+const bakesEl = $('bakes');
+async function renderBakes() {
+  let rows: BakeRow[];
+  try { rows = await (await fetch('bakes.json', { cache: 'no-store' })).json(); } catch { return; } // (a plain server: no list)
+  if (!Array.isArray(rows) || !rows.length) return;
+  bakesEl.style.display = 'block';
+  bakesEl.innerHTML = '<div class="stats" style="margin-bottom:2px">runs <span style="color:#6e7681">(tick · alive · biggest now · biggest ever)</span></div>' + rows.map((r) =>
+    `<a class="${r.path === BAKE ? 'here' : ''}" href="?bake=${encodeURI(r.path)}" title="biggest ever at tick ${r.best.t}">` +
+    `<span class="nm">${esc(r.name)}</span><span>${kfmt(r.t)}</span><span>${r.alive}</span><span>${r.biggest}</span>` +
+    `<span class="big">${r.best.cells}</span><span class="${r.state === 'live' ? 'live' : ''}">${r.state === 'live' ? '● live' : r.state}</span></a>`).join('');
+}
+void renderBakes();
+setInterval(renderBakes, 30000);
 
 // ---------- explorer hook ----------
 // Claude drives this through Playwright's evaluate: load matches, step, read state,
