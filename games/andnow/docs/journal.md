@@ -1758,3 +1758,12 @@ Findings:
   - The world has ends, and life is at both of them; that's the next limit.
   - Meat eaters came back. Seed 13 has 5,938 meat and 541 both at 492k; in the overnight batch, hunters had died out everywhere.
 - **Tap a body to pick it (the user: "sometimes I can't tell if an entity is up against another entity or if it's all part of the same entity").** Everything else dims to 45%, and the body's true edge is traced in white: every side of its cells that doesn't touch another of its own cells. A body pressed against a neighbour now stands apart. Tap it again, or tap empty space, to let go. Following a body also picks it. A press only counts as a drag once it moves 5 px, so a tap's jitter no longer drops a follow. The finder shows "picked: N cells, name · follow it · let go", and "following" has a "stop" link.
+
+## 2026-10-15: plan, a climb that never ends
+
+The user's intent is that the world keeps scaling up and down forever. Life already presses against both walls in the forever runs. The 10× rule can't continue as a flat grid: step +3 would be 20,000 rows and +4 200,000. Of the three options, the user chose **lazy steps with slower growth**:
+- **Heights:** steps ±0..2 stay as they are (20, 200, 2,000 rows). Past ±2, each step is about 1.5× the last (3,008, 4,480, 6,720…), rounded to the 64-row tile so tile maps stay aligned when rows are added above.
+- **Rules don't change:** food is still 10× richer per step, the size cap still 2× per step, and harshness is still one insulation (up) or armor (down) per step. So climbing keeps getting harder and better.
+- **Lazy generation:** when a living IP comes within 256 rows of the top or bottom wall, the next step is made from its own seeded rng (a pure function of seed and step) and joined on, and the old wall row opens. Growing down appends rows. Growing up prepends them, so every stored cell index and y shifts: cell sets, spawns, tiles, IPs, origins, homes, starts and sea level. `world.yShift` counts the rows added above, so the viewer can keep its camera on the same spot.
+- **Memory:** about 13 bytes per cell, so roughly 80–170 MB per new step at a width of 2,000.
+- **The bakes:** old checkpoints get `stepLo`/`stepHi` filled in from `climbSteps` when loaded, so the four forever runs can resume straight into a world that grows.
