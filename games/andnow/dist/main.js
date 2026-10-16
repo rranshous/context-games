@@ -3304,7 +3304,7 @@ playBtn.onclick = () => {
   seekTo = null;
   setPlaying(!playing);
 };
-function shareText() {
+function shareUrl() {
   const q = new URLSearchParams(location.search);
   if (matchNames) q.set("w", matchNames.join(","));
   q.set("seed", String(world.seed));
@@ -3313,7 +3313,10 @@ function shareText() {
   const pick = CLIMB ? climbView?.selected ?? null : null;
   if (pick !== null) q.set("pick", String(pick));
   else q.delete("pick");
-  const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ":").replace(/%2C/g, ",")}`;
+  return `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ":").replace(/%2C/g, ",").replace(/%2F/g, "/")}`;
+}
+function shareText() {
+  const url = shareUrl(), pick = CLIMB ? climbView?.selected ?? null : null;
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(", ");
   const end = world.result.over ? ` \u2014 over: ${world.result.reason}` : "";
@@ -3339,7 +3342,7 @@ function copyText(text) {
   return ok;
 }
 async function copyShare(el, label, done = "Copied!") {
-  const text = shareText();
+  const text = shareUrl();
   let ok = false;
   try {
     await navigator.clipboard.writeText(text);

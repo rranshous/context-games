@@ -127,8 +127,9 @@ dishEl.style.display = PETRI ? 'block' : 'none';
 playBtn.onclick = () => { seekTo = null; setPlaying(!playing); };
 
 // Share: a link that rebuilds this exact match (same warriors, seed and settings; the sim is
-// deterministic) and jumps to the current tick, plus a one-line status for context.
-function shareText(): string {
+// deterministic) and jumps to the current tick. Copy link copies just the URL; explorer.share
+// adds a one-line status for context.
+function shareUrl(): string {
   const q = new URLSearchParams(location.search);
   if (matchNames) q.set('w', matchNames.join(','));
   q.set('seed', String(world.seed));
@@ -138,7 +139,10 @@ function shareText(): string {
   // ?pick=<id>: the picked body (the link opens on it, picked and followed).
   const pick = CLIMB ? climbView?.selected ?? null : null;
   if (pick !== null) q.set('pick', String(pick)); else q.delete('pick');
-  const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ':').replace(/%2C/g, ',')}`;
+  return `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ':').replace(/%2C/g, ',').replace(/%2F/g, '/')}`;
+}
+function shareText(): string {
+  const url = shareUrl(), pick = CLIMB ? climbView?.selected ?? null : null;
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(', ');
   const end = world.result.over ? ` — over: ${world.result.reason}` : '';
@@ -160,9 +164,9 @@ function copyText(text: string): boolean {
   ta.remove();
   return ok;
 }
-/** Copy the share text, and say so on `el` for a moment. */
+/** Copy the share link (just the URL, to paste straight into a browser), and say so on `el` for a moment. */
 async function copyShare(el: HTMLElement, label: string, done = 'Copied!') {
-  const text = shareText();
+  const text = shareUrl();
   let ok = false;
   try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = copyText(text); }
   if (!ok) { window.prompt('Copy this:', text); return; }
