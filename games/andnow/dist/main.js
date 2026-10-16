@@ -2496,6 +2496,7 @@ var ClimbView = class {
     canvas3.style.touchAction = "none";
     const pts = /* @__PURE__ */ new Map();
     let pinch = null;
+    let tap = null;
     const spread = () => {
       const [a, b] = [...pts.values()];
       return Math.hypot(a.x - b.x, a.y - b.y);
@@ -2503,12 +2504,15 @@ var ClimbView = class {
     canvas3.addEventListener("pointerdown", (e) => {
       canvas3.setPointerCapture(e.pointerId);
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pts.size === 1) this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
-      else if (pts.size === 2) {
+      if (pts.size === 1) {
+        this.drag = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y };
+        tap = { x: e.clientX, y: e.clientY };
+      } else if (pts.size === 2) {
         const r = canvas3.getBoundingClientRect(), [a, b] = [...pts.values()];
         const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
         pinch = { d: spread(), zoom: this.cam.zoom, wx: this.cam.x + mx / this.cam.zoom, wy: this.cam.y + my / this.cam.zoom };
         this.drag = null;
+        tap = null;
       }
     });
     canvas3.addEventListener("pointermove", (e) => {
@@ -2521,6 +2525,8 @@ var ClimbView = class {
         this.cam.x = pinch.wx - mx / this.cam.zoom;
         this.cam.y = pinch.wy - my / this.cam.zoom;
       } else if (this.drag) {
+        if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 5) return;
+        tap = null;
         this.follow = null;
         this.cam.x = this.drag.cx - (e.clientX - this.drag.x) / this.cam.zoom;
         this.cam.y = this.drag.cy - (e.clientY - this.drag.y) / this.cam.zoom;
@@ -2530,6 +2536,11 @@ var ClimbView = class {
     });
     const up = (e) => {
       pts.delete(e.pointerId);
+      if (tap && e.type === "pointerup" && !pts.size) {
+        const r = canvas3.getBoundingClientRect();
+        this.select(...this.cellAt(e.clientX - r.left, e.clientY - r.top));
+      }
+      tap = null;
       pinch = null;
       const rest = [...pts.values()][0];
       this.drag = rest ? { x: rest.x, y: rest.y, cx: this.cam.x, cy: this.cam.y } : null;
@@ -2575,6 +2586,8 @@ var ClimbView = class {
   drag = null;
   /** A body the camera follows and outlines (dragging the view lets go of it). */
   follow = null;
+  /** A body picked by tapping it: outlined cell by cell, everything else dimmed (no camera move). */
+  selected = null;
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
@@ -2590,6 +2603,7 @@ var ClimbView = class {
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
     this.cam.zoom = Math.max(1, Math.min(8, Math.min(this.canvas.width / (bw + 30), this.canvas.height / (bh + 30))));
     this.follow = id;
+    this.selected = id;
     this.snap = true;
     this.goal = null;
     this.redraw();
@@ -2632,8 +2646,65 @@ var ClimbView = class {
   goal = null;
   /** The camera is still easing toward a followed body: worth another frame even when paused. */
   gliding = false;
+  /** Tap: pick the body at (or within a cell of) this cell; tapping nothing, or it again, lets go. */
+  select(x, y) {
+    const world2 = this.world();
+    let id = null;
+    for (let d = 0; d <= 1 && id === null; d++) for (let dy = -d; dy <= d && id === null; dy++) for (let dx = -d; dx <= d; dx++) {
+      if (x + dx < 0 || y + dy < 0 || x + dx >= world2.w || y + dy >= world2.h) continue;
+      const o = world2.owner[world2.idx(x + dx, y + dy)];
+      if (o >= 0 && world2.warriors[o]?.alive) {
+        id = o;
+        break;
+      }
+    }
+    this.selected = id === this.selected ? null : id;
+    this.redraw();
+  }
+  /**
+   * The picked body: dim everything else and trace its true edge (the sides of its cells
+   * that don't touch another of its cells), so a body pressed against another stands apart.
+   */
+  renderSelected() {
+    if (this.selected !== null && !this.world().warriors[this.selected]?.alive) this.selected = null;
+    if (this.selected === null) return;
+    const world2 = this.world(), id = this.selected, cells = world2.cellsOf(id), z = this.cam.zoom, W = world2.w;
+    if (!cells.length) return;
+    const ctx2 = this.canvas.getContext("2d"), X = (x) => Math.round((x - this.cam.x) * z), Y = (y) => Math.round((y - this.cam.y) * z);
+    const shade = new Path2D(), edge = new Path2D();
+    shade.rect(0, 0, this.canvas.width, this.canvas.height);
+    const mine = (x, y) => x >= 0 && y >= 0 && x < W && y < world2.h && world2.owner[y * W + x] === id;
+    for (const c of cells) {
+      const x = c % W, y = c / W | 0, x0 = X(x), y0 = Y(y), x1 = X(x + 1), y1 = Y(y + 1);
+      shade.rect(x0, y0, x1 - x0, y1 - y0);
+      if (!mine(x, y - 1)) {
+        edge.moveTo(x0, y0);
+        edge.lineTo(x1, y0);
+      }
+      if (!mine(x, y + 1)) {
+        edge.moveTo(x0, y1);
+        edge.lineTo(x1, y1);
+      }
+      if (!mine(x - 1, y)) {
+        edge.moveTo(x0, y0);
+        edge.lineTo(x0, y1);
+      }
+      if (!mine(x + 1, y)) {
+        edge.moveTo(x1, y0);
+        edge.lineTo(x1, y1);
+      }
+    }
+    ctx2.save();
+    ctx2.fillStyle = "rgba(0, 0, 0, 0.55)";
+    ctx2.fill(shade, "evenodd");
+    ctx2.strokeStyle = "#fff";
+    ctx2.lineWidth = z >= 4 ? 2 : 1;
+    ctx2.stroke(edge);
+    ctx2.restore();
+  }
   /** The followed body's outline. */
   renderMark() {
+    this.renderSelected();
     if (this.follow === null) return;
     const world2 = this.world(), cells = world2.cellsOf(this.follow);
     if (!cells.length) return;
@@ -2909,7 +2980,7 @@ var ClimbView = class {
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world2, c.id))}">${String(c.n).padStart(3)} \xD7</span> <code>${esc2(g)}</code></div>`).join("")}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc2(k)} ${n}`).join(" \xB7 ")}</div>
-      <div class="stats" style="margin-top:6px;color:#6e7681">drag to pan \xB7 pinch, wheel or +/- to zoom \xB7 WASD/arrows \xB7 tap the strip to jump</div>`;
+      <div class="stats" style="margin-top:6px;color:#6e7681">tap a body to pick it \xB7 drag to pan \xB7 pinch, wheel or +/- to zoom \xB7 WASD/arrows \xB7 tap the strip to jump</div>`;
   }
 };
 
@@ -3570,8 +3641,9 @@ function renderFinder() {
   for (const m of bake?.marks ?? []) if (m.biggest && (!ever || m.biggest.cells > ever.biggest.cells)) ever = m;
   const following = climbView?.follow ?? null;
   const html = [
-    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} \xB7 <a data-follow="${big.id}">${following === big.id ? "following" : "follow it"}</a> <span style="color:#6e7681">(key B)</span></div>` : "",
+    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} \xB7 ${following === big.id ? 'following \xB7 <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : "",
     ever ? `<div>biggest in this run: ${ever.biggest.cells} cells at tick ${ever.t} \xB7 <a data-ever="${ever.t}">go see it</a></div>` : "",
+    climbView?.selected != null && climbView.selected !== following ? `<div>picked: ${world.warriors[climbView.selected].cellCount} cells, ${esc(world.warriors[climbView.selected].name)} \xB7 <a data-follow="${climbView.selected}">follow it</a> \xB7 <a data-unpick="1">let go</a></div>` : "",
     following !== null && following !== big?.id ? `<div>following ${esc(world.warriors[following]?.name ?? "")} \xB7 <a data-unfollow="1">stop</a></div>` : ""
   ].join("");
   if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
@@ -3587,6 +3659,9 @@ finderEl.onclick = (e) => {
   if (a.dataset.follow) climbView.focus(Number(a.dataset.follow));
   else if (a.dataset.unfollow) {
     climbView.follow = null;
+    render();
+  } else if (a.dataset.unpick) {
+    climbView.selected = null;
     render();
   } else if (a.dataset.ever) {
     const m = bake.marks.find((k) => k.t === Number(a.dataset.ever));
@@ -3695,7 +3770,7 @@ var explorer = {
   },
   /** Climb: the camera (cell coords of the view's top-left, zoom) and who it follows. */
   get view() {
-    return climbView ? { ...climbView.cam, follow: climbView.follow } : null;
+    return climbView ? { ...climbView.cam, follow: climbView.follow, selected: climbView.selected } : null;
   }
 };
 window.explorer = explorer;

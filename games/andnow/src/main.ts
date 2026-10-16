@@ -627,8 +627,9 @@ function renderFinder() {
   for (const m of bake?.marks ?? []) if (m.biggest && (!ever || m.biggest.cells > ever.biggest!.cells)) ever = m;
   const following = climbView?.follow ?? null;
   const html = [
-    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} · <a data-follow="${big.id}">${following === big.id ? 'following' : 'follow it'}</a> <span style="color:#6e7681">(key B)</span></div>` : '',
+    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} · ${following === big.id ? 'following · <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : '',
     ever ? `<div>biggest in this run: ${ever.biggest!.cells} cells at tick ${ever.t} · <a data-ever="${ever.t}">go see it</a></div>` : '',
+    climbView?.selected != null && climbView.selected !== following ? `<div>picked: ${world.warriors[climbView.selected].cellCount} cells, ${esc(world.warriors[climbView.selected].name)} · <a data-follow="${climbView.selected}">follow it</a> · <a data-unpick="1">let go</a></div>` : '',
     following !== null && following !== big?.id ? `<div>following ${esc(world.warriors[following]?.name ?? '')} · <a data-unfollow="1">stop</a></div>` : '',
   ].join('');
   if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
@@ -645,6 +646,7 @@ finderEl.onclick = (e) => {
   if (!a || !climbView) return;
   if (a.dataset.follow) climbView.focus(Number(a.dataset.follow));
   else if (a.dataset.unfollow) { climbView.follow = null; render(); }
+  else if (a.dataset.unpick) { climbView.selected = null; render(); }
   else if (a.dataset.ever) {
     const m = bake!.marks.find((k) => k.t === Number(a.dataset.ever))!;
     void seek(m.t, () => climbView!.focus(m.biggest!.id));
@@ -731,7 +733,7 @@ const explorer = {
   ready: Promise.resolve() as Promise<void>,
   get world() { return world; },
   /** Climb: the camera (cell coords of the view's top-left, zoom) and who it follows. */
-  get view() { return climbView ? { ...climbView.cam, follow: climbView.follow } : null; },
+  get view() { return climbView ? { ...climbView.cam, follow: climbView.follow, selected: climbView.selected } : null; },
 };
 (window as unknown as { explorer: typeof explorer }).explorer = explorer;
 

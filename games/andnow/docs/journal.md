@@ -1757,3 +1757,4 @@ Findings:
   - Seeds 4 and 7 fill step −2 down to the bottom wall.
   - The world has ends, and life is at both of them; that's the next limit.
   - Meat eaters came back. Seed 13 has 5,938 meat and 541 both at 492k; in the overnight batch, hunters had died out everywhere.
+- **Tap a body to pick it (the user: "sometimes I can't tell if an entity is up against another entity or if it's all part of the same entity").** Everything else dims to 45%, and the body's true edge is traced in white: every side of its cells that doesn't touch another of its own cells. A body pressed against a neighbour now stands apart. Tap it again, or tap empty space, to let go. Following a body also picks it. A press only counts as a drag once it moves 5 px, so a tap's jitter no longer drops a follow. The finder shows "picked: N cells, name · follow it · let go", and "following" has a "stop" link.
