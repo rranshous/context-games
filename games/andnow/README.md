@@ -60,7 +60,7 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 - `B` follows the biggest body; tap a body to pick it;
 - tick **glyphs** and zoom in close to read each cell's instruction;
 - hover over a cell to see its traits and genome;
-- **Copy link** shares the exact view.
+- **Copy link** shares the exact view; *copy link* beside a picked body shares that body at that tick, so the link opens with it picked and followed.
 
 **Headless tools,** all in `dist/` after a build:
 

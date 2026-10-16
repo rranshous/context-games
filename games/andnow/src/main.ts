@@ -133,11 +133,17 @@ function shareText(): string {
   if (matchNames) q.set('w', matchNames.join(','));
   q.set('seed', String(world.seed));
   q.set('t', String(world.t));
-  if (CLIMB && climbView) q.set('cam', `${Math.round(climbView.cam.x)},${Math.round(climbView.cam.y)},${+climbView.cam.zoom.toFixed(2)}`);
+  // (cam y in the world's first rows, before any grew on above: loading moves it down by yShift)
+  if (CLIMB && climbView) q.set('cam', `${Math.round(climbView.cam.x)},${Math.round(climbView.cam.y - (world.yShift ?? 0))},${+climbView.cam.zoom.toFixed(2)}`);
+  // ?pick=<id>: the picked body (the link opens on it, picked and followed).
+  const pick = CLIMB ? climbView?.selected ?? null : null;
+  if (pick !== null) q.set('pick', String(pick)); else q.delete('pick');
   const url = `${location.origin}${location.pathname}?${q.toString().replace(/%3A/g, ':').replace(/%2C/g, ',')}`;
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(', ');
   const end = world.result.over ? ` — over: ${world.result.reason}` : '';
+  const picked = pick !== null ? `; picked: ${world.warriors[pick].name} (${world.warriors[pick].cellCount} cells)` : '';
+  if (CLIMB) return `andnow climb ${url}\ntick ${world.t}; ${living.length} alive${picked}`;
   return `andnow match ${url}\ntick ${world.t}; alive: ${alive || 'none'}${end}${matchNames ? '' : ' (warriors loaded from source: link has the seed only)'}`;
 }
 function copyText(text: string): boolean {
@@ -154,14 +160,16 @@ function copyText(text: string): boolean {
   ta.remove();
   return ok;
 }
-$('share').onclick = async () => {
+/** Copy the share text, and say so on `el` for a moment. */
+async function copyShare(el: HTMLElement, label: string, done = 'Copied!') {
   const text = shareText();
   let ok = false;
   try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = copyText(text); }
   if (!ok) { window.prompt('Copy this:', text); return; }
-  $('share').textContent = 'Copied!';
-  setTimeout(() => { $('share').textContent = 'Copy link'; }, 1500);
-};
+  el.textContent = done;
+  setTimeout(() => { el.textContent = label; }, 1500);
+}
+$('share').onclick = () => copyShare($('share'), 'Copy link');
 $('step').onclick = () => { setPlaying(false); world.tick(); render(); };
 showIpEl.onchange = showGlyphsEl.onchange = () => { if (climbView) climbView.glyphs = showGlyphsEl.checked; render(); };
 
@@ -630,8 +638,8 @@ function renderFinder() {
   const html = [
     big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} · ${following === big.id ? 'following · <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : '',
     ever ? `<div>biggest in this run: ${ever.biggest!.cells} cells at tick ${ever.t} · <a data-ever="${ever.t}">go see it</a></div>` : '',
-    climbView?.selected != null && climbView.selected !== following ? `<div>picked: ${world.warriors[climbView.selected].cellCount} cells, ${esc(world.warriors[climbView.selected].name)} · <a data-follow="${climbView.selected}">follow it</a> · <a data-unpick="1">let go</a></div>` : '',
-    following !== null && following !== big?.id ? `<div>following ${esc(world.warriors[following]?.name ?? '')} · <a data-unfollow="1">stop</a></div>` : '',
+    climbView?.selected != null ? `<div>picked: ${world.warriors[climbView.selected].cellCount} cells, ${esc(world.warriors[climbView.selected].name)} · ${climbView.selected === following ? 'following · <a data-unfollow="1">stop</a> · ' : `<a data-follow="${climbView.selected}">follow it</a> · `}<a data-copy="1">copy link</a> · <a data-unpick="1">let go</a></div>` : '',
+    following !== null && following !== big?.id && following !== climbView?.selected ? `<div>following ${esc(world.warriors[following]?.name ?? '')} · <a data-unfollow="1">stop</a></div>` : '',
   ].join('');
   if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
 }
@@ -648,6 +656,7 @@ finderEl.onclick = (e) => {
   if (a.dataset.follow) climbView.focus(Number(a.dataset.follow));
   else if (a.dataset.unfollow) { climbView.follow = null; render(); }
   else if (a.dataset.unpick) { climbView.selected = null; render(); }
+  else if (a.dataset.copy) void copyShare(a, 'copy link', 'copied!');
   else if (a.dataset.ever) {
     const m = bake!.marks.find((k) => k.t === Number(a.dataset.ever))!;
     void seek(m.t, () => climbView!.focus(m.biggest!.id));
@@ -748,5 +757,7 @@ explorer.ready = loadEvolved().then(async () => {
   // ?t=N (from a shared link): jump to tick N, paused there.
   // A bake opened without ?t starts at its latest checkpoint (the live end), not tick 0.
   const t = params.has('t') ? Number(params.get('t')) || 0 : bake ? bake.marks[bake.marks.length - 1].t : 0;
-  if (t) await seek(t);
+  // ?pick=<id>: open on that body, picked and followed (if it's alive at that tick).
+  const pickBody = () => { const id = Number(params.get('pick')); if (params.has('pick') && climbView && world.warriors[id]?.alive) climbView.focus(id); };
+  if (t) await seek(t, pickBody); else pickBody();
 });
