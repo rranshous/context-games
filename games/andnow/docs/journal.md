@@ -1815,3 +1815,12 @@ The user: "figure out how to make the sim farm out the work so that we can have 
   3. Worker threads.
   4. Maybe potluck.
 - And keep it easy to run (the user): one command per piece, sensible defaults.
+
+## 2026-10-16: step 1, the engine seam and the twin check
+
+- `World.tick()` is now named phases: `beginTick` (the clock, growth, tiles), `regrow`, `drift`, `turnOrder`/`runTurns`/`turn`, `upkeep(wr)` and `checkOver`. The golden replays still match, all 1,991.
+- `src/sim/engine.ts`: an `Engine` runs a world's ticks. `serial` is World.tick. `par` is the experimental one; for now it runs the same phases in order, which is the seam, proven identical before anything moves.
+- **`node dist/twin.mjs <bake dir | checkpoint | query> [--engine par] [--ticks N]`** runs serial and the other engine side by side and stops at the first tick where they differ. It compares the grids, rng state, every living body field by field, cell sets in insertion order, tiles, spawn timers, events, deaths and births.
+  - `par` matched for 300 ticks of a fresh climb.
+  - A sabotaged `par` (turns reversed) was caught on tick 1: `events[0].text: Climber·12 took size ≠ Hunter·32 took size`.
+- **A subtlety for later:** the upkeep step's cold and pressure checks draw one random number per body cell, in the order the cells joined the body's `Set`. That insertion order is part of the rules, so a parallel engine has to keep it exactly.

@@ -635,15 +635,34 @@ export class World {
 
   // ---------- tick ----------
 
+  /**
+   * One tick, as phases (an engine can run them its own way, see src/sim/engine.ts):
+   * begin (the clock, growth, tiles), regrow (plants), drift (dead cells sink), turns (every
+   * body runs, in a rotating order), upkeep (every body, in id order), then the end check.
+   */
   tick() {
-    if (this.result.over) return;
-    this.t++;
+    if (!this.beginTick()) return;
+    this.regrow();
+    this.drift();
+    this.runTurns(this.turnOrder());
+    for (const wr of this.living().slice()) if (wr.alive) this.upkeep(wr);
+    this.checkOver();
+  }
 
+  /** Start a tick: the clock, the climb's growth and tiles. False once the match is over. */
+  beginTick(): boolean {
+    if (this.result.over) return false;
+    this.t++;
+    if (CONFIG.climb && this.t % 100 === 0) this.growClimb();
+    if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
+    return true;
+  }
+
+  /** Plants regrow at empty spots (the climb: only in active tiles). */
+  regrow() {
     // Respawn resources at empty spots. A spot doesn't regrow while anything sits on or
     // touches it, so camping a spawn doesn't work: you have to leave and come back.
     const spawns = this.board.spawns;
-    if (CONFIG.climb && this.t % 100 === 0) this.growClimb();
-    if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
     const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
     const nSpawns = climbList ? climbList.length : spawns.length;
     for (let kk = 0; kk < nSpawns; kk++) {
@@ -662,96 +681,104 @@ export class World {
         this.spawnTimers[k] = 0;
       }
     }
+  }
 
+  /** Dead cells sink (island, climb); island sharks arrive. */
+  drift() {
     if (CONFIG.island || CONFIG.climb) this.islandTick();
     if (this.arriving.length && this.t >= CONFIG.sharkArrive) this.arrive();
+  }
 
-    // Run warriors in a rotating order so nobody always moves first.
-    const order = this.living().slice();
-    const n = order.length;
-    for (let k = 0; k < n; k++) {
-      const wr = order[(this.t + k) % n];
-      if (!wr.alive) continue;
-      wr.accum += wr.speed;
-      while (wr.accum >= 1 && wr.alive) wr.accum -= this.step(wr);
+  /** This tick's turn order: the living, rotated by the tick so nobody always moves first. */
+  turnOrder(): Warrior[] {
+    const living = this.living(), n = living.length, order = new Array<Warrior>(n);
+    for (let k = 0; k < n; k++) order[k] = living[(this.t + k) % n];
+    return order;
+  }
+
+  /** Every body's turn, in order: it runs as many instructions as its speed has banked. */
+  runTurns(order: Warrior[]) {
+    for (const wr of order) if (wr.alive) this.turn(wr);
+  }
+
+  /** One body's turn. */
+  turn(wr: Warrior) {
+    wr.accum += wr.speed;
+    while (wr.accum >= 1 && wr.alive) wr.accum -= this.step(wr);
+  }
+
+  /** Upkeep for one living body: whole-body stats, the climb's cold and pressure, pace, hunger, aging; shed or die. */
+  upkeep(wr: Warrior) {
+    // Whole-body measures: a tip poking into a corridor mouth is neither leaving nor squeezing.
+    const cells = this.cellSets.get(wr.id);
+    if (cells) {
+      const hm = wr.home;
+      let home = 0, narrow = 0, x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
+      for (const c of cells) {
+        const x = c % this.w, y = (c / this.w) | 0;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
+        if (this.narrow[c]) narrow++;
+      }
+      if (wr.leftHomeAt === undefined && home === 0 && cells.size > 0) {
+        wr.leftHomeAt = this.t;
+        this.log('left', `${wr.name} left its start room (whole body)`, wr.id);
+      }
+      if (cells.size >= 4 && 2 * narrow >= cells.size) wr.stats.squeezed++;
+      if (home === 0) {
+        this.board.rooms.forEach((r, k) => {
+          if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) return;
+          if (r.x === hm.x && r.y === hm.y) return;
+          wr.roomsSeen.add(k);
+          wr.stats.rooms++;
+          this.log('room', `${wr.name} moved its whole body into another room`, wr.id);
+        });
+      }
     }
-
-    // Upkeep: decay toward floors; shed cells if over max size.
-    for (const wr of this.living().slice()) {
-      if (!wr.alive) continue;
-      // Whole-body measures: a tip poking into a corridor mouth is neither leaving nor squeezing.
-      const cells = this.cellSets.get(wr.id);
-      if (cells) {
-        const hm = wr.home;
-        let home = 0, narrow = 0, x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
-        for (const c of cells) {
-          const x = c % this.w, y = (c / this.w) | 0;
-          if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-          if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
-          if (this.narrow[c]) narrow++;
-        }
-        if (wr.leftHomeAt === undefined && home === 0 && cells.size > 0) {
-          wr.leftHomeAt = this.t;
-          this.log('left', `${wr.name} left its start room (whole body)`, wr.id);
-        }
-        if (cells.size >= 4 && 2 * narrow >= cells.size) wr.stats.squeezed++;
-        if (home === 0) {
-          this.board.rooms.forEach((r, k) => {
-            if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) return;
-            if (r.x === hm.x && r.y === hm.y) return;
-            wr.roomsSeen.add(k);
-            wr.stats.rooms++;
-            this.log('room', `${wr.name} moved its whole body into another room`, wr.id);
-          });
-        }
-      }
-      // Plate toxin: each cell on a level above my armor (my K cells) may die.
-      const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
-      if (tox && cells) {
-        let armor = 0;
-        for (const c of cells) if (this.code[c] === K) armor++;
-        const doomed: number[] = [];
-        for (const c of cells) { const over = tox[c] - armor; if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c); }
-        const cause = !this.board.toxinBy ? undefined : wr.realm ? 'core crushed (too shallow)' : 'core crushed by the pressure';
-        for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, cause); }
-        if (!wr.alive) continue;
-      }
-      if (CONFIG.climb && cells) {
-        // The Climb: too high freezes (short of insulation), too deep crushes (short of armor),
-        // one level per step short, as harsh as the island's pressure.
-        const tr = this.traitsOf(wr);
-        wr.traits = tr;
-        const st = this.board.step!;
-        const doomed: number[] = [];
-        for (const c of cells) {
-          const n = st[c], over = n > 0 ? n - tr.insulation : -n - tr.armor;
-          if (n && over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
-        }
-        for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, st[c] > 0 ? 'core frozen (too high)' : 'core crushed by the pressure'); }
-        if (!wr.alive) continue;
-      }
-      if (CONFIG.island || CONFIG.climb) {
-        // Island survival: the body sets the pace, and the pace sets speed, hunger and aging,
-        // so every body gets about the same meals (and moves) per lifetime. An unfed body at
-        // pace 1 with max size 20 lasts `starve` ticks.
-        const pace = CONFIG.climb ? (wr.traits ??= this.traitsOf(wr)).pace : this.paceOf(wr);
-        wr.pace = pace;
-        wr.speed = CONFIG.paceSpeed * pace;
-        const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
-        wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
-        wr.aged = (wr.aged ?? 0) + pace;
-      } else {
-        wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
-        wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
-      }
-      if (wr.maxSize < 1) this.kill(wr, 'starved (max size fell to 0)');
-      else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
-      if (!wr.alive) continue;
-      if (wr.cellCount <= 0) this.kill(wr, 'no cells left');
-      else if (wr.diesAt !== undefined && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, 'old age');
+    // Plate toxin: each cell on a level above my armor (my K cells) may die.
+    const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
+    if (tox && cells) {
+      let armor = 0;
+      for (const c of cells) if (this.code[c] === K) armor++;
+      const doomed: number[] = [];
+      for (const c of cells) { const over = tox[c] - armor; if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c); }
+      const cause = !this.board.toxinBy ? undefined : wr.realm ? 'core crushed (too shallow)' : 'core crushed by the pressure';
+      for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, cause); }
+      if (!wr.alive) return;
     }
-
-    this.checkOver();
+    if (CONFIG.climb && cells) {
+      // The Climb: too high freezes (short of insulation), too deep crushes (short of armor),
+      // one level per step short, as harsh as the island's pressure.
+      const tr = this.traitsOf(wr);
+      wr.traits = tr;
+      const st = this.board.step!;
+      const doomed: number[] = [];
+      for (const c of cells) {
+        const n = st[c], over = n > 0 ? n - tr.insulation : -n - tr.armor;
+        if (n && over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
+      }
+      for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, st[c] > 0 ? 'core frozen (too high)' : 'core crushed by the pressure'); }
+      if (!wr.alive) return;
+    }
+    if (CONFIG.island || CONFIG.climb) {
+      // Island survival: the body sets the pace, and the pace sets speed, hunger and aging,
+      // so every body gets about the same meals (and moves) per lifetime. An unfed body at
+      // pace 1 with max size 20 lasts `starve` ticks.
+      const pace = CONFIG.climb ? (wr.traits ??= this.traitsOf(wr)).pace : this.paceOf(wr);
+      wr.pace = pace;
+      wr.speed = CONFIG.paceSpeed * pace;
+      const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
+      wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
+      wr.aged = (wr.aged ?? 0) + pace;
+    } else {
+      wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
+      wr.speed = Math.max(CONFIG.speedFloor, wr.speed - CONFIG.speedDecay);
+    }
+    if (wr.maxSize < 1) this.kill(wr, 'starved (max size fell to 0)');
+    else if (wr.cellCount > Math.floor(wr.maxSize)) this.shed(wr);
+    if (!wr.alive) return;
+    if (wr.cellCount <= 0) this.kill(wr, 'no cells left');
+    else if (wr.diesAt !== undefined && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, 'old age');
   }
 
   /**
@@ -936,7 +963,7 @@ export class World {
     return team !== -1 && this.warriors.some((w) => w.lineage !== team);
   }
 
-  private checkOver() {
+  checkOver() {
     const living = this.living().length;
     if (CONFIG.endless && this.t < CONFIG.tickCap) return;
     if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return; // nothing to decide
