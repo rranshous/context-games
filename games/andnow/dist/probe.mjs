@@ -2033,12 +2033,12 @@ var World = class {
         if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
-        keys[n++] = d * 16777216 + i;
+        keys[n++] = d * 4294967296 + i;
       }
     }
     const found = keys.subarray(0, n).sort();
     for (let k = 0; k < n; k++) {
-      const i = found[k] % 16777216, x = i % W, y = i / W | 0;
+      const i = found[k] % 4294967296, x = i % W, y = i / W | 0;
       if (this.seer(wr.id, x, y, r, mine) >= 0) {
         this.push(wr, x - fx);
         this.push(wr, y - fy);

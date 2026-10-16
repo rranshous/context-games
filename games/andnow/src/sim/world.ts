@@ -1233,12 +1233,12 @@ export class World {
         if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue; // (your own kind isn't prey)
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
-        keys[n++] = d * 16777216 + i;
+        keys[n++] = d * 4294967296 + i; // (exact in a double: a grown world has well over 2^24 cells)
       }
     }
     const found = keys.subarray(0, n).sort();
     for (let k = 0; k < n; k++) {
-      const i = found[k] % 16777216, x = i % W, y = (i / W) | 0;
+      const i = found[k] % 4294967296, x = i % W, y = (i / W) | 0;
       if (this.seer(wr.id, x, y, r, mine) >= 0) { this.push(wr, x - fx); this.push(wr, y - fy); this.push(wr, 1); return; }
     }
     this.push(wr, 0); this.push(wr, 0); this.push(wr, 0);

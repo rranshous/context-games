@@ -1824,3 +1824,20 @@ The user: "figure out how to make the sim farm out the work so that we can have 
   - `par` matched for 300 ticks of a fresh climb.
   - A sabotaged `par` (turns reversed) was caught on tick 1: `events[0].text: Climber·12 took size ≠ Hunter·32 took size`.
 - **A subtlety for later:** the upkeep step's cold and pressure checks draw one random number per body cell, in the order the cells joined the body's `Set`. That insertion order is part of the rules, so a parallel engine has to keep it exactly.
+
+## 2026-10-16: step 2, measuring a real tick (seed 13, t690k, 29k bodies)
+
+- **A probe** runs real ticks exactly as World.tick does, and gives each turn a conservative footprint: the body's bounding box widened by 34 cells (the scan window, plus a few moves) or by a child's landing distance, plus the whole bodies of everything inside, plus their last attackers. Footprints are counted in 16×16 chunks, and each turn's round is 1 + the latest round among earlier turns that overlap it. Draws are read from the rng counter (state delta × the inverse of mulberry32's step, mod 2^32).
+- **Schedule:** about **450 rounds per tick, 64 turns per round on average** (widest 169). Footprints average 36 chunks and about 40 bodies. That's deeper than the theory's 50–100 because the world is dense, but 64-wide is far more than 8 threads need.
+- **The global rng is the hard part.** About **10% of turns draw every tick**:
+
+  | where | draws per tick | kind |
+  |---|---|---|
+  | `World.step` | ~2,700 | `?`, `y` and `T` with (0,0): a random *direction* |
+  | `opDivide` | ~2,200 | copy errors, mostly yes/no |
+  | upkeep | ~4,100 | cold and pressure, yes/no |
+
+  The yes/no draws (`rng() < small p`) come out the same at almost any offset, so re-checking their outcomes saves them. But the step draws are values: a climber whose scan finds nothing (`S` gives 0,0) heads in a random direction via `T`, about 2,700 times a tick. A wrong offset changes the direction 3 times in 4, and what the body does next with it.
+  - So about 9% of turns need their exact offset: the draw count of *every* earlier turn in the tick.
+  - That makes them a chain through the tick, so even ideal threading tops out around 1/(0.09 + 0.91/8) ≈ 5× on 8 threads, before overheads (undo logs, redoing dependent turns).
+- **A bug found while reading `ringScan`:** each match was packed as `distance × 2^24 + cell index` and decoded with `% 2^24`, which assumes fewer than 16.7M cells (8,388 rows at width 2,000). Grown worlds are past that: seed 2 has 20.9M cells, seed 7 has 30M. So bodies below row 8,388 sorted their scan matches wrongly and decoded cells 8,388 rows away, since growth began (around t300k for seed 7). Now packed as `distance × 2^32 + index`, exact in a double. Small worlds are unchanged, and the golden replays still match.
