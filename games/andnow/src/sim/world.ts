@@ -13,7 +13,7 @@
 // - Max size decays all the way to 0 (slower the smaller it is) and speed toward a floor;
 //   resources push them back up. A body whose max size falls below 1 starves.
 // - Last standing wins; at the tick cap, the biggest body (most cells) wins.
-import { Board, FLOOR, makeBoard, makeClimb, makeIsland, makePlate } from './board';
+import { Board, climbStepH, FLOOR, makeBoard, makeClimb, makeClimbStep, makeIsland, makePlate, WALL } from './board';
 import {
   CLASSIC_GLYPHS, CODE, COST, DX, DY, GLYPHS, T_DEBRIS, T_ENEMY, T_NOTHING, T_RESOURCE, T_SIZE, T_SPEED, T_WALL,
 } from './glyphs';
@@ -263,6 +263,104 @@ export class World {
     }
     for (const k of this.activeTiles) this.tileLast[k] = this.t;
     this.tileActive = next;
+  }
+
+  // ---------- The Climb: a world that grows a step wherever life reaches its edge ----------
+
+  /** Rows joined on above the original world so far: every y has moved down by this much (a viewer keeps its camera on the same spot with it). */
+  yShift = 0;
+
+  private growClimb() {
+    const M = 256;
+    let top = Infinity, bottom = -1;
+    for (const wr of this.living()) { if (wr.ipY < top) top = wr.ipY; if (wr.ipY > bottom) bottom = wr.ipY; }
+    const low = bottom >= this.h - M; // (before growing up moves the bottom)
+    if (top < M) this.addStep(1);
+    if (low) this.addStep(-1);
+  }
+
+  /**
+   * Join the next step on above (dir 1) or below (dir −1), made from its own rng, and open
+   * the old wall row between. Below appends rows. Above prepends them, so everything that
+   * holds a row or a cell index moves down: the grids, cell sets, spawns, tiles, IPs and
+   * origins, homes and starts, sea level.
+   */
+  addStep(dir: 1 | -1) {
+    const b = this.board, w = this.w, T = CONFIG.tile, oldH = this.h;
+    const n = dir > 0 ? b.stepHi! + 1 : b.stepLo! - 1, H = climbStepH(b.climbBase!, n), h = oldH + H;
+    if (n > 127 || n < -128) return; // (Int8 steps: a long way off)
+    if (dir > 0 && H % T) throw new Error(`step ${n} is ${H} rows, not whole ${T}-row tiles`);
+    const made = makeClimbStep(this.seed, w, n, H, b.foodSpacing!);
+    const D = dir > 0 ? H : 0, dI = D * w, newTop = dir > 0 ? 0 : oldH; // (rows the old world moves down; where the new step starts)
+    const grown = <A extends Int32Array | Uint8Array | Int8Array | Float32Array>(a: A, fill: number): A => {
+      const out = new (a.constructor as { new (n: number): A })(w * h);
+      if (fill) out.fill(fill);
+      out.set(a, dI);
+      return out;
+    };
+    const terrain = grown(b.terrain, 0), step = grown(b.step!, 0);
+    terrain.set(made.terrain, newTop * w);
+    step.fill(n, newTop * w, (newTop + H) * w);
+    // Open the old wall row, then wall off whatever of the new step can't be reached from it.
+    const wallRow = dir > 0 ? H : oldH - 1;
+    for (let x = 1; x < w - 1; x++) terrain[wallRow * w + x] = FLOOR;
+    const edge = dir > 0 ? 0 : h - 1;
+    for (let x = 0; x < w; x++) terrain[edge * w + x] = WALL;
+    const seen = new Uint8Array(w * (H + 1)), q: number[] = []; // (the new rows plus the opened row)
+    const r0 = dir > 0 ? 0 : wallRow; // first row covered by `seen`
+    for (let x = 1; x < w - 1; x++) { const k = (wallRow - r0) * w + x; seen[k] = 1; q.push(k); }
+    for (let j = 0; j < q.length; j++) {
+      const k = q[j], x = k % w;
+      for (const nb of [x > 0 ? k - 1 : -1, x < w - 1 ? k + 1 : -1, k - w, k + w]) {
+        if (nb < 0 || nb >= seen.length || seen[nb] || terrain[r0 * w + nb] !== FLOOR) continue;
+        seen[nb] = 1; q.push(nb);
+      }
+    }
+    for (let y = newTop; y < newTop + H; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (terrain[i] === FLOOR && !seen[i - r0 * w]) terrain[i] = WALL;
+    }
+    this.owner = grown(this.owner, NONE);
+    this.code = grown(this.code, 0);
+    this.resource = grown(this.resource, 0);
+    this.ripe = grown(this.ripe, 1);
+    this.narrow = grown(this.narrow, 0);
+    b.terrain = terrain; b.step = step; b.h = h; this.h = h;
+    // Rows and cell indices that moved (each shared object once: homes are often the start rects).
+    if (D) {
+      const moved = new Set<object>();
+      const shift = (r: { y: number } | undefined) => { if (r && !moved.has(r)) { moved.add(r); r.y += D; } };
+      for (const s of b.spawns) s.y += D;
+      for (const r of b.starts) shift(r);
+      for (const wr of new Set(this.warriors)) { wr.ipY += D; wr.oy += D; shift(wr.home); }
+      for (const [id, set] of this.cellSets) { const out = new Set<number>(); for (const i of set) out.add(i + dI); this.cellSets.set(id, out); }
+      this.sortedCells.clear();
+      b.seaLevel! += D;
+      this.yShift += D;
+    }
+    // New plants, fresh and ripe.
+    for (const sp of made.spawns) {
+      const s = { x: sp.x, y: sp.y + newTop, kind: sp.kind };
+      if (terrain[s.y * w + s.x] !== FLOOR) continue; // (walled off as unreachable)
+      b.spawns.push(s);
+      this.spawnTimers.push(0);
+      const i = s.y * w + s.x;
+      this.resource[i] = s.kind; this.ripe[i] = 1;
+    }
+    // Steps: index by step − stepLo.
+    if (dir > 0) { b.stepTop = b.stepTop!.map((t) => t + H); b.stepTop.push(0); b.stepH!.push(H); b.stepHi = n; }
+    else { b.stepTop!.unshift(oldH); b.stepH!.unshift(H); b.stepLo = n; }
+    // Tiles: whole tile rows were added above, or rows below (which may fill out the last tile row).
+    const tileRows = Math.ceil(h / T), dT = (D / T) * this.tw, nt = tileRows * this.tw;
+    const tiles = <A extends Uint8Array | Float64Array | Uint16Array>(a: A): A => { const out = new (a.constructor as { new (n: number): A })(nt); out.set(a, dT); return out; };
+    this.tileActive = tiles(this.tileActive);
+    this.tileLast = tiles(this.tileLast); // (new tiles: last seen at 0, so they wake with everything grown and ripe)
+    this.tileCount = tiles(this.tileCount);
+    this.activeTiles = this.activeTiles.map((k) => k + dT);
+    this.spawnsInTile = Array.from({ length: nt }, () => []);
+    b.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
+    this.terrainVersion++;
+    this.log('grow', `the world grows: step ${n > 0 ? '+' : ''}${n} joins on ${dir > 0 ? 'above' : 'below'} (${H} rows)`);
   }
 
   /** Climb: ticks for a plant to regrow; sunlight makes it faster the higher the step. */
@@ -540,6 +638,7 @@ export class World {
     // Respawn resources at empty spots. A spot doesn't regrow while anything sits on or
     // touches it, so camping a spawn doesn't work: you have to leave and come back.
     const spawns = this.board.spawns;
+    if (CONFIG.climb && this.t % 100 === 0) this.growClimb();
     if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
     const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
     const nSpawns = climbList ? climbList.length : spawns.length;

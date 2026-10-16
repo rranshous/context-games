@@ -149,7 +149,7 @@ export interface DishSnapshot {
 
 /** The Climb: where life is and what it's made of. */
 export interface ClimbSnapshot {
-  steps: number[];                       // living by step under the IP, from +S down to −S
+  steps: number[];                       // living by step under the IP, from the highest step (stepHi) down
   armor: number[]; insulation: number[]; // living by trait value
   diet: { plants: number; meat: number; both: number; none: number };
   founders: Record<string, number>;      // living by founder name (lineage)
@@ -160,14 +160,14 @@ export interface ClimbSnapshot {
 }
 
 function climbSnapshot(world: World): ClimbSnapshot {
-  const b = world.board, S = b.climbSteps!, st = b.step!;
-  const steps = new Array(2 * S + 1).fill(0), armor: number[] = [], insulation: number[] = [];
+  const b = world.board, Hi = b.stepHi!, st = b.step!;
+  const steps = new Array(Hi - b.stepLo! + 1).fill(0), armor: number[] = [], insulation: number[] = [];
   const diet = { plants: 0, meat: 0, both: 0, none: 0 }, founders: Record<string, number> = {}, counts = new Map<string, number>();
   const mods: Record<string, number> = { I: 0, '~': 0, x: 0, n: 0 };
   let biggest: ClimbSnapshot['biggest'] = null;
   for (const w of world.living()) {
     const n = st[world.idx(w.ipX, w.ipY)];
-    steps[S - n]++;
+    steps[Hi - n]++;
     const t = w.traits;
     if (t) {
       armor[t.armor] = (armor[t.armor] ?? 0) + 1;

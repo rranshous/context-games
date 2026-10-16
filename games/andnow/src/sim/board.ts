@@ -29,12 +29,17 @@ export interface Board {
   calmLine?: number;  // island: first row with pressure (seals start above it)
   sharkLine?: number; // island: the first row sharks may enter (everything above is too shallow)
   // The Climb: the step of each cell (+ up into thin air, − down into deep water, 0 the start),
-  // each step's first row and height (index: step + climbSteps), and the sea-level row.
+  // the lowest and highest steps so far (the world grows a step when life reaches an edge),
+  // each step's first row and height (index: step − stepLo), and the sea-level row; plus
+  // what it takes to make another step.
   step?: Int8Array;
-  climbSteps?: number;
+  stepLo?: number;
+  stepHi?: number;
   stepTop?: number[];
   stepH?: number[];
   seaLevel?: number;
+  climbBase?: number;
+  foodSpacing?: number;
 }
 
 export const BOARD_W = 64;
@@ -404,10 +409,84 @@ export function makeIsland(seed: number, w: number, bands: number, foodSpacing: 
  * as likely. Everything is a pure function of the seed, so any step could be generated alone.
  * Starts: step 0 (climbers and divers) and the top of step −1 (hunters).
  */
+/**
+ * The Climb: step n's height. Steps 0, ±1, ±2 are base × 10^|n| (20, 200, 2,000 rows); past
+ * that each is about 1.5× the last (a world can't keep growing 10× a step), in whole 64-row
+ * tiles so the sim's tile maps stay aligned when a step joins on above.
+ */
+export function climbStepH(base: number, n: number) {
+  const a = Math.abs(n);
+  if (a <= 2) return base * 10 ** a;
+  let h = base * 100;
+  for (let k = 3; k <= a; k++) h = Math.max(64, Math.round((h * 1.5) / 64) * 64);
+  return h;
+}
+
+/** The Climb: rock on a coarse grid (cellular automata), wide flat cells in the air (ledges), square in the water (caves). */
+function climbRock(rng: Rng, terrain: Uint8Array, w: number, t: number, H: number, gx: number, gy: number, fill: number) {
+  const gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
+  let g = new Uint8Array(gw * gh);
+  for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
+  for (let pass = 0; pass < 4; pass++) {
+    const next = g.slice();
+    for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+      let c = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
+      next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
+    }
+    g = next;
+  }
+  for (let y = t; y < t + H; y++) {
+    const j = Math.floor((y - t) / gy);
+    for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
+  }
+}
+const rockFill = (n: number) => (n > 0 ? 0.36 : Math.min(0.5, 0.38 + 0.04 * -n));
+
+/** The Climb's food patchiness across the width: meadows and barrens. */
+function makeMeadow(rng: Rng, w: number) {
+  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
+  return (x: number) => {
+    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
+    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
+  };
+}
+
+/** Plants in rows [t, t + H) of step n: a rich layer partway through, twice as likely on ledges and rock floors. */
+function climbPlants(rng: Rng, terrain: Uint8Array, w: number, n: number, t: number, H: number, foodSpacing: number, meadow: (x: number) => number, spawns: Spawn[]) {
+  for (let y = t + 1; y < t + H - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w - 1 || py >= t + H - 1) continue;
+      const i = py * w + px;
+      if (terrain[i] !== FLOOR) continue;
+      const layer = n === 0 ? 0.6 : 0.25 + 0.75 * Math.sin(Math.PI * (py - t + 0.5) / H);
+      const ledge = terrain[i + w] !== FLOOR ? 2 : 1;
+      const sparse = n > 0 ? 0.5 : 1; // the air's patches are sparse (but regrow faster: sunlight)
+      if (rng() < 0.3 * meadow(px) * layer * ledge * sparse) spawns.push({ x: px, y: py, kind: 1 });
+    }
+  }
+}
+
+/**
+ * The Climb: step n made alone, H rows of it, from its own rng (a pure function of the seed
+ * and n): rock and plants, rows and spawn ys relative to the step's top. The sim joins it on
+ * when life reaches the top or bottom wall, and walls off any pocket it can't reach.
+ */
+export function makeClimbStep(seed: number, w: number, n: number, H: number, foodSpacing: number) {
+  const rng = makeRng((seed ^ 0xc11b) + n * 0x9e3779b1);
+  const terrain = new Uint8Array(w * H);
+  climbRock(rng, terrain, w, 0, H, n > 0 ? 10 : 5, n > 0 ? 3 : 5, rockFill(n));
+  for (let y = 0; y < H; y++) { terrain[y * w] = WALL; terrain[y * w + w - 1] = WALL; }
+  const spawns: Spawn[] = [];
+  climbPlants(rng, terrain, w, n, 0, H, foodSpacing, makeMeadow(rng, w), spawns);
+  return { terrain, spawns };
+}
+
 export function makeClimb(seed: number, w: number, base: number, steps: number, foodSpacing: number): Board {
   const stepH: number[] = [], stepTop: number[] = [];
   let h = 0;
-  for (let n = steps; n >= -steps; n--) { stepTop[n + steps] = h; stepH[n + steps] = base * 10 ** Math.abs(n); h += stepH[n + steps]; }
+  for (let n = steps; n >= -steps; n--) { stepTop[n + steps] = h; stepH[n + steps] = climbStepH(base, n); h += stepH[n + steps]; }
   const top0 = stepTop[steps], seaLevel = top0 + (base >> 1);
   const rng = makeRng(seed ^ 0xc11b);
   const terrain = new Uint8Array(w * h);
@@ -418,25 +497,7 @@ export function makeClimb(seed: number, w: number, base: number, steps: number, 
   }
   for (let y = 0; y < h; y++) { terrain[y * w] = WALL; terrain[y * w + w - 1] = WALL; }
   for (let x = 0; x < w; x++) { terrain[x] = WALL; terrain[(h - 1) * w + x] = WALL; }
-  // Rock on a coarse grid: wide flat cells in the air (ledges), square in the water (caves).
-  const rockIn = (n: number, gx: number, gy: number, fill: number) => {
-    const t = stepTop[n + steps], H = stepH[n + steps], gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
-    let g = new Uint8Array(gw * gh);
-    for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
-    for (let pass = 0; pass < 4; pass++) {
-      const next = g.slice();
-      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
-        let c = 0;
-        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
-        next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
-      }
-      g = next;
-    }
-    for (let y = t; y < t + H; y++) {
-      const j = Math.floor((y - t) / gy);
-      for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
-    }
-  };
+  const rockIn = (n: number, gx: number, gy: number, fill: number) => climbRock(rng, terrain, w, stepTop[n + steps], stepH[n + steps], gx, gy, fill);
   for (let n = 1; n <= steps; n++) { rockIn(n, 10, 3, 0.36); rockIn(-n, 5, 5, 0.38 + 0.04 * n); }
   // Fill in pockets the start can't reach.
   const seen = new Uint8Array(w * h), q: number[] = [];
@@ -447,11 +508,7 @@ export function makeClimb(seed: number, w: number, base: number, steps: number, 
   }
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
   // Plants: meadows across the width × a rich layer partway through each step.
-  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
-  const meadow = (x: number) => {
-    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
-    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
-  };
+  const meadow = makeMeadow(rng, w);
   const spawns: Spawn[] = [];
   for (let y = 1; y < h - 1; y += foodSpacing) {
     for (let x = 1; x < w - 1; x += foodSpacing) {
@@ -469,5 +526,5 @@ export function makeClimb(seed: number, w: number, base: number, steps: number, 
   // Starts: across step 0 for the climbers and divers, the top of step −1 for the hunters.
   const s0: Rect = { x: 2, y: top0 + 1, w: w - 4, h: base - 2 };
   const sm1: Rect = { x: 2, y: stepTop[steps - 1] + 2, w: w - 4, h: Math.min(30, stepH[steps - 1] - 4) };
-  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, climbSteps: steps, stepTop, stepH, seaLevel };
+  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, stepLo: -steps, stepHi: steps, stepTop, stepH, seaLevel, climbBase: base, foodSpacing };
 }

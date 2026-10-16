@@ -117,6 +117,13 @@ export function loadWorld(bytes: Uint8Array): World {
   Object.assign(CONFIG, dec(header.config));
   const world = Object.setPrototypeOf(objs[rootId] as object, World.prototype) as World;
   world.rng = restoreRng(header.rng);
+  // Climbs saved before the world could grow: a fixed ±climbSteps world, never shifted.
+  const b = world.board as typeof world.board & { climbSteps?: number };
+  if (CONFIG.climb && b.stepLo === undefined) {
+    b.stepLo = -b.climbSteps!; b.stepHi = b.climbSteps!; delete b.climbSteps;
+    b.climbBase = CONFIG.climbBase; b.foodSpacing = CONFIG.plateFood;
+  }
+  world.yShift ??= 0;
   return world;
 }
 

@@ -1767,3 +1767,18 @@ The user's intent is that the world keeps scaling up and down forever. Life alre
 - **Lazy generation:** when a living IP comes within 256 rows of the top or bottom wall, the next step is made from its own seeded rng (a pure function of seed and step) and joined on, and the old wall row opens. Growing down appends rows. Growing up prepends them, so every stored cell index and y shifts: cell sets, spawns, tiles, IPs, origins, homes, starts and sea level. `world.yShift` counts the rows added above, so the viewer can keep its camera on the same spot.
 - **Memory:** about 13 bytes per cell, so roughly 80–170 MB per new step at a width of 2,000.
 - **The bakes:** old checkpoints get `stepLo`/`stepHi` filled in from `climbSteps` when loaded, so the four forever runs can resume straight into a world that grows.
+
+## 2026-10-15: the climb grows forever (built)
+
+- **Built as planned.**
+  - `World.addStep(dir)` joins step n on above or below. The step comes from `makeClimbStep(seed, w, n, H)`: its own rng, rock and plants, with unreachable pockets walled off by a flood from the opened wall row.
+  - `growClimb()` checks every 100 ticks and grows wherever a living IP is within 256 rows of the top or bottom wall.
+  - Heights come from `climbStepH`: 20, 200 and 2,000 rows, then 3,008, 4,544… (×1.5, whole 64-row tiles).
+  - `board.stepLo`/`stepHi` replace `climbSteps`. Step arrays are indexed by `n − stepLo`.
+  - Old checkpoints get upgraded on load. Fresh climb worlds are byte-identical to before (same hash at t0 and t2000, seed 2), and the golden replays pass.
+- **Test on seed 7 at t303,000** (39,700 alive, life at both walls). At the first check, +3 joined above and −3 below: h 4,420 → 10,436, and the sea moved from row 2,210 to 5,218. Invariants held: every body's cell set equals the cells it owns equals its count, IPs in bounds, edge rows walled, and step rows matching `stepTop`/`stepH`. A save/load round trip right after growing hashes equal, and still equal 150 ticks later.
+- **Bugs caught by the test:**
+  - The bottom check used the bottom row from before growing up, so a world reaching both walls grew only one way per check.
+  - Plants generated in pockets later walled off sat inside rock.
+- **Viewer:** `world.yShift` counts rows added above. The camera moves with it, so growing above doesn't jump the view, and that holds across seeks between checkpoints of different heights. The minimap and step labels follow the steps that exist.
+- **The wheel scrolled the page too (the user).** It only zoomed over the board canvas itself, so a wheel over the minimap, the timeline or the borders scrolled the page. Now the wheel anywhere on the stage zooms (around the pointer over the board, else around the view's middle) and never scrolls the page. I couldn't reproduce a page scroll over the board itself in Chromium.

@@ -418,12 +418,71 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.25, de
   const bayRect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
   return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
 }
+function climbStepH(base, n) {
+  const a = Math.abs(n);
+  if (a <= 2) return base * 10 ** a;
+  let h = base * 100;
+  for (let k = 3; k <= a; k++) h = Math.max(64, Math.round(h * 1.5 / 64) * 64);
+  return h;
+}
+function climbRock(rng, terrain, w, t, H, gx, gy, fill) {
+  const gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
+  let g = new Uint8Array(gw * gh);
+  for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
+  for (let pass = 0; pass < 4; pass++) {
+    const next = g.slice();
+    for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+      let c = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
+      next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
+    }
+    g = next;
+  }
+  for (let y = t; y < t + H; y++) {
+    const j = Math.floor((y - t) / gy);
+    for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
+  }
+}
+var rockFill = (n) => n > 0 ? 0.36 : Math.min(0.5, 0.38 + 0.04 * -n);
+function makeMeadow(rng, w) {
+  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
+  return (x) => {
+    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
+    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
+  };
+}
+function climbPlants(rng, terrain, w, n, t, H, foodSpacing, meadow, spawns) {
+  for (let y = t + 1; y < t + H - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w - 1 || py >= t + H - 1) continue;
+      const i = py * w + px;
+      if (terrain[i] !== FLOOR) continue;
+      const layer = n === 0 ? 0.6 : 0.25 + 0.75 * Math.sin(Math.PI * (py - t + 0.5) / H);
+      const ledge = terrain[i + w] !== FLOOR ? 2 : 1;
+      const sparse = n > 0 ? 0.5 : 1;
+      if (rng() < 0.3 * meadow(px) * layer * ledge * sparse) spawns.push({ x: px, y: py, kind: 1 });
+    }
+  }
+}
+function makeClimbStep(seed, w, n, H, foodSpacing) {
+  const rng = makeRng((seed ^ 49435) + n * 2654435761);
+  const terrain = new Uint8Array(w * H);
+  climbRock(rng, terrain, w, 0, H, n > 0 ? 10 : 5, n > 0 ? 3 : 5, rockFill(n));
+  for (let y = 0; y < H; y++) {
+    terrain[y * w] = WALL;
+    terrain[y * w + w - 1] = WALL;
+  }
+  const spawns = [];
+  climbPlants(rng, terrain, w, n, 0, H, foodSpacing, makeMeadow(rng, w), spawns);
+  return { terrain, spawns };
+}
 function makeClimb(seed, w, base, steps, foodSpacing) {
   const stepH = [], stepTop = [];
   let h = 0;
   for (let n = steps; n >= -steps; n--) {
     stepTop[n + steps] = h;
-    stepH[n + steps] = base * 10 ** Math.abs(n);
+    stepH[n + steps] = climbStepH(base, n);
     h += stepH[n + steps];
   }
   const top0 = stepTop[steps], seaLevel = top0 + (base >> 1);
@@ -442,24 +501,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
     terrain[x] = WALL;
     terrain[(h - 1) * w + x] = WALL;
   }
-  const rockIn = (n, gx, gy, fill) => {
-    const t = stepTop[n + steps], H = stepH[n + steps], gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
-    let g = new Uint8Array(gw * gh);
-    for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
-    for (let pass = 0; pass < 4; pass++) {
-      const next = g.slice();
-      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
-        let c = 0;
-        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
-        next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
-      }
-      g = next;
-    }
-    for (let y = t; y < t + H; y++) {
-      const j = Math.floor((y - t) / gy);
-      for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
-    }
-  };
+  const rockIn = (n, gx, gy, fill) => climbRock(rng, terrain, w, stepTop[n + steps], stepH[n + steps], gx, gy, fill);
   for (let n = 1; n <= steps; n++) {
     rockIn(n, 10, 3, 0.36);
     rockIn(-n, 5, 5, 0.38 + 0.04 * n);
@@ -480,11 +522,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
     }
   }
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
-  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
-  const meadow = (x) => {
-    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
-    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
-  };
+  const meadow = makeMeadow(rng, w);
   const spawns = [];
   for (let y = 1; y < h - 1; y += foodSpacing) {
     for (let x = 1; x < w - 1; x += foodSpacing) {
@@ -501,7 +539,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
   }
   const s0 = { x: 2, y: top0 + 1, w: w - 4, h: base - 2 };
   const sm1 = { x: 2, y: stepTop[steps - 1] + 2, w: w - 4, h: Math.min(30, stepH[steps - 1] - 4) };
-  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, climbSteps: steps, stepTop, stepH, seaLevel };
+  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, stepLo: -steps, stepHi: steps, stepTop, stepH, seaLevel, climbBase: base, foodSpacing };
 }
 
 // src/sim/world.ts
@@ -750,6 +788,132 @@ var World = class {
     }
     for (const k of this.activeTiles) this.tileLast[k] = this.t;
     this.tileActive = next;
+  }
+  // ---------- The Climb: a world that grows a step wherever life reaches its edge ----------
+  /** Rows joined on above the original world so far: every y has moved down by this much (a viewer keeps its camera on the same spot with it). */
+  yShift = 0;
+  growClimb() {
+    const M = 256;
+    let top = Infinity, bottom = -1;
+    for (const wr of this.living()) {
+      if (wr.ipY < top) top = wr.ipY;
+      if (wr.ipY > bottom) bottom = wr.ipY;
+    }
+    const low = bottom >= this.h - M;
+    if (top < M) this.addStep(1);
+    if (low) this.addStep(-1);
+  }
+  /**
+   * Join the next step on above (dir 1) or below (dir −1), made from its own rng, and open
+   * the old wall row between. Below appends rows. Above prepends them, so everything that
+   * holds a row or a cell index moves down: the grids, cell sets, spawns, tiles, IPs and
+   * origins, homes and starts, sea level.
+   */
+  addStep(dir) {
+    const b = this.board, w = this.w, T = CONFIG.tile, oldH = this.h;
+    const n = dir > 0 ? b.stepHi + 1 : b.stepLo - 1, H = climbStepH(b.climbBase, n), h = oldH + H;
+    if (n > 127 || n < -128) return;
+    if (dir > 0 && H % T) throw new Error(`step ${n} is ${H} rows, not whole ${T}-row tiles`);
+    const made = makeClimbStep(this.seed, w, n, H, b.foodSpacing);
+    const D = dir > 0 ? H : 0, dI = D * w, newTop = dir > 0 ? 0 : oldH;
+    const grown = (a, fill) => {
+      const out = new a.constructor(w * h);
+      if (fill) out.fill(fill);
+      out.set(a, dI);
+      return out;
+    };
+    const terrain = grown(b.terrain, 0), step = grown(b.step, 0);
+    terrain.set(made.terrain, newTop * w);
+    step.fill(n, newTop * w, (newTop + H) * w);
+    const wallRow = dir > 0 ? H : oldH - 1;
+    for (let x = 1; x < w - 1; x++) terrain[wallRow * w + x] = FLOOR;
+    const edge = dir > 0 ? 0 : h - 1;
+    for (let x = 0; x < w; x++) terrain[edge * w + x] = WALL;
+    const seen = new Uint8Array(w * (H + 1)), q = [];
+    const r0 = dir > 0 ? 0 : wallRow;
+    for (let x = 1; x < w - 1; x++) {
+      const k = (wallRow - r0) * w + x;
+      seen[k] = 1;
+      q.push(k);
+    }
+    for (let j = 0; j < q.length; j++) {
+      const k = q[j], x = k % w;
+      for (const nb of [x > 0 ? k - 1 : -1, x < w - 1 ? k + 1 : -1, k - w, k + w]) {
+        if (nb < 0 || nb >= seen.length || seen[nb] || terrain[r0 * w + nb] !== FLOOR) continue;
+        seen[nb] = 1;
+        q.push(nb);
+      }
+    }
+    for (let y = newTop; y < newTop + H; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (terrain[i] === FLOOR && !seen[i - r0 * w]) terrain[i] = WALL;
+    }
+    this.owner = grown(this.owner, NONE);
+    this.code = grown(this.code, 0);
+    this.resource = grown(this.resource, 0);
+    this.ripe = grown(this.ripe, 1);
+    this.narrow = grown(this.narrow, 0);
+    b.terrain = terrain;
+    b.step = step;
+    b.h = h;
+    this.h = h;
+    if (D) {
+      const moved = /* @__PURE__ */ new Set();
+      const shift = (r) => {
+        if (r && !moved.has(r)) {
+          moved.add(r);
+          r.y += D;
+        }
+      };
+      for (const s of b.spawns) s.y += D;
+      for (const r of b.starts) shift(r);
+      for (const wr of new Set(this.warriors)) {
+        wr.ipY += D;
+        wr.oy += D;
+        shift(wr.home);
+      }
+      for (const [id, set] of this.cellSets) {
+        const out = /* @__PURE__ */ new Set();
+        for (const i of set) out.add(i + dI);
+        this.cellSets.set(id, out);
+      }
+      this.sortedCells.clear();
+      b.seaLevel += D;
+      this.yShift += D;
+    }
+    for (const sp of made.spawns) {
+      const s = { x: sp.x, y: sp.y + newTop, kind: sp.kind };
+      if (terrain[s.y * w + s.x] !== FLOOR) continue;
+      b.spawns.push(s);
+      this.spawnTimers.push(0);
+      const i = s.y * w + s.x;
+      this.resource[i] = s.kind;
+      this.ripe[i] = 1;
+    }
+    if (dir > 0) {
+      b.stepTop = b.stepTop.map((t) => t + H);
+      b.stepTop.push(0);
+      b.stepH.push(H);
+      b.stepHi = n;
+    } else {
+      b.stepTop.unshift(oldH);
+      b.stepH.unshift(H);
+      b.stepLo = n;
+    }
+    const tileRows = Math.ceil(h / T), dT = D / T * this.tw, nt = tileRows * this.tw;
+    const tiles = (a) => {
+      const out = new a.constructor(nt);
+      out.set(a, dT);
+      return out;
+    };
+    this.tileActive = tiles(this.tileActive);
+    this.tileLast = tiles(this.tileLast);
+    this.tileCount = tiles(this.tileCount);
+    this.activeTiles = this.activeTiles.map((k) => k + dT);
+    this.spawnsInTile = Array.from({ length: nt }, () => []);
+    b.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
+    this.terrainVersion++;
+    this.log("grow", `the world grows: step ${n > 0 ? "+" : ""}${n} joins on ${dir > 0 ? "above" : "below"} (${H} rows)`);
   }
   /** Climb: ticks for a plant to regrow; sunlight makes it faster the higher the step. */
   regrowAt(y) {
@@ -1044,6 +1208,7 @@ var World = class {
     if (this.result.over) return;
     this.t++;
     const spawns = this.board.spawns;
+    if (CONFIG.climb && this.t % 100 === 0) this.growClimb();
     if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
     const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
     const nSpawns = climbList ? climbList.length : spawns.length;
@@ -2427,6 +2592,15 @@ function loadWorld(bytes) {
   Object.assign(CONFIG, dec(header.config));
   const world2 = Object.setPrototypeOf(objs[rootId], World.prototype);
   world2.rng = restoreRng(header.rng);
+  const b = world2.board;
+  if (CONFIG.climb && b.stepLo === void 0) {
+    b.stepLo = -b.climbSteps;
+    b.stepHi = b.climbSteps;
+    delete b.climbSteps;
+    b.climbBase = CONFIG.climbBase;
+    b.foodSpacing = CONFIG.plateFood;
+  }
+  world2.yShift ??= 0;
   return world2;
 }
 function restoreRng(state) {
@@ -2491,6 +2665,7 @@ var ClimbView = class {
     this.redraw = redraw;
     const w = world2();
     this.cam = cam ?? { x: 0, y: 0, zoom: 3 };
+    this.seenShift = w.yShift ?? 0;
     if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0);
     else this.clamp();
     canvas3.style.touchAction = "none";
@@ -2547,9 +2722,10 @@ var ClimbView = class {
     };
     canvas3.addEventListener("pointerup", up);
     canvas3.addEventListener("pointercancel", up);
-    canvas3.addEventListener("wheel", (e) => {
+    (canvas3.parentElement ?? canvas3).addEventListener("wheel", (e) => {
       e.preventDefault();
-      const r = canvas3.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      const r = canvas3.getBoundingClientRect(), over = e.target === canvas3;
+      const mx = over ? e.clientX - r.left : canvas3.width / 2, my = over ? e.clientY - r.top : canvas3.height / 2;
       const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
       const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
       this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 1e-3)));
@@ -2644,6 +2820,8 @@ var ClimbView = class {
   // (the first look at a newly followed body jumps there)
   lastTrack = 0;
   goal = null;
+  seenShift = 0;
+  // (the world's yShift the camera was last placed under)
   /** The camera is still easing toward a followed body: worth another frame even when paused. */
   gliding = false;
   /** Tap: pick the body at (or within a cell of) this cell; tapping nothing, or it again, lets go. */
@@ -2736,14 +2914,14 @@ var ClimbView = class {
   // ---------- the minimap: each step sized by the square root of its height ----------
   /** Minimap sections, top to bottom, each sized by the square root of its step's height (step 0 small but visible). */
   sections() {
-    const b = this.world().board, S = b.climbSteps, n = 2 * S + 1, H = this.mini.height;
-    const weights = Array.from({ length: n }, (_, k) => Math.sqrt(b.stepH[2 * S - k]));
+    const b = this.world().board, Hi = b.stepHi, Lo = b.stepLo, n = Hi - Lo + 1, H = this.mini.height;
+    const weights = Array.from({ length: n }, (_, k) => Math.sqrt(b.stepH[Hi - k - Lo]));
     const total = weights.reduce((a, c) => a + c, 0);
     let y = 0;
     return weights.map((wt, k) => {
       const y0 = y;
       y += wt / total * H;
-      return { step: S - k, top: b.stepTop[2 * S - k], h: b.stepH[2 * S - k], y0, y1: y };
+      return { step: Hi - k, top: b.stepTop[Hi - k - Lo], h: b.stepH[Hi - k - Lo], y0, y1: y };
     });
   }
   rowToMini(row) {
@@ -2758,13 +2936,13 @@ var ClimbView = class {
   /** Background colour of an empty floor cell: air bluer then violet the higher, water darker the deeper. */
   sky(step, row) {
     const b = this.world().board, sea = b.seaLevel ?? 0;
-    if (step > 0) return mix([150, 200, 240], [40, 20, 80], Math.min(1, (step - 1 + this.frac(step, row)) / Math.max(1, b.climbSteps)));
-    if (step < 0) return mix([30, 110, 160], [4, 8, 30], Math.min(1, (-step - 1 + this.frac(step, row)) / Math.max(1, b.climbSteps)));
+    if (step > 0) return mix([150, 200, 240], [40, 20, 80], Math.min(1, (step - 1 + this.frac(step, row)) / Math.max(2, b.stepHi)));
+    if (step < 0) return mix([30, 110, 160], [4, 8, 30], Math.min(1, (-step - 1 + this.frac(step, row)) / Math.max(2, -b.stepLo)));
     return row < sea ? [170, 215, 245] : [50, 140, 190];
   }
   /** How far through its step a row is (0 at the edge toward step 0, 1 at the far edge). */
   frac(step, row) {
-    const b = this.world().board, S = b.climbSteps, top = b.stepTop[step + S], h = b.stepH[step + S];
+    const b = this.world().board, Lo = b.stepLo, top = b.stepTop[step - Lo], h = b.stepH[step - Lo];
     const f = (row - top) / h;
     return step > 0 ? 1 - f : f;
   }
@@ -2808,6 +2986,12 @@ var ClimbView = class {
     ctx2.putImageData(img, 0, 0);
   }
   render() {
+    const shift = this.world().yShift ?? 0;
+    if (shift !== this.seenShift) {
+      this.cam.y += shift - this.seenShift;
+      if (this.goal) this.goal.y += shift - this.seenShift;
+      this.seenShift = shift;
+    }
     this.track();
     if (this.cam.zoom < 1) {
       this.renderFar();
@@ -2875,14 +3059,14 @@ var ClimbView = class {
   /** Step boundary lines, each with a small label on its line at the right edge. */
   renderLabels() {
     const b = this.world().board, z = this.cam.zoom, ctx2 = this.canvas.getContext("2d");
-    const S = b.climbSteps;
+    const Lo = b.stepLo, Hi = b.stepHi;
     ctx2.font = "11px ui-monospace, Menlo, monospace";
     ctx2.textBaseline = "bottom";
     const right = Math.min(this.canvas.width, (this.world().w - this.cam.x) * z);
     const left = Math.max(0, -this.cam.x * z);
     let lastY = -1e9;
-    for (let n = S; n >= -S; n--) {
-      const bottomRow = b.stepTop[n + S] + b.stepH[n + S], sy = (bottomRow - this.cam.y) * z;
+    for (let n = Hi; n >= Lo; n--) {
+      const bottomRow = b.stepTop[n - Lo] + b.stepH[n - Lo], sy = (bottomRow - this.cam.y) * z;
       if (sy < 12 || sy > this.canvas.height + 12) continue;
       ctx2.fillStyle = "rgba(255,255,255,0.3)";
       ctx2.fillRect(left, sy, right - left, 1);
@@ -2891,8 +3075,8 @@ var ClimbView = class {
       const short = this.canvas.width < 600;
       const below = n - 1, label = (k) => short ? k > 0 ? `+${k} \xB7 ${k} insul` : k < 0 ? `${k} \xB7 ${-k} armor` : "0 \xB7 sea" : k > 0 ? `+${k} \xB7 ${k} insulation \xB7 food \xD7${10 ** k}` : k < 0 ? `${k} \xB7 ${-k} armor \xB7 food \xD7${10 ** -k}` : "0 \xB7 sea level";
       ctx2.fillStyle = "rgba(0,0,0,0.35)";
-      const nextLine = below >= -S ? (b.stepTop[below + S] + b.stepH[below + S] - this.cam.y) * z : Infinity;
-      const t1 = `\u25B2 ${label(n)}`, t2 = below >= -S && nextLine - sy >= 30 ? `\u25BC ${label(below)}` : "";
+      const nextLine = below >= Lo ? (b.stepTop[below - Lo] + b.stepH[below - Lo] - this.cam.y) * z : Infinity;
+      const t1 = `\u25B2 ${label(n)}`, t2 = below >= Lo && nextLine - sy >= 30 ? `\u25BC ${label(below)}` : "";
       const w1 = ctx2.measureText(t1).width, w2 = ctx2.measureText(t2).width, x = right - Math.max(w1, w2) - 14;
       ctx2.fillRect(x - 3, sy - 13, w1 + 6, 13);
       if (t2) ctx2.fillRect(x - 3, sy + 1, w2 + 6, 13);
@@ -2933,13 +3117,13 @@ var ClimbView = class {
   }
   /** Side panel: population by step, chemistry, diets, top genomes, deaths, active tiles. */
   panel(esc2) {
-    const world2 = this.world(), b = world2.board, S = b.climbSteps, st = b.step;
+    const world2 = this.world(), b = world2.board, Hi = b.stepHi, st = b.step;
     const living = world2.living();
-    const by = new Array(2 * S + 1).fill(0), arm = /* @__PURE__ */ new Map(), ins = /* @__PURE__ */ new Map();
+    const by = new Array(Hi - b.stepLo + 1).fill(0), arm = /* @__PURE__ */ new Map(), ins = /* @__PURE__ */ new Map();
     let plants = 0, meat = 0, both = 0, paceSum = 0;
     const counts = /* @__PURE__ */ new Map();
     for (const w of living) {
-      by[S - st[w.ipY * world2.w + w.ipX]]++;
+      by[Hi - st[w.ipY * world2.w + w.ipX]]++;
       const t = w.traits;
       if (t) {
         arm.set(t.armor, (arm.get(t.armor) ?? 0) + 1);
@@ -2956,8 +3140,8 @@ var ClimbView = class {
     }
     const max = Math.max(1, ...by);
     const bars = by.map((n, k) => {
-      const step = S - k;
-      const c = this.sky(step, b.stepTop[step + S] + b.stepH[step + S] / 2);
+      const step = Hi - k;
+      const c = this.sky(step, b.stepTop[step - b.stepLo] + b.stepH[step - b.stepLo] / 2);
       return `<div class="stats" style="display:flex;gap:6px;align-items:center"><span style="width:28px">${step > 0 ? `+${step}` : step}</span><span style="display:inline-block;height:9px;width:${Math.round(n / max * 160)}px;background:rgb(${c.join(",")})"></span>${n}</div>`;
     }).join("");
     const hist = (m) => [...m.entries()].sort((a, c) => a[0] - c[0]).map(([k, n]) => `${k}: ${n}`).join(" \xB7 ");

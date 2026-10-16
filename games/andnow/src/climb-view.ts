@@ -37,6 +37,7 @@ export class ClimbView {
   constructor(private canvas: HTMLCanvasElement, private mini: HTMLCanvasElement, private world: () => World, private redraw: () => void, cam?: Camera) {
     const w = world();
     this.cam = cam ?? { x: 0, y: 0, zoom: 3 };
+    this.seenShift = w.yShift ?? 0;
     if (!cam) this.centerOn(w.w / 2, w.board.seaLevel ?? 0); else this.clamp();
     // Pointer events cover mouse and touch: one pointer drags, two pinch to zoom.
     canvas.style.touchAction = 'none';
@@ -86,9 +87,12 @@ export class ClimbView {
     };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
-    canvas.addEventListener('wheel', (e) => {
+    // The wheel anywhere on the stage (board, minimap, timeline, the borders between) zooms and
+    // never scrolls the page: around the pointer over the board, else around the view's middle.
+    (canvas.parentElement ?? canvas).addEventListener('wheel', (e) => {
       e.preventDefault();
-      const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      const r = canvas.getBoundingClientRect(), over = e.target === canvas;
+      const mx = over ? e.clientX - r.left : canvas.width / 2, my = over ? e.clientY - r.top : canvas.height / 2;
       const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
       // Gentle, and in proportion to the scroll: a wheel notch (~100) is ×1.1, and a trackpad's
       // stream of small deltas glides instead of every event jumping ×1.25.
@@ -165,6 +169,7 @@ export class ClimbView {
   private snap = false; // (the first look at a newly followed body jumps there)
   private lastTrack = 0;
   private goal: { x: number; y: number } | null = null;
+  private seenShift = 0; // (the world's yShift the camera was last placed under)
   /** The camera is still easing toward a followed body: worth another frame even when paused. */
   gliding = false;
 
@@ -245,14 +250,14 @@ export class ClimbView {
 
   /** Minimap sections, top to bottom, each sized by the square root of its step's height (step 0 small but visible). */
   private sections() {
-    const b = this.world().board, S = b.climbSteps!, n = 2 * S + 1, H = this.mini.height;
-    const weights = Array.from({ length: n }, (_, k) => Math.sqrt(b.stepH![2 * S - k]));
+    const b = this.world().board, Hi = b.stepHi!, Lo = b.stepLo!, n = Hi - Lo + 1, H = this.mini.height;
+    const weights = Array.from({ length: n }, (_, k) => Math.sqrt(b.stepH![Hi - k - Lo]));
     const total = weights.reduce((a, c) => a + c, 0);
     let y = 0;
     return weights.map((wt, k) => {
       const y0 = y;
       y += (wt / total) * H;
-      return { step: S - k, top: b.stepTop![2 * S - k], h: b.stepH![2 * S - k], y0, y1: y };
+      return { step: Hi - k, top: b.stepTop![Hi - k - Lo], h: b.stepH![Hi - k - Lo], y0, y1: y };
     });
   }
   private rowToMini(row: number) {
@@ -269,13 +274,13 @@ export class ClimbView {
   /** Background colour of an empty floor cell: air bluer then violet the higher, water darker the deeper. */
   private sky(step: number, row: number): RGB {
     const b = this.world().board, sea = b.seaLevel ?? 0;
-    if (step > 0) return mix([150, 200, 240], [40, 20, 80], Math.min(1, (step - 1 + this.frac(step, row)) / Math.max(1, b.climbSteps!)));
-    if (step < 0) return mix([30, 110, 160], [4, 8, 30], Math.min(1, (-step - 1 + this.frac(step, row)) / Math.max(1, b.climbSteps!)));
+    if (step > 0) return mix([150, 200, 240], [40, 20, 80], Math.min(1, (step - 1 + this.frac(step, row)) / Math.max(2, b.stepHi!)));
+    if (step < 0) return mix([30, 110, 160], [4, 8, 30], Math.min(1, (-step - 1 + this.frac(step, row)) / Math.max(2, -b.stepLo!)));
     return row < sea ? [170, 215, 245] : [50, 140, 190];
   }
   /** How far through its step a row is (0 at the edge toward step 0, 1 at the far edge). */
   private frac(step: number, row: number) {
-    const b = this.world().board, S = b.climbSteps!, top = b.stepTop![step + S], h = b.stepH![step + S];
+    const b = this.world().board, Lo = b.stepLo!, top = b.stepTop![step - Lo], h = b.stepH![step - Lo];
     const f = (row - top) / h;
     return step > 0 ? 1 - f : f;
   }
@@ -314,6 +319,13 @@ export class ClimbView {
   }
 
   render() {
+    // Rows joined on above move everything down: keep the camera on the same spot.
+    const shift = this.world().yShift ?? 0;
+    if (shift !== this.seenShift) {
+      this.cam.y += shift - this.seenShift;
+      if (this.goal) this.goal.y += shift - this.seenShift;
+      this.seenShift = shift;
+    }
     this.track();
     if (this.cam.zoom < 1) { this.renderFar(); this.renderMark(); this.renderLabels(); this.renderMini(); return; }
     const world = this.world(), b = world.board, st = b.step!;
@@ -368,14 +380,14 @@ export class ClimbView {
   private renderLabels() {
     const b = this.world().board, z = this.cam.zoom, ctx = this.canvas.getContext('2d')!;
     // Step boundaries, each with a small label sitting on its line (not pinned over the view).
-    const S = b.climbSteps!;
+    const Lo = b.stepLo!, Hi = b.stepHi!;
     ctx.font = '11px ui-monospace, Menlo, monospace';
     ctx.textBaseline = 'bottom';
     const right = Math.min(this.canvas.width, (this.world().w - this.cam.x) * z); // the world's edges on screen
     const left = Math.max(0, -this.cam.x * z);
     let lastY = -1e9;
-    for (let n = S; n >= -S; n--) {
-      const bottomRow = b.stepTop![n + S] + b.stepH![n + S], sy = (bottomRow - this.cam.y) * z; // the line below step n
+    for (let n = Hi; n >= Lo; n--) {
+      const bottomRow = b.stepTop![n - Lo] + b.stepH![n - Lo], sy = (bottomRow - this.cam.y) * z; // the line below step n
       if (sy < 12 || sy > this.canvas.height + 12) continue;
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.fillRect(left, sy, right - left, 1);
@@ -387,8 +399,8 @@ export class ClimbView {
         : (k > 0 ? `+${k} · ${k} insulation · food ×${10 ** k}` : k < 0 ? `${k} · ${-k} armor · food ×${10 ** -k}` : '0 · sea level');
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       // The ▼ label for the step below, unless its own line comes right after (then that line's ▲ says it).
-      const nextLine = below >= -S ? (b.stepTop![below + S] + b.stepH![below + S] - this.cam.y) * z : Infinity;
-      const t1 = `▲ ${label(n)}`, t2 = below >= -S && nextLine - sy >= 30 ? `▼ ${label(below)}` : '';
+      const nextLine = below >= Lo ? (b.stepTop![below - Lo] + b.stepH![below - Lo] - this.cam.y) * z : Infinity;
+      const t1 = `▲ ${label(n)}`, t2 = below >= Lo && nextLine - sy >= 30 ? `▼ ${label(below)}` : '';
       const w1 = ctx.measureText(t1).width, w2 = ctx.measureText(t2).width, x = right - Math.max(w1, w2) - 14;
       ctx.fillRect(x - 3, sy - 13, w1 + 6, 13);
       if (t2) ctx.fillRect(x - 3, sy + 1, w2 + 6, 13);
@@ -428,13 +440,13 @@ export class ClimbView {
 
   /** Side panel: population by step, chemistry, diets, top genomes, deaths, active tiles. */
   panel(esc: (s: string) => string): string {
-    const world = this.world(), b = world.board, S = b.climbSteps!, st = b.step!;
+    const world = this.world(), b = world.board, Hi = b.stepHi!, st = b.step!;
     const living = world.living();
-    const by = new Array(2 * S + 1).fill(0), arm = new Map<number, number>(), ins = new Map<number, number>();
+    const by = new Array(Hi - b.stepLo! + 1).fill(0), arm = new Map<number, number>(), ins = new Map<number, number>();
     let plants = 0, meat = 0, both = 0, paceSum = 0;
     const counts = new Map<string, { n: number; id: number }>();
     for (const w of living) {
-      by[S - st[w.ipY * world.w + w.ipX]]++;
+      by[Hi - st[w.ipY * world.w + w.ipX]]++;
       const t = w.traits;
       if (t) {
         arm.set(t.armor, (arm.get(t.armor) ?? 0) + 1);
@@ -449,8 +461,8 @@ export class ClimbView {
     }
     const max = Math.max(1, ...by);
     const bars = by.map((n, k) => {
-      const step = S - k;
-      const c = this.sky(step, b.stepTop![step + S] + b.stepH![step + S] / 2);
+      const step = Hi - k;
+      const c = this.sky(step, b.stepTop![step - b.stepLo!] + b.stepH![step - b.stepLo!] / 2);
       return `<div class="stats" style="display:flex;gap:6px;align-items:center"><span style="width:28px">${step > 0 ? `+${step}` : step}</span><span style="display:inline-block;height:9px;width:${Math.round((n / max) * 160)}px;background:rgb(${c.join(',')})"></span>${n}</div>`;
     }).join('');
     const hist = (m: Map<number, number>) => [...m.entries()].sort((a, c) => a[0] - c[0]).map(([k, n]) => `${k}: ${n}`).join(' · ');
