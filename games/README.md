@@ -84,6 +84,11 @@ Command a flock of swords that moves and attacks as a swarm. Boids flocking algo
 ### [Fastfall](./fastfall/)
 First-person freefall — jump from a hot air balloon and navigate platforms on the way down. 3D-like perspective on 2D canvas.
 
+## Artificial Life
+
+### [andnow](./andnow/)
+Code-cloud warriors: Tierra × Core War × RTS. Every creature is a connected cloud of cells, each cell one instruction, and the body is the program. The Climb mode is a world that grows forever up and down: colder air above, deeper water below, food 10× richer each step out, and body chemistry (cells that flip, double or weigh nothing) that evolution rewires to get there. Forever runs past a million ticks, with a viewer that scrubs checkpoints and follows the biggest body.
+
 ## Interactive Experiences
 
 ### [Wallverine](./wallverine/)
