@@ -30,6 +30,10 @@ The current mode is a world that grows forever, both up and down.
 
 *Tap a body to pick it, so you can tell where one creature ends and the next begins. This is the biggest one in seed 7: a 252-cell thread lying along the boundary into step +3.*
 
+![A 28-cell climber zoomed in with its glyphs showing: the code row C+xC?GD followed by a tail of fat cells, with I, ?, B and o beneath, and the hover card listing its traits](docs/img/glyphs.png)
+
+*Zoomed in with **glyphs** ticked, every cell shows its instruction. This climber runs `C+xC?GD`: collect, then divide. Its `x` sits next to the `I` below it and doubles that cell, so one insulation cell counts as 2, enough for step +2 (the hover card shows `insulation 2`). The long tail of `.` is fat from `G` (grow). Hover any cell to see its body's traits and genome.*
+
 ### Forever runs
 
 Four seeds have been baked for days, saving a checkpoint every 1,000 ticks. At the latest checkpoints:
@@ -54,6 +58,7 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 - drag to pan; wheel or `+`/`-` to zoom; WASD or the arrow keys to move;
 - click the minimap strip to jump to a step;
 - `B` follows the biggest body; tap a body to pick it;
+- tick **glyphs** and zoom in close to read each cell's instruction;
 - hover over a cell to see its traits and genome;
 - **Copy link** shares the exact view.
 

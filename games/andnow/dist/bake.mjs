@@ -1011,7 +1011,9 @@ var World = class {
   cellsOf(id) {
     let out2 = this.sortedCells.get(id);
     if (!out2) {
-      out2 = Array.from(Int32Array.from(this.cellSets.get(id) ?? []).sort());
+      const set = this.cellSets.get(id);
+      if (!set) return [];
+      out2 = Array.from(Int32Array.from(set).sort());
       this.sortedCells.set(id, out2);
     }
     return out2;
@@ -1092,6 +1094,8 @@ var World = class {
   kill(wr, reason) {
     if (!wr.alive) return;
     this.die(wr, reason);
+    this.cellSets.delete(wr.id);
+    this.sortedCells.delete(wr.id);
     const k = `${wr.realm}|${reason.replace(/ by .*/, "").replace(/ \(.*/, "")}`;
     this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
     if (CONFIG.endless && wr.gen > 0) {
@@ -2495,6 +2499,9 @@ function loadWorld(bytes) {
     b.foodSpacing = CONFIG.plateFood;
   }
   world2.yShift ??= 0;
+  const w = world2;
+  for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world2.warriors[id]?.alive)) w.cellSets.delete(id);
+  for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
   return world2;
 }
 function restoreRng(state) {

@@ -483,8 +483,10 @@ export class World {
   cellsOf(id: number): number[] {
     let out = this.sortedCells.get(id);
     if (!out) {
+      const set = this.cellSets.get(id);
+      if (!set) return []; // (the dead: nothing cached for them)
       // Typed-array sort is numeric and native (no comparator callback).
-      out = Array.from(Int32Array.from(this.cellSets.get(id) ?? []).sort());
+      out = Array.from(Int32Array.from(set).sort());
       this.sortedCells.set(id, out);
     }
     return out;
@@ -559,6 +561,8 @@ export class World {
   private kill(wr: Warrior, reason: string) {
     if (!wr.alive) return;
     this.die(wr, reason);
+    // Its cells are debris or eaten now: drop its empty cell set (millions of them leaked).
+    this.cellSets.delete(wr.id); this.sortedCells.delete(wr.id);
     const k = `${wr.realm}|${reason.replace(/ by .*/, '').replace(/ \(.*/, '')}`;
     this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
     // A petri dish runs for hundreds of thousands of births: keeping every dead body

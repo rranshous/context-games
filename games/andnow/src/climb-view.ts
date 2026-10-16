@@ -3,6 +3,7 @@
 // band still shows beside the 2000-row steps), step labels with what each needs, and bodies coloured by their
 // chemistry. Pixel art: one pixel per cell, scaled up crisp.
 import { genomeOf } from './sim/dish';
+import { glyphOf } from './sim/glyphs';
 import { CONFIG, DEBRIS, World } from './sim/world';
 
 type RGB = [number, number, number];
@@ -10,6 +11,8 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] 
 
 /** Far enough out to see the whole world at once (below 1 px per cell the view samples). */
 const MIN_ZOOM = 0.05;
+/** Close enough to read each cell's instruction (glyphs show from GLYPH_ZOOM px per cell). */
+const MAX_ZOOM = 24, GLYPH_ZOOM = 10;
 
 export interface Camera { x: number; y: number; zoom: number } // top-left cell, px per cell
 
@@ -33,6 +36,8 @@ export class ClimbView {
   follow: number | null = null;
   /** A body picked by tapping it: outlined cell by cell, everything else dimmed (no camera move). */
   selected: number | null = null;
+  /** Draw each body cell's glyph when zoomed in close (the page's "glyphs" box). */
+  glyphs = true;
 
   constructor(private canvas: HTMLCanvasElement, private mini: HTMLCanvasElement, private world: () => World, private redraw: () => void, cam?: Camera) {
     const w = world();
@@ -63,7 +68,7 @@ export class ClimbView {
       if (pinch && pts.size === 2) {
         const r = canvas.getBoundingClientRect(), [a, b] = [...pts.values()];
         const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
-        this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
+        this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinch.zoom * spread() / Math.max(1, pinch.d)));
         this.cam.x = pinch.wx - mx / this.cam.zoom; this.cam.y = pinch.wy - my / this.cam.zoom;
       } else if (this.drag) {
         if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 5) return; // (a tap's jitter isn't a drag)
@@ -97,7 +102,7 @@ export class ClimbView {
       // Gentle, and in proportion to the scroll: a wheel notch (~100) is ×1.1, and a trackpad's
       // stream of small deltas glides instead of every event jumping ×1.25.
       const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.001)));
+      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.001)));
       this.cam.x = wx - mx / this.cam.zoom; this.cam.y = wy - my / this.cam.zoom;
       this.clamp(); this.redraw();
     }, { passive: false });
@@ -109,7 +114,7 @@ export class ClimbView {
       else if (k === 'arrowright' || k === 'd') this.cam.x += s;
       else if (k === 'arrowup' || k === 'w') this.cam.y -= s;
       else if (k === 'arrowdown' || k === 's') this.cam.y += s;
-      else if (k === '+' || k === '=') this.cam.zoom = Math.min(12, this.cam.zoom * 1.25);
+      else if (k === '+' || k === '=') this.cam.zoom = Math.min(MAX_ZOOM, this.cam.zoom * 1.25);
       else if (k === '-') this.cam.zoom = Math.max(MIN_ZOOM, this.cam.zoom * 0.8);
       else return;
       e.preventDefault(); this.clamp(); this.redraw();
@@ -371,9 +376,27 @@ export class ClimbView {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const z = this.cam.zoom;
     ctx.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
+    if (this.glyphs && z >= GLYPH_ZOOM) this.renderGlyphs(x0, y0, vw, vh, colors);
     this.renderMark();
     this.renderLabels();
     this.renderMini();
+  }
+
+  /** Each body cell's instruction, in a dark shade of the body's colour. */
+  private renderGlyphs(x0: number, y0: number, vw: number, vh: number, colors: Map<number, RGB>) {
+    const world = this.world(), z = this.cam.zoom, ctx = this.canvas.getContext('2d')!;
+    ctx.font = `bold ${Math.round(z * 0.8)}px ui-monospace, Menlo, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let j = 0; j < vh && y0 + j < world.h; j++) {
+      for (let i = 0; i < vw && x0 + i < world.w; i++) {
+        const c = (y0 + j) * world.w + x0 + i, o = world.owner[c];
+        if (o < 0) continue;
+        const k = mix(colors.get(o) ?? [230, 230, 230], [0, 0, 0], 0.7);
+        ctx.fillStyle = `rgb(${k[0] | 0},${k[1] | 0},${k[2] | 0})`;
+        ctx.fillText(glyphOf(world.code[c]), (x0 + i + 0.5 - this.cam.x) * z, (y0 + j + 0.55 - this.cam.y) * z);
+      }
+    }
   }
 
   /** Step boundary lines, each with a small label on its line at the right edge. */

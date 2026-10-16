@@ -105,6 +105,7 @@ function newMatch(sources?: string[], seed?: number) {
     if (!climbView) {
       const cam = (params.get('cam') ?? '').split(',').map(Number);
       climbView = new ClimbView(canvas, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : undefined);
+      climbView.glyphs = showGlyphsEl.checked;
     }
     render();
     return;
@@ -162,7 +163,7 @@ $('share').onclick = async () => {
   setTimeout(() => { $('share').textContent = 'Copy link'; }, 1500);
 };
 $('step').onclick = () => { setPlaying(false); world.tick(); render(); };
-showIpEl.onchange = showGlyphsEl.onchange = () => render();
+showIpEl.onchange = showGlyphsEl.onchange = () => { if (climbView) climbView.glyphs = showGlyphsEl.checked; render(); };
 
 function setPlaying(p: boolean) {
   playing = p;
