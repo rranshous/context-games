@@ -6,13 +6,17 @@ import { crc32, deflateSync } from "node:zlib";
 // src/sim/rng.ts
 function makeRng(seed) {
   let a = seed >>> 0;
-  return () => {
+  const rng = () => {
     a = a + 1831565813 >>> 0;
     let t = a;
     t = Math.imul(t ^ t >>> 15, t | 1);
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
+  Object.defineProperty(rng, "state", { get: () => a, set: (v) => {
+    a = v >>> 0;
+  } });
+  return rng;
 }
 function randInt(rng, lo, hi) {
   return lo + Math.floor(rng() * (hi - lo + 1));
@@ -346,12 +350,71 @@ function makeIsland(seed, w, bands, foodSpacing, shallows = 0.4, calm = 0.25, de
   const bayRect = { x: 1, y: sharkLine, w: bayW, h: bedMax - sharkLine };
   return { w, h, terrain, spawns, starts: [homeRect, bayRect], rooms: [], toxin: landP, toxinBy: [landP, seaP], startRealm: [0, 1], surface: S, land, sharkLine, reef, calmLine: S + Math.round(calm * (bedMax - S)) };
 }
+function climbStepH(base, n) {
+  const a = Math.abs(n);
+  if (a <= 2) return base * 10 ** a;
+  let h = base * 100;
+  for (let k = 3; k <= a; k++) h = Math.max(64, Math.round(h * 1.5 / 64) * 64);
+  return h;
+}
+function climbRock(rng, terrain, w, t, H, gx, gy, fill) {
+  const gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
+  let g = new Uint8Array(gw * gh);
+  for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
+  for (let pass = 0; pass < 4; pass++) {
+    const next = g.slice();
+    for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+      let c = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
+      next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
+    }
+    g = next;
+  }
+  for (let y = t; y < t + H; y++) {
+    const j = Math.floor((y - t) / gy);
+    for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
+  }
+}
+var rockFill = (n) => n > 0 ? 0.36 : Math.min(0.5, 0.38 + 0.04 * -n);
+function makeMeadow(rng, w) {
+  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
+  return (x) => {
+    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
+    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
+  };
+}
+function climbPlants(rng, terrain, w, n, t, H, foodSpacing, meadow, spawns) {
+  for (let y = t + 1; y < t + H - 1; y += foodSpacing) {
+    for (let x = 1; x < w - 1; x += foodSpacing) {
+      const px = x + randInt(rng, 0, foodSpacing - 1), py = y + randInt(rng, 0, foodSpacing - 1);
+      if (px >= w - 1 || py >= t + H - 1) continue;
+      const i = py * w + px;
+      if (terrain[i] !== FLOOR) continue;
+      const layer = n === 0 ? 0.6 : 0.25 + 0.75 * Math.sin(Math.PI * (py - t + 0.5) / H);
+      const ledge = terrain[i + w] !== FLOOR ? 2 : 1;
+      const sparse = n > 0 ? 0.5 : 1;
+      if (rng() < 0.3 * meadow(px) * layer * ledge * sparse) spawns.push({ x: px, y: py, kind: 1 });
+    }
+  }
+}
+function makeClimbStep(seed, w, n, H, foodSpacing) {
+  const rng = makeRng((seed ^ 49435) + n * 2654435761);
+  const terrain = new Uint8Array(w * H);
+  climbRock(rng, terrain, w, 0, H, n > 0 ? 10 : 5, n > 0 ? 3 : 5, rockFill(n));
+  for (let y = 0; y < H; y++) {
+    terrain[y * w] = WALL;
+    terrain[y * w + w - 1] = WALL;
+  }
+  const spawns = [];
+  climbPlants(rng, terrain, w, n, 0, H, foodSpacing, makeMeadow(rng, w), spawns);
+  return { terrain, spawns };
+}
 function makeClimb(seed, w, base, steps, foodSpacing) {
   const stepH = [], stepTop = [];
   let h = 0;
   for (let n = steps; n >= -steps; n--) {
     stepTop[n + steps] = h;
-    stepH[n + steps] = base * 10 ** Math.abs(n);
+    stepH[n + steps] = climbStepH(base, n);
     h += stepH[n + steps];
   }
   const top0 = stepTop[steps], seaLevel = top0 + (base >> 1);
@@ -370,24 +433,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
     terrain[x] = WALL;
     terrain[(h - 1) * w + x] = WALL;
   }
-  const rockIn = (n, gx, gy, fill) => {
-    const t = stepTop[n + steps], H = stepH[n + steps], gw = Math.ceil(w / gx), gh = Math.ceil(H / gy);
-    let g = new Uint8Array(gw * gh);
-    for (let k = 0; k < g.length; k++) g[k] = rng() < fill ? 1 : 0;
-    for (let pass = 0; pass < 4; pass++) {
-      const next = g.slice();
-      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
-        let c = 0;
-        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if ((di || dj) && g[(j + dj) * gw + i + di]) c++;
-        next[j * gw + i] = c >= 5 ? 1 : c <= 3 ? 0 : g[j * gw + i];
-      }
-      g = next;
-    }
-    for (let y = t; y < t + H; y++) {
-      const j = Math.floor((y - t) / gy);
-      for (let x = 1; x < w - 1; x++) if (g[j * gw + Math.floor(x / gx)]) terrain[y * w + x] = WALL;
-    }
-  };
+  const rockIn = (n, gx, gy, fill) => climbRock(rng, terrain, w, stepTop[n + steps], stepH[n + steps], gx, gy, fill);
   for (let n = 1; n <= steps; n++) {
     rockIn(n, 10, 3, 0.36);
     rockIn(-n, 5, 5, 0.38 + 0.04 * n);
@@ -408,11 +454,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
     }
   }
   for (let i = 0; i < w * h; i++) if (terrain[i] === FLOOR && !seen[i]) terrain[i] = WALL;
-  const ph = Array.from({ length: 4 }, () => rng() * 6.28);
-  const meadow = (x) => {
-    const v = Math.sin(x / w * 6.28 * 3 + ph[0]) + 0.6 * Math.sin(x / w * 6.28 * 7.3 + ph[1]) + 0.3 * Math.sin(x / w * 6.28 * 17 + ph[2]);
-    return Math.max(0.08, Math.min(1, 0.5 + 0.45 * v));
-  };
+  const meadow = makeMeadow(rng, w);
   const spawns = [];
   for (let y = 1; y < h - 1; y += foodSpacing) {
     for (let x = 1; x < w - 1; x += foodSpacing) {
@@ -429,7 +471,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
   }
   const s0 = { x: 2, y: top0 + 1, w: w - 4, h: base - 2 };
   const sm1 = { x: 2, y: stepTop[steps - 1] + 2, w: w - 4, h: Math.min(30, stepH[steps - 1] - 4) };
-  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, climbSteps: steps, stepTop, stepH, seaLevel };
+  return { w, h, terrain, spawns, starts: [s0, sm1], rooms: [], step, stepLo: -steps, stepHi: steps, stepTop, stepH, seaLevel, climbBase: base, foodSpacing };
 }
 
 // src/sim/glyphs.ts
@@ -464,6 +506,7 @@ var MOVE = CODE["M"];
 var BITE = CODE["B"];
 var COLLECT = CODE["C"];
 var DEBRIS = -2;
+var SCAN_KEYS = new Float64Array(64 * 64);
 var CONFIG = {
   sight: 14,
   // LoS range from each cell (Chebyshev)
@@ -698,6 +741,132 @@ var World = class {
     for (const k of this.activeTiles) this.tileLast[k] = this.t;
     this.tileActive = next;
   }
+  // ---------- The Climb: a world that grows a step wherever life reaches its edge ----------
+  /** Rows joined on above the original world so far: every y has moved down by this much (a viewer keeps its camera on the same spot with it). */
+  yShift = 0;
+  growClimb() {
+    const M = 256;
+    let top = Infinity, bottom = -1;
+    for (const wr of this.living()) {
+      if (wr.ipY < top) top = wr.ipY;
+      if (wr.ipY > bottom) bottom = wr.ipY;
+    }
+    const low = bottom >= this.h - M;
+    if (top < M) this.addStep(1);
+    if (low) this.addStep(-1);
+  }
+  /**
+   * Join the next step on above (dir 1) or below (dir −1), made from its own rng, and open
+   * the old wall row between. Below appends rows. Above prepends them, so everything that
+   * holds a row or a cell index moves down: the grids, cell sets, spawns, tiles, IPs and
+   * origins, homes and starts, sea level.
+   */
+  addStep(dir) {
+    const b = this.board, w = this.w, T = CONFIG.tile, oldH = this.h;
+    const n = dir > 0 ? b.stepHi + 1 : b.stepLo - 1, H = climbStepH(b.climbBase, n), h = oldH + H;
+    if (n > 127 || n < -128) return;
+    if (dir > 0 && H % T) throw new Error(`step ${n} is ${H} rows, not whole ${T}-row tiles`);
+    const made = makeClimbStep(this.seed, w, n, H, b.foodSpacing);
+    const D = dir > 0 ? H : 0, dI = D * w, newTop = dir > 0 ? 0 : oldH;
+    const grown = (a, fill) => {
+      const out2 = new a.constructor(w * h);
+      if (fill) out2.fill(fill);
+      out2.set(a, dI);
+      return out2;
+    };
+    const terrain = grown(b.terrain, 0), step = grown(b.step, 0);
+    terrain.set(made.terrain, newTop * w);
+    step.fill(n, newTop * w, (newTop + H) * w);
+    const wallRow = dir > 0 ? H : oldH - 1;
+    for (let x = 1; x < w - 1; x++) terrain[wallRow * w + x] = FLOOR;
+    const edge = dir > 0 ? 0 : h - 1;
+    for (let x = 0; x < w; x++) terrain[edge * w + x] = WALL;
+    const seen = new Uint8Array(w * (H + 1)), q = [];
+    const r0 = dir > 0 ? 0 : wallRow;
+    for (let x = 1; x < w - 1; x++) {
+      const k = (wallRow - r0) * w + x;
+      seen[k] = 1;
+      q.push(k);
+    }
+    for (let j = 0; j < q.length; j++) {
+      const k = q[j], x = k % w;
+      for (const nb of [x > 0 ? k - 1 : -1, x < w - 1 ? k + 1 : -1, k - w, k + w]) {
+        if (nb < 0 || nb >= seen.length || seen[nb] || terrain[r0 * w + nb] !== FLOOR) continue;
+        seen[nb] = 1;
+        q.push(nb);
+      }
+    }
+    for (let y = newTop; y < newTop + H; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (terrain[i] === FLOOR && !seen[i - r0 * w]) terrain[i] = WALL;
+    }
+    this.owner = grown(this.owner, NONE);
+    this.code = grown(this.code, 0);
+    this.resource = grown(this.resource, 0);
+    this.ripe = grown(this.ripe, 1);
+    this.narrow = grown(this.narrow, 0);
+    b.terrain = terrain;
+    b.step = step;
+    b.h = h;
+    this.h = h;
+    if (D) {
+      const moved = /* @__PURE__ */ new Set();
+      const shift = (r) => {
+        if (r && !moved.has(r)) {
+          moved.add(r);
+          r.y += D;
+        }
+      };
+      for (const s of b.spawns) s.y += D;
+      for (const r of b.starts) shift(r);
+      for (const wr of new Set(this.warriors)) {
+        wr.ipY += D;
+        wr.oy += D;
+        shift(wr.home);
+      }
+      for (const [id, set] of this.cellSets) {
+        const out2 = /* @__PURE__ */ new Set();
+        for (const i of set) out2.add(i + dI);
+        this.cellSets.set(id, out2);
+      }
+      this.sortedCells.clear();
+      b.seaLevel += D;
+      this.yShift += D;
+    }
+    for (const sp of made.spawns) {
+      const s = { x: sp.x, y: sp.y + newTop, kind: sp.kind };
+      if (terrain[s.y * w + s.x] !== FLOOR) continue;
+      b.spawns.push(s);
+      this.spawnTimers.push(0);
+      const i = s.y * w + s.x;
+      this.resource[i] = s.kind;
+      this.ripe[i] = 1;
+    }
+    if (dir > 0) {
+      b.stepTop = b.stepTop.map((t) => t + H);
+      b.stepTop.push(0);
+      b.stepH.push(H);
+      b.stepHi = n;
+    } else {
+      b.stepTop.unshift(oldH);
+      b.stepH.unshift(H);
+      b.stepLo = n;
+    }
+    const tileRows = Math.ceil(h / T), dT = D / T * this.tw, nt = tileRows * this.tw;
+    const tiles = (a) => {
+      const out2 = new a.constructor(nt);
+      out2.set(a, dT);
+      return out2;
+    };
+    this.tileActive = tiles(this.tileActive);
+    this.tileLast = tiles(this.tileLast);
+    this.tileCount = tiles(this.tileCount);
+    this.activeTiles = this.activeTiles.map((k) => k + dT);
+    this.spawnsInTile = Array.from({ length: nt }, () => []);
+    b.spawns.forEach((s, k) => this.spawnsInTile[Math.floor(s.y / T) * this.tw + Math.floor(s.x / T)].push(k));
+    this.terrainVersion++;
+    this.log("grow", `the world grows: step ${n > 0 ? "+" : ""}${n} joins on ${dir > 0 ? "above" : "below"} (${H} rows)`);
+  }
   /** Climb: ticks for a plant to regrow; sunlight makes it faster the higher the step. */
   regrowAt(y) {
     const n = this.board.step ? this.board.step[y * this.w] : 0;
@@ -723,8 +892,19 @@ var World = class {
     const room = CONFIG.climb ? this.board.starts[spec.realm === "deep" ? 1 : 0] : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
     const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
-    const ox = at2 ? at2[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
-    const oy = at2 ? at2[1] : room.y + Math.floor((room.h - spec.height) / 2);
+    let ox = at2 ? at2[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
+    let oy = at2 ? at2[1] : room.y + Math.floor((room.h - spec.height) / 2);
+    if (!at2) {
+      const fits = (x, y) => spec.cells.every((c) => this.isFree(x + c.x, y + c.y));
+      const near = (n) => Array.from({ length: n + 1 }, (_, k) => (k % 2 ? 1 : -1) * Math.ceil(k / 2));
+      search: for (const dy of near(room.h)) for (const dx of near(room.w)) {
+        if (fits(ox + dx, oy + dy)) {
+          ox += dx;
+          oy += dy;
+          break search;
+        }
+      }
+    }
     const wr = {
       id,
       lineage: id,
@@ -903,8 +1083,28 @@ var World = class {
     }
     this.setOwner(i, DEBRIS);
   }
+  /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
+  deaths = /* @__PURE__ */ new Map();
+  tombstones = /* @__PURE__ */ new Map();
+  /** Descendants a founder has had (alive or dead). */
+  bornCount(lineage) {
+    return (this.bornIn.get(lineage) ?? 1) - 1;
+  }
   kill(wr, reason) {
     if (!wr.alive) return;
+    this.die(wr, reason);
+    const k = `${wr.realm}|${reason.replace(/ by .*/, "").replace(/ \(.*/, "")}`;
+    this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
+    if (CONFIG.endless && wr.gen > 0) {
+      let tomb = this.tombstones.get(wr.lineage);
+      if (!tomb) {
+        tomb = { ...wr, name: `${this.warriors[wr.lineage].name} (dead)`, deathReason: "dead", stack: [], roomsSeen: /* @__PURE__ */ new Set(), traits: void 0, lastHarm: void 0, cellCount: 0 };
+        this.tombstones.set(wr.lineage, tomb);
+      }
+      this.warriors[wr.id] = tomb;
+    }
+  }
+  die(wr, reason) {
     wr.alive = false;
     this.livingDirty = true;
     wr.deathReason = reason;
@@ -960,6 +1160,7 @@ var World = class {
     if (this.result.over) return;
     this.t++;
     const spawns = this.board.spawns;
+    if (CONFIG.climb && this.t % 100 === 0) this.growClimb();
     if (CONFIG.climb && (this.t % 20 === 1 || !this.activeTiles.length)) this.refreshTiles();
     const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
     const nSpawns = climbList ? climbList.length : spawns.length;
@@ -1619,31 +1820,34 @@ var World = class {
     const r = CONFIG.sight, maxD = 2 * (r + 16);
     const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
     const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
-    const ring = [];
-    for (let d = 0; d <= maxD; d++) {
-      ring.length = 0;
-      for (let dy = -d; dy <= d; dy++) {
-        const y = fy + dy;
-        if (y < y0 || y > y1) continue;
-        const ax = d - Math.abs(dy);
-        for (const x of ax ? [fx - ax, fx + ax] : [fx]) {
-          if (x < x0 || x > x1) continue;
-          const t = this.classify(x, y, wr.id);
-          if (t === T_WALL || t === T_NOTHING) continue;
-          if (t === T_ENEMY && this.warriors[this.owner[y * this.w + x]].lineage === wr.lineage) continue;
-          if (type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type) ring.push(y * this.w + x);
-        }
+    const W = this.w, terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
+    const keys = SCAN_KEYS;
+    let n = 0;
+    for (let y = y0; y <= y1; y++) {
+      const ady = y < fy ? fy - y : y - fy;
+      if (ady > maxD) continue;
+      const row = y * W;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x, o = owner[i], res = resource[i];
+        if (o === NONE && res === 0) continue;
+        if (terrain[i] !== FLOOR) continue;
+        const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
+        if (t === T_NOTHING) continue;
+        if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
+        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
+        const d = ady + (x < fx ? fx - x : x - fx);
+        if (d > maxD) continue;
+        keys[n++] = d * 16777216 + i;
       }
-      if (!ring.length) continue;
-      ring.sort((a, b) => a - b);
-      for (const i of ring) {
-        const x = i % this.w, y = i / this.w | 0;
-        if (this.seer(wr.id, x, y, r, mine) >= 0) {
-          this.push(wr, x - fx);
-          this.push(wr, y - fy);
-          this.push(wr, 1);
-          return;
-        }
+    }
+    const found = keys.subarray(0, n).sort();
+    for (let k = 0; k < n; k++) {
+      const i = found[k] % 16777216, x = i % W, y = i / W | 0;
+      if (this.seer(wr.id, x, y, r, mine) >= 0) {
+        this.push(wr, x - fx);
+        this.push(wr, y - fy);
+        this.push(wr, 1);
+        return;
       }
     }
     this.push(wr, 0);
