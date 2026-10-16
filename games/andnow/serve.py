@@ -15,12 +15,17 @@ def bakes():
         last = marks[-1]
         best = max(marks, key=lambda m: (m.get('biggest') or {}).get('cells', 0))
         age = time.time() - os.path.getmtime(f)
+        # A run's own pace: the gap between its last two checkpoints (a crowded run takes
+        # 15+ minutes per checkpoint), so a slow run isn't called stopped.
+        d = os.path.dirname(f)
+        try: gap = os.path.getmtime(f'{d}/{last["file"]}') - os.path.getmtime(f'{d}/{marks[-2]["file"]}') if len(marks) > 1 else 0
+        except OSError: gap = 0
         out.append({
             'path': os.path.dirname(f), 'name': os.path.basename(os.path.dirname(f)), 'query': b['query'],
             't': last['t'], 'alive': last['alive'], 'biggest': (last.get('biggest') or {}).get('cells', 0),
             'best': {'t': best['t'], 'cells': (best.get('biggest') or {}).get('cells', 0)},
-            # live: still writing (a checkpoint lands every minute or two); else done or stopped
-            'state': 'done' if b.get('done') else 'live' if age < 600 else 'stopped',
+            # live: still writing (the next checkpoint isn't overdue); else done or stopped
+            'state': 'done' if b.get('done') else 'live' if age < max(600, 3 * gap) else 'stopped',
             'updated': int(age),
         })
     return out
