@@ -1794,3 +1794,24 @@ The user's intent is that the world keeps scaling up and down forever. Life alre
 - **Links to a body (the user: "copy a link to tick + entity").** A picked body gets *copy link* in the finder. Copy link (the button too) adds `&pick=<id>` while a body is picked, and the link opens at that tick with the body picked and followed. Ids are stable within a run, so the same id is the same body at any tick it's alive. The finder now shows one "picked: … · following · stop · copy link · let go" line instead of two.
 - **Copy link's camera was off in a grown world.** It saved the camera's y in the grown world's rows, but loading starts from a fresh world (`yShift` 0) and moves the camera down by the run's yShift, so the shift was counted twice (7,552 rows in seed 7). The link now saves y as it was before any rows were added above, and the round trip comes back exact.
 - **Copy link copies just the URL** (the user), ready to paste into a browser. It used to add a status line ("andnow climb … / tick …; N alive"); `explorer.share()` keeps that for Claude. Links keep `/` unescaped too (`bake=runs/bake/climb-s7`).
+
+## 2026-10-16: plan, scaling one sim out without changing it
+
+The user: "figure out how to make the sim farm out the work so that we can have a fast single sim … I do not want to change the rules or the deterministic sim. I want to figure out how to horizontally scale it."
+
+- **First pitch, rejected:** bands that take turns (even bands run K ticks while odd bands sit frozen, then swap). It changes the sim (frozen neighbours, a K-tick lag between bands), and "the shape feels wrong."
+- **The constraint now:** the scaled engine must give **the same state hash as the serial engine on every tick.** This is *deterministic parallel execution of an ordered sequence*, the problem behind Block-STM (Aptos), Calvin and Bohm, and Blelloch et al.'s deterministic reservations. A tick is an ordered list of turns (each body's turn, in the rotating order) over shared state.
+- **The tricks:**
+  1. **Footprints.** A turn only reaches near its body: sight 14, the scan window ±30, bombs 6, its child's landing spot, cuts through a victim's whole body, and kill credit to a far killer. Give each turn a conservative footprint (chunks plus distant bodies). A turn waits only for earlier turns whose footprints overlap its own. The turn order is effectively random in space, so the longest chain of turns waiting on each other is about e × (overlapping neighbours) ≈ 50–100 turns, against 78k turns in a tick.
+  2. **The random stream as a prefix sum.** mulberry32's state is a counter (each draw adds 0x6d2b79f5), so the k-th number is f(seed + k·C) and the stream can be read at any position. A turn needs only its offset, which is the total of all earlier turns' draws. Turns run speculatively and record each draw as the *outcome it led to*: `chance(p)` keeps its true/false, a pick keeps its value. Once the true offsets are known (one prefix sum), each recorded outcome is re-checked there. `rng() < 0.003` usually comes out the same at any offset, so few turns need a redo.
+  3. **Ids, names and lifespans are relabelled after the fact.** A child's id is only "how many born so far", and its id, name and lifespan don't change what happens in this tick. Births get temporary ids, then are renumbered in order with prefix sums.
+  4. **The other phases.** Plant regrowth is per plant, so fully parallel. Falling debris is per column (each cell depends only on the one below), plus a prefix sum for rot draws. Upkeep is another ordered list of turns.
+  5. **Undo logs,** for the turns that do need a redo: a log of grid writes, plus snapshots of the bodies a turn may change. Validate in order; on a failure at turn j, undo j's dependency cone and redo it. That is Block-STM's shape.
+- **Then regions** (the user's "cut it into overlapping regions"). Each worker owns a band of rows plus a halo wider than any footprint. Only turns near a border need a neighbour. There's one small global exchange per tick (draw counts and birth counts).
+- **The user's bet:** local threads will beat the network. Potluck's stateless HTTP tasks (about 100 ms of polling per item) can't carry a per-tick exchange. It would need a session mode (pinned workers holding a region, on a fast channel). We'll measure before building that.
+- **Order of work, each step proven before the next:**
+  1. An engine seam, plus a checker that runs serial and experimental engines side by side from a checkpoint and stops at the first tick whose hashes differ.
+  2. Single process: measure the chain lengths, the share of turns that draw, how often outcomes fail to re-check, and cone sizes. Then build the transactional executor and prove it matches serial.
+  3. Worker threads.
+  4. Maybe potluck.
+- And keep it easy to run (the user): one command per piece, sensible defaults.
