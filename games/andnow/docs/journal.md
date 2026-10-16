@@ -1744,3 +1744,16 @@ Findings:
   - **On seeds 6, 7 and 10, the hunter's centred spot in step −1 hit rock**, and the dish wouldn't start.
   - Fix: a founder goes centred if it fits there, else to the nearest free spot. Every other mode's founders already fit centred, so they're unchanged (golden replays). New climb dishes differ from old ones from tick 0. The existing bakes don't change, since they resume from checkpoints.
 - **Follow centres on the body's middle**, not its IP. The IP runs all over a big body, so the view kept jumping. The camera also eases toward the body (a quarter-second time constant) instead of snapping each frame.
+
+## 2026-10-15: viewer fixes from watching the forever runs
+
+- **Follow vibrated.** A big body's middle wobbles by a cell or so as it gains and loses cells at its ends, and the camera chased every wobble. That's 1–2 px of shake. Now the camera only picks a new spot once the middle has drifted about 12% of the view away. It glides there, each step moving at least a pixel, and stops on a whole screen pixel. Playing at speed 5, the camera didn't move once in 6 s while following a 126-cell body.
+- **Wheel zoom was too strong:** ×1.25 per wheel event, and trackpads fire dozens of events. Now zoom scales with the scroll delta, with a notch of about ×1.1.
+- **Runs open at their latest checkpoint**, not tick 0, unless the link has `?t=`.
+- **A colour legend for bodies.** It was already in the colours but unlabelled: meat red, both magenta, plant-eaters blue (insulated), orange (armored) or pale (plain).
+- `explorer.view` exposes the climb camera, so Claude can test camera behaviour.
+- **What the runs show (at 300–490k):**
+  - Seeds 2, 7 and 13 all reached step +2. Each has about 24k bodies there, and they press against the top wall (y=1).
+  - Seeds 4 and 7 fill step −2 down to the bottom wall.
+  - The world has ends, and life is at both of them; that's the next limit.
+  - Meat eaters came back. Seed 13 has 5,938 meat and 541 both at 492k; in the overnight batch, hunters had died out everywhere.

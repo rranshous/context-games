@@ -2540,7 +2540,8 @@ var ClimbView = class {
       e.preventDefault();
       const r = canvas3.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
       const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
-      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 1e-3)));
       this.cam.x = wx - mx / this.cam.zoom;
       this.cam.y = wy - my / this.cam.zoom;
       this.clamp();
@@ -2590,6 +2591,7 @@ var ClimbView = class {
     this.cam.zoom = Math.max(1, Math.min(8, Math.min(this.canvas.width / (bw + 30), this.canvas.height / (bh + 30))));
     this.follow = id;
     this.snap = true;
+    this.goal = null;
     this.redraw();
   }
   /** Keep a followed body in view; let go once it's dead. */
@@ -2607,19 +2609,27 @@ var ClimbView = class {
       sx += c % world2.w;
       sy += c / world2.w | 0;
     }
-    const x = sx / cells.length + 0.5 - this.viewW / 2, y = sy / cells.length + 0.5 - this.viewH / 2;
+    const mx = sx / cells.length + 0.5, my = sy / cells.length + 0.5;
+    const slack = Math.max(3, Math.min(this.viewW, this.viewH) * 0.12);
+    if (this.snap || !this.goal || Math.abs(mx - this.goal.x) > slack || Math.abs(my - this.goal.y) > slack) this.goal = { x: mx, y: my };
+    const z = this.cam.zoom, x = this.goal.x - this.viewW / 2, y = this.goal.y - this.viewH / 2;
     const now = performance.now(), k = this.snap ? 1 : 1 - Math.exp(-(now - this.lastTrack) / 250);
     this.snap = false;
     this.lastTrack = now;
-    const x0 = this.cam.x, y0 = this.cam.y;
-    this.cam.x += (x - this.cam.x) * k;
-    this.cam.y += (y - this.cam.y) * k;
+    const step = (d) => {
+      const m = d * k;
+      return Math.abs(m * z) >= 1 ? m : Math.sign(d) * Math.min(Math.abs(d), 1 / z);
+    };
+    const cx = this.cam.x, cy = this.cam.y;
+    this.cam.x = Math.round((cx + step(x - cx)) * z) / z;
+    this.cam.y = Math.round((cy + step(y - cy)) * z) / z;
     this.clamp();
-    this.gliding = Math.abs(this.cam.x - x0) + Math.abs(this.cam.y - y0) > 0.02;
+    this.gliding = this.cam.x !== cx || this.cam.y !== cy;
   }
   snap = false;
   // (the first look at a newly followed body jumps there)
   lastTrack = 0;
+  goal = null;
   /** The camera is still easing toward a followed body: worth another frame even when paused. */
   gliding = false;
   /** The followed body's outline. */
@@ -2894,7 +2904,8 @@ var ClimbView = class {
       <div class="name" style="margin-top:6px">by step</div>${bars}
       <div class="stats" style="margin-top:6px"><span style="color:#ffb46e">armor</span> ${hist(arm)}</div>
       <div class="stats"><span style="color:#8cd2ff">insulation</span> ${hist(ins)}</div>
-      <div class="stats">diet: plants ${plants} \xB7 <span style="color:#ff6b8b">meat ${meat}</span> \xB7 both ${both}</div>
+      <div class="stats">diet: plants ${plants} \xB7 <span style="color:#ff6b8b">meat ${meat}</span> \xB7 <span style="color:#e65ac8">both ${both}</span></div>
+      <div class="stats" title="a body's colour says what it eats and what it's made of">colours: <span style="color:#ff6b8b">\u25A0 meat</span> <span style="color:#e65ac8">\u25A0 both</span> \xB7 plants: <span style="color:#5aa8ff">\u25A0 insulated</span> <span style="color:#ff9a4a">\u25A0 armored</span> <span style="color:#ebebe1">\u25A0 plain</span></div>
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world2, c.id))}">${String(c.n).padStart(3)} \xD7</span> <code>${esc2(g)}</code></div>`).join("")}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc2(k)} ${n}`).join(" \xB7 ")}</div>
@@ -3681,6 +3692,10 @@ var explorer = {
   ready: Promise.resolve(),
   get world() {
     return world;
+  },
+  /** Climb: the camera (cell coords of the view's top-left, zoom) and who it follows. */
+  get view() {
+    return climbView ? { ...climbView.cam, follow: climbView.follow } : null;
   }
 };
 window.explorer = explorer;
@@ -3691,7 +3706,7 @@ explorer.ready = loadEvolved().then(async () => {
   newMatch();
   render();
   requestAnimationFrame(frame);
-  const t = Number(params.get("t")) || 0;
+  const t = params.has("t") ? Number(params.get("t")) || 0 : bake ? bake.marks[bake.marks.length - 1].t : 0;
   if (t) await seek(t);
 });
 //# sourceMappingURL=main.js.map

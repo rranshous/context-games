@@ -730,6 +730,8 @@ const explorer = {
   config: CONFIG,
   ready: Promise.resolve() as Promise<void>,
   get world() { return world; },
+  /** Climb: the camera (cell coords of the view's top-left, zoom) and who it follows. */
+  get view() { return climbView ? { ...climbView.cam, follow: climbView.follow } : null; },
 };
 (window as unknown as { explorer: typeof explorer }).explorer = explorer;
 
@@ -741,6 +743,7 @@ explorer.ready = loadEvolved().then(async () => {
   render();
   requestAnimationFrame(frame);
   // ?t=N (from a shared link): jump to tick N, paused there.
-  const t = Number(params.get('t')) || 0;
+  // A bake opened without ?t starts at its latest checkpoint (the live end), not tick 0.
+  const t = params.has('t') ? Number(params.get('t')) || 0 : bake ? bake.marks[bake.marks.length - 1].t : 0;
   if (t) await seek(t);
 });

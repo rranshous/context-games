@@ -79,7 +79,10 @@ export class ClimbView {
       e.preventDefault();
       const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
       const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
-      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
+      // Gentle, and in proportion to the scroll: a wheel notch (~100) is ×1.1, and a trackpad's
+      // stream of small deltas glides instead of every event jumping ×1.25.
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.001)));
       this.cam.x = wx - mx / this.cam.zoom; this.cam.y = wy - my / this.cam.zoom;
       this.clamp(); this.redraw();
     }, { passive: false });
@@ -116,6 +119,7 @@ export class ClimbView {
     this.cam.zoom = Math.max(1, Math.min(8, Math.min(this.canvas.width / (bw + 30), this.canvas.height / (bh + 30))));
     this.follow = id;
     this.snap = true;
+    this.goal = null;
     this.redraw();
   }
 
@@ -124,23 +128,31 @@ export class ClimbView {
     if (this.follow === null) return;
     const wr = this.world().warriors[this.follow];
     if (!wr?.alive) { this.follow = null; return; }
-    // The body's middle, not its IP (which runs all over it), eased so the view glides.
+    // The body's middle, not its IP (which runs all over it). A body's middle wobbles as it
+    // grows and loses cells at its ends, so the camera only picks a new spot once the middle
+    // has wandered a way off (hysteresis), then glides there and stops on a whole pixel.
     const world = this.world(), cells = world.cellsOf(this.follow);
     if (!cells.length) return;
     let sx = 0, sy = 0;
     for (const c of cells) { sx += c % world.w; sy += (c / world.w) | 0; }
-    const x = sx / cells.length + 0.5 - this.viewW / 2, y = sy / cells.length + 0.5 - this.viewH / 2;
+    const mx = sx / cells.length + 0.5, my = sy / cells.length + 0.5;
+    const slack = Math.max(3, Math.min(this.viewW, this.viewH) * 0.12);
+    if (this.snap || !this.goal || Math.abs(mx - this.goal.x) > slack || Math.abs(my - this.goal.y) > slack) this.goal = { x: mx, y: my };
+    const z = this.cam.zoom, x = this.goal.x - this.viewW / 2, y = this.goal.y - this.viewH / 2;
     const now = performance.now(), k = this.snap ? 1 : 1 - Math.exp(-(now - this.lastTrack) / 250);
     this.snap = false;
     this.lastTrack = now;
-    const x0 = this.cam.x, y0 = this.cam.y;
-    this.cam.x += (x - this.cam.x) * k;
-    this.cam.y += (y - this.cam.y) * k;
+    // (each step at least a pixel, so whole-pixel rounding can't stall it short of the goal)
+    const step = (d: number) => { const m = d * k; return Math.abs(m * z) >= 1 ? m : Math.sign(d) * Math.min(Math.abs(d), 1 / z); };
+    const cx = this.cam.x, cy = this.cam.y;
+    this.cam.x = Math.round((cx + step(x - cx)) * z) / z; // (whole screen pixels: no shimmer)
+    this.cam.y = Math.round((cy + step(y - cy)) * z) / z;
     this.clamp();
-    this.gliding = Math.abs(this.cam.x - x0) + Math.abs(this.cam.y - y0) > 0.02;
+    this.gliding = this.cam.x !== cx || this.cam.y !== cy;
   }
   private snap = false; // (the first look at a newly followed body jumps there)
   private lastTrack = 0;
+  private goal: { x: number; y: number } | null = null;
   /** The camera is still easing toward a followed body: worth another frame even when paused. */
   gliding = false;
 
@@ -397,7 +409,8 @@ export class ClimbView {
       <div class="name" style="margin-top:6px">by step</div>${bars}
       <div class="stats" style="margin-top:6px"><span style="color:#ffb46e">armor</span> ${hist(arm)}</div>
       <div class="stats"><span style="color:#8cd2ff">insulation</span> ${hist(ins)}</div>
-      <div class="stats">diet: plants ${plants} · <span style="color:#ff6b8b">meat ${meat}</span> · both ${both}</div>
+      <div class="stats">diet: plants ${plants} · <span style="color:#ff6b8b">meat ${meat}</span> · <span style="color:#e65ac8">both ${both}</span></div>
+      <div class="stats" title="a body's colour says what it eats and what it's made of">colours: <span style="color:#ff6b8b">■ meat</span> <span style="color:#e65ac8">■ both</span> · plants: <span style="color:#5aa8ff">■ insulated</span> <span style="color:#ff9a4a">■ armored</span> <span style="color:#ebebe1">■ plain</span></div>
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world, c.id))}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code></div>`).join('')}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>
