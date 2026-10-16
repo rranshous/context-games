@@ -1060,7 +1060,9 @@ var World = class {
   cellsOf(id) {
     let out = this.sortedCells.get(id);
     if (!out) {
-      out = Array.from(Int32Array.from(this.cellSets.get(id) ?? []).sort());
+      const set = this.cellSets.get(id);
+      if (!set) return [];
+      out = Array.from(Int32Array.from(set).sort());
       this.sortedCells.set(id, out);
     }
     return out;
@@ -1141,6 +1143,8 @@ var World = class {
   kill(wr, reason) {
     if (!wr.alive) return;
     this.die(wr, reason);
+    this.cellSets.delete(wr.id);
+    this.sortedCells.delete(wr.id);
     const k = `${wr.realm}|${reason.replace(/ by .*/, "").replace(/ \(.*/, "")}`;
     this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
     if (CONFIG.endless && wr.gen > 0) {
@@ -2601,6 +2605,9 @@ function loadWorld(bytes) {
     b.foodSpacing = CONFIG.plateFood;
   }
   world2.yShift ??= 0;
+  const w = world2;
+  for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world2.warriors[id]?.alive)) w.cellSets.delete(id);
+  for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
   return world2;
 }
 function restoreRng(state) {
@@ -2648,6 +2655,8 @@ var BUNDLED = { amoeba: amoeba_default, bomber: bomber_default, climber: climber
 // src/climb-view.ts
 var mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 var MIN_ZOOM = 0.05;
+var MAX_ZOOM = 24;
+var GLYPH_ZOOM = 10;
 function bodyColor(world2, id) {
   const t = world2.warriors[id].traits;
   if (!t) return [230, 230, 230];
@@ -2696,7 +2705,7 @@ var ClimbView = class {
       if (pinch && pts.size === 2) {
         const r = canvas3.getBoundingClientRect(), [a, b] = [...pts.values()];
         const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
-        this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, pinch.zoom * spread() / Math.max(1, pinch.d)));
+        this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinch.zoom * spread() / Math.max(1, pinch.d)));
         this.cam.x = pinch.wx - mx / this.cam.zoom;
         this.cam.y = pinch.wy - my / this.cam.zoom;
       } else if (this.drag) {
@@ -2728,7 +2737,7 @@ var ClimbView = class {
       const mx = over ? e.clientX - r.left : canvas3.width / 2, my = over ? e.clientY - r.top : canvas3.height / 2;
       const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
       const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(12, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 1e-3)));
+      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 1e-3)));
       this.cam.x = wx - mx / this.cam.zoom;
       this.cam.y = wy - my / this.cam.zoom;
       this.clamp();
@@ -2742,7 +2751,7 @@ var ClimbView = class {
       else if (k === "arrowright" || k === "d") this.cam.x += s;
       else if (k === "arrowup" || k === "w") this.cam.y -= s;
       else if (k === "arrowdown" || k === "s") this.cam.y += s;
-      else if (k === "+" || k === "=") this.cam.zoom = Math.min(12, this.cam.zoom * 1.25);
+      else if (k === "+" || k === "=") this.cam.zoom = Math.min(MAX_ZOOM, this.cam.zoom * 1.25);
       else if (k === "-") this.cam.zoom = Math.max(MIN_ZOOM, this.cam.zoom * 0.8);
       else return;
       e.preventDefault();
@@ -2764,6 +2773,8 @@ var ClimbView = class {
   follow = null;
   /** A body picked by tapping it: outlined cell by cell, everything else dimmed (no camera move). */
   selected = null;
+  /** Draw each body cell's glyph when zoomed in close (the page's "glyphs" box). */
+  glyphs = true;
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
@@ -3052,9 +3063,26 @@ var ClimbView = class {
     ctx2.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const z = this.cam.zoom;
     ctx2.drawImage(this.pix, (x0 - this.cam.x) * z, (y0 - this.cam.y) * z, vw * z, vh * z);
+    if (this.glyphs && z >= GLYPH_ZOOM) this.renderGlyphs(x0, y0, vw, vh, colors);
     this.renderMark();
     this.renderLabels();
     this.renderMini();
+  }
+  /** Each body cell's instruction, in a dark shade of the body's colour. */
+  renderGlyphs(x0, y0, vw, vh, colors) {
+    const world2 = this.world(), z = this.cam.zoom, ctx2 = this.canvas.getContext("2d");
+    ctx2.font = `bold ${Math.round(z * 0.8)}px ui-monospace, Menlo, monospace`;
+    ctx2.textAlign = "center";
+    ctx2.textBaseline = "middle";
+    for (let j = 0; j < vh && y0 + j < world2.h; j++) {
+      for (let i = 0; i < vw && x0 + i < world2.w; i++) {
+        const c = (y0 + j) * world2.w + x0 + i, o = world2.owner[c];
+        if (o < 0) continue;
+        const k = mix(colors.get(o) ?? [230, 230, 230], [0, 0, 0], 0.7);
+        ctx2.fillStyle = `rgb(${k[0] | 0},${k[1] | 0},${k[2] | 0})`;
+        ctx2.fillText(glyphOf(world2.code[c]), (x0 + i + 0.5 - this.cam.x) * z, (y0 + j + 0.55 - this.cam.y) * z);
+      }
+    }
   }
   /** Step boundary lines, each with a small label on its line at the right edge. */
   renderLabels() {
@@ -3248,6 +3276,7 @@ function newMatch(sources, seed) {
     if (!climbView) {
       const cam = (params.get("cam") ?? "").split(",").map(Number);
       climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
+      climbView.glyphs = showGlyphsEl.checked;
     }
     render();
     return;
@@ -3326,7 +3355,10 @@ $("step").onclick = () => {
   world.tick();
   render();
 };
-showIpEl.onchange = showGlyphsEl.onchange = () => render();
+showIpEl.onchange = showGlyphsEl.onchange = () => {
+  if (climbView) climbView.glyphs = showGlyphsEl.checked;
+  render();
+};
 function setPlaying(p) {
   playing = p;
   playBtn.textContent = p ? "Pause" : "Play";
