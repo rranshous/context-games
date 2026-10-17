@@ -2,7 +2,7 @@
 // and stop at the first tick where their worlds differ. The acceptance test for any engine:
 // it must give the same world as World.tick, bit for bit, on every tick.
 //
-//   node dist/twin.mjs <start> [--engine par] [--ticks 200] [--check-every 1] [--alone]
+//   node dist/twin.mjs <start> [--engine par] [--ticks 200] [--check-every 1] [--alone] [--save <tick>]
 // --alone runs only the engine (no serial twin, no checks): how fast it goes.
 //
 // <start> is a bake folder (its latest checkpoint), a checkpoint file (.andnow.gz), or a
@@ -22,6 +22,7 @@ const flag = (k: string, d: string) => { const i = args.indexOf(k); return i >= 
 const engineName = flag('--engine', 'par');
 const ticks = Number(flag('--ticks', '200'));
 const checkEvery = Number(flag('--check-every', '1'));
+const saveAt = Number(flag('--save', '0')); // (write the serial world at this tick, to study a difference from there)
 const alone = args.includes('--alone');
 if (alone) args.splice(args.indexOf('--alone'), 1); // (comparing makes an engine gather its whole world: slow)
 const start = args[0];
@@ -113,6 +114,7 @@ for (let k = 0; k < ticks; k++) {
   let t0 = performance.now();
   ref.tick();
   ms[0] += performance.now() - t0;
+  if (saveAt && ref.t === saveAt) { const { gzipSync } = await import('node:zlib'); const { writeFileSync } = await import('node:fs'); const { saveWorld } = await import('./sim/save'); writeFileSync(`twin-t${saveAt}.andnow.gz`, gzipSync(saveWorld(ref, ''))); console.log(`  saved twin-t${saveAt}.andnow.gz`); }
   t0 = performance.now();
   await other.tick();
   ms[1] += performance.now() - t0;
@@ -123,7 +125,7 @@ for (let k = 0; k < ticks; k++) {
   const d = compare(ref, other.world);
   if (d) {
     console.log(`DIFFER at tick ${ref.t}: ${d}`);
-    if (d.startsWith('events')) { const ea = ref.events.filter((e) => e.t === ref.t), eb = other.world.events.filter((e) => e.t === ref.t); console.log('serial:', ea.length, 'other:', eb.length); for (let i = 0; i < Math.max(ea.length, eb.length); i++) if (JSON.stringify(ea[i]) !== JSON.stringify(eb[i])) { console.log(' first apart at', i, '\n  serial', JSON.stringify(ea[i]), '\n  other ', JSON.stringify(eb[i])); break; } }
+    { const ea = ref.events.filter((e) => e.t === ref.t), eb = other.world.events.filter((e) => e.t === ref.t); console.log('serial:', ea.length, 'other:', eb.length); for (let i = 0; i < Math.max(ea.length, eb.length); i++) if (JSON.stringify(ea[i]) !== JSON.stringify(eb[i])) { console.log(' first apart at', i); for (let q = Math.max(0, i - 6); q < Math.min(Math.max(ea.length, eb.length), i + 8); q++) console.log(`  ${q} serial ${ea[q] ? `${ea[q].kind} ${ea[q].who} ${ea[q].text}` : '-'}\n  ${q} other  ${eb[q] ? `${eb[q].kind} ${eb[q].who} ${eb[q].text}` : '-'}`); break; } }
     process.exit(1);
   }
   if (process.env.TWIN_EVERY ? (k + 1) % Number(process.env.TWIN_EVERY) === 0 : (k + 1) % 50 === 0) console.log(`  t${ref.t} same · serial ${(ms[0] / (k + 1)).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / (k + 1)).toFixed(1)} ms/tick (+ sync ${(ms[2] / (k + 1)).toFixed(1)})`);

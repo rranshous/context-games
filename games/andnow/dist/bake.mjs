@@ -1117,6 +1117,11 @@ var World = class {
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = /* @__PURE__ */ new Map();
   tombstones = /* @__PURE__ */ new Map();
+  /** A body's lineage (a parallel engine's worker may only know a child born elsewhere this tick by it). */
+  lineageOf(o) {
+    const wr = this.warriors[o];
+    return wr ? wr.lineage : this.track.lineageOf(o);
+  }
   /** The next child's name in a lineage: the founder's name and its birth number. */
   childName(lineage) {
     const born = this.bornIn.get(lineage) ?? 1;
@@ -1922,7 +1927,7 @@ var World = class {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
+        if (t === T_ENEMY && this.lineageOf(o) === wr.lineage) continue;
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i;
@@ -2173,7 +2178,7 @@ var World = class {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue;
-        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue;
+        if (CONFIG.climb && this.lineageOf(o) === wr.lineage) continue;
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d;
         bx = x;
@@ -3256,10 +3261,16 @@ var ThreadEngine = class {
     this.workers.forEach((w, k) => w.postMessage(msg(k), transfer(k)));
     return p;
   }
-  /** The plan covers a climb with no global caps, once every lineage has its tombstone. */
+  /** Below this many living bodies a tick runs serially here (threads cost more than they save on a small world). */
+  minBodies = Number(process.env.ANDNOW_PAR_MIN ?? 8e3);
+  big = false;
+  /** The plan covers a climb with no global caps, once every lineage has its tombstone, on a world big enough to pay. */
   parallelOk(t) {
     const w = this.world;
     if (!CONFIG.climb || !CONFIG.endless || CONFIG.maxWarriors !== Infinity || CONFIG.reaperCap > 0 || t >= CONFIG.tickCap) return false;
+    const alive = this.needReseed ? w.living().length : this.S.n;
+    this.big = this.big ? alive >= this.minBodies / 2 : alive >= this.minBodies;
+    if (!this.big) return false;
     if (!this.tombsReady) {
       if (!this.synced) return false;
       const tombs = inside(w).tombstones;
@@ -3324,7 +3335,7 @@ var ThreadEngine = class {
     for (let v = 0; v < waves; v++) {
       const a = Math.floor(v * n / waves), bEnd = Math.floor((v + 1) * n / waves), last = v === waves - 1;
       const shares = plan.wave(a, bEnd);
-      shares.forEach((share, k) => this.workers[k].postMessage(v ? { type: "wave", share, stamp: turnStamp, last } : { type: "turns", share, stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K3], last }, shareBuffers(share)));
+      shares.forEach((share, k) => this.workers[k].postMessage(v ? { type: "wave", share, stamp: turnStamp, last } : { type: "turns", share, stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K3], provBase: first[0], last }, shareBuffers(share)));
     }
     const keyHolder = plan.holders();
     const t1 = performance.now();
@@ -3425,6 +3436,7 @@ var ThreadEngine = class {
       N.harmT[i] = s.harm[q * 2 + 1];
       N.caps[i] = s.caps[q];
     }
+    for (let i = 1; i < N.n; i++) if (N.id[i] <= N.id[i - 1]) throw new Error(`par: body ${N.id[i]} held by two workers (t${t})`);
     this.S = N;
     for (const r of kept) for (const id of r.died) {
       bury(w, id, w.warriors[id].lineage);
@@ -3494,6 +3506,7 @@ var ThreadEngine = class {
     io.tileActive = shared("tileActive", io.tileActive, Uint8Array);
     io.tileLast = shared("tileLast", io.tileLast, Float64Array);
     this.sab.done ??= new SharedArrayBuffer(4 << 22);
+    this.sab.provLineage ??= new SharedArrayBuffer(4 << 22);
     this.sab.wake ??= new SharedArrayBuffer(4 * K3);
     this.sab.bar = new SharedArrayBuffer(4);
     const living = w.living();

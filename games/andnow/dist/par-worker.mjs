@@ -1112,6 +1112,11 @@ var World = class {
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = /* @__PURE__ */ new Map();
   tombstones = /* @__PURE__ */ new Map();
+  /** A body's lineage (a parallel engine's worker may only know a child born elsewhere this tick by it). */
+  lineageOf(o) {
+    const wr = this.warriors[o];
+    return wr ? wr.lineage : this.track.lineageOf(o);
+  }
   /** The next child's name in a lineage: the founder's name and its birth number. */
   childName(lineage) {
     const born = this.bornIn.get(lineage) ?? 1;
@@ -1917,7 +1922,7 @@ var World = class {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me2 ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
+        if (t === T_ENEMY && this.lineageOf(o) === wr.lineage) continue;
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i;
@@ -2168,7 +2173,7 @@ var World = class {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue;
-        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue;
+        if (CONFIG.climb && this.lineageOf(o) === wr.lineage) continue;
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d;
         bx = x;
@@ -2735,6 +2740,8 @@ var x1 = 0;
 var done;
 var wake;
 var bar;
+var provLineage;
+var provBase = 0;
 var peers = [];
 var held = /* @__PURE__ */ new Set();
 var children = /* @__PURE__ */ new Map();
@@ -2755,8 +2762,9 @@ var tracker = {
   },
   newId() {
     if (nextId >= endId) throw new Error(`par worker ${me}: out of child ids`);
-    const id = nextId++;
-    births.push(id, pos, seq++, world.warriors[actor].lineage);
+    const id = nextId++, lineage = world.warriors[actor].lineage;
+    Atomics.store(provLineage, id - provBase, lineage);
+    births.push(id, pos, seq++, lineage);
     let l = children.get(actor);
     if (!l) children.set(actor, l = []);
     l.push(id);
@@ -2766,7 +2774,8 @@ var tracker = {
   childName: (id) => provName(id),
   died: (id) => {
     died.push(id);
-  }
+  },
+  lineageOf: (id) => Atomics.load(provLineage, id - provBase)
 };
 function startOutputs() {
   world.events.length = 0;
@@ -2806,16 +2815,18 @@ var post = (w, items) => {
   peers[w].postMessage({ stamp: phase.stamp, items });
 };
 function packKey(key) {
-  if (key >= 0) {
-    held.delete(key);
-    return [packBody(world, key)];
-  }
+  const give = (id) => {
+    held.delete(id);
+    const p = packBody(world, id);
+    const io = inside(world);
+    io.cellSets.delete(id);
+    io.sortedCells.delete(id);
+    return p;
+  };
+  if (key >= 0) return [give(key)];
   const parent = -1 - key, kids = children.get(parent) ?? [];
   children.delete(parent);
-  return kids.map((id) => {
-    held.delete(id);
-    return packBody(world, id);
-  });
+  return kids.map(give);
 }
 function onPacks(m) {
   debug("got", m.stamp, phase?.stamp, m.items.map((x) => `${x[0]}:${x[1]}`).join(" "));
@@ -3190,6 +3201,7 @@ port.on("message", async (m) => {
       done = new Int32Array(sab.done);
       wake = new Int32Array(sab.wake);
       bar = new Int32Array(sab.bar);
+      provLineage = new Int32Array(sab.provLineage);
       barriers = m.barriers;
       const cuts = m.cuts;
       x0 = me ? cuts[me - 1] : 0;
@@ -3197,6 +3209,13 @@ port.on("message", async (m) => {
       for (const p of peers) p?.close();
       peers = m.peers;
       peers.forEach((p) => p?.on("message", onPacks));
+      {
+        const T = CONFIG.tile;
+        io.activeTiles = io.activeTiles.filter((k) => {
+          const x = k % io.tw * T;
+          return x >= x0 && x < x1;
+        });
+      }
       held = new Set(m.held);
       children = /* @__PURE__ */ new Map();
       world.track = tracker;
@@ -3221,6 +3240,7 @@ port.on("message", async (m) => {
       startOutputs();
       nextId = m.first;
       endId = m.end;
+      provBase = m.provBase;
       for (let i = world.warriors.length; i < m.top; i++) world.warriors.push(null);
       debug("turns: waiting on begin");
       await begun;
@@ -3264,12 +3284,16 @@ port.on("message", async (m) => {
           held.add(f);
           objs.push(wr);
         } else {
-          if (wr) held.delete(p);
+          held.delete(p);
           objs.push(wr ?? stub(f, lin[k], names[k]));
         }
       }
       world.warriors.length = base;
       for (const wr of objs) world.warriors.push(wr);
+      for (const p of map) {
+        io.cellSets.delete(p);
+        io.sortedCells.delete(p);
+      }
       for (const id of m.dead) if (!held.has(id) && world.warriors[id]?.alive) bury(world, id, world.warriors[id].lineage);
       children = /* @__PURE__ */ new Map();
       const ph = startPhase(m.stamp, true);

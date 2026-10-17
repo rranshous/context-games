@@ -121,6 +121,7 @@ export interface Tracker {
   newId(): number;
   childName(id: number): string;
   died(id: number): void;
+  lineageOf(id: number): number;  // a child born this tick on another worker, seen in a scan
 }
 
 export interface Warrior {
@@ -587,6 +588,12 @@ export class World {
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = new Map<string, number>();
   private tombstones = new Map<number, Warrior>();
+
+  /** A body's lineage (a parallel engine's worker may only know a child born elsewhere this tick by it). */
+  private lineageOf(o: number) {
+    const wr = this.warriors[o];
+    return wr ? wr.lineage : this.track!.lineageOf(o);
+  }
 
   /** The next child's name in a lineage: the founder's name and its birth number. */
   childName(lineage: number) {
@@ -1289,7 +1296,7 @@ export class World {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue; // (your own kind isn't prey)
+        if (t === T_ENEMY && this.lineageOf(o) === wr.lineage) continue; // (your own kind isn't prey)
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i; // (exact in a double: a grown world has well over 2^24 cells)
@@ -1521,7 +1528,7 @@ export class World {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue; // island: sharks hunt seals, seals fight sharks
-        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue; // climb: never your own kind (lineage)
+        if (CONFIG.climb && this.lineageOf(o) === wr.lineage) continue; // climb: never your own kind (lineage)
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d; bx = x; by = y;
       }

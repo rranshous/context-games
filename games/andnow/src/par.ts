@@ -75,10 +75,18 @@ export class ThreadEngine implements Engine {
     return p;
   }
 
-  /** The plan covers a climb with no global caps, once every lineage has its tombstone. */
+  /** Below this many living bodies a tick runs serially here (threads cost more than they save on a small world). */
+  readonly minBodies = Number(process.env.ANDNOW_PAR_MIN ?? 8000);
+  private big = false;
+
+  /** The plan covers a climb with no global caps, once every lineage has its tombstone, on a world big enough to pay. */
   private parallelOk(t: number) {
     const w = this.world;
     if (!CONFIG.climb || !CONFIG.endless || CONFIG.maxWarriors !== Infinity || CONFIG.reaperCap > 0 || t >= CONFIG.tickCap) return false;
+    // (Hysteresis: in at minBodies, out below half that; each switch reloads the workers.)
+    const alive = this.needReseed ? w.living().length : this.S.n;
+    this.big = this.big ? alive >= this.minBodies / 2 : alive >= this.minBodies;
+    if (!this.big) return false;
     if (!this.tombsReady) {
       if (!this.synced) return false;
       const tombs = inside(w).tombstones;
@@ -142,7 +150,7 @@ export class ThreadEngine implements Engine {
     for (let v = 0; v < waves; v++) {
       const a = Math.floor((v * n) / waves), bEnd = Math.floor(((v + 1) * n) / waves), last = v === waves - 1;
       const shares = plan.wave(a, bEnd);
-      shares.forEach((share, k) => this.workers[k].postMessage(v ? { type: 'wave', share, stamp: turnStamp, last } : { type: 'turns', share, stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K], last }, shareBuffers(share)));
+      shares.forEach((share, k) => this.workers[k].postMessage(v ? { type: 'wave', share, stamp: turnStamp, last } : { type: 'turns', share, stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K], provBase: first[0], last }, shareBuffers(share)));
     }
     const keyHolder = plan.holders();
     const t1 = performance.now();
@@ -212,6 +220,7 @@ export class ThreadEngine implements Engine {
       N.accum[i] = s.f[q * 2]; N.speed[i] = s.f[q * 2 + 1];
       N.harmBy[i] = s.harm[q * 2]; N.harmT[i] = s.harm[q * 2 + 1]; N.caps[i] = s.caps[q];
     }
+    for (let i = 1; i < N.n; i++) if (N.id[i] <= N.id[i - 1]) throw new Error(`par: body ${N.id[i]} held by two workers (t${t})`);
     this.S = N;
     for (const r of kept) for (const id of r.died) { bury(w, id, w.warriors[id].lineage); this.dead.push(id); }
     this.last = { levels: Math.max(plan.levels, up.levels), remote: plan.remote, plan: (t1 - t0) + (t3 - t2), turns: t2 - t1, upkeep: t4 - t3, serial: false };
@@ -274,6 +283,7 @@ export class ThreadEngine implements Engine {
     io.tileCount = shared('tileCount', io.tileCount, Uint16Array); io.tileActive = shared('tileActive', io.tileActive, Uint8Array);
     io.tileLast = shared('tileLast', io.tileLast, Float64Array);
     this.sab.done ??= new SharedArrayBuffer(4 << 22);
+    this.sab.provLineage ??= new SharedArrayBuffer(4 << 22);
     this.sab.wake ??= new SharedArrayBuffer(4 * K);
     this.sab.bar = new SharedArrayBuffer(4);
     // Summaries, from the whole world here.

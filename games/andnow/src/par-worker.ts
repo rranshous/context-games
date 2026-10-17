@@ -15,7 +15,8 @@ const waitAsync = (Atomics as unknown as { waitAsync(a: Int32Array, i: number, v
 let me = 0, K = 1;
 let world: World;
 let x0 = 0, x1 = 0;                 // my strip of columns
-let done: Int32Array, wake: Int32Array, bar: Int32Array;
+let done: Int32Array, wake: Int32Array, bar: Int32Array, provLineage: Int32Array;
+let provBase = 0;     // the first provisional child id this tick
 let peers: (MessagePort | null)[] = [];
 
 /** Bodies I hold (whose copy here is the live one). */
@@ -36,8 +37,9 @@ const tracker: Tracker = {
   tile: (k) => { Atomics.add(inside(world).tileCount, k, 1); },
   newId() {
     if (nextId >= endId) throw new Error(`par worker ${me}: out of child ids`);
-    const id = nextId++;
-    births.push(id, pos, seq++, world.warriors[actor].lineage);
+    const id = nextId++, lineage = world.warriors[actor].lineage;
+    Atomics.store(provLineage, id - provBase, lineage); // (before its cells: a scan elsewhere may meet them)
+    births.push(id, pos, seq++, lineage);
     let l = children.get(actor);
     if (!l) children.set(actor, l = []);
     l.push(id);
@@ -46,6 +48,7 @@ const tracker: Tracker = {
   },
   childName: (id) => provName(id),
   died: (id) => { died.push(id); },
+  lineageOf: (id) => Atomics.load(provLineage, id - provBase),
 };
 
 function startOutputs() {
@@ -73,11 +76,19 @@ let phase: Phase | null = null;
 let early: { stamp: number; items: Items }[] = []; // (packs for a phase I haven't started yet)
 const post = (w: number, items: Items) => { debug('send to', w, items.map((x) => `${x[0]}:${x[1]}`).join(' ')); peers[w]!.postMessage({ stamp: phase!.stamp, items }); };
 
+/** Pack a body (or a parent's children) to send, and let go of it here: its cells go with it. */
 function packKey(key: number): Pack[] {
-  if (key >= 0) { held.delete(key); return [packBody(world, key)]; }
+  const give = (id: number) => {
+    held.delete(id);
+    const p = packBody(world, id);
+    const io = inside(world);
+    io.cellSets.delete(id); io.sortedCells.delete(id); // (a stale set would come back to bite: provisional ids are reused next tick)
+    return p;
+  };
+  if (key >= 0) return [give(key)];
   const parent = -1 - key, kids = children.get(parent) ?? [];
   children.delete(parent);
-  return kids.map((id) => { held.delete(id); return packBody(world, id); });
+  return kids.map(give);
 }
 
 function onPacks(m: { stamp: number; items: Items }) {
@@ -356,13 +367,15 @@ port.on('message', async (m: Msg) => {
       world.owner = new Int32Array(sab.owner); world.code = new Uint8Array(sab.code);
       world.resource = new Uint8Array(sab.resource); world.ripe = new Float32Array(sab.ripe);
       io.tileCount = new Uint16Array(sab.tileCount); io.tileActive = new Uint8Array(sab.tileActive); io.tileLast = new Float64Array(sab.tileLast);
-      done = new Int32Array(sab.done); wake = new Int32Array(sab.wake); bar = new Int32Array(sab.bar);
+      done = new Int32Array(sab.done); wake = new Int32Array(sab.wake); bar = new Int32Array(sab.bar); provLineage = new Int32Array(sab.provLineage);
       barriers = m.barriers as number;
       const cuts = m.cuts as Int32Array;
       x0 = me ? cuts[me - 1] : 0; x1 = me < cuts.length ? cuts[me] : world.w;
       for (const p of peers) p?.close();
       peers = m.peers as (MessagePort | null)[];
       peers.forEach((p) => p?.on('message', onPacks));
+      // Only my strip's tiles are mine to regrow (the world came with everyone's).
+      { const T = CONFIG.tile; io.activeTiles = io.activeTiles.filter((k) => { const x = (k % io.tw) * T; return x >= x0 && x < x1; }); }
       held = new Set(m.held as Int32Array);
       children = new Map();
       world.track = tracker;
@@ -386,7 +399,7 @@ port.on('message', async (m: Msg) => {
       // The first wave: the phase starts now (more waves may come while it runs).
       const ph = startPhase(m.stamp as number, false);
       startOutputs();
-      nextId = m.first as number; endId = m.end as number;
+      nextId = m.first as number; endId = m.end as number; provBase = m.provBase as number;
       for (let i = world.warriors.length; i < (m.top as number); i++) world.warriors.push(null as never);
       debug('turns: waiting on begin');
       await begun;
@@ -424,12 +437,14 @@ port.on('message', async (m: Msg) => {
           held.delete(p); held.add(f);
           objs.push(wr);
         } else {
-          if (wr) held.delete(p); // (a tombstone: born and dead this tick)
+          held.delete(p); // (a tombstone if anything: born and dead this tick)
           objs.push(wr ?? stub(f, lin[k], names[k]));
         }
       }
       world.warriors.length = base;
       for (const wr of objs) world.warriors.push(wr);
+      // No provisional id may keep a cell set here: next tick reuses the numbers.
+      for (const p of map) { io.cellSets.delete(p); io.sortedCells.delete(p); }
       for (const id of m.dead as Int32Array) if (!held.has(id) && world.warriors[id]?.alive) bury(world, id, world.warriors[id].lineage);
       children = new Map();
       const ph = startPhase(m.stamp as number, true);
