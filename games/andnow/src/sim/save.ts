@@ -124,6 +124,10 @@ export function loadWorld(bytes: Uint8Array): World {
     b.climbBase = CONFIG.climbBase; b.foodSpacing = CONFIG.plateFood;
   }
   world.yShift ??= 0;
+  // Runs on rules before ids by zone (RULES < 3) kept bodies in one array by id: enough to
+  // look at them (src/diet.ts compares runs across rules), never to carry them on.
+  const old = world as unknown as { warriors?: unknown[] };
+  if (old.warriors && !('zoneBodies' in world)) Object.defineProperty(world, 'warrior', { value: (id: number) => old.warriors![id] });
   // Checkpoints from before kill() dropped the dead's empty cell sets carry millions of them.
   const w = world as unknown as { cellSets: Map<number, Set<number>>; sortedCells: Map<number, number[]> };
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warrior(id)?.alive)) w.cellSets.delete(id);

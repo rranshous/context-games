@@ -2776,6 +2776,8 @@ function loadWorld(bytes) {
     b.foodSpacing = CONFIG.plateFood;
   }
   world2.yShift ??= 0;
+  const old = world2;
+  if (old.warriors && !("zoneBodies" in world2)) Object.defineProperty(world2, "warrior", { value: (id) => old.warriors[id] });
   const w = world2;
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world2.warrior(id)?.alive)) w.cellSets.delete(id);
   for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
