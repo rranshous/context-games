@@ -2007,3 +2007,4 @@ The parallel engine is gone, but the worlds keep growing, so the rules that made
   - Considered and set aside: paying killers at the end of each phase (keeps the rule, needs a merge step), and paying at the bite (fully local, but poison would stop paying).
 - **Kept as they are:** turn order, the event log order, crowding by tile, all sums. A parallel engine can merge those in a known order.
 - Golden re-recorded (2,491) and canary regenerated. Old checkpoints don't load (no zones), so the runs start fresh.
+- **Runs:** `climb3-s2`, `-s4`, `-s7`, `-s13` started fresh on these rules (`./bake.sh <seed> climb3`), one core each at nice 19. They're there to see what rich corpses do to the food chain: compare meat eaters and scavengers against the `climb-*` runs at the same ticks. `climb2-s4` (old rules, t286000) is stopped; checkpoints from before this change can't continue.
