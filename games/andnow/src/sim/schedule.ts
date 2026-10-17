@@ -15,7 +15,7 @@
 // body, with no S it reads no further than it can see, with no D it has no children, with no
 // M, A, F or G it doesn't move. The glyphs it has at the start of the tick are the glyphs it
 // has all tick, unless a W can reach it (a WRITE could give it anything): then it gets all.
-// Cells are shared memory (one copy), tracked in 16×16 chunks: a read waits for the last
+// Cells are shared memory (one copy), tracked in 32×32 chunks (16 made the plan slower and no better): a read waits for the last
 // write, a write for the last write and every read since. Objects (bodies) are copies, one
 // per worker: an object's next user waits for its last user, and if that was on another
 // worker, the object is sent across.
@@ -27,7 +27,7 @@
 import { CODE } from './glyphs';
 import { CONFIG } from './world';
 
-export const CH = 16;
+export const CH = 32;
 
 /** Living bodies at the start of a phase, in id order. */
 export interface Summaries {
@@ -70,13 +70,17 @@ export interface Share {
   notify: Int32Array;    // after item j: bitmask of workers with an item waiting on it
   sendKey: Int32Array;   // at the start: objects this worker holds that another's item needs first
   sendW: Int32Array; sendPos: Int32Array;
+  // Plans come in waves (the front of the order first, so workers start while the rest is
+  // planned): what a wave adds to items of earlier ones.
+  lateOut: Int32Array;   // [position, key, worker, its position]...: after that item, send the object (now, if it's done)
+  lateNote: Int32Array;  // [position, mask]...: after that item, wake these workers (now, if it's done)
 }
 
 export interface Plan {
   n: number;
   shares: Share[];
-  /** Where each object ends up: bodies by id, children of B as childrenKey(B). */
-  holders: Map<number, number>;
+  /** Where each object ends up, by its dense key (turns: body s, then n + s for its children; upkeep: index), −1 if unused. */
+  keyHolder: Int8Array;
   levels: number;
   remote: number;        // waits across workers (for reports)
   room: Int32Array;      // per worker: most children its items could have (turns)
@@ -110,6 +114,7 @@ class Builder {
   private rPool = new Buf();                                              // [pos, next] pairs
   private wMark = new Int32Array(0); private rMark = new Int32Array(0);
   private objLast = new Int32Array(0); private objAt = new Int32Array(0); // key → last user, and the plan that set it
+  private handLast = new Int32Array(0); private handAt = new Int32Array(0); // (the same, walking hand-offs wave by wave)
   private predMark: Int32Array = new Int32Array(0);
   private plan = 0;   // this plan's stamp
   private g0 = 0;     // marks this plan: g0 + item + 1
@@ -130,7 +135,7 @@ class Builder {
       this.lastW = new Int32Array(nChunks); this.lastWAt = new Int32Array(nChunks); this.rHead = new Int32Array(nChunks);
       this.wMark = new Int32Array(nChunks); this.rMark = new Int32Array(nChunks);
     }
-    if (this.objLast.length < nKeys) { this.objLast = new Int32Array(nKeys); this.objAt = new Int32Array(nKeys); }
+    if (this.objLast.length < nKeys) { this.objLast = new Int32Array(nKeys); this.objAt = new Int32Array(nKeys); this.handLast = new Int32Array(nKeys); this.handAt = new Int32Array(nKeys); }
     this.predMark = grown(this.predMark, n); this.worker = grown(this.worker, n); this.level = grown(this.level, n);
     this.predStart = grown(this.predStart, n + 1); this.objStart = grown(this.objStart, n + 1);
     this.preds.n = 0; this.objs.n = 0; this.rPool.n = 0;
@@ -186,66 +191,87 @@ class Builder {
     this.objLast[key] = this.cur;
     this.objs.push(key);
   }
-  finish() { this.predStart[this.n] = this.preds.n; this.objStart[this.n] = this.objs.n; }
+  /** Items before `i` are all built (their waits and objects end here). */
+  seal(i: number) { this.predStart[i] = this.preds.n; this.objStart[i] = this.objs.n; }
 
-  /** Each worker's share: waits, and which objects go where. */
-  shares(ids: Int32Array, K: number, keyOf: (key: number) => number | null, holderOf: (key: number) => number): { shares: Share[]; holders: Map<number, number> } {
-    const n = this.n, worker = this.worker, P = this.preds.a, O = this.objs.a, ps = this.predStart, os = this.objStart;
-    const notify = new Int32Array(n);
-    for (let i = 0; i < n; i++) for (let q = ps[i]; q < ps[i + 1]; q++) { const j = P[q]; if (worker[j] !== worker[i]) notify[j] |= 1 << worker[i]; }
+  private used: number[] = [];
+  private sharesPlan = 0;
+  beginShares() { this.sharesPlan++; this.used = []; }
+
+  /**
+   * Each worker's share of items [a, b): their waits, and which objects go where. Hand-offs
+   * from, and wake-ups after, items of earlier waves go out as late ones to whoever ran them.
+   */
+  range(a: number, b: number, ids: Int32Array, K: number, keyOf: (key: number) => number | null, holderOf: (key: number) => number): Share[] {
+    const worker = this.worker, P = this.preds.a, O = this.objs.a, ps = this.predStart, os = this.objStart, m = b - a;
+    const notify = new Int32Array(m);
+    const lateNote: number[][] = Array.from({ length: K }, () => []);
+    for (let i = a; i < b; i++) for (let q = ps[i]; q < ps[i + 1]; q++) {
+      const j = P[q], bit = 1 << worker[i];
+      if (worker[j] === worker[i]) continue;
+      if (j >= a) notify[j - a] |= bit; else lateNote[worker[j]].push(j, bit);
+    }
     // Objects: walk each key's users in order; a hand-off between workers is a send.
     const outFrom = new Buf(), outKey = new Buf(), outW = new Buf(), outPos = new Buf();
-    const sendW = new Buf(), sendFrom = new Buf(), sendKey = new Buf(), sendPos = new Buf();
-    const packsIn = new Int32Array(n), outCount = new Int32Array(n);
-    this.plan++; // (objLast/objAt again, as `last`)
-    const last = this.objLast, at = this.objAt, plan = this.plan;
-    const used: number[] = [];
-    for (let i = 0; i < n; i++) {
+    const sends: number[][] = Array.from({ length: K }, () => []), lateOut: number[][] = Array.from({ length: K }, () => []);
+    const packsIn = new Int32Array(m), outCount = new Int32Array(m);
+    const last = this.handLast, at = this.handAt, plan = this.sharesPlan;
+    for (let i = a; i < b; i++) {
       const w = worker[i];
       for (let q = os[i]; q < os[i + 1]; q++) {
         const key = O[q], real = keyOf(key);
         if (real === null) continue; // (a tile count is shared memory: only the order matters)
         if (at[key] !== plan) {
-          at[key] = plan; used.push(key);
+          at[key] = plan; this.used.push(key);
           const h = holderOf(real);
-          if (h >= 0 && h !== w) { sendFrom.push(h); sendKey.push(real); sendW.push(w); sendPos.push(i); packsIn[i]++; }
-        } else { const j = last[key]; if (worker[j] !== w) { outFrom.push(j); outKey.push(real); outW.push(w); outPos.push(i); outCount[j]++; packsIn[i]++; } }
+          if (h >= 0 && h !== w) { sends[h].push(real, w, i); packsIn[i - a]++; }
+        } else {
+          const j = last[key];
+          if (worker[j] !== w) {
+            packsIn[i - a]++;
+            if (j >= a) { outFrom.push(j - a); outKey.push(real); outW.push(w); outPos.push(i); outCount[j - a]++; }
+            else lateOut[worker[j]].push(j, real, w, i);
+          }
+        }
         last[key] = i;
       }
     }
-    const holders = new Map<number, number>();
-    for (const key of used) holders.set(keyOf(key)!, worker[last[key]]);
-    // Outs grouped by sender op.
-    const outStart = new Int32Array(n + 1);
-    for (let i = 0; i < n; i++) outStart[i + 1] = outStart[i] + outCount[i];
-    const fill = outStart.slice(0, n), oK = new Int32Array(outFrom.n), oW = new Int32Array(outFrom.n), oP = new Int32Array(outFrom.n);
-    for (let q = 0; q < outFrom.n; q++) { const a = fill[outFrom.a[q]]++; oK[a] = outKey.a[q]; oW[a] = outW.a[q]; oP[a] = outPos.a[q]; }
+    // Outs grouped by sender item.
+    const outStart = new Int32Array(m + 1);
+    for (let i = 0; i < m; i++) outStart[i + 1] = outStart[i] + outCount[i];
+    const fill = outStart.slice(0, m), oK = new Int32Array(outFrom.n), oW = new Int32Array(outFrom.n), oP = new Int32Array(outFrom.n);
+    for (let q = 0; q < outFrom.n; q++) { const x = fill[outFrom.a[q]]++; oK[x] = outKey.a[q]; oW[x] = outW.a[q]; oP[x] = outPos.a[q]; }
     const count = new Int32Array(K), np = new Int32Array(K), no = new Int32Array(K);
-    for (let i = 0; i < n; i++) { const k = worker[i]; count[k]++; np[k] += ps[i + 1] - ps[i]; no[k] += outCount[i]; }
+    for (let i = a; i < b; i++) { const k = worker[i]; count[k]++; np[k] += ps[i + 1] - ps[i]; no[k] += outCount[i - a]; }
     const shares: Share[] = [];
     for (let k = 0; k < K; k++) {
-      const m = count[k];
+      const c = count[k], sd = sends[k];
       shares.push({
-        ids: new Int32Array(m), pos: new Int32Array(m), predOff: new Int32Array(m + 1), preds: new Int32Array(np[k]),
-        packsIn: new Int32Array(m), outOff: new Int32Array(m + 1), outKey: new Int32Array(no[k]), outW: new Int32Array(no[k]), outPos: new Int32Array(no[k]),
-        notify: new Int32Array(m), sendKey: new Int32Array(0), sendW: new Int32Array(0), sendPos: new Int32Array(0),
+        ids: new Int32Array(c), pos: new Int32Array(c), predOff: new Int32Array(c + 1), preds: new Int32Array(np[k]),
+        packsIn: new Int32Array(c), outOff: new Int32Array(c + 1), outKey: new Int32Array(no[k]), outW: new Int32Array(no[k]), outPos: new Int32Array(no[k]),
+        notify: new Int32Array(c),
+        sendKey: Int32Array.from({ length: sd.length / 3 }, (_, q) => sd[q * 3]), sendW: Int32Array.from({ length: sd.length / 3 }, (_, q) => sd[q * 3 + 1]),
+        sendPos: Int32Array.from({ length: sd.length / 3 }, (_, q) => sd[q * 3 + 2]),
+        lateOut: Int32Array.from(lateOut[k]), lateNote: Int32Array.from(lateNote[k]),
       });
     }
     const jAt = new Int32Array(K), pAt = new Int32Array(K), oAt = new Int32Array(K);
-    for (let i = 0; i < n; i++) {
-      const k = worker[i], sh = shares[k], j = jAt[k]++;
-      sh.ids[j] = ids[i]; sh.pos[j] = i; sh.packsIn[j] = packsIn[i]; sh.notify[j] = notify[i];
+    for (let i = a; i < b; i++) {
+      const k = worker[i], sh = shares[k], j = jAt[k]++, r = i - a;
+      sh.ids[j] = ids[i]; sh.pos[j] = i; sh.packsIn[j] = packsIn[r]; sh.notify[j] = notify[r];
       sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]); pAt[k] += ps[i + 1] - ps[i]; sh.predOff[j + 1] = pAt[k];
-      const o0 = outStart[i], o1 = outStart[i + 1];
+      const o0 = outStart[r], o1 = outStart[r + 1];
       sh.outKey.set(oK.subarray(o0, o1), oAt[k]); sh.outW.set(oW.subarray(o0, o1), oAt[k]); sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
       oAt[k] += o1 - o0; sh.outOff[j + 1] = oAt[k];
     }
-    for (let k = 0; k < K; k++) {
-      const sk: number[] = [], sw: number[] = [], sp: number[] = [];
-      for (let q = 0; q < sendFrom.n; q++) if (sendFrom.a[q] === k) { sk.push(sendKey.a[q]); sw.push(sendW.a[q]); sp.push(sendPos.a[q]); }
-      shares[k].sendKey = Int32Array.from(sk); shares[k].sendW = Int32Array.from(sw); shares[k].sendPos = Int32Array.from(sp);
-    }
-    return { shares, holders };
+    return shares;
+  }
+
+  /** Where each object ended up (its last user's worker), by dense key; −1 if unused. */
+  holders(nKeys: number): Int8Array {
+    const keyHolder = new Int8Array(nKeys).fill(-1);
+    for (const key of this.used) keyHolder[key] = this.worker[this.handLast[key]];
+    return keyHolder;
   }
 }
 const turnBuilder = new Builder(), upkeepBuilder = new Builder();
@@ -263,11 +289,22 @@ export interface World0 { w: number; h: number; t: number; tw: number; tileCount
 export const stripOf = (cuts: Int32Array, x: number) => { let k = 0; while (k < cuts.length && x >= cuts[k]) k++; return k; };
 
 /**
- * The turns' plan. `order` lists summary indices in turn order; `holder` says which worker
- * holds each body now.
+ * The turns' plan, made a wave at a time (wave(a, b): items a..b-1, in turn order). `order`
+ * lists summary indices in turn order; `holder` says which worker holds each body now.
  */
-export function planTurns(world: World0, S: Summaries, order: Int32Array, cuts: Int32Array, K: number, holder: (id: number) => number, alive: (id: number) => boolean): Plan {
+export class TurnPlan {
+  readonly n: number;
+  readonly room: Int32Array;   // per worker: most children its items could have
+  private item: (i: number) => void;
+  private ids: Int32Array;
+  private keyOf: (key: number) => number | null;
+  private holderOf: (real: number) => number;
+  private nKeys: number;
+  private built = 0;
+
+  constructor(world: World0, readonly S: Summaries, readonly order: Int32Array, readonly cuts: Int32Array, readonly K: number, holder: (id: number) => number) {
   const W = world.w, H = world.h, n = order.length;
+  this.n = n;
   const cw = Math.ceil(W / CH), chh = Math.ceil(H / CH), nChunks = cw * chh;
   // Credits: a death pays its killer's speed, so a killer may get more steps this tick.
   const credits = new Map<number, number>();
@@ -362,9 +399,10 @@ export function planTurns(world: World0, S: Summaries, order: Int32Array, cuts: 
   const nT = tw * th, KID = S.n, TILE = 2 * S.n;
   const b = turnBuilder;
   b.reset(nChunks, n, TILE + nT);
+  b.beginShares();
   const seen = new Int32Array(2 * n);
-  for (let i = 0; i < n; i++) {
-    const s = order[i], id = S.id[s], cp = caps[i];
+  this.item = (i: number) => {
+    const s = order[i], cp = caps[i];
     b.start(i, stripOf(cuts, S.ipX[s]));
     const x0 = box[i * 4], y0 = box[i * 4 + 1], x1 = box[i * 4 + 2], y1 = box[i * 4 + 3];
     // Reach: the scan window, or as far as it can see, bite or write; or just next to itself.
@@ -402,16 +440,38 @@ export function planTurns(world: World0, S: Summaries, order: Int32Array, cuts: 
       for (let y = ty(box[c + 1]); y <= ty(box[c + 3]); y++) for (let x = tx(box[c]); x <= tx(box[c + 2]); x++) if (hot(y * tw + x)) b.object(TILE + y * tw + x);
     }
     for (let y = cy(y0 - readR); y <= cy(y1 + readR); y++) for (let x = cx(x0 - readR); x <= cx(x1 + readR); x++) b.read(y * cw + x);
+  };
+  this.ids = new Int32Array(n);
+  for (let i = 0; i < n; i++) this.ids[i] = S.id[order[i]];
+  this.keyOf = (key: number) => key < KID ? S.id[key] : key < TILE ? childrenKey(S.id[key - KID]) : null;
+  this.holderOf = (real) => real >= 0 ? holder(real) : -1; // (children start nowhere)
+  this.nKeys = TILE;
+  // Child ids: each worker gets room for one child per step of its turns that could divide.
+  this.room = new Int32Array(K).fill(1);
+  for (let i = 0; i < n; i++) if (kids[i]) this.room[stripOf(cuts, S.ipX[order[i]])] += steps[i];
   }
-  b.finish();
-  const ids = new Int32Array(n);
-  for (let i = 0; i < n; i++) ids[i] = S.id[order[i]];
-  const keyOf = (key: number) => key < KID ? S.id[key] : key < TILE ? childrenKey(S.id[key - KID]) : null;
-  const { shares, holders } = b.shares(ids, K, keyOf, (real) => real >= 0 ? holder(real) : -1); // (children start nowhere)
-  let levels = 0;
-  const room = new Int32Array(K).fill(1);
-  for (let i = 0; i < n; i++) { if (b.level[i] > levels) levels = b.level[i]; if (kids[i]) room[b.worker[i]] += steps[i]; }
-  return { n, shares, holders, levels, remote: b.remote, room };
+
+  /** Items [a, b): each worker's share of them. */
+  wave(a: number, b: number): Share[] {
+    if (a !== this.built) throw new Error('par plan: waves out of order');
+    const bd = turnBuilder;
+    for (let i = a; i < b; i++) { bd.start(i, stripOf(this.cuts, this.S.ipX[this.order[i]])); this.item(i); }
+    bd.seal(b);
+    this.built = b;
+    return bd.range(a, b, this.ids, this.K, this.keyOf, this.holderOf);
+  }
+
+  /** Once every wave is out: where each object ended up (turns: body s, then n + s for its children). */
+  holders() { return turnBuilder.holders(this.nKeys); }
+  get levels() { let l = 0; for (let i = 0; i < this.n; i++) if (turnBuilder.level[i] > l) l = turnBuilder.level[i]; return l; }
+  get remote() { return turnBuilder.remote; }
+}
+
+/** The whole turns' plan in one wave (for tools and tests). */
+export function planTurns(world: World0, S: Summaries, order: Int32Array, cuts: Int32Array, K: number, holder: (id: number) => number): Plan {
+  const p = new TurnPlan(world, S, order, cuts, K, holder);
+  const shares = p.wave(0, p.n);
+  return { n: p.n, shares, keyHolder: p.holders(), levels: p.levels, remote: p.remote, room: p.room };
 }
 
 /**
@@ -419,19 +479,20 @@ export function planTurns(world: World0, S: Summaries, order: Int32Array, cuts: 
  * only touches a body's own cells, so the only order that matters is with whoever its death
  * would pay.
  */
-export function planUpkeep(t: number, ids: Int32Array, harmBy: Int32Array, harmT: Int32Array, K: number, holder: (id: number) => number, alive: (id: number) => boolean): Plan {
+export function planUpkeep(t: number, ids: Int32Array, harmBy: Int32Array, harmT: Int32Array, K: number, holder: (id: number) => number): Plan {
   const n = ids.length;
   const b = upkeepBuilder;
   b.reset(1, n, n);
+  b.beginShares();
   for (let i = 0; i < n; i++) {
     b.start(i, holder(ids[i]));
     b.object(i);
     if (harmBy[i] >= 0 && t - harmT[i] <= CONFIG.creditWindow) { const k = find(ids, n, harmBy[i]); if (k >= 0) b.object(k); }
   }
-  b.finish();
-  void alive;
-  const { shares, holders } = b.shares(ids, K, (key) => ids[key], holder);
+  b.seal(n);
+  const shares = b.range(0, n, ids, K, (key) => ids[key], holder);
+  const keyHolder = b.holders(n);
   let levels = 0;
   for (let i = 0; i < n; i++) if (b.level[i] > levels) levels = b.level[i];
-  return { n, shares, holders, levels, remote: b.remote, room: new Int32Array(K) };
+  return { n, shares, keyHolder, levels, remote: b.remote, room: new Int32Array(K) };
 }

@@ -11,16 +11,19 @@
 // runs its turns as their waits allow → main renames the children and plans upkeep → each
 // worker runs its upkeeps and sends back summaries. A tick the plan can't cover (the world
 // growing, a lineage with no tombstone yet) runs serially here, then the workers reload.
-import { MessageChannel, MessagePort, Worker } from 'node:worker_threads';
+import { MessageChannel, MessagePort, TransferListItem, Worker } from 'node:worker_threads';
 import { ENGINES, Engine } from './sim/engine';
 import { applyPack, bury, inside, Pack, renameText, stub } from './sim/replica';
-import { capsOf, childrenKey, emptySummaries, planTurns, planUpkeep, stripOf, Summaries } from './sim/schedule';
+import { capsOf, emptySummaries, planUpkeep, Share, stripOf, Summaries, TurnPlan } from './sim/schedule';
 import { saveWorld } from './sim/save';
 import { CONFIG, DEBRIS, markTiles, World, WorldEvent } from './sim/world';
 
 const debug = process.env.PAR_DEBUG ? (...a: unknown[]) => console.error('[par]', ...a) : () => {};
 type Out = { events: [number, WorldEvent][]; deaths: [number, string, number][]; attacks: [number, number]; died: number[] };
 type Reply = Out & { type: string; [k: string]: unknown };
+
+/** A share's arrays, handed over rather than copied. */
+const shareBuffers = (s: Share): TransferListItem[] => Object.values(s).map((a) => (a as Int32Array).buffer as ArrayBuffer);
 
 export class ThreadEngine implements Engine {
   readonly name = 'par';
@@ -31,7 +34,7 @@ export class ThreadEngine implements Engine {
   private synced = true;
   private tombsReady = false;
   private S: Summaries = emptySummaries(0);
-  private holder = new Map<number, number>();
+  private holder = new Int8Array(0); // worker holding each body, by id
   private cuts = new Int32Array(0);
   private sab: Record<string, SharedArrayBuffer> = {};
   private stamp = 0;
@@ -61,8 +64,12 @@ export class ThreadEngine implements Engine {
     wt.got[k] = m;
     if (wt.got.filter(Boolean).length === this.threads) { this.waiting = null; wt.res(wt.got); }
   }
+  /** Wait for each worker's reply of this type (in worker order). */
+  private expect(type: string): Promise<Reply[]> {
+    return new Promise<Reply[]>((res, rej) => { this.waiting = { type, got: [], res, rej }; });
+  }
   /** Post to every worker, and wait for each one's reply (in worker order). */
-  private all(type: string, msg: (k: number) => object, transfer: (k: number) => MessagePort[] = () => []): Promise<Reply[]> {
+  private all(type: string, msg: (k: number) => object, transfer: (k: number) => TransferListItem[] = () => []): Promise<Reply[]> {
     const p = new Promise<Reply[]>((res, rej) => { this.waiting = { type, got: [], res, rej }; });
     this.workers.forEach((w, k) => w.postMessage(msg(k), transfer(k)));
     return p;
@@ -121,17 +128,25 @@ export class ThreadEngine implements Engine {
     // Turns.
     const n = S.n, order = new Int32Array(n);
     for (let k = 0; k < n; k++) order[k] = (t + k) % n;
-    const alive = new Set(S.id);
-    const tcAtPlan = io.tileCount.slice();
-    const plan = planTurns({ w: w.w, h: w.h, t, tw: io.tw, tileCount: io.tileCount }, S, order, this.cuts, K, (id) => this.holder.get(id) ?? -1, (id) => alive.has(id));
+    const hold = this.holder;
+    const plan = new TurnPlan({ w: w.w, h: w.h, t, tw: io.tw, tileCount: io.tileCount }, S, order, this.cuts, K, (id) => hold[id]);
     const base = w.warriors.length;
     // Provisional child ids, clear of the final ones (base, base + 1, ...) they're renamed to.
     const first = new Int32Array(K + 1);
     first[0] = base + plan.room.reduce((x, y) => x + y, 0);
     for (let k = 0; k < K; k++) first[k + 1] = first[k] + plan.room[k];
     const turnStamp = ++this.stamp;
+    // In waves, front of the order first: the workers start on one while the next is planned.
+    const replies = this.expect('turned');
+    const waves = Math.max(1, Math.min(8, Math.floor(n / 2000)));
+    for (let v = 0; v < waves; v++) {
+      const a = Math.floor((v * n) / waves), bEnd = Math.floor(((v + 1) * n) / waves), last = v === waves - 1;
+      const shares = plan.wave(a, bEnd);
+      shares.forEach((share, k) => this.workers[k].postMessage(v ? { type: 'wave', share, stamp: turnStamp, last } : { type: 'turns', share, stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K], last }, shareBuffers(share)));
+    }
+    const keyHolder = plan.holders();
     const t1 = performance.now();
-    const turned = await this.all('turned', (k) => ({ type: 'turns', share: plan.shares[k], stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K] }));
+    const turned = await replies;
     const t2 = performance.now();
     // Children: ids and names in turn order, as the serial tick has them.
     const births: [number, number, number, number][] = [];
@@ -148,15 +163,16 @@ export class ThreadEngine implements Engine {
     const fin = (id: number) => map.get(id) ?? id;
     const nameOf = (p: number) => w.warriors[fin(p)]?.name ?? '?';
     // Who holds what now; who died; who was harmed.
-    const holder = new Map<number, number>();
-    for (const [key, k] of plan.holders) if (key >= 0) holder.set(key, k);
+    if (hold.length < base + births.length) { const a = new Int8Array(Math.max(base + births.length, hold.length * 2)); a.set(hold); this.holder = a; }
+    const holder = this.holder;
+    for (let s = 0; s < n; s++) holder[S.id[s]] = keyHolder[s];
     for (const [p, pos] of births) {
-      const h = plan.holders.get(childrenKey(S.id[order[pos]]));
-      if (h === undefined) {
+      const h = keyHolder[n + order[pos]];
+      if (h < 0) {
         const s = order[pos], T = CONFIG.tile;
-        throw new Error(`par: body ${S.id[s]} had a child the plan said it couldn't (caps ${S.caps[s]}, accum ${S.accum[s]}, speed ${S.speed[s]}, box ${Array.from(S.box.subarray(s * 4, s * 4 + 4))}, ip tile count ${io.tileCount[Math.floor(S.ipY[s] / T) * io.tw + Math.floor(S.ipX[s] / T)]}, at plan ${tcAtPlan[Math.floor(S.ipY[s] / T) * io.tw + Math.floor(S.ipX[s] / T)]}, refresh ${!!next}, t ${t}, crowd ${CONFIG.crowd})`);
+        throw new Error(`par: body ${S.id[s]} had a child the plan said it couldn't (caps ${S.caps[s]}, accum ${S.accum[s]}, speed ${S.speed[s]}, box ${Array.from(S.box.subarray(s * 4, s * 4 + 4))}, ip tile count ${io.tileCount[Math.floor(S.ipY[s] / T) * io.tw + Math.floor(S.ipX[s] / T)]}, refresh ${!!next}, t ${t}, crowd ${CONFIG.crowd})`);
       }
-      holder.set(fin(p), h);
+      holder[fin(p)] = h;
     }
     const diedT = new Set<number>();
     for (const r of turned) for (const id of r.died) diedT.add(fin(id));
@@ -173,37 +189,34 @@ export class ThreadEngine implements Engine {
       ids.push(id); hb.push(h ? h[0] : S.harmBy[s]); ht.push(h ? h[1] : S.harmT[s]);
     }
     births.forEach((_, k) => { const f = base + k; if (diedT.has(f)) return; const h = harm.get(f); ids.push(f); hb.push(h ? h[0] : -1); ht.push(h ? h[1] : 0); });
-    const livingNow = new Set(ids);
-    const up = planUpkeep(t, Int32Array.from(ids), Int32Array.from(hb), Int32Array.from(ht), K, (id) => holder.get(id) ?? -1, (id) => livingNow.has(id));
+    const up = planUpkeep(t, Int32Array.from(ids), Int32Array.from(hb), Int32Array.from(ht), K, (id) => holder[id]);
     const upStamp = ++this.stamp;
     const t3 = performance.now();
     const kept = await this.all('kept', (k) => ({
       type: 'upkeep', base, map: Int32Array.from(births, (b) => b[0]), names, lineage: Int32Array.from(births, (b) => b[3]),
       dead: Int32Array.from(diedT), share: up.shares[k], stamp: upStamp,
-    }));
+    }), (k) => shareBuffers(up.shares[k]));
     const t4 = performance.now();
     this.merge(kept);
-    // Next tick's summaries: everyone's, in id order.
-    this.holder = new Map();
+    // Next tick's summaries: everyone's, merged in id order (each worker's come sorted).
     type Sum = { ids: Int32Array; box: Int32Array; ip: Int32Array; f: Float64Array; harm: Int32Array; caps: Uint8Array };
-    const parts = kept.map((r) => r.sum as Sum);
-    const idx: [number, number, number][] = [];
-    parts.forEach((s, k) => { for (let q = 0; q < s.ids.length; q++) idx.push([s.ids[q], k, q]); });
-    idx.sort((a, b) => a[0] - b[0]);
-    const N = emptySummaries(idx.length);
-    idx.forEach(([id, k, q], i) => {
-      const s = parts[k];
-      N.id[i] = id; this.holder.set(id, k);
+    const parts = kept.map((r) => r.sum as Sum), at = new Int32Array(K);
+    const N = emptySummaries(parts.reduce((a, p) => a + p.ids.length, 0));
+    for (let i = 0; i < N.n; i++) {
+      let k = -1;
+      for (let j = 0; j < K; j++) if (at[j] < parts[j].ids.length && (k < 0 || parts[j].ids[at[j]] < parts[k].ids[at[k]])) k = j;
+      const s = parts[k], q = at[k]++, id = s.ids[q];
+      N.id[i] = id; holder[id] = k;
       N.ipX[i] = s.ip[q * 2]; N.ipY[i] = s.ip[q * 2 + 1];
-      for (let c = 0; c < 4; c++) N.box[i * 4 + c] = s.box[q * 4 + c];
+      N.box[i * 4] = s.box[q * 4]; N.box[i * 4 + 1] = s.box[q * 4 + 1]; N.box[i * 4 + 2] = s.box[q * 4 + 2]; N.box[i * 4 + 3] = s.box[q * 4 + 3];
       N.accum[i] = s.f[q * 2]; N.speed[i] = s.f[q * 2 + 1];
       N.harmBy[i] = s.harm[q * 2]; N.harmT[i] = s.harm[q * 2 + 1]; N.caps[i] = s.caps[q];
-    });
+    }
     this.S = N;
     for (const r of kept) for (const id of r.died) { bury(w, id, w.warriors[id].lineage); this.dead.push(id); }
     this.last = { levels: Math.max(plan.levels, up.levels), remote: plan.remote, plan: (t1 - t0) + (t3 - t2), turns: t2 - t1, upkeep: t4 - t3, serial: false };
-    const pf = (rs: Reply[]) => rs.map((r) => { const p = r.prof as Record<string, number>; return `${p.run.toFixed(0)}/${p.wait.toFixed(0)}/${p.all.toFixed(0)} w${p.waits} y${p.yields}:${p.yieldMs.toFixed(0)} s${p.scans} su${p.setup.toFixed(0)}`; }).join(' ');
-    debug(`  run/wait/all ms: turns ${pf(turned)} · upkeep ${pf(kept)}`);
+    const pf = (rs: Reply[]) => rs.map((r) => { const p = r.prof as Record<string, number>; return `${p.run.toFixed(0)}/${p.wait.toFixed(0)}/${p.all.toFixed(0)} w${p.waits} y${p.yields}:${p.yieldMs.toFixed(0)} s${p.scans}`; }).join(' ');
+    if (process.env.PAR_DEBUG) debug(`  run/wait/all ms: turns ${pf(turned)} · upkeep ${pf(kept)}`);
     debug(`t${t} n${n} levels ${plan.levels} remote ${plan.remote} · plan ${(t1 - t0).toFixed(0)} turns ${(t2 - t1).toFixed(0)} relabel+plan ${(t3 - t2).toFixed(0)} upkeep ${(t4 - t3).toFixed(0)} merge ${(performance.now() - t4).toFixed(0)} ms`);
   }
 
@@ -285,9 +298,9 @@ export class ThreadEngine implements Engine {
       cuts.push(Math.min(c, tws - (K - k)) * T);
     }
     this.cuts = Int32Array.from(cuts);
-    this.holder = new Map();
+    this.holder = new Int8Array(w.warriors.length * 2).fill(-1);
     const held: number[][] = Array.from({ length: K }, () => []);
-    for (let s = 0; s < S.n; s++) { const k = stripOf(this.cuts, S.ipX[s]); this.holder.set(S.id[s], k); held[k].push(S.id[s]); }
+    for (let s = 0; s < S.n; s++) { const k = stripOf(this.cuts, S.ipX[s]); this.holder[S.id[s]] = k; held[k].push(S.id[s]); }
     this.activeCount = io.activeTiles.length;
     // Every pair of workers gets a channel of its own.
     const peers: (MessagePort | null)[][] = Array.from({ length: K }, () => new Array<MessagePort | null>(K).fill(null));

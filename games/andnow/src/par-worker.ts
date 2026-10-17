@@ -9,6 +9,7 @@ import { loadWorld } from './sim/save';
 import { CONFIG, DEBRIS, Tracker, Warrior, World, WorldEvent } from './sim/world';
 
 const port = parentPort!;
+const debug = process.env.PAR_DEBUG ? (...a: unknown[]) => console.error(`[w${me} t${world?.t}]`, ...a) : () => {};
 /** (Node 16+; not in this TypeScript lib yet.) */
 const waitAsync = (Atomics as unknown as { waitAsync(a: Int32Array, i: number, v: number): { async: boolean; value: Promise<string> | string } }).waitAsync;
 let me = 0, K = 1;
@@ -49,13 +50,15 @@ const tracker: Tracker = {
 
 function startOutputs() {
   world.events.length = 0; // (begin's, or what came with the world: main has those)
-  events = []; deathsOut = []; births = []; died = []; seq = 0;
+  events = []; deathsOut = []; births = []; died = []; seq = 0; diedSeen = 0;
   shadow = new Map(world.deaths);
   attacks0 = [world.attacks.bombs, world.attacks.poisons];
 }
+let diedSeen = 0;
 function afterOp(p: number) {
-  for (const e of world.events) events.push([p, e]);
-  world.events.length = 0;
+  if (world.events.length) { for (const e of world.events) events.push([p, e]); world.events.length = 0; }
+  if (died.length === diedSeen) return; // (the tally only moves when someone dies)
+  diedSeen = died.length;
   for (const [k, n] of world.deaths) { const d = n - (shadow.get(k) ?? 0); if (d) { deathsOut.push([p, k, d]); shadow.set(k, n); } }
 }
 function outputs() {
@@ -65,14 +68,10 @@ function outputs() {
 
 // ---------- objects between workers ----------
 
-let arrived = new Int32Array(0);        // packs in, per share item
-let itemAt = new Map<number, number>(); // position → share item
-let poke: (() => void) | null = null;
-let packed: ((j: number) => void) | null = null; // (a body came in for item j: maybe it's ready)
-let curStamp = -1;
-let early: { stamp: number; items: Items }[] = []; // (packs for a phase I haven't started yet)
 type Items = [number, number, Pack[]][]; // [target position, key, packs]
-const post = (w: number, items: Items) => peers[w]!.postMessage({ stamp: curStamp, items });
+let phase: Phase | null = null;
+let early: { stamp: number; items: Items }[] = []; // (packs for a phase I haven't started yet)
+const post = (w: number, items: Items) => { debug('send to', w, items.map((x) => `${x[0]}:${x[1]}`).join(' ')); peers[w]!.postMessage({ stamp: phase!.stamp, items }); };
 
 function packKey(key: number): Pack[] {
   if (key >= 0) { held.delete(key); return [packBody(world, key)]; }
@@ -82,143 +81,228 @@ function packKey(key: number): Pack[] {
 }
 
 function onPacks(m: { stamp: number; items: Items }) {
-  if (m.stamp !== curStamp) { early.push(m); return; }
-  const items = m.items;
-  for (const [target, key, packs] of items) {
+  debug('got', m.stamp, phase?.stamp, m.items.map((x) => `${x[0]}:${x[1]}`).join(' '));
+  if (!phase || m.stamp !== phase.stamp) { early.push(m); return; }
+  for (const [target, key, packs] of m.items) {
     for (const p of packs) {
       applyPack(world, p);
       if (!('dead' in p)) held.add(p.id);
     }
     if (key < 0) children.set(-1 - key, packs.filter((p) => !('dead' in p)).map((p) => p.id));
-    const j = itemAt.get(target);
-    if (j === undefined) throw new Error(`par worker ${me}: packs for position ${target}, not mine`);
-    arrived[j]++;
-    packed?.(j);
+    phase.packIn(target);
   }
-  poke?.();
+  phase.poke?.();
 }
 
-// ---------- running a share ----------
+// ---------- running a phase ----------
 
 /** Where a phase's time went, for reports: running ops, waiting, everything else; waits. */
-let prof = { run: 0, wait: 0, all: 0, waits: 0, passes: 0, yields: 0, yieldMs: 0, scans: 0, setup: 0 };
+let prof = { run: 0, wait: 0, all: 0, waits: 0, yields: 0, yieldMs: 0, scans: 0 };
 
-async function run(share: Share, stamp: number, upkeep: boolean) {
-  const tAll = performance.now();
-  prof = { run: 0, wait: 0, all: 0, waits: 0, passes: 0, yields: 0, yieldMs: 0, scans: 0, setup: 0 };
-  const { ids, pos: P, predOff, preds, packsIn, outOff, outKey, outW, outPos, notify } = share;
-  const m = ids.length;
-  // Hand over what others need first.
-  const first = new Map<number, Items>();
-  for (let q = 0; q < share.sendKey.length; q++) {
-    const w = share.sendW[q];
-    let l = first.get(w);
-    if (!l) first.set(w, l = []);
-    l.push([share.sendPos[q], share.sendKey[q], packKey(share.sendKey[q])]);
+/**
+ * One phase (a tick's turns, or its upkeeps) on this worker. Its items come in waves; each
+ * runs once its waits are done: local ones count down as my items finish, remote ones are
+ * checked when I'm woken (only the ones someone is waiting on), and bodies it needs must
+ * have come in.
+ */
+class Phase {
+  // Per item (flat, grown as waves come): body, position, bodies to come in and come so far,
+  // workers to wake after, local and remote waits left, state (1 queued, 2 ran), priority.
+  n = 0;
+  ids = new Int32Array(1024); P = new Int32Array(1024); packsIn = new Int32Array(1024); arrived = new Int32Array(1024);
+  notify = new Int32Array(1024); localLeft = new Int32Array(1024); remoteLeft = new Int32Array(1024);
+  state = new Uint8Array(1024); prio = new Float64Array(1024);
+  // Linked lists in flat buffers: an item's local successors, and objects to send after it.
+  succHead = new Int32Array(1024); succ = new Buf2(2);   // [to, next]
+  outHead = new Int32Array(1024); out = new Buf2(4);     // [key, worker, position, next]
+  itemAt = new Map<number, number>();
+  waitersOn = new Map<number, number[]>();
+  pending = new Map<number, number>(); // packs in for positions not mine yet
+  heap: number[] = [];
+  packsDue = 0; left = 0; all = false;
+  poke: (() => void) | null = null;
+  constructor(readonly stamp: number, readonly upkeep: boolean) {}
+
+  private grow(m: number) {
+    if (this.n + m <= this.ids.length) return;
+    const c = Math.max(this.n + m, this.ids.length * 2);
+    const g = <A extends Int32Array | Uint8Array | Float64Array>(a: A): A => { const b = new (a.constructor as new (n: number) => A)(c); b.set(a); return b; };
+    this.ids = g(this.ids); this.P = g(this.P); this.packsIn = g(this.packsIn); this.arrived = g(this.arrived);
+    this.notify = g(this.notify); this.localLeft = g(this.localLeft); this.remoteLeft = g(this.remoteLeft);
+    this.state = g(this.state); this.prio = g(this.prio); this.succHead = g(this.succHead); this.outHead = g(this.outHead);
   }
-  for (const [w, l] of first) post(w, l);
-  // Readiness, kept by events: local waits count down as my ops finish; remote waits are
-  // checked only when woken, and only the ones someone is waiting on.
-  const localLeft = new Int32Array(m), remoteLeft = new Int32Array(m);
-  const succCount = new Int32Array(m + 1);
-  const waitersOn = new Map<number, number[]>();
-  for (let j = 0; j < m; j++) for (let q = predOff[j]; q < predOff[j + 1]; q++) {
-    const p = preds[q], i = itemAt.get(p);
-    if (i !== undefined) { localLeft[j]++; succCount[i + 1]++; }
-    else if (Atomics.load(done, p) !== stamp) {
-      remoteLeft[j]++;
-      let l = waitersOn.get(p);
-      if (!l) waitersOn.set(p, l = []);
-      l.push(j);
+  private addOut(i: number, key: number, w: number, p: number) {
+    const o = this.out, at = o.add(); o.a[at] = key; o.a[at + 1] = w; o.a[at + 2] = p; o.a[at + 3] = this.outHead[i]; this.outHead[i] = at + 1;
+  }
+
+  /** A wave of items: the share, and what it adds to items I already have. */
+  add(sh: Share, last: boolean) {
+    const base = this.n, m = sh.ids.length;
+    this.grow(m);
+    for (let q = 0; q < m; q++) {
+      const j = base + q, p = sh.pos[q];
+      this.itemAt.set(p, j);
+      this.ids[j] = sh.ids[q]; this.P[j] = p; this.packsIn[j] = sh.packsIn[q]; this.notify[j] = sh.notify[q];
+      const pre = this.pending.get(p) ?? 0;
+      if (pre) this.pending.delete(p);
+      this.arrived[j] = pre;
+      this.packsDue += sh.packsIn[q] - pre;
+      this.succHead[j] = 0; this.outHead[j] = 0; this.state[j] = 0;
+      for (let r = sh.outOff[q + 1] - 1; r >= sh.outOff[q]; r--) this.addOut(j, sh.outKey[r], sh.outW[r], sh.outPos[r]);
+      this.prio[j] = (sh.notify[q] ? 0 : 1e9) + p;
+      let ll = 0, rl = 0;
+      for (let r = sh.predOff[q]; r < sh.predOff[q + 1]; r++) {
+        const pp = sh.preds[r], i = this.itemAt.get(pp);
+        if (i !== undefined) {
+          if (this.state[i] !== 2) { ll++; const sc = this.succ, at = sc.add(); sc.a[at] = j; sc.a[at + 1] = this.succHead[i]; this.succHead[i] = at + 1; }
+        } else if (Atomics.load(done, pp) !== this.stamp) {
+          rl++;
+          let l = this.waitersOn.get(pp);
+          if (!l) this.waitersOn.set(pp, l = []);
+          l.push(j);
+        }
+      }
+      this.localLeft[j] = ll; this.remoteLeft[j] = rl;
     }
+    this.n += m; this.left += m;
+    // Hand over what others need first.
+    const first = new Map<number, Items>();
+    for (let q = 0; q < sh.sendKey.length; q++) {
+      const w = sh.sendW[q];
+      let l = first.get(w);
+      if (!l) first.set(w, l = []);
+      l.push([sh.sendPos[q], sh.sendKey[q], packKey(sh.sendKey[q])]);
+    }
+    for (const [w, l] of first) post(w, l);
+    // What this wave adds to earlier items: hand-offs and wake-ups after them (now, if they ran).
+    const lo = sh.lateOut, now = new Map<number, Items>();
+    for (let r = 0; r < lo.length; r += 4) {
+      const i = this.itemAt.get(lo[r])!;
+      if (this.state[i] === 2) { let l = now.get(lo[r + 2]); if (!l) now.set(lo[r + 2], l = []); l.push([lo[r + 3], lo[r + 1], packKey(lo[r + 1])]); }
+      else this.addOut(i, lo[r + 1], lo[r + 2], lo[r + 3]);
+    }
+    for (const [w, l] of now) post(w, l);
+    const ln = sh.lateNote;
+    for (let r = 0; r < ln.length; r += 2) {
+      const i = this.itemAt.get(ln[r])!;
+      if (this.state[i] === 2) wakeAll(ln[r + 1]);
+      else this.notify[i] |= ln[r + 1]; // (its place in the heap stays: any order is right, this one's just a little less quick)
+    }
+    if (last) this.all = true;
+    for (let q = 0; q < m; q++) this.check(base + q);
+    this.poke?.();
   }
-  for (let j = 0; j < m; j++) succCount[j + 1] += succCount[j];
-  const succ = new Int32Array(succCount[m]), fill = succCount.slice(0, m);
-  for (let j = 0; j < m; j++) for (let q = predOff[j]; q < predOff[j + 1]; q++) { const i = itemAt.get(preds[q]); if (i !== undefined) succ[fill[i]++] = j; }
-  // Ready ops: first the ones another worker waits on (they're on someone's critical
-  // path), then lowest position first.
-  const heap: number[] = [], prio = new Float64Array(m);
-  for (let j = 0; j < m; j++) prio[j] = (notify[j] ? 0 : 1e9) + j;
-  const push = (j: number) => {
+
+  packIn(target: number) {
+    const j = this.itemAt.get(target);
+    if (j === undefined) { this.pending.set(target, (this.pending.get(target) ?? 0) + 1); return; }
+    this.arrived[j]++; this.packsDue--;
+    this.check(j);
+  }
+
+  check(j: number) {
+    if (this.state[j] || this.localLeft[j] || this.remoteLeft[j] || this.arrived[j] < this.packsIn[j]) return;
+    this.state[j] = 1;
+    const heap = this.heap, prio = this.prio;
     heap.push(j);
-    for (let c = heap.length - 1; c > 0;) { const p = (c - 1) >> 1; if (prio[heap[p]] <= prio[heap[c]]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; }
-  };
-  const pop = () => {
-    const top = heap[0], last = heap.pop()!;
+    for (let c = heap.length - 1; c > 0;) { const p = (c - 1) >> 1; if (prio[heap[p]] <= prio[heap[c]]) break; const x = heap[p]; heap[p] = heap[c]; heap[c] = x; c = p; }
+  }
+  private pop() {
+    const heap = this.heap, prio = this.prio, top = heap[0], last = heap.pop()!;
     if (heap.length) {
       heap[0] = last;
-      for (let c = 0; ;) { const l = 2 * c + 1, r = l + 1; let b = c; if (l < heap.length && prio[heap[l]] < prio[heap[b]]) b = l; if (r < heap.length && prio[heap[r]] < prio[heap[b]]) b = r; if (b === c) break; [heap[b], heap[c]] = [heap[c], heap[b]]; c = b; }
+      for (let c = 0; ;) { const l = 2 * c + 1, r = l + 1; let b = c; if (l < heap.length && prio[heap[l]] < prio[heap[b]]) b = l; if (r < heap.length && prio[heap[r]] < prio[heap[b]]) b = r; if (b === c) break; const x = heap[b]; heap[b] = heap[c]; heap[c] = x; c = b; }
     }
     return top;
-  };
-  let packsDue = 0;
-  for (let j = 0; j < m; j++) packsDue += packsIn[j] - arrived[j];
-  const remoteDone = () => {
+  }
+  private remoteDone() {
     let freed = false;
-    for (const [p, l] of waitersOn) {
+    for (const [p, l] of this.waitersOn) {
       prof.scans++;
-      if (Atomics.load(done, p) !== stamp) continue;
-      waitersOn.delete(p);
-      for (const j of l) { remoteLeft[j]--; check(j); }
+      if (Atomics.load(done, p) !== this.stamp) continue;
+      this.waitersOn.delete(p);
+      for (const j of l) { this.remoteLeft[j]--; this.check(j); }
       freed = true;
     }
     return freed;
-  };
-  const queued = new Uint8Array(m);
-  const check = (j: number) => { if (!queued[j] && !localLeft[j] && !remoteLeft[j] && arrived[j] >= packsIn[j]) { queued[j] = 1; push(j); } };
-  for (let j = 0; j < m; j++) check(j);
-  packed = (j) => { packsDue--; check(j); };
-  prof.setup = performance.now() - tAll;
-  let left = m;
-  while (left) {
-    let seen = Atomics.load(wake, me);
-    while (heap.length) {
-      // Someone finished something: free what waited on it now, not once I run dry (a
-      // neighbour may be stuck on the chain behind it). Bodies come in as messages, so
-      // let those in too.
-      const now = Atomics.load(wake, me);
-      if (now !== seen) {
-        seen = now;
-        remoteDone();
-        if (packsDue > 0) { const ty = performance.now(); prof.yields++; await new Promise<void>((r) => setImmediate(r)); prof.yieldMs += performance.now() - ty; continue; }
-      }
-      const j = pop();
-      const p = P[j], wr: Warrior | undefined = world.warriors[ids[j]];
-      pos = p; actor = ids[j];
-      const tr0 = performance.now();
-      if (wr && wr.alive && wr.id === ids[j]) { if (upkeep) world.upkeep(wr); else world.turn(wr); }
-      prof.run += performance.now() - tr0;
-      afterOp(p);
-      if (outOff[j + 1] > outOff[j]) {
-        const outs = new Map<number, Items>();
-        for (let q = outOff[j]; q < outOff[j + 1]; q++) {
-          let l = outs.get(outW[q]);
-          if (!l) outs.set(outW[q], l = []);
-          l.push([outPos[q], outKey[q], packKey(outKey[q])]);
-        }
-        for (const [w, l] of outs) post(w, l);
-      }
-      Atomics.store(done, p, stamp);
-      for (let mask = notify[j], w = 0; mask; mask >>= 1, w++) if (mask & 1) { Atomics.add(wake, w, 1); Atomics.notify(wake, w); }
-      left--;
-      for (let q = succCount[j]; q < succCount[j + 1]; q++) { const s2 = succ[q]; localLeft[s2]--; check(s2); }
-    }
-    if (!left) break;
-    if (remoteDone() || heap.length) continue;
-    // Nothing can run: wait for a neighbour's op, or a body to arrive.
-    const tw0 = performance.now();
-    prof.waits++;
-    await new Promise<void>((res) => {
-      poke = res;
-      const r = waitAsync(wake, me, seen);
-      if (r.async) void (r.value as Promise<string>).then(() => res()); else res();
-    });
-    poke = null;
-    prof.wait += performance.now() - tw0;
-    prof.passes++;
   }
-  packed = null;
-  prof.all = performance.now() - tAll;
+
+  async run() {
+    const tAll = performance.now(), timing = !!process.env.PAR_DEBUG;
+    prof = { run: 0, wait: 0, all: 0, waits: 0, yields: 0, yieldMs: 0, scans: 0 };
+    const S = this.succ.a, O = this.out;
+    while (!(this.all && !this.left)) {
+      let seen = Atomics.load(wake, me);
+      while (this.heap.length) {
+        // Someone finished something: free what waited on it now, not once I run dry (a
+        // neighbour may be stuck on the chain behind it). Bodies and waves come in as
+        // messages, so let those in too.
+        const nw = Atomics.load(wake, me);
+        if (nw !== seen) {
+          seen = nw;
+          this.remoteDone();
+          if (this.packsDue > 0 || !this.all) { const ty = performance.now(); prof.yields++; await new Promise<void>((r) => setImmediate(r)); prof.yieldMs += performance.now() - ty; continue; }
+        }
+        const j = this.pop();
+        const p = this.P[j], id = this.ids[j], wr: Warrior | undefined = world.warriors[id];
+        pos = p; actor = id;
+        const tr0 = timing ? performance.now() : 0;
+        if (wr && wr.alive && wr.id === id) { if (this.upkeep) world.upkeep(wr); else world.turn(wr); }
+        if (timing) prof.run += performance.now() - tr0;
+        afterOp(p);
+        if (this.outHead[j]) {
+          const outs = new Map<number, Items>();
+          for (let at = this.outHead[j] - 1; at >= 0; at = O.a[at + 3] - 1) { const w = O.a[at + 1]; let l = outs.get(w); if (!l) outs.set(w, l = []); l.push([O.a[at + 2], O.a[at], packKey(O.a[at])]); }
+          for (const [w, l] of outs) post(w, l);
+        }
+        this.state[j] = 2;
+        Atomics.store(done, p, this.stamp);
+        if (this.notify[j]) wakeAll(this.notify[j]);
+        this.left--;
+        const sa = this.succ.a;
+        for (let at = this.succHead[j] - 1; at >= 0; at = sa[at + 1] - 1) { const s2 = sa[at]; this.localLeft[s2]--; this.check(s2); }
+      }
+      if (this.all && !this.left) break;
+      if (this.remoteDone() || this.heap.length) continue;
+      // Nothing can run: wait for a neighbour's op, a body, or the next wave.
+      const tw0 = performance.now();
+      prof.waits++;
+      await new Promise<void>((res) => {
+        this.poke = res;
+        const r = waitAsync(wake, me, seen);
+        if (r.async) void (r.value as Promise<string>).then(() => res()); else res();
+      });
+      this.poke = null;
+      prof.wait += performance.now() - tw0;
+    }
+    void S;
+    prof.all = performance.now() - tAll;
+  }
+}
+
+/** A growable Int32 list of fixed-size records (add() gives the first slot of a new one). */
+class Buf2 {
+  a = new Int32Array(1 << 12);
+  n = 0;
+  constructor(readonly size: number) {}
+  add() {
+    if (this.n + this.size > this.a.length) { const b = new Int32Array(this.a.length * 2); b.set(this.a); this.a = b; }
+    const at = this.n; this.n += this.size; return at;
+  }
+}
+
+/** Wake the workers in a bitmask. */
+function wakeAll(mask: number) {
+  for (let w = 0; mask; mask >>= 1, w++) if (mask & 1) { Atomics.add(wake, w, 1); Atomics.notify(wake, w); }
+}
+
+/** Start a phase: packs that came early for it go in. */
+function startPhase(stamp: number, upkeep: boolean) {
+  phase = new Phase(stamp, upkeep);
+  const now = early.filter((e) => e.stamp === stamp);
+  early = early.filter((e) => e.stamp !== stamp);
+  for (const e of now) onPacks(e);
+  return phase;
 }
 
 /** Everyone through barrier number `n`. */
@@ -233,16 +317,6 @@ async function barrier(n: number) {
 }
 let barriers = 0;
 let begun: Promise<void> = Promise.resolve();
-
-function setShare(share: Share, stamp: number) {
-  arrived = new Int32Array(share.ids.length);
-  itemAt = new Map();
-  share.pos.forEach((p, j) => itemAt.set(p, j));
-  curStamp = stamp;
-  const later = early.filter((e) => e.stamp !== stamp), now = early.filter((e) => e.stamp === stamp);
-  early = later;
-  for (const e of now) onPacks(e);
-}
 
 /** My strip's dead cells, in descending index order (bottom rows first). */
 function debrisInStrip(): number[] {
@@ -309,17 +383,29 @@ port.on('message', async (m: Msg) => {
       return;
     }
     if (m.type === 'turns') {
-      await begun;
-      const share = m.share as Share;
-      setShare(share, m.stamp as number);
+      // The first wave: the phase starts now (more waves may come while it runs).
+      const ph = startPhase(m.stamp as number, false);
       startOutputs();
       nextId = m.first as number; endId = m.end as number;
       for (let i = world.warriors.length; i < (m.top as number); i++) world.warriors.push(null as never);
-      await run(share, m.stamp as number, false);
+      debug('turns: waiting on begin');
+      await begun;
+      debug('turns: adding', (m.share as Share).ids.length);
+      ph.add(m.share as Share, m.last as boolean);
+      debug('turns: running, left', ph.left, 'heap', ph.heap.length, 'all', ph.all);
+      await ph.run();
+      debug('turns: done');
       // Bodies harmed this tick (a death in upkeep pays whoever harmed it).
       const harmed: number[] = [];
       for (const id of held) { const wr = world.warriors[id]; if (live(id) && wr.lastHarm?.t === world.t) harmed.push(id, wr.lastHarm.by, wr.lastHarm.t); }
       port.postMessage({ type: 'turned', births, harmed, prof, ...outputs() });
+      return;
+    }
+    if (m.type === 'wave') {
+      const ph = phase!;
+      if (ph.stamp !== m.stamp) throw new Error(`par worker ${me}: a wave for ${m.stamp} during ${ph.stamp}`);
+      await begun;
+      ph.add(m.share as Share, m.last as boolean);
       return;
     }
     if (m.type === 'upkeep') {
@@ -346,10 +432,10 @@ port.on('message', async (m: Msg) => {
       for (const wr of objs) world.warriors.push(wr);
       for (const id of m.dead as Int32Array) if (!held.has(id) && world.warriors[id]?.alive) bury(world, id, world.warriors[id].lineage);
       children = new Map();
-      const share = m.share as Share;
-      setShare(share, m.stamp as number);
+      const ph = startPhase(m.stamp as number, true);
       startOutputs();
-      await run(share, m.stamp as number, true);
+      ph.add(m.share as Share, true);
+      await ph.run();
       port.postMessage({ type: 'kept', sum: summaries(), prof, ...outputs() });
       return;
     }

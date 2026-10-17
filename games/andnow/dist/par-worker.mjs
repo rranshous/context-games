@@ -96,10 +96,10 @@ function widestExit(terrain, w, r) {
     [r.x + r.w, r.y, 0, 1, r.h]
   ];
   for (const [x02, y0, dx, dy, n] of sides) {
-    let run2 = 0;
+    let run = 0;
     for (let k = 0; k < n; k++) {
-      run2 = terrain[(y0 + k * dy) * w + x02 + k * dx] === FLOOR ? run2 + 1 : 0;
-      if (run2 > widest) widest = run2;
+      run = terrain[(y0 + k * dy) * w + x02 + k * dx] === FLOOR ? run + 1 : 0;
+      if (run > widest) widest = run;
     }
   }
   return widest;
@@ -2415,6 +2415,9 @@ var Builder = class {
   objLast = new Int32Array(0);
   objAt = new Int32Array(0);
   // key → last user, and the plan that set it
+  handLast = new Int32Array(0);
+  handAt = new Int32Array(0);
+  // (the same, walking hand-offs wave by wave)
   predMark = new Int32Array(0);
   plan = 0;
   // this plan's stamp
@@ -2452,6 +2455,8 @@ var Builder = class {
     if (this.objLast.length < nKeys) {
       this.objLast = new Int32Array(nKeys);
       this.objAt = new Int32Array(nKeys);
+      this.handLast = new Int32Array(nKeys);
+      this.handAt = new Int32Array(nKeys);
     }
     this.predMark = grown(this.predMark, n);
     this.worker = grown(this.worker, n);
@@ -2523,120 +2528,125 @@ var Builder = class {
     this.objLast[key] = this.cur;
     this.objs.push(key);
   }
-  finish() {
-    this.predStart[this.n] = this.preds.n;
-    this.objStart[this.n] = this.objs.n;
+  /** Items before `i` are all built (their waits and objects end here). */
+  seal(i) {
+    this.predStart[i] = this.preds.n;
+    this.objStart[i] = this.objs.n;
   }
-  /** Each worker's share: waits, and which objects go where. */
-  shares(ids, K3, keyOf, holderOf) {
-    const n = this.n, worker = this.worker, P = this.preds.a, O = this.objs.a, ps = this.predStart, os = this.objStart;
-    const notify = new Int32Array(n);
-    for (let i = 0; i < n; i++) for (let q = ps[i]; q < ps[i + 1]; q++) {
-      const j = P[q];
-      if (worker[j] !== worker[i]) notify[j] |= 1 << worker[i];
+  used = [];
+  sharesPlan = 0;
+  beginShares() {
+    this.sharesPlan++;
+    this.used = [];
+  }
+  /**
+   * Each worker's share of items [a, b): their waits, and which objects go where. Hand-offs
+   * from, and wake-ups after, items of earlier waves go out as late ones to whoever ran them.
+   */
+  range(a, b, ids, K3, keyOf, holderOf) {
+    const worker = this.worker, P = this.preds.a, O = this.objs.a, ps = this.predStart, os = this.objStart, m = b - a;
+    const notify = new Int32Array(m);
+    const lateNote = Array.from({ length: K3 }, () => []);
+    for (let i = a; i < b; i++) for (let q = ps[i]; q < ps[i + 1]; q++) {
+      const j = P[q], bit = 1 << worker[i];
+      if (worker[j] === worker[i]) continue;
+      if (j >= a) notify[j - a] |= bit;
+      else lateNote[worker[j]].push(j, bit);
     }
     const outFrom = new Buf(), outKey = new Buf(), outW = new Buf(), outPos = new Buf();
-    const sendW = new Buf(), sendFrom = new Buf(), sendKey = new Buf(), sendPos = new Buf();
-    const packsIn = new Int32Array(n), outCount = new Int32Array(n);
-    this.plan++;
-    const last = this.objLast, at = this.objAt, plan = this.plan;
-    const used = [];
-    for (let i = 0; i < n; i++) {
+    const sends = Array.from({ length: K3 }, () => []), lateOut = Array.from({ length: K3 }, () => []);
+    const packsIn = new Int32Array(m), outCount = new Int32Array(m);
+    const last = this.handLast, at = this.handAt, plan = this.sharesPlan;
+    for (let i = a; i < b; i++) {
       const w = worker[i];
       for (let q = os[i]; q < os[i + 1]; q++) {
         const key = O[q], real = keyOf(key);
         if (real === null) continue;
         if (at[key] !== plan) {
           at[key] = plan;
-          used.push(key);
+          this.used.push(key);
           const h = holderOf(real);
           if (h >= 0 && h !== w) {
-            sendFrom.push(h);
-            sendKey.push(real);
-            sendW.push(w);
-            sendPos.push(i);
-            packsIn[i]++;
+            sends[h].push(real, w, i);
+            packsIn[i - a]++;
           }
         } else {
           const j = last[key];
           if (worker[j] !== w) {
-            outFrom.push(j);
-            outKey.push(real);
-            outW.push(w);
-            outPos.push(i);
-            outCount[j]++;
-            packsIn[i]++;
+            packsIn[i - a]++;
+            if (j >= a) {
+              outFrom.push(j - a);
+              outKey.push(real);
+              outW.push(w);
+              outPos.push(i);
+              outCount[j - a]++;
+            } else lateOut[worker[j]].push(j, real, w, i);
           }
         }
         last[key] = i;
       }
     }
-    const holders = /* @__PURE__ */ new Map();
-    for (const key of used) holders.set(keyOf(key), worker[last[key]]);
-    const outStart = new Int32Array(n + 1);
-    for (let i = 0; i < n; i++) outStart[i + 1] = outStart[i] + outCount[i];
-    const fill = outStart.slice(0, n), oK = new Int32Array(outFrom.n), oW = new Int32Array(outFrom.n), oP = new Int32Array(outFrom.n);
+    const outStart = new Int32Array(m + 1);
+    for (let i = 0; i < m; i++) outStart[i + 1] = outStart[i] + outCount[i];
+    const fill = outStart.slice(0, m), oK = new Int32Array(outFrom.n), oW = new Int32Array(outFrom.n), oP = new Int32Array(outFrom.n);
     for (let q = 0; q < outFrom.n; q++) {
-      const a = fill[outFrom.a[q]]++;
-      oK[a] = outKey.a[q];
-      oW[a] = outW.a[q];
-      oP[a] = outPos.a[q];
+      const x = fill[outFrom.a[q]]++;
+      oK[x] = outKey.a[q];
+      oW[x] = outW.a[q];
+      oP[x] = outPos.a[q];
     }
     const count = new Int32Array(K3), np = new Int32Array(K3), no = new Int32Array(K3);
-    for (let i = 0; i < n; i++) {
+    for (let i = a; i < b; i++) {
       const k = worker[i];
       count[k]++;
       np[k] += ps[i + 1] - ps[i];
-      no[k] += outCount[i];
+      no[k] += outCount[i - a];
     }
     const shares = [];
     for (let k = 0; k < K3; k++) {
-      const m = count[k];
+      const c = count[k], sd = sends[k];
       shares.push({
-        ids: new Int32Array(m),
-        pos: new Int32Array(m),
-        predOff: new Int32Array(m + 1),
+        ids: new Int32Array(c),
+        pos: new Int32Array(c),
+        predOff: new Int32Array(c + 1),
         preds: new Int32Array(np[k]),
-        packsIn: new Int32Array(m),
-        outOff: new Int32Array(m + 1),
+        packsIn: new Int32Array(c),
+        outOff: new Int32Array(c + 1),
         outKey: new Int32Array(no[k]),
         outW: new Int32Array(no[k]),
         outPos: new Int32Array(no[k]),
-        notify: new Int32Array(m),
-        sendKey: new Int32Array(0),
-        sendW: new Int32Array(0),
-        sendPos: new Int32Array(0)
+        notify: new Int32Array(c),
+        sendKey: Int32Array.from({ length: sd.length / 3 }, (_, q) => sd[q * 3]),
+        sendW: Int32Array.from({ length: sd.length / 3 }, (_, q) => sd[q * 3 + 1]),
+        sendPos: Int32Array.from({ length: sd.length / 3 }, (_, q) => sd[q * 3 + 2]),
+        lateOut: Int32Array.from(lateOut[k]),
+        lateNote: Int32Array.from(lateNote[k])
       });
     }
     const jAt = new Int32Array(K3), pAt = new Int32Array(K3), oAt = new Int32Array(K3);
-    for (let i = 0; i < n; i++) {
-      const k = worker[i], sh = shares[k], j = jAt[k]++;
+    for (let i = a; i < b; i++) {
+      const k = worker[i], sh = shares[k], j = jAt[k]++, r = i - a;
       sh.ids[j] = ids[i];
       sh.pos[j] = i;
-      sh.packsIn[j] = packsIn[i];
-      sh.notify[j] = notify[i];
+      sh.packsIn[j] = packsIn[r];
+      sh.notify[j] = notify[r];
       sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]);
       pAt[k] += ps[i + 1] - ps[i];
       sh.predOff[j + 1] = pAt[k];
-      const o0 = outStart[i], o1 = outStart[i + 1];
+      const o0 = outStart[r], o1 = outStart[r + 1];
       sh.outKey.set(oK.subarray(o0, o1), oAt[k]);
       sh.outW.set(oW.subarray(o0, o1), oAt[k]);
       sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
       oAt[k] += o1 - o0;
       sh.outOff[j + 1] = oAt[k];
     }
-    for (let k = 0; k < K3; k++) {
-      const sk = [], sw = [], sp = [];
-      for (let q = 0; q < sendFrom.n; q++) if (sendFrom.a[q] === k) {
-        sk.push(sendKey.a[q]);
-        sw.push(sendW.a[q]);
-        sp.push(sendPos.a[q]);
-      }
-      shares[k].sendKey = Int32Array.from(sk);
-      shares[k].sendW = Int32Array.from(sw);
-      shares[k].sendPos = Int32Array.from(sp);
-    }
-    return { shares, holders };
+    return shares;
+  }
+  /** Where each object ended up (its last user's worker), by dense key; −1 if unused. */
+  holders(nKeys) {
+    const keyHolder = new Int8Array(nKeys).fill(-1);
+    for (const key of this.used) keyHolder[key] = this.worker[this.handLast[key]];
+    return keyHolder;
   }
 };
 var turnBuilder = new Builder();
@@ -2710,6 +2720,8 @@ function restoreRng(state) {
 
 // src/par-worker.ts
 var port = parentPort;
+var debug = process.env.PAR_DEBUG ? (...a) => console.error(`[w${me} t${world?.t}]`, ...a) : () => {
+};
 var waitAsync = Atomics.waitAsync;
 var me = 0;
 var K2 = 1;
@@ -2759,12 +2771,18 @@ function startOutputs() {
   births = [];
   died = [];
   seq = 0;
+  diedSeen = 0;
   shadow = new Map(world.deaths);
   attacks0 = [world.attacks.bombs, world.attacks.poisons];
 }
+var diedSeen = 0;
 function afterOp(p) {
-  for (const e of world.events) events.push([p, e]);
-  world.events.length = 0;
+  if (world.events.length) {
+    for (const e of world.events) events.push([p, e]);
+    world.events.length = 0;
+  }
+  if (died.length === diedSeen) return;
+  diedSeen = died.length;
   for (const [k, n] of world.deaths) {
     const d = n - (shadow.get(k) ?? 0);
     if (d) {
@@ -2777,13 +2795,12 @@ function outputs() {
   const a = world.attacks;
   return { events, deaths: deathsOut, attacks: [a.bombs - attacks0[0], a.poisons - attacks0[1]], died };
 }
-var arrived = new Int32Array(0);
-var itemAt = /* @__PURE__ */ new Map();
-var poke = null;
-var packed = null;
-var curStamp = -1;
+var phase = null;
 var early = [];
-var post = (w, items) => peers[w].postMessage({ stamp: curStamp, items });
+var post = (w, items) => {
+  debug("send to", w, items.map((x) => `${x[0]}:${x[1]}`).join(" "));
+  peers[w].postMessage({ stamp: phase.stamp, items });
+};
 function packKey(key) {
   if (key >= 0) {
     held.delete(key);
@@ -2797,72 +2814,180 @@ function packKey(key) {
   });
 }
 function onPacks(m) {
-  if (m.stamp !== curStamp) {
+  debug("got", m.stamp, phase?.stamp, m.items.map((x) => `${x[0]}:${x[1]}`).join(" "));
+  if (!phase || m.stamp !== phase.stamp) {
     early.push(m);
     return;
   }
-  const items = m.items;
-  for (const [target, key, packs] of items) {
+  for (const [target, key, packs] of m.items) {
     for (const p of packs) {
       applyPack(world, p);
       if (!("dead" in p)) held.add(p.id);
     }
     if (key < 0) children.set(-1 - key, packs.filter((p) => !("dead" in p)).map((p) => p.id));
-    const j = itemAt.get(target);
-    if (j === void 0) throw new Error(`par worker ${me}: packs for position ${target}, not mine`);
-    arrived[j]++;
-    packed?.(j);
+    phase.packIn(target);
   }
-  poke?.();
+  phase.poke?.();
 }
-var prof = { run: 0, wait: 0, all: 0, waits: 0, passes: 0, yields: 0, yieldMs: 0, scans: 0, setup: 0 };
-async function run(share, stamp, upkeep) {
-  const tAll = performance.now();
-  prof = { run: 0, wait: 0, all: 0, waits: 0, passes: 0, yields: 0, yieldMs: 0, scans: 0, setup: 0 };
-  const { ids, pos: P, predOff, preds, packsIn, outOff, outKey, outW, outPos, notify } = share;
-  const m = ids.length;
-  const first = /* @__PURE__ */ new Map();
-  for (let q = 0; q < share.sendKey.length; q++) {
-    const w = share.sendW[q];
-    let l = first.get(w);
-    if (!l) first.set(w, l = []);
-    l.push([share.sendPos[q], share.sendKey[q], packKey(share.sendKey[q])]);
+var prof = { run: 0, wait: 0, all: 0, waits: 0, yields: 0, yieldMs: 0, scans: 0 };
+var Phase = class {
+  constructor(stamp, upkeep) {
+    this.stamp = stamp;
+    this.upkeep = upkeep;
   }
-  for (const [w, l] of first) post(w, l);
-  const localLeft = new Int32Array(m), remoteLeft = new Int32Array(m);
-  const succCount = new Int32Array(m + 1);
-  const waitersOn = /* @__PURE__ */ new Map();
-  for (let j = 0; j < m; j++) for (let q = predOff[j]; q < predOff[j + 1]; q++) {
-    const p = preds[q], i = itemAt.get(p);
-    if (i !== void 0) {
-      localLeft[j]++;
-      succCount[i + 1]++;
-    } else if (Atomics.load(done, p) !== stamp) {
-      remoteLeft[j]++;
-      let l = waitersOn.get(p);
-      if (!l) waitersOn.set(p, l = []);
-      l.push(j);
+  // Per item (flat, grown as waves come): body, position, bodies to come in and come so far,
+  // workers to wake after, local and remote waits left, state (1 queued, 2 ran), priority.
+  n = 0;
+  ids = new Int32Array(1024);
+  P = new Int32Array(1024);
+  packsIn = new Int32Array(1024);
+  arrived = new Int32Array(1024);
+  notify = new Int32Array(1024);
+  localLeft = new Int32Array(1024);
+  remoteLeft = new Int32Array(1024);
+  state = new Uint8Array(1024);
+  prio = new Float64Array(1024);
+  // Linked lists in flat buffers: an item's local successors, and objects to send after it.
+  succHead = new Int32Array(1024);
+  succ = new Buf2(2);
+  // [to, next]
+  outHead = new Int32Array(1024);
+  out = new Buf2(4);
+  // [key, worker, position, next]
+  itemAt = /* @__PURE__ */ new Map();
+  waitersOn = /* @__PURE__ */ new Map();
+  pending = /* @__PURE__ */ new Map();
+  // packs in for positions not mine yet
+  heap = [];
+  packsDue = 0;
+  left = 0;
+  all = false;
+  poke = null;
+  grow(m) {
+    if (this.n + m <= this.ids.length) return;
+    const c = Math.max(this.n + m, this.ids.length * 2);
+    const g = (a) => {
+      const b = new a.constructor(c);
+      b.set(a);
+      return b;
+    };
+    this.ids = g(this.ids);
+    this.P = g(this.P);
+    this.packsIn = g(this.packsIn);
+    this.arrived = g(this.arrived);
+    this.notify = g(this.notify);
+    this.localLeft = g(this.localLeft);
+    this.remoteLeft = g(this.remoteLeft);
+    this.state = g(this.state);
+    this.prio = g(this.prio);
+    this.succHead = g(this.succHead);
+    this.outHead = g(this.outHead);
+  }
+  addOut(i, key, w, p) {
+    const o = this.out, at = o.add();
+    o.a[at] = key;
+    o.a[at + 1] = w;
+    o.a[at + 2] = p;
+    o.a[at + 3] = this.outHead[i];
+    this.outHead[i] = at + 1;
+  }
+  /** A wave of items: the share, and what it adds to items I already have. */
+  add(sh, last) {
+    const base = this.n, m = sh.ids.length;
+    this.grow(m);
+    for (let q = 0; q < m; q++) {
+      const j = base + q, p = sh.pos[q];
+      this.itemAt.set(p, j);
+      this.ids[j] = sh.ids[q];
+      this.P[j] = p;
+      this.packsIn[j] = sh.packsIn[q];
+      this.notify[j] = sh.notify[q];
+      const pre = this.pending.get(p) ?? 0;
+      if (pre) this.pending.delete(p);
+      this.arrived[j] = pre;
+      this.packsDue += sh.packsIn[q] - pre;
+      this.succHead[j] = 0;
+      this.outHead[j] = 0;
+      this.state[j] = 0;
+      for (let r = sh.outOff[q + 1] - 1; r >= sh.outOff[q]; r--) this.addOut(j, sh.outKey[r], sh.outW[r], sh.outPos[r]);
+      this.prio[j] = (sh.notify[q] ? 0 : 1e9) + p;
+      let ll = 0, rl = 0;
+      for (let r = sh.predOff[q]; r < sh.predOff[q + 1]; r++) {
+        const pp = sh.preds[r], i = this.itemAt.get(pp);
+        if (i !== void 0) {
+          if (this.state[i] !== 2) {
+            ll++;
+            const sc = this.succ, at = sc.add();
+            sc.a[at] = j;
+            sc.a[at + 1] = this.succHead[i];
+            this.succHead[i] = at + 1;
+          }
+        } else if (Atomics.load(done, pp) !== this.stamp) {
+          rl++;
+          let l = this.waitersOn.get(pp);
+          if (!l) this.waitersOn.set(pp, l = []);
+          l.push(j);
+        }
+      }
+      this.localLeft[j] = ll;
+      this.remoteLeft[j] = rl;
     }
+    this.n += m;
+    this.left += m;
+    const first = /* @__PURE__ */ new Map();
+    for (let q = 0; q < sh.sendKey.length; q++) {
+      const w = sh.sendW[q];
+      let l = first.get(w);
+      if (!l) first.set(w, l = []);
+      l.push([sh.sendPos[q], sh.sendKey[q], packKey(sh.sendKey[q])]);
+    }
+    for (const [w, l] of first) post(w, l);
+    const lo = sh.lateOut, now = /* @__PURE__ */ new Map();
+    for (let r = 0; r < lo.length; r += 4) {
+      const i = this.itemAt.get(lo[r]);
+      if (this.state[i] === 2) {
+        let l = now.get(lo[r + 2]);
+        if (!l) now.set(lo[r + 2], l = []);
+        l.push([lo[r + 3], lo[r + 1], packKey(lo[r + 1])]);
+      } else this.addOut(i, lo[r + 1], lo[r + 2], lo[r + 3]);
+    }
+    for (const [w, l] of now) post(w, l);
+    const ln = sh.lateNote;
+    for (let r = 0; r < ln.length; r += 2) {
+      const i = this.itemAt.get(ln[r]);
+      if (this.state[i] === 2) wakeAll(ln[r + 1]);
+      else this.notify[i] |= ln[r + 1];
+    }
+    if (last) this.all = true;
+    for (let q = 0; q < m; q++) this.check(base + q);
+    this.poke?.();
   }
-  for (let j = 0; j < m; j++) succCount[j + 1] += succCount[j];
-  const succ = new Int32Array(succCount[m]), fill = succCount.slice(0, m);
-  for (let j = 0; j < m; j++) for (let q = predOff[j]; q < predOff[j + 1]; q++) {
-    const i = itemAt.get(preds[q]);
-    if (i !== void 0) succ[fill[i]++] = j;
+  packIn(target) {
+    const j = this.itemAt.get(target);
+    if (j === void 0) {
+      this.pending.set(target, (this.pending.get(target) ?? 0) + 1);
+      return;
+    }
+    this.arrived[j]++;
+    this.packsDue--;
+    this.check(j);
   }
-  const heap = [], prio = new Float64Array(m);
-  for (let j = 0; j < m; j++) prio[j] = (notify[j] ? 0 : 1e9) + j;
-  const push = (j) => {
+  check(j) {
+    if (this.state[j] || this.localLeft[j] || this.remoteLeft[j] || this.arrived[j] < this.packsIn[j]) return;
+    this.state[j] = 1;
+    const heap = this.heap, prio = this.prio;
     heap.push(j);
     for (let c = heap.length - 1; c > 0; ) {
       const p = c - 1 >> 1;
       if (prio[heap[p]] <= prio[heap[c]]) break;
-      [heap[p], heap[c]] = [heap[c], heap[p]];
+      const x = heap[p];
+      heap[p] = heap[c];
+      heap[c] = x;
       c = p;
     }
-  };
-  const pop = () => {
-    const top = heap[0], last = heap.pop();
+  }
+  pop() {
+    const heap = this.heap, prio = this.prio, top = heap[0], last = heap.pop();
     if (heap.length) {
       heap[0] = last;
       for (let c = 0; ; ) {
@@ -2871,105 +2996,124 @@ async function run(share, stamp, upkeep) {
         if (l < heap.length && prio[heap[l]] < prio[heap[b]]) b = l;
         if (r < heap.length && prio[heap[r]] < prio[heap[b]]) b = r;
         if (b === c) break;
-        [heap[b], heap[c]] = [heap[c], heap[b]];
+        const x = heap[b];
+        heap[b] = heap[c];
+        heap[c] = x;
         c = b;
       }
     }
     return top;
-  };
-  let packsDue = 0;
-  for (let j = 0; j < m; j++) packsDue += packsIn[j] - arrived[j];
-  const remoteDone = () => {
+  }
+  remoteDone() {
     let freed = false;
-    for (const [p, l] of waitersOn) {
+    for (const [p, l] of this.waitersOn) {
       prof.scans++;
-      if (Atomics.load(done, p) !== stamp) continue;
-      waitersOn.delete(p);
+      if (Atomics.load(done, p) !== this.stamp) continue;
+      this.waitersOn.delete(p);
       for (const j of l) {
-        remoteLeft[j]--;
-        check(j);
+        this.remoteLeft[j]--;
+        this.check(j);
       }
       freed = true;
     }
     return freed;
-  };
-  const queued = new Uint8Array(m);
-  const check = (j) => {
-    if (!queued[j] && !localLeft[j] && !remoteLeft[j] && arrived[j] >= packsIn[j]) {
-      queued[j] = 1;
-      push(j);
-    }
-  };
-  for (let j = 0; j < m; j++) check(j);
-  packed = (j) => {
-    packsDue--;
-    check(j);
-  };
-  prof.setup = performance.now() - tAll;
-  let left = m;
-  while (left) {
-    let seen = Atomics.load(wake, me);
-    while (heap.length) {
-      const now = Atomics.load(wake, me);
-      if (now !== seen) {
-        seen = now;
-        remoteDone();
-        if (packsDue > 0) {
-          const ty = performance.now();
-          prof.yields++;
-          await new Promise((r) => setImmediate(r));
-          prof.yieldMs += performance.now() - ty;
-          continue;
-        }
-      }
-      const j = pop();
-      const p = P[j], wr = world.warriors[ids[j]];
-      pos = p;
-      actor = ids[j];
-      const tr0 = performance.now();
-      if (wr && wr.alive && wr.id === ids[j]) {
-        if (upkeep) world.upkeep(wr);
-        else world.turn(wr);
-      }
-      prof.run += performance.now() - tr0;
-      afterOp(p);
-      if (outOff[j + 1] > outOff[j]) {
-        const outs = /* @__PURE__ */ new Map();
-        for (let q = outOff[j]; q < outOff[j + 1]; q++) {
-          let l = outs.get(outW[q]);
-          if (!l) outs.set(outW[q], l = []);
-          l.push([outPos[q], outKey[q], packKey(outKey[q])]);
-        }
-        for (const [w, l] of outs) post(w, l);
-      }
-      Atomics.store(done, p, stamp);
-      for (let mask = notify[j], w = 0; mask; mask >>= 1, w++) if (mask & 1) {
-        Atomics.add(wake, w, 1);
-        Atomics.notify(wake, w);
-      }
-      left--;
-      for (let q = succCount[j]; q < succCount[j + 1]; q++) {
-        const s2 = succ[q];
-        localLeft[s2]--;
-        check(s2);
-      }
-    }
-    if (!left) break;
-    if (remoteDone() || heap.length) continue;
-    const tw0 = performance.now();
-    prof.waits++;
-    await new Promise((res) => {
-      poke = res;
-      const r = waitAsync(wake, me, seen);
-      if (r.async) void r.value.then(() => res());
-      else res();
-    });
-    poke = null;
-    prof.wait += performance.now() - tw0;
-    prof.passes++;
   }
-  packed = null;
-  prof.all = performance.now() - tAll;
+  async run() {
+    const tAll = performance.now(), timing = !!process.env.PAR_DEBUG;
+    prof = { run: 0, wait: 0, all: 0, waits: 0, yields: 0, yieldMs: 0, scans: 0 };
+    const S = this.succ.a, O = this.out;
+    while (!(this.all && !this.left)) {
+      let seen = Atomics.load(wake, me);
+      while (this.heap.length) {
+        const nw = Atomics.load(wake, me);
+        if (nw !== seen) {
+          seen = nw;
+          this.remoteDone();
+          if (this.packsDue > 0 || !this.all) {
+            const ty = performance.now();
+            prof.yields++;
+            await new Promise((r) => setImmediate(r));
+            prof.yieldMs += performance.now() - ty;
+            continue;
+          }
+        }
+        const j = this.pop();
+        const p = this.P[j], id = this.ids[j], wr = world.warriors[id];
+        pos = p;
+        actor = id;
+        const tr0 = timing ? performance.now() : 0;
+        if (wr && wr.alive && wr.id === id) {
+          if (this.upkeep) world.upkeep(wr);
+          else world.turn(wr);
+        }
+        if (timing) prof.run += performance.now() - tr0;
+        afterOp(p);
+        if (this.outHead[j]) {
+          const outs = /* @__PURE__ */ new Map();
+          for (let at = this.outHead[j] - 1; at >= 0; at = O.a[at + 3] - 1) {
+            const w = O.a[at + 1];
+            let l = outs.get(w);
+            if (!l) outs.set(w, l = []);
+            l.push([O.a[at + 2], O.a[at], packKey(O.a[at])]);
+          }
+          for (const [w, l] of outs) post(w, l);
+        }
+        this.state[j] = 2;
+        Atomics.store(done, p, this.stamp);
+        if (this.notify[j]) wakeAll(this.notify[j]);
+        this.left--;
+        const sa = this.succ.a;
+        for (let at = this.succHead[j] - 1; at >= 0; at = sa[at + 1] - 1) {
+          const s2 = sa[at];
+          this.localLeft[s2]--;
+          this.check(s2);
+        }
+      }
+      if (this.all && !this.left) break;
+      if (this.remoteDone() || this.heap.length) continue;
+      const tw0 = performance.now();
+      prof.waits++;
+      await new Promise((res) => {
+        this.poke = res;
+        const r = waitAsync(wake, me, seen);
+        if (r.async) void r.value.then(() => res());
+        else res();
+      });
+      this.poke = null;
+      prof.wait += performance.now() - tw0;
+    }
+    prof.all = performance.now() - tAll;
+  }
+};
+var Buf2 = class {
+  constructor(size) {
+    this.size = size;
+  }
+  a = new Int32Array(1 << 12);
+  n = 0;
+  add() {
+    if (this.n + this.size > this.a.length) {
+      const b = new Int32Array(this.a.length * 2);
+      b.set(this.a);
+      this.a = b;
+    }
+    const at = this.n;
+    this.n += this.size;
+    return at;
+  }
+};
+function wakeAll(mask) {
+  for (let w = 0; mask; mask >>= 1, w++) if (mask & 1) {
+    Atomics.add(wake, w, 1);
+    Atomics.notify(wake, w);
+  }
+}
+function startPhase(stamp, upkeep) {
+  phase = new Phase(stamp, upkeep);
+  const now = early.filter((e) => e.stamp === stamp);
+  early = early.filter((e) => e.stamp !== stamp);
+  for (const e of now) onPacks(e);
+  return phase;
 }
 async function barrier(n) {
   if (Atomics.add(bar, 0, 1) + 1 >= n * K2) {
@@ -2985,15 +3129,6 @@ async function barrier(n) {
 }
 var barriers = 0;
 var begun = Promise.resolve();
-function setShare(share, stamp) {
-  arrived = new Int32Array(share.ids.length);
-  itemAt = /* @__PURE__ */ new Map();
-  share.pos.forEach((p, j) => itemAt.set(p, j));
-  curStamp = stamp;
-  const later = early.filter((e) => e.stamp !== stamp), now = early.filter((e) => e.stamp === stamp);
-  early = later;
-  for (const e of now) onPacks(e);
-}
 function debrisInStrip() {
   const { owner, w, h } = world, out = [];
   for (let y = h - 1; y >= 0; y--) {
@@ -3078,20 +3213,31 @@ port.on("message", async (m) => {
       return;
     }
     if (m.type === "turns") {
-      await begun;
-      const share = m.share;
-      setShare(share, m.stamp);
+      const ph = startPhase(m.stamp, false);
       startOutputs();
       nextId = m.first;
       endId = m.end;
       for (let i = world.warriors.length; i < m.top; i++) world.warriors.push(null);
-      await run(share, m.stamp, false);
+      debug("turns: waiting on begin");
+      await begun;
+      debug("turns: adding", m.share.ids.length);
+      ph.add(m.share, m.last);
+      debug("turns: running, left", ph.left, "heap", ph.heap.length, "all", ph.all);
+      await ph.run();
+      debug("turns: done");
       const harmed = [];
       for (const id of held) {
         const wr = world.warriors[id];
         if (live(id) && wr.lastHarm?.t === world.t) harmed.push(id, wr.lastHarm.by, wr.lastHarm.t);
       }
       port.postMessage({ type: "turned", births, harmed, prof, ...outputs() });
+      return;
+    }
+    if (m.type === "wave") {
+      const ph = phase;
+      if (ph.stamp !== m.stamp) throw new Error(`par worker ${me}: a wave for ${m.stamp} during ${ph.stamp}`);
+      await begun;
+      ph.add(m.share, m.last);
       return;
     }
     if (m.type === "upkeep") {
@@ -3122,10 +3268,10 @@ port.on("message", async (m) => {
       for (const wr of objs) world.warriors.push(wr);
       for (const id of m.dead) if (!held.has(id) && world.warriors[id]?.alive) bury(world, id, world.warriors[id].lineage);
       children = /* @__PURE__ */ new Map();
-      const share = m.share;
-      setShare(share, m.stamp);
+      const ph = startPhase(m.stamp, true);
       startOutputs();
-      await run(share, m.stamp, true);
+      ph.add(m.share, true);
+      await ph.run();
       port.postMessage({ type: "kept", sum: summaries(), prof, ...outputs() });
       return;
     }

@@ -2,7 +2,8 @@
 // and stop at the first tick where their worlds differ. The acceptance test for any engine:
 // it must give the same world as World.tick, bit for bit, on every tick.
 //
-//   node dist/twin.mjs <start> [--engine par] [--ticks 200] [--check-every 1]
+//   node dist/twin.mjs <start> [--engine par] [--ticks 200] [--check-every 1] [--alone]
+// --alone runs only the engine (no serial twin, no checks): how fast it goes.
 //
 // <start> is a bake folder (its latest checkpoint), a checkpoint file (.andnow.gz), or a
 // viewer query for a fresh world (e.g. "climb=1&w=climber,diver,hunter&seed=2").
@@ -20,7 +21,9 @@ const args = process.argv.slice(2);
 const flag = (k: string, d: string) => { const i = args.indexOf(k); return i >= 0 ? args.splice(i, 2)[1] : d; };
 const engineName = flag('--engine', 'par');
 const ticks = Number(flag('--ticks', '200'));
-const checkEvery = Number(flag('--check-every', '1')); // (comparing makes an engine gather its whole world: slow)
+const checkEvery = Number(flag('--check-every', '1'));
+const alone = args.includes('--alone');
+if (alone) args.splice(args.indexOf('--alone'), 1); // (comparing makes an engine gather its whole world: slow)
 const start = args[0];
 if (!start) { console.log('usage: node dist/twin.mjs <bake dir | checkpoint.andnow.gz | query> [--engine par] [--ticks 200]'); process.exit(1); }
 
@@ -91,6 +94,18 @@ function compare(a: World, b: World): string {
   return '';
 }
 
+if (alone) {
+  const e = makeEngine(engineName, open());
+  console.log(`${e.name} alone from tick ${e.world.t}, ${e.world.living().length} alive, ${ticks} ticks`);
+  let t0 = performance.now(), first = 0;
+  for (let k = 0; k < ticks; k++) {
+    await e.tick();
+    if (k === 0) { first = performance.now() - t0; t0 = performance.now(); }
+    if ((k + 1) % 10 === 0) console.log(`  t${e.world.t} · ${((performance.now() - t0) / k).toFixed(1)} ms/tick (after the first, ${first.toFixed(0)} ms)`);
+  }
+  e.close?.();
+  process.exit(0);
+}
 const ref = open(), other = makeEngine(engineName, open());
 console.log(`twin: serial vs ${other.name} from tick ${ref.t}, ${ref.living().length} alive, ${ticks} ticks`);
 let ms = [0, 0, 0]; // serial, other's ticks, other's syncs
