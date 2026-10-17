@@ -19,28 +19,9 @@ export class SerialEngine implements Engine {
   tick() { this.world.tick(); }
 }
 
-/**
- * The experimental engine (docs/journal.md, "scaling one sim out"): runs a tick's phases
- * itself, so its turns can be scheduled by footprint instead of strictly in order.
- * For now it runs them in order: the seam, proven identical before anything moves.
- */
-export class ParallelEngine implements Engine {
-  readonly name = 'par';
-  constructor(readonly world: World) {}
-  tick() {
-    const w = this.world;
-    if (!w.beginTick()) return;
-    w.regrow();
-    w.drift();
-    w.runTurns(w.turnOrder());
-    for (const wr of w.living().slice()) if (wr.alive) w.upkeep(wr);
-    w.checkOver();
-  }
-}
-
+/** Engines by name. The parallel one (src/par.ts, Node only) adds itself as 'par' when imported. */
 export const ENGINES: Record<string, (w: World) => Engine> = {
   serial: (w) => new SerialEngine(w),
-  par: (w) => new ParallelEngine(w),
 };
 
 export function makeEngine(name: string, world: World): Engine {

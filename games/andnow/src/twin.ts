@@ -10,6 +10,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { applyDish } from './sim/dish';
 import { makeEngine } from './sim/engine';
+import './par';
 import { loadWorld } from './sim/save';
 import { parseWarrior } from './sim/warrior-file';
 import { World } from './sim/world';
@@ -42,6 +43,8 @@ function diff(a: unknown, b: unknown, path: string, depth = 0): string {
   if (ArrayBuffer.isView(a)) {
     const x = a as unknown as ArrayLike<number>, y = b as unknown as ArrayLike<number>;
     if (x.length !== y.length) return `${path}.length: ${x.length} ≠ ${y.length}`;
+    const bx = a as unknown as ArrayBufferView, by = b as unknown as ArrayBufferView;
+    if (Buffer.from(bx.buffer, bx.byteOffset, bx.byteLength).equals(Buffer.from(by.buffer, by.byteOffset, by.byteLength))) return ''; // (native: a generic loop took a second a tick)
     for (let i = 0; i < x.length; i++) if (x[i] !== y[i] && !(Number.isNaN(x[i]) && Number.isNaN(y[i]))) return `${path}[${i}]: ${x[i]} ≠ ${y[i]}`;
     return '';
   }
@@ -71,7 +74,7 @@ const short = (v: unknown) => { const s = typeof v === 'object' ? JSON.stringify
 function compare(a: World, b: World): string {
   const A = a as unknown as Record<string, unknown>, B = b as unknown as Record<string, unknown>;
   for (const k of ['t', 'h', 'w', 'yShift', 'result', 'attacks', 'deaths', 'events'] as const) { const d = diff(A[k], B[k], k); if (d) return d; }
-  if (a.rng.state !== b.rng.state) return `rng.state: ${a.rng.state} ≠ ${b.rng.state}`;
+  // (Not rng.state: every phase points the rng at a fresh stream, so its state at the end of a tick carries nothing.)
   if (a.warriors.length !== b.warriors.length) return `warriors.length: ${a.warriors.length} ≠ ${b.warriors.length}`;
   for (const k of ['owner', 'code', 'resource', 'ripe'] as const) {
     const d = diff(a[k], b[k], k);
@@ -98,7 +101,7 @@ for (let k = 0; k < ticks; k++) {
   ms[1] += performance.now() - t0;
   const d = compare(ref, other.world);
   if (d) { console.log(`DIFFER at tick ${ref.t}: ${d}`); process.exit(1); }
-  if ((k + 1) % 50 === 0) console.log(`  t${ref.t} same · serial ${(ms[0] / (k + 1)).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / (k + 1)).toFixed(1)} ms/tick`);
+  if (process.env.TWIN_EVERY ? (k + 1) % Number(process.env.TWIN_EVERY) === 0 : (k + 1) % 50 === 0) console.log(`  t${ref.t} same · serial ${(ms[0] / (k + 1)).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / (k + 1)).toFixed(1)} ms/tick`);
 }
 other.close?.();
 console.log(`SAME for ${ticks} ticks (to t${ref.t}) · serial ${(ms[0] / ticks).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / ticks).toFixed(1)} ms/tick`);

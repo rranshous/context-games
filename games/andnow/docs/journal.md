@@ -1860,3 +1860,28 @@ The user: "figure out how to make the sim farm out the work so that we can have 
   | levels (x columns) | 82 | 85 | 114 | 148 |
 
   Even 2 workers need about 80 levels: chains of turns along the border, where neighbours on either side keep touching. A barrier per level wouldn't pay (about 30 turns of work per worker per level). So no barriers: each worker runs its own turns in order and waits only on the specific remote turns it overlaps. It can't deadlock, since a wait always points earlier in the tick's order. The critical path is about 100 hops a tick.
+
+## 2026-10-16: step 4, the threaded engine works (bit for bit) but is slow
+
+- **Built:** `--engine par` (src/par.ts, src/par-worker.ts, src/sim/schedule.ts, src/sim/replica.ts).
+  - Every worker thread holds a whole replica of the world.
+  - The main thread plans each tick's turns from the footprints above and deals them out by column.
+  - Each worker runs its own turns in order. Before each one it waits only for the latest overlapping turn on another worker.
+  - What a worker's turns changed (cells, bodies, deaths, births, crowd counts) goes out as a batch. All batches pass through the main thread, which applies them to its own replica and forwards them; one hub keeps them in an order everyone can apply.
+  - Children get provisional ids and names (`\0<id>\0`). Once every turn is in, `relabel()` gives them, on every replica, the ids and names serial order would have.
+  - Upkeep is a second phase. Its only cross-body edge is a death paying its killer.
+  - A tick that can't go parallel (not a climb, a global cap, a lineage with no tombstone yet) runs serially on every replica.
+- **Twin check:** bit-identical to the serial engine for 600 ticks of a fresh seed 3 (440 of them parallel), and for 40 ticks of seed 13's 29k-body checkpoint on 4 threads.
+- **A twin-check slowdown that looked like a hang:** comparing the four big typed arrays through one generic loop took about a second a tick. Now `Buffer.equals`, native.
+- **Speed:** seed 13, 4 threads: **about 2,000 ms a tick against 257 serial**:
+
+  | part | ms |
+  |---|---|
+  | plan | 250 |
+  | turns | 900 |
+  | upkeep | 750 (113 serial) |
+
+  The profile is about 30% GC, with workers idle a third of the time.
+- **Diagnosis:** full replication. Every body changes twice a tick (its turn, then its upkeep), so every replica deserialises and applies about 58k body packs a tick, and the main thread clones each batch once per worker. That costs as much as just running the tick.
+- **Next:** partial replicas, which is the "overlapping regions" shape. The main thread stays the one full copy and the router. A worker only gets the changes inside its own turns' footprints. Anything stale it's about to need is refreshed from the main copy before its turns start, tracked by a version per chunk and per body. Packs become typed arrays, not objects. Upkeep runs on the worker that ran the body's turn, since it already has that body fresh.
+- **Bakes:** the four old runs are stopped (kept as they were). One fresh run, `climb2-s4`, runs on the serial engine with all the fixes. `runs/bake-resume.sh <seed> [prefix] [engine]` starts or resumes one; a run can switch engines at any checkpoint.
