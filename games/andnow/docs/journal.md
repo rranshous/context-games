@@ -1885,3 +1885,35 @@ The user: "figure out how to make the sim farm out the work so that we can have 
 - **Diagnosis:** full replication. Every body changes twice a tick (its turn, then its upkeep), so every replica deserialises and applies about 58k body packs a tick, and the main thread clones each batch once per worker. That costs as much as just running the tick.
 - **Next:** partial replicas, which is the "overlapping regions" shape. The main thread stays the one full copy and the router. A worker only gets the changes inside its own turns' footprints. Anything stale it's about to need is refreshed from the main copy before its turns start, tracked by a version per chunk and per body. Packs become typed arrays, not objects. Upkeep runs on the worker that ran the body's turn, since it already has that body fresh.
 - **Bakes:** the four old runs are stopped (kept as they were). One fresh run, `climb2-s4`, runs on the serial engine with all the fixes. `runs/bake-resume.sh <seed> [prefix] [engine]` starts or resumes one; a run can switch engines at any checkpoint.
+
+## 2026-10-16: step 5, no full copies: shared cells, strips, bodies handed along the edges
+
+You said syncing a full copy to every thread was the wrong shape, and it was. Rebuilt as domain decomposition:
+
+- **Cells are shared memory.** `owner`, `code`, `resource`, `ripe` and the tile arrays live in `SharedArrayBuffer`s: one copy, and no cell is ever sent.
+- **The plan is the sync.** A turn waits on the last earlier write to any 16×16 chunk it reads, and on the last write plus every read since for a chunk it writes (RAW, WAW and WAR, at chunk grain).
+  - A wait is a shared done-flag per position plus `Atomics.waitAsync`, not a message.
+  - Each worker runs whichever of its turns are ready, in any order (a heap, front-of-order and someone-is-waiting-on-it first). So a border turn that's waiting doesn't hold up its strip.
+- **Bodies are copies that move.** Each body is held by one worker at a time and sent along an edge when the next turn to touch it is elsewhere (a victim across the cut, a killer being paid, a body that crossed into the next strip).
+  - Children born this tick move as "the children of B".
+  - Everyone else has a stub (lineage and name never change: enough for a scan).
+- **Strips of whole tiles, one per worker.** Each worker wakes, regrows and sinks its own strip. To make that possible, drift's rot now draws from a stream per column (golden replays re-recorded: 2,491 matches), and `refreshTiles` split into marking (from every body's IP) and waking (per strip).
+- **The main thread keeps no live copy.** It plans from compact per-body summaries, renames children, and gathers a whole world only for checkpoints and the twin check (`sync`).
+- **Footprints by what a body can do (capsOf).** A body can only reach as far as its glyphs allow:
+  - no `B` or `W`: it touches no other body;
+  - no `S`: it reads only as far as it can see;
+  - no `D`: no children;
+  - no `M`, `A`, `F` or `G`: it doesn't move.
+  - On seed 13 only 28% can bite and 15% scan. The exception is a `W` that can reach a body earlier in the tick (it could be given any glyph); in turn order, that body gets everything.
+  - Also: a parent whose tiles are all at the crowding limit can't divide.
+  - Result: levels 269 → 34, cross-worker waits 12k → 3.2k a tick.
+- **Bugs the twin check caught on the way:**
+  - workers re-sent the event log they were loaded with;
+  - provisional child ids overlapped the final ids they're renamed to (renaming clobbered itself);
+  - body 0's children key is `-1 − 0`, the same as the "tile" sentinel.
+- **Where it stands** (seed 13, 29k bodies, 4 threads, bit-identical over 30 ticks): about 270 ms a tick against 265 serial.
+  - main plans ~60 ms (a persistent, stamped planner, after a version that spent 40% in GC);
+  - turns ~110, of which ~70 is real work per worker;
+  - relabel and upkeep plan ~25;
+  - upkeep ~55.
+  - 7 threads is no better yet: more cuts, more turns across them.

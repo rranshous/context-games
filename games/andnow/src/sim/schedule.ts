@@ -1,231 +1,437 @@
-// Schedules for the parallel engine (src/par.ts). Browser-safe.
+// Plans for the parallel engine (src/par.ts). Browser-safe.
 //
-// A tick's turns run in a fixed order, and two turns only need that order kept between
-// them if they could touch the same thing. So each turn gets a footprint, worked out at
-// the start of the tick, that bounds anything it can do:
-//   - a body takes at most ⌊accum + speed⌋ steps and moves at most a cell a step, so its
-//     box grows by at most that (M);
-//   - it reads within M ± (sight + 16), the scan window; a child lands within a body-width of M;
-//   - any body whose box comes within bite range (M ± bombRange) may lose cells anywhere
-//     (a bite can cut it in two), so its whole box is in, and the body itself;
-//   - and whoever last harmed me (my death pays them, wherever they are).
-// Footprints are kept as 16×16 chunks plus objects (bodies; crowded tiles).
+// A tick's turns run in a fixed order, and two turns only need it kept between them if they
+// could touch the same thing. So each turn gets a footprint, worked out at the start of the
+// tick from compact summaries of the bodies, that bounds anything it can do:
+//   - a body takes at most ⌊accum + speed⌋ steps and moves at most a cell a step, so its box
+//     grows by at most that (M);
+//   - it reads within M ± (sight + 16), the scan window, and writes within M ± bite range;
+//     a child lands within a body-width of M;
+//   - any body whose box comes within bite range may lose cells anywhere (a bite can cut it
+//     in two), so its whole box is written, and the body itself is in (an object);
+//   - so are children born this tick within bite range (to whoever bore them, "children of
+//     B"), whoever last harmed me (my death pays them), and crowded tiles.
+// A body can only do what its glyphs let it (capsOf): with no B or W it touches no other
+// body, with no S it reads no further than it can see, with no D it has no children, with no
+// M, A, F or G it doesn't move. The glyphs it has at the start of the tick are the glyphs it
+// has all tick, unless a W can reach it (a WRITE could give it anything): then it gets all.
+// Cells are shared memory (one copy), tracked in 16×16 chunks: a read waits for the last
+// write, a write for the last write and every read since. Objects (bodies) are copies, one
+// per worker: an object's next user waits for its last user, and if that was on another
+// worker, the object is sent across.
 //
-// Turns are dealt to workers by region (columns of equal head count). A worker runs its
-// own turns in order and, before each one, waits for the latest earlier turn on another
-// worker that overlaps it: wait (k, p) means "worker k's turns through position p are in".
-// A wait always points earlier in the order, so nobody can wait on a worker waiting on them.
-import { CONFIG, Warrior, World } from './world';
-import { inside } from './replica';
+// Turns are dealt to workers by strip (columns of whole tiles). A worker runs any of its
+// turns whose waits are done, in whatever order, so nothing waits on a stuck neighbour
+// that it doesn't have to. (Written flat, typed arrays and no closures: it runs every tick
+// on one thread, and a first version spent 40% of its time collecting garbage.)
+import { CODE } from './glyphs';
+import { CONFIG } from './world';
 
 export const CH = 16;
 
+/** Living bodies at the start of a phase, in id order. */
+export interface Summaries {
+  n: number;
+  id: Int32Array;
+  ipX: Int32Array; ipY: Int32Array;
+  box: Int32Array;      // x0, y0, x1, y1 per body (its cells' bounding box)
+  accum: Float64Array; speed: Float64Array;
+  harmBy: Int32Array; harmT: Int32Array; // last harm (-1: none)
+  caps: Uint8Array;     // what its glyphs let it do (capsOf)
+}
+
+export function emptySummaries(n: number): Summaries {
+  return {
+    n, id: new Int32Array(n), ipX: new Int32Array(n), ipY: new Int32Array(n), box: new Int32Array(n * 4),
+    accum: new Float64Array(n), speed: new Float64Array(n), harmBy: new Int32Array(n).fill(-1), harmT: new Int32Array(n), caps: new Uint8Array(n),
+  };
+}
+
+export const SCAN = 1, SIGHT = 2, BITE = 4, WRITE = 8, DIVIDE = 16, MOVE = 32, HALT = 64, ALL = 127;
+const CAP_OF = new Uint8Array(256);
+for (const [g, c] of [['S', SCAN], ['L', SIGHT], ['R', SIGHT], ['B', BITE], ['W', WRITE], ['D', DIVIDE], ['M', MOVE], ['A', MOVE], ['F', MOVE], ['G', MOVE], ['@', HALT]] as const) CAP_OF[CODE[g]] = c;
+
+/** What a body's glyphs let it do this tick: a bit per kind of reach (SCAN, BITE, ...). */
+export function capsOf(code: ArrayLike<number>, cells: Iterable<number>): number {
+  let c = 0;
+  for (const i of cells) c |= CAP_OF[code[i]];
+  return c;
+}
+
 /** One worker's share of a phase. */
 export interface Share {
-  ids: Int32Array;      // bodies, in order
-  pos: Int32Array;      // their positions in the phase's order
-  waitOff: Int32Array;  // waits of share item j: waitK/waitPos[waitOff[j] .. waitOff[j + 1])
-  waitK: Int32Array;
-  waitPos: Int32Array;
-  flush: Uint8Array;    // 1: someone waits on this one, send it right after
+  ids: Int32Array;       // bodies, by position
+  pos: Int32Array;       // their positions in the phase's order
+  predOff: Int32Array;   // waits of item j: positions preds[predOff[j] .. predOff[j + 1])
+  preds: Int32Array;
+  packsIn: Int32Array;   // objects to receive before item j runs
+  outOff: Int32Array;    // after item j: send object outKey to worker outW, for its item at outPos
+  outKey: Int32Array; outW: Int32Array; outPos: Int32Array;
+  notify: Int32Array;    // after item j: bitmask of workers with an item waiting on it
+  sendKey: Int32Array;   // at the start: objects this worker holds that another's item needs first
+  sendW: Int32Array; sendPos: Int32Array;
 }
 
 export interface Plan {
-  phase: number;
   n: number;
-  base: number;         // warriors.length at the start (children's provisional ids come after)
-  slots: Int32Array;    // per worker [first, end) provisional ids
   shares: Share[];
-  levels: number;       // sync depth (for reports)
+  /** Where each object ends up: bodies by id, children of B as childrenKey(B). */
+  holders: Map<number, number>;
+  levels: number;
+  remote: number;        // waits across workers (for reports)
+  room: Int32Array;      // per worker: most children its items could have (turns)
 }
 
-type Rect = [number, number, number, number];
+/** Key for "the children body `id` has had this tick". */
+export const childrenKey = (id: number) => -1 - id;
 
-/** Column cuts with an equal number of bodies each side. */
-function cuts(xs: Int32Array, K: number): Int32Array {
-  const s = xs.slice().sort();
-  const out = new Int32Array(K - 1);
-  for (let i = 0; i < K - 1; i++) out[i] = s[Math.floor(((i + 1) * s.length) / K)] ?? 0;
-  return out;
+/** A growable Int32 list. */
+class Buf {
+  a = new Int32Array(1 << 12);
+  n = 0;
+  push(v: number) {
+    if (this.n === this.a.length) { const b = new Int32Array(this.a.length * 2); b.set(this.a); this.a = b; }
+    this.a[this.n++] = v;
+  }
 }
-const workerAt = (c: Int32Array, x: number) => { let k = 0; while (k < c.length && x >= c[k]) k++; return k; };
 
-/** Builds the waits from each item's keys (chunks in a typed table, objects in a map). */
-class Deps {
-  private lastPos: Int32Array;
-  private lastW: Int32Array;
-  private lastL: Int32Array;
-  private stamp: Int32Array;
-  private mark: Int32Array;
-  private gen = 0;
-  private obj = new Map<number, number>(); // key → item index
-  private wantFrom: Int32Array;
-  private items: number[] = [];
-  readonly worker: Int32Array;
-  readonly level: Int32Array;
-  readonly flush: Uint8Array;
-  readonly waits: number[][];
-  private cur = 0; private curW = 0; private L = 1;
+/** An Int32Array that grows (and is kept: a plan a tick would otherwise make megabytes of garbage). */
+const grown = (a: Int32Array, n: number): Int32Array => (a.length >= n ? a : new Int32Array(Math.max(n, a.length * 2)));
 
-  constructor(nChunks: number, readonly n: number, readonly K: number) {
-    this.lastPos = new Int32Array(nChunks); this.lastW = new Int32Array(nChunks); this.lastL = new Int32Array(nChunks);
-    this.stamp = new Int32Array(nChunks); this.mark = new Int32Array(nChunks);
-    this.worker = new Int32Array(n); this.level = new Int32Array(n); this.flush = new Uint8Array(n);
-    this.waits = new Array(n);
-    this.wantFrom = new Int32Array(K);
+/**
+ * Builds waits: chunk reads and writes in shared memory; objects as copies handed on.
+ * Objects are dense keys [0, nKeys); `keyOf` turns one into what workers call it (a body id,
+ * a childrenKey, or null: a tile, only ordered). Its arrays live on between plans, marked
+ * with a stamp instead of cleared.
+ */
+class Builder {
+  private lastW = new Int32Array(0); private lastWAt = new Int32Array(0);  // chunk → last writer + 1, and the plan that set it
+  private rHead = new Int32Array(0);                                      // chunk → newest reader since the last write (pool index + 1)
+  private rPool = new Buf();                                              // [pos, next] pairs
+  private wMark = new Int32Array(0); private rMark = new Int32Array(0);
+  private objLast = new Int32Array(0); private objAt = new Int32Array(0); // key → last user, and the plan that set it
+  private predMark: Int32Array = new Int32Array(0);
+  private plan = 0;   // this plan's stamp
+  private g0 = 0;     // marks this plan: g0 + item + 1
+  private cur = 0; private curW = 0; private g = 0;
+  worker: Int32Array = new Int32Array(0);
+  level: Int32Array = new Int32Array(0);
+  predStart: Int32Array = new Int32Array(0); readonly preds = new Buf();
+  objStart: Int32Array = new Int32Array(0); readonly objs = new Buf();
+  n = 0;
+  remote = 0;
+
+  reset(nChunks: number, n: number, nKeys: number) {
+    if (this.g0 + n + 1 > 2e9) { this.g0 = 0; this.wMark.fill(0); this.rMark.fill(0); this.predMark.fill(0); }
+    this.g0 += this.n + 1;
+    this.plan++;
+    this.n = n; this.remote = 0;
+    if (this.lastW.length < nChunks) {
+      this.lastW = new Int32Array(nChunks); this.lastWAt = new Int32Array(nChunks); this.rHead = new Int32Array(nChunks);
+      this.wMark = new Int32Array(nChunks); this.rMark = new Int32Array(nChunks);
+    }
+    if (this.objLast.length < nKeys) { this.objLast = new Int32Array(nKeys); this.objAt = new Int32Array(nKeys); }
+    this.predMark = grown(this.predMark, n); this.worker = grown(this.worker, n); this.level = grown(this.level, n);
+    this.predStart = grown(this.predStart, n + 1); this.objStart = grown(this.objStart, n + 1);
+    this.preds.n = 0; this.objs.n = 0; this.rPool.n = 0;
   }
   start(i: number, w: number) {
-    this.cur = i; this.curW = w; this.L = 1; this.worker[i] = w; this.gen++;
-    this.wantFrom.fill(-1); this.items.length = 0;
+    this.cur = i; this.curW = w; this.worker[i] = w; this.g = this.g0 + i + 1;
+    this.predStart[i] = this.preds.n; this.objStart[i] = this.objs.n;
+    this.level[i] = 1;
   }
   private dep(j: number) {
-    const w = this.worker[j];
-    if (w !== this.curW) {
-      if (j > this.wantFrom[w]) this.wantFrom[w] = j;
-      this.L = Math.max(this.L, this.level[j] + 1);
-    } else this.L = Math.max(this.L, this.level[j]);
+    if (this.predMark[j] === this.g) return;
+    this.predMark[j] = this.g;
+    this.preds.push(j);
+    const far = this.worker[j] !== this.curW;
+    const l = this.level[j] + (far ? 1 : 0);
+    if (l > this.level[this.cur]) this.level[this.cur] = l;
+    if (far) this.remote++;
   }
-  chunk(c: number) {
-    if (this.mark[c] === this.gen) return;
-    this.mark[c] = this.gen;
-    if (this.stamp[c] === 1) this.dep(this.lastPos[c]); else this.stamp[c] = 1;
-    this.items.push(c);
+  write(c: number) {
+    const g = this.g;
+    if (this.wMark[c] === g) return;
+    this.wMark[c] = g;
+    if (this.lastWAt[c] === this.plan) {
+      const lw = this.lastW[c] - 1;
+      if (lw !== this.cur) this.dep(lw);
+      const pool = this.rPool.a;
+      for (let r = this.rHead[c]; r; r = pool[r]) { const j = pool[r - 1]; if (j !== this.cur) this.dep(j); }
+    } else {
+      // (First this plan: readers before it, if any, were linked from rHead in this plan only.)
+      this.lastWAt[c] = this.plan;
+      const pool = this.rPool.a;
+      for (let r = this.rMark[c] > this.g0 ? this.rHead[c] : 0; r; r = pool[r]) { const j = pool[r - 1]; if (j !== this.cur) this.dep(j); }
+    }
+    this.rHead[c] = 0;
+    this.lastW[c] = this.cur + 1;
+  }
+  read(c: number) {
+    const g = this.g;
+    if (this.wMark[c] === g || this.rMark[c] === g) return;
+    const first = this.rMark[c] <= this.g0; // (no reader yet this plan)
+    this.rMark[c] = g;
+    const written = this.lastWAt[c] === this.plan;
+    if (written) this.dep(this.lastW[c] - 1);
+    this.rPool.push(this.cur); this.rPool.push(first && !written ? 0 : this.rHead[c]);
+    this.rHead[c] = this.rPool.n - 1;
   }
   object(key: number) {
-    const j = this.obj.get(key);
-    if (j !== undefined) { if (j === this.cur) return; this.dep(j); }
-    this.obj.set(key, this.cur);
+    if (this.objAt[key] === this.plan) {
+      const j = this.objLast[key];
+      if (j === this.cur) return;
+      this.dep(j);
+    } else this.objAt[key] = this.plan;
+    this.objLast[key] = this.cur;
+    this.objs.push(key);
   }
-  end() {
-    const i = this.cur;
-    for (const c of this.items) { this.lastPos[c] = i; this.lastW[c] = this.curW; }
-    this.level[i] = this.L;
-    const ws: number[] = [];
-    for (let k = 0; k < this.K; k++) if (this.wantFrom[k] >= 0) { ws.push(k, this.wantFrom[k]); this.flush[this.wantFrom[k]] = 1; }
-    this.waits[i] = ws;
-  }
-}
+  finish() { this.predStart[this.n] = this.preds.n; this.objStart[this.n] = this.objs.n; }
 
-function shares(d: Deps, ids: Int32Array, K: number): Share[] {
-  const out: Share[] = [];
-  for (let k = 0; k < K; k++) {
-    const mine: number[] = [];
-    for (let i = 0; i < d.n; i++) if (d.worker[i] === k) mine.push(i);
-    const waitOff = new Int32Array(mine.length + 1), wk: number[] = [], wp: number[] = [];
-    mine.forEach((i, j) => { const ws = d.waits[i]; for (let q = 0; q < ws.length; q += 2) { wk.push(ws[q]); wp.push(ws[q + 1]); } waitOff[j + 1] = wk.length; });
-    out.push({
-      ids: Int32Array.from(mine, (i) => ids[i]), pos: Int32Array.from(mine), waitOff,
-      waitK: Int32Array.from(wk), waitPos: Int32Array.from(wp), flush: Uint8Array.from(mine, (i) => d.flush[i]),
-    });
-  }
-  return out;
-}
-
-/** The turns' plan, from the world at the start of the turns (after begin, regrow, drift). */
-export function planTurns(world: World, order: Warrior[], K: number): Plan {
-  const io = inside(world), W = world.w, H = world.h, n = order.length;
-  const cw = Math.ceil(W / CH), chh = Math.ceil(H / CH);
-  // Moving boxes.
-  const box = new Int32Array(n * 4), steps = new Int32Array(n), xs = new Int32Array(n);
-  const credits = new Map<number, number>();
-  for (const v of world.living()) { const h = v.lastHarm; if (h && world.t - h.t <= CONFIG.creditWindow) credits.set(h.by, (credits.get(h.by) ?? 0) + 1); }
-  for (let i = 0; i < n; i++) {
-    const wr = order[i];
-    let x0 = wr.ipX, y0 = wr.ipY, x1 = wr.ipX, y1 = wr.ipY;
-    for (const c of io.cellSets.get(wr.id) ?? []) { const x = c % W, y = (c / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    const cr = credits.get(wr.id) ?? 0;
-    const speed = cr ? Math.max(wr.speed, Math.min(CONFIG.speedCap, wr.speed + cr * CONFIG.killPay * CONFIG.speedCap)) : wr.speed;
-    const s = wr.alive ? Math.max(0, Math.floor(wr.accum + speed)) : 0;
-    steps[i] = s; xs[i] = wr.ipX;
-    box[i * 4] = x0 - s; box[i * 4 + 1] = y0 - s; box[i * 4 + 2] = x1 + s; box[i * 4 + 3] = y1 + s;
-  }
-  // Bodies by the chunks their boxes touch (to find who's within bite range).
-  const nChunks = cw * chh;
-  const head = new Map<number, number[]>();
-  const rectChunks = (r: Rect, f: (c: number) => void) => {
-    const cx0 = Math.max(0, Math.floor(r[0] / CH)), cy0 = Math.max(0, Math.floor(r[1] / CH));
-    const cx1 = Math.min(cw - 1, Math.floor(r[2] / CH)), cy1 = Math.min(chh - 1, Math.floor(r[3] / CH));
-    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) f(cy * cw + cx);
-  };
-  for (let i = 0; i < n; i++) rectChunks([box[i * 4], box[i * 4 + 1], box[i * 4 + 2], box[i * 4 + 3]], (c) => { let l = head.get(c); if (!l) head.set(c, l = []); l.push(i); });
-  // Crowding: a tile's count only rises between recounts, so it's only order-sensitive if
-  // the births that could land in it this tick might carry it over the limit.
-  const T = CONFIG.tile, tw = io.tw, tc = io.tileCount;
-  const tileRect = (r: Rect, f: (k: number) => void) => {
-    const tx0 = Math.max(0, Math.floor(r[0] / T)), ty0 = Math.max(0, Math.floor(r[1] / T));
-    const tx1 = Math.min(tw - 1, Math.floor(r[2] / T)), ty1 = Math.min(Math.ceil(H / T) - 1, Math.floor(r[3] / T));
-    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) f(ty * tw + tx);
-  };
-  const child = (i: number): Rect => {
-    const mw = box[i * 4 + 2] - box[i * 4] + 1, mh = box[i * 4 + 3] - box[i * 4 + 1] + 1;
-    return [box[i * 4] - mw - 2, box[i * 4 + 1] - mh - 2, box[i * 4 + 2] + mw + 2, box[i * 4 + 3] + mh + 2];
-  };
-  const crowd = CONFIG.crowd, might = new Map<number, number>();
-  if (crowd > 0) for (let i = 0; i < n; i++) if (steps[i]) tileRect(child(i), (k) => might.set(k, (might.get(k) ?? 0) + steps[i]));
-  const hot = (k: number) => tc[k] < crowd && tc[k] + (might.get(k) ?? 0) >= crowd;
-  // Workers by column; then each turn's keys, in order.
-  const K2 = Math.min(K, Math.max(1, n));
-  const cut = cuts(xs, K2);
-  const d = new Deps(nChunks, n, K);
-  const reachR = CONFIG.sight + 16, biteR = Math.max(CONFIG.bombRange, CONFIG.writeRange);
-  const OBJ_TILE = -1e9; // (tile keys, apart from body ids)
-  const seen = new Set<number>();
-  for (let i = 0; i < n; i++) {
-    const wr = order[i];
-    d.start(i, workerAt(cut, xs[i]));
-    const m: Rect = [box[i * 4], box[i * 4 + 1], box[i * 4 + 2], box[i * 4 + 3]];
-    const chunk = (c: number) => d.chunk(c);
-    rectChunks([m[0] - reachR, m[1] - reachR, m[2] + reachR, m[3] + reachR], chunk);
-    if (steps[i]) rectChunks(child(i), chunk);
-    d.object(wr.id);
-    const h = wr.lastHarm;
-    if (h && world.t - h.t <= CONFIG.creditWindow) d.object(h.by);
-    const bite: Rect = [m[0] - biteR, m[1] - biteR, m[2] + biteR, m[3] + biteR];
-    seen.clear();
-    rectChunks(bite, (c) => {
-      for (const j of head.get(c) ?? []) {
-        if (j === i || seen.has(j)) continue;
-        seen.add(j);
-        const o: Rect = [box[j * 4], box[j * 4 + 1], box[j * 4 + 2], box[j * 4 + 3]];
-        if (o[0] > bite[2] || bite[0] > o[2] || o[1] > bite[3] || bite[1] > o[3]) continue;
-        rectChunks(o, chunk);
-        d.object(order[j].id);
+  /** Each worker's share: waits, and which objects go where. */
+  shares(ids: Int32Array, K: number, keyOf: (key: number) => number | null, holderOf: (key: number) => number): { shares: Share[]; holders: Map<number, number> } {
+    const n = this.n, worker = this.worker, P = this.preds.a, O = this.objs.a, ps = this.predStart, os = this.objStart;
+    const notify = new Int32Array(n);
+    for (let i = 0; i < n; i++) for (let q = ps[i]; q < ps[i + 1]; q++) { const j = P[q]; if (worker[j] !== worker[i]) notify[j] |= 1 << worker[i]; }
+    // Objects: walk each key's users in order; a hand-off between workers is a send.
+    const outFrom = new Buf(), outKey = new Buf(), outW = new Buf(), outPos = new Buf();
+    const sendW = new Buf(), sendFrom = new Buf(), sendKey = new Buf(), sendPos = new Buf();
+    const packsIn = new Int32Array(n), outCount = new Int32Array(n);
+    this.plan++; // (objLast/objAt again, as `last`)
+    const last = this.objLast, at = this.objAt, plan = this.plan;
+    const used: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const w = worker[i];
+      for (let q = os[i]; q < os[i + 1]; q++) {
+        const key = O[q], real = keyOf(key);
+        if (real === null) continue; // (a tile count is shared memory: only the order matters)
+        if (at[key] !== plan) {
+          at[key] = plan; used.push(key);
+          const h = holderOf(real);
+          if (h >= 0 && h !== w) { sendFrom.push(h); sendKey.push(real); sendW.push(w); sendPos.push(i); packsIn[i]++; }
+        } else { const j = last[key]; if (worker[j] !== w) { outFrom.push(j); outKey.push(real); outW.push(w); outPos.push(i); outCount[j]++; packsIn[i]++; } }
+        last[key] = i;
       }
-    });
-    if (crowd > 0 && steps[i]) { tileRect(m, (k) => { if (hot(k)) d.object(OBJ_TILE - k); }); tileRect(child(i), (k) => { if (hot(k)) d.object(OBJ_TILE - k); }); }
-    d.end();
+    }
+    const holders = new Map<number, number>();
+    for (const key of used) holders.set(keyOf(key)!, worker[last[key]]);
+    // Outs grouped by sender op.
+    const outStart = new Int32Array(n + 1);
+    for (let i = 0; i < n; i++) outStart[i + 1] = outStart[i] + outCount[i];
+    const fill = outStart.slice(0, n), oK = new Int32Array(outFrom.n), oW = new Int32Array(outFrom.n), oP = new Int32Array(outFrom.n);
+    for (let q = 0; q < outFrom.n; q++) { const a = fill[outFrom.a[q]]++; oK[a] = outKey.a[q]; oW[a] = outW.a[q]; oP[a] = outPos.a[q]; }
+    const count = new Int32Array(K), np = new Int32Array(K), no = new Int32Array(K);
+    for (let i = 0; i < n; i++) { const k = worker[i]; count[k]++; np[k] += ps[i + 1] - ps[i]; no[k] += outCount[i]; }
+    const shares: Share[] = [];
+    for (let k = 0; k < K; k++) {
+      const m = count[k];
+      shares.push({
+        ids: new Int32Array(m), pos: new Int32Array(m), predOff: new Int32Array(m + 1), preds: new Int32Array(np[k]),
+        packsIn: new Int32Array(m), outOff: new Int32Array(m + 1), outKey: new Int32Array(no[k]), outW: new Int32Array(no[k]), outPos: new Int32Array(no[k]),
+        notify: new Int32Array(m), sendKey: new Int32Array(0), sendW: new Int32Array(0), sendPos: new Int32Array(0),
+      });
+    }
+    const jAt = new Int32Array(K), pAt = new Int32Array(K), oAt = new Int32Array(K);
+    for (let i = 0; i < n; i++) {
+      const k = worker[i], sh = shares[k], j = jAt[k]++;
+      sh.ids[j] = ids[i]; sh.pos[j] = i; sh.packsIn[j] = packsIn[i]; sh.notify[j] = notify[i];
+      sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]); pAt[k] += ps[i + 1] - ps[i]; sh.predOff[j + 1] = pAt[k];
+      const o0 = outStart[i], o1 = outStart[i + 1];
+      sh.outKey.set(oK.subarray(o0, o1), oAt[k]); sh.outW.set(oW.subarray(o0, o1), oAt[k]); sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
+      oAt[k] += o1 - o0; sh.outOff[j + 1] = oAt[k];
+    }
+    for (let k = 0; k < K; k++) {
+      const sk: number[] = [], sw: number[] = [], sp: number[] = [];
+      for (let q = 0; q < sendFrom.n; q++) if (sendFrom.a[q] === k) { sk.push(sendKey.a[q]); sw.push(sendW.a[q]); sp.push(sendPos.a[q]); }
+      shares[k].sendKey = Int32Array.from(sk); shares[k].sendW = Int32Array.from(sw); shares[k].sendPos = Int32Array.from(sp);
+    }
+    return { shares, holders };
   }
-  // Child ids: each worker gets room for one child per step of its turns.
-  const base = world.warriors.length, slots = new Int32Array(K * 2);
-  let at = base;
-  for (let k = 0; k < K; k++) {
-    let room = 1;
-    for (let i = 0; i < n; i++) if (d.worker[i] === k) room += steps[i];
-    slots[k * 2] = at; slots[k * 2 + 1] = at + room; at += room;
+}
+const turnBuilder = new Builder(), upkeepBuilder = new Builder();
+
+/** Index of `id` in a sorted Int32Array, or -1. */
+function find(sorted: Int32Array, n: number, id: number) {
+  let lo = 0, hi = n - 1;
+  while (lo <= hi) { const m = (lo + hi) >> 1, v = sorted[m]; if (v === id) return m; if (v < id) lo = m + 1; else hi = m - 1; }
+  return -1;
+}
+
+export interface World0 { w: number; h: number; t: number; tw: number; tileCount: ArrayLike<number> }
+
+/** Worker of a column x, given the strip cuts (x where each worker after the first starts). */
+export const stripOf = (cuts: Int32Array, x: number) => { let k = 0; while (k < cuts.length && x >= cuts[k]) k++; return k; };
+
+/**
+ * The turns' plan. `order` lists summary indices in turn order; `holder` says which worker
+ * holds each body now.
+ */
+export function planTurns(world: World0, S: Summaries, order: Int32Array, cuts: Int32Array, K: number, holder: (id: number) => number, alive: (id: number) => boolean): Plan {
+  const W = world.w, H = world.h, n = order.length;
+  const cw = Math.ceil(W / CH), chh = Math.ceil(H / CH), nChunks = cw * chh;
+  // Credits: a death pays its killer's speed, so a killer may get more steps this tick.
+  const credits = new Map<number, number>();
+  for (let s = 0; s < S.n; s++) if (S.harmBy[s] >= 0 && world.t - S.harmT[s] <= CONFIG.creditWindow) credits.set(S.harmBy[s], (credits.get(S.harmBy[s]) ?? 0) + 1);
+  // Moving boxes (items 0..n-1, by position) and child landings (items n..2n-1).
+  const box = new Int32Array(n * 8), steps = new Int32Array(n), kids = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const s = order[i];
+    const cr = credits.get(S.id[s]) ?? 0, sp = S.speed[s];
+    const speed = cr ? Math.max(sp, Math.min(CONFIG.speedCap, sp + cr * CONFIG.killPay * CONFIG.speedCap)) : sp;
+    const st = Math.max(0, Math.floor(S.accum[s] + speed));
+    steps[i] = st;
+    const mv = S.caps[s] & MOVE ? st : 0; // (no M, A, F or G: it stays where it is)
+    const x0 = S.box[s * 4] - mv, y0 = S.box[s * 4 + 1] - mv, x1 = S.box[s * 4 + 2] + mv, y1 = S.box[s * 4 + 3] + mv;
+    box[i * 4] = x0; box[i * 4 + 1] = y0; box[i * 4 + 2] = x1; box[i * 4 + 3] = y1;
+    const mw = x1 - x0 + 1, mh = y1 - y0 + 1, c = (n + i) * 4;
+    box[c] = x0 - mw - 2; box[c + 1] = y0 - mh - 2; box[c + 2] = x1 + mw + 2; box[c + 3] = y1 + mh + 2;
   }
+  const cx = (x: number) => Math.min(cw - 1, Math.max(0, Math.floor(x / CH)));
+  const cy = (y: number) => Math.min(chh - 1, Math.max(0, Math.floor(y / CH)));
+  // What each can do: its glyphs, or everything if a WRITE could have reached it earlier in
+  // the tick (it could have been given any glyph, a W too: so in turn order, a body that
+  // might hold a W by its turn reaches on).
+  const caps = new Uint8Array(n), wR = CONFIG.writeRange;
+  for (let i = 0; i < n; i++) caps[i] = S.caps[order[i]];
+  {
+    let any = false;
+    for (let i = 0; i < n && !any; i++) if (caps[i] & WRITE) any = true;
+    if (any) {
+      const grid = new Map<number, number[]>(), G = 64; // (reach boxes of writers so far)
+      for (let i = 0; i < n; i++) {
+        const s = order[i], st = steps[i];
+        if (caps[i] !== ALL) {
+          // (Tested as if it could move: given a W, it could be given an M too.)
+          const x0 = S.box[s * 4] - st, y0 = S.box[s * 4 + 1] - st, x1 = S.box[s * 4 + 2] + st, y1 = S.box[s * 4 + 3] + st;
+          search: for (let y = Math.floor(y0 / G); y <= Math.floor(y1 / G); y++) for (let x = Math.floor(x0 / G); x <= Math.floor(x1 / G); x++) {
+            for (const j of grid.get(y * 100000 + x) ?? []) {
+              if (box[j * 4] - wR > x1 || x0 > box[j * 4 + 2] + wR || box[j * 4 + 1] - wR > y1 || y0 > box[j * 4 + 3] + wR) continue;
+              caps[i] = ALL;
+              box[i * 4] = x0; box[i * 4 + 1] = y0; box[i * 4 + 2] = x1; box[i * 4 + 3] = y1;
+              const mw = x1 - x0 + 1, mh = y1 - y0 + 1, c = (n + i) * 4;
+              box[c] = x0 - mw - 2; box[c + 1] = y0 - mh - 2; box[c + 2] = x1 + mw + 2; box[c + 3] = y1 + mh + 2;
+              break search;
+            }
+          }
+        }
+        if (caps[i] & WRITE) {
+          const x0 = box[i * 4], y0 = box[i * 4 + 1], x1 = box[i * 4 + 2], y1 = box[i * 4 + 3];
+          for (let y = Math.floor((y0 - wR) / G); y <= Math.floor((y1 + wR) / G); y++) for (let x = Math.floor((x0 - wR) / G); x <= Math.floor((x1 + wR) / G); x++) {
+            const k = y * 100000 + x; let l = grid.get(k); if (!l) grid.set(k, l = []); l.push(i);
+          }
+        }
+      }
+    }
+  }
+  // Crowding: a tile's count only rises between recounts, so it's only order-sensitive if
+  // the births that could land in it this tick might carry it over the limit; and a parent
+  // whose every tile is already full can't divide at all.
+  const T = CONFIG.tile, tw = world.tw, th = Math.ceil(H / T), tc = world.tileCount, crowd = CONFIG.crowd;
+  const tx = (x: number) => Math.min(tw - 1, Math.max(0, Math.floor(x / T))), ty = (y: number) => Math.min(th - 1, Math.max(0, Math.floor(y / T)));
+  for (let i = 0; i < n; i++) {
+    kids[i] = caps[i] & DIVIDE && steps[i] ? 1 : 0;
+    if (kids[i] && crowd > 0) {
+      let room = false;
+      for (let y = ty(box[i * 4 + 1]); y <= ty(box[i * 4 + 3]) && !room; y++) for (let x = tx(box[i * 4]); x <= tx(box[i * 4 + 2]); x++) if (tc[y * tw + x] < crowd) { room = true; break; }
+      if (!room) kids[i] = 0;
+    }
+  }
+  // Who's where, by chunk (CSR).
+  const cnt = new Int32Array(nChunks + 1);
+  for (let item = 0; item < 2 * n; item++) {
+    if (item >= n && !kids[item - n]) continue;
+    const b = item * 4;
+    for (let y = cy(box[b + 1]); y <= cy(box[b + 3]); y++) for (let x = cx(box[b]); x <= cx(box[b + 2]); x++) cnt[y * cw + x + 1]++;
+  }
+  for (let c = 0; c < nChunks; c++) cnt[c + 1] += cnt[c];
+  const at = cnt.slice(0, nChunks), cell = new Int32Array(cnt[nChunks]);
+  for (let item = 0; item < 2 * n; item++) {
+    if (item >= n && !kids[item - n]) continue;
+    const b = item * 4;
+    for (let y = cy(box[b + 1]); y <= cy(box[b + 3]); y++) for (let x = cx(box[b]); x <= cx(box[b + 2]); x++) cell[at[y * cw + x]++] = item;
+  }
+  const might = new Map<number, number>();
+  if (crowd > 0) for (let i = 0; i < n; i++) {
+    if (!kids[i]) continue;
+    const b = (n + i) * 4;
+    for (let y = ty(box[b + 1]); y <= ty(box[b + 3]); y++) for (let x = tx(box[b]); x <= tx(box[b + 2]); x++) might.set(y * tw + x, (might.get(y * tw + x) ?? 0) + steps[i]);
+  }
+  const hot = (k: number) => tc[k] < crowd && tc[k] + (might.get(k) ?? 0) >= crowd;
+
+  // Object keys, dense: a body by its summary index, its children after those, then tiles.
+  const nT = tw * th, KID = S.n, TILE = 2 * S.n;
+  const b = turnBuilder;
+  b.reset(nChunks, n, TILE + nT);
+  const seen = new Int32Array(2 * n);
+  for (let i = 0; i < n; i++) {
+    const s = order[i], id = S.id[s], cp = caps[i];
+    b.start(i, stripOf(cuts, S.ipX[s]));
+    const x0 = box[i * 4], y0 = box[i * 4 + 1], x1 = box[i * 4 + 2], y1 = box[i * 4 + 3];
+    // Reach: the scan window, or as far as it can see, bite or write; or just next to itself.
+    const readR = cp & SCAN ? CONFIG.sight + 16 : cp & SIGHT ? CONFIG.sight : cp & BITE ? CONFIG.bombRange : cp & WRITE ? CONFIG.writeRange : 1;
+    const harmR = cp & BITE ? CONFIG.bombRange : cp & WRITE ? CONFIG.writeRange : 0;
+    const biteR = Math.max(1, harmR);
+    const bx0 = x0 - biteR, by0 = y0 - biteR, bx1 = x1 + biteR, by1 = y1 + biteR;
+    // Writes first (a chunk both read and written counts as written).
+    for (let y = cy(by0); y <= cy(by1); y++) for (let x = cx(bx0); x <= cx(bx1); x++) b.write(y * cw + x);
+    if (kids[i]) {
+      const c = (n + i) * 4;
+      for (let y = cy(box[c + 1]); y <= cy(box[c + 3]); y++) for (let x = cx(box[c]); x <= cx(box[c + 2]); x++) b.write(y * cw + x);
+      b.object(KID + s);
+    }
+    b.object(s);
+    if (cp & HALT && S.harmBy[s] >= 0 && world.t - S.harmT[s] <= CONFIG.creditWindow) { const k = find(S.id, S.n, S.harmBy[s]); if (k >= 0) b.object(k); }
+    // Bodies (and children) within bite range: their whole boxes, and the objects.
+    if (harmR) for (let y = cy(by0); y <= cy(by1); y++) for (let x = cx(bx0); x <= cx(bx1); x++) {
+      const c = y * cw + x;
+      for (let q = cnt[c]; q < cnt[c + 1]; q++) {
+        const item = cell[q];
+        if (seen[item] === i + 1) continue;
+        seen[item] = i + 1;
+        const j = item < n ? item : item - n;
+        if (j === i || (item >= n && j > i)) continue; // (me; or children not born yet when I go)
+        const o = item * 4;
+        if (box[o] > bx1 || bx0 > box[o + 2] || box[o + 1] > by1 || by0 > box[o + 3]) continue;
+        for (let yy = cy(box[o + 1]); yy <= cy(box[o + 3]); yy++) for (let xx = cx(box[o]); xx <= cx(box[o + 2]); xx++) b.write(yy * cw + xx);
+        b.object(item < n ? order[j] : KID + order[j]);
+      }
+    }
+    if (crowd > 0 && kids[i]) {
+      for (let y = ty(y0); y <= ty(y1); y++) for (let x = tx(x0); x <= tx(x1); x++) if (hot(y * tw + x)) b.object(TILE + y * tw + x);
+      const c = (n + i) * 4;
+      for (let y = ty(box[c + 1]); y <= ty(box[c + 3]); y++) for (let x = tx(box[c]); x <= tx(box[c + 2]); x++) if (hot(y * tw + x)) b.object(TILE + y * tw + x);
+    }
+    for (let y = cy(y0 - readR); y <= cy(y1 + readR); y++) for (let x = cx(x0 - readR); x <= cx(x1 + readR); x++) b.read(y * cw + x);
+  }
+  b.finish();
+  const ids = new Int32Array(n);
+  for (let i = 0; i < n; i++) ids[i] = S.id[order[i]];
+  const keyOf = (key: number) => key < KID ? S.id[key] : key < TILE ? childrenKey(S.id[key - KID]) : null;
+  const { shares, holders } = b.shares(ids, K, keyOf, (real) => real >= 0 ? holder(real) : -1); // (children start nowhere)
   let levels = 0;
-  for (let i = 0; i < n; i++) if (d.level[i] > levels) levels = d.level[i];
-  return { phase: world.t * 2, n, base, slots, shares: shares(d, Int32Array.from(order, (w) => w.id), K), levels };
+  const room = new Int32Array(K).fill(1);
+  for (let i = 0; i < n; i++) { if (b.level[i] > levels) levels = b.level[i]; if (kids[i]) room[b.worker[i]] += steps[i]; }
+  return { n, shares, holders, levels, remote: b.remote, room };
 }
 
 /**
- * The upkeep plan: every living body, in id order. Upkeep only touches the body's own
- * cells, so the only order that matters is with whoever its death would pay. Every
- * replica builds this itself, from the same state.
+ * The upkeep plan: every living body, in id order, each on the worker that holds it. Upkeep
+ * only touches a body's own cells, so the only order that matters is with whoever its death
+ * would pay.
  */
-export function planUpkeep(world: World, list: Warrior[], K: number): Plan {
-  const n = list.length, xs = Int32Array.from(list, (w) => w.ipX);
-  const cut = cuts(xs, Math.min(K, Math.max(1, n)));
-  const d = new Deps(1, n, K);
+export function planUpkeep(t: number, ids: Int32Array, harmBy: Int32Array, harmT: Int32Array, K: number, holder: (id: number) => number, alive: (id: number) => boolean): Plan {
+  const n = ids.length;
+  const b = upkeepBuilder;
+  b.reset(1, n, n);
   for (let i = 0; i < n; i++) {
-    const wr = list[i];
-    d.start(i, workerAt(cut, xs[i]));
-    d.object(wr.id);
-    const h = wr.lastHarm;
-    if (h && world.t - h.t <= CONFIG.creditWindow) d.object(h.by);
-    d.end();
+    b.start(i, holder(ids[i]));
+    b.object(i);
+    if (harmBy[i] >= 0 && t - harmT[i] <= CONFIG.creditWindow) { const k = find(ids, n, harmBy[i]); if (k >= 0) b.object(k); }
   }
+  b.finish();
+  void alive;
+  const { shares, holders } = b.shares(ids, K, (key) => ids[key], holder);
   let levels = 0;
-  for (let i = 0; i < n; i++) if (d.level[i] > levels) levels = d.level[i];
-  return { phase: world.t * 2 + 1, n, base: world.warriors.length, slots: new Int32Array(K * 2), shares: shares(d, Int32Array.from(list, (w) => w.id), K), levels };
+  for (let i = 0; i < n; i++) if (b.level[i] > levels) levels = b.level[i];
+  return { n, shares, holders, levels, remote: b.remote, room: new Int32Array(K) };
 }

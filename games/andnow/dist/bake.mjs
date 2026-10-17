@@ -631,6 +631,19 @@ var CONFIG = {
   corpse: 0.33
   // island: share of a dead body's cells left as dead cells (the rest dissolves)
 };
+function markTiles(living, count, tw, n) {
+  const T = CONFIG.tile, th = n / tw;
+  const next = new Uint8Array(n);
+  for (const wr of living) {
+    const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
+    count[ty * tw + tx]++;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = tx + dx, y = ty + dy;
+      if (x >= 0 && y >= 0 && x < tw && y < th) next[y * tw + x] = 1;
+    }
+  }
+  return next;
+}
 var World = class {
   constructor(seed, specs) {
     this.seed = seed;
@@ -722,20 +735,19 @@ var World = class {
    * catches up at once: its plants regrow and ripen as if time had passed there too.
    */
   refreshTiles() {
-    const T = CONFIG.tile, th = this.tileActive.length / this.tw;
-    const next = new Uint8Array(this.tileActive.length);
     this.tileCount.fill(0);
-    for (const wr of this.living()) {
-      this.tileCount[this.tileOf(wr.ipX, wr.ipY)]++;
-      const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const x = tx + dx, y = ty + dy;
-        if (x >= 0 && y >= 0 && x < this.tw && y < th) next[y * this.tw + x] = 1;
-      }
-    }
+    this.wakeTiles(markTiles(this.living(), this.tileCount, this.tw, this.tileActive.length));
+  }
+  /**
+   * The waking half of refreshTiles, for tile columns [tx0, tx1) (a parallel engine's worker
+   * does its own strip of tiles; the marks come from every body's IP, see markTiles).
+   */
+  wakeTiles(next, tx0 = 0, tx1 = this.tw) {
     this.activeTiles = [];
     for (let k = 0; k < next.length; k++) {
       if (!next[k]) continue;
+      const tx = k % this.tw;
+      if (tx < tx0 || tx >= tx1) continue;
       this.activeTiles.push(k);
       if (!this.tileActive[k]) {
         const gap = this.t - this.tileLast[k];
@@ -751,7 +763,10 @@ var World = class {
       }
     }
     for (const k of this.activeTiles) this.tileLast[k] = this.t;
-    this.tileActive = next;
+    for (let k = 0; k < next.length; k++) {
+      const tx = k % this.tw;
+      if (tx >= tx0 && tx < tx1) this.tileActive[k] = next[k];
+    }
   }
   // ---------- The Climb: a world that grows a step wherever life reaches its edge ----------
   /** Rows joined on above the original world so far: every y has moved down by this much (a viewer keeps its camera on the same spot with it). */
@@ -780,13 +795,13 @@ var World = class {
     if (dir > 0 && H % T) throw new Error(`step ${n} is ${H} rows, not whole ${T}-row tiles`);
     const made = makeClimbStep(this.seed, w, n, H, b.foodSpacing);
     const D = dir > 0 ? H : 0, dI = D * w, newTop = dir > 0 ? 0 : oldH;
-    const grown = (a, fill) => {
+    const grown2 = (a, fill) => {
       const out2 = new a.constructor(w * h);
       if (fill) out2.fill(fill);
       out2.set(a, dI);
       return out2;
     };
-    const terrain = grown(b.terrain, 0), step = grown(b.step, 0);
+    const terrain = grown2(b.terrain, 0), step = grown2(b.step, 0);
     terrain.set(made.terrain, newTop * w);
     step.fill(n, newTop * w, (newTop + H) * w);
     const wallRow = dir > 0 ? H : oldH - 1;
@@ -812,11 +827,11 @@ var World = class {
       const i = y * w + x;
       if (terrain[i] === FLOOR && !seen[i - r0 * w]) terrain[i] = WALL;
     }
-    this.owner = grown(this.owner, NONE);
-    this.code = grown(this.code, 0);
-    this.resource = grown(this.resource, 0);
-    this.ripe = grown(this.ripe, 1);
-    this.narrow = grown(this.narrow, 0);
+    this.owner = grown2(this.owner, NONE);
+    this.code = grown2(this.code, 0);
+    this.resource = grown2(this.resource, 0);
+    this.ripe = grown2(this.ripe, 1);
+    this.narrow = grown2(this.narrow, 0);
     b.terrain = terrain;
     b.step = step;
     b.h = h;
@@ -1006,15 +1021,9 @@ var World = class {
   /** The way `owner` changes (opShift does a bulk equivalent). */
   setOwner(i, v) {
     const o = this.owner[i];
-    const tr = this.track;
-    if (tr) {
-      tr.cell(i);
-      tr.body(o);
-      tr.body(v);
-    }
     if (o === v) return;
     if (o !== NONE) {
-      this.cellSets.get(o).delete(i);
+      this.cellSets.get(o)?.delete(i);
       this.sortedCells.delete(o);
     }
     this.owner[i] = v;
@@ -1120,6 +1129,7 @@ var World = class {
   }
   kill(wr, reason) {
     if (!wr.alive) return;
+    this.track?.died(wr.id);
     this.die(wr, reason);
     this.cellSets.delete(wr.id);
     this.sortedCells.delete(wr.id);
@@ -1143,7 +1153,6 @@ var World = class {
     const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : void 0;
     const eatsWhole = CONFIG.island ? k0?.realm === 1 && wr.realm === 0 : CONFIG.climb && !!k0?.traits?.meat;
     if (eatsWhole && k0 && k0.alive) {
-      this.track?.body(k0.id);
       const cells = this.cellsOf(wr.id).slice();
       k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1) * this.dietShare(k0, "meat") * this.richness(this.idx(wr.ipX, wr.ipY)));
       k0.stats.kills++;
@@ -1160,7 +1169,6 @@ var World = class {
     const h = wr.lastHarm;
     const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : void 0;
     if (killer && killer.alive && killer !== wr) {
-      this.track?.body(killer.id);
       if (killer.lineage !== wr.lineage) killer.stats.kills++;
       killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
       killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
@@ -1471,19 +1479,30 @@ var World = class {
   }
   /** Island survival, once a tick: dead cells sink (and rot where they can't). */
   islandTick() {
-    if (this.t % CONFIG.sinkEvery === 0) {
-      const dead = this.cellsOf(DEBRIS).slice().reverse();
-      for (const c of dead) {
-        const below = c + this.w;
-        if (this.isFloor(c % this.w, (c / this.w | 0) + 1) && this.owner[below] === NONE) {
-          this.setOwner(below, DEBRIS);
-          this.code[below] = this.code[c];
-          this.setOwner(c, NONE);
-          this.code[c] = 0;
-        } else if (this.rng() < CONFIG.rot * CONFIG.sinkEvery) {
-          this.setOwner(c, NONE);
-          this.code[c] = 0;
-        }
+    if (this.t % CONFIG.sinkEvery === 0) this.sink(this.cellsOf(DEBRIS).slice().reverse());
+  }
+  /**
+   * Dead cells sink, bottom rows first so a column of them falls together, and rot where they
+   * can't. Each column draws from its own stream, so columns don't depend on each other (a
+   * parallel engine's worker sinks its own strip). `dead` is in descending index order.
+   */
+  sink(dead) {
+    const col = /* @__PURE__ */ new Map();
+    for (const c of dead) {
+      const below = c + this.w, x = c % this.w;
+      if (this.isFloor(x, (c / this.w | 0) + 1) && this.owner[below] === NONE) {
+        this.setOwner(below, DEBRIS);
+        this.code[below] = this.code[c];
+        this.setOwner(c, NONE);
+        this.code[c] = 0;
+        continue;
+      }
+      this.rng.state = col.get(x) ?? streamSeed(this.seed, this.t, -2 - x);
+      const rot = this.rng() < CONFIG.rot * CONFIG.sinkEvery;
+      col.set(x, this.rng.state);
+      if (rot) {
+        this.setOwner(c, NONE);
+        this.code[c] = 0;
       }
     }
   }
@@ -1959,11 +1978,6 @@ var World = class {
     }
     const delta = DY[d] * this.w + DX[d];
     const moved = mine.map((c) => c + delta);
-    if (this.track) {
-      for (const c of mine) this.track.cell(c);
-      for (const c of moved) this.track.cell(c);
-      this.track.body(wr.id);
-    }
     for (let k = 0; k < moved.length; k++) {
       this.owner[moved[k]] = wr.id;
       this.code[moved[k]] = codes[k];
@@ -2088,8 +2102,6 @@ var World = class {
     if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
     if (this.code[ia] !== this.code[ib]) wr.stats.swaps++;
-    this.track?.cell(ia);
-    this.track?.cell(ib);
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
     return true;
   }
@@ -2137,7 +2149,6 @@ var World = class {
           continue;
         } else continue;
         this.resource[i] = 0;
-        this.track?.cell(i);
         wr.stats.collected++;
         got = true;
       }
@@ -2188,7 +2199,6 @@ var World = class {
     const ti = this.idx(x, y);
     if ((CONFIG.island || CONFIG.climb) && o >= 0 && this.code[ti] === K) {
       const v = this.warriors[o];
-      this.track?.body(o);
       v.dents = (v.dents ?? 0) + (CONFIG.climb ? wr.traits?.bite ?? 1 : 1);
       v.lastHarm = { by: wr.id, t: this.t };
       if (v.dents < CONFIG.armorBites) {
@@ -2301,8 +2311,8 @@ var World = class {
     wr.maxSize /= 2;
     if (CONFIG.climb) {
       const k = this.tileOf(child.ipX, child.ipY);
-      this.tileCount[k]++;
-      this.track?.tile(k);
+      if (this.track) this.track.tile(k);
+      else this.tileCount[k]++;
     }
     this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);
     return true;
@@ -2318,8 +2328,6 @@ var World = class {
     const n = this.glyphCount(), c = (code % n + n) % n;
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
-    this.track?.cell(this.idx(x, y));
-    this.track?.body(o);
     if (o >= 0 && o !== wr.id) {
       if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
@@ -2488,345 +2496,518 @@ function makeEngine(name, world2) {
 }
 
 // src/par.ts
-import { Worker } from "node:worker_threads";
+import { MessageChannel, Worker } from "node:worker_threads";
 
 // src/sim/replica.ts
 var inside = (w) => w;
-var TOKEN = "\0";
-function applyBatch(w, b) {
-  const io = inside(w), { owner, code, resource } = w;
-  let debris = io.cellSets.get(DEBRIS);
-  if (!debris) {
-    debris = /* @__PURE__ */ new Set();
-    io.cellSets.set(DEBRIS, debris);
+function applyPack(w, p) {
+  const io = inside(w);
+  if ("dead" in p) {
+    bury(w, p.id, p.lineage);
+    return;
   }
-  const c = b.cells;
-  let debrisChanged = false;
-  for (let k = 0; k < c.length; k += 4) {
-    const i = c[k], o = c[k + 1], old = owner[i];
-    if (old !== o) {
-      if (old === DEBRIS) {
-        debris.delete(i);
-        debrisChanged = true;
-      }
-      if (o === DEBRIS) {
-        debris.add(i);
-        debrisChanged = true;
-      }
-    }
-    owner[i] = o;
-    code[i] = c[k + 2];
-    resource[i] = c[k + 3];
+  let wr = w.warriors[p.id];
+  if (!wr || wr.id !== p.id || !("spec" in wr)) {
+    const f = w.warriors[p.lineage];
+    wr = { spec: f.spec, home: f.home };
+    w.warriors[p.id] = wr;
   }
-  if (debrisChanged) io.sortedCells.delete(DEBRIS);
-  for (const p of b.bodies) {
-    let wr = w.warriors[p.id];
-    if (!wr) {
-      const f = w.warriors[p.lineage];
-      wr = { spec: f.spec, home: f.home };
-      w.warriors[p.id] = wr;
-    }
-    const { cells, roomsSeen, ...rest } = p;
-    Object.assign(wr, rest);
-    wr.roomsSeen = new Set(roomsSeen);
-    io.cellSets.set(p.id, new Set(cells));
-    io.sortedCells.delete(p.id);
-  }
-  for (let k = 0; k < b.dead.length; k += 2) bury(w, b.dead[k], b.dead[k + 1]);
-  for (const k of b.tiles) io.tileCount[k]++;
+  const { cells, roomsSeen, ...rest } = p;
+  Object.assign(wr, rest);
+  wr.roomsSeen = new Set(roomsSeen);
+  io.cellSets.set(p.id, new Set(cells));
+  io.sortedCells.delete(p.id);
 }
 function bury(w, id, lineage) {
   const io = inside(w), wr = w.warriors[id];
-  if (!wr || !wr.alive) {
-    if (!wr) w.warriors[id] = io.tombstones.get(lineage);
-    io.cellSets.delete(id);
-    io.sortedCells.delete(id);
-    return;
+  if (wr?.alive) {
+    wr.alive = false;
+    io.livingDirty = true;
   }
-  wr.alive = false;
-  io.livingDirty = true;
   io.cellSets.delete(id);
   io.sortedCells.delete(id);
-  if (CONFIG.endless && wr.gen > 0) w.warriors[id] = io.tombstones.get(wr.lineage);
+  if (CONFIG.endless && (!wr || wr.gen > 0)) w.warriors[id] = io.tombstones.get(lineage);
 }
-function relabel(w, base, births) {
-  const io = inside(w);
-  const list = [];
-  for (let k = 0; k < births.length; k += 3) list.push([births[k], births[k + 1], births[k + 2]]);
-  list.sort((a, b) => a[1] - b[1] || a[2] - b[2]);
-  const map = /* @__PURE__ */ new Map();
-  const slots = list.map(([p]) => w.warriors[p]);
-  const sets = list.map(([p]) => io.cellSets.get(p));
-  for (const [p] of list) {
-    io.cellSets.delete(p);
-    io.sortedCells.delete(p);
-  }
-  w.warriors.length = base;
-  list.forEach(([p], k) => {
-    const f = base + k, wr = slots[k];
-    map.set(p, f);
-    w.warriors.push(wr);
-    if (wr.id === p && wr !== io.tombstones.get(wr.lineage)) {
-      wr.id = f;
-      wr.name = w.childName(wr.lineage);
-    } else w.childName(wr.lineage);
-    const set = sets[k];
-    if (set) {
-      for (const c of set) w.owner[c] = f;
-      io.cellSets.set(f, set);
-    }
-  });
-  io.livingList = io.livingList.filter((x) => x.id < base);
-  for (const wr of slots) if (wr.alive && wr.id >= base) io.livingList.push(wr);
-  io.livingDirty = true;
-  return map;
+function stub(id, lineage, name) {
+  return { id, lineage, name, alive: true, gen: 1 };
 }
-function renameText(w, text, map) {
-  if (!text.includes(TOKEN)) return text;
-  return text.replace(/\u0000(\d+)\u0000/g, (_, p) => w.warriors[map.get(Number(p)) ?? -1]?.name ?? "?");
-}
-function mergeOutputs(w, batches, map) {
-  const events = [], deaths = [];
-  let seq = 0;
-  for (const b of batches) {
-    for (const [p, e] of b.events) events.push([p, seq++, e]);
-    for (const [p, k, d] of b.deaths) deaths.push([p, seq++, k, d]);
-    w.attacks.bombs += b.attacks[0];
-    w.attacks.poisons += b.attacks[1];
-  }
-  events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  deaths.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  for (const [, , e] of events) {
-    if (map && e.who !== void 0 && map.has(e.who)) e.who = map.get(e.who);
-    if (map) e.text = renameText(w, e.text, map);
-    w.events.push(e);
-    if (w.events.length > 2e3) w.events.splice(0, 500);
-  }
-  for (const [, , k, d] of deaths) w.deaths.set(k, (w.deaths.get(k) ?? 0) + d);
+function renameText(text, name) {
+  if (!text.includes("\0")) return text;
+  return text.replace(/\u0000(\d+)\u0000/g, (_, p) => name(Number(p)));
 }
 
 // src/sim/schedule.ts
 var CH = 16;
-function cuts(xs, K3) {
-  const s = xs.slice().sort();
-  const out2 = new Int32Array(K3 - 1);
-  for (let i = 0; i < K3 - 1; i++) out2[i] = s[Math.floor((i + 1) * s.length / K3)] ?? 0;
-  return out2;
+function emptySummaries(n) {
+  return {
+    n,
+    id: new Int32Array(n),
+    ipX: new Int32Array(n),
+    ipY: new Int32Array(n),
+    box: new Int32Array(n * 4),
+    accum: new Float64Array(n),
+    speed: new Float64Array(n),
+    harmBy: new Int32Array(n).fill(-1),
+    harmT: new Int32Array(n),
+    caps: new Uint8Array(n)
+  };
 }
-var workerAt = (c, x) => {
-  let k = 0;
-  while (k < c.length && x >= c[k]) k++;
-  return k;
-};
-var Deps = class {
-  constructor(nChunks, n, K3) {
-    this.n = n;
-    this.K = K3;
-    this.lastPos = new Int32Array(nChunks);
-    this.lastW = new Int32Array(nChunks);
-    this.lastL = new Int32Array(nChunks);
-    this.stamp = new Int32Array(nChunks);
-    this.mark = new Int32Array(nChunks);
-    this.worker = new Int32Array(n);
-    this.level = new Int32Array(n);
-    this.flush = new Uint8Array(n);
-    this.waits = new Array(n);
-    this.wantFrom = new Int32Array(K3);
+var SCAN = 1;
+var SIGHT = 2;
+var BITE2 = 4;
+var WRITE = 8;
+var DIVIDE = 16;
+var MOVE2 = 32;
+var HALT = 64;
+var ALL = 127;
+var CAP_OF = new Uint8Array(256);
+for (const [g, c] of [["S", SCAN], ["L", SIGHT], ["R", SIGHT], ["B", BITE2], ["W", WRITE], ["D", DIVIDE], ["M", MOVE2], ["A", MOVE2], ["F", MOVE2], ["G", MOVE2], ["@", HALT]]) CAP_OF[CODE[g]] = c;
+function capsOf(code, cells) {
+  let c = 0;
+  for (const i of cells) c |= CAP_OF[code[i]];
+  return c;
+}
+var childrenKey = (id) => -1 - id;
+var Buf = class {
+  a = new Int32Array(1 << 12);
+  n = 0;
+  push(v) {
+    if (this.n === this.a.length) {
+      const b = new Int32Array(this.a.length * 2);
+      b.set(this.a);
+      this.a = b;
+    }
+    this.a[this.n++] = v;
   }
-  lastPos;
-  lastW;
-  lastL;
-  stamp;
-  mark;
-  gen = 0;
-  obj = /* @__PURE__ */ new Map();
-  // key → item index
-  wantFrom;
-  items = [];
-  worker;
-  level;
-  flush;
-  waits;
+};
+var grown = (a, n) => a.length >= n ? a : new Int32Array(Math.max(n, a.length * 2));
+var Builder = class {
+  lastW = new Int32Array(0);
+  lastWAt = new Int32Array(0);
+  // chunk → last writer + 1, and the plan that set it
+  rHead = new Int32Array(0);
+  // chunk → newest reader since the last write (pool index + 1)
+  rPool = new Buf();
+  // [pos, next] pairs
+  wMark = new Int32Array(0);
+  rMark = new Int32Array(0);
+  objLast = new Int32Array(0);
+  objAt = new Int32Array(0);
+  // key → last user, and the plan that set it
+  predMark = new Int32Array(0);
+  plan = 0;
+  // this plan's stamp
+  g0 = 0;
+  // marks this plan: g0 + item + 1
   cur = 0;
   curW = 0;
-  L = 1;
+  g = 0;
+  worker = new Int32Array(0);
+  level = new Int32Array(0);
+  predStart = new Int32Array(0);
+  preds = new Buf();
+  objStart = new Int32Array(0);
+  objs = new Buf();
+  n = 0;
+  remote = 0;
+  reset(nChunks, n, nKeys) {
+    if (this.g0 + n + 1 > 2e9) {
+      this.g0 = 0;
+      this.wMark.fill(0);
+      this.rMark.fill(0);
+      this.predMark.fill(0);
+    }
+    this.g0 += this.n + 1;
+    this.plan++;
+    this.n = n;
+    this.remote = 0;
+    if (this.lastW.length < nChunks) {
+      this.lastW = new Int32Array(nChunks);
+      this.lastWAt = new Int32Array(nChunks);
+      this.rHead = new Int32Array(nChunks);
+      this.wMark = new Int32Array(nChunks);
+      this.rMark = new Int32Array(nChunks);
+    }
+    if (this.objLast.length < nKeys) {
+      this.objLast = new Int32Array(nKeys);
+      this.objAt = new Int32Array(nKeys);
+    }
+    this.predMark = grown(this.predMark, n);
+    this.worker = grown(this.worker, n);
+    this.level = grown(this.level, n);
+    this.predStart = grown(this.predStart, n + 1);
+    this.objStart = grown(this.objStart, n + 1);
+    this.preds.n = 0;
+    this.objs.n = 0;
+    this.rPool.n = 0;
+  }
   start(i, w) {
     this.cur = i;
     this.curW = w;
-    this.L = 1;
     this.worker[i] = w;
-    this.gen++;
-    this.wantFrom.fill(-1);
-    this.items.length = 0;
+    this.g = this.g0 + i + 1;
+    this.predStart[i] = this.preds.n;
+    this.objStart[i] = this.objs.n;
+    this.level[i] = 1;
   }
   dep(j) {
-    const w = this.worker[j];
-    if (w !== this.curW) {
-      if (j > this.wantFrom[w]) this.wantFrom[w] = j;
-      this.L = Math.max(this.L, this.level[j] + 1);
-    } else this.L = Math.max(this.L, this.level[j]);
+    if (this.predMark[j] === this.g) return;
+    this.predMark[j] = this.g;
+    this.preds.push(j);
+    const far = this.worker[j] !== this.curW;
+    const l = this.level[j] + (far ? 1 : 0);
+    if (l > this.level[this.cur]) this.level[this.cur] = l;
+    if (far) this.remote++;
   }
-  chunk(c) {
-    if (this.mark[c] === this.gen) return;
-    this.mark[c] = this.gen;
-    if (this.stamp[c] === 1) this.dep(this.lastPos[c]);
-    else this.stamp[c] = 1;
-    this.items.push(c);
+  write(c) {
+    const g = this.g;
+    if (this.wMark[c] === g) return;
+    this.wMark[c] = g;
+    if (this.lastWAt[c] === this.plan) {
+      const lw = this.lastW[c] - 1;
+      if (lw !== this.cur) this.dep(lw);
+      const pool = this.rPool.a;
+      for (let r = this.rHead[c]; r; r = pool[r]) {
+        const j = pool[r - 1];
+        if (j !== this.cur) this.dep(j);
+      }
+    } else {
+      this.lastWAt[c] = this.plan;
+      const pool = this.rPool.a;
+      for (let r = this.rMark[c] > this.g0 ? this.rHead[c] : 0; r; r = pool[r]) {
+        const j = pool[r - 1];
+        if (j !== this.cur) this.dep(j);
+      }
+    }
+    this.rHead[c] = 0;
+    this.lastW[c] = this.cur + 1;
+  }
+  read(c) {
+    const g = this.g;
+    if (this.wMark[c] === g || this.rMark[c] === g) return;
+    const first = this.rMark[c] <= this.g0;
+    this.rMark[c] = g;
+    const written = this.lastWAt[c] === this.plan;
+    if (written) this.dep(this.lastW[c] - 1);
+    this.rPool.push(this.cur);
+    this.rPool.push(first && !written ? 0 : this.rHead[c]);
+    this.rHead[c] = this.rPool.n - 1;
   }
   object(key) {
-    const j = this.obj.get(key);
-    if (j !== void 0) {
+    if (this.objAt[key] === this.plan) {
+      const j = this.objLast[key];
       if (j === this.cur) return;
       this.dep(j);
-    }
-    this.obj.set(key, this.cur);
+    } else this.objAt[key] = this.plan;
+    this.objLast[key] = this.cur;
+    this.objs.push(key);
   }
-  end() {
-    const i = this.cur;
-    for (const c of this.items) {
-      this.lastPos[c] = i;
-      this.lastW[c] = this.curW;
+  finish() {
+    this.predStart[this.n] = this.preds.n;
+    this.objStart[this.n] = this.objs.n;
+  }
+  /** Each worker's share: waits, and which objects go where. */
+  shares(ids, K3, keyOf, holderOf) {
+    const n = this.n, worker = this.worker, P = this.preds.a, O = this.objs.a, ps = this.predStart, os = this.objStart;
+    const notify = new Int32Array(n);
+    for (let i = 0; i < n; i++) for (let q = ps[i]; q < ps[i + 1]; q++) {
+      const j = P[q];
+      if (worker[j] !== worker[i]) notify[j] |= 1 << worker[i];
     }
-    this.level[i] = this.L;
-    const ws = [];
-    for (let k = 0; k < this.K; k++) if (this.wantFrom[k] >= 0) {
-      ws.push(k, this.wantFrom[k]);
-      this.flush[this.wantFrom[k]] = 1;
+    const outFrom = new Buf(), outKey = new Buf(), outW = new Buf(), outPos = new Buf();
+    const sendW = new Buf(), sendFrom = new Buf(), sendKey = new Buf(), sendPos = new Buf();
+    const packsIn = new Int32Array(n), outCount = new Int32Array(n);
+    this.plan++;
+    const last = this.objLast, at = this.objAt, plan = this.plan;
+    const used = [];
+    for (let i = 0; i < n; i++) {
+      const w = worker[i];
+      for (let q = os[i]; q < os[i + 1]; q++) {
+        const key = O[q], real = keyOf(key);
+        if (real === null) continue;
+        if (at[key] !== plan) {
+          at[key] = plan;
+          used.push(key);
+          const h = holderOf(real);
+          if (h >= 0 && h !== w) {
+            sendFrom.push(h);
+            sendKey.push(real);
+            sendW.push(w);
+            sendPos.push(i);
+            packsIn[i]++;
+          }
+        } else {
+          const j = last[key];
+          if (worker[j] !== w) {
+            outFrom.push(j);
+            outKey.push(real);
+            outW.push(w);
+            outPos.push(i);
+            outCount[j]++;
+            packsIn[i]++;
+          }
+        }
+        last[key] = i;
+      }
     }
-    this.waits[i] = ws;
+    const holders = /* @__PURE__ */ new Map();
+    for (const key of used) holders.set(keyOf(key), worker[last[key]]);
+    const outStart = new Int32Array(n + 1);
+    for (let i = 0; i < n; i++) outStart[i + 1] = outStart[i] + outCount[i];
+    const fill = outStart.slice(0, n), oK = new Int32Array(outFrom.n), oW = new Int32Array(outFrom.n), oP = new Int32Array(outFrom.n);
+    for (let q = 0; q < outFrom.n; q++) {
+      const a = fill[outFrom.a[q]]++;
+      oK[a] = outKey.a[q];
+      oW[a] = outW.a[q];
+      oP[a] = outPos.a[q];
+    }
+    const count = new Int32Array(K3), np = new Int32Array(K3), no = new Int32Array(K3);
+    for (let i = 0; i < n; i++) {
+      const k = worker[i];
+      count[k]++;
+      np[k] += ps[i + 1] - ps[i];
+      no[k] += outCount[i];
+    }
+    const shares = [];
+    for (let k = 0; k < K3; k++) {
+      const m = count[k];
+      shares.push({
+        ids: new Int32Array(m),
+        pos: new Int32Array(m),
+        predOff: new Int32Array(m + 1),
+        preds: new Int32Array(np[k]),
+        packsIn: new Int32Array(m),
+        outOff: new Int32Array(m + 1),
+        outKey: new Int32Array(no[k]),
+        outW: new Int32Array(no[k]),
+        outPos: new Int32Array(no[k]),
+        notify: new Int32Array(m),
+        sendKey: new Int32Array(0),
+        sendW: new Int32Array(0),
+        sendPos: new Int32Array(0)
+      });
+    }
+    const jAt = new Int32Array(K3), pAt = new Int32Array(K3), oAt = new Int32Array(K3);
+    for (let i = 0; i < n; i++) {
+      const k = worker[i], sh = shares[k], j = jAt[k]++;
+      sh.ids[j] = ids[i];
+      sh.pos[j] = i;
+      sh.packsIn[j] = packsIn[i];
+      sh.notify[j] = notify[i];
+      sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]);
+      pAt[k] += ps[i + 1] - ps[i];
+      sh.predOff[j + 1] = pAt[k];
+      const o0 = outStart[i], o1 = outStart[i + 1];
+      sh.outKey.set(oK.subarray(o0, o1), oAt[k]);
+      sh.outW.set(oW.subarray(o0, o1), oAt[k]);
+      sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
+      oAt[k] += o1 - o0;
+      sh.outOff[j + 1] = oAt[k];
+    }
+    for (let k = 0; k < K3; k++) {
+      const sk = [], sw = [], sp = [];
+      for (let q = 0; q < sendFrom.n; q++) if (sendFrom.a[q] === k) {
+        sk.push(sendKey.a[q]);
+        sw.push(sendW.a[q]);
+        sp.push(sendPos.a[q]);
+      }
+      shares[k].sendKey = Int32Array.from(sk);
+      shares[k].sendW = Int32Array.from(sw);
+      shares[k].sendPos = Int32Array.from(sp);
+    }
+    return { shares, holders };
   }
 };
-function shares(d, ids, K3) {
-  const out2 = [];
-  for (let k = 0; k < K3; k++) {
-    const mine = [];
-    for (let i = 0; i < d.n; i++) if (d.worker[i] === k) mine.push(i);
-    const waitOff = new Int32Array(mine.length + 1), wk = [], wp = [];
-    mine.forEach((i, j) => {
-      const ws = d.waits[i];
-      for (let q = 0; q < ws.length; q += 2) {
-        wk.push(ws[q]);
-        wp.push(ws[q + 1]);
-      }
-      waitOff[j + 1] = wk.length;
-    });
-    out2.push({
-      ids: Int32Array.from(mine, (i) => ids[i]),
-      pos: Int32Array.from(mine),
-      waitOff,
-      waitK: Int32Array.from(wk),
-      waitPos: Int32Array.from(wp),
-      flush: Uint8Array.from(mine, (i) => d.flush[i])
-    });
+var turnBuilder = new Builder();
+var upkeepBuilder = new Builder();
+function find(sorted, n, id) {
+  let lo = 0, hi = n - 1;
+  while (lo <= hi) {
+    const m = lo + hi >> 1, v = sorted[m];
+    if (v === id) return m;
+    if (v < id) lo = m + 1;
+    else hi = m - 1;
   }
-  return out2;
+  return -1;
 }
-function planTurns(world2, order, K3) {
-  const io = inside(world2), W = world2.w, H = world2.h, n = order.length;
-  const cw = Math.ceil(W / CH), chh = Math.ceil(H / CH);
-  const box = new Int32Array(n * 4), steps = new Int32Array(n), xs = new Int32Array(n);
+var stripOf = (cuts, x) => {
+  let k = 0;
+  while (k < cuts.length && x >= cuts[k]) k++;
+  return k;
+};
+function planTurns(world2, S, order, cuts, K3, holder, alive) {
+  const W = world2.w, H = world2.h, n = order.length;
+  const cw = Math.ceil(W / CH), chh = Math.ceil(H / CH), nChunks = cw * chh;
   const credits = /* @__PURE__ */ new Map();
-  for (const v of world2.living()) {
-    const h = v.lastHarm;
-    if (h && world2.t - h.t <= CONFIG.creditWindow) credits.set(h.by, (credits.get(h.by) ?? 0) + 1);
-  }
+  for (let s = 0; s < S.n; s++) if (S.harmBy[s] >= 0 && world2.t - S.harmT[s] <= CONFIG.creditWindow) credits.set(S.harmBy[s], (credits.get(S.harmBy[s]) ?? 0) + 1);
+  const box = new Int32Array(n * 8), steps = new Int32Array(n), kids = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
-    const wr = order[i];
-    let x0 = wr.ipX, y0 = wr.ipY, x1 = wr.ipX, y1 = wr.ipY;
-    for (const c of io.cellSets.get(wr.id) ?? []) {
-      const x = c % W, y = c / W | 0;
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-      if (y < y0) y0 = y;
-      if (y > y1) y1 = y;
-    }
-    const cr = credits.get(wr.id) ?? 0;
-    const speed = cr ? Math.max(wr.speed, Math.min(CONFIG.speedCap, wr.speed + cr * CONFIG.killPay * CONFIG.speedCap)) : wr.speed;
-    const s = wr.alive ? Math.max(0, Math.floor(wr.accum + speed)) : 0;
-    steps[i] = s;
-    xs[i] = wr.ipX;
-    box[i * 4] = x0 - s;
-    box[i * 4 + 1] = y0 - s;
-    box[i * 4 + 2] = x1 + s;
-    box[i * 4 + 3] = y1 + s;
+    const s = order[i];
+    const cr = credits.get(S.id[s]) ?? 0, sp = S.speed[s];
+    const speed = cr ? Math.max(sp, Math.min(CONFIG.speedCap, sp + cr * CONFIG.killPay * CONFIG.speedCap)) : sp;
+    const st = Math.max(0, Math.floor(S.accum[s] + speed));
+    steps[i] = st;
+    const mv = S.caps[s] & MOVE2 ? st : 0;
+    const x0 = S.box[s * 4] - mv, y0 = S.box[s * 4 + 1] - mv, x1 = S.box[s * 4 + 2] + mv, y1 = S.box[s * 4 + 3] + mv;
+    box[i * 4] = x0;
+    box[i * 4 + 1] = y0;
+    box[i * 4 + 2] = x1;
+    box[i * 4 + 3] = y1;
+    const mw = x1 - x0 + 1, mh = y1 - y0 + 1, c = (n + i) * 4;
+    box[c] = x0 - mw - 2;
+    box[c + 1] = y0 - mh - 2;
+    box[c + 2] = x1 + mw + 2;
+    box[c + 3] = y1 + mh + 2;
   }
-  const nChunks = cw * chh;
-  const head = /* @__PURE__ */ new Map();
-  const rectChunks = (r, f) => {
-    const cx0 = Math.max(0, Math.floor(r[0] / CH)), cy0 = Math.max(0, Math.floor(r[1] / CH));
-    const cx1 = Math.min(cw - 1, Math.floor(r[2] / CH)), cy1 = Math.min(chh - 1, Math.floor(r[3] / CH));
-    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) f(cy * cw + cx);
-  };
-  for (let i = 0; i < n; i++) rectChunks([box[i * 4], box[i * 4 + 1], box[i * 4 + 2], box[i * 4 + 3]], (c) => {
-    let l = head.get(c);
-    if (!l) head.set(c, l = []);
-    l.push(i);
-  });
-  const T = CONFIG.tile, tw = io.tw, tc = io.tileCount;
-  const tileRect = (r, f) => {
-    const tx0 = Math.max(0, Math.floor(r[0] / T)), ty0 = Math.max(0, Math.floor(r[1] / T));
-    const tx1 = Math.min(tw - 1, Math.floor(r[2] / T)), ty1 = Math.min(Math.ceil(H / T) - 1, Math.floor(r[3] / T));
-    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) f(ty * tw + tx);
-  };
-  const child = (i) => {
-    const mw = box[i * 4 + 2] - box[i * 4] + 1, mh = box[i * 4 + 3] - box[i * 4 + 1] + 1;
-    return [box[i * 4] - mw - 2, box[i * 4 + 1] - mh - 2, box[i * 4 + 2] + mw + 2, box[i * 4 + 3] + mh + 2];
-  };
-  const crowd = CONFIG.crowd, might = /* @__PURE__ */ new Map();
-  if (crowd > 0) {
-    for (let i = 0; i < n; i++) if (steps[i]) tileRect(child(i), (k) => might.set(k, (might.get(k) ?? 0) + steps[i]));
+  const cx = (x) => Math.min(cw - 1, Math.max(0, Math.floor(x / CH)));
+  const cy = (y) => Math.min(chh - 1, Math.max(0, Math.floor(y / CH)));
+  const caps = new Uint8Array(n), wR = CONFIG.writeRange;
+  for (let i = 0; i < n; i++) caps[i] = S.caps[order[i]];
+  {
+    let any = false;
+    for (let i = 0; i < n && !any; i++) if (caps[i] & WRITE) any = true;
+    if (any) {
+      const grid = /* @__PURE__ */ new Map(), G = 64;
+      for (let i = 0; i < n; i++) {
+        const s = order[i], st = steps[i];
+        if (caps[i] !== ALL) {
+          const x0 = S.box[s * 4] - st, y0 = S.box[s * 4 + 1] - st, x1 = S.box[s * 4 + 2] + st, y1 = S.box[s * 4 + 3] + st;
+          search: for (let y = Math.floor(y0 / G); y <= Math.floor(y1 / G); y++) for (let x = Math.floor(x0 / G); x <= Math.floor(x1 / G); x++) {
+            for (const j of grid.get(y * 1e5 + x) ?? []) {
+              if (box[j * 4] - wR > x1 || x0 > box[j * 4 + 2] + wR || box[j * 4 + 1] - wR > y1 || y0 > box[j * 4 + 3] + wR) continue;
+              caps[i] = ALL;
+              box[i * 4] = x0;
+              box[i * 4 + 1] = y0;
+              box[i * 4 + 2] = x1;
+              box[i * 4 + 3] = y1;
+              const mw = x1 - x0 + 1, mh = y1 - y0 + 1, c = (n + i) * 4;
+              box[c] = x0 - mw - 2;
+              box[c + 1] = y0 - mh - 2;
+              box[c + 2] = x1 + mw + 2;
+              box[c + 3] = y1 + mh + 2;
+              break search;
+            }
+          }
+        }
+        if (caps[i] & WRITE) {
+          const x0 = box[i * 4], y0 = box[i * 4 + 1], x1 = box[i * 4 + 2], y1 = box[i * 4 + 3];
+          for (let y = Math.floor((y0 - wR) / G); y <= Math.floor((y1 + wR) / G); y++) for (let x = Math.floor((x0 - wR) / G); x <= Math.floor((x1 + wR) / G); x++) {
+            const k = y * 1e5 + x;
+            let l = grid.get(k);
+            if (!l) grid.set(k, l = []);
+            l.push(i);
+          }
+        }
+      }
+    }
+  }
+  const T = CONFIG.tile, tw = world2.tw, th = Math.ceil(H / T), tc = world2.tileCount, crowd = CONFIG.crowd;
+  const tx = (x) => Math.min(tw - 1, Math.max(0, Math.floor(x / T))), ty = (y) => Math.min(th - 1, Math.max(0, Math.floor(y / T)));
+  for (let i = 0; i < n; i++) {
+    kids[i] = caps[i] & DIVIDE && steps[i] ? 1 : 0;
+    if (kids[i] && crowd > 0) {
+      let room2 = false;
+      for (let y = ty(box[i * 4 + 1]); y <= ty(box[i * 4 + 3]) && !room2; y++) for (let x = tx(box[i * 4]); x <= tx(box[i * 4 + 2]); x++) if (tc[y * tw + x] < crowd) {
+        room2 = true;
+        break;
+      }
+      if (!room2) kids[i] = 0;
+    }
+  }
+  const cnt = new Int32Array(nChunks + 1);
+  for (let item = 0; item < 2 * n; item++) {
+    if (item >= n && !kids[item - n]) continue;
+    const b2 = item * 4;
+    for (let y = cy(box[b2 + 1]); y <= cy(box[b2 + 3]); y++) for (let x = cx(box[b2]); x <= cx(box[b2 + 2]); x++) cnt[y * cw + x + 1]++;
+  }
+  for (let c = 0; c < nChunks; c++) cnt[c + 1] += cnt[c];
+  const at = cnt.slice(0, nChunks), cell = new Int32Array(cnt[nChunks]);
+  for (let item = 0; item < 2 * n; item++) {
+    if (item >= n && !kids[item - n]) continue;
+    const b2 = item * 4;
+    for (let y = cy(box[b2 + 1]); y <= cy(box[b2 + 3]); y++) for (let x = cx(box[b2]); x <= cx(box[b2 + 2]); x++) cell[at[y * cw + x]++] = item;
+  }
+  const might = /* @__PURE__ */ new Map();
+  if (crowd > 0) for (let i = 0; i < n; i++) {
+    if (!kids[i]) continue;
+    const b2 = (n + i) * 4;
+    for (let y = ty(box[b2 + 1]); y <= ty(box[b2 + 3]); y++) for (let x = tx(box[b2]); x <= tx(box[b2 + 2]); x++) might.set(y * tw + x, (might.get(y * tw + x) ?? 0) + steps[i]);
   }
   const hot = (k) => tc[k] < crowd && tc[k] + (might.get(k) ?? 0) >= crowd;
-  const K22 = Math.min(K3, Math.max(1, n));
-  const cut = cuts(xs, K22);
-  const d = new Deps(nChunks, n, K3);
-  const reachR = CONFIG.sight + 16, biteR = Math.max(CONFIG.bombRange, CONFIG.writeRange);
-  const OBJ_TILE = -1e9;
-  const seen = /* @__PURE__ */ new Set();
+  const nT = tw * th, KID = S.n, TILE = 2 * S.n;
+  const b = turnBuilder;
+  b.reset(nChunks, n, TILE + nT);
+  const seen = new Int32Array(2 * n);
   for (let i = 0; i < n; i++) {
-    const wr = order[i];
-    d.start(i, workerAt(cut, xs[i]));
-    const m = [box[i * 4], box[i * 4 + 1], box[i * 4 + 2], box[i * 4 + 3]];
-    const chunk = (c) => d.chunk(c);
-    rectChunks([m[0] - reachR, m[1] - reachR, m[2] + reachR, m[3] + reachR], chunk);
-    if (steps[i]) rectChunks(child(i), chunk);
-    d.object(wr.id);
-    const h = wr.lastHarm;
-    if (h && world2.t - h.t <= CONFIG.creditWindow) d.object(h.by);
-    const bite = [m[0] - biteR, m[1] - biteR, m[2] + biteR, m[3] + biteR];
-    seen.clear();
-    rectChunks(bite, (c) => {
-      for (const j of head.get(c) ?? []) {
-        if (j === i || seen.has(j)) continue;
-        seen.add(j);
-        const o = [box[j * 4], box[j * 4 + 1], box[j * 4 + 2], box[j * 4 + 3]];
-        if (o[0] > bite[2] || bite[0] > o[2] || o[1] > bite[3] || bite[1] > o[3]) continue;
-        rectChunks(o, chunk);
-        d.object(order[j].id);
-      }
-    });
-    if (crowd > 0 && steps[i]) {
-      tileRect(m, (k) => {
-        if (hot(k)) d.object(OBJ_TILE - k);
-      });
-      tileRect(child(i), (k) => {
-        if (hot(k)) d.object(OBJ_TILE - k);
-      });
+    const s = order[i], id = S.id[s], cp = caps[i];
+    b.start(i, stripOf(cuts, S.ipX[s]));
+    const x0 = box[i * 4], y0 = box[i * 4 + 1], x1 = box[i * 4 + 2], y1 = box[i * 4 + 3];
+    const readR = cp & SCAN ? CONFIG.sight + 16 : cp & SIGHT ? CONFIG.sight : cp & BITE2 ? CONFIG.bombRange : cp & WRITE ? CONFIG.writeRange : 1;
+    const harmR = cp & BITE2 ? CONFIG.bombRange : cp & WRITE ? CONFIG.writeRange : 0;
+    const biteR = Math.max(1, harmR);
+    const bx0 = x0 - biteR, by0 = y0 - biteR, bx1 = x1 + biteR, by1 = y1 + biteR;
+    for (let y = cy(by0); y <= cy(by1); y++) for (let x = cx(bx0); x <= cx(bx1); x++) b.write(y * cw + x);
+    if (kids[i]) {
+      const c = (n + i) * 4;
+      for (let y = cy(box[c + 1]); y <= cy(box[c + 3]); y++) for (let x = cx(box[c]); x <= cx(box[c + 2]); x++) b.write(y * cw + x);
+      b.object(KID + s);
     }
-    d.end();
+    b.object(s);
+    if (cp & HALT && S.harmBy[s] >= 0 && world2.t - S.harmT[s] <= CONFIG.creditWindow) {
+      const k = find(S.id, S.n, S.harmBy[s]);
+      if (k >= 0) b.object(k);
+    }
+    if (harmR) for (let y = cy(by0); y <= cy(by1); y++) for (let x = cx(bx0); x <= cx(bx1); x++) {
+      const c = y * cw + x;
+      for (let q = cnt[c]; q < cnt[c + 1]; q++) {
+        const item = cell[q];
+        if (seen[item] === i + 1) continue;
+        seen[item] = i + 1;
+        const j = item < n ? item : item - n;
+        if (j === i || item >= n && j > i) continue;
+        const o = item * 4;
+        if (box[o] > bx1 || bx0 > box[o + 2] || box[o + 1] > by1 || by0 > box[o + 3]) continue;
+        for (let yy = cy(box[o + 1]); yy <= cy(box[o + 3]); yy++) for (let xx = cx(box[o]); xx <= cx(box[o + 2]); xx++) b.write(yy * cw + xx);
+        b.object(item < n ? order[j] : KID + order[j]);
+      }
+    }
+    if (crowd > 0 && kids[i]) {
+      for (let y = ty(y0); y <= ty(y1); y++) for (let x = tx(x0); x <= tx(x1); x++) if (hot(y * tw + x)) b.object(TILE + y * tw + x);
+      const c = (n + i) * 4;
+      for (let y = ty(box[c + 1]); y <= ty(box[c + 3]); y++) for (let x = tx(box[c]); x <= tx(box[c + 2]); x++) if (hot(y * tw + x)) b.object(TILE + y * tw + x);
+    }
+    for (let y = cy(y0 - readR); y <= cy(y1 + readR); y++) for (let x = cx(x0 - readR); x <= cx(x1 + readR); x++) b.read(y * cw + x);
   }
-  const base = world2.warriors.length, slots = new Int32Array(K3 * 2);
-  let at = base;
-  for (let k = 0; k < K3; k++) {
-    let room = 1;
-    for (let i = 0; i < n; i++) if (d.worker[i] === k) room += steps[i];
-    slots[k * 2] = at;
-    slots[k * 2 + 1] = at + room;
-    at += room;
-  }
+  b.finish();
+  const ids = new Int32Array(n);
+  for (let i = 0; i < n; i++) ids[i] = S.id[order[i]];
+  const keyOf = (key) => key < KID ? S.id[key] : key < TILE ? childrenKey(S.id[key - KID]) : null;
+  const { shares, holders } = b.shares(ids, K3, keyOf, (real) => real >= 0 ? holder(real) : -1);
   let levels = 0;
-  for (let i = 0; i < n; i++) if (d.level[i] > levels) levels = d.level[i];
-  return { phase: world2.t * 2, n, base, slots, shares: shares(d, Int32Array.from(order, (w) => w.id), K3), levels };
+  const room = new Int32Array(K3).fill(1);
+  for (let i = 0; i < n; i++) {
+    if (b.level[i] > levels) levels = b.level[i];
+    if (kids[i]) room[b.worker[i]] += steps[i];
+  }
+  return { n, shares, holders, levels, remote: b.remote, room };
+}
+function planUpkeep(t, ids, harmBy, harmT, K3, holder, alive) {
+  const n = ids.length;
+  const b = upkeepBuilder;
+  b.reset(1, n, n);
+  for (let i = 0; i < n; i++) {
+    b.start(i, holder(ids[i]));
+    b.object(i);
+    if (harmBy[i] >= 0 && t - harmT[i] <= CONFIG.creditWindow) {
+      const k = find(ids, n, harmBy[i]);
+      if (k >= 0) b.object(k);
+    }
+  }
+  b.finish();
+  const { shares, holders } = b.shares(ids, K3, (key) => ids[key], holder);
+  let levels = 0;
+  for (let i = 0; i < n; i++) if (b.level[i] > levels) levels = b.level[i];
+  return { n, shares, holders, levels, remote: b.remote, room: new Int32Array(K3) };
 }
 
 // src/sim/save.ts
@@ -2950,24 +3131,19 @@ function restoreRng(state) {
 }
 
 // src/par.ts
-var debug = process.env.PAR_DEBUG ? (...a) => console.error("[main]", ...a) : () => {
+var debug = process.env.PAR_DEBUG ? (...a) => console.error("[par]", ...a) : () => {
 };
 var ThreadEngine = class {
   constructor(world2, threads = 4) {
     this.world = world2;
     this.threads = threads;
-    const bytes = saveWorld(world2, "");
     const url = new URL("./par-worker.mjs", import.meta.url);
     const ups = [];
     for (let k = 0; k < threads; k++) {
-      const w = new Worker(url, { workerData: { k, K: threads, bytes } });
-      w.on("message", (m) => this.onMessage(k, m));
-      w.on("exit", (c) => debug("worker", k, "exit", c));
-      w.on("error", (e) => {
-        if (this.finish) this.finish(e);
-        else throw e;
-      });
+      const w = new Worker(url);
       ups.push(new Promise((r) => w.once("message", r)));
+      w.on("message", (m) => this.onMessage(k, m));
+      w.on("error", (e) => this.fail(e));
       this.workers.push(w);
     }
     this.ready = Promise.all(ups);
@@ -2975,103 +3151,331 @@ var ThreadEngine = class {
   name = "par";
   workers = [];
   ready;
-  onOk = null;
-  oks = 0;
-  turnPhase = -1;
-  base = 0;
-  births = [];
-  batches = [];
-  done = 0;
-  finish = null;
+  waiting = null;
+  needReseed = true;
+  synced = true;
   tombsReady = false;
-  /** Per tick: levels (sync depth), plan ms, ms waiting on workers. For reports. */
-  last = { levels: 0, plan: 0, turns: 0, upkeep: 0, serial: false };
-  onMessage(from, m) {
-    if (m.type === "ok") {
-      const t = m.t;
-      if (t !== this.world.t) throw new Error(`par: worker ${from} at t${t}, main at t${this.world.t}`);
-      if (++this.oks === this.threads) this.onOk?.();
+  S = emptySummaries(0);
+  holder = /* @__PURE__ */ new Map();
+  cuts = new Int32Array(0);
+  sab = {};
+  stamp = 0;
+  activeCount = 0;
+  dead = [];
+  /** The last tick, for reports: sync depth, waits across workers, and ms per part. */
+  last = { levels: 0, remote: 0, plan: 0, turns: 0, upkeep: 0, serial: false };
+  fail(e) {
+    if (this.waiting) this.waiting.rej(e);
+    else throw e;
+  }
+  onMessage(k, m) {
+    if (m.type === "error") {
+      this.fail(new Error(`par worker ${k}: ${m.error}`));
       return;
     }
-    if (m.type !== "batch") return;
-    const b = m.b;
-    for (let k = 0; k < this.threads; k++) if (k !== from) this.workers[k].postMessage({ type: "batch", b });
-    applyBatch(this.world, b);
-    this.batches.push(b);
-    if (b.births.length) this.births = this.births.concat(b.births);
-    if (!b.done || ++this.done < this.threads) return;
-    const batches = this.batches;
-    this.batches = [];
-    this.done = 0;
-    if (b.phase === this.turnPhase) {
-      const map = relabel(this.world, this.base, this.births);
-      mergeOutputs(this.world, batches, map);
-      this.births = [];
-      this.mark = performance.now();
-    } else {
-      mergeOutputs(this.world, batches);
-      this.finish?.();
+    const wt = this.waiting;
+    if (!wt || m.type !== wt.type) return;
+    wt.got[k] = m;
+    if (wt.got.filter(Boolean).length === this.threads) {
+      this.waiting = null;
+      wt.res(wt.got);
     }
   }
-  mark = 0;
-  /** The parallel tick needs a climb, no global caps, and every lineage's tombstone made. */
-  parallelOk() {
+  /** Post to every worker, and wait for each one's reply (in worker order). */
+  all(type, msg, transfer = () => []) {
+    const p = new Promise((res, rej) => {
+      this.waiting = { type, got: [], res, rej };
+    });
+    this.workers.forEach((w, k) => w.postMessage(msg(k), transfer(k)));
+    return p;
+  }
+  /** The plan covers a climb with no global caps, once every lineage has its tombstone. */
+  parallelOk(t) {
     const w = this.world;
-    if (!CONFIG.climb || !CONFIG.endless || CONFIG.maxWarriors !== Infinity || CONFIG.reaperCap > 0) return false;
+    if (!CONFIG.climb || !CONFIG.endless || CONFIG.maxWarriors !== Infinity || CONFIG.reaperCap > 0 || t >= CONFIG.tickCap) return false;
     if (!this.tombsReady) {
+      if (!this.synced) return false;
       const tombs = inside(w).tombstones;
-      let all = true;
-      for (const wr of w.living()) if (wr.gen > 0 && !tombs.has(wr.lineage)) return false;
-      for (const wr of w.warriors) if (wr && wr.gen === 0 && !tombs.has(wr.id)) {
-        all = false;
-        break;
+      for (const wr of w.warriors) if (wr && wr.gen === 0 && !tombs.has(wr.id)) return false;
+      this.tombsReady = true;
+    }
+    if (t % 100 === 0) {
+      const S = this.needReseed ? null : this.S;
+      let top = Infinity, bottom = -1;
+      if (S) for (let s = 0; s < S.n; s++) {
+        if (S.ipY[s] < top) top = S.ipY[s];
+        if (S.ipY[s] > bottom) bottom = S.ipY[s];
       }
-      this.tombsReady = all;
+      else for (const wr of w.living()) {
+        if (wr.ipY < top) top = wr.ipY;
+        if (wr.ipY > bottom) bottom = wr.ipY;
+      }
+      if (top < 256 || bottom >= w.h - 256) return false;
     }
     return true;
   }
   async tick() {
-    debug("tick start", this.world.t);
     await this.ready;
     const w = this.world;
-    debug("ready");
     if (w.result.over) return;
-    if (!this.parallelOk()) {
-      this.last = { levels: 0, plan: 0, turns: 0, upkeep: 0, serial: true };
-      this.oks = 0;
-      debug("serial tick", w.t + 1);
-      const ok = new Promise((r) => {
-        this.onOk = r;
-      });
-      for (const x of this.workers) x.postMessage({ type: "serial" });
+    if (!this.parallelOk(w.t + 1)) {
+      if (!this.synced) await this.sync();
       w.tick();
-      await ok;
+      this.needReseed = true;
+      this.last = { levels: 0, remote: 0, plan: 0, turns: 0, upkeep: 0, serial: true };
       return;
     }
-    debug("parallel tick", w.t + 1);
-    for (const x of this.workers) x.postMessage({ type: "begin" });
-    if (!w.beginTick()) return;
-    w.regrow();
-    w.drift();
+    if (this.needReseed) await this.reseed();
+    this.synced = false;
+    const t = ++w.t, K3 = this.threads, io = inside(w), S = this.S;
     const t02 = performance.now();
-    const plan = planTurns(w, w.turnOrder(), this.threads);
+    let next = null;
+    if (t % 20 === 1 || !this.activeCount) {
+      io.tileCount.fill(0);
+      const ips = Array.from({ length: S.n }, (_, s) => ({ ipX: S.ipX[s], ipY: S.ipY[s] }));
+      next = markTiles(ips, io.tileCount, io.tw, io.tileActive.length);
+      io.activeTiles = [];
+      next.forEach((v, k) => {
+        if (v) io.activeTiles.push(k);
+      });
+      this.activeCount = io.activeTiles.length;
+    }
+    const dead = Int32Array.from(this.dead);
+    this.dead = [];
+    for (const wk of this.workers) wk.postMessage({ type: "begin", t, next, dead });
+    const n = S.n, order = new Int32Array(n);
+    for (let k = 0; k < n; k++) order[k] = (t + k) % n;
+    const alive = new Set(S.id);
+    const tcAtPlan = io.tileCount.slice();
+    const plan = planTurns({ w: w.w, h: w.h, t, tw: io.tw, tileCount: io.tileCount }, S, order, this.cuts, K3, (id) => this.holder.get(id) ?? -1, (id) => alive.has(id));
+    const base = w.warriors.length;
+    const first = new Int32Array(K3 + 1);
+    first[0] = base + plan.room.reduce((x, y) => x + y, 0);
+    for (let k = 0; k < K3; k++) first[k + 1] = first[k] + plan.room[k];
+    const turnStamp = ++this.stamp;
     const t1 = performance.now();
-    debug("planned", plan.n, "levels", plan.levels, (t1 - t02).toFixed(1), "ms");
-    this.turnPhase = plan.phase;
-    this.base = plan.base;
-    this.births = [];
-    const end = plan.slots[plan.slots.length - 1];
-    for (let i = w.warriors.length; i < end; i++) w.warriors.push(null);
-    const all = new Promise((res, rej) => {
-      this.finish = (e) => e ? rej(e) : res();
-    });
-    plan.shares.forEach((share, k) => this.workers[k].postMessage({ type: "turns", phase: plan.phase, base: plan.base, slots: plan.slots, share }));
-    await all;
-    this.finish = null;
+    const turned = await this.all("turned", (k) => ({ type: "turns", share: plan.shares[k], stamp: turnStamp, first: first[k], end: first[k + 1], top: first[K3] }));
     const t2 = performance.now();
-    this.last = { levels: plan.levels, plan: t1 - t02, turns: this.mark - t1, upkeep: t2 - this.mark, serial: false };
-    debug("tick", w.t, "levels", plan.levels, "plan", (t1 - t02).toFixed(0), "turns", (this.mark - t1).toFixed(0), "upkeep", (t2 - this.mark).toFixed(0), "ms");
-    w.checkOver();
+    const births = [];
+    for (const r of turned) {
+      const b = r.births;
+      for (let q = 0; q < b.length; q += 4) births.push([b[q], b[q + 1], b[q + 2], b[q + 3]]);
+    }
+    births.sort((a, b) => a[1] - b[1] || a[2] - b[2]);
+    const map = /* @__PURE__ */ new Map(), names2 = [];
+    w.warriors.length = base;
+    births.forEach(([p, , , lineage], k) => {
+      map.set(p, base + k);
+      const name = w.childName(lineage);
+      names2.push(name);
+      w.warriors.push(stub(base + k, lineage, name));
+    });
+    const fin = (id) => map.get(id) ?? id;
+    const nameOf = (p) => w.warriors[fin(p)]?.name ?? "?";
+    const holder = /* @__PURE__ */ new Map();
+    for (const [key, k] of plan.holders) if (key >= 0) holder.set(key, k);
+    for (const [p, pos] of births) {
+      const h = plan.holders.get(childrenKey(S.id[order[pos]]));
+      if (h === void 0) {
+        const s = order[pos], T = CONFIG.tile;
+        throw new Error(`par: body ${S.id[s]} had a child the plan said it couldn't (caps ${S.caps[s]}, accum ${S.accum[s]}, speed ${S.speed[s]}, box ${Array.from(S.box.subarray(s * 4, s * 4 + 4))}, ip tile count ${io.tileCount[Math.floor(S.ipY[s] / T) * io.tw + Math.floor(S.ipX[s] / T)]}, at plan ${tcAtPlan[Math.floor(S.ipY[s] / T) * io.tw + Math.floor(S.ipX[s] / T)]}, refresh ${!!next}, t ${t}, crowd ${CONFIG.crowd})`);
+      }
+      holder.set(fin(p), h);
+    }
+    const diedT = /* @__PURE__ */ new Set();
+    for (const r of turned) for (const id of r.died) diedT.add(fin(id));
+    const harm = /* @__PURE__ */ new Map();
+    for (const r of turned) {
+      const h = r.harmed;
+      for (let q = 0; q < h.length; q += 3) harm.set(fin(h[q]), [h[q + 1], h[q + 2]]);
+    }
+    this.merge(turned, (e) => {
+      if (e.who !== void 0) e.who = fin(e.who);
+      e.text = renameText(e.text, nameOf);
+    });
+    for (const id of diedT) bury(w, id, w.warriors[id].lineage);
+    const ids = [], hb = [], ht = [];
+    for (let s = 0; s < n; s++) {
+      const id = S.id[s];
+      if (diedT.has(id)) continue;
+      const h = harm.get(id);
+      ids.push(id);
+      hb.push(h ? h[0] : S.harmBy[s]);
+      ht.push(h ? h[1] : S.harmT[s]);
+    }
+    births.forEach((_, k) => {
+      const f = base + k;
+      if (diedT.has(f)) return;
+      const h = harm.get(f);
+      ids.push(f);
+      hb.push(h ? h[0] : -1);
+      ht.push(h ? h[1] : 0);
+    });
+    const livingNow = new Set(ids);
+    const up = planUpkeep(t, Int32Array.from(ids), Int32Array.from(hb), Int32Array.from(ht), K3, (id) => holder.get(id) ?? -1, (id) => livingNow.has(id));
+    const upStamp = ++this.stamp;
+    const t3 = performance.now();
+    const kept = await this.all("kept", (k) => ({
+      type: "upkeep",
+      base,
+      map: Int32Array.from(births, (b) => b[0]),
+      names: names2,
+      lineage: Int32Array.from(births, (b) => b[3]),
+      dead: Int32Array.from(diedT),
+      share: up.shares[k],
+      stamp: upStamp
+    }));
+    const t4 = performance.now();
+    this.merge(kept);
+    this.holder = /* @__PURE__ */ new Map();
+    const parts = kept.map((r) => r.sum);
+    const idx = [];
+    parts.forEach((s, k) => {
+      for (let q = 0; q < s.ids.length; q++) idx.push([s.ids[q], k, q]);
+    });
+    idx.sort((a, b) => a[0] - b[0]);
+    const N = emptySummaries(idx.length);
+    idx.forEach(([id, k, q], i) => {
+      const s = parts[k];
+      N.id[i] = id;
+      this.holder.set(id, k);
+      N.ipX[i] = s.ip[q * 2];
+      N.ipY[i] = s.ip[q * 2 + 1];
+      for (let c = 0; c < 4; c++) N.box[i * 4 + c] = s.box[q * 4 + c];
+      N.accum[i] = s.f[q * 2];
+      N.speed[i] = s.f[q * 2 + 1];
+      N.harmBy[i] = s.harm[q * 2];
+      N.harmT[i] = s.harm[q * 2 + 1];
+      N.caps[i] = s.caps[q];
+    });
+    this.S = N;
+    for (const r of kept) for (const id of r.died) {
+      bury(w, id, w.warriors[id].lineage);
+      this.dead.push(id);
+    }
+    this.last = { levels: Math.max(plan.levels, up.levels), remote: plan.remote, plan: t1 - t02 + (t3 - t2), turns: t2 - t1, upkeep: t4 - t3, serial: false };
+    const pf = (rs) => rs.map((r) => {
+      const p = r.prof;
+      return `${p.run.toFixed(0)}/${p.wait.toFixed(0)}/${p.all.toFixed(0)} w${p.waits} y${p.yields}:${p.yieldMs.toFixed(0)} s${p.scans} su${p.setup.toFixed(0)}`;
+    }).join(" ");
+    debug(`  run/wait/all ms: turns ${pf(turned)} \xB7 upkeep ${pf(kept)}`);
+    debug(`t${t} n${n} levels ${plan.levels} remote ${plan.remote} \xB7 plan ${(t1 - t02).toFixed(0)} turns ${(t2 - t1).toFixed(0)} relabel+plan ${(t3 - t2).toFixed(0)} upkeep ${(t4 - t3).toFixed(0)} merge ${(performance.now() - t4).toFixed(0)} ms`);
+  }
+  /** A phase's events, deaths and attacks into the world, in serial order. */
+  merge(replies, fix) {
+    const w = this.world, events = [], deaths = [];
+    let seq = 0;
+    for (const r of replies) {
+      for (const [p, e] of r.events) events.push([p, seq++, e]);
+      for (const [p, k, d] of r.deaths) deaths.push([p, seq++, k, d]);
+      w.attacks.bombs += r.attacks[0];
+      w.attacks.poisons += r.attacks[1];
+    }
+    events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    deaths.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    for (const [, , e] of events) {
+      fix?.(e);
+      w.events.push(e);
+      if (w.events.length > 2e3) w.events.splice(0, 500);
+    }
+    for (const [, , k, d] of deaths) w.deaths.set(k, (w.deaths.get(k) ?? 0) + d);
+  }
+  /** Make `world` whole: every body from whoever holds it, and the spawn timers. */
+  async sync() {
+    await this.ready;
+    if (this.synced) return;
+    const w = this.world, io = inside(w);
+    const got = await this.all("synced", () => ({ type: "sync" }));
+    for (const r of got) {
+      for (const p of r.packs) applyPack(w, p);
+      const tm = r.timers;
+      for (let q = 0; q < tm.length; q += 2) io.spawnTimers[tm[q]] = tm[q + 1];
+    }
+    io.livingList = Array.from(this.S.id, (id) => w.warriors[id]);
+    io.livingDirty = false;
+    io.sortedCells.clear();
+    const debris = /* @__PURE__ */ new Set();
+    for (let i = 0; i < w.owner.length; i++) if (w.owner[i] === DEBRIS) debris.add(i);
+    io.cellSets.set(DEBRIS, debris);
+    this.synced = true;
+  }
+  /** Hand the world (whole here) to the workers: cells into shared memory, strips re-cut. */
+  async reseed() {
+    const w = this.world, io = inside(w), K3 = this.threads, T = CONFIG.tile;
+    const shared = (name, a, C) => {
+      const buf = new SharedArrayBuffer(a.length * a.BYTES_PER_ELEMENT);
+      const out2 = new C(buf);
+      out2.set(a);
+      this.sab[name] = buf;
+      return out2;
+    };
+    w.owner = shared("owner", w.owner, Int32Array);
+    w.code = shared("code", w.code, Uint8Array);
+    w.resource = shared("resource", w.resource, Uint8Array);
+    w.ripe = shared("ripe", w.ripe, Float32Array);
+    io.tileCount = shared("tileCount", io.tileCount, Uint16Array);
+    io.tileActive = shared("tileActive", io.tileActive, Uint8Array);
+    io.tileLast = shared("tileLast", io.tileLast, Float64Array);
+    this.sab.done ??= new SharedArrayBuffer(4 << 22);
+    this.sab.wake ??= new SharedArrayBuffer(4 * K3);
+    this.sab.bar = new SharedArrayBuffer(4);
+    const living = w.living();
+    const S = emptySummaries(living.length);
+    living.forEach((wr, s) => {
+      S.id[s] = wr.id;
+      S.ipX[s] = wr.ipX;
+      S.ipY[s] = wr.ipY;
+      let bx0 = wr.ipX, by0 = wr.ipY, bx1 = wr.ipX, by1 = wr.ipY;
+      for (const c of io.cellSets.get(wr.id) ?? []) {
+        const x = c % w.w, y = c / w.w | 0;
+        if (x < bx0) bx0 = x;
+        if (x > bx1) bx1 = x;
+        if (y < by0) by0 = y;
+        if (y > by1) by1 = y;
+      }
+      S.box[s * 4] = bx0;
+      S.box[s * 4 + 1] = by0;
+      S.box[s * 4 + 2] = bx1;
+      S.box[s * 4 + 3] = by1;
+      S.accum[s] = wr.accum;
+      S.speed[s] = wr.speed;
+      S.harmBy[s] = wr.lastHarm ? wr.lastHarm.by : -1;
+      S.harmT[s] = wr.lastHarm ? wr.lastHarm.t : 0;
+      S.caps[s] = capsOf(w.code, io.cellSets.get(wr.id) ?? []);
+    });
+    this.S = S;
+    const xs = Array.from(S.ipX).sort((a, b) => a - b), tws = io.tw;
+    const cuts = [];
+    for (let k = 1; k < K3; k++) {
+      let c = Math.round((xs[Math.floor(k * xs.length / K3)] ?? 0) / T);
+      c = Math.max(c, (cuts.length ? cuts[cuts.length - 1] / T : 0) + 1);
+      cuts.push(Math.min(c, tws - (K3 - k)) * T);
+    }
+    this.cuts = Int32Array.from(cuts);
+    this.holder = /* @__PURE__ */ new Map();
+    const held = Array.from({ length: K3 }, () => []);
+    for (let s = 0; s < S.n; s++) {
+      const k = stripOf(this.cuts, S.ipX[s]);
+      this.holder.set(S.id[s], k);
+      held[k].push(S.id[s]);
+    }
+    this.activeCount = io.activeTiles.length;
+    const peers = Array.from({ length: K3 }, () => new Array(K3).fill(null));
+    for (let a = 0; a < K3; a++) for (let b = a + 1; b < K3; b++) {
+      const ch = new MessageChannel();
+      peers[a][b] = ch.port1;
+      peers[b][a] = ch.port2;
+    }
+    const bytes = saveWorld(w, "");
+    await this.all(
+      "loaded",
+      (k) => ({ type: "load", k, K: K3, bytes, sab: this.sab, cuts: this.cuts, peers: peers[k], held: Int32Array.from(held[k]), barriers: 0 }),
+      (k) => peers[k].filter((p) => !!p)
+    );
+    debug(`reseeded at t${w.t}: ${S.n} bodies, strips at ${cuts.join(", ")}`);
+    this.needReseed = false;
+    this.synced = true;
+    this.dead = [];
   }
   close() {
     for (const x of this.workers) void x.terminate();
@@ -3209,11 +3613,13 @@ while (world.t < ticks && world.living().length && !world.result.over) {
       stop = "disk under 20 GB free";
       break;
     }
+    await engine.sync?.();
     save();
     const m = index.marks[index.marks.length - 1];
     if (world.t % (every * 10) === 0) console.log(`t${world.t} alive ${m.alive} biggest ${m.biggest?.cells ?? 0} \xB7 ${((Date.now() - t0) / (world.t - tStart)).toFixed(1)} ms/tick \xB7 ${m.kb} KB`);
   }
 }
+await engine.sync?.();
 engine.close?.();
 index.done = true;
 if (!stop && world.t % every !== 0) save();

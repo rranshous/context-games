@@ -2,7 +2,7 @@
 // and stop at the first tick where their worlds differ. The acceptance test for any engine:
 // it must give the same world as World.tick, bit for bit, on every tick.
 //
-//   node dist/twin.mjs <start> [--engine par] [--ticks 200]
+//   node dist/twin.mjs <start> [--engine par] [--ticks 200] [--check-every 1]
 //
 // <start> is a bake folder (its latest checkpoint), a checkpoint file (.andnow.gz), or a
 // viewer query for a fresh world (e.g. "climb=1&w=climber,diver,hunter&seed=2").
@@ -20,6 +20,7 @@ const args = process.argv.slice(2);
 const flag = (k: string, d: string) => { const i = args.indexOf(k); return i >= 0 ? args.splice(i, 2)[1] : d; };
 const engineName = flag('--engine', 'par');
 const ticks = Number(flag('--ticks', '200'));
+const checkEvery = Number(flag('--check-every', '1')); // (comparing makes an engine gather its whole world: slow)
 const start = args[0];
 if (!start) { console.log('usage: node dist/twin.mjs <bake dir | checkpoint.andnow.gz | query> [--engine par] [--ticks 200]'); process.exit(1); }
 
@@ -73,7 +74,7 @@ const short = (v: unknown) => { const s = typeof v === 'object' ? JSON.stringify
 /** Everything that makes up a world's state (the dead share tombstones, so only the living are walked). */
 function compare(a: World, b: World): string {
   const A = a as unknown as Record<string, unknown>, B = b as unknown as Record<string, unknown>;
-  for (const k of ['t', 'h', 'w', 'yShift', 'result', 'attacks', 'deaths', 'events'] as const) { const d = diff(A[k], B[k], k); if (d) return d; }
+  for (const k of ['t', 'h', 'w', 'yShift', 'result'] as const) { const d = diff(A[k], B[k], k); if (d) return d; }
   // (Not rng.state: every phase points the rng at a fresh stream, so its state at the end of a tick carries nothing.)
   if (a.warriors.length !== b.warriors.length) return `warriors.length: ${a.warriors.length} ≠ ${b.warriors.length}`;
   for (const k of ['owner', 'code', 'resource', 'ripe'] as const) {
@@ -86,12 +87,13 @@ function compare(a: World, b: World): string {
   for (let i = 0; i < la.length; i++) { const d = diff(la[i], lb[i], `living[${i}] (id ${la[i].id})`); if (d) return d; }
   const ca = A.cellSets as Map<number, Set<number>>, cb = B.cellSets as Map<number, Set<number>>;
   for (const wr of la) { const d = diff(ca.get(wr.id), cb.get(wr.id), `cellSets[${wr.id}]`); if (d) return d; }
+  for (const k of ['attacks', 'deaths', 'events'] as const) { const d = diff(A[k], B[k], k); if (d) return d; }
   return '';
 }
 
 const ref = open(), other = makeEngine(engineName, open());
 console.log(`twin: serial vs ${other.name} from tick ${ref.t}, ${ref.living().length} alive, ${ticks} ticks`);
-let ms = [0, 0];
+let ms = [0, 0, 0]; // serial, other's ticks, other's syncs
 for (let k = 0; k < ticks; k++) {
   let t0 = performance.now();
   ref.tick();
@@ -99,9 +101,17 @@ for (let k = 0; k < ticks; k++) {
   t0 = performance.now();
   await other.tick();
   ms[1] += performance.now() - t0;
+  if ((k + 1) % checkEvery && k + 1 < ticks) continue;
+  t0 = performance.now();
+  await other.sync?.();
+  ms[2] += performance.now() - t0;
   const d = compare(ref, other.world);
-  if (d) { console.log(`DIFFER at tick ${ref.t}: ${d}`); process.exit(1); }
-  if (process.env.TWIN_EVERY ? (k + 1) % Number(process.env.TWIN_EVERY) === 0 : (k + 1) % 50 === 0) console.log(`  t${ref.t} same · serial ${(ms[0] / (k + 1)).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / (k + 1)).toFixed(1)} ms/tick`);
+  if (d) {
+    console.log(`DIFFER at tick ${ref.t}: ${d}`);
+    if (d.startsWith('events')) { const ea = ref.events.filter((e) => e.t === ref.t), eb = other.world.events.filter((e) => e.t === ref.t); console.log('serial:', ea.length, 'other:', eb.length); for (let i = 0; i < Math.max(ea.length, eb.length); i++) if (JSON.stringify(ea[i]) !== JSON.stringify(eb[i])) { console.log(' first apart at', i, '\n  serial', JSON.stringify(ea[i]), '\n  other ', JSON.stringify(eb[i])); break; } }
+    process.exit(1);
+  }
+  if (process.env.TWIN_EVERY ? (k + 1) % Number(process.env.TWIN_EVERY) === 0 : (k + 1) % 50 === 0) console.log(`  t${ref.t} same · serial ${(ms[0] / (k + 1)).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / (k + 1)).toFixed(1)} ms/tick (+ sync ${(ms[2] / (k + 1)).toFixed(1)})`);
 }
 other.close?.();
 console.log(`SAME for ${ticks} ticks (to t${ref.t}) · serial ${(ms[0] / ticks).toFixed(1)} ms/tick · ${other.name} ${(ms[1] / ticks).toFixed(1)} ms/tick`);

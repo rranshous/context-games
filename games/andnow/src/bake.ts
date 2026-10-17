@@ -74,11 +74,13 @@ while (world.t < ticks && world.living().length && !world.result.over) {
   await engine.tick();
   if (world.t % every === 0) {
     if (diskLow()) { stop = 'disk under 20 GB free'; break; }
+    await engine.sync?.();
     save();
     const m = index.marks[index.marks.length - 1];
     if (world.t % (every * 10) === 0) console.log(`t${world.t} alive ${m.alive} biggest ${m.biggest?.cells ?? 0} · ${((Date.now() - t0) / (world.t - tStart)).toFixed(1)} ms/tick · ${m.kb} KB`);
   }
 }
+await engine.sync?.();
 engine.close?.();
 index.done = true;
 if (!stop && world.t % every !== 0) save();

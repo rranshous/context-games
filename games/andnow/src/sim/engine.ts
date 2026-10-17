@@ -9,6 +9,8 @@ export interface Engine {
   readonly world: World;
   /** One tick. (Async: an engine may wait on other threads or machines.) */
   tick(): void | Promise<void>;
+  /** Make `world` whole (an engine may keep parts of it elsewhere between ticks). */
+  sync?(): Promise<void>;
   close?(): void;
 }
 
