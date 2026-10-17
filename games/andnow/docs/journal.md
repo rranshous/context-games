@@ -1973,3 +1973,17 @@ So it's gone, along with the engine seam and the twin check, which only existed 
 
 - **Kept:** the per-body random streams, and the per-column streams for sinking dead cells. They cost nothing and keep the door open. They're also what the current runs are on, so checkpoints still load and replay the same, and the golden set is unchanged (2,491 identical).
 - **New:** `bench.mjs <checkpoint> [ticks]` times the serial sim on a saved world and hashes where it ends. That's the check for the single-thread speed work that comes next: same checkpoint and ticks, same hash.
+
+## 2026-10-17: single-thread speed, round 1
+
+Bench: `climb2-s4` at t281000 (60k living, 2000×11972 cells), 100 ticks, `bench.mjs`. Same end hash after each change; golden 2,491 identical.
+
+| change | ms/tick |
+|---|---|
+| before | 557 |
+| `advance` walks the body's own cells, not the board | 374 |
+| upkeep: one cheap pass once a body has left home (no rooms in a climb), traits loop without per-cell arrays, no `doomed` array unless something is doomed | 332 |
+| traits cached per body, cleared when one of its cells changes owner or code (a whole-body shift keeps them) | 285 |
+
+- **The big one:** finding the IP's next cell walked the board's row (2,000 cells) or column (12,000) to the body's next cell, and wrapped round the whole board at the body's edge. Bodies average 9 cells (7×3), so going through the body's own cell set is far cheaper, and gives the same cell (the nearest ahead, counting round the edge).
+- Phases now: turns ~180 ms, upkeep ~95, the rest ~10.

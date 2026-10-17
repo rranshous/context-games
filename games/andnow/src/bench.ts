@@ -20,5 +20,8 @@ for (let k = 1; k <= ticks && !world.result.over; k++) {
   if (k % 50 === 0) { const now = performance.now(); console.log(`  t${world.t} ${((now - lap) / 50).toFixed(1)} ms/tick · ${world.living().length} alive`); lap = now; }
 }
 const ms = (performance.now() - start) / (world.t - t0);
+// (cellsOf's sorted-cell cache is saved too, but it's only a cache: drop it so a change in
+// what gets cached doesn't change the hash.)
+(world as unknown as { sortedCells: Map<number, number[]> }).sortedCells.clear();
 const hash = createHash('sha1').update(saveWorld(world, '')).digest('hex').slice(0, 16);
 console.log(`${ms.toFixed(1)} ms/tick over ${world.t - t0} ticks · hash ${hash}`);

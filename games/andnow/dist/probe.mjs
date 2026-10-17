@@ -674,6 +674,7 @@ var T_RESOURCE = 6;
 
 // src/sim/world.ts
 var NONE = -1;
+var TRAITS_FRESH = Symbol("traitsFresh");
 var K = CODE["K"];
 var INSUL = CODE["I"];
 var FLIP = CODE["~"];
@@ -1167,6 +1168,17 @@ var World = class {
   // nothing has to scan the whole board to find a warrior's cells.
   cellSets = /* @__PURE__ */ new Map();
   sortedCells = /* @__PURE__ */ new Map();
+  /**
+   * The Climb: 1 where a body's `traits` still describe its cells. A body's cells changing
+   * owner or code clears it (a whole-body shift doesn't: the same body one step over), so
+   * upkeep recomputes traits only for bodies that changed. (Under a symbol: a cache, so not
+   * saved; a loaded world recomputes everyone once.)
+   */
+  [TRAITS_FRESH];
+  changed(id) {
+    const f = this[TRAITS_FRESH];
+    if (f && id >= 0 && id < f.length) f[id] = 0;
+  }
   /** The way `owner` changes (opShift does a bulk equivalent). */
   setOwner(i, v) {
     const o = this.owner[i];
@@ -1174,9 +1186,11 @@ var World = class {
     if (o !== NONE) {
       this.cellSets.get(o).delete(i);
       this.sortedCells.delete(o);
+      this.changed(o);
     }
     this.owner[i] = v;
     if (v !== NONE) {
+      this.changed(v);
       let set = this.cellSets.get(v);
       if (!set) {
         set = /* @__PURE__ */ new Set();
@@ -1415,17 +1429,19 @@ var World = class {
     this.stream(2 * wr.id + 1);
     const cells = this.cellSets.get(wr.id);
     if (cells) {
-      const hm = wr.home;
-      let home = 0, narrow = 0, x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
-      for (const c of cells) {
-        const x = c % this.w, y = c / this.w | 0;
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
-        if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
-        if (this.narrow[c]) narrow++;
-      }
+      const hm = wr.home, w = this.w, narrowAt = this.narrow;
+      let home = 0, narrow = 0, x0 = w, y0 = this.h, x1 = -1, y1 = -1;
+      if (wr.leftHomeAt === void 0 || this.board.rooms.length) {
+        for (const c of cells) {
+          const y = c / w | 0, x = c - y * w;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+          if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
+          if (narrowAt[c]) narrow++;
+        }
+      } else for (const c of cells) if (narrowAt[c]) narrow++;
       if (wr.leftHomeAt === void 0 && home === 0 && cells.size > 0) {
         wr.leftHomeAt = this.t;
         this.log("left", `${wr.name} left its start room (whole body)`, wr.id);
@@ -1458,15 +1474,26 @@ var World = class {
       if (!wr.alive) return;
     }
     if (CONFIG.climb && cells) {
-      const tr = this.traitsOf(wr);
-      wr.traits = tr;
-      const st = this.board.step;
-      const doomed = [];
-      for (const c of cells) {
-        const n = st[c], over = n > 0 ? n - tr.insulation : -n - tr.armor;
-        if (n && over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
+      let tr = wr.traits;
+      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.warriors.length + 1024);
+      if (!tr || wr.id >= fresh.length || !fresh[wr.id]) {
+        tr = wr.traits = this.traitsOf(wr);
+        if (wr.id >= fresh.length) {
+          const grown = new Uint8Array(2 * wr.id + 1024);
+          grown.set(fresh);
+          this[TRAITS_FRESH] = fresh = grown;
+        }
+        fresh[wr.id] = 1;
       }
-      for (const c of doomed) {
+      const st = this.board.step;
+      let doomed;
+      for (const c of cells) {
+        const n = st[c];
+        if (!n) continue;
+        const over = n > 0 ? n - tr.insulation : -n - tr.armor;
+        if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+      }
+      if (doomed) for (const c of doomed) {
         if (!wr.alive) break;
         if (this.owner[c] === wr.id) this.destroy(c, void 0, st[c] > 0 ? "core frozen (too high)" : "core crushed by the pressure");
       }
@@ -1561,9 +1588,11 @@ var World = class {
   traitsOf(wr) {
     const w = this.w, id = wr.id;
     let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
-    for (const c of this.cellsOf(id)) {
+    const cells = this.cellSets.get(id);
+    if (cells) for (const c of cells) {
       let g = this.code[c], flip = false, dbl = 1, weightless = false;
-      for (const nb of [c - 1, c + 1, c - w, c + w]) {
+      for (let k = 0; k < 4; k++) {
+        const nb = k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - w : c + w;
         if (this.owner[nb] !== id) continue;
         const m = this.code[nb];
         if (m === FLIP) flip = !flip;
@@ -1739,30 +1768,40 @@ var World = class {
     wr.stack.push(v | 0);
     if (wr.stack.length > CONFIG.stackMax) wr.stack.shift();
   }
-  /** Move the IP to the next own cell in its direction, wrapping within the body. */
+  /**
+   * Move the IP to the next own cell in its direction, wrapping within the body: of the body's
+   * cells on the IP's row (or column), the nearest ahead, counting on round the board's edge.
+   * (From the body's own cells: walking the board would cross its whole width to find them.)
+   */
   advance(wr) {
-    const { w, h, owner } = this;
-    const id = wr.id, dir = wr.dir;
-    const horiz = dir === 0 || dir === 2;
-    const step = dir === 0 ? 1 : dir === 2 ? -1 : dir === 1 ? w : -w;
-    const pos = horiz ? wr.ipX : wr.ipY;
-    const len = horiz ? w : h;
-    const fwd = dir === 0 || dir === 1;
-    const start = wr.ipY * w + wr.ipX;
-    let i = start + step;
-    for (let p = pos + (fwd ? 1 : -1); fwd ? p < len : p >= 0; p += fwd ? 1 : -1, i += step) {
-      if (owner[i] === id) {
-        this.setIp(wr, i);
-        return;
+    const cells = this.cellSets.get(wr.id);
+    if (!cells) return;
+    const w = this.w, dir = wr.dir;
+    let best = -1, bestD = Infinity;
+    if (dir === 0 || dir === 2) {
+      const row0 = wr.ipY * w, pos = wr.ipX, fwd = dir === 0;
+      for (const c of cells) {
+        const p = c - row0;
+        if (p < 0 || p >= w || p === pos) continue;
+        const d = fwd ? p > pos ? p - pos : p - pos + w : p < pos ? pos - p : pos - p + w;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+    } else {
+      const h = this.h, x = wr.ipX, pos = wr.ipY, fwd = dir === 1;
+      for (const c of cells) {
+        const p = (c - x) / w;
+        if (p !== (p | 0) || p === pos) continue;
+        const d = fwd ? p > pos ? p - pos : p - pos + h : p < pos ? pos - p : pos - p + h;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
       }
     }
-    i = start - step * (fwd ? pos : len - 1 - pos);
-    for (let p = fwd ? 0 : len - 1; p !== pos; p += fwd ? 1 : -1, i += step) {
-      if (owner[i] === id) {
-        this.setIp(wr, i);
-        return;
-      }
-    }
+    if (best >= 0) this.setIp(wr, best);
   }
   setIp(wr, i) {
     wr.ipX = i % this.w;
@@ -2244,6 +2283,7 @@ var World = class {
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
     if (this.code[ia] !== this.code[ib]) wr.stats.swaps++;
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
+    this.changed(wr.id);
     return true;
   }
   /** Fat only: growth is size (and a buffer that sheds first), never new code to run into. */
@@ -2465,6 +2505,7 @@ var World = class {
     const n = this.glyphCount(), c = (code % n + n) % n;
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
+    this.changed(o);
     if (o >= 0 && o !== wr.id) {
       if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
