@@ -1917,3 +1917,26 @@ You said syncing a full copy to every thread was the wrong shape, and it was. Re
   - relabel and upkeep plan ~25;
   - upkeep ~55.
   - 7 threads is no better yet: more cuts, more turns across them.
+
+## 2026-10-17: step 6, faster than serial: 179 ms a tick against 253
+
+Seed 13, 29k bodies, 4 workers, bit-identical:
+
+| change | ms/tick |
+|---|---|
+| step 5 (shared cells, capability footprints) | 255 |
+| plan arrays transferred, not cloned; typed holders; summaries merged k-way | 236 |
+| the plan streamed in waves (workers start on the front of the order while the rest is planned; hand-offs and wake-ups a later wave adds to earlier items go as "late" ones) | 221–234 |
+| 32×32 chunks, not 16 (cheaper plan, *fewer* cross-worker waits: 3.2k → 2.8k) | 221 |
+| worker bookkeeping as flat typed arrays and linked lists (it was ~1.5 µs a body a phase) | **189** |
+| planner: no per-item subarray views, chunk coordinates by shift | **179** |
+
+- **The machine is 4 physical cores** (an i7-4770, hyperthreaded to 8). That explains the plateau:
+  - 4 workers plus the main thread planning share 4 cores. A worker runs a turn ~1.5× slower than the serial engine when all are busy, but at the same speed when it runs alone (1 worker: 176 ms of turns against serial's 175).
+  - 3 workers: 216 ms; 4: 179–189; 5: 188. 4 it is.
+  - The main thread's plan (~40 ms on a quiet core) is the critical path: it takes ~100 ms while the workers run beside it.
+  - Re-nicing the workers below the main thread does nothing: hyperthreads on one core slow each other whatever their priority.
+- **Tried, measured, dropped:**
+  - **Upkeep as items in the turn phase.** Each body's upkeep waits only on the turns on its cells, its own and its biters' turns, and whoever its death could pay, so there's no barrier between turns and upkeep. Correct, but no faster (192 against 189): those items can only be planned once every turn is.
+  - **Workers planning their own share.** The main thread plans only objects; each worker plans the chunks in its own window of columns, from the same summaries, so nothing is sent; the two halves merge. Correct (after a lost-late-wake-up bug), but slower here (262): every worker repeats the per-body setup, and on 4 cores five planners at once slow everyone. It's the shape for a bigger machine, or for machines on a network, where the main thread mustn't be the bottleneck. Kept as a patch, not in the tree.
+- **Still serial, and next:** the main thread's ~40 ms plan, ~11 ms renaming children and planning their upkeep, and ~45 ms of upkeep phase (25 ms of it real work per worker).
