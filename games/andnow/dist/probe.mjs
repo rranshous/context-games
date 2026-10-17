@@ -186,6 +186,19 @@ function makeRng(seed) {
 function randInt(rng, lo, hi) {
   return lo + Math.floor(rng() * (hi - lo + 1));
 }
+function streamSeed(seed, t, key) {
+  let h = fmix(seed ^ 2654435769);
+  h = fmix(h + Math.imul(t >>> 0, 2246822507) >>> 0);
+  h = fmix((h ^ Math.imul(key >>> 0, 3266489909) ^ Math.imul(key / 4294967296 | 0, 668265263)) >>> 0);
+  return h;
+}
+function fmix(h) {
+  h ^= h >>> 16;
+  h = Math.imul(h, 2246822507);
+  h ^= h >>> 13;
+  h = Math.imul(h, 3266489909);
+  return (h ^ h >>> 16) >>> 0;
+}
 
 // src/sim/board.ts
 var FLOOR = 0;
@@ -1153,10 +1166,18 @@ var World = class {
   // Cells by owner (warrior id, or DEBRIS), kept in step with `owner` by setOwner, so
   // nothing has to scan the whole board to find a warrior's cells.
   cellSets = /* @__PURE__ */ new Map();
+  /** A parallel engine's worker sets this (see Tracker). */
+  track;
   sortedCells = /* @__PURE__ */ new Map();
   /** The way `owner` changes (opShift does a bulk equivalent). */
   setOwner(i, v) {
     const o = this.owner[i];
+    const tr = this.track;
+    if (tr) {
+      tr.cell(i);
+      tr.body(o);
+      tr.body(v);
+    }
     if (o === v) return;
     if (o !== NONE) {
       this.cellSets.get(o).delete(i);
@@ -1253,6 +1274,12 @@ var World = class {
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = /* @__PURE__ */ new Map();
   tombstones = /* @__PURE__ */ new Map();
+  /** The next child's name in a lineage: the founder's name and its birth number. */
+  childName(lineage) {
+    const born = this.bornIn.get(lineage) ?? 1;
+    this.bornIn.set(lineage, born + 1);
+    return `${this.warriors[lineage].name}\xB7${born}`;
+  }
   /** Descendants a founder has had (alive or dead). */
   bornCount(lineage) {
     return (this.bornIn.get(lineage) ?? 1) - 1;
@@ -1282,6 +1309,7 @@ var World = class {
     const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : void 0;
     const eatsWhole = CONFIG.island ? k0?.realm === 1 && wr.realm === 0 : CONFIG.climb && !!k0?.traits?.meat;
     if (eatsWhole && k0 && k0.alive) {
+      this.track?.body(k0.id);
       const cells = this.cellsOf(wr.id).slice();
       k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1) * this.dietShare(k0, "meat") * this.richness(this.idx(wr.ipX, wr.ipY)));
       k0.stats.kills++;
@@ -1298,6 +1326,7 @@ var World = class {
     const h = wr.lastHarm;
     const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : void 0;
     if (killer && killer.alive && killer !== wr) {
+      this.track?.body(killer.id);
       if (killer.lineage !== wr.lineage) killer.stats.kills++;
       killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
       killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
@@ -1371,8 +1400,16 @@ var World = class {
   }
   /** Dead cells sink (island, climb); island sharks arrive. */
   drift() {
+    this.stream(-1);
     if (CONFIG.island || CONFIG.climb) this.islandTick();
     if (this.arriving.length && this.t >= CONFIG.sharkArrive) this.arrive();
+  }
+  /**
+   * Point the rng at this tick's stream for `key` (a body's turn 2·id, its upkeep 2·id+1, the
+   * drift −1). Whatever happens inside, kills and births included, draws from that stream.
+   */
+  stream(key) {
+    this.rng.state = streamSeed(this.seed, this.t, key);
   }
   /** This tick's turn order: the living, rotated by the tick so nobody always moves first. */
   turnOrder() {
@@ -1386,11 +1423,13 @@ var World = class {
   }
   /** One body's turn. */
   turn(wr) {
+    this.stream(2 * wr.id);
     wr.accum += wr.speed;
     while (wr.accum >= 1 && wr.alive) wr.accum -= this.step(wr);
   }
   /** Upkeep for one living body: whole-body stats, the climb's cold and pressure, pace, hunger, aging; shed or die. */
   upkeep(wr) {
+    this.stream(2 * wr.id + 1);
     const cells = this.cellSets.get(wr.id);
     if (cells) {
       const hm = wr.home;
@@ -2086,6 +2125,11 @@ var World = class {
     }
     const delta = DY[d] * this.w + DX[d];
     const moved = mine.map((c) => c + delta);
+    if (this.track) {
+      for (const c of mine) this.track.cell(c);
+      for (const c of moved) this.track.cell(c);
+      this.track.body(wr.id);
+    }
     for (let k = 0; k < moved.length; k++) {
       this.owner[moved[k]] = wr.id;
       this.code[moved[k]] = codes[k];
@@ -2210,6 +2254,8 @@ var World = class {
     if (this.ownerAt(a[0], a[1]) !== wr.id || this.ownerAt(b[0], b[1]) !== wr.id) return false;
     const ia = this.idx(a[0], a[1]), ib = this.idx(b[0], b[1]);
     if (this.code[ia] !== this.code[ib]) wr.stats.swaps++;
+    this.track?.cell(ia);
+    this.track?.cell(ib);
     [this.code[ia], this.code[ib]] = [this.code[ib], this.code[ia]];
     return true;
   }
@@ -2257,6 +2303,7 @@ var World = class {
           continue;
         } else continue;
         this.resource[i] = 0;
+        this.track?.cell(i);
         wr.stats.collected++;
         got = true;
       }
@@ -2307,6 +2354,7 @@ var World = class {
     const ti = this.idx(x, y);
     if ((CONFIG.island || CONFIG.climb) && o >= 0 && this.code[ti] === K) {
       const v = this.warriors[o];
+      this.track?.body(o);
       v.dents = (v.dents ?? 0) + (CONFIG.climb ? wr.traits?.bite ?? 1 : 1);
       v.lastHarm = { by: wr.id, t: this.t };
       if (v.dents < CONFIG.armorBites) {
@@ -2346,10 +2394,7 @@ var World = class {
     for (let k = 0; k < mine.length; k++) {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
-    const id = this.warriors.length;
-    const founder = this.warriors[wr.lineage];
-    const born = this.bornIn.get(wr.lineage) ?? 1;
-    this.bornIn.set(wr.lineage, born + 1);
+    const id = this.track ? this.track.newId() : this.warriors.length;
     const child = {
       id,
       lineage: wr.lineage,
@@ -2357,7 +2402,7 @@ var World = class {
       realm: wr.realm,
       parent: wr.id,
       born: this.t,
-      name: `${founder.name}\xB7${born}`,
+      name: this.track ? this.track.childName(id) : this.childName(wr.lineage),
       alive: true,
       ipX: wr.ipX + ox,
       ipY: wr.ipY + oy,
@@ -2382,7 +2427,7 @@ var World = class {
     this.board.rooms.forEach((r, k) => {
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
     });
-    this.warriors.push(child);
+    this.warriors[id] = child;
     this.livingList.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
@@ -2420,7 +2465,11 @@ var World = class {
       } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
-    if (CONFIG.climb) this.tileCount[this.tileOf(child.ipX, child.ipY)]++;
+    if (CONFIG.climb) {
+      const k = this.tileOf(child.ipX, child.ipY);
+      this.tileCount[k]++;
+      this.track?.tile(k);
+    }
     this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);
     return true;
   }
@@ -2435,6 +2484,8 @@ var World = class {
     const n = this.glyphCount(), c = (code % n + n) % n;
     if (o === wr.id && this.code[this.idx(x, y)] !== c) wr.stats.selfWrites++;
     this.code[this.idx(x, y)] = c;
+    this.track?.cell(this.idx(x, y));
+    this.track?.body(o);
     if (o >= 0 && o !== wr.id) {
       if (c === CODE["@"]) this.attacks.poisons++;
       if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;

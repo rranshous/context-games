@@ -19,3 +19,21 @@ export function makeRng(seed: number): Rng {
 export function randInt(rng: Rng, lo: number, hi: number): number {
   return lo + Math.floor(rng() * (hi - lo + 1));
 }
+
+/**
+ * Where one stream starts: a pure function of (seed, tick, key). The sim points its rng at a
+ * fresh stream for each body's turn and upkeep, so a draw never depends on how many draws
+ * anyone else made that tick, and turns that don't touch can run apart (engine.ts).
+ */
+export function streamSeed(seed: number, t: number, key: number): number {
+  let h = fmix(seed ^ 0x9e3779b9);
+  h = fmix((h + Math.imul(t >>> 0, 0x85ebca6b)) >>> 0);
+  h = fmix((h ^ Math.imul(key >>> 0, 0xc2b2ae35) ^ Math.imul((key / 4294967296) | 0, 0x27d4eb2f)) >>> 0);
+  return h;
+}
+
+function fmix(h: number): number {
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}

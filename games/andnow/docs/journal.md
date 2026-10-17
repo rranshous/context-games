@@ -1841,3 +1841,22 @@ The user: "figure out how to make the sim farm out the work so that we can have 
   - So about 9% of turns need their exact offset: the draw count of *every* earlier turn in the tick.
   - That makes them a chain through the tick, so even ideal threading tops out around 1/(0.09 + 0.91/8) ≈ 5× on 8 threads, before overheads (undo logs, redoing dependent turns).
 - **A bug found while reading `ringScan`:** each match was packed as `distance × 2^24 + cell index` and decoded with `% 2^24`, which assumes fewer than 16.7M cells (8,388 rows at width 2,000). Grown worlds are past that: seed 2 has 20.9M cells, seed 7 has 30M. So bodies below row 8,388 sorted their scan matches wrongly and decoded cells 8,388 rows away, since growth began (around t300k for seed 7). Now packed as `distance × 2^32 + index`, exact in a double. Small worlds are unchanged, and the golden replays still match.
+
+## 2026-10-16: step 3, a random stream per body (and fresh sims)
+
+- **Decision:** option B. Every body draws from its own stream instead of one shared rng: `streamSeed(seed, tick, key)` (a murmur-style mix) picks where mulberry32 starts, and the world points its rng there at the start of each body's turn (key 2·id), its upkeep (2·id + 1) and the drift (−1). Whatever happens inside, a kill or a birth, draws from that stream. Setup (founders, settling) still uses the seed's own stream.
+  - The rules and determinism don't change: same seed, same history. But the numbers do. A draw no longer depends on how many draws anyone else made that tick, which is what lets non-touching turns run apart.
+  - Golden replays re-recorded with it (2,491 matches, from the committed warriors only: five untracked `morph6-*` warriors in the folder were left out).
+- **The old bakes stop here.** Seeds 2, 4, 7 and 13 ran under the shared rng, and 2 and 7 also had the scan bug. They stay in `runs/bake` as they were. New runs start from tick 0 with all three fixes (leak, scan, streams), as `climb2-s<seed>`.
+- **The schedule, measured** (seed 13, t703k, 29k turns). A footprint is now computed at the *start* of the tick and bounds anything the turn can do:
+  - a body can take at most ⌊accum + speed⌋ steps and moves at most one cell per step, so its box can grow by that much (M);
+  - its reach is M ± 30 (the scan window); a child lands within one body-width of M;
+  - every body whose box comes within bite range (M ± 6) adds its whole box, since a bite can cut a whole body, plus its object, plus whoever recently harmed it (a death pays the killer, wherever it is).
+  - Every owner write landed inside its footprint (checked on 88k turns).
+- **Workers by region,** and a turn's level is the most, over earlier turns it overlaps, of their level plus one if they're on another worker. Levels are the sync points a tick needs:
+
+  | workers | 2 | 4 | 8 | 16 |
+  |---|---|---|---|---|
+  | levels (x columns) | 82 | 85 | 114 | 148 |
+
+  Even 2 workers need about 80 levels: chains of turns along the border, where neighbours on either side keep touching. A barrier per level wouldn't pay (about 30 turns of work per worker per level). So no barriers: each worker runs its own turns in order and waits only on the specific remote turns it overlaps. It can't deadlock, since a wait always points earlier in the tick's order. The critical path is about 100 hops a tick.
