@@ -666,19 +666,6 @@ var CONFIG = {
   corpse: 0.33
   // island: share of a dead body's cells left as dead cells (the rest dissolves)
 };
-function markTiles(living, count, tw, n) {
-  const T = CONFIG.tile, th = n / tw;
-  const next = new Uint8Array(n);
-  for (const wr of living) {
-    const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
-    count[ty * tw + tx]++;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const x = tx + dx, y = ty + dy;
-      if (x >= 0 && y >= 0 && x < tw && y < th) next[y * tw + x] = 1;
-    }
-  }
-  return next;
-}
 var World = class {
   constructor(seed, specs) {
     this.seed = seed;
@@ -770,19 +757,20 @@ var World = class {
    * catches up at once: its plants regrow and ripen as if time had passed there too.
    */
   refreshTiles() {
+    const T = CONFIG.tile, th = this.tileActive.length / this.tw;
+    const next = new Uint8Array(this.tileActive.length);
     this.tileCount.fill(0);
-    this.wakeTiles(markTiles(this.living(), this.tileCount, this.tw, this.tileActive.length));
-  }
-  /**
-   * The waking half of refreshTiles, for tile columns [tx0, tx1) (a parallel engine's worker
-   * does its own strip of tiles; the marks come from every body's IP, see markTiles).
-   */
-  wakeTiles(next, tx0 = 0, tx1 = this.tw) {
+    for (const wr of this.living()) {
+      this.tileCount[this.tileOf(wr.ipX, wr.ipY)]++;
+      const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = tx + dx, y = ty + dy;
+        if (x >= 0 && y >= 0 && x < this.tw && y < th) next[y * this.tw + x] = 1;
+      }
+    }
     this.activeTiles = [];
     for (let k = 0; k < next.length; k++) {
       if (!next[k]) continue;
-      const tx = k % this.tw;
-      if (tx < tx0 || tx >= tx1) continue;
       this.activeTiles.push(k);
       if (!this.tileActive[k]) {
         const gap = this.t - this.tileLast[k];
@@ -798,10 +786,7 @@ var World = class {
       }
     }
     for (const k of this.activeTiles) this.tileLast[k] = this.t;
-    for (let k = 0; k < next.length; k++) {
-      const tx = k % this.tw;
-      if (tx >= tx0 && tx < tx1) this.tileActive[k] = next[k];
-    }
+    this.tileActive = next;
   }
   // ---------- The Climb: a world that grows a step wherever life reaches its edge ----------
   /** Rows joined on above the original world so far: every y has moved down by this much (a viewer keeps its camera on the same spot with it). */
@@ -1050,15 +1035,13 @@ var World = class {
   // Cells by owner (warrior id, or DEBRIS), kept in step with `owner` by setOwner, so
   // nothing has to scan the whole board to find a warrior's cells.
   cellSets = /* @__PURE__ */ new Map();
-  /** A parallel engine's worker sets this (see Tracker). */
-  track;
   sortedCells = /* @__PURE__ */ new Map();
   /** The way `owner` changes (opShift does a bulk equivalent). */
   setOwner(i, v) {
     const o = this.owner[i];
     if (o === v) return;
     if (o !== NONE) {
-      this.cellSets.get(o)?.delete(i);
+      this.cellSets.get(o).delete(i);
       this.sortedCells.delete(o);
     }
     this.owner[i] = v;
@@ -1152,11 +1135,6 @@ var World = class {
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = /* @__PURE__ */ new Map();
   tombstones = /* @__PURE__ */ new Map();
-  /** A body's lineage (a parallel engine's worker may only know a child born elsewhere this tick by it). */
-  lineageOf(o) {
-    const wr = this.warriors[o];
-    return wr ? wr.lineage : this.track.lineageOf(o);
-  }
   /** The next child's name in a lineage: the founder's name and its birth number. */
   childName(lineage) {
     const born = this.bornIn.get(lineage) ?? 1;
@@ -1169,7 +1147,6 @@ var World = class {
   }
   kill(wr, reason) {
     if (!wr.alive) return;
-    this.track?.died(wr.id);
     this.die(wr, reason);
     this.cellSets.delete(wr.id);
     this.sortedCells.delete(wr.id);
@@ -1237,15 +1214,18 @@ var World = class {
   }
   // ---------- tick ----------
   /**
-   * One tick, as phases (an engine can run them its own way, see src/sim/engine.ts):
-   * begin (the clock, growth, tiles), regrow (plants), drift (dead cells sink), turns (every
-   * body runs, in a rotating order), upkeep (every body, in id order), then the end check.
+   * One tick: the clock, growth and tiles; plants regrow; dead cells sink; every body's turn,
+   * in a rotating order so nobody always moves first; upkeep for every body; the end check.
    */
   tick() {
     if (!this.beginTick()) return;
     this.regrow();
     this.drift();
-    this.runTurns(this.turnOrder());
+    const living = this.living().slice(), n = living.length;
+    for (let k = 0; k < n; k++) {
+      const wr = living[(this.t + k) % n];
+      if (wr.alive) this.turn(wr);
+    }
     for (const wr of this.living().slice()) if (wr.alive) this.upkeep(wr);
     this.checkOver();
   }
@@ -1292,16 +1272,6 @@ var World = class {
    */
   stream(key) {
     this.rng.state = streamSeed(this.seed, this.t, key);
-  }
-  /** This tick's turn order: the living, rotated by the tick so nobody always moves first. */
-  turnOrder() {
-    const living = this.living(), n = living.length, order = new Array(n);
-    for (let k = 0; k < n; k++) order[k] = living[(this.t + k) % n];
-    return order;
-  }
-  /** Every body's turn, in order: it runs as many instructions as its speed has banked. */
-  runTurns(order) {
-    for (const wr of order) if (wr.alive) this.turn(wr);
   }
   /** One body's turn. */
   turn(wr) {
@@ -1523,8 +1493,8 @@ var World = class {
   }
   /**
    * Dead cells sink, bottom rows first so a column of them falls together, and rot where they
-   * can't. Each column draws from its own stream, so columns don't depend on each other (a
-   * parallel engine's worker sinks its own strip). `dead` is in descending index order.
+   * can't. Each column draws from its own stream, so columns don't depend on each other.
+   * `dead` is in descending index order.
    */
   sink(dead) {
     const col = /* @__PURE__ */ new Map();
@@ -1962,7 +1932,7 @@ var World = class {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.lineageOf(o) === wr.lineage) continue;
+        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i;
@@ -2213,7 +2183,7 @@ var World = class {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue;
-        if (CONFIG.climb && this.lineageOf(o) === wr.lineage) continue;
+        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue;
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d;
         bx = x;
@@ -2278,7 +2248,7 @@ var World = class {
     for (let k = 0; k < mine.length; k++) {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
-    const id = this.track ? this.track.newId() : this.warriors.length;
+    const id = this.warriors.length;
     const child = {
       id,
       lineage: wr.lineage,
@@ -2286,7 +2256,7 @@ var World = class {
       realm: wr.realm,
       parent: wr.id,
       born: this.t,
-      name: this.track ? this.track.childName(id) : this.childName(wr.lineage),
+      name: this.childName(wr.lineage),
       alive: true,
       ipX: wr.ipX + ox,
       ipY: wr.ipY + oy,
@@ -2311,7 +2281,7 @@ var World = class {
     this.board.rooms.forEach((r, k) => {
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
     });
-    this.warriors[id] = child;
+    this.warriors.push(child);
     this.livingList.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
@@ -2349,11 +2319,7 @@ var World = class {
       } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
-    if (CONFIG.climb) {
-      const k = this.tileOf(child.ipX, child.ipY);
-      if (this.track) this.track.tile(k);
-      else this.tileCount[k]++;
-    }
+    if (CONFIG.climb) this.tileCount[this.tileOf(child.ipX, child.ipY)]++;
     this.log("birth", `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? "s" : ""}` : ""})`, id);
     return true;
   }

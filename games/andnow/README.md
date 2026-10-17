@@ -71,20 +71,12 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 | `evolve.mjs` | the genetic-algorithm and MAP-Elites warrior search |
 | `petri.mjs` | runs the petri dish |
 | `check.mjs --verify test/golden.json` | determinism check: replays 2,491 recorded matches |
-| `twin.mjs <bake dir or checkpoint> --engine par` | runs the parallel engine beside the serial one and stops at the first tick they differ (`--alone` just times it) |
+| `bench.mjs <checkpoint.andnow.gz> [ticks]` | times the sim on a saved world and prints a hash of where it ends up, so a speed-up can be checked to change nothing |
 
 Runs are deterministic: the same seed and settings always replay the same history, and a world restored from a checkpoint continues exactly as the original run would have.
 
-**One sim on several cores:** `bake.mjs ... --engine par` runs a world on worker threads (`ANDNOW_THREADS`, default 4), giving the same world as the serial engine, bit for bit.
-- How it works:
-  - each worker owns a strip of columns, and the cells are shared memory;
-  - each turn waits only on the earlier turns that could touch what it touches, worked out from what the body's glyphs let it reach;
-  - bodies are handed between workers only along those waits.
-- It switches itself on once a world passes 8,000 living bodies (`ANDNOW_PAR_MIN`). On seed 13 (29k bodies) it runs about 180 ms a tick against 253 on a 4-core machine.
-- [`docs/journal.md`](docs/journal.md) has the design and the measurements.
-
 ```bash
-./bake.sh 4    # start (or carry on) seed 4 as runs/bake/climb2-s4, in the background, on the parallel engine
+./bake.sh 4    # start (or carry on) seed 4 as runs/bake/climb2-s4, in the background at low priority
 ```
 
 ## Other modes

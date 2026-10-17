@@ -1,6 +1,6 @@
 // Bake a long dish into checkpoints the viewer can jump between.
 //
-//   node dist/bake.mjs "<viewer query>" <ticks> [--every 1000] [--out runs/bake/<name>] [--resume] [--engine serial|par]
+//   node dist/bake.mjs "<viewer query>" <ticks> [--every 1000] [--out runs/bake/<name>] [--resume]
 //   e.g. node dist/bake.mjs "climb=1&w=climber,diver,hunter&seed=2" 200000 --out runs/bake/c200k-s2
 //
 // Writes t<tick>.andnow.gz (the whole world, see src/sim/save.ts) every --every ticks, and
@@ -8,15 +8,11 @@
 // --resume carries on from the last checkpoint in --out (same run: the sim is deterministic).
 // <ticks> can be "forever": it runs until the dish dies out, or the disk gets under 20 GB free.
 // index.json says done: true once it stops. serve.py lists every bake at /bakes.json.
-// --engine par runs it on worker threads (src/par.ts; ANDNOW_THREADS, default 4): the same
-// run bit for bit, so a bake can switch engines at any checkpoint.
 // Open it in the viewer with ?bake=runs/bake/<name>. Same seed and settings as a safari
 // dish replay the same run.
 import { existsSync, mkdirSync, readFileSync, statfsSync, writeFileSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { applyDish, genomeOf } from './sim/dish';
-import { makeEngine } from './sim/engine';
-import './par';
 import { loadWorld, saveWorld } from './sim/save';
 import { parseWarrior } from './sim/warrior-file';
 import { World } from './sim/world';
@@ -25,7 +21,6 @@ import { BUNDLED } from './warriors';
 const args = process.argv.slice(2);
 const flag = (k: string, d: string) => { const i = args.indexOf(k); return i >= 0 ? args.splice(i, 2)[1] : d; };
 const every = Number(flag('--every', '1000'));
-const engineName = flag('--engine', 'serial');
 const resume = args.includes('--resume');
 if (resume) args.splice(args.indexOf('--resume'), 1);
 const [query, ticksArg] = args;
@@ -69,19 +64,15 @@ const diskLow = () => { const f = statfsSync(out); return f.bavail * f.bsize < 2
 const t0 = Date.now(), tStart = world.t;
 if (!resume || !index.marks.length) save();
 let stop = '';
-const engine = makeEngine(engineName, world);
 while (world.t < ticks && world.living().length && !world.result.over) {
-  await engine.tick();
+  world.tick();
   if (world.t % every === 0) {
     if (diskLow()) { stop = 'disk under 20 GB free'; break; }
-    await engine.sync?.();
     save();
     const m = index.marks[index.marks.length - 1];
     if (world.t % (every * 10) === 0) console.log(`t${world.t} alive ${m.alive} biggest ${m.biggest?.cells ?? 0} · ${((Date.now() - t0) / (world.t - tStart)).toFixed(1)} ms/tick · ${m.kb} KB`);
   }
 }
-await engine.sync?.();
-engine.close?.();
 index.done = true;
 if (!stop && world.t % every !== 0) save();
 else writeFileSync(`${out}/index.json`, JSON.stringify(index));

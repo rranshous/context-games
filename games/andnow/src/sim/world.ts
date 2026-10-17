@@ -92,38 +92,6 @@ export const CONFIG = {
   corpse: 0.33,         // island: share of a dead body's cells left as dead cells (the rest dissolves)
 };
 
-/**
- * The Climb's tile marks: every tile within one tile of a living body's IP, and each tile's
- * count of IPs (into `count`, already zeroed). Shared by World.refreshTiles and the
- * parallel engine, which marks from its bodies' summaries.
- */
-export function markTiles(living: { ipX: number; ipY: number }[], count: Uint16Array, tw: number, n: number): Uint8Array {
-  const T = CONFIG.tile, th = n / tw;
-  const next = new Uint8Array(n);
-  for (const wr of living) {
-    const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
-    count[ty * tw + tx]++;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const x = tx + dx, y = ty + dy;
-      if (x >= 0 && y >= 0 && x < tw && y < th) next[y * tw + x] = 1;
-    }
-  }
-  return next;
-}
-
-/**
- * What a parallel engine's worker listens with (src/par-worker.ts): the ids and names of
- * children, which are only known for sure once the whole tick is in, crowding counts (in
- * shared memory, so counted atomically), and deaths. Unset, it costs nothing.
- */
-export interface Tracker {
-  tile(k: number): void;          // a child counted into a crowding tile
-  newId(): number;
-  childName(id: number): string;
-  died(id: number): void;
-  lineageOf(id: number): number;  // a child born this tick on another worker, seen in a scan
-}
-
 export interface Warrior {
   id: number;
   lineage: number; // the founder's id. Decides who won and who gets scored; in play, kin are rivals like anyone else
@@ -269,20 +237,20 @@ export class World {
    * catches up at once: its plants regrow and ripen as if time had passed there too.
    */
   private refreshTiles() {
+    const T = CONFIG.tile, th = this.tileActive.length / this.tw;
+    const next = new Uint8Array(this.tileActive.length);
     this.tileCount.fill(0);
-    this.wakeTiles(markTiles(this.living(), this.tileCount, this.tw, this.tileActive.length));
-  }
-
-  /**
-   * The waking half of refreshTiles, for tile columns [tx0, tx1) (a parallel engine's worker
-   * does its own strip of tiles; the marks come from every body's IP, see markTiles).
-   */
-  wakeTiles(next: Uint8Array, tx0 = 0, tx1 = this.tw) {
+    for (const wr of this.living()) {
+      this.tileCount[this.tileOf(wr.ipX, wr.ipY)]++;
+      const tx = Math.floor(wr.ipX / T), ty = Math.floor(wr.ipY / T);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = tx + dx, y = ty + dy;
+        if (x >= 0 && y >= 0 && x < this.tw && y < th) next[y * this.tw + x] = 1;
+      }
+    }
     this.activeTiles = [];
     for (let k = 0; k < next.length; k++) {
       if (!next[k]) continue;
-      const tx = k % this.tw;
-      if (tx < tx0 || tx >= tx1) continue;
       this.activeTiles.push(k);
       if (!this.tileActive[k]) {
         const gap = this.t - this.tileLast[k];
@@ -294,7 +262,7 @@ export class World {
       }
     }
     for (const k of this.activeTiles) this.tileLast[k] = this.t;
-    for (let k = 0; k < next.length; k++) { const tx = k % this.tw; if (tx >= tx0 && tx < tx1) this.tileActive[k] = next[k]; }
+    this.tileActive = next;
   }
 
   // ---------- The Climb: a world that grows a step wherever life reaches its edge ----------
@@ -495,15 +463,13 @@ export class World {
   // Cells by owner (warrior id, or DEBRIS), kept in step with `owner` by setOwner, so
   // nothing has to scan the whole board to find a warrior's cells.
   private cellSets = new Map<number, Set<number>>();
-  /** A parallel engine's worker sets this (see Tracker). */
-  track?: Tracker;
   private sortedCells = new Map<number, number[]>();
 
   /** The way `owner` changes (opShift does a bulk equivalent). */
   private setOwner(i: number, v: number) {
     const o = this.owner[i];
     if (o === v) return;
-    if (o !== NONE) { this.cellSets.get(o)?.delete(i); this.sortedCells.delete(o); }
+    if (o !== NONE) { this.cellSets.get(o)!.delete(i); this.sortedCells.delete(o); }
     this.owner[i] = v;
     if (v !== NONE) {
       let set = this.cellSets.get(v);
@@ -589,12 +555,6 @@ export class World {
   deaths = new Map<string, number>();
   private tombstones = new Map<number, Warrior>();
 
-  /** A body's lineage (a parallel engine's worker may only know a child born elsewhere this tick by it). */
-  private lineageOf(o: number) {
-    const wr = this.warriors[o];
-    return wr ? wr.lineage : this.track!.lineageOf(o);
-  }
-
   /** The next child's name in a lineage: the founder's name and its birth number. */
   childName(lineage: number) {
     const born = this.bornIn.get(lineage) ?? 1;
@@ -607,7 +567,6 @@ export class World {
 
   private kill(wr: Warrior, reason: string) {
     if (!wr.alive) return;
-    this.track?.died(wr.id);
     this.die(wr, reason);
     // Its cells are debris or eaten now: drop its empty cell set (millions of them leaked).
     this.cellSets.delete(wr.id); this.sortedCells.delete(wr.id);
@@ -684,21 +643,21 @@ export class World {
   // ---------- tick ----------
 
   /**
-   * One tick, as phases (an engine can run them its own way, see src/sim/engine.ts):
-   * begin (the clock, growth, tiles), regrow (plants), drift (dead cells sink), turns (every
-   * body runs, in a rotating order), upkeep (every body, in id order), then the end check.
+   * One tick: the clock, growth and tiles; plants regrow; dead cells sink; every body's turn,
+   * in a rotating order so nobody always moves first; upkeep for every body; the end check.
    */
   tick() {
     if (!this.beginTick()) return;
     this.regrow();
     this.drift();
-    this.runTurns(this.turnOrder());
+    const living = this.living().slice(), n = living.length;
+    for (let k = 0; k < n; k++) { const wr = living[(this.t + k) % n]; if (wr.alive) this.turn(wr); }
     for (const wr of this.living().slice()) if (wr.alive) this.upkeep(wr);
     this.checkOver();
   }
 
   /** Start a tick: the clock, the climb's growth and tiles. False once the match is over. */
-  beginTick(): boolean {
+  private beginTick(): boolean {
     if (this.result.over) return false;
     this.t++;
     if (CONFIG.climb && this.t % 100 === 0) this.growClimb();
@@ -707,7 +666,7 @@ export class World {
   }
 
   /** Plants regrow at empty spots (the climb: only in active tiles). */
-  regrow() {
+  private regrow() {
     // Respawn resources at empty spots. A spot doesn't regrow while anything sits on or
     // touches it, so camping a spawn doesn't work: you have to leave and come back.
     const spawns = this.board.spawns;
@@ -732,7 +691,7 @@ export class World {
   }
 
   /** Dead cells sink (island, climb); island sharks arrive. */
-  drift() {
+  private drift() {
     this.stream(-1);
     if (CONFIG.island || CONFIG.climb) this.islandTick();
     if (this.arriving.length && this.t >= CONFIG.sharkArrive) this.arrive();
@@ -744,27 +703,15 @@ export class World {
    */
   private stream(key: number) { this.rng.state = streamSeed(this.seed, this.t, key); }
 
-  /** This tick's turn order: the living, rotated by the tick so nobody always moves first. */
-  turnOrder(): Warrior[] {
-    const living = this.living(), n = living.length, order = new Array<Warrior>(n);
-    for (let k = 0; k < n; k++) order[k] = living[(this.t + k) % n];
-    return order;
-  }
-
-  /** Every body's turn, in order: it runs as many instructions as its speed has banked. */
-  runTurns(order: Warrior[]) {
-    for (const wr of order) if (wr.alive) this.turn(wr);
-  }
-
   /** One body's turn. */
-  turn(wr: Warrior) {
+  private turn(wr: Warrior) {
     this.stream(2 * wr.id);
     wr.accum += wr.speed;
     while (wr.accum >= 1 && wr.alive) wr.accum -= this.step(wr);
   }
 
   /** Upkeep for one living body: whole-body stats, the climb's cold and pressure, pace, hunger, aging; shed or die. */
-  upkeep(wr: Warrior) {
+  private upkeep(wr: Warrior) {
     this.stream(2 * wr.id + 1);
     // Whole-body measures: a tip poking into a corridor mouth is neither leaving nor squeezing.
     const cells = this.cellSets.get(wr.id);
@@ -962,10 +909,10 @@ export class World {
 
   /**
    * Dead cells sink, bottom rows first so a column of them falls together, and rot where they
-   * can't. Each column draws from its own stream, so columns don't depend on each other (a
-   * parallel engine's worker sinks its own strip). `dead` is in descending index order.
+   * can't. Each column draws from its own stream, so columns don't depend on each other.
+   * `dead` is in descending index order.
    */
-  sink(dead: number[]) {
+  private sink(dead: number[]) {
     const col = new Map<number, number>();
     for (const c of dead) {
       const below = c + this.w, x = c % this.w;
@@ -1029,7 +976,7 @@ export class World {
     return team !== -1 && this.warriors.some((w) => w.lineage !== team);
   }
 
-  checkOver() {
+  private checkOver() {
     const living = this.living().length;
     if (CONFIG.endless && this.t < CONFIG.tickCap) return;
     if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return; // nothing to decide
@@ -1296,7 +1243,7 @@ export class World {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.lineageOf(o) === wr.lineage) continue; // (your own kind isn't prey)
+        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue; // (your own kind isn't prey)
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i; // (exact in a double: a grown world has well over 2^24 cells)
@@ -1528,7 +1475,7 @@ export class World {
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
         if (CONFIG.island && this.warriors[o].realm === wr.realm) continue; // island: sharks hunt seals, seals fight sharks
-        if (CONFIG.climb && this.lineageOf(o) === wr.lineage) continue; // climb: never your own kind (lineage)
+        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue; // climb: never your own kind (lineage)
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d; bx = x; by = y;
       }
@@ -1597,9 +1544,9 @@ export class World {
     for (let k = 0; k < mine.length; k++) {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
-    const id = this.track ? this.track.newId() : this.warriors.length;
+    const id = this.warriors.length;
     const child: Warrior = {
-      id, lineage: wr.lineage, gen: wr.gen + 1, realm: wr.realm, parent: wr.id, born: this.t, name: this.track ? this.track.childName(id) : this.childName(wr.lineage), alive: true,
+      id, lineage: wr.lineage, gen: wr.gen + 1, realm: wr.realm, parent: wr.id, born: this.t, name: this.childName(wr.lineage), alive: true,
       ipX: wr.ipX + ox, ipY: wr.ipY + oy, ox: wr.ox + ox, oy: wr.oy + oy, dir: wr.dir,
       stack: [], maxSize: wr.maxSize / 2, speed: wr.speed, accum: 0, lastOk: true, lastAct: '',
       cellCount: 0, executed: 0, spec: wr.spec, home: wr.home, roomsSeen: new Set(wr.roomsSeen),
@@ -1611,7 +1558,7 @@ export class World {
     this.board.rooms.forEach((r, k) => {
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
     });
-    this.warriors[id] = child;
+    this.warriors.push(child);
     this.livingList.push(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
@@ -1644,7 +1591,7 @@ export class World {
       if (this.unreached(child).length === 0) { this.code[c] = 0; child.cellCount--; mutations++; } else this.setOwner(c, id);
     }
     wr.maxSize /= 2;
-    if (CONFIG.climb) { const k = this.tileOf(child.ipX, child.ipY); if (this.track) this.track.tile(k); else this.tileCount[k]++; }
+    if (CONFIG.climb) this.tileCount[this.tileOf(child.ipX, child.ipY)]++;
     this.log('birth', `${wr.name} divided: ${child.name} (generation ${child.gen}${mutations ? `, ${mutations} mutation${mutations > 1 ? 's' : ''}` : ''})`, id);
     return true;
   }

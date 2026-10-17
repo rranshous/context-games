@@ -23,7 +23,7 @@ export function randInt(rng: Rng, lo: number, hi: number): number {
 /**
  * Where one stream starts: a pure function of (seed, tick, key). The sim points its rng at a
  * fresh stream for each body's turn and upkeep, so a draw never depends on how many draws
- * anyone else made that tick, and turns that don't touch can run apart (engine.ts).
+ * anyone else made that tick (so turns that never touch could one day run apart).
  */
 export function streamSeed(seed: number, t: number, key: number): number {
   let h = fmix(seed ^ 0x9e3779b9);

@@ -1961,3 +1961,15 @@ Short runs were clean; 200+ ticks on a big world weren't. Each was found by narr
   | 7 | 79k | 685 | 566 | 1.21× |
 
 - **Bakes:** `climb2-s4` restarted from tick 0 with every rule change (`./bake.sh 4`). It runs serially until 8,000 bodies, then on the threads.
+
+## 2026-10-17: the parallel engine comes out
+
+1.2–1.3× on 4 cores wasn't worth what it cost:
+- about 1,500 lines (`par.ts`, `par-worker.ts`, `schedule.ts`, `replica.ts`, `engine.ts`, `twin.ts`);
+- hooks inside `World`;
+- three bugs that only showed after 200+ ticks of a big world.
+
+So it's gone, along with the engine seam and the twin check, which only existed to compare engines. Git has it (last at `3d83486`), and the entries above have the design and the numbers if a big-core machine makes it worth another try.
+
+- **Kept:** the per-body random streams, and the per-column streams for sinking dead cells. They cost nothing and keep the door open. They're also what the current runs are on, so checkpoints still load and replay the same, and the golden set is unchanged (2,491 identical).
+- **New:** `bench.mjs <checkpoint> [ticks]` times the serial sim on a saved world and hashes where it ends. That's the check for the single-thread speed work that comes next: same checkpoint and ticks, same hash.
