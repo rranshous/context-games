@@ -2009,3 +2009,23 @@ The parallel engine is gone, but the worlds keep growing, so the rules that made
 - Golden re-recorded (2,491) and canary regenerated. Old checkpoints don't load (no zones), so the runs start fresh.
 - **Runs:** `climb3-s2`, `-s4`, `-s7`, `-s13` started fresh on these rules (`./bake.sh <seed> climb3`), one core each at nice 19. They're there to see what rich corpses do to the food chain: compare meat eaters and scavengers against the `climb-*` runs at the same ticks. `climb2-s4` (old rules, t286000) is stopped; checkpoints from before this change can't continue.
 - **Runs list shows only the current rules.** `RULES` (now 3) in `world.ts` is bumped with any change that makes runs play out differently. A bake writes it into `index.json` and refuses to carry on a run made on other rules. `serve.py` passes it along, and the viewer lists only runs on the current rules. The `climb-*` and `climb2-s4` runs stay on disk for comparison, out of the list.
+
+## 2026-10-17: baseline for rich corpses vs kill credit
+
+`diet.mjs` counts who eats what at each checkpoint. These are the old `climb-*` runs (kill credit), every 100k ticks: share of living bodies that eat meat (meat only, or both):
+
+| tick | s2 | s4 | s7 | s13 |
+|---|---|---|---|---|
+| 100k | 0.9% | 1.4% | 1.1% | 0.7% |
+| 200k | 1.3% | 0.9% | 29% | 0.9% |
+| 300k | 24% | 0.6% | 38% | 47% |
+| 400k | 22% | 0.8% | 51% | 30% |
+| 600k | 17% | 1.9% | | 25% |
+| 800k | | 6.3% | | |
+| 1.1M | | 21% | | |
+
+- Meat eaters sit around 1% for the first 100–200k ticks in every run, then take off at some point: 200k–300k in three runs, and not until 700k–1M in s4. After that they settle at 17–50%.
+- Eating both (`both`) grew late in s4 and s7.
+- Meat eaters stay small on average (7–13 cells), but the biggest bodies in a run are often meat eaters (200–250 cells).
+- Caveat: the old runs also predate the per-body random streams and a few other rule changes since, so the comparison isn't corpses alone. With four seeds a side it should still show a big effect, such as an earlier take-off, more scavenging, or bigger meat eaters.
+- To check: `node dist/diet.mjs runs/bake/climb3-s2 runs/bake/climb3-s4 runs/bake/climb3-s7 runs/bake/climb3-s13 --every 100000`.
