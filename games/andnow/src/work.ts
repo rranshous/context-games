@@ -37,7 +37,7 @@ function playMatch(texts: string[], names: string[] | undefined, seed: number, t
   CONFIG.tickCap = ticks;
   const world = new World(seed, texts.map((t, i) => parseWarrior(t, names?.[i])));
   while (!world.result.over) world.tick();
-  return { summary: summarize(world), kills: world.warriors.map((x) => x.stats.kills) };
+  return { summary: summarize(world), kills: world.allWarriors().map((x) => x.stats.kills) };
 }
 
 function playSolo(text: string, seed: number, ticks: number): SoloOutcome {
@@ -46,7 +46,7 @@ function playSolo(text: string, seed: number, ticks: number): SoloOutcome {
   let peak = 0;
   const cells = () => world.living().reduce((a, x) => a + x.cellCount, 0);
   while (!world.result.over) { world.tick(); peak = Math.max(peak, cells()); }
-  const team = world.warriors, sum = (f: (x: (typeof team)[0]) => number) => team.reduce((a, x) => a + f(x), 0);
+  const team = world.allWarriors(), sum = (f: (x: (typeof team)[0]) => number) => team.reduce((a, x) => a + f(x), 0);
   return {
     pickups: sum((x) => x.stats.collected), oozes: sum((x) => x.stats.oozes), flows: sum((x) => x.stats.flows), grows: sum((x) => x.stats.grows),
     peak, final: cells(),

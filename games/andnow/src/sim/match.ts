@@ -30,9 +30,9 @@ export function summarize(world: World): MatchSummary {
   return {
     seed: world.seed,
     ticks: world.t,
-    winner: world.result.winner === null ? null : world.warriors[world.result.winner].name,
+    winner: world.result.winner === null ? null : world.warrior(world.result.winner).name,
     reason: world.result.reason,
-    warriors: world.warriors.map((w) => ({
+    warriors: world.allWarriors().map((w) => ({
       name: w.name, alive: w.alive, cells: w.cellCount, executed: w.executed, death: w.deathReason,
     })),
   };

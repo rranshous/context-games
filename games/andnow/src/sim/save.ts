@@ -126,7 +126,7 @@ export function loadWorld(bytes: Uint8Array): World {
   world.yShift ??= 0;
   // Checkpoints from before kill() dropped the dead's empty cell sets carry millions of them.
   const w = world as unknown as { cellSets: Map<number, Set<number>>; sortedCells: Map<number, number[]> };
-  for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warriors[id]?.alive)) w.cellSets.delete(id);
+  for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warrior(id)?.alive)) w.cellSets.delete(id);
   for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
   return world;
 }

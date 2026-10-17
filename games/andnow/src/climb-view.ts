@@ -18,7 +18,7 @@ export interface Camera { x: number; y: number; zoom: number } // top-left cell,
 
 /** Colour for a body: hunters (meat) red, insulated cool, armored warm, plain grazers pale. */
 export function bodyColor(world: World, id: number): RGB {
-  const t = world.warriors[id].traits;
+  const t = world.warrior(id).traits;
   if (!t) return [230, 230, 230];
   if (t.meat && !t.plants) return mix([200, 40, 60], [255, 120, 160], Math.min(1, (t.bite - 1) / 3));
   if (t.meat) return [230, 90, 200]; // eats both
@@ -147,7 +147,7 @@ export class ClimbView {
   /** Keep a followed body in view; let go once it's dead. */
   private track() {
     if (this.follow === null) return;
-    const wr = this.world().warriors[this.follow];
+    const wr = this.world().warrior(this.follow);
     if (!wr?.alive) { this.follow = null; return; }
     // The body's middle, not its IP (which runs all over it). A body's middle wobbles as it
     // grows and loses cells at its ends, so the camera only picks a new spot once the middle
@@ -185,7 +185,7 @@ export class ClimbView {
     for (let d = 0; d <= 1 && id === null; d++) for (let dy = -d; dy <= d && id === null; dy++) for (let dx = -d; dx <= d; dx++) {
       if (x + dx < 0 || y + dy < 0 || x + dx >= world.w || y + dy >= world.h) continue;
       const o = world.owner[world.idx(x + dx, y + dy)];
-      if (o >= 0 && world.warriors[o]?.alive) { id = o; break; }
+      if (o >= 0 && world.warrior(o)?.alive) { id = o; break; }
     }
     this.selected = id === this.selected ? null : id;
     this.redraw();
@@ -196,7 +196,7 @@ export class ClimbView {
    * that don't touch another of its cells), so a body pressed against another stands apart.
    */
   private renderSelected() {
-    if (this.selected !== null && !this.world().warriors[this.selected]?.alive) this.selected = null;
+    if (this.selected !== null && !this.world().warrior(this.selected)?.alive) this.selected = null;
     if (this.selected === null) return;
     const world = this.world(), id = this.selected, cells = world.cellsOf(id), z = this.cam.zoom, W = world.w;
     if (!cells.length) return;
@@ -353,7 +353,7 @@ export class ClimbView {
         } else if (o >= 0) {
           let cc = colors.get(o);
           if (!cc) { cc = bodyColor(world, o); colors.set(o, cc); }
-          const wo = world.warriors[o];
+          const wo = world.warrior(o);
           col = c === wo.ipY * world.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
         } else {
           col = this.sky(st[c], y);
@@ -495,7 +495,7 @@ export class ClimbView {
     const top = [...counts.entries()].sort((a, c) => c[1].n - a[1].n).slice(0, 6);
     const css = (c: number[]) => `rgb(${c.join(',')})`;
     return `<div class="name">The Climb</div>
-      <div class="stats">${living.length} alive · ${world.warriors.length} ever lived · pace ${living.length ? (paceSum / living.length).toFixed(2) : '-'} avg</div>
+      <div class="stats">${living.length} alive · ${world.everLived()} ever lived · pace ${living.length ? (paceSum / living.length).toFixed(2) : '-'} avg</div>
       <div class="stats">upkeep in ${tiles.active} of ${tiles.total} tiles (only near life)</div>
       <div class="name" style="margin-top:6px">by step</div>${bars}
       <div class="stats" style="margin-top:6px"><span style="color:#ffb46e">armor</span> ${hist(arm)}</div>

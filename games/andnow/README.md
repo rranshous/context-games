@@ -19,6 +19,7 @@ The current mode is a world that grows forever, both up and down.
   - `n` makes a cell weightless.
   - Mass slows a creature down. `B` (bite) and `C` (collect) decide whether it eats meat, plants or both.
   - Evolution found the modifiers on its own. Seed 4's deep colony is `CxKDTM`: the diver moved its armor cell onto its code path and put a doubler beside it.
+- **Kills:** a kill leaves a rich corpse, food for whoever eats it first, killer or scavenger.
 - **Founders:** three species start the run, each about seven cells. Climbers have a spare insulation cell, divers a spare armor cell, and hunters are a slow, fat biter. Everything after that is evolved.
 
 |  |  |

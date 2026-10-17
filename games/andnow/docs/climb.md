@@ -25,6 +25,7 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
   - **Down** gets falling dead cells (marine snow), free food pooling in the depths: the pantry for big slow scavenger-hunters.
   - **Up** gets sunlight: plants regrow faster the higher you go, but patches are sparse. That suits fast, light grazers.
   - Dead cells fall in both air and water, so the heights feed the depths.
+- **Kills leave rich corpses.** A body that dies within 500 ticks of being bitten or written into leaves a corpse whose dead cells share the whole body's worth (about a third of its cells survive as dead cells, so each is worth about three ordinary ones). Whoever eats them gets it: the killer, or a scavenger that got there first. Nothing is paid to the killer directly, so a death only ever touches the dead body. Bodies that starve, freeze or die of age leave ordinary dead cells.
 - **Size cap grows with richness,** so bodies can get huge where food is worth 1,000×. The user is hoping for krakens: big, slow, long-lived deep hunters (mask cells cancelling mass, bite doublers, low pace so slow hunger).
 - **Terrain:** generated per tile from the seed and the tile's coordinates, so any tile can be rebuilt on demand.
   - Downward: rock, caves and overhangs, as on the island.

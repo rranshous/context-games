@@ -20,7 +20,7 @@ export function runJob(j: Job): JobResult {
     const specs = j.warriors.map((t) => parseWarrior(t));
     const { world } = runMatch(specs, j.seed, { tickCap: j.ticks });
     // My side is my whole lineage (the founder plus anything it DIVIDEd into).
-    const team = world.warriors.filter((x) => x.lineage === me);
+    const team = world.allWarriors().filter((x) => x.lineage === me);
     const sum = (f: (x: (typeof team)[0]) => number) => team.reduce((a, x) => a + f(x), 0);
     const alive = team.some((x) => x.alive);
     const w = {
@@ -45,7 +45,7 @@ export function runJob(j: Job): JobResult {
     score += 0.5 * ((w.alive ? world.t : w.diedAt ?? 0) / world.t);
     return {
       score, win: r.winner === me, loss: r.winner !== null && r.winner !== me,
-      kill: world.warriors.some((x) => x.gen === 0 && !world.warriors.some((y) => y.lineage === x.lineage && y.alive)), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
+      kill: world.allWarriors().some((x) => x.gen === 0 && !world.allWarriors().some((y) => y.lineage === x.lineage && y.alive)), hits: w.stats.bombHits, poisons: w.stats.poisonWrites,
       collected: w.stats.collected, left: w.leftHomeAt !== undefined,
       morph: w.stats.morph, squeezed: w.stats.squeezed > 0, rooms: w.stats.rooms,
     };

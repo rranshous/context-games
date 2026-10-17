@@ -19,10 +19,10 @@ const fstr = (h: number, s: string) => { for (let i = 0; i < s.length; i++) h = 
 export function stateHash(w: World, h: number): number {
   h = fnv(h, w.t);
   for (let i = 0; i < w.owner.length; i++) { h = fnv(h, w.owner[i]); h = fnv(h, w.code[i]); h = fnv(h, w.resource[i]); }
-  for (const x of w.warriors) {
+  for (const x of w.allWarriors()) {
     for (const v of [x.alive ? 1 : 0, x.ipX, x.ipY, x.ox, x.oy, x.dir, x.cellCount, x.executed, x.lastOk ? 1 : 0, x.diedAt ?? -1,
       x.stats.collected, x.stats.bombHits, x.stats.poisonWrites, x.stats.kills, x.leftHomeAt ?? -1,
-      x.lastHarm?.by ?? -1, x.lastHarm?.t ?? -1]) h = fnv(h, v);
+      x.harmedAt ?? -1]) h = fnv(h, v);
     h = fnum(fnum(fnum(h, x.maxSize), x.speed), x.accum);
     h = fstr(h, x.lastAct + (x.deathReason ?? ''));
     h = fnv(h, x.stack.length);
@@ -48,7 +48,7 @@ export function replay(c: Case, glyphs?: Record<string, number>): Replay {
     w.tick();
     h = stateHash(w, h);
     if (w.t % CHECKPOINT === 0) checkpoints.push(h);
-    if (glyphs) for (const x of w.warriors) if (x.alive) glyphs[x.lastAct] = (glyphs[x.lastAct] ?? 0) + 1;
+    if (glyphs) for (const x of w.allWarriors()) if (x.alive) glyphs[x.lastAct] = (glyphs[x.lastAct] ?? 0) + 1;
   }
   return { name: `${specs.map((s) => s.name).join(' vs ')} @${c.seed}`, ticks: w.t, checkpoints, final: h };
 }

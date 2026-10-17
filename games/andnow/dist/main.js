@@ -557,6 +557,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
 
 // src/sim/world.ts
 var NONE = -1;
+var ZONES = 64;
 var TRAITS_FRESH = Symbol("traitsFresh");
 var K = CODE["K"];
 var INSUL = CODE["I"];
@@ -577,9 +578,9 @@ var CONFIG = {
   writeRange: 2,
   // WRITE reach into foreign cells, from the cell that sees the target
   killPay: 0.25,
-  // a killer takes this fraction of the victim's max size and speed
+  // duels: a kill's corpse holds this fraction of the victim's max size on top of its debris
   creditWindow: 500,
-  // a death within this many ticks of being harmed credits the harmer
+  // a death within this many ticks of being bitten or written into is a kill: its corpse is rich (see die)
   stackMax: 64,
   sizeCap: 64,
   startSize: 40,
@@ -695,6 +696,7 @@ var World = class {
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
     this.narrow = new Uint8Array(this.w * this.h);
+    this.flesh = new Uint8Array(this.w * this.h);
     if (CONFIG.climb) this.initTiles();
     for (let y = 0; y < this.h && !CONFIG.climb; y++) {
       for (let x = 0; x < this.w; x++) {
@@ -709,7 +711,7 @@ var World = class {
     }
     for (const s of specs2) {
       if (CONFIG.island && s.realm === "sea" && CONFIG.sharkArrive > 0) this.arriving.push(s);
-      else this.place(s, this.warriors.length);
+      else this.place(s);
     }
     if (CONFIG.island || CONFIG.climb) this.settle();
   }
@@ -724,7 +726,12 @@ var World = class {
   // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
   narrow;
-  warriors = [];
+  /** Dead cells: what each is worth, in quarters of an ordinary dead cell (0: ordinary). A kill's corpse is rich, see die. */
+  flesh;
+  /** Every body ever, by id (the dead share one record per lineage, see kill): zoneBodies[zone][n]. */
+  zoneBodies = Array.from({ length: ZONES }, () => []);
+  zoneNext = new Array(ZONES).fill(1);
+  // each zone's next n (0 is a founder's)
   /** The living warriors (a long dish has far more dead than alive). Rebuilt lazily after deaths. */
   livingList = [];
   livingDirty = false;
@@ -867,6 +874,7 @@ var World = class {
     this.resource = grown(this.resource, 0);
     this.ripe = grown(this.ripe, 1);
     this.narrow = grown(this.narrow, 0);
+    this.flesh = grown(this.flesh, 0);
     b.terrain = terrain;
     b.step = step;
     b.h = h;
@@ -881,7 +889,7 @@ var World = class {
       };
       for (const s of b.spawns) s.y += D;
       for (const r of b.starts) shift(r);
-      for (const wr of new Set(this.warriors)) {
+      for (const wr of new Set(this.allWarriors())) {
         wr.ipY += D;
         wr.oy += D;
         shift(wr.home);
@@ -946,13 +954,15 @@ var World = class {
   arriving = [];
   /** Bumped whenever the terrain changes (the island's channel opening), so a viewer can redraw scenery. */
   terrainVersion = 0;
-  place(spec, id, at) {
+  place(spec, at) {
+    const nth = this.bornIn.size;
+    if (nth >= ZONES) throw new Error(`at most ${ZONES} founders`);
     if (spec.cells.length > CONFIG.startCells) {
       throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
     const realm = this.board.startRealm ? spec.realm === "sea" ? 1 : 0 : 0;
-    const room = CONFIG.climb ? this.board.starts[spec.realm === "deep" ? 1 : 0] : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
-    const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
+    const room = CONFIG.climb ? this.board.starts[spec.realm === "deep" ? 1 : 0] : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[nth % this.board.starts.length];
+    const before = this.board.startRealm ? this.livingList.filter((w) => w.realm === realm && w.gen === 0).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
     let ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
     let oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
@@ -967,11 +977,13 @@ var World = class {
         }
       }
     }
+    const id = nth;
     const wr = {
       id,
       lineage: id,
       gen: 0,
       realm,
+      zone: this.zoneOf(ox + spec.ip.x),
       born: 0,
       name: spec.name,
       alive: true,
@@ -1004,9 +1016,42 @@ var World = class {
       this.resource[i] = 0;
       wr.cellCount++;
     }
-    this.warriors.push(wr);
-    this.livingList.push(wr);
+    this.enroll(wr);
     this.bornIn.set(id, 1);
+    return wr;
+  }
+  /** A body by id. */
+  /** A body by id (undefined, as an array would give, for an id no body has). */
+  warrior(id) {
+    return this.zoneBodies[id % ZONES]?.[Math.floor(id / ZONES)];
+  }
+  /** How many bodies have ever lived. */
+  everLived() {
+    let n = this.bornIn.size;
+    for (const k of this.zoneNext) n += k - 1;
+    return n;
+  }
+  /** Every body ever, in id order (the dead as their lineage's shared record). Slow on a long run. */
+  allWarriors() {
+    const out = [], zs = this.zoneBodies, most = Math.max(...this.zoneNext);
+    for (let n = 0; n < most; n++) for (const z of zs) {
+      const wr = z[n];
+      if (wr) out.push(wr);
+    }
+    return out;
+  }
+  /** The band of columns x is in. */
+  zoneOf(x) {
+    return Math.min(ZONES - 1, Math.max(0, Math.floor(x * ZONES / this.w)));
+  }
+  /** The id of a zone's next birth (taken). */
+  nextId(zone) {
+    return this.zoneNext[zone]++ * ZONES + zone;
+  }
+  /** A new body joins: under its id, and at the end of the living. */
+  enroll(wr) {
+    this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = wr;
+    this.livingList.push(wr);
   }
   /** Living warriors, in id order. */
   living() {
@@ -1070,6 +1115,7 @@ var World = class {
       this.cellSets.get(o).delete(i);
       this.sortedCells.delete(o);
       this.changed(o);
+      if (o === DEBRIS) this.flesh[i] = 0;
     }
     this.owner[i] = v;
     if (v !== NONE) {
@@ -1150,24 +1196,30 @@ var World = class {
     }
     return mine.filter((c) => !seen.has(c));
   }
+  /** A cell of a body turns to a dead cell, or (island, climb) maybe dissolves. True if it's left as a dead cell. */
   toDebris(i) {
     const o = this.owner[i];
-    if (o >= 0) this.warriors[o].cellCount--;
-    if ((CONFIG.island || CONFIG.climb) && (CONFIG.island && o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) {
+    if (o >= 0) this.warrior(o).cellCount--;
+    if ((CONFIG.island || CONFIG.climb) && (CONFIG.island && o >= 0 && this.warrior(o).realm === 1 || this.rng() >= CONFIG.corpse)) {
       this.setOwner(i, NONE);
       this.code[i] = 0;
-      return;
+      return false;
     }
     this.setOwner(i, DEBRIS);
+    return true;
+  }
+  /** What eating the dead cell at i is worth, as a multiple of an ordinary one. */
+  worth(i) {
+    const f = this.flesh[i];
+    return f ? f / 4 : 1;
   }
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = /* @__PURE__ */ new Map();
   tombstones = /* @__PURE__ */ new Map();
-  /** The next child's name in a lineage: the founder's name and its birth number. */
-  childName(lineage) {
-    const born = this.bornIn.get(lineage) ?? 1;
-    this.bornIn.set(lineage, born + 1);
-    return `${this.warriors[lineage].name}\xB7${born}`;
+  /** A new child's name: its founder's name and its id. (Counts it in its lineage's births.) */
+  childName(lineage, id) {
+    this.bornIn.set(lineage, (this.bornIn.get(lineage) ?? 1) + 1);
+    return `${this.warrior(lineage).name}\xB7${id}`;
   }
   /** Descendants a founder has had (alive or dead). */
   bornCount(lineage) {
@@ -1183,42 +1235,60 @@ var World = class {
     if (CONFIG.endless && wr.gen > 0) {
       let tomb = this.tombstones.get(wr.lineage);
       if (!tomb) {
-        tomb = { ...wr, name: `${this.warriors[wr.lineage].name} (dead)`, deathReason: "dead", stack: [], roomsSeen: /* @__PURE__ */ new Set(), traits: void 0, lastHarm: void 0, cellCount: 0 };
+        const f = this.warrior(wr.lineage), s = f.spec;
+        tomb = {
+          id: f.id,
+          lineage: f.id,
+          gen: 1,
+          realm: f.realm,
+          zone: f.zone,
+          born: 0,
+          name: `${f.name} (dead)`,
+          alive: false,
+          deathReason: "dead",
+          ipX: 0,
+          ipY: 0,
+          ox: 0,
+          oy: 0,
+          dir: s.dir,
+          stack: [],
+          maxSize: 0,
+          speed: 0,
+          accum: 0,
+          lastOk: true,
+          lastAct: "",
+          cellCount: 0,
+          executed: 0,
+          stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
+          home: f.home,
+          roomsSeen: /* @__PURE__ */ new Set(),
+          spec: s
+        };
         this.tombstones.set(wr.lineage, tomb);
       }
-      this.warriors[wr.id] = tomb;
+      this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = tomb;
     }
   }
+  /**
+   * A death. Its cells are left as dead cells (island, climb: some of them). A kill (a death
+   * within creditWindow ticks of being bitten or written into) leaves a rich corpse: its dead
+   * cells share the whole body's worth (duels: a cut of its max size on top), for whoever eats
+   * them, the killer or not. Nothing is paid to anyone: a death touches only the dead.
+   */
   die(wr, reason) {
     wr.alive = false;
     this.livingDirty = true;
     wr.deathReason = reason;
     wr.diedAt = this.t;
-    const h0 = wr.lastHarm;
-    const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : void 0;
-    const eatsWhole = CONFIG.island ? k0?.realm === 1 && wr.realm === 0 : CONFIG.climb && !!k0?.traits?.meat;
-    if (eatsWhole && k0 && k0.alive) {
-      const cells = this.cellsOf(wr.id).slice();
-      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1) * this.dietShare(k0, "meat") * this.richness(this.idx(wr.ipX, wr.ipY)));
-      k0.stats.kills++;
-      for (const c of cells) {
-        this.setOwner(c, NONE);
-        this.code[c] = 0;
-      }
-      wr.cellCount = 0;
-      this.log("death", `${wr.name} died: ${reason}; ${k0.name} ate it (max ${Math.floor(k0.maxSize)})`, wr.id);
-      return;
+    const cells = this.cellsOf(wr.id).slice(), kept = [];
+    for (const c of cells) if (this.toDebris(c)) kept.push(c);
+    const kill = wr.harmedAt !== void 0 && this.t - wr.harmedAt <= CONFIG.creditWindow;
+    if (kill && kept.length) {
+      const m = CONFIG.island || CONFIG.climb ? (cells.length + 1) / kept.length : 1 + CONFIG.killPay * wr.maxSize / (CONFIG.debrisPickup * kept.length);
+      const q = Math.min(255, Math.round(4 * m));
+      for (const c of kept) this.flesh[c] = q;
     }
-    for (const c of this.cellsOf(wr.id)) this.toDebris(c);
-    this.log("death", `${wr.name} died: ${reason}`, wr.id);
-    const h = wr.lastHarm;
-    const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : void 0;
-    if (killer && killer.alive && killer !== wr) {
-      if (killer.lineage !== wr.lineage) killer.stats.kills++;
-      killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
-      killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
-      this.log("kill", `${killer.name} takes a cut of ${wr.name} (max ${Math.floor(killer.maxSize)}, speed ${killer.speed.toFixed(2)})`, killer.id);
-    }
+    this.log("death", `${wr.name} died: ${reason}${kill && kept.length ? ", a rich corpse" : ""}`, wr.id);
   }
   /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
   /** Destroy a cell outright: a bomb (`by`), or the plate's toxin (no `by`). */
@@ -1227,10 +1297,11 @@ var World = class {
     this.setOwner(i, NONE);
     this.code[i] = 0;
     if (o < 0) return;
-    const victim = this.warriors[o];
+    const victim = this.warrior(o);
     victim.cellCount--;
-    if (by) victim.lastHarm = { by: by.id, t: this.t };
+    if (by) victim.harmedAt = this.t;
     if (i === this.idx(victim.ipX, victim.ipY)) {
+      if (by && by.lineage !== victim.lineage) by.stats.kills++;
       this.kill(victim, by ? `core bombed by ${by.name}` : cause);
       return;
     }
@@ -1358,7 +1429,7 @@ var World = class {
     }
     if (CONFIG.climb && cells) {
       let tr = wr.traits;
-      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.warriors.length + 1024);
+      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.everLived() * 2 + 1024);
       if (!tr || wr.id >= fresh.length || !fresh[wr.id]) {
         tr = wr.traits = this.traitsOf(wr);
         if (wr.id >= fresh.length) {
@@ -1398,13 +1469,14 @@ var World = class {
     if (!wr.alive) return;
     if (wr.cellCount <= 0) this.kill(wr, "no cells left");
     else if (wr.diesAt !== void 0 && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, "old age");
+    else wr.zone = this.zoneOf(wr.ipX);
   }
   /**
    * Island survival: a settled archipelago. Each islander founder gets CONFIG.seals copies
    * of itself (its descendants, generation 1) scattered through the calm water.
    */
   settle() {
-    for (const f of this.warriors.filter((w) => w.realm === 0 && w.gen === 0)) {
+    for (const f of this.livingList.filter((w) => w.realm === 0 && w.gen === 0)) {
       const S = this.board.surface ?? 0, calm = this.board.calmLine ?? S;
       const room = this.board.starts[f.spec.realm === "deep" ? 1 : 0];
       for (let n = 0, tries = 0; n < CONFIG.seals && tries < CONFIG.seals * 50; tries++) {
@@ -1412,15 +1484,14 @@ var World = class {
         const ox = CONFIG.climb ? room.x + Math.floor(this.rng() * Math.max(1, room.w - f.spec.width)) : x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width));
         const oy = CONFIG.climb ? room.y + Math.floor(this.rng() * Math.max(1, room.h - f.spec.height)) : S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
         if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
-        const id = this.warriors.length;
-        const born = this.bornIn.get(f.lineage) ?? 1;
-        this.bornIn.set(f.lineage, born + 1);
+        const zone = this.zoneOf(ox + f.spec.ip.x), id = this.nextId(zone);
         const wr = {
           ...f,
           id,
+          zone,
           gen: 1,
           parent: f.id,
-          name: `${f.name}\xB7${born}`,
+          name: this.childName(f.lineage, id),
           ipX: ox + f.spec.ip.x,
           ipY: oy + f.spec.ip.y,
           ox: ox + f.spec.ip.x,
@@ -1432,8 +1503,7 @@ var World = class {
           stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }
         };
         if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(0) * (0.5 + this.rng()));
-        this.warriors.push(wr);
-        this.livingList.push(wr);
+        this.enroll(wr);
         for (const c of f.spec.cells) {
           const i = this.idx(ox + c.x, oy + c.y);
           this.setOwner(i, id);
@@ -1523,11 +1593,11 @@ var World = class {
         }
       }
       if (!at) continue;
-      this.place(spec, this.warriors.length, at);
-      this.warriors[this.warriors.length - 1].born = this.t;
-      if (CONFIG.lifespan > 0) this.warriors[this.warriors.length - 1].diesAt = this.t + Math.floor(this.lifeOf(1) * (0.5 + this.rng()));
+      const wr = this.place(spec, at);
+      wr.born = this.t;
+      if (CONFIG.lifespan > 0) wr.diesAt = this.t + Math.floor(this.lifeOf(1) * (0.5 + this.rng()));
       this.arriving.splice(k--, 1);
-      this.log("arrive", `${spec.name} arrives`, this.warriors.length - 1);
+      this.log("arrive", `${spec.name} arrives`, wr.id);
     }
   }
   /** Island survival, once a tick: dead cells sink (and rot where they can't). */
@@ -1546,6 +1616,7 @@ var World = class {
       if (this.isFloor(x, (c / this.w | 0) + 1) && this.owner[below] === NONE) {
         this.setOwner(below, DEBRIS);
         this.code[below] = this.code[c];
+        this.flesh[below] = this.flesh[c];
         this.setOwner(c, NONE);
         this.code[c] = 0;
         continue;
@@ -1607,15 +1678,15 @@ var World = class {
       if (team === -1) team = w.lineage;
       else if (w.lineage !== team) return false;
     }
-    return team !== -1 && this.warriors.some((w) => w.lineage !== team);
+    return team !== -1 && this.allWarriors().some((w) => w.lineage !== team);
   }
   checkOver() {
     const living = this.living().length;
     if (CONFIG.endless && this.t < CONFIG.tickCap) return;
     if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return;
-    const founders = this.warriors.filter((w) => w.gen === 0);
+    const founders = [...this.bornIn.keys()];
     const teams = /* @__PURE__ */ new Map();
-    for (const w of this.warriors) if (w.alive) teams.set(w.lineage, [...teams.get(w.lineage) ?? [], w]);
+    for (const w of this.living()) teams.set(w.lineage, [...teams.get(w.lineage) ?? [], w]);
     if (founders.length > 1 && teams.size <= 1) {
       this.result = teams.size ? { over: true, winner: [...teams.keys()][0], reason: "last standing" } : { over: true, winner: null, reason: "mutual destruction" };
     } else if (founders.length === 1 && teams.size === 0) {
@@ -1637,7 +1708,7 @@ var World = class {
       const by = !next || Math.abs(top.k[0] - next.k[0]) >= 0.01 ? `biggest body (${top.k[0]} cells)` : Math.abs(top.k[1] - next.k[1]) >= 0.01 ? `bodies tied, larger max size (${top.k[1].toFixed(1)})` : `bodies and max size tied, faster (${top.k[2].toFixed(2)})`;
       this.result = tied ? { over: true, winner: null, reason: "draw at tick cap" } : { over: true, winner: top.team, reason: `${by} at tick cap` };
     }
-    if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
+    if (this.result.over) this.log("over", this.result.winner === null ? `Match over: ${this.result.reason}` : `${this.warrior(this.result.winner).name} wins: ${this.result.reason}`);
   }
   // ---------- interpreter ----------
   /** The point instruction offsets are measured from. */
@@ -1985,7 +2056,7 @@ var World = class {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue;
+        if (t === T_ENEMY && this.warrior(o).lineage === wr.lineage) continue;
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i;
@@ -2028,9 +2099,10 @@ var World = class {
       for (const c of mine) {
         const t = c + DY[d] * this.w + DX[d];
         if (this.owner[t] !== DEBRIS) continue;
+        const feed = CONFIG.seaFeed * this.worth(t);
         this.setOwner(t, NONE);
         this.code[t] = 0;
-        wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + CONFIG.seaFeed);
+        wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
         wr.stats.collected++;
       }
     }
@@ -2204,7 +2276,7 @@ var World = class {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log("collect", `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          const feed = CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, "meat") * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup;
+          const feed = this.worth(i) * (CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, "meat") * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup);
           wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
           this.setOwner(i, NONE);
           this.code[i] = 0;
@@ -2236,8 +2308,8 @@ var World = class {
         if (best >= 0 && d >= best) continue;
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
-        if (CONFIG.island && this.warriors[o].realm === wr.realm) continue;
-        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue;
+        if (CONFIG.island && this.warrior(o).realm === wr.realm) continue;
+        if (CONFIG.climb && this.warrior(o).lineage === wr.lineage) continue;
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d;
         bx = x;
@@ -2253,18 +2325,18 @@ var World = class {
   opBombAt(wr, x, y) {
     if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull * CONFIG.sharkCap) return false;
     const o = this.ownerAt(x, y);
-    if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warriors[o].realm === 1) return false;
+    if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warrior(o).realm === 1) return false;
     if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) return false;
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, this.reach(wr)) < 0) return false;
-    const victim = o >= 0 ? this.warriors[o].name : "debris";
+    const victim = o >= 0 ? this.warrior(o).name : "debris";
     if (o >= 0) this.attacks.bombs++;
-    if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++;
+    if (o >= 0 && this.warrior(o).lineage !== wr.lineage) wr.stats.bombHits++;
     const ti = this.idx(x, y);
     if ((CONFIG.island || CONFIG.climb) && o >= 0 && this.code[ti] === K) {
-      const v = this.warriors[o];
+      const v = this.warrior(o);
       v.dents = (v.dents ?? 0) + (CONFIG.climb ? wr.traits?.bite ?? 1 : 1);
-      v.lastHarm = { by: wr.id, t: this.t };
+      v.harmedAt = this.t;
       if (v.dents < CONFIG.armorBites) {
         this.log("bomb", `${wr.name}'s bite glanced off ${victim}'s armor`, wr.id);
         return true;
@@ -2302,15 +2374,16 @@ var World = class {
     for (let k = 0; k < mine.length; k++) {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
-    const id = this.warriors.length;
+    const id = this.nextId(wr.zone);
     const child = {
       id,
       lineage: wr.lineage,
       gen: wr.gen + 1,
       realm: wr.realm,
+      zone: wr.zone,
       parent: wr.id,
       born: this.t,
-      name: this.childName(wr.lineage),
+      name: this.childName(wr.lineage, id),
       alive: true,
       ipX: wr.ipX + ox,
       ipY: wr.ipY + oy,
@@ -2335,8 +2408,7 @@ var World = class {
     this.board.rooms.forEach((r, k) => {
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
     });
-    this.warriors.push(child);
-    this.livingList.push(child);
+    this.enroll(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
       const i = this.idx(xs[k] + ox, ys[k] + oy);
@@ -2391,9 +2463,9 @@ var World = class {
     this.changed(o);
     if (o >= 0 && o !== wr.id) {
       if (c === CODE["@"]) this.attacks.poisons++;
-      if (c === CODE["@"] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
-      if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
-      this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
+      if (c === CODE["@"] && this.warrior(o).lineage !== wr.lineage) wr.stats.poisonWrites++;
+      if (o >= 0) this.warrior(o).harmedAt = this.t;
+      this.log("write", `${wr.name} wrote '${GLYPHS[c]}' into ${this.warrior(o).name}`, wr.id);
     }
     return true;
   }
@@ -2403,7 +2475,7 @@ var World = class {
 var LETTERS = "ABCDEFGH";
 function asciiMap(world2, opts = {}) {
   const rows = [];
-  const ips = new Set(world2.warriors.filter((w) => w.alive).map((w) => world2.idx(w.ipX, w.ipY)));
+  const ips = new Set(world2.allWarriors().filter((w) => w.alive).map((w) => world2.idx(w.ipX, w.ipY)));
   for (let y = 0; y < world2.h; y++) {
     let row = "";
     for (let x = 0; x < world2.w; x++) {
@@ -2413,7 +2485,7 @@ function asciiMap(world2, opts = {}) {
       else if (o >= 0) {
         if (opts.glyphs) row += glyphOf(world2.code[i]);
         else {
-          const L = LETTERS[world2.warriors[o].lineage] ?? "?";
+          const L = LETTERS[world2.warrior(o).lineage] ?? "?";
           row += ips.has(i) ? L.toLowerCase() : L;
         }
       } else if (o === DEBRIS) row += "%";
@@ -2430,7 +2502,7 @@ function asciiBody(world2, id) {
   if (!cells.length) return "(no cells)";
   const xs = cells.map((c) => c % world2.w), ys = cells.map((c) => c / world2.w | 0);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const wr = world2.warriors[id];
+  const wr = world2.warrior(id);
   const rows = [`ip at ${wr.ipX - x0},${wr.ipY - y0} dir ${"ESWN"[wr.dir]}`];
   for (let y = y0; y <= y1; y++) {
     let row = "";
@@ -2443,7 +2515,7 @@ function asciiBody(world2, id) {
   return rows.join("\n");
 }
 function statusLine(world2) {
-  return world2.warriors.filter((w) => w.gen === 0 || w.alive).map(
+  return world2.allWarriors().filter((w) => w.gen === 0 || w.alive).map(
     (w) => `${LETTERS[w.lineage]}${w.gen ? `(g${w.gen})` : ""}:${w.name} ${w.alive ? `cells=${w.cellCount}/${Math.floor(w.maxSize)} spd=${w.speed.toFixed(2)}` : `dead@${w.diedAt} (${w.deathReason})`}`
   ).join(" | ");
 }
@@ -2453,9 +2525,9 @@ function summarize(world2) {
   return {
     seed: world2.seed,
     ticks: world2.t,
-    winner: world2.result.winner === null ? null : world2.warriors[world2.result.winner].name,
+    winner: world2.result.winner === null ? null : world2.warrior(world2.result.winner).name,
     reason: world2.result.reason,
-    warriors: world2.warriors.map((w) => ({
+    warriors: world2.allWarriors().map((w) => ({
       name: w.name,
       alive: w.alive,
       cells: w.cellCount,
@@ -2627,7 +2699,7 @@ function armorOf(world2, id) {
   return n;
 }
 function bandOf(world2, id) {
-  const w = world2.warriors[id];
+  const w = world2.warrior(id);
   return world2.board.toxin?.[world2.idx(w.ipX, w.ipY)] ?? 0;
 }
 function genomeOf(world2, id, sep = "/") {
@@ -2704,7 +2776,7 @@ function loadWorld(bytes) {
   }
   world2.yShift ??= 0;
   const w = world2;
-  for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world2.warriors[id]?.alive)) w.cellSets.delete(id);
+  for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world2.warrior(id)?.alive)) w.cellSets.delete(id);
   for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
   return world2;
 }
@@ -2756,7 +2828,7 @@ var MIN_ZOOM = 0.05;
 var MAX_ZOOM = 24;
 var GLYPH_ZOOM = 10;
 function bodyColor(world2, id) {
-  const t = world2.warriors[id].traits;
+  const t = world2.warrior(id).traits;
   if (!t) return [230, 230, 230];
   if (t.meat && !t.plants) return mix([200, 40, 60], [255, 120, 160], Math.min(1, (t.bite - 1) / 3));
   if (t.meat) return [230, 90, 200];
@@ -2896,7 +2968,7 @@ var ClimbView = class {
   /** Keep a followed body in view; let go once it's dead. */
   track() {
     if (this.follow === null) return;
-    const wr = this.world().warriors[this.follow];
+    const wr = this.world().warrior(this.follow);
     if (!wr?.alive) {
       this.follow = null;
       return;
@@ -2940,7 +3012,7 @@ var ClimbView = class {
     for (let d = 0; d <= 1 && id === null; d++) for (let dy = -d; dy <= d && id === null; dy++) for (let dx = -d; dx <= d; dx++) {
       if (x + dx < 0 || y + dy < 0 || x + dx >= world2.w || y + dy >= world2.h) continue;
       const o = world2.owner[world2.idx(x + dx, y + dy)];
-      if (o >= 0 && world2.warriors[o]?.alive) {
+      if (o >= 0 && world2.warrior(o)?.alive) {
         id = o;
         break;
       }
@@ -2953,7 +3025,7 @@ var ClimbView = class {
    * that don't touch another of its cells), so a body pressed against another stands apart.
    */
   renderSelected() {
-    if (this.selected !== null && !this.world().warriors[this.selected]?.alive) this.selected = null;
+    if (this.selected !== null && !this.world().warrior(this.selected)?.alive) this.selected = null;
     if (this.selected === null) return;
     const world2 = this.world(), id = this.selected, cells = world2.cellsOf(id), z = this.cam.zoom, W = world2.w;
     if (!cells.length) return;
@@ -3135,7 +3207,7 @@ var ClimbView = class {
             cc = bodyColor(world2, o);
             colors.set(o, cc);
           }
-          const wo = world2.warriors[o];
+          const wo = world2.warrior(o);
           col = c === wo.ipY * world2.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
         } else {
           col = this.sky(st[c], y);
@@ -3280,7 +3352,7 @@ var ClimbView = class {
     const top = [...counts.entries()].sort((a, c) => c[1].n - a[1].n).slice(0, 6);
     const css = (c) => `rgb(${c.join(",")})`;
     return `<div class="name">The Climb</div>
-      <div class="stats">${living.length} alive \xB7 ${world2.warriors.length} ever lived \xB7 pace ${living.length ? (paceSum / living.length).toFixed(2) : "-"} avg</div>
+      <div class="stats">${living.length} alive \xB7 ${world2.everLived()} ever lived \xB7 pace ${living.length ? (paceSum / living.length).toFixed(2) : "-"} avg</div>
       <div class="stats">upkeep in ${tiles.active} of ${tiles.total} tiles (only near life)</div>
       <div class="name" style="margin-top:6px">by step</div>${bars}
       <div class="stats" style="margin-top:6px"><span style="color:#ffb46e">armor</span> ${hist(arm)}</div>
@@ -3418,7 +3490,7 @@ function shareText() {
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(", ");
   const end = world.result.over ? ` \u2014 over: ${world.result.reason}` : "";
-  const picked = pick !== null ? `; picked: ${world.warriors[pick].name} (${world.warriors[pick].cellCount} cells)` : "";
+  const picked = pick !== null ? `; picked: ${world.warrior(pick).name} (${world.warrior(pick).cellCount} cells)` : "";
   if (CLIMB) return `andnow climb ${url}
 tick ${world.t}; ${living.length} alive${picked}`;
   return `andnow match ${url}
@@ -3557,7 +3629,7 @@ function render() {
       ctx.fillStyle = tox ? TOXIN_TINT[Math.min(TOXIN_TINT.length - 1, tox[i])] : "#0e1117";
       ctx.fillRect(px, py, CELL, CELL);
       if (o >= 0) {
-        const wo = world.warriors[o];
+        const wo = world.warrior(o);
         ctx.fillStyle = tox ? ARMOR_COLORS[Math.min(ARMOR_COLORS.length - 1, armor.get(o) ?? 0)] : color(wo.lineage, 28 + Math.min(wo.gen, 5) * 4);
         ctx.fillRect(px + 0.5, py + 0.5, CELL - 1, CELL - 1);
         if (glyphs) {
@@ -3649,7 +3721,7 @@ function renderIsland() {
   for (let i = 0; i < w * h; i++) {
     const o = world.owner[i];
     if (o >= 0) {
-      const wo = world.warriors[o], a = Math.min(5, armor.get(o) ?? 0);
+      const wo = world.warrior(o), a = Math.min(5, armor.get(o) ?? 0);
       let c = (wo.realm ? SHARK_COLORS : SEAL_COLORS)[a];
       if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix2(c, [0, 0, 0], 0.45);
       put(i, c);
@@ -3680,7 +3752,7 @@ function renderSide() {
     rateAt = now;
   }
   tickEl.textContent = `tick ${world.t} \xB7 ${tps < 10 ? tps.toFixed(1) : Math.round(tps)} ticks/s`;
-  cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
+  cardsEl.innerHTML = world.allWarriors().filter((wr) => wr.gen === 0).map((wr) => {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : "";
     const kin = world.living().filter((k) => k.lineage === wr.id && k.gen > 0), born = world.bornCount(wr.id);
     const kinLine = born ? `<div class="stats">lineage: ${kin.length} of ${born} descendants alive${kin.length ? `, up to generation ${Math.max(...kin.map((k) => k.gen))}` : ""}</div>` : "";
@@ -3693,11 +3765,11 @@ function renderSide() {
   if (CLIMB && climbView) dishEl.innerHTML = climbView.panel(esc);
   else if (ISLAND) renderIslandPanel();
   else if (PETRI) renderDish();
-  logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== "shed").map((e) => `<div style="color:${e.who !== void 0 ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : "#e6edf3"}">t${e.t} ${esc(e.text)}</div>`).join("");
+  logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== "shed").map((e) => `<div style="color:${e.who !== void 0 ? color(world.warrior(e.who)?.lineage ?? e.who, 65) : "#e6edf3"}">t${e.t} ${esc(e.text)}</div>`).join("");
   logEl.scrollTop = logEl.scrollHeight;
   if (world.result.over) {
     banner.style.display = "block";
-    banner.textContent = world.result.winner === null ? `No winner: ${world.result.reason}` : `${world.warriors[world.result.winner].name} wins (${world.result.reason})`;
+    banner.textContent = world.result.winner === null ? `No winner: ${world.result.reason}` : `${world.warrior(world.result.winner).name} wins (${world.result.reason})`;
   } else banner.style.display = "none";
 }
 function genomeOf2(id) {
@@ -3731,11 +3803,11 @@ function renderDish() {
     c.n++;
     counts.set(g, c);
   }
-  const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf2(w.id) || w.spec.source.split("---")[1]?.trim().split("\n").join(" / "));
+  const founders = world.allWarriors().filter((w) => w.gen === 0).map((w) => genomeOf2(w.id) || w.spec.source.split("---")[1]?.trim().split("\n").join(" / "));
   const died = [...world.deaths.values()].reduce((a, n) => a + n, 0);
   const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   dishEl.innerHTML = `<div class="name">Petri dish</div>
-    <div class="stats">${living.length} alive \xB7 ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born \xB7 ${died} died \xB7 deepest generation ${Math.max(0, ...living.map((w) => w.gen))} \xB7 ${counts.size} genomes alive</div>
+    <div class="stats">${living.length} alive \xB7 ${world.everLived() - world.allWarriors().filter((w) => w.gen === 0).length} born \xB7 ${died} died \xB7 deepest generation ${Math.max(0, ...living.map((w) => w.gen))} \xB7 ${counts.size} genomes alive</div>
     <div class="stats">by toxin level (0 = clean middle): ${bands.map((n, b) => `<span style="background:${TOXIN_TINT[b]};padding:0 4px">${b}: ${n}</span>`).join(" ")}</div>
     <div class="stats">by armor (K cells): ${[...armors.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `<span style="color:${ARMOR_COLORS[Math.min(ARMOR_COLORS.length - 1, a)]}">${a}K: ${n}</span>`).join(" \xB7 ")}</div>
     ${top.map(([g, c]) => `<div class="genome"><span style="color:${color(c.lineage, 65)}">${String(c.n).padStart(3)} \xD7</span> <code>${esc(g)}</code>${founders.includes(g) ? ' <span class="stats">(founder)</span>' : ""}</div>`).join("")}`;
@@ -3766,7 +3838,7 @@ function renderIslandPanel() {
     deaths.set(`${realm2 === "1" ? "shark" : "seal"} ${why.replace("core ", "")}`, n);
   }
   dishEl.innerHTML = `<div class="name">Island survival</div>
-    <div class="stats">${world.warriors.length} ever lived</div>
+    <div class="stats">${world.everLived()} ever lived</div>
     ${part(0, "Seals (islanders, eat kelp)", SEAL_COLORS)}
     ${part(1, "Sharks (eat the dead)", SHARK_COLORS)}
     <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${esc(k)} ${n}`).join(" \xB7 ")}</div>`;
@@ -3788,16 +3860,16 @@ canvas2.onmousemove = (ev) => {
   let text = "";
   if (o >= 0 || o === DEBRIS) {
     const g = glyphOf(world.code[i]);
-    text = `${o >= 0 ? world.warriors[o].name : "debris"}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= "0" && g <= "9" ? `push ${g}` : "")}`;
+    text = `${o >= 0 ? world.warrior(o).name : "debris"}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= "0" && g <= "9" ? `push ${g}` : "")}`;
   } else if (world.resource[i]) text = ISLAND ? world.resource[i] === 1 ? "kelp (seals eat it)" : "plankton (speed)" : world.resource[i] === 1 ? "size pickup" : "speed pickup";
-  if (o >= 0 && ISLAND) text = `${world.warriors[o].realm ? "shark" : "seal"} ${text}`;
+  if (o >= 0 && ISLAND) text = `${world.warrior(o).realm ? "shark" : "seal"} ${text}`;
   if (CLIMB) {
     const n = world.board.step?.[i] ?? 0;
     if (world.resource[i]) text = `plant \xD7${(world.richness(i) * world.ripe[i]).toFixed(0)} food (ripeness ${world.ripe[i].toFixed(1)})`;
-    const t = o >= 0 ? world.warriors[o].traits : void 0;
+    const t = o >= 0 ? world.warrior(o).traits : void 0;
     if (t) text += `
 armor ${t.armor} \xB7 insulation ${t.insulation} \xB7 bite ${t.bite} \xB7 pace ${t.pace.toFixed(2)} \xB7 eats ${t.plants && t.meat ? "both" : t.meat ? "meat" : t.plants ? "plants" : "nothing"}
-max size ${Math.floor(world.warriors[o].maxSize)} \xB7 ${genomeOfCell(o)}`;
+max size ${Math.floor(world.warrior(o).maxSize)} \xB7 ${genomeOfCell(o)}`;
     text = `${text ? text + "\n" : ""}step ${n > 0 ? "+" + n : n}${world.board.terrain[i] ? " \xB7 rock" : ""}`;
   }
   if (!text) {
@@ -3965,10 +4037,10 @@ function renderFinder() {
   for (const m of bake?.marks ?? []) if (m.biggest && (!ever || m.biggest.cells > ever.biggest.cells)) ever = m;
   const following = climbView?.follow ?? null;
   const html = [
-    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} \xB7 ${following === big.id ? 'following \xB7 <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : "",
+    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warrior(big.id).name)} \xB7 ${following === big.id ? 'following \xB7 <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : "",
     ever ? `<div>biggest in this run: ${ever.biggest.cells} cells at tick ${ever.t} \xB7 <a data-ever="${ever.t}">go see it</a></div>` : "",
-    climbView?.selected != null ? `<div>picked: ${world.warriors[climbView.selected].cellCount} cells, ${esc(world.warriors[climbView.selected].name)} \xB7 ${climbView.selected === following ? 'following \xB7 <a data-unfollow="1">stop</a> \xB7 ' : `<a data-follow="${climbView.selected}">follow it</a> \xB7 `}<a data-copy="1">copy link</a> \xB7 <a data-unpick="1">let go</a></div>` : "",
-    following !== null && following !== big?.id && following !== climbView?.selected ? `<div>following ${esc(world.warriors[following]?.name ?? "")} \xB7 <a data-unfollow="1">stop</a></div>` : ""
+    climbView?.selected != null ? `<div>picked: ${world.warrior(climbView.selected).cellCount} cells, ${esc(world.warrior(climbView.selected).name)} \xB7 ${climbView.selected === following ? 'following \xB7 <a data-unfollow="1">stop</a> \xB7 ' : `<a data-follow="${climbView.selected}">follow it</a> \xB7 `}<a data-copy="1">copy link</a> \xB7 <a data-unpick="1">let go</a></div>` : "",
+    following !== null && following !== big?.id && following !== climbView?.selected ? `<div>following ${esc(world.warrior(following)?.name ?? "")} \xB7 <a data-unfollow="1">stop</a></div>` : ""
   ].join("");
   if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
 }
@@ -4067,7 +4139,7 @@ var explorer = {
     seed: world.seed,
     result: world.result,
     status: statusLine(world),
-    warriors: world.warriors.map((w) => ({
+    warriors: world.allWarriors().map((w) => ({
       id: w.id,
       name: w.name,
       alive: w.alive,
@@ -4109,7 +4181,7 @@ explorer.ready = loadEvolved().then(async () => {
   const t = params.has("t") ? Number(params.get("t")) || 0 : bake ? bake.marks[bake.marks.length - 1].t : 0;
   const pickBody = () => {
     const id = Number(params.get("pick"));
-    if (params.has("pick") && climbView && world.warriors[id]?.alive) climbView.focus(id);
+    if (params.has("pick") && climbView && world.warrior(id)?.alive) climbView.focus(id);
   };
   if (t) await seek(t, pickBody);
   else pickBody();

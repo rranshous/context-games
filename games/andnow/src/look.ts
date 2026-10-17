@@ -100,7 +100,7 @@ for (const T of at) {
   while (world.t < t0 + WATCH && world.living().length) {
     world.tick();
     for (const [id, set] of ran) {
-      const wr = world.warriors[id];
+      const wr = world.warrior(id);
       if (!wr.alive) continue;
       const cells = world.cellsOf(id);
       const x0 = Math.min(...cells.map((c) => c % world.w)), y0 = Math.min(...cells.map((c) => (c / world.w) | 0));
@@ -109,7 +109,7 @@ for (const T of at) {
   }
   const lines = [`t${t0}: ${living.length} alive, ${counts.size} genomes${living.length ? '' : ' (extinct)'}`, ''];
   for (const [g, ids] of top) {
-    const set = ran.get(ids[0])!, alive = world.warriors[ids[0]].alive;
+    const set = ran.get(ids[0])!, alive = world.warrior(ids[0]).alive;
     const [r, gg, b] = hue(g);
     lines.push(`${String(ids.length).padStart(4)} ×  armor ${armorOf(world, ids[0])}  #${[r, gg, b].map((v) => v.toString(16).padStart(2, '0')).join('')}${alive ? '' : '  (watched one died)'}`);
     g.split('/').forEach((row, y) => {

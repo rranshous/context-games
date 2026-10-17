@@ -1987,3 +1987,23 @@ Bench: `climb2-s4` at t281000 (60k living, 2000×11972 cells), 100 ticks, `bench
 
 - **The big one:** finding the IP's next cell walked the board's row (2,000 cells) or column (12,000) to the body's next cell, and wrapped round the whole board at the body's edge. Bodies average 9 cells (7×3), so going through the body's own cell set is far cheaper, and gives the same cell (the nearest ahead, counting round the edge).
 - Phases now: turns ~180 ms, upkeep ~95, the rest ~10.
+
+## 2026-10-17: groundwork for threads later (the sim changes, on purpose)
+
+The parallel engine is gone, but the worlds keep growing, so the rules that made it hard got changed now, while restarting the runs is cheap. Each is a detail, not the core.
+
+- **Ids by zone.** The columns are cut into 64 bands (zones). Each zone numbers its own births: id = n·64 + zone.
+  - A body names its children from its zone, which is where its IP was at its last upkeep, so the zone stays fixed through the turn phase.
+  - So whoever runs a band's turns can number its births alone. The parallel engine needed provisional ids, a renaming pass and renamed cells for this.
+  - Founders keep 0, 1, 2… (each zone's slot 0 is kept for a founder), so the tools that mean "founder 0" still do.
+  - Bodies are stored per zone (`world.warrior(id)`, `everLived()`, `allWarriors()`).
+- **Names from ids.** A child is `Founder·<id>`, not `Founder·<nth birth in the lineage>`, which depended on the global order of births. The lineage birth count stays: it's a sum.
+- **Tombstones from the founder.** The shared record for a lineage's dead is made from the founder, not copied from whichever descendant died first.
+- **Kills leave rich corpses (option C).** Before, a death paid whoever harmed the body in the last 500 ticks: a cut of its max size and speed, or (climb meat eater, island shark) the whole body eaten at once. That wrote into a body that might be far away by then, in any phase, and depended on whether the killer was alive and what it ate at that moment. Now:
+  - a body remembers only when it was last harmed (`harmedAt`);
+  - if it dies within the window, its dead cells share the whole body's worth (`flesh`, in quarters of an ordinary dead cell: about 3× each in the climb, since a third of the cells survive as debris); in duels, a cut of its max size goes on top;
+  - whoever eats them gets it, killer or scavenger; dead cells keep their worth as they sink.
+  - The kill stat now counts only cores bombed by the killer itself (a poisoned body that later dies credits no one).
+  - Considered and set aside: paying killers at the end of each phase (keeps the rule, needs a merge step), and paying at the bite (fully local, but poison would stop paying).
+- **Kept as they are:** turn order, the event log order, crowding by tile, all sums. A parallel engine can merge those in a known order.
+- Golden re-recorded (2,491) and canary regenerated. Old checkpoints don't load (no zones), so the runs start fresh.

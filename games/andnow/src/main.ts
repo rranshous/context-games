@@ -146,7 +146,7 @@ function shareText(): string {
   const living = world.living();
   const alive = PETRI ? `${living.length} warriors` : living.map((w) => `${w.name} ${w.cellCount}c`).join(', ');
   const end = world.result.over ? ` — over: ${world.result.reason}` : '';
-  const picked = pick !== null ? `; picked: ${world.warriors[pick].name} (${world.warriors[pick].cellCount} cells)` : '';
+  const picked = pick !== null ? `; picked: ${world.warrior(pick).name} (${world.warrior(pick).cellCount} cells)` : '';
   if (CLIMB) return `andnow climb ${url}\ntick ${world.t}; ${living.length} alive${picked}`;
   return `andnow match ${url}\ntick ${world.t}; alive: ${alive || 'none'}${end}${matchNames ? '' : ' (warriors loaded from source: link has the seed only)'}`;
 }
@@ -262,7 +262,7 @@ function render() {
         // Colored by lineage; DIVIDE's descendants a little lighter per generation. On the
         // plate, colored by armor instead (blue 0K → green → yellow → orange → red 4K+), so
         // a resistant strain sweeping outward shows as a color wave.
-        const wo = world.warriors[o];
+        const wo = world.warrior(o);
         ctx.fillStyle = tox ? ARMOR_COLORS[Math.min(ARMOR_COLORS.length - 1, armor.get(o) ?? 0)] : color(wo.lineage, 28 + Math.min(wo.gen, 5) * 4);
         ctx.fillRect(px + 0.5, py + 0.5, CELL - 1, CELL - 1);
         if (glyphs) { ctx.fillStyle = color(wo.lineage, 82); ctx.fillText(glyphOf(world.code[i]), px + CELL / 2, py + CELL / 2 + 1); }
@@ -340,7 +340,7 @@ function renderIsland() {
   for (let i = 0; i < w * h; i++) {
     const o = world.owner[i];
     if (o >= 0) {
-      const wo = world.warriors[o], a = Math.min(5, armor.get(o) ?? 0);
+      const wo = world.warrior(o), a = Math.min(5, armor.get(o) ?? 0);
       let c = (wo.realm ? SHARK_COLORS : SEAL_COLORS)[a];
       if (i === world.idx(wo.ipX, wo.ipY) && showIpEl.checked) c = mix(c, [0, 0, 0], 0.45); // the eye
       put(i, c);
@@ -370,7 +370,7 @@ function renderSide() {
     rateTick = world.t; rateAt = now;
   }
   tickEl.textContent = `tick ${world.t} · ${tps < 10 ? tps.toFixed(1) : Math.round(tps)} ticks/s`;
-  cardsEl.innerHTML = world.warriors.filter((wr) => wr.gen === 0).map((wr) => {
+  cardsEl.innerHTML = world.allWarriors().filter((wr) => wr.gen === 0).map((wr) => {
     const g = wr.alive ? glyphOf(world.code[world.idx(wr.ipX, wr.ipY)]) : '';
     const kin = world.living().filter((k) => k.lineage === wr.id && k.gen > 0), born = world.bornCount(wr.id);
     const kinLine = born
@@ -385,13 +385,13 @@ function renderSide() {
   }).join('');
   if (CLIMB && climbView) dishEl.innerHTML = climbView.panel(esc); else if (ISLAND) renderIslandPanel(); else if (PETRI) renderDish();
   logEl.innerHTML = world.events.slice(-40).filter((e) => e.kind !== 'shed').map((e) =>
-    `<div style="color:${e.who !== undefined ? color(world.warriors[e.who]?.lineage ?? e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
+    `<div style="color:${e.who !== undefined ? color(world.warrior(e.who)?.lineage ?? e.who, 65) : '#e6edf3'}">t${e.t} ${esc(e.text)}</div>`).join('');
   logEl.scrollTop = logEl.scrollHeight;
   if (world.result.over) {
     banner.style.display = 'block';
     banner.textContent = world.result.winner === null
       ? `No winner: ${world.result.reason}`
-      : `${world.warriors[world.result.winner].name} wins (${world.result.reason})`;
+      : `${world.warrior(world.result.winner).name} wins (${world.result.reason})`;
   } else banner.style.display = 'none';
 }
 
@@ -425,11 +425,11 @@ function renderDish() {
     c.n++;
     counts.set(g, c);
   }
-  const founders = world.warriors.filter((w) => w.gen === 0).map((w) => genomeOf(w.id) || w.spec.source.split('---')[1]?.trim().split('\n').join(' / '));
+  const founders = world.allWarriors().filter((w) => w.gen === 0).map((w) => genomeOf(w.id) || w.spec.source.split('---')[1]?.trim().split('\n').join(' / '));
   const died = [...world.deaths.values()].reduce((a, n) => a + n, 0);
   const top = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   dishEl.innerHTML = `<div class="name">Petri dish</div>
-    <div class="stats">${living.length} alive · ${world.warriors.length - world.warriors.filter((w) => w.gen === 0).length} born · ${died} died · deepest generation ${Math.max(0, ...living.map((w) => w.gen))} · ${counts.size} genomes alive</div>
+    <div class="stats">${living.length} alive · ${world.everLived() - world.allWarriors().filter((w) => w.gen === 0).length} born · ${died} died · deepest generation ${Math.max(0, ...living.map((w) => w.gen))} · ${counts.size} genomes alive</div>
     <div class="stats">by toxin level (0 = clean middle): ${bands.map((n, b) => `<span style="background:${TOXIN_TINT[b]};padding:0 4px">${b}: ${n}</span>`).join(' ')}</div>
     <div class="stats">by armor (K cells): ${[...armors.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `<span style="color:${ARMOR_COLORS[Math.min(ARMOR_COLORS.length - 1, a)]}">${a}K: ${n}</span>`).join(' · ')}</div>
     ${top.map(([g, c]) => `<div class="genome"><span style="color:${color(c.lineage, 65)}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code>${founders.includes(g) ? ' <span class="stats">(founder)</span>' : ''}</div>`).join('')}`;
@@ -461,7 +461,7 @@ function renderIslandPanel() {
     deaths.set(`${realm === '1' ? 'shark' : 'seal'} ${why.replace('core ', '')}`, n);
   }
   dishEl.innerHTML = `<div class="name">Island survival</div>
-    <div class="stats">${world.warriors.length} ever lived</div>
+    <div class="stats">${world.everLived()} ever lived</div>
     ${part(0, 'Seals (islanders, eat kelp)', SEAL_COLORS)}
     ${part(1, 'Sharks (eat the dead)', SHARK_COLORS)}
     <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>`;
@@ -480,14 +480,14 @@ canvas.onmousemove = (ev) => {
   let text = '';
   if (o >= 0 || o === DEBRIS) {
     const g = glyphOf(world.code[i]);
-    text = `${o >= 0 ? world.warriors[o].name : 'debris'}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= '0' && g <= '9' ? `push ${g}` : '')}`;
+    text = `${o >= 0 ? world.warrior(o).name : 'debris'}  '${g}'  ${GLYPH_DOCS[g] ?? (g >= '0' && g <= '9' ? `push ${g}` : '')}`;
   } else if (world.resource[i]) text = ISLAND ? (world.resource[i] === 1 ? 'kelp (seals eat it)' : 'plankton (speed)') : world.resource[i] === 1 ? 'size pickup' : 'speed pickup';
-  if (o >= 0 && ISLAND) text = `${world.warriors[o].realm ? 'shark' : 'seal'} ${text}`;
+  if (o >= 0 && ISLAND) text = `${world.warrior(o).realm ? 'shark' : 'seal'} ${text}`;
   if (CLIMB) {
     const n = world.board.step?.[i] ?? 0;
     if (world.resource[i]) text = `plant ×${(world.richness(i) * world.ripe[i]).toFixed(0)} food (ripeness ${world.ripe[i].toFixed(1)})`;
-    const t = o >= 0 ? world.warriors[o].traits : undefined;
-    if (t) text += `\narmor ${t.armor} · insulation ${t.insulation} · bite ${t.bite} · pace ${t.pace.toFixed(2)} · eats ${t.plants && t.meat ? 'both' : t.meat ? 'meat' : t.plants ? 'plants' : 'nothing'}\nmax size ${Math.floor(world.warriors[o].maxSize)} · ${genomeOfCell(o)}`;
+    const t = o >= 0 ? world.warrior(o).traits : undefined;
+    if (t) text += `\narmor ${t.armor} · insulation ${t.insulation} · bite ${t.bite} · pace ${t.pace.toFixed(2)} · eats ${t.plants && t.meat ? 'both' : t.meat ? 'meat' : t.plants ? 'plants' : 'nothing'}\nmax size ${Math.floor(world.warrior(o).maxSize)} · ${genomeOfCell(o)}`;
     text = `${text ? text + '\n' : ''}step ${n > 0 ? '+' + n : n}${world.board.terrain[i] ? ' · rock' : ''}`;
   }
   if (!text) { tip.style.display = 'none'; return; }
@@ -640,10 +640,10 @@ function renderFinder() {
   for (const m of bake?.marks ?? []) if (m.biggest && (!ever || m.biggest.cells > ever.biggest!.cells)) ever = m;
   const following = climbView?.follow ?? null;
   const html = [
-    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warriors[big.id].name)} · ${following === big.id ? 'following · <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : '',
+    big ? `<div>biggest now: ${big.cells} cells, ${esc(world.warrior(big.id).name)} · ${following === big.id ? 'following · <a data-unfollow="1">stop</a>' : `<a data-follow="${big.id}">follow it</a>`} <span style="color:#6e7681">(key B)</span></div>` : '',
     ever ? `<div>biggest in this run: ${ever.biggest!.cells} cells at tick ${ever.t} · <a data-ever="${ever.t}">go see it</a></div>` : '',
-    climbView?.selected != null ? `<div>picked: ${world.warriors[climbView.selected].cellCount} cells, ${esc(world.warriors[climbView.selected].name)} · ${climbView.selected === following ? 'following · <a data-unfollow="1">stop</a> · ' : `<a data-follow="${climbView.selected}">follow it</a> · `}<a data-copy="1">copy link</a> · <a data-unpick="1">let go</a></div>` : '',
-    following !== null && following !== big?.id && following !== climbView?.selected ? `<div>following ${esc(world.warriors[following]?.name ?? '')} · <a data-unfollow="1">stop</a></div>` : '',
+    climbView?.selected != null ? `<div>picked: ${world.warrior(climbView.selected).cellCount} cells, ${esc(world.warrior(climbView.selected).name)} · ${climbView.selected === following ? 'following · <a data-unfollow="1">stop</a> · ' : `<a data-follow="${climbView.selected}">follow it</a> · `}<a data-copy="1">copy link</a> · <a data-unpick="1">let go</a></div>` : '',
+    following !== null && following !== big?.id && following !== climbView?.selected ? `<div>following ${esc(world.warrior(following)?.name ?? '')} · <a data-unfollow="1">stop</a></div>` : '',
   ].join('');
   if (finderEl.innerHTML !== html) finderEl.innerHTML = html;
 }
@@ -732,7 +732,7 @@ const explorer = {
     seed: world.seed,
     result: world.result,
     status: statusLine(world),
-    warriors: world.warriors.map((w) => ({
+    warriors: world.allWarriors().map((w) => ({
       id: w.id, name: w.name, alive: w.alive, cells: w.cellCount, maxSize: +w.maxSize.toFixed(2),
       speed: +w.speed.toFixed(2), ip: { x: w.ipX, y: w.ipY }, dir: DIR_NAMES[w.dir],
       glyph: w.alive ? glyphOf(world.code[world.idx(w.ipX, w.ipY)]) : null,
@@ -762,6 +762,6 @@ explorer.ready = loadEvolved().then(async () => {
   // A bake opened without ?t starts at its latest checkpoint (the live end), not tick 0.
   const t = params.has('t') ? Number(params.get('t')) || 0 : bake ? bake.marks[bake.marks.length - 1].t : 0;
   // ?pick=<id>: open on that body, picked and followed (if it's alive at that tick).
-  const pickBody = () => { const id = Number(params.get('pick')); if (params.has('pick') && climbView && world.warriors[id]?.alive) climbView.focus(id); };
+  const pickBody = () => { const id = Number(params.get('pick')); if (params.has('pick') && climbView && world.warrior(id)?.alive) climbView.focus(id); };
   if (t) await seek(t, pickBody); else pickBody();
 });

@@ -54,7 +54,7 @@ if (flag('selfmod')) {
   // aligned on its body frame (so moving doesn't count as change).
   const n = opt('seeds', 4), cap = tickCap ?? 3000;
   const bodyAt = (w: World, id: number) => {
-    const wr = w.warriors[id];
+    const wr = w.warrior(id);
     return new Map(w.cellsOf(id).map((c) => [`${(c % w.w) - wr.ox},${((c / w.w) | 0) - wr.oy}`, glyphOf(w.code[c])]));
   };
   const render = (m: Map<string, string>, other: Map<string, string>, mark: boolean) => {
@@ -83,8 +83,8 @@ if (flag('selfmod')) {
         const w = new World(seed, pair);
         const start = bodyAt(w, 0);
         let end = start;
-        while (!w.result.over && w.t < cap) { w.tick(); if (w.warriors[0].alive) end = bodyAt(w, 0); }
-        const st = w.warriors[0].stats;
+        while (!w.result.over && w.t < cap) { w.tick(); if (w.warrior(0).alive) end = bodyAt(w, 0); }
+        const st = w.warrior(0).stats;
         let changed = 0;
         for (const [k, g] of end) if (start.has(k) && start.get(k) !== g) changed++;
         tot.selfWrites += st.selfWrites; tot.grows += st.grows; tot.swaps += st.swaps; tot.flows += st.flows; tot.oozes += st.oozes; tot.squeezed += st.squeezed > 0 ? 1 : 0; tot.changed += changed; tot.games++;
@@ -107,7 +107,7 @@ if (flag('selfmod')) {
     const times: number[] = [];
     for (let seed = 1; seed <= n; seed++) {
       const { world } = runMatch([spec], seed, { tickCap: cap });
-      const t = world.warriors[0].leftHomeAt;
+      const t = world.warrior(0).leftHomeAt;
       if (t !== undefined) times.push(t);
     }
     times.sort((a, b) => a - b);

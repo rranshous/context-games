@@ -21,6 +21,15 @@ import { makeRng, Rng, streamSeed } from './rng';
 import { WarriorSpec } from './warrior-file';
 
 export const NONE = -1;
+/**
+ * Ids. The board's columns are cut into ZONES bands, and each band numbers its own births:
+ * a body's id is n·ZONES + zone, its zone's nth birth. A body names its children from its
+ * zone (where its IP was at its last upkeep), so whoever runs a band's turns can number its
+ * births without hearing from anyone else (a parallel engine, one day). Founders are the
+ * exception: founder k is id k (each zone's slot 0 is kept for a founder), so founders are
+ * still 0, 1, 2, … and there can be at most ZONES of them.
+ */
+export const ZONES = 64;
 const TRAITS_FRESH = Symbol('traitsFresh');
 const K = CODE['K'];
 const INSUL = CODE['I'], FLIP = CODE['~'], DOUBLE = CODE['x'], MASK = CODE['n'], FAT = CODE['.'], MOVE = CODE['M'], BITE = CODE['B'], COLLECT = CODE['C'];
@@ -34,8 +43,8 @@ export const CONFIG = {
   sight: 14,            // LoS range from each cell (Chebyshev)
   bombRange: 6,         // BOMB reach from the cell that sees the target
   writeRange: 2,        // WRITE reach into foreign cells, from the cell that sees the target
-  killPay: 0.25,        // a killer takes this fraction of the victim's max size and speed
-  creditWindow: 500,    // a death within this many ticks of being harmed credits the harmer
+  killPay: 0.25,        // duels: a kill's corpse holds this fraction of the victim's max size on top of its debris
+  creditWindow: 500,    // a death within this many ticks of being bitten or written into is a kill: its corpse is rich (see die)
   stackMax: 64,
   sizeCap: 64,
   startSize: 40,        // every warrior starts with this max size (the most cells its body may have)
@@ -97,6 +106,7 @@ export interface Warrior {
   id: number;
   lineage: number; // the founder's id. Decides who won and who gets scored; in play, kin are rivals like anyone else
   gen: number;    // 0 for founders, parent's + 1 for children of DIVIDE
+  zone: number;   // the band of columns it names its children from: its IP's at its last upkeep (see ZONES)
   realm: number;  // island survival: 0 islander (eats vegetation), 1 sea creature (eats dead cells); always 0 elsewhere
   parent?: number;
   born: number;   // tick of birth (0 for founders)
@@ -131,7 +141,7 @@ export interface Warrior {
     rooms: number;    // rooms (not its start room) its whole body has been inside, each counted once
     squeezed: number; // ticks with at least half of a 4+ cell body inside narrow passages (≤ 2 wide)
   };
-  lastHarm?: { by: number; t: number }; // who last bombed or wrote into me, and when
+  harmedAt?: number; // when something last bombed or wrote into me
   home: { x: number; y: number; w: number; h: number }; // start room
   leftHomeAt?: number; // first tick no cell of the body was in the start room
   roomsSeen: Set<number>; // board.rooms indices its whole body has been inside (children inherit a copy)
@@ -158,7 +168,11 @@ export class World {
   ripe: Float32Array;   // size pickups: how many pickups' worth (1 when it appears; grows with foodRipen)
   /** Floor cells in a passage at most 2 wide (the floor run through them, across or down, is ≤ 2). */
   narrow: Uint8Array;
-  warriors: Warrior[] = [];
+  /** Dead cells: what each is worth, in quarters of an ordinary dead cell (0: ordinary). A kill's corpse is rich, see die. */
+  flesh: Uint8Array;
+  /** Every body ever, by id (the dead share one record per lineage, see kill): zoneBodies[zone][n]. */
+  private zoneBodies: Warrior[][] = Array.from({ length: ZONES }, () => []);
+  private zoneNext: number[] = new Array(ZONES).fill(1); // each zone's next n (0 is a founder's)
   /** The living warriors (a long dish has far more dead than alive). Rebuilt lazily after deaths. */
   private livingList: Warrior[] = [];
   private livingDirty = false;
@@ -185,6 +199,7 @@ export class World {
     this.spawnTimers = this.board.spawns.map(() => 0);
     for (const s of this.board.spawns) this.resource[s.y * this.w + s.x] = s.kind;
     this.narrow = new Uint8Array(this.w * this.h);
+    this.flesh = new Uint8Array(this.w * this.h);
     if (CONFIG.climb) this.initTiles();
     for (let y = 0; y < this.h && !CONFIG.climb; y++) { // (narrow passages only feed a GA stat; too slow on a climb-sized world)
       for (let x = 0; x < this.w; x++) {
@@ -200,7 +215,7 @@ export class World {
     // Island survival: sea founders arrive at CONFIG.sharkArrive, once there's prey in the water.
     for (const s of specs) {
       if (CONFIG.island && s.realm === 'sea' && CONFIG.sharkArrive > 0) this.arriving.push(s);
-      else this.place(s, this.warriors.length);
+      else this.place(s);
     }
     if (CONFIG.island || CONFIG.climb) this.settle();
   }
@@ -326,6 +341,7 @@ export class World {
     this.resource = grown(this.resource, 0);
     this.ripe = grown(this.ripe, 1);
     this.narrow = grown(this.narrow, 0);
+    this.flesh = grown(this.flesh, 0);
     b.terrain = terrain; b.step = step; b.h = h; this.h = h;
     // Rows and cell indices that moved (each shared object once: homes are often the start rects).
     if (D) {
@@ -333,7 +349,7 @@ export class World {
       const shift = (r: { y: number } | undefined) => { if (r && !moved.has(r)) { moved.add(r); r.y += D; } };
       for (const s of b.spawns) s.y += D;
       for (const r of b.starts) shift(r);
-      for (const wr of new Set(this.warriors)) { wr.ipY += D; wr.oy += D; shift(wr.home); }
+      for (const wr of new Set(this.allWarriors())) { wr.ipY += D; wr.oy += D; shift(wr.home); }
       for (const [id, set] of this.cellSets) { const out = new Set<number>(); for (const i of set) out.add(i + dI); this.cellSets.set(id, out); }
       this.sortedCells.clear();
       b.seaLevel! += D;
@@ -382,7 +398,9 @@ export class World {
   /** Bumped whenever the terrain changes (the island's channel opening), so a viewer can redraw scenery. */
   terrainVersion = 0;
 
-  private place(spec: WarriorSpec, id: number, at?: [number, number]) {
+  private place(spec: WarriorSpec, at?: [number, number]): Warrior {
+    const nth = this.bornIn.size; // (founders so far; duels give each its own start)
+    if (nth >= ZONES) throw new Error(`at most ${ZONES} founders`);
     if (spec.cells.length > CONFIG.startCells) {
       throw new Error(`${spec.name} has ${spec.cells.length} cells; the limit is ${CONFIG.startCells}`);
     }
@@ -390,9 +408,9 @@ export class World {
     const realm = this.board.startRealm ? (spec.realm === 'sea' ? 1 : 0) : 0;
     // (The Climb: `realm: deep` starts a warrior at the top of step −1; there are no realms.)
     const room = CONFIG.climb ? this.board.starts[spec.realm === 'deep' ? 1 : 0]
-      : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[id % this.board.starts.length];
+      : this.board.startRealm ? this.board.starts[this.board.startRealm.indexOf(realm)] : this.board.starts[nth % this.board.starts.length];
     // Island survival: founders of one realm share a start, side by side.
-    const before = this.board.startRealm ? this.warriors.filter((w) => w.realm === realm).length : 0;
+    const before = this.board.startRealm ? this.livingList.filter((w) => w.realm === realm && w.gen === 0).length : 0;
     const shift = before ? (before % 2 ? 1 : -1) * Math.ceil(before / 2) * (spec.width + 3) : 0;
     let ox = at ? at[0] : room.x + Math.floor((room.w - spec.width) / 2) + shift;
     let oy = at ? at[1] : room.y + Math.floor((room.h - spec.height) / 2);
@@ -406,8 +424,9 @@ export class World {
         if (fits(ox + dx, oy + dy)) { ox += dx; oy += dy; break search; }
       }
     }
+    const id = nth;
     const wr: Warrior = {
-      id, lineage: id, gen: 0, realm, born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
+      id, lineage: id, gen: 0, realm, zone: this.zoneOf(ox + spec.ip.x), born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.climb ? this.capAtCell(this.idx(ox + spec.ip.x, oy + spec.ip.y)) : CONFIG.island ? (realm ? CONFIG.sharkCap : CONFIG.sizeCap) : CONFIG.startSize, speed: CONFIG.speedStart, // island and climb founders start full
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
@@ -423,9 +442,30 @@ export class World {
       this.resource[i] = 0;
       wr.cellCount++;
     }
-    this.warriors.push(wr);
-    this.livingList.push(wr);
+    this.enroll(wr);
     this.bornIn.set(id, 1);
+    return wr;
+  }
+
+  /** A body by id. */
+  /** A body by id (undefined, as an array would give, for an id no body has). */
+  warrior(id: number): Warrior { return this.zoneBodies[id % ZONES]?.[Math.floor(id / ZONES)]; }
+  /** How many bodies have ever lived. */
+  everLived() { let n = this.bornIn.size; for (const k of this.zoneNext) n += k - 1; return n; }
+  /** Every body ever, in id order (the dead as their lineage's shared record). Slow on a long run. */
+  allWarriors(): Warrior[] {
+    const out: Warrior[] = [], zs = this.zoneBodies, most = Math.max(...this.zoneNext);
+    for (let n = 0; n < most; n++) for (const z of zs) { const wr = z[n]; if (wr) out.push(wr); }
+    return out;
+  }
+  /** The band of columns x is in. */
+  zoneOf(x: number) { return Math.min(ZONES - 1, Math.max(0, Math.floor(x * ZONES / this.w))); }
+  /** The id of a zone's next birth (taken). */
+  private nextId(zone: number) { return this.zoneNext[zone]++ * ZONES + zone; }
+  /** A new body joins: under its id, and at the end of the living. */
+  private enroll(wr: Warrior) {
+    this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = wr;
+    this.livingList.push(wr);
   }
 
   /** Living warriors, in id order. */
@@ -478,7 +518,7 @@ export class World {
   private setOwner(i: number, v: number) {
     const o = this.owner[i];
     if (o === v) return;
-    if (o !== NONE) { this.cellSets.get(o)!.delete(i); this.sortedCells.delete(o); this.changed(o); }
+    if (o !== NONE) { this.cellSets.get(o)!.delete(i); this.sortedCells.delete(o); this.changed(o); if (o === DEBRIS) this.flesh[i] = 0; }
     this.owner[i] = v;
     if (v !== NONE) {
       this.changed(v);
@@ -553,23 +593,27 @@ export class World {
     return mine.filter((c) => !seen.has(c));
   }
 
-  private toDebris(i: number) {
+  /** A cell of a body turns to a dead cell, or (island, climb) maybe dissolves. True if it's left as a dead cell. */
+  private toDebris(i: number): boolean {
     const o = this.owner[i];
-    if (o >= 0) this.warriors[o].cellCount--;
+    if (o >= 0) this.warrior(o).cellCount--;
     // Island survival: only part of a seal's body is left to sink, and none of a shark's.
-    if ((CONFIG.island || CONFIG.climb) && (CONFIG.island && o >= 0 && this.warriors[o].realm === 1 || this.rng() >= CONFIG.corpse)) { this.setOwner(i, NONE); this.code[i] = 0; return; }
+    if ((CONFIG.island || CONFIG.climb) && (CONFIG.island && o >= 0 && this.warrior(o).realm === 1 || this.rng() >= CONFIG.corpse)) { this.setOwner(i, NONE); this.code[i] = 0; return false; }
     this.setOwner(i, DEBRIS);
+    return true;
   }
+
+  /** What eating the dead cell at i is worth, as a multiple of an ordinary one. */
+  private worth(i: number) { const f = this.flesh[i]; return f ? f / 4 : 1; }
 
   /** Deaths so far by realm and cause (`0|core frozen`), kept as a tally since dishes forget the dead. */
   deaths = new Map<string, number>();
   private tombstones = new Map<number, Warrior>();
 
-  /** The next child's name in a lineage: the founder's name and its birth number. */
-  childName(lineage: number) {
-    const born = this.bornIn.get(lineage) ?? 1;
-    this.bornIn.set(lineage, born + 1);
-    return `${this.warriors[lineage].name}·${born}`;
+  /** A new child's name: its founder's name and its id. (Counts it in its lineage's births.) */
+  private childName(lineage: number, id: number) {
+    this.bornIn.set(lineage, (this.bornIn.get(lineage) ?? 1) + 1);
+    return `${this.warrior(lineage).name}·${id}`;
   }
 
   /** Descendants a founder has had (alive or dead). */
@@ -584,49 +628,44 @@ export class World {
     this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
     // A petri dish runs for hundreds of thousands of births: keeping every dead body
     // ran a long dish out of memory. The dead (founders aside) share one record per
-    // lineage, which is all anything needs of them (lineage, realm, not alive).
+    // lineage, which is all anything needs of them (lineage, realm, not alive). It's made
+    // from the founder as it began, not from whichever descendant happened to die first.
     if (CONFIG.endless && wr.gen > 0) {
       let tomb = this.tombstones.get(wr.lineage);
       if (!tomb) {
-        tomb = { ...wr, name: `${this.warriors[wr.lineage].name} (dead)`, deathReason: 'dead', stack: [], roomsSeen: new Set(), traits: undefined, lastHarm: undefined, cellCount: 0 };
+        const f = this.warrior(wr.lineage), s = f.spec;
+        tomb = {
+          id: f.id, lineage: f.id, gen: 1, realm: f.realm, zone: f.zone, born: 0, name: `${f.name} (dead)`, alive: false, deathReason: 'dead',
+          ipX: 0, ipY: 0, ox: 0, oy: 0, dir: s.dir, stack: [], maxSize: 0, speed: 0, accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0,
+          stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
+          home: f.home, roomsSeen: new Set(), spec: s,
+        };
         this.tombstones.set(wr.lineage, tomb);
       }
-      this.warriors[wr.id] = tomb;
+      this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = tomb;
     }
   }
 
+  /**
+   * A death. Its cells are left as dead cells (island, climb: some of them). A kill (a death
+   * within creditWindow ticks of being bitten or written into) leaves a rich corpse: its dead
+   * cells share the whole body's worth (duels: a cut of its max size on top), for whoever eats
+   * them, the killer or not. Nothing is paid to anyone: a death touches only the dead.
+   */
   private die(wr: Warrior, reason: string) {
     wr.alive = false;
     this.livingDirty = true;
     wr.deathReason = reason;
     wr.diedAt = this.t;
-    const h0 = wr.lastHarm;
-    const k0 = h0 && this.t - h0.t <= CONFIG.creditWindow ? this.warriors[h0.by] : undefined;
-    const eatsWhole = CONFIG.island ? k0?.realm === 1 && wr.realm === 0 : CONFIG.climb && !!k0?.traits?.meat;
-    if (eatsWhole && k0 && k0.alive) {
-      // Island survival: a shark that kills a seal eats it whole: all its cells' worth, no corpse.
-      const cells = this.cellsOf(wr.id).slice();
-      k0.maxSize = Math.min(this.capOf(k0), k0.maxSize + CONFIG.seaFeed * (cells.length + 1) * this.dietShare(k0, 'meat') * this.richness(this.idx(wr.ipX, wr.ipY)));
-      k0.stats.kills++;
-      for (const c of cells) { this.setOwner(c, NONE); this.code[c] = 0; }
-      wr.cellCount = 0;
-      this.log('death', `${wr.name} died: ${reason}; ${k0.name} ate it (max ${Math.floor(k0.maxSize)})`, wr.id);
-      return;
+    const cells = this.cellsOf(wr.id).slice(), kept: number[] = [];
+    for (const c of cells) if (this.toDebris(c)) kept.push(c);
+    const kill = wr.harmedAt !== undefined && this.t - wr.harmedAt <= CONFIG.creditWindow;
+    if (kill && kept.length) {
+      const m = CONFIG.island || CONFIG.climb ? (cells.length + 1) / kept.length : 1 + CONFIG.killPay * wr.maxSize / (CONFIG.debrisPickup * kept.length);
+      const q = Math.min(255, Math.round(4 * m));
+      for (const c of kept) this.flesh[c] = q;
     }
-    for (const c of this.cellsOf(wr.id)) this.toDebris(c);
-    this.log('death', `${wr.name} died: ${reason}`, wr.id);
-    // Killing pays: whoever harmed the victim recently (bomb or write) takes a cut of
-    // its max size and speed. That includes a victim that runs into poison, or breaks
-    // itself after being bombed. Killing kin pays too (petri-dish relatives are rivals), but
-    // only rival kills count in the stats the GA scores, so a lineage can't farm its offspring.
-    const h = wr.lastHarm;
-    const killer = h && this.t - h.t <= CONFIG.creditWindow ? this.warriors[h.by] : undefined;
-    if (killer && killer.alive && killer !== wr) {
-      if (killer.lineage !== wr.lineage) killer.stats.kills++;
-      killer.maxSize = Math.min(CONFIG.sizeCap, killer.maxSize + CONFIG.killPay * wr.maxSize);
-      killer.speed = Math.min(CONFIG.speedCap, killer.speed + CONFIG.killPay * wr.speed);
-      this.log('kill', `${killer.name} takes a cut of ${wr.name} (max ${Math.floor(killer.maxSize)}, speed ${killer.speed.toFixed(2)})`, killer.id);
-    }
+    this.log('death', `${wr.name} died: ${reason}${kill && kept.length ? ', a rich corpse' : ''}`, wr.id);
   }
 
   /** Destroy a cell outright (bomb). Handles core loss and disconnection. */
@@ -636,10 +675,11 @@ export class World {
     this.setOwner(i, NONE);
     this.code[i] = 0;
     if (o < 0) return;
-    const victim = this.warriors[o];
+    const victim = this.warrior(o);
     victim.cellCount--;
-    if (by) victim.lastHarm = { by: by.id, t: this.t };
+    if (by) victim.harmedAt = this.t;
     if (i === this.idx(victim.ipX, victim.ipY)) {
+      if (by && by.lineage !== victim.lineage) by.stats.kills++; // (only rivals' kills count in the stats the GA scores)
       this.kill(victim, by ? `core bombed by ${by.name}` : cause);
       return;
     }
@@ -767,7 +807,7 @@ export class World {
       // The Climb: too high freezes (short of insulation), too deep crushes (short of armor),
       // one level per step short, as harsh as the island's pressure.
       let tr = wr.traits;
-      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.warriors.length + 1024);
+      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.everLived() * 2 + 1024);
       if (!tr || wr.id >= fresh.length || !fresh[wr.id]) {
         tr = wr.traits = this.traitsOf(wr);
         if (wr.id >= fresh.length) { const grown = new Uint8Array(2 * wr.id + 1024); grown.set(fresh); this[TRAITS_FRESH] = fresh = grown; }
@@ -803,6 +843,7 @@ export class World {
     if (!wr.alive) return;
     if (wr.cellCount <= 0) this.kill(wr, 'no cells left');
     else if (wr.diesAt !== undefined && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, 'old age');
+    else wr.zone = this.zoneOf(wr.ipX);
   }
 
   /**
@@ -810,7 +851,7 @@ export class World {
    * of itself (its descendants, generation 1) scattered through the calm water.
    */
   private settle() {
-    for (const f of this.warriors.filter((w) => w.realm === 0 && w.gen === 0)) {
+    for (const f of this.livingList.filter((w) => w.realm === 0 && w.gen === 0)) {
       const S = this.board.surface ?? 0, calm = this.board.calmLine ?? S;
       // (The Climb: each founder's copies spread across its own start.)
       const room = this.board.starts[f.spec.realm === 'deep' ? 1 : 0];
@@ -819,17 +860,14 @@ export class World {
         const ox = CONFIG.climb ? room.x + Math.floor(this.rng() * Math.max(1, room.w - f.spec.width)) : x0 + Math.floor(this.rng() * (this.w - 1 - x0 - f.spec.width));
         const oy = CONFIG.climb ? room.y + Math.floor(this.rng() * Math.max(1, room.h - f.spec.height)) : S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
         if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
-        const id = this.warriors.length;
-        const born = this.bornIn.get(f.lineage) ?? 1;
-        this.bornIn.set(f.lineage, born + 1);
+        const zone = this.zoneOf(ox + f.spec.ip.x), id = this.nextId(zone);
         const wr: Warrior = {
-          ...f, id, gen: 1, parent: f.id, name: `${f.name}·${born}`, ipX: ox + f.spec.ip.x, ipY: oy + f.spec.ip.y, ox: ox + f.spec.ip.x, oy: oy + f.spec.ip.y,
+          ...f, id, zone, gen: 1, parent: f.id, name: this.childName(f.lineage, id), ipX: ox + f.spec.ip.x, ipY: oy + f.spec.ip.y, ox: ox + f.spec.ip.x, oy: oy + f.spec.ip.y,
           stack: [], cellCount: 0, executed: 0, roomsSeen: new Set(),
           stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
         };
         if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(0) * (0.5 + this.rng()));
-        this.warriors.push(wr);
-        this.livingList.push(wr);
+        this.enroll(wr);
         for (const c of f.spec.cells) { const i = this.idx(ox + c.x, oy + c.y); this.setOwner(i, id); this.code[i] = c.code; wr.cellCount++; }
         n++;
       }
@@ -916,11 +954,11 @@ export class World {
         }
       }
       if (!at) continue;
-      this.place(spec, this.warriors.length, at);
-      this.warriors[this.warriors.length - 1].born = this.t;
-      if (CONFIG.lifespan > 0) this.warriors[this.warriors.length - 1].diesAt = this.t + Math.floor(this.lifeOf(1) * (0.5 + this.rng()));
+      const wr = this.place(spec, at);
+      wr.born = this.t;
+      if (CONFIG.lifespan > 0) wr.diesAt = this.t + Math.floor(this.lifeOf(1) * (0.5 + this.rng()));
       this.arriving.splice(k--, 1);
-      this.log('arrive', `${spec.name} arrives`, this.warriors.length - 1);
+      this.log('arrive', `${spec.name} arrives`, wr.id);
     }
   }
 
@@ -940,7 +978,7 @@ export class World {
       const below = c + this.w, x = c % this.w;
       // Through vegetation too (a dead cell may rest on a plant; whoever eats there gets both).
       if (this.isFloor(x, ((c / this.w) | 0) + 1) && this.owner[below] === NONE) {
-        this.setOwner(below, DEBRIS); this.code[below] = this.code[c];
+        this.setOwner(below, DEBRIS); this.code[below] = this.code[c]; this.flesh[below] = this.flesh[c];
         this.setOwner(c, NONE); this.code[c] = 0;
         continue;
       }
@@ -995,7 +1033,7 @@ export class World {
     for (const w of this.living()) {
       if (team === -1) team = w.lineage; else if (w.lineage !== team) return false;
     }
-    return team !== -1 && this.warriors.some((w) => w.lineage !== team);
+    return team !== -1 && this.allWarriors().some((w) => w.lineage !== team);
   }
 
   private checkOver() {
@@ -1003,9 +1041,9 @@ export class World {
     if (CONFIG.endless && this.t < CONFIG.tickCap) return;
     if (living > 1 && this.t < CONFIG.tickCap && !this.oneTeamLeft()) return; // nothing to decide
     // Lineages: each founder and everything it DIVIDEd into. Matches are won by lineages.
-    const founders = this.warriors.filter((w) => w.gen === 0);
+    const founders = [...this.bornIn.keys()];
     const teams = new Map<number, Warrior[]>();
-    for (const w of this.warriors) if (w.alive) teams.set(w.lineage, [...(teams.get(w.lineage) ?? []), w]);
+    for (const w of this.living()) teams.set(w.lineage, [...(teams.get(w.lineage) ?? []), w]);
     if (founders.length > 1 && teams.size <= 1) {
       this.result = teams.size
         ? { over: true, winner: [...teams.keys()][0], reason: 'last standing' }
@@ -1039,7 +1077,7 @@ export class World {
     }
     if (this.result.over) this.log('over', this.result.winner === null
       ? `Match over: ${this.result.reason}`
-      : `${this.warriors[this.result.winner].name} wins: ${this.result.reason}`);
+      : `${this.warrior(this.result.winner).name} wins: ${this.result.reason}`);
   }
 
   // ---------- interpreter ----------
@@ -1272,7 +1310,7 @@ export class World {
         const t = o === DEBRIS ? T_DEBRIS : o >= 0 && o !== me ? T_ENEMY : res === 1 ? T_SIZE : res === 2 ? T_SPEED : T_NOTHING;
         if (t === T_NOTHING) continue;
         if (!(type === T_RESOURCE ? t === T_SIZE || t === T_SPEED : t === type)) continue;
-        if (t === T_ENEMY && this.warriors[o].lineage === wr.lineage) continue; // (your own kind isn't prey)
+        if (t === T_ENEMY && this.warrior(o).lineage === wr.lineage) continue; // (your own kind isn't prey)
         const d = ady + (x < fx ? fx - x : x - fx);
         if (d > maxD) continue;
         keys[n++] = d * 4294967296 + i; // (exact in a double: a grown world has well over 2^24 cells)
@@ -1312,9 +1350,10 @@ export class World {
       for (const c of mine) {
         const t = c + DY[d] * this.w + DX[d];
         if (this.owner[t] !== DEBRIS) continue;
+        const feed = CONFIG.seaFeed * this.worth(t);
         this.setOwner(t, NONE);
         this.code[t] = 0;
-        wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + CONFIG.seaFeed);
+        wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
         wr.stats.collected++;
       }
     }
@@ -1471,7 +1510,7 @@ export class World {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log('collect', `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          const feed = CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, 'meat') * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup;
+          const feed = this.worth(i) * (CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, 'meat') * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup);
           wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
           this.setOwner(i, NONE);
           this.code[i] = 0;
@@ -1504,8 +1543,8 @@ export class World {
         if (best >= 0 && d >= best) continue;
         const o = this.ownerAt(x, y);
         if (o < 0 || o === wr.id || mine[this.code[this.idx(x, y)]] || this.seer(wr.id, x, y, R) < 0) continue;
-        if (CONFIG.island && this.warriors[o].realm === wr.realm) continue; // island: sharks hunt seals, seals fight sharks
-        if (CONFIG.climb && this.warriors[o].lineage === wr.lineage) continue; // climb: never your own kind (lineage)
+        if (CONFIG.island && this.warrior(o).realm === wr.realm) continue; // island: sharks hunt seals, seals fight sharks
+        if (CONFIG.climb && this.warrior(o).lineage === wr.lineage) continue; // climb: never your own kind (lineage)
         if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) continue;
         best = d; bx = x; by = y;
       }
@@ -1520,20 +1559,20 @@ export class World {
     // Island survival: a full shark doesn't bite (it digests first; until hunger brings it back down).
     if (CONFIG.island && wr.realm === 1 && wr.maxSize >= CONFIG.sharkFull * CONFIG.sharkCap) return false;
     const o = this.ownerAt(x, y);
-    if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warriors[o].realm === 1) return false; // sharks never bite sharks
+    if (CONFIG.island && wr.realm === 1 && o >= 0 && this.warrior(o).realm === 1) return false; // sharks never bite sharks
     if (CONFIG.island && wr.realm === 1 && this.board.land?.[this.idx(x, y)]) return false; // a seal hauled out is safe
     if (o === NONE || o === wr.id) return false;
     if (this.seer(wr.id, x, y, this.reach(wr)) < 0) return false;
-    const victim = o >= 0 ? this.warriors[o].name : 'debris';
+    const victim = o >= 0 ? this.warrior(o).name : 'debris';
     if (o >= 0) this.attacks.bombs++;
-    if (o >= 0 && this.warriors[o].lineage !== wr.lineage) wr.stats.bombHits++; // hits on kin earn nothing
+    if (o >= 0 && this.warrior(o).lineage !== wr.lineage) wr.stats.bombHits++; // hits on kin earn nothing
     // Island survival: armor takes three bites. A hit on a K cell dents the body's armor;
     // every third dent breaks the cell.
     const ti = this.idx(x, y);
     if ((CONFIG.island || CONFIG.climb) && o >= 0 && this.code[ti] === K) {
-      const v = this.warriors[o];
+      const v = this.warrior(o);
       v.dents = (v.dents ?? 0) + (CONFIG.climb ? wr.traits?.bite ?? 1 : 1); // (Climb: a stronger bite dents more)
-      v.lastHarm = { by: wr.id, t: this.t };
+      v.harmedAt = this.t;
       if (v.dents < CONFIG.armorBites) { this.log('bomb', `${wr.name}'s bite glanced off ${victim}'s armor`, wr.id); return true; }
       v.dents = 0;
     }
@@ -1574,9 +1613,9 @@ export class World {
     for (let k = 0; k < mine.length; k++) {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
-    const id = this.warriors.length;
+    const id = this.nextId(wr.zone);
     const child: Warrior = {
-      id, lineage: wr.lineage, gen: wr.gen + 1, realm: wr.realm, parent: wr.id, born: this.t, name: this.childName(wr.lineage), alive: true,
+      id, lineage: wr.lineage, gen: wr.gen + 1, realm: wr.realm, zone: wr.zone, parent: wr.id, born: this.t, name: this.childName(wr.lineage, id), alive: true,
       ipX: wr.ipX + ox, ipY: wr.ipY + oy, ox: wr.ox + ox, oy: wr.oy + oy, dir: wr.dir,
       stack: [], maxSize: wr.maxSize / 2, speed: wr.speed, accum: 0, lastOk: true, lastAct: '',
       cellCount: 0, executed: 0, spec: wr.spec, home: wr.home, roomsSeen: new Set(wr.roomsSeen),
@@ -1588,8 +1627,7 @@ export class World {
     this.board.rooms.forEach((r, k) => {
       if (cx0 >= r.x && cy0 >= r.y && cx1 < r.x + r.w && cy1 < r.y + r.h) child.roomsSeen.add(k);
     });
-    this.warriors.push(child);
-    this.livingList.push(child);
+    this.enroll(child);
     let mutations = 0;
     for (let k = 0; k < mine.length; k++) {
       const i = this.idx(xs[k] + ox, ys[k] + oy);
@@ -1641,9 +1679,9 @@ export class World {
     this.changed(o);
     if (o >= 0 && o !== wr.id) {
       if (c === CODE['@']) this.attacks.poisons++;
-      if (c === CODE['@'] && this.warriors[o].lineage !== wr.lineage) wr.stats.poisonWrites++;
-      if (o >= 0) this.warriors[o].lastHarm = { by: wr.id, t: this.t };
-      this.log('write', `${wr.name} wrote '${GLYPHS[c]}' into ${this.warriors[o].name}`, wr.id);
+      if (c === CODE['@'] && this.warrior(o).lineage !== wr.lineage) wr.stats.poisonWrites++;
+      if (o >= 0) this.warrior(o).harmedAt = this.t;
+      this.log('write', `${wr.name} wrote '${GLYPHS[c]}' into ${this.warrior(o).name}`, wr.id);
     }
     return true;
   }

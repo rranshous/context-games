@@ -5,7 +5,7 @@
 // Whatever persists, persists. The plate is MEGA-plate style: clean in the middle, rings
 // of rising toxin out to the rim, and armor (K cells) is the only way deeper.
 import { CODE, glyphOf } from './glyphs';
-import { CONFIG, World } from './world';
+import { CONFIG, Warrior, World } from './world';
 
 export const DISH_DEFAULTS: Record<string, number> = {
   size: 160,      // plate diameter (cells)
@@ -110,7 +110,7 @@ export function armorOf(world: World, id: number): number {
 
 /** Toxin level under a warrior's IP (where it "lives"). */
 export function bandOf(world: World, id: number): number {
-  const w = world.warriors[id];
+  const w = world.warrior(id);
   return world.board.toxin?.[world.idx(w.ipX, w.ipY)] ?? 0;
 }
 
@@ -174,7 +174,7 @@ function climbSnapshot(world: World): ClimbSnapshot {
       insulation[t.insulation] = (insulation[t.insulation] ?? 0) + 1;
       if (t.plants && t.meat) diet.both++; else if (t.meat) diet.meat++; else if (t.plants) diet.plants++; else diet.none++;
     }
-    const f = world.warriors[w.lineage].name;
+    const f = world.warrior(w.lineage).name;
     founders[f] = (founders[f] ?? 0) + 1;
     const g = genomeOf(world, w.id);
     counts.set(g, (counts.get(g) ?? 0) + 1);
@@ -212,7 +212,7 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
   const deaths: Record<string, number> = {};
   for (const [rk, n] of world.deaths) { const k = rk.slice(rk.indexOf('|') + 1); deaths[k] = (deaths[k] ?? 0) + n; }
   return {
-    t: world.t, alive: living.length, births: world.warriors.length - founders,
+    t: world.t, alive: living.length, births: world.everLived() - founders,
     maxGen: Math.max(0, ...living.map((w) => w.gen)), bands, armor, deaths, weapons,
     attacks: { ...world.attacks },
     top: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12),
@@ -229,7 +229,7 @@ export function dishSnapshot(world: World, founders: number): DishSnapshot {
   };
 }
 
-function seaSnapshot(world: World, sea: World['warriors']) {
+function seaSnapshot(world: World, sea: Warrior[]) {
   const bands = new Array(CONFIG.plateBands).fill(0), armor: number[] = [], counts = new Map<string, number>();
   for (const w of sea) {
     bands[bandOf(world, w.id)]++;
