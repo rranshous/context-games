@@ -38,6 +38,8 @@ export class ClimbView {
   selected: number | null = null;
   /** Draw each body cell's glyph when zoomed in close (the page's "glyphs" box). */
   glyphs = true;
+  /** Darken each body's IP cell (the page's "show IPs" box). */
+  ips = true;
 
   constructor(private canvas: HTMLCanvasElement, private mini: HTMLCanvasElement, private world: () => World, private redraw: () => void, cam?: Camera) {
     const w = world();
@@ -354,7 +356,7 @@ export class ClimbView {
           let cc = colors.get(o);
           if (!cc) { cc = bodyColor(world, o); colors.set(o, cc); }
           const wo = world.warrior(o);
-          col = c === wo.ipY * world.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
+          col = this.ips && c === wo.ipY * world.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
         } else {
           col = this.sky(st[c], y);
           if (y === sea) col = mix(col, [255, 255, 255], 0.35);

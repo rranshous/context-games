@@ -2946,6 +2946,8 @@ var ClimbView = class {
   selected = null;
   /** Draw each body cell's glyph when zoomed in close (the page's "glyphs" box). */
   glyphs = true;
+  /** Darken each body's IP cell (the page's "show IPs" box). */
+  ips = true;
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
@@ -3209,7 +3211,7 @@ var ClimbView = class {
             colors.set(o, cc);
           }
           const wo = world2.warrior(o);
-          col = c === wo.ipY * world2.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
+          col = this.ips && c === wo.ipY * world2.w + wo.ipX ? mix(cc, [0, 0, 0], 0.45) : cc;
         } else {
           col = this.sky(st[c], y);
           if (y === sea) col = mix(col, [255, 255, 255], 0.35);
@@ -3448,6 +3450,7 @@ function newMatch(sources, seed) {
       const cam = (params.get("cam") ?? "").split(",").map(Number);
       climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
       climbView.glyphs = showGlyphsEl.checked;
+      climbView.ips = showIpEl.checked;
     }
     render();
     return;
@@ -3537,7 +3540,10 @@ $("step").onclick = () => {
   render();
 };
 showIpEl.onchange = showGlyphsEl.onchange = () => {
-  if (climbView) climbView.glyphs = showGlyphsEl.checked;
+  if (climbView) {
+    climbView.glyphs = showGlyphsEl.checked;
+    climbView.ips = showIpEl.checked;
+  }
   render();
 };
 function setPlaying(p) {
