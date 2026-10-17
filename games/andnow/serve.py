@@ -21,7 +21,7 @@ def bakes():
         try: gap = os.path.getmtime(f'{d}/{last["file"]}') - os.path.getmtime(f'{d}/{marks[-2]["file"]}') if len(marks) > 1 else 0
         except OSError: gap = 0
         out.append({
-            'path': os.path.dirname(f), 'name': os.path.basename(os.path.dirname(f)), 'query': b['query'],
+            'path': os.path.dirname(f), 'name': os.path.basename(os.path.dirname(f)), 'query': b['query'], 'rules': b.get('rules'),
             't': last['t'], 'alive': last['alive'], 'biggest': (last.get('biggest') or {}).get('cells', 0),
             'best': {'t': best['t'], 'cells': (best.get('biggest') or {}).get('cells', 0)},
             # live: still writing (the next checkpoint isn't overdue); else done or stopped

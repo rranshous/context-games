@@ -20,6 +20,12 @@ import {
 import { makeRng, Rng, streamSeed } from './rng';
 import { WarriorSpec } from './warrior-file';
 
+/**
+ * The rules' version. Bump it with any change that makes runs play out differently (the
+ * golden replays fail): a bake records it, and the viewer lists only runs on the current rules.
+ * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses.
+ */
+export const RULES = 3;
 export const NONE = -1;
 /**
  * Ids. The board's columns are cut into ZONES bands, and each band numbers its own births:

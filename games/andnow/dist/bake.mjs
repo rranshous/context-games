@@ -507,6 +507,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
 }
 
 // src/sim/world.ts
+var RULES = 3;
 var NONE = -1;
 var ZONES = 64;
 var TRAITS_FRESH = Symbol("traitsFresh");
@@ -2774,10 +2775,11 @@ var names = (params.get("w") ?? "climber,diver,hunter").split(",");
 var source = (n) => n.startsWith("evo:") ? readFileSync(`warriors/evolved/${n.slice(4)}.warrior`, "utf8") : BUNDLED[n] ?? readFileSync(`warriors/${n}.warrior`, "utf8");
 var world = new World(Number(params.get("seed")) || 1, names.map((n, i) => parseWarrior(source(n), `warrior${i + 1}`)));
 mkdirSync(out, { recursive: true });
-var index = { query, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] };
+var index = { query, rules: RULES, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] };
 if (resume && existsSync(`${out}/index.json`)) {
   const old = JSON.parse(readFileSync(`${out}/index.json`, "utf8"));
   if (old.query !== query || old.every !== every) throw new Error(`${out} is a different bake (${old.query}, every ${old.every})`);
+  if (old.rules !== RULES) throw new Error(`${out} was made on rules ${old.rules ?? "1 or 2"}, these are rules ${RULES}: it can't carry on`);
   index = { ...old, ticks: index.ticks, done: false };
   world = loadWorld(gunzipSync(readFileSync(`${out}/${old.marks[old.marks.length - 1].file}`)));
   console.log(`resuming at tick ${world.t}`);

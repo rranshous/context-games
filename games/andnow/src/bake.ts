@@ -15,7 +15,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { applyDish, genomeOf } from './sim/dish';
 import { loadWorld, saveWorld } from './sim/save';
 import { parseWarrior } from './sim/warrior-file';
-import { World } from './sim/world';
+import { RULES, World } from './sim/world';
 import { BUNDLED } from './warriors';
 
 const args = process.argv.slice(2);
@@ -40,10 +40,11 @@ let world = new World(Number(params.get('seed')) || 1, names.map((n, i) => parse
 interface Mark { t: number; file: string; alive: number; kb: number; biggest?: { id: number; cells: number; x: number; y: number; name: string; genome: string } }
 mkdirSync(out, { recursive: true });
 // (ticks: null is forever: JSON has no Infinity)
-let index = { query, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] as Mark[] };
+let index = { query, rules: RULES, every, ticks: Number.isFinite(ticks) ? ticks : null, done: false, marks: [] as Mark[] };
 if (resume && existsSync(`${out}/index.json`)) {
   const old = JSON.parse(readFileSync(`${out}/index.json`, 'utf8')) as typeof index;
   if (old.query !== query || old.every !== every) throw new Error(`${out} is a different bake (${old.query}, every ${old.every})`);
+  if (old.rules !== RULES) throw new Error(`${out} was made on rules ${old.rules ?? '1 or 2'}, these are rules ${RULES}: it can't carry on`);
   index = { ...old, ticks: index.ticks, done: false };
   world = loadWorld(gunzipSync(readFileSync(`${out}/${old.marks[old.marks.length - 1].file}`)));
   console.log(`resuming at tick ${world.t}`);

@@ -556,6 +556,7 @@ function makeClimb(seed, w, base, steps, foodSpacing) {
 }
 
 // src/sim/world.ts
+var RULES = 3;
 var NONE = -1;
 var ZONES = 64;
 var TRAITS_FRESH = Symbol("traitsFresh");
@@ -4077,7 +4078,9 @@ async function renderBakes() {
   } catch {
     return;
   }
-  if (!Array.isArray(rows) || !rows.length) return;
+  if (!Array.isArray(rows)) return;
+  rows = rows.filter((r) => r.rules === RULES);
+  if (!rows.length) return;
   bakesEl.style.display = "block";
   bakesEl.innerHTML = '<div class="stats" style="margin-bottom:2px">runs <span style="color:#6e7681">(tick \xB7 alive \xB7 biggest now \xB7 biggest ever)</span></div>' + rows.map((r) => `<a class="${r.path === BAKE ? "here" : ""}" href="?bake=${encodeURI(r.path)}" title="biggest ever at tick ${r.best.t}"><span class="nm">${esc(r.name)}</span><span>${kfmt(r.t)}</span><span>${r.alive}</span><span>${r.biggest}</span><span class="big">${r.best.cells}</span><span class="${r.state === "live" ? "live" : ""}">${r.state === "live" ? "\u25CF live" : r.state}</span></a>`).join("");
 }

@@ -76,6 +76,8 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 
 Runs are deterministic: the same seed and settings always replay the same history, and a world restored from a checkpoint continues exactly as the original run would have.
 
+Each bake records the rules version it was made on (`RULES` in `src/sim/world.ts`, bumped whenever a change makes runs play out differently). The viewer's runs list shows only runs on the current rules; older runs stay on disk for comparison, and can't be carried on.
+
 ```bash
 ./bake.sh 4    # start (or carry on) seed 4 as runs/bake/climb2-s4, in the background at low priority
 ```

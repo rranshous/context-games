@@ -4,7 +4,7 @@ import { DIR_NAMES, GLYPH_DOCS, glyphOf } from './sim/glyphs';
 import { summarize } from './sim/match';
 import { parseWarrior, WarriorSpec } from './sim/warrior-file';
 import { applyDish, armorOf, bandOf } from './sim/dish';
-import { CONFIG, DEBRIS, World } from './sim/world';
+import { CONFIG, DEBRIS, RULES, World } from './sim/world';
 import { loadWorld } from './sim/save';
 import { BUNDLED } from './warriors';
 import { ClimbView } from './climb-view';
@@ -672,12 +672,14 @@ window.addEventListener('keydown', (e) => {
 });
 
 /** Every bake on the server (serve.py's /bakes.json), to hop between runs. */
-interface BakeRow { path: string; name: string; t: number; alive: number; biggest: number; best: { t: number; cells: number }; state: string }
+interface BakeRow { path: string; name: string; rules?: number; t: number; alive: number; biggest: number; best: { t: number; cells: number }; state: string }
 const bakesEl = $('bakes');
 async function renderBakes() {
   let rows: BakeRow[];
   try { rows = await (await fetch('bakes.json', { cache: 'no-store' })).json(); } catch { return; } // (a plain server: no list)
-  if (!Array.isArray(rows) || !rows.length) return;
+  if (!Array.isArray(rows)) return;
+  rows = rows.filter((r) => r.rules === RULES); // (runs on older rules stay on disk, out of the list)
+  if (!rows.length) return;
   bakesEl.style.display = 'block';
   bakesEl.innerHTML = '<div class="stats" style="margin-bottom:2px">runs <span style="color:#6e7681">(tick · alive · biggest now · biggest ever)</span></div>' + rows.map((r) =>
     `<a class="${r.path === BAKE ? 'here' : ''}" href="?bake=${encodeURI(r.path)}" title="biggest ever at tick ${r.best.t}">` +
