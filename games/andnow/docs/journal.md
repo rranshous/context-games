@@ -1940,3 +1940,14 @@ Seed 13, 29k bodies, 4 workers, bit-identical:
   - **Upkeep as items in the turn phase.** Each body's upkeep waits only on the turns on its cells, its own and its biters' turns, and whoever its death could pay, so there's no barrier between turns and upkeep. Correct, but no faster (192 against 189): those items can only be planned once every turn is.
   - **Workers planning their own share.** The main thread plans only objects; each worker plans the chunks in its own window of columns, from the same summaries, so nothing is sent; the two halves merge. Correct (after a lost-late-wake-up bug), but slower here (262): every worker repeats the per-body setup, and on 4 cores five planners at once slow everyone. It's the shape for a bigger machine, or for machines on a network, where the main thread mustn't be the bottleneck. Kept as a patch, not in the tree.
 - **Still serial, and next:** the main thread's ~40 ms plan, ~11 ms renaming children and planning their upkeep, and ~45 ms of upkeep phase (25 ms of it real work per worker).
+
+## 2026-10-17: three bugs the long twin runs found
+
+Short runs were clean; 200+ ticks on a big world weren't. Each was found by narrowing to the first differing tick: `--check-every 1`, then `--save <tick>` to write the serial world just before it, then watching one body's cells across both engines.
+
+- **Reused provisional ids renamed old cells.** A child handed to another worker left its cell set behind on the sender, under its provisional id. Provisional ids are numbered from `warriors.length` each tick, so a later tick could hand the same number to a new child on that worker. Its cells joined the stale set, and the renaming then stamped the new child's final id over the old child's cells. Seen as zeroed glyphs seven ticks later. Fix: a body handed off leaves no cell set behind, and every provisional id's set is dropped at renaming.
+- **After a reload, every worker regrew every tile.** A worker loaded with a whole world got the whole active-tile list, so until the next tile refresh each plant ripened once per worker. Fix: on load, keep only the strip's own tiles.
+- **A scan met a child born this tick on another worker,** a reserved empty slot locally, and read its lineage. The ordering was right (the scan waited on that birth); the worker just didn't know the child. Fix: children's lineages go into a shared table at birth, before their cells; `World.lineageOf` reads it when the body isn't known locally.
+- **Also:**
+  - **Size switch.** The engine now runs serially on the main thread until the world has 8,000 living bodies (`ANDNOW_PAR_MIN`), and gives back below 4,000; on a small world threads cost more than they save.
+  - **`./bake.sh <seed>`** (committed) starts or resumes a run in the background, on the parallel engine by default.
