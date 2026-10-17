@@ -2538,6 +2538,7 @@ function renameText(text, name) {
 
 // src/sim/schedule.ts
 var CH = 32;
+var CHB = 5;
 function emptySummaries(n) {
   return {
     n,
@@ -2809,15 +2810,19 @@ var Builder = class {
       sh.pos[j] = i;
       sh.packsIn[j] = packsIn[r];
       sh.notify[j] = notify[r];
-      sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]);
-      pAt[k] += ps[i + 1] - ps[i];
-      sh.predOff[j + 1] = pAt[k];
-      const o0 = outStart[r], o1 = outStart[r + 1];
-      sh.outKey.set(oK.subarray(o0, o1), oAt[k]);
-      sh.outW.set(oW.subarray(o0, o1), oAt[k]);
-      sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
-      oAt[k] += o1 - o0;
-      sh.outOff[j + 1] = oAt[k];
+      let pa = pAt[k];
+      for (let q = ps[i]; q < ps[i + 1]; q++) sh.preds[pa++] = P[q];
+      pAt[k] = pa;
+      sh.predOff[j + 1] = pa;
+      let oa = oAt[k];
+      for (let q = outStart[r]; q < outStart[r + 1]; q++) {
+        sh.outKey[oa] = oK[q];
+        sh.outW[oa] = oW[q];
+        sh.outPos[oa] = oP[q];
+        oa++;
+      }
+      oAt[k] = oa;
+      sh.outOff[j + 1] = oa;
     }
     return shares;
   }
@@ -2875,8 +2880,14 @@ var TurnPlan = class {
       box[c + 2] = x1 + mw + 2;
       box[c + 3] = y1 + mh + 2;
     }
-    const cx = (x) => Math.min(cw - 1, Math.max(0, Math.floor(x / CH)));
-    const cy = (y) => Math.min(chh - 1, Math.max(0, Math.floor(y / CH)));
+    const cx = (x) => {
+      const c = x >> CHB;
+      return c < 0 ? 0 : c >= cw ? cw - 1 : c;
+    };
+    const cy = (y) => {
+      const c = y >> CHB;
+      return c < 0 ? 0 : c >= chh ? chh - 1 : c;
+    };
     const caps = new Uint8Array(n), wR = CONFIG.writeRange;
     for (let i = 0; i < n; i++) caps[i] = S.caps[order[i]];
     {

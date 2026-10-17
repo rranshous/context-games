@@ -2630,15 +2630,19 @@ var Builder = class {
       sh.pos[j] = i;
       sh.packsIn[j] = packsIn[r];
       sh.notify[j] = notify[r];
-      sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]);
-      pAt[k] += ps[i + 1] - ps[i];
-      sh.predOff[j + 1] = pAt[k];
-      const o0 = outStart[r], o1 = outStart[r + 1];
-      sh.outKey.set(oK.subarray(o0, o1), oAt[k]);
-      sh.outW.set(oW.subarray(o0, o1), oAt[k]);
-      sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
-      oAt[k] += o1 - o0;
-      sh.outOff[j + 1] = oAt[k];
+      let pa = pAt[k];
+      for (let q = ps[i]; q < ps[i + 1]; q++) sh.preds[pa++] = P[q];
+      pAt[k] = pa;
+      sh.predOff[j + 1] = pa;
+      let oa = oAt[k];
+      for (let q = outStart[r]; q < outStart[r + 1]; q++) {
+        sh.outKey[oa] = oK[q];
+        sh.outW[oa] = oW[q];
+        sh.outPos[oa] = oP[q];
+        oa++;
+      }
+      oAt[k] = oa;
+      sh.outOff[j + 1] = oa;
     }
     return shares;
   }

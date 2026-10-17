@@ -28,6 +28,7 @@ import { CODE } from './glyphs';
 import { CONFIG } from './world';
 
 export const CH = 32;
+const CHB = 5; // (log2 CH: the chunk of x is x >> CHB, a floor for negatives too)
 
 /** Living bodies at the start of a phase, in id order. */
 export interface Summaries {
@@ -259,10 +260,12 @@ class Builder {
     for (let i = a; i < b; i++) {
       const k = worker[i], sh = shares[k], j = jAt[k]++, r = i - a;
       sh.ids[j] = ids[i]; sh.pos[j] = i; sh.packsIn[j] = packsIn[r]; sh.notify[j] = notify[r];
-      sh.preds.set(P.subarray(ps[i], ps[i + 1]), pAt[k]); pAt[k] += ps[i + 1] - ps[i]; sh.predOff[j + 1] = pAt[k];
-      const o0 = outStart[r], o1 = outStart[r + 1];
-      sh.outKey.set(oK.subarray(o0, o1), oAt[k]); sh.outW.set(oW.subarray(o0, o1), oAt[k]); sh.outPos.set(oP.subarray(o0, o1), oAt[k]);
-      oAt[k] += o1 - o0; sh.outOff[j + 1] = oAt[k];
+      let pa = pAt[k];
+      for (let q = ps[i]; q < ps[i + 1]; q++) sh.preds[pa++] = P[q];
+      pAt[k] = pa; sh.predOff[j + 1] = pa;
+      let oa = oAt[k];
+      for (let q = outStart[r]; q < outStart[r + 1]; q++) { sh.outKey[oa] = oK[q]; sh.outW[oa] = oW[q]; sh.outPos[oa] = oP[q]; oa++; }
+      oAt[k] = oa; sh.outOff[j + 1] = oa;
     }
     return shares;
   }
@@ -323,8 +326,8 @@ export class TurnPlan {
     const mw = x1 - x0 + 1, mh = y1 - y0 + 1, c = (n + i) * 4;
     box[c] = x0 - mw - 2; box[c + 1] = y0 - mh - 2; box[c + 2] = x1 + mw + 2; box[c + 3] = y1 + mh + 2;
   }
-  const cx = (x: number) => Math.min(cw - 1, Math.max(0, Math.floor(x / CH)));
-  const cy = (y: number) => Math.min(chh - 1, Math.max(0, Math.floor(y / CH)));
+  const cx = (x: number) => { const c = x >> CHB; return c < 0 ? 0 : c >= cw ? cw - 1 : c; };
+  const cy = (y: number) => { const c = y >> CHB; return c < 0 ? 0 : c >= chh ? chh - 1 : c; };
   // What each can do: its glyphs, or everything if a WRITE could have reached it earlier in
   // the tick (it could have been given any glyph, a W too: so in turn order, a body that
   // might hold a W by its turn reaches on).
