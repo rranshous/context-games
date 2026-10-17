@@ -1951,3 +1951,13 @@ Short runs were clean; 200+ ticks on a big world weren't. Each was found by narr
 - **Also:**
   - **Size switch.** The engine now runs serially on the main thread until the world has 8,000 living bodies (`ANDNOW_PAR_MIN`), and gives back below 4,000; on a small world threads cost more than they save.
   - **`./bake.sh <seed>`** (committed) starts or resumes a run in the background, on the parallel engine by default.
+- **Validated:** bit-identical to serial for 2,000 ticks of seed 13 (29k bodies), 300 of seed 7 (79k) and 500 of seed 4 (25k), each from a big checkpoint.
+- **Speed alone, 4 workers, 4-core machine:**
+
+  | seed | bodies | serial ms/tick | par ms/tick | speed-up |
+  |---|---|---|---|---|
+  | 4 | 25k | 199 | 169 | 1.18× |
+  | 13 | 29k | 242 | 184 | 1.32× |
+  | 7 | 79k | 685 | 566 | 1.21× |
+
+- **Bakes:** `climb2-s4` restarted from tick 0 with every rule change (`./bake.sh 4`). It runs serially until 8,000 bodies, then on the threads.
