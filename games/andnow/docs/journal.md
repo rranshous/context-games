@@ -2030,3 +2030,19 @@ The parallel engine is gone, but the worlds keep growing, so the rules that made
 - Caveat: the old runs also predate the per-body random streams and a few other rule changes since, so the comparison isn't corpses alone. With four seeds a side it should still show a big effect, such as an earlier take-off, more scavenging, or bigger meat eaters.
 - To check: `node dist/diet.mjs runs/bake/climb3-s2 runs/bake/climb3-s4 runs/bake/climb3-s7 runs/bake/climb3-s13 --every 100000`.
 - **Six runs, not four:** `climb3-s1` and `-s3` added (more seeds for the rich-corpse comparison; no old runs to pair them with). Cost to the four already running, measured over five checkpoints each with body counts about the same: 24–29% fewer ticks a second each (s2 45→33, s4 29→21, s7 45→34, s13 24→17). Two of the six always share a core's hyperthreads. Total work done is up only about 10–15%, but six seeds beat four for this question. Watch memory once they pass 50k bodies (six runs of a few GB each, on 31 GB).
+
+## Rich corpses, first look (six climb3 runs, 130k–265k ticks)
+
+Meat eaters (meat only or both) as a share of living bodies, from `diet.mjs --every 50000`:
+
+| tick | s1 | s2 | s3 | s4 | s7 | s13 |
+|---|---|---|---|---|---|---|
+| 100k | 0.3% | 0.1% | 0.1% | 0.2% | 0.2% | 0.3% |
+| 150k | 0.3% | 0.2% | | 0.7% | 0.1% | 0.2% |
+| 200k | | 0.3% | | | 0.3% | |
+| 250k | | 0.4% | | | 0.4% | |
+
+- Lower than the kill-credit runs at the same ticks (0.7–1.4% at 100k). Seed 7 had taken off to 29% by 200k under kill credit; here it's at 0.4% at 250k. Not a clean comparison (the old runs predate the per-body streams), but no early take-off anywhere.
+- Rich corpses are rare: 0–5 rich cells on the board at any checkpoint, against 500–1,000 dead cells. Kills within the window are uncommon, and the rich cells get eaten or stop being debris fast.
+- Meat eaters stay at 7–10 cells, with the odd one near 100.
+- Too early to call. Kill credit took off at 200k–1M; check again around 500k.
