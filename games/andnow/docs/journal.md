@@ -2085,3 +2085,28 @@ Meat eaters (meat only or both) as a share of living bodies; living bodies in br
 ## The cross
 
 - Spotted in the viewer on the long climb3 runs: a big cross is a very common body shape, with arms running out from the middle in the four cardinal directions. There are lots of examples once runs get past ~500k ticks and the populations boom. Worth a look at why: whether it's one lineage spreading or the same shape arising in many lineages, and what the arms are for (reach for food, armor, laying eggs further out).
+
+## Speed round 2 (66k bodies)
+
+Benched on climb3-s3 at t611000 (65.6k bodies) with the six runs going. Under that load the wall clock is noisy, so bench now reports CPU time too; every step was also checked against the hash of the saved world 100 ticks on. `perf` is off limits here (perf_event_paranoid 4), so `node --cpu-prof` with per-line ticks.
+
+| step | CPU ms/tick |
+|---|---|
+| start | 568 |
+| scan looks only within sight of the body | 514 |
+| collect skips empty neighbours first | |
+| step: cost and action by code number | 476 |
+| shift moves the body in place | 453 |
+| bodies in one object shape | 347 |
+| upkeep: no closure per body (rooms.forEach on an empty list) | 329 |
+| upkeep walks the cells once; advance walks the array | 301 |
+| a body's cells as a `Cells` array, not a Set | 292 |
+| sorted cells and trait freshness on the `Cells`; bodies link to theirs | 263 |
+
+s1 (33k bodies): 297 → 140. Fresh dishes for 4,000 ticks: petri 8.7 → 6.9 ms/tick, island 17.4 → 13.8, climb 17.0 → 7.1.
+
+- **Object shapes were the big one.** Bodies came in six shapes (optional fields like `harmedAt`, `leftHomeAt`, `dents` appear in different orders, and loads build objects from whatever keys were saved). Past four, V8 property reads on hot paths go generic and slow. `shaped()` gives every body every field in one order, and loads reshape the living. It took a quarter off on its own.
+- **Saves now sort object keys.** That was needed to check the shape change, since key order is all that differs, and it means the same world always saves the same bytes. Old checkpoints load as before.
+- **`Cells`** behaves like a Set (insertion order; a delete keeps the rest in order) and saves as one, so checkpoints are unchanged. It's an array: quicker to walk, with no hash table to reallocate when a body moves. Membership is the owner grid's job. The dead cells, about 11k of them, stay a real Set.
+- **What's left is memory latency.** The hot lines are each body's first touch: `wr.alive`, `wr.stats`, its cells' places on the board (`narrow`, `step`). GC is ~30 ms a tick; a bigger young generation halves that but costs as much again in cache misses. The next step would be laying bodies out as typed arrays (struct of arrays), which is a much bigger change.
+- Everything is the same run bit for bit: s1 and s3 against a reference build (the old code with sorted saves), fresh petri, island and climb dishes with a save and load halfway, and the golden replay (2,491 matches). The six runs carry on from their checkpoints on the new build.
