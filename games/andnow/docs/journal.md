@@ -2161,3 +2161,20 @@ The new rule, climb only:
 First look: a 20k-tick seed-4 sample has 1,239 alive (old rules at 20k: 2,918), all on steps ±1 and 0, biggest 106 cells. Petri and island runs are untouched (golden replay: all 2,491 matches identical).
 
 New runs `climb4-s4`, `climb4-s1`, `climb4-s3` (same queries and seeds as the climb3 bakes) run forever at normal priority for comparison. The six climb3 bakes keep running on the old rules in their already-loaded code. If one restarts it resumes on the new rules, so treat climb3 past a restart as mixed.
+
+### Upkeep hunger, first 340–560k ticks (2026-10-18)
+
+The climb4 runs at 342k (s4), 496k (s1) and 564k (s3), against the climb3 runs (old rules) at the same ticks:
+
+| run | alive, new | alive, old | step +1 new / old | step −1 new / old | beyond ±1 |
+|---|---|---|---|---|---|
+| s4 | 2,207 | ~4,050 | 1,091 / 1,814 | 918 / 2,069 | none either way |
+| s1 | 1,496 | 27,076 | 430 / 1,657 | 874 / 1,667 | old opened +2 at ~300k and had 23k there by 500k; new: none |
+| s3 | 1,374 | 25,058 | 1 / 1,916 | 1,230 / 1,939 | old opened +2 at ~480k; new: 2 bodies at −2 |
+
+- **Meat eaters: ~0% in every step, but that's no change.** The old runs were also ~0–1% meat on steps 0 and ±1. Meat only paid on the outer steps, eating the cells the climate destroyed, so with no frontier there's no meat niche yet.
+- **The populations are about half, and younger** (average age ~600–900 against ~1,400–1,800): more bodies starve.
+- **The frontier is stalled.** Living at step n means carrying n K or I, and each burns 3 × 2^n there: 6 a tick per I cell at +1, 12 at +2. s3's step +1 has all but died out (1–5 bodies since 100k, where the old s3 kept ~1,400). s1's +1 holds 400 against 1,650.
+- **No crosses to speak of** (0–2 per run); the biggest bodies are ~130 cells.
+- About 30% of bodies count as neither plant nor meat eaters (old runs: ~15%). Not looked into yet.
+- **Reading:** armor and insulation cost so much that the steps that need them are thinly held, and the jump to ±2 hasn't happened. It's too early to be sure: the old s4 didn't open −2 until ~850k. s1 and s3 are already well past where the old runs broke through, though.
