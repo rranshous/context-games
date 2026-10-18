@@ -2064,3 +2064,20 @@ Meat eaters (meat only or both) as a share of living bodies; living bodies in br
 - "Both" eaters show up after a take-off: 2,126 in s1 and 717 in s7.
 - Meat eaters still average 9–12 cells, and the biggest are around 250 cells, the same as under kill credit.
 - Cost: s3 is at 49k bodies, 387 ms/tick (3 ticks/s), and s1 is at 27k, 233 ms/tick. All six together use 9 GB.
+
+## Rich corpses at 610k–1.05M ticks
+
+| run | took off | meat eaters, latest | bodies |
+|---|---|---|---|
+| s1 | 400k | 31% (600k) | 28k |
+| s3 | 500k | 30% (600k) | 66k |
+| s4 | 700k | 37% (800k) | 31k |
+| s7 | 400–500k | 14% (700k) | 17k |
+| s13 | 1M | 5.9% (1M), rising | 23k |
+| s2 | not yet | 2.6% (800k) | 16k |
+
+- Five of six have taken off now, from 400k to 1M ticks. Under kill credit it was 200k–1M, mostly around 200–300k. So corpses alone are enough for a food chain; it just takes longer to get going.
+- It still always comes with a boom. s13 had sat at about 4.4k bodies and 0.3% meat for 900k ticks, then went to 23k bodies and 5.9% meat by 1M. s4 did the same at 600k–700k.
+- Where it's settled, meat eaters are 30–37% of bodies (17–50% under kill credit), with a big share eating both: 4,510 of s4's 11,410 meat eaters.
+- The biggest bodies are bigger now: 499 cells in s1 and 424 in s3. Under kill credit they topped out at 200–250.
+- Speed: s3 at 66k bodies runs 539 ms/tick (2 ticks/s), and checkpoints are 14 MB. Memory is 11 GB for all six.
