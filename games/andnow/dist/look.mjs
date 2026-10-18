@@ -510,7 +510,7 @@ var T_RESOURCE = 6;
 // src/sim/world.ts
 var NONE = -1;
 var ZONES = 64;
-var TRAITS_FRESH = Symbol("traitsFresh");
+var CELLS = Symbol("cells");
 var K = CODE["K"];
 var INSUL = CODE["I"];
 var FLIP = CODE["~"];
@@ -520,7 +520,50 @@ var FAT = CODE["."];
 var MOVE = CODE["M"];
 var BITE = CODE["B"];
 var COLLECT = CODE["C"];
+var Cells = class {
+  constructor(items = []) {
+    this.items = items;
+  }
+  /** The same cells in board order (cellsOf's cache), or null once they change. */
+  sorted = null;
+  /**
+   * The Climb: the body's `traits` still describe these cells. Cleared when a cell joins or
+   * leaves, or a code in one changes (a whole-body shift keeps it: the same body one step
+   * over), so upkeep recomputes traits only for bodies that changed. Not saved: a loaded
+   * world recomputes everyone once.
+   */
+  fresh = false;
+  get size() {
+    return this.items.length;
+  }
+  add(i) {
+    this.items.push(i);
+    this.sorted = null;
+    this.fresh = false;
+    return this;
+  }
+  delete(i) {
+    const k = this.items.indexOf(i);
+    if (k < 0) return false;
+    this.items.splice(k, 1);
+    this.sorted = null;
+    this.fresh = false;
+    return true;
+  }
+  clear() {
+    this.items.length = 0;
+    this.sorted = null;
+    this.fresh = false;
+  }
+  [Symbol.iterator]() {
+    return this.items[Symbol.iterator]();
+  }
+};
+var newCells = (id) => id === DEBRIS ? /* @__PURE__ */ new Set() : new Cells();
 var DEBRIS = -2;
+var OP_COST = Array.from(GLYPHS, (g) => COST[g] ?? 1);
+var OP_ACTS = Uint8Array.from(GLYPHS, (g) => +"MFXGCBWDA".includes(g));
+var SHIFT_CODES = new Uint8Array(1024);
 var SCAN_KEYS = new Float64Array(64 * 64);
 var CONFIG = {
   sight: 14,
@@ -634,6 +677,47 @@ var CONFIG = {
   corpse: 0.33
   // island: share of a dead body's cells left as dead cells (the rest dissolves)
 };
+function shaped(w) {
+  return {
+    id: w.id,
+    lineage: w.lineage,
+    gen: w.gen,
+    zone: w.zone,
+    realm: w.realm,
+    parent: w.parent,
+    born: w.born,
+    diesAt: w.diesAt,
+    aged: w.aged,
+    pace: w.pace,
+    traits: w.traits,
+    dents: w.dents,
+    name: w.name,
+    alive: w.alive,
+    ipX: w.ipX,
+    ipY: w.ipY,
+    ox: w.ox,
+    oy: w.oy,
+    dir: w.dir,
+    stack: w.stack,
+    maxSize: w.maxSize,
+    speed: w.speed,
+    accum: w.accum,
+    lastOk: w.lastOk,
+    lastAct: w.lastAct,
+    cellCount: w.cellCount,
+    executed: w.executed,
+    stats: w.stats,
+    harmedAt: w.harmedAt,
+    home: w.home,
+    leftHomeAt: w.leftHomeAt,
+    roomsSeen: w.roomsSeen,
+    deathReason: w.deathReason,
+    diedAt: w.diedAt,
+    spec: w.spec,
+    [CELLS]: void 0
+    // (not copied: a spread child must find its own)
+  };
+}
 var World = class {
   constructor(seed, specs) {
     this.seed = seed;
@@ -847,10 +931,11 @@ var World = class {
         shift(wr.home);
       }
       for (const [id, set] of this.cellSets) {
-        const out2 = /* @__PURE__ */ new Set();
+        const out2 = newCells(id);
         for (const i of set) out2.add(i + dI);
         this.cellSets.set(id, out2);
       }
+      for (const wr of this.livingList) wr[CELLS] = void 0;
       this.sortedCells.clear();
       b.seaLevel += D;
       this.yShift += D;
@@ -930,7 +1015,7 @@ var World = class {
       }
     }
     const id = nth;
-    const wr = {
+    const wr = shaped({
       id,
       lineage: id,
       gen: 0,
@@ -957,7 +1042,7 @@ var World = class {
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
       home: room,
       roomsSeen: /* @__PURE__ */ new Set()
-    };
+    });
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(wr.realm) * (0.5 + this.rng()));
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -1005,6 +1090,10 @@ var World = class {
     this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = wr;
     this.livingList.push(wr);
   }
+  /** After a load: the living back in one shape (see shaped). */
+  reshape() {
+    this.livingList = this.living().map((wr) => this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = shaped(wr));
+  }
   /** Living warriors, in id order. */
   living() {
     if (this.livingDirty) {
@@ -1048,16 +1137,15 @@ var World = class {
   // nothing has to scan the whole board to find a warrior's cells.
   cellSets = /* @__PURE__ */ new Map();
   sortedCells = /* @__PURE__ */ new Map();
-  /**
-   * The Climb: 1 where a body's `traits` still describe its cells. A body's cells changing
-   * owner or code clears it (a whole-body shift doesn't: the same body one step over), so
-   * upkeep recomputes traits only for bodies that changed. (Under a symbol: a cache, so not
-   * saved; a loaded world recomputes everyone once.)
-   */
-  [TRAITS_FRESH];
+  // (the dead cells' cellsOf cache: a body's is on its Cells)
+  /** A code in one of a body's cells changed: its traits are stale (see Cells.fresh). */
   changed(id) {
-    const f = this[TRAITS_FRESH];
-    if (f && id >= 0 && id < f.length) f[id] = 0;
+    const s = this.cellSets.get(id);
+    if (s instanceof Cells) s.fresh = false;
+  }
+  /** A body's cells (its Cells, or undefined with none), linked from the body to save a lookup. */
+  cells(wr) {
+    return wr[CELLS] ??= this.cellSets.get(wr.id);
   }
   /** The way `owner` changes (opShift does a bulk equivalent). */
   setOwner(i, v) {
@@ -1065,28 +1153,34 @@ var World = class {
     if (o === v) return;
     if (o !== NONE) {
       this.cellSets.get(o).delete(i);
-      this.sortedCells.delete(o);
-      this.changed(o);
-      if (o === DEBRIS) this.flesh[i] = 0;
+      if (o === DEBRIS) {
+        this.flesh[i] = 0;
+        this.sortedCells.delete(DEBRIS);
+      }
     }
     this.owner[i] = v;
     if (v !== NONE) {
-      this.changed(v);
       let set = this.cellSets.get(v);
       if (!set) {
-        set = /* @__PURE__ */ new Set();
+        set = newCells(v);
         this.cellSets.set(v, set);
       }
       set.add(i);
-      this.sortedCells.delete(v);
+      if (v === DEBRIS) this.sortedCells.delete(DEBRIS);
     }
+  }
+  /** cellsOf for a body in hand (by its link, no lookup by id). */
+  mineOf(wr) {
+    const c = this.cells(wr);
+    return c ? c.sorted ??= Array.from(Int32Array.from(c.items).sort()) : [];
   }
   /** A warrior's (or DEBRIS's) cells in board order. Treat the array as read-only. */
   cellsOf(id) {
+    const set = this.cellSets.get(id);
+    if (!set) return [];
+    if (set instanceof Cells) return set.sorted ??= Array.from(Int32Array.from(set.items).sort());
     let out2 = this.sortedCells.get(id);
     if (!out2) {
-      const set = this.cellSets.get(id);
-      if (!set) return [];
       out2 = Array.from(Int32Array.from(set).sort());
       this.sortedCells.set(id, out2);
     }
@@ -1127,7 +1221,7 @@ var World = class {
   }
   /** 4-connected check of a warrior's cells from its IP. Returns unreached cells. */
   unreached(wr) {
-    const mine = this.cellsOf(wr.id);
+    const mine = this.mineOf(wr);
     const seen = /* @__PURE__ */ new Set();
     const start = this.idx(wr.ipX, wr.ipY);
     if (this.owner[start] !== wr.id) return mine;
@@ -1181,7 +1275,7 @@ var World = class {
     if (!wr.alive) return;
     this.die(wr, reason);
     this.cellSets.delete(wr.id);
-    this.sortedCells.delete(wr.id);
+    wr[CELLS] = void 0;
     const k = `${wr.realm}|${reason.replace(/ by .*/, "").replace(/ \(.*/, "")}`;
     this.deaths.set(k, (this.deaths.get(k) ?? 0) + 1);
     if (CONFIG.endless && wr.gen > 0) {
@@ -1232,7 +1326,7 @@ var World = class {
     this.livingDirty = true;
     wr.deathReason = reason;
     wr.diedAt = this.t;
-    const cells = this.cellsOf(wr.id).slice(), kept = [];
+    const cells = this.mineOf(wr).slice(), kept = [];
     for (const c of cells) if (this.toDebris(c)) kept.push(c);
     const kill = wr.harmedAt !== void 0 && this.t - wr.harmedAt <= CONFIG.creditWindow;
     if (kill && kept.length) {
@@ -1272,12 +1366,16 @@ var World = class {
     if (!this.beginTick()) return;
     this.regrow();
     this.drift();
-    const living = this.living().slice(), n = living.length;
+    const living = this.living(), n = living.length;
     for (let k = 0; k < n; k++) {
       const wr = living[(this.t + k) % n];
       if (wr.alive) this.turn(wr);
     }
-    for (const wr of this.living().slice()) if (wr.alive) this.upkeep(wr);
+    const after = this.living(), m = after.length;
+    for (let k = 0; k < m; k++) {
+      const wr = after[k];
+      if (wr.alive) this.upkeep(wr);
+    }
     this.checkOver();
   }
   /** Start a tick: the clock, the climb's growth and tiles. False once the match is over. */
@@ -1291,24 +1389,25 @@ var World = class {
   /** Plants regrow at empty spots (the climb: only in active tiles). */
   regrow() {
     const spawns = this.board.spawns;
-    const climbList = CONFIG.climb ? this.activeTiles.flatMap((k) => this.spawnsInTile[k]) : null;
-    const nSpawns = climbList ? climbList.length : spawns.length;
-    for (let kk = 0; kk < nSpawns; kk++) {
-      const k = climbList ? climbList[kk] : kk;
-      const s = spawns[k];
-      const i = this.idx(s.x, s.y);
-      if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
-      let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
-      for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
-      if (touched) {
-        this.spawnTimers[k] = 0;
-        continue;
-      }
-      if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
-        this.resource[i] = s.kind;
-        this.ripe[i] = 1;
-        this.spawnTimers[k] = 0;
-      }
+    if (CONFIG.climb) {
+      for (const t of this.activeTiles) for (const k of this.spawnsInTile[t]) this.regrowSpawn(k);
+    } else for (let k = 0; k < spawns.length; k++) this.regrowSpawn(k);
+  }
+  /** One spawn point's regrowth. */
+  regrowSpawn(k) {
+    const s = this.board.spawns[k];
+    const i = this.idx(s.x, s.y);
+    if (CONFIG.foodRipen > 0 && this.resource[i] === 1) this.ripe[i] = Math.min(CONFIG.foodRipeMax, this.ripe[i] + 1 / CONFIG.foodRipen);
+    let touched = this.resource[i] !== 0 || this.owner[i] !== NONE;
+    for (let d = 0; d < 4 && !touched; d++) touched = this.ownerAt(s.x + DX[d], s.y + DY[d]) !== NONE;
+    if (touched) {
+      this.spawnTimers[k] = 0;
+      return;
+    }
+    if (++this.spawnTimers[k] >= (CONFIG.climb ? this.regrowAt(s.y) : CONFIG.spawnInterval)) {
+      this.resource[i] = s.kind;
+      this.ripe[i] = 1;
+      this.spawnTimers[k] = 0;
     }
   }
   /** Dead cells sink (island, climb); island sharks arrive. */
@@ -1333,7 +1432,9 @@ var World = class {
   /** Upkeep for one living body: whole-body stats, the climb's cold and pressure, pace, hunger, aging; shed or die. */
   upkeep(wr) {
     this.stream(2 * wr.id + 1);
-    const cells = this.cellSets.get(wr.id);
+    const cells = this.cells(wr);
+    const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
+    let doomed, swept = false;
     if (cells) {
       const hm = wr.home, w = this.w, narrowAt = this.narrow;
       let home = 0, narrow = 0, x0 = w, y0 = this.h, x1 = -1, y1 = -1;
@@ -1347,57 +1448,59 @@ var World = class {
           if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
           if (narrowAt[c]) narrow++;
         }
+      } else if (CONFIG.climb && !tox) {
+        const tr = this.freshTraits(wr, cells), st = this.board.step, insulation = tr.insulation, armor = tr.armor;
+        const items = cells.items;
+        for (let j = 0; j < items.length; j++) {
+          const c = items[j];
+          if (narrowAt[c]) narrow++;
+          const n = st[c];
+          if (!n) continue;
+          const over = n > 0 ? n - insulation : -n - armor;
+          if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+        }
+        swept = true;
       } else for (const c of cells) if (narrowAt[c]) narrow++;
       if (wr.leftHomeAt === void 0 && home === 0 && cells.size > 0) {
         wr.leftHomeAt = this.t;
         this.log("left", `${wr.name} left its start room (whole body)`, wr.id);
       }
       if (cells.size >= 4 && 2 * narrow >= cells.size) wr.stats.squeezed++;
-      if (home === 0) {
-        this.board.rooms.forEach((r, k) => {
-          if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) return;
-          if (r.x === hm.x && r.y === hm.y) return;
-          wr.roomsSeen.add(k);
-          wr.stats.rooms++;
-          this.log("room", `${wr.name} moved its whole body into another room`, wr.id);
-        });
+      const rooms = this.board.rooms;
+      if (home === 0) for (let k = 0; k < rooms.length; k++) {
+        const r = rooms[k];
+        if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) continue;
+        if (r.x === hm.x && r.y === hm.y) continue;
+        wr.roomsSeen.add(k);
+        wr.stats.rooms++;
+        this.log("room", `${wr.name} moved its whole body into another room`, wr.id);
       }
     }
-    const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
     if (tox && cells) {
       let armor = 0;
       for (const c of cells) if (this.code[c] === K) armor++;
-      const doomed = [];
+      const doomed2 = [];
       for (const c of cells) {
         const over = tox[c] - armor;
-        if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed.push(c);
+        if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) doomed2.push(c);
       }
       const cause = !this.board.toxinBy ? void 0 : wr.realm ? "core crushed (too shallow)" : "core crushed by the pressure";
-      for (const c of doomed) {
+      for (const c of doomed2) {
         if (!wr.alive) break;
         if (this.owner[c] === wr.id) this.destroy(c, void 0, cause);
       }
       if (!wr.alive) return;
     }
     if (CONFIG.climb && cells) {
-      let tr = wr.traits;
-      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.everLived() * 2 + 1024);
-      if (!tr || wr.id >= fresh.length || !fresh[wr.id]) {
-        tr = wr.traits = this.traitsOf(wr);
-        if (wr.id >= fresh.length) {
-          const grown = new Uint8Array(2 * wr.id + 1024);
-          grown.set(fresh);
-          this[TRAITS_FRESH] = fresh = grown;
-        }
-        fresh[wr.id] = 1;
-      }
       const st = this.board.step;
-      let doomed;
-      for (const c of cells) {
-        const n = st[c];
-        if (!n) continue;
-        const over = n > 0 ? n - tr.insulation : -n - tr.armor;
-        if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+      if (!swept) {
+        const tr = this.freshTraits(wr, cells);
+        for (const c of cells) {
+          const n = st[c];
+          if (!n) continue;
+          const over = n > 0 ? n - tr.insulation : -n - tr.armor;
+          if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+        }
       }
       if (doomed) for (const c of doomed) {
         if (!wr.alive) break;
@@ -1423,6 +1526,12 @@ var World = class {
     else if (wr.diesAt !== void 0 && (CONFIG.island || CONFIG.climb ? (wr.aged ?? 0) >= wr.diesAt - wr.born : this.t >= wr.diesAt)) this.kill(wr, "old age");
     else wr.zone = this.zoneOf(wr.ipX);
   }
+  /** The Climb: a body's traits, recomputed only if its cells changed since (see Cells.fresh). */
+  freshTraits(wr, cells) {
+    if (wr.traits && cells.fresh) return wr.traits;
+    cells.fresh = true;
+    return wr.traits = this.traitsOf(wr);
+  }
   /**
    * Island survival: a settled archipelago. Each islander founder gets CONFIG.seals copies
    * of itself (its descendants, generation 1) scattered through the calm water.
@@ -1437,7 +1546,7 @@ var World = class {
         const oy = CONFIG.climb ? room.y + Math.floor(this.rng() * Math.max(1, room.h - f.spec.height)) : S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
         if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
         const zone = this.zoneOf(ox + f.spec.ip.x), id = this.nextId(zone);
-        const wr = {
+        const wr = shaped({
           ...f,
           id,
           zone,
@@ -1453,7 +1562,7 @@ var World = class {
           executed: 0,
           roomsSeen: /* @__PURE__ */ new Set(),
           stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }
-        };
+        });
         if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(0) * (0.5 + this.rng()));
         this.enroll(wr);
         for (const c of f.spec.cells) {
@@ -1472,7 +1581,7 @@ var World = class {
    */
   paceOf(wr) {
     let m = 0, mass = 0;
-    for (const c of this.cellsOf(wr.id)) {
+    for (const c of this.mineOf(wr)) {
       const g = this.code[c];
       if (g === CODE["M"]) m++;
       mass += g === K || g === CODE["."] ? 2 : 1;
@@ -1493,8 +1602,9 @@ var World = class {
   traitsOf(wr) {
     const w = this.w, id = wr.id;
     let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
-    const cells = this.cellSets.get(id);
-    if (cells) for (const c of cells) {
+    const cells = this.cellSets.get(id)?.items;
+    if (cells) for (let j = 0; j < cells.length; j++) {
+      const c = cells[j];
       let g = this.code[c], flip = false, dbl = 1, weightless = false;
       for (let k = 0; k < 4; k++) {
         const nb = k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - w : c + w;
@@ -1680,8 +1790,7 @@ var World = class {
    * (From the body's own cells: walking the board would cross its whole width to find them.)
    */
   advance(wr) {
-    const cells = this.cellSets.get(wr.id);
-    if (!cells) return;
+    const cells = this.mineOf(wr);
     const w = this.w, dir = wr.dir;
     let best = -1, bestD = Infinity;
     if (dir === 0 || dir === 2) {
@@ -1715,10 +1824,10 @@ var World = class {
   }
   /** Execute one instruction. Returns its cycle cost. */
   step(wr) {
-    const g = GLYPHS[this.code[this.idx(wr.ipX, wr.ipY)]] ?? ".";
+    const op = this.code[this.idx(wr.ipX, wr.ipY)], g = GLYPHS[op] ?? ".";
     wr.executed++;
     let skip = false;
-    let cost = COST[g] ?? 1;
+    let cost = OP_COST[op] ?? 1;
     switch (g) {
       case ">":
         wr.dir = 0;
@@ -1909,7 +2018,7 @@ var World = class {
         if (g >= "0" && g <= "9") this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
-    if ("MFXGCBWDA".includes(g)) wr.lastAct = g;
+    if (OP_ACTS[op]) wr.lastAct = g;
     if (!wr.alive) return cost;
     this.advance(wr);
     if (skip) this.advance(wr);
@@ -1945,7 +2054,7 @@ var World = class {
   }
   opScan(wr) {
     const type = this.pop(wr);
-    const mine = this.cellsOf(wr.id);
+    const mine = this.mineOf(wr);
     const r = CONFIG.sight;
     const [fx, fy] = this.frame(wr);
     if (CONFIG.climb) {
@@ -1991,10 +2100,17 @@ var World = class {
    * so its cost follows what's near, not how big the world is.
    */
   ringScan(wr, type, mine, fx, fy) {
-    const r = CONFIG.sight, maxD = 2 * (r + 16);
-    const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
-    const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
-    const W = this.w, terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
+    const r = CONFIG.sight, maxD = 2 * (r + 16), W = this.w;
+    let bx0 = W, bx1 = -1;
+    for (const c of mine) {
+      const x = c % W;
+      if (x < bx0) bx0 = x;
+      if (x > bx1) bx1 = x;
+    }
+    const by0 = mine.length ? mine[0] / W | 0 : this.h, by1 = mine.length ? mine[mine.length - 1] / W | 0 : -1;
+    const x0 = Math.max(0, wr.ipX - r - 16, bx0 - r), x1 = Math.min(W - 1, wr.ipX + r + 16, bx1 + r);
+    const y0 = Math.max(0, wr.ipY - r - 16, by0 - r), y1 = Math.min(this.h - 1, wr.ipY + r + 16, by1 + r);
+    const terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
     const keys = SCAN_KEYS;
     let n = 0;
     for (let y = y0; y <= y1; y++) {
@@ -2041,7 +2157,7 @@ var World = class {
   // ---------- actions ----------
   opShift(wr, d) {
     d = (d % 4 + 4) % 4;
-    const mine = this.cellsOf(wr.id);
+    const mine = this.mineOf(wr);
     for (const c of mine) {
       const nx = c % this.w + DX[d], ny = (c / this.w | 0) + DY[d];
       if (this.ownerAt(nx, ny) === wr.id) continue;
@@ -2058,19 +2174,26 @@ var World = class {
         wr.stats.collected++;
       }
     }
-    const codes = mine.map((c) => this.code[c]);
-    for (const c of mine) {
-      this.owner[c] = NONE;
-      this.code[c] = 0;
+    const n = mine.length, codes = SHIFT_CODES.length >= n ? SHIFT_CODES : SHIFT_CODES = new Uint8Array(2 * n);
+    const owner = this.owner, code = this.code, id = wr.id, delta = DY[d] * this.w + DX[d];
+    for (let k = 0; k < n; k++) {
+      const c = mine[k];
+      codes[k] = code[c];
+      owner[c] = NONE;
+      code[c] = 0;
     }
-    const delta = DY[d] * this.w + DX[d];
-    const moved = mine.map((c) => c + delta);
-    for (let k = 0; k < moved.length; k++) {
-      this.owner[moved[k]] = wr.id;
-      this.code[moved[k]] = codes[k];
+    let set = this.cells(wr);
+    const fresh = !!set?.fresh;
+    if (set) set.clear();
+    else this.cellSets.set(id, set = new Cells());
+    for (let k = 0; k < n; k++) {
+      const c = mine[k] += delta;
+      owner[c] = id;
+      code[c] = codes[k];
+      set.add(c);
     }
-    this.cellSets.set(wr.id, new Set(moved));
-    this.sortedCells.set(wr.id, moved);
+    set.sorted = mine;
+    set.fresh = fresh;
     wr.ipX += DX[d];
     wr.ipY += DY[d];
     wr.ox += DX[d];
@@ -2096,7 +2219,6 @@ var World = class {
     for (const c of mine) mid += across(c);
     mid /= mine.length;
     const order = mine.slice().sort((a, b) => along(a) - along(b) || a - b);
-    const mineSet = this.cellSets.get(id);
     for (const src of order) {
       const rest = mine.length - 1;
       const start = mine[0] === src ? mine[1] : mine[0];
@@ -2109,7 +2231,7 @@ var World = class {
           const nx = x + DX[k], ny = y + DY[k];
           if (!this.inBounds(nx, ny)) continue;
           const n = ny * w + nx;
-          if (n !== src && mineSet.has(n) && !seen.has(n)) {
+          if (n !== src && this.owner[n] === id && !seen.has(n)) {
             seen.add(n);
             queue.push(n);
           }
@@ -2212,23 +2334,26 @@ var World = class {
   }
   opCollect(wr) {
     let got = false;
-    for (const c of this.cellsOf(wr.id)) {
-      const x = c % this.w, y = c / this.w | 0;
+    const W = this.w, H = this.h, owner = this.owner, resource = this.resource;
+    const meatShare = this.dietShare(wr, "meat"), plantShare = this.dietShare(wr, "plants");
+    for (const c of this.mineOf(wr)) {
+      const x = c % W, y = c / W | 0;
       for (let d = 0; d < 4; d++) {
         const nx = x + DX[d], ny = y + DY[d];
-        if (!this.inBounds(nx, ny)) continue;
-        const i = this.idx(nx, ny);
-        if (CONFIG.island && (wr.realm ? this.owner[i] !== DEBRIS : this.owner[i] === DEBRIS)) continue;
-        if (CONFIG.climb && (this.owner[i] === DEBRIS ? !this.dietShare(wr, "meat") : !this.dietShare(wr, "plants"))) continue;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const i = ny * W + nx;
+        if (resource[i] === 0 && owner[i] !== DEBRIS) continue;
+        if (CONFIG.island && (wr.realm ? owner[i] !== DEBRIS : owner[i] === DEBRIS)) continue;
+        if (CONFIG.climb && (owner[i] === DEBRIS ? !meatShare : !plantShare)) continue;
         if (this.resource[i] === 1) {
-          const feed = CONFIG.climb ? CONFIG.kelpFeed * this.dietShare(wr, "plants") * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
+          const feed = CONFIG.climb ? CONFIG.kelpFeed * plantShare * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
           wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed * this.ripe[i]);
           this.log("collect", `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log("collect", `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          const feed = this.worth(i) * (CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, "meat") * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup);
+          const feed = this.worth(i) * (CONFIG.climb ? CONFIG.seaFeed * meatShare * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup);
           wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
           this.setOwner(i, NONE);
           this.code[i] = 0;
@@ -2252,7 +2377,7 @@ var World = class {
   opBombNearest(wr) {
     const R = this.reach(wr);
     const mine = new Uint8Array(GLYPHS.length + 1);
-    for (const c of this.cellsOf(wr.id)) mine[this.code[c]] = 1;
+    for (const c of this.mineOf(wr)) mine[this.code[c]] = 1;
     let best = -1, bx = 0, by = 0;
     for (let dy = -R; dy <= R; dy++) {
       for (let dx = -R; dx <= R; dx++) {
@@ -2317,7 +2442,7 @@ var World = class {
       }
     } else if (this.living().length >= CONFIG.maxWarriors) return false;
     if (CONFIG.climb && CONFIG.crowd > 0 && (this.tileCount[this.tileOf(wr.ipX, wr.ipY)] ?? 0) >= CONFIG.crowd) return false;
-    const mine = this.cellsOf(wr.id);
+    const mine = this.mineOf(wr);
     const xs = mine.map((c) => c % this.w), ys = mine.map((c) => c / this.w | 0);
     const bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
     const ox = DX[d] * (bw + 1), oy = DY[d] * (bh + 1);
@@ -2327,7 +2452,7 @@ var World = class {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
     const id = this.nextId(wr.zone);
-    const child = {
+    const child = shaped({
       id,
       lineage: wr.lineage,
       gen: wr.gen + 1,
@@ -2354,7 +2479,7 @@ var World = class {
       home: wr.home,
       roomsSeen: new Set(wr.roomsSeen),
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }
-    };
+    });
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(this.lifeOf(child.realm) * (0.5 + this.rng()));
     const cx0 = Math.min(...xs) + ox, cx1 = Math.max(...xs) + ox, cy0 = Math.min(...ys) + oy, cy1 = Math.max(...ys) + oy;
     this.board.rooms.forEach((r, k) => {

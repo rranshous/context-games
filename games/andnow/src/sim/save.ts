@@ -134,7 +134,7 @@ export function loadWorld(bytes: Uint8Array): World {
   const w = world as unknown as { cellSets: Map<number, Set<number> | Cells>; sortedCells: Map<number, number[]> };
   for (const [id, set] of w.cellSets) if (id !== DEBRIS) w.cellSets.set(id, new Cells([...set]));
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warrior(id)?.alive)) w.cellSets.delete(id);
-  for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
+  w.sortedCells.clear(); // (a cache: bodies keep theirs on their Cells now)
   return world;
 }
 
