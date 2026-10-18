@@ -2204,3 +2204,29 @@ Nothing has broken out yet. Bodies beyond ±1 at the latest checkpoint, with pop
 - Meat eaters are still ~0% everywhere, as expected with no frontier to scavenge.
 
 **Stomach 8.** Stopped `climb4-s3` (shell 3, at 1.44M) and `climb4-shell2-s3` (at 1.11M): both had settled and weren't telling us anything new. Their checkpoints stay. Started `climb4-shell1-st8-s1` and `climb4-shell1-st8-s3` (`shell=1&stomach=8`), at normal priority. A body can now store 8× its cells, so a rich meal buys twice the time. Still running: `climb4-s4`, `climb4-s1` (shell 3), `climb4-shell1-s1` and `climb4-shell1-s3`.
+
+### Breakout in shell1-s3: a 10-cell double-insulated forager (2026-10-18, night)
+
+`climb4-shell1-s3` (shell 1, stomach 4) broke out between 766k and 827k ticks:
+
+| tick | alive | step +2 | step +3 |
+|---|---|---|---|
+| 700k | 3,336 | 66 | — |
+| 800k | 9,275 | 6,034 | 13 (step +3 joined) |
+| 827k | 25,178 | 21,018 | 39 |
+
+The old s3 broke out at ~480k, so this is ~300k later, but it's the same kind of explosion.
+
+**What broke out is a new kind of body, not a cross.** 9,919 of the 21k bodies at +2 run one program, and most of the rest are one-cell variants of it:
+```
+ BC
+CMxDm
+IxM
+```
+- `x` doubles its neighbours' traits. The lower `x` sits beside the one `I`, so one insulation cell counts as 2: enough for step +2 at the upkeep of a single cell. The doubled `M`s make it fast.
+- B and two C: it eats both plants and dead cells.
+- 10 cells, so it's cheap to run, and its store is only 40. It lives by eating often, not by banking.
+
+**Diets flipped.** Step +2 is 78% both-eaters, 7% meat, 12% plants. In the old runs it was 65–78% plants, ~10–20% meat and ~0–9% both when it filled. At +1 it's 38% both-eaters, against ~0% before. With every cell costing upkeep and the store capped, eating whatever's at hand pays.
+
+**The stomach-8 runs** (415k on seed 1, 454k on seed 3) haven't broken out yet. They're still before or at the old runs' breakout ticks, so no verdict. The shell 3 runs (s4 at 1.21M, s1 at 1.78M) are still stuck at ±1.
