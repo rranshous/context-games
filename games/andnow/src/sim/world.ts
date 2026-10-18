@@ -41,8 +41,30 @@ const K = CODE['K'];
 const INSUL = CODE['I'], FLIP = CODE['~'], DOUBLE = CODE['x'], MASK = CODE['n'], FAT = CODE['.'], MOVE = CODE['M'], BITE = CODE['B'], COLLECT = CODE['C'];
 
 /** The Climb: what a body's chemistry adds up to (see World.traitsOf). */
+/**
+ * A body's cells: a Set<number> in all that matters (insertion order, a delete keeps the rest
+ * in order), but a plain array, quicker to walk and with no hash table to reallocate. Bodies
+ * are small; membership is the owner grid's job (owner[i] === id), so add doesn't check.
+ * (Dead cells, thousands of them, stay a real Set.) Saved as a Set.
+ */
+export class Cells {
+  constructor(public items: number[] = []) {}
+  get size() { return this.items.length; }
+  add(i: number) { this.items.push(i); return this; }
+  delete(i: number) { const k = this.items.indexOf(i); if (k < 0) return false; this.items.splice(k, 1); return true; }
+  clear() { this.items.length = 0; }
+  [Symbol.iterator]() { return this.items[Symbol.iterator](); }
+}
+/** What `cellSets` holds: a body's Cells, or the dead cells' Set. */
+type CellSet = Cells | Set<number>;
+const newCells = (id: number): CellSet => (id === DEBRIS ? new Set<number>() : new Cells());
+
 export interface Traits { armor: number; insulation: number; mass: number; move: number; bite: number; plants: boolean; meat: boolean; pace: number }
 export const DEBRIS = -2;
+// (step's per-code tables: an instruction's cycle cost, and whether it's an action.)
+const OP_COST = Array.from(GLYPHS, (g) => COST[g] ?? 1);
+const OP_ACTS = Uint8Array.from(GLYPHS, (g) => +'MFXGCBWDA'.includes(g));
+let SHIFT_CODES = new Uint8Array(1024); // (opShift's scratch: the moving body's codes)
 const SCAN_KEYS = new Float64Array(64 * 64); // (ringScan's scratch: its window is at most 61×61)
 
 export const CONFIG = {
@@ -154,6 +176,22 @@ export interface Warrior {
   deathReason?: string;
   diedAt?: number;
   spec: WarriorSpec;
+}
+
+/**
+ * A body with every field, in one order: bodies then share one hidden class, so the hot loops'
+ * property reads stay fast (bodies that grew their optional fields in different orders, or came
+ * back from a save with different ones, ran ~6 shapes and slowed every read of a body).
+ */
+export function shaped(w: Warrior): Warrior {
+  return {
+    id: w.id, lineage: w.lineage, gen: w.gen, zone: w.zone, realm: w.realm, parent: w.parent, born: w.born,
+    diesAt: w.diesAt, aged: w.aged, pace: w.pace, traits: w.traits, dents: w.dents, name: w.name, alive: w.alive,
+    ipX: w.ipX, ipY: w.ipY, ox: w.ox, oy: w.oy, dir: w.dir, stack: w.stack, maxSize: w.maxSize, speed: w.speed,
+    accum: w.accum, lastOk: w.lastOk, lastAct: w.lastAct, cellCount: w.cellCount, executed: w.executed, stats: w.stats,
+    harmedAt: w.harmedAt, home: w.home, leftHomeAt: w.leftHomeAt, roomsSeen: w.roomsSeen, deathReason: w.deathReason,
+    diedAt: w.diedAt, spec: w.spec,
+  };
 }
 
 export interface WorldEvent { t: number; kind: string; text: string; who?: number }
@@ -356,7 +394,7 @@ export class World {
       for (const s of b.spawns) s.y += D;
       for (const r of b.starts) shift(r);
       for (const wr of new Set(this.allWarriors())) { wr.ipY += D; wr.oy += D; shift(wr.home); }
-      for (const [id, set] of this.cellSets) { const out = new Set<number>(); for (const i of set) out.add(i + dI); this.cellSets.set(id, out); }
+      for (const [id, set] of this.cellSets) { const out = newCells(id); for (const i of set) out.add(i + dI); this.cellSets.set(id, out); }
       this.sortedCells.clear();
       b.seaLevel! += D;
       this.yShift += D;
@@ -431,13 +469,13 @@ export class World {
       }
     }
     const id = nth;
-    const wr: Warrior = {
+    const wr: Warrior = shaped({
       id, lineage: id, gen: 0, realm, zone: this.zoneOf(ox + spec.ip.x), born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
       stack: [], maxSize: CONFIG.climb ? this.capAtCell(this.idx(ox + spec.ip.x, oy + spec.ip.y)) : CONFIG.island ? (realm ? CONFIG.sharkCap : CONFIG.sizeCap) : CONFIG.startSize, speed: CONFIG.speedStart, // island and climb founders start full
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }, home: room, roomsSeen: new Set(),
-    };
+    });
     if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(wr.realm) * (0.5 + this.rng()));
     for (const c of spec.cells) {
       const x = ox + c.x, y = oy + c.y;
@@ -472,6 +510,11 @@ export class World {
   private enroll(wr: Warrior) {
     this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = wr;
     this.livingList.push(wr);
+  }
+
+  /** After a load: the living back in one shape (see shaped). */
+  reshape() {
+    this.livingList = this.living().map((wr) => (this.zoneBodies[wr.id % ZONES][Math.floor(wr.id / ZONES)] = shaped(wr)));
   }
 
   /** Living warriors, in id order. */
@@ -509,7 +552,7 @@ export class World {
 
   // Cells by owner (warrior id, or DEBRIS), kept in step with `owner` by setOwner, so
   // nothing has to scan the whole board to find a warrior's cells.
-  private cellSets = new Map<number, Set<number>>();
+  private cellSets = new Map<number, CellSet>();
   private sortedCells = new Map<number, number[]>();
   /**
    * The Climb: 1 where a body's `traits` still describe its cells. A body's cells changing
@@ -529,7 +572,7 @@ export class World {
     if (v !== NONE) {
       this.changed(v);
       let set = this.cellSets.get(v);
-      if (!set) { set = new Set(); this.cellSets.set(v, set); }
+      if (!set) { set = newCells(v); this.cellSets.set(v, set); }
       set.add(i);
       this.sortedCells.delete(v);
     }
@@ -771,6 +814,8 @@ export class World {
     this.stream(2 * wr.id + 1);
     // Whole-body measures: a tip poking into a corridor mouth is neither leaving nor squeezing.
     const cells = this.cellSets.get(wr.id);
+    const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
+    let doomed: number[] | undefined, swept = false;
     if (cells) {
       const hm = wr.home, w = this.w, narrowAt = this.narrow;
       let home = 0, narrow = 0, x0 = w, y0 = this.h, x1 = -1, y1 = -1;
@@ -782,24 +827,37 @@ export class World {
           if (x >= hm.x && y >= hm.y && x < hm.x + hm.w && y < hm.y + hm.h) home++;
           if (narrowAt[c]) narrow++;
         }
+      } else if (CONFIG.climb && !tox) {
+        // (One pass for the narrow passages and the climb's cold and pressure below: the
+        // same draws in the same order, from one walk of the cells instead of two.)
+        const tr = this.freshTraits(wr), st = this.board.step!, insulation = tr.insulation, armor = tr.armor;
+        const items = (cells as Cells).items;
+        for (let j = 0; j < items.length; j++) {
+          const c = items[j];
+          if (narrowAt[c]) narrow++;
+          const n = st[c];
+          if (!n) continue;
+          const over = n > 0 ? n - insulation : -n - armor;
+          if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+        }
+        swept = true;
       } else for (const c of cells) if (narrowAt[c]) narrow++;
       if (wr.leftHomeAt === undefined && home === 0 && cells.size > 0) {
         wr.leftHomeAt = this.t;
         this.log('left', `${wr.name} left its start room (whole body)`, wr.id);
       }
       if (cells.size >= 4 && 2 * narrow >= cells.size) wr.stats.squeezed++;
-      if (home === 0) {
-        this.board.rooms.forEach((r, k) => {
-          if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) return;
-          if (r.x === hm.x && r.y === hm.y) return;
-          wr.roomsSeen.add(k);
-          wr.stats.rooms++;
-          this.log('room', `${wr.name} moved its whole body into another room`, wr.id);
-        });
+      const rooms = this.board.rooms;
+      if (home === 0) for (let k = 0; k < rooms.length; k++) {
+        const r = rooms[k];
+        if (x0 < r.x || y0 < r.y || x1 >= r.x + r.w || y1 >= r.y + r.h || wr.roomsSeen.has(k)) continue;
+        if (r.x === hm.x && r.y === hm.y) continue;
+        wr.roomsSeen.add(k);
+        wr.stats.rooms++;
+        this.log('room', `${wr.name} moved its whole body into another room`, wr.id);
       }
     }
     // Plate toxin: each cell on a level above my armor (my K cells) may die.
-    const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
     if (tox && cells) {
       let armor = 0;
       for (const c of cells) if (this.code[c] === K) armor++;
@@ -812,20 +870,15 @@ export class World {
     if (CONFIG.climb && cells) {
       // The Climb: too high freezes (short of insulation), too deep crushes (short of armor),
       // one level per step short, as harsh as the island's pressure.
-      let tr = wr.traits;
-      let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.everLived() * 2 + 1024);
-      if (!tr || wr.id >= fresh.length || !fresh[wr.id]) {
-        tr = wr.traits = this.traitsOf(wr);
-        if (wr.id >= fresh.length) { const grown = new Uint8Array(2 * wr.id + 1024); grown.set(fresh); this[TRAITS_FRESH] = fresh = grown; }
-        fresh[wr.id] = 1;
-      }
       const st = this.board.step!;
-      let doomed: number[] | undefined;
-      for (const c of cells) {
-        const n = st[c];
-        if (!n) continue;
-        const over = n > 0 ? n - tr.insulation : -n - tr.armor;
-        if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+      if (!swept) {
+        const tr = this.freshTraits(wr);
+        for (const c of cells) {
+          const n = st[c];
+          if (!n) continue;
+          const over = n > 0 ? n - tr.insulation : -n - tr.armor;
+          if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
+        }
       }
       if (doomed) for (const c of doomed) { if (!wr.alive) break; if (this.owner[c] === wr.id) this.destroy(c, undefined, st[c] > 0 ? 'core frozen (too high)' : 'core crushed by the pressure'); }
       if (!wr.alive) return;
@@ -852,6 +905,15 @@ export class World {
     else wr.zone = this.zoneOf(wr.ipX);
   }
 
+  /** The Climb: a body's traits, recomputed only if its cells changed since (see TRAITS_FRESH). */
+  private freshTraits(wr: Warrior): Traits {
+    let fresh = this[TRAITS_FRESH] ??= new Uint8Array(this.everLived() * 2 + 1024);
+    if (wr.traits && wr.id < fresh.length && fresh[wr.id]) return wr.traits;
+    if (wr.id >= fresh.length) { const grown = new Uint8Array(2 * wr.id + 1024); grown.set(fresh); this[TRAITS_FRESH] = fresh = grown; }
+    fresh[wr.id] = 1;
+    return wr.traits = this.traitsOf(wr);
+  }
+
   /**
    * Island survival: a settled archipelago. Each islander founder gets CONFIG.seals copies
    * of itself (its descendants, generation 1) scattered through the calm water.
@@ -867,11 +929,11 @@ export class World {
         const oy = CONFIG.climb ? room.y + Math.floor(this.rng() * Math.max(1, room.h - f.spec.height)) : S + Math.floor(this.rng() * Math.max(1, calm - S - f.spec.height));
         if (!f.spec.cells.every((c) => this.isFree(ox + c.x, oy + c.y))) continue;
         const zone = this.zoneOf(ox + f.spec.ip.x), id = this.nextId(zone);
-        const wr: Warrior = {
+        const wr: Warrior = shaped({
           ...f, id, zone, gen: 1, parent: f.id, name: this.childName(f.lineage, id), ipX: ox + f.spec.ip.x, ipY: oy + f.spec.ip.y, ox: ox + f.spec.ip.x, oy: oy + f.spec.ip.y,
           stack: [], cellCount: 0, executed: 0, roomsSeen: new Set(),
           stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
-        };
+        });
         if (CONFIG.lifespan > 0) wr.diesAt = Math.floor(this.lifeOf(0) * (0.5 + this.rng()));
         this.enroll(wr);
         for (const c of f.spec.cells) { const i = this.idx(ox + c.x, oy + c.y); this.setOwner(i, id); this.code[i] = c.code; wr.cellCount++; }
@@ -909,8 +971,9 @@ export class World {
   traitsOf(wr: Warrior): Traits {
     const w = this.w, id = wr.id;
     let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
-    const cells = this.cellSets.get(id);
-    if (cells) for (const c of cells) {
+    const cells = (this.cellSets.get(id) as Cells | undefined)?.items;
+    if (cells) for (let j = 0; j < cells.length; j++) {
+      const c = cells[j];
       let g = this.code[c], flip = false, dbl = 1, weightless = false;
       for (let k = 0; k < 4; k++) {
         const nb = k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - w : c + w;
@@ -1105,8 +1168,7 @@ export class World {
    * (From the body's own cells: walking the board would cross its whole width to find them.)
    */
   private advance(wr: Warrior) {
-    const cells = this.cellSets.get(wr.id);
-    if (!cells) return;
+    const cells = this.cellsOf(wr.id); // (the array: quicker to walk than the set, and any order will do)
     const w = this.w, dir = wr.dir;
     let best = -1, bestD = Infinity;
     if (dir === 0 || dir === 2) {
@@ -1136,10 +1198,10 @@ export class World {
 
   /** Execute one instruction. Returns its cycle cost. */
   private step(wr: Warrior): number {
-    const g = GLYPHS[this.code[this.idx(wr.ipX, wr.ipY)]] ?? '.';
+    const op = this.code[this.idx(wr.ipX, wr.ipY)], g = GLYPHS[op] ?? '.';
     wr.executed++;
     let skip = false;
-    let cost = COST[g] ?? 1;
+    let cost = OP_COST[op] ?? 1;
     // (pop/push are called directly: closures here would allocate on every instruction.)
 
     switch (g) {
@@ -1215,7 +1277,7 @@ export class World {
         if (g >= '0' && g <= '9') this.push(wr, g.charCodeAt(0) - 48);
         break;
     }
-    if ('MFXGCBWDA'.includes(g)) wr.lastAct = g;
+    if (OP_ACTS[op]) wr.lastAct = g;
     if (!wr.alive) return cost;
     this.advance(wr);
     if (skip) this.advance(wr);
@@ -1296,13 +1358,18 @@ export class World {
    * so its cost follows what's near, not how big the world is.
    */
   private ringScan(wr: Warrior, type: number, mine: number[], fx: number, fy: number) {
-    const r = CONFIG.sight, maxD = 2 * (r + 16);
-    const x0 = Math.max(0, wr.ipX - r - 16), x1 = Math.min(this.w - 1, wr.ipX + r + 16);
-    const y0 = Math.max(0, wr.ipY - r - 16), y1 = Math.min(this.h - 1, wr.ipY + r + 16);
+    const r = CONFIG.sight, maxD = 2 * (r + 16), W = this.w;
+    // Only what's within sight range of one of my cells can be seen: the window shrinks to
+    // my body's bounding box grown by r (usually far smaller than the window round the IP).
+    let bx0 = W, bx1 = -1;
+    for (const c of mine) { const x = c % W; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; }
+    const by0 = mine.length ? (mine[0] / W) | 0 : this.h, by1 = mine.length ? (mine[mine.length - 1] / W) | 0 : -1;
+    const x0 = Math.max(0, wr.ipX - r - 16, bx0 - r), x1 = Math.min(W - 1, wr.ipX + r + 16, bx1 + r);
+    const y0 = Math.max(0, wr.ipY - r - 16, by0 - r), y1 = Math.min(this.h - 1, wr.ipY + r + 16, by1 + r);
     // One sweep of the window collects the matches, keyed (distance, board index), and they're
     // tried nearest first: the same order as searching ring by ring, at a fraction of the cost.
     // (classify, inlined: this is the hottest loop in a climb. The window is inside the board.)
-    const W = this.w, terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
+    const terrain = this.board.terrain, owner = this.owner, resource = this.resource, me = wr.id;
     const keys = SCAN_KEYS;
     let n = 0;
     for (let y = y0; y <= y1; y++) {
@@ -1365,17 +1432,15 @@ export class World {
     }
     // Bulk move, bypassing setOwner: every destination was free or mine, so no other
     // owner's cells change, and a translation keeps board order, so the moved list is
-    // still sorted.
-    const codes = mine.map((c) => this.code[c]);
-    for (const c of mine) { this.owner[c] = NONE; this.code[c] = 0; }
-    const delta = DY[d] * this.w + DX[d];
-    const moved = mine.map((c) => c + delta);
-    for (let k = 0; k < moved.length; k++) {
-      this.owner[moved[k]] = wr.id;
-      this.code[moved[k]] = codes[k];
-    }
-    this.cellSets.set(wr.id, new Set(moved));
-    this.sortedCells.set(wr.id, moved);
+    // still sorted. (In place: the sorted list is ours, and the set is refilled in board
+    // order, as a fresh one would be.)
+    const n = mine.length, codes = SHIFT_CODES.length >= n ? SHIFT_CODES : (SHIFT_CODES = new Uint8Array(2 * n));
+    const owner = this.owner, code = this.code, id = wr.id, delta = DY[d] * this.w + DX[d];
+    for (let k = 0; k < n; k++) { const c = mine[k]; codes[k] = code[c]; owner[c] = NONE; code[c] = 0; }
+    let set = this.cellSets.get(id);
+    if (set) set.clear(); else this.cellSets.set(id, set = newCells(id));
+    for (let k = 0; k < n; k++) { const c = (mine[k] += delta); owner[c] = id; code[c] = codes[k]; set.add(c); }
+    this.sortedCells.set(id, mine);
     wr.ipX += DX[d];
     wr.ipY += DY[d];
     wr.ox += DX[d];
@@ -1403,7 +1468,6 @@ export class World {
     mid /= mine.length;
     // Sources, rearmost first.
     const order = mine.slice().sort((a, b) => along(a) - along(b) || a - b);
-    const mineSet = this.cellSets.get(id)!;
     for (const src of order) {
       // The rest must stay connected without src.
       const rest = mine.length - 1;
@@ -1417,7 +1481,7 @@ export class World {
           const nx = x + DX[k], ny = y + DY[k];
           if (!this.inBounds(nx, ny)) continue;
           const n = ny * w + nx;
-          if (n !== src && mineSet.has(n) && !seen.has(n)) { seen.add(n); queue.push(n); }
+          if (n !== src && this.owner[n] === id && !seen.has(n)) { seen.add(n); queue.push(n); }
         }
       }
       if (seen.size !== rest) continue;
@@ -1498,25 +1562,28 @@ export class World {
 
   private opCollect(wr: Warrior): boolean {
     let got = false;
+    const W = this.w, H = this.h, owner = this.owner, resource = this.resource;
+    const meatShare = this.dietShare(wr, 'meat'), plantShare = this.dietShare(wr, 'plants');
     for (const c of this.cellsOf(wr.id)) {
-      const x = c % this.w, y = (c / this.w) | 0;
+      const x = c % W, y = (c / W) | 0;
       for (let d = 0; d < 4; d++) {
         const nx = x + DX[d], ny = y + DY[d];
-        if (!this.inBounds(nx, ny)) continue;
-        const i = this.idx(nx, ny);
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const i = ny * W + nx;
+        if (resource[i] === 0 && owner[i] !== DEBRIS) continue; // (nothing to eat: most neighbours)
         // Island survival: islanders eat only vegetation, sea creatures only dead cells.
-        if (CONFIG.island && (wr.realm ? this.owner[i] !== DEBRIS : this.owner[i] === DEBRIS)) continue;
+        if (CONFIG.island && (wr.realm ? owner[i] !== DEBRIS : owner[i] === DEBRIS)) continue;
         // The Climb: you digest what your chemistry lets you (plants, meat, or both), and food is 10× richer each step out.
-        if (CONFIG.climb && (this.owner[i] === DEBRIS ? !this.dietShare(wr, 'meat') : !this.dietShare(wr, 'plants'))) continue;
+        if (CONFIG.climb && (owner[i] === DEBRIS ? !meatShare : !plantShare)) continue;
         if (this.resource[i] === 1) {
-          const feed = CONFIG.climb ? CONFIG.kelpFeed * this.dietShare(wr, 'plants') * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
+          const feed = CONFIG.climb ? CONFIG.kelpFeed * plantShare * this.richness(i) : CONFIG.island ? CONFIG.kelpFeed : CONFIG.sizePickup;
           wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed * this.ripe[i]);
           this.log('collect', `${wr.name} took size (max ${Math.floor(wr.maxSize)})`, wr.id);
         } else if (this.resource[i] === 2) {
           wr.speed = Math.min(CONFIG.speedCap, wr.speed + CONFIG.speedPickup);
           this.log('collect', `${wr.name} took speed (${wr.speed.toFixed(2)})`, wr.id);
         } else if (this.owner[i] === DEBRIS) {
-          const feed = this.worth(i) * (CONFIG.climb ? CONFIG.seaFeed * this.dietShare(wr, 'meat') * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup);
+          const feed = this.worth(i) * (CONFIG.climb ? CONFIG.seaFeed * meatShare * this.richness(i) : CONFIG.island ? CONFIG.seaFeed : CONFIG.debrisPickup);
           wr.maxSize = Math.min(this.capOf(wr), wr.maxSize + feed);
           this.setOwner(i, NONE);
           this.code[i] = 0;
@@ -1620,13 +1687,13 @@ export class World {
       for (let s = 1; s < steps; s++) if (this.board.terrain[this.idx(xs[k] + DX[d] * s, ys[k] + DY[d] * s)] !== FLOOR) return false;
     }
     const id = this.nextId(wr.zone);
-    const child: Warrior = {
+    const child: Warrior = shaped({
       id, lineage: wr.lineage, gen: wr.gen + 1, realm: wr.realm, zone: wr.zone, parent: wr.id, born: this.t, name: this.childName(wr.lineage, id), alive: true,
       ipX: wr.ipX + ox, ipY: wr.ipY + oy, ox: wr.ox + ox, oy: wr.oy + oy, dir: wr.dir,
       stack: [], maxSize: wr.maxSize / 2, speed: wr.speed, accum: 0, lastOk: true, lastAct: '',
       cellCount: 0, executed: 0, spec: wr.spec, home: wr.home, roomsSeen: new Set(wr.roomsSeen),
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 },
-    };
+    });
     if (CONFIG.lifespan > 0) child.diesAt = this.t + Math.floor(this.lifeOf(child.realm) * (0.5 + this.rng()));
     // The room a child is born in isn't one it travelled to: no "entered another room" for it.
     const cx0 = Math.min(...xs) + ox, cx1 = Math.max(...xs) + ox, cy0 = Math.min(...ys) + oy, cy1 = Math.max(...ys) + oy;

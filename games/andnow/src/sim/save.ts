@@ -7,7 +7,7 @@
 // every object, array, Map, Set and typed array is one entry, and a reference to it is
 // {"$r": n}, so shared objects (living list ⊂ warriors, shared specs) stay shared.
 import { makeRng } from './rng';
-import { CONFIG, World } from './world';
+import { Cells, CONFIG, DEBRIS, World } from './world';
 
 type Enc = unknown;
 const TYPED = { Int8Array, Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array } as const;
@@ -44,10 +44,11 @@ export function saveWorld(world: World, query: string): Uint8Array {
       offset += (o as Typed).byteLength;
     } else if (Array.isArray(o)) body = { $a: o.map(enc) };
     else if (o instanceof Map) body = { $m: [...o.entries()].map(([k, x]) => [enc(k), enc(x)]) };
-    else if (o instanceof Set) body = { $s: [...o].map(enc) };
+    else if (o instanceof Set || o instanceof Cells) body = { $s: [...o].map(enc) }; // (a body's Cells are a Set, saved)
     else {
       const out: Record<string, Enc> = {};
-      for (const [k, x] of Object.entries(o)) if (x !== undefined && typeof x !== 'function') out[k] = enc(x);
+      // (Keys sorted: a save says the same thing however the object came to have its fields.)
+      for (const [k, x] of Object.entries(o).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) if (x !== undefined && typeof x !== 'function') out[k] = enc(x);
       body = { $o: out };
     }
     table[id] = body;
@@ -128,8 +129,10 @@ export function loadWorld(bytes: Uint8Array): World {
   // look at them (src/diet.ts compares runs across rules), never to carry them on.
   const old = world as unknown as { warriors?: unknown[] };
   if (old.warriors && !('zoneBodies' in world)) Object.defineProperty(world, 'warrior', { value: (id: number) => old.warriors![id] });
+  if ('zoneBodies' in world) world.reshape();
   // Checkpoints from before kill() dropped the dead's empty cell sets carry millions of them.
-  const w = world as unknown as { cellSets: Map<number, Set<number>>; sortedCells: Map<number, number[]> };
+  const w = world as unknown as { cellSets: Map<number, Set<number> | Cells>; sortedCells: Map<number, number[]> };
+  for (const [id, set] of w.cellSets) if (id !== DEBRIS) w.cellSets.set(id, new Cells([...set]));
   for (const [id, set] of w.cellSets) if (!set.size && (id < 0 || !world.warrior(id)?.alive)) w.cellSets.delete(id);
   for (const [id, cells] of w.sortedCells) if (!w.cellSets.has(id)) w.sortedCells.delete(id);
   return world;

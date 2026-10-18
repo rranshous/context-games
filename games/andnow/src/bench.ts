@@ -1,7 +1,7 @@
 // Time the sim on a saved world, and fingerprint where it ends up, so a speed-up can be
 // checked to change nothing:
 //   node dist/bench.mjs <checkpoint.andnow.gz> [ticks, default 200]
-// Prints ms/tick every 50 ticks, then the hash of the whole saved world at the end (same
+// Prints ms/tick every 50 ticks (wall clock, and CPU time at the end), then the hash of the whole saved world at the end (same
 // checkpoint and ticks → same hash, or the change altered the run).
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -15,13 +15,16 @@ const world = loadWorld(gunzipSync(readFileSync(file)));
 const t0 = world.t;
 console.log(`bench: tick ${t0}, ${world.living().length} alive, ${ticks} ticks`);
 let start = performance.now(), lap = start;
+const cpu0 = process.cpuUsage();
 for (let k = 1; k <= ticks && !world.result.over; k++) {
   world.tick();
   if (k % 50 === 0) { const now = performance.now(); console.log(`  t${world.t} ${((now - lap) / 50).toFixed(1)} ms/tick · ${world.living().length} alive`); lap = now; }
 }
 const ms = (performance.now() - start) / (world.t - t0);
+// (CPU time too: on a busy machine it's steadier than the wall clock.)
+const cpu = process.cpuUsage(cpu0), cpuMs = (cpu.user + cpu.system) / 1000 / (world.t - t0);
 // (cellsOf's sorted-cell cache is saved too, but it's only a cache: drop it so a change in
 // what gets cached doesn't change the hash.)
 (world as unknown as { sortedCells: Map<number, number[]> }).sortedCells.clear();
 const hash = createHash('sha1').update(saveWorld(world, '')).digest('hex').slice(0, 16);
-console.log(`${ms.toFixed(1)} ms/tick over ${world.t - t0} ticks · hash ${hash}`);
+console.log(`${ms.toFixed(1)} ms/tick (${cpuMs.toFixed(1)} CPU) over ${world.t - t0} ticks · hash ${hash}`);
