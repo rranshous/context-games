@@ -2184,3 +2184,21 @@ The climb4 runs at 342k (s4), 496k (s1) and 564k (s3), against the climb3 runs (
 - `climb4-shell2-s3`: in between.
 
 If the shell=1 runs break out to ±2 around where the old runs did (~300k for s1, ~480k for s3) and the shell=3 runs don't, it's the protection cost that holds the frontier back.
+
+### Upkeep hunger at 0.76–1.44M ticks (2026-10-18, evening)
+
+Nothing has broken out yet. Bodies beyond ±1 at the latest checkpoint, with population:
+
+| run | tick | alive | step ±2 bodies | step +1 |
+|---|---|---|---|---|
+| s4, shell 3 | 902k | 2,413 | 1 | 1,240 |
+| s1, shell 3 | 1,356k | 1,534 | 1 | 526 |
+| s3, shell 3 | 1,442k | 1,435 | 0 | 6 (dead since ~100k) |
+| s3, shell 2 | 1,110k | 1,518 | 1 | 313 (just recolonised after ~800k of 1–6) |
+| s1, shell 1 | 803k | 2,342 | 5 | 1,180 |
+| s3, shell 1 | 766k | 3,265 | **38** (8 at 600k), insulation 1.7 | 1,577 |
+
+- The old runs broke out at ~300k (s1) and ~480k (s3), so every new run is far behind, even with shell 1.
+- **Protection cost is part of it.** On seed 3, step +1 died out at shell 3 and 2 but thrives at shell 1 (1,577 bodies, more than the old run's ~1,400). shell1-s3 is the only run growing a population at +2, and its bodies there are young (~330 ticks): still being seeded from +1, not yet established.
+- **Something else holds the frontier too.** Even at shell 1, populations are smaller than the old runs (old s3 had ~3,500 by 200k) and ±2 is barely held. Likely suspect: the store limit. A 10-cell body holds at most 40, so a plant worth 800 at step 2 gives it 40, burned in ~375 ticks at the 4× climate rate. Rich food no longer buys time, only the right to stay. Next candidate knob: `stomach`.
+- Meat eaters are still ~0% everywhere, as expected with no frontier to scavenge.
