@@ -2118,3 +2118,31 @@ s1 (33k bodies): 297 → 140. Fresh dishes for 4,000 ticks: petri 8.7 → 6.9 ms
 - One `zoomBy(factor, point)` does it all: buttons, keys and trackpad pinch.
 - **Pinch stays.** Touch pinch (two pointers) is untouched. Trackpad pinch on desktop arrives as a wheel event with `ctrlKey` set, so that one case is still handled: zoom around the pointer, and stop the browser zooming the page.
 - Checked in Chromium on climb3-s2: the view's centre cell is the same after +, + and −; a plain wheel event leaves the zoom alone; a ctrl wheel zooms.
+
+## Crosses, scavengers and the frontier (analysis of the six climb3 runs)
+
+Two kinds of look. A census of checkpoints: shape (crosses, lines, blobs), diet, step, program. And three live runs of 3,000 ticks from the latest checkpoints of s4 (t865k), s1 (t671k) and s3 (t621k), with hooks on death, destroy, eat, bomb and divide.
+
+**Crosses are fat on a tiny program, and they don't breed.**
+- The biggest bodies in a run are crosses: in s4, 201 of them, with 154 meat or both-eaters taking 67 of the top 100 spots. A cross is a ~10-cell program at the middle with fat arms: the biggest, 224 cells, has 214 fat. GROW makes the shape: it adds fat at the first free cell in a straight line from the IP, so repeated G in a few directions draws arms.
+- Their programs have G (100%, against 2% of other bodies) and mostly no M (27% against 81%). A typical body runs something like `CDKMTx` (collect, divide, armor, move); a cross is that kind of program with GROW in it and, usually, without MOVE.
+- Fat weighs double, so pace falls to ~0.05–0.1. Hunger and aging go by pace, so crosses are 20–50k ticks old where blobs are ~2.4k. In the live runs crosses died 10× less often (s4: plant and both-eater crosses had none in 3,000 ticks; meat crosses had 7, all of old age).
+- They sit at their step's size cap (64·2^|step|: ~256 at ±2, ~508 at +3) and grow about 2 cells per 1,000 ticks. Their max size stays pinned at the cap the whole time, so they eat enough to stay full and grow fat into the spare room.
+- They have no children: 0.00–0.01 living children born in the last 20k ticks per cross, against 0.56 per blob. A divide copies the whole body, and a sessile 200-cell body never finds room for the copy. 181 distinct programs among 201 crosses, almost none shared with living non-crosses: each cross is its own mutant, made over and over by many lineages, and they pile up because each lives so long.
+- Plant crosses barely eat: 0.03–0.14 plant meals per 1,000 ticks. At step 2 one plant is worth 100× a step-0 plant and fills a body to its cap. Meat crosses eat 1.5–2 dead cells per 1,000 ticks. Dead cells sink and come to rest on whatever's below: 23 per 1,000 cells on plant crosses (which can't eat them), 8 on meat crosses, 7.5 on plant blobs.
+- Long plant lines are GROW mutants that kept MOVE (59% G, 91% M): the biggest is 243 cells, 233 of them fat, pace 0.04, 112k ticks old.
+
+**Meat eaters are scavengers, fed by the climate.**
+- Bombing almost never connects: s4's meat blobs tried 231,585 bombs in 3,000 ticks and hit 339 (0.15%). Bites in 3,000 ticks: 438 (s4), 1,079 (s1), 1,884 (s3), across 30–66k bodies. Deaths within the kill window of a bite are a few hundred of tens of thousands.
+- In s1 the meat lines do go after plant lines (222 bites, 89 plant lines dying soon after one), but it's a small share of their deaths; freezing is most of it.
+- The food is cells that freezing or pressure destroy. A destroyed cell cuts the rest of a limb off from the IP, and the cut part turns to dead cells too. s4 in 3,000 ticks: 65k cut-off cells (nearly all from pressure) and 47k from corpses. Bodies at a step their armor or insulation can't take (a copy error that loses a K or I is enough) get ground into food.
+- Rich corpses hardly matter: every diet eats 0.01–0.02 rich cells per body per 1,000 ticks. What shapes the food chain is how much climate damage there is to eat.
+- Eating both is the safest diet: both-eater blobs die about half as often as plant-only or meat-only ones. Bodies with no diet (no C or B left) die within a few hundred ticks.
+
+**The frontier: sieges, then explosions, then a meat front.**
+- Every run sits for 100k–900k ticks with ~1–2k bodies on each of steps ±1, while step ±2 next door has 8–12k plants standing and almost nobody living there. The barrier is chemistry: step n needs n insulation (up) or n armor (down).
+- When a lineage gets there, the step fills in tens of thousands of ticks. s3's step +2 went from 1,013 bodies to 21k between 480k and 500k ticks, then step +3 to 36.5k by 560k. This is the population boom in every run.
+- Out there, food stops being the limit. With food 10^|step| richer and the cap only 2^|step| higher, a single meal fills a body. The inner steps die of hunger (step 0/1: starvation is a top cause). The outer steps die of the climate and old age (starved: ~0). Outer bodies live longer and breed less per tick (births 395 per 1,000 bodies per 1,000 ticks at s3's step 3, ~800 at step 1).
+- Meat eaters' share rises with each step out: ~0–1% at steps 0 and ±1, ~20% at ±2, 26% at s3's +3, 93% at its +4.
+- The newest step is held by meat eaters first: s3's +4 (421 bodies, 93% meat, 96% of their gain from dead cells while 18.8k plants stand there uneaten), s1's +3 at 600k (84% meat), s4's −3 (49% meat, 26% both), s7's −3 (57% both). A likely mechanism (not traced cell by cell): plant eaters one step in, whose cells reach over the line, lose those cells to the cold or pressure. The cells turn to dead cells worth 10^|step| each, eaten by meat eaters camped on the border with one more I or K. On the deep side, dead cells also sink into the lower steps.
+- Plants on a new step mostly stay uneaten until plant eaters catch up, probably because the cap is the binding limit and richer food barely helps them.
