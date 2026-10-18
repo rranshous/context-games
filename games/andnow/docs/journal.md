@@ -2153,7 +2153,7 @@ The analysis above showed hunger running backwards. It was `pace × √(max size
 
 The new rule, climb only:
 - **Every cell burns, whatever the pace.** A plain cell burns 1 unit a tick, fat ½, armor (K) and insulation (I) 3 (`shellBurn`, `fatBurn`). Each cell burns 2^|step| more for the step it sits in, so a body reaching over a border pays the outer step's rate for those cells.
-- **A unit is `stomach / hunger` of max size** (4 / 1,500): a full body of plain cells at step 0 lasts 1,500 ticks unfed, about what a 64-cap founder lasted before.
+- **A unit is `stomach / hunger` of max size** (4 / 1,500; `shell` and `fat` are dish knobs too): a full body of plain cells at step 0 lasts 1,500 ticks unfed, about what a 64-cap founder lasted before.
 - **The per-step size cap is gone.** It dated from the petri dish's fixed `sizeCap` 64, and the climb doubled it per step to make room for big bodies. The store now grows with the body: max size ≤ 4 × cells (`stomach`, a dish knob, as is `hunger`). Divide still needs 3× the cells, so a parent must be ¾ full to split.
 - Pace still sets speed and aging, so slow bodies still live long in ticks; they just have to keep eating through it.
 - The burn is summed in upkeep's existing walk of the cells (the one that draws the cold and pressure), so it adds no pass.
@@ -2178,3 +2178,9 @@ The climb4 runs at 342k (s4), 496k (s1) and 564k (s3), against the climb3 runs (
 - **No crosses to speak of** (0–2 per run); the biggest bodies are ~130 cells.
 - About 30% of bodies count as neither plant nor meat eaters (old runs: ~15%). Not looked into yet.
 - **Reading:** armor and insulation cost so much that the steps that need them are thinly held, and the jump to ±2 hasn't happened. It's too early to be sure: the old s4 didn't open −2 until ~850k. s1 and s3 are already well past where the old runs broke through, though.
+
+**Next: separating size from protection.** `shell` (armor and insulation burn, default 3) and `fat` (½) are now dish knobs. Three more runs at normal priority, with the same seeds as the stalled ones:
+- `climb4-shell1-s1` and `climb4-shell1-s3`: armor and insulation cost the same as a plain cell, so only size and the 2^|step| climate rate cost.
+- `climb4-shell2-s3`: in between.
+
+If the shell=1 runs break out to ±2 around where the old runs did (~300k for s1, ~480k for s3) and the shell=3 runs don't, it's the protection cost that holds the frontier back.
