@@ -27,7 +27,7 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
   - Dead cells fall in both air and water, so the heights feed the depths.
 - **Kills leave rich corpses.** A body that dies within 500 ticks of being bitten or written into leaves a corpse whose dead cells share the whole body's worth (about a third of its cells survive as dead cells, so each is worth about three ordinary ones). Whoever eats them gets it: the killer, or a scavenger that got there first. Nothing is paid to the killer directly, so a death only ever touches the dead body. Bodies that starve, freeze or die of age leave ordinary dead cells.
 - **A body's upkeep is its cells.** Every cell burns food each tick, whatever the body's pace:
-  - a plain cell burns 1 unit, fat ½, armor and insulation 3;
+  - a plain cell burns 1 unit, fat ½ (`fat`), armor and insulation 3 (`shell`);
   - each cell burns 2^|step| times more for the step it sits in (the cold and the pressure);
   - a full body of plain cells at step 0 lasts 1,500 ticks unfed (`hunger`).
 - **The store grows with the body:** max size is at most 4× the body's cells (`stomach`), on every step, so food can't be banked beyond what the body can hold. Being big lets a body store more and costs more every tick. (Before 2026-10-18 there was a size cap of 64 × 2^|step| and hunger ran on pace, so fat, slow bodies at the rich steps ate once a lifetime; see the journal.)
