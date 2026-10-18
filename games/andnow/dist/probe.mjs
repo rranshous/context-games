@@ -801,6 +801,14 @@ var CONFIG = {
   // climb: steps each way
   crowd: 24,
   // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
+  stomach: 4,
+  // climb: a body's max size is at most this many times its cell count (its store grows with it)
+  climbStarve: 1500,
+  // climb: ticks a full body of plain cells lasts unfed at step 0 (each cell burns stomach / this a tick)
+  shellBurn: 3,
+  // climb: armor (K) and insulation (I) cells burn this many times a plain cell…
+  fatBurn: 0.5,
+  // …and fat this many; every cell burns 2^|its step| times more (the cold and the pressure)
   tile: 64,
   // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,
@@ -1148,10 +1156,6 @@ var World = class {
   richness(i) {
     return this.board.step ? 10 ** Math.abs(this.board.step[i]) : 1;
   }
-  /** Climb: the largest max size a body can have where its IP is (2× per step out, room for krakens). */
-  capAtCell(i) {
-    return this.board.step ? CONFIG.sizeCap * 2 ** Math.abs(this.board.step[i]) : CONFIG.sizeCap;
-  }
   // ---------- setup ----------
   arriving = [];
   /** Bumped whenever the terrain changes (the island's channel opening), so a viewer can redraw scenery. */
@@ -1195,7 +1199,7 @@ var World = class {
       oy: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
-      maxSize: CONFIG.climb ? this.capAtCell(this.idx(ox + spec.ip.x, oy + spec.ip.y)) : CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
+      maxSize: CONFIG.climb ? CONFIG.stomach * spec.cells.length : CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
       speed: CONFIG.speedStart,
       // island and climb founders start full
       accum: 0,
@@ -1599,7 +1603,7 @@ var World = class {
     this.stream(2 * wr.id + 1);
     const cells = this.cells(wr);
     const tox = this.board.toxinBy ? this.board.toxinBy[wr.realm] : this.board.toxin;
-    let doomed, swept = false;
+    let doomed, swept = false, burn = 0;
     if (cells) {
       const hm = wr.home, w = this.w, narrowAt = this.narrow;
       let home = 0, narrow = 0, x0 = w, y0 = this.h, x1 = -1, y1 = -1;
@@ -1615,11 +1619,13 @@ var World = class {
         }
       } else if (CONFIG.climb && !tox) {
         const tr = this.freshTraits(wr, cells), st = this.board.step, insulation = tr.insulation, armor = tr.armor;
+        const shell = CONFIG.shellBurn, fat = CONFIG.fatBurn;
         const items = cells.items;
         for (let j = 0; j < items.length; j++) {
           const c = items[j];
           if (narrowAt[c]) narrow++;
-          const n = st[c];
+          const n = st[c], g = this.code[c];
+          burn += (g === K || g === INSUL ? shell : g === FAT ? fat : 1) * (1 << (n < 0 ? -n : n));
           if (!n) continue;
           const over = n > 0 ? n - insulation : -n - armor;
           if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
@@ -1659,9 +1665,10 @@ var World = class {
     if (CONFIG.climb && cells) {
       const st = this.board.step;
       if (!swept) {
-        const tr = this.freshTraits(wr, cells);
+        const tr = this.freshTraits(wr, cells), shell = CONFIG.shellBurn, fat = CONFIG.fatBurn;
         for (const c of cells) {
-          const n = st[c];
+          const n = st[c], g = this.code[c];
+          burn += (g === K || g === INSUL ? shell : g === FAT ? fat : 1) * (1 << (n < 0 ? -n : n));
           if (!n) continue;
           const over = n > 0 ? n - tr.insulation : -n - tr.armor;
           if (over > 0 && this.rng() < CONFIG.toxinRate * CONFIG.toxinStep ** (over - 1)) (doomed ??= []).push(c);
@@ -1677,8 +1684,11 @@ var World = class {
       const pace = CONFIG.climb ? (wr.traits ??= this.traitsOf(wr)).pace : this.paceOf(wr);
       wr.pace = pace;
       wr.speed = CONFIG.paceSpeed * pace;
-      const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
-      wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
+      if (CONFIG.climb) wr.maxSize = Math.max(0, wr.maxSize - burn * CONFIG.stomach / CONFIG.climbStarve);
+      else {
+        const hunger = pace * (Math.sqrt(20) - 1) * 2 * Math.sqrt(CONFIG.startSize) / CONFIG.sizeDecay / (wr.realm ? CONFIG.sharkStarve : CONFIG.starve);
+        wr.maxSize = Math.max(0, wr.maxSize - hunger * CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
+      }
       wr.aged = (wr.aged ?? 0) + pace;
     } else {
       wr.maxSize = Math.max(0, wr.maxSize - CONFIG.sizeDecay * Math.sqrt(wr.maxSize / CONFIG.startSize));
@@ -1753,9 +1763,9 @@ var World = class {
     }
     return (1 + m) / (1 + mass / CONFIG.paceMass);
   }
-  /** Size cap for a realm (island sea creatures are big and need room to breed). */
+  /** Size cap for a realm (island sea creatures are big and need room to breed; a climb body's store grows with it). */
   capOf(wr) {
-    if (CONFIG.climb) return this.capAtCell(this.idx(wr.ipX, wr.ipY));
+    if (CONFIG.climb) return CONFIG.stomach * wr.cellCount;
     return CONFIG.island && wr.realm === 1 ? CONFIG.sharkCap : CONFIG.sizeCap;
   }
   /**
@@ -2888,6 +2898,10 @@ var DISH_DEFAULTS = {
   // climb: steps each way
   crowd: 24,
   // climb: DIVIDE fails where the parent's tile (64×64) already holds this many bodies (local crowding, not a global cap)
+  stomach: 4,
+  // climb: max size is at most this many times the body's cells
+  hunger: 1500,
+  // climb: ticks a full body of plain cells lasts unfed at step 0 (armor and insulation burn 3×, fat ½×, all 2^|step|× further out)
   starve: 600,
   // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6e3,
@@ -2965,6 +2979,8 @@ function applyDish(get) {
   CONFIG.seals = o.seals;
   CONFIG.reaperCap = 0;
   CONFIG.crowd = o.crowd;
+  CONFIG.stomach = o.stomach;
+  CONFIG.climbStarve = o.hunger;
   CONFIG.tickCap = 1e12;
   CONFIG.endless = true;
   return o;
