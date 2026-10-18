@@ -26,7 +26,11 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
   - **Up** gets sunlight: plants regrow faster the higher you go, but patches are sparse. That suits fast, light grazers.
   - Dead cells fall in both air and water, so the heights feed the depths.
 - **Kills leave rich corpses.** A body that dies within 500 ticks of being bitten or written into leaves a corpse whose dead cells share the whole body's worth (about a third of its cells survive as dead cells, so each is worth about three ordinary ones). Whoever eats them gets it: the killer, or a scavenger that got there first. Nothing is paid to the killer directly, so a death only ever touches the dead body. Bodies that starve, freeze or die of age leave ordinary dead cells.
-- **Size cap grows with richness,** so bodies can get huge where food is worth 1,000×. The user is hoping for krakens: big, slow, long-lived deep hunters (mask cells cancelling mass, bite doublers, low pace so slow hunger).
+- **A body's upkeep is its cells.** Every cell burns food each tick, whatever the body's pace:
+  - a plain cell burns 1 unit, fat ½, armor and insulation 3;
+  - each cell burns 2^|step| times more for the step it sits in (the cold and the pressure);
+  - a full body of plain cells at step 0 lasts 1,500 ticks unfed (`hunger`).
+- **The store grows with the body:** max size is at most 4× the body's cells (`stomach`), on every step, so food can't be banked beyond what the body can hold. Being big lets a body store more and costs more every tick. (Before 2026-10-18 there was a size cap of 64 × 2^|step| and hunger ran on pace, so fat, slow bodies at the rich steps ate once a lifetime; see the journal.)
 - **Terrain:** generated per tile from the seed and the tile's coordinates, so any tile can be rebuilt on demand.
   - Downward: rock, caves and overhangs, as on the island.
   - Upward: cliffs, ledges and overhangs.
@@ -41,7 +45,7 @@ Each cell adds to a set of traits:
 |---|---|
 | armor | resists depth |
 | insulation | resists height |
-| mass | slows pace (pace sets speed, hunger and aging, as on the island) |
+| mass | slows pace (pace sets speed and aging; hunger is the cells' upkeep, not the pace) |
 | bite | how many bites a BOMB delivers (it takes armor three hits to break) |
 | diet | what COLLECT can digest: plants, dead cells, or both |
 

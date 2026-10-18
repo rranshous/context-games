@@ -2146,3 +2146,18 @@ Two kinds of look. A census of checkpoints: shape (crosses, lines, blobs), diet,
 - Meat eaters' share rises with each step out: ~0–1% at steps 0 and ±1, ~20% at ±2, 26% at s3's +3, 93% at its +4.
 - The newest step is held by meat eaters first: s3's +4 (421 bodies, 93% meat, 96% of their gain from dead cells while 18.8k plants stand there uneaten), s1's +3 at 600k (84% meat), s4's −3 (49% meat, 26% both), s7's −3 (57% both). A likely mechanism (not traced cell by cell): plant eaters one step in, whose cells reach over the line, lose those cells to the cold or pressure. The cells turn to dead cells worth 10^|step| each, eaten by meat eaters camped on the border with one more I or K. On the deep side, dead cells also sink into the lower steps.
 - Plants on a new step mostly stay uneaten until plant eaters catch up, probably because the cap is the binding limit and richer food barely helps them.
+
+## Hunger is upkeep (2026-10-18)
+
+The analysis above showed hunger running backwards. It was `pace × √(max size)`, and fat lowers pace about as 1/mass, so per tick a big fat body burned *less* than a small blob. Armor and insulation cost nothing to carry. With food 10^|step| and the cap only 2^|step|, one plant at step 2 (up to 800) refilled a 256-cap body that then burned ~0.009 a tick: one meal lasted ~27k ticks. The user: "we need being big or well armored to require more energy."
+
+The new rule, climb only:
+- **Every cell burns, whatever the pace.** A plain cell burns 1 unit a tick, fat ½, armor (K) and insulation (I) 3 (`shellBurn`, `fatBurn`). Each cell burns 2^|step| more for the step it sits in, so a body reaching over a border pays the outer step's rate for those cells.
+- **A unit is `stomach / hunger` of max size** (4 / 1,500): a full body of plain cells at step 0 lasts 1,500 ticks unfed, about what a 64-cap founder lasted before.
+- **The per-step size cap is gone.** It dated from the petri dish's fixed `sizeCap` 64, and the climb doubled it per step to make room for big bodies. The store now grows with the body: max size ≤ 4 × cells (`stomach`, a dish knob, as is `hunger`). Divide still needs 3× the cells, so a parent must be ¾ full to split.
+- Pace still sets speed and aging, so slow bodies still live long in ticks; they just have to keep eating through it.
+- The burn is summed in upkeep's existing walk of the cells (the one that draws the cold and pressure), so it adds no pass.
+
+First look: a 20k-tick seed-4 sample has 1,239 alive (old rules at 20k: 2,918), all on steps ±1 and 0, biggest 106 cells. Petri and island runs are untouched (golden replay: all 2,491 matches identical).
+
+New runs `climb4-s4`, `climb4-s1`, `climb4-s3` (same queries and seeds as the climb3 bakes) run forever at normal priority for comparison. The six climb3 bakes keep running on the old rules in their already-loaded code. If one restarts it resumes on the new rules, so treat climb3 past a restart as mixed.
