@@ -2046,3 +2046,21 @@ Meat eaters (meat only or both) as a share of living bodies, from `diet.mjs --ev
 - Rich corpses are rare: 0–5 rich cells on the board at any checkpoint, against 500–1,000 dead cells. Kills within the window are uncommon, and the rich cells get eaten or stop being debris fast.
 - Meat eaters stay at 7–10 cells, with the odd one near 100.
 - Too early to call. Kill credit took off at 200k–1M; check again around 500k.
+
+## Rich corpses at 500–690k ticks
+
+Meat eaters (meat only or both) as a share of living bodies; living bodies in brackets:
+
+| tick | s1 | s2 | s3 | s4 | s7 | s13 |
+|---|---|---|---|---|---|---|
+| 300k | 0.6% (3.2k) | 0.6% (3.4k) | 0.5% (3.5k) | 0.1% (4.0k) | 0.9% (7.9k) | 0.2% (4.3k) |
+| 400k | 10% (16k) | 2.0% (5.6k) | 0.1% (3.5k) | 0.1% (4.0k) | 2.9% (14k) | 0.4% (4.2k) |
+| 500k | 27% (27k) | 1.0% (11k) | 7.6% (25k) | 0.3% (4.1k) | 10% (16k) | 0.3% (4.5k) |
+| 600k | | 0.6% (14k) | | 1.0% (4.4k) | | 0.3% (4.5k) |
+
+- Meat eaters do take off under rich corpses: s1, s3 and s7, at 400–500k. That's later than kill credit (200–300k in three of four runs). s1's 27% is in the old 17–50% range.
+- Each take-off comes with a population boom: from 3–4k to 15–27k within 100k ticks. s2 boomed (to 14k) without meat eaters taking hold: they went up to 2% and then back down. s4 and s13 have neither boomed nor taken off.
+- Booms come first: s7 reached 7.9k bodies at 0.9% meat. More bodies means more dead cells (s3: 11.6k dead, 287 rich), and that's what meat eaters live on.
+- "Both" eaters show up after a take-off: 2,126 in s1 and 717 in s7.
+- Meat eaters still average 9–12 cells, and the biggest are around 250 cells, the same as under kill credit.
+- Cost: s3 is at 49k bodies, 387 ms/tick (3 ticks/s), and s1 is at 27k, 233 ms/tick. All six together use 9 GB.
