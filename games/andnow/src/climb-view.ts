@@ -1,4 +1,4 @@
-// The Climb's viewer: a camera over the tall world (drag to pan, wheel to zoom, keys), a
+// The Climb's viewer: a camera over the tall world (drag to pan, pinch or +/- to zoom, keys), a
 // minimap strip with each step sized by the square root of its height (so the thin start
 // band still shows beside the 2000-row steps), step labels with what each needs, and bodies coloured by their
 // chemistry. Pixel art: one pixel per cell, scaled up crisp.
@@ -94,19 +94,15 @@ export class ClimbView {
     };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
-    // The wheel anywhere on the stage (board, minimap, timeline, the borders between) zooms and
-    // never scrolls the page: around the pointer over the board, else around the view's middle.
-    (canvas.parentElement ?? canvas).addEventListener('wheel', (e) => {
+    // Trackpad pinch arrives as a wheel event with ctrlKey set: zoom around the pointer, and
+    // keep the browser from zooming the page. A plain wheel or two-finger scroll doesn't zoom
+    // (it was too touchy); the +/- buttons and keys do.
+    canvas.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;
       e.preventDefault();
-      const r = canvas.getBoundingClientRect(), over = e.target === canvas;
-      const mx = over ? e.clientX - r.left : canvas.width / 2, my = over ? e.clientY - r.top : canvas.height / 2;
-      const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
-      // Gentle, and in proportion to the scroll: a wheel notch (~100) is ×1.1, and a trackpad's
-      // stream of small deltas glides instead of every event jumping ×1.25.
+      const r = canvas.getBoundingClientRect();
       const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.001)));
-      this.cam.x = wx - mx / this.cam.zoom; this.cam.y = wy - my / this.cam.zoom;
-      this.clamp(); this.redraw();
+      this.zoomBy(Math.exp(-Math.max(-10, Math.min(10, dy)) * 0.01), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -116,8 +112,8 @@ export class ClimbView {
       else if (k === 'arrowright' || k === 'd') this.cam.x += s;
       else if (k === 'arrowup' || k === 'w') this.cam.y -= s;
       else if (k === 'arrowdown' || k === 's') this.cam.y += s;
-      else if (k === '+' || k === '=') this.cam.zoom = Math.min(MAX_ZOOM, this.cam.zoom * 1.25);
-      else if (k === '-') this.cam.zoom = Math.max(MIN_ZOOM, this.cam.zoom * 0.8);
+      else if (k === '+' || k === '=') { e.preventDefault(); this.zoomBy(1.25); return; }
+      else if (k === '-') { e.preventDefault(); this.zoomBy(0.8); return; }
       else return;
       e.preventDefault(); this.clamp(); this.redraw();
     });
@@ -126,6 +122,14 @@ export class ClimbView {
       const y = this.miniToRow(e.clientY - r.top), x = ((e.clientX - r.left) / mini.width) * this.world().w;
       this.centerOn(x, y); this.redraw();
     });
+  }
+
+  /** Zoom by a factor around a point on the board (default its middle), so what's there stays put. */
+  zoomBy(f: number, mx = this.canvas.width / 2, my = this.canvas.height / 2) {
+    const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
+    this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * f));
+    this.cam.x = wx - mx / this.cam.zoom; this.cam.y = wy - my / this.cam.zoom;
+    this.clamp(); this.redraw();
   }
 
   /** Viewport size in cells. */
@@ -507,6 +511,6 @@ export class ClimbView {
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world, c.id))}">${String(c.n).padStart(3)} ×</span> <code>${esc(g)}</code></div>`).join('')}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}</div>
-      <div class="stats" style="margin-top:6px;color:#6e7681">tap a body to pick it · drag to pan · pinch, wheel or +/- to zoom · WASD/arrows · tap the strip to jump</div>`;
+      <div class="stats" style="margin-top:6px;color:#6e7681">tap a body to pick it · drag to pan · pinch or +/- to zoom · WASD/arrows · tap the strip to jump</div>`;
   }
 }

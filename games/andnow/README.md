@@ -56,7 +56,7 @@ python3 serve.py 8765        # then open http://localhost:8765/?climb=1
 ```
 
 **Viewer controls:**
-- drag to pan; wheel or `+`/`-` to zoom; WASD or the arrow keys to move;
+- drag to pan; the zoom **−**/**+** buttons (or the `-`/`+` keys) zoom around the middle of the view, and pinch zooms on touch screens and trackpads; WASD or the arrow keys to move;
 - click the minimap strip to jump to a step;
 - `B` follows the biggest body; tap a body to pick it;
 - tick **glyphs** and zoom in close to read each cell's instruction;

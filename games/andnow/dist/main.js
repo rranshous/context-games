@@ -3031,17 +3031,12 @@ var ClimbView = class {
     };
     canvas3.addEventListener("pointerup", up);
     canvas3.addEventListener("pointercancel", up);
-    (canvas3.parentElement ?? canvas3).addEventListener("wheel", (e) => {
+    canvas3.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;
       e.preventDefault();
-      const r = canvas3.getBoundingClientRect(), over = e.target === canvas3;
-      const mx = over ? e.clientX - r.left : canvas3.width / 2, my = over ? e.clientY - r.top : canvas3.height / 2;
-      const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
+      const r = canvas3.getBoundingClientRect();
       const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * Math.exp(-Math.max(-100, Math.min(100, dy)) * 1e-3)));
-      this.cam.x = wx - mx / this.cam.zoom;
-      this.cam.y = wy - my / this.cam.zoom;
-      this.clamp();
-      this.redraw();
+      this.zoomBy(Math.exp(-Math.max(-10, Math.min(10, dy)) * 0.01), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
     window.addEventListener("keydown", (e) => {
       if (e.target?.tagName === "INPUT") return;
@@ -3051,9 +3046,15 @@ var ClimbView = class {
       else if (k === "arrowright" || k === "d") this.cam.x += s;
       else if (k === "arrowup" || k === "w") this.cam.y -= s;
       else if (k === "arrowdown" || k === "s") this.cam.y += s;
-      else if (k === "+" || k === "=") this.cam.zoom = Math.min(MAX_ZOOM, this.cam.zoom * 1.25);
-      else if (k === "-") this.cam.zoom = Math.max(MIN_ZOOM, this.cam.zoom * 0.8);
-      else return;
+      else if (k === "+" || k === "=") {
+        e.preventDefault();
+        this.zoomBy(1.25);
+        return;
+      } else if (k === "-") {
+        e.preventDefault();
+        this.zoomBy(0.8);
+        return;
+      } else return;
       e.preventDefault();
       this.clamp();
       this.redraw();
@@ -3077,6 +3078,15 @@ var ClimbView = class {
   glyphs = true;
   /** Darken each body's IP cell (the page's "show IPs" box). */
   ips = true;
+  /** Zoom by a factor around a point on the board (default its middle), so what's there stays put. */
+  zoomBy(f, mx = this.canvas.width / 2, my = this.canvas.height / 2) {
+    const wx = this.cam.x + mx / this.cam.zoom, wy = this.cam.y + my / this.cam.zoom;
+    this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * f));
+    this.cam.x = wx - mx / this.cam.zoom;
+    this.cam.y = wy - my / this.cam.zoom;
+    this.clamp();
+    this.redraw();
+  }
   /** Viewport size in cells. */
   get viewW() {
     return this.canvas.width / this.cam.zoom;
@@ -3494,7 +3504,7 @@ var ClimbView = class {
       <div class="name" style="margin-top:6px">top genomes</div>
       ${top.map(([g, c]) => `<div class="genome"><span style="color:${css(bodyColor(world2, c.id))}">${String(c.n).padStart(3)} \xD7</span> <code>${esc2(g)}</code></div>`).join("")}
       <div class="stats" style="margin-top:6px">deaths: ${[...deaths.entries()].sort((a, c) => c[1] - a[1]).slice(0, 6).map(([k, n]) => `${esc2(k)} ${n}`).join(" \xB7 ")}</div>
-      <div class="stats" style="margin-top:6px;color:#6e7681">tap a body to pick it \xB7 drag to pan \xB7 pinch, wheel or +/- to zoom \xB7 WASD/arrows \xB7 tap the strip to jump</div>`;
+      <div class="stats" style="margin-top:6px;color:#6e7681">tap a body to pick it \xB7 drag to pan \xB7 pinch or +/- to zoom \xB7 WASD/arrows \xB7 tap the strip to jump</div>`;
   }
 };
 
@@ -3580,6 +3590,9 @@ function newMatch(sources, seed) {
       climbView = new ClimbView(canvas2, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : void 0);
       climbView.glyphs = showGlyphsEl.checked;
       climbView.ips = showIpEl.checked;
+      $("zoom").style.display = "flex";
+      $("zoomIn").onclick = () => climbView?.zoomBy(1.25);
+      $("zoomOut").onclick = () => climbView?.zoomBy(0.8);
     }
     render();
     return;

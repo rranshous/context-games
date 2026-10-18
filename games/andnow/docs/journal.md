@@ -2110,3 +2110,11 @@ s1 (33k bodies): 297 → 140. Fresh dishes for 4,000 ticks: petri 8.7 → 6.9 ms
 - **`Cells`** behaves like a Set (insertion order; a delete keeps the rest in order) and saves as one, so checkpoints are unchanged. It's an array: quicker to walk, with no hash table to reallocate when a body moves. Membership is the owner grid's job. The dead cells, about 11k of them, stay a real Set.
 - **What's left is memory latency.** The hot lines are each body's first touch: `wr.alive`, `wr.stats`, its cells' places on the board (`narrow`, `step`). GC is ~30 ms a tick; a bigger young generation halves that but costs as much again in cache misses. The next step would be laying bodies out as typed arrays (struct of arrays), which is a much bigger change.
 - Everything is the same run bit for bit: s1 and s3 against a reference build (the old code with sorted saves), fresh petri, island and climb dishes with a save and load halfway, and the golden replay (2,491 matches). The six runs carry on from their checkpoints on the new build.
+
+## Zoom buttons (the user)
+
+- **The wheel no longer zooms.** Scroll-to-zoom never felt right (too strong, then too touchy, then it hijacked the page). A plain wheel or two-finger scroll now just scrolls the page.
+- **Zoom − / + buttons** in the side panel under show IPs / glyphs, shown only in the Climb (the other views don't zoom). Each press is ×1.25 or ×0.8 around the middle of the view, so what you're looking at stays put. The `+`/`-` keys do the same and now also zoom around the middle (they used to zoom around the top-left corner).
+- One `zoomBy(factor, point)` does it all: buttons, keys and trackpad pinch.
+- **Pinch stays.** Touch pinch (two pointers) is untouched. Trackpad pinch on desktop arrives as a wheel event with `ctrlKey` set, so that one case is still handled: zoom around the pointer, and stop the browser zooming the page.
+- Checked in Chromium on climb3-s2: the view's centre cell is the same after +, + and −; a plain wheel event leaves the zoom alone; a ctrl wheel zooms.

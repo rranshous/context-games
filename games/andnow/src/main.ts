@@ -107,6 +107,10 @@ function newMatch(sources?: string[], seed?: number) {
       climbView = new ClimbView(canvas, mini, () => world, () => render(), cam.length === 3 && cam.every(Number.isFinite) ? { x: cam[0], y: cam[1], zoom: cam[2] } : undefined);
       climbView.glyphs = showGlyphsEl.checked;
       climbView.ips = showIpEl.checked;
+      // Zoom buttons: around the view's middle, a step like the +/- keys.
+      $('zoom').style.display = 'flex';
+      $('zoomIn').onclick = () => climbView?.zoomBy(1.25);
+      $('zoomOut').onclick = () => climbView?.zoomBy(0.8);
     }
     render();
     return;
