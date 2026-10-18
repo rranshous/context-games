@@ -2081,3 +2081,7 @@ Meat eaters (meat only or both) as a share of living bodies; living bodies in br
 - Where it's settled, meat eaters are 30–37% of bodies (17–50% under kill credit), with a big share eating both: 4,510 of s4's 11,410 meat eaters.
 - The biggest bodies are bigger now: 499 cells in s1 and 424 in s3. Under kill credit they topped out at 200–250.
 - Speed: s3 at 66k bodies runs 539 ms/tick (2 ticks/s), and checkpoints are 14 MB. Memory is 11 GB for all six.
+
+## The cross
+
+- Spotted in the viewer on the long climb3 runs: a big cross is a very common body shape, with arms running out from the middle in the four cardinal directions. There are lots of examples once runs get past ~500k ticks and the populations boom. Worth a look at why: whether it's one lineage spreading or the same shape arising in many lineages, and what the arms are for (reach for food, armor, laying eggs further out).
