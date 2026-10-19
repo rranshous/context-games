@@ -2301,3 +2301,12 @@ The user spotted it in the viewer: climb7-s2 at 812k is a forest of long pink li
   - Fat whales: 391 bodies of 100+ cells, up to 344 now (534 at 810k), and over 90% fat. Their store is up to ~4,600 (16 per fat cell), pace 0.03–0.08, and they live 12–48k ticks against ~1,000 for everyone else. They're the long lines and crosses on screen. They bank a meal and wait, which is what rules 5 made fat for.
 - Every body at +2 and +3 is of the climber lineage.
 - Elsewhere: s4 (the +2 plant-eater breakout) is at 584k with 23,715 alive. s1, s3, s7 and s13 are at 1.2–1.3M and still ~3,000 bodies on ±1.
+
+**Do the whales get eaten?** (The user asked.) A 2,000-tick instrumented replay of climb7-s2 from 812k (scratchpad `an/nibble.ts`), with whale = 100+ cells:
+- 421 whales at the start (59,243 cells), 385 of them alive at the end; 20 died of old age, none were killed.
+- Bites are rare: 526 in all, among ~35,000 bodies. 468 hit mid-size bodies, 51 small, and 7 whales (4 by meat eaters, 3 by both-eaters).
+- But a bite on a whale costs it a lot: 6 of the 7 cut a piece off (a cross's arm, its link to the core gone), 376 cells in all. Most of a cut-off piece dissolves rather than staying as a dead cell, so the biters got little: 71 whale cells were eaten.
+- Whales lost 909 cells to shedding over the same span.
+- Meat comes from the dead: ~575,000 dead cells eaten, ~84% by both-eaters. ~111,000 were from small bodies that died during the replay, ~2,100 from mid-size ones, and the rest from dead cells already lying there at 812k.
+
+So the meat eaters scavenge, and the whales are effectively out of reach, though a lucky bite can take a whole arm off.
