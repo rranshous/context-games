@@ -2281,3 +2281,11 @@ The user picked shedding of the three fixes, and wants to keep the 2^|step| doub
   - Sheds of `x`/`K`: 405 against 643. They still go, but only after the rest, and there are more sheds in all (3,200 against 1,700). The bodies are just underfed: this buys time, it doesn't feed them.
 - **`RULES` = 6.** Golden replay: all 2,491 matches identical (no shedding of code in them).
 - **Runs:** climb6 stopped at 1.4–1.8M (out of the list). New `climb7-s1`, `-s2`, `-s3`, `-s4`, `-s7` and `-s13` from tick 0 at nice 19 (`./bake.sh` defaults to climb7).
+
+### Rules 6 at 470–650k: s4 breaks out at +2 (2026-10-19)
+
+Five of the six climb7 runs look like climb6 at the same age: ~2,400–3,200 bodies on steps ±1, a stray few at ±2, almost no meat eaters (≤1%).
+
+**climb7-s4 broke out upward at ~445k.** Step +2 went 13 bodies (440k) → 53 → 88 → 319 → 1,817 (460k) → 4,902 at 468k. The world grew a step (now −2..3), and the run holds 8,556 bodies.
+- The colonists are the rules-4 s3 breakout's design again: `Cm MmMD/MIxx`, 9–12 cells. Several M for speed, and one I with two `x` beside it, so 4 insulation from one cell wherever the x's both touch it (the step averages 1.9). They eat plants, and the fat variants (`./Cm MmMD/MIxx`, `Cm MmMD/MIxx.`) are the most common.
+- They're fast foragers, which is what step −2's slow armored colonists lacked. Whether the new shedding order helped them get there (keeping the `xx` around the I through hungry spells) isn't measured yet.
