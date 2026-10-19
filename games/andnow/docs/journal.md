@@ -2257,3 +2257,17 @@ The user's idea: tie how much a body can store to its fat, not a flat multiplier
 - `fat` is now a trait (count of fat cells). The store reads it through the cached traits, which are recomputed whenever the body's cells change.
 - **`RULES` = 5.** A 20k-tick seed-4 sample: 1,787 alive (rules 4: 1,239), older and bigger. Golden replay: all 2,491 matches identical.
 - **Runs:** all six climb5 runs stopped (s1 at 1.25M, s3 at 839k, the fresh seeds at 95–150k), out of the list. New `climb6-s1`, `-s2`, `-s3`, `-s4`, `-s7` and `-s13` from tick 0 at nice 19 (`./bake.sh <seed>` now defaults to climb6).
+
+### Rules 5 at 1.4–1.8M ticks: stalled, and why (2026-10-19)
+
+All six climb6 runs are still on steps ±1 at 1.4–1.8M ticks. Each holds ~3,000–3,600 bodies, more than rules 4 (~1,400–2,400) and close to the old rules 3 at the same stage. Only a handful (1–15) ever sit at ±2, plus s4's brief outpost of 68 at −2 around 800k. Meat eaters are still scarce: both-eaters are a few percent at s4's +1 and briefly 15% at s3's −1, living off the debris of frozen bodies.
+
+**The outposts starve, and it shows up as "crushed".** An instrumented 3,000-tick run of climb6-s4 from 800k, looking at step −2:
+- The colonists are `C6SDTMD/ xK .`: an `x` beside the `K` doubles it, so 2 armor from one K (the same trick that broke rules 4's s3 out at +2, on the armor side). They're 10 cells with 1 fat, a store of 52.
+- Births 327, deaths 406 in 5,000 ticks, all "core crushed by the pressure". Bodies live ~100–300 ticks.
+- But no body with 2 armor took pressure damage: every crushed cell belonged to a body already down to armor 0 or 1.
+- They lost it by shedding: 1,405 sheds in 3,000 ticks, including 257 `x` and 148 `K`. After the one fat cell, `shed` drops the farthest cell, whatever it is. A body short of food sheds its fat, then its armor, then gets crushed.
+- They're short of food with 11,970 plants standing: they gain ~0.1 a tick and burn ~0.1 a tick (10 cells at 4× for step −2). Each plant is worth up to 800 but fills only the 52 store, and a slow 10-cell body doesn't find the next plant in time.
+- At step −1 the same pattern likely hides inside the "crushed" count (4,646, against 577 starved).
+
+So "crushed" and "frozen" in these runs are often starvation in disguise. The outer steps are expensive twice: the 2^|step| upkeep, and the store cap that throws away most of a rich meal. Rules 4's breakout in s3 was a fast forager (`x`-doubled M) that found plants often enough.
