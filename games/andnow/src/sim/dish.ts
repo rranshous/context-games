@@ -28,7 +28,7 @@ export const DISH_DEFAULTS: Record<string, number> = {
   crowd: 24,      // climb: DIVIDE fails where the parent's tile (64×64) already holds this many bodies (local crowding, not a global cap)
   stomach: 4,     // climb: max size is at most this many times the body's cells
   hunger: 1500,   // climb: ticks a full body of plain cells lasts unfed at step 0 (all cells burn 2^|step|× further out)
-  shell: 3,       // climb: armor (K) and insulation (I) cells burn this many times a plain cell
+  shell: 1,       // climb: armor (K) and insulation (I) cells burn this many times a plain cell
   fat: 0.5,       // climb: fat cells burn this many times a plain cell
   starve: 600,    // island: ticks an unfed seal with max size 20 lasts
   sharkstarve: 6000, // island: the same for a shark (10×, like its lifespan)

@@ -804,7 +804,7 @@ var CONFIG = {
   // climb: a body's max size is at most this many times its cell count (its store grows with it)
   climbStarve: 1500,
   // climb: ticks a full body of plain cells lasts unfed at step 0 (each cell burns stomach / this a tick)
-  shellBurn: 3,
+  shellBurn: 1,
   // climb: armor (K) and insulation (I) cells burn this many times a plain cell…
   fatBurn: 0.5,
   // …and fat this many; every cell burns 2^|its step| times more (the cold and the pressure)
@@ -2901,7 +2901,7 @@ var DISH_DEFAULTS = {
   // climb: max size is at most this many times the body's cells
   hunger: 1500,
   // climb: ticks a full body of plain cells lasts unfed at step 0 (all cells burn 2^|step|× further out)
-  shell: 3,
+  shell: 1,
   // climb: armor (K) and insulation (I) cells burn this many times a plain cell
   fat: 0.5,
   // climb: fat cells burn this many times a plain cell

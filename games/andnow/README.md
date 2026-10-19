@@ -80,7 +80,7 @@ Runs are deterministic: the same seed and settings always replay the same histor
 Each bake records the rules version it was made on (`RULES` in `src/sim/world.ts`, bumped whenever a change makes runs play out differently). The viewer's runs list shows only runs on the current rules; older runs stay on disk for comparison, and can't be carried on.
 
 ```bash
-./bake.sh 4    # start (or carry on) seed 4 as runs/bake/climb2-s4, in the background at low priority
+./bake.sh 4    # start (or carry on) seed 4 as runs/bake/climb5-s4, in the background at low priority
 ```
 
 ## Other modes

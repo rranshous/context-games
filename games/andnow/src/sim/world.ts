@@ -23,9 +23,9 @@ import { WarriorSpec } from './warrior-file';
 /**
  * The rules' version. Bump it with any change that makes runs play out differently (the
  * golden replays fail): a bake records it, and the viewer lists only runs on the current rules.
- * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses.
+ * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses; 4: the climb's hunger is cell upkeep (no per-step size cap).
  */
-export const RULES = 3;
+export const RULES = 4;
 export const NONE = -1;
 /**
  * Ids. The board's columns are cut into ZONES bands, and each band numbers its own births:
@@ -120,7 +120,7 @@ export const CONFIG = {
   crowd: 24,            // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
   stomach: 4,           // climb: a body's max size is at most this many times its cell count (its store grows with it)
   climbStarve: 1500,    // climb: ticks a full body of plain cells lasts unfed at step 0 (each cell burns stomach / this a tick)
-  shellBurn: 3,         // climb: armor (K) and insulation (I) cells burn this many times a plain cell…
+  shellBurn: 1,         // climb: armor (K) and insulation (I) cells burn this many times a plain cell…
   fatBurn: 0.5,         // …and fat this many; every cell burns 2^|its step| times more (the cold and the pressure)
   tile: 64,             // climb: food regrows only in tiles near life (the world's upkeep goes where the action is)
   starve: 600,          // island: ticks an unfed seal with max size 20 lasts (about a tenth of a lifetime)

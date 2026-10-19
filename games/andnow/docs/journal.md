@@ -2230,3 +2230,14 @@ IxM
 **Diets flipped.** Step +2 is 78% both-eaters, 7% meat, 12% plants. In the old runs it was 65–78% plants, ~10–20% meat and ~0–9% both when it filled. At +1 it's 38% both-eaters, against ~0% before. With every cell costing upkeep and the store capped, eating whatever's at hand pays.
 
 **The stomach-8 runs** (415k on seed 1, 454k on seed 3) haven't broken out yet. They're still before or at the old runs' breakout ticks, so no verdict. The shell 3 runs (s4 at 1.21M, s1 at 1.78M) are still stuck at ±1.
+
+## Rules 4: upkeep hunger with shell 1 (2026-10-18)
+
+The user picked `climb4-shell1-s3` as the way forward ("much more so than the others"). So:
+- **`shell` defaults to 1:** armor and insulation burn like any other cell. Size and the 2^|step| climate rate still cost. `stomach` stays 4.
+- **`RULES` = 4,** so the viewer lists only runs on these rules.
+- **All twelve bakes stopped:** the six climb3 (old hunger) and the six climb4 tests. Their checkpoints stay on disk, out of the list.
+- **The two shell-1 runs carry on as `climb5-s3` (from 835k) and `climb5-s1` (from 1.197M).** Their directories were renamed, their index.json moved to rules 4, and `&shell=1` was dropped from the query (now the default; the saved CONFIG already had it).
+- **New: `climb5-s2`, `-s4`, `-s7`, `-s13`** from tick 0, via `./bake.sh <seed>`, whose default prefix is now climb5.
+- All six run at nice 19.
+- The stomach-8 runs were stopped at ~415–455k, before they showed anything. That question is still open.
