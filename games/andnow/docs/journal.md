@@ -2289,3 +2289,15 @@ Five of the six climb7 runs look like climb6 at the same age: ~2,400–3,200 bod
 **climb7-s4 broke out upward at ~445k.** Step +2 went 13 bodies (440k) → 53 → 88 → 319 → 1,817 (460k) → 4,902 at 468k. The world grew a step (now −2..3), and the run holds 8,556 bodies.
 - The colonists are the rules-4 s3 breakout's design again: `Cm MmMD/MIxx`, 9–12 cells. Several M for speed, and one I with two `x` beside it, so 4 insulation from one cell wherever the x's both touch it (the step averages 1.9). They eat plants, and the fat variants (`./Cm MmMD/MIxx`, `Cm MmMD/MIxx.`) are the most common.
 - They're fast foragers, which is what step −2's slow armored colonists lacked. Whether the new shedding order helped them get there (keeping the `xx` around the I through hungry spells) isn't measured yet.
+
+### Rules 6 at 812k: s2 takes +2 and +3, with meat eaters and fat whales (2026-10-19)
+
+The user spotted it in the viewer: climb7-s2 at 812k is a forest of long pink lines and T's.
+- **The rise:** +2 went 1 body (660k) → 18 (680k) → 308 (700k) → 870 (720k) → 11,656 (740k). The world grew to +3 by 740k, and +3 went 10 (760k) → 76 → 4,603 (800k) → 12,098 at 812k. The run holds 34,619 bodies. Its first +2 colonists at 680k were 39% meat eaters.
+- **Diets have flipped.** At +2: 72% both-eaters, 22% meat eaters, 3% plant eaters (+3 is about the same). Meat had been ≤1% everywhere in every rules-5/6 run.
+- **Three kinds of body at +2** (from a makeup script, scratchpad `an/comp.ts`):
+  - Small hunters, 1–14 cells, mostly meat: `L/IB` and `LD/IB` (one I for insulation, one B to bite) and bare `L` cells.
+  - The bulk, 16,000 both-eaters of 15–39 cells: an even mix of fat, M, C, I, D and B, with `x` around.
+  - Fat whales: 391 bodies of 100+ cells, up to 344 now (534 at 810k), and over 90% fat. Their store is up to ~4,600 (16 per fat cell), pace 0.03–0.08, and they live 12–48k ticks against ~1,000 for everyone else. They're the long lines and crosses on screen. They bank a meal and wait, which is what rules 5 made fat for.
+- Every body at +2 and +3 is of the climber lineage.
+- Elsewhere: s4 (the +2 plant-eater breakout) is at 584k with 23,715 alive. s1, s3, s7 and s13 are at 1.2–1.3M and still ~3,000 bodies on ±1.
