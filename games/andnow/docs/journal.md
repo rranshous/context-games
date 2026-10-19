@@ -2271,3 +2271,13 @@ All six climb6 runs are still on steps ±1 at 1.4–1.8M ticks. Each holds ~3,00
 - At step −1 the same pattern likely hides inside the "crushed" count (4,646, against 577 starved).
 
 So "crushed" and "frozen" in these runs are often starvation in disguise. The outer steps are expensive twice: the 2^|step| upkeep, and the store cap that throws away most of a rich meal. Rules 4's breakout in s3 was a fast forager (`x`-doubled M) that found plants often enough.
+
+## Rules 6: shedding keeps protection last (2026-10-19)
+
+The user picked shedding of the three fixes, and wants to keep the 2^|step| doubling (if it has to give, 1.5× per step, or armor and insulation that compound).
+- **`shed` order:** fat, then plain cells, then protection. Protection is K, I, and an `x` or `~` beside one of them. Within each group it drops the farthest cell (by path from the IP) it can lose without cutting the body apart; if none will do, the farthest cell. A hungry colonist now loses its code before its armor: it starves as a starving body rather than turning into a crushed one, and the death counts say so.
+- **Same 3,000 ticks of climb6-s4 from 800k, step −2,** old against new shedding:
+  - Deaths still all "crushed": 813 old against 839 new. Bodies live a little longer (most deaths at age 200–400, not 100–300).
+  - Sheds of `x`/`K`: 405 against 643. They still go, but only after the rest, and there are more sheds in all (3,200 against 1,700). The bodies are just underfed: this buys time, it doesn't feed them.
+- **`RULES` = 6.** Golden replay: all 2,491 matches identical (no shedding of code in them).
+- **Runs:** climb6 stopped at 1.4–1.8M (out of the list). New `climb7-s1`, `-s2`, `-s3`, `-s4`, `-s7` and `-s13` from tick 0 at nice 19 (`./bake.sh` defaults to climb7).

@@ -23,9 +23,9 @@ import { WarriorSpec } from './warrior-file';
 /**
  * The rules' version. Bump it with any change that makes runs play out differently (the
  * golden replays fail): a bake records it, and the viewer lists only runs on the current rules.
- * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses; 4: the climb's hunger is cell upkeep (no per-step size cap); 5: fat stores food.
+ * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses; 4: the climb's hunger is cell upkeep (no per-step size cap); 5: fat stores food; 6: shedding keeps protection last.
  */
-export const RULES = 5;
+export const RULES = 6;
 export const NONE = -1;
 /**
  * Ids. The board's columns are cut into ZONES bands, and each band numbers its own births:
@@ -1089,9 +1089,10 @@ export class World {
   }
 
   /**
-   * Upkeep: lose one cell. Burn fat first: the farthest `.` (no-op) cell whose removal
-   * keeps the body connected. With no fat, drop the cell farthest (by path) from the IP,
-   * which can never disconnect the rest — but is usually code, so the program rots.
+   * Upkeep: lose one cell. Burn fat first, then plain cells, and the body's protection (K,
+   * I, and an x or ~ beside one) last: within each, the farthest cell whose removal keeps
+   * the body connected. If none will do, drop the cell farthest (by path) from the IP,
+   * which can never disconnect the rest.
    */
   private shed(wr: Warrior) {
     const start = this.idx(wr.ipX, wr.ipY);
@@ -1109,13 +1110,21 @@ export class World {
     }
     const byFar = queue.slice(1).reverse(); // BFS order reversed = farthest first
     if (!byFar.length) return;
+    const w = this.w, id = wr.id;
+    const tier = (c: number) => {
+      const g = this.code[c];
+      if (g === FAT) return 0;
+      if (g === K || g === INSUL) return 2;
+      if (g === DOUBLE || g === FLIP) for (const nb of [c - 1, c + 1, c - w, c + w]) if (this.owner[nb] === id && (this.code[nb] === K || this.code[nb] === INSUL)) return 2;
+      return 1;
+    };
     let drop = byFar[0];
-    for (const c of byFar) {
-      if (this.code[c] !== CODE['.']) continue;
+    pick: for (let t = 0; t < 3; t++) for (const c of byFar) {
+      if (tier(c) !== t) continue;
       this.setOwner(c, NONE);
       const ok = this.unreached(wr).length === 0;
       this.setOwner(c, wr.id);
-      if (ok) { drop = c; break; }
+      if (ok) { drop = c; break pick; }
     }
     // Shed cells vanish rather than becoming debris: otherwise grow → shed → collect
     // the debris is a free-size loop.
