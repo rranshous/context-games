@@ -2248,3 +2248,12 @@ The user asked for a poor man's follow-along of a bake. A **live** checkbox sits
 - It's ticked by default when a run opens at its newest checkpoint (no `?t`).
 - Any jump back in time (timeline, go to tick, a "go see it" link) unticks it.
 - Checked in Chromium on climb5-s2: 50k → 55k → 58k on its own. Going to 20k unticked it; ticking it again jumped back to the newest.
+
+## Rules 5: fat stores food (2026-10-18)
+
+The user's idea: tie how much a body can store to its fat, not a flat multiplier, and lose fat first when starving.
+- **A body's store (largest max size) is 4 per cell, 16 per fat cell** (`stomach`, `fatstore`). Fat still burns half a cell's upkeep and weighs double, so it slows the body. Lean bodies stay fast and cheap and must eat often; fat bodies can bank a rich meal and travel or wait on it. Founders start full: the climber's store is 64 (10 cells: 8 × 4 + 2 fat × 16).
+- **Starving sheds fat first.** That was already so: `shed` drops the farthest fat cell it can lose without cutting the body apart, and only then other cells. Fat gives nothing back when shed. GROW makes fat for free, so a refund would be a free-food loop.
+- `fat` is now a trait (count of fat cells). The store reads it through the cached traits, which are recomputed whenever the body's cells change.
+- **`RULES` = 5.** A 20k-tick seed-4 sample: 1,787 alive (rules 4: 1,239), older and bigger. Golden replay: all 2,491 matches identical.
+- **Runs:** all six climb5 runs stopped (s1 at 1.25M, s3 at 839k, the fresh seeds at 95–150k), out of the list. New `climb6-s1`, `-s2`, `-s3`, `-s4`, `-s7` and `-s13` from tick 0 at nice 19 (`./bake.sh <seed>` now defaults to climb6).

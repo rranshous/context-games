@@ -30,7 +30,7 @@ A fixed-width battleground, infinite both up and down, generated as it's explore
   - a plain cell burns 1 unit, fat ½ (`fat`), armor and insulation 1 (`shell`; at 3 the frontier stalled, see the journal);
   - each cell burns 2^|step| times more for the step it sits in (the cold and the pressure);
   - a full body of plain cells at step 0 lasts 1,500 ticks unfed (`hunger`).
-- **The store grows with the body:** max size is at most 4× the body's cells (`stomach`), on every step, so food can't be banked beyond what the body can hold. Being big lets a body store more and costs more every tick. (Before 2026-10-18 there was a size cap of 64 × 2^|step| and hunger ran on pace, so fat, slow bodies at the rich steps ate once a lifetime; see the journal.)
+- **Fat is the store:** a body's largest max size is 4 per cell (`stomach`), 16 per fat cell (`fatstore`), on every step. Fat costs half a cell's upkeep and weighs double (slower), and a starving body sheds fat first. Lean bodies are fast and cheap but must eat often; fat ones can bank a rich meal. (Before 2026-10-18 there was a size cap of 64 × 2^|step| and hunger ran on pace, so fat, slow bodies at the rich steps ate once a lifetime; then briefly 4× the cells; see the journal.)
 - **Terrain:** generated per tile from the seed and the tile's coordinates, so any tile can be rebuilt on demand.
   - Downward: rock, caves and overhangs, as on the island.
   - Upward: cliffs, ledges and overhangs.

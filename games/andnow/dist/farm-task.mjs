@@ -671,7 +671,9 @@ var CONFIG = {
   crowd: 24,
   // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
   stomach: 4,
-  // climb: a body's max size is at most this many times its cell count (its store grows with it)
+  // climb: each cell adds this much to a body's largest max size (its store)…
+  fatStore: 16,
+  // …and each fat cell this much: fat is where a body keeps food (and starving sheds it first)
   climbStarve: 1500,
   // climb: ticks a full body of plain cells lasts unfed at step 0 (each cell burns stomach / this a tick)
   shellBurn: 1,
@@ -1068,7 +1070,7 @@ var World = class {
       oy: oy + spec.ip.y,
       dir: spec.dir,
       stack: [],
-      maxSize: CONFIG.climb ? CONFIG.stomach * spec.cells.length : CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
+      maxSize: CONFIG.climb ? spec.cells.reduce((n, c) => n + (c.code === FAT ? CONFIG.fatStore : CONFIG.stomach), 0) : CONFIG.island ? realm ? CONFIG.sharkCap : CONFIG.sizeCap : CONFIG.startSize,
       speed: CONFIG.speedStart,
       // island and climb founders start full
       accum: 0,
@@ -1632,9 +1634,12 @@ var World = class {
     }
     return (1 + m) / (1 + mass / CONFIG.paceMass);
   }
-  /** Size cap for a realm (island sea creatures are big and need room to breed; a climb body's store grows with it). */
+  /** Size cap for a realm (island sea creatures are big and need room to breed; a climb body's store is its cells', fat holding most). */
   capOf(wr) {
-    if (CONFIG.climb) return CONFIG.stomach * wr.cellCount;
+    if (CONFIG.climb) {
+      const cells = this.cells(wr), fat = cells ? this.freshTraits(wr, cells).fat : 0;
+      return CONFIG.stomach * (wr.cellCount - fat) + CONFIG.fatStore * fat;
+    }
     return CONFIG.island && wr.realm === 1 ? CONFIG.sharkCap : CONFIG.sizeCap;
   }
   /**
@@ -1645,7 +1650,7 @@ var World = class {
    */
   traitsOf(wr) {
     const w = this.w, id = wr.id;
-    let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
+    let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0, fat = 0;
     const cells = this.cellSets.get(id)?.items;
     if (cells) for (let j = 0; j < cells.length; j++) {
       const c = cells[j];
@@ -1667,8 +1672,9 @@ var World = class {
         bite += dbl;
         meat++;
       } else if (g === COLLECT) plants++;
+      else if (g === FAT) fat++;
     }
-    return { armor, insulation, mass, move, bite: Math.max(1, bite), plants: plants > meat, meat: meat > 0, pace: (1 + move) / (1 + mass / CONFIG.paceMass) };
+    return { armor, insulation, mass, fat, move, bite: Math.max(1, bite), plants: plants > meat, meat: meat > 0, pace: (1 + move) / (1 + mass / CONFIG.paceMass) };
   }
   /** The Climb: how much of a food a body digests (a body that eats both gets 60% of each). */
   dietShare(wr, food) {
@@ -2788,7 +2794,9 @@ var DISH_DEFAULTS = {
   crowd: 24,
   // climb: DIVIDE fails where the parent's tile (64×64) already holds this many bodies (local crowding, not a global cap)
   stomach: 4,
-  // climb: max size is at most this many times the body's cells
+  // climb: each cell adds this much to the body's largest max size (its store)…
+  fatstore: 16,
+  // …and each fat cell this much
   hunger: 1500,
   // climb: ticks a full body of plain cells lasts unfed at step 0 (all cells burn 2^|step|× further out)
   shell: 1,
@@ -2873,6 +2881,7 @@ function applyDish(get) {
   CONFIG.reaperCap = 0;
   CONFIG.crowd = o.crowd;
   CONFIG.stomach = o.stomach;
+  CONFIG.fatStore = o.fatstore;
   CONFIG.climbStarve = o.hunger;
   CONFIG.shellBurn = o.shell;
   CONFIG.fatBurn = o.fat;

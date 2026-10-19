@@ -23,9 +23,9 @@ import { WarriorSpec } from './warrior-file';
 /**
  * The rules' version. Bump it with any change that makes runs play out differently (the
  * golden replays fail): a bake records it, and the viewer lists only runs on the current rules.
- * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses; 4: the climb's hunger is cell upkeep (no per-step size cap).
+ * 1: the climb's runs before this was kept; 2: per-body random streams; 3: ids by zone, rich corpses; 4: the climb's hunger is cell upkeep (no per-step size cap); 5: fat stores food.
  */
-export const RULES = 4;
+export const RULES = 5;
 export const NONE = -1;
 /**
  * Ids. The board's columns are cut into ZONES bands, and each band numbers its own births:
@@ -69,7 +69,7 @@ export class Cells {
 type CellSet = Cells | Set<number>;
 const newCells = (id: number): CellSet => (id === DEBRIS ? new Set<number>() : new Cells());
 
-export interface Traits { armor: number; insulation: number; mass: number; move: number; bite: number; plants: boolean; meat: boolean; pace: number }
+export interface Traits { armor: number; insulation: number; mass: number; fat: number; move: number; bite: number; plants: boolean; meat: boolean; pace: number }
 export const DEBRIS = -2;
 // (step's per-code tables: an instruction's cycle cost, and whether it's an action.)
 const OP_COST = Array.from(GLYPHS, (g) => COST[g] ?? 1);
@@ -118,7 +118,8 @@ export const CONFIG = {
   climbBase: 20,        // climb: step 0's height in rows (step ±n is base × 10^n)
   climbSteps: 2,        // climb: steps each way
   crowd: 24,            // climb: DIVIDE fails where the parent's tile already holds this many bodies (0 = no limit)
-  stomach: 4,           // climb: a body's max size is at most this many times its cell count (its store grows with it)
+  stomach: 4,           // climb: each cell adds this much to a body's largest max size (its store)…
+  fatStore: 16,         // …and each fat cell this much: fat is where a body keeps food (and starving sheds it first)
   climbStarve: 1500,    // climb: ticks a full body of plain cells lasts unfed at step 0 (each cell burns stomach / this a tick)
   shellBurn: 1,         // climb: armor (K) and insulation (I) cells burn this many times a plain cell…
   fatBurn: 0.5,         // …and fat this many; every cell burns 2^|its step| times more (the cold and the pressure)
@@ -486,7 +487,7 @@ export class World {
     const wr: Warrior = shaped({
       id, lineage: id, gen: 0, realm, zone: this.zoneOf(ox + spec.ip.x), born: 0, name: spec.name, alive: true, ipX: ox + spec.ip.x, ipY: oy + spec.ip.y,
       ox: ox + spec.ip.x, oy: oy + spec.ip.y, dir: spec.dir,
-      stack: [], maxSize: CONFIG.climb ? CONFIG.stomach * spec.cells.length : CONFIG.island ? (realm ? CONFIG.sharkCap : CONFIG.sizeCap) : CONFIG.startSize, speed: CONFIG.speedStart, // island and climb founders start full
+      stack: [], maxSize: CONFIG.climb ? spec.cells.reduce((n, c) => n + (c.code === FAT ? CONFIG.fatStore : CONFIG.stomach), 0) : CONFIG.island ? (realm ? CONFIG.sharkCap : CONFIG.sizeCap) : CONFIG.startSize, speed: CONFIG.speedStart, // island and climb founders start full
       accum: 0, lastOk: true, lastAct: '', cellCount: 0, executed: 0, spec,
       stats: { collected: 0, bombHits: 0, poisonWrites: 0, kills: 0, selfWrites: 0, grows: 0, swaps: 0, flows: 0, oozes: 0, squeezed: 0, rooms: 0 }, home: room, roomsSeen: new Set(),
     });
@@ -981,9 +982,12 @@ export class World {
     return (1 + m) / (1 + mass / CONFIG.paceMass);
   }
 
-  /** Size cap for a realm (island sea creatures are big and need room to breed; a climb body's store grows with it). */
+  /** Size cap for a realm (island sea creatures are big and need room to breed; a climb body's store is its cells', fat holding most). */
   private capOf(wr: Warrior) {
-    if (CONFIG.climb) return CONFIG.stomach * wr.cellCount;
+    if (CONFIG.climb) {
+      const cells = this.cells(wr), fat = cells ? this.freshTraits(wr, cells).fat : 0;
+      return CONFIG.stomach * (wr.cellCount - fat) + CONFIG.fatStore * fat;
+    }
     return CONFIG.island && wr.realm === 1 ? CONFIG.sharkCap : CONFIG.sizeCap;
   }
 
@@ -995,7 +999,7 @@ export class World {
    */
   traitsOf(wr: Warrior): Traits {
     const w = this.w, id = wr.id;
-    let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0;
+    let armor = 0, insulation = 0, mass = 0, move = 0, bite = 0, plants = 0, meat = 0, fat = 0;
     const cells = (this.cellSets.get(id) as Cells | undefined)?.items;
     if (cells) for (let j = 0; j < cells.length; j++) {
       const c = cells[j];
@@ -1013,9 +1017,10 @@ export class World {
       else if (g === MOVE) move += dbl;
       else if (g === BITE) { bite += dbl; meat++; }
       else if (g === COLLECT) plants++;
+      else if (g === FAT) fat++;
     }
     // Diet: any B gives a taste for meat; plants need more C than B (so a hunter's one C, for collecting, doesn't make it a grazer).
-    return { armor, insulation, mass, move, bite: Math.max(1, bite), plants: plants > meat, meat: meat > 0, pace: (1 + move) / (1 + mass / CONFIG.paceMass) };
+    return { armor, insulation, mass, fat, move, bite: Math.max(1, bite), plants: plants > meat, meat: meat > 0, pace: (1 + move) / (1 + mass / CONFIG.paceMass) };
   }
 
   /** The Climb: how much of a food a body digests (a body that eats both gets 60% of each). */

@@ -26,7 +26,8 @@ export const DISH_DEFAULTS: Record<string, number> = {
   base: 20,       // climb: step 0's height (step ±n is base × 10^n)
   steps: 2,       // climb: steps each way
   crowd: 24,      // climb: DIVIDE fails where the parent's tile (64×64) already holds this many bodies (local crowding, not a global cap)
-  stomach: 4,     // climb: max size is at most this many times the body's cells
+  stomach: 4,     // climb: each cell adds this much to the body's largest max size (its store)…
+  fatstore: 16,   // …and each fat cell this much
   hunger: 1500,   // climb: ticks a full body of plain cells lasts unfed at step 0 (all cells burn 2^|step|× further out)
   shell: 1,       // climb: armor (K) and insulation (I) cells burn this many times a plain cell
   fat: 0.5,       // climb: fat cells burn this many times a plain cell
@@ -99,6 +100,7 @@ export function applyDish(get: (k: string) => string | null): Record<string, num
   CONFIG.reaperCap = 0;
   CONFIG.crowd = o.crowd;
   CONFIG.stomach = o.stomach;
+  CONFIG.fatStore = o.fatstore;
   CONFIG.climbStarve = o.hunger;
   CONFIG.shellBurn = o.shell;
   CONFIG.fatBurn = o.fat;
