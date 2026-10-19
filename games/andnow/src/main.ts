@@ -518,6 +518,8 @@ let scrub: number | null = null; // the tick under a finger dragging along the t
 const timeline = $<HTMLCanvasElement>('timeline');
 const gotoEl = $<HTMLInputElement>('goto');
 const finderEl = $('finder');
+const liveEl = $<HTMLInputElement>('live');
+let liveLoading = false;
 
 /** Fetch the bake's index. Returns false when the page is reloading with the bake's settings. */
 async function loadBake(): Promise<boolean> {
@@ -529,14 +531,32 @@ async function loadBake(): Promise<boolean> {
     location.replace(`?${want.toString().replace(/%2C/g, ',').replace(/%2F/g, '/')}`);
     return false;
   }
-  // A bake still being written grows: pick up new checkpoints now and then.
+  // A bake still being written grows: pick up new checkpoints now and then (every 10 s
+  // when live, and then load the newest one; every 30 s otherwise).
+  let polls = 0;
   const poll = setInterval(async () => {
+    if (!liveEl.checked && polls++ % 3) return;
     try { bake = (await (await fetch(`${BAKE}/index.json`, { cache: 'no-store' })).json()) as Bake; } catch { /* keep the old one */ }
     if (bake?.done) clearInterval(poll);
     renderTimeline();
-  }, 30000);
+    void keepUp();
+  }, 10000);
   timeline.style.display = 'block';
+  $('liveLabel').style.display = '';
+  liveEl.checked = !params.has('t'); // (opened at the live end: stay there)
+  liveEl.onchange = () => void keepUp();
   return true;
+}
+
+/** Live: jump to the bake's newest checkpoint if it's ahead of what's on screen (camera and follow stay). */
+async function keepUp() {
+  if (!bake || !liveEl.checked || liveLoading) return;
+  const m = bake.marks[bake.marks.length - 1];
+  if (!m || m.t <= world.t) return;
+  liveLoading = true;
+  const wasPlaying = playing;
+  try { await seek(m.t); } finally { liveLoading = false; }
+  if (wasPlaying) setPlaying(true); // (playing on from a checkpoint is the same run: carry on until the next)
 }
 
 async function readMark(m: Mark): Promise<World> {
@@ -550,6 +570,8 @@ async function readMark(m: Mark): Promise<World> {
 async function seek(target: number, then?: () => void) {
   setPlaying(false);
   target = Math.max(0, Math.floor(target));
+  // (Going back from the live end, by hand or a link, stops keeping up.)
+  if (bake && !liveLoading && target < bake.marks[bake.marks.length - 1].t) liveEl.checked = false;
   const follow = climbView?.follow ?? null;
   if (bake) {
     let m: Mark | undefined;

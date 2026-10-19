@@ -46,7 +46,7 @@ Four seeds have been baked for days, saving a checkpoint every 1,000 ticks. At t
 | 13 | 594,000 | 29k | meat eaters came back after dying out in every earlier batch |
 | 2 | 534,000 | 35k | reached the top of the original world, step +2 |
 
-The viewer hops between runs, scrubs a timeline of each one (alive count and biggest body), and can follow the biggest body.
+The viewer hops between runs, scrubs a timeline of each one (alive count and biggest body), and can follow the biggest body. With **live** ticked (the default when a run opens at its newest checkpoint) it loads each new checkpoint as the bake writes it, keeping the camera and whoever it follows; jumping back in time unticks it.
 
 ## Running it
 

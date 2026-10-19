@@ -4063,6 +4063,8 @@ var scrub = null;
 var timeline = $("timeline");
 var gotoEl = $("goto");
 var finderEl = $("finder");
+var liveEl = $("live");
+var liveLoading = false;
 async function loadBake() {
   if (!BAKE) return true;
   bake = await (await fetch(`${BAKE}/index.json`, { cache: "no-store" })).json();
@@ -4072,16 +4074,35 @@ async function loadBake() {
     location.replace(`?${want.toString().replace(/%2C/g, ",").replace(/%2F/g, "/")}`);
     return false;
   }
+  let polls = 0;
   const poll = setInterval(async () => {
+    if (!liveEl.checked && polls++ % 3) return;
     try {
       bake = await (await fetch(`${BAKE}/index.json`, { cache: "no-store" })).json();
     } catch {
     }
     if (bake?.done) clearInterval(poll);
     renderTimeline();
-  }, 3e4);
+    void keepUp();
+  }, 1e4);
   timeline.style.display = "block";
+  $("liveLabel").style.display = "";
+  liveEl.checked = !params.has("t");
+  liveEl.onchange = () => void keepUp();
   return true;
+}
+async function keepUp() {
+  if (!bake || !liveEl.checked || liveLoading) return;
+  const m = bake.marks[bake.marks.length - 1];
+  if (!m || m.t <= world.t) return;
+  liveLoading = true;
+  const wasPlaying = playing;
+  try {
+    await seek(m.t);
+  } finally {
+    liveLoading = false;
+  }
+  if (wasPlaying) setPlaying(true);
 }
 async function readMark(m) {
   const buf = new Uint8Array(await (await fetch(`${BAKE}/${m.file}`)).arrayBuffer());
@@ -4092,6 +4113,7 @@ async function readMark(m) {
 async function seek(target, then) {
   setPlaying(false);
   target = Math.max(0, Math.floor(target));
+  if (bake && !liveLoading && target < bake.marks[bake.marks.length - 1].t) liveEl.checked = false;
   const follow = climbView?.follow ?? null;
   if (bake) {
     let m;

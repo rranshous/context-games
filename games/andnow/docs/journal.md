@@ -2241,3 +2241,10 @@ The user picked `climb4-shell1-s3` as the way forward ("much more so than the ot
 - **New: `climb5-s2`, `-s4`, `-s7`, `-s13`** from tick 0, via `./bake.sh <seed>`, whose default prefix is now climb5.
 - All six run at nice 19.
 - The stomach-8 runs were stopped at ~415–455k, before they showed anything. That question is still open.
+
+## Viewer: live (2026-10-18)
+
+The user asked for a poor man's follow-along of a bake. A **live** checkbox sits beside "go to tick". When it's ticked, the viewer polls the bake's index every 10 s (30 s otherwise) and jumps to the newest checkpoint whenever it's ahead of the screen. The camera and the followed body stay. If it was playing, it keeps playing from there: same rules, same run.
+- It's ticked by default when a run opens at its newest checkpoint (no `?t`).
+- Any jump back in time (timeline, go to tick, a "go see it" link) unticks it.
+- Checked in Chromium on climb5-s2: 50k → 55k → 58k on its own. Going to 20k unticked it; ticking it again jumped back to the newest.

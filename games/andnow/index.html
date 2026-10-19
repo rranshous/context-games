@@ -87,6 +87,7 @@
     <div class="row">
       <input type="number" id="goto" placeholder="go to tick" min="0" style="width:110px">
       <button id="go">Go</button>
+      <label id="liveLabel" style="display:none" title="keep up with the bake: load each new checkpoint as it's written"><input type="checkbox" id="live"> live</label>
     </div>
     <div id="finder" class="stats" style="display:none"></div>
     <div id="bakes" style="display:none"></div>
@@ -103,6 +104,6 @@
     <div id="cards"></div>
     <div id="log"></div>
   </div>
-  <script type="module" src="./dist/main.js?v=14"></script>
+  <script type="module" src="./dist/main.js?v=15"></script>
 </body>
 </html>
