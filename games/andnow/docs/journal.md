@@ -2373,7 +2373,7 @@ The user wanted to see bites taken, and asked how the long arms survive when one
 - **Auto** (empty stack): the nearest foreign cell within 6 holding a glyph the biter doesn't have, never one of its own lineage. At s2's +2/+3 everyone is the climber's lineage, and at s4's +2 the diver's, so there is no one to auto-bite. Arms are fat (`.`), and nearly every biter has a fat cell, so fat wouldn't be a target anyway. s2 had no auto-bites at all, and s4 had 13, all on rival-lineage small bodies.
 - **Aimed** (dx dy off the stack): whatever cell is there, kin included. Every bite on a big body was this kind, aimed by whatever numbers happened to be on the stack. In s2, 526 aimed bites hit a body and 4,461 failed.
 
-**When one lands, it can take most of the arm.** In s2, bodies of 40+ cells were hit 18 times in 2,000 ticks. Most bites cost a cell or a few, but four cost 85–139 cells each: 112 → 27, 125 → 10, 304 → 165, 97 → 78. s4 had one: 115 → 100.
+**When one lands, it can take most of the arm.** In s2, bodies of 40+ cells were hit 18 times in 2,000 ticks. Most cost 1–19 cells, but three cost 85–139 each: 112 → 27, 125 → 10, 304 → 165. s4 had one: 115 → 100.
 
 ![A 304-cell both-eater hanging down across the +1/+2 line loses its lower 139 cells to one bite](img/bite.png)
 
