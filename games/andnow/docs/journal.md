@@ -2310,3 +2310,11 @@ The user spotted it in the viewer: climb7-s2 at 812k is a forest of long pink li
 - Meat comes from the dead: ~575,000 dead cells eaten, ~84% by both-eaters. ~111,000 were from small bodies that died during the replay, ~2,100 from mid-size ones, and the rest from dead cells already lying there at 812k.
 
 So the meat eaters scavenge, and the whales are effectively out of reach, though a lucky bite can take a whole arm off.
+
+### Rules 6 at 603k: s4's plant eaters turn both-eaters (2026-10-19)
+
+The user saw climb7-s4 blooming with both-eaters in the viewer.
+- **Diets at +2:** 0% both-eaters at 520k, then 23% (560k) and 40% at 603k. Plant eaters went 84% → 45%, meat eaters 3–5%. +3 (250–315 bodies) is ~62% both-eaters. The run holds ~24,000 bodies, ~19,600 of them at +2.
+- **It's the same body with a mouth added.** The plant eater is `Cm MmMD/MIxx` with fat around it. The both-eaters keep that core (`xmMD/…IxM`) and add one B, plus a second C so C still outnumbers B (more B than C would make it a pure meat eater). Example: `B/C  xmMD/AIxMx./  .C.`. A both-eater gets 0.6 of each food's worth, against 1 for a specialist.
+- **The +2 colony is the diver's lineage, not the climber's** (s2's is the climber's): two runs, two founders, the same insulated fast-forager plan.
+- **s4 has whales too**, 79 bodies of 100+ cells, over 90% fat and mostly both-eaters. They move 3–5× faster than s2's (pace 0.15–0.4 against 0.03–0.08), from `x`-doubled M cells.
