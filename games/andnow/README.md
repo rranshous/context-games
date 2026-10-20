@@ -67,6 +67,10 @@ Pictures from the two breakout runs, with glyphs on. Each picked body is outline
 
 *Seed 2's whales are mostly fat: this one is 239 cells and 77,000 ticks old, where most bodies live about 1,000 ticks. Its program `CLGTDM` sits where the arms cross. `T` picks a random direction and `G` grows a fat cell at the end of that arm, so the arms grow at random in four directions. The IP then walks ~100 fat cells before it reaches the code again, so it eats and grows only now and then.*
 
+![A 304-cell body loses its lower 139 cells to one bite](docs/img/bite.png)
+
+*Bites are rare on the long arms: an auto-bite (`B` with an empty stack) never targets your own lineage, and the colonies at the top are all one lineage. But a bite aimed by stray numbers on the stack can land, and a bite near the core cuts off everything beyond it. Here a 304-cell body loses its lower 139 cells in one bite. Arms are fat and cheap, and grow back.*
+
 The viewer hops between runs, scrubs a timeline of each one (alive count and biggest body), and can follow the biggest body. With **live** ticked (the default when a run opens at its newest checkpoint) it loads each new checkpoint as the bake writes it, keeping the camera and whoever it follows; jumping back in time unticks it.
 
 ## Running it

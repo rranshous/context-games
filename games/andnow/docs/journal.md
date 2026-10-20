@@ -2364,3 +2364,23 @@ The screenshots are from the viewer with **glyphs** ticked. Each picked body is 
 - **Circuits:** the `[` above, running a row and a column both ways.
 - **Random order:** `?` on the row (s2's `C?MTD`, s4's `C  x?MD`).
 - **Arm walkers:** 122 of s2's 215-cell meat-eating whales walk down a fat arm, hit a `G` and `]`, turn east to run `C L D`, then `]` turns them south to the next `G`. They grow from the joints.
+
+### Bites on the long arms (2026-10-20)
+
+The user wanted to see bites taken, and asked how the long arms survive when one bite can cut most of an arm off. Scratchpad `an/bites.ts` logs every bite over a replay: 2,000 ticks of s2 from 812k, and 1,000 of s4 from 746k.
+
+**Why arms are rarely bitten: auto-bites can't target them.** `B` bites in two ways:
+- **Auto** (empty stack): the nearest foreign cell within 6 holding a glyph the biter doesn't have, never one of its own lineage. At s2's +2/+3 everyone is the climber's lineage, and at s4's +2 the diver's, so there is no one to auto-bite. Arms are fat (`.`), and nearly every biter has a fat cell, so fat wouldn't be a target anyway. s2 had no auto-bites at all, and s4 had 13, all on rival-lineage small bodies.
+- **Aimed** (dx dy off the stack): whatever cell is there, kin included. Every bite on a big body was this kind, aimed by whatever numbers happened to be on the stack. In s2, 526 aimed bites hit a body and 4,461 failed.
+
+**When one lands, it can take most of the arm.** In s2, bodies of 40+ cells were hit 18 times in 2,000 ticks. Most bites cost a cell or a few, but four cost 85–139 cells each: 112 → 27, 125 → 10, 304 → 165, 97 → 78. s4 had one: 115 → 100.
+
+![A 304-cell both-eater hanging down across the +1/+2 line loses its lower 139 cells to one bite](img/bite.png)
+
+*s2, tick 813,492 → 813,495. A 304-cell both-eater (picked), its core at the top and one long tail hanging down across the line between +2 and +1. One aimed bite from a 21-cell kin both-eater cut the tail just below the line: 139 cells gone. The camera re-centred on the shorter body, so the two frames are lined up by its core.*
+
+![A 112-cell meat eater's long arm vanishes after one bite near its core, leaving scattered dead cells](img/bite2.png)
+
+*s2, tick 812,408 → 812,411, camera fixed. The red line is a 112-cell meat eater's arm. One bite near the core and 85 cells are gone; the grey specks are what's left as dead cells (most of a cut piece dissolves).*
+
+**How the arms survive:** not by being hard to cut, but by rarely being targeted, and by being cheap. An arm is fat: it costs half a cell's upkeep and holds 16 of store, and `G` grows it back for free while the body has the store to fill. The core survives the cut, and a body that loses an arm just has less store until it grows more.
