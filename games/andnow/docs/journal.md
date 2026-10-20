@@ -2326,3 +2326,41 @@ The user asked for interesting programs in s2 and s4. Traced with scratchpad `an
 - **s2's both-eater** (`CLDM` with a long tail down to `Ix`) loops `C . M D L`: LOOK pops nothing (looks east) and pushes distance and type. MOVE takes the type as its direction and DIVIDE the distance, so what it sees decides where it goes and where its child lands. The tail is the T and spine shapes on screen; its bottom cells are the I and x that give the insulation.
 - **s2's whales** run `C m L f ? M G` on a row of fat. `G` grows a fat cell at the end of the body's line in some direction, which makes the long straight arms and crosses. The `?` turns the IP in a random direction, and it then walks dozens of fat no-ops before it gets back to the code. The arms are a delay loop: a whale moves, eats and grows once every few dozen instructions, which keeps it from moving off its food.
 - **The commonest small "programs" are scraps:** lone `L`, `D`, `T` or `M` cells, and `L/IB`. These are bodies shed down to the cell under the IP, looping one instruction until they freeze.
+
+### The breakout programs, with pictures (2026-10-20)
+
+The user asked for screenshots, and pointed out that a program isn't just a body's top row: `> < ^ v [ ] r ? _ |` all turn the IP. Fair. The bodies I'd traced all kept the IP on one row, and I wrote that up as if it were a rule. So I measured it: scratchpad `an/turn.ts` watches every body for 300 ticks and flags the ones whose IP ran on both axes. About 1% do: in s2, 1,981 of 212,540 bodies; in s4, 1,317 of 147,817; in the four stuck runs, 14–54 of 4,000–9,000. Most programs really are one row, and the turners are mostly in the two runs that broke out.
+
+The screenshots are from the viewer with **glyphs** ticked. Each picked body is outlined, and the darker cell is its IP.
+
+![s4 at 600k: plant-eating foragers Cm MmMD over .Ixx., with both-eaters (pink) among them](img/s4-forager.png)
+
+**s4's forager** (`Cm MmMD` over `.Ixx.`, blue) loops `m M D C`: push my max size, move that way, divide, collect. How full it is picks its direction: a random walk steered by meals. Its `I` has two `x` beside it, so it counts as 4. The pink bodies are early both-eaters.
+
+![s4 at 746k: both-eaters C xmMD over .IxMxC. with IB on top](img/s4-both.png)
+
+**s4's both-eaters** keep the same loop (`C xmMD`) and add a `B`, here up top beside an extra `I`. The `B` is never run; it's what lets the body digest meat.
+
+![s4 at 746k: C [mMD over CIxMx B, a program that loops through its row and a column](img/s4-turner.png)
+
+**A turner in s4** (picked, right): `C  [mMD` over `CIxMx B`. The `[` (turn left) makes a circuit. East along the row (`m M D C`), turn north and run up the column below the `[` (`x M`, wrapping round), back at `[` turn west and run the row backwards (`C D M m`), turn south down the column (`M x`), then east again. One loop runs the row both ways and the column both ways, so it moves four times and divides twice. Its neighbours are the same body without the `[`.
+
+![s2 at 919k: CLDM bodies with long tails, and Co:TMMD T shapes](img/s2-look.png)
+
+**s2's lookers** (picked, centre): `CLDMK` with a tail down to `@II`. The loop is `L C . M D`: LOOK (east) pushes distance and type, MOVE takes the type as its direction and DIVIDE the distance, so what it sees steers it and places its child. The tail holds the insulation. Around it are **`Co:TMMD`** T's: `T` with nothing on the stack picks a random direction, `: o` copy it twice, then collect, divide that way, and move that way twice. A random walk in strides of two.
+
+![s2 at 919k: C?MTD bodies with long tails](img/s2-random.png)
+
+**`C?MTD`** (picked): `?` turns the IP a random way. East runs `M T D C`, west runs `C D T M`, and north or south finds no other cell in that column, so it spins on `?` until it gets east or west. The row runs forwards or backwards at random.
+
+![s2 at 919k: a 239-cell whale, a cross of fat arms over 100 cells wide](img/s2-whale.png)
+
+![The whale's core zoomed in: CLGTDM where the arms cross](img/s2-whale-core.png)
+
+**A whale** (239 cells, 77k ticks old). Zoomed in, its program is `CLGTDM` where the arms cross; the IP (the dark cell) is out on the right arm. Running west it does `M D T G L C`, then walks ~100 fat cells round the row before it gets back. `T` with nothing on the stack picks a random direction, and `G` grows a fat cell at the end of the body's line that way. So the arms are random growth in four directions, which is why whales are crosses. The column hanging below holds its insulation (`I` at the bottom).
+
+**Turning programs, so far:**
+- **Bouncers:** a `[` or `]` at the end of a row whose column has no other cell. The IP turns, can't move, turns again, and comes back. The row runs forwards then backwards (s1's `C6SDT[`, s2's `C[MTDML`).
+- **Circuits:** the `[` above, running a row and a column both ways.
+- **Random order:** `?` on the row (s2's `C?MTD`, s4's `C  x?MD`).
+- **Arm walkers:** 122 of s2's 215-cell meat-eating whales walk down a fat arm, hit a `G` and `]`, turn east to run `C L D`, then `]` turns them south to the next `G`. They grow from the joints.

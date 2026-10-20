@@ -37,14 +37,35 @@ The current mode is a world that grows forever, both up and down.
 
 ### Forever runs
 
-Four seeds have been baked for days, saving a checkpoint every 1,000 ticks. At the latest checkpoints:
+Six seeds are baking on the current rules (rules 6), saving a checkpoint every 1,000 ticks. Two have broken out of the middle steps:
 
 | seed | tick | alive | notes |
 |---|---|---|---|
-| 4 | 1,024,000 | 23.6k | the first run past a million ticks |
-| 7 | 371,000 | 77k | grown to steps +4 and −3; 36k bodies live in step +3 |
-| 13 | 594,000 | 29k | meat eaters came back after dying out in every earlier batch |
-| 2 | 534,000 | 35k | reached the top of the original world, step +2 |
+| 2 | 919,000 | 85k | climbers took +2 and +3 at ~700k: both-eaters, meat-eating hunters and fat whales |
+| 4 | 747,000 | 78k | divers took +2 at ~450k as plant eaters, then turned both-eaters |
+| 1, 3, 7, 13 | 3.5–4.2M | 3.6–6.7k | still mostly on steps ±1 |
+
+### What evolved
+
+Pictures from the two breakout runs, with glyphs on. Each picked body is outlined, and its darker cell is the IP. More detail in [the journal](docs/journal.md).
+
+![Seed 4: plant-eating foragers, Cm MmMD over .Ixx.](docs/img/s4-forager.png)
+
+*Seed 4's forager loops `m M D C`: push my max size, move that way, divide, collect. How full it is picks its direction, so every meal turns it. Its `I` has an `x` on each side, so it counts as 4.*
+
+![Seed 4: a body whose program loops through its row and a column](docs/img/s4-turner.png)
+
+*Programs can turn. In this one (picked, right) the `[` makes a circuit: east along the row, north up the column below the `[`, west along the row, south down the column. One loop runs four moves and two divides.*
+
+![Seed 2: CLDM lookers with long tails, among Co:TMMD T shapes](docs/img/s2-look.png)
+
+*Seed 2's looker (picked) runs `L C . M D`: LOOK pushes the distance and type of what it sees, MOVE takes the type as its direction and DIVIDE the distance. What it sees steers it and places its child. The tail holds its insulation.*
+
+![Seed 2: a whale, a cross of fat arms over 100 cells wide](docs/img/s2-whale.png)
+
+![The whale's core zoomed in: CLGTDM where the arms cross](docs/img/s2-whale-core.png)
+
+*Seed 2's whales are mostly fat: this one is 239 cells and 77,000 ticks old, where most bodies live about 1,000 ticks. Its program `CLGTDM` sits where the arms cross. `T` picks a random direction and `G` grows a fat cell at the end of that arm, so the arms grow at random in four directions. The IP then walks ~100 fat cells before it reaches the code again, so it eats and grows only now and then.*
 
 The viewer hops between runs, scrubs a timeline of each one (alive count and biggest body), and can follow the biggest body. With **live** ticked (the default when a run opens at its newest checkpoint) it loads each new checkpoint as the bake writes it, keeping the camera and whoever it follows; jumping back in time unticks it.
 
