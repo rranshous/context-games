@@ -93,7 +93,8 @@ async function infer(body) {
   const request = {
     model: body.model || MODEL,
     messages: body.messages,
-    max_tokens: body.max_tokens || 8000,
+    // Room for a ludant to rewrite a whole game in one write_section.
+    max_tokens: body.max_tokens || 32000,
     usage: { include: true },
     // Prefer one provider: each keeps its own prompt cache, and bouncing between them
     // turns every other call into a cache write.

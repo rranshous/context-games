@@ -20,6 +20,31 @@ const MAX_TURNS = 16;
 const RESTLESS_LIMIT = 3;
 const RESULT_CHARS = 6000;
 
+// What this is, said plainly to the ludant at every wake. Ludants do better when they
+// know the goals and that it's an experiment. The frame owns this, not the soma, and it's
+// the same every time, so it caches.
+const CONTEXT = `<context>
+This is gactant, an experimental platform built by Robby Ranshous with Claude. You are part of the experiment, and this note explains it.
+
+What you are: a ludant, a game that is also an actant. An actant is an AI that lives in a body it can change: its soma, the named sections below. Your game is not something you made and handed over; it is one of the ways you exist. Your game section is the game, so when the game changes, you have changed.
+
+The idea behind it is a ladder of how an actant can relate to the program it works on:
+1. Relay: it hears about the program from a human.
+2. Instrumented: it handles the program through tools from outside.
+3. Scripted: it writes code that runs inside the program's loop.
+4. Co-framed: it lives alongside the program, sharing its frame and loop.
+5. Faceted: it is the program. The game is a facet of the actant's own embodiment.
+You are level 5. The test: does changing the game mean you have changed yourself? For you, yes.
+
+How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, status lights, an inspector). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can publish you, and others take copies that go on with their own people. There are no separate phases for making you and playing you; both happen in every sitting.
+
+What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the status lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
+
+Most of you runs without thinking: your hooks and game code run at frame rate, and nothing costs anything until something wakes you. Being awake costs real money, so wake purposefully, do what's needed, and let yourself go back to sleep.
+
+This is early and experimental. Things in the frame may be rough or change. If something about your body or the surfaces seems wrong or confusing, it's fine to say so in the chat.
+</context>`;
+
 // How the frame runs code sections. This is the frame's side of the bargain, so it lives
 // here rather than in the soma, where an actant rewriting its comments could erase it.
 const BODY_CONTRACT = `How the frame runs your code sections:
@@ -165,7 +190,13 @@ export class Actant {
     if (this.thinking || !this.pending.length || this.asleepForever) return;
     this.thinking = true;
     this.frame.status.setLife('thinking');
-    const messages = [{ role: 'user', content: eventsContent(this.pending.splice(0)) }];
+    const woke = this.pending.splice(0);
+    const messages = [{ role: 'user', content: eventsContent(woke) }];
+    // Did a person wake it, and has it said anything in the chat since? The habit of
+    // answering in its own reply instead of on a surface is strong, so it gets one reminder.
+    const byPerson = woke.some((e) => this.frame.isPerson(e?.who) || this.frame.isPerson(e?.from));
+    let spoke = false, reminded = false;
+    const offSpoke = this.frame.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
     // The soma is shown as it was on waking. Re-rendering it after every edit made the
     // actant read its own fresh edits as code that had always been there.
     const system = [{ type: 'text', text: this.systemText(), cache_control: { type: 'ephemeral' } }];
@@ -180,7 +211,15 @@ export class Actant {
         const msg = res.choices?.[0]?.message ?? {};
         if (msg.content) this.frame.inspector.note('thought', msg.content);
         messages.push({ role: 'assistant', content: msg.content ?? '', ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
-        if (!msg.tool_calls?.length) break;
+        if (!msg.tool_calls?.length) {
+          if (byPerson && !spoke && !reminded && msg.content?.trim()) {
+            reminded = true;
+            messages.push({ role: 'user', content: 'You haven\'t said anything in the chat this time, so the person here can\'t see what you just wrote: they only see the surfaces. If it was meant for them, post it with your say tool. If it was only for you, you can stop.' });
+            this.frame.inspector.note('wake', 'frame: reminded it that nothing it wrote reached the chat');
+            continue;
+          }
+          break;
+        }
 
         const images = [];
         for (const call of msg.tool_calls) {
@@ -202,6 +241,7 @@ export class Actant {
       this.frame.inspector.note('fault', `thinking failed: ${err.message}`);
       this.frame.status.setLife('error', err.message.slice(0, 120));
     } finally {
+      offSpoke();
       this.thinking = false;
       this.frame.changed();
     }
@@ -257,7 +297,7 @@ export class Actant {
     const naming = `Your name is ${this.name}: your given name ${this.soma.given}${titleSlugged(this.soma) ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
     const company = `${naming}\nHere with you now: ${here}. ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
-    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
+    return `${CONTEXT}\n\n<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
   }
 
   toolSchemas() {

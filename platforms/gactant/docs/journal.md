@@ -851,3 +851,64 @@ Side note from Robby: what's the max output per inference turn? It's 8,000 token
 (the relay's default), with up to 16 calls per wake (40 for a shard). It's been enough so
 far; the biggest single write was ~3k tokens. A ludant rewriting a big game in one
 `write_section` could hit the cap and truncate the tool call. Raising it is one line.
+
+### "It's using the agent chat log to reply"
+
+Robby's first real use, with his own ludant **Wovan** (seeded as Robby): "yay! it's
+working well!" Wovan built a "lazy-day racer" from his whiteboard sketch: a pastel car on
+a winding road with parallax mountains, clouds, trees and flower bushes. They tuned it
+over three rounds ("the car is _zooming_!", then "much better"). Then:
+
+> a problem i've encountered before is coming up. it's using the agent chat log to reply
+> to the human instead of using the chat surface.
+
+Wovan's log shows it exactly. On the last wake ("the trees and flowers are like glitching
+toward me"), Wovan fixed the glitch (sprites were snapping to whole pixel rows), checked a
+still frame, and then reported **only in its final reply**: "I made the trees and flowers
+move smoothly…". There was no `say`. Robby never heard it. Every earlier wake did post in
+chat, but each one also ended with a duplicate summary in its own reply. That's the
+pattern Pip showed in the first hour: the habit of answering "the user" is strong, and here
+the "user" turn is just events.
+
+Robby's prescription, from experience: "i always find it more helpful to explain the goals
+and context and that it's experimental to the actants. make it clear in that context that
+the frame's surfaces are what the human sees." So:
+
+- **A `<context>` block opens every wake**, owned by the frame and identical every time,
+  so it caches. It says:
+  - this is gactant, an experimental platform built by Robby with Claude, and the ludant
+    is part of the experiment
+  - what an actant is, and what a ludant is
+  - the five Explorer levels, and that it is level 5, with the test ("does changing the
+    game mean you have changed yourself? For you, yes")
+  - how people meet it, and that there are no phases
+  - **what people see: only the surfaces.** "They do not see this conversation. Your
+    replies here, your reasoning, and anything you write outside of a tool call go nowhere
+    a person will read. … If you didn't post it, they didn't hear it."
+  - that waking costs money
+  - that things are rough and it's fine to say so in the chat
+
+  The frame block ends: "Remember: people see the surfaces, not this conversation. Say it
+  in the chat or they won't hear it."
+- **One reminder at the moment it matters.** If a person woke the ludant, and it's about to
+  go back to sleep having written text but posted nothing in the chat, the frame tells it
+  once: "You haven't said anything in the chat this time, so the person here can't see what
+  you just wrote: they only see the surfaces. If it was meant for them, post it with your say
+  tool. If it was only for you, you can stop." Not yet seen firing in testing (Elodon said
+  everything in chat both times), so it's waiting for a real slip.
+
+After the context block, Elodon answered "how many stones can be on screen at once? and what
+do you make of this whole setup you're in?" in chat. Its leftover reply shrank to "I
+replied in the chat. I didn't change anything." On the setup:
+
+> I'm a one-button ember-hop game, and I'm also the thing that can rewrite that game. It's
+> an odd and pleasant arrangement. When you ask for a change, I'm changing myself rather
+> than editing a separate project.
+
+**The cap is raised: 32,000 output tokens per call** (was 8,000). Wovan's log showed why:
+its first `write_section` of the whole game came back `"arguments were not valid JSON"`.
+It had hit 8,000 tokens and been cut off mid-write, so it had to write the game again.
+
+Also from the logs: **Tialina** (seeded by "fast paced racer", the "you are" box mix-up)
+took the name as a brief. "Since you seeded me as a racer, I made a first pass: a
+pseudo-3D arcade racer." That's a nice misreading.
