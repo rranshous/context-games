@@ -4,7 +4,7 @@
 // starting from nothing is last.
 
 import { PadNav, Pads } from './pads.js';
-import { api, askName, el, mine, myName } from './ui.js';
+import { api, askName, el, forget, mine, myName } from './ui.js';
 
 const FEATURED = 6;
 
@@ -157,6 +157,8 @@ async function render() {
   ]);
   // A local install can also show every ludant here, for the person running it.
   const everyone = config.public ? [] : await api('GET', 'ludants');
+  // Ones that are gone (abandoned) quietly leave this browser's list.
+  for (const id of ids) if (!yours.some((l) => l.id === id)) forget(id);
   const order = new Map(ids.map((id, i) => [id, i]));
   yours.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
 

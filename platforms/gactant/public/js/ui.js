@@ -50,6 +50,9 @@ export function askName(why = 'Ludants know the people who sit with them by name
 // The ludants this browser has sat with, newest first: how someone finds their way back.
 const MINE = 'gactant-mine';
 export function mine() { try { return JSON.parse(localStorage.getItem(MINE) || '[]'); } catch { return []; } }
+export function forget(id) {
+  try { localStorage.setItem(MINE, JSON.stringify(mine().filter((m) => m.id !== id))); } catch {}
+}
 export function remember(id) {
   try { localStorage.setItem(MINE, JSON.stringify([{ id, at: Date.now() }, ...mine().filter((m) => m.id !== id)].slice(0, 40))); } catch {}
 }

@@ -13,7 +13,7 @@
 // and data/log/<who>.jsonl, every inference with image bytes stripped. Reading those logs is
 // how Claude sees what a ludant saw and did.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,7 @@ const file = (kind, id) => join(DATA, kind, `${safe(id)}.json`);
 const store = {
   async get(kind, id) { const f = file(kind, id); return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null; },
   async put(kind, id, doc) { writeFileSync(file(kind, id), JSON.stringify(doc, null, 1)); },
+  async remove(kind, id) { rmSync(file(kind, id), { force: true }); },
   async list(kind) {
     return readdirSync(join(DATA, kind)).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(DATA, kind, f), 'utf8')));
   },

@@ -7,7 +7,7 @@
 //   await core.route(method, ['ludants', id], body, searchParams)   -> JSON-able, or throws { code }
 //
 // A store keeps JSON documents by kind and id, and is async whether or not it needs to be:
-//   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]
+//   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]     remove(kind, id)
 // Kinds: assets (its art: `l-<ludant>-<name>` / `p-<publication>-<name>`), ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
 // names in use, so a new seed's is fresh), thumbs (a small picture of a ludant's or a
 // publication's stage, `l-<id>` or `p-<id>`, kept apart so lists stay light).
@@ -42,6 +42,9 @@
 //   GET  ludants/<id>/checkpoints                -> [{ n, label, by, at }]
 //   POST ludants/<id>/checkpoints { label, by }  -> { n }           no-op if nothing changed
 //   POST ludants/<id>/restore { n, by }          -> { restored }     checkpoints the present first
+//   POST ludants/<id>/abandon { token, by }      -> { abandoned }    let it go: it, its checkpoints, art and
+//                                                   chat are no longer kept; what it was published as stays.
+//                                                   Its link then answers 410 { abandoned: { by, at, name } }
 //   GET  published                               -> [{ id, name, given, title, by, note, ludant, n, from, fromName, at, copies, cost }]   cost: per hour of play, from copies
 //   POST published      { ludant, by, note? }    -> { id, name }    publishes it as it is now, under its name;
 //                                                   409 if this snapshot or this name is already published
@@ -184,7 +187,7 @@ export function createCore({ store, settings }) {
     if (!u) return;
     unwritten.delete(id);
     const ludant = await store.get('ludants', id);
-    if (!ludant) return;
+    if (!ludant || ludant.abandoned) return;
     ludant.stats = add(ludant.stats, u.seconds, u.spent);
     await store.put('ludants', id, ludant);
     const from = ludant.lineage?.from?.published;
@@ -281,8 +284,8 @@ export function createCore({ store, settings }) {
         // has sat with): an unpublished ludant is reached by its link.
         const ids = (query.get('ids') || '').split(',').filter(Boolean).slice(0, 100);
         let found;
-        if (ids.length) found = (await Promise.all(ids.map((id) => store.get('ludants', safe(id))))).filter(Boolean);
-        else found = isPublic ? [] : await store.list('ludants');
+        if (ids.length) found = (await Promise.all(ids.map((id) => store.get('ludants', safe(id))))).filter((l) => l && !l.abandoned);
+        else found = isPublic ? [] : (await store.list('ludants')).filter((l) => !l.abandoned);
         return found.map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
       }
       if (!b && method === 'POST') {
@@ -294,6 +297,19 @@ export function createCore({ store, settings }) {
         return { id };
       }
       const ludant = await read('ludants', b);
+      // An abandoned ludant leaves only a note of it, so its link says what happened.
+      if (ludant.abandoned) throw httpError(410, `${ludant.abandoned.name} was abandoned`, { abandoned: ludant.abandoned });
+      if (c === 'abandon' && method === 'POST') {
+        requireHold(b, body.token);
+        for (const cp of ludant.checkpoints ?? []) await store.remove('checkpoints', `${b}-${cp.n}`);
+        for (const a of ludant.assets ?? []) await store.remove('assets', `l-${b}-${a.name}`);
+        await store.remove('thumbs', `l-${b}`);
+        const abandoned = { name: nameOf(ludant.soma), by: String(body.by || 'someone').slice(0, 40), at: now() };
+        await store.put('ludants', b, { id: b, abandoned, lineage: ludant.lineage ?? {} });
+        holds.delete(b);
+        unwritten.delete(b);
+        return { abandoned };
+      }
       if (!c && method === 'GET') {
         // The names its family has already published under, so it knows which are taken.
         const familyNames = (await store.list('published')).filter((p) => p.given === ludant.soma?.given).map((p) => p.name);

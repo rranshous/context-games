@@ -25,7 +25,7 @@ import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
-import { api, askName, el, remember } from './ui.js';
+import { api, askName, el, forget, remember } from './ui.js';
 import { installExplorer } from './explorer.js';
 
 const SAVE_MS = 800;
@@ -363,6 +363,28 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 
   checkpoints() { return api('GET', `ludants/${this.recordId}/checkpoints`); }
 
+  /** Let the ludant go. Its versions, art and chat stop being kept; what it was published
+   *  as stays (those are snapshots with lives of their own), and so do copies others took. */
+  askAbandon() {
+    const pubs = this.record.familyNames?.length ? ' Its publications stay up, and copies others took stay theirs.' : '';
+    const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
+      el('p', {}, el('strong', {}, `Abandon ${this.actant.name}? `), `It stops being kept: it, its versions, its art and its chat go, and its link will say it was abandoned. This can't be undone.${pubs}`),
+      el('button', { class: 'top-btn danger', onclick: async () => {
+        box.remove();
+        try {
+          await this.settled('abandoning');
+          await api('POST', `ludants/${this.recordId}/abandon`, { token: this.token, by: this.seat });
+          this.lost = 'abandoned';
+          clearInterval(this.heartbeat);
+          this.sandbox.remove();
+          forget(this.recordId);
+          location.href = '/';
+        } catch (err) { alert(`couldn't abandon it: ${err.message}`); }
+      } }, 'abandon it'),
+      el('button', { class: 'top-btn', onclick: () => box.remove() }, 'keep it')));
+    document.body.append(box);
+  }
+
   /** A small picture of the stage for the lobby. */
   async sendThumb() {
     if (this.lost || !this.stage.count) return;
@@ -515,6 +537,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
           el('button', { class: 'wb-btn', onclick: () => {
             if (confirm(`Put ${this.actant.name} back to checkpoint #${cp.n}? How it is now is kept as a checkpoint too, and the chat stays.`)) { history.classList.remove('on'); this.restore(cp.n); }
           } }, 'restore'))),
+        el('div', { class: 'history-foot' }, el('button', { class: 'wb-btn danger', onclick: () => { history.classList.remove('on'); this.askAbandon(); } }, 'abandon this ludant…')),
       );
     };
     root.append(
@@ -579,7 +602,19 @@ async function boot() {
   const seat = await askName();
   askNav.enabled = false;
   remember(id);
-  const [record, config] = await Promise.all([api('GET', `ludants/${id}`), api('GET', 'config')]);
+  let record, config;
+  try { [record, config] = await Promise.all([api('GET', `ludants/${id}`), api('GET', 'config')]); }
+  catch (err) {
+    if (err.status !== 410) throw err;
+    // Abandoned: say so, and when, and forget it here.
+    forget(id);
+    const a = err.body?.abandoned ?? {};
+    const when = a.at ? new Date(a.at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    document.body.append(el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
+      el('p', {}, `${a.name ?? 'This ludant'} was abandoned${a.by ? ` by ${a.by}` : ''}${when ? ` on ${when}` : ''}. It isn't kept any more, though anything it was published as may still be in the lobby.`),
+      el('a', { class: 'top-btn primary', href: '/' }, 'to the lobby'))));
+    return;
+  }
   const frame = new Frame(record, seat);
   frame.config = config;
   frame.noticeName();

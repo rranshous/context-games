@@ -1852,3 +1852,21 @@ Now:
   come at all, the wall clock stands in, so nothing hangs.
 - **The ludant is told** when nobody is looking: its game keeps running only while it's
   busy, and what it posts waits until its person comes back.
+
+### Abandoning
+
+Robby: "I want a way to delete a ludant, i started one and i want to abandon it. maybe
+abandon is better than delete." Abandon is the truer word. The ludant goes, but not
+everything it was: its publications are snapshots with their own body and art, and
+copies others took are their own ludants. So abandoning lets go of the ludant itself:
+- **history → "abandon this ludant…"**, quietly at the bottom, with a confirmation: "It
+  stops being kept: it, its versions, its art and its chat go, and its link will say it
+  was abandoned. This can't be undone. Its publications stay up, and copies others took
+  stay theirs."
+- The server removes its checkpoints, art and thumbnail, and replaces it with a
+  **tombstone** `{ id, abandoned: { name, by, at }, lineage }`. Its link answers 410, and
+  the frame says "Grithette was abandoned by claude on Oct 21, 2026…" with a way back
+  to the lobby.
+- It leaves "Your ludants" in every browser that had it: lists skip tombstones, and the
+  lobby forgets ids that come back missing.
+- Stores gained `remove(kind, id)` (a file unlink, or a SQL DELETE).
