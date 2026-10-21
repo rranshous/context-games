@@ -123,8 +123,8 @@ export class StageBuffer {
     this.input.pads = (input.pads ?? []).map((p) => ({ id: p.id, down: p.down ?? {}, pressed: p.pressed ?? {}, value: p.value ?? { lt: 0, rt: 0 }, left: p.left ?? { x: 0, y: 0 }, right: p.right ?? { x: 0, y: 0 } }));
   }
 
-  /** Send what was drawn to the frame, as pictures. One at a time: a slow game shows at the
-   *  rate it can draw rather than piling up frames behind it. */
+  /** Send what was drawn to the frame, as pictures, saying which tick it shows. One at a
+   *  time: a tick that comes in while a picture is still being made is shown with the next. */
   async show() {
     if (!this.frame) return;
     if (this.sending) { this.again = true; return; }
@@ -133,12 +133,12 @@ export class StageBuffer {
       const three = Boolean(this.gl?.active);
       if (this.pixels) {
         const { data, width, height } = this.composite();
-        this.frame.sendWith([data.buffer], 'frame', { pixels: data.buffer, width, height, caption: this.caption, three });
+        this.frame.sendWith([data.buffer], 'frame', { pixels: data.buffer, width, height, caption: this.caption, three, frame: this.count });
       } else {
         const layers = [];
         if (three) layers.push(await createImageBitmap(this.glCanvas));
         layers.push(await createImageBitmap(this.canvas));
-        this.frame.sendWith(layers, 'frame', { layers, caption: this.caption, three });
+        this.frame.sendWith(layers, 'frame', { layers, caption: this.caption, three, frame: this.count });
       }
     } catch (err) {
       // Said once, where people can see it: a stage that can't show its game looks dead.

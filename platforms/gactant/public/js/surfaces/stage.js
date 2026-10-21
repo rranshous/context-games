@@ -52,6 +52,9 @@
 import { el } from '../ui.js';
 
 const TICK_LOST_MS = 1000;   // a tick that hasn't come back by then is given up on
+// Ticks out at once: the sandbox draws the next frame while the last picture is still on
+// its way here. One at a time, a 3D game in Firefox showed at under half the screen's rate.
+const IN_FLIGHT = 2;
 const STARVED_MS = 3000;     // no picture for this long, while running: say so
 const PLAYING_MS = 1200;     // the ludant's edge stays lit this long after its last input
 const PAD_KEYS = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', a: ' ' };
@@ -70,7 +73,8 @@ export class Stage {
     this.caption = '';
     this.three = false;
     this.live = false;     // ticking: once the sandbox has the ludant
-    this.out = 0;          // when the tick in flight was sent, or 0
+    this.sent = [];        // ticks in flight: { frame, at }
+    this.owed = 0;         // display time not yet handed to the game
     this.padPressed = new Map();   // pad index -> buttons that went down since the last tick
     this.padKeys = new Set();      // keys controller 1 is holding down
     this.ludantHeld = new Set();   // keys the ludant is holding
@@ -149,8 +153,10 @@ export class Stage {
   // ---------- across the bridge ----------
 
   /** What the game drew this frame, as pictures: the 3D layer (if on) under the 2D one. */
-  shown({ layers, pixels, width, height, caption, three }) {
-    this.out = 0;
+  shown({ layers, pixels, width, height, caption, three, frame }) {
+    // A picture answers its tick and any before it (the sandbox shows them together when
+    // it's still busy with the last).
+    this.sent = this.sent.filter((s) => s.frame > frame);
     this.lastPicture = performance.now();
     this.pictures = (this.pictures ?? 0) + 1;
     if (this.starved) {
@@ -196,9 +202,15 @@ export class Stage {
       // Pictures may have stopped crossing: pixels always do.
       this.frame.sandbox.usePixels('pictures stopped arriving');
     }
-    if (this.out && now - this.out < TICK_LOST_MS) return;
+    // The game is owed every bit of display time, even frames that pass while ticks are
+    // out; otherwise it runs in slow motion whenever pictures are slow to come back.
+    this.owed += dt;
+    if (this.sent.length && now - this.sent[0].at > TICK_LOST_MS) this.sent = [];
+    if (this.sent.length >= IN_FLIGHT) return;
+    dt = Math.min(0.1, this.owed);
+    this.owed = 0;
     this.t += dt; this.count++;
-    this.out = now;
+    this.sent.push({ frame: this.count, at: now });
     const p = this.input.pointer;
     const pads = this.frame.gameHasPads?.() ? (this.frame.pads?.list ?? []).map((pad) => ({ ...pad, pressed: Object.fromEntries([...(this.padPressed.get(pad.index) ?? [])].map((b) => [b, true])) })) : [];
     this.frame.sandbox.bridge.send('tick', { dt, t: this.t, frame: this.count, fps: this.fps,
@@ -263,7 +275,7 @@ export class Stage {
   /** Clear a halt and reset the clock. `quiet` when the sandbox asked, so it isn't told back. */
   restart(quiet = false) {
     this.halted = null;
-    this.out = 0;
+    this.sent = []; this.owed = 0;
     this.haltEl?.classList.remove('on');
     this.t = 0; this.count = 0;
     if (!quiet) this.frame.sandbox.send('restart');

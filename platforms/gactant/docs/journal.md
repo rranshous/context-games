@@ -1882,3 +1882,30 @@ Next from Robby: "I need some sort of full screen for playing on mobile. The gam
 Now, on a touch screen, play mode *is* full screen. The frame covers the page (fixed, `100dvh`, no top bar), and pressing **play** also asks for the browser's real full screen and a landscape lock for a wide game; both fail quietly where they aren't offered. iPhones have no element full screen, so there it fills the page but Safari's bars stay. A ⛶ button comes back when the browser drops out of full screen (Android's back gesture), and ✕ returns to everything. Sideways, the pad floats translucent over the game's lower corners instead of taking a strip below it; upright, it sits under the game. `fit()` now never goes taller than the screen and leaves room for the pad when the pad is in the flow. A `?play` link can't go full screen by itself (browsers want a tap first), but it still opens filling the page. The ludant is told that on a phone, play mode fills the screen with buttons over the game.
 
 Checked in an emulated phone: sideways, the game went from 470px tall (cut off) to 679×382 inside the 390px screen; upright, it's 382px wide with the pad below. ✕ goes back to the normal layout.
+
+### Lag in a 3D game on Firefox: the game ran in slow motion
+
+Robby, on Firefox, in Genek's 3D game: "significant lag between my inputs and the game reacting. i suspect is systematic rather then due to that games impl." He was right. I read the game through the API (not opening it, so his hold stayed put), ran a copy on lilg, and timed the stage in Firefox and Chromium (headed, real GPU).
+
+| | pictures/s | round trip | game seconds per second |
+|---|---|---|---|
+| Firefox, 3D, pictures | 25 | 29 ms | **0.43** |
+| Firefox, 3D, pixels (what Fission gets) | 18 | 47 ms | **0.34** |
+| Chromium, 3D | 60 | 7 ms | 1.0 |
+| Firefox, 2D (Little Catch) | 60 | 7 ms | 1.0 |
+
+Two things, one of them a real bug in the frame:
+
+- **Lost time.** The frame sends one tick at a time, and each tick carried only the last display frame's `dt`. Display frames that passed while a tick was out were simply dropped from the game's clock. At 60 fps a slow tick never showed it; at 25 pictures a second the game got 16 ms of time every 40 ms, so everything moved and turned at under half speed, and that reads as lag. Now the stage owes the game all the display time since its last tick (capped at 0.1 s a tick), so the game clock keeps real time however slowly pictures come back.
+- **Firefox reading WebGL back.** Timing inside the sandbox: the game's hooks take ~1 ms and the three.js render ~1 ms, but `createImageBitmap` of the WebGL canvas takes **16–18 ms** in Firefox. It waits for the GPU and copies the picture back across processes. An OffscreenCanvas with `transferToImageBitmap` cost the same (16 ms), so I left that out. What helps is not waiting idle for it: two ticks can now be in flight, so the sandbox draws the next frame while the last picture is still on its way. A picture answers its own tick and any before it, since the sandbox folds a tick that arrives mid-picture into the next one.
+
+After:
+
+| | pictures/s | round trip | game seconds per second |
+|---|---|---|---|
+| Firefox, 3D, pictures | 33 | 40 ms | 1.0 |
+| Firefox, 3D, pixels | 26 | 44 ms | 1.0 |
+| Chromium, 3D | 60 | 7 ms | 1.0 |
+| 2D, both | 60 | 3–7 ms | 1.0 |
+
+Firefox 3D is still capped near 30 pictures a second, a bit under 50 ms behind input, by that readback. Ideas for later: draw 3D smaller and scale up when the readback is slow, or render the 3D layer on the frame side from a scene description (a big change, and it breaks "the game runs in the sandbox"). Parked.
