@@ -49,22 +49,29 @@ export class Lights {
   meter() {
     const rate = this.rate();
     const payer = this.frame.payer?.();
-    const warm = this.spent >= 1 ? 'hot' : this.spent >= 0.25 ? 'warm' : '';
+    const left = this.frame.left?.();
+    const room = left ? Math.min(left.remaining ?? Infinity, left.balance ?? Infinity) : Infinity;
+    const warm = this.spent >= 1 || room < 0.5 ? 'hot' : this.spent >= 0.25 || room < 2 ? 'warm' : '';
     const button = el('button', { class: `spend ${warm}`, title: 'what thinking has cost this sitting' },
-      payer ? `$${this.spent.toFixed(2)}${rate ? ` · $${rate.toFixed(2)}/h` : ''}` : 'connect thinking');
+      payer ? `$${this.spent.toFixed(2)}${rate ? ` · $${rate.toFixed(2)}/h` : ''}${room < 2 ? ` · $${Math.max(0, room).toFixed(2)} left` : ''}` : 'connect thinking');
     button.addEventListener('click', () => this.openMeter());
     return button;
   }
 
-  openMeter() {
+  openMeter(fresh = false) {
     document.querySelector('.meter-pop')?.remove();
     const frame = this.frame, payer = frame.payer(), rate = this.rate();
+    // Fresh numbers from OpenRouter, then draw it once more with them.
+    if (payer === 'own' && !fresh) frame.refreshKey().then(() => { if (document.querySelector('.meter-pop')) this.openMeter(true); });
+    const left = frame.left?.();
+    const keyLine = left ? [left.remaining != null ? `Your key has $${left.remaining.toFixed(2)} left of its $${left.limit} limit${left.resets ? ` (it resets ${left.resets})` : ''}.` : 'Your key has no limit of its own.', left.balance != null ? `Your OpenRouter account has $${left.balance.toFixed(2)}.` : null].filter(Boolean).join(' ') : null;
     const mins = Math.max(1, Math.round((Date.now() - this.since) / 60000));
     const every = el('input', { class: 'meter-every', type: 'number', min: '0', step: '0.25', value: String(this.checkInEvery()) });
     every.addEventListener('change', () => { try { localStorage.setItem('gactant-check-in', String(Math.max(0, Number(every.value) || 0))); } catch {} });
     const pop = el('div', { class: 'meter-pop' },
       el('p', {}, `This sitting: $${this.spent.toFixed(3)} over ${mins} min${rate ? `, about $${rate.toFixed(2)} an hour` : ''}. A ludant thinks with an AI model whenever its own body decides to, so the cost depends on the ludant. It's told this meter too.`),
       el('p', {}, payer === 'own' ? 'Paid by your own OpenRouter account.' : payer === 'server' ? 'Paid by this install\'s key (a local setup).' : 'Nothing is connected, so it can\'t think yet.'),
+      keyLine ? el('p', {}, keyLine) : null,
       el('label', { class: 'meter-row' }, 'check in with me every $', every),
       el('div', { class: 'meter-row' },
         payer === 'own'

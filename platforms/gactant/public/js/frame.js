@@ -14,7 +14,7 @@
 
 import { Bus } from './bus.js';
 import { nameOf } from './names.js';
-import { buildRequest, complete, connect, disconnect, key as ownKey } from './openrouter.js';
+import { buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
@@ -193,7 +193,25 @@ class Frame {
     document.body.append(box);
   }
 
-  connectThinking() { return connect().then((ok) => { this.status.render(); return ok; }); }
+  /** What the person's own key has left, refreshed now and then (and right away when
+   *  someone opens the meter); between refreshes, what's been spent here comes off it. */
+  async refreshKey() {
+    if (this.payer() !== 'own') { this.keyLeft = null; return null; }
+    try { this.keyLeft = { ...(await keyInfo()), spentAt: this.status.spent, at: Date.now() }; }
+    catch { this.keyLeft = null; }
+    this.status.render();
+    return this.keyLeft;
+  }
+
+  /** { remaining, balance, limit, resets } with this sitting's spend since the last refresh taken off. */
+  left() {
+    const k = this.keyLeft;
+    if (!k) return null;
+    const since = this.status.spent - k.spentAt;
+    return { ...k, remaining: k.remaining != null ? k.remaining - since : null, balance: k.balance != null ? k.balance - since : null };
+  }
+
+  connectThinking() { return connect().then((ok) => { this.refreshKey(); this.status.render(); return ok; }); }
   disconnectThinking() { disconnect(); this.status.render(); }
 
   /** What the frame tells the ludant when it wakes: the experiment, who's here, how
@@ -214,7 +232,9 @@ class Frame {
     const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the lights at the top). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
     const rate = this.status.rate();
     const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
-    const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}. The people here can see that meter.`;
+    const left = this.left();
+    const room = left ? ` Their key has ${[left.remaining != null ? `$${left.remaining.toFixed(2)} left of its $${left.limit} limit` : null, left.balance != null ? `$${left.balance.toFixed(2)} in their account` : null].filter(Boolean).join(', ')}.` : '';
+    const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}.${room} The people here can see that meter.`;
     const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view}${busy} ${cost} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
     const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
@@ -541,6 +561,8 @@ async function boot() {
   await frame.hold();
   await frame.start();
   setTimeout(() => frame.sendThumb(), 5000);
+  frame.refreshKey();
+  setInterval(() => frame.refreshKey(), 5 * 60 * 1000);
   setInterval(() => { if (document.visibilityState === 'visible') frame.sendThumb(); }, THUMB_MS);
   installExplorer(frame);
   const brief = new URLSearchParams(location.search).get('shard');

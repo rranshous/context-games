@@ -1704,3 +1704,25 @@ author, the same for every reader. None of that fits. Words to try against it la
 - **cast**, as in casting a mould: a shape taken of it at a moment
 - **offer**, or **let go**: about the giving, not the thing
 The same question applies to "copy", which is really a new ludant with a family name.
+
+### What the key has left
+
+Robby: "can we use an openrouter api to determine the quota/limit on the keys and put that
+in the frame so that the user is aware of it?" Yes. Both endpoints answer a browser
+(`access-control-allow-origin: *`):
+- `GET /api/v1/key` gives the key's `limit`, `limit_remaining`, `usage` and `limit_reset`. A
+  key made by connecting carries whatever limit the person set when approving gactant.
+- `GET /api/v1/credits` gives the account's `total_credits` and `total_usage`, so the
+  balance is the difference.
+
+`keyInfo()` reads both. The frame refreshes them at the start of a sitting, every five
+minutes, and when someone opens the meter; in between it subtracts what this sitting
+has spent. Then:
+- the meter's popover says "Your key has $25.79 left of its $30 limit. Your OpenRouter
+  account has $84.07."
+- the meter itself turns amber under $2 left and red under 50¢, showing "· $1.40 left"
+- the ludant is told: "Their key has $1.40 left of its $30 limit, $84.07 in their account."
+
+A bug I caught in testing: opening the meter refreshed it, and redrawing it refreshed it
+again, forever. The stand-in froze the tab; real network calls would have polled
+OpenRouter without end. The meter now redraws once with the fresh numbers.

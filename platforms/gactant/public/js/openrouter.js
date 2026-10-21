@@ -76,6 +76,22 @@ export async function finishConnect(code) {
   return true;
 }
 
+/** What the person's key has left: its own limit (if it has one; a key made by connecting
+ *  carries whatever limit they set when approving it) and their account's balance.
+ *  { limit, remaining, used, resets, balance } in dollars, null where unknown. */
+export async function keyInfo() {
+  const get = async (path) => {
+    const res = await fetch(`https://openrouter.ai/api/v1/${path}`, { headers: { Authorization: `Bearer ${key()}` } });
+    if (!res.ok) throw new Error(`OpenRouter ${path}: ${res.status}`);
+    return (await res.json()).data ?? {};
+  };
+  const [k, c] = await Promise.all([get('key'), get('credits').catch(() => null)]);
+  return {
+    limit: k.limit ?? null, remaining: k.limit_remaining ?? null, used: k.usage ?? null, resets: k.limit_reset ?? null,
+    balance: c && c.total_credits != null ? c.total_credits - (c.total_usage ?? 0) : null,
+  };
+}
+
 /** One completion, straight from this browser on the person's key. Retries what the relay
  *  retries: dropped connections and busy providers. */
 export async function complete(request) {
