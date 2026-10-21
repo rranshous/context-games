@@ -18,7 +18,7 @@ const MODEL_TURNS = 40;
 export async function runShard(frame, { brief, name = 'claude-shard', turns = MODEL_TURNS, budget = 1.5 }) {
   const seat = name;
   frame.people.add(seat);
-  frame.status.render();
+  frame.peopleChanged();
   // Sitting down is an arrival like anyone's, so the ludant knows who came.
   const arrival = await api('POST', `ludants/${frame.recordId}/arrive`, { who: seat });
   frame.bus.emit('frame.arrived', { who: seat, firstVisit: arrival.firstVisit, visits: arrival.visits, fresh: false,
@@ -35,7 +35,7 @@ export async function runShard(frame, { brief, name = 'claude-shard', turns = MO
     wait_for_reply: { d: `Wait until ${actant.name} has finished thinking, then get anything new in chat (up to 4 minutes).`, p: {}, run: async () => {
       const end = Date.now() + 240000;
       await sleep(800);
-      while (Date.now() < end && (actant.thinking || actant.pending.length) && frame.status.life !== 'resting') await sleep(500);
+      while (Date.now() < end && (actant.thinking || actant.pending) && frame.status.life !== 'resting') await sleep(500);
       const fresh = frame.chat.messages.slice(seen); seen = frame.chat.messages.length;
       return { new_messages: fresh.map((m) => `${m.who}: ${m.text}`), actant_light: frame.status.life };
     } },
@@ -50,7 +50,7 @@ export async function runShard(frame, { brief, name = 'claude-shard', turns = MO
           else if (a.do === 'release') s.stage.release(a.key);
           else if (a.do === 'point') s.stage.point(a.x, a.y, a.down);
           else if (a.do === 'wait') await s.stage.wait(a.ms ?? 100);
-          else if (a.do === 'advance') s.stage.advance(a.seconds ?? 10);
+          else if (a.do === 'advance') await s.stage.advance(a.seconds ?? 10);
           else if (a.do === 'look') images.push(s.stage.look().image);
         }
         const end = s.stage.look();
@@ -118,7 +118,7 @@ ${brief}`;
   report ??= '(the shard ran out of turns or budget without a report)';
   const total = frame.status.spent - startSpend;
   frame.people.delete(seat);
-  frame.status.render();
+  frame.peopleChanged();
   note(`stood up (shard $${spent.toFixed(3)}, whole sitting $${total.toFixed(3)}): ${report}`);
   return { report, shard: +spent.toFixed(4), sitting: +total.toFixed(4) };
 }

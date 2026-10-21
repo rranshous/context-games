@@ -27,7 +27,9 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   store.changed { who, key }
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
-// surfaces: chat, whiteboard, stage, status (their actions, done as me)
+// surfaces: chat, whiteboard, stage, status, store (their actions, done as me). They're the
+//   frame's, and I live in a sandbox beside it: the stage and the store answer at once, and so
+//   does chat.read; chat.post, the whiteboard and status return promises.
 //
 // me.wake(event) wakes my thinking with that event in hand. Thinking is slow (seconds) and
 // costs something. Everything else here runs at once, with no thinking: that's where the

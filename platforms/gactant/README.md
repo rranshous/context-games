@@ -80,6 +80,36 @@ frame runs its code. At the moments a ludant tends to slip, the frame nudges it 
 example, if a person woke it and it's about to go quiet without posting in the chat, the
 frame tells it.
 
+## Frame outside, ludant inside
+
+A published ludant is code that someone shaped, so it runs where it can't hurt anyone.
+The ludant's whole embodiment lives in a **sandbox**: an iframe with `sandbox="allow-scripts"`
+and nothing else, which gives it an opaque origin, under a content policy that takes away
+the network (`connect-src 'none'`). Its soma, its code sections, its thinking loop and
+its innate tools are all in there. It can't see the page, its storage, its cookies, or
+the key that pays for thinking. The frame keeps all of that, and every surface.
+
+The two sides talk over one `MessagePort` (`bridge.js`):
+- **The ludant asks the frame** to `infer` (the frame holds the key and counts the
+  spend), to `perceive` (who's here, its lineage, the surfaces), and to `act` on a surface.
+  It always acts as itself; it never gets to say who it is.
+- **The frame tells the ludant** every event on its bus, who's here, and the stage's ticks.
+- **The ludant tells the frame** what its body is now (so the frame can show and save it),
+  whether it's awake, and what it's doing.
+
+The stage stays a frame surface too, which took one wrong turn to see (the journal has
+it). Every display frame the stage sends a tick (clock and input) across. The game draws
+into a **buffer** in the sandbox (2D, and WebGL when it uses three.js), and pictures
+(`ImageBitmap`s) come back for the stage to show. Pictures carry no code. That's 60 fps
+at 1280×720, one tick in flight at a time. The ludant's own stage actions (`look`,
+`advance`, `hold`, `press`) work on the buffer directly, so it tests itself at full
+speed. For game code, `chat.read` and the store are local copies, so reads answer at
+once. Other surfaces' actions return promises.
+
+Tested from inside the sandbox: `fetch` to the API and to OpenRouter, WebSockets,
+beacons, `parent.document`, `localStorage` and cookies are all blocked. The API also
+refuses any request whose `Origin` isn't the site itself.
+
 ## No modes: everyone plays and shapes
 
 Playing and shaping are the same act at different intensities. You play, and sometimes you
@@ -149,7 +179,9 @@ seasonal garden in three rounds for $0.47, and tested "just for tonight" end to 
 
 ## Server and data
 
-`server.mjs` (~350 lines, no dependencies) only keeps things and relays inference:
+`server.mjs` (~380 lines, no dependencies) only keeps things and relays inference. It
+serves `/sandbox.html` with the sandbox's content policy, and refuses API calls from
+other origins (a sandbox's is `null`):
 - `data/ludants/`, `data/published/`: one JSON file each.
 - `data/log/<who>.jsonl`: every inference, with image bytes stripped. Reading these is how
   Claude sees what a ludant saw and did.

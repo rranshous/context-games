@@ -1,7 +1,13 @@
 // Stage: a canvas with a clock and input. It draws nothing itself; whoever hooks into it
 // draws. It runs at display rate and knows nothing about games or actants.
 //
-// For code running at frame rate, `stage.api` is the handle:
+// The stage is the frame's, like every surface. What draws on it runs in the sandbox,
+// so every display frame the stage sends a tick (the clock and the input) across, and
+// what comes back is pictures: the layers the game drew in its buffer (stage-buffer.js),
+// which the stage shows. Only one tick is out at a time, so a slow game shows as slow
+// rather than falling behind.
+//
+// For game code, in the sandbox, the buffer's `api` is the handle:
 //   ctx, width, height, t (seconds), frame (count)
 //   size(w, h)            change the logical resolution (pixels scale up crisply)
 //   caption               a line of text saying what's happening (score, who's where); every
@@ -34,9 +40,11 @@
 // releases those keys, so a game written for the keyboard is playable on a phone.
 //
 // A frame handler that throws halts the stage at once, because a game that throws on
-// every frame is broken, not unlucky.
+// every frame is broken, not unlucky. The sandbox reports it; the stage stops ticking.
 
 import { el } from '../ui.js';
+
+const TICK_LOST_MS = 1000;   // a tick that hasn't come back by then is given up on
 
 export class Stage {
   id = 'stage';
@@ -46,27 +54,18 @@ export class Stage {
     this.width = 320; this.height = 240;
     this.canvas = el('canvas', { class: 'stage-canvas', width: this.width, height: this.height });
     this.ctx = this.canvas.getContext('2d');
-    this.glCanvas = el('canvas', { class: 'stage-gl', width: this.width, height: this.height });
-    this.gl = null;   // { renderer, scene, camera, active } once a game asks for three()
     this.input = { keys: new Set(), pressed: new Set(), pointer: { x: 0, y: 0, down: false, clicked: false } };
     this.t = 0; this.count = 0; this.fps = 0;
     this.halted = null;
-    const stage = this;
-    this.api = {
-      ctx: this.ctx, input: this.input,
-      get width() { return stage.width; }, get height() { return stage.height; },
-      get t() { return stage.t; }, get frame() { return stage.count; },
-      size: (w, h) => this.size(w, h),
-      three: () => this.three(),
-      get caption() { return stage.caption; }, set caption(v) { stage.caption = String(v ?? '').slice(0, 300); },
-    };
     this.caption = '';
-    frame.bus.on('frame.error', (e) => { if (e.during === 'stage.frame' && !this.halted) this.halt(e.message); }, 'stage');
+    this.three = false;
+    this.live = false;     // ticking: once the sandbox has the ludant
+    this.out = 0;          // when the tick in flight was sent, or 0
   }
 
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
-    const mode = this.gl?.active ? ' It is drawing in 3D now (three.js under a 2D overlay).' : '';
+    const mode = this.three ? ' It is drawing in 3D now (three.js under a 2D overlay).' : '';
     return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top.${mode}`;
   }
 
@@ -84,54 +83,42 @@ export class Stage {
     };
   }
 
-  /** Fast-forward: emit frames back to back with a fixed step. Input stays as it is, so
-   *  held keys stay held. Stops early if a frame handler halts the stage. */
-  advance(seconds) {
-    const dt = 1 / 60, n = Math.round(Math.max(0, Math.min(120, Number(seconds) || 0)) / dt);
-    let i = 0;
-    for (; i < n && !this.halted; i++) {
-      this.t += dt; this.count++;
-      this.frame.bus.emit('stage.frame', { dt, t: this.t, frame: this.count });
-      this.input.pressed.clear();
-      this.input.pointer.clicked = false;
-    }
-    this.render3d();
-    return { advanced: +(i * dt).toFixed(2), halted: this.halted };
-  }
+  /** Fast-forward: the game runs that far ahead in the sandbox at once; the clock follows. */
+  advance(seconds) { return this.frame.sandbox.call('stage', 'advance', [seconds]); }
 
-  /** Switch on the WebGL layer: a fresh scene and camera, the same renderer. */
-  three() {
-    const THREE = this.frame.libs?.THREE;
-    if (!THREE) throw new Error('three.js is not available in this frame');
-    if (!this.gl) {
-      const renderer = new THREE.WebGLRenderer({ canvas: this.glCanvas, antialias: false, preserveDrawingBuffer: true });
-      this.gl = { renderer };
-    }
-    const { renderer } = this.gl;
-    renderer.setSize(this.width, this.height, false);
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, this.width / this.height, 0.1, 2000);
-    camera.position.set(0, 2, 6);
-    camera.lookAt(0, 0, 0);
-    Object.assign(this.gl, { scene, camera, active: true });
-    this.glCanvas.classList.add('on');
+  // ---------- across the bridge ----------
+
+  /** What the game drew this frame, as pictures: the 3D layer (if on) under the 2D one. */
+  shown({ layers, caption, three }) {
+    this.out = 0;
+    this.caption = caption ?? '';
+    this.three = Boolean(three);
     this.ctx.clearRect(0, 0, this.width, this.height);
-    const gl = this.gl;
-    return { THREE, scene, renderer, get camera() { return gl.camera; }, set camera(c) { gl.camera = c; } };
+    for (const bmp of layers ?? []) { this.ctx.drawImage(bmp, 0, 0, this.width, this.height); bmp.close?.(); }
   }
 
-  /** Before a game is (re)built: back to plain 2D until it asks for three() again. */
-  beginGame() {
-    if (this.gl) { this.gl.active = false; this.gl.scene = null; }
-    this.glCanvas.classList.remove('on');
-    this.ctx.clearRect(0, 0, this.width, this.height);
+  /** The game's clock jumped ahead (it advanced itself). */
+  advanced(t, count) { this.t = t; this.count = count; }
+
+  /** The game asked for a different resolution. */
+  resized(w, h) {
+    this.width = this.canvas.width = w;
+    this.height = this.canvas.height = h;
+    this.fit();
+    this.frame.changed();
   }
 
-  render3d() {
-    const gl = this.gl;
-    if (!gl?.active || !gl.scene || !gl.camera || this.halted) return;
-    try { gl.renderer.render(gl.scene, gl.camera); }
-    catch (err) { this.halt(`three.js render: ${err.message}`); }
+  tick(dt) {
+    if (!this.live || this.halted || !this.frame.sandbox.bridge) return;
+    const now = performance.now();
+    if (this.out && now - this.out < TICK_LOST_MS) return;
+    this.t += dt; this.count++;
+    this.out = now;
+    const p = this.input.pointer;
+    this.frame.sandbox.bridge.send('tick', { dt, t: this.t, frame: this.count, fps: this.fps,
+      input: { keys: [...this.input.keys], pressed: [...this.input.pressed], pointer: { x: p.x, y: p.y, down: p.down, clicked: p.clicked } } });
+    this.input.pressed.clear();
+    p.clicked = false;
   }
 
   keyDown(k) {
@@ -152,17 +139,6 @@ export class Stage {
     return { x, y, down: p.down };
   }
 
-  size(w, h) {
-    w = Math.max(16, Math.min(1920, Math.round(w))); h = Math.max(16, Math.min(1080, Math.round(h)));
-    this.width = this.canvas.width = this.glCanvas.width = w;
-    this.height = this.canvas.height = this.glCanvas.height = h;
-    if (this.gl) {
-      this.gl.renderer.setSize(w, h, false);
-      if (this.gl.camera?.isPerspectiveCamera) { this.gl.camera.aspect = w / h; this.gl.camera.updateProjectionMatrix(); }
-    }
-    this.fit();
-  }
-
   halt(message) {
     this.halted = message;
     this.haltEl?.replaceChildren(el('div', {}, `stage halted: ${message}`), el('button', { onclick: () => this.restart() }, 'restart'));
@@ -170,11 +146,13 @@ export class Stage {
     this.frame.bus.emit('stage.halted', { message });
   }
 
-  restart() {
+  /** Clear a halt and reset the clock. `quiet` when the sandbox asked, so it isn't told back. */
+  restart(quiet = false) {
     this.halted = null;
+    this.out = 0;
     this.haltEl?.classList.remove('on');
-    this.frame.bus.errors.clear();
     this.t = 0; this.count = 0;
+    if (!quiet) this.frame.sandbox.send('restart');
     return { running: true };
   }
 
@@ -185,7 +163,6 @@ export class Stage {
     c.width = this.width * k; c.height = this.height * k;
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
-    if (this.gl?.active) g.drawImage(this.glCanvas, 0, 0, c.width, c.height);
     g.drawImage(this.canvas, 0, 0, c.width, c.height);
     const moment = ` This look is at game time ${this.t.toFixed(1)} s (frame ${this.count}).${this.caption ? ` Caption: "${this.caption}"` : ' No caption is set.'}`;
     return { text: `${this.describe()}${moment}${k > 1 ? ` (This picture is enlarged ${k}× so pixels are clear; coordinates are still stage coordinates, ${this.width}×${this.height}.)` : ''}`, image: c.toDataURL('image/png') };
@@ -194,7 +171,7 @@ export class Stage {
   mount(root) {
     this.root = root;
     this.haltEl = el('div', { class: 'stage-halt' });
-    this.layers = el('div', { class: 'stage-layers' }, this.glCanvas, this.canvas);
+    this.layers = el('div', { class: 'stage-layers' }, this.canvas);
     const wrap = el('div', { class: 'stage-wrap', tabindex: 0 }, this.layers, this.haltEl);
     root.append(wrap);
     this.wrap = wrap;
@@ -232,13 +209,7 @@ export class Stage {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
-      if (!this.halted) {
-        this.t += dt; this.count++;
-        this.frame.bus.emit('stage.frame', { dt, t: this.t, frame: this.count });
-        this.render3d();
-      }
-      this.input.pressed.clear();
-      this.input.pointer.clicked = false;
+      this.tick(dt);
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -273,5 +244,5 @@ export class Stage {
   }
 
   toJSON() { return { width: this.width, height: this.height }; }
-  load(json) { if (json?.width) this.size(json.width, json.height); }
+  load(json) { if (json?.width) { this.width = this.canvas.width = json.width; this.height = this.canvas.height = json.height; } }
 }

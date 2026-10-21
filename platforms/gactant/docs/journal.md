@@ -1051,3 +1051,100 @@ best 7 loaded from the store, the inspector open on the store tab), the pink hou
 ember from the first hour, the Elodon family tree, and play mode on a phone.
 
 ![today's frame](shots/19-frame-now.png)
+
+## Part 6: the frame outside, the ludant inside
+
+### Why: hosting
+
+Robby asked what it would take to host gactant, and whether people could bring their
+own inference. I checked OpenRouter:
+- **OAuth PKCE** works: `openrouter.ai/auth?callback_url=…&code_challenge=…`, then
+  `POST /api/v1/auth/keys` hands back a key billed to the person. Localhost callbacks are
+  allowed.
+- **CORS** is open on `/chat/completions` (`access-control-allow-origin: *`), so a page can
+  call it directly with that key.
+
+So "the person at the table pays for the table's thinking" is possible. It also exposed
+a blocker. **Published ludants are code**, and up to now they ran in the page with full
+privileges. With someone's key in the browser, a copied ludant could read it and send
+it anywhere. Even with the server's key, it could call the relay as much as it liked.
+
+Robby: "so the sandbox .. are we saying the frame runs outside the sandbox and the actant
+runs in it? i've used that sort of frame actant separation before for auth purposes." Yes.
+Then: "the actant embodiment should all be in the sandbox. so any soma tools are from
+the chassis and call to the frame for frame type functionality."
+
+### The split
+
+- **Sandbox** (`sandbox.html`, `chassis.js`): an iframe with `sandbox="allow-scripts"` only,
+  so its origin is opaque. The server adds a content policy with `connect-src 'none'`. It
+  holds the whole embodiment: soma, code sections, the think loop, the governor, the
+  nudge, and the innate `write_section`/`edit_section`.
+- **Frame** (`frame.js`, `sandbox.js`): the key and inference (with a spend count and a
+  backstop of 120 thoughts per ten minutes, which the ludant can't rewrite the way it can
+  rewrite its own governor), every surface, holds, saves, checkpoints, publishing, the
+  context block and the perception text.
+- **Bridge** (`bridge.js`): one MessagePort. The frame hands it over only after the
+  iframe says it's ready, and the iframe takes it only from its parent. `act(surface,
+  action, args)` always runs as the ludant's name, because the ludant never gets to say who
+  it is. Events from the sandbox are refused unless they're `soma.*`, so a ludant can't
+  fake a chat message from a person onto the frame's bus.
+- The frame keeps a **Body**: a copy of the soma, sent over whenever it changes, so the
+  inspector can show it and saves can keep it. Inspector edits, restores and the
+  publish-retitle go across as calls.
+- **Local copies** inside the sandbox keep the body contract synchronous where games
+  need it: the store (writes are checked and applied there, then sent to the frame) and
+  recent chat (`chat.read`). Everything else across the bridge returns a promise. The
+  seed's tools already awaited, so existing ludants needed no changes and nothing was
+  wiped.
+
+### The drama: I put the stage in the sandbox
+
+My first version moved the **stage** into the iframe. The game draws at 60 fps, and I
+assumed it had to share a realm with the canvas. Robby, mid-build: "its unfortunate that
+we need the high speed surface (stage) in the sandbox... it breaks the clean model of
+frame outside and actant inside =/"
+
+He was right, and I'd stopped asking whether there was another way. I tested two ways
+to keep the canvas in the frame, using an opaque-origin iframe and a MessagePort:
+1. **OffscreenCanvas** (the frame transfers control of its canvas to the sandbox): the
+   page **crashed**. The frame couldn't have read its own pixels for `look` anyway.
+2. **ImageBitmap back over the port**: 120 of 120 frames arrived; **60 fps at 1280×720**
+   with 200 rects a frame.
+
+So the stage is a frame surface again, and owns the page canvas, the clock, the input,
+the pad, halts and the halt UI. Each display frame it sends a tick `{dt, t, frame, fps,
+input}`. The sandbox's **stage buffer** (`stage-buffer.js`) delivers `stage.frame` to the
+hooks, renders three.js if it's on, and sends back one `ImageBitmap` per layer. Only one
+tick is in flight at a time, so a slow game shows as slow instead of queueing frames.
+The ludant's own `surfaces.stage` works on the buffer: `look()` reads it, `advance()`
+runs it, and `hold`/`press`/`point` change the input there and at the frame. So
+"hold right, advance 2 s" still works in one synchronous breath, and people, the
+explorer and shards play the frame's stage directly.
+
+The model is clean again: **every surface is the frame's; the sandbox only sends
+pictures out.**
+
+### Tested
+
+- Malan-Shrinking-Isle (three.js) ran unchanged at 62 fps. The store copy gave it
+  "best 7". Asked to play itself and report, it held D, looked, held S, read the HUD and
+  caption, and posted it all to the chat (4.6¢). Inference went through the frame, play
+  ran on the buffer, and the post crossed the bridge.
+- I probed from inside the sandbox. `fetch` to `/api` and to OpenRouter, WebSockets and
+  `sendBeacon` were all stopped by CSP. `parent.document`, `localStorage` and `cookie`
+  all threw. The server also returns 403 for `Origin: null`.
+- A deliberately broken game (I wrote it through the inspector path) halted the frame's
+  stage. `stage.halted` woke the ludant, and it fixed itself and restarted the stage.
+- Restore in place, a refused publish reverting its title, and a second window taking the
+  ludant all worked. The losing window removes its sandbox entirely, so a stale window
+  can't keep thinking.
+
+### Not yet
+
+- **Person-pays inference**: OAuth PKCE in the frame, with the key kept in the frame's
+  storage. It plugs in at `frame.infer`, the one place inference happens.
+- **A real sandbox origin when hosted** (a separate domain). That gets process isolation,
+  not just an opaque origin.
+- The store and chat copies are fed only by the ludant's own writes and by `chat.posted`.
+  If anything else ever writes the store, the frame will need to push it across.

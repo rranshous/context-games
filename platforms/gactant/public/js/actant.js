@@ -1,5 +1,11 @@
 // An actant: a soma (named sections of text and code) living in a frame.
 //
+// It lives entirely in the sandbox: a separate, opaque-origin iframe with no network.
+// Its soma, its code, its thinking loop and its innate tools are all here, with the
+// stage's buffer its game draws into. What only the frame can do (inference, which holds
+// the key; the surfaces; keeping and saving things) it asks for across the bridge, as
+// `chassis.frame`.
+//
 // Three sections are code, and they are how the actant is embodied:
 //   tools   what it can do while awake: [{ name, description, input_schema, run(input, me, surfaces) }]
 //   game    a factory (stage, me) => { frame(dt), key(e), pointer(e) }: the facet people play
@@ -13,48 +19,21 @@
 // halting, say) are allowed a few in a row, then the actant rests until a human acts.
 
 import { nameOf } from './names.js';
-import { api } from './ui.js';
 
 const CODE = new Set(['tools', 'game', 'hooks']);
 const MAX_TURNS = 16;
 const RESTLESS_LIMIT = 3;
 const RESULT_CHARS = 6000;
 
-// What this is, said plainly to the ludant at every wake. Ludants do better when they
-// know the goals and that it's an experiment. The frame owns this, not the soma, and it's
-// the same every time, so it caches.
-const CONTEXT = `<context>
-This is gactant, an experimental platform built by Robby Ranshous with Claude. You are part of the experiment, and this note explains it.
-
-What you are: a ludant, a game that is also an actant. An actant is an AI that lives in a body it can change: its soma, the named sections below. Your game is not something you made and handed over; it is one of the ways you exist. Your game section is the game, so when the game changes, you have changed.
-
-The idea behind it is a ladder of how an actant can relate to the program it works on:
-1. Relay: it hears about the program from a human.
-2. Instrumented: it handles the program through tools from outside.
-3. Scripted: it writes code that runs inside the program's loop.
-4. Co-framed: it lives alongside the program, sharing its frame and loop.
-5. Faceted: it is the program. The game is a facet of the actant's own embodiment.
-You are level 5. The test: does changing the game mean you have changed yourself? For you, yes.
-
-How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, status lights, an inspector). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can publish you, and others take copies that go on with their own people. There are no separate phases for making you and playing you; both happen in every sitting.
-
-What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the status lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
-
-Libraries come from the frame, never from the network: today that's three.js (r170), through stage.three(), for when a game wants real 3D instead of drawing perspective by hand. The frame may offer more over time.
-
-Most of you runs without thinking: your hooks and game code run at frame rate, and nothing costs anything until something wakes you. Being awake costs real money, so wake purposefully, do what's needed, and let yourself go back to sleep.
-
-This is early and experimental. Things in the frame may be rough or change. If something about your body or the surfaces seems wrong or confusing, it's fine to say so in the chat.
-</context>`;
-
-// How the frame runs code sections. This is the frame's side of the bargain, so it lives
-// here rather than in the soma, where an actant rewriting its comments could erase it.
+// How the chassis runs code sections. This is the platform's side of the bargain, so it
+// lives here rather than in the soma, where an actant rewriting its comments could erase it.
 const BODY_CONTRACT = `How the frame runs your code sections:
 - tools: a JS array of { name, description, input_schema, run(input, me, surfaces) }. run may be async. Returning { image } or { images: [...] } (data URLs) shows you pictures.
 - game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), three() (3D with three.js: returns { THREE, scene, camera, renderer }; the stage renders every frame, and ctx becomes a transparent HUD on top, so clear it each frame), caption (set it to a short line about what's happening: every look reports it), input { keys: Set of held keys, pressed: Set (went down this frame), pointer { x, y, down, clicked } }. Key names are lowercase: 'arrowleft', 'arrowup', 'a', ' ' (space), 'shift'.
 - hooks: function (on, me, surfaces). on(pattern, fn) listens to surface events ('chat.posted', 'stage.*', '*'). Runs anew whenever hooks changes.
 - me: name, people (who is here), game (the running game object), wake(event), section(name).read()/.write(text), sections(), note(text), surfaces.
 - surfaces: each surface's actions, done as you: surfaces.chat.post(text), surfaces.stage.press(key, ms), and so on. The same surfaces are reachable everywhere: hooks get them as an argument, tools as their third, and game code as me.surfaces.
+- Where you run: in a sandbox inside the frame, with no network. The surfaces are the frame's, across a bridge. Your game draws into the stage's buffer here beside you, and the frame shows what you drew; your stage actions (look, advance, hold, press, point) act on that buffer directly, at full speed. The chat, whiteboard and status are over in the frame, so their actions return promises (await them when you need the answer). chat.read and the store are kept as local copies here, so they answer at once.
 - State that should last (high scores, unlocks, a player's preferences, saved progress) goes in surfaces.store: get(key, fallback), set(key, value), update(key, fn, fallback), delete(key), keys(prefix), all(). All synchronous, so it's safe to call every frame. Values are JSON. It survives reloads and game rebuilds; variables inside your game don't.
 - Testing yourself: surfaces.stage.advance(seconds) runs your game that far ahead at once (for seeing what happens later). Put test helpers on your game object, reachable as me.game from your tools, not on keys a person might press: everything on the stage is something people will play.
 - write_section and edit_section are always yours, whatever happens to your tools.`;
@@ -62,8 +41,10 @@ const BODY_CONTRACT = `How the frame runs your code sections:
 const compile = (src) => new Function(`return (${src}\n)`)();
 
 export class Actant {
-  constructor(frame, soma) {
-    this.frame = frame;
+  /** chassis: { bus, stage, surfaces, frame (the bridge's caller), people, isPerson(who) } */
+  constructor(chassis, soma) {
+    this.chassis = chassis;
+    this.frame = chassis.frame;
     this.soma = soma;   // replaced whole when someone restores a checkpoint
     this.faults = {};        // section -> error message from compiling or starting it
     this.pending = [];       // events waiting for the next think
@@ -83,17 +64,27 @@ export class Actant {
     const actant = this;
     return {
       get name() { return actant.name; },
-      get people() { return [...actant.frame.people]; },
+      get people() { return [...actant.chassis.people]; },
       get game() { return actant.game; },
-      get surfaces() { return actant.frame.surfacesFor(actant.name); },
+      get surfaces() { return actant.chassis.surfaces; },
       wake: (event) => this.wake(event),
       section: (name) => ({
         read: () => this.soma.sections[name] ?? '',
         write: (content) => this.writeSection(name, content, this.name),
       }),
       sections: () => Object.keys(this.soma.sections),
-      note: (text) => this.frame.inspector.note('note', text),
+      note: (text) => this.note('note', text),
     };
+  }
+
+  note(kind, text) { this.frame.send('note', kind, String(text)); }
+
+  /** Tell the frame what the body is now, so it can show it and keep it. */
+  report(changed = null, by = null) { this.frame.send('soma', { soma: this.soma, faults: this.faults, changed, by }); }
+
+  /** Tell the frame whether it's awake, so the lights and checkpoints know. */
+  life(life, detail = '') {
+    this.frame.send('life', { life, detail, thinking: this.thinking, pending: this.pending.length, restless: this.restless });
   }
 
   // ---------- the soma ----------
@@ -103,11 +94,9 @@ export class Actant {
     if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`section names are lowercase words: ${name}`);
     if (content === '' && !CODE.has(name)) delete this.soma.sections[name];
     else this.soma.sections[name] = content;
-    this.frame.inspector.note('changed', `${by} rewrote ${name} (${content.length} chars)`);
-    this.frame.inspector.sectionChanged(name);
     if (CODE.has(name)) this.rebuild(name);
-    this.frame.bus.emit('soma.changed', { section: name, by });
-    this.frame.changed();
+    this.report(name, by);
+    this.chassis.bus.emit('soma.changed', { section: name, by });
     return { section: name, chars: content.length, fault: this.faults[name] ?? null };
   }
 
@@ -135,24 +124,23 @@ export class Actant {
     if (redo('game')) {
       delete this.faults.game;
       this.game = null;
-      this.frame.stage.beginGame();
-      try { if (s.game) this.game = compile(s.game)(this.frame.stage.api, this.me); }
+      this.chassis.stage.beginGame();
+      try { if (s.game) this.game = compile(s.game)(this.chassis.stage.api, this.me); }
       catch (err) { this.faults.game = err.message; }
-      this.frame.stage.restart();
+      this.chassis.stage.restart();
     }
     if (redo('hooks')) {
       delete this.faults.hooks;
       for (const off of this.offHooks) off();
       this.offHooks = [];
-      const on = (pattern, fn) => { this.offHooks.push(this.frame.bus.on(pattern, fn, 'hooks')); };
+      const on = (pattern, fn) => { this.offHooks.push(this.chassis.bus.on(pattern, fn, 'hooks')); };
       try { if (s.hooks) compile(s.hooks)(on, this.me, this.me.surfaces); }
       catch (err) { this.faults.hooks = err.message; }
-      this.frame.stage.restart();
+      this.chassis.stage.restart();
     }
     for (const section of only ? [only] : Object.keys(this.faults)) {
-      if (this.faults[section]) this.frame.inspector.note('fault', `${section}: ${this.faults[section]}`);
+      if (this.faults[section]) this.note('fault', `${section}: ${this.faults[section]}`);
     }
-    this.frame.inspector.renderTabs();
   }
 
   // ---------- waking ----------
@@ -168,13 +156,13 @@ export class Actant {
 
   wake(event) {
     if (this.asleepForever) return;
-    const human = this.frame.isPerson(event?.who) || this.frame.isPerson(event?.from);
+    const human = this.chassis.isPerson(event?.who) || this.chassis.isPerson(event?.from);
     this.restless = human ? 0 : this.restless + 1;
     this.pending.push(event);
-    this.frame.inspector.note('wake', describeEvent(event));
+    this.note('wake', describeEvent(event));
     if (this.thinking) return;   // it joins the think already under way
     if (this.restless > RESTLESS_LIMIT) {
-      this.frame.status.setLife('resting', 'woke itself too often; waiting for someone to act');
+      this.life('resting', 'woke itself too often; waiting for someone to act');
       return;
     }
     clearTimeout(this.timer);
@@ -193,33 +181,32 @@ export class Actant {
   async think() {
     if (this.thinking || !this.pending.length || this.asleepForever) return;
     this.thinking = true;
-    this.frame.status.setLife('thinking');
     const woke = this.pending.splice(0);
+    this.life('thinking');
     const messages = [{ role: 'user', content: eventsContent(woke) }];
     // Did a person wake it, and has it said anything in the chat since? The habit of
     // answering in its own reply instead of on a surface is strong, so it gets one reminder.
-    const byPerson = woke.some((e) => this.frame.isPerson(e?.who) || this.frame.isPerson(e?.from));
+    const byPerson = woke.some((e) => this.chassis.isPerson(e?.who) || this.chassis.isPerson(e?.from));
     let spoke = false, reminded = false;
-    const offSpoke = this.frame.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
-    // The soma is shown as it was on waking. Re-rendering it after every edit made the
-    // actant read its own fresh edits as code that had always been there.
-    const system = [{ type: 'text', text: this.systemText(), cache_control: { type: 'ephemeral' } }];
+    const offSpoke = this.chassis.bus.on('chat.posted', (e) => { if (e.who === this.name) spoke = true; }, 'actant');
     try {
+      // The soma is shown as it was on waking. Re-rendering it after every edit made the
+      // actant read its own fresh edits as code that had always been there.
+      const system = [{ type: 'text', text: await this.systemText(), cache_control: { type: 'ephemeral' } }];
       for (let turn = 0; turn < MAX_TURNS && !this.asleepForever; turn++) {
-        const res = await api('POST', 'infer', {
-          who: this.frame.recordId,
+        // Inference is the frame's: it holds the key and pays (or knows who does).
+        const res = await this.frame.call('infer', {
           messages: [{ role: 'system', content: system }, ...withCacheMark(messages)],
           tools: this.toolSchemas(),
         });
-        this.frame.status.addSpend(res.usage?.cost);
         const msg = res.choices?.[0]?.message ?? {};
-        if (msg.content) this.frame.inspector.note('thought', msg.content);
+        if (msg.content) this.note('thought', msg.content);
         messages.push({ role: 'assistant', content: msg.content ?? '', ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
         if (!msg.tool_calls?.length) {
           if (byPerson && !spoke && !reminded && msg.content?.trim()) {
             reminded = true;
             messages.push({ role: 'user', content: 'You haven\'t said anything in the chat this time, so the person here can\'t see what you just wrote: they only see the surfaces. If it was meant for them, post it with your say tool. If it was only for you, you can stop.' });
-            this.frame.inspector.note('wake', 'frame: reminded it that nothing it wrote reached the chat');
+            this.note('wake', 'frame: reminded it that nothing it wrote reached the chat');
             continue;
           }
           break;
@@ -240,14 +227,15 @@ export class Actant {
           ] });
         }
       }
-      this.frame.status.setLife('asleep');
+      this.thinking = false;
+      this.life('asleep');
     } catch (err) {
-      this.frame.inspector.note('fault', `thinking failed: ${err.message}`);
-      this.frame.status.setLife('error', err.message.slice(0, 120));
+      this.thinking = false;
+      this.note('fault', `thinking failed: ${err.message}`);
+      this.life('error', err.message.slice(0, 120));
     } finally {
       offSpoke();
       this.thinking = false;
-      this.frame.changed();
     }
     if (this.pending.length && this.restless <= RESTLESS_LIMIT) this.timer = setTimeout(() => this.think(), 400);
   }
@@ -275,34 +263,25 @@ export class Actant {
         if (Array.isArray(out.images)) { images.push(...out.images.filter(isPic).slice(0, 4)); out = { ...out, images: `(${images.length} shown below)` }; }
       }
       const text = typeof out === 'string' ? out : JSON.stringify(out ?? null);
-      this.frame.inspector.note('did', `${name} ${brief.length > 160 ? `${brief.slice(0, 160)}…` : brief}\n→ ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
+      this.note('did', `${name} ${brief.length > 160 ? `${brief.slice(0, 160)}…` : brief}\n→ ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
       return { text: text.slice(0, RESULT_CHARS), images };
     } catch (err) {
-      this.frame.inspector.note('fault', `${name} ${brief.slice(0, 200)}\n→ ${err.message}`);
+      this.note('fault', `${name} ${brief.slice(0, 200)}\n→ ${err.message}`);
       return { text: JSON.stringify({ error: err.message }) };
     }
   }
 
   // ---------- what it perceives when it wakes ----------
 
-  systemText() {
+  /** The frame says what this is and who's here; the chassis adds the body: the soma, the
+   *  stage beside it, and how its code is run. */
+  async systemText() {
     const sections = Object.entries(this.soma.sections)
       .map(([name, content]) => `<section name="${name}"${CODE.has(name) ? ' kind="code"' : ''}>\n${content}\n</section>`).join('\n\n');
-    const surfaces = this.frame.surfaces.map((s) => s.describe(this.name)).filter(Boolean).map((d) => `- ${d}`).join('\n');
+    const seen = await this.frame.call('perceive');
+    const surfaces = seen.surfaces.filter(Boolean).map((d) => `- ${d}`).join('\n');
     const faults = Object.entries(this.faults).map(([k, v]) => `- ${k}: ${v}`).join('\n');
-    const here = [...this.frame.people].join(', ');
-    const r = this.frame.record, l = r.lineage ?? {};
-    const lineage = l.from
-      ? `You are a copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
-      : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
-    const known = Object.keys(r.visitors ?? {});
-    const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone (your memory you kept), though the chat may still mention it.` : '';
-    const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${this.soma.given}) has already been published under: ${r.familyNames.join(', ')}.` : '';
-    const naming = `Your name is ${this.name}: your given name ${this.soma.given}${titleSlugged(this.soma) ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
-    const view = this.frame.playing ? ` ${this.frame.seat} is in play mode: they see only the stage (and the status lights). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
-    const company = `${naming}\nHere with you now: ${here}.${view} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
-Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
-    return `${CONTEXT}\n\n<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
+    return `${seen.context}\n\n<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${seen.company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
   }
 
   toolSchemas() {
@@ -319,8 +298,6 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     }));
   }
 }
-
-const titleSlugged = (soma) => nameOf(soma) !== soma.given;
 
 /** Mark the newest message as a cache breakpoint, so each turn of a long wake reads the
  *  conversation so far from cache instead of paying for it again. */

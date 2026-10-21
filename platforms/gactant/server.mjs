@@ -2,7 +2,8 @@
 //
 // The browser window is the frame. This server only keeps things: ludants, their
 // checkpoints, and publications. It also relays inference to OpenRouter so the key never
-// reaches a page. No dependencies.
+// reaches a page. No dependencies. Ludants' code runs in a sandbox (/sandbox.html) with an
+// opaque origin and no network; the API refuses anything but this site's own pages.
 //
 //   node server.mjs [--port 7780]
 //
@@ -322,17 +323,50 @@ async function route(method, parts, body, query) {
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2' };
 
-function serveStatic(path, res) {
+// The sandbox page: its iframe has an opaque origin, and this policy takes away the
+// network (no fetch, no sockets, no images from elsewhere), so the ludant's code can't
+// reach the relay, OpenRouter, or anywhere to send what it sees. It may load the
+// platform's own scripts, and must be allowed eval: its code sections are compiled.
+const sandboxPolicy = (host) => [
+  "default-src 'none'",
+  `script-src 'self' http://${host} https://${host} 'unsafe-eval'`,
+  "img-src data: blob:",
+  "style-src 'unsafe-inline'",
+  "connect-src 'none'",
+  "form-action 'none'",
+  "base-uri 'none'",
+].join('; ');
+
+function serveStatic(req, path, res) {
   if (path === '/') path = '/index.html';
   const f = normalize(join(PUBLIC, path));
   if (!f.startsWith(PUBLIC) || !existsSync(f)) { res.writeHead(404); res.end('not found'); return; }
-  res.writeHead(200, { 'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+  res.writeHead(200, {
+    'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache',
+    // The sandbox's origin is opaque, so its module scripts load cross-origin. These are
+    // the platform's public files, so anyone may.
+    'Access-Control-Allow-Origin': '*',
+    ...(path === '/sandbox.html' ? { 'Content-Security-Policy': sandboxPolicy(req.headers.host) } : {}),
+  });
   res.end(readFileSync(f));
+}
+
+/** The API answers only the platform's own pages. A request from a sandbox (Origin: null)
+ *  or another site is refused, so the relay can't be spent from anywhere else. */
+function sameOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;   // same-origin GETs don't say
+  try { return new URL(origin).host === req.headers.host; } catch { return false; }
 }
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res);
+  if (!url.pathname.startsWith('/api/')) return serveStatic(req, url.pathname, res);
+  if (!sameOrigin(req)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'the API answers only this site\'s own pages' }));
+    return;
+  }
   try {
     let body = {};
     if (req.method === 'POST' || req.method === 'PUT') {

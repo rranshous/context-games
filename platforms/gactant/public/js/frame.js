@@ -6,9 +6,15 @@
 // There are no modes. Whoever sits down can play, ask for changes, checkpoint, restore,
 // and publish. The frame tells the ludant who is here and how they're related to it, and
 // the ludant's hooks decide what that means.
+//
+// The ludant itself isn't in this page. Its embodiment runs in a sandbox (sandbox.js on
+// this side, chassis.js on the other) that can't reach the page, its storage or the key.
+// Here are all the surfaces (the stage too: the game draws in a buffer over there, and
+// the stage shows the pictures), the people's controls, inference, and keeping things.
 
-import { Actant } from './actant.js';
 import { Bus } from './bus.js';
+import { nameOf } from './names.js';
+import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
 import { Stage } from './surfaces/stage.js';
@@ -21,6 +27,35 @@ import { installExplorer } from './explorer.js';
 const SAVE_MS = 800;
 const HEARTBEAT_MS = 5000;
 
+// What this is, said plainly to the ludant at every wake. Ludants do better when they
+// know the goals and that it's an experiment. The frame owns this, not the soma, and it's
+// the same every time, so it caches.
+const CONTEXT = `<context>
+This is gactant, an experimental platform built by Robby Ranshous with Claude. You are part of the experiment, and this note explains it.
+
+What you are: a ludant, a game that is also an actant. An actant is an AI that lives in a body it can change: its soma, the named sections below. Your game is not something you made and handed over; it is one of the ways you exist. Your game section is the game, so when the game changes, you have changed.
+
+The idea behind it is a ladder of how an actant can relate to the program it works on:
+1. Relay: it hears about the program from a human.
+2. Instrumented: it handles the program through tools from outside.
+3. Scripted: it writes code that runs inside the program's loop.
+4. Co-framed: it lives alongside the program, sharing its frame and loop.
+5. Faceted: it is the program. The game is a facet of the actant's own embodiment.
+You are level 5. The test: does changing the game mean you have changed yourself? For you, yes.
+
+How people meet you: a person opens your frame, a browser window with surfaces in it (a stage where your game runs, a chat, a whiteboard, status lights, an inspector). They play you, and anyone who plays you can also shape you: asking for a change is shaping, and so is how they play. Anyone can publish you, and others take copies that go on with their own people. There are no separate phases for making you and playing you; both happen in every sitting.
+
+What people see: only the surfaces. They see what's on the stage, what's posted in the chat, what's drawn on the whiteboard, and the status lights. They do not see this conversation. Your replies here, your reasoning, and anything you write outside of a tool call go nowhere a person will read. (The inspector can show your inner text to someone debugging, but treat that as a window into you, not a way to talk.) So whenever you want to tell someone something (an answer, a greeting, a question, what you changed), post it in the chat with your say tool. If you didn't post it, they didn't hear it.
+
+Where you live: your whole body (your soma, your code, this thinking) runs in a sandbox inside the frame. Every surface is the frame's. Your game draws into the stage's buffer, there in the sandbox with you, and the frame's stage shows what you drew. The frame does your thinking for you when you wake, and keeps you saved. Because your code came from whoever shaped you, the sandbox keeps it apart from the page people use, so nothing you run can touch what's theirs.
+
+Libraries come from the frame, never from the network: today that's three.js (r170), through stage.three(), for when a game wants real 3D instead of drawing perspective by hand. The frame may offer more over time.
+
+Most of you runs without thinking: your hooks and game code run at frame rate, and nothing costs anything until something wakes you. Being awake costs real money, so wake purposefully, do what's needed, and let yourself go back to sleep.
+
+This is early and experimental. Things in the frame may be rough or change. If something about your body or the surfaces seems wrong or confusing, it's fine to say so in the chat.
+</context>`;
+
 class Frame {
   constructor(record, seat) {
     this.recordId = record.id;
@@ -28,6 +63,8 @@ class Frame {
     this.seat = seat;                       // the person at this keyboard
     this.people = new Set([seat]);          // everyone sitting here: the seat, and any shard
     this.bus = new Bus();
+    this.sandbox = new Sandbox(this);
+    this.sandbox.relay(this.bus);
     this.stage = new Stage(this);
     this.chat = new Chat(this);
     this.whiteboard = new Whiteboard(this);
@@ -36,7 +73,7 @@ class Frame {
     this.inspector = new Inspector(this);
     this.surfaces = [this.stage, this.chat, this.whiteboard, this.status, this.store, this.inspector];
     for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
-    this.actant = new Actant(this, record.soma);
+    this.actant = new Body(this, record.soma);   // the ludant as this side sees it
     this.saveTimer = null;
     // This window's claim on the ludant. (crypto.randomUUID needs https, and a phone on
     // the LAN reaches this over plain http.)
@@ -68,8 +105,9 @@ class Frame {
     this.lost = heldBy || 'another window';
     clearInterval(this.heartbeat);
     clearTimeout(this.saveTimer);
-    this.actant.sleepForever();
-    this.stage.halted = 'moved';
+    this.stage.live = false;
+    this.sandbox.send('sleep');
+    setTimeout(() => this.sandbox.remove(), 100);
     this.cover(`${this.actant.name} moved to another window${heldBy ? ` (${heldBy})` : ''}. This window has let go of it, so nothing here is saved any more.`, 'bring it back', async () => location.reload());
   }
 
@@ -84,6 +122,41 @@ class Frame {
   }
 
   isPerson(who) { return this.people.has(who); }
+
+  /** Someone sat down or stood up (a shard, say). The ludant is told who's here. */
+  peopleChanged() {
+    this.sandbox.send('people', [...this.people]);
+    this.status.render();
+  }
+
+  /** Thinking, done for the ludant. The key stays here (today on the server, behind the
+   *  relay); the sandbox only ever sees the answer. */
+  async infer({ messages, tools }) {
+    const res = await api('POST', 'infer', { who: this.recordId, messages, tools });
+    this.status.addSpend(res.usage?.cost);
+    return res;
+  }
+
+  /** What the frame tells the ludant when it wakes: the experiment, who's here, how
+   *  they're related to it, and the surfaces on this side. (The chassis adds its soma,
+   *  the stage beside it, and how its code runs.) */
+  perception() {
+    const soma = this.actant.soma, name = this.actant.name;
+    const r = this.record, l = r.lineage ?? {};
+    const lineage = l.from
+      ? `You are a copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
+      : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
+    const known = Object.keys(r.visitors ?? {});
+    const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone (your memory you kept), though the chat may still mention it.` : '';
+    const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${soma.given}) has already been published under: ${r.familyNames.join(', ')}.` : '';
+    const titled = nameOf(soma) !== soma.given;
+    const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
+    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the status lights). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
+    const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
+    const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
+    return { context: CONTEXT, company, surfaces };
+  }
 
   /** The ludant's name is its given name plus its title, so a retitle (or a restore that
    *  brings back an old title) renames it. Surfaces that hold names hear about it, so a
@@ -124,7 +197,7 @@ class Frame {
   /** Checkpoints and publishing wait for the ludant to finish what it's doing, so they
    *  never catch it halfway through answering the very message that asked for them. */
   async settled(why) {
-    if (this.actant.thinking || this.actant.pending.length) this.status.setLife(this.status.life, `waiting for ${this.actant.name} to finish before ${why}…`);
+    if (this.actant.thinking || this.actant.pending) this.status.setLife(this.status.life, `waiting for ${this.actant.name} to finish before ${why}…`);
     await this.actant.idle();
     await this.save();
   }
@@ -144,7 +217,7 @@ class Frame {
     const before = this.actant.soma.sections.title ?? '';
     const retitled = title != null && title.trim() !== before.trim();
     if (retitled) {
-      this.actant.writeSection('title', title.trim(), by);
+      await this.actant.writeSection('title', title.trim(), by);
       await this.save();
     }
     try {
@@ -156,7 +229,7 @@ class Frame {
       return { id, name, url };
     } catch (err) {
       // A refused publish leaves the name as it was.
-      if (retitled) { this.actant.writeSection('title', before, by); await this.save(); }
+      if (retitled) { await this.actant.writeSection('title', before, by); await this.save(); }
       throw err;
     } finally {
       this.status.setLife(this.status.life);
@@ -170,9 +243,7 @@ class Frame {
     await api('POST', `ludants/${this.recordId}/restore`, { n, by });
     const record = await api('GET', `ludants/${this.recordId}`);
     this.record = { ...this.record, ...record, surfaces: this.record.surfaces };
-    this.actant.soma = record.soma;
-    this.actant.rebuild();
-    this.noticeName();
+    await this.actant.load(record.soma);
     this.inspector.note('changed', `${by} restored checkpoint #${n}`);
     this.inspector.renderBody();
     this.status.render();
@@ -199,6 +270,7 @@ class Frame {
     document.body.append(top, main);
     this.status.mount(top.querySelector('.status'));
     this.stage.mount(main.querySelector('.stage-pane'));
+    this.sandbox.mount(document.body);
     this.whiteboard.mount(main.querySelector('.wb-pane'));
     this.chat.mount(main.querySelector('.chat-pane'));
     this.inspector.mount(main.querySelector('.insp-pane'));
@@ -286,7 +358,13 @@ class Frame {
   }
 
   async start() {
-    this.actant.rebuild();
+    // The sandbox gets the ludant and what it needs to read at frame rate. The frame's
+    // surfaces it reaches through their actions, which it's told the names of.
+    const actions = Object.fromEntries(this.surfaces.filter((s) => s.id !== 'stage' && s.id !== 'inspector').map((s) => [s.id, Object.keys(s.actions(''))]));
+    await this.sandbox.call('init', {
+      soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, people: [...this.people], actions,
+    });
+    this.stage.live = true;
     this.status.render();
     const arrival = await api('POST', `ludants/${this.recordId}/arrive`, { who: this.seat });
     this.record.visitors = Object.fromEntries(arrival.people.map((p) => [p, true]));
@@ -295,25 +373,14 @@ class Frame {
   }
 }
 
-/** Libraries the frame offers ludants, served from /vendor so nothing comes from the network. */
-async function loadLibraries() {
-  const libs = {};
-  try { libs.THREE = await import('/vendor/three/three.module.js'); }
-  catch (err) { console.warn('three.js failed to load', err); }
-  return libs;
-}
-
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
   const seat = myName() || prompt('What should the ludants here call you?', '')?.trim() || 'someone';
   try { localStorage.setItem('gactant-name', seat); } catch {}
   const record = await api('GET', `ludants/${id}`);
-  const libs = await loadLibraries();
   const frame = new Frame(record, seat);
-  frame.libs = libs;
   frame.noticeName();
-  frame.bus.on('soma.changed', (e) => { if (e.section === 'title') frame.noticeName(); });
   frame.mount();
   await frame.hold();
   await frame.start();
