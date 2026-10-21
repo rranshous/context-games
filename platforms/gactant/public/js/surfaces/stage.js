@@ -46,6 +46,7 @@ import { el } from '../ui.js';
 
 const TICK_LOST_MS = 1000;   // a tick that hasn't come back by then is given up on
 const STARVED_MS = 3000;     // no picture for this long, while running: say so
+const PLAYING_MS = 1200;     // the ludant's edge stays lit this long after its last input
 
 export class Stage {
   id = 'stage';
@@ -62,12 +63,38 @@ export class Stage {
     this.three = false;
     this.live = false;     // ticking: once the sandbox has the ludant
     this.out = 0;          // when the tick in flight was sent, or 0
+    this.ludantHeld = new Set();   // keys the ludant is holding
+    this.ludantAt = 0;             // when the ludant last gave the stage input
+  }
+
+  /** The ludant is playing itself: its input comes from the sandbox, a person's from the
+   *  page, so the stage can tell without asking. While it plays, the stage's edge lights in
+   *  its color; a person can see at a glance that the game isn't playing itself. */
+  ludantInput(action, args) {
+    this.ludantAt = performance.now();
+    const k = String(args[0] ?? '').toLowerCase();
+    if (action === 'hold') this.ludantHeld.add(k);
+    if (action === 'release') this.ludantHeld.delete(k);
+    this.actions()[action](...args);
+    this.showPlaying();
+  }
+
+  showPlaying() {
+    const on = this.ludantHeld.size > 0 || performance.now() - this.ludantAt < PLAYING_MS;
+    if (on !== this.playingShown) { this.playingShown = on; this.layers?.classList.toggle('ludant-playing', on); }
+  }
+
+  /** Say on the stage that the game jumped ahead, and who jumped it. */
+  flash(text) {
+    if (!this.flashEl) return;
+    this.flashEl.textContent = text;
+    this.flashEl.classList.remove('on'); void this.flashEl.offsetWidth; this.flashEl.classList.add('on');
   }
 
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
     const mode = this.three ? ' It is drawing in 3D now (three.js under a 2D overlay).' : '';
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top.${mode}`;
+    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input, and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").${mode}`;
   }
 
   actions() {
@@ -85,7 +112,10 @@ export class Stage {
   }
 
   /** Fast-forward: the game runs that far ahead in the sandbox at once; the clock follows. */
-  advance(seconds) { return this.frame.sandbox.call('stage', 'advance', [seconds]); }
+  advance(seconds) {
+    this.advancing = true;   // a person (the explorer, a shard) asked, not the ludant
+    return this.frame.sandbox.call('stage', 'advance', [seconds]).finally(() => { this.advancing = false; });
+  }
 
   // ---------- across the bridge ----------
 
@@ -107,7 +137,13 @@ export class Stage {
   }
 
   /** The game's clock jumped ahead (it advanced itself). */
-  advanced(t, count) { this.t = t; this.count = count; }
+  advanced(t, count) {
+    const jumped = t - this.t;
+    this.t = t; this.count = count;
+    if (jumped < 0.5) return;
+    if (!this.advancing) { this.ludantAt = performance.now(); this.showPlaying(); }
+    this.flash(`${this.advancing ? 'skipped' : `${this.frame.actant.name} skipped`} ahead ${jumped.toFixed(jumped < 10 ? 1 : 0)} s`);
+  }
 
   /** The game asked for a different resolution. */
   resized(w, h) {
@@ -121,6 +157,7 @@ export class Stage {
     if (!this.live || this.halted || !this.frame.sandbox.bridge) return;
     const now = performance.now();
     this.liveSince ??= now;
+    this.showPlaying();
     // The game runs in the sandbox and only pictures come back. If they stop coming, the
     // stage would just sit there, so it says what's wrong instead.
     if (!this.starved && now - (this.lastPicture ?? this.liveSince) > STARVED_MS) {
@@ -191,8 +228,9 @@ export class Stage {
     this.root = root;
     this.haltEl = el('div', { class: 'stage-halt' });
     this.starvedEl = el('div', { class: 'stage-starved' }, 'waiting for a picture from the game…');
+    this.flashEl = el('div', { class: 'stage-flash' });
     this.layers = el('div', { class: 'stage-layers' }, this.canvas);
-    const wrap = el('div', { class: 'stage-wrap', tabindex: 0 }, this.layers, this.haltEl, this.starvedEl);
+    const wrap = el('div', { class: 'stage-wrap', tabindex: 0 }, this.layers, this.haltEl, this.starvedEl, this.flashEl);
     root.append(wrap);
     this.wrap = wrap;
     this.touch = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('pad');

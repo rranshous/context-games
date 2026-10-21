@@ -81,7 +81,7 @@ export class Sandbox {
       halt: (message) => frame.stage.halt(message),
       restart: () => frame.stage.restart(true),
       advanced: (t, count) => frame.stage.advanced(t, count),
-      input: (action, args = []) => { if (INPUT.has(action)) frame.stage.actions()[action](...args); },
+      input: (action, args = []) => { if (INPUT.has(action)) frame.stage.ludantInput(action, args); },
     };
   }
 

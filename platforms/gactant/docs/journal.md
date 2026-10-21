@@ -1513,3 +1513,22 @@ The top bar's lights stay, because they're the **frame's own**, not a surface: w
 here, the ludant's life (now also in the chat header), and the cost meter. The class
 moved to `lights.js` to say so. Ludants that already have `set_status` will get an
 error from that tool and can drop it; no compatibility shim.
+
+### Seeing the ludant play itself
+
+Robby: "from my point of view the game just starts playing itself… if there is a clean
+way to indicate the ludant is playing itself i think id like to." Of the options we
+discussed, he picked two:
+- **An edge in its color:** while the ludant gives the stage input, the stage's border
+  lights violet (the same violet as its thinking light), and it fades 1.2 s after its
+  last input. Keys it's holding keep it lit.
+- **Jumps announced:** when the game skips ahead, the stage flashes "Elodon-Hop-Again
+  skipped ahead 5.0 s" (or just "skipped ahead…" when a person or a shard asked for it).
+
+It needs nothing from the ludant, because the frame can tell whose input is whose: the
+ludant's hold/release/point arrive from the sandbox, a person's come from the page, and
+an advance the frame didn't ask for is the ludant's. So it holds for every ludant,
+including old ones, and the two signals can't disagree. The ludant is told too: its
+stage description says people see its edge light while it plays and see its jumps
+announced. Tested: asked Elodon to hold space for two seconds and skip ahead five. The
+edge lit, the flash read "…skipped ahead 5.0 s", and it reported in the chat.
