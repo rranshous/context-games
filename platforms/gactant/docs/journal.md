@@ -1608,3 +1608,22 @@ Tested with two stand-in controllers on lilg:
 - controller 2's A reached player 2 once per press
 - Menu moved the controller to the page and the game stopped getting it; B brought it
   back
+
+### "Basically two of the same thing"
+
+Robby seeded a ludant on gactant.com and published it. Then: "my home screen/lobby
+screen is confusing. its showing (basically) two of the same thing to me. how am i
+supposed to understand the diff between them?"
+
+His ludant was under **Your ludants**, and its publication was under **Play something
+new**. The difference is real (the one you go on shaping, and a frozen snapshot others
+take copies of), but the lobby never said so, so it looked like a duplicate. Now:
+- "Play something new" leaves out **your own ludants' publications** as well as the ones
+  you have copies of.
+- **Your ludant's card says what it's published as**: "published as Elodon-Hop-Deluxe
+  (and 1 earlier) · 1 player", in green.
+- In the family trees, your own publications are marked **yours**.
+
+The concept underneath is still one of the strangest parts of gactant: publishing doesn't
+move your ludant anywhere. It leaves a snapshot behind, and the snapshot has a life of
+its own. Worth watching whether "published as" is enough to carry that.

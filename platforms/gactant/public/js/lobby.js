@@ -51,19 +51,25 @@ function pubCard(p, big = false) {
       el('span', { class: 'card-facts' }, facts)));
 }
 
-function mineCard(l) {
+/** A ludant this browser has sat with. If it has been published, the card says so: the
+ *  publication is a snapshot others play, and this is the one that goes on changing. */
+function mineCard(l, pubs = []) {
   const from = l.lineage?.from ? `your copy of ${l.lineage.from.name}` : l.lineage?.seededBy ? `seeded by ${l.lineage.seededBy}` : 'seeded here';
+  const latest = pubs.at(-1);
+  const players = pubs.reduce((n, p) => n + (p.copies ?? 0), 0);
+  const published = latest ? `published as ${latest.name}${pubs.length > 1 ? ` (and ${pubs.length - 1} earlier)` : ''} · ${players} ${players === 1 ? 'player' : 'players'}` : null;
   return el('a', { class: 'card', href: `/frame.html?l=${l.id}` },
     thumb('l', l.id, l.name),
     el('div', { class: 'card-text' },
       el('strong', {}, l.name),
+      published ? el('span', { class: 'card-published' }, published) : null,
       el('span', { class: 'card-facts' }, [from, l.updated ? `changed ${ago(l.updated)}` : null, costLine(l.cost)].filter(Boolean).join(' · '))));
 }
 
 /** Publications grouped by family (given name), as trees. A publication's parent is the
  *  one before it from the same ludant ("then") or, failing that, the publication it was
  *  copied from ("copy"). */
-function families(published) {
+function families(published, yours = new Set()) {
   const byTime = published.slice().sort((x, y) => x.at.localeCompare(y.at));
   const parent = new Map();
   for (const p of byTime) {
@@ -78,7 +84,7 @@ function families(published) {
     return el('li', { class: 'tree-node' },
       el('a', { class: 'tree-card', href: `/play.html?p=${p.id}` },
         how ? el('span', { class: `tree-how ${how}` }, how === 'then' ? 'then' : `copy, changed by ${p.by ?? 'someone'}`) : null,
-        el('strong', {}, p.name),
+        el('strong', {}, p.name, yours.has(p.ludant) ? el('span', { class: 'yours' }, ' yours') : null),
         el('span', {}, [p.by ? `by ${p.by}` : null, `${p.copies} ${p.copies === 1 ? 'copy' : 'copies'}`, costLine(p.cost), ago(p.at)].filter(Boolean).join(' · ')),
         p.note ? el('span', { class: 'pub-note' }, `“${p.note}”`) : null),
       kids.length ? el('ul', { class: 'tree' }, ...kids.map(node)) : null);
@@ -111,9 +117,12 @@ async function render() {
   const order = new Map(ids.map((id, i) => [id, i]));
   yours.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
 
-  // For someone coming back, "new" means ones they don't already have a copy of.
+  // For someone coming back, "new" means not theirs: not ones they have a copy of, and not
+  // their own ludants' publications.
   const have = new Set(yours.map((l) => l.lineage?.from?.published).filter(Boolean));
-  const featured = published.filter((p) => !have.has(p.id)).sort((a, b) => score(b) - score(a)).slice(0, FEATURED);
+  const mineIds = new Set(yours.map((l) => l.id));
+  const pubsOf = (id) => published.filter((p) => p.ludant === id).sort((a, b) => a.at.localeCompare(b.at));
+  const featured = published.filter((p) => !have.has(p.id) && !mineIds.has(p.ludant)).sort((a, b) => score(b) - score(a)).slice(0, FEATURED);
   const parts = [];
   const returning = yours.length > 0;
 
@@ -122,20 +131,20 @@ async function render() {
       el('h1', {}, 'Pick a game and play it. Then tell it what you\'d change.'),
       el('p', {}, 'These are ludants: games that are also AIs. A ludant can change itself while you play it: faster, stranger, kinder to your little brother. Each one you play is your own copy, and you can share what it becomes.')));
   }
-  if (returning) parts.push(section('Your ludants', null, el('div', { class: 'cards-row' }, ...yours.slice(0, 8).map(mineCard))));
+  if (returning) parts.push(section('Your ludants', null, el('div', { class: 'cards-row' }, ...yours.slice(0, 8).map((l) => mineCard(l, pubsOf(l.id))))));
   if (featured.length) {
     parts.push(section(returning ? 'Play something new' : 'Jump in', returning ? null : 'Click one to play. Ludants think with an AI model, whenever their own body decides to. That costs a few cents at a time, on your own OpenRouter account, and a meter shows what your sitting has cost.',
       el('div', { class: 'cards-grid' }, ...featured.map((p) => pubCard(p, !returning)))));
   }
   if (published.length > featured.length || returning) {
     parts.push(section('Every published ludant', 'Ludants are published by whoever plays them. A copy that changes can be published again, so they grow into families.',
-      el('ul', { class: 'trees' }, ...families(published))));
+      el('ul', { class: 'trees' }, ...families(published, mineIds))));
   }
   parts.push(section('Start from nothing', 'Seed a new ludant: it begins as a pulsing dot with no game at all, and becomes whatever you make together.',
     el('button', { class: 'seed-btn', onclick: seed }, 'seed a new ludant')));
   if (everyone.length) {
     parts.push(section('Everyone here', 'Every ludant on this install (you\'re running it yourself, so you see them all).',
-      el('div', { class: 'cards-row' }, ...everyone.map(mineCard))));
+      el('div', { class: 'cards-row' }, ...everyone.map((l) => mineCard(l, pubsOf(l.id))))));
   }
   document.getElementById('lobby').replaceChildren(...parts);
 }

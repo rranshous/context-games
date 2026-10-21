@@ -254,3 +254,5 @@ body.check { font-size: 20px; }
 .pad-chip.on { opacity: 1; }
 .lobby-tip { color: var(--ink-3); font-size: 13px; }
 .tip-bar { max-width: 1100px; margin: 10px auto 0; padding: 0 16px; }
+.card-published { font-size: 12px; color: var(--green); }
+.tree-card .yours { font: 11px var(--mono); color: var(--green); }
