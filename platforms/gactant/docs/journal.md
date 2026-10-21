@@ -787,3 +787,31 @@ Open: two publications from the *same* ludant (Elodon-Hop, then Elodon-Hop-Delux
 siblings in time, not parent and child, and the lobby doesn't show that relation yet.
 Names inside the frame shift too: a whiteboard baton handed to "Elodon" no longer matches
 "Elodon-Hop".
+
+### The baton follows the name; families in the lobby
+
+Both gaps from the naming change, fixed at Robby's request:
+
+- **Renames reach the surfaces.** The frame notices whenever the ludant's name changes (a
+  retitle, or a restore that brings back an old title) and emits `frame.renamed { from,
+  to }`. The whiteboard holds names, so it updates its baton, the baton's passer, its
+  last-look and its marks' authors. Tested: with the baton held by Elodon-Hop-Again, a
+  retitle to "Hop Over" left the board telling Elodon-Hop-Over "the baton is with you,
+  passed by claude…". Chat history keeps the names as they were when things were said.
+- **Publications grow in family trees.** The lobby groups publications by given name
+  ("the Elodon family"). A publication's parent is the one before it from the *same*
+  ludant ("then") or, failing that, the publication it was copied from ("copy, changed by
+  sam"):
+
+  ```
+  the Elodon family
+  Elodon-Hop
+  └ then: Elodon-Hop-Deluxe
+     └ copy, changed by sam: Elodon-Hop-Turbo   "stones twice as fast"
+  ```
+
+![family tree](shots/13-family-tree.png)
+
+Also in the lobby: **Tialina, "seeded by fast paced racer"**, not mine. Probably Robby. If
+"fast paced racer" was meant as a game idea, the lobby's "you are" box reads like the old
+"name a new one" box. Asked him.

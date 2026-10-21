@@ -33,6 +33,14 @@ export class Whiteboard {
     this.baton = null;     // who the board is handed to, or null if nobody in particular
     this.note = '';
     this.color = PALETTE[0];
+    // Someone's name changed: the board's names follow, so the baton stays theirs.
+    frame.bus.on('frame.renamed', ({ from, to }) => {
+      if (this.baton === from) this.baton = to;
+      if (this.batonFrom === from) this.batonFrom = to;
+      if (this.lastLook?.who === from) this.lastLook.who = to;
+      for (const it of this.items) if (it.by === from) it.by = to;
+      this.renderBaton();
+    }, 'whiteboard');
   }
 
   describe(viewer) {

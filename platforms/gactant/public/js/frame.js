@@ -83,6 +83,21 @@ class Frame {
 
   isPerson(who) { return this.people.has(who); }
 
+  /** The ludant's name is its given name plus its title, so a retitle (or a restore that
+   *  brings back an old title) renames it. Surfaces that hold names hear about it, so a
+   *  baton handed to Elodon is still its baton once it's Elodon-Hop. */
+  noticeName() {
+    const name = this.actant.name;
+    if (this.knownName && this.knownName !== name) {
+      this.bus.emit('frame.renamed', { from: this.knownName, to: name });
+      this.changed();
+    }
+    this.knownName = name;
+    document.title = `${name} · gactant`;
+    this.status.render();
+    this.whiteboard.renderBaton();
+  }
+
   /** The surfaces' actions, done as `who`. */
   surfacesFor(who) {
     return Object.fromEntries(this.surfaces.map((s) => [s.id, s.actions(who)]));
@@ -155,6 +170,7 @@ class Frame {
     this.record = { ...this.record, ...record, surfaces: this.record.surfaces };
     this.actant.soma = record.soma;
     this.actant.rebuild();
+    this.noticeName();
     this.inspector.note('changed', `${by} restored checkpoint #${n}`);
     this.inspector.renderBody();
     this.status.render();
@@ -255,9 +271,8 @@ async function boot() {
   try { localStorage.setItem('gactant-name', seat); } catch {}
   const record = await api('GET', `ludants/${id}`);
   const frame = new Frame(record, seat);
-  const retitle = () => { document.title = `${frame.actant.name} · gactant`; frame.status.render(); frame.whiteboard.renderBaton(); };
-  retitle();
-  frame.bus.on('soma.changed', (e) => { if (e.section === 'title') retitle(); });
+  frame.noticeName();
+  frame.bus.on('soma.changed', (e) => { if (e.section === 'title') frame.noticeName(); });
   frame.mount();
   await frame.hold();
   await frame.start();

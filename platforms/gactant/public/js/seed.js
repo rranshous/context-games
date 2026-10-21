@@ -22,6 +22,7 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   stage.halted { message }             frame.arrived { who, firstVisit, visits, fresh, note }
 //   frame.error { source, during, message }   soma.changed { section, by }
 //   frame.published { who, name, url }  frame.restored { who, n, label }   whiteboard.looked { who }
+//   frame.renamed { from, to }   (my name changes with my title)
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
 // surfaces: chat, whiteboard, stage, status (their actions, done as me)
