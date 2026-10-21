@@ -1807,3 +1807,22 @@ Notes:
 - The meter's per-hour rate looks alarming in a short, busy sitting ($10.48/h after a
   few minutes of painting). It might want a longer wait before showing a rate.
 - Concept pictures stay as art (and go with publications) unless the ludant removes them.
+
+### The painter remembers nothing
+
+Robby, watching a ludant paint on gactant.com: "i don't think this prompt will work quite
+right, will it? each prompt i imagine is separate." The prompt for `family-happy-2` began
+"Same three people (mom in pink shirt…, dad…, small child…)". The image model gets each
+call fresh, so "same" meant nothing; only `reference` carries a picture across. The
+surface had it, but nothing said it was needed.
+- The art surface's description, the contract and the `make_art` tool now say it plainly:
+  every picture is painted fresh, so pass earlier art as reference to keep characters
+  or a style consistent, and describe them again.
+- The frame catches the slip when it happens. A prompt that leans on "same / again /
+  before / earlier / previous / as in / like the first", with no reference, gets a note
+  in its result: "the painter didn't see any earlier picture… pass it as reference (e.g.
+  reference: 'family-happy-1')." It's a one-time cue at the moment it matters, like the
+  chat nudge.
+- References go in labelled: "Attached: picture 1 is 'family-happy-1'…", then "keep the
+  same characters, things and style unless asked otherwise". The ludant can refer to
+  them, and the painter knows which is which.

@@ -168,7 +168,7 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
   },
   {
     name: 'make_art',
-    description: 'Have a picture painted for you by an image model, and keep it as art: a sprite (transparent by default: cut out of its background), a background or a tile (transparent: false), anything. reference: "stage" or an art name (or a list), to match. quality: "fast" (about 3 cents) or "best" (about 7). size: longest side in pixels. You see what came back. Draw it in your game with stage.image(name).',
+    description: 'Have a picture painted for you by an image model, and keep it as art: a sprite (transparent by default: cut out of its background), a background or a tile (transparent: false), anything. reference: "stage" or an art name (or a list of up to 3), to match. Every picture is painted fresh (the painter remembers nothing between pictures), so to keep a character or style the same across pictures, pass the earlier art as reference and describe it again. quality: "fast" (about 3 cents) or "best" (about 7). size: longest side in pixels. You see what came back. Draw it in your game with stage.image(name).',
     input_schema: { type: 'object', properties: { name: { type: 'string', description: 'lowercase words joined by -' }, prompt: { type: 'string' }, style: { type: 'string' }, transparent: { type: 'boolean' }, reference: {}, quality: { type: 'string', enum: ['fast', 'best'] }, size: { type: 'number' } }, required: ['name', 'prompt'] },
     run: (input, me, s) => s.art.make(input),
   },
