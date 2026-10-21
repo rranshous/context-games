@@ -256,3 +256,5 @@ body.check { font-size: 20px; }
 .tip-bar { max-width: 1100px; margin: 10px auto 0; padding: 0 16px; }
 .card-published { font-size: 12px; color: var(--green); }
 .tree-card .yours { font: 11px var(--mono); color: var(--green); }
+.stage-layers.rebuilt { animation: rebuilt 1.6s ease-out; }
+@keyframes rebuilt { 0% { box-shadow: 0 0 0 4px var(--amber), 0 0 30px 4px rgba(232, 163, 61, 0.7); } 100% { box-shadow: 0 0 0 0 transparent; } }

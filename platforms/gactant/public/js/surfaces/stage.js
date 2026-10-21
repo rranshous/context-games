@@ -94,6 +94,16 @@ export class Stage {
     if (on !== this.playingShown) { this.playingShown = on; this.layers?.classList.toggle('ludant-playing', on); }
   }
 
+  /** A new game landed (it starts over): say so, and pulse the edge. */
+  rebuilt(by) {
+    const self = by === this.frame.actant.name;
+    this.flash(self ? `${by} changed its game` : `${by} changed the game`);
+    this.layers?.classList.remove('rebuilt'); void this.layers?.offsetWidth; this.layers?.classList.add('rebuilt');
+  }
+
+  /** Someone at this keyboard (or controller, or screen) is playing right now. */
+  personPlaying() { return performance.now() - (this.humanAt ?? -1e9) < 8000; }
+
   /** Say on the stage that the game jumped ahead, and who jumped it. */
   flash(text) {
     if (!this.flashEl) return;
@@ -202,6 +212,7 @@ export class Stage {
   /** A controller button, while the game has the controller. */
   padEvent({ pad, button, down, repeat }) {
     if (repeat) return;
+    this.humanAt = performance.now();
     if (down) {
       if (!this.padPressed.has(pad)) this.padPressed.set(pad, new Set());
       this.padPressed.get(pad).add(button);
@@ -279,6 +290,7 @@ export class Stage {
       // Edge on Xbox also sends a controller's presses as keys it can't name; the
       // controller itself comes through the Gamepad API.
       if (k === 'unidentified') return;
+      this.humanAt = performance.now();
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
       if (!e.repeat) this.keyDown(k);
     });
@@ -291,6 +303,7 @@ export class Stage {
     };
     this.canvas.addEventListener('pointermove', at);
     this.canvas.addEventListener('pointerdown', (e) => {
+      this.humanAt = performance.now();
       wrap.focus(); at(e);
       this.input.pointer.down = true; this.input.pointer.clicked = true;
       this.frame.bus.emit('stage.pointer', { x: this.input.pointer.x, y: this.input.pointer.y, kind: 'down' });
@@ -318,7 +331,7 @@ export class Stage {
     const button = (key, label, cls = '') => {
       const b = el('button', { class: `pad-btn ${cls}`, 'aria-label': key }, label);
       const up = () => { b.classList.remove('on'); this.keyUp(key); };
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('on'); this.keyDown(key); });
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); this.humanAt = performance.now(); b.setPointerCapture(e.pointerId); b.classList.add('on'); this.keyDown(key); });
       b.addEventListener('pointerup', up);
       b.addEventListener('pointercancel', up);
       b.addEventListener('contextmenu', (e) => e.preventDefault());

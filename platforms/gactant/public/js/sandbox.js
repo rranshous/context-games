@@ -143,11 +143,19 @@ export class Body {
     }
     inspector.renderTabs();
     if (changed === 'title' || !changed) this.frame.noticeName();
+    // Changing its code while awake: people should see it's changing, not just thinking,
+    // and see the moment a new game lands (it starts over).
+    if (['game', 'hooks', 'tools'].includes(changed) && this.state.thinking) {
+      this.changing = changed === 'game' ? 'its game' : 'itself';
+      this.frame.chat.showLife();
+    }
+    if (changed === 'game') this.frame.stage.rebuilt(by);
     this.frame.changed();
   }
 
   lived(state) {
     this.state = state;
+    if (!state.thinking) this.changing = null;
     this.frame.status.setLife(state.life, state.detail);
   }
 

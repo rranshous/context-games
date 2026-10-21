@@ -1643,3 +1643,29 @@ sitting there talking and shaping. Now:
 - The old `stats` on publications are ignored, so every publication starts fresh.
 - A ludant's own card (yours) now says what it is: "$0.42 of thinking so far". That's all
   its sittings, shaping included, and not dressed up as a rate of play.
+
+### Seeing it change, and not being trapped in the chat
+
+Robby, playing: "i just had actant break the stage/game while i was playing it. i saw
+the error on the stage. i think we should maybe update the 'thinking' to 'making changes'
+or something when it's updating the game content, some border visual indicator might be
+good too."
+- Once a think has rewritten the ludant's game (or its hooks or tools), the chat header
+  and its line say **"changing its game…"** (or "changing itself…") until it's done.
+- When a new game lands (it starts over), the stage's edge **pulses amber**, and the stage
+  says "Evevina changed its game".
+- **The ludant is told when someone is mid-game:** if a person gave the stage input in
+  the last 8 s, its wake says "Robby is playing your game right now: a change to your
+  game section restarts it under their hands, so it may be kind to say so first, or wait
+  for a pause." It's perception, not a lock.
+- The limit: "changing" can only show once the first edit lands. Seeing it start
+  ("write_section, game…") would take streaming the model's output. Parked until this
+  proves not enough. Also parked: keeping the old game running if a new one throws on
+  its first frames, so a broken edit doesn't break someone's game.
+
+Then, on the Xbox: "the main issue is how easy it is to accidentally get captured in the
+chat box. i think we should need to choose to start a chat msg rather than just capturing
+the user w/ the virtual keyboard when they go to the input box." The d-pad focus now only
+**highlights** a text box (real focus is what brings up the console's keyboard), and A
+starts typing. After sending a message typed that way, the box lets go and the keyboard
+closes. Tested with a stand-in controller: highlighted, not focused, until A.

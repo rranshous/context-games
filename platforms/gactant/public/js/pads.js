@@ -101,7 +101,10 @@ export class PadNav {
     this.current = node;
     if (!node) return;
     node.classList.add('pad-focus');
-    node.focus({ preventScroll: true });
+    // A text box is only highlighted: focusing it brings up a console's on-screen
+    // keyboard, and passing over the chat shouldn't trap anyone in it. A starts typing.
+    if (node.matches('input, textarea')) document.activeElement?.blur?.();
+    else node.focus({ preventScroll: true });
     node.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
   }
 
@@ -130,7 +133,7 @@ export class PadNav {
   activate() {
     const n = this.current && this.focusables().includes(this.current) ? this.current : null;
     if (!n) { this.move('down'); return; }
-    if (n.matches('input, textarea')) { n.focus(); n.click(); return; }
+    if (n.matches('input, textarea')) { n.dataset.padTyping = '1'; n.focus(); n.click(); return; }
     n.click();
   }
 

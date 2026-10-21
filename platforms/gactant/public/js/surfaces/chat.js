@@ -48,6 +48,8 @@ export class Chat {
         e.preventDefault();
         if (input.value.trim()) this.post(this.frame.seat, input.value);
         input.value = '';
+        // Typed with a controller (on a console's keyboard): let go once it's sent.
+        if (input.dataset.padTyping) { delete input.dataset.padTyping; input.blur(); }
       }
     });
     // Who you're talking to, and whether it's awake: where people look when nothing seems
@@ -64,11 +66,12 @@ export class Chat {
     if (!this.head) return;
     const { life, detail } = this.frame.status;
     const name = this.frame.actant?.name ?? 'the ludant';
-    const words = { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
+    const changing = life === 'thinking' ? this.frame.actant?.changing : null;
+    const words = changing ? `changing ${changing}…` : { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
     this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
       detail ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
     if (life === 'thinking') {
-      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, 'thinking')));
+      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, changing ? `changing ${changing}` : 'thinking')));
       this.log.append(this.thinkingEl);
       this.log.scrollTop = this.log.scrollHeight;
     } else this.thinkingEl.remove();
