@@ -315,13 +315,21 @@ export class Stage {
     this.canvas.addEventListener('pointerdown', (e) => {
       this.humanAt = performance.now();
       wrap.focus(); at(e);
+      // Keep the drag even when the finger slides off the canvas.
+      this.canvas.setPointerCapture?.(e.pointerId);
       this.input.pointer.down = true; this.input.pointer.clicked = true;
       this.frame.bus.emit('stage.pointer', { x: this.input.pointer.x, y: this.input.pointer.y, kind: 'down' });
     });
-    this.canvas.addEventListener('pointerup', (e) => {
-      at(e); this.input.pointer.down = false;
+    const lift = (e) => {
+      at(e);
+      if (!this.input.pointer.down) return;
+      this.input.pointer.down = false;
       this.frame.bus.emit('stage.pointer', { x: this.input.pointer.x, y: this.input.pointer.y, kind: 'up' });
-    });
+    };
+    this.canvas.addEventListener('pointerup', lift);
+    this.canvas.addEventListener('pointercancel', lift);
+    // A long press on a phone would otherwise open the image menu.
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     new ResizeObserver(() => this.fit()).observe(root);
     this.fit();
 

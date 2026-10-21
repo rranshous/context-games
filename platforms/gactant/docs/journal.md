@@ -1870,3 +1870,7 @@ copies others took are their own ludants. So abandoning lets go of the ludant it
 - It leaves "Your ludants" in every browser that had it: lists skip tombstones, and the
   lobby forgets ids that come back missing.
 - Stores gained `remove(kind, id)` (a file unlink, or a SQL DELETE).
+
+### Dragging on a phone scrolled the page
+
+Robby on mobile: dragging on the game scrolled the page instead. The stage canvas let the browser keep touch gestures for itself, so a finger drag became a scroll (and the game got a `pointercancel` it never handled, leaving the pointer stuck down). Now the stage takes every touch (`touch-action: none`, no text selection, no long-press image menu), captures the pointer so a drag that slides off the canvas keeps reporting, and treats a cancel as a lift. Checked in an emulated phone with a real touch drag: page scroll 129px before, 0 after, and the game saw every move. The rest of the page still scrolls normally; only the stage itself holds on to the finger.
