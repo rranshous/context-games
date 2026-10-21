@@ -1401,3 +1401,45 @@ hold) has a complete fishing game drawn from Robby's sketch: boat, line, purple 
 640×360. The same soma ran perfectly on lilg and on gactant.com in Chromium: pixels
 drawn, caption updating, no faults. So what Robby saw is something about his browser or
 that sitting. The new health check and the kept doings will tell us next time.
+
+### Firefox drops pictures without a word
+
+Robby was on **Firefox**. With the new health check, his doings said "the stage hasn't
+had a picture from the game for 3 s (0 pictures so far, 3 ticks sent)", and the stage
+said "waiting for a picture from the game…". His console showed only the Cloudflare
+beacon the sandbox refuses. Headless Firefox (Playwright's build) worked fine: 318
+pictures in 6 s.
+
+The difference is **Fission**, Firefox's site isolation, which real Firefox has on and
+Playwright's doesn't. With `fission.autostart` set, the bug reproduced exactly. A bare
+pair of pages proved it: a parent on `localhost` and a sandboxed iframe on `127.0.0.1`
+(different sites, so separate processes), talking over a MessagePort.
+- an ImageBitmap, transferred: **never arrives**
+- an ImageBitmap, cloned: **never arrives**
+- an ArrayBuffer of pixels, transferred: arrives
+
+No exception and no console message: the message simply never shows up. That's why the
+stage looked dead and nothing complained.
+
+Now:
+- **A probe at start:** after init, the frame asks the sandbox for one tiny ImageBitmap.
+  If it doesn't arrive within 1.5 s, the sandbox switches to **pixels**: both layers
+  composited into one 2D canvas (`willReadFrequently`), `getImageData`, and the buffer
+  transferred. The frame `putImageData`s it.
+- **A backstop:** if pictures stop arriving mid-sitting, the starvation check also asks
+  for pixels.
+- Either way the doings say why.
+
+Measured on lilg, with the frame on localhost and the sandbox on 127.0.0.1
+(`GACTANT_SANDBOX=http://127.0.0.1:7780` runs it that way locally):
+- Firefox with Fission: **62–64 fps on pixels**, Malan's three.js island and HUD both
+  through.
+- Chromium: the ImageBitmap path at 60 fps.
+
+Also from this round:
+- Robby spotted "null" at the top of every inspector section. It's the same slip as
+  the chat header: `replaceChildren` with a `null` child prints it.
+- Notes to watch, from Robby: Evevina drew its fishing game very simply: flat shapes,
+  his whiteboard's palette. Is that because the game came from his sketch? Notice whether
+  sketch-born games always look like their sketch, and whether we like that. And later:
+  **sprites generated through OpenRouter** (image models), offered by the frame.

@@ -7,6 +7,7 @@
 //   OPENROUTER_API_KEY=...        thinking for anyone who hasn't connected their own OpenRouter
 //   GACTANT_MODEL=anthropic/claude-sonnet-5.5
 //   GACTANT_PUBLIC=1              open to anyone: no listing every ludant, no inference logs
+//   GACTANT_SANDBOX=http://127.0.0.1:7780   serve the sandbox from another site, as hosted
 //
 // Data: data/<kind>/<id>.json, one document each (ludants, published, checkpoints, names),
 // and data/log/<who>.jsonl, every inference with image bytes stripped. Reading those logs is
@@ -54,7 +55,9 @@ const core = createCore({
     key: process.env.OPENROUTER_API_KEY || '',
     public: process.env.GACTANT_PUBLIC === '1',
     adminToken: process.env.GACTANT_ADMIN_TOKEN || '',
-    sandbox: '',   // the sandbox page is served from here (its iframe's origin is opaque anyway)
+    // Where the sandbox page comes from: here (its iframe's origin is opaque anyway), or
+    // another site, the way the hosted install uses gactantbox.com (e.g. http://127.0.0.1:7780).
+    sandbox: process.env.GACTANT_SANDBOX || '',
     log: (who, record) => appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n'),
     tail: (who, n) => {
       const f = join(DATA, 'log', `${who}.jsonl`);

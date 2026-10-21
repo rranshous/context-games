@@ -90,7 +90,7 @@ export class Stage {
   // ---------- across the bridge ----------
 
   /** What the game drew this frame, as pictures: the 3D layer (if on) under the 2D one. */
-  shown({ layers, caption, three }) {
+  shown({ layers, pixels, width, height, caption, three }) {
     this.out = 0;
     this.lastPicture = performance.now();
     this.pictures = (this.pictures ?? 0) + 1;
@@ -103,6 +103,7 @@ export class Stage {
     this.three = Boolean(three);
     this.ctx.clearRect(0, 0, this.width, this.height);
     for (const bmp of layers ?? []) { this.ctx.drawImage(bmp, 0, 0, this.width, this.height); bmp.close?.(); }
+    if (pixels && width === this.width && height === this.height) this.ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
   }
 
   /** The game's clock jumped ahead (it advanced itself). */
@@ -126,6 +127,8 @@ export class Stage {
       this.starved = true;
       this.starvedEl?.classList.add('on');
       this.frame.inspector.note('fault', `the stage hasn't had a picture from the game for ${Math.round((now - (this.lastPicture ?? this.liveSince)) / 1000)} s (${this.pictures ?? 0} pictures so far, ${this.count} ticks sent)`);
+      // Pictures may have stopped crossing: pixels always do.
+      this.frame.sandbox.usePixels('pictures stopped arriving');
     }
     if (this.out && now - this.out < TICK_LOST_MS) return;
     this.t += dt; this.count++;

@@ -453,6 +453,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     await this.sandbox.call('init', {
       soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, people: [...this.people], actions,
     });
+    await this.sandbox.checkPictures();
     this.stage.live = true;
     this.status.render();
     const arrival = await api('POST', `ludants/${this.recordId}/arrive`, { who: this.seat });

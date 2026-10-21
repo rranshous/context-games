@@ -5,8 +5,14 @@
 //
 // Every display frame the frame sends a tick (dt, t, frame, input). The buffer delivers
 // stage.frame to the ludant's hooks, renders three.js if it's on, and sends back what
-// was drawn as pictures (ImageBitmaps), which the frame shows. Pictures don't carry code,
-// so nothing the game runs reaches the page.
+// was drawn as pictures, which the frame shows. Pictures don't carry code, so nothing the
+// game runs reaches the page.
+//
+// Pictures go as ImageBitmaps (one per layer, handed over without copying) where the
+// browser can pass them between the sandbox's process and the page's. Firefox with site
+// isolation (Fission) silently drops them, so the frame checks with a probe when it starts
+// and, if the probe doesn't arrive, asks for pixels instead: one layer, composited here,
+// copied across as an ArrayBuffer.
 //
 // For game code, `api` is the handle it always was:
 //   ctx, width, height, t, frame, size(w, h), caption, input { keys, pressed, pointer }, three()
@@ -32,6 +38,7 @@ export class StageBuffer {
     this.halted = null;
     this.caption = '';
     this.sending = false;
+    this.pixels = false;    // send raw pixels instead of ImageBitmaps (see above)
     const stage = this;
     this.api = {
       ctx: this.ctx, input: this.input,
@@ -75,10 +82,16 @@ export class StageBuffer {
     if (this.sending) { this.again = true; return; }
     this.sending = true;
     try {
-      const layers = [];
-      if (this.gl?.active) layers.push(await createImageBitmap(this.glCanvas));
-      layers.push(await createImageBitmap(this.canvas));
-      this.frame.sendWith(layers, 'frame', { layers, caption: this.caption, three: Boolean(this.gl?.active) });
+      const three = Boolean(this.gl?.active);
+      if (this.pixels) {
+        const { data, width, height } = this.composite();
+        this.frame.sendWith([data.buffer], 'frame', { pixels: data.buffer, width, height, caption: this.caption, three });
+      } else {
+        const layers = [];
+        if (three) layers.push(await createImageBitmap(this.glCanvas));
+        layers.push(await createImageBitmap(this.canvas));
+        this.frame.sendWith(layers, 'frame', { layers, caption: this.caption, three });
+      }
     } catch (err) {
       // Said once, where people can see it: a stage that can't show its game looks dead.
       if (!this.pictureFault) { this.pictureFault = true; this.frame.send('note', 'fault', `the game's picture couldn't be sent to the stage: ${err?.message ?? err}`); }
@@ -86,6 +99,24 @@ export class StageBuffer {
       this.sending = false;
     }
     if (this.again) { this.again = false; this.show(); }
+  }
+
+  /** Both layers as one picture's pixels. */
+  composite() {
+    const c = this.flat ??= document.createElement('canvas');
+    if (c.width !== this.width || c.height !== this.height) { c.width = this.width; c.height = this.height; this.flatCtx = null; }
+    const g = this.flatCtx ??= c.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, c.width, c.height);
+    if (this.gl?.active) g.drawImage(this.glCanvas, 0, 0);
+    g.drawImage(this.canvas, 0, 0);
+    return g.getImageData(0, 0, c.width, c.height);
+  }
+
+  /** A small picture, for the frame to see whether pictures reach it at all. */
+  async probe() {
+    const c = document.createElement('canvas'); c.width = 4; c.height = 4;
+    const b = await createImageBitmap(c);
+    this.frame.sendWith([b], 'probe', b);
   }
 
   /** The frame cleared a halt (someone pressed restart). */

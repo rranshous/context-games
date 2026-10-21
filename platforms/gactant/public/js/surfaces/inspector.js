@@ -82,10 +82,10 @@ export class Inspector {
     area.value = content;
     const save = el('button', { class: 'wb-btn primary', onclick: () => actant.writeSection(this.tab, area.value, this.frame.seat) }, 'save');
     const err = actant?.faults[this.tab];
-    this.bodyEl.replaceChildren(
+    this.bodyEl.replaceChildren(...[
       err ? el('div', { class: 'insp-fault' }, err) : null,
       area,
       el('div', { class: 'insp-bar' }, el('span', {}, `${content.length} chars`), save),
-    );
+    ].filter(Boolean));
   }
 }

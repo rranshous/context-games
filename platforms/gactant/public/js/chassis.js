@@ -69,6 +69,8 @@ async function boot() {
       return { name: actant.name };
     },
     tick(t) { stage.tick(t); },
+    probe() { return stage.probe(); },
+    pictures(how) { stage.pixels = how === 'pixels'; },
     restart() { stage.restarted(); },
     event(e) {
       if (e.type === 'chat.posted') {

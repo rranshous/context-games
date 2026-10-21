@@ -76,6 +76,7 @@ export class Sandbox {
       },
       // The stage's buffer, reporting.
       frame: (picture) => frame.stage.shown(picture),
+      probe: (bitmap) => { bitmap?.close?.(); this.probed?.(); },
       size: (w, h) => frame.stage.resized(w, h),
       halt: (message) => frame.stage.halt(message),
       restart: () => frame.stage.restart(true),
@@ -91,6 +92,27 @@ export class Sandbox {
     this.inferences.push(now);
     const res = await this.frame.infer({ messages, tools });
     return res;
+  }
+
+  /** Can pictures (ImageBitmaps) get from the sandbox to here? Firefox with site isolation
+   *  drops them without a word, so ask for one and see. If it doesn't come, the sandbox
+   *  sends pixels instead. */
+  async checkPictures() {
+    const arrived = await new Promise((resolve) => {
+      this.probed = () => resolve(true);
+      setTimeout(() => resolve(false), 1500);
+      this.send('probe');
+    });
+    this.probed = null;
+    if (!arrived) this.usePixels('this browser doesn\'t pass pictures between the sandbox and the page');
+    return arrived;
+  }
+
+  usePixels(why) {
+    if (this.pixels) return;
+    this.pixels = true;
+    this.send('pictures', 'pixels');
+    this.frame.inspector.note('changed', `the stage is getting the game's pixels instead of pictures: ${why}`);
   }
 
   /** Every event on the frame's bus goes across, so the ludant's hooks hear it. */
