@@ -292,7 +292,7 @@ export class Stage {
     root.append(wrap);
     this.wrap = wrap;
     this.touch = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('pad');
-    if (this.touch) root.append(this.pad());
+    if (this.touch) root.append(this.padEl = this.pad());
 
     const key = (e) => e.key.toLowerCase();
     wrap.addEventListener('keydown', (e) => {
@@ -379,11 +379,16 @@ export class Stage {
       button(' ', 'space', 'pad-space'));
   }
 
-  /** Largest whole-number scale that fits once there's room for 2×; below that, whatever fits. */
+  /** Largest whole-number scale that fits once there's room for 2×; below that, whatever fits.
+   *  Never taller than the screen (on a phone the pane grows with what's in it), and the
+   *  touch pad takes its room unless it floats over the game. */
   fit() {
     if (!this.root) return;
     const r = this.root.getBoundingClientRect();
-    const s = Math.min((r.width - 8) / this.width, (r.height - 8) / this.height);
+    const pad = this.padEl && getComputedStyle(this.padEl).position !== 'absolute' ? this.padEl.offsetHeight : 0;
+    const full = document.body.classList.contains('fullplay');
+    const room = full ? innerHeight - pad : Math.min(r.height, innerHeight * 0.8) - pad;
+    const s = Math.min((r.width - 8) / this.width, (room - 8) / this.height);
     const k = s >= 2 ? Math.floor(s) : s;
     this.layers.style.width = `${Math.max(1, this.width * k)}px`;
     this.layers.style.height = `${Math.max(1, this.height * k)}px`;

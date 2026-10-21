@@ -253,7 +253,7 @@ class Frame {
     const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
     const busy = this.stage.personPlaying() ? ` ${this.seat} is playing your game right now (they gave it input moments ago): a change to your game section restarts it under their hands, so it may be kind to say so first, or wait for a pause.` : '';
     const away = document.hidden ? ` Nobody is looking at the frame right now (its window is in the background): your game keeps running only while you're busy, and what you post waits until ${this.seat} comes back.` : '';
-    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the lights at the top). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
+    const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (${this.stage.touch ? 'filling their phone\'s screen, with on-screen buttons over it' : 'and the lights at the top'}). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
     const rate = this.status.rate();
     const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
     const left = this.left();
@@ -425,6 +425,13 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     // In play mode only the stage shows, so the ludant's chat messages surface over it.
     this.toasts = el('div', { class: 'toasts' });
     main.querySelector('.stage-pane').append(this.toasts);
+    // On a phone, play mode fills the screen, with its own way out (there's no top bar).
+    this.fullBtn = el('button', { class: 'full-btn', title: 'full screen', onclick: () => this.goFullscreen() }, '⛶');
+    main.querySelector('.stage-pane').append(el('div', { class: 'full-bar' }, this.fullBtn,
+      el('button', { class: 'full-btn', title: 'show all', onclick: () => this.setPlaying(false) }, '✕')));
+    document.addEventListener('fullscreenchange', () => { this.fullBtn.hidden = Boolean(document.fullscreenElement); this.stage.fit(); });
+    this.fullBtn.hidden = !document.documentElement.requestFullscreen;
+    document.body.classList.toggle('fullplay', this.playing && this.stage.touch);
     this.bus.on('chat.posted', (e) => { if (this.playing && e.who !== this.seat) this.toast(e.who, e.text); }, 'frame');
     this.hint();
   }
@@ -503,8 +510,23 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     if (this.playBtn) this.playBtn.textContent = on ? 'show all' : 'play';
     try { localStorage.setItem('gactant-play', on ? '1' : '0'); } catch {}
     this.bus.emit('frame.view', { who: this.seat, playing: on });
+    document.body.classList.toggle('fullplay', on && this.stage.touch);
+    if (this.stage.touch) {
+      if (on) this.goFullscreen();
+      else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    }
     this.stage.fit();
     if (on) this.stage.wrap?.focus();
+  }
+
+  /** The browser's own full screen, where it has one (not on iPhones: there, play mode
+   *  still fills the page). A wide game turns the phone sideways if the browser allows. */
+  async goFullscreen() {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+      if (this.stage.width > this.stage.height) await screen.orientation?.lock?.('landscape');
+    } catch {}
+    this.stage.fit();
   }
 
   toast(who, text) {

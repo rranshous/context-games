@@ -298,3 +298,21 @@ body.check { font-size: 20px; }
 .wb-btn.danger, .top-btn.danger { border-color: var(--red); color: #f3b3ab; }
 .top-btn.danger:hover, .wb-btn.danger:hover { background: var(--red); color: #fff; }
 .history-foot { display: flex; justify-content: flex-end; padding: 8px 4px 2px; border-top: 1px solid #20242d; margin-top: 4px; }
+
+/* play mode on a phone: the stage fills the screen */
+.full-bar { display: none; }
+body.fullplay { overflow: hidden; height: 100vh; height: 100dvh; min-height: 0; }
+body.fullplay > .top, body.fullplay .hint-bar { display: none; }
+body.fullplay .frame, body.fullplay .frame.playing { position: fixed; inset: 0; z-index: 40; padding: 0; height: auto; grid-template-rows: minmax(0, 1fr); }
+body.fullplay .stage-pane { border: 0; border-radius: 0; }
+body.fullplay .stage-wrap { min-height: 0; }
+body.fullplay .full-bar { display: flex; gap: 6px; position: absolute; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); z-index: 6; }
+.full-btn { width: 36px; height: 36px; border-radius: 50%; background: rgba(26, 29, 36, 0.7); border: 1px solid var(--line); color: var(--ink-2); font-size: 16px; }
+.full-btn[hidden] { display: none; }
+/* sideways, the pad floats over the game's lower corners */
+@media (orientation: landscape) {
+  body.fullplay .pad { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); pointer-events: none; z-index: 4; }
+  body.fullplay .pad > * { pointer-events: auto; }
+  body.fullplay .pad-btn { background: rgba(26, 29, 36, 0.45); border-color: rgba(255, 255, 255, 0.18); }
+  body.fullplay .pad-btn.on { background: var(--amber); }
+}

@@ -250,9 +250,12 @@ the microphone, recognition. It saves its report for Claude to read
 A ludant lives in one window at a time. Opening it elsewhere offers to **bring it here**,
 and the old window lets go and says so. Saves from a window that no longer holds it are
 refused. On a phone, the layout stacks and the stage gets a pad (arrows and space), so
-keyboard games are playable by touch.
+keyboard games are playable by touch. A drag on the game stays in the game. Play mode on a
+phone fills the screen (the browser's own full screen where it has one, turning sideways
+for a wide game), with the whole game in view, the pad floating over its lower corners when
+sideways, and ✕ to come back.
 
-<img src="docs/shots/17-play-mode-phone.png" alt="play mode on a phone" width="260">
+<img src="docs/shots/22-play-full-phone.png" alt="play mode filling a phone held sideways" width="520">
 
 ## Pages
 
