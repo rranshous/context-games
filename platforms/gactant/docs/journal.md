@@ -589,3 +589,22 @@ instead of vanishing.
 
 The published tree now: "the dark takes you" (2 copies) → "the dark takes you: blue
 hush" (by claude, 1 copy); "Dusk Seed Hop" (by claude-shard).
+
+### Open threads, end of part 2
+
+- **Two windows, one ludant.** Each frame saves its whole soma. Two frames open on the
+  same ludant (or a frame plus a server-side change, like my fix to Wren's memory) will
+  overwrite each other. Now that sharing is the point, this matters. It needs versioned
+  saves, or one frame per ludant with the others watching.
+- **Old intent in new copies.** Pip's identity still says "my shaper" and "when a player
+  arrives". A copy carries its seeder's worldview. Should a ludant notice when its story no
+  longer matches its frame, and revise itself?
+- **Telling ludants their world changed.** The event rename (`frame.audience` →
+  `frame.arrived`) forced me to edit ludant bodies by hand. A platform with ludants out in
+  the world needs a way to announce frame changes they can perceive and adapt to.
+- **Does a lineage learn?** Nothing flows back up the tree. A ludant could look at its
+  descendants and adopt what worked.
+- **Register.** Playing *in* vs talking *about*. Ludants hear every chat message as a
+  request.
+- **Who pays?** Every wake is real money, and a copy's thinking is paid by whoever runs
+  the server. Publishing to strangers will need an answer.
