@@ -82,6 +82,7 @@ input:focus, textarea:focus { outline: 1px solid var(--amber); border-color: var
 .wb-btn.primary { background: var(--amber); color: #1a1408; border-color: var(--amber); font-weight: 600; }
 .wb-baton { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .wb-note { width: 180px; padding: 3px 8px; }
+.wb-seen { color: var(--ink-3); font: 12px var(--mono); }
 .wb-turn { color: var(--violet); font: 12px var(--mono); }
 
 /* chat */

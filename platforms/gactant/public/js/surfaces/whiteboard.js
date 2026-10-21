@@ -17,6 +17,7 @@
 //   whiteboard.drew   { who, count }
 //   whiteboard.turn   { from, to, note }
 //   whiteboard.cleared { who }
+//   whiteboard.looked { who }   someone took a look (so the others know their sketch was seen)
 
 import { el } from '../ui.js';
 
@@ -47,7 +48,7 @@ export class Whiteboard {
       undo: () => this.undo(who),
       clear: () => this.clear(who),
       pass: (to, note) => this.pass(who, to, note),
-      look: () => this.look(),
+      look: () => this.look(who),
     };
   }
 
@@ -94,7 +95,8 @@ export class Whiteboard {
     return { baton: to };
   }
 
-  look() {
+  look(who) {
+    if (who) { this.lastLook = { who, at: Date.now() }; this.renderBaton(); this.frame.bus.emit('whiteboard.looked', { who }); }
     // Draw onto a fresh canvas so a look works even when the board isn't mounted.
     const c = document.createElement('canvas');
     c.width = W * 8; c.height = H * 8;
@@ -199,6 +201,10 @@ export class Whiteboard {
     if (!this.batonEl) return;
     const seat = this.frame.seat, other = this.frame.actant?.name ?? 'the actant';
     this.batonEl.replaceChildren();
+    if (this.lastLook && this.lastLook.who !== seat) {
+      const mins = Math.round((Date.now() - this.lastLook.at) / 60000);
+      this.batonEl.append(el('span', { class: 'wb-seen' }, `${this.lastLook.who} looked ${mins < 1 ? 'just now' : `${mins}m ago`}`));
+    }
     if (this.baton && this.baton !== seat) {
       this.batonEl.append(el('span', { class: 'wb-turn' }, `${this.baton}'s turn`),
         el('button', { class: 'wb-btn', onclick: () => this.pass(this.baton, seat, '') }, 'take it back'));
@@ -208,6 +214,6 @@ export class Whiteboard {
     }
   }
 
-  toJSON() { return { items: this.items, baton: this.baton, note: this.note }; }
-  load(json) { this.items = json?.items ?? []; this.baton = json?.baton ?? null; this.note = json?.note ?? ''; }
+  toJSON() { return { items: this.items, baton: this.baton, note: this.note, lastLook: this.lastLook }; }
+  load(json) { this.items = json?.items ?? []; this.baton = json?.baton ?? null; this.note = json?.note ?? ''; this.lastLook = json?.lastLook ?? null; }
 }

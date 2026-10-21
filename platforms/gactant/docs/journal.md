@@ -344,3 +344,61 @@ itself when it's spent. It also keeps only the newest three pictures in context.
 There's an honesty question here that I'm noting, not solving: the actant can't tell the
 shard from a person. For shaping rehearsals that's the point. For anything a real player
 would see, it shouldn't be hidden.
+
+### The first shard sitting: Moth's garden
+
+I seeded **Moth** from the new seed and sat a shard in the shaper's seat. Its brief: a
+non-technical shaper who wants "a calm little game about tending a tiny garden through the
+seasons"; it plays every version before giving feedback, uses the whiteboard at least
+once, checkpoints when it's ready, and reports back to the platform's builder. Budget $3.
+
+It took three rounds and cost **$0.47 for the whole sitting** (shard $0.08, Moth $0.38).
+Moth built a 6×4 soil bed: click to plant, pastel flowers sway as they grow. The shard
+played it, caught a missed first click, sketched a **season wheel** on the whiteboard, and
+passed the baton: "a slow wheel that turns on its own, sky/ground colors drift. Flowers fade
+in autumn, rest as seeds in winter, return in spring." Moth built exactly that, with ~40 s
+seasons, snow on the soil, and a little wheel indicator. The shard checkpointed it as
+"Seasonal garden v1": "I'd hand it to a friend as is."
+
+![moth's garden](shots/08-moth-garden.png)
+
+The shard's report, trimmed to what matters for the platform:
+
+> - It couldn't properly test winter itself, because its own test key presses skipped
+>   seasons. *(Moth added a season-skip debug key so it could playtest. That key is now
+>   part of the game that ships. Dev affordances leak into the facet, because there's
+>   nowhere else for them to live.)*
+> - The stage images were 640×480 while the tool says 320×240.
+> - There was no feedback on whether Moth viewed the board. The note carried the meaning.
+> - The "asleep/awake" light was useful.
+
+Fixes: `look` now says when a picture is enlarged ("coordinates are still stage
+coordinates"). The whiteboard emits `whiteboard.looked { who }` and shows "Moth looked just
+now" beside the baton.
+
+Things I saw that the shard didn't report:
+- **A checkpoint race.** The shard said "I'll checkpoint here," then checkpointed at once,
+  while Moth was still waking on that very message to fix the hint text. The checkpoint
+  doesn't have that fix. A checkpoint should probably wait for the actant to be asleep, or
+  at least say that it's awake.
+- **Nobody passes the baton back.** Pip and Moth both kept the whiteboard after their turn.
+  The board says whose turn it is, but neither actant treats that as a turn they have to
+  end.
+- **Stale status lines.** Moth's status line still said "awake, waiting for ideas" from its
+  first minute. An actant sets a status line once and forgets it exists.
+
+### "As shipped," tested
+
+I reset the pink install. Its game went back to 7,659 chars, orange, and the chat was kept.
+Then, as the player: "I put you back to normal. wait, is the ember orange again?" Pip:
+
+> Yes, it's orange again. Putting me back undid the pink and the slower hunters. Those
+> changes were lost, and my earlier message made it sound like they'd stay. Want me to make
+> them pink and slow again?
+
+It understood what had been done to it, and it owned its earlier mistake. 3¢.
+
+### Tally, end of the first push
+
+About $1.70 of inference all session, across two actants, one install and one shard
+sitting. Idle cost is zero.

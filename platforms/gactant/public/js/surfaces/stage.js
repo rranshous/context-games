@@ -113,7 +113,7 @@ export class Stage {
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
     g.drawImage(this.canvas, 0, 0, c.width, c.height);
-    return { text: this.describe(), image: c.toDataURL('image/png') };
+    return { text: `${this.describe()}${k > 1 ? ` (This picture is enlarged ${k}× so pixels are clear; coordinates are still stage coordinates, ${this.width}×${this.height}.)` : ''}`, image: c.toDataURL('image/png') };
   }
 
   mount(root) {
