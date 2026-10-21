@@ -12,7 +12,7 @@
   <script type="module">
     // A publication link takes a copy for this browser's person, then opens it. The copy
     // is remembered per publication, so coming back finds the same one.
-    import { api, myName } from '/js/ui.js';
+    import { api, askName, remember } from '/js/ui.js';
     const p = new URLSearchParams(location.search).get('p');
     const key = `gactant-copy-${p}`;
     let id = null;
@@ -20,11 +20,13 @@
     try {
       if (id) await api('GET', `ludants/${id}`).catch(() => { id = null; });
       if (!id) {
-        const by = myName() || prompt('What should the ludants here call you?', '')?.trim() || 'someone';
-        try { localStorage.setItem('gactant-name', by); } catch {}
+        document.getElementById('msg').textContent = '';
+        const by = await askName('Playing gives you your own copy of this ludant, and it will know you by this name.');
+        document.getElementById('msg').textContent = 'taking a copy…';
         ({ id } = await api('POST', `published/${p}/copy`, { by }));
         try { localStorage.setItem(key, id); } catch {}
       }
+      remember(id);
       location.replace(`/frame.html?l=${id}`);
     } catch (err) { document.getElementById('msg').textContent = `couldn't take a copy: ${err.message}`; }
   </script>

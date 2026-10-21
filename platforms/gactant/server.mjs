@@ -53,6 +53,7 @@ const core = createCore({
     model: MODEL,
     key: process.env.OPENROUTER_API_KEY || '',
     public: process.env.GACTANT_PUBLIC === '1',
+    adminToken: process.env.GACTANT_ADMIN_TOKEN || '',
     sandbox: '',   // the sandbox page is served from here (its iframe's origin is opaque anyway)
     log: (who, record) => appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n'),
     tail: (who, n) => {

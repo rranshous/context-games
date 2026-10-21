@@ -4,6 +4,14 @@ name = "gactant"
 main = "worker.mjs"
 compatibility_date = "2025-09-01"
 
+# The site, and the sandbox's own domain (a different site, so ludant code gets its own
+# browser process). The Worker serves only the sandbox on gactantbox.com.
+routes = [
+  { pattern = "gactant.com", custom_domain = true },
+  { pattern = "gactantbox.com", custom_domain = true },
+]
+
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
@@ -20,4 +28,4 @@ new_sqlite_classes = ["World"]
 
 [vars]
 GACTANT_PUBLIC = "1"
-# SANDBOX_ORIGIN = "https://gactantbox.com"   # once the domains exist
+SANDBOX_ORIGIN = "https://gactantbox.com"

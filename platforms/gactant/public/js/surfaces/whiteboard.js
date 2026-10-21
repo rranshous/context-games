@@ -210,7 +210,7 @@ export class Whiteboard {
       el('button', { class: 'wb-btn', onclick: () => { if (confirm('Clear the whiteboard?')) this.clear(this.frame.seat); } }, 'clear'),
       this.batonEl);
     const holder = el('div', { class: 'wb-holder' }, canvas);
-    root.append(holder, bar);
+    root.append(el('div', { class: 'pane-label' }, 'whiteboard: sketch an idea, then hand it over'), holder, bar);
     // Keep the board's shape: as large as fits, centred, so pointer maths stays exact.
     new ResizeObserver(() => {
       const r = holder.getBoundingClientRect();

@@ -3,28 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>gactant</title>
+  <title>gactant · games that are alive</title>
+  <meta name="description" content="Ludants: games that are also AIs. Play one, tell it what you'd change, and it changes itself.">
   <link rel="stylesheet" href="/css/gactant.css">
   <link rel="icon" href="/favicon.svg">
 </head>
 <body class="lobby">
-  <header class="top"><span class="brand">gactant</span><span class="tagline">ludants: games that are also actants</span><span class="spacer"></span><label class="me">you are <input id="me" placeholder="your name" maxlength="40"></label><span id="config"></span></header>
-  <main class="lobby-main">
-    <section>
-      <h2>Published</h2>
-      <p class="hint">Take a copy of one and it's yours: play it, ask it to change, publish it again.</p>
-      <ul id="published" class="cards"></ul>
-    </section>
-    <section>
-      <h2>Ludants here</h2>
-      <p class="hint">Every one of these can be played and shaped. Some were seeded; some are copies.</p>
-      <form id="seed" class="seed">
-        <span class="hint">A new seed gets a name of its own; its game's title joins the name once it knows what it is.</span>
-        <button>seed a new ludant</button>
-      </form>
-      <ul id="ludants" class="cards"></ul>
-    </section>
-  </main>
+  <header class="top">
+    <span class="brand">gactant</span>
+    <span class="tagline">games that are alive</span>
+    <span class="spacer"></span>
+    <span id="me" class="me"></span>
+  </header>
+  <main class="lobby-main" id="lobby"></main>
   <script type="module" src="/js/lobby.js"></script>
 </body>
 </html>

@@ -24,3 +24,32 @@ export const api = async (method, path, body) => {
 export function myName() {
   try { return localStorage.getItem('gactant-name') || ''; } catch { return ''; }
 }
+
+/** Ask the person's name, inline, the first time it's needed. Resolves with it (and keeps it). */
+export function askName(why = 'Ludants know the people who sit with them by name.') {
+  const known = myName();
+  if (known) return Promise.resolve(known);
+  return new Promise((resolve) => {
+    const input = el('input', { class: 'name-input', placeholder: 'your name', maxlength: '40', autocomplete: 'nickname' });
+    const done = () => {
+      const name = input.value.trim();
+      if (!name) { input.focus(); return; }
+      try { localStorage.setItem('gactant-name', name); } catch {}
+      box.remove();
+      resolve(name);
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
+    const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' },
+      el('p', {}, el('strong', {}, 'What should we call you? '), why),
+      input, el('button', { class: 'top-btn primary', onclick: done }, 'that\'s me')));
+    document.body.append(box);
+    input.focus();
+  });
+}
+
+// The ludants this browser has sat with, newest first: how someone finds their way back.
+const MINE = 'gactant-mine';
+export function mine() { try { return JSON.parse(localStorage.getItem(MINE) || '[]'); } catch { return []; } }
+export function remember(id) {
+  try { localStorage.setItem(MINE, JSON.stringify([{ id, at: Date.now() }, ...mine().filter((m) => m.id !== id)].slice(0, 40))); } catch {}
+}

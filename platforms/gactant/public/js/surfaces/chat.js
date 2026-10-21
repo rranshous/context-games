@@ -41,7 +41,7 @@ export class Chat {
 
   mount(root) {
     this.log = el('div', { class: 'chat-log' });
-    const input = el('textarea', { class: 'chat-input', rows: 2, placeholder: 'say something…' });
+    const input = el('textarea', { class: 'chat-input', rows: 2, placeholder: `talk to ${this.frame.actant?.name ?? 'the ludant'}…` });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();

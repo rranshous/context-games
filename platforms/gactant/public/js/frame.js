@@ -22,12 +22,12 @@ import { Stage } from './surfaces/stage.js';
 import { Status } from './surfaces/status.js';
 import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
-import { api, el, myName } from './ui.js';
+import { api, askName, el, remember } from './ui.js';
 import { installExplorer } from './explorer.js';
 
 const SAVE_MS = 800;
 const HEARTBEAT_MS = 5000;
-const CHECK_IN = 1.0;   // dollars: by default, the frame checks in each time a sitting passes another one
+const THUMB_MS = 90000;   // how often the lobby's picture of this ludant is refreshed
 
 // What this is, said plainly to the ludant at every wake. Ludants do better when they
 // know the goals and that it's an experiment. The frame owns this, not the soma, and it's
@@ -168,9 +168,9 @@ class Frame {
     if (this.payer()) return Promise.resolve();
     this.asking ??= new Promise((resolve, reject) => {
       const box = el('div', { class: 'banner' },
-        el('p', {}, `${this.actant.name} wants to think. Thinking runs on your own OpenRouter account and costs real money (usually cents); the meter at the top shows what this sitting has cost.`),
+        el('p', {}, el('strong', {}, `${this.actant.name} wants to think. `), 'Its thinking runs on your own OpenRouter account and costs real money, usually a few cents at a time. The meter at the top shows what this sitting has cost. You can play without it; it just won\'t answer or change.'),
         el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
-        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(`${this.seat} hasn't connected thinking, so you can't think in this sitting yet`)); } }, 'not now'));
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(`${this.seat} hasn't connected thinking, so you can't think in this sitting yet`)); } }, 'just play'));
       document.body.append(box);
     });
     return this.asking;
@@ -275,6 +275,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
    *  its title section first (by whoever is publishing), which renames it. */
   async publish(note = '', title = null, by = this.seat) {
     await this.settled('publishing');
+    await this.sendThumb();
     const before = this.actant.soma.sections.title ?? '';
     const retitled = title != null && title.trim() !== before.trim();
     if (retitled) {
@@ -315,13 +316,25 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 
   checkpoints() { return api('GET', `ludants/${this.recordId}/checkpoints`); }
 
+  /** A small picture of the stage for the lobby. */
+  async sendThumb() {
+    if (this.lost || !this.stage.count) return;
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = Math.round(320 * this.stage.height / this.stage.width);
+    const g = c.getContext('2d');
+    g.drawImage(this.stage.canvas, 0, 0, c.width, c.height);
+    try { await api('POST', `ludants/${this.recordId}/thumb`, { token: this.token, image: c.toDataURL('image/jpeg', 0.72) }); } catch {}
+  }
+
   mount() {
     const top = el('header', { class: 'top' },
       el('a', { class: 'brand', href: '/' }, 'gactant'),
       el('div', { class: 'status' }),
       el('div', { class: 'top-actions' }));
-    let folded = false, playing = false;
-    try { folded = localStorage.getItem('gactant-fold') === '1'; playing = localStorage.getItem('gactant-play') === '1'; } catch {}
+    // The inside starts folded until someone opens it: new people need the game and the
+    // chat first.
+    let folded = true, playing = false;
+    try { folded = localStorage.getItem('gactant-fold') !== '0'; playing = localStorage.getItem('gactant-play') === '1'; } catch {}
     this.playing = playing;
     const main = el('main', { class: `frame${folded ? ' folded' : ''}${playing ? ' playing' : ''}` },
       el('section', { class: 'pane stage-pane' }),
@@ -341,6 +354,16 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.toasts = el('div', { class: 'toasts' });
     main.querySelector('.stage-pane').append(this.toasts);
     this.bus.on('chat.posted', (e) => { if (this.playing && e.who !== this.seat) this.toast(e.who, e.text); }, 'frame');
+    this.hint();
+  }
+
+  /** The first sitting in this browser gets one line about what's going on. */
+  hint() {
+    try { if (localStorage.getItem('gactant-hinted')) return; } catch { return; }
+    const bar = el('div', { class: 'hint-bar' },
+      el('span', {}, `${this.actant.name} is a game that's also alive. Play it, and talk to it in the chat: ask it to change something and it will change itself.`),
+      el('button', { class: 'wb-btn', onclick: () => { bar.remove(); try { localStorage.setItem('gactant-hinted', '1'); } catch {} } }, 'got it'));
+    this.main.before(bar);
   }
 
   /** Play mode: hide every surface but the stage. The ludant is told, since it changes
@@ -372,7 +395,14 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       const cps = await this.checkpoints();
       const when = (at) => new Date(at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
       history.replaceChildren(
-        el('div', { class: 'history-head' }, 'checkpoints: go back to any of them'),
+        el('div', { class: 'history-head' },
+          el('span', {}, `Every version of ${this.actant.name} worth keeping. One is kept whenever someone sits down; go back to any of them (the chat stays).`),
+          el('button', { class: 'wb-btn', onclick: async () => {
+            const label = prompt('A label for how it is now (optional):', '');
+            if (label === null) return;
+            await this.takeCheckpoint(label);
+            history.classList.remove('on'); toggleHistory();
+          } }, 'keep this version')),
         ...cps.slice().reverse().map((cp) => el('div', { class: 'history-row' },
           el('span', { class: 'history-n' }, `#${cp.n}`),
           el('span', { class: 'history-label' }, cp.label || '(no label)', el('em', {}, ` ${cp.by ? `${cp.by} · ` : ''}${when(cp.at)}`)),
@@ -382,11 +412,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
       );
     };
     root.append(
-      el('button', { class: 'top-btn', onclick: async () => {
-        const label = prompt('Label for this checkpoint (optional):', '');
-        if (label !== null) await this.takeCheckpoint(label);
-      } }, 'checkpoint'),
-      el('button', { class: 'top-btn', onclick: toggleHistory }, 'history'),
+      el('button', { class: 'top-btn', title: 'versions of this ludant: keep one, or go back to one', onclick: toggleHistory }, 'history'),
       el('button', { class: 'top-btn primary', onclick: async () => {
         const given = this.actant.soma.given;
         const title = prompt(`Publish under the name ${given}-<title>. Each name belongs to one snapshot, so a new publication needs a new title. Title:`, this.actant.soma.sections.title ?? '');
@@ -397,8 +423,9 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
           prompt(`Published as ${name}. Anyone can take a copy here:`, url);
         } catch (err) { alert(err.message); }
       } }, 'publish'),
+      el('a', { class: 'top-btn', href: '/', title: 'back to the lobby' }, 'lobby'),
       this.playBtn = el('button', { class: `top-btn${this.playing ? ' on' : ''}`, title: 'show only the stage', onclick: () => this.setPlaying(!this.playing) }, this.playing ? 'show all' : 'play'),
-      el('button', { class: 'top-btn', title: 'fold the inspector away', onclick: () => {
+      el('button', { class: 'top-btn', title: 'look inside: its soma, what it\'s doing, its store', onclick: () => {
         const f = main.classList.toggle('folded');
         try { localStorage.setItem('gactant-fold', f ? '1' : '0'); } catch {}
       } }, 'inside'),
@@ -437,8 +464,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
-  const seat = myName() || prompt('What should the ludants here call you?', '')?.trim() || 'someone';
-  try { localStorage.setItem('gactant-name', seat); } catch {}
+  const seat = await askName();
+  remember(id);
   const [record, config] = await Promise.all([api('GET', `ludants/${id}`), api('GET', 'config')]);
   const frame = new Frame(record, seat);
   frame.config = config;
@@ -446,6 +473,8 @@ async function boot() {
   frame.mount();
   await frame.hold();
   await frame.start();
+  setTimeout(() => frame.sendThumb(), 5000);
+  setInterval(() => { if (document.visibilityState === 'visible') frame.sendThumb(); }, THUMB_MS);
   installExplorer(frame);
   const brief = new URLSearchParams(location.search).get('shard');
   if (brief) window.explorer.shard(brief).then((r) => console.log('[shard]', r));

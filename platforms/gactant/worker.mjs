@@ -30,6 +30,7 @@ export class World extends DurableObject {
         model: env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5',
         key: env.OPENROUTER_API_KEY || '',
         public: env.GACTANT_PUBLIC === '1',
+        adminToken: env.ADMIN_TOKEN || '',
         sandbox: env.SANDBOX_ORIGIN || '',
       },
     });

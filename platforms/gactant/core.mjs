@@ -9,10 +9,12 @@
 // A store keeps JSON documents by kind and id, and is async whether or not it needs to be:
 //   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]
 // Kinds: ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
-// names in use, so a new seed's is fresh).
+// names in use, so a new seed's is fresh), thumbs (a small picture of a ludant's or a
+// publication's stage, `l-<id>` or `p-<id>`, kept apart so lists stay light).
 //
 // settings: { model, key (OpenRouter, or ''), public (bool), sandbox (origin of the sandbox
 //             page, or '' for this one), log(who, record), tail(who, n) }
+//   adminToken: lets tools/push.mjs bring publications here from another install.
 //   public: the install is open to anyone. Then nobody can list every ludant (a ludant is
 //   reached by its link, or published), and inference isn't logged.
 //
@@ -45,6 +47,10 @@
 //                                                   409 if this snapshot or this name is already published
 //   GET  published/<id>                          -> metadata
 //   POST published/<id>/copy { by }              -> { id }          a new ludant, descended from it
+//   POST ludants/<id>/thumb { token, image }     -> {}             a picture of its stage now (a small JPEG data URL)
+//   GET  thumbs/<l|p>/<id>                       -> { image }       (null if there's none yet)
+//   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
+//                                                   (tools/push.mjs); needs settings.adminToken
 //   POST infer          { who, messages, tools? } -> OpenRouter chat completion, on the install's key
 //                                                   (people with their own OpenRouter key call it from the browser)
 //   POST log/<who>      { record }               -> {}             a think the browser made itself
@@ -58,6 +64,7 @@ const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
 const HOLD_STALE_MS = 20000;
 const MAX_LUDANT = 1_500_000;    // characters of JSON in a save: soma and surfaces together
 const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
+const MAX_THUMB = 60_000;        // characters of data URL
 
 export function httpError(code, message, extra) { return Object.assign(new Error(message), { code, extra }); }
 
@@ -221,6 +228,20 @@ export function createCore({ store, settings }) {
     if (a === 'infer' && method === 'POST') return infer(body);
     if (a === 'log' && b && method === 'POST') { if (!isPublic) await log(safe(b), { ...body, last: summarize(body.last) }); return {}; }
     if (a === 'log' && b) return isPublic ? [] : tail(safe(b), Number(query.get('n')) || 20);
+    if (a === 'admin' && b === 'import' && method === 'POST') {
+      if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
+      let imported = 0;
+      for (const p of body.published ?? []) {
+        if (!p?.id || !p.soma?.given || !p.name) continue;
+        safe(p.id);
+        if (await store.get('published', p.id)) continue;
+        await store.put('published', p.id, { ...p, copies: 0, stats: undefined });
+        await store.put('names', p.soma.given.toLowerCase(), { given: p.soma.given, at: now() });
+        imported++;
+      }
+      return { imported };
+    }
+    if (a === 'thumbs' && (b === 'l' || b === 'p') && c) return { image: (await store.get('thumbs', `${b}-${safe(c)}`))?.image ?? null };
 
     if (a === 'ludants') {
       if (!b && method === 'GET') {
@@ -264,6 +285,20 @@ export function createCore({ store, settings }) {
         requireHold(b, body.token);
         await played(b, Number(body.seconds) || 0, Number(body.spent) || 0);
         return { held: true };
+      }
+      if (c === 'thumb' && method === 'POST') {
+        requireHold(b, body.token);
+        const image = String(body.image ?? '');
+        if (!image.startsWith('data:image/') || image.length > MAX_THUMB) throw httpError(400, 'a thumb is a small image data URL');
+        await store.put('thumbs', `l-${b}`, { image, at: now() });
+        // A publication without a picture takes its first player's, while their copy is
+        // still exactly what was published.
+        const from = ludant.lineage?.from?.published;
+        if (from && !(await store.get('thumbs', `p-${from}`))) {
+          const pub = await store.get('published', from);
+          if (pub && sameBody(pub.soma, ludant.soma)) await store.put('thumbs', `p-${from}`, { image, at: now() });
+        }
+        return {};
       }
       if (c === 'release' && method === 'POST') {
         if (holds.get(b)?.token === body.token) holds.delete(b);
@@ -330,6 +365,9 @@ export function createCore({ store, settings }) {
           ludant: ludant.id, n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
           copies: 0, soma: structuredClone(ludant.soma),
         });
+        // Its picture is the ludant's latest, so the lobby can show what it looks like.
+        const thumb = await store.get('thumbs', `l-${ludant.id}`);
+        if (thumb) await store.put('thumbs', `p-${id}`, thumb);
         return { id, name };
       }
       const pub = await read('published', b);
