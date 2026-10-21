@@ -24,6 +24,9 @@
 //   stage.pointer  { x, y, kind }        kind: down | up
 //   stage.halted   { message }           a frame handler threw; the stage stops until restarted
 //
+// On touch screens the stage shows a pad (arrows and a space button) that holds and
+// releases those keys, so a game written for the keyboard is playable on a phone.
+//
 // A frame handler that throws halts the stage at once, because a game that throws on
 // every frame is broken, not unlucky.
 
@@ -54,7 +57,7 @@ export class Stage {
 
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()).`;
+    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()).`;
   }
 
   actions() {
@@ -143,6 +146,8 @@ export class Stage {
     const wrap = el('div', { class: 'stage-wrap', tabindex: 0 }, this.canvas, this.haltEl);
     root.append(wrap);
     this.wrap = wrap;
+    this.touch = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('pad');
+    if (this.touch) root.append(this.pad());
 
     const key = (e) => e.key.toLowerCase();
     wrap.addEventListener('keydown', (e) => {
@@ -184,6 +189,24 @@ export class Stage {
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  /** Buttons that press keys while a finger is on them. */
+  pad() {
+    const button = (key, label, cls = '') => {
+      const b = el('button', { class: `pad-btn ${cls}`, 'aria-label': key }, label);
+      const up = () => { b.classList.remove('on'); this.keyUp(key); };
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('on'); this.keyDown(key); });
+      b.addEventListener('pointerup', up);
+      b.addEventListener('pointercancel', up);
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+      return b;
+    };
+    return el('div', { class: 'pad' },
+      el('div', { class: 'pad-arrows' },
+        el('span'), button('arrowup', '▲'), el('span'),
+        button('arrowleft', '◀'), button('arrowdown', '▼'), button('arrowright', '▶')),
+      button(' ', 'space', 'pad-space'));
   }
 
   /** Largest whole-number scale that fits once there's room for 2×; below that, whatever fits. */

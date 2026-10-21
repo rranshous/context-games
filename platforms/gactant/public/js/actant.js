@@ -126,7 +126,17 @@ export class Actant {
 
   // ---------- waking ----------
 
+  /** Stop for good in this window: another window holds the ludant now. */
+  sleepForever() {
+    this.asleepForever = true;
+    clearTimeout(this.timer);
+    this.pending = [];
+    for (const off of this.offHooks) off();
+    this.offHooks = [];
+  }
+
   wake(event) {
+    if (this.asleepForever) return;
     const human = this.frame.isPerson(event?.who) || this.frame.isPerson(event?.from);
     this.restless = human ? 0 : this.restless + 1;
     this.pending.push(event);
@@ -150,7 +160,7 @@ export class Actant {
   }
 
   async think() {
-    if (this.thinking || !this.pending.length) return;
+    if (this.thinking || !this.pending.length || this.asleepForever) return;
     this.thinking = true;
     this.frame.status.setLife('thinking');
     const messages = [{ role: 'user', content: eventsBlock(this.pending.splice(0)) }];
@@ -158,7 +168,7 @@ export class Actant {
     // actant read its own fresh edits as code that had always been there.
     const system = [{ type: 'text', text: this.systemText(), cache_control: { type: 'ephemeral' } }];
     try {
-      for (let turn = 0; turn < MAX_TURNS; turn++) {
+      for (let turn = 0; turn < MAX_TURNS && !this.asleepForever; turn++) {
         const res = await api('POST', 'infer', {
           who: this.frame.recordId,
           messages: [{ role: 'system', content: system }, ...withCacheMark(messages)],

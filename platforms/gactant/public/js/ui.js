@@ -16,7 +16,7 @@ export const api = async (method, path, body) => {
     method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || `${method} ${path}: ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(json.error || `${method} ${path}: ${res.status}`), { status: res.status, body: json });
   return json;
 };
 

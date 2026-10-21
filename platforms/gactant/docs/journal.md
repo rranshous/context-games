@@ -608,3 +608,91 @@ hush" (by claude, 1 copy); "Dusk Seed Hop" (by claude-shard).
   request.
 - **Who pays?** Every wake is real money, and a copy's thinking is paid by whoever runs
   the server. Publishing to strangers will need an answer.
+
+---
+
+## 2026-10-20 · Session 1, part 3: one window, a clean slate, phones
+
+### Robby's calls
+
+On the open threads:
+- **Fix the two-window overwrite now.**
+- **No migrations.** "Renaming an event where we're just starting this project. What's
+  not worried about migrations? Let's just wipe everything clean and start over as we make
+  changes to the contracts." So when a contract changes, data is wiped and we start over.
+  The journal and git keep the history. (The part 2 migration that hand-edited Pip's and
+  Moth's hooks was the last of its kind.)
+- **Upstream flow is parked.** Information flowing back up a lineage from copies is
+  "interesting but let's put that kind of information sharing to the side for now." It's
+  noted below with the other parked threads.
+- **Mobile:** "Is it set up such that I'll be able to use it on my mobile?"
+
+### One window holds a ludant
+
+Each frame saves the whole soma, so two windows on one ludant were last-write-wins. Now
+**a window must hold the ludant to save it**:
+- On open, the frame asks the server for the hold (`POST …/hold`). If another window has
+  it, a cover says "Kit is open in another window (claude, since 9:20 PM). A ludant lives
+  in one window at a time" and offers **bring it here** (it takes the hold over) or
+  **lobby**.
+- A held window heartbeats every 5 s. The window that lost the hold finds out on its next
+  heartbeat or save. It stops saving, stops thinking (the actant sleeps for good, hooks
+  disconnected, pending wakes dropped), halts the stage, and covers itself: "Kit moved to
+  another window. This window has let go of it, so nothing here is saved any more."
+- The server refuses any save (`PUT`) from a window that doesn't hold the ludant (409),
+  so no write can slip through even when a heartbeat is late. Tested: after the takeover,
+  a save carrying the old window's token got 409.
+- Holds live in server memory and go stale after 20 s; closing a tab releases the hold
+  with a beacon. A server restart forgets all holds, and the next heartbeat takes them
+  again.
+
+![second window](shots/10-second-window.png)
+
+This is "one table, one room." Two people sitting with the same ludant at once, on two
+devices, would be the real thing, and it's parked for later.
+
+### The wipe
+
+Saving gained a token, so the save contract changed, and `data/` was wiped: Pip, Moth,
+Wren, every copy and every publication. The journal is their record now. I seeded
+**Kit** to test with.
+
+### Phones
+
+Robby wants to use it from his phone, so I checked:
+- **A crash I'd have shipped:** the hold token used `crypto.randomUUID()`, which only
+  exists on secure pages (https or localhost). A phone reaching `http://lilg:7780` over the
+  LAN would have died at load. It now uses `crypto.getRandomValues`, which works anywhere.
+  No other secure-only APIs are in use.
+- **A phone has no arrow keys,** so every keyboard game would have been unplayable. On
+  touch screens (`pointer: coarse`, or `?pad` to force it) the stage now shows a **pad**:
+  four arrows and a big space button that hold and release those keys like a keyboard
+  would. The stage tells ludants about it: "People on touch screens get an on-screen pad
+  that presses the arrow keys and space, so games should be playable with those (or the
+  pointer) alone."
+- Narrow layout: the top bar wraps, and the stage (with pad), chat, whiteboard and
+  inspector stack. The whiteboard and stage already used pointer events, so drawing and
+  tapping work with fingers.
+- The server listens on all interfaces, so the phone address is **http://lilg:7780/**.
+
+![phone](shots/11-phone.png)
+
+### Parked threads (not now, but not forgotten)
+
+- **Upstream flow in a lineage.** Copies drift apart, and nothing they learn reaches their
+  ancestors or siblings. A ludant could look at its descendants' publications and adopt
+  what worked, the way Pip's `play` tool flowed into the seed (by my hand). Robby finds it
+  interesting; parked on purpose.
+- **Several people at one ludant at once.** Today one window holds it. Real shared
+  sitting (two devices, one ludant, both seats live) needs live sync of surfaces and a
+  single place where the ludant thinks.
+- **Old intent in new copies.** A copy carries its seeder's worldview in its identity
+  (Pip's spoke of "my shaper" long after shapers stopped existing). Should a ludant notice
+  when its story no longer matches its frame, and revise itself?
+- **Telling ludants their world changed.** With wipes on contract changes this matters
+  less while we're early. Once ludants live out in the world, a frame change has to be
+  something they can perceive and adapt to, not something done to their bodies.
+- **Register.** Playing *in* versus talking *about*. Ludants hear every chat message as a
+  request; "that was too hard" might be venting.
+- **Who pays.** Every wake is real money paid by whoever runs the server. Publishing to
+  strangers needs an answer.

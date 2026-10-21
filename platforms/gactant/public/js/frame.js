@@ -18,6 +18,7 @@ import { api, el, myName } from './ui.js';
 import { installExplorer } from './explorer.js';
 
 const SAVE_MS = 800;
+const HEARTBEAT_MS = 5000;
 
 class Frame {
   constructor(record, seat) {
@@ -35,6 +36,49 @@ class Frame {
     for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
     this.actant = new Actant(this, record.soma);
     this.saveTimer = null;
+    // This window's claim on the ludant. (crypto.randomUUID needs https, and a phone on
+    // the LAN reaches this over plain http.)
+    this.token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+    this.lost = null;                   // set once another window takes the ludant
+  }
+
+  /** Hold the ludant so only this window saves it. Another window may be holding it:
+   *  then the person chooses whether to take it over. */
+  async hold() {
+    try {
+      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat });
+    } catch (err) {
+      if (err.status !== 409) throw err;
+      const since = err.body?.since ? new Date(err.body.since).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+      await this.ask(`${this.actant.name} is open in another window${err.body?.heldBy ? ` (${err.body.heldBy}${since ? `, since ${since}` : ''})` : ''}. A ludant lives in one window at a time.`, 'bring it here');
+      await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat, takeOver: true });
+    }
+    this.heartbeat = setInterval(async () => {
+      try { await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token }); }
+      catch (err) { if (err.status === 409) this.lose(err.body?.heldBy); }
+    }, HEARTBEAT_MS);
+    addEventListener('pagehide', () => navigator.sendBeacon(`/api/ludants/${this.recordId}/release`, JSON.stringify({ token: this.token })));
+  }
+
+  /** Another window has the ludant now. This one stops: no saving, no thinking, no game. */
+  lose(heldBy) {
+    if (this.lost) return;
+    this.lost = heldBy || 'another window';
+    clearInterval(this.heartbeat);
+    clearTimeout(this.saveTimer);
+    this.actant.sleepForever();
+    this.stage.halted = 'moved';
+    this.cover(`${this.actant.name} moved to another window${heldBy ? ` (${heldBy})` : ''}. This window has let go of it, so nothing here is saved any more.`, 'bring it back', async () => location.reload());
+  }
+
+  /** A full-window notice with one button. Resolves when the button is pressed. */
+  ask(text, button) { return new Promise((resolve) => this.cover(text, button, resolve)); }
+
+  cover(text, button, onclick) {
+    const box = el('div', { class: 'cover' }, el('div', { class: 'cover-box' }, el('p', {}, text),
+      el('button', { class: 'top-btn primary', onclick: () => { box.remove(); onclick(); } }, button),
+      el('a', { class: 'top-btn', href: '/' }, 'lobby')));
+    document.body.append(box);
   }
 
   isPerson(who) { return this.people.has(who); }
@@ -51,9 +95,13 @@ class Frame {
 
   async save() {
     clearTimeout(this.saveTimer);
+    if (this.lost) return;
     const surfaces = Object.fromEntries(this.surfaces.filter((s) => s.toJSON).map((s) => [s.id, s.toJSON()]));
-    try { await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces }); }
-    catch (err) { this.inspector.note('fault', `saving failed: ${err.message}`); }
+    try { await api('PUT', `ludants/${this.recordId}`, { soma: this.actant.soma, surfaces, token: this.token }); }
+    catch (err) {
+      if (err.status === 409) this.lose(err.body?.heldBy);
+      else this.inspector.note('fault', `saving failed: ${err.message}`);
+    }
   }
 
   /** Checkpoints and publishing wait for the ludant to finish what it's doing, so they
@@ -190,6 +238,7 @@ async function boot() {
   document.title = `${record.soma.name} · gactant`;
   const frame = new Frame(record, seat);
   frame.mount();
+  await frame.hold();
   await frame.start();
   installExplorer(frame);
   const brief = new URLSearchParams(location.search).get('shard');

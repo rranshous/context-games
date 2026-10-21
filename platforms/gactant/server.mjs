@@ -23,7 +23,10 @@
 //   GET  /api/ludants                               -> [{ id, name, updated, checkpoints, lineage, people }]
 //   POST /api/ludants        { soma, by }           -> { id }          seed a new one
 //   GET  /api/ludants/<id>                          -> { id, soma, surfaces, lineage, visitors, checkpoints (no somas), restored, fresh }
-//   PUT  /api/ludants/<id>   { soma, surfaces }     -> {}
+//   PUT  /api/ludants/<id>   { soma, surfaces, token } -> {}       409 unless this window holds it
+//   POST /api/ludants/<id>/hold { token, who, takeOver? } -> { held, tookFrom }   409 { heldBy, since } if another window does
+//   POST /api/ludants/<id>/heartbeat { token }      -> { held }        409 once another window took it
+//   POST /api/ludants/<id>/release { token }        -> {}
 //   POST /api/ludants/<id>/arrive { who }           -> { firstVisit, visits, checkpoint, people }
 //   GET  /api/ludants/<id>/checkpoints              -> [{ n, label, by, at }]
 //   POST /api/ludants/<id>/checkpoints { label, by } -> { n }          no-op if nothing changed
@@ -151,6 +154,29 @@ function checkpoint(ludant, label, by) {
   return n;
 }
 
+// ---------- holds: one window at a time ----------
+//
+// Each frame saves the whole soma, so two windows on one ludant would overwrite each
+// other. A window must hold the ludant to save it. A second window can take the hold;
+// the first finds out on its next heartbeat or save and stops. Holds live in memory: a
+// restarted server forgets them, and the next heartbeat simply takes the hold again.
+
+const HOLD_STALE_MS = 20000;
+/** @type {Map<string, { token: string, who: string, since: string, seen: number }>} */
+const holds = new Map();
+
+function holdState(id) {
+  const h = holds.get(id);
+  return h && Date.now() - h.seen < HOLD_STALE_MS ? h : null;
+}
+
+function requireHold(id, token) {
+  const h = holdState(id);
+  if (h && h.token === token) { h.seen = Date.now(); return; }
+  if (!h && token) { holds.set(id, { token, who: '?', since: now(), seen: Date.now() }); return; }
+  throw Object.assign(httpError(409, `${h?.who ?? 'another window'} is holding this ludant`), { extra: { heldBy: h?.who ?? null, since: h?.since ?? null } });
+}
+
 const summary = (x) => ({
   id: x.id, name: x.soma?.name, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
   lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}),
@@ -177,7 +203,19 @@ async function route(method, parts, body, query) {
       return { ...rest, checkpoints: checkpoints.map(({ soma, ...meta }) => meta) };
     }
     if (!c && method === 'PUT') {
+      requireHold(b, body.token);
       write('ludants', b, { ...ludant, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: now() });
+      return {};
+    }
+    if (c === 'hold' && method === 'POST') {
+      const h = holdState(b);
+      if (h && h.token !== body.token && !body.takeOver) throw Object.assign(httpError(409, `${h.who} is holding this ludant in another window`), { extra: { heldBy: h.who, since: h.since } });
+      holds.set(b, { token: body.token, who: String(body.who || 'someone').slice(0, 40), since: h?.token === body.token ? h.since : now(), seen: Date.now() });
+      return { held: true, tookFrom: h && h.token !== body.token ? h.who : null };
+    }
+    if (c === 'heartbeat' && method === 'POST') { requireHold(b, body.token); return { held: true }; }
+    if (c === 'release' && method === 'POST') {
+      if (holds.get(b)?.token === body.token) holds.delete(b);
       return {};
     }
     // Someone sits down. Remember them, and keep the ludant as it was right now, so
@@ -278,7 +316,7 @@ createServer(async (req, res) => {
   } catch (err) {
     if (!err.code || err.code >= 500) console.error(`[gactant] ${req.method} ${url.pathname}: ${err.message}`);
     res.writeHead(typeof err.code === 'number' ? err.code : 500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: err.message }));
+    res.end(JSON.stringify({ error: err.message, ...(err.extra ?? {}) }));
   }
 }).listen(PORT, () => {
   console.log(`gactant on http://lilg:${PORT}/  model ${MODEL}  key ${process.env.OPENROUTER_API_KEY ? 'present' : 'MISSING (add OPENROUTER_API_KEY to .env)'}`);
