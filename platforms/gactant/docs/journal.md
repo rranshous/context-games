@@ -1686,3 +1686,21 @@ Two more from the Xbox:
   - under a publication, any copy you took: "your copy: the one you play"
   - a copy of someone else's publication is rooted at theirs ("published by Robby")
   Tested with my ludant, a copy of its publication, and a copy of a Wovan.
+
+### Parked: "publish" may be the wrong word
+
+Robby, looking at the trees: "maybe 'published' doesn't make sense here… publish doesn't
+quite make sense i don't think. idk."
+
+What the act actually is: the ludant stays where it is and goes on changing; what's left
+behind is a frozen snapshot that anyone can take a living copy of, and each copy goes on
+changing on its own. "Publish" suggests something finished and sent out, owned by its
+author, the same for every reader. None of that fits. Words to try against it later
+(undecided):
+- **release**, the games word: familiar, but just as final
+- **share**: plain, but it hides the snapshot
+- **bud** or **spore**: a living thing leaving something that grows into its own life.
+  That fits "games that are alive", but it's strange.
+- **cast**, as in casting a mould: a shape taken of it at a moment
+- **offer**, or **let go**: about the giving, not the thing
+The same question applies to "copy", which is really a new ludant with a family name.
