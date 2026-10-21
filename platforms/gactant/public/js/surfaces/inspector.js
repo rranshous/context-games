@@ -8,6 +8,7 @@ import { el } from '../ui.js';
 const KEEP = 300;
 const NOTE_CHARS = 2000;
 const STORE_TAB = '▤ store';   // not a section: the store surface, shown read-only
+const ART_TAB = '▧ art';       // its art, as a gallery
 
 export class Inspector {
   id = 'inspector';
@@ -40,6 +41,8 @@ export class Inspector {
     if (this.tab === name) this.renderBody();
   }
 
+  artChanged() { if (this.tab === ART_TAB) this.renderBody(); else { this.fresh.add(ART_TAB); this.renderTabs(); } }
+
   storeChanged() { if (this.tab === STORE_TAB) this.renderBody(); else { this.fresh.add(STORE_TAB); this.renderTabs(); } }
 
   mount(root) {
@@ -53,7 +56,7 @@ export class Inspector {
 
   renderTabs() {
     if (!this.tabsEl) return;
-    const names = ['doings', ...Object.keys(this.frame.actant?.soma.sections ?? {}), STORE_TAB];
+    const names = ['doings', ...Object.keys(this.frame.actant?.soma.sections ?? {}), STORE_TAB, ART_TAB];
     this.tabsEl.replaceChildren(...names.map((n) => el('button', {
       class: `insp-tab ${n === this.tab ? 'on' : ''} ${this.fresh.has(n) ? 'fresh' : ''}`,
       onclick: () => { this.tab = n; this.fresh.delete(n); this.renderTabs(); this.renderBody(); },
@@ -67,6 +70,10 @@ export class Inspector {
         el('div', { class: `doing ${d.kind}` }, el('span', { class: 'doing-kind' }, d.kind), el('pre', {}, d.text))));
       this.bodyEl.replaceChildren(list);
       list.scrollTop = list.scrollHeight;
+      return;
+    }
+    if (this.tab === ART_TAB) {
+      this.bodyEl.replaceChildren(this.frame.art.gallery());
       return;
     }
     if (this.tab === STORE_TAB) {

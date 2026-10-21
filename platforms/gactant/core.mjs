@@ -8,7 +8,7 @@
 //
 // A store keeps JSON documents by kind and id, and is async whether or not it needs to be:
 //   get(kind, id) -> doc | null     put(kind, id, doc)     list(kind) -> [doc]
-// Kinds: ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
+// Kinds: assets (its art: `l-<ludant>-<name>` / `p-<publication>-<name>`), ludants, published, checkpoints (one soma per doc, `${ludant}-${n}`), names (given
 // names in use, so a new seed's is fresh), thumbs (a small picture of a ludant's or a
 // publication's stage, `l-<id>` or `p-<id>`, kept apart so lists stay light).
 //
@@ -48,6 +48,10 @@
 //   GET  published/<id>                          -> metadata
 //   POST published/<id>/copy { by }              -> { id }          a new ludant, descended from it
 //   POST ludants/<id>/thumb { token, image }     -> {}             a picture of its stage now (a small JPEG data URL)
+//   GET  ludants/<id>/assets                     -> [{ name, w, h, prompt, by, at, image }]   its art
+//   POST ludants/<id>/assets { token, name, image, w, h, prompt, by } -> meta   keep a picture (replaces one of that name)
+//   POST ludants/<id>/unasset { token, name }    -> { removed }
+//   (publishing copies a ludant's art to the publication; taking a copy copies it on)
 //   GET  thumbs/<l|p>/<id>                       -> { image }       (null if there's none yet)
 //   POST reports        { id?, report }          -> { id }          what a device's check page found (/check.html);
 //                                                   with an id, updates that report as the check goes on
@@ -60,7 +64,7 @@
 //   GET  log/<who>?n=20                          -> last n inference records
 
 import { nameOf, randomGiven, titleSlug } from './public/js/names.js';
-import { buildRequest } from './public/js/openrouter.js';
+import { ART_MODELS, buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
 
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
@@ -69,6 +73,9 @@ const MAX_LUDANT = 1_500_000;    // characters of JSON in a save: soma and surfa
 const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
 const MAX_THUMB = 60_000;        // characters of data URL
 const MAX_REPORT = 60_000;       // characters of JSON in a check report
+const MAX_ASSET = 1_500_000;     // characters of data URL in one picture
+const MAX_ASSETS = 60;           // pictures per ludant
+const assetName = (n) => { if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(n))) throw httpError(400, `art names are lowercase words joined by -, up to 40 characters: ${n}`); return n; };
 
 export function httpError(code, message, extra) { return Object.assign(new Error(message), { code, extra }); }
 
@@ -88,8 +95,11 @@ const sameBody = (a, b) => {
 /** Keep logs readable: drop image bytes. */
 export function summarize(message) {
   if (!message) return null;
-  if (!Array.isArray(message.content)) return message;
-  return { ...message, content: message.content.map((p) => (p.type === 'image_url' ? { type: 'image_url', bytes: p.image_url?.url?.length } : p)) };
+  const pic = (p) => (p.type === 'image_url' ? { type: 'image_url', bytes: p.image_url?.url?.length } : p);
+  const out = { ...message };
+  if (Array.isArray(message.content)) out.content = message.content.map(pic);
+  if (Array.isArray(message.images)) out.images = message.images.map(pic);
+  return out;
 }
 
 export function createCore({ store, settings }) {
@@ -194,7 +204,9 @@ export function createCore({ store, settings }) {
   async function infer(body) {
     if (!key) throw httpError(503, 'this install has no OpenRouter key: connect your own OpenRouter account');
     const who = body.who ? safe(body.who) : 'anon';
-    const request = buildRequest({ ...body, model });
+    // Thinking uses the install's model; painting may use one of the art models.
+    const chosen = Object.values(ART_MODELS).includes(body.model) ? body.model : model;
+    const request = buildRequest({ ...body, model: chosen });
     const started = Date.now();
     // A dropped connection or a busy provider shouldn't end someone's sitting: retry those.
     let res, text;
@@ -220,7 +232,7 @@ export function createCore({ store, settings }) {
       await log(who, {
         at: now(), ms: Date.now() - started, model: request.model, status: res.status, usage: json.usage, error: json.error,
         // The last message is what woke this turn (an event, or tool results); the reply is what came back.
-        last: summarize(request.messages.at(-1)), reply: json.choices?.[0]?.message,
+        last: summarize(request.messages.at(-1)), reply: summarize(json.choices?.[0]?.message),
       });
     }
     if (!res.ok || json.error) throw httpError(502, `openrouter ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 500)}`);
@@ -306,6 +318,29 @@ export function createCore({ store, settings }) {
         await played(b, Number(body.seconds) || 0, Number(body.spent) || 0);
         return { held: true };
       }
+      // Art: pictures made for the ludant, kept apart from it (they're big) and listed on it.
+      if (c === 'assets' && method === 'GET') {
+        return (await Promise.all((ludant.assets ?? []).map(async (m) => ({ ...m, image: (await store.get('assets', `l-${b}-${m.name}`))?.image ?? null })))).filter((a) => a.image);
+      }
+      if (c === 'assets' && method === 'POST') {
+        requireHold(b, body.token);
+        const name = assetName(body.name), image = String(body.image ?? '');
+        if (!image.startsWith('data:image/') || image.length > MAX_ASSET) throw httpError(400, `a picture is an image data URL, up to ${MAX_ASSET} characters`);
+        const list = (ludant.assets ?? []).filter((m) => m.name !== name);
+        if (list.length >= MAX_ASSETS) throw httpError(413, `a ludant keeps up to ${MAX_ASSETS} pictures; remove one first`);
+        const meta = { name, w: Number(body.w) || 0, h: Number(body.h) || 0, prompt: String(body.prompt ?? '').slice(0, 1000), by: String(body.by ?? '').slice(0, 60), at: now(), bytes: image.length };
+        await store.put('assets', `l-${b}-${name}`, { image });
+        ludant.assets = [...list, meta];
+        await store.put('ludants', b, ludant);
+        return meta;
+      }
+      if (c === 'unasset' && method === 'POST') {
+        requireHold(b, body.token);
+        const name = assetName(body.name);
+        ludant.assets = (ludant.assets ?? []).filter((m) => m.name !== name);
+        await store.put('ludants', b, ludant);
+        return { removed: name };
+      }
       if (c === 'thumb' && method === 'POST') {
         requireHold(b, body.token);
         const image = String(body.image ?? '');
@@ -363,7 +398,7 @@ export function createCore({ store, settings }) {
     // publication, and that copy can be published again.
     if (a === 'published') {
       if (!b && method === 'GET') {
-        return (await store.list('published')).map(({ soma, stats, play, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play) }))
+        return (await store.list('published')).map(({ soma, stats, play, assets, ...p }) => ({ ...p, copies: p.copies ?? 0, cost: perHour(play) }))
           .sort((x, y) => y.at.localeCompare(x.at));
       }
       if (!b && method === 'POST') {
@@ -385,6 +420,14 @@ export function createCore({ store, settings }) {
           ludant: ludant.id, n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(),
           copies: 0, soma: structuredClone(ludant.soma),
         });
+        // Its art goes with it: the snapshot draws with the pictures it had.
+        for (const m of ludant.assets ?? []) {
+          const a = await store.get('assets', `l-${ludant.id}-${m.name}`);
+          if (a) await store.put('assets', `p-${id}-${m.name}`, a);
+        }
+        const pubDoc = await store.get('published', id);
+        pubDoc.assets = ludant.assets ?? [];
+        await store.put('published', id, pubDoc);
         // Its picture is the ludant's latest, so the lobby can show what it looks like.
         const thumb = await store.get('thumbs', `l-${ludant.id}`);
         if (thumb) await store.put('thumbs', `p-${id}`, thumb);
@@ -401,6 +444,11 @@ export function createCore({ store, settings }) {
           lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ludant: pub.ludant }, takenBy: body.by || null },
         };
         await checkpoint(ludant, `as received: ${pub.name}`, body.by);
+        for (const m of pub.assets ?? []) {
+          const a = await store.get('assets', `p-${pub.id}-${m.name}`);
+          if (a) await store.put('assets', `l-${id}-${m.name}`, a);
+        }
+        ludant.assets = pub.assets ?? [];
         await store.put('ludants', id, ludant);
         pub.copies = (pub.copies ?? 0) + 1;
         await store.put('published', pub.id, pub);

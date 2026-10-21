@@ -15,7 +15,7 @@
 // copied across as an ArrayBuffer.
 //
 // For game code, `api` is the handle it always was:
-//   ctx, width, height, t, frame, size(w, h), caption, three(),
+//   ctx, width, height, t, frame, size(w, h), caption, three(), image(name), images(),
 //   input { keys, pressed, pointer, pads, players }
 // The ludant's own surfaces.stage is local too, so its tools can test at full speed:
 //   look() and advance() read and run this buffer directly; hold, release and point change
@@ -80,6 +80,7 @@ export class StageBuffer {
     this.caption = '';
     this.sending = false;
     this.pixels = false;    // send raw pixels instead of ImageBitmaps (see above)
+    this.images = new Map(); // art by name, as ImageBitmaps (see the art surface)
     const stage = this;
     this.api = {
       ctx: this.ctx, input: this.input,
@@ -87,6 +88,8 @@ export class StageBuffer {
       get t() { return stage.t; }, get frame() { return stage.count; },
       size: (w, h) => this.size(w, h),
       three: () => this.three(),
+      image: (name) => this.images.get(String(name)) ?? null,
+      images: () => [...this.images.keys()],
       get caption() { return stage.caption; }, set caption(v) { stage.caption = String(v ?? '').slice(0, 300); },
     };
     // A hook that throws during a frame halts the stage: a game that throws on every frame
@@ -142,6 +145,12 @@ export class StageBuffer {
       this.sending = false;
     }
     if (this.again) { this.again = false; this.show(); }
+  }
+
+  /** A picture of the ludant's art, ready for drawImage (or a three.js texture). */
+  async addImage(name, bytes, type) {
+    try { this.images.set(name, await createImageBitmap(new Blob([bytes], { type }))); }
+    catch (err) { this.frame?.send('note', 'fault', `the art "${name}" couldn't be read: ${err.message}`); }
   }
 
   /** Both layers as one picture's pixels. */

@@ -24,10 +24,12 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   frame.published { who, name, url }  frame.restored { who, n, label }   whiteboard.looked { who }
 //   frame.renamed { from, to }   (my name changes with my title)
 //   frame.view { who, playing }   (playing: they see only the stage)
-//   store.changed { who, key }
+//   store.changed { who, key }   art.painting { who, name }   art.made { who, name, w, h }
+//   choices.offered { who, question, count }   choices.picked { who, question, choice, index }
+//   (a pick also arrives in the chat, as the person's words)
 // me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
-// surfaces: chat, whiteboard, stage, store (their actions, done as me). They're the frame's,
+// surfaces: chat, whiteboard, stage, store, art, choices (their actions, done as me). They're the frame's,
 //   and I live in a sandbox beside it: the stage and the store answer at once, and so does
 //   chat.read; chat.post and the whiteboard return promises.
 //
@@ -61,6 +63,7 @@ const GAME = `// game: the facet of me that people play. It's a factory: called 
 // my hooks call.
 //
 // stage: ctx (a 2D canvas context), width, height, t (seconds), frame (count),
+//        image(name) (my art, made with the art surface, ready for ctx.drawImage; null until loaded),
 //        size(w, h) (logical resolution; it scales up crisply),
 //        caption (a short line about what's happening; every look at the stage reports it),
 //        three() (switch to 3D: returns { THREE, scene, camera, renderer } from three.js; the
@@ -162,6 +165,24 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
       const end = st.look();
       return { text: end.text, images: [...images.slice(-3), end.image] };
     },
+  },
+  {
+    name: 'make_art',
+    description: 'Have a picture painted for you by an image model, and keep it as art: a sprite (transparent by default: cut out of its background), a background or a tile (transparent: false), anything. reference: "stage" or an art name (or a list), to match. quality: "fast" (about 3 cents) or "best" (about 7). size: longest side in pixels. You see what came back. Draw it in your game with stage.image(name).',
+    input_schema: { type: 'object', properties: { name: { type: 'string', description: 'lowercase words joined by -' }, prompt: { type: 'string' }, style: { type: 'string' }, transparent: { type: 'boolean' }, reference: {}, quality: { type: 'string', enum: ['fast', 'best'] }, size: { type: 'number' } }, required: ['name', 'prompt'] },
+    run: (input, me, s) => s.art.make(input),
+  },
+  {
+    name: 'concept_art',
+    description: 'Your game as it is on the stage right now, reimagined in a style (about 3 cents). Good for showing people what you could look like: make a few, then offer them as choices.',
+    input_schema: { type: 'object', properties: { style: { type: 'string' }, name: { type: 'string' }, prompt: { type: 'string', description: 'anything else to change' } }, required: ['style'] },
+    run: (input, me, s) => s.art.concept(input),
+  },
+  {
+    name: 'offer_choices',
+    description: 'Show the people here a question and 2 to 6 options to pick from, over the stage: easier than typing, above all with a controller. Each option has a label, and maybe an image (an art name, or "stage") and a note. Their pick comes to you in the chat.',
+    input_schema: { type: 'object', properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, image: { type: 'string' }, note: { type: 'string' } }, required: ['label'] } } }, required: ['question', 'options'] },
+    run: (input, me, s) => s.choices.offer(input),
   },
   {
     name: 'store',

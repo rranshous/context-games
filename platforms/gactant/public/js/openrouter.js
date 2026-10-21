@@ -17,11 +17,16 @@ const AUTH = 'https://openrouter.ai/auth';
 const KEYS = 'https://openrouter.ai/api/v1/auth/keys';
 const COMPLETIONS = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Models that paint, for the frame's art surface: fast and cheap (about 3¢ an image, a few
+// seconds), or best (about 7¢, ten seconds). Both take pictures in as well as words.
+export const ART_MODELS = { fast: 'google/gemini-3.1-flash-lite-image', best: 'google/gemini-3.1-flash-image' };
+
 /** The request for a think: the same whoever sends it, browser or relay. */
-export function buildRequest({ model, messages, tools, max_tokens }) {
+export function buildRequest({ model, messages, tools, max_tokens, modalities }) {
   return {
     model,
     messages,
+    ...(modalities ? { modalities } : {}),
     // Room for a ludant to rewrite a whole game in one write_section.
     max_tokens: max_tokens || 32000,
     usage: { include: true },

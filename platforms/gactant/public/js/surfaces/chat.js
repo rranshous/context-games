@@ -67,11 +67,13 @@ export class Chat {
     const { life, detail } = this.frame.status;
     const name = this.frame.actant?.name ?? 'the ludant';
     const changing = life === 'thinking' ? this.frame.actant?.changing : null;
-    const words = changing ? `changing ${changing}…` : { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
+    const painting = [...(this.frame.art?.painting.values() ?? [])];
+    const doing = painting.length ? `painting ${painting.map((n) => `“${n}”`).join(', ')}` : changing ? `changing ${changing}` : null;
+    const words = doing ? `${doing}…` : { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
     this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
       detail ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
-    if (life === 'thinking') {
-      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, changing ? `changing ${changing}` : 'thinking')));
+    if (life === 'thinking' || painting.length) {
+      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, doing ?? 'thinking')));
       this.log.append(this.thinkingEl);
       this.log.scrollTop = this.log.scrollHeight;
     } else this.thinkingEl.remove();

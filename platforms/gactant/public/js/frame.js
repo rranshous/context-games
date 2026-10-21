@@ -14,7 +14,9 @@
 
 import { Bus } from './bus.js';
 import { nameOf } from './names.js';
-import { buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
+import { ART_MODELS, buildRequest, complete, connect, disconnect, keyInfo, key as ownKey } from './openrouter.js';
+import { Art } from './surfaces/art.js';
+import { Choices } from './surfaces/choices.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
@@ -52,6 +54,8 @@ What people see: only the surfaces. They see what's on the stage, what's posted 
 
 Where you live: your whole body (your soma, your code, this thinking) runs in a sandbox inside the frame. Every surface is the frame's. Your game draws into the stage's buffer, there in the sandbox with you, and the frame's stage shows what you drew. The frame does your thinking for you when you wake, and keeps you saved. Because your code came from whoever shaped you, the sandbox keeps it apart from the page people use, so nothing you run can touch what's theirs.
 
+The frame also gives you an artist and a way to ask: its art surface paints pictures for you (sprites, backgrounds, your whole game reimagined in a style), and its choices surface lets you show people a few options to pick from. Your game doesn't have to be drawn with shapes; it can look like anything.
+
 Libraries come from the frame, never from the network: today that's three.js (r170), through stage.three(), for when a game wants real 3D instead of drawing perspective by hand. The frame may offer more over time.
 
 Most of you runs without thinking: your hooks and game code run at frame rate, and nothing costs anything until something wakes you. Being awake costs real money, so wake purposefully, do what's needed, and let yourself go back to sleep.
@@ -74,7 +78,9 @@ class Frame {
     this.status = new Lights(this);   // the top bar's lights: the frame's, not a surface
     this.store = new Store(this);
     this.inspector = new Inspector(this);
-    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.inspector];
+    this.art = new Art(this);
+    this.choices = new Choices(this);
+    this.surfaces = [this.stage, this.chat, this.whiteboard, this.store, this.art, this.choices, this.inspector];
     for (const s of this.surfaces) s.load?.(record.surfaces?.[s.id]);
     this.actant = new Body(this, record.soma);   // the ludant as this side sees it
     this.saveTimer = null;
@@ -161,6 +167,23 @@ class Frame {
     this.status.addSpend(res.usage?.cost);
     this.checkIn();
     return res;
+  }
+
+  /** A picture from an image model, on whoever pays for thinking here. images: data URLs
+   *  to paint from. Resolves with { url } (a data URL). */
+  async imagine({ prompt, images = [], quality = 'fast' }) {
+    await this.thinkingReady();
+    this.sandbox.allow();
+    const model = ART_MODELS[quality] ?? ART_MODELS.fast;
+    const messages = [{ role: 'user', content: [{ type: 'text', text: prompt }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))] }];
+    const ask = { model, messages, modalities: ['image', 'text'], max_tokens: 8000 };
+    const res = this.payer() === 'own' ? await complete(buildRequest(ask)) : await api('POST', 'infer', { who: this.recordId, ...ask });
+    this.status.addSpend(res.usage?.cost);
+    this.checkIn();
+    const msg = res.choices?.[0]?.message;
+    const url = msg?.images?.[0]?.image_url?.url;
+    if (!url) throw new Error(`the image model sent back no picture${msg?.content ? `: "${String(msg.content).slice(0, 200)}"` : ''}`);
+    return { url };
   }
 
   /** Nobody here has connected thinking yet: ask the person, once, when the ludant first
@@ -369,6 +392,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     document.body.append(top, main);
     this.status.mount(top.querySelector('.status'));
     this.stage.mount(main.querySelector('.stage-pane'));
+    this.choices.mount(main.querySelector('.stage-pane'));
     this.sandbox.mount(document.body);
     this.whiteboard.mount(main.querySelector('.wb-pane'));
     this.chat.mount(main.querySelector('.chat-pane'));
@@ -389,7 +413,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
   // buttons, the chat, the whiteboard) until B or Menu hands it back. View is play mode.
 
   /** The open dialog, banner or popover, if any: it has the controller first. */
-  overlay() { return [...document.querySelectorAll('.cover, .banner, .meter-pop, .history.on')].at(-1) ?? null; }
+  overlay() { return [...document.querySelectorAll('.cover, .banner, .meter-pop, .history.on, .choices-panel')].at(-1) ?? null; }
 
   gameHasPads() { return this.padTarget === 'game' && !this.overlay(); }
 
@@ -530,8 +554,10 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     // The sandbox gets the ludant and what it needs to read at frame rate. The frame's
     // surfaces it reaches through their actions, which it's told the names of.
     const actions = Object.fromEntries(this.surfaces.filter((s) => s.id !== 'stage' && s.id !== 'inspector').map((s) => [s.id, Object.keys(s.actions(''))]));
+    await this.art.fetch();
     await this.sandbox.call('init', {
       soma: this.actant.soma, stage: this.stage.toJSON(), chat: this.chat.messages, store: this.store.data, people: [...this.people], actions,
+      art: this.art.forSandbox(),
     });
     await this.sandbox.checkPictures();
     this.stage.live = true;

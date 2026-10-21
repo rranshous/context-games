@@ -57,10 +57,12 @@ async function boot() {
 
   const port = await connect();
   const frame = new Bridge(port, {
-    init(state) {
+    async init(state) {
       chat = state.chat ?? [];
       store.load({ data: state.store ?? {} });
       chassis.people = state.people ?? [];
+      // Its art, ready before its game is built, so stage.image() has it from the first frame.
+      await Promise.all((state.art ?? []).map((a) => stage.addImage(a.name, a.bytes, a.type)));
       if (state.stage?.width) { stage.width = stage.canvas.width = state.stage.width; stage.height = stage.canvas.height = state.stage.height; }
       chassis.surfaces = surfaces(state.actions);
       actant = new Actant(chassis, state.soma);
@@ -69,6 +71,8 @@ async function boot() {
       return { name: actant.name };
     },
     tick(t) { stage.tick(t); },
+    asset(name, bytes, type) { stage.addImage(name, bytes, type); },
+    assetGone(name) { stage.images.delete(name); },
     probe() { return stage.probe(); },
     pictures(how) { stage.pixels = how === 'pixels'; },
     restart() { stage.restarted(); },

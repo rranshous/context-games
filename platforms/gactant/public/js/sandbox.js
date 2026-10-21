@@ -44,6 +44,7 @@ export class Sandbox {
 
   call(method, ...args) { return this.ready.then((b) => b.call(method, ...args)); }
   send(method, ...args) { this.ready.then((b) => b.send(method, ...args)); }
+  sendWith(transfer, method, ...args) { this.ready.then((b) => b.sendWith(transfer, method, ...args)); }
 
   /** Stop the ludant in this window for good: the iframe goes, and everything in it. */
   remove() { this.iframe?.remove(); this.bridge = null; }
@@ -86,12 +87,16 @@ export class Sandbox {
   }
 
   async infer({ messages, tools }) {
+    this.allow();
+    return this.frame.infer({ messages, tools });
+  }
+
+  /** Thinking and painting both count against the backstop. */
+  allow() {
     const now = Date.now();
     this.inferences = this.inferences.filter((t) => now - t < INFER_WINDOW_MS);
-    if (this.inferences.length >= INFER_MAX) throw new Error(`the frame is holding back: ${INFER_MAX} thoughts in ten minutes is more than a sitting should need`);
+    if (this.inferences.length >= INFER_MAX) throw new Error(`the frame is holding back: ${INFER_MAX} thoughts and pictures in ten minutes is more than a sitting should need`);
     this.inferences.push(now);
-    const res = await this.frame.infer({ messages, tools });
-    return res;
   }
 
   /** Can pictures (ImageBitmaps) get from the sandbox to here? Firefox with site isolation
