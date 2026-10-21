@@ -120,14 +120,30 @@ class Frame {
     return { n };
   }
 
-  async publish(title, note = '', by = this.seat) {
+  /** Publish the ludant as it is now, under its name. A title given here is written into
+   *  its title section first (by whoever is publishing), which renames it. */
+  async publish(note = '', title = null, by = this.seat) {
     await this.settled('publishing');
-    const { id } = await api('POST', 'published', { ludant: this.recordId, title, note, by });
-    const url = `${location.origin}/play.html?p=${id}`;
-    this.inspector.note('changed', `${by} published "${title}": ${url}`);
-    this.status.setLife(this.status.life);
-    this.bus.emit('frame.published', { who: by, title, url });
-    return { id, url };
+    const before = this.actant.soma.sections.title ?? '';
+    const retitled = title != null && title.trim() !== before.trim();
+    if (retitled) {
+      this.actant.writeSection('title', title.trim(), by);
+      await this.save();
+    }
+    try {
+      const { id, name } = await api('POST', 'published', { ludant: this.recordId, note, by });
+      const url = `${location.origin}/play.html?p=${id}`;
+      this.record.familyNames = [...(this.record.familyNames ?? []), name];
+      this.inspector.note('changed', `${by} published ${name}: ${url}`);
+      this.bus.emit('frame.published', { who: by, name, url });
+      return { id, name, url };
+    } catch (err) {
+      // A refused publish leaves the name as it was.
+      if (retitled) { this.actant.writeSection('title', before, by); await this.save(); }
+      throw err;
+    } finally {
+      this.status.setLife(this.status.life);
+    }
   }
 
   /** Put the ludant back to a checkpoint, in place: the stage keeps running, the people
@@ -193,11 +209,14 @@ class Frame {
       } }, 'checkpoint'),
       el('button', { class: 'top-btn', onclick: toggleHistory }, 'history'),
       el('button', { class: 'top-btn primary', onclick: async () => {
-        const title = prompt(`Publish ${this.actant.name} as it is now. Title:`, this.record.lineage?.from?.title ?? this.actant.name);
-        if (!title) return;
+        const given = this.actant.soma.given;
+        const title = prompt(`Publish under the name ${given}-<title>. Each name belongs to one snapshot, so a new publication needs a new title. Title:`, this.actant.soma.sections.title ?? '');
+        if (!title?.trim()) return;
         const note = prompt('A note for whoever takes a copy (optional):', '') ?? '';
-        const { url } = await this.publish(title, note);
-        prompt('Published. Anyone can take a copy here:', url);
+        try {
+          const { url, name } = await this.publish(note, title);
+          prompt(`Published as ${name}. Anyone can take a copy here:`, url);
+        } catch (err) { alert(err.message); }
       } }, 'publish'),
       el('button', { class: 'top-btn', title: 'fold the inspector away', onclick: () => {
         const f = main.classList.toggle('folded');
@@ -212,7 +231,7 @@ class Frame {
     const who = this.seat, l = this.record.lineage ?? {};
     if (this.record.fresh && l.from) {
       const took = l.takenBy && l.takenBy !== who ? `${l.takenBy} took this copy; ${who} is here with you.` : `${who} took this copy and is here with you.`;
-      return `You are a new copy of "${l.from.title}", published by ${l.from.by ?? 'someone'}. ${took}`;
+      return `You are a new copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}. ${took}`;
     }
     if (this.record.fresh) return `You have just been seeded by ${who}. They are here with you.`;
     if (arrival.firstVisit) return `${who} has sat down with you for the first time.`;
@@ -235,8 +254,10 @@ async function boot() {
   const seat = myName() || prompt('What should the ludants here call you?', '')?.trim() || 'someone';
   try { localStorage.setItem('gactant-name', seat); } catch {}
   const record = await api('GET', `ludants/${id}`);
-  document.title = `${record.soma.name} · gactant`;
   const frame = new Frame(record, seat);
+  const retitle = () => { document.title = `${frame.actant.name} · gactant`; frame.status.render(); frame.whiteboard.renderBaton(); };
+  retitle();
+  frame.bus.on('soma.changed', (e) => { if (e.section === 'title') retitle(); });
   frame.mount();
   await frame.hold();
   await frame.start();

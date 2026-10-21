@@ -696,3 +696,94 @@ Robby wants to use it from his phone, so I checked:
   request; "that was too hard" might be venting.
 - **Who pays.** Every wake is real money paid by whoever runs the server. Publishing to
   strangers needs an answer.
+
+---
+
+## 2026-10-20 · Session 1, part 4: what is the name of an actant that is a product?
+
+### The question
+
+Robby asked how naming worked through publishing. The answer was unflattering: a name was
+set once at seeding and copied forever, so every descendant of Pip was "Pip", told apart
+only by its lineage line. Titles were per publication and defaulted to the parent's, so
+duplicates came easy. Nothing could rename a ludant, not even itself. I proposed making
+the name a soma section the ludant owns. Robby:
+
+> Hmm. This doesn't feel right to me. I've talked and thought about this w my mentees.
+> what is the name of an actant which is a product? I don't feel I have a definitive
+> answer, but in this case, I feel like I want the game name to be the actant name.
+> Perhaps we can do something like a new seed starts w two random names/words. Then the
+> name gets the game name added? Almost like a title? Ornal-The-Black-Abyss or
+> Georina-Monopoly-Clone or Franton-Family-Quiz-Show. Each name is unique to one
+> snapshot. Something about the ludant must have changed to publish under a new name. So
+> then maybe a new publication is Georina-Monopoly-Speed-Game.
+
+His reframe answers the question better than mine did. A product's name is what it *is*,
+right now, to the people who meet it. So the game's title belongs in the name. And a
+published name is a promise about one specific thing.
+
+### How names work now
+
+- **Given name.** A seed gets an invented given name (Elodon, Vernal, Brunar, Kanina…)
+  that no other lineage here uses. Seeding moved to the server so it can check. The lobby
+  no longer asks for a name; you just seed. Copies keep the given name: it's the family.
+  I read "two random names/words" as one invented given name, like his examples. Easy to
+  change.
+- **Title.** The game's title lives in the soma's `title` section, so the ludant owns it.
+  It can name its own game once it knows what it is, or be asked to. The publish box can set
+  it too (whoever is publishing writes it).
+- **Name** = given + title, hyphenated and title-cased: `Elodon-Hop`. With no title it's
+  just `Elodon`. It's computed (`names.js`, shared by server and pages), never stored. Chat,
+  status, the page title and the lobby all show the current name.
+- **One name, one snapshot.** Publishing checks two things:
+  - *Same snapshot?* If this exact body (ignoring title and memory) is already published,
+    publishing is refused: "this exact Elodon is already published as Elodon-Hop. Change
+    something first, then give it a new title." Retitling alone doesn't count as a change,
+    and neither does remembering being published.
+  - *Name taken?* If the name already belongs to another snapshot, it's refused:
+    "Elodon-Hop already names another snapshot. It has changed since, so it needs a new
+    title."
+  A refused publish puts the title back the way it was.
+- **An unchanged copy carries the snapshot's name honestly**, because it *is* that
+  snapshot: a copy of Elodon-Hop-Deluxe is Elodon-Hop-Deluxe until it changes and takes a
+  new title.
+- **Perception:** the ludant reads "Your name is Elodon-Hop: your given name Elodon, and
+  your title section," plus every name its family has already published under, and the
+  one-snapshot rule. The seed's origin explains it in its own voice: "the way
+  Georina-Monopoly-Clone is Georina being a Monopoly clone."
+
+Data was wiped again (the soma changed shape: `given` and a `title` section replaced
+`name`).
+
+### First test: Elodon names itself
+
+Seeded **Elodon**, then: "let's make something small: a one-button game where you time a
+jump over things rolling toward you. you pick the look. once you know what the game is,
+name it." It built a little ember hopping over rolling stones at dusk, then said:
+
+> I'm naming myself Hop, so Elodon-Hop.
+
+The chat message was already signed **Elodon-Hop**. The name changed in the middle of
+its own sentence.
+
+The rules, tested in a row:
+1. First publish → **Elodon-Hop**.
+2. Again, unchanged → refused (same snapshot).
+3. Only a new title ("Hop Deluxe") → refused (same snapshot). This exposed a bug: the
+   refused title stuck. Fixed: a refused publish now reverts the title.
+4. After a small change to the game (because of the stuck title it went out under the new
+   name) → **Elodon-Hop-Deluxe**.
+5. A new title with nothing else changed → refused.
+6. Changed, but retitled back to "Hop" → refused: "Elodon-Hop already names another
+   snapshot." The name stayed Elodon-Hop-Again.
+
+A copy of Elodon-Hop-Deluxe taken by "sam" is itself named Elodon-Hop-Deluxe. Elodon's
+memory, written by its hook with no wake, reads "claude published me as Elodon-Hop" and
+"…as Elodon-Hop-Deluxe".
+
+![names](shots/12-names.png)
+
+Open: two publications from the *same* ludant (Elodon-Hop, then Elodon-Hop-Deluxe) are
+siblings in time, not parent and child, and the lobby doesn't show that relation yet.
+Names inside the frame shift too: a whiteboard baton handed to "Elodon" no longer matches
+"Elodon-Hop".

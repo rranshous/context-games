@@ -36,6 +36,10 @@ default `anthropic/claude-sonnet-5.5`). No dependencies, no build: plain ES modu
 - **The seat is a person.** You give your name once per browser. The frame tells the
   ludant who is here, who has sat with it before, and where it came from (seeded by X, or
   a copy of "T" published by Y and taken by Z). Its hooks decide what an arrival means.
+- **Names.** A seed gets an invented given name (Elodon) that no other lineage uses;
+  copies keep it. The ludant keeps its game's title in a `title` section, and its name is
+  the two together: `Elodon-Hop`. Each published name belongs to exactly one snapshot, so
+  publishing again takes a change (beyond the title) *and* a new title.
 - **Checkpoints come for free.** One is taken whenever someone sits down, so anything
   changed "just for tonight" can be undone from **history**. Restoring keeps the present
   as a checkpoint too.

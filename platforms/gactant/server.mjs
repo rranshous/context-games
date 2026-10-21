@@ -13,6 +13,8 @@
 // Words
 //   ludant      a game-shaped actant: a soma (its sections) plus the state of the surfaces
 //               it lives with. Played and shaped by whoever sits with it; there are no modes.
+//               Its name is a given name plus its game's title: Georina-Monopoly-Clone.
+//               Each published name belongs to exactly one snapshot.
 //   checkpoint  a frozen copy of a ludant's soma, numbered. One is taken automatically
 //               whenever someone sits down, so anything changed while they're there can be undone.
 //   publication a checkpoint offered to anyone. Taking a copy makes a new ludant whose
@@ -21,8 +23,8 @@
 // API (JSON)
 //   GET  /api/config                                -> { model, hasKey }
 //   GET  /api/ludants                               -> [{ id, name, updated, checkpoints, lineage, people }]
-//   POST /api/ludants        { soma, by }           -> { id }          seed a new one
-//   GET  /api/ludants/<id>                          -> { id, soma, surfaces, lineage, visitors, checkpoints (no somas), restored, fresh }
+//   POST /api/ludants        { by }                 -> { id }          seed a new one, with a fresh given name
+//   GET  /api/ludants/<id>                          -> { id, soma, surfaces, lineage, visitors, checkpoints (no somas), restored, fresh, familyNames }
 //   PUT  /api/ludants/<id>   { soma, surfaces, token } -> {}       409 unless this window holds it
 //   POST /api/ludants/<id>/hold { token, who, takeOver? } -> { held, tookFrom }   409 { heldBy, since } if another window does
 //   POST /api/ludants/<id>/heartbeat { token }      -> { held }        409 once another window took it
@@ -31,8 +33,9 @@
 //   GET  /api/ludants/<id>/checkpoints              -> [{ n, label, by, at }]
 //   POST /api/ludants/<id>/checkpoints { label, by } -> { n }          no-op if nothing changed
 //   POST /api/ludants/<id>/restore { n, by }        -> { restored }    checkpoints the present first
-//   GET  /api/published                             -> [{ id, title, name, by, note, ludant, n, from, at, copies }]
-//   POST /api/published      { ludant, title, by, note?, n? } -> { id }   n omitted: checkpoint now and publish that
+//   GET  /api/published                             -> [{ id, name, given, title, by, note, ludant, n, from, fromName, at, copies }]
+//   POST /api/published      { ludant, by, note? }  -> { id, name }   publishes it as it is now, under its name;
+//                                                     409 if this snapshot or this name is already published
 //   GET  /api/published/<id>                        -> metadata
 //   POST /api/published/<id>/copy { by }            -> { id }          a new ludant, descended from it
 //   POST /api/infer          { who, model?, messages, tools?, max_tokens? } -> OpenRouter chat completion
@@ -42,6 +45,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, write
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { nameOf, randomGiven, titleSlug } from './public/js/names.js';
+import { seedSoma } from './public/js/seed.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
@@ -144,6 +149,19 @@ function tail(who, n) {
 
 const now = () => new Date().toISOString();
 const sameSoma = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** Same body, ignoring title and memory: a new name or remembering being published
+ *  doesn't make a different ludant. Something else has to change. */
+const sameBody = (a, b) => {
+  const strip = (x) => ({ ...x, sections: { ...x?.sections, memory: undefined, title: undefined } });
+  return sameSoma(strip(a), strip(b));
+};
+
+/** A given name no lineage here uses yet. */
+function freshGiven() {
+  const used = new Set([...list('ludants'), ...list('published')].map((x) => (x.soma?.given ?? x.given)?.toLowerCase()));
+  for (let i = 0; i < 1000; i++) { const g = randomGiven(); if (!used.has(g.toLowerCase())) return g; }
+  throw httpError(500, 'ran out of names');
+}
 
 /** Take a checkpoint, unless the soma is exactly what the last one holds. */
 function checkpoint(ludant, label, by) {
@@ -178,7 +196,7 @@ function requireHold(id, token) {
 }
 
 const summary = (x) => ({
-  id: x.id, name: x.soma?.name, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
+  id: x.id, name: nameOf(x.soma), given: x.soma?.given, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
   lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}),
 });
 
@@ -191,8 +209,9 @@ async function route(method, parts, body, query) {
   if (a === 'ludants') {
     if (!b && method === 'GET') return list('ludants').map(summary).sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
     if (!b && method === 'POST') {
-      const id = newId(body.soma?.name);
-      const ludant = { id, soma: body.soma, surfaces: {}, checkpoints: [], visitors: {}, lineage: { seededBy: body.by || null }, fresh: true, created: now(), updated: now() };
+      const given = freshGiven();
+      const id = newId(given);
+      const ludant = { id, soma: seedSoma(given, body.by), surfaces: {}, checkpoints: [], visitors: {}, lineage: { seededBy: body.by || null }, fresh: true, created: now(), updated: now() };
       checkpoint(ludant, 'as seeded', body.by);
       write('ludants', id, ludant);
       return { id };
@@ -200,7 +219,9 @@ async function route(method, parts, body, query) {
     const ludant = read('ludants', b);
     if (!c && method === 'GET') {
       const { checkpoints, ...rest } = ludant;
-      return { ...rest, checkpoints: checkpoints.map(({ soma, ...meta }) => meta) };
+      // The names its family has already published under, so it knows which are taken.
+      const familyNames = list('published').filter((p) => p.given === ludant.soma?.given).map((p) => p.name);
+      return { ...rest, familyNames, checkpoints: checkpoints.map(({ soma, ...meta }) => meta) };
     }
     if (!c && method === 'PUT') {
       requireHold(b, body.token);
@@ -259,29 +280,37 @@ async function route(method, parts, body, query) {
         .sort((x, y) => y.at.localeCompare(x.at));
     }
     if (!b && method === 'POST') {
+      // A published name belongs to exactly one snapshot. So a snapshot can't be published
+      // twice, and publishing again takes both a change and a new title.
       const ludant = read('ludants', body.ludant);
-      const n = body.n ? Number(body.n) : checkpoint(ludant, `published as "${body.title}"`, body.by);
+      const name = nameOf(ludant.soma);
+      if (!titleSlug(ludant.soma.sections?.title)) throw httpError(400, `${name} needs a title before it can be published: its name is its given name and its game's title together`);
+      const pubs = list('published');
+      const same = pubs.find((p) => sameBody(p.soma, ludant.soma));
+      if (same) throw httpError(409, `this exact ${same.given} is already published as ${same.name}. Change something first, then give it a new title`);
+      const clash = pubs.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      if (clash) throw httpError(409, `${name} already names another snapshot. It has changed since, so it needs a new title`);
+      const n = checkpoint(ludant, `published as ${name}`, body.by);
       const cp = ludant.checkpoints.find((x) => x.n === n);
-      if (!cp) throw httpError(404, `no checkpoint ${body.n}`);
       write('ludants', ludant.id, ludant);
-      const id = newId(body.title || ludant.soma?.name);
+      const id = newId(name);
       write('published', id, {
-        id, title: body.title || ludant.soma?.name, name: ludant.soma?.name, by: body.by || null, note: body.note || '',
-        ludant: ludant.id, n: cp.n, from: ludant.lineage?.from?.published ?? null, at: now(), soma: cp.soma,
+        id, name, given: ludant.soma.given, title: ludant.soma.sections.title.trim(), by: body.by || null, note: body.note || '',
+        ludant: ludant.id, n: cp.n, from: ludant.lineage?.from?.published ?? null, fromName: ludant.lineage?.from?.name ?? null, at: now(), soma: cp.soma,
       });
-      return { id };
+      return { id, name };
     }
     const pub = read('published', b);
     if (!c && method === 'GET') { const { soma, ...meta } = pub; return meta; }
     if (c === 'copy' && method === 'POST') {
-      const id = newId(pub.name);
+      const id = newId(pub.given);
       // The soma comes whole; the surfaces start fresh. What was said and sketched belonged
       // to the people who were there.
       const ludant = {
         id, soma: structuredClone(pub.soma), surfaces: {}, checkpoints: [], visitors: {}, fresh: true, created: now(), updated: now(),
-        lineage: { from: { published: pub.id, title: pub.title, by: pub.by, ludant: pub.ludant }, takenBy: body.by || null },
+        lineage: { from: { published: pub.id, name: pub.name, by: pub.by, ludant: pub.ludant }, takenBy: body.by || null },
       };
-      checkpoint(ludant, `as received: "${pub.title}"`, body.by);
+      checkpoint(ludant, `as received: ${pub.name}`, body.by);
       write('ludants', id, ludant);
       return { id };
     }

@@ -2,13 +2,15 @@
 // comments, because the soma is the actant's whole manual; nothing else tells it how
 // its body works.
 
-const ORIGIN = (name, date, by) => `I am ${name}, a ludant: a game that is also an actant. I was seeded on ${date} on gactant${by ? ` by ${by}` : ''}.
+const ORIGIN = (given, date, by) => `My given name is ${given}. I'm a ludant: a game that is also an actant. I was seeded on ${date} on gactant${by ? ` by ${by}` : ''}.
 
 The game is a facet of me. My game section is the game itself: when it changes, I have changed. My hooks section is how I reach the surfaces in my frame, and my tools are what I can do while I'm awake.
 
-Whoever sits with me plays me, and anyone who plays me can shape me: asking for a change is shaping, and so is how they play. Any of them can publish me as I am. Then others take copies, and each copy goes on with its own people. There's no moment when I stop being made and start being played. Both go on the whole time.`;
+My name is my given name and my game's title together, the way Georina-Monopoly-Clone is Georina being a Monopoly clone. I keep the title in my title section, and I can name my game myself once I know what it is, or be asked to. Each name I'm published under belongs to exactly one snapshot of me. To be published again I'll have to have changed, and take a new title.
 
-const IDENTITY = `I'm new. I don't know yet what game I am. I'll find out with whoever is here by talking in the chat, sketching on the whiteboard, and trying things on the stage.`;
+Whoever sits with me plays me, and anyone who plays me can shape me: asking for a change is shaping, and so is how they play. Any of them can publish me as I am. Then others take copies, and each copy goes on with its own people, keeping my given name. There's no moment when I stop being made and start being played. Both go on the whole time.`;
+
+const IDENTITY = `I'm new. I don't know yet what game I am, so I have no title yet. I'll find out with whoever is here by talking in the chat, sketching on the whiteboard, and trying things on the stage.`;
 
 const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again whenever this section changes.
 //
@@ -19,8 +21,8 @@ const HOOKS = `// hooks: how I touch the surfaces in my frame. This runs again w
 //   stage.key { key, down }              stage.pointer { x, y, kind }
 //   stage.halted { message }             frame.arrived { who, firstVisit, visits, fresh, note }
 //   frame.error { source, during, message }   soma.changed { section, by }
-//   frame.published { who, title, url }  frame.restored { who, n, label }   whiteboard.looked { who }
-// me: name, people (who is sitting here), game (my running game), wake(event),
+//   frame.published { who, name, url }  frame.restored { who, n, label }   whiteboard.looked { who }
+// me: name (given name + title), people (who is sitting here), game (my running game), wake(event),
 //     section(name).read()/.write(text), sections(), note(text), surfaces
 // surfaces: chat, whiteboard, stage, status (their actions, done as me)
 //
@@ -40,7 +42,7 @@ function hooks(on, me, surfaces) {
   // Being published is worth remembering but not worth waking for: note it, no thinking.
   on('frame.published', (e) => {
     const m = me.section('memory');
-    m.write(m.read() + '\\n- ' + new Date().toISOString().slice(0, 10) + ': ' + e.who + ' published me as "' + e.title + '" (' + e.url + ').');
+    m.write(m.read() + '\\n- ' + new Date().toISOString().slice(0, 10) + ': ' + e.who + ' published me as ' + e.name + ' (' + e.url + ').');
   });
 
   // The game: run it every frame and pass it input.
@@ -160,13 +162,14 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
   },
 ]`;
 
-export function seedSoma(name, by) {
+export function seedSoma(given, by) {
   const date = new Date().toISOString().slice(0, 10);
   return {
-    name,
+    given,
     sections: {
-      origin: ORIGIN(name, date, by),
+      origin: ORIGIN(given, date, by),
       identity: IDENTITY,
+      title: '',
       memory: '',
       tools: TOOLS,
       hooks: HOOKS,

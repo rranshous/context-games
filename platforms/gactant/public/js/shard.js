@@ -63,7 +63,7 @@ export async function runShard(frame, { brief, name = 'claude-shard', turns = MO
     checkpoint: { d: 'Take a checkpoint of the ludant as it is now, with a label. Waits for it to finish thinking.', p: { label: { type: 'string' } }, run: (i) => frame.takeCheckpoint(i.label || '', seat) },
     history: { d: 'List the ludant\'s checkpoints (one is taken whenever someone sits down).', p: {}, run: () => frame.checkpoints() },
     restore: { d: 'Put the ludant back to a checkpoint by number. How it is now is kept as a checkpoint first.', p: { n: { type: 'number' } }, run: (i) => frame.restore(i.n, seat) },
-    publish: { d: 'Publish the ludant as it is now, so anyone can take a copy. Waits for it to finish thinking.', p: { title: { type: 'string' }, note: { type: 'string' } }, run: (i) => frame.publish(i.title, i.note || '', seat) },
+    publish: { d: `Publish the ludant as it is now, so anyone can take a copy. It's published under its name: its given name plus a title (${actant.soma.given}-<Title>). Pass a title to set one (that renames it); each name belongs to one snapshot, so a new publication needs a change and a new title. Waits for it to finish thinking.`, p: { title: { type: 'string' }, note: { type: 'string' } }, run: (i) => frame.publish(i.note || '', i.title || null, seat) },
     finish: { d: 'End your sitting with a report for the person who sent you: what happened, what you found, what you would do next.', p: { report: { type: 'string' } }, run: (i) => { report = i.report; return 'ok'; } },
   };
   const schemas = Object.entries(tools).map(([name, t]) => ({

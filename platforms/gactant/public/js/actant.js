@@ -12,6 +12,7 @@
 // Waking is costly, so a governor watches: wakes that no human caused (its own game
 // halting, say) are allowed a few in a row, then the actant rests until a human acts.
 
+import { nameOf } from './names.js';
 import { api } from './ui.js';
 
 const CODE = new Set(['tools', 'game', 'hooks']);
@@ -47,19 +48,20 @@ export class Actant {
     this.me = this.buildMe();
   }
 
-  get name() { return this.soma.name; }
+  /** Given name and game title together, so it changes when the title does. */
+  get name() { return nameOf(this.soma); }
 
   buildMe() {
     const actant = this;
     return {
-      get name() { return actant.soma.name; },
+      get name() { return actant.name; },
       get people() { return [...actant.frame.people]; },
       get game() { return actant.game; },
-      get surfaces() { return actant.frame.surfacesFor(actant.soma.name); },
+      get surfaces() { return actant.frame.surfacesFor(actant.name); },
       wake: (event) => this.wake(event),
       section: (name) => ({
         read: () => this.soma.sections[name] ?? '',
-        write: (content) => this.writeSection(name, content, this.soma.name),
+        write: (content) => this.writeSection(name, content, this.name),
       }),
       sections: () => Object.keys(this.soma.sections),
       note: (text) => this.frame.inspector.note('note', text),
@@ -246,11 +248,13 @@ export class Actant {
     const here = [...this.frame.people].join(', ');
     const r = this.frame.record, l = r.lineage ?? {};
     const lineage = l.from
-      ? `You are a copy of "${l.from.title}", published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
+      ? `You are a copy of ${l.from.name}, published by ${l.from.by ?? 'someone'}${l.takenBy ? `, taken by ${l.takenBy}` : ''}.`
       : `You were seeded here${l.seededBy ? ` by ${l.seededBy}` : ''}.`;
     const known = Object.keys(r.visitors ?? {});
     const restored = r.restored ? ` ${r.restored.by ?? 'Someone'} last put you back to an earlier checkpoint ("${r.restored.label || `#${r.restored.n}`}"): what changed after it was undone (your memory you kept), though the chat may still mention it.` : '';
-    const company = `Here with you now: ${here}. ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+    const family = r.familyNames?.length ? ` Names your family (everyone with the given name ${this.soma.given}) has already been published under: ${r.familyNames.join(', ')}.` : '';
+    const naming = `Your name is ${this.name}: your given name ${this.soma.given}${titleSlugged(this.soma) ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
+    const company = `${naming}\nHere with you now: ${here}. ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
     return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
   }
@@ -269,6 +273,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     }));
   }
 }
+
+const titleSlugged = (soma) => nameOf(soma) !== soma.given;
 
 /** Mark the newest message as a cache breakpoint, so each turn of a long wake reads the
  *  conversation so far from cache instead of paying for it again. */
