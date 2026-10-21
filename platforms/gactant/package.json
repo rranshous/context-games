@@ -1,0 +1,9 @@
+{
+  "name": "gactant",
+  "version": "0.1.0",
+  "description": "A platform for shaping game-shaped actants and handing them off to players",
+  "type": "module",
+  "scripts": { "start": "node server.mjs" },
+  "author": "Robby Ranshous",
+  "license": "MIT"
+}

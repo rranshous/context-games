@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gactant</title>
+  <link rel="stylesheet" href="/css/gactant.css">
+  <link rel="icon" href="/favicon.svg">
+</head>
+<body class="lobby">
+  <header class="top"><span class="brand">gactant</span><span class="tagline">game-shaped actants</span><span class="spacer"></span><span id="config"></span></header>
+  <main class="lobby-main">
+    <section>
+      <h2>Shaping</h2>
+      <p class="hint">An actant you shape, together, into a game.</p>
+      <form id="seed" class="seed">
+        <input id="seed-name" placeholder="name a new actant" required maxlength="40">
+        <button>seed it</button>
+      </form>
+      <ul id="actants" class="cards"></ul>
+    </section>
+    <section>
+      <h2>Released</h2>
+      <p class="hint">Shaped actants, handed off. Playing one installs your own copy.</p>
+      <ul id="releases" class="cards"></ul>
+    </section>
+  </main>
+  <script type="module" src="/js/lobby.js"></script>
+</body>
+</html>

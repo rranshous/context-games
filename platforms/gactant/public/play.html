@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gactant</title>
+  <link rel="stylesheet" href="/css/gactant.css">
+  <link rel="icon" href="/favicon.svg">
+</head>
+<body class="lobby">
+  <main class="lobby-main"><p id="msg">installing…</p></main>
+  <script type="module">
+    // A release link installs a fresh copy for this player, then opens it. The install's
+    // id is remembered per release, so coming back finds the same one.
+    import { api } from '/js/ui.js';
+    const r = new URLSearchParams(location.search).get('r');
+    const key = `gactant-install-${r}`;
+    let id = null;
+    try { id = localStorage.getItem(key); } catch {}
+    try {
+      if (id) await api('GET', `installs/${id}`).catch(() => { id = null; });
+      if (!id) { ({ id } = await api('POST', `releases/${r}/install`)); try { localStorage.setItem(key, id); } catch {} }
+      location.replace(`/frame.html?i=${id}`);
+    } catch (err) { document.getElementById('msg').textContent = `couldn't install: ${err.message}`; }
+  </script>
+</body>
+</html>
