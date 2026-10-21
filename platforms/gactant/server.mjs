@@ -39,14 +39,17 @@
 //                                                     409 if this snapshot or this name is already published
 //   GET  /api/published/<id>                        -> metadata
 //   POST /api/published/<id>/copy { by }            -> { id }          a new ludant, descended from it
-//   POST /api/infer          { who, model?, messages, tools?, max_tokens? } -> OpenRouter chat completion
+//   POST /api/infer          { who, messages, tools? } -> OpenRouter chat completion, on the server's key
+//                                                     (people with their own OpenRouter key call it from the browser)
 //   GET  /api/log/<who>?n=20                        -> last n inference records
+//   POST /api/log/<who>      { record }             -> {}   a think the browser made itself
 import { randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nameOf, randomGiven, titleSlug } from './public/js/names.js';
+import { buildRequest } from './public/js/openrouter.js';
 import { seedSoma } from './public/js/seed.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -57,6 +60,9 @@ const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 7780;
 loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
+// Inference logs (data/log) are how Claude reads what a ludant saw and did. On by default
+// locally; a public install should set GACTANT_LOGS=0, since they hold people's sittings.
+const LOGS = process.env.GACTANT_LOGS !== '0';
 
 for (const d of ['ludants', 'published', 'log']) mkdirSync(join(DATA, d), { recursive: true });
 
@@ -89,19 +95,9 @@ function httpError(code, message) { return Object.assign(new Error(message), { c
 
 async function infer(body) {
   const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw httpError(503, 'no OPENROUTER_API_KEY in platforms/gactant/.env');
+  if (!key) throw httpError(503, 'this server has no OpenRouter key: connect your own OpenRouter account');
   const who = body.who ? safe(body.who) : 'anon';
-  const request = {
-    model: body.model || MODEL,
-    messages: body.messages,
-    // Room for a ludant to rewrite a whole game in one write_section.
-    max_tokens: body.max_tokens || 32000,
-    usage: { include: true },
-    // Prefer one provider: each keeps its own prompt cache, and bouncing between them
-    // turns every other call into a cache write.
-    provider: { order: ['anthropic'], allow_fallbacks: true },
-    ...(body.tools?.length ? { tools: body.tools } : {}),
-  };
+  const request = buildRequest({ ...body, model: MODEL });
   const started = Date.now();
   // A dropped connection or a busy provider shouldn't end someone's sitting: retry those.
   let res, text;
@@ -123,15 +119,18 @@ async function infer(body) {
   }
   let json;
   try { json = JSON.parse(text); } catch { throw httpError(502, `openrouter: ${text.slice(0, 300)}`); }
-  const record = {
+  log(who, {
     at: new Date().toISOString(), ms: Date.now() - started, model: request.model, status: res.status,
     usage: json.usage, error: json.error,
     // The last message is what woke this turn (an event, or tool results); the reply is what came back.
     last: summarize(request.messages.at(-1)), reply: json.choices?.[0]?.message,
-  };
-  appendFileSync(join(DATA, 'log', `${who}.jsonl`), JSON.stringify(record) + '\n');
+  });
   if (!res.ok || json.error) throw httpError(502, `openrouter ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 500)}`);
   return json;
+}
+
+function log(who, record) {
+  if (LOGS) appendFileSync(join(DATA, 'log', `${safe(who)}.jsonl`), JSON.stringify(record) + '\n');
 }
 
 /** Keep logs readable: drop image bytes. */
@@ -197,15 +196,36 @@ function requireHold(id, token) {
   throw Object.assign(httpError(409, `${h?.who ?? 'another window'} is holding this ludant`), { extra: { heldBy: h?.who ?? null, since: h?.since ?? null } });
 }
 
+// ---------- what play costs ----------
+//
+// Heartbeats carry how long a sitting was watched and what its thinking cost since the
+// last one. They add up on the ludant and, while it's still exactly a published snapshot,
+// on that publication, so anyone about to play it can see its cost per hour of play.
+
+const add = (stats, seconds, spent) => ({ seconds: (stats?.seconds ?? 0) + seconds, spent: (stats?.spent ?? 0) + spent, sittings: stats?.sittings ?? 0 });
+
+function played(ludant, seconds, spent) {
+  if (!(seconds > 0 || spent > 0)) return;
+  seconds = Math.min(seconds, 60); spent = Math.min(Math.max(spent, 0), 5);   // one heartbeat's worth, at most
+  ludant.stats = add(ludant.stats, seconds, spent);
+  write('ludants', ludant.id, ludant);
+  const pub = list('published').find((p) => sameBody(p.soma, ludant.soma));
+  if (pub) { pub.stats = add(pub.stats, seconds, spent); write('published', pub.id, pub); }
+}
+
+const perHour = (stats) => (stats?.seconds > 600 ? { rate: stats.spent / (stats.seconds / 3600), hours: stats.seconds / 3600 } : null);
+
 const summary = (x) => ({
   id: x.id, name: nameOf(x.soma), given: x.soma?.given, updated: x.updated, checkpoints: x.checkpoints?.length ?? 0,
-  lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}),
+  lineage: x.lineage ?? {}, people: Object.keys(x.visitors ?? {}), cost: perHour(x.stats),
 });
 
 async function route(method, parts, body, query) {
   const [a, b, c] = parts;
-  if (a === 'config') return { model: MODEL, hasKey: Boolean(process.env.OPENROUTER_API_KEY) };
+  if (a === 'config') return { model: MODEL, hasKey: Boolean(process.env.OPENROUTER_API_KEY), logs: LOGS };
   if (a === 'infer' && method === 'POST') return infer(body);
+  // A think the browser sent straight to OpenRouter, for the log.
+  if (a === 'log' && b && method === 'POST') { log(b, { ...body, last: summarize(body.last) }); return {}; }
   if (a === 'log' && b) return tail(b, Number(query.get('n')) || 20);
 
   if (a === 'ludants') {
@@ -236,7 +256,11 @@ async function route(method, parts, body, query) {
       holds.set(b, { token: body.token, who: String(body.who || 'someone').slice(0, 40), since: h?.token === body.token ? h.since : now(), seen: Date.now() });
       return { held: true, tookFrom: h && h.token !== body.token ? h.who : null };
     }
-    if (c === 'heartbeat' && method === 'POST') { requireHold(b, body.token); return { held: true }; }
+    if (c === 'heartbeat' && method === 'POST') {
+      requireHold(b, body.token);
+      played(ludant, Number(body.seconds) || 0, Number(body.spent) || 0);
+      return { held: true };
+    }
     if (c === 'release' && method === 'POST') {
       if (holds.get(b)?.token === body.token) holds.delete(b);
       return {};
@@ -247,6 +271,7 @@ async function route(method, parts, body, query) {
       const who = String(body.who || 'someone').slice(0, 40);
       const seen = ludant.visitors[who];
       ludant.visitors[who] = { first: seen?.first ?? now(), last: now(), visits: (seen?.visits ?? 0) + 1 };
+      ludant.stats = { ...add(ludant.stats, 0, 0), sittings: (ludant.stats?.sittings ?? 0) + 1 };
       const n = checkpoint(ludant, `as it was when ${who} sat down`, who);
       write('ludants', b, ludant);
       return { firstVisit: !seen, visits: ludant.visitors[who].visits, checkpoint: n, people: Object.keys(ludant.visitors) };
@@ -278,7 +303,7 @@ async function route(method, parts, body, query) {
   if (a === 'published') {
     if (!b && method === 'GET') {
       const ludants = list('ludants');
-      return list('published').map(({ soma, ...p }) => ({ ...p, copies: ludants.filter((l) => l.lineage?.from?.published === p.id).length }))
+      return list('published').map(({ soma, stats, ...p }) => ({ ...p, cost: perHour(stats), copies: ludants.filter((l) => l.lineage?.from?.published === p.id).length }))
         .sort((x, y) => y.at.localeCompare(x.at));
     }
     if (!b && method === 'POST') {

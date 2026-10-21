@@ -14,6 +14,7 @@
 
 import { Bus } from './bus.js';
 import { nameOf } from './names.js';
+import { buildRequest, complete, connect, disconnect, key as ownKey } from './openrouter.js';
 import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
@@ -26,6 +27,7 @@ import { installExplorer } from './explorer.js';
 
 const SAVE_MS = 800;
 const HEARTBEAT_MS = 5000;
+const CHECK_IN = 1.0;   // dollars: by default, the frame checks in each time a sitting passes another one
 
 // What this is, said plainly to the ludant at every wake. Ludants do better when they
 // know the goals and that it's an experiment. The frame owns this, not the soma, and it's
@@ -92,8 +94,14 @@ class Frame {
       await this.ask(`${this.actant.name} is open in another window${err.body?.heldBy ? ` (${err.body.heldBy}${since ? `, since ${since}` : ''})` : ''}. A ludant lives in one window at a time.`, 'bring it here');
       await api('POST', `ludants/${this.recordId}/hold`, { token: this.token, who: this.seat, takeOver: true });
     }
+    // Heartbeats also carry what the sitting has cost since the last one and how long it's
+    // been watched, so the server can say what a ludant costs per hour of play.
+    let lastBeat = Date.now(), reported = 0;
     this.heartbeat = setInterval(async () => {
-      try { await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token }); }
+      const now = Date.now(), seconds = document.visibilityState === 'visible' ? (now - lastBeat) / 1000 : 0;
+      const spent = this.status.spent - reported;
+      lastBeat = now; reported = this.status.spent;
+      try { await api('POST', `ludants/${this.recordId}/heartbeat`, { token: this.token, seconds, spent }); }
       catch (err) { if (err.status === 409) this.lose(err.body?.heldBy); }
     }, HEARTBEAT_MS);
     addEventListener('pagehide', () => navigator.sendBeacon(`/api/ludants/${this.recordId}/release`, JSON.stringify({ token: this.token })));
@@ -129,13 +137,63 @@ class Frame {
     this.status.render();
   }
 
-  /** Thinking, done for the ludant. The key stays here (today on the server, behind the
-   *  relay); the sandbox only ever sees the answer. */
+  /** Who pays for thinking here: the person's own OpenRouter account, this server's key
+   *  (a local install), or nobody yet. */
+  payer() { return ownKey() ? 'own' : this.config?.hasKey ? 'server' : null; }
+
+  /** Thinking, done for the ludant. The key stays on this side; the sandbox only ever
+   *  sees the answer. */
   async infer({ messages, tools }) {
-    const res = await api('POST', 'infer', { who: this.recordId, messages, tools });
+    await this.thinkingReady();
+    let res;
+    if (this.payer() === 'own') {
+      const request = buildRequest({ model: this.config.model, messages, tools });
+      const started = Date.now();
+      res = await complete(request);
+      if (this.config.logs) {
+        api('POST', `log/${this.recordId}`, { at: new Date().toISOString(), ms: Date.now() - started, model: request.model, status: 200, via: 'browser',
+          usage: res.usage, last: request.messages.at(-1), reply: res.choices?.[0]?.message }).catch(() => {});
+      }
+    } else {
+      res = await api('POST', 'infer', { who: this.recordId, messages, tools });
+    }
     this.status.addSpend(res.usage?.cost);
+    this.checkIn();
     return res;
   }
+
+  /** Nobody here has connected thinking yet: ask the person, once, when the ludant first
+   *  needs it. Its thinking waits for their answer. */
+  thinkingReady() {
+    if (this.payer()) return Promise.resolve();
+    this.asking ??= new Promise((resolve, reject) => {
+      const box = el('div', { class: 'banner' },
+        el('p', {}, `${this.actant.name} wants to think. Thinking runs on your own OpenRouter account and costs real money (usually cents); the meter at the top shows what this sitting has cost.`),
+        el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(`${this.seat} hasn't connected thinking, so you can't think in this sitting yet`)); } }, 'not now'));
+      document.body.append(box);
+    });
+    return this.asking;
+  }
+
+  /** Each time the sitting passes another mark (a dollar, unless the person set another),
+   *  say so, with the way out. It doesn't stop anything: leaving is how a person stops. */
+  checkIn() {
+    const mark = this.status.checkInEvery();
+    if (!mark) return;
+    const passed = Math.floor(this.status.spent / mark);
+    if (passed <= (this.checkedIn ?? 0)) return;
+    this.checkedIn = passed;
+    const rate = this.status.rate();
+    const box = el('div', { class: 'banner' },
+      el('p', {}, `This sitting with ${this.actant.name} has cost $${this.status.spent.toFixed(2)}${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}.`),
+      el('button', { class: 'top-btn primary', onclick: () => box.remove() }, 'keep playing'),
+      el('a', { class: 'top-btn', href: '/' }, 'leave'));
+    document.body.append(box);
+  }
+
+  connectThinking() { return connect().then((ok) => { this.status.render(); return ok; }); }
+  disconnectThinking() { disconnect(); this.status.render(); }
 
   /** What the frame tells the ludant when it wakes: the experiment, who's here, how
    *  they're related to it, and the surfaces on this side. (The chassis adds its soma,
@@ -152,7 +210,10 @@ class Frame {
     const titled = nameOf(soma) !== soma.given;
     const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
     const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the status lights). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
-    const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+    const rate = this.status.rate();
+    const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
+    const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}. The people here can see that meter.`;
+    const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view} ${cost} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
     const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
     return { context: CONTEXT, company, surfaces };
@@ -378,8 +439,9 @@ async function boot() {
   if (!id) { location.href = '/'; return; }
   const seat = myName() || prompt('What should the ludants here call you?', '')?.trim() || 'someone';
   try { localStorage.setItem('gactant-name', seat); } catch {}
-  const record = await api('GET', `ludants/${id}`);
+  const [record, config] = await Promise.all([api('GET', `ludants/${id}`), api('GET', 'config')]);
   const frame = new Frame(record, seat);
+  frame.config = config;
   frame.noticeName();
   frame.mount();
   await frame.hold();

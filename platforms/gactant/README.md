@@ -17,8 +17,15 @@ frame's store; the inspector is open on the store tab.*
 node platforms/gactant/server.mjs          # http://lilg:7780/  (phones on the LAN too)
 ```
 
-`platforms/gactant/.env` holds `OPENROUTER_API_KEY` (and optionally `GACTANT_MODEL`,
-default `anthropic/claude-sonnet-5.5`). There are no dependencies and no build: the server
+**Thinking is paid by the person sitting there.** The frame's cost meter offers
+"connect OpenRouter", an OAuth popup that hands back a key billed to their own account.
+The key stays in the frame's storage, out of the sandbox's reach. The frame calls
+OpenRouter straight from the browser, so the key never touches the server.
+
+For local use, `platforms/gactant/.env` can also hold an `OPENROUTER_API_KEY`, which the
+server relays for anyone who hasn't connected their own. You can also set
+`GACTANT_MODEL` (default `anthropic/claude-sonnet-5.5`) and `GACTANT_LOGS=0` to turn off
+inference logs. There are no dependencies and no build: the server
 is plain Node, and the pages are plain ES modules. The only outside code is three.js,
 served from `public/vendor`.
 
@@ -123,6 +130,23 @@ once. Other surfaces' actions return promises.
 Tested from inside the sandbox: `fetch` to the API and to OpenRouter, WebSockets,
 beacons, `parent.document`, `localStorage` and cookies are all blocked. The API also
 refuses any request whose `Origin` isn't the site itself.
+
+## What it costs, out in the open
+
+A ludant thinks when something wakes it: someone talking to it, or anything its own hooks
+decide is worth waking for, even in the middle of a game. So nothing promises that
+playing is free. Instead:
+- **The meter** in the top bar shows what this sitting has cost and its rate per hour. It
+  turns amber at 25¢ and red at $1.
+- **Check-ins**: each time the sitting passes another dollar (people can set their own
+  amount), the frame says what it has cost, with "keep playing" and "leave". Nothing is
+  stopped from outside. Cutting off a ludant's thinking would break a body whose hooks
+  count on waking. Leaving is how a person stops.
+- **The ludant is told** at every wake what the sitting has cost, its rate, and who's
+  paying, so it can be careful with it itself.
+- **Cost per hour of play**: heartbeats report time watched and spend. Those add up on
+  the ludant and, while it's still exactly a published snapshot, on that publication, so
+  the lobby can say what a ludant tends to cost before anyone sits down.
 
 ## No modes: everyone plays and shapes
 

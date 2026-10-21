@@ -52,7 +52,6 @@ input:focus, textarea:focus { outline: 1px solid var(--amber); border-color: var
 @keyframes pulse { 50% { opacity: 0.35; } }
 .status-line { color: var(--ink); font-style: italic; overflow: hidden; text-overflow: ellipsis; }
 .status-detail { color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.spend { margin-left: auto; color: var(--ink-3); font: 12px var(--mono); }
 
 /* ---------- the frame ---------- */
 .frame {
@@ -184,3 +183,15 @@ input:focus, textarea:focus { outline: 1px solid var(--amber); border-color: var
 
 /* the sandbox holds the ludant and shows nothing */
 iframe.sandbox { position: absolute; width: 0; height: 0; border: 0; visibility: hidden; }
+
+/* the cost meter, and the frame's banners (asking to connect, checking in) */
+.spend { margin-left: auto; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; color: var(--ink-2); font: 12px var(--mono); }
+.spend.warm { color: var(--amber); border-color: var(--amber); }
+.spend.hot { color: var(--red); border-color: var(--red); }
+.meter-pop { position: fixed; top: 48px; right: 12px; z-index: 40; width: min(380px, calc(100vw - 24px)); background: var(--pane); border: 1px solid var(--line); border-radius: 10px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-size: 13px; }
+.meter-pop p { margin: 0 0 8px; color: var(--ink-2); }
+.meter-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--ink-2); }
+.meter-every { width: 80px; padding: 2px 6px; }
+.banner { position: fixed; left: 50%; top: 56px; transform: translateX(-50%); z-index: 45; width: min(520px, calc(100vw - 24px)); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--pane); border: 1px solid var(--amber); border-radius: 10px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+.banner p { flex: 1 0 100%; margin: 0 0 4px; }
+.banner a { text-decoration: none; }

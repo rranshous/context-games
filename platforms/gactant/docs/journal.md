@@ -1214,3 +1214,54 @@ and didn't fix anything.
 Also: **the stage starts at 640×360 now** (Robby: "lets have the stage start at 640; gooood
 datas!"). The seed's dot and label are scaled up to match. The server imports the seed,
 so it has to be restarted to pick that up, which I forgot the first time.
+
+## Part 7: toward a public site
+
+Robby: "the next step is to publish this online": people connecting their own OpenRouter,
+a UI random people can "get", and hosting.
+
+### Thinking on the person's own account
+
+- `openrouter.js` handles OAuth PKCE in a **popup**, so the sitting in progress survives.
+  It lands on `/connected.html`, which trades the code for a key, stores it and closes.
+  The opener hears about it through the storage event. On plain-http LAN pages, where
+  `crypto.subtle` isn't available, it falls back to `plain` instead of S256.
+- The key lives in the frame's localStorage. The sandbox's opaque origin can't read it.
+  The frame calls OpenRouter **straight from the browser**, building the same request
+  the relay used to (now one shared `buildRequest`, which the server imports too).
+- **Who pays** is one of three: the person (their own key), this install (the `.env` key,
+  relayed: local dev), or nobody yet. With nobody, the first time the ludant wants to
+  think the frame asks: "Malan wants to think. Thinking runs on your own OpenRouter
+  account and costs real money…" with "connect OpenRouter" and "not now". The think
+  waits for the answer.
+- Logs: when the browser thinks for itself it posts the record to `/api/log/<who>`, so
+  Claude can still read what happened. `GACTANT_LOGS=0` turns logging off on a public
+  install, because the logs hold people's sittings.
+
+### Cost: apparent, not promised away
+
+I wrote that playing a published game "costs nothing". Robby: "i don't think that
+_playing a published game costs nothing_ is a good promise to make. what if the ludant
+decides to wake on a game event? rather then costs nothing i think we make the cost very
+apparent so the user can choose to stop." He suggested tracking an average spend per
+hour of play.
+
+My next proposal included a "let it sleep" button. Robby: "i don't like 'let it sleep'
+that sounds like a great way to break a ludant." He's right. A ludant's hooks are built
+on being able to wake, and a frame that silently stops answering is a body that fails
+for reasons it can't perceive. So nothing is stopped from outside. Instead:
+- a meter in the status bar: $ this sitting and $/hour, amber at 25¢, red at $1. Clicking
+  it opens who pays, connect/disconnect, and the check-in amount.
+- a check-in each time the sitting passes another dollar (configurable; 0 means never),
+  with "keep playing" and "leave". **Leaving is how a person stops.**
+- the ludant is told too, at every wake: what the sitting has cost, its rate, who pays,
+  and that the people here can see the meter. Perception, not control.
+- cost per hour of play: heartbeats now carry time watched (only while visible) and spend
+  since the last beat. The server adds them to the ludant's stats and, while the ludant
+  is still exactly a published snapshot, to that publication's. Summaries carry
+  `cost: { rate, hours }` once there are ten minutes of play to go on.
+
+### Domains
+
+Robby ran `wrangler login` and wants the platform's own name. RDAP says gactant.com,
+.net, .org, .app, .dev, .io, .xyz, .games and .fun are all unregistered.
