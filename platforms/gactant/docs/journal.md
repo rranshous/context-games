@@ -1555,3 +1555,56 @@ Robby ran /check on the Xbox; the report (r-5aeb6182) came straight to me:
 
 Also fixed: two controllers connecting at once each opened a report. Saves now go one
 at a time.
+
+From the same round, Robby:
+- **The voice:** "that voice was pretty horrible computer'y. lets put in the journal to
+  explore 'local' models or maybe openrouter for generating voices. i like local b/c it
+  doesn't cost money but i'm not sure we can pull it off." To explore: an in-browser TTS
+  model (Kokoro or Piper, run with WebGPU or WASM; free once downloaded, but heavy for an
+  Xbox?) against an OpenRouter audio model (good, but metered like thinking).
+- **Controller mode:** "when i went to the webpage i had to go to the menu and choose to
+  enable controller mode, otherwise i just get the virtual mouse pointer." A page can't
+  switch it on, so the lobby says how until a controller appears.
+- **No mic on the Xbox** for now: "i'll have to find something." Voice in waits; voice out
+  works.
+- "lets make this UI seamless so it 'just works' on xbox and computer."
+
+### Controllers, presented to games
+
+I asked how games should see keyboards and controllers, proposed two layers, and Robby
+agreed: "maximum playability while letting games optimize as they want."
+- **Devices, honest:** `input.keys`/`pressed` as before. `input.pads` has each controller
+  with buttons by name (`down`, `pressed` this frame), trigger `value`s and both sticks
+  with a deadzone. Events: `stage.pad { pad, button, down }`.
+- **Players, merged:** `input.players[0]` is the keyboard and controller 1 together
+  (arrows/WASD, space/Z/Enter = A, X/Shift = B, C = X, V = Y, Q/E bumpers);
+  `players[1…]` are the other controllers. A game written against players works on a
+  keyboard and a couch alike. It's a getter, worked out on each read, so a key the
+  ludant holds during an advance counts.
+- **Old games unchanged:** controller 1 also presses keys (d-pad and left stick as arrows,
+  A as space), and those `stage.key` events say `from: 'pad'`. The contract says to read
+  players or keys, not both.
+
+The frame side (`pads.js`):
+- `Pads` polls the Gamepad API each frame, with buttons by name and the left stick
+  doubling as the d-pad.
+- `PadNav` moves focus to the nearest thing in a direction, favouring what's straight
+  ahead. A clicks; held directions repeat.
+- Routing in a frame: the game has the controller. An open dialog, banner or popover
+  takes it. **Menu** hands it to the page ("controller: moving around the page · B for
+  the game"). **B** or Menu hands it back. **View** toggles play mode. The game gets no
+  controller input while the page has it, and keys held by the controller are released
+  when it leaves.
+- The name question at the start of a frame (and on play links) can be answered with a
+  controller too.
+
+And Robby, mid-build: "when a user launches a ludant from a play link we should start in
+play mode." Play links now open with `&play`.
+
+Tested with two stand-in controllers on lilg:
+- the lobby's d-pad focus moved between cards, and the tip went away
+- `&play` opened in play mode
+- holding right on controller 1 gave player 1 `right` (x 1), plus the arrow key
+- controller 2's A reached player 2 once per press
+- Menu moved the controller to the page and the game stopped getting it; B brought it
+  back

@@ -3,6 +3,7 @@
 // their own ludants first. Everything published is further down, as family trees, and
 // starting from nothing is last.
 
+import { PadNav, Pads } from './pads.js';
 import { api, askName, el, mine, myName } from './ui.js';
 
 const FEATURED = 6;
@@ -147,6 +148,17 @@ function renderMe() {
     const next = prompt('What should ludants call you?', name)?.trim();
     if (next) { try { localStorage.setItem('gactant-name', next); } catch {} renderMe(); }
   } }, name));
+}
+
+// A controller moves between the cards (and through any question on top).
+const pads = new Pads();
+new PadNav(pads, { scope: () => document.querySelector('.cover') ?? document.body });
+// On Xbox, Edge gives pages the controller only in its controller mode; until a
+// controller shows up here, say how.
+const tip = el('p', { class: 'lobby-tip' }, 'Playing with a controller on an Xbox? Turn on controller mode in Edge\'s menu, or the controller only moves a pointer.');
+if (navigator.getGamepads) {
+  document.querySelector('.top').after(el('div', { class: 'tip-bar' }, tip));
+  pads.on(() => { tip.parentElement?.remove(); });
 }
 
 renderMe();

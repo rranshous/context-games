@@ -35,6 +35,13 @@
 //   stage.key      { key, down }
 //   stage.pointer  { x, y, kind }        kind: down | up
 //   stage.halted   { message }           a frame handler threw; the stage stops until restarted
+//   stage.pad      { pad, button, down } a controller button (pad: its index), while the game has the controller
+//
+// Controllers: every connected controller goes to the game each frame (input.pads), and
+// input.players merges them with the keyboard (player 1 is the keyboard and controller 1;
+// players 2… are the other controllers). Controller 1 also presses keys (d-pad and left
+// stick as the arrows, A as space; stage.key says from: 'pad'), so games made for the
+// keyboard play from the couch unchanged.
 //
 // On touch screens the stage shows a pad (arrows and a space button) that holds and
 // releases those keys, so a game written for the keyboard is playable on a phone.
@@ -47,6 +54,7 @@ import { el } from '../ui.js';
 const TICK_LOST_MS = 1000;   // a tick that hasn't come back by then is given up on
 const STARVED_MS = 3000;     // no picture for this long, while running: say so
 const PLAYING_MS = 1200;     // the ludant's edge stays lit this long after its last input
+const PAD_KEYS = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', a: ' ' };
 
 export class Stage {
   id = 'stage';
@@ -63,6 +71,8 @@ export class Stage {
     this.three = false;
     this.live = false;     // ticking: once the sandbox has the ludant
     this.out = 0;          // when the tick in flight was sent, or 0
+    this.padPressed = new Map();   // pad index -> buttons that went down since the last tick
+    this.padKeys = new Set();      // keys controller 1 is holding down
     this.ludantHeld = new Set();   // keys the ludant is holding
     this.ludantAt = 0;             // when the ludant last gave the stage input
   }
@@ -94,7 +104,7 @@ export class Stage {
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
     const mode = this.three ? ' It is drawing in 3D now (three.js under a 2D overlay).' : '';
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input, and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").${mode}`;
+    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. People on touch screens get an on-screen pad that presses the arrow keys and space, so games should be playable with those (or the pointer) alone. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), advance(seconds), look(), restart()). A game can draw in 2D (ctx) or in 3D with three.js (stage.three()), with ctx as a HUD on top. Controllers: ${this.controllers() ? `${this.controllers()} connected now` : 'none connected right now'}; a game reads them through stage.input.players (or .pads). When you play it yourself, people can see that: the stage's edge lights up in your color while you give it input, and a jump ahead is announced on the stage ("${this.frame.actant?.name ?? 'you'} skipped ahead 10 s").${mode}`;
   }
 
   actions() {
@@ -171,21 +181,48 @@ export class Stage {
     this.t += dt; this.count++;
     this.out = now;
     const p = this.input.pointer;
+    const pads = this.frame.gameHasPads?.() ? (this.frame.pads?.list ?? []).map((pad) => ({ ...pad, pressed: Object.fromEntries([...(this.padPressed.get(pad.index) ?? [])].map((b) => [b, true])) })) : [];
     this.frame.sandbox.bridge.send('tick', { dt, t: this.t, frame: this.count, fps: this.fps,
-      input: { keys: [...this.input.keys], pressed: [...this.input.pressed], pointer: { x: p.x, y: p.y, down: p.down, clicked: p.clicked } } });
+      input: { keys: [...this.input.keys], pressed: [...this.input.pressed], pointer: { x: p.x, y: p.y, down: p.down, clicked: p.clicked }, pads } });
     this.input.pressed.clear();
+    this.padPressed.clear();
     p.clicked = false;
   }
 
-  keyDown(k) {
-    if (!this.input.keys.has(k)) { this.input.pressed.add(k); this.frame.bus.emit('stage.key', { key: k, down: true }); }
+  keyDown(k, from) {
+    if (!this.input.keys.has(k)) { this.input.pressed.add(k); this.frame.bus.emit('stage.key', { key: k, down: true, ...(from ? { from } : {}) }); }
     this.input.keys.add(k);
   }
 
-  keyUp(k) {
+  keyUp(k, from) {
     this.input.keys.delete(k);
-    this.frame.bus.emit('stage.key', { key: k, down: false });
+    this.frame.bus.emit('stage.key', { key: k, down: false, ...(from ? { from } : {}) });
   }
+
+  /** A controller button, while the game has the controller. */
+  padEvent({ pad, button, down, repeat }) {
+    if (repeat) return;
+    if (down) {
+      if (!this.padPressed.has(pad)) this.padPressed.set(pad, new Set());
+      this.padPressed.get(pad).add(button);
+    }
+    this.frame.bus.emit('stage.pad', { pad, button, down });
+    // Controller 1 (the lowest connected) also presses keys.
+    const first = Math.min(...(this.frame.pads?.list ?? []).map((p) => p.index));
+    const key = PAD_KEYS[button];
+    if (pad !== first || !key) return;
+    if (down) { this.padKeys.add(key); this.keyDown(key, 'pad'); }
+    else if (this.padKeys.delete(key)) this.keyUp(key, 'pad');
+  }
+
+  /** The controller went to the page: let go of whatever it was holding in the game. */
+  releasePads() {
+    for (const k of this.padKeys) this.keyUp(k, 'pad');
+    this.padKeys.clear();
+    this.padPressed.clear();
+  }
+
+  controllers() { return (this.frame.pads?.list ?? []).length; }
 
   point(x, y, down) {
     const p = this.input.pointer;

@@ -15,12 +15,42 @@
 // copied across as an ArrayBuffer.
 //
 // For game code, `api` is the handle it always was:
-//   ctx, width, height, t, frame, size(w, h), caption, input { keys, pressed, pointer }, three()
+//   ctx, width, height, t, frame, size(w, h), caption, three(),
+//   input { keys, pressed, pointer, pads, players }
 // The ludant's own surfaces.stage is local too, so its tools can test at full speed:
 //   look() and advance() read and run this buffer directly; hold, release and point change
 //   the input here and at the frame, so a held key holds both for a person and for an advance.
 
 const MAX_W = 1920, MAX_H = 1080;
+
+// The keyboard as a controller, for player 1. (Arrows or WASD are the d-pad and left
+// stick; space, Z or Enter is A; X or Shift is B; C is X; V is Y; Q and E are the bumpers.)
+const KEYPAD = {
+  up: ['arrowup', 'w'], down: ['arrowdown', 's'], left: ['arrowleft', 'a'], right: ['arrowright', 'd'],
+  a: [' ', 'z', 'enter'], b: ['x', 'shift'], x: ['c'], y: ['v'], lb: ['q'], rb: ['e'],
+};
+
+/** One controller-shaped player: { index, down, pressed, value: { lt, rt }, left, right }. */
+function keyboardPlayer(keys, pressed) {
+  const down = {}, now = {};
+  for (const [button, ks] of Object.entries(KEYPAD)) {
+    if (ks.some((k) => keys.has(k))) down[button] = true;
+    if (ks.some((k) => pressed.has(k))) now[button] = true;
+  }
+  const left = { x: (down.right ? 1 : 0) - (down.left ? 1 : 0), y: (down.down ? 1 : 0) - (down.up ? 1 : 0) };
+  return { index: 0, from: 'keyboard', down, pressed: now, value: { lt: 0, rt: 0 }, left, right: { x: 0, y: 0 } };
+}
+
+const bigger = (a, b) => (Math.abs(b) > Math.abs(a) ? b : a);
+function merge(kb, pad) {
+  if (!pad) return kb;
+  return {
+    index: 0, from: 'keyboard+pad',
+    down: { ...kb.down, ...pad.down }, pressed: { ...kb.pressed, ...pad.pressed },
+    value: { lt: Math.max(kb.value.lt, pad.value?.lt ?? 0), rt: Math.max(kb.value.rt, pad.value?.rt ?? 0) },
+    left: { x: bigger(kb.left.x, pad.left.x), y: bigger(kb.left.y, pad.left.y) }, right: pad.right,
+  };
+}
 
 export class StageBuffer {
   constructor({ bus, libs, frame }) {
@@ -33,7 +63,18 @@ export class StageBuffer {
     this.ctx = this.canvas.getContext('2d');
     this.glCanvas = null;   // made the first time a game asks for three()
     this.gl = null;         // { renderer, scene, camera, active }
-    this.input = { keys: new Set(), pressed: new Set(), pointer: { x: 0, y: 0, down: false, clicked: false } };
+    this.input = { keys: new Set(), pressed: new Set(), pointer: { x: 0, y: 0, down: false, clicked: false }, pads: [] };
+    // Players: what most games want. Player 1 is the keyboard and the first controller;
+    // players 2… are the other controllers. Worked out on each read, so a key the ludant
+    // holds during an advance counts too.
+    const input = this.input;
+    Object.defineProperty(input, 'players', {
+      enumerable: true,
+      get() {
+        const pads = input.pads.map((p, i) => ({ ...p, index: i }));
+        return [merge(keyboardPlayer(input.keys, input.pressed), pads[0]), ...pads.slice(1)];
+      },
+    });
     this.t = 0; this.count = 0; this.fps = 0;
     this.halted = null;
     this.caption = '';
@@ -65,6 +106,7 @@ export class StageBuffer {
     }
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
+    for (const pad of this.input.pads) pad.pressed = {};
     return this.show();
   }
 
@@ -73,6 +115,7 @@ export class StageBuffer {
     this.input.keys.clear(); for (const k of input.keys) this.input.keys.add(k);
     for (const k of input.pressed) this.input.pressed.add(k);
     Object.assign(this.input.pointer, input.pointer);
+    this.input.pads = (input.pads ?? []).map((p) => ({ id: p.id, down: p.down ?? {}, pressed: p.pressed ?? {}, value: p.value ?? { lt: 0, rt: 0 }, left: p.left ?? { x: 0, y: 0 }, right: p.right ?? { x: 0, y: 0 } }));
   }
 
   /** Send what was drawn to the frame, as pictures. One at a time: a slow game shows at the
@@ -235,6 +278,7 @@ export class StageBuffer {
       this.bus.emit('stage.frame', { dt, t: this.t, frame: this.count });
       this.input.pressed.clear();
       this.input.pointer.clicked = false;
+      for (const pad of this.input.pads) pad.pressed = {};
     }
     this.render3d();
     this.frame?.send('advanced', this.t, this.count);

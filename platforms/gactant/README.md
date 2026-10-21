@@ -188,6 +188,34 @@ as family trees:
 
 ![family tree in the lobby](docs/shots/13-family-tree.png)
 
+## Controllers and the couch
+
+Games get controllers in two layers, so every game is as playable as possible and each
+can go further if it wants:
+- **`stage.input.players`**: controller-shaped players, `{ down, pressed, value: { lt, rt },
+  left, right }`, with buttons by name (`a b x y lb rb lt rt view menu ls rs up down left
+  right`).
+  - Player 1 is the keyboard and controller 1 together: arrows or WASD are the d-pad and
+    stick; space/Z/Enter is A; X/Shift is B; C is X; V is Y; Q/E are the bumpers.
+  - Players 2 and up are the other controllers, so couch multiplayer is
+    `players.length`.
+- **`stage.input.pads`**: the controllers alone, plus `stage.pad` events.
+- **Controller 1 also presses keys** (the d-pad and stick as arrows, A as space), so every
+  keyboard game plays from the couch unchanged.
+
+The frame's pages work with a controller too:
+- In the lobby, the d-pad or stick moves between cards and A opens one.
+- In a frame, the controller plays the game. **Menu** hands it to the page (the buttons,
+  the chat), and **B** or Menu hands it back. **View** is play mode. Any dialog takes the
+  controller while it's open.
+- Play links open in play mode.
+- On Xbox, Edge gives pages controllers only in **controller mode** (from its menu);
+  otherwise a controller drives a pointer. The lobby says so until a controller shows up.
+
+`/check.html` is a guided device check: controllers, every button and stick, speech,
+the microphone, recognition. It saves its report for Claude to read
+(`node tools/reports.mjs`).
+
 ## One window, any device
 
 A ludant lives in one window at a time. Opening it elsewhere offers to **bring it here**,

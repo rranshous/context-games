@@ -19,6 +19,7 @@ import { Body, Sandbox } from './sandbox.js';
 import { Chat } from './surfaces/chat.js';
 import { Inspector } from './surfaces/inspector.js';
 import { Lights } from './lights.js';
+import { PadNav, Pads } from './pads.js';
 import { Stage } from './surfaces/stage.js';
 import { Store } from './surfaces/store.js';
 import { Whiteboard } from './surfaces/whiteboard.js';
@@ -336,6 +337,8 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     // chat first.
     let folded = true, playing = false;
     try { folded = localStorage.getItem('gactant-fold') !== '0'; playing = localStorage.getItem('gactant-play') === '1'; } catch {}
+    // A play link (&play) starts in play mode, whatever was chosen last time.
+    if (new URLSearchParams(location.search).has('play')) playing = true;
     this.playing = playing;
     const main = el('main', { class: `frame${folded ? ' folded' : ''}${playing ? ' playing' : ''}` },
       el('section', { class: 'pane stage-pane' }),
@@ -356,6 +359,62 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     main.querySelector('.stage-pane').append(this.toasts);
     this.bus.on('chat.posted', (e) => { if (this.playing && e.who !== this.seat) this.toast(e.who, e.text); }, 'frame');
     this.hint();
+  }
+
+  // ---------- controllers ----------
+  //
+  // A controller plays the game, unless something asks for it: a dialog or banner on top
+  // takes it while it's there, and Menu hands it to the page (moving between the frame's
+  // buttons, the chat, the whiteboard) until B or Menu hands it back. View is play mode.
+
+  /** The open dialog, banner or popover, if any: it has the controller first. */
+  overlay() { return [...document.querySelectorAll('.cover, .banner, .meter-pop, .history.on')].at(-1) ?? null; }
+
+  gameHasPads() { return this.padTarget === 'game' && !this.overlay(); }
+
+  usePads(pads) {
+    this.pads = pads;
+    this.padTarget = 'game';
+    pads.on((e) => {
+      const overlay = this.overlay();
+      if (overlay || this.padTarget === 'page') {
+        this.nav.enabled = true;
+        if (!overlay && e.down && !e.repeat && e.button === 'menu') { this.padToGame(); this.nav.enabled = false; }
+        return;
+      }
+      this.nav.enabled = false;
+      if (!e.down || e.repeat) { this.stage.padEvent(e); return; }
+      if (e.button === 'menu') { this.padToPage(); this.nav.enabled = true; return; }
+      if (e.button === 'view') { this.setPlaying(!this.playing); return; }
+      if (!this.padHinted) { this.padHinted = true; this.padChip('controller: playing the game · Menu for the page', 4000); }
+      this.stage.padEvent(e);
+    });
+    // Moving around the page; it answers only when the game doesn't have the controller.
+    this.nav = new PadNav(pads, { scope: () => this.overlay() ?? document.body, onBack: () => { if (!this.overlay()) this.padToGame(); } });
+    this.nav.enabled = false;
+  }
+
+  padToPage() {
+    this.padTarget = 'page';
+    this.stage.releasePads();
+    this.nav.focus(this.playBtn);
+    this.padChip('controller: moving around the page · B for the game');
+  }
+
+  padToGame() {
+    this.padTarget = 'game';
+    this.nav.clear();
+    this.padChip(null);
+    this.stage.wrap?.focus();
+  }
+
+  /** A small note saying where the controller is going. */
+  padChip(text, ms = 0) {
+    this.chipEl ??= document.body.appendChild(el('div', { class: 'pad-chip' }));
+    clearTimeout(this.chipTimer);
+    this.chipEl.textContent = text ?? '';
+    this.chipEl.classList.toggle('on', Boolean(text));
+    if (ms) this.chipTimer = setTimeout(() => this.chipEl.classList.remove('on'), ms);
   }
 
   /** The first sitting in this browser gets one line about what's going on. */
@@ -466,13 +525,18 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
 async function boot() {
   const id = new URLSearchParams(location.search).get('l');
   if (!id) { location.href = '/'; return; }
+  // Controllers from the start, so even the first question (a name) can be answered with one.
+  const pads = new Pads();
+  const askNav = new PadNav(pads, { scope: () => document.querySelector('.cover') });
   const seat = await askName();
+  askNav.enabled = false;
   remember(id);
   const [record, config] = await Promise.all([api('GET', `ludants/${id}`), api('GET', 'config')]);
   const frame = new Frame(record, seat);
   frame.config = config;
   frame.noticeName();
   frame.mount();
+  frame.usePads(pads);
   await frame.hold();
   await frame.start();
   setTimeout(() => frame.sendThumb(), 5000);

@@ -13,6 +13,8 @@
     // A publication link takes a copy for this browser's person, then opens it. The copy
     // is remembered per publication, so coming back finds the same one.
     import { api, askName, remember } from '/js/ui.js';
+    import { PadNav, Pads } from '/js/pads.js';
+    new PadNav(new Pads(), { scope: () => document.querySelector('.cover') });
     const p = new URLSearchParams(location.search).get('p');
     const key = `gactant-copy-${p}`;
     let id = null;
@@ -27,7 +29,8 @@
         try { localStorage.setItem(key, id); } catch {}
       }
       remember(id);
-      location.replace(`/frame.html?l=${id}`);
+      // Someone arriving from a play link came to play: start with the stage alone.
+      location.replace(`/frame.html?l=${id}&play`);
     } catch (err) { document.getElementById('msg').textContent = `couldn't take a copy: ${err.message}`; }
   </script>
 </body>
