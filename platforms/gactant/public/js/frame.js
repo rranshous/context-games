@@ -231,6 +231,7 @@ Anyone sitting with you can play you, ask you to change, take checkpoints, put y
     this.knownName = name;
     document.title = `${name} · gactant`;
     this.status.render();
+    this.chat.showLife();
     this.whiteboard.renderBaton();
   }
 

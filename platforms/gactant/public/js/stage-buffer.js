@@ -80,7 +80,8 @@ export class StageBuffer {
       layers.push(await createImageBitmap(this.canvas));
       this.frame.sendWith(layers, 'frame', { layers, caption: this.caption, three: Boolean(this.gl?.active) });
     } catch (err) {
-      console.warn('[stage] could not send the picture', err);
+      // Said once, where people can see it: a stage that can't show its game looks dead.
+      if (!this.pictureFault) { this.pictureFault = true; this.frame.send('note', 'fault', `the game's picture couldn't be sent to the stage: ${err?.message ?? err}`); }
     } finally {
       this.sending = false;
     }

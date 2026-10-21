@@ -45,6 +45,7 @@
 import { el } from '../ui.js';
 
 const TICK_LOST_MS = 1000;   // a tick that hasn't come back by then is given up on
+const STARVED_MS = 3000;     // no picture for this long, while running: say so
 
 export class Stage {
   id = 'stage';
@@ -91,6 +92,13 @@ export class Stage {
   /** What the game drew this frame, as pictures: the 3D layer (if on) under the 2D one. */
   shown({ layers, caption, three }) {
     this.out = 0;
+    this.lastPicture = performance.now();
+    this.pictures = (this.pictures ?? 0) + 1;
+    if (this.starved) {
+      this.starved = false;
+      this.starvedEl?.classList.remove('on');
+      this.frame.inspector.note('changed', 'the stage is getting pictures from the game again');
+    }
     this.caption = caption ?? '';
     this.three = Boolean(three);
     this.ctx.clearRect(0, 0, this.width, this.height);
@@ -111,6 +119,14 @@ export class Stage {
   tick(dt) {
     if (!this.live || this.halted || !this.frame.sandbox.bridge) return;
     const now = performance.now();
+    this.liveSince ??= now;
+    // The game runs in the sandbox and only pictures come back. If they stop coming, the
+    // stage would just sit there, so it says what's wrong instead.
+    if (!this.starved && now - (this.lastPicture ?? this.liveSince) > STARVED_MS) {
+      this.starved = true;
+      this.starvedEl?.classList.add('on');
+      this.frame.inspector.note('fault', `the stage hasn't had a picture from the game for ${Math.round((now - (this.lastPicture ?? this.liveSince)) / 1000)} s (${this.pictures ?? 0} pictures so far, ${this.count} ticks sent)`);
+    }
     if (this.out && now - this.out < TICK_LOST_MS) return;
     this.t += dt; this.count++;
     this.out = now;
@@ -171,8 +187,9 @@ export class Stage {
   mount(root) {
     this.root = root;
     this.haltEl = el('div', { class: 'stage-halt' });
+    this.starvedEl = el('div', { class: 'stage-starved' }, 'waiting for a picture from the game…');
     this.layers = el('div', { class: 'stage-layers' }, this.canvas);
-    const wrap = el('div', { class: 'stage-wrap', tabindex: 0 }, this.layers, this.haltEl);
+    const wrap = el('div', { class: 'stage-wrap', tabindex: 0 }, this.layers, this.haltEl, this.starvedEl);
     root.append(wrap);
     this.wrap = wrap;
     this.touch = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('pad');

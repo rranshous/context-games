@@ -1375,3 +1375,29 @@ whenever its own body decides to; that costs money on your account; the meter sh
 until you connect, it can't think at all. The banner's button is "not now" again. The
 lobby's Jump in line and the meter's popover got the same treatment.
 **Rule for UI copy: describe the contract, never what current ludants happen to do.**
+
+### "Why is nothing happening?"
+
+Robby, using gactant.com: "lets put the ludant status next to its name in the chat, that's
+where i look to see why nothing is happening. i had drawn on the whiteboard and clicked
+the button and didn't know what was happening / if anything was happening… what kind of
+logging do we have? check out …evevina-f693c2 it looks like it created the game, or
+tried to, but i don't see anything."
+
+- **Life in the chat:** the chat pane has a header with the ludant's light and name
+  (asleep / thinking… / resting / stuck, plus any detail), and while it thinks, a
+  "thinking…" line sits at the bottom of the log.
+- **Logging:** on gactant.com there was none. The public install keeps no inference logs,
+  and the inspector's doings lived only in the open page. Now **the doings are kept with
+  the ludant**, like the chat: the last 300, 2000 characters each. So they read the same
+  after a reload, and with only the link, someone helping (me) can read what happened.
+- **Stage health:** the game runs in the sandbox and only pictures come back. If none
+  arrives for 3 s while the stage runs, the stage says "waiting for a picture from the
+  game…" and the doings get a fault with the counts. The sandbox also reports, once, if a
+  picture can't be sent at all. The silent failure becomes a visible one.
+
+Evevina: its record (read over the API without opening it, so Robby's window kept its
+hold) has a complete fishing game drawn from Robby's sketch: boat, line, purple fish,
+640×360. The same soma ran perfectly on lilg and on gactant.com in Chromium: pixels
+drawn, caption updating, no faults. So what Robby saw is something about his browser or
+that sitting. The new health check and the kept doings will tell us next time.

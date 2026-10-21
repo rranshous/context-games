@@ -1,10 +1,12 @@
 // Inspector: a look inside the actant. Its soma sections (which a shaper may edit by
-// hand: that's shaping too) and a running account of what it has been doing.
+// hand: that's shaping too) and a running account of what it has been doing, which is
+// kept with the ludant.
 // It has no actions for actants; it's for the humans in the frame.
 
 import { el } from '../ui.js';
 
 const KEEP = 300;
+const NOTE_CHARS = 2000;
 const STORE_TAB = '▤ store';   // not a section: the store surface, shown read-only
 
 export class Inspector {
@@ -21,10 +23,16 @@ export class Inspector {
   actions() { return {}; }
 
   note(kind, text) {
-    this.doings.push({ kind, text: String(text), at: Date.now() });
+    this.doings.push({ kind, text: String(text).slice(0, NOTE_CHARS), at: Date.now() });
     if (this.doings.length > KEEP) this.doings.splice(0, this.doings.length - KEEP);
     if (this.tab === 'doings') this.renderBody();
+    this.frame.changed();
   }
+
+  // What it did lasts with the ludant, like the chat: so the inside reads the same after a
+  // reload, and anyone with the link (someone helping) can see what happened.
+  toJSON() { return { doings: this.doings }; }
+  load(json) { this.doings = json?.doings ?? []; }
 
   sectionChanged(name) {
     this.fresh.add(name);

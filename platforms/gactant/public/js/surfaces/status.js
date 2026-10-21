@@ -50,7 +50,7 @@ export class Status {
   }
 
   /** The frame's own lights. */
-  setLife(life, detail = '') { this.life = life; this.detail = detail; this.render(); }
+  setLife(life, detail = '') { this.life = life; this.detail = detail; this.render(); this.frame.chat?.showLife(); }
   addSpend(usd) { this.spent += usd || 0; this.render(); }
 
   mount(root) { this.root = root; this.render(); }

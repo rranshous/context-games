@@ -14,6 +14,7 @@ export class Chat {
     this.frame = frame;
     /** @type {{ who: string, text: string, at: number }[]} */
     this.messages = [];
+    this.thinkingEl = null;
   }
 
   describe() {
@@ -49,8 +50,28 @@ export class Chat {
         input.value = '';
       }
     });
-    root.append(this.log, input);
+    // Who you're talking to, and whether it's awake: where people look when nothing seems
+    // to be happening.
+    this.head = el('div', { class: 'chat-head' });
+    this.thinkingEl = el('div', { class: 'chat-msg theirs chat-thinking' });
+    root.append(this.head, this.log, input);
     for (const m of this.messages) this.render(m);
+    this.showLife();
+  }
+
+  /** The ludant's life light, beside its name, and a line in the log while it thinks. */
+  showLife() {
+    if (!this.head) return;
+    const { life, detail } = this.frame.status;
+    const name = this.frame.actant?.name ?? 'the ludant';
+    const words = { asleep: 'asleep', thinking: 'thinking…', resting: 'resting', error: 'stuck' }[life] ?? life;
+    this.head.replaceChildren(...[el('span', { class: `light life ${life}` }, el('i'), name, el('em', {}, words)),
+      detail ? el('span', { class: 'chat-head-detail', title: detail }, detail) : null].filter(Boolean));
+    if (life === 'thinking') {
+      this.thinkingEl.replaceChildren(el('span', { class: 'chat-who' }, name), el('div', { class: 'chat-text' }, el('span', { class: 'dots' }, 'thinking')));
+      this.log.append(this.thinkingEl);
+      this.log.scrollTop = this.log.scrollHeight;
+    } else this.thinkingEl.remove();
   }
 
   render(m) {
@@ -58,6 +79,7 @@ export class Chat {
     const mine = m.who === this.frame.seat;
     this.log.append(el('div', { class: `chat-msg ${mine ? 'mine' : 'theirs'}` },
       el('span', { class: 'chat-who' }, m.who), el('div', { class: 'chat-text' }, m.text)));
+    if (this.thinkingEl?.isConnected) this.log.append(this.thinkingEl);   // keep it last
     this.log.scrollTop = this.log.scrollHeight;
   }
 
