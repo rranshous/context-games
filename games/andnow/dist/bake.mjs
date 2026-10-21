@@ -1,5 +1,5 @@
 // src/bake.ts
-import { existsSync, mkdirSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statfsSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 // src/sim/glyphs.ts
@@ -2952,18 +2952,32 @@ if (resume && existsSync(`${out}/index.json`)) {
   if (old.query !== query || old.every !== every) throw new Error(`${out} is a different bake (${old.query}, every ${old.every})`);
   if (old.rules !== RULES) throw new Error(`${out} was made on rules ${old.rules ?? "1 or 2"}, these are rules ${RULES}: it can't carry on`);
   index = { ...old, ticks: index.ticks, done: false };
-  world = loadWorld(gunzipSync(readFileSync(`${out}/${old.marks[old.marks.length - 1].file}`)));
+  for (; ; ) {
+    const m = index.marks[index.marks.length - 1];
+    if (!m) throw new Error(`${out} has no checkpoint that reads`);
+    try {
+      world = loadWorld(gunzipSync(readFileSync(`${out}/${m.file}`)));
+      break;
+    } catch (e) {
+      console.log(`skipping ${m.file}: ${e.message}`);
+      index.marks.pop();
+    }
+  }
   console.log(`resuming at tick ${world.t}`);
 } else if (existsSync(`${out}/index.json`)) console.log(`(overwriting ${out})`);
+var put = (path, data) => {
+  writeFileSync(`${path}.tmp`, data);
+  renameSync(`${path}.tmp`, path);
+};
 var save = () => {
   const file = `t${String(world.t).padStart(7, "0")}.andnow.gz`;
   const gz = gzipSync(saveWorld(world, query), { level: 6 });
-  writeFileSync(`${out}/${file}`, gz);
+  put(`${out}/${file}`, gz);
   let big;
   for (const w of world.living()) if (!big || w.cellCount > big.cells) big = { id: w.id, cells: w.cellCount, x: w.ipX, y: w.ipY, name: w.name, genome: "" };
   if (big) big.genome = genomeOf(world, big.id);
   index.marks.push({ t: world.t, file, alive: world.living().length, kb: Math.round(gz.length / 1024), biggest: big });
-  writeFileSync(`${out}/index.json`, JSON.stringify(index));
+  put(`${out}/index.json`, JSON.stringify(index));
 };
 var diskLow = () => {
   const f = statfsSync(out);
@@ -2987,6 +3001,6 @@ while (world.t < ticks && world.living().length && !world.result.over) {
 }
 index.done = true;
 if (!stop && world.t % every !== 0) save();
-else writeFileSync(`${out}/index.json`, JSON.stringify(index));
+else put(`${out}/index.json`, JSON.stringify(index));
 console.log(`done${stop ? ` (${stop})` : world.living().length ? "" : " (died out)"}: ${index.marks.length} checkpoints in ${out}`);
 //# sourceMappingURL=bake.mjs.map

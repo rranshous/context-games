@@ -2384,3 +2384,14 @@ The user wanted to see bites taken, and asked how the long arms survive when one
 *s2, tick 812,408 → 812,411, camera fixed. The red line is a 112-cell meat eater's arm. One bite near the core and 85 cells are gone; the grey specks are what's left as dead cells (most of a cut piece dissolves).*
 
 **How the arms survive:** not by being hard to cut, but by rarely being targeted, and by being cheap. An arm is fat: it costs half a cell's upkeep and holds 16 of store, and `G` grows it back for free while the body has the store to fill. The core survives the cut, and a body that loses an arm just has less store until it grows more.
+
+## After a reboot: half-written checkpoints
+
+The machine rebooted mid-run. s1, s7 and s13 were each writing a checkpoint when it went down
+and left a 0-byte `.gz`. `--resume` read the last mark and died on it ("unexpected end of
+file"). Two fixes in `bake.ts`: checkpoints and `index.json` are written to a `.tmp` file and
+renamed into place, so a crash never leaves half a file; and resume walks back to the newest
+checkpoint that reads, dropping the marks after it. The three runs lost one checkpoint each
+(1,000 ticks) and carried on from 4,436k, 4,642k and 6,324k. s2, s3 and s4 resumed cleanly
+(919k, 5,392k, 777k). `bake.sh` now adds `ionice -c3` on top of `nice 19`, so the bakes get
+the disk only when nothing else wants it.

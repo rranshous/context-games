@@ -7,5 +7,5 @@ cd "$(dirname "$0")"
 s=${1:?usage: ./bake.sh <seed> [prefix]}; name=${2:-climb7}-s$s
 mkdir -p runs/bake
 echo "--- start $(date)" >> runs/bake-$name.log
-setsid nice -n 19 node --max-old-space-size=8192 dist/bake.mjs "climb=1&w=climber,diver,hunter&seed=$s" forever --out runs/bake/$name --resume >> runs/bake-$name.log 2>&1 < /dev/null &
+setsid nice -n 19 ionice -c3 node --max-old-space-size=8192 dist/bake.mjs "climb=1&w=climber,diver,hunter&seed=$s" forever --out runs/bake/$name --resume >> runs/bake-$name.log 2>&1 < /dev/null &
 echo "baking runs/bake/$name (log: runs/bake-$name.log)"
