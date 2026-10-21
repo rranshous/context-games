@@ -1826,3 +1826,29 @@ surface had it, but nothing said it was needed.
 - References go in labelled: "Attached: picture 1 is 'family-happy-1'…", then "keep the
   same characters, things and style unless asked otherwise". The ludant can refer to
   them, and the painter knows which is which.
+
+### Looking away
+
+Robby: "when i focus away from the browser it pauses the browser window, feels like this
+is prob interrupting the loop." It was, partly.
+- **The stage's clock is animation frames**, and a hidden tab gets none. So a ludant
+  playtesting while its person looked away pressed keys at a frozen game.
+- **Timers in a hidden page slow down** (to a second at least, and after a few minutes to
+  a minute when chained). A "press for 100 ms" in a playtest became a second or more of
+  held key.
+- Thinking itself carries on, since fetches aren't throttled. On the Xbox, though,
+  switching apps suspends Edge altogether, and no page can do anything about that.
+
+Now:
+- **A background clock:** `ticker.js`, a worker posting at 60 Hz, since browsers leave
+  workers' timers mostly alone. While the page is hidden and the ludant is busy
+  (thinking or painting), the stage ticks from it. Hidden and idle, the game pauses, as
+  games do, so a person comes back to where they left off, not to a lost round.
+  Measured: 0 frames hidden and idle; 93 frames in 1.5 s hidden and busy; normal when
+  visible again.
+- **Waits count game time.** The ludant's `press(key, ms)` and `wait(ms)` resolve on the
+  frame whose game time reaches them (checked in the buffer's tick), not on a
+  wall-clock timer. Playtests are frame-accurate even in a throttled tab. If no frames
+  come at all, the wall clock stands in, so nothing hangs.
+- **The ludant is told** when nobody is looking: its game keeps running only while it's
+  busy, and what it posts waits until its person comes back.

@@ -326,15 +326,32 @@ export class Stage {
     this.fit();
 
     let last = performance.now();
-    const loop = (now) => {
+    const step = (now) => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
       this.tick(dt);
-      requestAnimationFrame(loop);
     };
+    const loop = (now) => { if (!document.hidden) step(now); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
+    // Hidden, the page gets no animation frames. If the ludant is busy (it may be
+    // playtesting), a worker's clock keeps the stage going; if not, the game simply
+    // waits for whoever comes back, the way games pause.
+    try {
+      const ticker = new Worker('/js/ticker.js');
+      let ticking = false;
+      ticker.onmessage = () => { if (document.hidden && this.ludantBusy()) step(performance.now()); };
+      const watch = () => {
+        const want = document.hidden;
+        if (want !== ticking) { ticking = want; ticker.postMessage(want ? 'start' : 'stop'); }
+        if (!want) last = performance.now();   // coming back: no leap in time
+      };
+      document.addEventListener('visibilitychange', watch);
+    } catch (err) { console.warn('[stage] no background clock', err); }
   }
+
+  /** Thinking or painting: what the stage keeps running for while nobody's looking. */
+  ludantBusy() { return Boolean(this.frame.actant?.thinking || this.frame.art?.painting.size); }
 
   /** Buttons that press keys while a finger is on them. */
   pad() {

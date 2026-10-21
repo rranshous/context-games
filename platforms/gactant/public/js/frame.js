@@ -252,13 +252,14 @@ class Frame {
     const titled = nameOf(soma) !== soma.given;
     const naming = `Your name is ${name}: your given name ${soma.given}${titled ? ', and your title section' : ' (your title section is empty, so you have no title yet)'}.${family} Each published name belongs to one snapshot, so being published again takes a change and a new title.`;
     const busy = this.stage.personPlaying() ? ` ${this.seat} is playing your game right now (they gave it input moments ago): a change to your game section restarts it under their hands, so it may be kind to say so first, or wait for a pause.` : '';
+    const away = document.hidden ? ` Nobody is looking at the frame right now (its window is in the background): your game keeps running only while you're busy, and what you post waits until ${this.seat} comes back.` : '';
     const view = this.playing ? ` ${this.seat} is in play mode: they see only the stage (and the lights at the top). Your chat messages pop up briefly over the stage, so keep them short, or show things on the stage itself.` : '';
     const rate = this.status.rate();
     const payer = this.payer() === 'own' ? `${this.seat} pays for it, through their own OpenRouter account` : 'this install pays for it';
     const left = this.left();
     const room = left ? ` Their key has ${[left.remaining != null ? `$${left.remaining.toFixed(2)} left of its $${left.limit} limit` : null, left.balance != null ? `$${left.balance.toFixed(2)} in their account` : null].filter(Boolean).join(', ')}.` : '';
     const cost = `Your thinking in this sitting has cost $${this.status.spent.toFixed(2)} so far${rate ? ` (about $${rate.toFixed(2)} an hour)` : ''}, and ${payer}.${room} The people here can see that meter.`;
-    const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view}${busy} ${cost} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
+    const company = `${naming}\nHere with you now: ${[...this.people].join(', ')}.${view}${busy}${away} ${cost} ${lineage}${known.length ? ` People who have sat with you: ${known.join(', ')}.` : ''}${restored}
 Anyone sitting with you can play you, ask you to change, take checkpoints, put you back to one, and publish you so others can take copies. A checkpoint is taken whenever someone sits down.`;
     const surfaces = this.surfaces.map((s) => s.describe(name)).filter(Boolean);
     return { context: CONTEXT, company, surfaces };

@@ -81,6 +81,7 @@ export class StageBuffer {
     this.sending = false;
     this.pixels = false;    // send raw pixels instead of ImageBitmaps (see above)
     this.images = new Map(); // art by name, as ImageBitmaps (see the art surface)
+    this.waiters = [];       // { until, resolve }: waits counted in game time
     const stage = this;
     this.api = {
       ctx: this.ctx, input: this.input,
@@ -110,6 +111,7 @@ export class StageBuffer {
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
     for (const pad of this.input.pads) pad.pressed = {};
+    this.wakeWaiters();
     return this.show();
   }
 
@@ -243,7 +245,7 @@ export class StageBuffer {
   // ---------- the ludant's own stage actions, here beside the game ----------
 
   actions() {
-    const wait = (ms) => new Promise((r) => setTimeout(r, Math.max(0, Math.min(10000, ms))));
+    const wait = (ms) => this.gameTime(Math.max(0, Math.min(10000, ms)));
     const key = (k) => String(k).toLowerCase();
     return {
       look: () => this.look(),
@@ -262,6 +264,27 @@ export class StageBuffer {
       wait: async (ms) => { await wait(ms); return { waited: ms }; },
       advance: (seconds) => this.advance(seconds),
     };
+  }
+
+  /** Wait this many ms of game time: frames, not the clock on the wall. A browser that slows
+   *  a hidden page's timers would otherwise stretch "press for 100 ms" into seconds. If the
+   *  stage isn't running (halted, or paused with nobody there), the wall clock stands in. */
+  gameTime(ms) {
+    const until = this.t + ms / 1000;
+    return new Promise((resolve) => {
+      const w = { until, resolve };
+      this.waiters.push(w);
+      // Answered by the frame that reaches it (see tick); this is only for no frames at all.
+      setTimeout(() => { const i = this.waiters.indexOf(w); if (i >= 0) { this.waiters.splice(i, 1); resolve(); } }, ms + 1500);
+    });
+  }
+
+  /** Waits whose game time has come. */
+  wakeWaiters() {
+    if (!this.waiters.length) return;
+    const due = this.waiters.filter((w) => this.t >= w.until);
+    this.waiters = this.waiters.filter((w) => this.t < w.until);
+    for (const w of due) w.resolve();
   }
 
   hold(k) {
