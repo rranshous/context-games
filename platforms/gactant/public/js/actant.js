@@ -36,9 +36,14 @@ const BODY_CONTRACT = `How the frame runs your code sections:
 - Where you run: in a sandbox inside the frame, with no network. The surfaces are the frame's, across a bridge. Your game draws into the stage's buffer here beside you, and the frame shows what you drew; your stage actions (look, advance, hold, press, point) act on that buffer directly, at full speed. The chat, whiteboard and status are over in the frame, so their actions return promises (await them when you need the answer). chat.read and the store are kept as local copies here, so they answer at once.
 - State that should last (high scores, unlocks, a player's preferences, saved progress) goes in surfaces.store: get(key, fallback), set(key, value), update(key, fn, fallback), delete(key), keys(prefix), all(). All synchronous, so it's safe to call every frame. Values are JSON. It survives reloads and game rebuilds; variables inside your game don't.
 - Testing yourself: surfaces.stage.advance(seconds) runs your game that far ahead at once (for seeing what happens later). Put test helpers on your game object, reachable as me.game from your tools, not on keys a person might press: everything on the stage is something people will play.
+- Errors: a code section that won't compile or start shows as a fault, in write_section's result and in this frame text. An error thrown while your code runs: in a stage.frame handler it halts the stage (you hear stage.halted); anywhere else (a key or pointer handler, a hook, a timer, a promise) the stage keeps going, and you're told "your code threw" the next time you're awake, or at once if you're awake. Hooks can also hear errors as they happen, as frame.error.
 - write_section and edit_section are always yours, whatever happens to your tools.`;
 
 const compile = (src) => new Function(`return (${src}\n)`)();
+// new Function puts two lines of its own before the source, so a stack's line numbers in
+// compiled code are two more than the section's.
+const HEADER_LINES = 2;
+const KEEP_ERRORS = 12;
 
 export class Actant {
   /** chassis: { bus, stage, surfaces, frame (the bridge's caller), people, isPerson(who) } */
@@ -54,6 +59,8 @@ export class Actant {
     this.tools = [];
     this.offHooks = [];
     this.timer = null;
+    this.errors = [];        // runtime errors since it last heard about them
+    chassis.bus.on('frame.error', (e) => this.sawError(e), 'actant');
     this.me = this.buildMe();
   }
 
@@ -85,6 +92,16 @@ export class Actant {
   /** Tell the frame whether it's awake, so the lights and checkpoints know. */
   life(life, detail = '') {
     this.frame.send('life', { life, detail, thinking: this.thinking, pending: this.pending.length, restless: this.restless });
+  }
+
+  /** Its code threw while running. Kept (once per distinct error, with a count) until it
+   *  wakes, or added to what it sees next if it's awake now. */
+  sawError(e) {
+    const key = `${e.source}|${e.during}|${e.message}`;
+    const known = this.errors.find((x) => x.key === key);
+    if (known) { known.count = e.count ?? known.count + 1; return; }
+    this.errors.push({ key, source: e.source, during: e.during, message: e.message, count: e.count ?? 1, where: where(e.stack) });
+    if (this.errors.length > KEEP_ERRORS) this.errors.shift();
   }
 
   // ---------- the soma ----------
@@ -192,7 +209,7 @@ export class Actant {
     try {
       // The soma is shown as it was on waking. Re-rendering it after every edit made the
       // actant read its own fresh edits as code that had always been there.
-      const system = [{ type: 'text', text: await this.systemText(), cache_control: { type: 'ephemeral' } }];
+      const system = [{ type: 'text', text: await this.systemText(this.errors.splice(0)), cache_control: { type: 'ephemeral' } }];
       for (let turn = 0; turn < MAX_TURNS && !this.asleepForever; turn++) {
         // Inference is the frame's: it holds the key and pays (or knows who does).
         const res = await this.frame.call('infer', {
@@ -219,11 +236,13 @@ export class Actant {
           for (const url of pics) images.push({ type: 'image_url', image_url: { url } });
         }
         const arrived = this.pending.splice(0);
-        if (images.length || arrived.length) {
+        const threw = this.errors.splice(0);
+        if (images.length || arrived.length || threw.length) {
           const meanwhile = arrived.length ? eventsContent(arrived, 'Meanwhile:\n') : [];
           messages.push({ role: 'user', content: [
             ...(images.length ? [{ type: 'text', text: 'What you looked at:' }, ...images] : []),
             ...meanwhile,
+            ...(threw.length ? [{ type: 'text', text: `Meanwhile, your code threw:\n${errorLines(threw)}` }] : []),
           ] });
         }
       }
@@ -275,13 +294,13 @@ export class Actant {
 
   /** The frame says what this is and who's here; the chassis adds the body: the soma, the
    *  stage beside it, and how its code is run. */
-  async systemText() {
+  async systemText(threw = []) {
     const sections = Object.entries(this.soma.sections)
       .map(([name, content]) => `<section name="${name}"${CODE.has(name) ? ' kind="code"' : ''}>\n${content}\n</section>`).join('\n\n');
     const seen = await this.frame.call('perceive');
     const surfaces = seen.surfaces.filter(Boolean).map((d) => `- ${d}`).join('\n');
     const faults = Object.entries(this.faults).map(([k, v]) => `- ${k}: ${v}`).join('\n');
-    return `${seen.context}\n\n<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${seen.company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
+    return `${seen.context}\n\n<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${seen.company}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}${threw.length ? `Your code threw while running, since you were last awake:\n${errorLines(threw)}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nRemember: people see the surfaces, not this conversation. Say it in the chat or they won't hear it.\n</frame>`;
   }
 
   toolSchemas() {
@@ -297,6 +316,18 @@ export class Actant {
       function: { name: t.name, description: t.description ?? '', parameters: t.input_schema ?? { type: 'object', properties: {} } },
     }));
   }
+}
+
+/** Where in a section an error was thrown, from its stack: the function and line. */
+function where(stack) {
+  const m = String(stack ?? '').match(/at (?:(\S+) )?\(?eval at compile[^)]*\), <anonymous>:(\d+):\d+\)?/);
+  if (!m) return '';
+  const fn = m[1]?.replace(/^Object\./, '');
+  return `${fn && fn !== 'eval' ? `in ${fn}, ` : ''}line ${Number(m[2]) - HEADER_LINES} of its section`;
+}
+
+function errorLines(errors) {
+  return errors.map((e) => `- ${e.message} (${e.source === 'async' ? 'in a timer, promise or callback' : `during ${e.during}`}${e.where ? `, ${e.where}` : ''}${e.count > 1 ? `; ${e.count} times` : ''})`).join('\n');
 }
 
 /** Mark the newest message as a cache breakpoint, so each turn of a long wake reads the

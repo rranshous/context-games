@@ -21,7 +21,7 @@ export class StageBuffer {
     this.bus = bus;
     this.libs = libs;
     this.frame = frame;   // the bridge, once there is one
-    this.width = 320; this.height = 240;
+    this.width = 640; this.height = 360;
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.width; this.canvas.height = this.height;
     this.ctx = this.canvas.getContext('2d');

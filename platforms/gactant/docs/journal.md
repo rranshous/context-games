@@ -1174,3 +1174,43 @@ JavaScript. The real cost is rendering the scene, and that would be the same wit
 sandbox. The fps wobble (54–59) shows up at 320×240 too, so it's headless timing rather
 than size. The open question is still how a separate real sandbox origin behaves, with
 the sandbox in its own process.
+
+### Does it know when its code breaks?
+
+Robby: "how does the ludant get feedback on or sense runtime errors? or syntax errors in
+its code? does it become aware of an error occurring? can it?"
+
+Going through the code, I found it was partly aware:
+- **Compile and start faults:** yes. `write_section` returns the fault, and the frame text
+  lists faults at every wake.
+- **Throws in the frame loop:** yes. The stage halts, and `stage.halted` wakes it.
+- **Tool errors:** yes. The error comes back as the tool's result.
+- **Throws in key/pointer handlers or other hooks:** no. The bus caught them and turned
+  them into `frame.error` events, but nothing listened. The stage kept running, so the
+  ludant never knew. A `press` in its own playtest would fail without it ever knowing.
+- **Async throws (timers, promises nobody awaited):** nowhere at all. That mattered more
+  since the sandbox, where most surface actions now return promises.
+
+Now the chassis catches the sandbox's `error` and `unhandledrejection` too, so those also
+reach the bus. The actant keeps a short list of what its code threw: one entry per
+distinct error, with a count and **where** it was thrown. The stack of `new Function`
+code reads `<anonymous>:LINE`, which is the section's line plus the two header lines.
+That list reaches it at the right moment:
+- mid-think, as "Meanwhile, your code threw: …" beside whatever else arrived
+- otherwise at its next wake, in the frame text
+
+It doesn't wake for them. A broken key handler fires on every press, and the governor
+shouldn't be the only thing standing between that and a bill. Perception, not alarm,
+the same as the nudge.
+
+Tested on a fresh seed, Ruvan. By hand I gave it a space handler that pushes onto an
+undefined array, and a `j` that throws from a timer. Then: "can you try pressing space
+and j… don't fix anything yet." It played, got "your code threw: Cannot read properties
+of undefined (reading 'push') (during stage.key, in key, line 38 of its section)" and
+"late landing… (in a timer, promise or callback, line 40…)". Both line numbers were
+exact. It reported both in the chat, explained the first ("jumps was never created"),
+and didn't fix anything.
+
+Also: **the stage starts at 640×360 now** (Robby: "lets have the stage start at 640; gooood
+datas!"). The seed's dot and label are scaled up to match. The server imports the seed,
+so it has to be restarted to pick that up, which I forgot the first time.

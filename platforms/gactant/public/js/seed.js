@@ -73,21 +73,21 @@ const GAME = `// game: the facet of me that people play. It's a factory: called 
 // Helpers for testing go on the returned object (my tools can reach it as me.game), not on
 // keys: everything on the stage is something people will play.
 function game(stage, me) {
-  stage.size(320, 240);
+  stage.size(640, 360);
   return {
     frame(dt) {
       const { ctx, width: w, height: h, t } = stage;
       ctx.fillStyle = '#0d0f14';
       ctx.fillRect(0, 0, w, h);
-      const r = 9 + Math.sin(t * 2) * 3;
+      const r = 18 + Math.sin(t * 2) * 6;
       ctx.fillStyle = '#e8a33d';
       ctx.beginPath();
       ctx.arc(w / 2, h / 2, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#6b7385';
-      ctx.font = '10px monospace';
+      ctx.font = '18px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('not a game yet', w / 2, h / 2 + 32);
+      ctx.fillText('not a game yet', w / 2, h / 2 + 60);
       stage.caption = 'not a game yet: a pulsing dot';
     },
     key(e) {},

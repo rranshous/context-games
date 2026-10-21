@@ -101,6 +101,10 @@ async function boot() {
   // What happens here that the frame should hear: the body changing. (The stage's own
   // events start at the frame, and stage.frame stays here.)
   bus.outward = (e) => { if (e.type.startsWith('soma.')) frame.send('event', e); };
+  // Errors no listener caught: a timer, a promise nobody awaited, a callback. They go on
+  // the bus like any other, so the ludant hears about them too.
+  addEventListener('error', (e) => bus.fault('async', 'async', e.error ?? new Error(e.message)));
+  addEventListener('unhandledrejection', (e) => bus.fault('async', 'async', e.reason instanceof Error ? e.reason : new Error(String(e.reason))));
   // A hook that throws is reported in the inspector (once, then now and then: see bus.js).
   bus.on('frame.error', (e) => frame.send('note', 'fault', `${e.source} during ${e.during}: ${e.message}${e.count > 1 ? ` (${e.count} times)` : ''}`), 'chassis');
 

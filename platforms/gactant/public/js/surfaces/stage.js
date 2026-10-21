@@ -51,7 +51,7 @@ export class Stage {
 
   constructor(frame) {
     this.frame = frame;
-    this.width = 320; this.height = 240;
+    this.width = 640; this.height = 360;
     this.canvas = el('canvas', { class: 'stage-canvas', width: this.width, height: this.height });
     this.ctx = this.canvas.getContext('2d');
     this.input = { keys: new Set(), pressed: new Set(), pointer: { x: 0, y: 0, down: false, clicked: false } };

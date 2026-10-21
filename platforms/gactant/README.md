@@ -51,7 +51,7 @@ surfaces are not the ludant. The ludant reaches out and touches them.
 
 | surface | what it is | the ludant uses it to… |
 |---|---|---|
-| **stage** | a canvas with a frame clock, input, an on-screen pad on touch screens, fast-forward, a caption; 2D, or 3D with three.js under a 2D HUD | run its game at frame rate; play itself (`press`, `hold`, `point`, `advance`, `look`) |
+| **stage** | a canvas (640×360 to start; a game sets its own size, up to 1920×1080) with a frame clock, input, an on-screen pad on touch screens, fast-forward, a caption; 2D, or 3D with three.js under a 2D HUD | run its game at frame rate; play itself (`press`, `hold`, `point`, `advance`, `look`) |
 | **chat** | a rolling conversation | talk: people see only the surfaces, so if it isn't said here, it wasn't heard |
 | **whiteboard** | a 100×60 sketch board with a baton | sketch ideas together; a turn brings a picture of the board if it changed |
 | **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
@@ -79,6 +79,20 @@ waking), then the frame's perception: who's here, its lineage, the surfaces, and
 frame runs its code. At the moments a ludant tends to slip, the frame nudges it once. For
 example, if a person woke it and it's about to go quiet without posting in the chat, the
 frame tells it.
+
+### How it feels its own errors
+
+- **Won't compile or start** (a syntax error, or a game factory that throws): the section
+  keeps a *fault*. `write_section` returns it at once, and it's listed in the frame text
+  at every wake until fixed. Other sections keep running.
+- **Throws in a `stage.frame` handler**: the stage halts, which shows on the stage, and
+  `stage.halted` wakes the ludant (the seed's hooks do that).
+- **Throws anywhere else** (a key or pointer handler, a hook, a timer, a promise nobody
+  awaited): the stage keeps going. The error is kept, once per distinct error with a
+  count and the line in its section, and the ludant hears "your code threw" the moment
+  it's awake: at once if it already is (say, mid-playtest), otherwise at its next wake.
+  Hooks can also hear these as they happen, as `frame.error`.
+- **A tool that throws**: the error is the tool's result.
 
 ## Frame outside, ludant inside
 
