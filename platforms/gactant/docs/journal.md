@@ -1148,3 +1148,29 @@ pictures out.**
   not just an opaque origin.
 - The store and chat copies are fed only by the ludant's own writes and by `chat.posted`.
   If anything else ever writes the store, the frame will need to push it across.
+
+### Is shipping pictures expensive?
+
+Robby: "it seems to me like taking the image and moving it to the frame to have it drawn
+would be very computationally intensive." Then: "320x240 does seem a bit low. test it out
+w/ a higher resolution."
+
+I measured with a bench ludant: 400 spinning lit cubes in three.js plus a 2D HUD, so two
+layers. Headless Chrome on lilg, medians in ms per frame:
+
+| size | fps | picture, per layer | frame draws it | game code | three.js render* |
+|---|---|---|---|---|---|
+| 320×240 | 58 | 0.1 | 0.1 | 0.4 | 4.2 |
+| 640×360 | 57 | 0.2 | 0.1 | 0.3 | 4.3 |
+| 960×540 | 59 | 0.2 | 0.1 | 0.4 | 4.7 |
+| 1280×720 | 54 | 0.2 | 0.1 | 0.4 | 5.4 |
+
+\*with a forced `gl.finish()` so the GPU work is counted, which overstates it.
+
+Taking and showing the pictures costs about the same at every size: around half a
+millisecond a frame for both layers. That's because an `ImageBitmap` is a handle to an
+image the GPU already holds; moving it and drawing it are GPU copies, not pixels through
+JavaScript. The real cost is rendering the scene, and that would be the same without a
+sandbox. The fps wobble (54–59) shows up at 320×240 too, so it's headless timing rather
+than size. The open question is still how a separate real sandbox origin behaves, with
+the sandbox in its own process.
