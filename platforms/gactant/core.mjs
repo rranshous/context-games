@@ -49,6 +49,9 @@
 //   POST published/<id>/copy { by }              -> { id }          a new ludant, descended from it
 //   POST ludants/<id>/thumb { token, image }     -> {}             a picture of its stage now (a small JPEG data URL)
 //   GET  thumbs/<l|p>/<id>                       -> { image }       (null if there's none yet)
+//   POST reports        { id?, report }          -> { id }          what a device's check page found (/check.html);
+//                                                   with an id, updates that report as the check goes on
+//   GET  reports?token=&n=10                     -> newest reports (needs settings.adminToken)
 //   POST admin/import { token, published: [...] } -> { imported }  publications brought from another install
 //                                                   (tools/push.mjs); needs settings.adminToken
 //   POST infer          { who, messages, tools? } -> OpenRouter chat completion, on the install's key
@@ -65,6 +68,7 @@ const HOLD_STALE_MS = 20000;
 const MAX_LUDANT = 1_500_000;    // characters of JSON in a save: soma and surfaces together
 const FLUSH_PLAY_MS = 60000;     // how often what play costs is written down
 const MAX_THUMB = 60_000;        // characters of data URL
+const MAX_REPORT = 60_000;       // characters of JSON in a check report
 
 export function httpError(code, message, extra) { return Object.assign(new Error(message), { code, extra }); }
 
@@ -228,6 +232,19 @@ export function createCore({ store, settings }) {
     if (a === 'infer' && method === 'POST') return infer(body);
     if (a === 'log' && b && method === 'POST') { if (!isPublic) await log(safe(b), { ...body, last: summarize(body.last) }); return {}; }
     if (a === 'log' && b) return isPublic ? [] : tail(safe(b), Number(query.get('n')) || 20);
+    // A device's check: what its browser can do (controllers, voice, pictures across the
+    // sandbox). Saved as it goes, so whoever is building can read it without anyone relaying.
+    if (a === 'reports' && method === 'POST') {
+      const report = body.report ?? {};
+      if (JSON.stringify(report).length > MAX_REPORT) throw httpError(413, 'report too big');
+      const id = body.id && /^r-[a-f0-9]{8}$/.test(body.id) && await store.get('reports', body.id) ? body.id : `r-${hex(4)}`;
+      await store.put('reports', id, { id, at: now(), report });
+      return { id };
+    }
+    if (a === 'reports' && method === 'GET') {
+      if (!settings.adminToken || query.get('token') !== settings.adminToken) throw httpError(403, 'not allowed');
+      return (await store.list('reports')).sort((x, y) => y.at.localeCompare(x.at)).slice(0, Number(query.get('n')) || 10);
+    }
     if (a === 'admin' && b === 'import' && method === 'POST') {
       if (!settings.adminToken || body.token !== settings.adminToken) throw httpError(403, 'not allowed');
       let imported = 0;

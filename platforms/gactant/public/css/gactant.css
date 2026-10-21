@@ -221,3 +221,25 @@ iframe.sandbox { position: absolute; width: 0; height: 0; border: 0; visibility:
 .chat-thinking .chat-text { color: var(--ink-3); font-style: italic; }
 .dots::after { content: ''; animation: dots 1.4s steps(4) infinite; }
 @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+/* ---------- device check: readable from the couch ---------- */
+body.check { font-size: 20px; }
+.check-main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+.check-card { background: var(--pane); border: 1px solid var(--line); border-radius: 14px; padding: 24px 28px; margin-bottom: 24px; }
+.check-card h2 { margin: 0 0 10px; font: 600 32px var(--sans); color: var(--amber); }
+.check-text { font-size: 24px; margin: 0 0 16px; max-width: 46ch; }
+.check-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.check-btn { font-size: 22px; padding: 12px 22px; border-radius: 10px; background: var(--pane-2); border: 2px solid var(--line); }
+.check-btn.primary { background: var(--amber); color: #1a1408; border-color: var(--amber); font-weight: 600; }
+.check-btn:focus { outline: 3px solid var(--blue); }
+.check-id { color: var(--ink-3); font: 13px var(--mono); }
+.check-main h3 { font: 600 15px var(--mono); color: var(--ink-3); }
+.check-pad { margin-bottom: 14px; font-size: 15px; color: var(--ink-2); }
+.check-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.check-b { font: 13px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--pane-2); border: 1px solid var(--line); }
+.check-b.on { background: var(--green); color: #0d1a10; border-color: var(--green); }
+.check-axes { font: 13px var(--mono); color: var(--ink-3); }
+.check-none, .check-keys { color: var(--ink-3); font-size: 15px; margin-top: 6px; }
+.check-meter { height: 22px; background: var(--pane-2); border-radius: 11px; overflow: hidden; max-width: 600px; }
+.check-meter i { display: block; height: 100%; width: 0; background: var(--green); transition: width 0.05s; }
+.check-summary { font: 13px var(--mono); color: var(--ink-2); white-space: pre-wrap; max-height: 50vh; overflow: auto; }

@@ -1458,3 +1458,42 @@ game cartridge?" Parked for a later talk. First thoughts:
   provenance (signed, so a family tree survives the trip?); and whether a cartridge can
   run with no platform at all: one self-contained HTML holding the frame, the sandbox
   and a connect button.
+
+## Part 8: the living room
+
+Robby: "i want to try this out on my xbox w/ my family! we sometimes play games together
+and playing a ludant together seems awesome." That means controllers in games,
+navigating the platform without a keyboard or mouse, and voice instead of typed chat.
+lilg has no mic or speakers, so playtesting happens on the Xbox in the other room.
+
+I proposed one name per controller. Robby: "for now lets keep one name, i'd prob name
+the xbox 'living-room-xbox'." So the seat stays one person per window; the household is
+that person. Sprites come after this.
+
+### /check: the device tells me itself
+
+The first unknown is Edge on Xbox. Does the Gamepad API reach the page, or does the
+controller only drive a cursor? Can the page reach the mic? Is there speech recognition,
+and what voices? Robby: "give me on screen instructions on what to do… and log it such
+that you can review it w/o me having to relay results back to you."
+
+`/check.html` walks through it at couch size, one step at a time, with every controller
+shown live underneath:
+- **basics:** user agent, screen, secure context, which APIs exist, recorder formats,
+  pointer type, and whether pictures cross from the sandbox (it runs the real probe
+  against gactantbox.com)
+- **controller 1:** "Press A". If nothing arrives in 25 s: "Does the controller move a
+  mouse pointer?"
+- **each button:** A, B, X, Y, the bumpers, the triggers, View, Menu, both stick clicks,
+  the d-pad. It records which index each one arrived as.
+- **sticks and triggers:** their ranges
+- **controller 2:** if there is one
+- **speech out:** voices, and "did you hear it?"
+- **microphone:** permission, devices, a level meter, then a 3 s recording played back
+  ("did you hear yourself?"). That's the path for transcribing through a model.
+- **recognition:** the browser's own, with what it heard
+
+Yes/no answers come from A/B or a click. Every step has "skip". Each step saves at once
+to `POST /api/reports` (on the public install too), and `node tools/reports.mjs` reads
+them back with the admin token. Tested on lilg with a stand-in controller: the run
+completed and the report read back.

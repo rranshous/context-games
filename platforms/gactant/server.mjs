@@ -27,7 +27,7 @@ const PORT = Number(process.argv[process.argv.indexOf('--port') + 1]) || 7780;
 loadEnv(join(HERE, '.env'));
 const MODEL = process.env.GACTANT_MODEL || 'anthropic/claude-sonnet-5.5';
 
-for (const d of ['ludants', 'published', 'checkpoints', 'names', 'log']) mkdirSync(join(DATA, d), { recursive: true });
+for (const d of ['ludants', 'published', 'checkpoints', 'names', 'thumbs', 'reports', 'log']) mkdirSync(join(DATA, d), { recursive: true });
 
 function loadEnv(path) {
   if (!existsSync(path)) return;
