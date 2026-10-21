@@ -1310,3 +1310,55 @@ sandbox, a 640×360 stage, Anelina's greeting. Then **deployed**:
 wish to think brings up "Grinan wants to think… connect OpenRouter". The sandbox page
 carries its policy, and an `Origin: null` call is refused. It's staging until the domains
 exist; the lobby isn't ready for strangers yet.
+
+### Live: gactant.com, and a lobby for people who've never heard of a ludant
+
+The domains are registered, so `gactant.com` and `gactantbox.com` are custom domains on
+the Worker. gactantbox.com serves the sandbox page and its scripts and nothing else; the
+frame on gactant.com loads its iframe from there. (First deploy: `routes` sat under a
+`[[migrations]]` header, which in TOML makes it part of that table, so it was silently
+ignored. It now sits at the top of the file.)
+
+Robby on the UI: "focus new people on existing good ludants to immediately give them a
+few suggestions to jump in. this is a weird concept, ludants, so as helpful a UI (without
+info dumping) is warranted. Part of the audience will be people coming back to play some
+more or to lean in to the shaping."
+
+The lobby now:
+- **For a stranger:** one sentence ("Pick a game and play it. Then tell it what you'd
+  change."), one short paragraph, then **Jump in**: up to six publications as big cards,
+  each with a picture of its stage, its title, its note, who published it, how much it's
+  been played, and its cost per hour. They're ranked by copies plus hours played, with a
+  little room for the new. One click plays one.
+- **For someone coming back:** **Your ludants** first (the ones this browser has sat
+  with, newest first), then **Play something new**, which leaves out the ones they
+  already have a copy of.
+- Then every publication as family trees, then **Start from nothing** (seeding), last.
+- A local install also lists everyone's ludants, for the person running it.
+
+The first draft of the Jump in line said "It's free to play". That's the promise Robby
+had already ruled out an hour earlier. It now says when thinking happens and that the
+meter shows it.
+
+In the frame:
+- Names are asked **inline**, when first needed, with why ("Playing gives you your own copy
+  of this ludant, and it will know you by this name"), instead of `prompt()`.
+- The **first sitting** in a browser gets one line: "…is a game that's also alive. Play it,
+  and talk to it in the chat: ask it to change something and it will change itself."
+- The **inside starts folded** until someone opens it.
+- The stage gets more height. The whiteboard says what it's for. The chat box says who
+  you're talking to.
+- The top bar is quieter: "checkpoint" moved into **history** ("keep this version"),
+  every button explains itself, and there's a way back to the lobby.
+- The connect banner reads "X wants to think… You can play without it; it just won't
+  answer or change", with **just play**.
+
+**Thumbnails:** the frame sends a 320-wide JPEG of the stage 5 s after sitting down,
+every 90 s while visible, and before publishing. A publication takes its ludant's
+latest. A publication without one (all of today's older ones) takes its first player's,
+as long as that copy is still exactly what was published.
+
+**Seeding the site:** the hosted world started empty. `POST /api/admin/import`
+(guarded by an `ADMIN_TOKEN` secret, with the same token in the local `.env`) accepts
+publications, and `node tools/push.mjs https://gactant.com <ids>` sends chosen ones from
+lilg.
