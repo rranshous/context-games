@@ -123,7 +123,7 @@ async function render() {
   }
   if (returning) parts.push(section('Your ludants', null, el('div', { class: 'cards-row' }, ...yours.slice(0, 8).map(mineCard))));
   if (featured.length) {
-    parts.push(section(returning ? 'Play something new' : 'Jump in', returning ? null : 'Click one to play. When it thinks (answering you, changing itself, or anything in its game it decides to wake for) it costs a few cents, on your own OpenRouter account, and a meter shows what your sitting has cost.',
+    parts.push(section(returning ? 'Play something new' : 'Jump in', returning ? null : 'Click one to play. Ludants think with an AI model, whenever their own body decides to. That costs a few cents at a time, on your own OpenRouter account, and a meter shows what your sitting has cost.',
       el('div', { class: 'cards-grid' }, ...featured.map((p) => pubCard(p, !returning)))));
   }
   if (published.length > featured.length || returning) {

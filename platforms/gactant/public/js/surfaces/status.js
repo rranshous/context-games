@@ -85,7 +85,7 @@ export class Status {
     const every = el('input', { class: 'meter-every', type: 'number', min: '0', step: '0.25', value: String(this.checkInEvery()) });
     every.addEventListener('change', () => { try { localStorage.setItem('gactant-check-in', String(Math.max(0, Number(every.value) || 0))); } catch {} });
     const pop = el('div', { class: 'meter-pop' },
-      el('p', {}, `This sitting: $${this.spent.toFixed(3)} over ${mins} min${rate ? `, about $${rate.toFixed(2)} an hour` : ''}. A ludant thinks when something wakes it: someone talking to it, or anything its own hooks decide is worth waking for, even mid-game. It's told this meter too.`),
+      el('p', {}, `This sitting: $${this.spent.toFixed(3)} over ${mins} min${rate ? `, about $${rate.toFixed(2)} an hour` : ''}. A ludant thinks with an AI model whenever its own body decides to, so the cost depends on the ludant. It's told this meter too.`),
       el('p', {}, payer === 'own' ? 'Paid by your own OpenRouter account.' : payer === 'server' ? 'Paid by this install\'s key (a local setup).' : 'Nothing is connected, so it can\'t think yet.'),
       el('label', { class: 'meter-row' }, 'check in with me every $', every),
       el('div', { class: 'meter-row' },

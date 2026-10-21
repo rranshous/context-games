@@ -133,9 +133,10 @@ refuses any request whose `Origin` isn't the site itself.
 
 ## What it costs, out in the open
 
-A ludant thinks when something wakes it: someone talking to it, or anything its own hooks
-decide is worth waking for, even in the middle of a game. So nothing promises that
-playing is free. Instead:
+A ludant thinks with an AI model whenever its own body decides to. Today that's when its
+hooks wake it; later a game may call for inference itself (an NPC's lines, a
+subagent). So the UI never says what a ludant will or won't think for, and never
+promises that playing is free. Instead:
 - **The meter** in the top bar shows what this sitting has cost and its rate per hour. It
   turns amber at 25¢ and red at $1.
 - **Check-ins**: each time the sitting passes another dollar (people can set their own

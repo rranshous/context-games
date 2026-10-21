@@ -1362,3 +1362,16 @@ as long as that copy is still exactly what was published.
 (guarded by an `ADMIN_TOKEN` secret, with the same token in the local `.env`) accepts
 publications, and `node tools/push.mjs https://gactant.com <ids>` sends chosen ones from
 lilg.
+
+Robby, on "You can play without it; it just won't answer or change": "it assumes that
+the game does not have inference in it. a game could wake the actant. eventually we're
+going to extend the frame to support something like subagents or arbitrary calls for
+inference within a game, maybe for an NPCs lines or something. i don't like leaving this
+sentence here, it limits us in a way i do not like."
+
+It's the same mistake as "costs nothing": describing today's ludants as if it were the
+contract. The UI now says only what holds for any ludant: it thinks with an AI model,
+whenever its own body decides to; that costs money on your account; the meter shows it;
+until you connect, it can't think at all. The banner's button is "not now" again. The
+lobby's Jump in line and the meter's popover got the same treatment.
+**Rule for UI copy: describe the contract, never what current ludants happen to do.**

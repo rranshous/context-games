@@ -168,9 +168,9 @@ class Frame {
     if (this.payer()) return Promise.resolve();
     this.asking ??= new Promise((resolve, reject) => {
       const box = el('div', { class: 'banner' },
-        el('p', {}, el('strong', {}, `${this.actant.name} wants to think. `), 'Its thinking runs on your own OpenRouter account and costs real money, usually a few cents at a time. The meter at the top shows what this sitting has cost. You can play without it; it just won\'t answer or change.'),
+        el('p', {}, el('strong', {}, `${this.actant.name} wants to think. `), 'Ludants think with an AI model, on your own OpenRouter account. It costs real money, usually a few cents at a time, and the meter at the top shows what this sitting has cost. Until you connect, it can\'t think at all.'),
         el('button', { class: 'top-btn primary', onclick: async () => { if (await connect()) { box.remove(); this.asking = null; this.status.render(); resolve(); } } }, 'connect OpenRouter'),
-        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(`${this.seat} hasn't connected thinking, so you can't think in this sitting yet`)); } }, 'just play'));
+        el('button', { class: 'top-btn', onclick: () => { box.remove(); this.asking = null; reject(new Error(`${this.seat} hasn't connected thinking, so you can't think in this sitting yet`)); } }, 'not now'));
       document.body.append(box);
     });
     return this.asking;
