@@ -1443,3 +1443,18 @@ Also from this round:
   his whiteboard's palette. Is that because the game came from his sketch? Notice whether
   sketch-born games always look like their sketch, and whether we like that. And later:
   **sprites generated through OpenRouter** (image models), offered by the frame.
+
+### Parked: cartridges
+
+Robby: hold off pushing existing ludants; "lets just see what we can create in the live
+published site." Then: "that does make me think about packaging a ludant… can we make a
+game cartridge?" Parked for a later talk. First thoughts:
+- A cartridge would be one file: a publication's soma, its lineage, a picture, and maybe
+  an optional starting store. `tools/push.mjs` is already half of this, moving
+  publications between installs.
+- Plugging one in, by dropping it on the lobby, makes a copy, the same as playing a
+  publication.
+- Open questions: what it carries (only the body, or the store, or a sitting's chat?);
+  provenance (signed, so a family tree survives the trip?); and whether a cartridge can
+  run with no platform at all: one self-contained HTML holding the frame, the sandbox
+  and a connect button.
