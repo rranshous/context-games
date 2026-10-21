@@ -2,6 +2,8 @@
 // to sit where the human sits. Everything here goes through the same surface actions a
 // human's clicks do, as the frame's human seat. Nothing reaches into the actant.
 
+import { runShard } from './shard.js';
+
 export function installExplorer(frame) {
   const stage = frame.stage;
   const act = stage.actions(frame.seat);
@@ -21,6 +23,8 @@ export function installExplorer(frame) {
     press: act.press,
     point: act.point,
     async click(x, y, ms = 60) { act.point(x, y, true); await wait(ms); act.point(x, y, false); },
+    /** Sit a Claude shard in this seat: it shapes or plays with its own loop. */
+    shard: (opts) => runShard(frame, typeof opts === 'string' ? { brief: opts } : opts),
     /** Read the game's own state if it chose to expose one as game.state. */
     gameState: () => frame.actant.game?.state,
     state: () => ({

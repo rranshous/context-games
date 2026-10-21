@@ -311,3 +311,36 @@ shaping Pip is still 7,659 and has no pink), which is the intended per-player dr
 house rule for one sitting became permanent. A table needs a way to say "back to how it
 shipped" or "just for this game". Candidates: install-level checkpoints, or games that keep
 rules as data the actant toggles instead of code it rewrites. Open.
+
+### Folding Pip back into the platform
+
+- **The seed now ships Pip's `play` tool**, with a comment crediting it ("Grown by Pip on
+  2026-10-20… adopted into the seed"). It's the first time an actant contributed to the
+  platform. Pip's version claimed to return "any mid-way looks" but only returned the last
+  one. Tool results can now carry `images: [...]`, and the seed's `play` shows every look.
+- **The body contract moved into the frame.** How the frame runs `tools` / `game` /
+  `hooks`, what `me` and the stage handle are: that's the frame's side of the bargain. It
+  now lives in the `<frame>` perception block, not only in soma comments that an actant
+  will happily overwrite (as Pip did on its first write).
+- **"As shipped."** A player can put an install back the way it was released
+  (`POST /api/installs/<id>/reset`, a top-bar button). The soma returns to the release; the
+  chat stays. The install perceives it: "Your player has put you back the way you shipped
+  once; changes made at this table before then were undone, though the chat still
+  remembers them." This is the smallest answer to one-way house rules. "Just for this game"
+  is still open.
+
+### Level 4: the seat shard
+
+Robby asked what level I'd work at. Driving `window.explorer` from Playwright is me at
+2–3: my thinking stays outside the frame, and I poke in. So I built **level 4** for
+myself: `public/js/shard.js`. A **seat shard** is a Claude with its own context and loop
+that sits in the frame's human seat (shaper or player). It acts only through surface
+actions: say, wait for a reply, play the stage, sketch, pass the baton, checkpoint, and
+`finish` with a report for whoever sent it. The actant sees it as the seat, like any
+human. Its doings show in the inspector in green; its inferences log under
+`<record>-shard`. A budget covers the whole sitting, actant thinking included, and it stops
+itself when it's spent. It also keeps only the newest three pictures in context.
+
+There's an honesty question here that I'm noting, not solving: the actant can't tell the
+shard from a person. For shaping rehearsals that's the point. For anything a real player
+would see, it shouldn't be hidden.

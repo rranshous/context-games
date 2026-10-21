@@ -29,6 +29,7 @@
 //   POST /api/releases/<id>/install          -> { id }     a fresh install for a new player
 //   GET  /api/installs/<id>                  -> { id, release, soma, surfaces, updated }
 //   PUT  /api/installs/<id>  { soma, surfaces } -> {}
+//   POST /api/installs/<id>/reset             -> {}     back to the release's soma (house rules undone)
 //   POST /api/infer          { who, model?, messages, tools?, max_tokens? } -> OpenRouter chat completion
 //   GET  /api/log/<who>?n=20                 -> last n inference records for an actant or install
 import { randomBytes } from 'node:crypto';
@@ -182,6 +183,13 @@ async function route(method, parts, body, query) {
 
   if (a === 'installs' && b) {
     const install = read('installs', b);
+    if (c === 'reset' && method === 'POST') {
+      // Back to how it shipped: the release's soma, the conversation kept. House rules are
+      // undone, but what was said at this table stays said.
+      const release = read('releases', install.release);
+      write('installs', b, { ...install, soma: structuredClone(release.soma), reset: (install.reset ?? 0) + 1, updated: new Date().toISOString() });
+      return {};
+    }
     if (method === 'GET') return install;
     if (method === 'PUT') { write('installs', b, { ...install, soma: body.soma, surfaces: body.surfaces, fresh: false, updated: new Date().toISOString() }); return {}; }
   }

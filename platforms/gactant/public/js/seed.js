@@ -120,6 +120,26 @@ const TOOLS = `// tools: what I can do while I'm awake. Each is
     run: (input, me, s) => s.whiteboard.pass(input.to, input.note),
   },
   {
+    // Grown by Pip on 2026-10-20, the first actant shaped here, as soon as the stage could
+    // take its input. Adopted into the seed.
+    name: 'play',
+    description: 'Play the stage like a player. steps: array of {do:"press",key,ms} | {do:"hold",key} | {do:"release",key} | {do:"point",x,y,down} | {do:"wait",ms} | {do:"look"}. You see every look, plus one at the end.',
+    input_schema: { type: 'object', properties: { steps: { type: 'array', items: { type: 'object' } } }, required: ['steps'] },
+    run: async (input, me, s) => {
+      const st = s.stage, images = [];
+      for (const a of input.steps || []) {
+        if (a.do === 'press') await st.press(a.key, a.ms ?? 100);
+        else if (a.do === 'hold') st.hold(a.key);
+        else if (a.do === 'release') st.release(a.key);
+        else if (a.do === 'point') st.point(a.x, a.y, a.down);
+        else if (a.do === 'wait') await st.wait(a.ms ?? 100);
+        else if (a.do === 'look') images.push(st.look().image);
+      }
+      const end = st.look();
+      return { text: end.text, images: [...images.slice(-3), end.image] };
+    },
+  },
+  {
     name: 'set_status',
     description: 'Set the short status line shown beside your name at the top of the frame.',
     input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },

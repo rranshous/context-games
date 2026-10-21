@@ -19,6 +19,16 @@ const MAX_TURNS = 16;
 const RESTLESS_LIMIT = 3;
 const RESULT_CHARS = 6000;
 
+// How the frame runs code sections. This is the frame's side of the bargain, so it lives
+// here rather than in the soma, where an actant rewriting its comments could erase it.
+const BODY_CONTRACT = `How the frame runs your code sections:
+- tools: a JS array of { name, description, input_schema, run(input, me, surfaces) }. run may be async. Returning { image } or { images: [...] } (data URLs) shows you pictures.
+- game: function (stage, me) returning { frame(dt), key(e), pointer(e) } (any may be missing). Called anew whenever the game section changes. stage: ctx, width, height, t, frame, size(w, h), input { keys: Set, pressed: Set (this frame), pointer { x, y, down, clicked } }.
+- hooks: function (on, me, surfaces). on(pattern, fn) listens to surface events ('chat.posted', 'stage.*', '*'). Runs anew whenever hooks changes.
+- me: name, audience, game (the running game object), wake(event), section(name).read()/.write(text), sections(), note(text), surfaces.
+- surfaces: each surface's actions, done as you: surfaces.chat.post(text), surfaces.stage.press(key, ms), and so on.
+- write_section and edit_section are always yours, whatever happens to your tools.`;
+
 const compile = (src) => new Function(`return (${src}\n)`)();
 
 export class Actant {
@@ -152,9 +162,9 @@ export class Actant {
 
         const images = [];
         for (const call of msg.tool_calls) {
-          const { text, image } = await this.runTool(call);
+          const { text, images: pics = [] } = await this.runTool(call);
           messages.push({ role: 'tool', tool_call_id: call.id, content: text });
-          if (image) images.push({ type: 'image_url', image_url: { url: image } });
+          for (const url of pics) images.push({ type: 'image_url', image_url: { url } });
         }
         const arrived = this.pending.splice(0);
         if (images.length || arrived.length) {
@@ -190,14 +200,16 @@ export class Actant {
         if (!tool) throw new Error(`no tool ${name}`);
         out = await tool.run(input, this.me, this.me.surfaces);
       }
-      let image = null;
-      if (out && typeof out === 'object' && typeof out.image === 'string' && out.image.startsWith('data:image')) {
-        image = out.image;
-        out = { ...out, image: '(shown below)' };
+      // A result may carry pictures: { image } or { images: [...] } as data URLs.
+      const images = [];
+      if (out && typeof out === 'object') {
+        const isPic = (x) => typeof x === 'string' && x.startsWith('data:image');
+        if (isPic(out.image)) { images.push(out.image); out = { ...out, image: '(shown below)' }; }
+        if (Array.isArray(out.images)) { images.push(...out.images.filter(isPic).slice(0, 4)); out = { ...out, images: `(${images.length} shown below)` }; }
       }
       const text = typeof out === 'string' ? out : JSON.stringify(out ?? null);
       this.frame.inspector.note('did', `${name} ${brief.length > 160 ? `${brief.slice(0, 160)}…` : brief}\n→ ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
-      return { text: text.slice(0, RESULT_CHARS), image };
+      return { text: text.slice(0, RESULT_CHARS), images };
     } catch (err) {
       this.frame.inspector.note('fault', `${name} ${brief.slice(0, 200)}\n→ ${err.message}`);
       return { text: JSON.stringify({ error: err.message }) };
@@ -213,8 +225,8 @@ export class Actant {
     const faults = Object.entries(this.faults).map(([k, v]) => `- ${k}: ${v}`).join('\n');
     const audience = this.frame.audience === 'shaper'
       ? 'You are being shaped. The human here is your shaper; they appear as "shaper".'
-      : 'You are installed for a player. The human here is your player; they appear as "player".';
-    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${audience}\nSurfaces in this frame:\n${surfaces}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
+      : `You are installed for a player. The human here is your player; they appear as "player".${this.frame.record.reset ? ` Your player has put you back the way you shipped ${this.frame.record.reset === 1 ? 'once' : `${this.frame.record.reset} times`}; each time, changes made at this table before then were undone, though the chat still remembers them.` : ''}`;
+    return `<soma name="${this.name}">\n${sections}\n</soma>\n\n<frame>\n${audience}\nSurfaces in this frame:\n${surfaces}\n${BODY_CONTRACT}\n${faults ? `Faults in your code sections right now:\n${faults}\n` : ''}This is your soma as it was when you woke. Edits you make while awake take effect at once; your tool results show them.\nText you write outside of tools stays with you; nobody else sees it.\n</frame>`;
   }
 
   toolSchemas() {

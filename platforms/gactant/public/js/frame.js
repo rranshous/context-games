@@ -75,7 +75,17 @@ class Frame {
 
   mountActions(root, main) {
     const peek = el('button', { class: 'top-btn', onclick: () => main.classList.toggle('peek') }, 'inside');
-    if (this.audience === 'player') { root.append(peek); return; }
+    if (this.audience === 'player') {
+      const shipped = el('button', { class: 'top-btn', title: 'undo every house rule: the game as it was released', onclick: async () => {
+        if (!confirm(`Put ${this.actant.name} back the way it shipped? Every change asked for here is undone; the chat stays.`)) return;
+        clearTimeout(this.saveTimer);
+        await this.save();
+        await api('POST', `installs/${this.recordId}/reset`);
+        location.reload();
+      } }, 'as shipped');
+      root.append(shipped, peek);
+      return;
+    }
     const checkpoint = el('button', { class: 'top-btn', onclick: async () => {
       const label = prompt('Checkpoint label (optional):', '');
       if (label === null) return;
@@ -121,6 +131,8 @@ async function boot() {
   frame.mount();
   frame.start();
   installExplorer(frame);
+  const brief = new URLSearchParams(location.search).get('shard');
+  if (brief) window.explorer.shard(brief).then((r) => console.log('[shard]', r));
 }
 
 boot().catch((err) => {

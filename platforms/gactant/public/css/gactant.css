@@ -110,6 +110,7 @@ input:focus, textarea:focus { outline: 1px solid var(--amber); border-color: var
 .doing.wake .doing-kind { color: var(--violet); }
 .doing.fault pre, .doing.fault .doing-kind { color: var(--red); }
 .doing.changed .doing-kind { color: var(--amber); }
+.doing.shard .doing-kind { color: var(--green); }
 .boot-fault { color: var(--red); padding: 20px; }
 
 /* ---------- lobby ---------- */
