@@ -815,3 +815,39 @@ Both gaps from the naming change, fixed at Robby's request:
 Also in the lobby: **Tialina, "seeded by fast paced racer"**, not mine. Probably Robby. If
 "fast paced racer" was meant as a game idea, the lobby's "you are" box reads like the old
 "name a new one" box. Asked him.
+
+### The board comes with the turn
+
+Robby asked whether a ludant gets the image of the whiteboard on its turn. It didn't: a
+`whiteboard.turn` event carried only text (from, to, note). The ludant had to *decide* to
+call `look_at_whiteboard`, which cost an extra round trip, and nothing made it look at all.
+Robby's rule: **every turn carries the picture if the board changed; message-only turns
+don't.**
+
+The whiteboard now keeps a revision (up with every mark, undo, clear and human stroke) and
+the revision each person last saw, by looking or by receiving a turn. On a pass, if the
+board changed since the recipient last saw it, the event gets `image` (a data URL).
+Whoever passes is marked as having seen it. This is in the frame, so it works for every
+ludant without a seed change. The think loop shows any picture a wake event brings as an
+image right after the events ("The picture that came with whiteboard.turn:"). In the event
+text it shows as `picture="attached"`, never as bytes. Renames carry the seen map along.
+
+Tested against a stand-in recipient: a first sketch came with a picture; a message-only
+pass came as text only; a pass after adding a word came with a picture. Then for real: I
+sketched a ball on a ground line and two green spikes, and passed with "what if some
+obstacles came in pairs like this? just tell me what you see." Elodon-Hop-Again, with no
+look call:
+
+> I see an orange ball on a dark ground line at the left. On the right there are two green
+> triangular spikes, close together with a small gap between them. It looks like a pair of
+> obstacles for the ball to clear. A pair like that would need one long hop, or two quick
+> ones.
+
+**And then it passed the baton back**, with a note. That's the first ludant to do it.
+The per-viewer baton description from part 2 ("…who is waiting for you to pass it back")
+seems to have done its job. 3¢.
+
+Side note from Robby: what's the max output per inference turn? It's 8,000 tokens per call
+(the relay's default), with up to 16 calls per wake (40 for a shard). It's been enough so
+far; the biggest single write was ~3k tokens. A ludant rewriting a big game in one
+`write_section` could hit the cap and truncate the tool call. Raising it is one line.

@@ -165,7 +165,7 @@ export class Actant {
     if (this.thinking || !this.pending.length || this.asleepForever) return;
     this.thinking = true;
     this.frame.status.setLife('thinking');
-    const messages = [{ role: 'user', content: eventsBlock(this.pending.splice(0)) }];
+    const messages = [{ role: 'user', content: eventsContent(this.pending.splice(0)) }];
     // The soma is shown as it was on waking. Re-rendering it after every edit made the
     // actant read its own fresh edits as code that had always been there.
     const system = [{ type: 'text', text: this.systemText(), cache_control: { type: 'ephemeral' } }];
@@ -190,9 +190,10 @@ export class Actant {
         }
         const arrived = this.pending.splice(0);
         if (images.length || arrived.length) {
+          const meanwhile = arrived.length ? eventsContent(arrived, 'Meanwhile:\n') : [];
           messages.push({ role: 'user', content: [
             ...(images.length ? [{ type: 'text', text: 'What you looked at:' }, ...images] : []),
-            ...(arrived.length ? [{ type: 'text', text: `Meanwhile:\n${eventsBlock(arrived)}` }] : []),
+            ...meanwhile,
           ] });
         }
       }
@@ -291,13 +292,26 @@ function withCacheMark(messages) {
 // ---------- events as the actant reads them ----------
 
 const BODY = ['text', 'note', 'message'];
+const PICTURE = 'image';
+
+/** Events as message parts: the events as text, then any pictures they brought. */
+function eventsContent(events, lead = '') {
+  const parts = [{ type: 'text', text: lead + eventsBlock(events) }];
+  for (const e of events) {
+    if (typeof e?.[PICTURE] === 'string' && e[PICTURE].startsWith('data:image')) {
+      parts.push({ type: 'text', text: `The picture that came with ${e.type}:` }, { type: 'image_url', image_url: { url: e[PICTURE] } });
+    }
+  }
+  return parts;
+}
 
 function eventsBlock(events) {
   return events.map((e) => {
-    const attrs = Object.entries(e).filter(([k, v]) => k !== 'at' && !BODY.includes(k) && v != null && typeof v !== 'object' && v !== '')
+    const attrs = Object.entries(e).filter(([k, v]) => k !== 'at' && k !== PICTURE && !BODY.includes(k) && v != null && typeof v !== 'object' && v !== '')
       .map(([k, v]) => `${k}="${String(v).replace(/"/g, '&quot;')}"`).join(' ');
     const body = BODY.map((k) => e[k]).filter(Boolean).join('\n');
-    return body ? `<event ${attrs}>\n${body}\n</event>` : `<event ${attrs}/>`;
+    const pic = typeof e[PICTURE] === 'string' ? ' picture="attached"' : '';
+    return body ? `<event ${attrs}${pic}>\n${body}\n</event>` : `<event ${attrs}${pic}/>`;
   }).join('\n');
 }
 

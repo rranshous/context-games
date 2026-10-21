@@ -15,7 +15,8 @@
 //   look() -> { text, image }   a picture of the board and a short account of it
 // events
 //   whiteboard.drew   { who, count }
-//   whiteboard.turn   { from, to, note }
+//   whiteboard.turn   { from, to, note, image? }   image (a data URL) only if the board changed
+//                                              since `to` last saw it; a message-only turn has none
 //   whiteboard.cleared { who }
 //   whiteboard.looked { who }   someone took a look (so the others know their sketch was seen)
 
@@ -30,6 +31,8 @@ export class Whiteboard {
   constructor(frame) {
     this.frame = frame;
     this.items = [];
+    this.rev = 0;          // goes up with every mark, undo and clear
+    this.seen = {};        // who -> the rev they last saw (by looking, or with a turn)
     this.baton = null;     // who the board is handed to, or null if nobody in particular
     this.note = '';
     this.color = PALETTE[0];
@@ -38,6 +41,7 @@ export class Whiteboard {
       if (this.baton === from) this.baton = to;
       if (this.batonFrom === from) this.batonFrom = to;
       if (this.lastLook?.who === from) this.lastLook.who = to;
+      if (from in this.seen) { this.seen[to] = this.seen[from]; delete this.seen[from]; }
       for (const it of this.items) if (it.by === from) it.by = to;
       this.renderBaton();
     }, 'whiteboard');
@@ -71,6 +75,7 @@ export class Whiteboard {
       added.push(item);
     }
     this.items.push(...added);
+    this.rev++;
     this.paint();
     this.frame.bus.emit('whiteboard.drew', { who, count: added.length });
     this.frame.changed();
@@ -79,7 +84,7 @@ export class Whiteboard {
 
   undo(who) {
     for (let i = this.items.length - 1; i >= 0; i--) {
-      if (this.items[i].by === who) { this.items.splice(i, 1); break; }
+      if (this.items[i].by === who) { this.items.splice(i, 1); this.rev++; break; }
     }
     this.paint();
     this.frame.changed();
@@ -88,6 +93,7 @@ export class Whiteboard {
 
   clear(who) {
     this.items = [];
+    this.rev++;
     this.paint();
     this.frame.bus.emit('whiteboard.cleared', { who });
     this.frame.changed();
@@ -98,22 +104,31 @@ export class Whiteboard {
     this.baton = to;
     this.batonFrom = from;
     this.note = note;
+    this.seen[from] = this.rev;   // whoever passes it has just seen it
+    // The board comes with the turn only if it changed since `to` last saw it.
+    const changed = (this.seen[to] ?? -1) !== this.rev;
+    const image = changed ? this.picture() : undefined;
+    if (changed) this.seen[to] = this.rev;
     this.renderBaton();
-    this.frame.bus.emit('whiteboard.turn', { from, to, note });
+    this.frame.bus.emit('whiteboard.turn', { from, to, note, ...(image ? { image } : {}) });
     this.frame.changed();
     return { baton: to };
   }
 
-  look(who) {
-    if (who) { this.lastLook = { who, at: Date.now() }; this.renderBaton(); this.frame.bus.emit('whiteboard.looked', { who }); }
-    // Draw onto a fresh canvas so a look works even when the board isn't mounted.
+  /** The board as a picture, drawn fresh so it works even when the board isn't mounted. */
+  picture() {
     const c = document.createElement('canvas');
     c.width = W * 8; c.height = H * 8;
     this.paintTo(c.getContext('2d'), 8);
+    return c.toDataURL('image/png');
+  }
+
+  look(who) {
+    if (who) { this.lastLook = { who, at: Date.now() }; this.seen[who] = this.rev; this.renderBaton(); this.frame.bus.emit('whiteboard.looked', { who }); }
     const texts = this.items.filter((i) => i.type === 'text').map((i) => `"${i.text}" (${i.by})`);
     return {
       text: `${this.describe()}${texts.length ? ` Words on the board: ${texts.join(', ')}.` : ''}${this.note ? ` Note with the baton: "${this.note}".` : ''}`,
-      image: c.toDataURL('image/png'),
+      image: this.picture(),
     };
   }
 
@@ -175,6 +190,7 @@ export class Whiteboard {
     const end = () => {
       if (!stroke) return;
       stroke = null;
+      this.rev++;
       this.frame.bus.emit('whiteboard.drew', { who: this.frame.seat, count: 1 });
       this.frame.changed();
     };
@@ -223,6 +239,6 @@ export class Whiteboard {
     }
   }
 
-  toJSON() { return { items: this.items, baton: this.baton, batonFrom: this.batonFrom, note: this.note, lastLook: this.lastLook }; }
-  load(json) { this.items = json?.items ?? []; this.baton = json?.baton ?? null; this.note = json?.note ?? ''; this.lastLook = json?.lastLook ?? null; this.batonFrom = json?.batonFrom ?? null; }
+  toJSON() { return { items: this.items, rev: this.rev, seen: this.seen, baton: this.baton, batonFrom: this.batonFrom, note: this.note, lastLook: this.lastLook }; }
+  load(json) { this.items = json?.items ?? []; this.baton = json?.baton ?? null; this.note = json?.note ?? ''; this.lastLook = json?.lastLook ?? null; this.batonFrom = json?.batonFrom ?? null; this.rev = json?.rev ?? 0; this.seen = json?.seen ?? {}; }
 }
