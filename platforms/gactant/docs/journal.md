@@ -912,3 +912,9 @@ It had hit 8,000 tokens and been cut off mid-write, so it had to write the game 
 Also from the logs: **Tialina** (seeded by "fast paced racer", the "you are" box mix-up)
 took the name as a brief. "Since you seeded me as a racer, I made a first pass: a
 pseudo-3D arcade racer." That's a nice misreading.
+
+Robby on the reminder: "the nudge post to chat is exactly the type of embodiment details
+i'm looking for." That's the pattern to keep: when a ludant slips the same way again and
+again, the frame gives it one piece of perception at the exact moment, phrased as
+information ("the person can't see what you just wrote"), not a rule in its soma. It can
+still choose otherwise.
