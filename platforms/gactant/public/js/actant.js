@@ -193,7 +193,7 @@ export class Actant {
         out = { ...out, image: '(shown below)' };
       }
       const text = typeof out === 'string' ? out : JSON.stringify(out ?? null);
-      this.frame.inspector.note('did', `${name} ${brief.length > 300 ? `${brief.slice(0, 300)}…` : brief}\n→ ${text.slice(0, 300)}`);
+      this.frame.inspector.note('did', `${name} ${brief.length > 160 ? `${brief.slice(0, 160)}…` : brief}\n→ ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
       return { text: text.slice(0, RESULT_CHARS), image };
     } catch (err) {
       this.frame.inspector.note('fault', `${name} ${brief.slice(0, 200)}\n→ ${err.message}`);

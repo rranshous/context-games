@@ -200,7 +200,8 @@ export class Whiteboard {
     const seat = this.frame.seat, other = this.frame.actant?.name ?? 'the actant';
     this.batonEl.replaceChildren();
     if (this.baton && this.baton !== seat) {
-      this.batonEl.append(el('span', { class: 'wb-turn' }, `${this.baton}'s turn`));
+      this.batonEl.append(el('span', { class: 'wb-turn' }, `${this.baton}'s turn`),
+        el('button', { class: 'wb-btn', onclick: () => this.pass(this.baton, seat, '') }, 'take it back'));
     } else {
       const note = el('input', { class: 'wb-note', placeholder: 'note (optional)' });
       this.batonEl.append(note, el('button', { class: 'wb-btn primary', onclick: () => this.pass(seat, other, note.value) }, `your turn, ${other} →`));

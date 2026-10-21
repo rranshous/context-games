@@ -4,8 +4,7 @@
 
 export function installExplorer(frame) {
   const stage = frame.stage;
-  const keyDown = (k) => { if (!stage.input.keys.has(k)) { stage.input.pressed.add(k); frame.bus.emit('stage.key', { key: k, down: true }); } stage.input.keys.add(k); };
-  const keyUp = (k) => { stage.input.keys.delete(k); frame.bus.emit('stage.key', { key: k, down: false }); };
+  const act = stage.actions(frame.seat);
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   window.explorer = {
@@ -17,14 +16,11 @@ export function installExplorer(frame) {
     pass: (note = '') => frame.whiteboard.pass(frame.seat, frame.actant.name, note),
     board: () => frame.whiteboard.look(),
     look: () => stage.look(),
-    hold: keyDown,
-    release: keyUp,
-    async press(key, ms = 80) { keyDown(key); await wait(ms); keyUp(key); },
-    click(x, y) {
-      Object.assign(stage.input.pointer, { x, y, down: true, clicked: true });
-      frame.bus.emit('stage.pointer', { x, y, kind: 'down' });
-      setTimeout(() => { stage.input.pointer.down = false; frame.bus.emit('stage.pointer', { x, y, kind: 'up' }); }, 50);
-    },
+    hold: act.hold,
+    release: act.release,
+    press: act.press,
+    point: act.point,
+    async click(x, y, ms = 60) { act.point(x, y, true); await wait(ms); act.point(x, y, false); },
     /** Read the game's own state if it chose to expose one as game.state. */
     gameState: () => frame.actant.game?.state,
     state: () => ({

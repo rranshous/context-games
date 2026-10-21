@@ -10,6 +10,11 @@
 // actions (as an actor)
 //   look() -> { text, image }   a picture of the stage right now
 //   restart()                   clear a halt and reset the clock
+//   press(key, ms = 100)        hold a key for a while, as if on the keyboard (resolves after)
+//   hold(key) / release(key)    hold a key down until released
+//   point(x, y, down?)          move the pointer to stage coordinates; down: true/false presses or lifts
+//   wait(ms)                    let the stage run
+// Input actions are the same input a human gives, so anyone in the frame can playtest.
 // events
 //   stage.frame    { dt, t, frame }      every display frame while running
 //   stage.key      { key, down }
@@ -44,11 +49,38 @@ export class Stage {
 
   describe() {
     const state = this.halted ? `HALTED by an error: ${this.halted}` : `running at ${Math.round(this.fps)} fps`;
-    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}.`;
+    return `stage: a ${this.width}×${this.height} canvas with a frame clock and keyboard/pointer input, ${state}. Anyone in the frame can give it input as a player would (actions: press(key, ms), hold(key), release(key), point(x, y, down), wait(ms), look(), restart()).`;
   }
 
   actions() {
-    return { look: () => this.look(), restart: () => this.restart() };
+    const wait = (ms) => new Promise((r) => setTimeout(r, Math.max(0, Math.min(10000, ms))));
+    return {
+      look: () => this.look(),
+      restart: () => this.restart(),
+      hold: (key) => { this.keyDown(String(key).toLowerCase()); return { held: [...this.input.keys] }; },
+      release: (key) => { this.keyUp(String(key).toLowerCase()); return { held: [...this.input.keys] }; },
+      press: async (key, ms = 100) => { const k = String(key).toLowerCase(); this.keyDown(k); await wait(ms); this.keyUp(k); return { pressed: k, ms }; },
+      point: (x, y, down) => this.point(x, y, down),
+      wait: async (ms) => { await wait(ms); return { waited: ms }; },
+    };
+  }
+
+  keyDown(k) {
+    if (!this.input.keys.has(k)) { this.input.pressed.add(k); this.frame.bus.emit('stage.key', { key: k, down: true }); }
+    this.input.keys.add(k);
+  }
+
+  keyUp(k) {
+    this.input.keys.delete(k);
+    this.frame.bus.emit('stage.key', { key: k, down: false });
+  }
+
+  point(x, y, down) {
+    const p = this.input.pointer;
+    p.x = x; p.y = y;
+    if (down === true && !p.down) { p.down = true; p.clicked = true; this.frame.bus.emit('stage.pointer', { x, y, kind: 'down' }); }
+    if (down === false && p.down) { p.down = false; this.frame.bus.emit('stage.pointer', { x, y, kind: 'up' }); }
+    return { x, y, down: p.down };
   }
 
   size(w, h) {
@@ -91,14 +123,13 @@ export class Stage {
     root.append(wrap);
     this.wrap = wrap;
 
-    const key = (e) => (e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase());
+    const key = (e) => e.key.toLowerCase();
     wrap.addEventListener('keydown', (e) => {
       const k = key(e);
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
-      if (!this.input.keys.has(k)) { this.input.pressed.add(k); this.frame.bus.emit('stage.key', { key: k, down: true }); }
-      this.input.keys.add(k);
+      if (!e.repeat) this.keyDown(k);
     });
-    wrap.addEventListener('keyup', (e) => { const k = key(e); this.input.keys.delete(k); this.frame.bus.emit('stage.key', { key: k, down: false }); });
+    wrap.addEventListener('keyup', (e) => this.keyUp(key(e)));
     wrap.addEventListener('blur', () => this.input.keys.clear());
     const at = (e) => {
       const r = this.canvas.getBoundingClientRect();

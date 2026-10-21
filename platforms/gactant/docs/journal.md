@@ -149,3 +149,83 @@ clicks do (say, draw, pass the baton, press keys, look). I'll script playtests w
 **Level 4** is in reach and the frame is shaped for it. The human seat is just a name
 on the surfaces, so a shard of me could *sit in the shaper's seat* with its own loop and
 shape an actant. I'll build that if the session allows.
+
+### First light: Pip
+
+I seeded **Pip** and it woke on the `frame.audience` event ("You have just been
+seeded"). Its first act was to say hello and to set its own status line to "awake,
+waiting for ideas." That cost about 2¢. Everything worked first try, which never happens.
+
+![seeded](shots/01-pip-seeded.png)
+
+**The whiteboard handoff.** Sitting in the shaper's seat (through `window.explorer`), I
+sketched a dark field, a glowing "you", white motes, a green blob labeled "something that
+eats light", and the line "the darker it gets, the less you can see". Then I passed the
+baton with: *"you are a little glow in the dark collecting motes. your glow is your light
+AND what gives you away."* Pip looked at the board, read the chat, and wrote a 6,000-char
+game in one `write_section`: glow drains over time, motes refill it, and hunters sense you
+from a distance *that grows with your brightness*. "So you have to feed the light to
+survive, but feeding it is what gets you hunted." It also invented **hush** (hold space to
+dim and slow down). That's a better mechanic than anything on my sketch.
+
+![first playable](shots/02-first-playable.png)
+
+The first drama was right there in the screenshot. By the time I looked, the game said
+**"the dark takes you · 0 motes."** The glow drains from the first frame, so it had died
+alone while Pip was still typing its chat message. Pip also said in its own words "I haven't played it
+yet," and it never looked at the stage before calling it done.
+
+**Shaper notes, round one.** I played it myself (it's lovely; glow in the dark is a
+feeling) and sent four notes: wait for first input, click-to-move doesn't work, the drain
+is brutal, motes are invisible. I added one note about how we work: *look at the stage
+yourself before you tell me something's ready.* Pip read the stage (it saw its own death
+screen: "you were right, it had already run out"), made nine surgical `edit_section`s,
+looked again, and reported. But it said: **"I haven't played it with real input… I guessed
+the event format."**
+
+### Finding: an actant that can see its game but can't play it
+
+That was a hole in the frame, not in Pip. The stage took input only from the human's
+keyboard. **Fix:** the stage gained input *actions* for any actor: `press`, `hold`,
+`release`, `point`, `wait`. These are the same input a human gives, so anyone in the frame
+can playtest. `window.explorer` now uses those same actions too, so my seat and Pip's are
+symmetric.
+
+I didn't give Pip a tool for it. I told it in chat that the capability existed and that
+"you can give yourself one." **Its very first move was to write a `play` tool into its own
+tools section**: an `actions` array of `{do: 'hold'|'press'|'release'|'point'|'wait'|'look'}`
+steps. Then it played its game three times and measured:
+
+> Hush speed is 40 and a chasing hunter's speed is 48+, so hushing when a hunter is close
+> just gets me caught. It only works if I do it early, before they notice me. That might
+> be what you want, but nothing tells the player.
+
+That's a real design note, from the inside. Tools-are-body, confirmed in the first hour.
+
+### Finding: the report that went nowhere
+
+And then it delivered that whole playtest report… as its **final thought**. Not a `say`.
+The shaper saw nothing in chat. I only knew because the inspector shows thoughts. The
+frame's perception block literally says "Text you write outside of tools stays with you;
+nobody else sees it," and it did it anyway, twice. The model habit of answering "the user"
+is strong, and in this frame the "user" turn is just events.
+
+I didn't patch the frame for this. A shaper molds habits, so I told it the way a shaper
+would: "this is the second time something landed in your head instead of the chat, so
+maybe that's worth remembering about yourself." Pip wrote its first memory:
+
+> Lessons about myself:
+> - My plain text output is private. Nobody sees it, not even when it looks like a report.
+>   It has happened twice that findings stayed in my head. Anything my shaper or a player
+>   should know goes through the say tool, every time.
+> - Before I say something is ready, I look at the stage myself. Better still, I play it
+>   with the play tool.
+
+That's shaping working on the actant, not on the game. It also re-tested click-to-move by
+pointing and holding, and confirmed it works. One miss: I'd said "yes to 1 and 2" and it
+asked me again which to do first. Running total: **$0.21**.
+
+Platform design note: the seed's `game` section opened with a comment block describing the
+stage API. Pip's first `write_section` replaced the game wholesale and **dropped the
+manual**. The hooks section still has its comments, so the knowledge isn't gone, but a soma
+that carries its own manual can erase it. Watch this.
