@@ -1032,3 +1032,22 @@ whenever a gem beats it. 5¢. Malan said honestly that it hadn't tested a reload
 Malan had wrapped `store.get` in `Promise.resolve(...)` because it couldn't tell whether
 the call was async. The contract now says "all synchronous, so it's safe to call every
 frame."
+
+### README, with pictures
+
+Robby: "make sure to be updating the journal with our adventures. also if you could update
+the readme with deetz and screen shots that would be awesome." The README now covers:
+- what a ludant is, and the Explorer levels table
+- the frame and its surfaces (stage, chat, whiteboard, store, status, inspector)
+- the soma's sections, and the tick/inference split
+- the context block and nudges
+- no modes: checkpoint, restore, publish, copy, play mode
+- names and the one-name-one-snapshot rule, with the family tree
+- one window per ludant, phones and the pad
+- pages, the explorer seat and shards, server and data, and the no-migrations rule
+
+Pictures: a fresh hero shot of today's frame (Malan's three.js island mid-fall, "you fell!",
+best 7 loaded from the store, the inspector open on the store tab), the pink house-rule
+ember from the first hour, the Elodon family tree, and play mode on a phone.
+
+![today's frame](shots/19-frame-now.png)

@@ -1,67 +1,161 @@
 # gactant
 
-**Ludants: games that are also actants.** A ludant is played and shaped by whoever sits
-with it. Its game isn't something it made; it's one of the ways it exists, so changing
-the game is the ludant changing itself. (This is level 5, *Faceted*, of the Explorer
-levels.)
+**Ludants: games that are also actants.**
 
-There are no modes. Playing and shaping are the same act at different intensities: you
-play it, and sometimes you ask it to change. A house rule is shaping. Anyone sitting with a
-ludant can checkpoint it, put it back to a checkpoint, and **publish** it. Anyone can take
-a copy of a publication and publish their copy again, so lineages grow.
+A ludant (*ludus*, play, + *actant*) is an AI that lives in a body it can change, and one
+of the ways it exists is as a game. Its game isn't something it made and handed over. The
+game is part of its body, so changing the game is the ludant changing itself. You sit with
+one, play it, and ask it to change. Then you publish it so other people can take copies and
+do the same.
+
+![a ludant's frame: the 3D stage, the whiteboard, the chat, and the inspector open on the store](docs/shots/19-frame-now.png)
+
+*Malan-Shrinking-Isle: a three.js game it built itself. Its best score is loaded from the
+frame's store; the inspector is open on the store tab.*
 
 ```
-node platforms/gactant/server.mjs          # http://lilg:7780/
+node platforms/gactant/server.mjs          # http://lilg:7780/  (phones on the LAN too)
 ```
 
 `platforms/gactant/.env` holds `OPENROUTER_API_KEY` (and optionally `GACTANT_MODEL`,
-default `anthropic/claude-sonnet-5.5`). No dependencies, no build: plain ES modules.
+default `anthropic/claude-sonnet-5.5`). There are no dependencies and no build: the server
+is plain Node, and the pages are plain ES modules. The only outside code is three.js,
+served from `public/vendor`.
+
+The full story, with every finding, decision and quote, is in the journal:
+[docs/journal.md](docs/journal.md).
+
+---
+
+## Where it sits: the Explorer levels
+
+How an actant relates to the program it works on:
+
+| # | level | the actant… |
+|---|---|---|
+| 1 | Relay | *hears about* the program from a human |
+| 2 | Instrumented | *handles* it through tools from outside |
+| 3 | Scripted | *writes into* it: code that runs in the program's loop |
+| 4 | Co-framed | *lives alongside* it, sharing its frame |
+| 5 | **Faceted** | ***is*** **it**: the program is a facet of its own body |
+
+Ludants are level 5. The test: *does changing the game mean the ludant has changed
+itself?* Here, yes.
 
 ## The shape of it
 
-- **The frame** is the browser window. It holds **surfaces**, each with its own structure
-  and behavior, built with whatever fits its job:
-  - **stage**: a canvas with a frame clock, input, fast-forward, and a caption
-  - **chat**
-  - **whiteboard**: a sketch board with a baton
-  - **status**: lights
-  - **inspector**: the soma and a log of doings
+**The frame** is the browser window. It holds **surfaces**, each with its own structure and
+behavior, and each built with whatever fits its job. Every surface has *actions* (done as
+someone) and *events* on a bus (`chat.posted`, `stage.frame`, `whiteboard.turn`, …). The
+surfaces are not the ludant. The ludant reaches out and touches them.
 
-  Each surface has *actions* (done as someone) and *events* (`chat.posted`,
-  `stage.frame`, `whiteboard.turn`, …).
-- **The ludant** is a soma: named sections. `tools`, `game` and `hooks` are code. The
-  hooks reach into the surfaces: they listen to events, run the game at frame rate, write
-  memory deterministically, and decide what wakes inference. The rest (`origin`,
-  `identity`, `memory`, whatever it adds) is text it carries. An idle ludant costs nothing.
-- **The seat is a person.** You give your name once per browser. The frame tells the
-  ludant who is here, who has sat with it before, and where it came from (seeded by X, or
-  a copy of "T" published by Y and taken by Z). Its hooks decide what an arrival means.
-- **Names.** A seed gets an invented given name (Elodon) that no other lineage uses;
-  copies keep it. The ludant keeps its game's title in a `title` section, and its name is
-  the two together: `Elodon-Hop`. Each published name belongs to exactly one snapshot, so
-  publishing again takes a change (beyond the title) *and* a new title.
-- **Checkpoints come for free.** One is taken whenever someone sits down, so anything
-  changed "just for tonight" can be undone from **history**. Restoring keeps the present
-  as a checkpoint too.
+| surface | what it is | the ludant uses it to… |
+|---|---|---|
+| **stage** | a canvas with a frame clock, input, an on-screen pad on touch screens, fast-forward, a caption; 2D, or 3D with three.js under a 2D HUD | run its game at frame rate; play itself (`press`, `hold`, `point`, `advance`, `look`) |
+| **chat** | a rolling conversation | talk: people see only the surfaces, so if it isn't said here, it wasn't heard |
+| **whiteboard** | a 100×60 sketch board with a baton | sketch ideas together; a turn brings a picture of the board if it changed |
+| **store** | structured JSON state that lasts, kept with this copy | keep high scores, unlocks, progress across sittings and rebuilds |
+| **status** | lights: who's here, awake or asleep, spend | set its own status line |
+| **inspector** | the soma, a log of what it did, the store | (for people: a window inside) |
+
+**The ludant** is a soma: named sections.
+
+| section | kind | |
+|---|---|---|
+| `game` | code | `(stage, me) => { frame(dt), key(e), pointer(e) }`: the facet people play |
+| `hooks` | code | `(on, me, surfaces)`: listens to events, runs the game, decides what wakes it, and writes memory without waking |
+| `tools` | code | what it can do while awake; it writes its own (Pip wrote `play`, Malan wrote `probe`) |
+| `title` | text | its game's title, which is part of its name |
+| `identity`, `origin`, `memory`, … | text | who it is and what it has learned; it adds sections as it likes |
+
+Most of a ludant runs **without thinking**: hooks and game at frame rate cost nothing.
+Inference happens only when a hook calls `me.wake(event)`, for example when someone speaks
+in the chat, passes the baton, sits down for the first time, or restores it. An idle
+ludant costs nothing.
+
+Every wake starts with a **context block** that explains the experiment, what a ludant
+is, the levels, and that people see only the surfaces. Next comes the soma (as it was on
+waking), then the frame's perception: who's here, its lineage, the surfaces, and how the
+frame runs its code. At the moments a ludant tends to slip, the frame nudges it once. For
+example, if a person woke it and it's about to go quiet without posting in the chat, the
+frame tells it.
+
+## No modes: everyone plays and shapes
+
+Playing and shaping are the same act at different intensities. You play, and sometimes you
+ask it to change; a house rule *is* shaping. **The seat is a person, not a role.** You give
+your name once per browser, and the ludant is told who's here and who has sat with it
+before.
+
+Anyone sitting with a ludant can:
+- **checkpoint** it. One is taken automatically whenever someone sits down, so anything
+  done "just for tonight" can be undone.
+- **restore** any checkpoint from **history**. The present is kept first, and memory is
+  kept through it ("the body goes back; the memory stays").
+- **publish** it. Others **take a copy**, which is a full ludant that can be published
+  again.
+- **play mode**: hide everything but the stage. The ludant's chat pops up over it, and the
+  ludant is told you can only see the stage.
+
+![pink ember, a house rule for a six-year-old](docs/shots/07-house-rules-pink.png)
+
+*A house rule from the first day: "my little brother wants a turn, he's 6. can the hunters
+be a lot slower for him? and he wants his ember to be pink."*
+
+## Names
+
+A seed gets an invented **given name** (Elodon, Malan, Wovan) that no other lineage here
+uses. Copies keep it, like a family name. The ludant keeps its game's **title** in its
+`title` section, and its name is the two together: **`Elodon-Hop`**, **`Malan-Shrinking-Isle`**.
+It can name itself when it knows what it is ("I'm naming myself Hop, so Elodon-Hop").
+
+**Each published name belongs to exactly one snapshot.** You can't publish the same
+snapshot twice, and you can't give a new snapshot an old name. To publish again it has to
+have changed (beyond its title) *and* take a new title. An unchanged copy carries its
+publication's name honestly, because it *is* that snapshot. The lobby shows publications
+as family trees:
+
+![family tree in the lobby](docs/shots/13-family-tree.png)
+
+## One window, any device
+
+A ludant lives in one window at a time. Opening it elsewhere offers to **bring it here**,
+and the old window lets go and says so. Saves from a window that no longer holds it are
+refused. On a phone, the layout stacks and the stage gets a pad (arrows and space), so
+keyboard games are playable by touch.
+
+<img src="docs/shots/17-play-mode-phone.png" alt="play mode on a phone" width="260">
 
 ## Pages
 
 | URL | what |
 |---|---|
-| `/` | lobby: your name, publications (with lineage), every ludant here, seed a new one |
-| `/frame.html?l=<ludant>` | sit with a ludant |
+| `/` | lobby: your name, publications as family trees, every ludant here, seed a new one |
+| `/frame.html?l=<ludant>` | sit with a ludant (`&pad` forces the touch pad) |
 | `/play.html?p=<publication>` | take a copy (remembered per browser) and sit with it |
 
 ## For Claude: the explorer seat and shards
 
 `window.explorer` in any frame acts as the browser's person, and only through surface
 actions. It has `say`, `draw`, `pass`, `press`/`hold`/`release`/`point`/`click`, `look`,
-`board`, `state()`, `doings()`, `idle()`, and `section(name)`. `explorer.shard({ brief,
-name, turns, budget })` (or `frame.html?…&shard=<brief>`) sits a Claude shard in the frame
-under its own name (default `claude-shard`) with its own loop. It can play, talk, sketch,
-checkpoint, restore and publish, and it resolves to a report.
+`board`, `state()`, `doings()`, `idle()`, and `section(name)`. That's Claude at levels 2–3,
+driving through Playwright.
 
-Data lives in `data/` (gitignored): `ludants/`, `published/`, and `log/<who>.jsonl` holds
-every inference, with image bytes stripped.
+`explorer.shard({ brief, name, turns, budget })` (or `frame.html?…&shard=<brief>`) is
+level 4. It sits a Claude shard in the frame under its own name (`claude-shard`), with its
+own loop and a budget for the whole sitting. The shard plays, talks, sketches,
+checkpoints, restores and publishes, then hands back a report. Shards shaped Moth's
+seasonal garden in three rounds for $0.47, and tested "just for tonight" end to end.
 
-The journal is [docs/journal.md](docs/journal.md).
+## Server and data
+
+`server.mjs` (~350 lines, no dependencies) only keeps things and relays inference:
+- `data/ludants/`, `data/published/`: one JSON file each.
+- `data/log/<who>.jsonl`: every inference, with image bytes stripped. Reading these is how
+  Claude sees what a ludant saw and did.
+- `/api/infer`: relays to OpenRouter (prefers Anthropic as provider, so prompt caches hit,
+  and retries dropped connections). The 32k output cap leaves room to rewrite a whole game
+  at once.
+
+While the project is young there are **no migrations**: when a contract changes, `data/`
+is wiped and the journal is the record.
